@@ -1,14 +1,18 @@
 # KEP: Cluster Infrastructure Abstraction
 
-**Authors**: KubeVela Maintainers
+**Authors**: Anoop Gopalakrishnan
 **Status**: Draft
-**Created**: 2024-12-24
-**Last Updated**: 2024-12-24
+**Created**: 2025-12-24
+**Last Updated**: 2026-01-03
 
 ## Table of Contents
 
 - [Introduction](#introduction)
 - [Background](#background)
+  - [The Problem with Application-Centric Only](#the-problem-with-application-centric-only)
+  - [What Platform Teams Need](#what-platform-teams-need)
+  - [Relationship to Existing Multi-Cluster Architecture](#relationship-to-existing-multi-cluster-architecture)
+  - [Controller Ownership Model (Circular Reference Prevention)](#controller-ownership-model-circular-reference-prevention)
 - [Goals](#goals)
 - [Non-Goals](#non-goals)
 - [Proposal](#proposal)
@@ -16,10 +20,16 @@
     - [Cluster](#1-cluster)
     - [ClusterPlane](#2-clusterplane)
     - [ClusterPlane Versioning Strategy](#clusterplane-versioning-strategy)
+    - [ClusterPlaneRevision CRD](#clusterplanerevision-crd)
+    - [Cross-Cluster Dependency Handling](#cross-cluster-dependency-handling)
+    - [ClusterPlane Workflow and Deployment Order](#clusterplane-workflow-and-deployment-order)
     - [ClusterBlueprint](#3-clusterblueprint)
     - [ClusterBlueprint Versioning Strategy](#clusterblueprint-versioning-strategy)
+    - [Version Constraint Resolution](#version-constraint-resolution)
+    - [ClusterBlueprintRevision CRD](#clusterblueprintrevision-crd)
     - [ClusterRollout (Optional)](#4-clusterrollout-optional---for-emergencymanual-overrides)
     - [ClusterRolloutStrategy](#5-clusterrolloutstrategy)
+    - [Maintenance Window Enforcement](#maintenance-window-enforcement)
   - [Cluster Lifecycle Management](#cluster-lifecycle-management)
     - [Mode 1: Provision](#mode-1-provision---create-new-cluster)
     - [Mode 2: Adopt](#mode-2-adopt---take-over-existing-cluster)
@@ -53,13 +63,39 @@ This KEP proposes a new set of CRDs that bring OAM's abstraction model to **clus
 3. Enable different platform sub-teams to own their domain (networking team owns ingress, security team owns policies)
 4. Roll out infrastructure changes safely with canary, monitoring, and automatic rollback
 
-We introduce five primary CRDs:
+We introduce the following CRDs:
 
-- **`Cluster`** - First-class representation of a managed cluster with full inventory and status
-- **`ClusterPlane`** - A composable infrastructure layer owned by a team (e.g., networking plane, security plane)
-- **`ClusterBlueprint`** - A complete cluster specification composed of multiple ClusterPlanes
-- **`ClusterRolloutStrategy`** - Shared rollout strategy that defines wave-based progression across cluster fleet
-- **`ClusterRollout`** - (Optional) Imperative rollout for emergency/manual overrides
+**Core CRDs:**
+
+| CRD                            | Description                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------ |
+| **`Cluster`**                  | First-class representation of a managed cluster with full inventory, health, and status    |
+| **`ClusterPlane`**             | A composable infrastructure layer owned by a team (e.g., networking plane, security plane) |
+| **`ClusterPlaneRevision`**     | Immutable snapshot of a ClusterPlane at a specific version                                 |
+| **`ClusterBlueprint`**         | A complete cluster specification composed of multiple ClusterPlanes                        |
+| **`ClusterBlueprintRevision`** | Immutable snapshot of a ClusterBlueprint at a specific version                             |
+| **`ClusterRolloutStrategy`**   | Shared rollout strategy that defines wave-based progression across cluster fleet           |
+| **`ClusterRollout`**           | (Optional) Imperative rollout for emergency/manual overrides                               |
+| **`ClusterRolloutCheckpoint`** | Checkpoint state for paused rollouts during maintenance window transitions                 |
+
+**Definition CRDs (Extensibility):**
+
+| CRD                                   | Description                                                                |
+| ------------------------------------- | -------------------------------------------------------------------------- |
+| **`ClusterProviderDefinition`**       | Defines cloud provider integration for cluster provisioning                |
+| **`PlaneComponentDefinition`**        | Defines component types for ClusterPlanes (similar to ComponentDefinition) |
+| **`PlaneTraitDefinition`**            | Defines trait types for ClusterPlanes (similar to TraitDefinition)         |
+| **`PlanePolicyDefinition`**           | Defines policy types for ClusterPlanes                                     |
+| **`ClusterWorkflowStepDefinition`**   | Defines workflow steps for cluster lifecycle operations                    |
+| **`ObservabilityProviderDefinition`** | Defines observability provider types (Prometheus, Datadog, etc.)           |
+
+**Runtime CRDs:**
+
+| CRD                         | Description                                                       |
+| --------------------------- | ----------------------------------------------------------------- |
+| **`ObservabilityProvider`** | Instance of an observability provider with connection details     |
+| **`ClusterDriftReport`**    | Report of detected drift between desired and actual cluster state |
+| **`ClusterDriftException`** | Allowlist for expected drift that should not trigger alerts       |
 
 ---
 
@@ -94,39 +130,240 @@ Each approach lacks:
 │                         PLATFORM TEAM STRUCTURE                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐             │
-│  │  Networking     │  │    Security     │  │  Observability  │             │
-│  │     Team        │  │      Team       │  │      Team       │             │
-│  │                 │  │                 │  │                 │             │
-│  │  - Ingress      │  │  - OPA/Gatekeeper│ │  - Prometheus   │             │
-│  │  - CNI          │  │  - Cert-manager │  │  - Grafana      │             │
-│  │  - Service Mesh │  │  - Secrets mgmt │  │  - Logging      │             │
-│  │  - DNS          │  │  - Network Pol  │  │  - Tracing      │             │
-│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘             │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │
+│  │  Networking     │  │    Security     │  │  Observability  │              │
+│  │     Team        │  │      Team       │  │      Team       │              │
+│  │                 │  │                 │  │                 │              │
+│  │  - Ingress      │  │  - OPA/Gatekeeper│ │  - Prometheus   │              │
+│  │  - CNI          │  │  - Cert-manager │  │  - Grafana      │              │
+│  │  - Service Mesh │  │  - Secrets mgmt │  │  - Logging      │              │
+│  │  - DNS          │  │  - Network Pol  │  │  - Tracing      │              │
+│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘              │
 │           │                    │                    │                       │
 │           ▼                    ▼                    ▼                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                        ClusterBlueprint                              │   │
-│  │                                                                      │   │
-│  │   Composes: NetworkingPlane + SecurityPlane + ObservabilityPlane    │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                        ClusterBlueprint                             │    │
+│  │                                                                     │    │
+│  │   Composes: NetworkingPlane + SecurityPlane + ObservabilityPlane    │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │                                    │                                        │
 │                                    ▼                                        │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                         ClusterRollout                               │   │
-│  │                                                                      │   │
-│  │   Strategy: Canary 10% → 50% → 100%                                 │   │
-│  │   Monitoring: Error rate < 1%, Latency p99 < 100ms                  │   │
-│  │   Rollback: Automatic on SLO breach                                 │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                         ClusterRollout                              │    │
+│  │                                                                     │    │
+│  │   Strategy: Canary 10% → 50% → 100%                                 │    │
+│  │   Monitoring: Error rate < 1%, Latency p99 < 100ms                  │    │
+│  │   Rollback: Automatic on SLO breach                                 │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │                                    │                                        │
 │                                    ▼                                        │
-│           ┌────────────┬────────────┬────────────┬────────────┐            │
-│           │ cluster-1  │ cluster-2  │ cluster-3  │ cluster-N  │            │
-│           └────────────┴────────────┴────────────┴────────────┘            │
+│           ┌────────────┬────────────┬────────────┬────────────┐             │
+│           │ cluster-1  │ cluster-2  │ cluster-3  │ cluster-N  │             │
+│           └────────────┴────────────┴────────────┴────────────┘             │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+### Relationship to Existing Multi-Cluster Architecture
+
+KubeVela currently uses **cluster-gateway** (`github.com/oam-dev/cluster-gateway`) for multi-cluster connectivity. It's important to understand how the proposed `Cluster` CRD relates to the existing architecture:
+
+#### Current Architecture: VirtualCluster
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    CURRENT: cluster-gateway                            │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ Secret (vela-system)                                            │   │
+│  │   name: cluster-production-us-east-1                            │   │
+│  │   labels:                                                       │   │
+│  │     cluster.core.oam.dev/cluster-credential-type: X509          │   │
+│  │   data:                                                         │   │
+│  │     endpoint: <base64>                                          │   │
+│  │     ca.crt: <base64>                                            │   │
+│  │     tls.crt: <base64>                                           │   │
+│  │     tls.key: <base64>                                           │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                              │                                         │
+│                              ▼                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ VirtualCluster (cluster-gateway CRD)                            │   │
+│  │   - Provides API proxy to remote cluster                        │   │
+│  │   - Handles authentication/authorization                        │   │
+│  │   - No infrastructure state, just connectivity                  │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+**Limitations of current approach:**
+
+- No declarative "what should be on this cluster"
+- No versioned infrastructure specification
+- No progressive rollout for cluster changes
+- No composition or team ownership boundaries
+- Clusters are just connection endpoints, not managed resources
+
+#### Proposed Architecture: Cluster + VirtualCluster
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                PROPOSED: Cluster CRD + cluster-gateway                 │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ Cluster CRD (core.oam.dev/v1beta1)                    [NEW]     │   │
+│  │                                                                 │   │
+│  │   INTENT & STATE:                                               │   │
+│  │   - blueprintRef: production-standard-v2.3.0                    │   │
+│  │   - patches: cluster-specific overrides                         │   │
+│  │   - inventory: what's deployed                                  │   │
+│  │   - health: aggregated status                                   │   │
+│  │   - lifecycle: provision/adopt/connect mode                     │   │
+│  │                                                                 │   │
+│  │   CONNECTIVITY (delegates to cluster-gateway):                  │   │
+│  │   - credential.secretRef → existing Secret                      │   │
+│  │                                                                 │   │
+│  └──────────────────────────────┬──────────────────────────────────┘   │
+│                                 │                                      │
+│                                 │ references                           │
+│                                 ▼                                      │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ Secret + VirtualCluster (cluster-gateway)         [EXISTING     │   │
+│  │                                                                 │   │
+│  │   - Connection credentials (unchanged)                          │   │
+│  │   - API proxy mechanism (unchanged)                             │   │
+│  │   - Authentication/authorization (unchanged)                    │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Design Principles
+
+1. **Non-Breaking**: Existing cluster-gateway Secrets and VirtualClusters continue to work unchanged
+2. **Layered Abstraction**: `Cluster` CRD adds intent/state layer on top of connectivity layer
+3. **Optional Adoption**: Teams can migrate to `Cluster` CRD incrementally
+4. **Single Source of Truth**: `Cluster` CRD becomes the authoritative record for managed clusters
+5. **Clear Ownership Boundaries**: Controllers NEVER modify `spec` fields they don't own (prevents circular references)
+
+#### Controller Ownership Model (Circular Reference Prevention)
+
+A critical design principle is **preventing circular references** between controllers. Each controller has explicit ownership boundaries:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    CONTROLLER OWNERSHIP MODEL (NO CYCLES)                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  COMPONENT                  OWNER                 CONTROLLERS CAN MODIFY?   │
+│  ─────────                 ─────                 ────────────────────────   │
+│                                                                             │
+│  ClusterBlueprint          User/GitOps           NEVER (immutable template) │
+│                                                                             │
+│  Cluster.spec.blueprintRef User/GitOps           NEVER by controllers       │
+│                                                  (this is desired state)    │
+│                                                                             │
+│  Cluster.status.blueprint  ClusterController     YES (actual applied state) │
+│  Cluster.status.health     ClusterController     YES                        │
+│  Cluster.status.inventory  ClusterController     YES                        │
+│  Cluster.status.maintenance ClusterController    YES (window computation)   │
+│                                                                             │
+│  RolloutStrategy.status    ClusterRolloutCtrl    YES (wave/progress status) │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Why This Matters:**
+
+Without clear ownership, the following cycle could occur:
+
+1. `Cluster.spec.blueprintRef` → references `ClusterBlueprint`
+2. `ClusterBlueprint` → defines planes to deploy
+3. `ClusterPlane` → deploys resources that affect cluster health
+4. `Cluster.status.health` → affects rollout progression
+5. **BAD**: Rollout controller updates `Cluster.spec.blueprintRef` → cycle!
+
+**The Correct Flow (No Cycle):**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         CORRECT UPDATE FLOW                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  1. USER/GITOPS updates Cluster.spec.blueprintRef to new version            │
+│     │                                                                       │
+│     ▼                                                                       │
+│  2. ClusterController detects spec.blueprintRef != status.blueprint         │
+│     │                                                                       │
+│     ▼                                                                       │
+│  3. ClusterController queries ClusterRolloutController: "Can I update?"     │
+│     │                                                                       │
+│     ├─── NO: Rollout says "wait" (wave not ready, window closed, etc.)      │
+│     │         → ClusterController waits, requeues                           │
+│     │                                                                       │
+│     └─── YES: Rollout says "proceed"                                        │
+│           │                                                                 │
+│           ▼                                                                 │
+│  4. ClusterController applies blueprint to cluster                          │
+│     │                                                                       │
+│     ▼                                                                       │
+│  5. ClusterController updates status.blueprint, status.health               │
+│     │                                                                       │
+│     ▼                                                                       │
+│  6. ClusterRolloutController reads status.health for wave progression       │
+│     (but NEVER modifies spec.blueprintRef - that's User/GitOps's job)       │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Invariants:**
+
+| Invariant                                    | Description                                                                                                                    |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **ClusterBlueprint is immutable**            | Once created, a blueprint version never changes. New versions create new `ClusterBlueprintRevision` objects.                   |
+| **spec.blueprintRef is user-owned**          | Only users or external automation (GitOps) modify `Cluster.spec.blueprintRef`. Controllers NEVER touch it.                     |
+| **status.blueprint is controller-owned**     | Only `ClusterController` modifies `status.blueprint` after successful application.                                             |
+| **Rollout controls timing, not state**       | `ClusterRolloutController` gates WHEN updates happen via a "can proceed" signal. It never modifies cluster spec or blueprints. |
+| **Health affects progression, not triggers** | Cluster health affects rollout wave progression decisions, but health changes don't trigger spec modifications.                |
+
+#### Migration Path
+
+| Stage                     | Cluster CRD                  | cluster-gateway                      | Behavior                                                         |
+| ------------------------- | ---------------------------- | ------------------------------------ | ---------------------------------------------------------------- |
+| **Stage 0** (current)     | Not used                     | Secret only                          | Current behavior, no change                                      |
+| **Stage 1** (adoption)    | Created with `mode: connect` | Existing Secret                      | Cluster CRD references existing secret, starts tracking state    |
+| **Stage 2** (managed)     | Full spec with blueprint     | Secret managed by Cluster controller | Cluster controller ensures secret exists, applies infrastructure |
+| **Stage 3** (provisioned) | `mode: provision`            | Secret created automatically         | Cluster CRD provisions cluster AND creates connectivity          |
+
+#### Controller Reconciliation
+
+**ClusterController reconcile algorithm:**
+
+1. Ensure cluster-gateway connectivity (create secret if needed)
+2. Get VirtualCluster client for target cluster
+3. **Always** update `status.maintenance` (compute window state)
+4. If `spec.blueprintRef.revision` ≠ `status.blueprint.revision`:
+   - Check rollout permission (read-only query to ClusterRolloutStrategy)
+   - If denied: requeue and wait
+   - If approved: apply blueprint, update `status.blueprint`
+5. Update inventory and health status
+
+**Rollout permission check:**
+
+- No strategy → allow immediately
+- Strategy with `respectClusterWindows: true` → check `status.maintenance.inWindow`
+- Check wave progression status → allow if wave permits
+
+**Key ownership boundaries:**
+
+- `ClusterController` READS `spec.blueprintRef`, WRITES `status.blueprint`
+- `ClusterController` NEVER modifies `spec` or `ClusterBlueprint`
+- `ClusterRolloutController` gates timing via status fields
 
 ---
 
@@ -147,7 +384,7 @@ Each approach lacks:
 1. **Replacing Application CRD** - This is complementary, not a replacement
 2. **Node-level configuration** - We focus on Kubernetes API objects, not OS-level config
 3. **Full GitOps implementation** - We provide the CRDs; GitOps tools can manage them
-4. **Implementing cloud provider APIs** - We integrate with existing providers (Crossplane, Terraform) rather than reimplementing
+4. **Implementing cloud provider APIs** - We integrate with existing providers (Crossplane, KRO, ACK, Terraform etc) rather than reimplementing
 
 ---
 
@@ -198,7 +435,7 @@ spec:
       properties:
         values:
           controller:
-            replicaCount: 5  # This cluster needs more replicas
+            replicaCount: 5 # This cluster needs more replicas
 
   # Cluster metadata (synced from actual cluster)
   clusterInfo:
@@ -218,17 +455,20 @@ spec:
         metrics:
           - name: error-rate
             thresholds:
-              - condition: "< 0.5%"  # Stricter than strategy default
+              - condition: "< 0.5%" # Stricter than strategy default
       # Skip certain waves (useful for canary clusters)
       # skipWaves: [non-critical, critical]
 
   # Maintenance windows for this cluster
+  # See "Maintenance Window Enforcement" section for details
   maintenance:
     windows:
-      - start: "02:00"
+      - name: weekend-maintenance
+        start: "02:00"
         end: "06:00"
-        timezone: "America/New_York"
+        timezone: "America/New_York" # IANA timezone name
         days: [Sat, Sun]
+        dstPolicy: extend # extend | shrink | skip (DST handling)
     # Allow emergency updates outside window
     allowEmergencyUpdates: true
     # Enforce window strictly (block updates outside window)
@@ -244,14 +484,14 @@ spec:
 
 status:
   # Connection status
-  connectionStatus: Connected  # Connected, Disconnected, Unknown
+  connectionStatus: Connected # Connected, Disconnected, Unknown
   lastProbeTime: "2024-12-24T10:00:00Z"
   latency: "45ms"
 
   # Cluster information (auto-discovered)
   clusterInfo:
     kubernetesVersion: "v1.28.5"
-    platform: "eks"  # eks, gke, aks, kind, k3s, etc.
+    platform: "eks" # eks, gke, aks, kind, k3s, etc.
     region: "us-east-1"
     nodeCount: 12
     totalCPU: "96"
@@ -263,7 +503,7 @@ status:
     name: production-standard
     revision: production-standard-v2.3.0
     appliedAt: "2024-12-24T08:00:00Z"
-    status: Synced  # Synced, OutOfSync, Updating, Failed
+    status: Synced # Synced, OutOfSync, Updating, Failed
 
   # Per-plane inventory and status
   planes:
@@ -338,7 +578,7 @@ status:
 
   # Aggregated health
   health:
-    status: Healthy  # Healthy, Degraded, Unhealthy, Unknown
+    status: Healthy # Healthy, Degraded, Unhealthy, Unknown
     planesHealthy: 3
     planesTotal: 3
     componentsHealthy: 8
@@ -354,6 +594,30 @@ status:
     #     field: "spec.replicas"
     #     expected: 5
     #     actual: 3
+
+  # Maintenance window state (computed by ClusterController)
+  # See "Maintenance Window Enforcement" section for details
+  maintenance:
+    # Is the cluster currently in a maintenance window?
+    inWindow: true
+    # Current active window (populated when inWindow is true)
+    currentWindow:
+      name: weekend-maintenance
+      startedAt: "2024-12-24T07:00:00Z"
+      endsAt: "2024-12-24T11:00:00Z"
+      remainingMinutes: 120
+    # Next scheduled window
+    nextWindow:
+      name: weeknight-maintenance
+      startsAt: "2024-12-25T08:00:00Z"
+      startsInMinutes: 1320
+    # Last time windows were evaluated
+    lastEvaluatedAt: "2024-12-24T09:00:00Z"
+    # Timezone information
+    timezoneInfo:
+      name: "America/New_York"
+      currentOffset: "-05:00"
+      isDST: false
 
   # Resource usage summary
   resources:
@@ -421,10 +685,11 @@ metadata:
   labels:
     plane.oam.dev/owner: networking-team
     plane.oam.dev/category: networking
+  annotations:
+    # Publishing follows Application's publishVersion pattern
+    # No annotation = draft (mutable), with annotation = creates immutable ClusterPlaneRevision
+    plane.oam.dev/publishVersion: "2.3.1"
 spec:
-  # Version of this plane (semantic versioning required)
-  version: "2.3.1"
-
   # Description for documentation
   description: "Core networking infrastructure including ingress, CNI, and service mesh"
 
@@ -439,9 +704,25 @@ spec:
     - Upgraded Cilium to 1.14.4
 
   # Components that make up this plane (like Application components)
+  # Follows the same model as Application: components can have dependsOn
   components:
+    - name: cilium
+      type: helm-release
+      # No dependsOn - deploys first (or in parallel with others that have no deps)
+      properties:
+        chart: cilium
+        repo: https://helm.cilium.io/
+        version: "1.14.4"
+        namespace: kube-system
+        values:
+          hubble:
+            enabled: true
+            relay:
+              enabled: true
+
     - name: ingress-nginx
       type: helm-release
+      dependsOn: [cilium] # <-- Wait for CNI to be ready before deploying ingress
       properties:
         chart: ingress-nginx
         repo: https://kubernetes.github.io/ingress-nginx
@@ -458,21 +739,9 @@ spec:
             cpu: "2"
             memory: "4Gi"
 
-    - name: cilium
-      type: helm-release
-      properties:
-        chart: cilium
-        repo: https://helm.cilium.io/
-        version: "1.14.4"
-        namespace: kube-system
-        values:
-          hubble:
-            enabled: true
-            relay:
-              enabled: true
-
     - name: external-dns
       type: helm-release
+      dependsOn: [cilium] # <-- Also waits for CNI; deploys in parallel with ingress-nginx
       properties:
         chart: external-dns
         repo: https://kubernetes-sigs.github.io/external-dns/
@@ -487,13 +756,25 @@ spec:
         probeTimeout: 300s
         probeInterval: 10s
 
-    - name: dependency-order
-      type: apply-order
-      properties:
-        # Cilium must be ready before ingress
-        rules:
-          - component: ingress-nginx
-            dependsOn: [cilium]
+  # Optional: Explicit workflow for advanced orchestration
+  # If not specified, auto-generates deploy steps using component dependsOn (same as Application)
+  # workflow:
+  #   steps:
+  #     - name: deploy-cni
+  #       type: deploy
+  #       properties:
+  #         components: [cilium]
+  #     - name: validate-cni
+  #       type: script
+  #       dependsOn: [deploy-cni]
+  #       properties:
+  #         image: cilium/cilium-cli:latest
+  #         command: ["cilium", "status", "--wait"]
+  #     - name: deploy-rest
+  #       type: deploy
+  #       dependsOn: [validate-cni]
+  #       properties:
+  #         components: [ingress-nginx, external-dns]
 
   # Outputs exposed to other planes or blueprints
   outputs:
@@ -507,8 +788,26 @@ spec:
         component: external-dns
         fieldPath: status.dnsZone
 
+  # Inputs consumed from other planes (same cluster)
+  inputs:
+    - name: clusterCIDR
+      from: networking
+      output: podCIDR
+
+  # Cross-cluster inputs (from remote clusters) - NEW
+  crossClusterInputs:
+    - name: centralVaultEndpoint
+      fromCluster: management-cluster
+      fromPlane: security
+      output: vaultEndpoint
+
+    - name: centralPrometheusEndpoint
+      fromCluster: observability-hub
+      fromPlane: observability
+      output: prometheusEndpoint
+
 status:
-  phase: Running  # Pending, Provisioning, Running, Failed, Updating
+  phase: Running # Pending, Provisioning, Running, Failed, Updating
 
   # Current active revision
   currentRevision: networking-v2.3.1
@@ -520,9 +819,9 @@ status:
       version: "2.3.1"
       created: "2024-12-24T10:00:00Z"
       createdBy: "jane@company.com"
-      digest: "sha256:abc123..."  # Hash of spec for integrity
+      digest: "sha256:abc123..." # Hash of spec for integrity
       changelog: "Updated ingress-nginx to 4.8.3 (security patch)"
-      active: true  # Currently deployed
+      active: true # Currently deployed
 
     - name: networking-v2.3.0
       version: "2.3.0"
@@ -560,69 +859,254 @@ status:
   lastUpdated: "2024-12-24T10:00:00Z"
 ```
 
-##### ClusterPlane Versioning Strategy
+##### Cloud Infrastructure as a ClusterPlane
 
-ClusterPlane uses semantic versioning with immutable revisions:
+A key design principle is that **all cluster infrastructure, including cloud resources like VPC, EKS, and node pools, should be expressed as ClusterPlane components**. This ensures:
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      CLUSTERPLANE VERSIONING MODEL                           │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  VERSION SEMANTICS (SemVer):                                                │
-│  ───────────────────────────                                                │
-│  MAJOR.MINOR.PATCH (e.g., 2.3.1)                                           │
-│                                                                             │
-│  • MAJOR: Breaking changes (component removed, incompatible config)         │
-│  • MINOR: New features (new component added, new capability)                │
-│  • PATCH: Bug fixes, security patches, version bumps                        │
-│                                                                             │
-│  REVISION MODEL:                                                            │
-│  ──────────────────                                                         │
-│  • Each version change creates an immutable revision                        │
-│  • Revision name: {plane-name}-v{version} (e.g., networking-v2.3.1)        │
-│  • Revisions are stored in status.revisions                                 │
-│  • Blueprints can pin to specific revisions                                 │
-│                                                                             │
-│  MUTABLE vs IMMUTABLE:                                                      │
-│  ─────────────────────                                                      │
-│  • spec.version change → creates new revision (immutable snapshot)          │
-│  • spec change without version change → REJECTED (must bump version)        │
-│  • Exception: spec.description, metadata changes allowed without bump       │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-**Version Bump Enforcement:**
+1. **Composability**: Cloud infrastructure uses the same model as application infrastructure
+2. **Versioning**: VPC/cluster changes are versioned and can be rolled back
+3. **Separation of concerns**: Cloud provisioning is a plane owned by the platform team
+4. **Blueprint integration**: Everything is in the blueprint, not scattered across CRDs
 
 ```yaml
-# Admission webhook validates version changes
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterPlane
+metadata:
+  name: aws-foundation
+  namespace: vela-system
+  labels:
+    plane.oam.dev/owner: platform-team
+    plane.oam.dev/category: cloud-infrastructure
+  annotations:
+    plane.oam.dev/publishVersion: "1.2.0"
+spec:
+  description: "AWS cloud infrastructure foundation - VPC, EKS cluster, and node pools"
+
+  changelog: |
+    ## 1.2.0
+    - Upgraded to Kubernetes 1.28
+    - Added GPU node pool for ML workloads
+
+  # Cloud infrastructure expressed as components
+  # Uses terraform-module or crossplane-resource component types
+  components:
+    - name: vpc
+      type: terraform-module
+      properties:
+        source: "terraform-aws-modules/vpc/aws"
+        version: "5.0.0"
+        values:
+          name: "${cluster.name}-vpc"
+          cidr: "10.0.0.0/16"
+          azs:
+            [
+              "${provider.region}a",
+              "${provider.region}b",
+              "${provider.region}c",
+            ]
+          private_subnets: ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+          public_subnets: ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+          enable_nat_gateway: true
+          single_nat_gateway: false
+          enable_dns_hostnames: true
+          tags:
+            "kubernetes.io/cluster/${cluster.name}": "shared"
+
+    - name: eks-cluster
+      type: terraform-module
+      dependsOn: [vpc] # Wait for VPC to be ready
+      properties:
+        source: "terraform-aws-modules/eks/aws"
+        version: "19.0.0"
+        values:
+          cluster_name: "${cluster.name}"
+          cluster_version: "1.28"
+          vpc_id: "${vpc.outputs.vpc_id}"
+          subnet_ids: "${vpc.outputs.private_subnets}"
+          cluster_endpoint_public_access: false
+          cluster_endpoint_private_access: true
+          enable_irsa: true
+          cluster_addons:
+            coredns:
+              most_recent: true
+            kube-proxy:
+              most_recent: true
+            vpc-cni:
+              most_recent: true
+
+    - name: node-pool-system
+      type: terraform-module
+      dependsOn: [eks-cluster]
+      properties:
+        source: "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+        values:
+          name: "system"
+          cluster_name: "${eks-cluster.outputs.cluster_name}"
+          subnet_ids: "${vpc.outputs.private_subnets}"
+          instance_types: ["m5.large"]
+          min_size: 3
+          max_size: 6
+          desired_size: 3
+          labels:
+            role: system
+          taints:
+            - key: CriticalAddonsOnly
+              value: "true"
+              effect: NO_SCHEDULE
+
+    - name: node-pool-workload
+      type: terraform-module
+      dependsOn: [eks-cluster]
+      properties:
+        source: "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+        values:
+          name: "workload"
+          cluster_name: "${eks-cluster.outputs.cluster_name}"
+          subnet_ids: "${vpc.outputs.private_subnets}"
+          instance_types: ["m5.xlarge", "m5.2xlarge"]
+          min_size: 2
+          max_size: 20
+          desired_size: 3
+          capacity_type: "SPOT" # Cost optimization
+          labels:
+            role: workload
+
+  # Outputs used by other planes and for cluster-gateway setup
+  outputs:
+    - name: vpcId
+      valueFrom:
+        component: vpc
+        fieldPath: outputs.vpc_id
+
+    - name: clusterEndpoint
+      valueFrom:
+        component: eks-cluster
+        fieldPath: outputs.cluster_endpoint
+
+    - name: clusterCertificateAuthority
+      valueFrom:
+        component: eks-cluster
+        fieldPath: outputs.cluster_certificate_authority_data
+
+    - name: clusterName
+      valueFrom:
+        component: eks-cluster
+        fieldPath: outputs.cluster_name
+
+status:
+  phase: Running
+  currentRevision: aws-foundation-v1.2.0
+  components:
+    - name: vpc
+      healthy: true
+      message: "VPC created: vpc-0abc123"
+    - name: eks-cluster
+      healthy: true
+      message: "EKS cluster ready: 1.28"
+    - name: node-pool-system
+      healthy: true
+      message: "3/3 nodes ready"
+    - name: node-pool-workload
+      healthy: true
+      message: "3/3 nodes ready"
+  outputs:
+    vpcId: "vpc-0abc123def456"
+    clusterEndpoint: "https://ABC123.gr7.us-east-1.eks.amazonaws.com"
+    clusterName: "production-us-east-1"
+```
+
+**Why Cloud Infrastructure as a ClusterPlane?**
+
+| Concern        | Without (clusterSpec)            | With (ClusterPlane)                         |
+| -------------- | -------------------------------- | ------------------------------------------- |
+| Versioning     | Embedded in Cluster CRD          | Independent versioning, immutable revisions |
+| Reusability    | Copy-paste across clusters       | Reference same plane revision               |
+| Team ownership | Platform owns entire Cluster CRD | Networking team owns VPC, platform owns EKS |
+| Testing        | Test entire cluster provisioning | Test VPC plane independently                |
+| Rollback       | Rollback entire cluster          | Rollback just the component that failed     |
+| GitOps         | Large Cluster CRDs in git        | Modular plane definitions                   |
+
+##### ClusterPlane Versioning Strategy
+
+ClusterPlane uses semantic versioning with immutable revisions, following the same pattern as KubeVela's Application CRD. Version publishing is controlled via the `plane.oam.dev/publishVersion` annotation.
+
+**Version Semantics (SemVer):** MAJOR (breaking changes), MINOR (new features), PATCH (bug fixes)
+
+**Publishing Flow:**
+
+1. **Draft mode**: No annotation → iterate freely, no revision created
+2. **Publish**: Add `plane.oam.dev/publishVersion: "2.3.1"` → creates immutable `ClusterPlaneRevision/networking-v2.3.1`
+3. **Continue**: Bump version to "2.4.0" → new revision, previous remains available
+
+**Version Collision Rules:**
+| Scenario | Result |
+|----------|--------|
+| Same version + same content | SUCCESS (idempotent, GitOps-safe) |
+| Same version + different content | REJECTED (must bump version) |
+| Delete revision referenced by blueprint | REJECTED |
+
+**Admission Webhook for Version Validation:**
+
+```yaml
+# Admission webhook validates version changes and collision prevention
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: clusterplane-version-validation
 webhooks:
-  - name: version.clusterplane.oam.dev
+  - name: version.plane.oam.dev
     rules:
       - apiGroups: ["core.oam.dev"]
         resources: ["clusterplanes"]
-        operations: ["UPDATE"]
-    # Rejects updates where spec changes but version doesn't
+        operations: ["CREATE", "UPDATE"]
+    # Validates:
+    # 1. If publishVersion annotation exists, check for collision
+    # 2. Same version + different content = REJECT
+    # 3. Same version + same content = ALLOW (idempotent)
+  - name: revision.plane.oam.dev
+    rules:
+      - apiGroups: ["core.oam.dev"]
+        resources: ["clusterplanerevisions"]
+        operations: ["DELETE"]
+    # Prevents deletion of revisions referenced by blueprints
 ```
 
-**How Teams Set Versions:**
+**How Teams Publish Versions:**
 
 ```yaml
-# networking-team updates the plane
+# STEP 1: Draft mode - iterate on the plane without publishing
 apiVersion: core.oam.dev/v1beta1
 kind: ClusterPlane
 metadata:
   name: networking
+  # No publishVersion annotation = draft mode
 spec:
-  # Team bumps version when making changes
-  version: "2.4.0"  # Was 2.3.1
+  owner:
+    team: platform-networking
+    contacts: ["netops@company.com"]
 
-  # Changelog documents what changed
+  components:
+    - name: ingress-nginx
+      type: helm-release
+      properties:
+        chart: ingress-nginx
+        version: "4.9.0"
+    # ... rest of components
+---
+# STEP 2: Ready to publish - add the annotation
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterPlane
+metadata:
+  name: networking
+  annotations:
+    # Publish version using resource-specific annotation
+    plane.oam.dev/publishVersion: "2.4.0"
+spec:
+  owner:
+    team: platform-networking
+    contacts: ["netops@company.com"]
+
+  # Changelog documents what changed (recommended but optional)
   changelog: |
     ## 2.4.0
     - Added Gateway API support
@@ -631,9 +1115,39 @@ spec:
 
   components:
     - name: ingress-nginx
+      type: helm-release
       properties:
-        version: "4.9.0"  # Updated
+        chart: ingress-nginx
+        version: "4.9.0"
     # ... rest of components
+```
+
+**Publishing with kubectl apply (GitOps-compatible):**
+
+```bash
+# Draft mode: Apply without publishVersion annotation
+$ kubectl apply -f clusterplane-networking.yaml
+clusterplane.core.oam.dev/networking created
+
+# Make changes, iterate...
+$ kubectl apply -f clusterplane-networking.yaml
+clusterplane.core.oam.dev/networking configured
+
+# Ready to publish: Add annotation and apply
+$ kubectl apply -f clusterplane-networking.yaml  # now has publishVersion: "2.4.0"
+clusterplane.core.oam.dev/networking configured
+clusterplanerevision.core.oam.dev/networking-v2.4.0 created
+
+# Verify the revision was created
+$ kubectl get clusterplanerevision -l core.oam.dev/plane-name=networking
+NAME                 VERSION   AGE
+networking-v2.4.0    2.4.0     5s
+networking-v2.3.1    2.3.1     2d
+
+# Try to republish same version with different content = ERROR
+$ kubectl apply -f clusterplane-networking-modified.yaml  # has publishVersion: "2.4.0"
+Error from server: admission webhook "version.plane.oam.dev" denied the request:
+version "2.4.0" already published with different content. Use a new version (e.g., 2.4.1).
 ```
 
 **Referencing Versions in Blueprints:**
@@ -649,13 +1163,13 @@ spec:
     - name: networking
       ref:
         name: networking
-        revision: networking-v2.3.1  # Explicit revision
+        revision: networking-v2.3.1 # Explicit revision
 
     # Option 2: Pin to version (resolves to revision)
     - name: security
       ref:
         name: security
-        version: "1.8.0"  # Resolves to security-v1.8.0
+        version: "1.8.0" # Resolves to security-v1.8.0
 
     # Option 3: Use latest (for dev/staging, auto-updates)
     - name: observability
@@ -667,17 +1181,28 @@ spec:
     - name: storage
       ref:
         name: storage
-        versionConstraint: ">=1.0.0 <2.0.0"  # Any 1.x version
+        versionConstraint: ">=1.0.0 <2.0.0" # Any 1.x version
 ```
 
 **CLI Commands for Versioning:**
 
 ```bash
+# Publish a new version (sets publishVersion annotation)
+# This is equivalent to kubectl apply with plane.oam.dev/publishVersion annotation
+$ vela plane publish networking --version 2.4.0 --changelog "Added Gateway API support"
+
+Publishing networking v2.4.0...
+  → Setting annotation: plane.oam.dev/publishVersion: "2.4.0"
+  → Creating ClusterPlaneRevision/networking-v2.4.0
+
+✓ Published networking-v2.4.0
+
 # List all revisions of a plane
 $ vela plane revisions networking
 
 REVISION              VERSION   CREATED                 BY                  ACTIVE
-networking-v2.3.1     2.3.1     2024-12-24 10:00:00    jane@company.com    ✓
+networking-v2.4.0     2.4.0     2024-12-25 09:00:00    jane@company.com    ✓
+networking-v2.3.1     2.3.1     2024-12-24 10:00:00    jane@company.com
 networking-v2.3.0     2.3.0     2024-12-20 14:30:00    bob@company.com
 networking-v2.2.0     2.2.0     2024-11-15 09:00:00    jane@company.com
 
@@ -693,17 +1218,18 @@ $ vela plane diff networking --from v2.3.0 --to v2.3.1
 @@ spec.components[1].properties.values.hubble.relay @@
 +  enabled: true
 
-# Rollback to previous version (creates new revision)
+# Rollback to previous version (creates new revision by setting new publishVersion)
 $ vela plane rollback networking --to-revision networking-v2.3.0
 
 Rolling back networking to v2.3.0...
+  → Resetting spec to v2.3.0 configuration
+  → Setting annotation: plane.oam.dev/publishVersion: "2.3.2"
   → Creating new revision networking-v2.3.2 (based on v2.3.0)
-  → Version will be 2.3.2 (patch bump from current)
 
 Proceed? [y/N]: y
 ✓ Rollback complete. New revision: networking-v2.3.2
 
-# Promote a plane version to blueprints
+# Promote a plane version to blueprints (updates blueprint's plane reference)
 $ vela plane promote networking --version 2.4.0 --blueprint production-standard
 
 Promoting networking v2.4.0 to blueprint production-standard...
@@ -719,11 +1245,490 @@ Changes in v2.4.0:
 Proceed? [y/N]:
 ```
 
+##### ClusterPlaneRevision CRD
+
+As cluster fleets scale, storing revision history directly in `status.revisions` encounters Kubernetes etcd size limits (~1MB per object). To address this, we introduce `ClusterPlaneRevision` as a separate CRD—following the same pattern as `ApplicationRevision`.
+
+**Why a Separate CRD?**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    CLUSTERPLANEREVISION RATIONALE                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  PROBLEM: Status.revisions grows unbounded                                  │
+│  ─────────────────────────────────────────────                              │
+│  • Each revision stores: spec snapshot, component versions, outputs         │
+│  • 10 revisions × 100KB each = 1MB (etcd limit)                             │
+│  • Fleet of 100+ clusters amplifies this issue                              │
+│                                                                             │
+│  SOLUTION: Separate ClusterPlaneRevision CRDs                               │
+│  ─────────────────────────────────────────────                              │
+│  • ClusterPlane status stores only: currentRevision, revisionCount          │
+│  • Full history stored in ClusterPlaneRevision objects                      │
+│  • Enables compression (like ApplicationRevision)                           │
+│  • Garbage collection via revisionHistoryLimit                              │
+│                                                                             │
+│  RELATIONSHIP:                                                              │
+│                                                                             │
+│  ClusterPlane (networking)                                                  │
+│    │                                                                        │
+│    ├── ClusterPlaneRevision (networking-v2.3.1) ◄── currentRevision         │
+│    ├── ClusterPlaneRevision (networking-v2.3.0)                             │
+│    ├── ClusterPlaneRevision (networking-v2.2.0)                             │
+│    └── ... (up to revisionHistoryLimit)                                     │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**ClusterPlaneRevision Spec:**
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterPlaneRevision
+metadata:
+  name: networking-v2.3.1
+  namespace: vela-system
+  labels:
+    core.oam.dev/plane-name: networking
+    core.oam.dev/plane-version: "2.3.1"
+  ownerReferences:
+    - apiVersion: core.oam.dev/v1beta1
+      kind: ClusterPlane
+      name: networking
+      uid: abc-123-def
+spec:
+  # Immutable snapshot of the ClusterPlane spec at this version
+  planeSnapshot:
+    version: "2.3.1"
+    owner:
+      team: platform-networking
+      contacts: ["netops@company.com"]
+
+    components:
+      - name: ingress-nginx
+        type: helm-release
+        properties:
+          chart: ingress-nginx
+          repo: https://kubernetes.github.io/ingress-nginx
+          version: "4.8.3"
+          values:
+            controller:
+              replicaCount: 2
+
+      - name: cilium
+        type: helm-release
+        properties:
+          chart: cilium
+          repo: https://helm.cilium.io
+          version: "1.14.4"
+
+    outputs:
+      - name: ingressClass
+        valueFrom:
+          component: ingress-nginx
+          fieldPath: status.ingressClassName
+
+  # Metadata about this revision
+  revisionMeta:
+    created: "2024-12-24T10:00:00Z"
+    createdBy: "jane@company.com"
+    changelog: "Updated ingress-nginx to 4.8.3 (security patch CVE-2024-1234)"
+    digest: "sha256:abc123def456..." # Hash of spec for integrity verification
+    parentRevision: "networking-v2.3.0" # Previous revision (for diff)
+
+  # Compression settings (optional, for large specs)
+  compression:
+    type: gzip # or zstd, none
+    # When enabled, planeSnapshot is compressed in storage
+
+status:
+  # Whether this revision was successfully applied
+  succeeded: true
+
+  # Which clusters are currently using this revision
+  activeInClusters:
+    - name: production-us-east-1
+      syncedAt: "2024-12-24T10:05:00Z"
+    - name: production-us-west-2
+      syncedAt: "2024-12-24T10:06:00Z"
+
+  # Outputs produced by this revision (cached for cross-plane references)
+  outputs:
+    ingressClass: nginx
+    clusterDNS: "cluster.example.com"
+
+  # ResourceTracker reference for garbage collection
+  resourceTrackerRef:
+    name: clusterplane-networking-v2.3.1-root
+    uid: xyz-789-abc
+```
+
+**Updated ClusterPlane Status (Lightweight):**
+
+With `ClusterPlaneRevision` CRDs, the ClusterPlane status becomes lightweight:
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterPlane
+metadata:
+  name: networking
+spec:
+  # ... (unchanged)
+status:
+  phase: Running
+
+  # Reference to current active revision (not embedded)
+  currentRevision:
+    name: networking-v2.3.1
+    version: "2.3.1"
+    digest: "sha256:abc123..."
+
+  # Total revision count (for monitoring/alerting)
+  revisionCount: 15
+
+  # How many revisions to keep (GC deletes oldest beyond this)
+  revisionHistoryLimit: 10
+
+  # Quick health summary (details in ClusterPlaneRevision)
+  healthy: true
+  message: "All components running"
+
+  # Outputs (cached from current revision for fast access)
+  outputs:
+    ingressClass: nginx
+    clusterDNS: "cluster.example.com"
+
+  observedGeneration: 3
+  lastUpdated: "2024-12-24T10:00:00Z"
+```
+
+**Revision Lifecycle:**
+
+1. **Create**: On publishVersion annotation, controller creates immutable ClusterPlaneRevision with spec snapshot, content digest, and OwnerReference
+2. **Deploy**: For each target cluster, create ResourceTracker, deploy components, update `activeInClusters`
+3. **GC**: When `revisionCount > revisionHistoryLimit`, delete oldest revisions where `activeInClusters` is empty and not referenced by blueprints
+
+**CLI Commands:**
+
+```bash
+vela plane revisions <name>                      # List revisions
+vela plane revision <rev> --show-spec            # Show details
+vela plane diff <name> --from v1 --to v2         # Compare revisions
+vela plane gc <name> --keep 5                    # Force GC
+
+Garbage collecting old revisions...
+  → Keeping: networking-v2.3.1, networking-v2.3.0, networking-v2.2.0,
+             networking-v2.1.0, networking-v2.0.0
+  → Deleting: networking-v1.9.0, networking-v1.8.0
+  → Cleaning up ResourceTrackers
+
+✓ Deleted 2 old revisions
+```
+
+##### Cross-Cluster Dependency Handling
+
+In large-scale platform deployments, infrastructure components often need to reference outputs from other clusters. For example:
+
+- **Spoke clusters** need the Vault endpoint from a **management cluster**
+- **Edge clusters** need Prometheus remote-write endpoints from a **central observability hub**
+- **Regional clusters** need registry mirrors from a **central artifact cluster**
+
+The `crossClusterInputs` field enables declarative cross-cluster dependencies:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    CROSS-CLUSTER DEPENDENCY MODEL                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  PROBLEM: Components need config from other clusters                        │
+│  ─────────────────────────────────────────────────────                      │
+│                                                                             │
+│    Management Cluster          Spoke Cluster (production-us-east-1)         │
+│    ┌──────────────────┐         ┌─────────────────────────────────────┐     │
+│    │ security plane   │         │ security plane                      │     │
+│    │   └─ vault       │ ◄────── │   └─ vault-agent                    │     │
+│    │      ↓           │  needs  │       needs: vaultEndpoint          │     │
+│    │   outputs:       │         │                                     │     │
+│    │     vaultEndpoint│         │ How does spoke get this value?      │     │
+│    └──────────────────┘         └─────────────────────────────────────┘     │
+│                                                                             │
+│  SOLUTION: crossClusterInputs with automatic resolution                     │
+│  ─────────────────────────────────────────────────────                      │
+│                                                                             │
+│    Spoke Cluster (production-us-east-1):                                    │
+│    ┌────────────────────────────────────────────────────────────────────┐   │
+│    │ apiVersion: core.oam.dev/v1beta1                                   │   │
+│    │ kind: ClusterPlane                                                 │   │
+│    │ metadata:                                                          │   │
+│    │   name: security                                                   │   │
+│    │ spec:                                                              │   │
+│    │   crossClusterInputs:                                              │   │
+│    │     - name: vaultEndpoint                                          │   │
+│    │       fromCluster: management-cluster     # Source cluster         │   │
+│    │       fromPlane: security                 # Source plane           │   │
+│    │       output: vaultEndpoint               # Output name            │   │
+│    │       required: true                      # Fail if unavailable    │   │
+│    │       cacheTTL: 5m                        # Cache for resilience   │   │
+│    │                                                                    │   │
+│    │   components:                                                      │   │
+│    │     - name: vault-agent                                            │   │
+│    │       properties:                                                  │   │
+│    │         # Reference the cross-cluster input                        │   │
+│    │         vaultAddr: "{{ inputs.vaultEndpoint }}"                    │   │
+│    └────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**CrossClusterInput Spec:**
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterPlane
+metadata:
+  name: observability
+  namespace: vela-system
+  annotations:
+    plane.oam.dev/publishVersion: "1.5.0"
+spec:
+  # Cross-cluster dependencies
+  crossClusterInputs:
+    # Get Prometheus endpoint from central observability hub
+    - name: remoteWriteEndpoint
+      fromCluster: observability-hub # Source cluster name
+      fromPlane: observability # ClusterPlane in source cluster
+      output: prometheusRemoteWrite # Output name from source plane
+      required: true # Block deployment if unavailable
+      cacheTTL: 5m # Cache value to survive transient failures
+      fallback: "" # Optional fallback if not required
+
+    # Get container registry from artifact cluster
+    - name: registryMirror
+      fromCluster: artifact-cluster
+      fromPlane: registry
+      output: mirrorEndpoint
+      required: false
+      fallback: "docker.io" # Use public registry if mirror unavailable
+
+    # Get secrets encryption key from management cluster
+    - name: sealingKey
+      fromCluster: management-cluster
+      fromPlane: security
+      output: clusterSealingKey
+      required: true
+      # Secrets are automatically handled securely
+
+  components:
+    - name: prometheus-agent
+      type: helm-release
+      properties:
+        values:
+          remoteWrite:
+            - url: "{{ inputs.remoteWriteEndpoint }}"
+
+    - name: containerd-config
+      type: k8s-objects
+      properties:
+        objects:
+          - apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: containerd-hosts
+            data:
+              hosts.toml: |
+                [host."{{ inputs.registryMirror }}"]
+                  capabilities = ["pull", "resolve"]
+```
+
+**Resolution Flow:**
+
+1. **Discover**: List all `crossClusterInputs` from spec
+2. **Resolve**: For each input, use cluster-gateway to access source cluster, read `status.outputs[output]`, cache with TTL
+3. **Validate**: Required inputs must resolve (→ phase=Blocked if not), optional use fallback
+4. **Inject**: Template substitution `{{ inputs.{name} }}`
+5. **Watch**: Re-reconcile when source outputs change
+
+**CLI Commands:**
+
+```bash
+vela plane deps <name>                    # Show dependencies
+vela plane deps --all --graph             # Fleet-wide dependency graph
+vela plane validate <name> --check-deps   # Validate before deploy
+vela plane deps refresh <name>            # Force refresh cache
+```
+
+**Resilience:** Uses caching with TTL, fallback values for optional deps, circuit breaker (opens after 5 failures, half-open after 30s).
+
+##### ClusterPlane Workflow and Deployment Order
+
+ClusterPlane follows the **same workflow model as Application** for consistency. This ensures platform engineers familiar with KubeVela's Application CRD can immediately understand ClusterPlane behavior.
+
+**Default Behavior (No Workflow Specified):**
+
+When `spec.workflow` is not defined, the controller auto-generates a workflow:
+
+1. Creates one `deploy` step per component
+2. Uses each component's `dependsOn` field to establish ordering
+3. Components without `dependsOn` deploy **in parallel**
+4. Components with `dependsOn` wait for their dependencies
+
+**Example:** Given components A (no deps), B → A, C → B, D → B, the workflow executes: A → B → (C, D in parallel).
+
+**Explicit Workflow (Optional):**
+
+For advanced use cases, define an explicit `workflow` to:
+
+- Run validation scripts between deployments
+- Add approval gates for production changes
+- Execute conditional logic based on cluster properties
+- Send notifications on success/failure
+- Implement custom rollback strategies
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterPlane
+metadata:
+  name: networking
+  annotations:
+    plane.oam.dev/publishVersion: "2.4.0"
+spec:
+  components:
+    - name: gateway-api-crds
+      type: helm-release
+      properties: { ... }
+    - name: cilium
+      type: helm-release
+      properties: { ... }
+    - name: ingress-nginx
+      type: helm-release
+      properties: { ... }
+
+  # Explicit workflow overrides default behavior
+  workflow:
+    steps:
+      # Step 1: Deploy CRDs
+      - name: deploy-crds
+        type: deploy
+        properties:
+          components: [gateway-api-crds]
+
+      # Step 2: Wait for CRDs to be established
+      - name: wait-crds
+        type: wait
+        dependsOn: [deploy-crds]
+        properties:
+          resources:
+            - apiVersion: apiextensions.k8s.io/v1
+              kind: CustomResourceDefinition
+              name: gateways.gateway.networking.k8s.io
+          condition:
+            type: Established
+            status: "True"
+          timeout: 2m
+
+      # Step 3: Deploy CNI
+      - name: deploy-cni
+        type: deploy
+        dependsOn: [wait-crds]
+        properties:
+          components: [cilium]
+
+      # Step 4: Validate CNI connectivity
+      - name: validate-cni
+        type: script
+        dependsOn: [deploy-cni]
+        properties:
+          image: cilium/cilium-cli:latest
+          command: ["cilium", "status", "--wait"]
+          timeout: 5m
+
+      # Step 5: Approval gate (for production)
+      - name: approval-gate
+        type: suspend
+        dependsOn: [validate-cni]
+        if: "context.cluster.labels.environment == 'production'"
+        properties:
+          message: "CNI validated. Approve to continue with ingress deployment."
+          timeout: 24h
+
+      # Step 6: Deploy ingress
+      - name: deploy-ingress
+        type: deploy
+        dependsOn: [approval-gate]
+        properties:
+          components: [ingress-nginx]
+
+      # Step 7: Smoke test
+      - name: smoke-test
+        type: http
+        dependsOn: [deploy-ingress]
+        properties:
+          url: "http://ingress-nginx-controller.ingress-nginx.svc/healthz"
+          expectedStatus: 200
+          retries: 5
+          retryInterval: 10s
+
+    # Failure handling
+    onFailure:
+      - name: notify-failure
+        type: notification
+        properties:
+          slack:
+            channel: "#platform-alerts"
+            message: "Networking plane deployment failed at step: {{workflow.failedStep}}"
+```
+
+**Available Workflow Step Types:**
+
+| Step Type      | Purpose                       | Example Use Case                       |
+| -------------- | ----------------------------- | -------------------------------------- |
+| `deploy`       | Deploy one or more components | Deploy CRDs before controllers         |
+| `wait`         | Wait for resource condition   | CRD established, Deployment ready      |
+| `health-check` | Verify component health       | Ensure CNI is fully operational        |
+| `script`       | Run container with command    | Connectivity tests, validation scripts |
+| `http`         | HTTP request check            | Smoke test endpoints                   |
+| `webhook`      | Call external service         | Trigger CI/CD, external validation     |
+| `suspend`      | Pause for manual approval     | Production deployment gates            |
+| `notification` | Send alert/message            | Slack, email, PagerDuty                |
+
+**Workflow Inputs and Outputs:**
+
+Components and workflow steps can pass data between each other:
+
+```yaml
+spec:
+  components:
+    - name: cert-manager
+      type: helm-release
+      outputs:
+        - name: issuerReady
+          valueFrom:
+            fieldPath: status.conditions[?(@.type=="Ready")].status
+
+    - name: ingress-nginx
+      type: helm-release
+      dependsOn: [cert-manager]
+      inputs:
+        - from: cert-manager
+          parameterKey: values.controller.extraArgs.default-ssl-certificate
+          # Use output from cert-manager
+```
+
 #### 3. ClusterBlueprint
 
-A `ClusterBlueprint` composes multiple `ClusterPlanes` into a complete cluster specification.
+A `ClusterBlueprint` composes multiple `ClusterPlanes` into a complete cluster specification. **ClusterBlueprints are immutable templates**—once a version is created, it never changes. New versions create new `ClusterBlueprintRevision` objects.
 
-**Important**: The ClusterBlueprint defines *what* a cluster should look like. Individual `Cluster` resources declare which blueprint they follow via `spec.blueprintRef`. This inverts the relationship - clusters pull blueprints rather than blueprints pushing to clusters.
+**Key Design Points:**
+
+| Principle                         | Description                                                                                                                                              |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Template, not live state**      | ClusterBlueprint defines _what_ a cluster should look like. It is a template, not a live configuration.                                                  |
+| **Immutable versioning**          | Once a blueprint version is created, it never changes. Modifications create new versions.                                                                |
+| **Pull model**                    | Individual `Cluster` resources declare which blueprint they follow via `spec.blueprintRef`. Clusters pull blueprints; blueprints don't push to clusters. |
+| **Never modified by controllers** | No controller (including `ClusterRolloutController`) ever modifies a `ClusterBlueprint`. Only users or GitOps automation create/update blueprints.       |
+
+**Important**: The `spec.blueprintRef` in a `Cluster` is the **desired state** owned by users/GitOps. The `status.blueprint` is the **actual state** owned by `ClusterController`. This separation prevents circular references—see [Controller Ownership Model](#controller-ownership-model-circular-reference-prevention).
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -733,10 +1738,11 @@ metadata:
   namespace: vela-system
   labels:
     tier: production
+  annotations:
+    # Publishing follows Application's publishVersion pattern
+    # No annotation = draft (mutable), with annotation = creates immutable ClusterBlueprintRevision
+    blueprint.oam.dev/publishVersion: "2.3.0"
 spec:
-  # Version of this blueprint (semantic versioning required)
-  version: "2.3.0"
-
   description: "Standard production cluster configuration"
 
   # Changelog for this version
@@ -751,33 +1757,54 @@ spec:
     - Updated security plane to v1.8.0
 
   # Reference planes with optional version pinning
+  # IMPORTANT: Cloud infrastructure (VPC, EKS, nodes) is a plane, not in Cluster CRD
   planes:
+    # Cloud foundation plane - provisions VPC, EKS cluster, node pools
+    # This is what creates the actual Kubernetes cluster
+    - name: aws-foundation
+      ref:
+        name: aws-foundation
+        revision: aws-foundation-v1.2.0
+      # Cloud-specific overrides for this blueprint
+      patches:
+        - component: node-pool-workload
+          properties:
+            values:
+              instance_types: ["m5.2xlarge", "m5.4xlarge"] # Larger for production
+              min_size: 5
+              max_size: 50
+
+    # Networking plane - CNI, ingress, DNS (depends on cluster existing)
     - name: networking
       ref:
         name: networking
-        # Optional: pin to specific revision
         revision: networking-v2.3.1
-      # Override plane-level settings
+      dependsOn: [aws-foundation] # Wait for cluster to exist
       patches:
         - component: ingress-nginx
           properties:
             values:
               controller:
-                replicaCount: 3  # Override for production
+                replicaCount: 3 # Override for production
 
+    # Security plane - cert-manager, policies
     - name: security
       ref:
         name: security
         revision: security-v1.8.0
+      dependsOn: [aws-foundation]
 
+    # Observability plane
     - name: observability
       ref:
         name: observability
+      dependsOn: [networking, security]
 
+    # Storage plane - conditional for AWS clusters
     - name: storage
       ref:
         name: storage
-      # Conditional inclusion based on cluster properties
+      dependsOn: [aws-foundation]
       when: "context.cluster.labels.provider == 'aws'"
 
   # Blueprint-level policies
@@ -789,34 +1816,52 @@ spec:
         maxTotalMemory: "200Gi"
 
   # Blueprint-level workflow (orchestrates plane deployment)
+  # Note: If not specified, workflow is auto-generated from plane dependsOn
   workflow:
     steps:
+      # Step 1: Provision cloud infrastructure (VPC, EKS, nodes)
+      - name: provision-cloud
+        type: apply-plane
+        properties:
+          plane: aws-foundation
+          # For provisioning mode, this creates the actual K8s cluster
+          # Outputs are used to create cluster-gateway secret automatically
+
+      - name: wait-for-cluster
+        type: suspend
+        properties:
+          duration: "5m"
+          message: "Waiting for Kubernetes cluster to be ready"
+        dependsOn: [provision-cloud]
+
+      # Step 2: Deploy core infrastructure planes (networking + security in parallel)
       - name: deploy-networking
         type: apply-plane
         properties:
           plane: networking
+        dependsOn: [wait-for-cluster]
 
       - name: deploy-security
         type: apply-plane
         properties:
           plane: security
-        # Security can deploy in parallel with networking
-        dependsOn: []
+        dependsOn: [wait-for-cluster]
 
       - name: wait-for-core
         type: suspend
         properties:
           duration: "60s"
           message: "Waiting for core infrastructure to stabilize"
+        dependsOn: [deploy-networking, deploy-security]
 
+      # Step 3: Deploy observability
       - name: deploy-observability
         type: apply-plane
         properties:
           plane: observability
-        dependsOn:
-          - deploy-networking
-          - deploy-security
+        dependsOn: [wait-for-core]
 
+      # Step 4: Validation
       - name: validation
         type: validate-cluster
         properties:
@@ -827,6 +1872,7 @@ spec:
             - name: ingress-health
               type: http-probe
               endpoint: "http://ingress-nginx.ingress-nginx.svc/healthz"
+        dependsOn: [deploy-observability]
 
 status:
   phase: Running
@@ -837,6 +1883,13 @@ status:
 
   # Resolved plane revisions for this blueprint version
   planes:
+    - name: aws-foundation
+      revision: aws-foundation-v1.2.0
+      version: "1.2.0"
+      status: Running
+      outputs:
+        clusterEndpoint: "https://ABC123.gr7.us-east-1.eks.amazonaws.com"
+        vpcId: "vpc-0abc123"
     - name: networking
       revision: networking-v2.3.1
       version: "2.3.1"
@@ -859,7 +1912,8 @@ status:
       digest: "sha256:abc123..."
       changelog: "Updated networking plane, added storage plane"
       active: true
-      planeRevisions:  # Snapshot of which plane versions were used
+      planeRevisions: # Snapshot of which plane versions were used
+        aws-foundation: aws-foundation-v1.2.0
         networking: networking-v2.3.1
         security: security-v1.8.0
         observability: observability-v3.1.0
@@ -873,6 +1927,7 @@ status:
       changelog: "Added observability plane"
       active: false
       planeRevisions:
+        aws-foundation: aws-foundation-v1.1.0
         networking: networking-v2.2.0
         security: security-v1.8.0
         observability: observability-v3.1.0
@@ -883,8 +1938,8 @@ status:
   clusters:
     total: 5
     byRevision:
-      production-standard-v2.3.0: 3  # Already on latest
-      production-standard-v2.2.0: 2  # Still updating
+      production-standard-v2.3.0: 3 # Already on latest
+      production-standard-v2.2.0: 2 # Still updating
     synced: 3
     updating: 2
     failed: 0
@@ -893,37 +1948,103 @@ status:
 
 ##### ClusterBlueprint Versioning Strategy
 
-ClusterBlueprint versioning follows the same model as ClusterPlane, with additional tracking of composed plane versions:
+ClusterBlueprint versioning follows the same annotation-based pattern as ClusterPlane, using `blueprint.oam.dev/publishVersion` for explicit version publishing. This aligns with KubeVela's Application `app.oam.dev/publishVersion` pattern while using a resource-specific annotation namespace.
 
+**Annotation:** `blueprint.oam.dev/publishVersion: "2.3.0"` → creates immutable `ClusterBlueprintRevision/production-standard-v2.3.0`
+
+**Blueprint version captures:** Composition of plane revisions + patches + policies. Example: production-standard v2.3.0 includes networking-v2.3.1, security-v1.8.0, observability-v3.1.0.
+
+**When to bump:** Change plane references, add/remove planes, modify patches/policies, change workflow. **Not needed:** Unpinned plane updates (tracked in status), metadata changes.
+
+**Publishing Flow:** Same as ClusterPlane - draft mode (no annotation) → publish (add annotation) → new versions (bump annotation).
+
+**Version Collision Handling (same as ClusterPlane):**
+
+- Same version + Same content → SUCCESS (idempotent, GitOps-safe)
+- Same version + Different content → REJECTED
+- Delete revision referenced by Cluster → REJECTED
+
+**How Teams Publish Blueprint Versions:**
+
+```yaml
+# STEP 1: Draft mode - iterate on the blueprint without publishing
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterBlueprint
+metadata:
+  name: production-standard
+  # No publishVersion annotation = draft mode
+spec:
+  planes:
+    - name: networking
+      ref:
+        name: networking
+        revision: networking-v2.3.1
+
+    - name: security
+      ref:
+        name: security
+        revision: security-v1.8.0
+---
+# STEP 2: Ready to publish - add the annotation
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterBlueprint
+metadata:
+  name: production-standard
+  annotations:
+    # Publish version using resource-specific annotation
+    blueprint.oam.dev/publishVersion: "2.3.0"
+spec:
+  # Changelog documents what changed (recommended but optional)
+  changelog: |
+    ## 2.3.0
+    - Upgraded networking plane to v2.3.1
+    - Added conditional storage plane for AWS clusters
+
+  planes:
+    - name: networking
+      ref:
+        name: networking
+        revision: networking-v2.3.1
+
+    - name: security
+      ref:
+        name: security
+        revision: security-v1.8.0
+
+    # New conditional plane
+    - name: storage
+      ref:
+        name: storage
+        revision: storage-v1.2.0
+      condition: "cluster.labels.cloud == 'aws'"
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                   CLUSTERBLUEPRINT VERSIONING MODEL                          │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  BLUEPRINT VERSION = Composition of plane versions + overrides + policies  │
-│                                                                             │
-│  Example:                                                                   │
-│  ─────────                                                                  │
-│  production-standard v2.3.0:                                                │
-│    ├── networking-v2.3.1 (pinned)                                          │
-│    ├── security-v1.8.0 (pinned)                                            │
-│    ├── observability-v3.1.0 (latest at time of creation)                   │
-│    ├── storage-v1.2.0 (conditional, AWS only)                              │
-│    └── patches: ingress replicaCount=3                                     │
-│                                                                             │
-│  WHEN TO BUMP BLUEPRINT VERSION:                                            │
-│  ─────────────────────────────────                                          │
-│  • Change plane reference (pin to different version)                        │
-│  • Add/remove a plane                                                       │
-│  • Change patches or policies                                               │
-│  • Change workflow steps                                                    │
-│                                                                             │
-│  WHEN NOT TO BUMP (automatic):                                              │
-│  ─────────────────────────────────                                          │
-│  • Unpinned plane gets new version (tracked in status.planes)              │
-│  • Description/metadata changes                                             │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+
+**Publishing with kubectl apply (GitOps-compatible):**
+
+```bash
+# Draft mode: Apply without publishVersion annotation
+$ kubectl apply -f clusterblueprint-production.yaml
+clusterblueprint.core.oam.dev/production-standard created
+
+# Make changes, iterate...
+$ kubectl apply -f clusterblueprint-production.yaml
+clusterblueprint.core.oam.dev/production-standard configured
+
+# Ready to publish: Add annotation and apply
+$ kubectl apply -f clusterblueprint-production.yaml  # now has publishVersion: "2.3.0"
+clusterblueprint.core.oam.dev/production-standard configured
+clusterblueprintrevision.core.oam.dev/production-standard-v2.3.0 created
+
+# Verify the revision was created
+$ kubectl get clusterblueprintrevision -l core.oam.dev/blueprint-name=production-standard
+NAME                            VERSION   CLUSTERS   AGE
+production-standard-v2.3.0      2.3.0     0          5s
+production-standard-v2.2.0      2.2.0     2          2d
+
+# Try to republish same version with different content = ERROR
+$ kubectl apply -f clusterblueprint-production-modified.yaml  # has publishVersion: "2.3.0"
+Error from server: admission webhook "version.blueprint.oam.dev" denied the request:
+version "2.3.0" already published with different content. Use a new version (e.g., 2.3.1).
 ```
 
 **Cluster Reference Options:**
@@ -1007,61 +2128,270 @@ Cluster                   Current      Target       Status
 production-us-east-1      v2.2.0       v2.3.0       Pending
 production-us-west-2      v2.2.0       v2.3.0       Pending
 
-This will trigger ClusterRolloutStrategy: production-canary
+This CLI command will update each clusters spec.blueprintRef (user-owned).
+ClusterRolloutStrategy 'production-canary' will gate when each update is applied:
   Wave 1: production-us-west-2 (canary)
   Wave 2: production-us-east-1 (after validation)
 
 Proceed? [y/N]:
 
-# Create new blueprint version from current state
-$ vela blueprint release production-standard --version 2.4.0 \
+# Create new blueprint version from current state (CLI method)
+# This is equivalent to kubectl apply with publishVersion annotation
+$ vela blueprint publish production-standard --version 2.4.0 \
     --changelog "Upgraded observability to v4.0.0"
 
-Creating new revision production-standard-v2.4.0...
+Publishing production-standard v2.4.0...
+  → Setting annotation: blueprint.oam.dev/publishVersion: "2.4.0"
   → Snapshotting current plane references
   → Recording changelog
 
 ✓ Created production-standard-v2.4.0
+
+# Alternative: Use kubectl apply with annotation (GitOps-compatible)
+$ cat production-standard.yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterBlueprint
+metadata:
+  name: production-standard
+  annotations:
+    blueprint.oam.dev/publishVersion: "2.4.0"
+spec:
+  planes: [...]
+
+$ kubectl apply -f production-standard.yaml
+clusterblueprint.core.oam.dev/production-standard configured
+clusterblueprintrevision.core.oam.dev/production-standard-v2.4.0 created
 ```
 
-**Relationship between Cluster and ClusterBlueprint:**
+##### Version Constraint Resolution
 
+When using `versionConstraint` instead of pinning to a specific revision, the system resolves which version to use using semver constraints (e.g., `>=2.0.0 <3.0.0`). Resolution occurs on blueprint apply, when new plane versions are published, or via manual trigger.
+
+**Resolution Spec:**
+
+```yaml
+spec:
+  planes:
+    - name: networking
+      ref:
+        name: networking
+        versionConstraint: ">=2.0.0 <3.0.0"
+        resolution:
+          strategy: highest # highest | lowest | latest-created | oldest-created
+          fallback: fail # fail | use-current | use-latest
+          autoUpgrade:
+            enabled: true
+            allowedBumps: [patch]
+            requireApproval:
+              minor: true
+              major: true
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     CLUSTER ← BLUEPRINT RELATIONSHIP                        │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ClusterBlueprint                    Cluster CRs                            │
-│  ─────────────────                   ───────────                            │
-│                                                                             │
-│  ┌─────────────────────┐            ┌─────────────────────┐                │
-│  │ production-standard │◄───────────│ production-us-east-1│                │
-│  │                     │            │ blueprintRef:       │                │
-│  │ planes:             │            │   name: production- │                │
-│  │   - networking      │◄───────────│         standard    │                │
-│  │   - security        │            └─────────────────────┘                │
-│  │   - observability   │                                                   │
-│  └─────────────────────┘            ┌─────────────────────┐                │
-│           ▲                         │ production-us-west-2│                │
-│           │                         │ blueprintRef:       │                │
-│           └─────────────────────────│   name: production- │                │
-│                                     │         standard    │                │
-│                                     └─────────────────────┘                │
-│                                                                             │
-│  The Blueprint defines WHAT.        Clusters declare WHICH blueprint.      │
-│  Clusters reference blueprints.     The Cluster controller reconciles.     │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+
+Supported constraint operators: `=`, `>`, `>=`, `<`, `<=`, `~` (patch), `^` (minor), `||` (or), `*` (any).
+
+##### ClusterBlueprintRevision CRD
+
+Just as `ClusterPlane` requires a separate `ClusterPlaneRevision` CRD to handle scaling concerns, `ClusterBlueprint` needs `ClusterBlueprintRevision` to store immutable snapshots of complete infrastructure compositions. This is critical because:
+
+1. **Composition Complexity**: A blueprint references multiple planes, each with their own versions
+2. **Audit Trail**: Enterprise environments require complete history of what was deployed to which clusters
+3. **Rollback Precision**: Rollbacks must restore the exact combination of plane versions
+
+**Key Insight:** Each ClusterBlueprintRevision captures the EXACT ClusterPlaneRevision names (not just version strings), enabling precise rollbacks to the exact combination of plane states.
+
+**ClusterBlueprintRevision Spec:**
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterBlueprintRevision
+metadata:
+  name: production-standard-v2.3.0
+  namespace: vela-system
+  labels:
+    core.oam.dev/blueprint-name: production-standard
+    core.oam.dev/blueprint-version: "2.3.0"
+  ownerReferences:
+    - apiVersion: core.oam.dev/v1beta1
+      kind: ClusterBlueprint
+      name: production-standard
+      uid: blueprint-123-abc
+spec:
+  # Immutable snapshot of the ClusterBlueprint at this version
+  blueprintSnapshot:
+    version: "2.3.0"
+
+    # Exact plane revisions used in this blueprint version
+    # These are ClusterPlaneRevision names, not version strings
+    planeRevisions:
+      - name: networking
+        revision: networking-v2.3.1
+        version: "2.3.1"
+        digest: "sha256:abc123..."
+        pinned: true # Was this explicitly pinned?
+
+      - name: security
+        revision: security-v1.8.0
+        version: "1.8.0"
+        digest: "sha256:def456..."
+        pinned: true
+
+      - name: observability
+        revision: observability-v3.1.0
+        version: "3.1.0"
+        digest: "sha256:ghi789..."
+        pinned: false # Used latest at time of creation
+
+      - name: storage
+        revision: storage-v1.2.0
+        version: "1.2.0"
+        digest: "sha256:jkl012..."
+        conditional: true
+        condition:
+          matchLabels:
+            cloud-provider: aws
+
+    # Blueprint-level patches captured at this version
+    patches:
+      - plane: networking
+        component: ingress-nginx
+        patch:
+          values:
+            controller:
+              replicaCount: 3
+
+    # Policies active in this version
+    policies:
+      - name: topology-spread
+        type: topology
+        properties:
+          clusters: ["production-*"]
+          constraints:
+            maxSkew: 1
+
+  # Metadata about this revision
+  revisionMeta:
+    created: "2024-12-24T10:00:00Z"
+    createdBy: "sre-team@company.com"
+    changelog: |
+      - Upgraded networking plane to v2.3.1 (security patch)
+      - Added observability plane v3.1.0
+      - Increased ingress replicas to 3
+    digest: "sha256:blueprint-hash-xyz..."
+    parentRevision: "production-standard-v2.2.0"
+
+  # Compression for large blueprints
+  compression:
+    type: gzip
+
+status:
+  # Deployment status
+  succeeded: true
+
+  # Clusters using this specific blueprint revision
+  activeInClusters:
+    - name: production-us-east-1
+      syncedAt: "2024-12-24T10:10:00Z"
+      planeStatus:
+        networking: Synced
+        security: Synced
+        observability: Synced
+
+    - name: production-us-west-2
+      syncedAt: "2024-12-24T10:12:00Z"
+      planeStatus:
+        networking: Synced
+        security: Synced
+        observability: Synced
+
+    - name: production-eu-west-1
+      syncedAt: "2024-12-24T10:15:00Z"
+      planeStatus:
+        networking: Synced
+        security: Synced
+        observability: Updating
+
+  # ResourceTrackers for this blueprint revision (per cluster)
+  resourceTrackers:
+    - cluster: production-us-east-1
+      name: clusterblueprint-production-standard-v2.3.0-root
+      managedResources: 47
+
+    - cluster: production-us-west-2
+      name: clusterblueprint-production-standard-v2.3.0-root
+      managedResources: 47
+
+    - cluster: production-eu-west-1
+      name: clusterblueprint-production-standard-v2.3.0-root
+      managedResources: 45 # Storage plane not applied
 ```
+
+**Updated ClusterBlueprint Status (Lightweight):**
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterBlueprint
+metadata:
+  name: production-standard
+spec:
+  # ... (unchanged)
+status:
+  phase: Active
+
+  # Reference to current active revision
+  currentRevision:
+    name: production-standard-v2.3.0
+    version: "2.3.0"
+    digest: "sha256:blueprint-hash-xyz..."
+
+  # Quick reference to plane versions in current revision
+  currentPlaneVersions:
+    networking: "2.3.1"
+    security: "1.8.0"
+    observability: "3.1.0"
+
+  # Total revision count
+  revisionCount: 12
+
+  # Cluster deployment summary
+  clusters:
+    total: 5
+    synced: 4
+    updating: 1
+    failed: 0
+
+  observedGeneration: 8
+  lastUpdated: "2024-12-24T10:00:00Z"
+```
+
+**Blueprint Revision Lifecycle:**
+
+1. **Trigger**: Revision created when `blueprint.oam.dev/publishVersion` annotation is set via kubectl apply, `vela blueprint publish`, or GitOps sync
+2. **Snapshot**: Controller captures current plane revisions, patches, policies, and computes content digest
+3. **Deploy**: Clusters referencing this revision get exact plane versions applied with ResourceTracker updates
+4. **GC**: Revisions older than `revisionHistoryLimit` are deleted if not referenced by any cluster
+
+**CLI Commands:**
+
+```bash
+vela blueprint revisions <name>                    # List revisions
+vela blueprint revision <rev> --show-planes        # Show details
+vela blueprint diff <name> --from v1 --to v2       # Compare revisions
+vela blueprint rollback-plan <name> --to-revision <rev>  # Preview rollback
+```
+
+**Cluster ← Blueprint Relationship:**
+
+Multiple Clusters can reference the same ClusterBlueprint. The Blueprint defines WHAT (planes to deploy), Clusters declare WHICH blueprint to use. The Cluster controller reconciles the actual state.
 
 #### 4. ClusterRollout (Optional - For Emergency/Manual Overrides)
 
 > **Note**: With the introduction of `ClusterRolloutStrategy`, the `ClusterRollout` CRD becomes **optional** and is primarily used for:
+>
 > - **Emergency rollouts** that bypass normal wave progression
 > - **Manual overrides** for specific clusters or cluster groups
 > - **One-time operations** that don't follow the standard strategy
 >
-> For normal operations, clusters reference a `ClusterRolloutStrategy` via `rolloutStrategyRef`. The strategy controller automatically progresses through waves when blueprint updates are detected.
+> For normal operations, clusters reference a `ClusterRolloutStrategy` via `rolloutStrategyRef`. The strategy controller automatically progresses through waves when **users or GitOps automation update `Cluster.spec.blueprintRef`** to point to a new blueprint version. The `ClusterRolloutController` never modifies `spec.blueprintRef` itself—it only gates WHEN the `ClusterController` can apply the user-requested update.
 
 A `ClusterRollout` manages **imperative/emergency** progressive delivery of `ClusterBlueprint` changes, overriding the normal `ClusterRolloutStrategy` behavior.
 
@@ -1084,7 +2414,7 @@ spec:
 
   # Rollout strategy
   strategy:
-    type: canary  # canary, blueGreen, rolling
+    type: canary # canary, blueGreen, rolling
     canary:
       # Cluster-level canary (not pod-level)
       steps:
@@ -1116,8 +2446,8 @@ spec:
           sum(rate(nginx_ingress_controller_requests{status=~"5.."}[5m]))
           / sum(rate(nginx_ingress_controller_requests[5m])) * 100
         thresholds:
-          - condition: "< 1"      # Must be less than 1%
-            failureLimit: 3       # Allow 3 failures before rollback
+          - condition: "< 1" # Must be less than 1%
+            failureLimit: 3 # Allow 3 failures before rollback
 
       - name: p99-latency
         provider: prometheus
@@ -1126,7 +2456,7 @@ spec:
             sum(rate(nginx_ingress_controller_request_duration_seconds_bucket[5m]))
             by (le))
         thresholds:
-          - condition: "< 0.5"    # p99 < 500ms
+          - condition: "< 0.5" # p99 < 500ms
             failureLimit: 2
 
       - name: pod-restarts
@@ -1149,7 +2479,7 @@ spec:
     automatic: true
 
     # How to rollback
-    strategy: immediate  # immediate, gradual
+    strategy: immediate # immediate, gradual
 
     # Notification on rollback
     notification:
@@ -1170,10 +2500,10 @@ spec:
       approvers:
         - platform-leads
       timeout: "24h"
-      autoApproveAfter: "48h"  # Optional: auto-approve if no response
+      autoApproveAfter: "48h" # Optional: auto-approve if no response
 
 status:
-  phase: Progressing  # Pending, Progressing, Paused, Succeeded, Failed, RolledBack
+  phase: Progressing # Pending, Progressing, Paused, Succeeded, Failed, RolledBack
 
   currentStep: 1
   currentWeight: 10
@@ -1222,7 +2552,17 @@ status:
 
 #### 5. ClusterRolloutStrategy
 
-A `ClusterRolloutStrategy` defines **how blueprint updates are rolled out across a fleet** of clusters. Clusters reference this strategy via `rolloutStrategyRef`, enabling coordinated updates where Cluster B only updates after Cluster A succeeds.
+A `ClusterRolloutStrategy` defines **when and how blueprint updates are rolled out across a fleet** of clusters. Clusters reference this strategy via `rolloutStrategyRef`, enabling coordinated updates where Cluster B only updates after Cluster A succeeds.
+
+**Critical Distinction:**
+
+| Aspect             | Who Controls                                           | Description                                          |
+| ------------------ | ------------------------------------------------------ | ---------------------------------------------------- |
+| **WHAT** to deploy | User/GitOps → `Cluster.spec.blueprintRef`              | Desired blueprint version                            |
+| **WHEN** to deploy | `ClusterRolloutController` → gates `ClusterController` | Wave progression, maintenance windows, health checks |
+| **HOW** to deploy  | `ClusterRolloutStrategy.spec`                          | Waves, batching, pauses, approvals                   |
+
+The `ClusterRolloutController` **never modifies** `Cluster.spec.blueprintRef` or `ClusterBlueprint`. It only gates the timing of when `ClusterController` can apply user-requested updates. This prevents circular references—see [Controller Ownership Model](#controller-ownership-model-circular-reference-prevention).
 
 This design eliminates conflicts between per-cluster update policies and fleet-wide rollouts by having a **single source of truth** for rollout behavior.
 
@@ -1281,8 +2621,8 @@ spec:
         healthyDuration: "12h"
       # Batch updates within this wave
       batching:
-        size: 5  # Update 5 clusters at a time
-        interval: "30m"  # Wait 30m between batches
+        size: 5 # Update 5 clusters at a time
+        interval: "30m" # Wait 30m between batches
 
     - name: critical
       order: 4
@@ -1304,10 +2644,12 @@ spec:
         # autoApproveAfter: "72h"
       # Extra strict batching for critical
       batching:
-        size: 1  # One cluster at a time
+        size: 1 # One cluster at a time
         interval: "2h"
 
   # Maintenance window behavior
+  # ClusterRolloutController checks cluster.status.maintenance.inWindow
+  # (computed by ClusterController) before proceeding with updates
   maintenanceWindows:
     # Respect individual cluster maintenance windows
     respectClusterWindows: true
@@ -1315,12 +2657,26 @@ spec:
     # If false, wait for all clusters in wave to be in their window
     skipIfOutsideWindow: true
     # Maximum time to wait for a maintenance window
-    maxWaitTime: "168h"  # 1 week
+    maxWaitTime: "168h" # 1 week
+
+    # What to do when window ends during an active update
+    # See "Maintenance Window Enforcement" section for details
+    inProgressUpdateStrategy: continue # continue | graceful | checkpoint
+
+    # Alert configuration for window events
+    alerts:
+      onWindowEndDuringUpdate: true
+      channels:
+        - type: slack
+          target: "#platform-alerts"
+        - type: pagerduty
+          target: "platform-oncall"
+          severity: warning
 
   # Per-cluster rollout behavior (within each cluster)
   clusterUpdateBehavior:
     # How to update components within a single cluster
-    strategy: canary  # canary, rolling, blueGreen, allAtOnce
+    strategy: canary # canary, rolling, blueGreen, allAtOnce
     canary:
       steps:
         - weight: 10
@@ -1368,9 +2724,9 @@ spec:
     # Automatic rollback on SLO breach
     automatic: true
     # How to rollback
-    strategy: immediate  # immediate, gradual
+    strategy: immediate # immediate, gradual
     # Scope of rollback
-    scope: wave  # wave, cluster, fleet
+    scope: wave # wave, cluster, fleet
     # Notification on rollback
     notification:
       channels:
@@ -1390,7 +2746,7 @@ spec:
 
 status:
   # Current state of the strategy
-  phase: Active  # Active, Paused, Superseded
+  phase: Active # Active, Paused, Superseded
 
   # Current rollout progress (when a blueprint update is in progress)
   currentRollout:
@@ -1451,60 +2807,109 @@ status:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│              CLUSTER-DRIVEN ROLLOUT WITH SHARED STRATEGY                     │
+│              CLUSTER-DRIVEN ROLLOUT WITH SHARED STRATEGY                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ClusterBlueprint                ClusterRolloutStrategy                     │
 │  ─────────────────                ───────────────────────                   │
 │  "What to deploy"                 "How to roll out"                         │
 │                                                                             │
-│  ┌─────────────────┐              ┌─────────────────────┐                  │
-│  │ production-     │              │ production-rollout  │                  │
-│  │ standard        │              │                     │                  │
-│  │                 │              │ waves:              │                  │
-│  │ revision: v2.4  │              │  1. canary          │                  │
-│  │                 │              │  2. staging         │                  │
-│  │ planes:         │              │  3. non-critical    │                  │
-│  │  - networking   │              │  4. critical        │                  │
-│  │  - security     │              │                     │                  │
-│  │  - observability│              │ analysis:           │                  │
-│  └────────┬────────┘              │  - error-rate < 1%  │                  │
-│           │                       │  - p99 < 500ms      │                  │
-│           │                       └──────────┬──────────┘                  │
+│  ┌─────────────────┐              ┌─────────────────────┐                   │
+│  │ production-     │              │ production-rollout  │                   │
+│  │ standard        │              │                     │                   │
+│  │                 │              │ waves:              │                   │
+│  │ revision: v2.4  │              │  1. canary          │                   │
+│  │                 │              │  2. staging         │                   │
+│  │ planes:         │              │  3. non-critical    │                   │
+│  │  - networking   │              │  4. critical        │                   │
+│  │  - security     │              │                     │                   │
+│  │  - observability│              │ analysis:           │                   │
+│  └────────┬────────┘              │  - error-rate < 1%  │                   │
+│           │                       │  - p99 < 500ms      │                   │
+│           │                       └──────────┬──────────┘                   │
 │           │                                  │                              │
-│           │              ┌───────────────────┼───────────────────┐         │
-│           │              │                   │                   │         │
-│           │              ▼                   ▼                   ▼         │
-│           │     ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐│
-│           │     │ cluster-canary  │ │ cluster-staging │ │ cluster-prod-1  ││
-│           │     │                 │ │                 │ │                 ││
-│           │     │ tier: canary    │ │ tier: staging   │ │ tier: critical  ││
-│           │     │                 │ │                 │ │                 ││
-│           └────►│ blueprintRef:   │ │ blueprintRef:   │ │ blueprintRef:   ││
-│                 │   production-   │ │   production-   │ │   production-   ││
-│                 │   standard      │ │   standard      │ │   standard      ││
-│                 │                 │ │                 │ │                 ││
-│                 │ rolloutStrategy │ │ rolloutStrategy │ │ rolloutStrategy ││
-│                 │ Ref: production │ │ Ref: production │ │ Ref: production ││
-│                 │ -rollout        │ │ -rollout        │ │ -rollout        ││
-│                 │                 │ │                 │ │                 ││
-│                 │ maintenance:    │ │ maintenance:    │ │ maintenance:    ││
-│                 │  anytime        │ │  weekends       │ │  Sat 2-6am      ││
-│                 └─────────────────┘ └─────────────────┘ └─────────────────┘│
-│                         │                   │                   │          │
-│                         │                   │                   │          │
-│  WAVE 1 ───────────────►│                   │                   │          │
-│  Updates immediately    │                   │                   │          │
-│                         │                   │                   │          │
-│  WAVE 2 ────────────────┼──────────────────►│                   │          │
-│  Waits 4h after canary  │                   │                   │          │
-│  is healthy             │                   │                   │          │
-│                         │                   │                   │          │
-│  WAVE 4 ────────────────┼───────────────────┼──────────────────►│          │
-│  Waits for approval     │                   │                   │          │
-│  + maintenance window   │                   │                   │          │
+│           │              ┌───────────────────┼───────────────────┐          │
+│           │              │                   │                   │          │
+│           │              ▼                   ▼                   ▼          │
+│           │     ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ │
+│           │     │ cluster-canary  │ │ cluster-staging │ │ cluster-prod-1  │ │
+│           │     │                 │ │                 │ │                 │ │
+│           │     │ tier: canary    │ │ tier: staging   │ │ tier: critical  │ │
+│           │     │                 │ │                 │ │                 │ │
+│           └────►│ blueprintRef:   │ │ blueprintRef:   │ │ blueprintRef:   │ │
+│                 │   production-   │ │   production-   │ │   production-   │ │
+│                 │   standard      │ │   standard      │ │   standard      │ │
+│                 │                 │ │                 │ │                 │ │
+│                 │ rolloutStrategy │ │ rolloutStrategy │ │ rolloutStrategy │ │
+│                 │ Ref: production │ │ Ref: production │ │ Ref: production │ │
+│                 │ -rollout        │ │ -rollout        │ │ -rollout        │ │
+│                 │                 │ │                 │ │                 │ │
+│                 │ maintenance:    │ │ maintenance:    │ │ maintenance:    │ │
+│                 │  anytime        │ │  weekends       │ │  Sat 2-6am      │ │
+│                 └─────────────────┘ └─────────────────┘ └─────────────────┘ │
+│                         │                   │                   │           │
+│                         │                   │                   │           │
+│  WAVE 1 ───────────────►│                   │                   │           │
+│  Updates immediately    │                   │                   │           │
+│                         │                   │                   │           │
+│  WAVE 2 ────────────────┼──────────────────►│                   │           │
+│  Waits 4h after canary  │                   │                   │           │
+│  is healthy             │                   │                   │           │
+│                         │                   │                   │           │
+│  WAVE 4 ────────────────┼───────────────────┼──────────────────►│           │
+│  Waits for approval     │                   │                   │           │
+│  + maintenance window   │                   │                   │           │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Maintenance Window Enforcement
+
+Maintenance windows control **when** cluster updates can occur. The ClusterController computes and exposes window state (`status.maintenance.inWindow`), while ClusterRolloutController checks this before updates.
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: production-us-east-1
+spec:
+  maintenance:
+    windows:
+      - name: weekend-maintenance
+        start: "02:00"
+        end: "06:00"
+        timezone: "America/New_York" # IANA timezone
+        days: [Sat, Sun]
+        dstPolicy: extend # extend | shrink | skip
+    enforceWindow: true
+    allowEmergencyUpdates: true
+status:
+  maintenance:
+    inWindow: true
+    currentWindow: { name: weekend-maintenance, endsAt: "2024-12-28T11:00:00Z" }
+    nextWindow:
+      { name: weeknight-maintenance, startsAt: "2024-12-30T08:00:00Z" }
+```
+
+**In-Progress Update Strategies** (when window ends during update):
+
+| Strategy     | Behavior                                           |
+| ------------ | -------------------------------------------------- |
+| `continue`   | Complete the update (default)                      |
+| `graceful`   | Complete current step, pause before next           |
+| `checkpoint` | Pause immediately, create checkpoint, resume later |
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterRolloutStrategy
+spec:
+  maintenanceWindows:
+    respectClusterWindows: true
+    skipIfOutsideWindow: true
+    maxWaitTime: "168h"
+    inProgressUpdateStrategy: graceful
 ```
 
 ---
@@ -1517,7 +2922,7 @@ A key design goal is supporting the **full cluster lifecycle** - from provisioni
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         CLUSTER LIFECYCLE MODES                              │
+│                         CLUSTER LIFECYCLE MODES                             │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  MODE 1: PROVISION                MODE 2: ADOPT                             │
@@ -1525,47 +2930,47 @@ A key design goal is supporting the **full cluster lifecycle** - from provisioni
 │  "Create a new cluster            "Take over an existing                    │
 │   from scratch"                    cluster created elsewhere"               │
 │                                                                             │
-│  ┌─────────────────┐              ┌─────────────────┐                      │
-│  │ Cloud Creds     │              │ Kubeconfig OR   │                      │
-│  │ + Region        │              │ Terraform State │                      │
-│  │ + Blueprint     │              │ + Blueprint     │                      │
-│  └────────┬────────┘              └────────┬────────┘                      │
+│  ┌─────────────────┐              ┌─────────────────┐                       │
+│  │ Cloud Creds     │              │ Kubeconfig OR   │                       │
+│  │ + Region        │              │ Terraform State │                       │
+│  │ + Blueprint     │              │ + Blueprint     │                       │
+│  └────────┬────────┘              └────────┬────────┘                       │
 │           │                                │                                │
 │           ▼                                ▼                                │
-│  ┌─────────────────┐              ┌─────────────────┐                      │
-│  │ VPC Created     │              │ Discovery &     │                      │
-│  │ EKS Provisioned │              │ Inventory Scan  │                      │
-│  │ Nodes Launched  │              │ State Import    │                      │
-│  └────────┬────────┘              └────────┬────────┘                      │
+│  ┌─────────────────┐              ┌─────────────────┐                       │
+│  │ VPC Created     │              │ Discovery &     │                       │
+│  │ EKS Provisioned │              │ Inventory Scan  │                       │
+│  │ Nodes Launched  │              │ State Import    │                       │
+│  └────────┬────────┘              └────────┬────────┘                       │
 │           │                                │                                │
 │           ▼                                ▼                                │
-│  ┌─────────────────┐              ┌─────────────────┐                      │
-│  │ Blueprint       │              │ Blueprint       │                      │
-│  │ Applied         │              │ Reconciled      │                      │
-│  └─────────────────┘              └─────────────────┘                      │
+│  ┌─────────────────┐              ┌─────────────────┐                       │
+│  │ Blueprint       │              │ Blueprint       │                       │
+│  │ Applied         │              │ Reconciled      │                       │
+│  └─────────────────┘              └─────────────────┘                       │
 │                                                                             │
 │  MODE 3: CONNECT                                                            │
 │  ───────────────                                                            │
-│  "Just manage what's in the cluster, don't provision infrastructure"       │
+│  "Just manage what's in the cluster, don't provision infrastructure"        │
 │                                                                             │
-│  ┌─────────────────┐                                                       │
-│  │ Kubeconfig      │                                                       │
-│  │ + Blueprint     │                                                       │
-│  │ (optional)      │                                                       │
-│  └────────┬────────┘                                                       │
+│  ┌─────────────────┐                                                        │
+│  │ Kubeconfig      │                                                        │
+│  │ + Blueprint     │                                                        │
+│  │ (optional)      │                                                        │
+│  └────────┬────────┘                                                        │
 │           │                                                                 │
 │           ▼                                                                 │
-│  ┌─────────────────┐                                                       │
-│  │ Inventory Scan  │                                                       │
-│  │ Blueprint Apply │                                                       │
-│  └─────────────────┘                                                       │
+│  ┌─────────────────┐                                                        │
+│  │ Inventory Scan  │                                                        │
+│  │ Blueprint Apply │                                                        │
+│  └─────────────────┘                                                        │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 #### Mode 1: Provision - Create New Cluster
 
-Create a brand new cluster with minimal input. Only cloud credentials and desired region are required; everything else uses smart defaults.
+Create a brand new cluster with minimal input. The Cluster CRD is intentionally simple - **all infrastructure configuration (VPC, EKS, node pools) is defined in ClusterPlanes within the blueprint**, not in the Cluster CRD itself.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -1577,110 +2982,109 @@ spec:
   # MODE: Provision new cluster
   mode: provision
 
-  # Cloud provider configuration
+  # Cloud provider configuration - just credentials and region
   provider:
-    type: aws  # aws, gcp, azure, kind, k3s
+    type: aws # aws, gcp, azure, kind, k3s
 
     # Reference to cloud credentials secret
     credentialRef:
       name: aws-platform-credentials
       namespace: vela-system
 
-    # Region (only required field besides credentials)
+    # Region for cloud resources
     region: us-east-1
 
-    # Everything below is OPTIONAL with smart defaults
-
-  # Cluster specification (all optional - uses defaults)
-  clusterSpec:
-    # Kubernetes version (default: latest stable)
-    kubernetesVersion: "1.28"
-
-    # Node configuration (default: managed node group with reasonable sizes)
-    nodePools:
-      - name: default
-        instanceType: m5.large    # Default based on blueprint requirements
-        minSize: 3                # Default: 3
-        maxSize: 10               # Default: 10
-        # If not specified, auto-calculated from blueprint resource requirements
-
-    # Networking (default: create new VPC with standard CIDR)
-    networking:
-      # Leave empty to auto-create VPC
-      # vpcId: vpc-xxx          # Optional: use existing VPC
-      # subnetIds: [...]        # Optional: use existing subnets
-
-      # CIDR ranges (defaults if VPC is auto-created)
-      vpcCidr: "10.0.0.0/16"
-      podCidr: "10.244.0.0/16"
-      serviceCidr: "10.96.0.0/12"
-
-    # Additional features (defaults based on blueprint)
-    features:
-      # Auto-enabled based on blueprint planes
-      privateEndpoint: true
-      publicEndpoint: false
-      logging:
-        - api
-        - audit
-        - authenticator
-
-  # Blueprint to apply after provisioning
+  # Blueprint defines ALL infrastructure via ClusterPlanes
+  # The aws-foundation plane in this blueprint handles VPC, EKS, node pools
   blueprintRef:
     name: production-standard
-
-  # Provisioning workflow (optional - uses default)
-  provisionWorkflow:
-    # Default workflow: provision → wait → connect → apply blueprint
-    # Can be customized for special requirements
-    timeout: "30m"
+    # Optional: override plane parameters for this specific cluster
+    # patches:
+    #   - plane: aws-foundation
+    #     component: vpc
+    #     properties:
+    #       values:
+    #         cidr: "10.100.0.0/16"  # Different CIDR for this cluster
 
 status:
   mode: provision
-  provisioningStatus:
-    phase: Provisioning  # Pending, Provisioning, Ready, Failed
+  phase: Provisioning # Pending, Provisioning, Ready, Failed
 
-    # Provisioning progress
-    infrastructure:
-      vpc:
-        status: Created
-        id: vpc-0123456789
-        cidr: "10.0.0.0/16"
-      subnets:
-        - id: subnet-aaa
-          az: us-east-1a
-          cidr: "10.0.1.0/24"
-        - id: subnet-bbb
-          az: us-east-1b
-          cidr: "10.0.2.0/24"
-      securityGroups:
-        - id: sg-xxx
-          name: production-us-east-1-cluster
+  # Connection info (populated by aws-foundation plane outputs)
+  connection:
+    endpoint: "" # Populated when EKS is ready
+    certificateAuthority: ""
+    # cluster-gateway secret is auto-created from plane outputs
 
-    cluster:
-      status: Creating
-      arn: "arn:aws:eks:us-east-1:123456789:cluster/production-us-east-1"
-      endpoint: ""  # Populated when ready
+  # Plane provisioning progress (from blueprint)
+  planes:
+    - name: aws-foundation
+      phase: Provisioning
+      components:
+        - name: vpc
+          status: Created
+          outputs:
+            vpc_id: "vpc-0123456789"
+        - name: eks-cluster
+          status: Creating
+          message: "EKS cluster provisioning..."
+        - name: node-pool-system
+          status: Pending
+        - name: node-pool-workload
+          status: Pending
 
-    nodePools:
-      - name: default
-        status: Pending
-        desiredSize: 3
-        readyNodes: 0
+    - name: networking
+      phase: Pending # Waiting for aws-foundation
 
-    # Timeline
-    startedAt: "2024-12-24T10:00:00Z"
-    estimatedCompletion: "2024-12-24T10:25:00Z"
+    - name: security
+      phase: Pending
 
-    # Events
-    events:
-      - time: "2024-12-24T10:00:00Z"
-        message: "Started VPC creation"
-      - time: "2024-12-24T10:02:00Z"
-        message: "VPC created, starting subnet creation"
+  # Timeline
+  startedAt: "2024-12-24T10:00:00Z"
+  estimatedCompletion: "2024-12-24T10:25:00Z"
 ```
 
-**Minimal Provision Example** - Just credentials and region:
+**Why No `clusterSpec`?**
+
+Infrastructure configuration belongs in ClusterPlanes, not the Cluster CRD:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    INFRASTRUCTURE IN BLUEPRINT, NOT CLUSTER                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  CLUSTER CRD (minimal):                                                     │
+│  ──────────────────────                                                     │
+│  • provider.credentialRef  → Cloud credentials                              │
+│  • provider.region         → Where to deploy                                │
+│  • blueprintRef            → What to deploy (everything else)               │
+│                                                                             │
+│  BLUEPRINT contains:                                                        │
+│  ───────────────────                                                        │
+│  planes:                                                                    │
+│    - name: aws-foundation        ← VPC, EKS, node pools                     │
+│      revisionName: aws-foundation-v1.2.0                                    │
+│                                                                             │
+│    - name: networking            ← CNI, ingress, DNS                        │
+│      revisionName: networking-v2.3.1                                        │
+│      dependsOn: [aws-foundation]                                            │
+│                                                                             │
+│    - name: security              ← Cert-manager, policies                   │
+│      revisionName: security-v1.8.0                                          │
+│      dependsOn: [aws-foundation]                                            │
+│                                                                             │
+│  BENEFITS:                                                                  │
+│  ─────────                                                                  │
+│  ✓ VPC/EKS is versioned like any other plane                                │
+│  ✓ Platform team owns aws-foundation, can update independently              │
+│  ✓ Same blueprint works across clusters (credentials differ)                │
+│  ✓ Can test infrastructure changes via plane revision                       │
+│  ✓ Rollback VPC changes just like app changes                               │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Minimal Provision Example:**
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -1695,19 +3099,16 @@ spec:
       name: aws-credentials
     region: us-west-2
   blueprintRef:
-    name: dev-minimal
-
-# That's it! Everything else uses smart defaults:
-# - VPC: Auto-created with 10.0.0.0/16
-# - Subnets: 3 AZs, public + private
-# - Node pool: 3x m5.large (auto-scaled 3-10)
-# - K8s version: Latest stable
-# - Security: Private endpoint, no public access
+    name: dev-minimal # Blueprint includes dev-sized aws-foundation plane
+# That's it! All infrastructure (VPC, EKS, nodes) comes from the blueprint.
+# The aws-foundation plane in dev-minimal uses smaller instance types.
 ```
 
-#### Mode 2: Adopt - Take Over Existing Cluster
+#### Mode 2: Adopt - Connect to Existing Cluster
 
-Adopt a cluster that was created by Terraform, CloudFormation, or manually. Vela discovers existing infrastructure and takes over management.
+Connect to an existing cluster using **KubeVela's existing cluster-gateway pattern**. This is the same mechanism used by `vela cluster join` - no new credential model is introduced.
+
+**Using Existing cluster-gateway Secret:**
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -1719,161 +3120,100 @@ spec:
   # MODE: Adopt existing cluster
   mode: adopt
 
-  # How to connect to the cluster
-  credential:
-    # Option A: Kubeconfig
-    secretRef:
-      name: legacy-production-kubeconfig
+  # Use existing cluster-gateway secret (same as vela cluster join)
+  # This is the SAME secret format that cluster-gateway already uses
+  clusterGatewayRef:
+    name: legacy-production # Secret name in vela-system namespace
 
-    # Option B: Cloud provider discovery (finds cluster by name/tags)
-    # provider:
-    #   type: aws
-    #   credentialRef:
-    #     name: aws-credentials
-    #   discovery:
-    #     clusterName: legacy-production
-    #     # Or by tags:
-    #     # tags:
-    #     #   environment: production
-    #     #   team: platform
-
-  # Adoption configuration
+  # Adoption configuration - discover what's already running
   adoption:
     # What to do with existing resources
     existingResources:
-      # discover: Find and inventory existing resources
-      # reconcile: Bring into desired state (may modify)
-      # ignore: Don't touch, just track
-      mode: discover  # First run: just discover
-
-    # Import infrastructure state (optional)
-    terraformState:
-      # Import from Terraform state for drift detection
-      backend:
-        type: s3
-        config:
-          bucket: terraform-state
-          key: clusters/legacy-production/terraform.tfstate
-          region: us-east-1
+      mode: discover # discover, reconcile, ignore
 
     # Map existing components to planes
     componentMapping:
-      # Auto-discover and map to planes
       autoDiscover: true
 
-      # Or explicit mapping
-      mappings:
-        - namespace: ingress-nginx
-          plane: networking
-          component: ingress-nginx
-        - namespace: cert-manager
-          plane: security
-          component: cert-manager
-        - namespace: monitoring
-          plane: observability
-          component: prometheus-stack
-
-  # Blueprint to reconcile towards (optional for adoption)
+  # Blueprint to reconcile towards
   blueprintRef:
     name: production-standard
-    # Don't apply immediately - just compare
-    reconcileMode: dryRun  # dryRun, gradual, immediate
+    reconcileMode: dryRun # dryRun, gradual, immediate
 
 status:
   mode: adopt
-  adoptionStatus:
-    phase: Discovered  # Discovering, Discovered, Reconciling, Adopted
-
-    # What was discovered
-    discoveredInfrastructure:
-      provider: aws
-      region: us-east-1
-      vpcId: vpc-legacy123
-      clusterName: legacy-production
-      kubernetesVersion: "v1.27.8"
-      nodeCount: 8
-
-    # Discovered components mapped to planes
-    discoveredComponents:
-      - namespace: ingress-nginx
-        resources:
-          - kind: Deployment
-            name: ingress-nginx-controller
-            version: "4.7.1"  # Detected from image
-        suggestedPlane: networking
-        suggestedComponent: ingress-nginx
-        status: Mapped
-
-      - namespace: cert-manager
-        resources:
-          - kind: Deployment
-            name: cert-manager
-            version: "1.12.0"
-        suggestedPlane: security
-        suggestedComponent: cert-manager
-        status: Mapped
-
-      - namespace: kube-system
-        resources:
-          - kind: DaemonSet
-            name: aws-node  # AWS CNI
-            version: "1.14.0"
-        suggestedPlane: networking
-        suggestedComponent: aws-cni
-        status: Mapped
-
-      - namespace: custom-app
-        resources:
-          - kind: Deployment
-            name: legacy-service
-        suggestedPlane: null  # Not infrastructure
-        status: Ignored
-
-    # Drift from target blueprint
-    blueprintDrift:
-      hasDrift: true
-      driftSummary:
-        - component: ingress-nginx
-          currentVersion: "4.7.1"
-          targetVersion: "4.8.3"
-          action: "Upgrade available"
-        - component: prometheus-stack
-          status: "Missing"
-          action: "Will be installed"
-        - component: gatekeeper
-          status: "Missing"
-          action: "Will be installed"
-
-    # Terraform state sync (if configured)
-    terraformSync:
-      lastSyncTime: "2024-12-24T10:00:00Z"
-      resourcesTracked: 47
-      driftDetected: false
+  phase: Discovered
+  # ... adoption status
 ```
 
-**Adoption Workflow:**
+**Leveraging Existing cluster-gateway Pattern:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│               CLUSTER-GATEWAY INTEGRATION (EXISTING PATTERN)                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  EXISTING: vela cluster join                                                │
+│  ───────────────────────────                                                │
+│  $ vela cluster join kubeconfig.yaml --name legacy-production               │
+│                                                                             │
+│  Creates Secret in vela-system:                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ apiVersion: v1                                                      │    │
+│  │ kind: Secret                                                        │    │
+│  │ metadata:                                                           │    │
+│  │   name: legacy-production                                           │    │
+│  │   namespace: vela-system                                            │    │
+│  │   labels:                                                           │    │
+│  │     cluster.core.oam.dev/cluster-credential-type: X509              │    │
+│  │ data:                                                               │    │
+│  │   endpoint: <base64>                                                │    │
+│  │   ca.crt: <base64>                                                  │    │
+│  │   tls.crt: <base64>                                                 │    │
+│  │   tls.key: <base64>                                                 │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                             │
+│  NEW: Cluster CRD references the SAME secret                                │
+│  ─────────────────────────────────────────────                              │
+│  spec:                                                                      │
+│    clusterGatewayRef:                                                       │
+│      name: legacy-production  # ← Points to existing secret                 │
+│                                                                             │
+│  BENEFITS:                                                                  │
+│  ─────────                                                                  │
+│  ✓ No new credential format - uses existing cluster-gateway secrets         │
+│  ✓ Existing clusters joined via CLI work immediately                        │
+│  ✓ Single source of truth for cluster connectivity                          │
+│  ✓ VirtualCluster API continues to work unchanged                           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Step-by-Step Adoption Workflow:**
 
 ```yaml
-# Step 1: Discover (dry-run)
+# Step 1: Join cluster using existing CLI (creates cluster-gateway secret)
+# $ vela cluster join kubeconfig.yaml --name legacy-production
+
+# Step 2: Create Cluster CRD to add blueprint management
 apiVersion: core.oam.dev/v1beta1
 kind: Cluster
 metadata:
   name: legacy-production
+  namespace: vela-system
 spec:
   mode: adopt
-  credential:
-    secretRef:
-      name: legacy-kubeconfig
+  clusterGatewayRef:
+    name: legacy-production # Use existing cluster-gateway secret
   adoption:
     existingResources:
       mode: discover
   blueprintRef:
     name: production-standard
-    reconcileMode: dryRun  # Just show what would change
+    reconcileMode: dryRun
 
 ---
-# Step 2: Review discovered state, then reconcile gradually
-# After reviewing status.adoptionStatus.blueprintDrift:
+# Step 3: After reviewing status.adoptionStatus.discoveredComponents:
 
 apiVersion: core.oam.dev/v1beta1
 kind: Cluster
@@ -1881,37 +3221,53 @@ metadata:
   name: legacy-production
 spec:
   mode: adopt
-  credential:
-    secretRef:
-      name: legacy-kubeconfig
+  clusterGatewayRef:
+    name: legacy-production
   adoption:
     existingResources:
-      mode: reconcile  # Now actually reconcile
+      mode: reconcile # Now actually reconcile
   blueprintRef:
     name: production-standard
-    reconcileMode: gradual  # Apply changes incrementally
-
-    # Gradual reconciliation settings
+    reconcileMode: gradual
     gradualReconcile:
-      # Order of operations
       order:
         - action: upgrade
-          components: [ingress-nginx, cert-manager]  # Upgrade existing first
+          components: [ingress-nginx, cert-manager]
         - action: install
-          components: [gatekeeper]  # Then add missing security
+          components: [gatekeeper]
         - action: install
-          components: [prometheus-stack, loki]  # Finally observability
-
-      # Pause between phases for validation
+          components: [prometheus-stack]
       pauseBetweenPhases: "1h"
-
-      # Automatic or manual progression
-      progression: manual  # manual, automatic
+      progression: manual
 ```
+
+**Alternative: Create Cluster with Inline Credentials:**
+
+If no cluster-gateway secret exists, you can provide credentials inline (controller creates the secret):
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: new-partner-cluster
+spec:
+  mode: adopt
+  # Inline credential - controller creates cluster-gateway secret
+  credential:
+    type: X509 # X509, ServiceAccountToken (same as cluster-gateway types)
+    endpoint: "https://partner.k8s.example.com:6443"
+    caData: "LS0tLS1CRUdJTi..."
+    certData: "LS0tLS1CRUdJTi..."
+    keyData: "LS0tLS1CRUdJTi..."
+  blueprintRef:
+    name: partner-minimal
+```
+
+This creates a cluster-gateway secret automatically, equivalent to `vela cluster join`.
 
 #### Mode 3: Connect - Manage Existing Cluster
 
-Simply connect to an existing cluster without adopting infrastructure management. The cluster's underlying infrastructure (VPC, nodes) remains managed externally.
+Simply connect to an existing cluster without adopting infrastructure management. Uses the existing cluster-gateway secret (same as Mode 2).
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -1923,14 +3279,12 @@ spec:
   # MODE: Just connect and manage Kubernetes resources
   mode: connect
 
-  # Cluster access
-  credential:
-    secretRef:
-      name: partner-cluster-kubeconfig
+  # Use existing cluster-gateway secret (same as vela cluster join)
+  clusterGatewayRef:
+    name: partner-cluster # Existing cluster-gateway secret
 
-  # What to manage
+  # What to manage (optional - limits scope)
   managementScope:
-    # Only manage resources in these namespaces
     namespaces:
       include:
         - vela-managed-*
@@ -1938,8 +3292,6 @@ spec:
       exclude:
         - kube-system
         - kube-public
-
-    # Only manage resources with these labels
     labelSelector:
       matchLabels:
         managed-by: vela
@@ -2011,7 +3363,7 @@ spec:
       vpcCidr: "10.0.0.0/16"
       privateSubnets: true
       publicSubnets: true
-      natGateway: single  # single, perAz, none
+      natGateway: single # single, perAz, none
 
   # Capabilities this provider supports
   capabilities:
@@ -2213,49 +3565,49 @@ vela cluster import-terraform production-us-east-1 \
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    CLUSTER PROVISIONING ARCHITECTURE                         │
+│                    CLUSTER PROVISIONING ARCHITECTURE                        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ┌───────────────┐                                                         │
-│  │    Cluster    │                                                         │
-│  │   Controller  │                                                         │
-│  └───────┬───────┘                                                         │
+│  ┌───────────────┐                                                          │
+│  │    Cluster    │                                                          │
+│  │   Controller  │                                                          │
+│  └───────┬───────┘                                                          │
 │          │                                                                  │
-│          │ Reads ClusterProviderDefinition                                 │
-│          │ to determine provisioning method                                │
+│          │ Reads ClusterProviderDefinition                                  │
+│          │ to determine provisioning method                                 │
 │          │                                                                  │
 │          ▼                                                                  │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    PROVISIONING BACKENDS                             │   │
-│  ├─────────────────────────────────────────────────────────────────────┤   │
-│  │                                                                      │   │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │   │
-│  │  │  Crossplane  │  │  Terraform   │  │    Native    │              │   │
-│  │  │              │  │  Controller  │  │   Provider   │              │   │
-│  │  │  - AWS EKS   │  │              │  │              │              │   │
-│  │  │  - GCP GKE   │  │  - Any TF    │  │  - kind      │              │   │
-│  │  │  - Azure AKS │  │    module    │  │  - k3s       │              │   │
-│  │  │              │  │              │  │  - custom    │              │   │
-│  │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘              │   │
-│  │         │                 │                 │                       │   │
-│  └─────────┼─────────────────┼─────────────────┼───────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                    PROVISIONING BACKENDS                            │    │
+│  ├─────────────────────────────────────────────────────────────────────┤    │
+│  │                                                                     │    │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │    │
+│  │  │  Crossplane  │  │  Terraform   │  │    Native    │               │    │
+│  │  │              │  │  Controller  │  │   Provider   │               │    │
+│  │  │  - AWS EKS   │  │              │  │              │               │    │
+│  │  │  - GCP GKE   │  │  - Any TF    │  │  - kind      │               │    │
+│  │  │  - Azure AKS │  │    module    │  │  - k3s       │               │    │
+│  │  │              │  │              │  │  - custom    │               │    │
+│  │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘               │    │
+│  │         │                 │                 │                       │    │
+│  └─────────┼─────────────────┼─────────────────┼───────────────────────┘    │
 │            │                 │                 │                            │
 │            ▼                 ▼                 ▼                            │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                    CLOUD PROVIDERS                                   │   │
-│  │                                                                      │   │
-│  │   ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐        │   │
-│  │   │   AWS   │    │   GCP   │    │  Azure  │    │  Local  │        │   │
-│  │   │   EKS   │    │   GKE   │    │   AKS   │    │  kind   │        │   │
-│  │   └─────────┘    └─────────┘    └─────────┘    └─────────┘        │   │
-│  │                                                                      │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                    CLOUD PROVIDERS                                  │    │
+│  │                                                                     │    │
+│  │   ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐          │    │
+│  │   │   AWS   │    │   GCP   │    │  Azure  │    │  Local  │          │    │
+│  │   │   EKS   │    │   GKE   │    │   AKS   │    │  kind   │          │    │
+│  │   └─────────┘    └─────────┘    └─────────┘    └─────────┘          │    │
+│  │                                                                     │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
 │  After Provisioning:                                                        │
-│  ──────────────────                                                        │
-│  1. Cluster controller obtains kubeconfig                                  │
-│  2. Updates Cluster status with connection info                            │
-│  3. Triggers Blueprint controller to apply planes                          │
+│  ──────────────────                                                         │
+│  1. Cluster controller obtains kubeconfig                                   │
+│  2. Updates Cluster status with connection info                             │
+│  3. Triggers Blueprint controller to apply planes                           │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -2280,7 +3632,7 @@ spec:
   description: "Deploy a Helm chart as a plane component"
 
   workload:
-    type: autodetect  # The Helm chart determines the workload type
+    type: autodetect # The Helm chart determines the workload type
 
   schematic:
     cue:
@@ -2544,7 +3896,7 @@ workflow:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         CLUSTER ROLLOUT STATE MACHINE                        │
+│                         CLUSTER ROLLOUT STATE MACHINE                       │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │                              ┌──────────┐                                   │
@@ -2557,36 +3909,36 @@ workflow:
 │                           └──────┬───────┘                                  │
 │                                  │ Select first batch                       │
 │                                  ▼                                          │
-│     ┌───────────────────────────────────────────────────────────────┐      │
-│     │                      BATCH LOOP                                │      │
-│     │  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     │      │
-│     │  │   Updating  │────▶│  Analyzing  │────▶│   Paused    │     │      │
-│     │  │   Cluster   │     │   Metrics   │     │ (optional)  │     │      │
-│     │  └─────────────┘     └──────┬──────┘     └──────┬──────┘     │      │
-│     │                             │                    │            │      │
-│     │         ┌───────────────────┼────────────────────┘            │      │
-│     │         │                   │                                 │      │
-│     │         │    SLO Pass       │    SLO Fail                     │      │
-│     │         ▼                   ▼                                 │      │
-│     │  ┌─────────────┐     ┌─────────────┐                         │      │
-│     │  │ Next Batch  │     │ RollingBack │                         │      │
-│     │  └──────┬──────┘     └──────┬──────┘                         │      │
-│     │         │                   │                                 │      │
-│     └─────────┼───────────────────┼─────────────────────────────────┘      │
+│     ┌───────────────────────────────────────────────────────────────┐       │
+│     │                      BATCH LOOP                               │       │
+│     │  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐      │       │
+│     │  │   Updating  │────▶│  Analyzing  │────▶│   Paused    │      │       │
+│     │  │   Cluster   │     │   Metrics   │     │ (optional)  │      │       │
+│     │  └─────────────┘     └──────┬──────┘     └──────┬──────┘      │       │
+│     │                             │                    │            │       │
+│     │         ┌───────────────────┼────────────────────┘            │       │
+│     │         │                   │                                 │       │
+│     │         │    SLO Pass       │    SLO Fail                     │       │
+│     │         ▼                   ▼                                 │       │
+│     │  ┌─────────────┐     ┌─────────────┐                          │       │
+│     │  │ Next Batch  │     │ RollingBack │                          │       │
+│     │  └──────┬──────┘     └──────┬──────┘                          │       │
+│     │         │                   │                                 │       │
+│     └─────────┼───────────────────┼─────────────────────────────────┘       │
 │               │                   │                                         │
 │               │ All batches       │                                         │
 │               │ complete          │                                         │
 │               ▼                   ▼                                         │
-│        ┌──────────┐        ┌────────────┐                                  │
-│        │Succeeded │        │ RolledBack │                                  │
-│        └──────────┘        └────────────┘                                  │
+│        ┌──────────┐        ┌────────────┐                                   │
+│        │Succeeded │        │ RolledBack │                                   │
+│        └──────────┘        └────────────┘                                   │
 │                                                                             │
 │  Manual Controls:                                                           │
-│  - Pause: Enter Paused state at any batch                                  │
-│  - Resume: Continue from Paused state                                      │
-│  - Abort: Cancel rollout, remain at current state                          │
-│  - Rollback: Manually trigger rollback                                     │
-│  - Promote: Skip remaining batches, apply to all                           │
+│  - Pause: Enter Paused state at any batch                                   │
+│  - Resume: Continue from Paused state                                       │
+│  - Abort: Cancel rollout, remain at current state                           │
+│  - Rollback: Manually trigger rollback                                      │
+│  - Promote: Skip remaining batches, apply to all                            │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -2603,7 +3955,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: ClusterPlane
 metadata:
   name: networking
-  namespace: platform-networking  # Team's namespace
+  namespace: platform-networking # Team's namespace
   labels:
     plane.oam.dev/owner: networking-team
     plane.oam.dev/category: networking
@@ -2644,7 +3996,7 @@ rules:
     verbs: ["*"]
   - apiGroups: ["core.oam.dev"]
     resources: ["clusterplanes"]
-    verbs: ["get", "list", "watch"]  # Can reference but not modify
+    verbs: ["get", "list", "watch"] # Can reference but not modify
 ```
 
 ---
@@ -2662,59 +4014,59 @@ A critical requirement is understanding the health of clusters at multiple level
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           HEALTH HIERARCHY                                   │
+│                           HEALTH HIERARCHY                                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  CLUSTER LEVEL                                                              │
 │  ─────────────                                                              │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ Cluster: production-us-east-1                                        │   │
-│  │ Health: Degraded (1 of 3 planes unhealthy)                          │   │
-│  │                                                                      │   │
-│  │ Aggregated from:                                                     │   │
-│  │   ✓ networking: Healthy                                              │   │
-│  │   ✗ security: Degraded (cert-manager unhealthy)                     │   │
-│  │   ✓ observability: Healthy                                           │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Cluster: production-us-east-1                                       │    │
+│  │ Health: Degraded (1 of 3 planes unhealthy)                          │    │
+│  │                                                                     │    │
+│  │ Aggregated from:                                                    │    │
+│  │   ✓ networking: Healthy                                             │    │
+│  │   ✗ security: Degraded (cert-manager unhealthy)                     │    │
+│  │   ✓ observability: Healthy                                          │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │           │                                                                 │
 │           ▼                                                                 │
-│  PLANE LEVEL (drill down into security plane)                              │
-│  ───────────                                                               │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ Plane: security                                                      │   │
-│  │ Health: Degraded (1 of 3 components unhealthy)                      │   │
-│  │                                                                      │   │
-│  │ Aggregated from:                                                     │   │
-│  │   ✓ gatekeeper: Healthy                                              │   │
-│  │   ✗ cert-manager: Unhealthy (certificate renewal failing)          │   │
-│  │   ✓ external-secrets: Healthy                                        │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  PLANE LEVEL (drill down into security plane)                               │
+│  ───────────                                                                │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Plane: security                                                     │    │
+│  │ Health: Degraded (1 of 3 components unhealthy)                      │    │
+│  │                                                                     │    │
+│  │ Aggregated from:                                                    │    │
+│  │   ✓ gatekeeper: Healthy                                             │    │
+│  │   ✗ cert-manager: Unhealthy (certificate renewal failing)           │    │
+│  │   ✓ external-secrets: Healthy                                       │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │           │                                                                 │
 │           ▼                                                                 │
-│  COMPONENT LEVEL (drill down into cert-manager)                            │
-│  ───────────────                                                           │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ Component: cert-manager                                              │   │
-│  │ Health: Unhealthy                                                    │   │
-│  │                                                                      │   │
-│  │ Health Checks:                                                       │   │
-│  │   ✓ Deployment ready: 3/3 replicas                                  │   │
-│  │   ✓ Pod health: All pods running                                    │   │
-│  │   ✗ Functional: Certificate renewal error rate > 5%                 │   │
-│  │   ✗ SLO: ACME challenge success rate < 99%                          │   │
-│  │                                                                      │   │
-│  │ Resources:                                                           │   │
-│  │   ✓ Deployment/cert-manager: 3/3 ready                              │   │
-│  │   ✓ Deployment/cert-manager-webhook: 1/1 ready                      │   │
-│  │   ✓ Deployment/cert-manager-cainjector: 1/1 ready                   │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  COMPONENT LEVEL (drill down into cert-manager)                             │
+│  ───────────────                                                            │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Component: cert-manager                                             │    │
+│  │ Health: Unhealthy                                                   │    │
+│  │                                                                     │    │
+│  │ Health Checks:                                                      │    │
+│  │   ✓ Deployment ready: 3/3 replicas                                  │    │
+│  │   ✓ Pod health: All pods running                                    │    │
+│  │   ✗ Functional: Certificate renewal error rate > 5%                 │    │
+│  │   ✗ SLO: ACME challenge success rate < 99%                          │    │
+│  │                                                                     │    │
+│  │ Resources:                                                          │    │
+│  │   ✓ Deployment/cert-manager: 3/3 ready                              │    │
+│  │   ✓ Deployment/cert-manager-webhook: 1/1 ready                      │    │
+│  │   ✓ Deployment/cert-manager-cainjector: 1/1 ready                   │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 #### ObservabilityProviderDefinition
 
-To support multiple observability backends, we introduce `ObservabilityProviderDefinition`:
+To support multiple observability backends, we introduce `ObservabilityProviderDefinition`. Each definition specifies connection schema, query templates, and built-in metrics.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -2723,228 +4075,27 @@ metadata:
   name: prometheus
   namespace: vela-system
 spec:
-  description: "Prometheus metrics provider"
-
-  # Provider type identifier
   type: prometheus
-
-  # Connection configuration schema
   connectionSpec:
     properties:
-      endpoint:
-        type: string
-        description: "Prometheus server URL"
-        required: true
-      # Authentication options
+      endpoint: { type: string, required: true }
       auth:
-        type: object
-        properties:
-          type:
-            type: string
-            enum: [none, basic, bearer, oauth2]
-          secretRef:
-            type: object
-            description: "Reference to credentials secret"
-
-  # Query template - how to execute queries
+        {
+          type: object,
+          properties:
+            {
+              type: { enum: [none, basic, bearer] },
+              secretRef: { type: object },
+            },
+        }
   queryTemplate: |
-    // CUE template for query execution
-    query: {
-      type: "instant" | "range"
-      promql: string
-      time?: string
-      start?: string
-      end?: string
-      step?: string
-    }
-
-  # Response parsing template
-  responseTemplate: |
-    // CUE template for parsing response
-    result: {
-      value: number
-      labels: [string]: string
-      timestamp: string
-    }
-
-  # Built-in metric templates
+    query: { type: "instant" | "range", promql: string }
   builtinMetrics:
     - name: error-rate
-      description: "HTTP error rate percentage"
-      query: |
-        sum(rate(http_requests_total{status=~"5.."}[5m]))
-        / sum(rate(http_requests_total[5m])) * 100
-      unit: "percent"
-
-    - name: p99-latency
-      description: "99th percentile latency"
-      query: |
-        histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
-      unit: "seconds"
-
-    - name: availability
-      description: "Service availability based on successful requests"
-      query: |
-        sum(rate(http_requests_total{status!~"5.."}[5m]))
-        / sum(rate(http_requests_total[5m])) * 100
-      unit: "percent"
-
----
-# Datadog provider
-apiVersion: core.oam.dev/v1beta1
-kind: ObservabilityProviderDefinition
-metadata:
-  name: datadog
-  namespace: vela-system
-spec:
-  description: "Datadog metrics and APM provider"
-  type: datadog
-
-  connectionSpec:
-    properties:
-      site:
-        type: string
-        description: "Datadog site (e.g., datadoghq.com, datadoghq.eu)"
-        default: "datadoghq.com"
-      apiKeyRef:
-        type: object
-        description: "Reference to API key secret"
-        required: true
-      appKeyRef:
-        type: object
-        description: "Reference to Application key secret"
-        required: true
-
-  queryTemplate: |
-    query: {
-      type: "timeseries" | "scalar"
-      metric: string
-      scope?: string
-      groupBy?: [...string]
-      from: int  // Unix timestamp
-      to: int
-    }
-
-  builtinMetrics:
-    - name: error-rate
-      description: "APM error rate"
-      query: "avg:trace.http.request.errors{*} / avg:trace.http.request.hits{*} * 100"
-      unit: "percent"
-
-    - name: p99-latency
-      description: "APM p99 latency"
-      query: "p99:trace.http.request.duration{*}"
-      unit: "seconds"
-
----
-# New Relic provider
-apiVersion: core.oam.dev/v1beta1
-kind: ObservabilityProviderDefinition
-metadata:
-  name: newrelic
-  namespace: vela-system
-spec:
-  description: "New Relic observability provider"
-  type: newrelic
-
-  connectionSpec:
-    properties:
-      accountId:
-        type: string
-        required: true
-      apiKeyRef:
-        type: object
-        required: true
-      region:
-        type: string
-        enum: [US, EU]
-        default: "US"
-
-  queryTemplate: |
-    query: {
-      nrql: string  // NRQL query
-    }
-
-  builtinMetrics:
-    - name: error-rate
-      query: "SELECT percentage(count(*), WHERE error IS true) FROM Transaction"
-      unit: "percent"
-
-    - name: apdex
-      query: "SELECT apdex(duration, 0.5) FROM Transaction"
-      unit: "score"
-
----
-# CloudWatch provider
-apiVersion: core.oam.dev/v1beta1
-kind: ObservabilityProviderDefinition
-metadata:
-  name: cloudwatch
-  namespace: vela-system
-spec:
-  description: "AWS CloudWatch metrics provider"
-  type: cloudwatch
-
-  connectionSpec:
-    properties:
-      region:
-        type: string
-        required: true
-      credentialRef:
-        type: object
-        description: "Reference to AWS credentials"
-
-  queryTemplate: |
-    query: {
-      namespace: string
-      metricName: string
-      dimensions: [...{name: string, value: string}]
-      statistic: "Average" | "Sum" | "Minimum" | "Maximum" | "SampleCount"
-      period: int  // seconds
-    }
-
----
-# Custom/webhook provider for any backend
-apiVersion: core.oam.dev/v1beta1
-kind: ObservabilityProviderDefinition
-metadata:
-  name: custom-webhook
-  namespace: vela-system
-spec:
-  description: "Custom webhook-based observability provider"
-  type: webhook
-
-  connectionSpec:
-    properties:
-      endpoint:
-        type: string
-        required: true
-      method:
-        type: string
-        enum: [GET, POST]
-        default: "POST"
-      headers:
-        type: object
-        additionalProperties:
-          type: string
-      authSecretRef:
-        type: object
-
-  queryTemplate: |
-    // Request body template
-    request: {
-      query: string
-      params: [string]: _
-    }
-
-  responseTemplate: |
-    // Expected response format
-    response: {
-      success: bool
-      value: number
-      message?: string
-    }
+      query: 'sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100'
 ```
+
+Additional providers (Datadog, New Relic, CloudWatch, custom-webhook) follow the same pattern with provider-specific query languages.
 
 #### ObservabilityProvider Instance
 
@@ -3053,8 +4204,8 @@ spec:
               / sum(rate(nginx_ingress_controller_requests[5m])) * 100
             threshold:
               operator: "<"
-              value: 1  # Error rate < 1%
-            for: "5m"  # Must be true for 5 minutes
+              value: 1 # Error rate < 1%
+            for: "5m" # Must be true for 5 minutes
 
         # Datadog APM check (alternative provider)
         - name: latency-slo
@@ -3065,7 +4216,7 @@ spec:
             query: "p99:nginx.http.request.duration{service:ingress-nginx}"
             threshold:
               operator: "<"
-              value: 0.5  # p99 < 500ms
+              value: 0.5 # p99 < 500ms
 
         # HTTP endpoint health check
         - name: healthz-endpoint
@@ -3090,7 +4241,7 @@ spec:
     # How to aggregate component health
     aggregation:
       # Plane is healthy if all components healthy
-      strategy: all  # all, any, majority, weighted
+      strategy: all # all, any, majority, weighted
 
       # Or use weighted scoring
       # strategy: weighted
@@ -3119,7 +4270,7 @@ metadata:
 status:
   # Top-level health summary
   health:
-    status: Degraded  # Healthy, Degraded, Unhealthy, Unknown, Progressing
+    status: Degraded # Healthy, Degraded, Unhealthy, Unknown, Progressing
     reason: "PlaneUnhealthy"
     message: "1 of 3 planes is unhealthy: security"
     lastCheckTime: "2024-12-24T10:00:00Z"
@@ -3272,19 +4423,19 @@ Plane: security
 Status: Degraded (1 of 3 components unhealthy)
 
 Components:
-  ┌─────────────────┬───────────┬─────────────────────────────────────────┐
-  │ COMPONENT       │ STATUS    │ HEALTH CHECKS                           │
-  ├─────────────────┼───────────┼─────────────────────────────────────────┤
-  │ gatekeeper      │ ✓ Healthy │ deployment-ready: ✓                     │
-  │                 │           │ policy-violations: ✓ (< 10)             │
-  ├─────────────────┼───────────┼─────────────────────────────────────────┤
-  │ cert-manager    │ ✗ Unhealthy│ deployment-ready: ✓ (3/3)              │
-  │                 │           │ certificate-renewal: ✗ (8.5% > 5%)     │
-  │                 │           │ acme-success-rate: ✗ (91% < 99%)       │
-  ├─────────────────┼───────────┼─────────────────────────────────────────┤
-  │ external-secrets│ ✓ Healthy │ deployment-ready: ✓                     │
-  │                 │           │ sync-success-rate: ✓ (99.9%)           │
-  └─────────────────┴───────────┴─────────────────────────────────────────┘
+  ┌─────────────────┬────────────┬─────────────────────────────────────────┐
+  │ COMPONENT       │ STATUS     │ HEALTH CHECKS                           │
+  ├─────────────────┼────────────┼─────────────────────────────────────────┤
+  │ gatekeeper      │ ✓ Healthy  │ deployment-ready: ✓                     │
+  │                 │            │ policy-violations: ✓ (< 10)             │
+  ├─────────────────┼────────────┼─────────────────────────────────────────┤
+  │ cert-manager    │ ✗ Unhealthy│ deployment-ready: ✓ (3/3)               │
+  │                 │            │ certificate-renewal: ✗ (8.5% > 5%)      │
+  │                 │            │ acme-success-rate: ✗ (91% < 99%)        │
+  ├─────────────────┼────────────┼─────────────────────────────────────────┤
+  │ external-secrets│ ✓ Healthy  │ deployment-ready: ✓                     │
+  │                 │            │ sync-success-rate: ✓ (99.9%)            │
+  └─────────────────┴────────────┴─────────────────────────────────────────┘
 
 Use 'vela cluster health production-us-east-1 --component security/cert-manager' for details
 
@@ -3512,7 +4663,7 @@ spec:
         - path: spec.replicas
           reason: "Scaled down for cost optimization in EU region"
           approvedBy: platform-admin@example.com
-          expiresAt: "2025-03-01T00:00:00Z"  # Optional expiration
+          expiresAt: "2025-03-01T00:00:00Z" # Optional expiration
 ```
 
 #### ClusterDriftReport CRD
@@ -3531,7 +4682,7 @@ spec:
   blueprintRef:
     name: production-standard
     revision: v2.3.0
-  comparisonType: assigned  # or "what-if"
+  comparisonType: assigned # or "what-if"
 status:
   driftDetected: true
   lastChecked: "2024-12-24T10:00:00Z"
@@ -3581,7 +4732,7 @@ spec:
       type: helm-release
       properties:
         chart: ingress-nginx
-        version: "4.9.0"  # Updated from 4.8.3
+        version: "4.9.0" # Updated from 4.8.3
         # ... rest unchanged
 
 ---
@@ -3623,33 +4774,38 @@ spec:
 ### Use Case 2: New Cluster Onboarding
 
 ```yaml
-# 1. Register new cluster
-apiVersion: cluster.core.oam.dev/v1alpha1
-kind: ManagedCluster
+# 1. Register new cluster using the Cluster CRD (connect mode)
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
 metadata:
   name: production-ap-south-1
-spec:
-  kubeconfig:
-    secretRef:
-      name: prod-ap-south-1-kubeconfig
   labels:
     environment: production
     region: ap-south-1
     tier: standard
-    blueprint: production-standard  # Auto-apply this blueprint
+spec:
+  mode: connect
+  credential:
+    secretRef:
+      name: prod-ap-south-1-kubeconfig
+      namespace: vela-system
+  # spec.blueprintRef is user-owned - user specifies desired blueprint
+  blueprintRef:
+    name: production-standard
 
 ---
-# 2. ClusterBlueprint controller detects new cluster matching selector
-# and automatically applies the blueprint via workflow
+# 2. ClusterController detects new cluster and applies the blueprint via workflow
+# (ClusterController owns status.blueprint, not spec.blueprintRef)
 
 # 3. Status shows onboarding progress
 status:
-  appliedClusters:
-    - name: production-ap-south-1
-      status: Provisioning
-      workflow:
-        currentStep: deploy-networking
-        progress: "2/5 planes deployed"
+  blueprint:
+    name: production-standard
+    revision: production-standard-v2.3.0
+    status: Provisioning
+    workflow:
+      currentStep: deploy-networking
+      progress: "2/5 planes deployed"
 ```
 
 ### Use Case 3: Emergency Rollback
@@ -3700,7 +4856,7 @@ spec:
 
       # Traffic switching
       trafficSwitch:
-        type: dns  # or loadBalancer
+        type: dns # or loadBalancer
         provider: route53
 
       # Validation before switch
@@ -3721,673 +4877,23 @@ spec:
 
 ## Edge Cases and Considerations
 
-### 1. Circular Dependencies Between Planes
-
-**Problem**: Plane A depends on Plane B, and Plane B depends on Plane A.
-
-**Solution**:
-```yaml
-# Validation webhook rejects circular dependencies
-status:
-  conditions:
-    - type: Valid
-      status: "False"
-      reason: CircularDependency
-      message: "Circular dependency detected: networking → security → networking"
-```
-
-**Implementation**:
-- Build dependency graph at blueprint validation time
-- Topological sort to detect cycles
-- Reject blueprints with cycles
-
-### 2. Partial Plane Failure
-
-**Problem**: 2 out of 3 components in a plane fail to deploy.
-
-**Solution**:
-```yaml
-spec:
-  # Plane-level failure policy
-  failurePolicy:
-    type: failFast  # or continueOnError, rollbackOnError
-
-    # Per-component override
-    components:
-      - name: external-dns
-        critical: false  # Non-critical component failure won't fail plane
-
-status:
-  phase: PartiallyRunning
-  components:
-    - name: ingress-nginx
-      status: Running
-    - name: cilium
-      status: Running
-    - name: external-dns
-      status: Failed
-      message: "Route53 credentials missing"
-      critical: false  # Marked non-critical
-```
-
-### 3. Version Conflicts Between Planes
-
-**Problem**: Networking plane requires Kubernetes 1.28+, but cluster is 1.27.
-
-**Solution**:
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: ClusterPlane
-metadata:
-  name: networking
-spec:
-  # Compatibility requirements
-  requirements:
-    kubernetes:
-      minVersion: "1.28.0"
-      maxVersion: "1.30.x"
-
-    # Required CRDs
-    crds:
-      - group: "gateway.networking.k8s.io"
-        version: "v1"
-        kind: "Gateway"
-
-    # Required APIs
-    apis:
-      - group: "admissionregistration.k8s.io"
-        version: "v1"
-
----
-# Blueprint validation fails if requirements not met
-status:
-  conditions:
-    - type: Valid
-      status: "False"
-      reason: IncompatibleCluster
-      message: |
-        Cluster production-legacy (v1.27.5) does not meet requirements:
-        - networking plane requires kubernetes >= 1.28.0
-```
-
-### 4. Rollout During Active Incident
-
-**Problem**: Rollout starts while there's an active incident affecting metrics.
-
-**Solution**:
-```yaml
-spec:
-  analysis:
-    # Baseline comparison instead of absolute thresholds
-    mode: baseline
-    baseline:
-      # Compare against pre-rollout metrics
-      source: preRollout
-      window: "30m"
-
-    metrics:
-      - name: error-rate
-        thresholds:
-          # Allow up to 10% increase from baseline
-          - condition: "< baseline * 1.1"
-
-    # Incident integration
-    incidentIntegration:
-      provider: pagerduty
-      # Pause rollout if active P1/P2 incident
-      pauseOnIncident:
-        severities: [P1, P2]
-      # Don't count metrics during incident window
-      excludeIncidentWindow: true
-
-status:
-  phase: Paused
-  conditions:
-    - type: IncidentPause
-      status: "True"
-      reason: ActiveIncident
-      message: "Paused due to active P1 incident INC-12345"
-```
-
-### 5. Plane Upgrade Requires Cluster Restart
-
-**Problem**: CNI upgrade requires node drain/restart.
-
-**Solution**:
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: ClusterPlane
-metadata:
-  name: networking
-spec:
-  components:
-    - name: cilium
-      type: helm-release
-      properties:
-        version: "1.15.0"
-
-      # Upgrade strategy for disruptive changes
-      upgradeStrategy:
-        type: nodeByNode
-        nodeByNode:
-          maxUnavailable: 1
-          drainTimeout: "10m"
-          # Skip nodes with critical pods
-          skipNodesWithCriticalPods: true
-          # PDB awareness
-          respectPodDisruptionBudgets: true
-```
-
-### 6. Orphaned Resources After Plane Removal
-
-**Problem**: Removing a component from a plane leaves resources behind.
-
-**Solution**:
-```yaml
-spec:
-  # Garbage collection policy
-  garbageCollection:
-    # What to do when component is removed from plane
-    onComponentRemoval: delete  # delete, orphan, warn
-
-    # Finalizer ensures cleanup before plane deletion
-    onPlaneDelete: cascade  # cascade, orphan
-
-    # Grace period before deletion
-    deletionGracePeriod: "5m"
-
-status:
-  orphanedResources:
-    - apiVersion: v1
-      kind: ConfigMap
-      name: legacy-config
-      namespace: ingress-nginx
-      reason: "Component 'legacy-ingress' removed in revision v2.0.0"
-      action: PendingDeletion
-      deleteAfter: "2024-12-24T15:00:00Z"
-```
-
-### 7. Multi-Cluster State Drift
-
-**Problem**: Cluster 3 out of 10 drifts from desired state.
-
-**Solution**:
-```yaml
-spec:
-  # Drift detection and remediation
-  driftDetection:
-    enabled: true
-    interval: "5m"
-
-    # What counts as drift
-    scope:
-      - resources  # Spec changes
-      - status     # Unhealthy status
-      - missing    # Deleted resources
-
-    # Auto-remediation
-    remediation:
-      enabled: true
-      # Max remediations per hour to prevent loops
-      maxRemediationsPerHour: 3
-      # Exclude certain fields from drift detection
-      ignoredFields:
-        - "metadata.resourceVersion"
-        - "status.observedGeneration"
-
-status:
-  drift:
-    clusters:
-      - name: production-us-east-1
-        drifted: false
-      - name: production-us-west-2
-        drifted: true
-        driftDetails:
-          - resource: "Deployment/ingress-nginx-controller"
-            field: "spec.replicas"
-            expected: 3
-            actual: 2
-            reason: "Manual kubectl scale"
-            lastRemediation: "2024-12-24T09:00:00Z"
-            remediationCount: 2
-```
-
-### 8. Rollout to Clusters in Different Time Zones
-
-**Problem**: Need to avoid rollouts during business hours in each region.
-
-**Solution**:
-```yaml
-spec:
-  strategy:
-    type: canary
-    canary:
-      steps:
-        - weight: 33
-          clusterSelector:
-            matchLabels:
-              region: us-east
-          # Maintenance window for US East
-          maintenanceWindow:
-            timezone: "America/New_York"
-            windows:
-              - start: "02:00"
-                end: "06:00"
-                days: [Mon, Tue, Wed, Thu, Fri]
-
-        - weight: 66
-          clusterSelector:
-            matchLabels:
-              region: eu-west
-          maintenanceWindow:
-            timezone: "Europe/London"
-            windows:
-              - start: "02:00"
-                end: "06:00"
-
-        - weight: 100
-          clusterSelector:
-            matchLabels:
-              region: ap-south
-          maintenanceWindow:
-            timezone: "Asia/Kolkata"
-            windows:
-              - start: "02:00"
-                end: "06:00"
-```
-
-### 9. Secrets and Credentials for Plane Components
-
-**Problem**: Helm chart needs cloud provider credentials.
-
-**Solution**:
-```yaml
-spec:
-  components:
-    - name: external-dns
-      type: helm-release
-      properties:
-        chart: external-dns
-        values:
-          provider: aws
-          # Reference to ExternalSecret or sealed secret
-          aws:
-            credentials:
-              secretRef:
-                name: aws-credentials
-                # Secret is synced to each target cluster
-                syncPolicy: clusterLocal
-
-  # Secret distribution policy
-  secrets:
-    - name: aws-credentials
-      source:
-        # Source from hub cluster
-        type: externalSecret
-        externalSecret:
-          secretStore: aws-secrets-manager
-          key: platform/external-dns
-
-      # How to distribute to managed clusters
-      distribution:
-        type: perCluster
-        # Each cluster gets unique credentials
-        template: |
-          accessKeyId: {{ .Cluster.Name }}-external-dns-key
-          secretAccessKey: {{ .Cluster.Annotations.externalDnsSecretPath }}
-```
-
-### 10. Cost Tracking and Showback
-
-**Problem**: Need to track infrastructure costs per plane/team.
-
-**Solution**:
-```yaml
-spec:
-  # Cost allocation
-  costAllocation:
-    enabled: true
-
-    # Cost center for this plane
-    costCenter: "platform-networking"
-
-    # Resource tagging for cloud cost tracking
-    resourceTags:
-      team: networking
-      service: platform
-      costCenter: CC-12345
-
-status:
-  costs:
-    # Estimated monthly cost
-    estimatedMonthlyCost:
-      amount: 1250.00
-      currency: USD
-
-    # Per-component breakdown
-    components:
-      - name: ingress-nginx
-        cost: 450.00
-        resources:
-          - type: LoadBalancer
-            count: 3
-            unitCost: 150.00
-      - name: cilium
-        cost: 0.00  # No cloud resources
-      - name: external-dns
-        cost: 50.00
-        resources:
-          - type: Route53Queries
-            count: 1000000
-            unitCost: 0.05
-```
-
-### 11. Cluster Provisioning Failure Mid-Way
-
-**Problem**: VPC and subnets created, but EKS cluster creation fails. Need to clean up or retry.
-
-**Solution**:
-```yaml
-spec:
-  mode: provision
-
-  # Provisioning behavior on failure
-  provisioningPolicy:
-    onFailure: retry  # retry, cleanup, pause
-
-    retry:
-      maxAttempts: 3
-      backoff:
-        initial: "5m"
-        max: "30m"
-        multiplier: 2
-
-    # What to do with partial infrastructure
-    partialInfrastructure:
-      # Keep resources for debugging
-      retain: true
-      retainDuration: "24h"
-
-status:
-  provisioningStatus:
-    phase: Failed
-    failureReason: "EKS cluster creation failed: insufficient capacity in us-east-1a"
-    retryCount: 2
-    nextRetryAt: "2024-12-24T11:00:00Z"
-
-    # Partial infrastructure created
-    partialInfrastructure:
-      vpc:
-        id: vpc-xxx
-        status: Created
-        retainUntil: "2024-12-25T10:00:00Z"
-      subnets:
-        - id: subnet-aaa
-          status: Created
-      cluster:
-        status: Failed
-        error: "insufficient capacity"
-
-    # Suggested actions
-    suggestedActions:
-      - "Try a different availability zone: us-east-1b or us-east-1c"
-      - "Reduce initial node count from 5 to 3"
-      - "Use a different instance type: m5.xlarge → m6i.large"
-```
-
-### 12. Adopting Cluster with Conflicting Components
-
-**Problem**: Existing cluster has ingress-nginx 3.x (old) with incompatible API versions.
-
-**Solution**:
-```yaml
-spec:
-  mode: adopt
-  adoption:
-    # Conflict resolution strategy
-    conflictResolution:
-      # What to do when discovered component conflicts with blueprint
-      strategy: prompt  # prompt, upgrade, skip, replace
-
-      # Per-component overrides
-      overrides:
-        - component: ingress-nginx
-          # Old version uses deprecated APIs
-          action: replace
-          migration:
-            # Backup existing before replacement
-            backup: true
-            # Migrate existing IngressClass resources
-            migrateResources:
-              - kind: Ingress
-                apiVersion: "networking.k8s.io/v1"
-            # Validation after migration
-            validate:
-              - type: ingress-connectivity
-                timeout: "5m"
-
-status:
-  adoptionStatus:
-    conflicts:
-      - component: ingress-nginx
-        currentVersion: "3.35.0"
-        currentAPIVersion: "extensions/v1beta1"  # Deprecated
-        targetVersion: "4.8.3"
-        targetAPIVersion: "networking.k8s.io/v1"
-        incompatible: true
-        suggestedAction: "replace"
-        migrationRequired: true
-        affectedResources:
-          - kind: Ingress
-            count: 47
-            namespaces: [app-a, app-b, app-c]
-```
-
-### 13. Credential Rotation During Provisioning
-
-**Problem**: AWS credentials expire or get rotated while cluster is provisioning.
-
-**Solution**:
-```yaml
-spec:
-  provider:
-    credentialRef:
-      name: aws-credentials
-
-    # Credential management
-    credentialPolicy:
-      # Auto-refresh from external secret manager
-      refresh:
-        enabled: true
-        interval: "45m"  # Refresh before 1h session expiry
-
-      # What to do on credential failure
-      onFailure: pause  # pause, retry, abort
-
-      # External secret integration
-      externalSecret:
-        provider: aws-secrets-manager
-        secretId: "platform/eks-provisioner"
-
-status:
-  provisioningStatus:
-    credentialStatus:
-      valid: true
-      expiresAt: "2024-12-24T11:00:00Z"
-      lastRefresh: "2024-12-24T10:15:00Z"
-      nextRefresh: "2024-12-24T11:00:00Z"
-
-  # If credentials fail
-  conditions:
-    - type: CredentialsValid
-      status: "False"
-      reason: "ExpiredCredentials"
-      message: "AWS credentials expired, waiting for refresh"
-```
-
-### 14. Adopting Cluster with Unknown/Custom Components
-
-**Problem**: Cluster has custom-built or unknown components that don't map to standard definitions.
-
-**Solution**:
-```yaml
-spec:
-  mode: adopt
-  adoption:
-    # How to handle unknown components
-    unknownComponents:
-      # discover: Track but don't manage
-      # import: Create custom plane component
-      # ignore: Don't track
-      action: discover
-
-      # Create custom definitions for discovered components
-      autoCreateDefinitions: true
-
-status:
-  adoptionStatus:
-    discoveredComponents:
-      - namespace: custom-platform
-        resources:
-          - kind: Deployment
-            name: custom-auth-proxy
-            image: "internal-registry/auth-proxy:v2.1"
-        identified: false  # No matching definition
-        action: Tracked
-
-        # Auto-generated definition suggestion
-        suggestedDefinition:
-          apiVersion: core.oam.dev/v1beta1
-          kind: PlaneComponentDefinition
-          metadata:
-            name: custom-auth-proxy
-          spec:
-            description: "Auto-discovered: custom-auth-proxy"
-            workload:
-              type: deployments.apps
-            schematic:
-              # Generated from discovered deployment
-              kube:
-                template:
-                  apiVersion: apps/v1
-                  kind: Deployment
-                  # ... extracted from existing deployment
-```
-
-### 15. Network Isolation During Provisioning
-
-**Problem**: Provisioning in air-gapped environment with no internet access.
-
-**Solution**:
-```yaml
-spec:
-  mode: provision
-
-  # Air-gapped / network-restricted environment
-  networkPolicy:
-    airgapped: true
-
-    # Private container registry
-    containerRegistry:
-      mirror: "registry.internal.company.com"
-      # Registry credentials
-      credentialRef:
-        name: internal-registry-creds
-
-    # Private Helm repository
-    helmRepository:
-      url: "https://helm.internal.company.com"
-      credentialRef:
-        name: helm-repo-creds
-
-    # No external endpoints
-    externalAccess:
-      enabled: false
-
-    # Private endpoints for cloud provider
-    privateEndpoints:
-      eks: true
-      ecr: true
-      s3: true
-
-  # Pre-downloaded artifacts
-  artifacts:
-    # Container images pre-pulled
-    images:
-      source: "s3://artifacts-bucket/images/"
-    # Helm charts pre-downloaded
-    charts:
-      source: "s3://artifacts-bucket/charts/"
-```
-
-### 16. Cluster Deletion and Resource Cleanup
-
-**Problem**: Deleting a cluster should clean up all cloud resources but preserve audit logs.
-
-**Solution**:
-```yaml
-spec:
-  mode: provision
-
-  # Deletion policy
-  deletionPolicy:
-    # What to do when Cluster CR is deleted
-    clusterDeletion: delete  # delete, retain, orphan
-
-    # Resource cleanup order
-    cleanupOrder:
-      - applications  # Delete vela applications first
-      - planes        # Then plane components
-      - nodeGroups    # Then nodes
-      - cluster       # Then EKS cluster
-      - networking    # Finally VPC/subnets
-
-    # Resources to retain after deletion
-    retain:
-      - type: cloudwatchLogs
-        retention: "90d"
-      - type: s3Backups
-        retention: "365d"
-      - type: costReports
-        retention: "730d"
-
-    # Confirmation required for production
-    confirmation:
-      required: true
-      # Must type cluster name to confirm
-      typeToConfirm: true
-
-    # Grace period before deletion starts
-    gracePeriod: "24h"
-
-    # Notification before deletion
-    notification:
-      channels:
-        - type: slack
-          channel: "#platform-alerts"
-        - type: email
-          recipients: ["platform-team@company.com"]
-      beforeDeletion: "24h"
-
-status:
-  deletionStatus:
-    phase: PendingConfirmation  # PendingConfirmation, Deleting, Deleted
-    scheduledAt: "2024-12-25T10:00:00Z"
-    gracePeriodEnds: "2024-12-25T10:00:00Z"
-    notificationSent: true
-    confirmationReceived: false
-
-    # Progress during deletion
-    cleanup:
-      - resource: "Applications"
-        count: 15
-        deleted: 12
-        status: InProgress
-      - resource: "Planes"
-        count: 3
-        deleted: 0
-        status: Pending
-```
+| #   | Problem                                                       | Solution                                                                                     |
+| --- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 1   | **Circular Dependencies**: Plane A → B → A                    | Validation webhook rejects; topological sort detects cycles                                  |
+| 2   | **Partial Plane Failure**: 2/3 components fail                | `failurePolicy: failFast\|continueOnError\|rollbackOnError`; per-component `critical: false` |
+| 3   | **Version Conflicts**: Plane needs K8s 1.28+, cluster is 1.27 | `spec.requirements.kubernetes.minVersion`; validation fails if unmet                         |
+| 4   | **Rollout During Incident**: Metrics skewed                   | `incidentIntegration.pauseOnIncident: [P1, P2]`; baseline comparison mode                    |
+| 5   | **Disruptive Upgrades**: CNI requires node restart            | `upgradeStrategy: nodeByNode` with `maxUnavailable`, PDB awareness                           |
+| 6   | **Orphaned Resources**: Component removal leaves resources    | `garbageCollection.onComponentRemoval: delete\|orphan\|warn`                                 |
+| 7   | **State Drift**: Cluster 3/10 drifts                          | `driftDetection.enabled: true`; auto-remediation with rate limiting                          |
+| 8   | **Multi-Timezone Rollout**: Avoid business hours per region   | Per-cluster `maintenance.windows[]` with IANA timezones; rollout respects windows            |
+| 9   | **Secrets Distribution**: Components need credentials         | `secrets[].distribution.type: perCluster` with templates                                     |
+| 10  | **Provisioning Failure**: VPC created, EKS fails              | `provisioningPolicy.onFailure: retry\|cleanup\|pause`; `partialInfrastructure.retain: true`  |
+| 11  | **Conflicting Components**: Cluster has old ingress-nginx     | `adoption.conflictResolution.strategy: prompt\|upgrade\|replace`                             |
+| 12  | **Credential Rotation**: Credentials expire mid-provision     | `credentialPolicy.refresh.enabled: true`; `onFailure: pause`                                 |
+| 13  | **Unknown Components**: Custom deployments discovered         | `adoption.unknownComponents.action: discover\|import\|ignore`                                |
+| 14  | **Air-gapped Provisioning**: No internet access               | `networkPolicy.airgapped: true`; private registry/helm repo mirrors                          |
+| 15  | **Cluster Deletion**: Clean up but preserve audit logs        | `deletionPolicy.clusterDeletion: delete`; `retain: [cloudwatchLogs, s3Backups]`              |
 
 ---
 
@@ -4395,191 +4901,237 @@ status:
 
 ### Cluster
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `spec.mode` | string | Cluster mode: `provision`, `adopt`, or `connect` |
-| `spec.provider.type` | string | Cloud provider: `aws`, `gcp`, `azure`, `kind`, `k3s` |
-| `spec.provider.credentialRef` | SecretRef | Reference to cloud credentials secret |
-| `spec.provider.region` | string | Cloud region for provisioning |
-| `spec.credential.secretRef` | SecretRef | Kubeconfig secret reference (for adopt/connect) |
-| `spec.clusterSpec` | ClusterSpec | Kubernetes version, node pools, networking (provision mode) |
-| `spec.blueprintRef` | BlueprintRef | Blueprint to apply |
-| `spec.adoption` | AdoptionSpec | Adoption configuration (adopt mode) |
-| `spec.patches` | []PlanePatch | Cluster-specific blueprint overrides |
-| `spec.rolloutStrategyRef` | StrategyRef | Reference to ClusterRolloutStrategy |
-| `spec.rolloutStrategyRef.overrides` | OverrideSpec | Cluster-specific rollout overrides |
-| `spec.maintenance` | MaintenanceSpec | Maintenance windows |
-| `spec.maintenance.enforceWindow` | bool | Block updates outside maintenance window |
-| `status.mode` | string | Active mode |
-| `status.connectionStatus` | string | Connection status: `Connected`, `Disconnected` |
-| `status.provisioningStatus` | ProvisioningStatus | Infrastructure provisioning progress |
-| `status.adoptionStatus` | AdoptionStatus | Adoption discovery and reconciliation status |
-| `status.clusterInfo` | ClusterInfo | Discovered cluster information |
-| `status.blueprint` | BlueprintStatus | Applied blueprint status |
-| `status.planes` | []PlaneInventory | Full inventory of planes and components |
-| `status.health` | HealthStatus | Aggregated health status |
-| `status.drift` | DriftStatus | Drift detection results |
-| `status.resources` | ResourceUsage | CPU, memory, pod usage |
-| `status.history` | []HistoryEntry | Blueprint application history |
+| Field                                               | Type                | Description                                                   |
+| --------------------------------------------------- | ------------------- | ------------------------------------------------------------- |
+| `spec.mode`                                         | string              | Cluster mode: `provision`, `adopt`, or `connect`              |
+| `spec.provider.type`                                | string              | Cloud provider: `aws`, `gcp`, `azure`, `kind`, `k3s`          |
+| `spec.provider.credentialRef`                       | SecretRef           | Reference to cloud credentials secret                         |
+| `spec.provider.region`                              | string              | Cloud region for provisioning                                 |
+| `spec.credential.secretRef`                         | SecretRef           | Kubeconfig secret reference (for adopt/connect)               |
+| `spec.clusterSpec`                                  | ClusterSpec         | Kubernetes version, node pools, networking (provision mode)   |
+| `spec.blueprintRef`                                 | BlueprintRef        | Blueprint to apply                                            |
+| `spec.adoption`                                     | AdoptionSpec        | Adoption configuration (adopt mode)                           |
+| `spec.patches`                                      | []PlanePatch        | Cluster-specific blueprint overrides                          |
+| `spec.rolloutStrategyRef`                           | StrategyRef         | Reference to ClusterRolloutStrategy                           |
+| `spec.rolloutStrategyRef.overrides`                 | OverrideSpec        | Cluster-specific rollout overrides                            |
+| `spec.maintenance`                                  | MaintenanceSpec     | Maintenance windows                                           |
+| `spec.maintenance.windows`                          | []MaintenanceWindow | Scheduled maintenance windows                                 |
+| `spec.maintenance.windows[].name`                   | string              | Window identifier                                             |
+| `spec.maintenance.windows[].start`                  | string              | Start time (HH:MM format)                                     |
+| `spec.maintenance.windows[].end`                    | string              | End time (HH:MM format)                                       |
+| `spec.maintenance.windows[].timezone`               | string              | IANA timezone name (e.g., `America/New_York`)                 |
+| `spec.maintenance.windows[].days`                   | []string            | Days of week: `Mon`, `Tue`, `Wed`, `Thu`, `Fri`, `Sat`, `Sun` |
+| `spec.maintenance.windows[].dstPolicy`              | string              | DST handling: `extend` (default), `shrink`, `skip`            |
+| `spec.maintenance.enforceWindow`                    | bool                | Block updates outside maintenance window                      |
+| `spec.maintenance.allowEmergencyUpdates`            | bool                | Allow forced updates with `--force` flag                      |
+| `status.mode`                                       | string              | Active mode                                                   |
+| `status.connectionStatus`                           | string              | Connection status: `Connected`, `Disconnected`                |
+| `status.provisioningStatus`                         | ProvisioningStatus  | Infrastructure provisioning progress                          |
+| `status.adoptionStatus`                             | AdoptionStatus      | Adoption discovery and reconciliation status                  |
+| `status.clusterInfo`                                | ClusterInfo         | Discovered cluster information                                |
+| `status.blueprint`                                  | BlueprintStatus     | Applied blueprint status                                      |
+| `status.planes`                                     | []PlaneInventory    | Full inventory of planes and components                       |
+| `status.health`                                     | HealthStatus        | Aggregated health status                                      |
+| `status.drift`                                      | DriftStatus         | Drift detection results                                       |
+| `status.maintenance`                                | MaintenanceStatus   | Computed maintenance window state                             |
+| `status.maintenance.inWindow`                       | bool                | Currently within a maintenance window                         |
+| `status.maintenance.currentWindow`                  | WindowInfo          | Current active window details (if inWindow)                   |
+| `status.maintenance.currentWindow.name`             | string              | Window name                                                   |
+| `status.maintenance.currentWindow.endsAt`           | Time                | When current window ends (UTC)                                |
+| `status.maintenance.currentWindow.remainingMinutes` | int                 | Minutes remaining in window                                   |
+| `status.maintenance.nextWindow`                     | WindowInfo          | Next scheduled window                                         |
+| `status.maintenance.nextWindow.startsAt`            | Time                | When next window starts (UTC)                                 |
+| `status.maintenance.nextWindow.startsInMinutes`     | int                 | Minutes until next window                                     |
+| `status.maintenance.lastEvaluatedAt`                | Time                | Last window evaluation time                                   |
+| `status.maintenance.timezoneInfo`                   | TimezoneInfo        | Timezone details with DST info                                |
+| `status.resources`                                  | ResourceUsage       | CPU, memory, pod usage                                        |
+| `status.history`                                    | []HistoryEntry      | Blueprint application history                                 |
 
 ### ClusterPlane
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `spec.description` | string | Human-readable description |
-| `spec.components` | []PlaneComponent | Components in this plane |
-| `spec.policies` | []PlanePolicy | Plane-level policies |
-| `spec.outputs` | []PlaneOutput | Values exposed to other planes |
-| `spec.requirements` | Requirements | Compatibility requirements |
-| `spec.failurePolicy` | FailurePolicy | How to handle component failures |
-| `spec.garbageCollection` | GCPolicy | Resource cleanup policy |
-| `status.phase` | string | Current phase |
-| `status.components` | []ComponentStatus | Per-component status |
-| `status.outputs` | map[string]string | Resolved output values |
+| Field                    | Type              | Description                      |
+| ------------------------ | ----------------- | -------------------------------- |
+| `spec.description`       | string            | Human-readable description       |
+| `spec.components`        | []PlaneComponent  | Components in this plane         |
+| `spec.policies`          | []PlanePolicy     | Plane-level policies             |
+| `spec.outputs`           | []PlaneOutput     | Values exposed to other planes   |
+| `spec.requirements`      | Requirements      | Compatibility requirements       |
+| `spec.failurePolicy`     | FailurePolicy     | How to handle component failures |
+| `spec.garbageCollection` | GCPolicy          | Resource cleanup policy          |
+| `status.phase`           | string            | Current phase                    |
+| `status.components`      | []ComponentStatus | Per-component status             |
+| `status.outputs`         | map[string]string | Resolved output values           |
 
 ### ClusterBlueprint
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `spec.planes` | []PlaneRef | Referenced planes with patches |
-| `spec.policies` | []BlueprintPolicy | Blueprint-level policies |
-| `spec.workflow` | Workflow | Deployment workflow |
-| `status.planes` | []PlaneStatus | Per-plane status |
-| `status.appliedClusters` | []ClusterStatus | Per-cluster status |
+| Field                    | Type              | Description                    |
+| ------------------------ | ----------------- | ------------------------------ |
+| `spec.planes`            | []PlaneRef        | Referenced planes with patches |
+| `spec.policies`          | []BlueprintPolicy | Blueprint-level policies       |
+| `spec.workflow`          | Workflow          | Deployment workflow            |
+| `status.planes`          | []PlaneStatus     | Per-plane status               |
+| `status.appliedClusters` | []ClusterStatus   | Per-cluster status             |
 
 ### ClusterRolloutStrategy
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `spec.description` | string | Human-readable description |
-| `spec.waves` | []Wave | Wave definitions with ordering and selectors |
-| `spec.waves[].name` | string | Wave identifier |
-| `spec.waves[].order` | int | Wave execution order |
-| `spec.waves[].clusterSelector` | LabelSelector | Which clusters belong to this wave |
-| `spec.waves[].waitFor` | WaitCondition | Previous wave dependency |
-| `spec.waves[].waitFor.wave` | string | Name of wave to wait for |
-| `spec.waves[].waitFor.healthyDuration` | Duration | How long wave must be healthy |
-| `spec.waves[].pause` | PauseSpec | Pause duration after wave |
-| `spec.waves[].approval` | ApprovalSpec | Manual approval requirement |
-| `spec.waves[].batching` | BatchSpec | Batch size and interval within wave |
-| `spec.maintenanceWindows.respectClusterWindows` | bool | Respect per-cluster maintenance windows |
-| `spec.maintenanceWindows.skipIfOutsideWindow` | bool | Skip clusters outside their window |
-| `spec.clusterUpdateBehavior` | UpdateBehavior | Per-cluster rollout strategy |
-| `spec.analysis` | AnalysisSpec | Metrics and thresholds |
-| `spec.rollback` | RollbackSpec | Automatic rollback configuration |
-| `status.phase` | string | `Active`, `Paused`, `Superseded` |
-| `status.currentRollout` | RolloutProgress | Current rollout progress |
-| `status.currentRollout.currentWave` | string | Currently updating wave |
-| `status.currentRollout.waveProgress` | []WaveStatus | Per-wave status |
-| `status.clusters` | ClusterCounts | Cluster counts by wave |
-| `status.analysis` | AnalysisStatus | Current analysis results |
+| Field                                                    | Type            | Description                                                                      |
+| -------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------- |
+| `spec.description`                                       | string          | Human-readable description                                                       |
+| `spec.waves`                                             | []Wave          | Wave definitions with ordering and selectors                                     |
+| `spec.waves[].name`                                      | string          | Wave identifier                                                                  |
+| `spec.waves[].order`                                     | int             | Wave execution order                                                             |
+| `spec.waves[].clusterSelector`                           | LabelSelector   | Which clusters belong to this wave                                               |
+| `spec.waves[].waitFor`                                   | WaitCondition   | Previous wave dependency                                                         |
+| `spec.waves[].waitFor.wave`                              | string          | Name of wave to wait for                                                         |
+| `spec.waves[].waitFor.healthyDuration`                   | Duration        | How long wave must be healthy                                                    |
+| `spec.waves[].pause`                                     | PauseSpec       | Pause duration after wave                                                        |
+| `spec.waves[].approval`                                  | ApprovalSpec    | Manual approval requirement                                                      |
+| `spec.waves[].batching`                                  | BatchSpec       | Batch size and interval within wave                                              |
+| `spec.maintenanceWindows.respectClusterWindows`          | bool            | Respect per-cluster maintenance windows                                          |
+| `spec.maintenanceWindows.skipIfOutsideWindow`            | bool            | Skip clusters outside their window                                               |
+| `spec.maintenanceWindows.maxWaitTime`                    | Duration        | Maximum time to wait for window                                                  |
+| `spec.maintenanceWindows.inProgressUpdateStrategy`       | string          | Strategy for in-progress updates: `continue` (default), `graceful`, `checkpoint` |
+| `spec.maintenanceWindows.alerts`                         | AlertConfig     | Alert configuration for window events                                            |
+| `spec.maintenanceWindows.alerts.onWindowEndDuringUpdate` | bool            | Send alert when window ends during update                                        |
+| `spec.maintenanceWindows.alerts.channels`                | []AlertChannel  | Alert destinations (slack, pagerduty, email)                                     |
+| `spec.clusterUpdateBehavior`                             | UpdateBehavior  | Per-cluster rollout strategy                                                     |
+| `spec.analysis`                                          | AnalysisSpec    | Metrics and thresholds                                                           |
+| `spec.rollback`                                          | RollbackSpec    | Automatic rollback configuration                                                 |
+| `status.phase`                                           | string          | `Active`, `Paused`, `Superseded`                                                 |
+| `status.currentRollout`                                  | RolloutProgress | Current rollout progress                                                         |
+| `status.currentRollout.currentWave`                      | string          | Currently updating wave                                                          |
+| `status.currentRollout.waveProgress`                     | []WaveStatus    | Per-wave status                                                                  |
+| `status.clusters`                                        | ClusterCounts   | Cluster counts by wave                                                           |
+| `status.analysis`                                        | AnalysisStatus  | Current analysis results                                                         |
 
 ### ClusterRollout (Optional - Emergency/Manual Overrides)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `spec.targetBlueprint` | BlueprintRef | Target blueprint/revision |
-| `spec.sourceBlueprint` | BlueprintRef | Source blueprint (optional) |
-| `spec.strategy` | RolloutStrategy | Canary/BlueGreen/Rolling |
-| `spec.analysis` | AnalysisSpec | Metrics and thresholds |
-| `spec.rollback` | RollbackSpec | Rollback configuration |
-| `spec.approvals` | []ApprovalGate | Manual approval gates |
-| `spec.overrideStrategy` | bool | Override cluster's rolloutStrategyRef |
-| `status.phase` | string | Current phase |
-| `status.currentStep` | int | Current rollout step |
-| `status.clusters` | []ClusterRolloutStatus | Per-cluster status |
-| `status.analysis` | AnalysisStatus | Current analysis results |
+| Field                   | Type                   | Description                           |
+| ----------------------- | ---------------------- | ------------------------------------- |
+| `spec.targetBlueprint`  | BlueprintRef           | Target blueprint/revision             |
+| `spec.sourceBlueprint`  | BlueprintRef           | Source blueprint (optional)           |
+| `spec.strategy`         | RolloutStrategy        | Canary/BlueGreen/Rolling              |
+| `spec.analysis`         | AnalysisSpec           | Metrics and thresholds                |
+| `spec.rollback`         | RollbackSpec           | Rollback configuration                |
+| `spec.approvals`        | []ApprovalGate         | Manual approval gates                 |
+| `spec.overrideStrategy` | bool                   | Override cluster's rolloutStrategyRef |
+| `status.phase`          | string                 | Current phase                         |
+| `status.currentStep`    | int                    | Current rollout step                  |
+| `status.clusters`       | []ClusterRolloutStatus | Per-cluster status                    |
+| `status.analysis`       | AnalysisStatus         | Current analysis results              |
+
+### ClusterRolloutCheckpoint
+
+Created when `inProgressUpdateStrategy: checkpoint` is used and maintenance window ends during an update.
+
+| Field                                 | Type          | Description                                            |
+| ------------------------------------- | ------------- | ------------------------------------------------------ |
+| `spec.clusterRef`                     | ClusterRef    | Reference to the cluster being updated                 |
+| `spec.rolloutState`                   | RolloutState  | State at time of checkpoint                            |
+| `spec.rolloutState.blueprintRevision` | string        | Target blueprint revision                              |
+| `spec.rolloutState.previousRevision`  | string        | Previous blueprint revision                            |
+| `spec.rolloutState.currentWave`       | string        | Wave being processed                                   |
+| `spec.rolloutState.currentStep`       | int           | Current step number                                    |
+| `spec.rolloutState.stepProgress`      | int           | Percentage of current step completed                   |
+| `spec.appliedResources`               | []ResourceRef | Resources already applied                              |
+| `spec.pendingResources`               | []ResourceRef | Resources pending application                          |
+| `spec.createdAt`                      | Time          | When checkpoint was created                            |
+| `spec.reason`                         | string        | Reason for checkpoint (e.g., `MaintenanceWindowEnded`) |
+| `spec.windowDetails`                  | WindowDetails | Details about the ended maintenance window             |
+| `status.phase`                        | string        | `Pending`, `Resuming`, `Resumed`, `Expired`, `Failed`  |
+| `status.resumable`                    | bool          | Whether checkpoint can still be resumed                |
+| `status.expiresAt`                    | Time          | When checkpoint expires (default: 3 days)              |
 
 ### ObservabilityProviderDefinition
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `spec.description` | string | Human-readable description |
-| `spec.type` | string | Provider type: `prometheus`, `datadog`, `newrelic`, `cloudwatch`, `webhook` |
-| `spec.connectionSpec` | ConnectionSchema | JSON schema for connection configuration |
-| `spec.queryTemplate` | string | CUE template for query execution |
-| `spec.responseTemplate` | string | CUE template for response parsing |
-| `spec.builtinMetrics` | []MetricTemplate | Pre-defined metric queries |
-| `spec.builtinMetrics[].name` | string | Metric name |
-| `spec.builtinMetrics[].query` | string | Query in provider's query language |
-| `spec.builtinMetrics[].unit` | string | Unit of measurement |
+| Field                         | Type             | Description                                                                 |
+| ----------------------------- | ---------------- | --------------------------------------------------------------------------- |
+| `spec.description`            | string           | Human-readable description                                                  |
+| `spec.type`                   | string           | Provider type: `prometheus`, `datadog`, `newrelic`, `cloudwatch`, `webhook` |
+| `spec.connectionSpec`         | ConnectionSchema | JSON schema for connection configuration                                    |
+| `spec.queryTemplate`          | string           | CUE template for query execution                                            |
+| `spec.responseTemplate`       | string           | CUE template for response parsing                                           |
+| `spec.builtinMetrics`         | []MetricTemplate | Pre-defined metric queries                                                  |
+| `spec.builtinMetrics[].name`  | string           | Metric name                                                                 |
+| `spec.builtinMetrics[].query` | string           | Query in provider's query language                                          |
+| `spec.builtinMetrics[].unit`  | string           | Unit of measurement                                                         |
 
 ### ObservabilityProvider
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `spec.definitionRef` | DefinitionRef | Reference to ObservabilityProviderDefinition |
-| `spec.connection` | Connection | Provider-specific connection configuration |
-| `spec.connection.endpoint` | string | Provider endpoint URL |
-| `spec.connection.auth` | AuthConfig | Authentication configuration |
-| `spec.healthCheck.interval` | Duration | How often to check provider health |
-| `spec.healthCheck.timeout` | Duration | Timeout for health checks |
-| `status.phase` | string | `Ready`, `Unhealthy`, `Unknown` |
-| `status.lastCheckTime` | Time | Last successful connection time |
+| Field                       | Type          | Description                                  |
+| --------------------------- | ------------- | -------------------------------------------- |
+| `spec.definitionRef`        | DefinitionRef | Reference to ObservabilityProviderDefinition |
+| `spec.connection`           | Connection    | Provider-specific connection configuration   |
+| `spec.connection.endpoint`  | string        | Provider endpoint URL                        |
+| `spec.connection.auth`      | AuthConfig    | Authentication configuration                 |
+| `spec.healthCheck.interval` | Duration      | How often to check provider health           |
+| `spec.healthCheck.timeout`  | Duration      | Timeout for health checks                    |
+| `status.phase`              | string        | `Ready`, `Unhealthy`, `Unknown`              |
+| `status.lastCheckTime`      | Time          | Last successful connection time              |
 
 ### HealthCheck (Component-level)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | string | Health check identifier |
-| `type` | string | Check type: `kubernetes`, `metrics`, `http`, `cue` |
-| `kubernetes.resourceRef` | ResourceRef | Reference to Kubernetes resource |
-| `kubernetes.condition` | Condition | Expected condition |
-| `metrics.providerRef` | ProviderRef | Reference to ObservabilityProvider |
-| `metrics.query` | string | Query in provider's query language |
-| `metrics.threshold` | Threshold | Expected value threshold |
-| `metrics.for` | Duration | Duration threshold must hold |
-| `http.url` | string | HTTP endpoint to check |
-| `http.expectedStatus` | int | Expected HTTP status code |
-| `cue.healthPolicy` | string | CUE expression returning `isHealth: bool` |
+| Field                    | Type        | Description                                        |
+| ------------------------ | ----------- | -------------------------------------------------- |
+| `name`                   | string      | Health check identifier                            |
+| `type`                   | string      | Check type: `kubernetes`, `metrics`, `http`, `cue` |
+| `kubernetes.resourceRef` | ResourceRef | Reference to Kubernetes resource                   |
+| `kubernetes.condition`   | Condition   | Expected condition                                 |
+| `metrics.providerRef`    | ProviderRef | Reference to ObservabilityProvider                 |
+| `metrics.query`          | string      | Query in provider's query language                 |
+| `metrics.threshold`      | Threshold   | Expected value threshold                           |
+| `metrics.for`            | Duration    | Duration threshold must hold                       |
+| `http.url`               | string      | HTTP endpoint to check                             |
+| `http.expectedStatus`    | int         | Expected HTTP status code                          |
+| `cue.healthPolicy`       | string      | CUE expression returning `isHealth: bool`          |
 
 ### HealthStatus (Status structures)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `status` | string | `Healthy`, `Degraded`, `Unhealthy`, `Unknown`, `Progressing` |
-| `reason` | string | Machine-readable reason code |
-| `message` | string | Human-readable message |
-| `score` | int | Health score 0-100 (for weighted aggregation) |
-| `lastCheckTime` | Time | Last health evaluation time |
-| `checks` | []CheckResult | Individual health check results |
-| `checks[].name` | string | Check name |
-| `checks[].status` | string | `Passing`, `Failing`, `Unknown` |
-| `checks[].value` | string | Current value |
-| `checks[].threshold` | string | Expected threshold |
-| `checks[].since` | Time | When current status began |
+| Field                | Type          | Description                                                  |
+| -------------------- | ------------- | ------------------------------------------------------------ |
+| `status`             | string        | `Healthy`, `Degraded`, `Unhealthy`, `Unknown`, `Progressing` |
+| `reason`             | string        | Machine-readable reason code                                 |
+| `message`            | string        | Human-readable message                                       |
+| `score`              | int           | Health score 0-100 (for weighted aggregation)                |
+| `lastCheckTime`      | Time          | Last health evaluation time                                  |
+| `checks`             | []CheckResult | Individual health check results                              |
+| `checks[].name`      | string        | Check name                                                   |
+| `checks[].status`    | string        | `Passing`, `Failing`, `Unknown`                              |
+| `checks[].value`     | string        | Current value                                                |
+| `checks[].threshold` | string        | Expected threshold                                           |
+| `checks[].since`     | Time          | When current status began                                    |
 
 ### ClusterDriftReport
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `spec.clusterRef` | ClusterRef | Reference to the cluster being analyzed |
-| `spec.blueprintRef.name` | string | Blueprint name for comparison |
-| `spec.blueprintRef.revision` | string | Blueprint revision for comparison |
-| `spec.comparisonType` | string | `assigned` (default) or `what-if` |
-| `status.driftDetected` | bool | Whether any drift was detected |
-| `status.lastChecked` | Time | When drift was last evaluated |
-| `status.summary.totalPlanes` | int | Total number of planes in blueprint |
-| `status.summary.driftedPlanes` | int | Number of planes with drift |
-| `status.summary.totalComponents` | int | Total number of components |
-| `status.summary.driftedComponents` | int | Number of components with drift |
-| `status.planeDrifts` | []PlaneDrift | Per-plane drift details |
-| `status.planeDrifts[].planeName` | string | Name of the plane |
-| `status.planeDrifts[].status` | string | `synced`, `drifted`, `missing`, `extra` |
-| `status.planeDrifts[].componentDrifts` | []ComponentDrift | Per-component drift details |
+| Field                                  | Type             | Description                             |
+| -------------------------------------- | ---------------- | --------------------------------------- |
+| `spec.clusterRef`                      | ClusterRef       | Reference to the cluster being analyzed |
+| `spec.blueprintRef.name`               | string           | Blueprint name for comparison           |
+| `spec.blueprintRef.revision`           | string           | Blueprint revision for comparison       |
+| `spec.comparisonType`                  | string           | `assigned` (default) or `what-if`       |
+| `status.driftDetected`                 | bool             | Whether any drift was detected          |
+| `status.lastChecked`                   | Time             | When drift was last evaluated           |
+| `status.summary.totalPlanes`           | int              | Total number of planes in blueprint     |
+| `status.summary.driftedPlanes`         | int              | Number of planes with drift             |
+| `status.summary.totalComponents`       | int              | Total number of components              |
+| `status.summary.driftedComponents`     | int              | Number of components with drift         |
+| `status.planeDrifts`                   | []PlaneDrift     | Per-plane drift details                 |
+| `status.planeDrifts[].planeName`       | string           | Name of the plane                       |
+| `status.planeDrifts[].status`          | string           | `synced`, `drifted`, `missing`, `extra` |
+| `status.planeDrifts[].componentDrifts` | []ComponentDrift | Per-component drift details             |
 
 ### ClusterDriftException
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `spec.clusterRef` | ClusterRef | Reference to the cluster |
-| `spec.exceptions` | []Exception | List of accepted drift exceptions |
-| `spec.exceptions[].resource` | ResourceRef | Reference to the drifted resource |
-| `spec.exceptions[].fields` | []FieldException | Specific fields to exclude from drift |
-| `spec.exceptions[].fields[].path` | string | JSONPath to the field |
-| `spec.exceptions[].fields[].reason` | string | Reason for accepting this drift |
-| `spec.exceptions[].fields[].approvedBy` | string | Who approved the exception |
-| `spec.exceptions[].fields[].expiresAt` | Time | Optional expiration for the exception |
+| Field                                   | Type             | Description                           |
+| --------------------------------------- | ---------------- | ------------------------------------- |
+| `spec.clusterRef`                       | ClusterRef       | Reference to the cluster              |
+| `spec.exceptions`                       | []Exception      | List of accepted drift exceptions     |
+| `spec.exceptions[].resource`            | ResourceRef      | Reference to the drifted resource     |
+| `spec.exceptions[].fields`              | []FieldException | Specific fields to exclude from drift |
+| `spec.exceptions[].fields[].path`       | string           | JSONPath to the field                 |
+| `spec.exceptions[].fields[].reason`     | string           | Reason for accepting this drift       |
+| `spec.exceptions[].fields[].approvedBy` | string           | Who approved the exception            |
+| `spec.exceptions[].fields[].expiresAt`  | Time             | Optional expiration for the exception |
 
 ---
 
@@ -4588,6 +5140,7 @@ status:
 ### Phase 1: Core CRDs and Controllers
 
 1. Define and implement CRD schemas
+
    - Cluster (with mode: provision, adopt, connect)
    - ClusterPlane
    - ClusterBlueprint
@@ -4596,12 +5149,14 @@ status:
    - ClusterProviderDefinition
 
 2. Implement Cluster controller
+
    - Connection management (kubeconfig handling)
    - Inventory discovery
    - Health aggregation
    - Status reconciliation
 
 3. Implement ClusterPlane controller
+
    - Component rendering
    - Trait application
    - Health checking
@@ -4614,17 +5169,20 @@ status:
 ### Phase 2: Cluster Lifecycle
 
 1. Provisioning backend integration
+
    - Crossplane integration for AWS/GCP/Azure
    - Terraform controller integration
    - Native kind/k3s provider
 
 2. Cluster provisioning workflow
+
    - VPC/networking creation
    - Cluster creation
    - Node pool management
    - Kubeconfig generation
 
 3. Cluster adoption workflow
+
    - Component discovery
    - Version detection
    - Mapping to planes
@@ -4647,6 +5205,7 @@ status:
 ### Phase 4: Rollout Engine
 
 1. ClusterRolloutStrategy controller
+
    - Wave management and progression
    - Cluster-to-wave assignment via labels
    - waitFor dependency resolution
@@ -4654,16 +5213,19 @@ status:
    - Approval gate integration
 
 2. Rollout progression logic
+
    - Blueprint change detection
    - Automatic wave progression
    - Batch processing within waves
    - Health duration tracking
 
 3. ClusterRollout controller (emergency overrides)
+
    - Imperative rollout support
    - Strategy override capability
 
 4. Analysis and metrics integration
+
    - Prometheus integration
    - Kubernetes metrics
    - Per-wave and per-cluster analysis
@@ -4676,22 +5238,26 @@ status:
 ### Phase 5: Health Checking and Observability
 
 1. ObservabilityProviderDefinition and ObservabilityProvider CRDs
+
    - Provider definitions for Prometheus, Datadog, New Relic, CloudWatch
    - Custom webhook provider for extensibility
    - Connection management and authentication
 
 2. Hierarchical health aggregation
+
    - Cluster → Plane → Component → Resource health roll-up
    - Configurable aggregation strategies (all, any, majority, weighted)
    - Health scoring (0-100)
 
 3. Health check types
+
    - Kubernetes resource checks (deployment ready, conditions)
    - Metrics-based checks (any observability provider)
    - HTTP endpoint checks
    - CUE-based custom health policies
 
 4. Health CLI and API
+
    - `vela cluster health` with drill-down capability
    - Fleet-wide health dashboard
    - Health history and trend analysis
@@ -4705,17 +5271,20 @@ status:
 ### Phase 6: Drift Detection and Remediation
 
 1. ClusterDriftReport and ClusterDriftException CRDs
+
    - Drift report generation and persistence
    - Exception management for intentional drift
    - Automatic drift detection scheduling
 
 2. Drift detection engine
+
    - Deep comparison of cluster state vs blueprint
    - Plane-level and component-level diff
    - Resource-level field comparison
    - Integration with Terraform state for adopted clusters
 
 3. What-if blueprint comparison
+
    - Compare cluster against any blueprint (`--blueprint` flag)
    - Fleet-wide upgrade impact analysis (`--all --blueprint`)
    - Estimated rollout wave planning
@@ -4728,6 +5297,7 @@ status:
 ### Phase 7: CLI and Operations
 
 1. CLI commands
+
    - `vela cluster create/adopt/connect` - Cluster lifecycle
    - `vela cluster health` - Health inspection with drill-down
    - `vela cluster drift` - Drift detection with `--blueprint` comparison
@@ -5395,3 +5965,4 @@ kubectl describe cluster production-us-east-1
 - [Argo Rollouts](https://argoproj.github.io/argo-rollouts/)
 - [Flux HelmRelease](https://fluxcd.io/flux/components/helm/)
 - [Crossplane Compositions](https://docs.crossplane.io/latest/concepts/compositions/)
+- [Platform Engineering](https://platformengineering.org/platform-tooling)
