@@ -230,7 +230,7 @@ spec:
 1. Workflow support specify Order Steps by Field Tag (#2022)
 2. support application policy (#2011)
 3. add OCM multi cluster demo (#1992)
-4. Fix(volume): seperate volume to trait (#2027)
+4. Fix(volume): separate volume to trait (#2027)
 5. allow application skip gc resource and leave workload ownerReference controlled by rollout(#2024)
 6. Store component parameters in context (#2030)
 7. Allow specify chart values for helm trait(#2033)
