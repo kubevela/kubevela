@@ -22,6 +22,7 @@
     - [ClusterPlane Versioning Strategy](#clusterplane-versioning-strategy)
     - [ClusterPlaneRevision CRD](#clusterplanerevision-crd)
     - [Cross-Cluster Dependency Handling](#cross-cluster-dependency-handling)
+    - [Shared Infrastructure Planes](#shared-infrastructure-planes)
     - [ClusterPlane Workflow and Deployment Order](#clusterplane-workflow-and-deployment-order)
     - [ClusterBlueprint](#3-clusterblueprint)
     - [ClusterBlueprint Versioning Strategy](#clusterblueprint-versioning-strategy)
@@ -1559,6 +1560,287 @@ vela plane deps refresh <name>            # Force refresh cache
 ```
 
 **Resilience:** Uses caching with TTL, fallback values for optional deps, circuit breaker (opens after 5 failures, half-open after 30s).
+
+##### Shared Infrastructure Planes
+
+In enterprise deployments, infrastructure resources like VPCs, NAT Gateways, and subnets are often **shared across multiple Kubernetes clusters**. Rather than complex component-level sharing semantics, ClusterPlane uses a simple **plane-level scope** model.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      PLANE SCOPE MODEL                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Management Cluster (runs KubeVela)                                         │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                                                                       │  │
+│  │  ┌─────────────────────────┐    ┌─────────────────────────┐           │  │
+│  │  │ ClusterPlane            │    │ ClusterPlane            │           │  │
+│  │  │ name: shared-vpc        │    │ name: eks-cluster       │           │  │
+│  │  │ scope: shared           │    │ scope: perCluster       │           │  │
+│  │  │                         │    │                         │           │  │
+│  │  │ Creates ONE VPC in AWS  │    │ Creates EKS per cluster │           │  │
+│  │  │ used by all clusters    │    │ that uses the blueprint │           │  │
+│  │  └───────────┬─────────────┘    └───────────┬─────────────┘           │  │
+│  │              │                              │                         │  │
+│  │              │ outputs.vpcId                │ inputs.vpcId            │  │
+│  │              └──────────────────────────────┘                         │  │
+│  │                                                                       │  │
+│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
+│  │  │ ClusterBlueprint: production-standard                           │  │  │
+│  │  │   planes:                                                       │  │  │
+│  │  │     - ref: shared-vpc        ← Created once                     │  │  │
+│  │  │     - ref: eks-cluster       ← Created per cluster              │  │  │
+│  │  │     - ref: networking        ← Deployed to each cluster         │  │  │
+│  │  └─────────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                       │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  KEY INSIGHT: All ClusterPlane CRDs live on the management cluster.         │
+│  The 'scope' field determines whether resources are created once (shared)   │
+│  or per-cluster (perCluster).                                               │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Scope Types:**
+
+| Scope        | Behavior                                                           | Use Case                                            |
+| ------------ | ------------------------------------------------------------------ | --------------------------------------------------- |
+| `perCluster` | Resources created for each cluster using the blueprint (default)   | EKS clusters, node groups, cluster-specific IAM     |
+| `shared`     | Resources created once, outputs available to all clusters in scope | VPCs, NAT Gateways, shared subnets, Transit Gateway |
+
+**Shared Plane Definition:**
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterPlane
+metadata:
+  name: shared-vpc-us-east-1
+  namespace: vela-system
+spec:
+  scope: shared # Created once, not per-cluster
+
+  # Which clusters can consume this plane's outputs
+  sharedWith:
+    clusterSelector:
+      matchLabels:
+        region: us-east-1
+        environment: production
+
+  components:
+    - name: vpc
+      type: terraform-module
+      properties:
+        source: "terraform-aws-modules/vpc/aws"
+        version: "5.1.0"
+        values:
+          name: "production-us-east-1-vpc"
+          cidr: "10.0.0.0/16"
+          azs: ["us-east-1a", "us-east-1b", "us-east-1c"]
+          private_subnets: ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+          public_subnets: ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+          enable_nat_gateway: true
+          tags:
+            "shared-infrastructure": "true"
+            "managed-by": "kubevela-clusterplane"
+
+  outputs:
+    - name: vpcId
+      valueFrom:
+        component: vpc
+        fieldPath: outputs.vpc_id
+    - name: privateSubnets
+      valueFrom:
+        component: vpc
+        fieldPath: outputs.private_subnets
+    - name: publicSubnets
+      valueFrom:
+        component: vpc
+        fieldPath: outputs.public_subnets
+```
+
+**Per-Cluster Plane Consuming Shared Outputs:**
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterPlane
+metadata:
+  name: eks-cluster
+  namespace: vela-system
+spec:
+  scope: perCluster # Default - created for each cluster
+
+  # Import outputs from shared plane
+  inputs:
+    - name: vpcId
+      fromPlane: shared-vpc-us-east-1
+      output: vpcId
+    - name: privateSubnets
+      fromPlane: shared-vpc-us-east-1
+      output: privateSubnets
+
+  components:
+    - name: eks
+      type: terraform-module
+      properties:
+        source: "terraform-aws-modules/eks/aws"
+        version: "19.21.0"
+        values:
+          cluster_name: "${context.cluster.name}"
+          cluster_version: "1.29"
+          vpc_id: "{{ inputs.vpcId }}"
+          subnet_ids: "{{ inputs.privateSubnets }}"
+          enable_irsa: true
+
+    - name: node-group
+      type: terraform-module
+      properties:
+        source: "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+        values:
+          cluster_name: "{{ outputs.eks.cluster_name }}"
+          subnet_ids: "{{ inputs.privateSubnets }}"
+          instance_types: ["m5.large"]
+          min_size: 3
+          max_size: 10
+
+  outputs:
+    - name: clusterEndpoint
+      valueFrom:
+        component: eks
+        fieldPath: outputs.cluster_endpoint
+    - name: clusterName
+      valueFrom:
+        component: eks
+        fieldPath: outputs.cluster_name
+```
+
+**Blueprint Composition:**
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterBlueprint
+metadata:
+  name: production-standard
+spec:
+  planes:
+    # Shared plane - created once for all clusters
+    - name: shared-vpc
+      ref:
+        name: shared-vpc-us-east-1
+
+    # Per-cluster planes - created for each cluster
+    - name: eks
+      ref:
+        name: eks-cluster
+      dependsOn: [shared-vpc]
+
+    - name: networking
+      ref:
+        name: networking
+      dependsOn: [eks]
+```
+
+The blueprint doesn't need special sharing configuration—the plane's `scope` field determines the behavior.
+
+**Deletion Protection:**
+
+Shared planes cannot be deleted while clusters are using them:
+
+```bash
+$ kubectl delete clusterplane shared-vpc-us-east-1
+
+Error from server: admission webhook "clusterplane.validation.oam.dev" denied the request:
+  Cannot delete shared ClusterPlane "shared-vpc-us-east-1"
+
+  The following clusters are using this plane:
+    - production-us-east-1-a (via blueprint: production-standard)
+    - production-us-east-1-b (via blueprint: production-standard)
+    - production-us-east-1-c (via blueprint: production-standard)
+
+  To delete, first remove these clusters or update their blueprints.
+  Use --force to delete anyway (DANGER: will orphan dependent infrastructure)
+```
+
+**Status Tracking:**
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterPlane
+metadata:
+  name: shared-vpc-us-east-1
+status:
+  phase: Running
+  scope: shared
+
+  # Clusters currently using this shared plane
+  consumers:
+    count: 3
+    clusters:
+      - name: production-us-east-1-a
+        blueprint: production-standard
+        since: "2025-01-03T10:00:00Z"
+      - name: production-us-east-1-b
+        blueprint: production-standard
+        since: "2025-01-03T10:30:00Z"
+      - name: production-us-east-1-c
+        blueprint: production-standard
+        since: "2025-01-03T11:00:00Z"
+
+  components:
+    - name: vpc
+      healthy: true
+      message: "VPC created successfully"
+
+  outputs:
+    vpcId: "vpc-0abc123def456"
+    privateSubnets: '["subnet-1a","subnet-1b","subnet-1c"]'
+    publicSubnets: '["subnet-2a","subnet-2b","subnet-2c"]'
+```
+
+**CLI Commands:**
+
+```bash
+# List shared planes and their consumers
+vela plane list --scope shared
+
+NAME                    SCOPE    CONSUMERS  STATUS
+shared-vpc-us-east-1    shared   3          Running
+shared-transit-gw       shared   5          Running
+
+# Show details of a shared plane
+vela plane status shared-vpc-us-east-1
+
+SHARED PLANE: shared-vpc-us-east-1
+STATUS: Running
+SCOPE: shared (3 consumers)
+
+CONSUMERS:
+  Cluster                      Blueprint            Since
+  ─────────────────────────────────────────────────────────
+  production-us-east-1-a       production-standard  2025-01-03
+  production-us-east-1-b       production-standard  2025-01-03
+  production-us-east-1-c       production-standard  2025-01-03
+
+OUTPUTS:
+  vpcId: vpc-0abc123def456
+  privateSubnets: ["subnet-1a","subnet-1b","subnet-1c"]
+
+# Check what would happen if a shared plane is deleted
+vela plane delete shared-vpc-us-east-1 --dry-run
+
+⚠️  BLOCKED: 3 clusters depend on this shared plane
+    Cannot delete without --force flag
+```
+
+**Why This Model is Clean:**
+
+| Aspect                    | Benefit                                                                 |
+| ------------------------- | ----------------------------------------------------------------------- |
+| **Simple mental model**   | Shared infra = shared plane, per-cluster infra = per-cluster plane      |
+| **No ownership transfer** | Shared planes live on management cluster, not tied to workload clusters |
+| **Clear boundaries**      | Forces good design - separate shared vs per-cluster concerns            |
+| **Easy implementation**   | Just `scope` field + validation webhook for deletion                    |
+| **Familiar pattern**      | Similar to Terraform workspaces or Helm release scopes                  |
 
 ##### ClusterPlane Workflow and Deployment Order
 
@@ -4873,6 +5155,352 @@ spec:
       blueRetention: "72h"
 ```
 
+### Use Case 5: Multi-Cluster Shared VPC Infrastructure
+
+This use case demonstrates how multiple EKS clusters in the same AWS region can **share foundational infrastructure** (VPC, NAT Gateways, subnets) while maintaining their own cluster-specific resources using the plane-level `scope` model.
+
+**Scenario:**
+
+- 3 production EKS clusters in `us-east-1` sharing a single VPC
+- Shared: VPC, subnets, NAT Gateways, Internet Gateway
+- Per-cluster: EKS control plane, node groups, IAM OIDC provider
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          SHARED VPC ARCHITECTURE                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  AWS Region: us-east-1                                                      │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                     VPC: 10.0.0.0/16 (SHARED)                         │  │
+│  │                     Created by: shared-vpc-us-east-1 plane            │  │
+│  │                                                                       │  │
+│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐        │  │
+│  │  │ Private Subnet  │  │ Private Subnet  │  │ Private Subnet  │        │  │
+│  │  │    (AZ-a)       │  │    (AZ-b)       │  │    (AZ-c)       │        │  │
+│  │  │                 │  │                 │  │                 │        │  │
+│  │  │ ┌─────────────┐ │  │ ┌─────────────┐ │  │ ┌─────────────┐ │        │  │
+│  │  │ │ EKS-A Nodes │ │  │ │ EKS-B Nodes │ │  │ │ EKS-C Nodes │ │        │  │
+│  │  │ │ (perCluster)│ │  │ │ (perCluster)│ │  │ │ (perCluster)│ │        │  │
+│  │  │ └─────────────┘ │  │ └─────────────┘ │  │ └─────────────┘ │        │  │
+│  │  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘        │  │
+│  │           │                    │                    │                 │  │
+│  │           └────────────────────┴────────────────────┘                 │  │
+│  │                                │                                      │  │
+│  │                    ┌───────────▼───────────┐                          │  │
+│  │                    │  NAT Gateways (SHARED) │                         │  │
+│  │                    └───────────┬───────────┘                          │  │
+│  │                                │                                      │  │
+│  │                    ┌───────────▼───────────┐                          │  │
+│  │                    │ Internet GW (SHARED)  │                          │  │
+│  │                    └───────────────────────┘                          │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Step 1: Define Shared VPC Plane**
+
+```yaml
+# Shared plane - created once, used by all clusters in scope
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterPlane
+metadata:
+  name: shared-vpc-us-east-1
+  namespace: vela-system
+  labels:
+    plane.oam.dev/category: infrastructure
+spec:
+  description: "Shared VPC infrastructure for us-east-1 production clusters"
+  scope: shared
+
+  # Restrict which clusters can use this plane
+  sharedWith:
+    clusterSelector:
+      matchLabels:
+        region: us-east-1
+        environment: production
+
+  components:
+    - name: vpc
+      type: terraform-module
+      properties:
+        source: "terraform-aws-modules/vpc/aws"
+        version: "5.1.0"
+        values:
+          name: "production-us-east-1-vpc"
+          cidr: "10.0.0.0/16"
+          azs: ["us-east-1a", "us-east-1b", "us-east-1c"]
+          private_subnets: ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+          public_subnets: ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+          enable_nat_gateway: true
+          single_nat_gateway: false # HA - one per AZ
+          enable_dns_hostnames: true
+          enable_dns_support: true
+          # Tag for Kubernetes integration
+          private_subnet_tags:
+            "kubernetes.io/role/internal-elb": "1"
+          public_subnet_tags:
+            "kubernetes.io/role/elb": "1"
+          tags:
+            "shared-infrastructure": "true"
+            "managed-by": "kubevela"
+
+  outputs:
+    - name: vpcId
+      valueFrom:
+        component: vpc
+        fieldPath: outputs.vpc_id
+    - name: privateSubnets
+      valueFrom:
+        component: vpc
+        fieldPath: outputs.private_subnets
+    - name: publicSubnets
+      valueFrom:
+        component: vpc
+        fieldPath: outputs.public_subnets
+    - name: natGatewayIds
+      valueFrom:
+        component: vpc
+        fieldPath: outputs.natgw_ids
+```
+
+**Step 2: Define Per-Cluster EKS Plane**
+
+```yaml
+# Per-cluster plane - created for each cluster using the blueprint
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterPlane
+metadata:
+  name: eks-cluster
+  namespace: vela-system
+spec:
+  description: "EKS cluster with node groups"
+  scope: perCluster # Default - each cluster gets its own
+
+  # Import outputs from shared VPC plane
+  inputs:
+    - name: vpcId
+      fromPlane: shared-vpc-us-east-1
+      output: vpcId
+    - name: privateSubnets
+      fromPlane: shared-vpc-us-east-1
+      output: privateSubnets
+
+  components:
+    - name: eks
+      type: terraform-module
+      properties:
+        source: "terraform-aws-modules/eks/aws"
+        version: "19.21.0"
+        values:
+          cluster_name: "${context.cluster.name}"
+          cluster_version: "1.29"
+          vpc_id: "{{ inputs.vpcId }}"
+          subnet_ids: "{{ inputs.privateSubnets }}"
+          cluster_endpoint_public_access: false
+          cluster_endpoint_private_access: true
+          enable_irsa: true
+          # Cluster-specific tags
+          tags:
+            "kubernetes.io/cluster/${context.cluster.name}": "owned"
+
+    - name: node-group-system
+      type: terraform-module
+      dependsOn: [eks]
+      properties:
+        source: "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+        values:
+          name: "system"
+          cluster_name: "{{ outputs.eks.cluster_name }}"
+          subnet_ids: "{{ inputs.privateSubnets }}"
+          instance_types: ["m5.large"]
+          min_size: 3
+          max_size: 5
+          labels:
+            role: system
+
+    - name: node-group-workload
+      type: terraform-module
+      dependsOn: [eks]
+      properties:
+        source: "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+        values:
+          name: "workload"
+          cluster_name: "{{ outputs.eks.cluster_name }}"
+          subnet_ids: "{{ inputs.privateSubnets }}"
+          instance_types: ["m5.xlarge", "m5.2xlarge"]
+          min_size: 2
+          max_size: 20
+          labels:
+            role: workload
+
+  outputs:
+    - name: clusterEndpoint
+      valueFrom:
+        component: eks
+        fieldPath: outputs.cluster_endpoint
+    - name: clusterName
+      valueFrom:
+        component: eks
+        fieldPath: outputs.cluster_name
+    - name: oidcProviderArn
+      valueFrom:
+        component: eks
+        fieldPath: outputs.oidc_provider_arn
+```
+
+**Step 3: Blueprint Composes Both**
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterBlueprint
+metadata:
+  name: production-eks-standard
+spec:
+  description: "Standard production EKS cluster with shared VPC"
+
+  planes:
+    # Shared VPC - created once
+    - name: vpc
+      ref:
+        name: shared-vpc-us-east-1
+
+    # Per-cluster EKS - created for each cluster
+    - name: eks
+      ref:
+        name: eks-cluster
+      dependsOn: [vpc]
+
+    # Per-cluster networking (Cilium, ingress, etc.)
+    - name: networking
+      ref:
+        name: networking
+      dependsOn: [eks]
+
+    # Per-cluster observability
+    - name: observability
+      ref:
+        name: observability
+      dependsOn: [networking]
+```
+
+**Step 4: Create Clusters Using Blueprint**
+
+```yaml
+# Cluster A
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: production-us-east-1-a
+  labels:
+    region: us-east-1
+    environment: production
+spec:
+  mode: provision
+  blueprintRef:
+    name: production-eks-standard
+---
+# Cluster B
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: production-us-east-1-b
+  labels:
+    region: us-east-1
+    environment: production
+spec:
+  mode: provision
+  blueprintRef:
+    name: production-eks-standard
+---
+# Cluster C
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: production-us-east-1-c
+  labels:
+    region: us-east-1
+    environment: production
+spec:
+  mode: provision
+  blueprintRef:
+    name: production-eks-standard
+```
+
+**Result:**
+
+When these clusters are created:
+
+1. **shared-vpc-us-east-1** plane reconciles **once**:
+
+   - Creates VPC, subnets, NAT Gateways
+   - Outputs become available
+
+2. **eks-cluster** plane reconciles **three times** (once per cluster):
+   - Each gets unique EKS cluster name from `${context.cluster.name}`
+   - All use the same VPC via `{{ inputs.vpcId }}`
+   - Each has its own node groups
+
+**Status After Provisioning:**
+
+```bash
+$ vela plane list --scope shared
+
+NAME                    SCOPE    CONSUMERS  STATUS   OUTPUTS
+shared-vpc-us-east-1    shared   3          Running  vpcId=vpc-0abc123
+
+$ vela plane status shared-vpc-us-east-1
+
+SHARED PLANE: shared-vpc-us-east-1
+SCOPE: shared
+STATUS: Running
+
+CONSUMERS (3):
+  CLUSTER                      BLUEPRINT                  SINCE
+  production-us-east-1-a       production-eks-standard    2025-01-03T10:00:00Z
+  production-us-east-1-b       production-eks-standard    2025-01-03T10:15:00Z
+  production-us-east-1-c       production-eks-standard    2025-01-03T10:30:00Z
+
+OUTPUTS:
+  vpcId: vpc-0abc123def456
+  privateSubnets: ["subnet-priv-1a", "subnet-priv-1b", "subnet-priv-1c"]
+  publicSubnets: ["subnet-pub-1a", "subnet-pub-1b", "subnet-pub-1c"]
+  natGatewayIds: ["nat-1a", "nat-1b", "nat-1c"]
+```
+
+**Deletion Safety:**
+
+```bash
+# Try to delete the shared VPC plane
+$ kubectl delete clusterplane shared-vpc-us-east-1
+
+Error from server: Cannot delete shared ClusterPlane "shared-vpc-us-east-1"
+  3 clusters are consuming this plane's outputs.
+
+  To delete safely:
+  1. Delete or migrate clusters: production-us-east-1-a, production-us-east-1-b, production-us-east-1-c
+  2. Or update their blueprints to not use this plane
+
+# Delete a cluster - VPC remains intact
+$ kubectl delete cluster production-us-east-1-a
+
+cluster.core.oam.dev "production-us-east-1-a" deleted
+
+# EKS for cluster A is destroyed, but shared VPC remains
+# shared-vpc-us-east-1 now shows 2 consumers
+```
+
+**Key Benefits of This Approach:**
+
+| Benefit                   | Description                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| **Cost Efficiency**       | Single VPC with NAT Gateways shared across clusters (NAT can cost $30+/month each) |
+| **Simplified Networking** | All clusters in same VPC can communicate directly                                  |
+| **Clear Ownership**       | VPC is owned by the `shared-vpc-us-east-1` plane, not any cluster                  |
+| **Safe Deletion**         | Can't accidentally delete VPC while clusters depend on it                          |
+| **Easy to Understand**    | Shared plane = shared resources, per-cluster plane = cluster-specific resources    |
+
 ---
 
 ## Edge Cases and Considerations
@@ -4894,6 +5522,10 @@ spec:
 | 13  | **Unknown Components**: Custom deployments discovered         | `adoption.unknownComponents.action: discover\|import\|ignore`                                |
 | 14  | **Air-gapped Provisioning**: No internet access               | `networkPolicy.airgapped: true`; private registry/helm repo mirrors                          |
 | 15  | **Cluster Deletion**: Clean up but preserve audit logs        | `deletionPolicy.clusterDeletion: delete`; `retain: [cloudwatchLogs, s3Backups]`              |
+| 16  | **Shared Plane Deletion**: Delete shared plane with consumers | Validation webhook blocks; must delete consumers first or use `--force`                      |
+| 17  | **Unauthorized Consumer**: Cluster doesn't match sharedWith   | Validation rejects; cluster labels must match `sharedWith.clusterSelector`                   |
+| 18  | **Shared Plane Not Ready**: Per-cluster plane needs outputs   | Per-cluster plane blocks with `phase=Waiting`; retries until shared plane outputs available  |
+| 19  | **Scope Change**: Change plane from perCluster to shared      | Validation rejects scope changes on existing planes; create new plane instead                |
 
 ---
 
@@ -4949,18 +5581,32 @@ spec:
 
 ### ClusterPlane
 
-| Field                    | Type              | Description                      |
-| ------------------------ | ----------------- | -------------------------------- |
-| `spec.description`       | string            | Human-readable description       |
-| `spec.components`        | []PlaneComponent  | Components in this plane         |
-| `spec.policies`          | []PlanePolicy     | Plane-level policies             |
-| `spec.outputs`           | []PlaneOutput     | Values exposed to other planes   |
-| `spec.requirements`      | Requirements      | Compatibility requirements       |
-| `spec.failurePolicy`     | FailurePolicy     | How to handle component failures |
-| `spec.garbageCollection` | GCPolicy          | Resource cleanup policy          |
-| `status.phase`           | string            | Current phase                    |
-| `status.components`      | []ComponentStatus | Per-component status             |
-| `status.outputs`         | map[string]string | Resolved output values           |
+| Field                                   | Type              | Description                                                |
+| --------------------------------------- | ----------------- | ---------------------------------------------------------- |
+| `spec.description`                      | string            | Human-readable description                                 |
+| `spec.scope`                            | string            | `perCluster` (default) or `shared`                         |
+| `spec.sharedWith`                       | SharedWithSpec    | Constraints on which clusters can use shared plane         |
+| `spec.sharedWith.clusterSelector`       | LabelSelector     | Labels clusters must have to consume this shared plane     |
+| `spec.inputs`                           | []PlaneInput      | Inputs from other planes (simpler than crossClusterInputs) |
+| `spec.inputs[].name`                    | string            | Input name for templating                                  |
+| `spec.inputs[].fromPlane`               | string            | Source plane name                                          |
+| `spec.inputs[].output`                  | string            | Output name from source plane                              |
+| `spec.components`                       | []PlaneComponent  | Components in this plane                                   |
+| `spec.policies`                         | []PlanePolicy     | Plane-level policies                                       |
+| `spec.outputs`                          | []PlaneOutput     | Values exposed to other planes                             |
+| `spec.requirements`                     | Requirements      | Compatibility requirements                                 |
+| `spec.failurePolicy`                    | FailurePolicy     | How to handle component failures                           |
+| `spec.garbageCollection`                | GCPolicy          | Resource cleanup policy                                    |
+| `status.phase`                          | string            | Current phase                                              |
+| `status.scope`                          | string            | Effective scope (`perCluster` or `shared`)                 |
+| `status.consumers`                      | ConsumersStatus   | Clusters using this shared plane (scope=shared only)       |
+| `status.consumers.count`                | int               | Number of clusters consuming this plane                    |
+| `status.consumers.clusters`             | []ConsumerRef     | List of consuming clusters                                 |
+| `status.consumers.clusters[].name`      | string            | Cluster name                                               |
+| `status.consumers.clusters[].blueprint` | string            | Blueprint the cluster uses                                 |
+| `status.consumers.clusters[].since`     | Time              | When the cluster started consuming                         |
+| `status.components`                     | []ComponentStatus | Per-component status                                       |
+| `status.outputs`                        | map[string]string | Resolved output values                                     |
 
 ### ClusterBlueprint
 
