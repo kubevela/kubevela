@@ -371,7 +371,9 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 	if tmp.CueTemplate == "" {
 		return types.Capability{}, errors.New("template not exist in definition")
 	}
-	tmp.Parameters, err = cue.GetParameters(tmp.CueTemplate)
+	// TODO: Accept context parameter for proper cancellation/timeout support
+	// Currently using Background() to avoid breaking changes to function
+	tmp.Parameters, err = cue.GetParametersWithCuex(context.Background(), tmp.CueTemplate)
 	if err != nil && !errors.Is(err, cue.ErrParameterNotExist) {
 		return types.Capability{}, err
 	}

@@ -17,11 +17,13 @@ limitations under the License.
 package cue
 
 import (
+	"context"
 	"errors"
 	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/kubevela/pkg/cue/cuex"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
@@ -32,8 +34,54 @@ import (
 var ErrParameterNotExist = errors.New("parameter not exist")
 
 // GetParameters get parameter from cue template
+// Deprecated: Use GetParametersWithCuex for templates with cuex imports
 func GetParameters(templateStr string) ([]types.Parameter, error) {
 	template := cuecontext.New().CompileString(templateStr + BaseTemplate)
+	paramVal := template.LookupPath(cue.ParsePath(process.ParameterFieldName))
+	if !paramVal.Exists() {
+		return nil, ErrParameterNotExist
+	}
+	iter, err := paramVal.Fields(cue.Definitions(true), cue.Hidden(true), cue.All())
+	if err != nil {
+		return nil, err
+	}
+	// parse each fields in the parameter fields
+	var params []types.Parameter
+	for iter.Next() {
+		if iter.Selector().IsDefinition() {
+			continue
+		}
+		var param = types.Parameter{
+			Name:     util.GetIteratorLabel(*iter),
+			Required: !iter.IsOptional(),
+		}
+		val := iter.Value()
+		param.Type = val.IncompleteKind()
+		if def, ok := val.Default(); ok && def.IsConcrete() {
+			param.Required = false
+			param.Type = def.Kind()
+			param.Default = GetDefault(def)
+		}
+		if param.Default == nil {
+			param.Default = getDefaultByKind(param.Type)
+		}
+		param.Short, param.Usage, param.Alias, param.Ignore = RetrieveComments(val)
+
+		params = append(params, param)
+	}
+	return params, nil
+}
+
+// GetParametersWithCuex get parameter from cue template with cuex support for package imports
+func GetParametersWithCuex(ctx context.Context, templateStr string) ([]types.Parameter, error) {
+	template, err := cuex.DefaultCompiler.Get().CompileStringWithOptions(
+		ctx,
+		templateStr+BaseTemplate,
+		cuex.DisableResolveProviderFunctions{},
+	)
+	if err != nil {
+		return nil, err
+	}
 	paramVal := template.LookupPath(cue.ParsePath(process.ParameterFieldName))
 	if !paramVal.Exists() {
 		return nil, ErrParameterNotExist
