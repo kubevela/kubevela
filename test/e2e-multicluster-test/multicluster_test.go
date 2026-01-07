@@ -640,7 +640,7 @@ var _ = Describe("Test multicluster scenario", func() {
 			}, 20*time.Second).Should(Succeed())
 		})
 
-		It("Test application with input/output in deploy step", func() {
+		It("Test application with input/output in deploy step ", func() {
 			By("create application")
 			bs, err := os.ReadFile("./testdata/app/app-deploy-io.yaml")
 			Expect(err).Should(Succeed())
