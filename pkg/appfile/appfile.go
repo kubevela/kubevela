@@ -559,6 +559,19 @@ func makeWorkloadWithContext(pCtx process.Context, comp *Component, ns, appName 
 	default:
 		workload, err = base.Unstructured()
 		if err != nil {
+			// Try to get the full workload template for comprehensive error analysis
+			if fullTemplateData := pCtx.GetData(definition.GetWorkloadTemplateKey(comp.Name)); fullTemplateData != nil {
+				if fullTemplate, ok := fullTemplateData.(cue.Value); ok {
+					if formattedErr := definition.FormatCUEError(err, "cannot generate manifests from", "component", comp.Name, &fullTemplate); formattedErr != nil {
+						return nil, formattedErr
+					}
+				}
+			}
+			// Fallback to using the base's value
+			val := base.Value()
+			if formattedErr := definition.FormatCUEError(err, "cannot generate manifests from", "component", comp.Name, &val); formattedErr != nil {
+				return nil, formattedErr
+			}
 			return nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", comp.Name, appName)
 		}
 	}

@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
@@ -27,6 +28,7 @@ import (
 	"github.com/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue"
+	cueerrors "cuelang.org/go/cue/errors"
 	"github.com/kubevela/pkg/multicluster"
 
 	"github.com/pkg/errors"
@@ -55,7 +57,19 @@ const (
 	PatchOutputsFieldName = "patchOutputs"
 	// ErrsFieldName check if errors contained in the cue
 	ErrsFieldName = "errs"
+	// TemplateContextPrefix is the base prefix for storing templates in context
+	TemplateContextPrefix = "template-context-"
 )
+
+// GetWorkloadTemplateKey returns the context key for storing workload templates
+func GetWorkloadTemplateKey(name string) string {
+	return TemplateContextPrefix + "workload-" + name
+}
+
+// GetTraitTemplateKey returns the context key for storing trait templates
+func GetTraitTemplateKey(name string) string {
+	return TemplateContextPrefix + "trait-" + name
+}
 
 const (
 	// AuxiliaryWorkload defines the extra workload obj from a workloadDefinition,
@@ -114,9 +128,13 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	}
 
 	if err := val.Validate(); err != nil {
-		return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
+		if fmtErr := FormatCUEError(err, "validation failed for", "workload", wd.name, &val); fmtErr != nil {
+			return fmtErr
+		}
+		return fmt.Errorf("validation failed for workload %s: %w", wd.name, err)
 	}
 	output := val.LookupPath(value.FieldPath(OutputFieldName))
+
 	base, err := model.NewBase(output)
 	if err != nil {
 		return errors.WithMessagef(err, "invalid output of workload %s", wd.name)
@@ -125,11 +143,15 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return err
 	}
 
+	// Store template for error context (use workload-specific key to avoid pollution)
+	ctx.PushData(GetWorkloadTemplateKey(wd.name), val)
+
 	// we will support outputs for workload composition, and it will become trait in AppConfig.
 	outputs := val.LookupPath(value.FieldPath(OutputsFieldName))
 	if !outputs.Exists() {
 		return nil
 	}
+
 	iter, err := outputs.Fields(cue.Definitions(true), cue.Hidden(true), cue.All())
 	if err != nil {
 		return errors.WithMessagef(err, "invalid outputs of workload %s", wd.name)
@@ -252,7 +274,10 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 
 	if err := val.Validate(); err != nil {
-		return errors.WithMessagef(err, "invalid template of trait %s after merge with parameter and context", td.name)
+		if fmtErr := FormatCUEError(err, "validation failed for", "trait", td.name, &val); fmtErr != nil {
+			return fmtErr
+		}
+		return fmt.Errorf("validation failed for trait %s: %w", td.name, err)
 	}
 
 	processing := val.LookupPath(value.FieldPath("processing"))
@@ -263,6 +288,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 	outputs := val.LookupPath(value.FieldPath(OutputsFieldName))
 	if outputs.Exists() {
+
 		iter, err := outputs.Fields(cue.Definitions(true), cue.Hidden(true), cue.All())
 		if err != nil {
 			return errors.WithMessagef(err, "invalid outputs of trait %s", td.name)
@@ -438,4 +464,73 @@ func getResourceFromObj(ctx context.Context, pctx process.Context, obj *unstruct
 		}
 	}
 	return nil, errors.Errorf("no resources found gvk(%v) labels(%v)", obj.GroupVersionKind(), labels)
+}
+
+// FormatCUEError formats CUE errors in a user-friendly grouped format
+func FormatCUEError(err error, messagePrefix string, entityType, entityName string, val ...*cue.Value) error {
+	if err == nil {
+		return nil
+	}
+
+	var allParamErrors = make(map[string]bool)
+	var allTemplateErrors = make(map[string]bool)
+
+	errList := cueerrors.Errors(err)
+	for _, e := range errList {
+		errMsg := e.Error()
+		if strings.HasPrefix(errMsg, "parameter.") {
+			allParamErrors[errMsg] = true
+		} else {
+			allTemplateErrors[errMsg] = true
+		}
+	}
+
+	// Run concrete validation if val provided to catch missing parameters
+	if len(val) > 0 && val[0] != nil {
+		if concreteErr := val[0].Validate(cue.Concrete(true)); concreteErr != nil {
+			concreteErrList := cueerrors.Errors(concreteErr)
+			for _, e := range concreteErrList {
+				errMsg := e.Error()
+				if strings.HasPrefix(errMsg, "parameter.") {
+					allParamErrors[errMsg] = true
+				} else {
+					allTemplateErrors[errMsg] = true
+				}
+			}
+		}
+	}
+
+	if len(allParamErrors) == 0 && len(allTemplateErrors) == 0 {
+		return nil
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("%s %s %s:", messagePrefix, entityType, entityName))
+
+	if len(allParamErrors) > 0 {
+		result.WriteString("\n\nParameter errors:\n")
+		// Sort errors for deterministic output
+		paramErrs := make([]string, 0, len(allParamErrors))
+		for errMsg := range allParamErrors {
+			paramErrs = append(paramErrs, errMsg)
+		}
+		sort.Strings(paramErrs)
+		for _, errMsg := range paramErrs {
+			result.WriteString("  " + errMsg + "\n")
+		}
+	}
+
+	if len(allTemplateErrors) > 0 {
+		result.WriteString("\n\nTemplate errors:\n")
+		templateErrs := make([]string, 0, len(allTemplateErrors))
+		for errMsg := range allTemplateErrors {
+			templateErrs = append(templateErrs, errMsg)
+		}
+		sort.Strings(templateErrs)
+		for _, errMsg := range templateErrs {
+			result.WriteString("  " + errMsg + "\n")
+		}
+	}
+
+	return fmt.Errorf("%s", strings.TrimRight(result.String(), "\n"))
 }
