@@ -22,7 +22,10 @@ import (
 	"fmt"
 	"strings"
 
+	"k8s.io/apiserver/pkg/util/feature"
+
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
+	"github.com/oam-dev/kubevela/pkg/features"
 
 	"github.com/kubevela/pkg/cue/cuex"
 
@@ -239,54 +242,18 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			buff += fmt.Sprintf("%s: %s\n", velaprocess.ParameterFieldName, string(bt))
 		}
 	}
-	var statusBytes []byte
-	var outputMap map[string]interface{}
-	if output := ctx.GetData(OutputFieldName); output != nil {
-		if m, ok := output.(map[string]interface{}); ok {
-			outputMap = m
-		} else if ptr, ok := output.(*interface{}); ok && ptr != nil {
-			if m, ok := (*ptr).(map[string]interface{}); ok {
-				outputMap = m
-			}
-		}
-
-		if outputMap != nil {
-			if status, ok := outputMap["status"]; ok {
-				if b, err := json.Marshal(status); err == nil {
-					statusBytes = b
-				}
-			}
-		}
-	}
 
 	c, err := ctx.BaseContextFile()
 	if err != nil {
 		return err
 	}
 
-	if len(statusBytes) > 0 {
-		// If output is an empty object, replace it with only the status field without trailing comma.
-		emptyOutputMarker := "\"output\":{}"
-		if strings.Contains(c, emptyOutputMarker) {
-			replacement := fmt.Sprintf("\"output\":{\"status\":%s}", string(statusBytes))
-			c = strings.Replace(c, emptyOutputMarker, replacement, 1)
-		} else {
-			// Otherwise, insert status as the first field and keep the comma to separate from existing fields.
-			replacement := fmt.Sprintf("\"output\":{\"status\":%s,", string(statusBytes))
-			c = strings.Replace(c, "\"output\":{", replacement, 1)
-		}
-
-		// Restore the status field to the current output in ctx.data
-		var status interface{}
-		if err := json.Unmarshal(statusBytes, &status); err == nil {
-			if currentOutput := ctx.GetData(OutputFieldName); currentOutput != nil {
-				if currentMap, ok := currentOutput.(map[string]interface{}); ok {
-					currentMap["status"] = status
-					ctx.PushData(OutputFieldName, currentMap)
-				}
-			}
-		}
+	// When multi-stage is enabled, merge the existing output.status from ctx into the
+	// base context so downstream CUE can reference it deterministically.
+	if feature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
+		c = injectOutputStatusIntoBaseContext(ctx, c)
 	}
+
 	buff += c
 
 	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), buff)
@@ -357,6 +324,53 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}
 
 	return nil
+}
+
+func injectOutputStatusIntoBaseContext(ctx process.Context, c string) string {
+	var statusBytes []byte
+	var outputMap map[string]interface{}
+	if output := ctx.GetData(OutputFieldName); output != nil {
+		if m, ok := output.(map[string]interface{}); ok {
+			outputMap = m
+		} else if ptr, ok := output.(*interface{}); ok && ptr != nil {
+			if m, ok := (*ptr).(map[string]interface{}); ok {
+				outputMap = m
+			}
+		}
+
+		if outputMap != nil {
+			if status, ok := outputMap["status"]; ok {
+				if b, err := json.Marshal(status); err == nil {
+					statusBytes = b
+				}
+			}
+		}
+	}
+
+	if len(statusBytes) > 0 {
+		// If output is an empty object, replace it with only the status field without trailing comma.
+		emptyOutputMarker := "\"output\":{}"
+		if strings.Contains(c, emptyOutputMarker) {
+			replacement := fmt.Sprintf("\"output\":{\"status\":%s}", string(statusBytes))
+			c = strings.Replace(c, emptyOutputMarker, replacement, 1)
+		} else {
+			// Otherwise, insert status as the first field and keep the comma to separate from existing fields.
+			replacement := fmt.Sprintf("\"output\":{\"status\":%s,", string(statusBytes))
+			c = strings.Replace(c, "\"output\":{", replacement, 1)
+		}
+
+		// Restore the status field to the current output in ctx.data
+		var status interface{}
+		if err := json.Unmarshal(statusBytes, &status); err == nil {
+			if currentOutput := ctx.GetData(OutputFieldName); currentOutput != nil {
+				if currentMap, ok := currentOutput.(map[string]interface{}); ok {
+					currentMap["status"] = status
+					ctx.PushData(OutputFieldName, currentMap)
+				}
+			}
+		}
+	}
+	return c
 }
 
 func parseErrors(errs cue.Value) error {
