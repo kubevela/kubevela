@@ -24,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/auth"
@@ -74,11 +75,25 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 		opts = append(opts, applyOpts...)
 	}
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.PreDispatchDryRun) {
-		if err = h.dispatch(ctx,
+		// Create a tracker for namespaces created during dry-run
+		tracker := &apply.DryRunNamespaceTracker{}
+		dryRunCtx := apply.WithDryRunNamespaceTracker(ctx, tracker)
+
+		if err = h.dispatch(dryRunCtx,
 			velaslices.Map(manifests, func(manifest *unstructured.Unstructured) *unstructured.Unstructured { return manifest.DeepCopy() }),
 			append([]apply.ApplyOption{apply.DryRunAll()}, opts...)); err != nil {
+			// Only clean up namespaces if dry-run FAILS
+			// This prevents resources from being created if validation fails
+			if cleanupErr := tracker.CleanupNamespaces(ctx, h.Client); cleanupErr != nil {
+				klog.Warningf("Failed to cleanup dry-run namespaces after failure: %v", cleanupErr)
+			}
 			return fmt.Errorf("pre-dispatch dryrun failed: %w", err)
 		}
+
+		// DO NOT clean up namespaces on successful dry-run
+		// They will be used by the actual deployment immediately after
+		// The namespace will be managed normally by Kubernetes/user after this point
+		klog.V(4).Infof("Dry-run succeeded, keeping %d namespace(s) for actual deployment", len(tracker.GetNamespaces()))
 	}
 	// 2. record manifests in resourcetracker
 	if err = h.record(ctx, manifests, options...); err != nil {
@@ -140,28 +155,79 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 	return nil
 }
 
+// applyManifest applies a single manifest with all necessary options and context setup
+func (h *resourceKeeper) applyManifest(ctx context.Context, manifest *unstructured.Unstructured, baseOpts []apply.ApplyOption) error {
+	// Setup context with cluster and auth info
+	applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
+	applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
+
+	// Preserve namespace tracker if present
+	if tracker := apply.GetDryRunNamespaceTracker(ctx); tracker != nil {
+		applyCtx = apply.WithDryRunNamespaceTracker(applyCtx, tracker)
+	}
+
+	// Build apply options based on manifest properties
+	ao := baseOpts
+	if h.isShared(manifest) {
+		ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
+	}
+	if h.isReadOnly(manifest) {
+		ao = append([]apply.ApplyOption{apply.ReadOnly()}, ao...)
+	}
+	if h.canTakeOver(manifest) {
+		ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
+	}
+	if strategy := h.getUpdateStrategy(manifest); strategy != nil {
+		ao = append([]apply.ApplyOption{apply.WithUpdateStrategy(*strategy)}, ao...)
+	}
+
+	// Apply strategies
+	manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppUpdate)
+	if err != nil {
+		return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
+	}
+
+	// Apply the manifest
+	return h.applicator.Apply(applyCtx, manifest, ao...)
+}
+
 func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured.Unstructured, applyOpts []apply.ApplyOption) error {
-	errs := velaslices.ParMap(manifests, func(manifest *unstructured.Unstructured) error {
-		applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
-		applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
-		ao := applyOpts
-		if h.isShared(manifest) {
-			ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
+	// Separate resources by dependency priority for staged dispatch
+	var crds, namespaces, others []*unstructured.Unstructured
+	for _, manifest := range manifests {
+		switch manifest.GetKind() {
+		case "CustomResourceDefinition":
+			crds = append(crds, manifest)
+		case "Namespace":
+			namespaces = append(namespaces, manifest)
+		default:
+			others = append(others, manifest)
 		}
-		if h.isReadOnly(manifest) {
-			ao = append([]apply.ApplyOption{apply.ReadOnly()}, ao...)
+	}
+
+	klog.V(2).Infof("Staged dispatch: %d CRDs, %d namespaces, %d others", len(crds), len(namespaces), len(others))
+
+	// Stage 0: Apply CRDs sequentially first (highest priority dependencies)
+	for _, manifest := range crds {
+		if err := h.applyManifest(ctx, manifest, applyOpts); err != nil {
+			return err
 		}
-		if h.canTakeOver(manifest) {
-			ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
+	}
+
+	// Stage 1: Apply namespaces sequentially second
+	for _, manifest := range namespaces {
+		if err := h.applyManifest(ctx, manifest, applyOpts); err != nil {
+			return err
 		}
-		if strategy := h.getUpdateStrategy(manifest); strategy != nil {
-			ao = append([]apply.ApplyOption{apply.WithUpdateStrategy(*strategy)}, ao...)
-		}
-		manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppUpdate)
-		if err != nil {
-			return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
-		}
-		return h.applicator.Apply(applyCtx, manifest, ao...)
-	}, velaslices.Parallelism(MaxDispatchConcurrent))
-	return velaerrors.AggregateErrors(errs)
+	}
+
+	// Stage 2: Apply other resources in parallel
+	if len(others) > 0 {
+		errs := velaslices.ParMap(others, func(manifest *unstructured.Unstructured) error {
+			return h.applyManifest(ctx, manifest, applyOpts)
+		}, velaslices.Parallelism(MaxDispatchConcurrent))
+		return velaerrors.AggregateErrors(errs)
+	}
+
+	return nil
 }
