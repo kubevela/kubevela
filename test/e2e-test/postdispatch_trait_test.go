@@ -506,7 +506,7 @@ if pod.metadata.annotations != _|_ {
 			}
 			Expect(k8sClient.Create(ctx, deploymentTrait)).Should(Succeed())
 
-			By("Creating PostDispatch configmap trait definition")
+			By("Creating PostDispatch configMap trait definition")
 			cmTrait := &v1beta1.TraitDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      cmTraitName,
