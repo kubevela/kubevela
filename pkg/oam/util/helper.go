@@ -835,3 +835,11 @@ func (accessor *applicationResourceNamespaceAccessor) Namespace() string {
 func NewApplicationResourceNamespaceAccessor(appNs, overrideNs string) NamespaceAccessor {
 	return &applicationResourceNamespaceAccessor{applicationNamespace: appNs, overrideNamespace: overrideNs}
 }
+
+// ResolveNamespace returns override namespace if provided, otherwise returns original namespace
+func ResolveNamespace(original, override string) string {
+	if override != "" {
+		return override
+	}
+	return original
+}

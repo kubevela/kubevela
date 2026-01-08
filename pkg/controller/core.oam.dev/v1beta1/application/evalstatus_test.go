@@ -30,6 +30,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
 func Test_applyComponentHealthToServices(t *testing.T) {
@@ -168,9 +169,9 @@ func Test_applyComponentHealthToServices(t *testing.T) {
 				componentMap[component.Name] = component
 			}
 
-			mockHealthCheck := func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+			mockHealthCheck := func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (oamprovidertypes.ComponentHealthStatus, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 				status := tt.healthCheckFunc(comp.Name)
-				return false, status, nil, nil, nil
+				return oamprovidertypes.ComponentUnhealthy, status, nil, nil, nil
 			}
 
 			applyComponentHealthToServices(ctx, handler, componentMap, mockHealthCheck)

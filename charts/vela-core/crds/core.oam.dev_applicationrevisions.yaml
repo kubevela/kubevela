@@ -565,6 +565,10 @@ spec:
                               type: object
                             env:
                               type: string
+                            healthStatus:
+                              description: 'HealthStatus provides more detailed health
+                                information: "Unhealthy", "DispatchHealthy", "Healthy"'
+                              type: string
                             healthy:
                               type: boolean
                             message:
@@ -619,6 +623,10 @@ spec:
                                 type: object
                                 x-kubernetes-map-type: atomic
                               type: array
+                            state:
+                              description: State represents the lifecycle state of
+                                the component
+                              type: string
                             traits:
                               items:
                                 description: ApplicationTraitStatus records the trait
@@ -631,6 +639,16 @@ spec:
                                   healthy:
                                     type: boolean
                                   message:
+                                    type: string
+                                  pending:
+                                    description: Pending is deprecated - use State
+                                      instead
+                                    type: boolean
+                                  stage:
+                                    type: string
+                                  state:
+                                    description: State represents the lifecycle state
+                                      of the trait
                                     type: string
                                   type:
                                     type: string

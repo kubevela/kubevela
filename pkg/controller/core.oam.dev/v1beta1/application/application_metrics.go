@@ -29,9 +29,11 @@ import (
 
 // HealthStatus represents the health status of an application
 type HealthStatus struct {
-	Healthy        bool
-	HealthyCount   int
-	UnhealthyCount int
+	Healthy                 bool
+	HealthyCount            int
+	UnhealthyCount          int
+	DispatchHealthyCount    int // Components ready for PostDispatch traits
+	PendingPostDispatchCount int // Components with pending PostDispatch traits
 }
 
 // updateMetricsAndLog updates Prometheus metrics and logs application status with service details
@@ -43,7 +45,8 @@ func (r *Reconciler) updateMetricsAndLog(_ context.Context, app *v1beta1.Applica
 
 	workflowStatus := buildWorkflowStatus(app.Status.Workflow)
 	serviceDetails := buildServiceDetails(app.Status.Services)
-	logApplicationStatus(app, healthStatus, workflowStatus, serviceDetails)
+	traitSummary := buildTraitSummary(app.Status.Services)
+	logApplicationStatus(app, healthStatus, workflowStatus, serviceDetails, traitSummary)
 }
 
 // calculateHealthStatus calculates the health status from services
@@ -53,15 +56,69 @@ func calculateHealthStatus(services []common.ApplicationComponentStatus) HealthS
 	}
 
 	for _, svc := range services {
-		if svc.Healthy {
+		// Count by detailed health status if available
+		switch svc.HealthStatus {
+		case "DispatchHealthy":
+			status.DispatchHealthyCount++
+			// Check if has pending PostDispatch traits
+			hasPendingPostDispatch := false
+			for _, trait := range svc.Traits {
+				if trait.Stage == "PostDispatch" && trait.GetEffectiveState() != common.StateDispatched {
+					hasPendingPostDispatch = true
+					break
+				}
+			}
+			if hasPendingPostDispatch {
+				status.PendingPostDispatchCount++
+			}
+		case "Healthy":
 			status.HealthyCount++
-		} else {
+		case "Unhealthy":
 			status.UnhealthyCount++
 			status.Healthy = false
+		default:
+			// Fallback to boolean logic for compatibility
+			if svc.Healthy {
+				status.HealthyCount++
+			} else {
+				status.UnhealthyCount++
+				status.Healthy = false
+			}
 		}
 	}
 
+	// Application is only fully healthy if no unhealthy components and no pending PostDispatch
+	if status.UnhealthyCount > 0 || status.PendingPostDispatchCount > 0 {
+		status.Healthy = false
+	}
+
 	return status
+}
+
+// buildTraitSummary creates a summary of all traits across services
+func buildTraitSummary(services []common.ApplicationComponentStatus) map[string]interface{} {
+	summary := map[string]interface{}{
+		"total":     0,
+		"healthy":   0,
+		"unhealthy": 0,
+		"pending":   0,
+	}
+
+	for _, svc := range services {
+		for _, trait := range svc.Traits {
+			summary["total"] = summary["total"].(int) + 1
+
+			if trait.GetEffectiveState() != common.StateDispatched {
+				summary["pending"] = summary["pending"].(int) + 1
+			} else if trait.Healthy {
+				summary["healthy"] = summary["healthy"].(int) + 1
+			} else {
+				summary["unhealthy"] = summary["unhealthy"].(int) + 1
+			}
+		}
+	}
+
+	return summary
 }
 
 // updateHealthMetric updates the application health status metric
@@ -118,9 +175,58 @@ func buildServiceDetails(services []common.ApplicationComponentStatus) []map[str
 			"healthy":   svc.Healthy,
 			"message":   svc.Message,
 		}
+		
+		// Add enhanced health status if available
+		if svc.HealthStatus != "" {
+			svcDetails["health_status"] = svc.HealthStatus
+		}
+		
 		if len(svc.Details) > 0 {
 			svcDetails["details"] = svc.Details
 		}
+		
+		// Add trait information with stage details and summary
+		if len(svc.Traits) > 0 {
+			traitDetails := make([]map[string]interface{}, 0, len(svc.Traits))
+			traitSummary := map[string]interface{}{
+				"total":     0,
+				"healthy":   0,
+				"unhealthy": 0,
+				"pending":   0,
+			}
+			
+			for _, trait := range svc.Traits {
+				traitDetail := map[string]interface{}{
+					"type":    trait.Type,
+					"healthy": trait.Healthy,
+					"state":   string(trait.GetEffectiveState()),
+				}
+				if trait.Stage != "" {
+					traitDetail["stage"] = trait.Stage
+				}
+				if trait.Message != "" {
+					traitDetail["message"] = trait.Message
+				}
+				if len(trait.Details) > 0 {
+					traitDetail["details"] = trait.Details
+				}
+				traitDetails = append(traitDetails, traitDetail)
+				
+				// Update per-service trait summary
+				traitSummary["total"] = traitSummary["total"].(int) + 1
+				if trait.GetEffectiveState() != common.StateDispatched {
+					traitSummary["pending"] = traitSummary["pending"].(int) + 1
+				} else if trait.Healthy {
+					traitSummary["healthy"] = traitSummary["healthy"].(int) + 1
+				} else {
+					traitSummary["unhealthy"] = traitSummary["unhealthy"].(int) + 1
+				}
+			}
+			
+			svcDetails["traits"] = traitDetails
+			svcDetails["trait_summary"] = traitSummary
+		}
+		
 		serviceDetails = append(serviceDetails, svcDetails)
 	}
 
@@ -128,7 +234,7 @@ func buildServiceDetails(services []common.ApplicationComponentStatus) []map[str
 }
 
 // logApplicationStatus logs the application status with structured data
-func logApplicationStatus(app *v1beta1.Application, healthStatus HealthStatus, workflowStatus map[string]interface{}, serviceDetails []map[string]interface{}) {
+func logApplicationStatus(app *v1beta1.Application, healthStatus HealthStatus, workflowStatus map[string]interface{}, serviceDetails []map[string]interface{}, traitSummary map[string]interface{}) {
 	statusDetails := map[string]interface{}{
 		"app_uid":   app.UID,
 		"app_name":  app.Name,
@@ -136,12 +242,15 @@ func logApplicationStatus(app *v1beta1.Application, healthStatus HealthStatus, w
 		"namespace": app.Namespace,
 		"labels":    app.Labels,
 		"status": map[string]interface{}{
-			"phase":                    string(app.Status.Phase),
-			"healthy":                  healthStatus.Healthy,
-			"healthy_services_count":   healthStatus.HealthyCount,
-			"unhealthy_services_count": healthStatus.UnhealthyCount,
-			"services":                 serviceDetails,
-			"workflow":                 workflowStatus,
+			"phase":                         string(app.Status.Phase),
+			"healthy":                       healthStatus.Healthy,
+			"healthy_services_count":        healthStatus.HealthyCount,
+			"unhealthy_services_count":      healthStatus.UnhealthyCount,
+			"dispatch_healthy_count":        healthStatus.DispatchHealthyCount,
+			"pending_postdispatch_count":    healthStatus.PendingPostDispatchCount,
+			"services":                      serviceDetails,
+			"traits":                        traitSummary,
+			"workflow":                      workflowStatus,
 		},
 	}
 

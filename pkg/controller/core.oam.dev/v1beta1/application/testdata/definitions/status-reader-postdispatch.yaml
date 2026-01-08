@@ -1,0 +1,39 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "Read component status and create a ConfigMap with PostDispatch stage"
+  name: status-reader-postdispatch
+  namespace: vela-system
+spec:
+  appliesToWorkloads:
+    - "*"
+  podDisruptive: false
+  stage: PostDispatch
+  schematic:
+    cue:
+      template: |
+        outputs: statusconfig: {
+          apiVersion: "v1"
+          kind: "ConfigMap"
+          metadata: {
+            name: context.name + "-status"
+            namespace: context.namespace
+          }
+          data: {
+            // This will work because output.status is available in PostDispatch
+            "component": context.name
+            if output.status != _|_ {
+              if output.status.ready != _|_ {
+                "ready": "\(output.status.ready)"
+              }
+              if output.status.replicas != _|_ {
+                "replicas": "\(output.status.replicas)"
+              }
+              if output.status.availableReplicas != _|_ {
+                "availableReplicas": "\(output.status.availableReplicas)"
+              }
+            }
+          }
+        }
+        parameter: {}

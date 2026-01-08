@@ -517,6 +517,10 @@ func isHealthy(services []common.ApplicationComponentStatus) bool {
 			return false
 		}
 		for _, tr := range service.Traits {
+			// Skip non-dispatched traits when evaluating application health
+			if tr.GetEffectiveState() != common.StateDispatched {
+				continue
+			}
 			if !tr.Healthy {
 				return false
 			}
@@ -718,11 +722,12 @@ func applyComponentHealthToServices(ctx monitorContext.Context, handler *AppHand
 	// Iterate services and lookup matching component from the map
 	for idx, svc := range handler.services {
 		if component, exists := componentMap[svc.Name]; exists {
-			_, status, _, _, err := healthCheck(ctx, component, nil, svc.Cluster, svc.Namespace)
+			healthStatus, status, _, _, err := healthCheck(ctx, component, nil, svc.Cluster, svc.Namespace)
 			if err != nil {
 				ctx.Error(err, "Failed to collect health status")
 			} else if status != nil {
 				handler.services[idx].Healthy = status.Healthy
+				handler.services[idx].HealthStatus = string(healthStatus)
 				handler.services[idx].Message = status.Message
 				handler.services[idx].Details = status.Details
 				handler.services[idx].Traits = status.Traits
