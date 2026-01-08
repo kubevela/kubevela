@@ -138,7 +138,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	GzipResourceTracker:                           {Default: false, PreRelease: featuregate.Alpha},
 	ZstdResourceTracker:                           {Default: false, PreRelease: featuregate.Alpha},
 	ApplyOnce:                                     {Default: false, PreRelease: featuregate.Alpha},
-	MultiStageComponentApply:                      {Default: false, PreRelease: featuregate.Alpha},
+	MultiStageComponentApply:                      {Default: true, PreRelease: featuregate.Alpha},
 	GzipApplicationRevision:                       {Default: false, PreRelease: featuregate.Alpha},
 	ZstdApplicationRevision:                       {Default: false, PreRelease: featuregate.Alpha},
 	PreDispatchDryRun:                             {Default: true, PreRelease: featuregate.Alpha},
