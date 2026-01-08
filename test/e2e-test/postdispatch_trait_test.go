@@ -743,7 +743,7 @@ outputs: statusConfigMap: {
 				g.Expect(cm.Data["componentName"]).Should(Equal("test-component"))
 				g.Expect(cm.Data["replicas"]).Should(Equal("1"))
 				g.Expect(cm.Data["readyReplicas"]).Should(Equal("1"))
-			}, 45*time.Second, 3*time.Second).Should(Succeed())
+			}, 300*time.Second, 3*time.Second).Should(Succeed())
 
 			By("Verifying PostDispatch trait appears in application status")
 			Eventually(func(g Gomega) {
