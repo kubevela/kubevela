@@ -243,6 +243,12 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		}
 	}
 
+	multiStageEnabled := feature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply)
+	var statusBytes []byte
+	if multiStageEnabled {
+		statusBytes = outputStatusBytes(ctx)
+	}
+
 	c, err := ctx.BaseContextFile()
 	if err != nil {
 		return err
@@ -250,8 +256,8 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 
 	// When multi-stage is enabled, merge the existing output.status from ctx into the
 	// base context so downstream CUE can reference it deterministically.
-	if feature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
-		c = injectOutputStatusIntoBaseContext(ctx, c)
+	if multiStageEnabled {
+		c = injectOutputStatusIntoBaseContext(ctx, c, statusBytes)
 	}
 
 	buff += c
@@ -326,7 +332,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	return nil
 }
 
-func injectOutputStatusIntoBaseContext(ctx process.Context, c string) string {
+func outputStatusBytes(ctx process.Context) []byte {
 	var statusBytes []byte
 	var outputMap map[string]interface{}
 	if output := ctx.GetData(OutputFieldName); output != nil {
@@ -346,7 +352,10 @@ func injectOutputStatusIntoBaseContext(ctx process.Context, c string) string {
 			}
 		}
 	}
+	return statusBytes
+}
 
+func injectOutputStatusIntoBaseContext(ctx process.Context, c string, statusBytes []byte) string {
 	if len(statusBytes) > 0 {
 		// If output is an empty object, replace it with only the status field without trailing comma.
 		emptyOutputMarker := "\"output\":{}"
