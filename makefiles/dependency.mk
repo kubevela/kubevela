@@ -9,7 +9,7 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 .PHONY: golangci
 golangci:
-ifeq ($(shell $(GLOBAL_GOLANGCILINT) version --format short), $(GOLANGCILINT_VERSION))
+ifeq ($(shell $(GLOBAL_GOLANGCILINT) version --short), $(GOLANGCILINT_VERSION))
 	@$(OK) golangci-lint is already installed
 GOLANGCILINT=$(GLOBAL_GOLANGCILINT)
 else ifeq ($(shell $(GOBIN_GOLANGCILINT) version --format short), $(GOLANGCILINT_VERSION))
