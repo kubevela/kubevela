@@ -17,6 +17,7 @@ limitations under the License.
 package definition
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -250,7 +251,7 @@ output:{
 			ClusterVersion:  types.ClusterVersion{Minor: "19+"},
 		})
 		wt := NewWorkloadAbstractEngine("testWorkload")
-		err := wt.Complete(ctx, v.workloadTemplate, v.params)
+		err := wt.Complete(ctx, v.workloadTemplate, v.params /* use default validation */)
 		hasError := err != nil
 		assert.Equal(t, v.hasCompileErr, hasError)
 		if v.hasCompileErr {
@@ -1374,6 +1375,112 @@ parameter: {
 		err := td.Complete(v.ctx, v.template, v.params)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), v.err)
+	}
+}
+
+func TestValidationErrorFormatting(t *testing.T) {
+	testCases := map[string]struct {
+		name       string
+		template   string
+		params     map[string]interface{}
+		isWorkload bool
+		wantErr    string
+	}{
+		"workload validation with parameter errors": {
+			name: "my-workload",
+			template: `
+parameter: {
+	name: string
+	replicas: int & >=1
+}
+output: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	metadata: name: parameter.name
+	spec: replicas: parameter.replicas
+}`,
+			params: map[string]interface{}{
+				"name":     123,
+				"replicas": -1,
+			},
+			isWorkload: true,
+			wantErr:    "validation failed for workload my-workload:\n\nParameter errors:\n  parameter.name: conflicting values string and 123 (mismatched types string and int)\n  parameter.replicas: invalid value -1 (out of bound >=1)",
+		},
+		"trait validation with parameter errors": {
+			name: "my-trait",
+			template: `
+parameter: {
+	port: int & >=1 & <=65535
+	protocol: "TCP" | "UDP"
+}
+outputs: service: {
+	apiVersion: "v1"
+	kind: "Service"
+	spec: {
+		ports: [{
+			port: parameter.port
+			protocol: parameter.protocol
+		}]
+	}
+}`,
+			params: map[string]interface{}{
+				"port":     70000,
+				"protocol": "INVALID",
+			},
+			isWorkload: false,
+			wantErr:    "validation failed for trait my-trait:\n\nParameter errors:\n  parameter.port: invalid value 70000 (out of bound <=65535)\n  parameter.protocol: 2 errors in empty disjunction:\n  parameter.protocol: conflicting values \"TCP\" and \"INVALID\"\n  parameter.protocol: conflicting values \"UDP\" and \"INVALID\"",
+		},
+		"mixed parameter and template errors": {
+			name: "test-workload",
+			template: `
+parameter: {
+	image: string
+}
+output: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	spec: {
+		replicas: "invalid"
+		template: spec: containers: [{
+			image: parameter.image
+		}]
+	}
+}`,
+			params: map[string]interface{}{
+				"image": 123,
+			},
+			isWorkload: true,
+			wantErr:    "validation failed for workload test-workload:\n\nParameter errors:\n  parameter.image: conflicting values string and 123 (mismatched types string and int)",
+		},
+	}
+
+	for testName, tc := range testCases {
+		t.Run(testName, func(t *testing.T) {
+			ctx := process.NewContext(process.ContextData{
+				AppName:  "test-app",
+				CompName: "test-comp",
+			})
+
+			var err error
+			if tc.isWorkload {
+				wd := NewWorkloadAbstractEngine(tc.name)
+				err = wd.Complete(ctx, tc.template, tc.params)
+			} else {
+				td := NewTraitAbstractEngine(tc.name)
+				err = td.Complete(ctx, tc.template, tc.params)
+			}
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+
+			errStr := err.Error()
+			if strings.Contains(tc.template, "parameter:") {
+				assert.True(t,
+					strings.Contains(errStr, "Parameter errors:") ||
+						strings.Contains(errStr, "Template errors:"),
+					"Error should contain grouped error sections")
+			}
+		})
 	}
 }
 
