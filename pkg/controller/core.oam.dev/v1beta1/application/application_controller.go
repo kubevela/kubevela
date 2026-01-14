@@ -222,8 +222,25 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	workflowInstance.Status.Phase = workflowState
 	app.Status.Workflow = workflow.ConvertWorkflowStatus(workflowInstance.Status, app.Status.Workflow.AppRevision)
 	logCtx.Info(fmt.Sprintf("Workflow return state=%s", workflowState))
+	postDispatchApplied := false
+	applyPostDispatchTraits := func() error {
+		if postDispatchApplied || !feature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
+			return nil
+		}
+		if err := handler.applyPostDispatchTraits(logCtx, appParser, appFile); err != nil {
+			logCtx.Error(err, "Failed to apply PostDispatch traits")
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
+			return err
+		}
+		app.Status.AppliedResources = handler.appliedResources
+		postDispatchApplied = true
+		return nil
+	}
 	switch workflowState {
 	case workflowv1alpha1.WorkflowStateSuspending:
+		if err := applyPostDispatchTraits(); err != nil {
+			return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationWorkflowSuspending)
+		}
 		if duration := workflowExecutor.GetSuspendBackoffWaitTime(); duration > 0 {
 			_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowSuspending, false, workflowUpdated)
 			return r.result(err).requeue(duration).ret()
@@ -243,6 +260,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		return r.gcResourceTrackers(logCtx, handler, common.ApplicationWorkflowFailed, false, workflowUpdated)
 	case workflowv1alpha1.WorkflowStateExecuting:
+		if err := applyPostDispatchTraits(); err != nil {
+			return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationRunningWorkflow)
+		}
 		_, err = r.gcResourceTrackers(logCtx, handler, common.ApplicationRunningWorkflow, false, workflowUpdated)
 		return r.result(err).requeue(workflowExecutor.GetBackoffWaitTime()).ret()
 	case workflowv1alpha1.WorkflowStateSucceeded:
@@ -250,6 +270,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			r.doWorkflowFinish(logCtx, app, handler, workflowState)
 		}
 	case workflowv1alpha1.WorkflowStateSkipped:
+		if err := applyPostDispatchTraits(); err != nil {
+			return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationRunningWorkflow)
+		}
 		return r.result(nil).requeue(workflowExecutor.GetBackoffWaitTime()).ret()
 	default:
 	}
@@ -258,6 +281,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	isHealthy := evalStatus(logCtx, handler, appFile, appParser)
 	if !isHealthy {
 		phase = common.ApplicationUnhealthy
+	}
+
+	// Apply PostDispatch traits for healthy components if not already done in workflow requeue branch
+	if err := applyPostDispatchTraits(); err != nil {
+		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), phase)
 	}
 
 	r.stateKeep(logCtx, handler, app)

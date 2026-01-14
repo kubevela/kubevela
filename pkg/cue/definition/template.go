@@ -23,7 +23,10 @@ import (
 	"sort"
 	"strings"
 
+	"k8s.io/apiserver/pkg/util/feature"
+
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
+	"github.com/oam-dev/kubevela/pkg/features"
 
 	"github.com/kubevela/pkg/cue/cuex"
 
@@ -261,10 +264,24 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			buff += fmt.Sprintf("%s: %s\n", velaprocess.ParameterFieldName, string(bt))
 		}
 	}
+
+	multiStageEnabled := feature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply)
+	var statusBytes []byte
+	if multiStageEnabled {
+		statusBytes = outputStatusBytes(ctx)
+	}
+
 	c, err := ctx.BaseContextFile()
 	if err != nil {
 		return err
 	}
+
+	// When multi-stage is enabled, merge the existing output.status from ctx into the
+	// base context so downstream CUE can reference it deterministically.
+	if multiStageEnabled {
+		c = injectOutputStatusIntoBaseContext(ctx, c, statusBytes)
+	}
+
 	buff += c
 
 	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), buff)
@@ -341,6 +358,56 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	return nil
 }
 
+func outputStatusBytes(ctx process.Context) []byte {
+	var statusBytes []byte
+	var outputMap map[string]interface{}
+	if output := ctx.GetData(OutputFieldName); output != nil {
+		if m, ok := output.(map[string]interface{}); ok {
+			outputMap = m
+		} else if ptr, ok := output.(*interface{}); ok && ptr != nil {
+			if m, ok := (*ptr).(map[string]interface{}); ok {
+				outputMap = m
+			}
+		}
+
+		if outputMap != nil {
+			if status, ok := outputMap["status"]; ok {
+				if b, err := json.Marshal(status); err == nil {
+					statusBytes = b
+				}
+			}
+		}
+	}
+	return statusBytes
+}
+
+func injectOutputStatusIntoBaseContext(ctx process.Context, c string, statusBytes []byte) string {
+	if len(statusBytes) > 0 {
+		// If output is an empty object, replace it with only the status field without trailing comma.
+		emptyOutputMarker := "\"output\":{}"
+		if strings.Contains(c, emptyOutputMarker) {
+			replacement := fmt.Sprintf("\"output\":{\"status\":%s}", string(statusBytes))
+			c = strings.Replace(c, emptyOutputMarker, replacement, 1)
+		} else {
+			// Otherwise, insert status as the first field and keep the comma to separate from existing fields.
+			replacement := fmt.Sprintf("\"output\":{\"status\":%s,", string(statusBytes))
+			c = strings.Replace(c, "\"output\":{", replacement, 1)
+		}
+
+		// Restore the status field to the current output in ctx.data
+		var status interface{}
+		if err := json.Unmarshal(statusBytes, &status); err == nil {
+			if currentOutput := ctx.GetData(OutputFieldName); currentOutput != nil {
+				if currentMap, ok := currentOutput.(map[string]interface{}); ok {
+					currentMap["status"] = status
+					ctx.PushData(OutputFieldName, currentMap)
+				}
+			}
+		}
+	}
+	return c
+}
+
 func parseErrors(errs cue.Value) error {
 	if it, e := errs.List(); e == nil {
 		for it.Next() {
@@ -399,8 +466,8 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, a
 	baseLabels := GetBaseContextLabels(ctx)
 	var root = initRoot(baseLabels)
 	var commonLabels = GetCommonLabels(baseLabels)
-
 	_, assists := ctx.Output()
+
 	outputs := make(map[string]interface{})
 	for _, assist := range assists {
 		if assist.Type != td.name {

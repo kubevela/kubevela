@@ -50,6 +50,7 @@ type ContextData struct {
 	AppAnnotations map[string]string
 
 	ClusterVersion types.ClusterVersion
+	Output         interface{}
 }
 
 // NewContext creates a new process context
@@ -75,6 +76,9 @@ func NewContext(data ContextData) process.Context {
 	ctx.PushData(ContextAppRevisionNum, revNum)
 	ctx.PushData(ContextCluster, data.Cluster)
 	ctx.PushData(ContextClusterVersion, parseClusterVersion(data.ClusterVersion))
+	if data.Output != nil {
+		ctx.PushData(OutputFieldName, data.Output)
+	}
 	return ctx
 }
 
