@@ -106,7 +106,7 @@ tidy:
 .PHONY: sync-crds
 PKG_MODULE = github.com/kubevela/pkg # fetch common crds from the pkg repo instead of generating locally
 sync-crds: ## Copy CRD from pinned module version in go.mod
-	@moddir=$$(go list -m -f '{{.Dir}}' $(PKG_MODULE) 2>/dev/null); \
+	@moddir=$$(go mod download -json $(PKG_MODULE) 2>/dev/null | grep '"Dir"' | cut -d'"' -f4); \
 	mkdir -p config/crd/base; \
 	for file in $(COMMON_CRD_FILES); do \
 		src="$$moddir/crds/$$file"; \
