@@ -145,7 +145,10 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(_ context.Context, c types.
 	capNameInTitle := ref.makeReadableTitle(capName)
 	switch c.Category {
 	case types.CUECategory:
-		cueValue, err := common.GetCUEParameterValue(c.CueTemplate)
+		// TODO: Use context from caller for proper cancellation/timeout support
+		// Currently using Background() to avoid breaking changes to function
+		ctx := context.Background()
+		cueValue, err := common.GetCUExParameterValue(ctx, c.CueTemplate)
 		if err != nil && !errors.Is(err, cue.ErrParameterNotExist) {
 			return "", fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
 		}
@@ -156,7 +159,7 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(_ context.Context, c types.
 		}
 		if c.Type == types.TypeComponentDefinition {
 			var warnErr error
-			baseDoc, warnErr = GetBaseResourceKinds(c.CueTemplate, ref.Client.RESTMapper())
+			baseDoc, warnErr = GetBaseResourceKinds(ctx, c.CueTemplate, ref.Client.RESTMapper())
 			if warnErr != nil {
 				klog.Warningf("failed to get base resource kinds for %s: %v", c.Name, warnErr)
 			}

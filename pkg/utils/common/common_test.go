@@ -25,10 +25,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/kubevela/pkg/cue/cuex"
+	"github.com/kubevela/pkg/util/singleton"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	"cuelang.org/go/cue/load"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -297,6 +303,118 @@ func TestGetCUEParameterValue4RareCases(t *testing.T) {
 
 		})
 	}
+}
+
+func TestGetCUExParameterValue(t *testing.T) {
+	ctx := context.Background()
+	type want struct {
+		err error
+	}
+
+	var validCueStr = `
+parameter: {
+	min: int
+}
+`
+
+	var cueStrNotContainParameter = `
+output: {
+	min: int
+}
+`
+
+	cases := map[string]struct {
+		reason string
+		cueStr string
+		want   want
+	}{
+		"ValidCUEString": {
+			reason: "cue string is valid",
+			cueStr: validCueStr,
+			want: want{
+				err: nil,
+			},
+		},
+		"CUEStringNotContainParameter": {
+			reason: "cue string doesn't contain Parameter",
+			cueStr: cueStrNotContainParameter,
+			want: want{
+				err: fmt.Errorf("parameter not exist"),
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			val, err := GetCUExParameterValue(ctx, tc.cueStr)
+			if tc.want.err != nil {
+				if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
+					t.Errorf("\n%s\nGetCUExParameterValue(...): -want error, +got error:\n%s", tc.reason, diff)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.True(t, val.Exists(), "parameter value should exist")
+			}
+		})
+	}
+}
+
+func TestGetCUExParameterValueWithImports(t *testing.T) {
+	ctx := context.Background()
+
+	// Setup a test package similar to webhook/utils test
+	packageObj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "cue.oam.dev/v1alpha1",
+			"kind":       "Package",
+			"metadata": map[string]interface{}{
+				"name":      "test-package",
+				"namespace": "vela-system",
+			},
+			"spec": map[string]interface{}{
+				"path": "test/builtin",
+				"templates": map[string]interface{}{
+					"test/builtin": strings.TrimSpace(`
+						package builtin
+						#Config: {
+							name: string
+							value: string
+						}
+					`),
+				},
+			},
+		},
+	}
+
+	dcl := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), packageObj)
+	singleton.DynamicClient.Set(dcl)
+	cuex.DefaultCompiler.Reload()
+
+	defer cuex.DefaultCompiler.Reload()
+	defer singleton.ReloadClients()
+
+	var cueStrWithImport = `
+import "test/builtin"
+
+parameter: {
+	name: string
+	config: builtin.#Config
+}
+`
+
+	val, err := GetCUExParameterValue(ctx, cueStrWithImport)
+	assert.NoError(t, err, "should compile CUE with cuex import")
+	assert.True(t, val.Exists(), "parameter value should exist")
+
+	// Verify we can access the parameter fields
+	iter, err := val.Fields()
+	assert.NoError(t, err)
+
+	fieldCount := 0
+	for iter.Next() {
+		fieldCount++
+	}
+	assert.Equal(t, 2, fieldCount, "should have 2 parameter fields: name and config")
 }
 
 func TestGenOpenAPI(t *testing.T) {
