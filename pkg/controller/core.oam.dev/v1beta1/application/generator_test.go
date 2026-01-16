@@ -118,7 +118,6 @@ var _ = Describe("Test Application workflow generator", func() {
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
 		handler.currentAppRev = &oamcore.ApplicationRevision{}
-		handler.CheckWorkflowRestart(logCtx, app)
 
 		_, taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af)
 		Expect(err).To(BeNil())
@@ -162,7 +161,6 @@ var _ = Describe("Test Application workflow generator", func() {
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
 		handler.currentAppRev = &oamcore.ApplicationRevision{}
-		handler.CheckWorkflowRestart(logCtx, app)
 		_, taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
@@ -204,7 +202,6 @@ var _ = Describe("Test Application workflow generator", func() {
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
 		handler.currentAppRev = &oamcore.ApplicationRevision{}
-		handler.CheckWorkflowRestart(logCtx, app)
 		_, taskRunner, err := handler.GenerateApplicationSteps(logCtx, app, appParser, af)
 		Expect(err).To(BeNil())
 		Expect(len(taskRunner)).Should(BeEquivalentTo(2))
@@ -246,7 +243,6 @@ var _ = Describe("Test Application workflow generator", func() {
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
 		handler.currentAppRev = &oamcore.ApplicationRevision{}
-		handler.CheckWorkflowRestart(logCtx, app)
 		_, _, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af)
 		Expect(err).NotTo(BeNil())
 	})
@@ -285,7 +281,6 @@ var _ = Describe("Test Application workflow generator", func() {
 
 		logCtx := monitorContext.NewTraceContext(ctx, "")
 		handler.currentAppRev = &oamcore.ApplicationRevision{}
-		handler.CheckWorkflowRestart(logCtx, app)
 		_, _, err = handler.GenerateApplicationSteps(logCtx, app, appParser, af)
 		Expect(err).NotTo(BeNil())
 	})
@@ -316,4 +311,410 @@ var _ = Describe("Test Application workflow generator", func() {
 		Expect(ctxData.AppLabels).To(BeNil())
 		Expect(ctxData.AppAnnotations).To(BeNil())
 	})
+
+	// NOTE: Workflow restart tests have been migrated to workflow_restart_test.go
+	// They test the new annotation-based restart functionality:
+	// - handleWorkflowRestartAnnotation() - parses annotation and sets status field
+	// - checkWorkflowRestart() - triggers restart based on status field
+
+	/*
+		// Original tests commented out below for reference - DO NOT UNCOMMENT
+		// See workflow_restart_test.go for the new tests
+		/*
+		It("Test workflow restart via annotation with immediate restart", func() {
+			// Use a past timestamp for immediate restart
+			pastTime := time.Now().Add(-1 * time.Hour)
+			pastTimeStr := pastTime.Format(time.RFC3339)
+
+			app := &oamcore.Application{
+				TypeMeta: metav1.TypeMeta{Kind: "Application", APIVersion: "core.oam.dev/v1beta1"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "app-with-restart-annotation",
+					Namespace: namespaceName,
+					Annotations: map[string]string{
+						oam.AnnotationWorkflowRestart: pastTimeStr, // Past timestamp = immediate
+					},
+				},
+				Spec: oamcore.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name:       "myweb",
+							Type:       "worker-with-health",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						},
+					},
+				},
+				Status: common.AppStatus{
+					Workflow: &common.WorkflowStatus{
+						AppRevision: "app-with-restart-annotation-v1",
+						Finished:    true,
+					},
+					Services: []common.ApplicationComponentStatus{
+						{Name: "myweb", Healthy: true},
+					},
+				},
+			}
+
+			handler, err := NewAppHandler(ctx, reconciler, app)
+			Expect(err).Should(Succeed())
+
+			appRev := &oamcore.ApplicationRevision{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "app-with-restart-annotation-v2",
+					Namespace: namespaceName,
+				},
+			}
+			handler.currentAppRev = appRev
+			handler.latestAppRev = appRev
+
+			logCtx := monitorContext.NewTraceContext(ctx, "")
+
+			// Before annotation handling
+			Expect(app.Annotations).To(HaveKey(oam.AnnotationWorkflowRestart))
+			Expect(app.Status.WorkflowRestartScheduledAt).To(BeNil())
+			Expect(app.Status.Workflow).NotTo(BeNil())
+			Expect(app.Status.Workflow.Finished).To(BeTrue())
+			Expect(app.Status.Services).To(HaveLen(1))
+
+			// Simulate controller processing annotation - sets status field (annotation removed by controller)
+			app.Status.WorkflowRestartScheduledAt = &metav1.Time{Time: pastTime}
+			delete(app.Annotations, oam.AnnotationWorkflowRestart)
+
+			// Status field set, annotation removed (done by controller)
+			Expect(app.Annotations).NotTo(HaveKey(oam.AnnotationWorkflowRestart))
+			Expect(app.Status.WorkflowRestartScheduledAt).NotTo(BeNil())
+			Expect(app.Status.WorkflowRestartScheduledAt.Time).To(BeTemporally("~", pastTime, 1*time.Second))
+
+			// Check workflow restart - should trigger restart because time has passed
+			handler.CheckWorkflowRestart(logCtx, app)
+
+			// After restart - status field cleared, workflow restarted
+			Expect(app.Status.WorkflowRestartScheduledAt).To(BeNil()) // Status field cleared
+			Expect(app.Status.Workflow).NotTo(BeNil())
+			Expect(app.Status.Workflow.AppRevision).To(Equal("app-with-restart-annotation-v2"))
+			Expect(app.Status.Workflow.Finished).To(BeFalse()) // Workflow reset
+			Expect(app.Status.Services).To(BeNil())             // Services cleared
+		})
+
+		It("Test workflow restart via annotation with past timestamp", func() {
+			pastTime := time.Now().Add(-1 * time.Hour)
+			pastTimeStr := pastTime.Format(time.RFC3339)
+			app := &oamcore.Application{
+				TypeMeta: metav1.TypeMeta{Kind: "Application", APIVersion: "core.oam.dev/v1beta1"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "app-with-past-timestamp",
+					Namespace: namespaceName,
+					Annotations: map[string]string{
+						oam.AnnotationWorkflowRestart: pastTimeStr,
+					},
+				},
+				Spec: oamcore.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name:       "myweb",
+							Type:       "worker-with-health",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						},
+					},
+				},
+				Status: common.AppStatus{
+					Workflow: &common.WorkflowStatus{
+						AppRevision: "app-v1",
+						Finished:    true,
+					},
+				},
+			}
+
+			handler, err := NewAppHandler(ctx, reconciler, app)
+			Expect(err).Should(Succeed())
+
+			appRev := &oamcore.ApplicationRevision{
+				ObjectMeta: metav1.ObjectMeta{Name: "app-v2", Namespace: namespaceName},
+			}
+			handler.currentAppRev = appRev
+			handler.latestAppRev = appRev
+
+			logCtx := monitorContext.NewTraceContext(ctx, "")
+
+			// Simulate controller processing annotation
+			app.Status.WorkflowRestartScheduledAt = &metav1.Time{Time: pastTime}
+			delete(app.Annotations, oam.AnnotationWorkflowRestart)
+
+			Expect(app.Annotations).NotTo(HaveKey(oam.AnnotationWorkflowRestart))  // Annotation removed
+			Expect(app.Status.WorkflowRestartScheduledAt).NotTo(BeNil())            // Status field set
+			Expect(app.Status.WorkflowRestartScheduledAt.Time).To(BeTemporally("~", pastTime, 1*time.Second))
+
+			// Trigger restart - should restart because time has passed
+			handler.CheckWorkflowRestart(logCtx, app)
+
+			// Status field cleared, workflow restarted
+			Expect(app.Status.WorkflowRestartScheduledAt).To(BeNil())  // Cleared after restart
+			Expect(app.Status.Workflow.AppRevision).To(Equal("app-v2"))
+			Expect(app.Status.Workflow.Finished).To(BeFalse())
+		})
+
+		It("Test workflow restart via annotation with future timestamp", func() {
+			futureTime := time.Now().Add(1 * time.Hour)
+			futureTimeStr := futureTime.Format(time.RFC3339)
+			app := &oamcore.Application{
+				TypeMeta: metav1.TypeMeta{Kind: "Application", APIVersion: "core.oam.dev/v1beta1"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "app-with-future-timestamp",
+					Namespace: namespaceName,
+					Annotations: map[string]string{
+						oam.AnnotationWorkflowRestart: futureTimeStr,
+					},
+				},
+				Spec: oamcore.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name:       "myweb",
+							Type:       "worker-with-health",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						},
+					},
+				},
+				Status: common.AppStatus{
+					Workflow: &common.WorkflowStatus{
+						AppRevision: "app-v1",
+						Finished:    true,
+					},
+					Services: []common.ApplicationComponentStatus{
+						{Name: "myweb", Healthy: true},
+					},
+				},
+			}
+
+			handler, err := NewAppHandler(ctx, reconciler, app)
+			Expect(err).Should(Succeed())
+
+			appRev := &oamcore.ApplicationRevision{
+				ObjectMeta: metav1.ObjectMeta{Name: "app-v2", Namespace: namespaceName},
+			}
+			handler.currentAppRev = appRev
+			handler.latestAppRev = appRev
+
+			logCtx := monitorContext.NewTraceContext(ctx, "")
+
+			// Simulate controller processing annotation
+			app.Status.WorkflowRestartScheduledAt = &metav1.Time{Time: futureTime}
+			delete(app.Annotations, oam.AnnotationWorkflowRestart)
+
+			Expect(app.Annotations).NotTo(HaveKey(oam.AnnotationWorkflowRestart))  // Annotation removed
+			Expect(app.Status.WorkflowRestartScheduledAt).NotTo(BeNil())            // Status field set
+			Expect(app.Status.WorkflowRestartScheduledAt.Time).To(BeTemporally("~", futureTime, 1*time.Second))
+
+			// Trigger check - should NOT restart because time hasn't arrived
+			handler.CheckWorkflowRestart(logCtx, app)
+
+			// Workflow NOT restarted - status field still present
+			Expect(app.Status.WorkflowRestartScheduledAt).NotTo(BeNil())            // Status field remains (time not arrived)
+			Expect(app.Status.Workflow.AppRevision).To(Equal("app-v1"))             // Still old revision
+			Expect(app.Status.Workflow.Finished).To(BeTrue())                       // Still finished
+			Expect(app.Status.Services).To(HaveLen(1))                              // Services not cleared
+		})
+
+		It("Test workflow restart via annotation with duration", func() {
+			// Workflow finished 2 minutes ago
+			workflowEndTime := time.Now().Add(-2 * time.Minute)
+
+			app := &oamcore.Application{
+				TypeMeta: metav1.TypeMeta{Kind: "Application", APIVersion: "core.oam.dev/v1beta1"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "app-with-duration",
+					Namespace: namespaceName,
+					Annotations: map[string]string{
+						oam.AnnotationWorkflowRestart: "5m", // Restart 5 minutes after last completion
+					},
+				},
+				Spec: oamcore.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name:       "myweb",
+							Type:       "worker-with-health",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						},
+					},
+				},
+				Status: common.AppStatus{
+					Workflow: &common.WorkflowStatus{
+						AppRevision: "app-v1",
+						Finished:    true,
+						EndTime:     metav1.Time{Time: workflowEndTime},
+					},
+					Services: []common.ApplicationComponentStatus{
+						{Name: "myweb", Healthy: true},
+					},
+				},
+			}
+
+			handler, err := NewAppHandler(ctx, reconciler, app)
+			Expect(err).Should(Succeed())
+
+			appRev := &oamcore.ApplicationRevision{
+				ObjectMeta: metav1.ObjectMeta{Name: "app-v2", Namespace: namespaceName},
+			}
+			handler.currentAppRev = appRev
+			handler.latestAppRev = appRev
+
+			logCtx := monitorContext.NewTraceContext(ctx, "")
+
+			// Before annotation handling
+			Expect(app.Annotations).To(HaveKey(oam.AnnotationWorkflowRestart))
+			Expect(app.Status.WorkflowRestartScheduledAt).To(BeNil())
+
+			// Simulate controller processing duration annotation
+			expectedTime := workflowEndTime.Add(5 * time.Minute) // Last end + 5m = 3m from now
+			app.Status.WorkflowRestartScheduledAt = &metav1.Time{Time: expectedTime}
+			// For durations, annotation persists (not removed by controller)
+
+			// For durations, annotation PERSISTS (recurring behavior), status field set
+			Expect(app.Annotations).To(HaveKey(oam.AnnotationWorkflowRestart)) // Annotation KEPT for recurring
+			Expect(app.Annotations[oam.AnnotationWorkflowRestart]).To(Equal("5m"))
+			Expect(app.Status.WorkflowRestartScheduledAt).NotTo(BeNil())
+			Expect(app.Status.WorkflowRestartScheduledAt.Time).To(BeTemporally("~", expectedTime, 1*time.Second))
+
+			// Check workflow restart - should NOT restart yet (time not arrived)
+			handler.CheckWorkflowRestart(logCtx, app)
+
+			// Status field still present, workflow NOT restarted
+			Expect(app.Status.WorkflowRestartScheduledAt).NotTo(BeNil())
+			Expect(app.Status.Workflow.AppRevision).To(Equal("app-v1")) // Still old revision
+			Expect(app.Status.Workflow.Finished).To(BeTrue())            // Still finished
+			Expect(app.Status.Services).To(HaveLen(1))                   // Services not cleared
+		})
+
+		It("Test workflow restart with duration recurs after completion", func() {
+			// Initial workflow finished 10 minutes ago
+			firstEndTime := time.Now().Add(-10 * time.Minute)
+
+			app := &oamcore.Application{
+				TypeMeta: metav1.TypeMeta{Kind: "Application", APIVersion: "core.oam.dev/v1beta1"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "app-with-recurring-duration",
+					Namespace: namespaceName,
+					Annotations: map[string]string{
+						oam.AnnotationWorkflowRestart: "5m", // Recurring every 5m
+					},
+				},
+				Spec: oamcore.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name:       "myweb",
+							Type:       "worker-with-health",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						},
+					},
+				},
+				Status: common.AppStatus{
+					Workflow: &common.WorkflowStatus{
+						AppRevision: "app-v1",
+						Finished:    true,
+						EndTime:     metav1.Time{Time: firstEndTime},
+					},
+				},
+			}
+
+			handler, err := NewAppHandler(ctx, reconciler, app)
+			Expect(err).Should(Succeed())
+
+			appRev := &oamcore.ApplicationRevision{
+				ObjectMeta: metav1.ObjectMeta{Name: "app-v2", Namespace: namespaceName},
+			}
+			handler.currentAppRev = appRev
+			handler.latestAppRev = appRev
+
+			logCtx := monitorContext.NewTraceContext(ctx, "")
+
+			// Simulate controller processing first scheduling: firstEndTime + 5m (5 minutes ago, ready to trigger)
+			firstScheduledTime := firstEndTime.Add(5 * time.Minute)
+			app.Status.WorkflowRestartScheduledAt = &metav1.Time{Time: firstScheduledTime}
+			// Duration annotation persists
+			Expect(app.Annotations).To(HaveKey(oam.AnnotationWorkflowRestart)) // Annotation persists
+			Expect(app.Status.WorkflowRestartScheduledAt.Time).To(BeTemporally("~", firstScheduledTime, 1*time.Second))
+
+			// Trigger restart (time has passed)
+			handler.CheckWorkflowRestart(logCtx, app)
+			Expect(app.Status.WorkflowRestartScheduledAt).To(BeNil()) // Cleared after restart
+			Expect(app.Status.Workflow.AppRevision).To(Equal("app-v2"))
+
+			// Simulate workflow completing again (new EndTime)
+			secondEndTime := time.Now().Add(-2 * time.Minute)
+			app.Status.Workflow.Finished = true
+			app.Status.Workflow.EndTime = metav1.Time{Time: secondEndTime}
+
+			// Simulate controller processing second scheduling: should recalculate based on NEW EndTime
+			secondScheduledTime := secondEndTime.Add(5 * time.Minute) // 2 min ago + 5m = 3m from now
+			app.Status.WorkflowRestartScheduledAt = &metav1.Time{Time: secondScheduledTime}
+			Expect(app.Annotations).To(HaveKey(oam.AnnotationWorkflowRestart))             // Still persists
+			Expect(app.Status.WorkflowRestartScheduledAt).NotTo(BeNil())                   // Rescheduled
+			Expect(app.Status.WorkflowRestartScheduledAt.Time).To(BeTemporally("~", secondScheduledTime, 1*time.Second))
+
+			// This time it shouldn't trigger yet (time not arrived)
+			handler.CheckWorkflowRestart(logCtx, app)
+			Expect(app.Status.WorkflowRestartScheduledAt).NotTo(BeNil())    // Still scheduled
+			Expect(app.Status.Workflow.AppRevision).To(Equal("app-v2"))     // No change
+		})
+
+		It("Test workflow restart ignored when workflow is not finished", func() {
+			pastTime := time.Now().Add(-1 * time.Hour)
+			pastTimeStr := pastTime.Format(time.RFC3339)
+
+			app := &oamcore.Application{
+				TypeMeta: metav1.TypeMeta{Kind: "Application", APIVersion: "core.oam.dev/v1beta1"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "app-with-running-workflow",
+					Namespace: namespaceName,
+					Annotations: map[string]string{
+						oam.AnnotationWorkflowRestart: pastTimeStr,
+					},
+				},
+				Spec: oamcore.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name:       "myweb",
+							Type:       "worker-with-health",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+						},
+					},
+				},
+				Status: common.AppStatus{
+					Workflow: &common.WorkflowStatus{
+						AppRevision: "app-v1",
+						Finished:    false, // Workflow is still running
+					},
+					Services: []common.ApplicationComponentStatus{
+						{Name: "myweb", Healthy: true},
+					},
+				},
+			}
+
+			handler, err := NewAppHandler(ctx, reconciler, app)
+			Expect(err).Should(Succeed())
+
+			appRev := &oamcore.ApplicationRevision{
+				ObjectMeta: metav1.ObjectMeta{Name: "app-v2", Namespace: namespaceName},
+			}
+			handler.currentAppRev = appRev
+			handler.latestAppRev = appRev
+
+			logCtx := monitorContext.NewTraceContext(ctx, "")
+
+			// Simulate controller processing annotation
+			app.Status.WorkflowRestartScheduledAt = &metav1.Time{Time: pastTime}
+			delete(app.Annotations, oam.AnnotationWorkflowRestart)
+
+			Expect(app.Annotations).NotTo(HaveKey(oam.AnnotationWorkflowRestart))  // Annotation removed
+			Expect(app.Status.WorkflowRestartScheduledAt).NotTo(BeNil())            // Status field set
+
+			// Check workflow restart - should be IGNORED because workflow not finished
+			handler.CheckWorkflowRestart(logCtx, app)
+
+			// Restart ignored - status field cleared but workflow NOT restarted
+			Expect(app.Status.WorkflowRestartScheduledAt).To(BeNil())  // Status field cleared (consumed)
+			Expect(app.Status.Workflow.AppRevision).To(Equal("app-v1"))         // Still old revision
+			Expect(app.Status.Workflow.Finished).To(BeFalse())                  // Still not finished
+			Expect(app.Status.Services).To(HaveLen(1))                          // Services NOT cleared
+		})
+	*/
 })

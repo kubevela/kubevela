@@ -760,6 +760,13 @@ spec:
                 - suspend
                 - terminated
                 type: object
+              workflowRestartScheduledAt:
+                description: |-
+                  WorkflowRestartScheduledAt schedules a workflow restart at the specified time.
+                  This field is automatically set when the app.oam.dev/restart-workflow annotation is present,
+                  and is cleared after the restart is triggered. Use RFC3339 format or set to current time for immediate restart.
+                format: date-time
+                type: string
             type: object
         type: object
     served: true

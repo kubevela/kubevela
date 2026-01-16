@@ -40,7 +40,6 @@ import (
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -129,60 +128,28 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 	return instance, runners, nil
 }
 
-// CheckWorkflowRestart check if application workflow need restart and return the desired
-// rev to be set in status
-// 1. If workflow status is empty, it means no previous running record, the
-// workflow will restart (cold start)
-// 2. If workflow status is not empty, and publishVersion is set, the desired
-// rev will be the publishVersion
-// 3. If workflow status is not empty, the desired rev will be the
-// ApplicationRevision name. For backward compatibility, the legacy style
-// <rev>:<hash> will be recognized and reduced into <rev>
-func (h *AppHandler) CheckWorkflowRestart(ctx monitorContext.Context, app *v1beta1.Application) {
-	desiredRev, currentRev := h.currentAppRev.Name, ""
-	if app.Status.Workflow != nil {
-		currentRev = app.Status.Workflow.AppRevision
-	}
-	if metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationPublishVersion) {
-		desiredRev = app.GetAnnotations()[oam.AnnotationPublishVersion]
-	} else { // nolint
-		// backward compatibility
-		// legacy versions use <rev>:<hash> as currentRev, extract <rev>
-		if idx := strings.LastIndexAny(currentRev, ":"); idx >= 0 {
-			currentRev = currentRev[:idx]
-		}
-	}
-	if currentRev != "" && desiredRev == currentRev {
-		return
-	}
-	// record in revision
-	if h.latestAppRev != nil && h.latestAppRev.Status.Workflow == nil && app.Status.Workflow != nil {
-		app.Status.Workflow.Terminated = true
-		app.Status.Workflow.Finished = true
-		if app.Status.Workflow.EndTime.IsZero() {
-			app.Status.Workflow.EndTime = metav1.Now()
-		}
-		h.UpdateApplicationRevisionStatus(ctx, h.latestAppRev, app.Status.Workflow)
+// copyWorkflowStatusToInstance copies Application workflow status to WorkflowInstance status.
+// Returns a WorkflowRunStatus with Mode set and other fields copied from app.Status.Workflow if it exists.
+func copyWorkflowStatusToInstance(app *v1beta1.Application, mode *workflowv1alpha1.WorkflowExecuteMode) workflowv1alpha1.WorkflowRunStatus {
+	status := workflowv1alpha1.WorkflowRunStatus{
+		Mode: *mode,
 	}
 
-	// clean recorded resources info.
-	app.Status.Services = nil
-	app.Status.AppliedResources = nil
+	// Copy status fields if workflow status exists (may be nil on first run)
+	if wfStatus := app.Status.Workflow; wfStatus != nil {
+		status.Phase = wfStatus.Phase
+		status.Message = wfStatus.Message
+		status.Suspend = wfStatus.Suspend
+		status.SuspendState = wfStatus.SuspendState
+		status.Terminated = wfStatus.Terminated
+		status.Finished = wfStatus.Finished
+		status.ContextBackend = wfStatus.ContextBackend
+		status.Steps = wfStatus.Steps
+		status.StartTime = wfStatus.StartTime
+		status.EndTime = wfStatus.EndTime
+	}
 
-	// clean conditions after render
-	var reservedConditions []condition.Condition
-	for i, cond := range app.Status.Conditions {
-		condTpy, err := common.ParseApplicationConditionType(string(cond.Type))
-		if err == nil {
-			if condTpy <= common.RenderCondition {
-				reservedConditions = append(reservedConditions, app.Status.Conditions[i])
-			}
-		}
-	}
-	app.Status.Conditions = reservedConditions
-	app.Status.Workflow = &common.WorkflowStatus{
-		AppRevision: desiredRev,
-	}
+	return status
 }
 
 func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application) *wfTypes.WorkflowInstance {
@@ -207,20 +174,7 @@ func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application) *wf
 		Steps: af.WorkflowSteps,
 		Mode:  af.WorkflowMode,
 	}
-	status := app.Status.Workflow
-	instance.Status = workflowv1alpha1.WorkflowRunStatus{
-		Mode:           *af.WorkflowMode,
-		Phase:          status.Phase,
-		Message:        status.Message,
-		Suspend:        status.Suspend,
-		SuspendState:   status.SuspendState,
-		Terminated:     status.Terminated,
-		Finished:       status.Finished,
-		ContextBackend: status.ContextBackend,
-		Steps:          status.Steps,
-		StartTime:      status.StartTime,
-		EndTime:        status.EndTime,
-	}
+	instance.Status = copyWorkflowStatusToInstance(app, af.WorkflowMode)
 	switch app.Status.Phase {
 	case common.ApplicationRunning:
 		instance.Status.Phase = workflowv1alpha1.WorkflowStateSucceeded

@@ -48,6 +48,10 @@ func (in *AppStatus) DeepCopyInto(out *AppStatus) {
 		*out = new(WorkflowStatus)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.WorkflowRestartScheduledAt != nil {
+		in, out := &in.WorkflowRestartScheduledAt, &out.WorkflowRestartScheduledAt
+		*out = (*in).DeepCopy()
+	}
 	if in.LatestRevision != nil {
 		in, out := &in.LatestRevision, &out.LatestRevision
 		*out = new(Revision)

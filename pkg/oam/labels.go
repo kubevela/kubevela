@@ -162,6 +162,16 @@ const (
 	// AnnotationWorkflowName specifies the workflow name for execution.
 	AnnotationWorkflowName = "app.oam.dev/workflowName"
 
+	// AnnotationWorkflowRestart triggers a workflow restart when set. Supported values:
+	// - "true": Immediate restart (sets restart time to current time + 1 second).
+	//   Annotation is automatically removed after being processed.
+	// - RFC3339 timestamp (e.g., "2025-01-15T14:30:00Z"): One-time restart at specified time.
+	//   Annotation is automatically removed after being processed.
+	// - Duration (e.g., "5m", "1h", "30s"): Recurring restart with minimum interval after each completion.
+	//   Annotation persists; automatically reschedules after each workflow completion.
+	// All modes are GitOps-safe: the schedule is stored in status.workflowRestartScheduledAt.
+	AnnotationWorkflowRestart = "app.oam.dev/restart-workflow"
+
 	// AnnotationAppName specifies the name for application in db.
 	// Note: the annotation is only created by velaUX, please don't use it in other Source of Truth.
 	AnnotationAppName = "app.oam.dev/appName"
