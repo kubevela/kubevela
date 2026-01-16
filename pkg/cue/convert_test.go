@@ -17,11 +17,18 @@ limitations under the License.
 package cue
 
 import (
+	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"cuelang.org/go/cue"
+	"github.com/kubevela/pkg/cue/cuex"
+	"github.com/kubevela/pkg/util/singleton"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	"github.com/oam-dev/kubevela/apis/types"
 )
@@ -99,4 +106,89 @@ func TestGetParameter(t *testing.T) {
 	}
 	assert.True(t, foundName, "Should find 'name' parameter")
 	assert.True(t, foundPort, "Should find 'port' parameter")
+}
+
+func TestGetParametersWithCuex(t *testing.T) {
+	ctx := context.Background()
+
+	// Test 1: Basic template without imports
+	data, _ := os.ReadFile("testdata/workloads/metrics.cue")
+	params, err := GetParametersWithCuex(ctx, string(data))
+	assert.NoError(t, err)
+	assert.Equal(t, params, []types.Parameter{
+		{Name: "format", Required: false, Default: "prometheus", Usage: "format of the metrics, " +
+			"default as prometheus", Short: "f", Type: cue.StringKind},
+		{Name: "enabled", Required: false, Default: true, Type: cue.BoolKind},
+		{Name: "port", Required: false, Default: int64(8080), Type: cue.IntKind},
+		{Name: "selector", Required: false, Usage: "the label selector for the pods, default is the workload labels", Type: cue.StructKind},
+	})
+
+	// Test 2: Template with cuex package imports
+	// Setup test package
+	packageObj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "cue.oam.dev/v1alpha1",
+			"kind":       "Package",
+			"metadata": map[string]interface{}{
+				"name":      "test-package",
+				"namespace": "vela-system",
+			},
+			"spec": map[string]interface{}{
+				"path": "test/ext",
+				"templates": map[string]interface{}{
+					"test/ext": strings.TrimSpace(`
+						package ext
+						#Config: {
+							host: string
+							port: int
+						}
+					`),
+				},
+			},
+		},
+	}
+
+	dcl := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), packageObj)
+	singleton.DynamicClient.Set(dcl)
+	cuex.DefaultCompiler.Reload()
+
+	defer cuex.DefaultCompiler.Reload()
+	defer singleton.ReloadClients()
+
+	// Template with import
+	templateWithImport := `
+import "test/ext"
+
+parameter: {
+	name: string
+	config: ext.#Config
+}
+`
+	params, err = GetParametersWithCuex(ctx, templateWithImport)
+	assert.NoError(t, err, "Should compile template with cuex imports")
+	assert.Equal(t, 2, len(params), "Should find 2 parameters")
+
+	foundName := false
+	foundConfig := false
+	for _, p := range params {
+		if p.Name == "name" {
+			foundName = true
+			assert.Equal(t, cue.StringKind, p.Type)
+			assert.True(t, p.Required)
+		}
+		if p.Name == "config" {
+			foundConfig = true
+			assert.Equal(t, cue.StructKind, p.Type)
+			assert.True(t, p.Required)
+		}
+	}
+	assert.True(t, foundName, "Should find 'name' parameter")
+	assert.True(t, foundConfig, "Should find 'config' parameter")
+
+	// Test 3: Template without parameter field
+	data, _ = os.ReadFile("testdata/workloads/empty.cue")
+	params, err = GetParametersWithCuex(ctx, string(data))
+	assert.NoError(t, err)
+	var exp []types.Parameter
+	assert.Equal(t, exp, params)
 }

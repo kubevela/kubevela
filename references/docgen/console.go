@@ -95,7 +95,9 @@ func (ref *ConsoleReference) GenerateCUETemplateProperties(capability *types.Cap
 	ref.DisplayFormat = "console"
 	capName := capability.Name
 
-	cueValue, err := common.GetCUEParameterValue(capability.CueTemplate)
+	// TODO: Accept context parameter for proper cancellation/timeout support
+	// Currently using Background() to avoid breaking changes to function
+	cueValue, err := common.GetCUExParameterValue(context.Background(), capability.CueTemplate)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", capName, err)
 	}
