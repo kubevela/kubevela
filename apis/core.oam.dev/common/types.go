@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -302,8 +303,8 @@ type ApplicationComponent struct {
 	Properties *runtime.RawExtension `json:"properties,omitempty"`
 
 	DependsOn []string                     `json:"dependsOn,omitempty"`
-	Inputs    workflowv1alpha1.StepInputs  `json:"inputs,omitempty"`
-	Outputs   workflowv1alpha1.StepOutputs `json:"outputs,omitempty"`
+	Inputs    wfTypesv1alpha1.StepInputs  `json:"inputs,omitempty"`
+	Outputs   wfTypesv1alpha1.StepOutputs `json:"outputs,omitempty"`
 
 	// Traits define the trait of one component, the type must be array to keep the order.
 	Traits []ApplicationTrait `json:"traits,omitempty"`
