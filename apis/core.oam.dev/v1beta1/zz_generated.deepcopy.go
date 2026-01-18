@@ -21,7 +21,7 @@ limitations under the License.
 package v1beta1
 
 import (
-	"github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/pkg/apis/oam/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"

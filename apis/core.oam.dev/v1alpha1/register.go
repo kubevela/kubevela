@@ -21,7 +21,7 @@ import (
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
@@ -57,7 +57,7 @@ var (
 
 func init() {
 	SchemeBuilder.Register(&Policy{}, &PolicyList{})
-	SchemeBuilder.Register(&workflowv1alpha1.Workflow{}, &workflowv1alpha1.WorkflowList{})
+	SchemeBuilder.Register(&wfTypesv1alpha1.Workflow{}, &wfTypesv1alpha1.WorkflowList{})
 	_ = SchemeBuilder.AddToScheme(k8sscheme.Scheme)
 }
 

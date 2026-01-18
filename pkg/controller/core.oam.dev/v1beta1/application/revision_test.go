@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
@@ -748,8 +748,8 @@ func TestDeepEqualAppInRevision(t *testing.T) {
 	oldRev := &v1beta1.ApplicationRevision{}
 	newRev := &v1beta1.ApplicationRevision{}
 	newRev.Spec.Application.Spec.Workflow = &v1beta1.Workflow{
-		Steps: []workflowv1alpha1.WorkflowStep{{
-			WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+		Steps: []wfTypesv1alpha1.WorkflowStep{{
+			WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 				Type: "deploy",
 				Name: "deploy",
 			},

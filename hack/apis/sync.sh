@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-set -ex
+set -e
 
 if [[ -n "$SSH_DEPLOY_KEY" ]]
 then
