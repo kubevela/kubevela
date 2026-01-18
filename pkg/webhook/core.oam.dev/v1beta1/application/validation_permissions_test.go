@@ -35,7 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -82,9 +82,9 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 						{Name: "policy1", Type: "topology"},
 					},
 					Workflow: &v1beta1.Workflow{
-						Steps: []workflowv1alpha1.WorkflowStep{
+						Steps: []wfTypesv1alpha1.WorkflowStep{
 							{
-								WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 									Name: "step1",
 									Type: "deploy",
 								},
@@ -305,15 +305,15 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 						},
 					},
 					Workflow: &v1beta1.Workflow{
-						Steps: []workflowv1alpha1.WorkflowStep{
+						Steps: []wfTypesv1alpha1.WorkflowStep{
 							{
-								WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 									Name: "deploy",
 									Type: "deploy",
 								},
 							},
 							{
-								WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 									Name: "notify",
 									Type: "notification",
 								},
@@ -487,13 +487,13 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				},
 				Spec: v1beta1.ApplicationSpec{
 					Workflow: &v1beta1.Workflow{
-						Steps: []workflowv1alpha1.WorkflowStep{
+						Steps: []wfTypesv1alpha1.WorkflowStep{
 							{
-								WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 									Name: "step1",
 									Type: "deploy",
 								},
-								SubSteps: []workflowv1alpha1.WorkflowStepBase{
+								SubSteps: []wfTypesv1alpha1.WorkflowStepBase{
 									{
 										Name: "substep1",
 										Type: "suspend",
@@ -884,13 +884,13 @@ func TestCollectDefinitionUsage(t *testing.T) {
 				{Name: "policy3", Type: "topology"}, // Duplicate
 			},
 			Workflow: &v1beta1.Workflow{
-				Steps: []workflowv1alpha1.WorkflowStep{
+				Steps: []wfTypesv1alpha1.WorkflowStep{
 					{
-						WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+						WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 							Name: "step1",
 							Type: "deploy",
 						},
-						SubSteps: []workflowv1alpha1.WorkflowStepBase{
+						SubSteps: []wfTypesv1alpha1.WorkflowStepBase{
 							{
 								Name: "substep1",
 								Type: "suspend",

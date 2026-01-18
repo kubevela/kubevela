@@ -22,7 +22,7 @@ import (
 	"os"
 	"time"
 
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
@@ -512,8 +512,8 @@ var _ = Describe("Test multicluster standalone scenario", func() {
 			Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"clusters":["%s"]}`, WorkerClusterName))},
 		})
 		newApp.Spec.Workflow = &v1beta1.Workflow{
-			Steps: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			Steps: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "deploy",
 					Type:       "deploy",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["topology-deploy"],"parallelism":10}`)},

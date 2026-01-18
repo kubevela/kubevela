@@ -22,7 +22,7 @@ import (
 	"os"
 	"strings"
 
-	wfv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -111,7 +111,7 @@ var _ = Describe("Testing dry-run", func() {
 
 		workflow, err := os.ReadFile("test-data/dry-run/testing-wf.yaml")
 		Expect(err).Should(BeNil())
-		var wf wfv1alpha1.Workflow
+		var wf wfTypesv1alpha1.Workflow
 		Expect(yaml.Unmarshal([]byte(workflow), &wf)).Should(BeNil())
 		Expect(k8sClient.Create(context.TODO(), &wf)).Should(BeNil())
 

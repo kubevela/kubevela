@@ -35,6 +35,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
@@ -268,7 +269,7 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 	if err != nil {
 		return err
 	}
-	outputs := make(map[string]workflowv1alpha1.StepOutputs)
+	outputs := make(map[string]wfTypesv1alpha1.StepOutputs)
 	var v cue.Value
 	if detail {
 		for _, c := range remoteApp.Spec.Components {
@@ -315,7 +316,7 @@ func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName s
 	return nil
 }
 
-func printWorkflowStepStatus(indent string, step workflowv1alpha1.StepStatus, ioStreams cmdutil.IOStreams, detail bool, outputs map[string]workflowv1alpha1.StepOutputs, v cue.Value) {
+func printWorkflowStepStatus(indent string, step workflowv1alpha1.StepStatus, ioStreams cmdutil.IOStreams, detail bool, outputs map[string]wfTypesv1alpha1.StepOutputs, v cue.Value) {
 	ioStreams.Infof("%s- id: %s\n", indent[0:len(indent)-2], step.ID)
 	ioStreams.Infof("%sname: %s\n", indent, step.Name)
 	ioStreams.Infof("%stype: %s\n", indent, step.Type)

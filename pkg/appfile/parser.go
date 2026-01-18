@@ -31,6 +31,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
@@ -397,7 +398,7 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {
 	var err error
 	// parse workflow steps
-	af.WorkflowMode = &workflowv1alpha1.WorkflowExecuteMode{
+	af.WorkflowMode = &wfTypesv1alpha1.WorkflowExecuteMode{
 		Steps:    workflowv1alpha1.WorkflowModeDAG,
 		SubSteps: workflowv1alpha1.WorkflowModeDAG,
 	}
@@ -405,7 +406,7 @@ func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {
 		app := af.app
 		mode := wfSpec.Mode
 		if wfSpec.Ref != "" && mode == nil {
-			wf := &workflowv1alpha1.Workflow{}
+			wf := &wfTypesv1alpha1.Workflow{}
 			if err := af.WorkflowClient(p.client).Get(ctx, ktypes.NamespacedName{Namespace: af.app.Namespace, Name: app.Spec.Workflow.Ref}, wf); err != nil {
 				return err
 			}

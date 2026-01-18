@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 
@@ -208,7 +208,7 @@ func TestApplyComponentsIO(t *testing.T) {
 				Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"placeholder":%d}`, i))},
 			}
 			if i != 0 {
-				comp.Inputs = workflowv1alpha1.StepInputs{
+				comp.Inputs = wfTypesv1alpha1.StepInputs{
 					{
 						ParameterKey: "input_slot_1",
 						From:         fmt.Sprintf("var-output-%d", i-1),
@@ -220,7 +220,7 @@ func TestApplyComponentsIO(t *testing.T) {
 				}
 			}
 			if i != n-1 {
-				comp.Outputs = workflowv1alpha1.StepOutputs{
+				comp.Outputs = wfTypesv1alpha1.StepOutputs{
 					{
 						ValueFrom: "output.spec.path",
 						Name:      fmt.Sprintf("var-output-%d", i),
@@ -254,7 +254,7 @@ func TestApplyComponentsIO(t *testing.T) {
 		components := []apicommon.ApplicationComponent{
 			{
 				Name: "comp-0",
-				Outputs: workflowv1alpha1.StepOutputs{
+				Outputs: wfTypesv1alpha1.StepOutputs{
 					{
 						ValueFrom: "output.spec.error_path",
 						Name:      "var1",
@@ -263,7 +263,7 @@ func TestApplyComponentsIO(t *testing.T) {
 			},
 			{
 				Name: "comp-1",
-				Inputs: workflowv1alpha1.StepInputs{
+				Inputs: wfTypesv1alpha1.StepInputs{
 					{
 						ParameterKey: "input_slot_1",
 						From:         "var1",
@@ -331,7 +331,7 @@ func TestApplyComponentsIO(t *testing.T) {
 		components := []apicommon.ApplicationComponent{
 			{
 				Name: "comp-0",
-				Outputs: workflowv1alpha1.StepOutputs{
+				Outputs: wfTypesv1alpha1.StepOutputs{
 					{
 						ValueFrom: "output.spec.path",
 						Name:      "var1",
@@ -340,13 +340,13 @@ func TestApplyComponentsIO(t *testing.T) {
 			},
 			{
 				Name: "comp-1",
-				Inputs: workflowv1alpha1.StepInputs{
+				Inputs: wfTypesv1alpha1.StepInputs{
 					{
 						ParameterKey: inputSlot,
 						From:         "var1",
 					},
 				},
-				Outputs: workflowv1alpha1.StepOutputs{
+				Outputs: wfTypesv1alpha1.StepOutputs{
 					{
 						ValueFrom: "output.spec.anotherPath",
 						Name:      "var2",
@@ -356,13 +356,13 @@ func TestApplyComponentsIO(t *testing.T) {
 			},
 			{
 				Name: "comp-1",
-				Inputs: workflowv1alpha1.StepInputs{
+				Inputs: wfTypesv1alpha1.StepInputs{
 					{
 						ParameterKey: inputSlot,
 						From:         "var1",
 					},
 				},
-				Outputs: workflowv1alpha1.StepOutputs{
+				Outputs: wfTypesv1alpha1.StepOutputs{
 					{
 						ValueFrom: "output.spec.anotherPath",
 						Name:      "var2",
@@ -372,7 +372,7 @@ func TestApplyComponentsIO(t *testing.T) {
 			},
 			{
 				Name: "comp-2",
-				Inputs: workflowv1alpha1.StepInputs{
+				Inputs: wfTypesv1alpha1.StepInputs{
 					{
 						ParameterKey: inputSlot,
 						From:         "var2",
@@ -382,7 +382,7 @@ func TestApplyComponentsIO(t *testing.T) {
 			},
 			{
 				Name: "comp-2",
-				Inputs: workflowv1alpha1.StepInputs{
+				Inputs: wfTypesv1alpha1.StepInputs{
 					{
 						ParameterKey: inputSlot,
 						From:         "var2",

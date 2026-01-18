@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -297,9 +297,9 @@ var expectedExceptApp = &Appfile{
 			},
 		},
 	},
-	WorkflowSteps: []workflowv1alpha1.WorkflowStep{
+	WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{
 		{
-			WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 				Name: "suspend",
 				Type: "suspend",
 			},
@@ -593,9 +593,9 @@ patch: spec: replicas: parameter.replicas
 				},
 			},
 		},
-		WorkflowSteps: []workflowv1alpha1.WorkflowStep{
+		WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{
 			{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name: "apply",
 					Type: "apply-application",
 				},

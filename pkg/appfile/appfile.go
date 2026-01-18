@@ -37,8 +37,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	velaclient "github.com/kubevela/pkg/controller/client"
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/kubevela/workflow/pkg/cue/process"
 
@@ -177,11 +177,11 @@ type Appfile struct {
 	Policies      []v1beta1.AppPolicy
 	Components    []common.ApplicationComponent
 	Artifacts     []*types.ComponentManifest
-	WorkflowSteps []workflowv1alpha1.WorkflowStep
-	WorkflowMode  *workflowv1alpha1.WorkflowExecuteMode
+	WorkflowSteps []wfTypesv1alpha1.WorkflowStep
+	WorkflowMode  *wfTypesv1alpha1.WorkflowExecuteMode
 
 	ExternalPolicies map[string]*v1alpha1.Policy
-	ExternalWorkflow *workflowv1alpha1.Workflow
+	ExternalWorkflow *wfTypesv1alpha1.Workflow
 	ReferredObjects  []*unstructured.Unstructured
 
 	app *v1beta1.Application
@@ -755,7 +755,7 @@ func (af *Appfile) WorkflowClient(cli client.Client) client.Client {
 	return velaclient.DelegatingHandlerClient{
 		Client: cli,
 		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
-			if wf, ok := obj.(*workflowv1alpha1.Workflow); ok {
+			if wf, ok := obj.(*wfTypesv1alpha1.Workflow); ok {
 				if af.AppRevision != nil {
 					if af.ExternalWorkflow != nil && af.ExternalWorkflow.Name == key.Name && af.ExternalWorkflow.Namespace == key.Namespace {
 						af.ExternalWorkflow.DeepCopyInto(wf)
@@ -766,7 +766,7 @@ func (af *Appfile) WorkflowClient(cli client.Client) client.Client {
 				if err := cli.Get(ctx, key, obj); err != nil {
 					return err
 				}
-				af.ExternalWorkflow = obj.(*workflowv1alpha1.Workflow)
+				af.ExternalWorkflow = obj.(*wfTypesv1alpha1.Workflow)
 				return nil
 			}
 			return cli.Get(ctx, key, obj)

@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -36,19 +36,19 @@ import (
 
 func TestWorkflowStepGenerator(t *testing.T) {
 	r := require.New(t)
-	cli := fake.NewClientBuilder().WithScheme(common2.Scheme).WithObjects(&workflowv1alpha1.Workflow{
+	cli := fake.NewClientBuilder().WithScheme(common2.Scheme).WithObjects(&wfTypesv1alpha1.Workflow{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "ref-wf",
 			Namespace: "test",
 		},
-		WorkflowSpec: workflowv1alpha1.WorkflowSpec{
-			Steps: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+		WorkflowSpec: wfTypesv1alpha1.WorkflowSpec{
+			Steps: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name: "manual-approve",
 					Type: "suspend",
 				},
 			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name: "deploy",
 					Type: "deploy",
 				},
@@ -56,14 +56,14 @@ func TestWorkflowStepGenerator(t *testing.T) {
 		},
 	}).Build()
 	testCases := map[string]struct {
-		input    []workflowv1alpha1.WorkflowStep
+		input    []wfTypesv1alpha1.WorkflowStep
 		app      *v1beta1.Application
-		output   []workflowv1alpha1.WorkflowStep
+		output   []wfTypesv1alpha1.WorkflowStep
 		hasError bool
 	}{
 		"apply-component-with-existing-steps": {
-			input: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			input: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "example-comp-1",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"example-comp-1"}`)},
@@ -78,8 +78,8 @@ func TestWorkflowStepGenerator(t *testing.T) {
 					}},
 				},
 			},
-			output: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			output: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "example-comp-1",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"example-comp-1"}`)},
@@ -87,7 +87,7 @@ func TestWorkflowStepGenerator(t *testing.T) {
 			}},
 		},
 		"apply-component-with-no-steps": {
-			input: []workflowv1alpha1.WorkflowStep{},
+			input: []wfTypesv1alpha1.WorkflowStep{},
 			app: &v1beta1.Application{
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{
@@ -97,14 +97,14 @@ func TestWorkflowStepGenerator(t *testing.T) {
 					}},
 				},
 			},
-			output: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			output: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "example-comp-1",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"example-comp-1"}`)},
 				},
 			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "example-comp-2",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"example-comp-2"}`)},
@@ -112,7 +112,7 @@ func TestWorkflowStepGenerator(t *testing.T) {
 			}},
 		},
 		"env-binding-bad": {
-			input: []workflowv1alpha1.WorkflowStep{},
+			input: []wfTypesv1alpha1.WorkflowStep{},
 			app: &v1beta1.Application{
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{
@@ -128,7 +128,7 @@ func TestWorkflowStepGenerator(t *testing.T) {
 			hasError: true,
 		},
 		"env-binding-correct": {
-			input: []workflowv1alpha1.WorkflowStep{},
+			input: []wfTypesv1alpha1.WorkflowStep{},
 			app: &v1beta1.Application{
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{
@@ -141,14 +141,14 @@ func TestWorkflowStepGenerator(t *testing.T) {
 					}},
 				},
 			},
-			output: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			output: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "deploy-example-policy-env-1",
 					Type:       "deploy2env",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"env":"env-1","policy":"example-policy"}`)},
 				},
 			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "deploy-example-policy-env-2",
 					Type:       "deploy2env",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"env":"env-2","policy":"example-policy"}`)},
@@ -156,7 +156,7 @@ func TestWorkflowStepGenerator(t *testing.T) {
 			}},
 		},
 		"deploy-workflow": {
-			input: []workflowv1alpha1.WorkflowStep{},
+			input: []wfTypesv1alpha1.WorkflowStep{},
 			app: &v1beta1.Application{
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{
@@ -177,14 +177,14 @@ func TestWorkflowStepGenerator(t *testing.T) {
 					}},
 				},
 			},
-			output: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			output: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "deploy-example-topology-policy-1",
 					Type:       "deploy",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["example-override-policy-1","example-override-policy-2","example-topology-policy-1"]}`)},
 				},
 			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "deploy-example-topology-policy-2",
 					Type:       "deploy",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"policies":["example-override-policy-1","example-override-policy-2","example-topology-policy-2"]}`)},
@@ -192,7 +192,7 @@ func TestWorkflowStepGenerator(t *testing.T) {
 			}},
 		},
 		"deploy-with-ref-without-po-workflow": {
-			input: []workflowv1alpha1.WorkflowStep{},
+			input: []wfTypesv1alpha1.WorkflowStep{},
 			app: &v1beta1.Application{
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{
@@ -201,8 +201,8 @@ func TestWorkflowStepGenerator(t *testing.T) {
 					}},
 				},
 			},
-			output: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			output: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "deploy",
 					Type:       "deploy",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"policies":[]}`)},
@@ -221,21 +221,21 @@ func TestWorkflowStepGenerator(t *testing.T) {
 					},
 				},
 			},
-			output: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			output: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name: "manual-approve",
 					Type: "suspend",
 				},
 			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name: "deploy",
 					Type: "deploy",
 				},
 			}},
 		},
 		"ref-workflow-conflict": {
-			input: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			input: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name: "deploy",
 					Type: "deploy",
 				},
@@ -247,8 +247,8 @@ func TestWorkflowStepGenerator(t *testing.T) {
 				Spec: v1beta1.ApplicationSpec{
 					Workflow: &v1beta1.Workflow{
 						Ref: "ref-wf",
-						Steps: []workflowv1alpha1.WorkflowStep{{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+						Steps: []wfTypesv1alpha1.WorkflowStep{{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "deploy",
 								Type: "deploy",
 							},
@@ -296,13 +296,13 @@ func TestApplyComponentWorkflowStepGeneratorWithDependsOn(t *testing.T) {
 	r := require.New(t)
 
 	testCases := map[string]struct {
-		input    []workflowv1alpha1.WorkflowStep
+		input    []wfTypesv1alpha1.WorkflowStep
 		app      *v1beta1.Application
-		output   []workflowv1alpha1.WorkflowStep
+		output   []wfTypesv1alpha1.WorkflowStep
 		hasError bool
 	}{
 		"component-with-single-dependency": {
-			input: []workflowv1alpha1.WorkflowStep{},
+			input: []wfTypesv1alpha1.WorkflowStep{},
 			app: &v1beta1.Application{
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{
@@ -315,14 +315,14 @@ func TestApplyComponentWorkflowStepGeneratorWithDependsOn(t *testing.T) {
 					}},
 				},
 			},
-			output: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			output: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "database",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"database"}`)},
 				},
 			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "backend",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"backend"}`)},
@@ -331,7 +331,7 @@ func TestApplyComponentWorkflowStepGeneratorWithDependsOn(t *testing.T) {
 			}},
 		},
 		"component-with-multiple-dependencies": {
-			input: []workflowv1alpha1.WorkflowStep{},
+			input: []wfTypesv1alpha1.WorkflowStep{},
 			app: &v1beta1.Application{
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{
@@ -347,20 +347,20 @@ func TestApplyComponentWorkflowStepGeneratorWithDependsOn(t *testing.T) {
 					}},
 				},
 			},
-			output: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			output: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "database",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"database"}`)},
 				},
 			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "cache",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"cache"}`)},
 				},
 			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "backend",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"backend"}`)},
@@ -369,7 +369,7 @@ func TestApplyComponentWorkflowStepGeneratorWithDependsOn(t *testing.T) {
 			}},
 		},
 		"component-with-chained-dependencies": {
-			input: []workflowv1alpha1.WorkflowStep{},
+			input: []wfTypesv1alpha1.WorkflowStep{},
 			app: &v1beta1.Application{
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{
@@ -386,21 +386,21 @@ func TestApplyComponentWorkflowStepGeneratorWithDependsOn(t *testing.T) {
 					}},
 				},
 			},
-			output: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			output: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "database",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"database"}`)},
 				},
 			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "backend",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"backend"}`)},
 					DependsOn:  []string{"database"},
 				},
 			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "frontend",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"frontend"}`)},
@@ -409,7 +409,7 @@ func TestApplyComponentWorkflowStepGeneratorWithDependsOn(t *testing.T) {
 			}},
 		},
 		"component-without-dependency": {
-			input: []workflowv1alpha1.WorkflowStep{},
+			input: []wfTypesv1alpha1.WorkflowStep{},
 			app: &v1beta1.Application{
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{
@@ -418,8 +418,8 @@ func TestApplyComponentWorkflowStepGeneratorWithDependsOn(t *testing.T) {
 					}},
 				},
 			},
-			output: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			output: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "standalone",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"standalone"}`)},
@@ -427,7 +427,7 @@ func TestApplyComponentWorkflowStepGeneratorWithDependsOn(t *testing.T) {
 			}},
 		},
 		"mixed-components-some-with-dependencies": {
-			input: []workflowv1alpha1.WorkflowStep{},
+			input: []wfTypesv1alpha1.WorkflowStep{},
 			app: &v1beta1.Application{
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{
@@ -446,27 +446,27 @@ func TestApplyComponentWorkflowStepGeneratorWithDependsOn(t *testing.T) {
 					}},
 				},
 			},
-			output: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			output: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "independent1",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"independent1"}`)},
 				},
 			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "database",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"database"}`)},
 				},
 			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "dependent1",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"dependent1"}`)},
 					DependsOn:  []string{"database"},
 				},
 			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "independent2",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"independent2"}`)},
@@ -513,7 +513,7 @@ func TestComponentDependsOnFieldPreservation(t *testing.T) {
 	}
 
 	generator := &ApplyComponentWorkflowStepGenerator{}
-	output, err := generator.Generate(app, []workflowv1alpha1.WorkflowStep{})
+	output, err := generator.Generate(app, []wfTypesv1alpha1.WorkflowStep{})
 
 	r.NoError(err)
 	r.Len(output, 3)
@@ -557,12 +557,12 @@ func TestChainGeneratorWithComponentDependsOn(t *testing.T) {
 		&ApplyComponentWorkflowStepGenerator{},
 	)
 
-	output, err := generator.Generate(app, []workflowv1alpha1.WorkflowStep{})
+	output, err := generator.Generate(app, []wfTypesv1alpha1.WorkflowStep{})
 	r.NoError(err)
 	r.Len(output, 2)
 
 	// Find the backend step and verify it has the dependency
-	var backendStep *workflowv1alpha1.WorkflowStep
+	var backendStep *wfTypesv1alpha1.WorkflowStep
 	for i, step := range output {
 		if step.Name == "backend" {
 			backendStep = &output[i]

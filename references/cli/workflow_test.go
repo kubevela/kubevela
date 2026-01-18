@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 
@@ -46,8 +47,8 @@ var workflowSpec = v1beta1.ApplicationSpec{
 		Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 	}},
 	Workflow: &v1beta1.Workflow{
-		Steps: []workflowv1alpha1.WorkflowStep{{
-			WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+		Steps: []wfTypesv1alpha1.WorkflowStep{{
+			WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 				Name:       "test-wf1",
 				Type:       "foowf",
 				Properties: &runtime.RawExtension{Raw: []byte(`{"namespace":"default"}`)},
