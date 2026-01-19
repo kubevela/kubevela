@@ -18,10 +18,12 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"strings"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -144,7 +146,19 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 				isAutoUpdateEnabled = true
 			}
 
-			if isHealth, err := dispatcher.healthCheck(ctx, comp, appRev); !isHealth || err != nil || (!comp.SkipApplyWorkload && isAutoUpdateEnabled) {
+			isHealth, err := dispatcher.healthCheck(ctx, comp, appRev)
+
+			// Check if component properties have changed (only for healthy components)
+			// Note: componentPropertiesChanged handles nil comp.Params correctly, so we don't check it here
+			propertiesChanged := false
+			if isHealth && err == nil {
+				propertiesChanged = componentPropertiesChanged(comp, appRev)
+			}
+
+			// Dispatch if: unhealthy, health error, properties changed, or auto-update enabled
+			requiresDispatch := !isHealth || err != nil || propertiesChanged || (!comp.SkipApplyWorkload && isAutoUpdateEnabled)
+
+			if requiresDispatch {
 				if err := h.Dispatch(ctx, h.Client, clusterName, common.WorkflowResourceCreator, dispatchManifests...); err != nil {
 					return false, errors.WithMessage(err, "Dispatch")
 				}
@@ -234,4 +248,46 @@ func getTraitDispatchStage(client client.Client, traitType string, appRev *v1bet
 		return DefaultDispatch, err
 	}
 	return stageType, nil
+}
+
+// componentPropertiesChanged compares current component properties with the last
+// applied version in ApplicationRevision. Returns true if properties have changed
+func componentPropertiesChanged(comp *appfile.Component, appRev *v1beta1.ApplicationRevision) bool {
+	var revComponent *common.ApplicationComponent
+	for i := range appRev.Spec.Application.Spec.Components {
+		if appRev.Spec.Application.Spec.Components[i].Name == comp.Name {
+			revComponent = &appRev.Spec.Application.Spec.Components[i]
+			break
+		}
+	}
+
+	// First deployment or new component
+	if revComponent == nil {
+		return true
+	}
+
+	// Type changed
+	if revComponent.Type != comp.Type {
+		return true
+	}
+
+	// Compare properties as JSON to handle type normalization (e.g. int vs float64)
+	currentProperties := comp.Params
+	if currentProperties == nil {
+		currentProperties = make(map[string]interface{})
+	}
+
+	currentJSON, err := json.Marshal(currentProperties)
+	if err != nil {
+		return true
+	}
+
+	var revJSON []byte
+	if revComponent.Properties != nil && len(revComponent.Properties.Raw) > 0 {
+		revJSON = revComponent.Properties.Raw
+	} else {
+		revJSON, _ = json.Marshal(map[string]interface{}{})
+	}
+
+	return !equality.Semantic.DeepEqual(currentJSON, revJSON)
 }

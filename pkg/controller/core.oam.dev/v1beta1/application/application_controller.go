@@ -1,4 +1,5 @@
 /*
+ /*
 Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -142,6 +143,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err != nil {
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationStarting)
 	}
+
+	// Handle workflow restart requests - converts annotation to status field
+	r.handleWorkflowRestartAnnotation(ctx, app)
+
 	endReconcile, result, err := r.handleFinalizers(logCtx, app, handler)
 	if err != nil {
 		if app.GetDeletionTimestamp() == nil {
@@ -190,7 +195,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	app.Status.SetConditions(condition.ReadyCondition(common.PolicyCondition.String()))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonPolicyGenerated, velatypes.MessagePolicyGenerated))
 
-	handler.CheckWorkflowRestart(logCtx, app)
+	// Check if workflow needs restart (combines scheduled restart + revision-based restart)
+	r.checkWorkflowRestart(logCtx, app, handler)
 
 	workflowInstance, runners, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile)
 	if err != nil {

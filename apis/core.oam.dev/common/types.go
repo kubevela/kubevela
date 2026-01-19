@@ -225,6 +225,12 @@ type AppStatus struct {
 	// Workflow record the status of workflow
 	Workflow *WorkflowStatus `json:"workflow,omitempty"`
 
+	// WorkflowRestartScheduledAt schedules a workflow restart at the specified time.
+	// This field is automatically set when the app.oam.dev/restart-workflow annotation is present,
+	// and is cleared after the restart is triggered. Use RFC3339 format or set to current time for immediate restart.
+	// +optional
+	WorkflowRestartScheduledAt *metav1.Time `json:"workflowRestartScheduledAt,omitempty"`
+
 	// LatestRevision of the application configuration it generates
 	// +optional
 	LatestRevision *Revision `json:"latestRevision,omitempty"`
