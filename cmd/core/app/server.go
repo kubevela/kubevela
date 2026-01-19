@@ -451,6 +451,10 @@ func prepareRunInShardingMode(ctx context.Context, manager manager.Manager, core
 // - Runs pre-start validation hooks to ensure system readiness
 // This function is used in single-instance mode or by the master shard in sharding mode.
 func prepareRun(ctx context.Context, manager manager.Manager, coreOptions *options.CoreOptions) error {
+	// Bootstrap provider registry early before other initialization
+	klog.V(2).InfoS("Initializing provider registry")
+	bootstrapProviderRegistry()
+
 	if coreOptions.Webhook.UseWebhook {
 		klog.InfoS("Webhook enabled, registering OAM webhooks",
 			"port", coreOptions.Webhook.WebhookPort,
