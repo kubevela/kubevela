@@ -224,6 +224,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	handler.addAppliedResource(true, app.Status.AppliedResources...)
 	app.Status.AppliedResources = handler.appliedResources
 	app.Status.Services = handler.services
+
+	// Remove status entries for components that no longer exist in spec
+	filteredServices, filteredResources, componentsRemoved := filterRemovedComponentsFromStatus(
+		app.Spec.Components,
+		app.Status.Services,
+		app.Status.AppliedResources,
+	)
+	app.Status.Services = filteredServices
+	app.Status.AppliedResources = filteredResources
+	handler.services = filteredServices
+	handler.appliedResources = filteredResources
+
+	if componentsRemoved {
+		logCtx.Info("Removed deleted components from status")
+	}
+
 	workflowUpdated := app.Status.Workflow.Message != "" && workflowInstance.Status.Message == ""
 	workflowInstance.Status.Phase = workflowState
 	app.Status.Workflow = workflow.ConvertWorkflowStatus(workflowInstance.Status, app.Status.Workflow.AppRevision)
@@ -319,7 +335,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		Reason:             condition.ReasonReconcileSuccess,
 	})
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
-	return r.gcResourceTrackers(logCtx, handler, phase, true, false)
+	// Use Update instead of Patch when components were removed to properly clear status arrays
+	return r.gcResourceTrackers(logCtx, handler, phase, true, componentsRemoved)
 }
 
 func (r *Reconciler) stateKeep(logCtx monitorContext.Context, handler *AppHandler, app *v1beta1.Application) {
@@ -728,6 +745,39 @@ func setVelaVersion(app *v1beta1.Application) {
 	if annotations := app.GetAnnotations(); annotations == nil || annotations[oam.AnnotationKubeVelaVersion] == "" {
 		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version.VelaVersion)
 	}
+}
+
+// filterRemovedComponentsFromStatus removes status entries for components no longer in spec.
+// Returns filtered lists and whether any components were removed (used to determine Update vs Patch).
+func filterRemovedComponentsFromStatus(
+	components []common.ApplicationComponent,
+	services []common.ApplicationComponentStatus,
+	appliedResources []common.ClusterObjectReference,
+) (filteredServices []common.ApplicationComponentStatus, filteredResources []common.ClusterObjectReference, removed bool) {
+	componentMap := make(map[string]struct{}, len(components))
+	for _, comp := range components {
+		componentMap[comp.Name] = struct{}{}
+	}
+
+	filteredServices = make([]common.ApplicationComponentStatus, 0, len(services))
+	for _, svc := range services {
+		if _, found := componentMap[svc.Name]; found {
+			filteredServices = append(filteredServices, svc)
+		} else {
+			removed = true
+		}
+	}
+
+	filteredResources = make([]common.ClusterObjectReference, 0, len(appliedResources))
+	for _, res := range appliedResources {
+		if _, found := componentMap[res.Name]; found {
+			filteredResources = append(filteredResources, res)
+		} else {
+			removed = true
+		}
+	}
+
+	return filteredServices, filteredResources, removed
 }
 
 func evalStatus(ctx monitorContext.Context, handler *AppHandler, appFile *appfile.Appfile, appParser *appfile.Parser) bool {
