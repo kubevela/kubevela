@@ -39,7 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -500,7 +500,7 @@ var _ = Describe("Test Application with GC options", func() {
 						Name:       "worker2",
 						Type:       "worker",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
-						Inputs: workflowv1alpha1.StepInputs{
+						Inputs: wfTypesv1alpha1.StepInputs{
 							{
 								From:         "worker3-output",
 								ParameterKey: "test",
@@ -511,7 +511,7 @@ var _ = Describe("Test Application with GC options", func() {
 						Name:       "worker3",
 						Type:       "worker",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
-						Outputs: workflowv1alpha1.StepOutputs{
+						Outputs: wfTypesv1alpha1.StepOutputs{
 							{
 								Name:      "worker3-output",
 								ValueFrom: "output.metadata.name",

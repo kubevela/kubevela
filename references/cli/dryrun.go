@@ -25,7 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	wfv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 
@@ -295,7 +295,7 @@ func readApplicationFromFile(filename string) (*corev1beta1.Application, error) 
 func readApplicationFromFiles(cmdOption *DryRunCmdOptions, buff *bytes.Buffer) (*corev1beta1.Application, error) {
 	var app *corev1beta1.Application
 	var policies []*v1alpha1.Policy
-	var wf *wfv1alpha1.Workflow
+	var wf *wfTypesv1alpha1.Workflow
 	policyNameMap := make(map[string]struct{})
 
 	for _, filename := range cmdOption.ApplicationFiles {
@@ -342,7 +342,7 @@ func readApplicationFromFiles(cmdOption *DryRunCmdOptions, buff *bytes.Buffer) (
 				if wf != nil {
 					return nil, errors.New("more than one external workflow provided")
 				}
-				wf = new(wfv1alpha1.Workflow)
+				wf = new(wfTypesv1alpha1.Workflow)
 				err = json.Unmarshal(jsonFileContent, wf)
 				if err != nil {
 					return nil, err
@@ -392,8 +392,8 @@ func readApplicationFromFiles(cmdOption *DryRunCmdOptions, buff *bytes.Buffer) (
 	return app, nil
 }
 
-func getPolicyNameFromWorkflow(wf *wfv1alpha1.Workflow, policyNameMap map[string]struct{}) error {
-	checkPolicy := func(wfsb wfv1alpha1.WorkflowStepBase, policyNameMap map[string]struct{}) error {
+func getPolicyNameFromWorkflow(wf *wfTypesv1alpha1.Workflow, policyNameMap map[string]struct{}) error {
+	checkPolicy := func(wfsb wfTypesv1alpha1.WorkflowStepBase, policyNameMap map[string]struct{}) error {
 		workflowStepSpec := &step.DeployWorkflowStepSpec{}
 		if err := utils.StrictUnmarshal(wfsb.Properties.Raw, workflowStepSpec); err != nil {
 			return err

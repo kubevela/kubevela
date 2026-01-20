@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -264,7 +264,7 @@ func TestCheckDependentComponent(t *testing.T) {
 				Components: []apicommon.ApplicationComponent{
 					{
 						Name: "comp-1",
-						Outputs: workflowv1alpha1.StepOutputs{
+						Outputs: wfTypesv1alpha1.StepOutputs{
 							{
 								Name: "output-1",
 							},
@@ -272,7 +272,7 @@ func TestCheckDependentComponent(t *testing.T) {
 					},
 					{
 						Name: "comp-2",
-						Outputs: workflowv1alpha1.StepOutputs{
+						Outputs: wfTypesv1alpha1.StepOutputs{
 							{
 								Name: "output-2",
 							},
@@ -280,7 +280,7 @@ func TestCheckDependentComponent(t *testing.T) {
 					},
 					{
 						Name: "comp-3",
-						Inputs: workflowv1alpha1.StepInputs{
+						Inputs: wfTypesv1alpha1.StepInputs{
 							{
 								From: "output-1",
 							},

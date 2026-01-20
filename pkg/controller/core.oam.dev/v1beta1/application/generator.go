@@ -30,6 +30,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/slices"
@@ -111,8 +112,8 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		Compiler:       providers.DefaultCompiler.Get(),
 		ProcessCtx:     pCtx,
 		TemplateLoader: template.NewWorkflowStepTemplateRevisionLoader(appRev, h.Client.RESTMapper()),
-		StepConvertor: map[string]func(step workflowv1alpha1.WorkflowStep) (workflowv1alpha1.WorkflowStep, error){
-			wfTypes.WorkflowStepTypeApplyComponent: func(lstep workflowv1alpha1.WorkflowStep) (workflowv1alpha1.WorkflowStep, error) {
+		StepConvertor: map[string]func(step wfTypesv1alpha1.WorkflowStep) (wfTypesv1alpha1.WorkflowStep, error){
+			wfTypes.WorkflowStepTypeApplyComponent: func(lstep wfTypesv1alpha1.WorkflowStep) (wfTypesv1alpha1.WorkflowStep, error) {
 				copierStep := lstep.DeepCopy()
 				if err := convertStepProperties(copierStep, app); err != nil {
 					return lstep, errors.WithMessage(err, "convert [apply-component]")
@@ -130,7 +131,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 
 // copyWorkflowStatusToInstance copies Application workflow status to WorkflowInstance status.
 // Returns a WorkflowRunStatus with Mode set and other fields copied from app.Status.Workflow if it exists.
-func copyWorkflowStatusToInstance(app *v1beta1.Application, mode *workflowv1alpha1.WorkflowExecuteMode) workflowv1alpha1.WorkflowRunStatus {
+func copyWorkflowStatusToInstance(app *v1beta1.Application, mode *wfTypesv1alpha1.WorkflowExecuteMode) workflowv1alpha1.WorkflowRunStatus {
 	status := workflowv1alpha1.WorkflowRunStatus{
 		Mode: *mode,
 	}
@@ -188,7 +189,7 @@ func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application) *wf
 	return instance
 }
 
-func convertStepProperties(step *workflowv1alpha1.WorkflowStep, app *v1beta1.Application) error {
+func convertStepProperties(step *wfTypesv1alpha1.WorkflowStep, app *v1beta1.Application) error {
 	o := struct {
 		Component string `json:"component"`
 		Cluster   string `json:"cluster"`

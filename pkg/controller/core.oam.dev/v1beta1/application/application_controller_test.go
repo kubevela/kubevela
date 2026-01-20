@@ -49,6 +49,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/debug"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
@@ -646,9 +647,9 @@ var _ = Describe("Test Application Controller", func() {
 			Spec: v1beta1.ApplicationSpec{
 				Components: []common.ApplicationComponent{},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "suspend",
 								Type: "suspend",
 							},
@@ -891,16 +892,16 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb1",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "failed-step",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"failed-step"}`)},
@@ -986,24 +987,24 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Mode: &workflowv1alpha1.WorkflowExecuteMode{
+					Mode: &wfTypesv1alpha1.WorkflowExecuteMode{
 						Steps:    workflowv1alpha1.WorkflowModeDAG,
 						SubSteps: workflowv1alpha1.WorkflowModeStep,
 					},
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb1",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb2",
 								Type: "step-group",
 							},
-							SubSteps: []workflowv1alpha1.WorkflowStepBase{
+							SubSteps: []wfTypesv1alpha1.WorkflowStepBase{
 								{
 									Name:       "myweb2-sub1",
 									Type:       "apply-component",
@@ -1091,24 +1092,24 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Mode: &workflowv1alpha1.WorkflowExecuteMode{
+					Mode: &wfTypesv1alpha1.WorkflowExecuteMode{
 						Steps: workflowv1alpha1.WorkflowModeDAG,
 					},
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb1",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb2",
 								Type: "step-group",
 							},
 							Mode: workflowv1alpha1.WorkflowModeStep,
-							SubSteps: []workflowv1alpha1.WorkflowStepBase{
+							SubSteps: []wfTypesv1alpha1.WorkflowStepBase{
 								{
 									Name:       "myweb2-sub1",
 									Type:       "apply-component",
@@ -1196,20 +1197,20 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb1",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb2",
 								Type: "step-group",
 							},
-							SubSteps: []workflowv1alpha1.WorkflowStepBase{
+							SubSteps: []wfTypesv1alpha1.WorkflowStepBase{
 								{
 									Name:       "myweb2-sub1",
 									Type:       "apply-component",
@@ -1296,7 +1297,7 @@ var _ = Describe("Test Application Controller", func() {
 						Name:       "myweb1",
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
-						Outputs: workflowv1alpha1.StepOutputs{
+						Outputs: wfTypesv1alpha1.StepOutputs{
 							{
 								Name:      "output",
 								ValueFrom: "context.name",
@@ -1307,7 +1308,7 @@ var _ = Describe("Test Application Controller", func() {
 						Name:       "myweb2",
 						Type:       "worker",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep"],"image":"busybox"}`)},
-						Inputs: workflowv1alpha1.StepInputs{
+						Inputs: wfTypesv1alpha1.StepInputs{
 							{
 								From:         "output",
 								ParameterKey: "cmd[1]",
@@ -1377,13 +1378,13 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:    "myweb1",
 								Type:    "apply-component",
 								Timeout: "1s",
-								Outputs: workflowv1alpha1.StepOutputs{
+								Outputs: wfTypesv1alpha1.StepOutputs{
 									{
 										Name:      "output",
 										ValueFrom: "context.name",
@@ -1393,9 +1394,9 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb2",
-								Inputs: workflowv1alpha1.StepInputs{
+								Inputs: wfTypesv1alpha1.StepInputs{
 									{
 										From:         "output",
 										ParameterKey: "",
@@ -1468,13 +1469,13 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb1",
 								Type: "apply-component",
 								If:   "false",
-								Outputs: workflowv1alpha1.StepOutputs{
+								Outputs: wfTypesv1alpha1.StepOutputs{
 									{
 										Name:      "output",
 										ValueFrom: `"app-with-skip-output"`,
@@ -1484,9 +1485,9 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb2",
-								Inputs: workflowv1alpha1.StepInputs{
+								Inputs: wfTypesv1alpha1.StepInputs{
 									{
 										From:         "output",
 										ParameterKey: "",
@@ -1560,12 +1561,12 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb1",
 								Type: "apply-component",
-								Outputs: workflowv1alpha1.StepOutputs{
+								Outputs: wfTypesv1alpha1.StepOutputs{
 									{
 										Name:      "output",
 										ValueFrom: "context.name",
@@ -1575,9 +1576,9 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb2",
-								Inputs: workflowv1alpha1.StepInputs{
+								Inputs: wfTypesv1alpha1.StepInputs{
 									{
 										From:         "invalid",
 										ParameterKey: "",
@@ -1653,12 +1654,12 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb1",
 								Type: "apply-component",
-								Outputs: workflowv1alpha1.StepOutputs{
+								Outputs: wfTypesv1alpha1.StepOutputs{
 									{
 										Name:      "output",
 										ValueFrom: "context.namespace",
@@ -1668,9 +1669,9 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb2",
-								Inputs: workflowv1alpha1.StepInputs{
+								Inputs: wfTypesv1alpha1.StepInputs{
 									{
 										From:         "output",
 										ParameterKey: "cmd",
@@ -1754,15 +1755,15 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Mode: &workflowv1alpha1.WorkflowExecuteMode{
+					Mode: &wfTypesv1alpha1.WorkflowExecuteMode{
 						Steps: workflowv1alpha1.WorkflowModeDAG,
 					},
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb1",
 								Type: "apply-component",
-								Outputs: workflowv1alpha1.StepOutputs{
+								Outputs: wfTypesv1alpha1.StepOutputs{
 									{
 										Name:      "output",
 										ValueFrom: "context.name",
@@ -1772,9 +1773,9 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb2",
-								Inputs: workflowv1alpha1.StepInputs{
+								Inputs: wfTypesv1alpha1.StepInputs{
 									{
 										From:         "invalid",
 										ParameterKey: "",
@@ -1848,16 +1849,16 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "failed-step",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"failed-step"}`)},
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb1",
 								Type:       "apply-component",
 								If:         "always",
@@ -1865,7 +1866,7 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb2",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
@@ -1955,13 +1956,13 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb1",
 								Type: "step-group",
 							},
-							SubSteps: []workflowv1alpha1.WorkflowStepBase{
+							SubSteps: []wfTypesv1alpha1.WorkflowStepBase{
 								{
 									Name:       "myweb1-sub1",
 									Type:       "apply-component",
@@ -1983,7 +1984,7 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb2",
 								Type:       "apply-component",
 								If:         "always",
@@ -1991,7 +1992,7 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb3",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb3"}`)},
@@ -2080,13 +2081,13 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:    "suspend",
 								Type:    "suspend",
 								Timeout: "1s",
-								Outputs: workflowv1alpha1.StepOutputs{
+								Outputs: wfTypesv1alpha1.StepOutputs{
 									{
 										Name:      "suspend_output",
 										ValueFrom: "context.name",
@@ -2095,10 +2096,10 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb1",
 								Type: "apply-component",
-								Inputs: workflowv1alpha1.StepInputs{
+								Inputs: wfTypesv1alpha1.StepInputs{
 									{
 										From:         "suspend_output",
 										ParameterKey: "",
@@ -2109,7 +2110,7 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb2",
 								If:         "status.suspend.succeeded",
 								Type:       "apply-component",
@@ -2199,13 +2200,13 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb1",
 								Type: "step-group",
 							},
-							SubSteps: []workflowv1alpha1.WorkflowStepBase{
+							SubSteps: []wfTypesv1alpha1.WorkflowStepBase{
 								{
 									Name:       "myweb1_sub1",
 									Type:       "apply-component",
@@ -2217,7 +2218,7 @@ var _ = Describe("Test Application Controller", func() {
 									Name:       "myweb1_sub2",
 									Type:       "suspend",
 									Properties: &runtime.RawExtension{Raw: []byte(`{"duration":"1s"}`)},
-									Outputs: workflowv1alpha1.StepOutputs{
+									Outputs: wfTypesv1alpha1.StepOutputs{
 										{
 											Name:      "suspend_output",
 											ValueFrom: "context.name",
@@ -2228,7 +2229,7 @@ var _ = Describe("Test Application Controller", func() {
 									Name:      "myweb1_sub3",
 									Type:      "apply-component",
 									DependsOn: []string{"myweb1_sub1"},
-									Inputs: workflowv1alpha1.StepInputs{
+									Inputs: wfTypesv1alpha1.StepInputs{
 										{
 											From:         "suspend_output",
 											ParameterKey: "",
@@ -2240,7 +2241,7 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb2",
 								Type:       "apply-component",
 								If:         "status.myweb1.failed",
@@ -2248,7 +2249,7 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb3",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb3"}`)},
@@ -2341,9 +2342,9 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "timeout-step",
 								Type:       "apply-component",
 								Timeout:    "1s",
@@ -2351,7 +2352,7 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb2",
 								Type:       "apply-component",
 								If:         "always",
@@ -2359,7 +2360,7 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb3",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb3"}`)},
@@ -2438,16 +2439,16 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:    "timeout-step",
 								Type:    "suspend",
 								Timeout: "1s",
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb1",
 								Type:       "apply-component",
 								If:         "always",
@@ -2455,7 +2456,7 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb2",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
@@ -2546,13 +2547,13 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "myweb1",
 								Type: "step-group",
 							},
-							SubSteps: []workflowv1alpha1.WorkflowStepBase{
+							SubSteps: []wfTypesv1alpha1.WorkflowStepBase{
 								{
 									Name:       "myweb1-sub1",
 									Type:       "apply-component",
@@ -2575,7 +2576,7 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb3",
 								Type:       "apply-component",
 								If:         "always",
@@ -2583,7 +2584,7 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb4",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb4"}`)},
@@ -2680,14 +2681,14 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:    "group1",
 								Type:    "step-group",
 								Timeout: "1s",
 							},
-							SubSteps: []workflowv1alpha1.WorkflowStepBase{
+							SubSteps: []wfTypesv1alpha1.WorkflowStepBase{
 								{
 									Name: "suspend",
 									Type: "suspend",
@@ -2695,12 +2696,12 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "group2",
 								If:   "always",
 								Type: "step-group",
 							},
-							SubSteps: []workflowv1alpha1.WorkflowStepBase{
+							SubSteps: []wfTypesv1alpha1.WorkflowStepBase{
 								{
 									Name:    "sub-suspend",
 									Type:    "suspend",
@@ -2714,7 +2715,7 @@ var _ = Describe("Test Application Controller", func() {
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb2",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
@@ -2797,16 +2798,16 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "suspend",
 								Type:       "suspend",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"duration":"1s"}`)},
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "myweb1",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
@@ -2871,7 +2872,7 @@ var _ = Describe("Test Application Controller", func() {
 						Name:       "myweb1",
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep", "10"],"image":"busybox"}`)},
-						Inputs: workflowv1alpha1.StepInputs{
+						Inputs: wfTypesv1alpha1.StepInputs{
 							{
 								From:         "message",
 								ParameterKey: "properties.enemies",
@@ -2890,7 +2891,7 @@ var _ = Describe("Test Application Controller", func() {
 						Name:       "myweb2",
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
-						Outputs: workflowv1alpha1.StepOutputs{
+						Outputs: wfTypesv1alpha1.StepOutputs{
 							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
 							{Name: "sleepTime", ValueFrom: "\"100\""},
 						},
@@ -3045,7 +3046,7 @@ var _ = Describe("Test Application Controller", func() {
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						DependsOn:  []string{"myweb2"},
-						Inputs: workflowv1alpha1.StepInputs{
+						Inputs: wfTypesv1alpha1.StepInputs{
 							{
 								From:         "message",
 								ParameterKey: "properties.enemies",
@@ -3060,7 +3061,7 @@ var _ = Describe("Test Application Controller", func() {
 						Name:       "myweb2",
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
-						Outputs: workflowv1alpha1.StepOutputs{
+						Outputs: wfTypesv1alpha1.StepOutputs{
 							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
 						},
 					},
@@ -3244,8 +3245,8 @@ var _ = Describe("Test Application Controller", func() {
 		app.Name = "vela-test-app"
 		app.SetNamespace(ns.Name)
 		app.Spec.Workflow = &v1beta1.Workflow{
-			Steps: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			Steps: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "apply-in-parallel",
 					Type:       "apply-test",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"parallelism": 20}`)},
@@ -3597,20 +3598,20 @@ var _ = Describe("Test Application Controller", func() {
 					},
 				},
 				Workflow: &v1beta1.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name:       "step1",
 								Type:       "apply-component",
 								Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myworker"}`)},
 							},
 						},
 						{
-							WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 								Name: "step2",
 								Type: "step-group",
 							},
-							SubSteps: []workflowv1alpha1.WorkflowStepBase{
+							SubSteps: []wfTypesv1alpha1.WorkflowStepBase{
 								{
 									Name:       "step2-sub1",
 									Type:       "apply-component",

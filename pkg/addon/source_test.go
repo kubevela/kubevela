@@ -143,29 +143,6 @@ func TestNewAsyncReader(t *testing.T) {
 	}
 }
 
-func TestPathWithParent(t *testing.T) {
-	testCases := []struct {
-		readPath       string
-		parentPath     string
-		actualReadPath string
-	}{
-		{
-			readPath:       "example",
-			parentPath:     "experimental",
-			actualReadPath: "experimental/example",
-		},
-		{
-			readPath:       "example/",
-			parentPath:     "experimental",
-			actualReadPath: "experimental/example/",
-		},
-	}
-	for _, tc := range testCases {
-		res := pathWithParent(tc.readPath, tc.parentPath)
-		assert.Equal(t, res, tc.actualReadPath)
-	}
-}
-
 func TestConvert2OssItem(t *testing.T) {
 	subPath := "sub-addons"
 	reader, err := NewAsyncReader("ep-beijing.com", "bucket", "", subPath, "", ossType)

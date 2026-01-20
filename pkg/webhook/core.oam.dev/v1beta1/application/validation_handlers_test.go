@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -115,15 +115,15 @@ func TestValidateCreate(t *testing.T) {
 						},
 					},
 					Workflow: &v1beta1.Workflow{
-						Steps: []workflowv1alpha1.WorkflowStep{
+						Steps: []wfTypesv1alpha1.WorkflowStep{
 							{
-								WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 									Name: "step1",
 									Type: "deploy",
 								},
 							},
 							{
-								WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 									Name: "step1", // Duplicate name
 									Type: "deploy",
 								},
@@ -150,9 +150,9 @@ func TestValidateCreate(t *testing.T) {
 						},
 					},
 					Workflow: &v1beta1.Workflow{
-						Steps: []workflowv1alpha1.WorkflowStep{
+						Steps: []wfTypesv1alpha1.WorkflowStep{
 							{
-								WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+								WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 									Name:    "step1",
 									Type:    "deploy",
 									Timeout: "invalid",

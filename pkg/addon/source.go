@@ -245,15 +245,6 @@ type AsyncReader interface {
 	RelativePath(item Item) string
 }
 
-// pathWithParent joins path with its parent directory, suffix slash is reserved
-func pathWithParent(subPath, parent string) string {
-	actualPath := path.Join(parent, subPath)
-	if strings.HasSuffix(subPath, "/") {
-		actualPath += "/"
-	}
-	return actualPath
-}
-
 // ReaderType marks where to read addon files
 type ReaderType string
 

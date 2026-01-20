@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -91,7 +91,7 @@ var _ = Describe("Application required-parameter validation", Ordered, func() {
 
 		// inject missing parameter
 		app.Spec.Workflow.Steps[0].Inputs = append(app.Spec.Workflow.Steps[0].Inputs,
-			workflowv1alpha1.InputItem{
+			wfTypesv1alpha1.InputItem{
 				ParameterKey: "secondkey.value2.value3.value5",
 				From:         "dummy",
 			})
@@ -170,11 +170,11 @@ var appWithWorkflow = v1beta1.Application{
 			}`)},
 		}},
 		Workflow: &v1beta1.Workflow{
-			Steps: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			Steps: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name: "apply",
 					Type: "apply-component",
-					Inputs: workflowv1alpha1.StepInputs{
+					Inputs: wfTypesv1alpha1.StepInputs{
 						{ParameterKey: "firstkey", From: "dummy1"},
 						{ParameterKey: "secondkey.value1", From: "dummy2"},
 						{ParameterKey: "thirdkey", From: "dummy3"},
