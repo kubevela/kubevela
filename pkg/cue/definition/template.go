@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -130,11 +131,35 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return errors.WithMessagef(err, "failed to compile workload %s after merge parameter and context", wd.name)
 	}
 
-	if err := val.Validate(); err != nil {
-		if fmtErr := FormatCUEError(err, "validation failed for", "workload", wd.name, &val); fmtErr != nil {
-			return fmtErr
+	var userErrors []string
+	if errs := val.LookupPath(value.FieldPath(ErrsFieldName)); errs.Exists() {
+		if err := errs.Decode(&userErrors); err != nil {
+			klog.Warningf("Workload definition '%s' has malformed 'errs' field (expected []string): %v. Custom error reporting will be skipped.", wd.name, err)
 		}
-		return fmt.Errorf("validation failed for workload %s: %w", wd.name, err)
+	}
+
+	validationErr := val.Validate()
+
+	if validationErr != nil || len(userErrors) > 0 {
+		var result strings.Builder
+		result.WriteString(fmt.Sprintf("validation failed for workload %s:", wd.name))
+
+		if len(userErrors) > 0 {
+			result.WriteString("\n\nUser Errors:\n")
+			for _, e := range userErrors {
+				result.WriteString(fmt.Sprintf("  %s\n", e))
+			}
+		}
+
+		if validationErr != nil {
+			if fmtErr := FormatCUEError(validationErr, "validation failed for", "workload", wd.name, &val); fmtErr != nil {
+				errMsg := fmtErr.Error()
+				errMsg = strings.TrimPrefix(errMsg, fmt.Sprintf("validation failed for workload %s:", wd.name))
+				result.WriteString(errMsg)
+			}
+		}
+
+		return errors.New(strings.TrimRight(result.String(), "\n"))
 	}
 	output := val.LookupPath(value.FieldPath(OutputFieldName))
 
@@ -290,11 +315,35 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		return errors.WithMessagef(err, "failed to compile trait %s after merge parameter and context", td.name)
 	}
 
-	if err := val.Validate(); err != nil {
-		if fmtErr := FormatCUEError(err, "validation failed for", "trait", td.name, &val); fmtErr != nil {
-			return fmtErr
+	var userErrors []string
+	if errs := val.LookupPath(value.FieldPath(ErrsFieldName)); errs.Exists() {
+		if err := errs.Decode(&userErrors); err != nil {
+			klog.Warningf("Trait definition '%s' has malformed 'errs' field (expected []string): %v. Custom error reporting will be skipped.", td.name, err)
 		}
-		return fmt.Errorf("validation failed for trait %s: %w", td.name, err)
+	}
+
+	validationErr := val.Validate()
+
+	if validationErr != nil || len(userErrors) > 0 {
+		var result strings.Builder
+		result.WriteString(fmt.Sprintf("validation failed for trait %s:", td.name))
+
+		if len(userErrors) > 0 {
+			result.WriteString("\n\nUser Errors:\n")
+			for _, e := range userErrors {
+				result.WriteString(fmt.Sprintf("  %s\n", e))
+			}
+		}
+
+		if validationErr != nil {
+			if fmtErr := FormatCUEError(validationErr, "validation failed for", "trait", td.name, &val); fmtErr != nil {
+				errMsg := fmtErr.Error()
+				errMsg = strings.TrimPrefix(errMsg, fmt.Sprintf("validation failed for trait %s:", td.name))
+				result.WriteString(errMsg)
+			}
+		}
+
+		return errors.New(strings.TrimRight(result.String(), "\n"))
 	}
 
 	processing := val.LookupPath(value.FieldPath("processing"))
@@ -345,13 +394,6 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			if err = auxiliary.Ins.Unify(target); err != nil {
 				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
 			}
-		}
-	}
-
-	errs := val.LookupPath(value.FieldPath(ErrsFieldName))
-	if errs.Exists() {
-		if err := parseErrors(errs); err != nil {
-			return err
 		}
 	}
 
@@ -406,17 +448,6 @@ func injectOutputStatusIntoBaseContext(ctx process.Context, c string, statusByte
 		}
 	}
 	return c
-}
-
-func parseErrors(errs cue.Value) error {
-	if it, e := errs.List(); e == nil {
-		for it.Next() {
-			if s, err := it.Value().String(); err == nil && s != "" {
-				return errors.Errorf("%s", s)
-			}
-		}
-	}
-	return nil
 }
 
 // GetCommonLabels will convert context based labels to OAM standard labels
@@ -535,33 +566,30 @@ func getResourceFromObj(ctx context.Context, pctx process.Context, obj *unstruct
 
 // FormatCUEError formats CUE errors in a user-friendly grouped format
 func FormatCUEError(err error, messagePrefix string, entityType, entityName string, val ...*cue.Value) error {
-	if err == nil {
-		return nil
-	}
-
 	var allParamErrors = make(map[string]bool)
 	var allTemplateErrors = make(map[string]bool)
 
-	errList := cueerrors.Errors(err)
-	for _, e := range errList {
-		errMsg := e.Error()
-		if strings.HasPrefix(errMsg, "parameter.") {
-			allParamErrors[errMsg] = true
-		} else {
-			allTemplateErrors[errMsg] = true
+	if err != nil {
+		errList := cueerrors.Errors(err)
+		for _, e := range errList {
+			errMsg := e.Error()
+			if strings.HasPrefix(errMsg, "parameter.") {
+				allParamErrors[errMsg] = true
+			} else {
+				allTemplateErrors[errMsg] = true
+			}
 		}
-	}
 
-	// Run concrete validation if val provided to catch missing parameters
-	if len(val) > 0 && val[0] != nil {
-		if concreteErr := val[0].Validate(cue.Concrete(true)); concreteErr != nil {
-			concreteErrList := cueerrors.Errors(concreteErr)
-			for _, e := range concreteErrList {
-				errMsg := e.Error()
-				if strings.HasPrefix(errMsg, "parameter.") {
-					allParamErrors[errMsg] = true
-				} else {
-					allTemplateErrors[errMsg] = true
+		if len(val) > 0 && val[0] != nil {
+			if concreteErr := val[0].Validate(cue.Concrete(true)); concreteErr != nil {
+				concreteErrList := cueerrors.Errors(concreteErr)
+				for _, e := range concreteErrList {
+					errMsg := e.Error()
+					if strings.HasPrefix(errMsg, "parameter.") {
+						allParamErrors[errMsg] = true
+					} else {
+						allTemplateErrors[errMsg] = true
+					}
 				}
 			}
 		}
