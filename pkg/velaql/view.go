@@ -33,8 +33,8 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	"github.com/kubevela/pkg/cue/cuex"
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	providertypes "github.com/kubevela/workflow/pkg/providers/types"
 
@@ -206,7 +206,7 @@ func StoreViewFromFile(ctx context.Context, c client.Client, path, viewName stri
 
 // QueryParameterKey query parameter key
 type QueryParameterKey struct {
-	Outputs workflowv1alpha1.StepOutputs `json:"outputs"`
+	Outputs wfTypesv1alpha1.StepOutputs `json:"outputs"`
 }
 
 // OutputsTemplate output template

@@ -19,8 +19,8 @@ package v1beta1
 import (
 	"encoding/json"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	"github.com/kubevela/pkg/util/compression"
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -63,7 +63,7 @@ type ApplicationRevisionCompressibleFields struct {
 	Policies map[string]v1alpha1.Policy `json:"policies,omitempty"`
 
 	// Workflow records the external workflow
-	Workflow *workflowv1alpha1.Workflow `json:"workflow,omitempty"`
+	Workflow *wfTypesv1alpha1.Workflow `json:"workflow,omitempty"`
 
 	// ReferredObjects records the referred objects used in the ref-object typed components
 	// +kubebuilder:pruning:PreserveUnknownFields

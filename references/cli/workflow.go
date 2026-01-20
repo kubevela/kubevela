@@ -24,6 +24,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/gosuri/uitable"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -449,9 +450,9 @@ func (w *WorkflowArgs) generateWorkflowInstance(ctx context.Context, cli client.
 		w.StepOperator = operation.NewApplicationWorkflowStepOperator(cli, w.Writer, w.App)
 		w.ControllerLabels = map[string]string{"app.kubernetes.io/name": "vela-core"}
 	case instanceTypeWorkflowRun:
-		var steps []workflowv1alpha1.WorkflowStep
+		var steps []wfTypesv1alpha1.WorkflowStep
 		if w.WorkflowRun.Spec.WorkflowRef != "" {
-			workflow := &workflowv1alpha1.Workflow{}
+			workflow := &wfTypesv1alpha1.Workflow{}
 			if err := cli.Get(ctx, client.ObjectKey{Namespace: w.WorkflowRun.Namespace, Name: w.WorkflowRun.Spec.WorkflowRef}, workflow); err != nil {
 				return err
 			}

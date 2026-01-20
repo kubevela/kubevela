@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 
@@ -63,8 +64,8 @@ var _ = Describe("Test Workflow", func() {
 				Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 			}},
 			Workflow: &oamcore.Workflow{
-				Steps: []workflowv1alpha1.WorkflowStep{{
-					WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				Steps: []wfTypesv1alpha1.WorkflowStep{{
+					WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 						Name:       "test-wf1",
 						Type:       "foowf",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"namespace":"test-ns"}`)},
@@ -216,8 +217,8 @@ var _ = Describe("Test Workflow", func() {
 	It("test workflow suspend", func() {
 		suspendApp := appWithWorkflow.DeepCopy()
 		suspendApp.Name = "test-app-suspend"
-		suspendApp.Spec.Workflow.Steps = []workflowv1alpha1.WorkflowStep{{
-			WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+		suspendApp.Spec.Workflow.Steps = []wfTypesv1alpha1.WorkflowStep{{
+			WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 				Name:       "suspend",
 				Type:       "suspend",
 				Properties: &runtime.RawExtension{Raw: []byte(`{}`)},
@@ -264,16 +265,16 @@ var _ = Describe("Test Workflow", func() {
 	It("test workflow terminate a suspend workflow", func() {
 		suspendApp := appWithWorkflow.DeepCopy()
 		suspendApp.Name = "test-terminate-suspend-app"
-		suspendApp.Spec.Workflow.Steps = []workflowv1alpha1.WorkflowStep{
+		suspendApp.Spec.Workflow.Steps = []wfTypesv1alpha1.WorkflowStep{
 			{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "suspend",
 					Type:       "suspend",
 					Properties: &runtime.RawExtension{Raw: []byte(`{}`)},
 				},
 			},
 			{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "suspend-1",
 					Type:       "suspend",
 					Properties: &runtime.RawExtension{Raw: []byte(`{}`)},
@@ -345,7 +346,7 @@ var _ = Describe("Test Workflow", func() {
 						Name:       "myweb1",
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
-						Inputs: workflowv1alpha1.StepInputs{
+						Inputs: wfTypesv1alpha1.StepInputs{
 							{
 								From:         "message",
 								ParameterKey: "properties.enemies",
@@ -360,20 +361,20 @@ var _ = Describe("Test Workflow", func() {
 						Name:       "myweb2",
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
-						Outputs: workflowv1alpha1.StepOutputs{
+						Outputs: wfTypesv1alpha1.StepOutputs{
 							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
 						},
 					},
 				},
 				Workflow: &oamcore.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{{
-						WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Steps: []wfTypesv1alpha1.WorkflowStep{{
+						WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 							Name:       "test-web2",
 							Type:       "apply-component",
 							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 						},
 					}, {
-						WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+						WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 							Name:       "test-web1",
 							Type:       "apply-component",
 							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
@@ -467,14 +468,14 @@ var _ = Describe("Test Workflow", func() {
 					},
 				},
 				Workflow: &oamcore.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{{
-						WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Steps: []wfTypesv1alpha1.WorkflowStep{{
+						WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 							Name:       "test-web2",
 							Type:       "apply-component",
 							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 						},
 					}, {
-						WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+						WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 							Name:       "test-web1",
 							Type:       "apply-component",
 							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
@@ -552,7 +553,7 @@ var _ = Describe("Test Workflow", func() {
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 						DependsOn:  []string{"myweb2"},
-						Inputs: workflowv1alpha1.StepInputs{
+						Inputs: wfTypesv1alpha1.StepInputs{
 							{
 								From:         "message",
 								ParameterKey: "properties.enemies",
@@ -567,20 +568,20 @@ var _ = Describe("Test Workflow", func() {
 						Name:       "myweb2",
 						Type:       "worker-with-health",
 						Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","lives": "i am lives","enemies": "empty"}`)},
-						Outputs: workflowv1alpha1.StepOutputs{
+						Outputs: wfTypesv1alpha1.StepOutputs{
 							{Name: "message", ValueFrom: "output.status.conditions[0].message+\",\"+outputs.gameconfig.data.lives"},
 						},
 					},
 				},
 				Workflow: &oamcore.Workflow{
-					Steps: []workflowv1alpha1.WorkflowStep{{
-						WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+					Steps: []wfTypesv1alpha1.WorkflowStep{{
+						WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 							Name:       "test-web2",
 							Type:       "apply-component",
 							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
 						},
 					}, {
-						WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+						WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 							Name:       "test-web1",
 							Type:       "apply-component",
 							Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
@@ -674,21 +675,21 @@ var _ = Describe("Test Workflow", func() {
 		Expect(updateApp.Status.Phase).Should(BeEquivalentTo(common.ApplicationRunning))
 		updateApp.Spec.Components[0].Properties = &runtime.RawExtension{Raw: []byte(`{}`)}
 		updateApp.Spec.Workflow = &oamcore.Workflow{
-			Steps: []workflowv1alpha1.WorkflowStep{{
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+			Steps: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "test-web2",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb2"}`)},
-					Outputs: workflowv1alpha1.StepOutputs{
+					Outputs: wfTypesv1alpha1.StepOutputs{
 						{Name: "image", ValueFrom: "output.spec.template.spec.containers[0].image"},
 					},
 				},
 			}, {
-				WorkflowStepBase: workflowv1alpha1.WorkflowStepBase{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
 					Name:       "test-web1",
 					Type:       "apply-component",
 					Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
-					Inputs: workflowv1alpha1.StepInputs{
+					Inputs: wfTypesv1alpha1.StepInputs{
 						{
 							From:         "image",
 							ParameterKey: "image",

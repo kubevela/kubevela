@@ -21,6 +21,7 @@ limitations under the License.
 package common
 
 import (
+	oamv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	"github.com/kubevela/workflow/api/v1alpha1"
 	crossplane_runtime "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	v1 "k8s.io/api/core/v1"
@@ -96,12 +97,12 @@ func (in *ApplicationComponent) DeepCopyInto(out *ApplicationComponent) {
 	}
 	if in.Inputs != nil {
 		in, out := &in.Inputs, &out.Inputs
-		*out = make(v1alpha1.StepInputs, len(*in))
+		*out = make(oamv1alpha1.StepInputs, len(*in))
 		copy(*out, *in)
 	}
 	if in.Outputs != nil {
 		in, out := &in.Outputs, &out.Outputs
-		*out = make(v1alpha1.StepOutputs, len(*in))
+		*out = make(oamv1alpha1.StepOutputs, len(*in))
 		copy(*out, *in)
 	}
 	if in.Traits != nil {

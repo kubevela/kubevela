@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
@@ -42,9 +42,9 @@ type AppPolicy struct {
 
 // Workflow defines workflow steps and other attributes
 type Workflow struct {
-	Ref   string                                `json:"ref,omitempty"`
-	Mode  *workflowv1alpha1.WorkflowExecuteMode `json:"mode,omitempty"`
-	Steps []workflowv1alpha1.WorkflowStep       `json:"steps,omitempty"`
+	Ref   string                               `json:"ref,omitempty"`
+	Mode  *wfTypesv1alpha1.WorkflowExecuteMode `json:"mode,omitempty"`
+	Steps []wfTypesv1alpha1.WorkflowStep       `json:"steps,omitempty"`
 }
 
 // ApplicationSpec is the spec of Application

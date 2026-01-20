@@ -39,7 +39,7 @@ import (
 
 	"github.com/kubevela/workflow/pkg/cue/model"
 
-	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -1120,7 +1120,7 @@ func TestPolicyClient(t *testing.T) {
 
 func TestWorkflowClient(t *testing.T) {
 	ctx := context.Background()
-	workflow := &workflowv1alpha1.Workflow{
+	workflow := &wfTypesv1alpha1.Workflow{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-workflow", Namespace: "default"},
 	}
 	workflowKey := client.ObjectKeyFromObject(workflow)
@@ -1139,7 +1139,7 @@ func TestWorkflowClient(t *testing.T) {
 		cli := fake.NewClientBuilder().Build()
 		workflowClient := af.WorkflowClient(cli)
 
-		retrievedWorkflow := &workflowv1alpha1.Workflow{}
+		retrievedWorkflow := &wfTypesv1alpha1.Workflow{}
 		err := workflowClient.Get(ctx, workflowKey, retrievedWorkflow)
 		assert.NoError(t, err)
 		assert.Equal(t, workflow, retrievedWorkflow)
@@ -1153,7 +1153,7 @@ func TestWorkflowClient(t *testing.T) {
 		cli := fake.NewClientBuilder().WithObjects(workflow).Build()
 		workflowClient := af.WorkflowClient(cli)
 
-		retrievedWorkflow := &workflowv1alpha1.Workflow{}
+		retrievedWorkflow := &wfTypesv1alpha1.Workflow{}
 		err := workflowClient.Get(ctx, workflowKey, retrievedWorkflow)
 		assert.Error(t, err)
 		assert.True(t, kerrors.IsNotFound(err))
@@ -1177,7 +1177,7 @@ func TestWorkflowClient(t *testing.T) {
 		cli := fake.NewClientBuilder().WithObjects(workflow).Build()
 		workflowClient := af.WorkflowClient(cli)
 
-		retrievedWorkflow := &workflowv1alpha1.Workflow{}
+		retrievedWorkflow := &wfTypesv1alpha1.Workflow{}
 		err := workflowClient.Get(ctx, workflowKey, retrievedWorkflow)
 		assert.NoError(t, err)
 		assert.Equal(t, workflow, retrievedWorkflow)
@@ -1191,7 +1191,7 @@ func TestWorkflowClient(t *testing.T) {
 		cli := fake.NewClientBuilder().Build()
 		workflowClient := af.WorkflowClient(cli)
 
-		retrievedWorkflow := &workflowv1alpha1.Workflow{}
+		retrievedWorkflow := &wfTypesv1alpha1.Workflow{}
 		err := workflowClient.Get(ctx, workflowKey, retrievedWorkflow)
 		assert.Error(t, err)
 		assert.True(t, kerrors.IsNotFound(err))

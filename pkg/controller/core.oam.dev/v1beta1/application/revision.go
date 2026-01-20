@@ -35,6 +35,7 @@ import (
 
 	"github.com/kubevela/pkg/util/compression"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	"github.com/kubevela/pkg/controller/sharding"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
@@ -395,7 +396,7 @@ func deepEqualPolicy(old, new v1alpha1.Policy) bool {
 	return old.Type == new.Type && apiequality.Semantic.DeepEqual(old.Properties, new.Properties)
 }
 
-func deepEqualWorkflow(old, new workflowv1alpha1.Workflow) bool {
+func deepEqualWorkflow(old, new wfTypesv1alpha1.Workflow) bool {
 	return apiequality.Semantic.DeepEqual(old.Steps, new.Steps)
 }
 
