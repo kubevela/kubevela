@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
@@ -37,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -328,19 +330,47 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 	)
 
 	status = h.getServiceStatus(status)
+	workloadHealthy := status.Healthy
 	if !skipWorkload {
-		isHealth, output, outputs, err = h.collectWorkloadHealthStatus(ctx, comp, &status, accessor)
+		workloadHealthy, output, outputs, err = h.collectWorkloadHealthStatus(ctx, comp, &status, accessor)
 		if err != nil {
 			return nil, nil, nil, false, err
 		}
+		isHealth = workloadHealthy
 	}
 
-	var traitStatusList []common.ApplicationTraitStatus
+	pendingEnabled := utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply)
+	traitStatusByType := make(map[string]common.ApplicationTraitStatus, len(status.Traits))
+	traitOrder := make([]string, 0, len(status.Traits))
+	for _, ts := range status.Traits {
+		if _, exists := traitStatusByType[ts.Type]; exists {
+			continue
+		}
+		traitStatusByType[ts.Type] = ts
+		traitOrder = append(traitOrder, ts.Type)
+	}
+	addTraitStatus := func(ts common.ApplicationTraitStatus) {
+		if _, exists := traitStatusByType[ts.Type]; !exists {
+			traitOrder = append(traitOrder, ts.Type)
+		}
+		traitStatusByType[ts.Type] = ts
+	}
+	processedTraits := make(map[string]struct{})
 collectNext:
 	for _, tr := range comp.Traits {
 		for _, filter := range traitFilters {
 			// If filtered out by one of the filters
 			if filter(*tr) {
+				continue collectNext
+			}
+		}
+
+		processedTraits[tr.Name] = struct{}{}
+		if pendingEnabled {
+			traitStage, err := getTraitDispatchStage(h.Client, tr.Name, h.currentAppRev, h.app.Annotations)
+			isPostDispatch := err == nil && traitStage == PostDispatch
+			if isPostDispatch && !workloadHealthy {
+				addTraitStatus(createPendingTraitStatus(tr.Name))
 				continue collectNext
 			}
 		}
@@ -355,17 +385,33 @@ collectNext:
 		if status.Message == "" && traitStatus.Message != "" {
 			status.Message = traitStatus.Message
 		}
-		traitStatusList = append(traitStatusList, traitStatus)
-
-		var oldStatus []common.ApplicationTraitStatus
-		for _, _trait := range status.Traits {
-			if _trait.Type != tr.Name {
-				oldStatus = append(oldStatus, _trait)
-			}
-		}
-		status.Traits = oldStatus
+		addTraitStatus(traitStatus)
 	}
-	status.Traits = append(status.Traits, traitStatusList...)
+	if pendingEnabled && !workloadHealthy {
+		for _, component := range h.currentAppRev.Spec.Application.Spec.Components {
+			if component.Name != comp.Name {
+				continue
+			}
+			for _, trait := range component.Traits {
+				if _, ok := processedTraits[trait.Type]; ok {
+					continue
+				}
+				if _, ok := traitStatusByType[trait.Type]; ok {
+					continue
+				}
+				traitStage, err := getTraitDispatchStage(h.Client, trait.Type, h.currentAppRev, h.app.Annotations)
+				isPostDispatch := err == nil && traitStage == PostDispatch
+				if isPostDispatch {
+					addTraitStatus(createPendingTraitStatus(trait.Type))
+				}
+			}
+			break
+		}
+	}
+	status.Traits = make([]common.ApplicationTraitStatus, 0, len(traitStatusByType))
+	for _, traitType := range traitOrder {
+		status.Traits = append(status.Traits, traitStatusByType[traitType])
+	}
 	h.addServiceStatus(true, status)
 	return &status, output, outputs, isHealth, nil
 }
