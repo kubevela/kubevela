@@ -240,6 +240,39 @@ output:{
 				"kind":       "Ingress",
 			}},
 		},
+		"using errs field in workload": {
+			workloadTemplate: `
+output: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	metadata: name: context.name
+}
+errs: parameter.errs
+parameter: { errs: [...string] }`,
+			params: map[string]interface{}{
+				"errs": []string{"custom workload error"},
+			},
+			hasCompileErr: true,
+		},
+		"user errors and validation errors together": {
+			workloadTemplate: `
+output: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	metadata: name: context.name
+	spec: replicas: parameter.replicas
+}
+errs: (if parameter.replicas < 1 {["replicas must be at least 1"]} else {[]})
+parameter: {
+	replicas: int
+	required: string  // This will cause a validation error
+}`,
+			params: map[string]interface{}{
+				"replicas": 0,
+				// missing "required" field
+			},
+			hasCompileErr: true,
+		},
 	}
 
 	for _, v := range testCases {
