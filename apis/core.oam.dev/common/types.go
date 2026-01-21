@@ -192,6 +192,7 @@ func (in ApplicationComponentStatus) Equal(r ApplicationComponentStatus) bool {
 type ApplicationTraitStatus struct {
 	Type    string            `json:"type"`
 	Healthy bool              `json:"healthy"`
+	Pending bool              `json:"pending,omitempty"`
 	Details map[string]string `json:"details,omitempty"`
 	Message string            `json:"message,omitempty"`
 }
