@@ -385,7 +385,9 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 		}
 	}
 	for key, td := range newTraitDefinitions {
-		if !apiequality.Semantic.DeepEqual(oldTraitDefinitions[key].Spec, td.Spec) {
+		oldTD := oldTraitDefinitions[key]
+		// Compare TraitDefinition specs including podDisruptive field
+		if !apiequality.Semantic.DeepEqual(oldTD.Spec, td.Spec) {
 			return false
 		}
 	}
