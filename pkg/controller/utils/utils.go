@@ -17,13 +17,19 @@ limitations under the License.
 package utils
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 
 	"github.com/mitchellh/hashstructure/v2"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -66,4 +72,103 @@ func ComputeSpecHash(spec interface{}) (string, error) {
 	}
 	specHashLabel := strconv.FormatUint(specHash, 16)
 	return specHashLabel, nil
+}
+
+// UpdateDefinitionRevisionLabels :: TODO: add test coverage
+func UpdateDefinitionRevisionLabels(af *appfile.Appfile, app *v1beta1.Application) error {
+	if af.AppLabels == nil {
+		af.AppLabels = make(map[string]string)
+	} else {
+		removeDefRevLabels(&af.AppLabels)
+	}
+	if app.ObjectMeta.Labels == nil {
+		app.ObjectMeta.Labels = make(map[string]string)
+	} else {
+		removeDefRevLabels(&app.ObjectMeta.Labels)
+	}
+
+	// Add component, trait, workflow, and policy definition revision labels
+	defRevLabels := make(map[string]string)
+
+	for name, comp := range af.RelatedComponentDefinitions {
+		defRevLabel, err := getDefRevLabel(name, common.ComponentType)
+		if err != nil {
+			return err
+		}
+
+		defRevLabels[defRevLabel] = fmt.Sprint(comp.GetGeneration())
+	}
+
+	for name, trait := range af.RelatedTraitDefinitions {
+		defRevLabel, err := getDefRevLabel(name, common.TraitType)
+		if err != nil {
+			return err
+		}
+
+		defRevLabels[defRevLabel] = fmt.Sprint(trait.GetGeneration())
+	}
+
+	for name, wfStep := range af.RelatedWorkflowStepDefinitions {
+		defRevLabel, err := getDefRevLabel(name, common.WorkflowStepType)
+		if err != nil {
+			return err
+		}
+
+		defRevLabels[defRevLabel] = fmt.Sprint(wfStep.GetGeneration())
+	}
+
+	for _, policy := range af.ParsedPolicies {
+		defRevLabel, err := getDefRevLabel(policy.Name, common.WorkflowStepType)
+		if err != nil {
+			return err
+		}
+
+		defRevLabels[defRevLabel] = fmt.Sprint(policy.FullTemplate.PolicyDefinition.Generation)
+	}
+
+	maps.Copy(af.AppLabels, defRevLabels)
+	maps.Copy(app.ObjectMeta.Labels, defRevLabels)
+
+	return nil
+}
+
+func removeDefRevLabels(allLabels *map[string]string) {
+	for key := range *allLabels {
+		if strings.HasPrefix(key, oam.LabelComponentDefinitionRevision) ||
+			strings.HasPrefix(key, oam.LabelTraitDefinitionRevision) ||
+			strings.HasPrefix(key, oam.LabelWorkflowStepDefinitionRevision) ||
+			strings.HasPrefix(key, oam.LabelPolicyDefinitionRevision) {
+			delete(*allLabels, key)
+		}
+	}
+}
+
+// getDefRevLabel :: TODO: add test coverage
+func getDefRevLabel(defName string, defType common.DefinitionType) (string, error) {
+	var labelPrefix, label string
+
+	switch defType {
+	case common.ComponentType:
+		labelPrefix = oam.LabelComponentDefinitionRevision
+	case common.PolicyType:
+		labelPrefix = oam.LabelPolicyDefinitionRevision
+	case common.TraitType:
+		labelPrefix = oam.LabelTraitDefinitionRevision
+	case common.WorkflowStepType:
+		labelPrefix = oam.LabelWorkflowStepDefinitionRevision
+	default:
+		return "", fmt.Errorf("unknown definition type: %s", defType)
+	}
+
+	// NOTE:: assuming here that an app will never have multiple components of the same type and name
+	label = fmt.Sprintf("%s-%s", labelPrefix, defName)
+
+	// if the label is longer than 63 characters, truncate it by using its digest to maintain uniqueness
+	if len(label) > 63 {
+		sum := sha256.Sum256([]byte(label))
+		suffix := hex.EncodeToString(sum[:])[:5]
+		label = label[:len(label)-5] + suffix
+	}
+
+	return label, nil
 }

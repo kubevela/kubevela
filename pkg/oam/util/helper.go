@@ -297,7 +297,6 @@ func fetchDefinitionRevision(ctx context.Context, cli client.Reader, definitionN
 	if err := GetDefinition(ctx, cli, defRev, defRevName); err != nil {
 		return false, nil, err
 	}
-
 	return false, defRev, nil
 }
 
