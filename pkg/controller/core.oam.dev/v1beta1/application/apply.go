@@ -408,6 +408,21 @@ collectNext:
 			break
 		}
 	}
+	traitHealthy := true
+	for _, ts := range traitStatusByType {
+		if !ts.Healthy {
+			traitHealthy = false
+			break
+		}
+	}
+	if !skipWorkload {
+		status.Healthy = workloadHealthy && traitHealthy
+	} else if !traitHealthy {
+		status.Healthy = false
+		if status.Message == "" {
+			status.Message = "traits are not healthy"
+		}
+	}
 	status.Traits = make([]common.ApplicationTraitStatus, 0, len(traitStatusByType))
 	for _, traitType := range traitOrder {
 		status.Traits = append(status.Traits, traitStatusByType[traitType])
