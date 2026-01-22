@@ -301,6 +301,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	var phase = common.ApplicationRunning
 	isHealthy := evalStatus(logCtx, handler, appFile, appParser)
+	app.Status.Healthy = isHealthy
 	if !isHealthy {
 		phase = common.ApplicationUnhealthy
 	}
@@ -507,6 +508,10 @@ func (r *Reconciler) updateStatus(ctx context.Context, app *v1beta1.Application,
 func (r *Reconciler) writeStatusByMethod(ctx context.Context, method method, app *v1beta1.Application, phase common.ApplicationPhase) error {
 	// pre-check if the status is changed
 	app.Status.Phase = phase
+	app.Status.Healthy = isHealthy(app.Status.Services)
+	if phase == common.ApplicationUnhealthy {
+		app.Status.Healthy = false
+	}
 	updateObservedGeneration(app)
 	if oldApp, ok := originalAppFrom(ctx); ok && oldApp != nil && equality.Semantic.DeepEqual(oldApp.Status, app.Status) {
 		return nil
