@@ -330,12 +330,13 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 	)
 
 	status = h.getServiceStatus(status)
-	workloadHealthy := status.Healthy
+	workloadHealthy := status.WorkloadHealthy
 	if !skipWorkload {
 		workloadHealthy, output, outputs, err = h.collectWorkloadHealthStatus(ctx, comp, &status, accessor)
 		if err != nil {
 			return nil, nil, nil, false, err
 		}
+		status.WorkloadHealthy = workloadHealthy
 		isHealth = workloadHealthy
 	}
 
@@ -366,13 +367,11 @@ collectNext:
 		}
 
 		processedTraits[tr.Name] = struct{}{}
-		if pendingEnabled {
-			traitStage, err := getTraitDispatchStage(h.Client, tr.Name, h.currentAppRev, h.app.Annotations)
-			isPostDispatch := err == nil && traitStage == PostDispatch
-			if isPostDispatch && !workloadHealthy {
-				addTraitStatus(createPendingTraitStatus(tr.Name))
-				continue collectNext
-			}
+		traitStage, stageErr := getTraitDispatchStage(h.Client, tr.Name, h.currentAppRev, h.app.Annotations)
+		isPostDispatch := stageErr == nil && traitStage == PostDispatch
+		if pendingEnabled && isPostDispatch && !workloadHealthy {
+			addTraitStatus(createPendingTraitStatus(tr.Name))
+			continue collectNext
 		}
 
 		traitStatus, _outputs, err := h.collectTraitHealthStatus(comp, tr, overrideNamespace)
@@ -512,7 +511,11 @@ func extractOutputs(templateContext map[string]interface{}) []*unstructured.Unst
 // This is called after the workflow succeeds and component health is confirmed.
 func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appParser *appfile.Parser, af *appfile.Appfile) error {
 	for _, svc := range h.services {
-		if !svc.Healthy {
+		workloadHealthy := svc.WorkloadHealthy
+		if !workloadHealthy && svc.Healthy {
+			workloadHealthy = true
+		}
+		if !workloadHealthy {
 			continue
 		}
 

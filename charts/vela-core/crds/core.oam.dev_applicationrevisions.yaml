@@ -508,6 +508,10 @@ spec:
                           - type
                           type: object
                         type: array
+                      healthy:
+                        description: Healthy indicates whether the application is
+                          healthy.
+                        type: boolean
                       latestRevision:
                         description: LatestRevision of the application configuration
                           it generates
@@ -653,9 +657,14 @@ spec:
                               - apiVersion
                               - kind
                               type: object
+                            workloadHealthy:
+                              description: WorkloadHealthy indicates the workload
+                                health without considering trait health.
+                              type: boolean
                           required:
                           - healthy
                           - name
+                          - workloadHealthy
                           type: object
                         type: array
                       status:
@@ -826,6 +835,8 @@ spec:
                           and is cleared after the restart is triggered. Use RFC3339 format or set to current time for immediate restart.
                         format: date-time
                         type: string
+                    required:
+                    - healthy
                     type: object
                 type: object
               componentDefinitions:
