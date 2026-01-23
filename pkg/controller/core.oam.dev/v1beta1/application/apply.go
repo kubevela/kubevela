@@ -341,24 +341,34 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 	}
 
 	pendingEnabled := utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply)
-	traitStatusByType := make(map[string]common.ApplicationTraitStatus, len(status.Traits))
-	traitOrder := make([]string, 0, len(status.Traits))
+	type traitKey struct {
+		Type  string
+		Index int
+	}
+	traitStatusByKey := make(map[traitKey]common.ApplicationTraitStatus, len(status.Traits))
+	traitOrder := make([]traitKey, 0, len(status.Traits))
+	traitIndexByType := make(map[string]int)
 	for _, ts := range status.Traits {
-		if _, exists := traitStatusByType[ts.Type]; exists {
+		key := traitKey{Type: ts.Type, Index: traitIndexByType[ts.Type]}
+		traitIndexByType[ts.Type]++
+		if _, exists := traitStatusByKey[key]; exists {
 			continue
 		}
-		traitStatusByType[ts.Type] = ts
-		traitOrder = append(traitOrder, ts.Type)
+		traitStatusByKey[key] = ts
+		traitOrder = append(traitOrder, key)
 	}
-	addTraitStatus := func(ts common.ApplicationTraitStatus) {
-		if _, exists := traitStatusByType[ts.Type]; !exists {
-			traitOrder = append(traitOrder, ts.Type)
+	addTraitStatus := func(key traitKey, ts common.ApplicationTraitStatus) {
+		if _, exists := traitStatusByKey[key]; !exists {
+			traitOrder = append(traitOrder, key)
 		}
-		traitStatusByType[ts.Type] = ts
+		traitStatusByKey[key] = ts
 	}
-	processedTraits := make(map[string]struct{})
+	processedTraits := make(map[traitKey]struct{})
+	traitIndexByType = make(map[string]int)
 collectNext:
 	for _, tr := range comp.Traits {
+		key := traitKey{Type: tr.Name, Index: traitIndexByType[tr.Name]}
+		traitIndexByType[tr.Name]++
 		for _, filter := range traitFilters {
 			// If filtered out by one of the filters
 			if filter(*tr) {
@@ -366,11 +376,11 @@ collectNext:
 			}
 		}
 
-		processedTraits[tr.Name] = struct{}{}
+		processedTraits[key] = struct{}{}
 		traitStage, stageErr := getTraitDispatchStage(h.Client, tr.Name, h.currentAppRev, h.app.Annotations)
 		isPostDispatch := stageErr == nil && traitStage == PostDispatch
 		if pendingEnabled && isPostDispatch && !workloadHealthy {
-			addTraitStatus(createPendingTraitStatus(tr.Name))
+			addTraitStatus(key, createPendingTraitStatus(tr.Name))
 			continue collectNext
 		}
 
@@ -384,31 +394,37 @@ collectNext:
 		if status.Message == "" && traitStatus.Message != "" {
 			status.Message = traitStatus.Message
 		}
-		addTraitStatus(traitStatus)
+		addTraitStatus(key, traitStatus)
 	}
-	if pendingEnabled && !workloadHealthy {
+	if pendingEnabled {
 		for _, component := range h.currentAppRev.Spec.Application.Spec.Components {
 			if component.Name != comp.Name {
 				continue
 			}
+			traitIndexByType = make(map[string]int)
 			for _, trait := range component.Traits {
-				if _, ok := processedTraits[trait.Type]; ok {
+				key := traitKey{Type: trait.Type, Index: traitIndexByType[trait.Type]}
+				traitIndexByType[trait.Type]++
+				if _, ok := processedTraits[key]; ok {
 					continue
 				}
-				if _, ok := traitStatusByType[trait.Type]; ok {
+				if _, ok := traitStatusByKey[key]; ok {
 					continue
 				}
 				traitStage, err := getTraitDispatchStage(h.Client, trait.Type, h.currentAppRev, h.app.Annotations)
 				isPostDispatch := err == nil && traitStage == PostDispatch
 				if isPostDispatch {
-					addTraitStatus(createPendingTraitStatus(trait.Type))
+					addTraitStatus(key, createPendingTraitStatus(trait.Type))
 				}
 			}
 			break
 		}
 	}
 	traitHealthy := true
-	for _, ts := range traitStatusByType {
+	for _, ts := range traitStatusByKey {
+		if ts.Pending {
+			continue
+		}
 		if !ts.Healthy {
 			traitHealthy = false
 			break
@@ -422,9 +438,11 @@ collectNext:
 			status.Message = "traits are not healthy"
 		}
 	}
-	status.Traits = make([]common.ApplicationTraitStatus, 0, len(traitStatusByType))
-	for _, traitType := range traitOrder {
-		status.Traits = append(status.Traits, traitStatusByType[traitType])
+	status.Traits = make([]common.ApplicationTraitStatus, 0, len(traitStatusByKey))
+	for _, key := range traitOrder {
+		if ts, ok := traitStatusByKey[key]; ok {
+			status.Traits = append(status.Traits, ts)
+		}
 	}
 	h.addServiceStatus(true, status)
 	return &status, output, outputs, isHealth, nil
@@ -539,6 +557,9 @@ func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appPars
 			return errors.WithMessagef(err, "failed to parse component %s for PostDispatch traits", comp.Name)
 		}
 
+		allTraits := make([]*appfile.Trait, len(wl.Traits))
+		copy(allTraits, wl.Traits)
+
 		// Filter to keep ONLY PostDispatch traits
 		var postDispatchTraits []*appfile.Trait
 		for _, trait := range wl.Traits {
@@ -618,6 +639,13 @@ func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appPars
 		dispatchCtx := multicluster.ContextWithClusterName(ctx.GetContext(), svc.Cluster)
 		if err := h.Dispatch(dispatchCtx, h.Client, svc.Cluster, common.WorkflowResourceCreator, readyTraits...); err != nil {
 			return errors.WithMessagef(err, "failed to dispatch PostDispatch traits for component %s", comp.Name)
+		}
+
+		// Refresh status with all traits so PostDispatch results are reflected in app status.
+		wl.Traits = allTraits
+		healthCtx := multicluster.ContextWithClusterName(ctx.GetContext(), svc.Cluster)
+		if _, _, _, _, err := h.collectHealthStatus(healthCtx, wl, svc.Namespace, false); err != nil {
+			ctx.Error(err, "failed to refresh PostDispatch trait status", "component", comp.Name)
 		}
 	}
 	return nil
