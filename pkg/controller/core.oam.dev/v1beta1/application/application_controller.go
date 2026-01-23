@@ -299,6 +299,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	default:
 	}
 
+	componentMap := make(map[string]any, len(app.Spec.Components))
+	for _, component := range app.Spec.Components {
+		componentMap[component.Name] = struct{}{}
+	}
+
+	fileteredServices := make([]common.ApplicationComponentStatus, 0)
+	for _, svc := range handler.services {
+		if _, found := componentMap[svc.Name]; found {
+			fileteredServices = append(fileteredServices, svc)
+		}
+	}
+	handler.services = fileteredServices
+
 	var phase = common.ApplicationRunning
 	isHealthy := evalStatus(logCtx, handler, appFile, appParser)
 	if !isHealthy {
