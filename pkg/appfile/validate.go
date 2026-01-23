@@ -57,7 +57,24 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 			}
 		}
 
+		// Collect workflow-supplied params for this component upfront
+		workflowParams := getWorkflowAndPolicySuppliedParams(a)
+
+		// Only augment if component has traits AND workflow supplies params (issue 7022)
+		originalParams := wl.Params
+		if len(wl.Traits) > 0 && len(workflowParams) > 0 {
+			shouldSkip, augmented := p.augmentComponentParamsForValidation(wl, workflowParams, ctxData)
+			if shouldSkip {
+				// Component has complex validation that can't be handled, skip trait validation
+				fmt.Printf("INFO: Skipping trait validation for component %q due to workflow-supplied parameters with complex validation\n", wl.Name)
+				continue
+			}
+			wl.Params = augmented
+		}
+
 		pCtx, err := newValidationProcessContext(wl, ctxData)
+		wl.Params = originalParams // Restore immediately
+
 		if err != nil {
 			return errors.WithMessagef(err, "cannot create the validation process context of app=%s in namespace=%s", a.Name, a.Namespace)
 		}
@@ -336,4 +353,201 @@ func validateAuxiliaryNameUnique() process.AuxiliaryHook {
 		}
 		return nil
 	})
+}
+
+// getWorkflowAndPolicySuppliedParams returns a set of parameter keys that will be
+// supplied by workflow steps or override policies at runtime.
+func getWorkflowAndPolicySuppliedParams(app *Appfile) map[string]bool {
+	result := make(map[string]bool)
+
+	// Collect from workflow step inputs
+	for _, step := range app.WorkflowSteps {
+		for _, in := range step.Inputs {
+			result[in.ParameterKey] = true
+		}
+	}
+
+	// Collect from override policies
+	for _, p := range app.Policies {
+		if p.Type != "override" {
+			continue
+		}
+
+		var spec overrideSpec
+		if err := json.Unmarshal(p.Properties.Raw, &spec); err != nil {
+			continue // Skip if we can't parse
+		}
+
+		for _, c := range spec.Components {
+			if len(c.Properties) == 0 {
+				continue
+			}
+
+			flat, err := flatten.Flatten(c.Properties, "", flatten.DotStyle)
+			if err != nil {
+				continue // Skip if we can't flatten
+			}
+
+			for k := range flat {
+				result[k] = true
+			}
+		}
+	}
+
+	return result
+}
+
+// getDefaultForMissingParameter checks if a parameter can be defaulted for validation
+// and returns an appropriate placeholder value.
+func getDefaultForMissingParameter(v cue.Value) (bool, any) {
+	if v.IsConcrete() {
+		return true, nil
+	}
+
+	if defaultVal, hasDefault := v.Default(); hasDefault {
+		return true, defaultVal
+	}
+
+	// Use Expr() to inspect the operation tree for complex validation
+	op, args := v.Expr()
+
+	switch op {
+	case cue.NoOp, cue.SelectorOp:
+		// No operation or field selector - simple type
+		// Use IncompleteKind for non-concrete values to get the correct type
+		return true, getTypeDefault(v.IncompleteKind())
+
+	case cue.AndOp:
+		// Conjunction (e.g., int & >0 & <100)
+		if len(args) > 1 {
+			// Check if any arg is NOT just a basic kind (indicates complex validation)
+			for _, arg := range args {
+				if arg.Kind() == cue.BottomKind {
+					return false, nil
+				}
+			}
+		}
+		return true, getTypeDefault(v.IncompleteKind())
+
+	case cue.OrOp:
+		// Disjunction (e.g., "value1" | "value2" | "value3") - likely an enum
+		if len(args) > 0 {
+			firstVal := args[0]
+			if firstVal.IsConcrete() {
+				var result any
+				if err := firstVal.Decode(&result); err == nil {
+					return true, result
+				}
+			}
+		}
+		return false, nil
+
+	default:
+		return false, nil
+	}
+}
+
+// getTypeDefault returns a simple default value based on the CUE Kind.
+func getTypeDefault(kind cue.Kind) any {
+	switch kind {
+	case cue.StringKind:
+		return "__workflow_supplied__"
+	case cue.FloatKind:
+		return 0.0
+	case cue.IntKind, cue.NumberKind:
+		return 0
+	case cue.BoolKind:
+		return false
+	case cue.ListKind:
+		return []any{}
+	case cue.StructKind:
+		return map[string]any{}
+	default:
+		return "__workflow_supplied__"
+	}
+}
+
+// augmentComponentParamsForValidation checks if workflow-supplied parameters
+// need to be augmented for trait validation. Returns (shouldSkip, augmentedParams).
+// If shouldSkip=true, the component has complex validation and should skip trait validation.
+// If shouldSkip=false, augmentedParams contains the original params plus simple defaults.
+func (p *Parser) augmentComponentParamsForValidation(wl *Component, workflowParams map[string]bool, ctxData velaprocess.ContextData) (bool, map[string]any) {
+	// Build CUE value to inspect the component's parameter schema
+	ctx := velaprocess.NewContext(ctxData)
+	baseCtx, err := ctx.BaseContextFile()
+	if err != nil {
+		return false, wl.Params // Can't inspect, proceed normally
+	}
+
+	paramSnippet, err := cueParamBlock(wl.Params)
+	if err != nil {
+		return false, wl.Params
+	}
+
+	cueSrc := strings.Join([]string{
+		renderTemplate(wl.FullTemplate.TemplateStr),
+		paramSnippet,
+		baseCtx,
+	}, "\n")
+
+	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), cueSrc)
+	if err != nil {
+		return false, wl.Params // Can't compile, proceed normally
+	}
+
+	// Get the parameter schema
+	paramVal := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
+
+	// Collect default values for workflow-supplied params that are missing
+	workflowParamDefaults := make(map[string]any)
+
+	for paramKey := range workflowParams {
+		// Skip if already provided
+		if _, exists := wl.Params[paramKey]; exists {
+			continue
+		}
+
+		// Check the field in the schema
+		fieldVal := paramVal.LookupPath(cue.ParsePath(paramKey))
+		if !fieldVal.Exists() {
+			continue // Not a parameter field
+		}
+
+		canDefault, defaultVal := getDefaultForMissingParameter(fieldVal)
+		if !canDefault {
+			// complex validation - skip
+			return true, nil
+		}
+
+		if defaultVal != nil {
+			workflowParamDefaults[paramKey] = defaultVal
+		}
+	}
+
+	if len(workflowParamDefaults) == 0 {
+		return false, wl.Params
+	}
+
+	// Create augmented params map
+	augmented := make(map[string]any)
+	for k, v := range wl.Params {
+		augmented[k] = v
+	}
+	for k, v := range workflowParamDefaults {
+		augmented[k] = v
+	}
+
+	fmt.Printf("INFO: Augmented component %q with workflow-supplied defaults for trait validation: %v\n",
+		wl.Name, getMapKeys(workflowParamDefaults))
+
+	return false, augmented
+}
+
+// getMapKeys returns the keys from a map as a slice
+func getMapKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
