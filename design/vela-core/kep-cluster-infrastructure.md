@@ -209,46 +209,58 @@ KubeVela currently uses **cluster-gateway** (`github.com/oam-dev/cluster-gateway
 - No composition or team ownership boundaries
 - Clusters are just connection endpoints, not managed resources
 
-#### Proposed Architecture: Cluster + VirtualCluster
+#### Proposed Architecture: Self-Sufficient Cluster CRD
+
+**Key Architectural Decision:** The Cluster CRD manages connectivity **directly**. This ensures the core CRD is self-sufficient.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                PROPOSED: Cluster CRD + cluster-gateway                 │
+│           PROPOSED: Cluster CRD (Self-Sufficient Connectivity)         │
 ├────────────────────────────────────────────────────────────────────────┤
 │                                                                        │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Cluster CRD (core.oam.dev/v1beta1)                    [NEW]     │   │
+│  │ Cluster CRD (core.oam.dev/v1beta1)                              │   │
 │  │                                                                 │   │
 │  │   INTENT & STATE:                                               │   │
 │  │   - blueprintRef: production-standard-v2.3.0                    │   │
 │  │   - patches: cluster-specific overrides                         │   │
 │  │   - inventory: what's deployed                                  │   │
 │  │   - health: aggregated status                                   │   │
-│  │   - lifecycle: provision/adopt/connect mode                     │   │
+│  │   - lifecycle: provision/adopt/connect/infrastructure mode      │   │
 │  │                                                                 │   │
-│  │   CONNECTIVITY (delegates to cluster-gateway):                  │   │
-│  │   - credential.secretRef → existing Secret                      │   │
-│  │                                                                 │   │
-│  └──────────────────────────────┬──────────────────────────────────┘   │
-│                                 │                                      │
-│                                 │ references                           │
-│                                 ▼                                      │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Secret + VirtualCluster (cluster-gateway)         [EXISTING     │   │
-│  │                                                                 │   │
-│  │   - Connection credentials (unchanged)                          │   │
-│  │   - API proxy mechanism (unchanged)                             │   │
-│  │   - Authentication/authorization (unchanged)                    │   │
+│  │   CONNECTIVITY (self-managed by ClusterController):             │   │
+│  │   ┌───────────────────────────────────────────────────────────┐ │   │
+│  │   │ Option 1: Inline Credentials                              │ │   │
+│  │   │   credential:                                             │ │   │
+│  │   │     type: X509 | ServiceAccountToken | Bearer             │ │   │
+│  │   │     endpoint: "https://..."                               │ │   │
+│  │   │     caData: "..."                                         │ │   │
+│  │   ├───────────────────────────────────────────────────────────┤ │   │
+│  │   │ Option 2: Secret Reference (kubeconfig)                   │ │   │
+│  │   │   credential:                                             │ │   │
+│  │   │     secretRef:                                            │ │   │
+│  │   │       name: my-kubeconfig                                 │ │   │
+│  │   │       key: kubeconfig                                     │ │   │
+│  │   ├───────────────────────────────────────────────────────────┤ │   │
+│  │   │ Option 3: Cloud Provider Native (IAM, workload identity)  │ │   │
+│  │   │   credential:                                             │ │   │
+│  │   │     cloudProvider:                                        │ │   │
+│  │   │       type: aws-eks | gcp-gke | azure-aks                 │ │   │
+│  │   └───────────────────────────────────────────────────────────┘ │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                        │
+│  ClusterController handles connectivity directly:                      │
+│  - Creates internal client for remote cluster                          │
+│  - Self-contained connectivity management                              │
 │                                                                        │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 #### Design Principles
 
-1. **Non-Breaking**: Existing cluster-gateway Secrets and VirtualClusters continue to work unchanged
-2. **Layered Abstraction**: `Cluster` CRD adds intent/state layer on top of connectivity layer
-3. **Optional Adoption**: Teams can migrate to `Cluster` CRD incrementally
+1. **Self-Sufficient**: Cluster CRD functions independently
+2. **Pluggable Connectivity**: Multiple credential options supported (inline, secretRef, cloudProvider)
+3. **Layered Abstraction**: `Cluster` CRD adds intent/state layer on top of connectivity
 4. **Single Source of Truth**: `Cluster` CRD becomes the authoritative record for managed clusters
 5. **Clear Ownership Boundaries**: Controllers NEVER modify `spec` fields they don't own (prevents circular references)
 
@@ -334,19 +346,19 @@ Without clear ownership, the following cycle could occur:
 
 #### Migration Path
 
-| Stage                     | Cluster CRD                  | cluster-gateway                      | Behavior                                                         |
-| ------------------------- | ---------------------------- | ------------------------------------ | ---------------------------------------------------------------- |
-| **Stage 0** (current)     | Not used                     | Secret only                          | Current behavior, no change                                      |
-| **Stage 1** (adoption)    | Created with `mode: connect` | Existing Secret                      | Cluster CRD references existing secret, starts tracking state    |
-| **Stage 2** (managed)     | Full spec with blueprint     | Secret managed by Cluster controller | Cluster controller ensures secret exists, applies infrastructure |
-| **Stage 3** (provisioned) | `mode: provision`            | Secret created automatically         | Cluster CRD provisions cluster AND creates connectivity          |
+| Stage                     | Cluster CRD                  | Connectivity                                 | Behavior                                                         |
+| ------------------------- | ---------------------------- | -------------------------------------------- | ---------------------------------------------------------------- |
+| **Stage 0** (current)     | Not used                     | Manual kubeconfig management                 | Current behavior, no change                                      |
+| **Stage 1** (adoption)    | Created with `mode: connect` | Any supported method (inline, secretRef, cloudProvider) | Cluster CRD tracks state                       |
+| **Stage 2** (managed)     | Full spec with blueprint     | ClusterController manages connectivity       | Controller ensures connectivity, applies infrastructure          |
+| **Stage 3** (provisioned) | `mode: provision`            | Auto-created from provisioning outputs       | Cluster CRD provisions cluster AND creates connectivity          |
 
 #### Controller Reconciliation
 
 **ClusterController reconcile algorithm:**
 
-1. Ensure cluster-gateway connectivity (create secret if needed)
-2. Get VirtualCluster client for target cluster
+1. Establish connectivity to target cluster (using spec.credential)
+2. Create internal client for remote cluster
 3. **Always** update `status.maintenance` (compute window state)
 4. If `spec.blueprintRef.revision` ≠ `status.blueprint.revision`:
    - Check rollout permission (read-only query to ClusterRolloutStrategy)
@@ -365,6 +377,38 @@ Without clear ownership, the following cycle could occur:
 - `ClusterController` READS `spec.blueprintRef`, WRITES `status.blueprint`
 - `ClusterController` NEVER modifies `spec` or `ClusterBlueprint`
 - `ClusterRolloutController` gates timing via status fields
+
+#### Controller Responsibilities Matrix
+
+**Critical Design Principle:** ClusterPlane is ONLY reconciled when referenced by a Cluster. Creating a ClusterPlane CRD does NOT create infrastructure resources—the Cluster CRD is the reconciliation trigger.
+
+| Controller | Responsibilities | Does NOT Do |
+|------------|------------------|-------------|
+| **ClusterController** | • Triggers ALL resource reconciliation<br>• Resolves Blueprint → Planes<br>• For shared planes: first Cluster triggers creation, others consume outputs<br>• For perCluster planes: creates instance per cluster<br>• Manages connectivity directly<br>• Aggregates health/inventory | • Never modifies ClusterPlane or ClusterBlueprint specs<br>• Never creates resources without a Cluster trigger |
+| **ClusterPlaneController** | • Creates ClusterPlaneRevision on publishVersion<br>• Validates inputs/outputs schema<br>• Tracks consumers (updates status.consumers)<br>• Computes status based on Cluster reports | • Does NOT create infrastructure resources<br>• Does NOT dispatch to clusters |
+| **ClusterBlueprintController** | • Creates ClusterBlueprintRevision on publishVersion<br>• Validates plane composition<br>• Resolves version constraints | • Does NOT dispatch to clusters (pull model)<br>• Does NOT modify Cluster specs |
+| **ClusterRolloutController** | • Manages wave progression timing<br>• Enforces maintenance windows<br>• Gates blueprint transitions | • Does NOT apply blueprints (only gates timing)<br>• Does NOT modify Cluster specs |
+
+**Reconciliation Flow:**
+
+```
+User creates/updates Cluster with blueprintRef
+           │
+           ▼
+┌─────────────────────────────────────────────────────────────┐
+│ ClusterController                                           │
+│   1. Check rollout permission (via ClusterRolloutController)│
+│   2. Resolve Blueprint → list of ClusterPlanes              │
+│   3. For each Plane:                                        │
+│      ├─ scope=shared AND already reconciled?                │
+│      │    → Consume outputs from existing instance          │
+│      ├─ scope=shared AND first consumer?                    │
+│      │    → Reconcile shared plane, store outputs           │
+│      └─ scope=perCluster?                                   │
+│           → Reconcile new instance for this cluster         │
+│   4. Update Cluster status with plane statuses              │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -677,6 +721,122 @@ status:
 
 A `ClusterPlane` represents a composable infrastructure layer, typically owned by one team.
 
+##### Reconciliation Trigger Model
+
+**Critical:** A ClusterPlane is a **template**, not a self-reconciling resource. Creating a ClusterPlane CRD does NOT create infrastructure resources.
+
+| Action | What Happens | What Does NOT Happen |
+|--------|--------------|----------------------|
+| Create ClusterPlane | Validates schema, creates ClusterPlaneRevision if publishVersion set | Does NOT create infrastructure |
+| Update ClusterPlane | Re-validates, creates new revision if version bumped | Does NOT update infrastructure |
+| Cluster references Blueprint containing Plane | **NOW infrastructure is created** | — |
+| Delete ClusterPlane | Blocked if consumers exist (scope=shared) | — |
+
+**When is a ClusterPlane reconciled?**
+
+```
+ClusterPlane created → Nothing happens (it's just a template)
+                       │
+                       │  Later...
+                       ▼
+Cluster created with blueprintRef → ClusterController resolves Blueprint
+                       │
+                       ▼
+               For each Plane in Blueprint:
+               ┌─────────────────────────────────────────────┐
+               │ scope=shared?                               │
+               │   ├─ Already reconciled? → Consume outputs  │
+               │   └─ First time? → Reconcile NOW            │
+               │                                             │
+               │ scope=perCluster?                           │
+               │   └─ Reconcile for THIS cluster             │
+               └─────────────────────────────────────────────┘
+```
+
+This **pull model** ensures:
+- ClusterPlanes are reusable templates
+- No orphaned infrastructure (every resource tied to a Cluster)
+- Clear lifecycle (Cluster deletion triggers cleanup)
+
+##### GitOps Integration
+
+The Cluster CRD is designed to work seamlessly with GitOps tools. Since reconciliation is triggered by **Cluster CRD changes**, standard GitOps workflows apply:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         GITOPS RECONCILIATION FLOW                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────────┐     ┌──────────────┐     ┌──────────────────────────────┐ │
+│  │  Git Repo    │     │  GitOps Tool │     │     KubeVela Controllers     │ │
+│  │              │     │              │     │                              │ │
+│  │ cluster.yaml │────▶│ Flux/ArgoCD  │────▶│  ClusterController detects   │ │
+│  │ (updated)    │     │ syncs change │     │  Cluster spec change and     │ │
+│  │              │     │ to K8s API   │     │  reconciles infrastructure   │ │
+│  └──────────────┘     └──────────────┘     └──────────────────────────────┘ │
+│                                                                             │
+│  Examples:                                                                  │
+│  • Update spec.blueprintRef.version → triggers blueprint upgrade            │
+│  • Create new Cluster CRD → triggers plane reconciliation                   │
+│  • Delete Cluster CRD → triggers infrastructure cleanup                     │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Supported GitOps Tools:**
+
+| Tool | Integration Pattern |
+|------|---------------------|
+| **Flux CD** | `Kustomization` or `HelmRelease` syncing Cluster CRDs from Git |
+| **Argo CD** | `Application` tracking Cluster manifests in Git repository |
+| **Rancher Fleet** | `GitRepo` with paths to Cluster definitions |
+| **Jenkins X** | Pipeline-driven `kubectl apply` of Cluster CRDs |
+
+**Example: Flux CD Integration**
+
+```yaml
+# flux-system/cluster-infrastructure.yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cluster-infrastructure
+  namespace: flux-system
+spec:
+  interval: 5m
+  sourceRef:
+    kind: GitRepository
+    name: infrastructure-repo
+  path: ./clusters/production
+  prune: true
+  # Flux syncs Cluster CRDs → KubeVela ClusterController reconciles
+```
+
+**Example: Argo CD Integration**
+
+```yaml
+# argocd/cluster-app.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: production-clusters
+  namespace: argocd
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/org/cluster-definitions
+    targetRevision: main
+    path: clusters/production
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # ArgoCD syncs Cluster CRDs → KubeVela ClusterController reconciles
+```
+
+**Key Principle:** GitOps tools manage the **desired state** (Cluster CRDs in Git), KubeVela's ClusterController manages the **actual state** (infrastructure reconciliation). This separation allows teams to use their existing GitOps workflows without modification.
+
 ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: ClusterPlane
@@ -789,13 +949,19 @@ spec:
         component: external-dns
         fieldPath: status.dnsZone
 
-  # Inputs consumed from other planes (same cluster)
+  # Inputs consumed from other planes (same-cluster shared planes)
+  # Used to consume outputs from shared planes defined in the same blueprint
   inputs:
-    - name: clusterCIDR
-      from: networking
-      output: podCIDR
+    - name: vpcId
+      fromPlane: shared-vpc-us-east-1   # Reference to a shared plane
+      output: vpcId                      # Output name from that plane
+      required: true                     # Fail if output not available
 
-  # Cross-cluster inputs (from remote clusters) - NEW
+    - name: privateSubnets
+      fromPlane: shared-vpc-us-east-1
+      output: privateSubnets
+
+  # Cross-cluster inputs (from planes in OTHER clusters) - NEW
   crossClusterInputs:
     - name: centralVaultEndpoint
       fromCluster: management-cluster
@@ -972,7 +1138,7 @@ spec:
           labels:
             role: workload
 
-  # Outputs used by other planes and for cluster-gateway setup
+  # Outputs used by other planes and for connectivity setup
   outputs:
     - name: vpcId
       valueFrom:
@@ -1545,7 +1711,7 @@ spec:
 **Resolution Flow:**
 
 1. **Discover**: List all `crossClusterInputs` from spec
-2. **Resolve**: For each input, use cluster-gateway to access source cluster, read `status.outputs[output]`, cache with TTL
+2. **Resolve**: For each input, use cluster connectivity (managed by ClusterController) to access source cluster, read `status.outputs[output]`, cache with TTL
 3. **Validate**: Required inputs must resolve (→ phase=Blocked if not), optional use fallback
 4. **Inject**: Template substitution `{{ inputs.{name} }}`
 5. **Watch**: Re-reconcile when source outputs change
@@ -1608,6 +1774,117 @@ In enterprise deployments, infrastructure resources like VPCs, NAT Gateways, and
 | ------------ | ------------------------------------------------------------------ | --------------------------------------------------- |
 | `perCluster` | Resources created for each cluster using the blueprint (default)   | EKS clusters, node groups, cluster-specific IAM     |
 | `shared`     | Resources created once, outputs available to all clusters in scope | VPCs, NAT Gateways, shared subnets, Transit Gateway |
+
+##### Shared Plane Ownership Model
+
+**The Critical Question:** Who "owns" a shared plane's resources? Since ClusterPlanes are only reconciled when referenced by a Cluster, we need clear ownership semantics.
+
+**Ownership Pattern: Infrastructure Preparer Cluster**
+
+The recommended pattern uses a dedicated **infrastructure mode Cluster** to own shared planes:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    INFRASTRUCTURE PREPARER PATTERN                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Hub/Management Cluster                                                     │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                                                                       │  │
+│  │  Cluster: us-east-1-infrastructure (mode: infrastructure)             │  │
+│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
+│  │  │ Blueprint: shared-infrastructure-us-east                        │  │  │
+│  │  │   └─ ClusterPlane: shared-vpc (scope: shared)                   │  │  │
+│  │  │   └─ ClusterPlane: shared-transit-gw (scope: shared)            │  │  │
+│  │  │   └─ ClusterPlane: shared-dns (scope: shared)                   │  │  │
+│  │  └─────────────────────────────────────────────────────────────────┘  │  │
+│  │                          │ outputs consumed by                        │  │
+│  │                          ▼                                            │  │
+│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
+│  │  │ Cluster: prod-us-east-1-a (mode: provision)                     │  │  │
+│  │  │   └─ Blueprint: production-eks                                  │  │  │
+│  │  │        └─ ClusterPlane: shared-vpc (consumes outputs)           │  │  │
+│  │  │        └─ ClusterPlane: eks-cluster (scope: perCluster)         │  │  │
+│  │  └─────────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                       │  │
+│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
+│  │  │ Cluster: prod-us-east-1-b (mode: provision)                     │  │  │
+│  │  │   └─ Blueprint: production-eks                                  │  │  │
+│  │  │        └─ ClusterPlane: shared-vpc (consumes outputs)           │  │  │
+│  │  │        └─ ClusterPlane: eks-cluster (scope: perCluster)         │  │  │
+│  │  └─────────────────────────────────────────────────────────────────┘  │  │
+│  │                                                                       │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  KEY INSIGHT: The infrastructure preparer cluster OWNS the shared planes.   │
+│  Workload clusters CONSUME outputs but don't trigger shared plane creation. │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Infrastructure Preparer Cluster:**
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: us-east-1-infrastructure
+  namespace: vela-system
+  labels:
+    cluster.oam.dev/role: infrastructure-preparer
+    region: us-east-1
+spec:
+  # Infrastructure mode - not a real K8s cluster, just owns shared planes
+  mode: infrastructure
+
+  # No credentials needed - this is a virtual/logical cluster
+  # Resources are created in cloud (AWS/GCP) or hub cluster namespace
+
+  # Where shared plane resources are created
+  infrastructureTarget:
+    type: cloud      # cloud | hub
+    providerRef:
+      name: aws-production
+    # OR for hub-local shared resources:
+    # type: hub
+    # namespace: shared-infrastructure
+
+  # Blueprint containing shared planes
+  blueprintRef:
+    name: shared-infrastructure-us-east
+```
+
+**Why This Pattern?**
+
+| Benefit | Explanation |
+|---------|-------------|
+| **Clear Ownership** | Platform team owns the preparer, shared planes have explicit owner |
+| **Natural Deletion Protection** | Preparer blocked from deletion while consumers exist |
+| **Clean RBAC** | Platform team manages preparer, app teams manage workload clusters |
+| **Independent Lifecycle** | Shared infra lifecycle separate from workload cluster lifecycle |
+| **Label-Based Access** | `sharedWith.clusterSelector` controls which clusters can consume |
+
+**Lifecycle Semantics:**
+
+```
+1. Platform team creates us-east-1-infrastructure (mode: infrastructure)
+   → ClusterController reconciles shared planes (VPC, DNS, etc.)
+   → Shared plane status.phase = Running
+
+2. App team creates prod-us-east-1-a with production-eks blueprint
+   → Blueprint references shared-vpc
+   → ClusterController sees shared-vpc already reconciled
+   → Consumes outputs (vpcId, subnetIds) without re-creating
+   → Updates shared plane status.consumers
+
+3. App team deletes prod-us-east-1-a
+   → ClusterController removes from shared plane consumers
+   → Shared plane resources REMAIN (owned by preparer)
+
+4. Platform team tries to delete us-east-1-infrastructure
+   → BLOCKED: "2 workload clusters consuming shared planes"
+   → Must remove consumers first (or force delete with warning)
+```
 
 **Shared Plane Definition:**
 
@@ -1742,7 +2019,20 @@ spec:
 
 The blueprint doesn't need special sharing configuration—the plane's `scope` field determines the behavior.
 
-**Deletion Protection:**
+**Deletion Protection and Lifecycle Semantics:**
+
+##### Deletion Semantics Matrix
+
+| Resource | Deletion Behavior | Blocked When |
+|----------|-------------------|--------------|
+| **ClusterPlane (scope=shared)** | BLOCKED if consumers > 0 | Any Cluster/Blueprint consuming outputs |
+| **ClusterPlane (scope=perCluster)** | Allowed | Never blocked (per-cluster instances cleaned up) |
+| **ClusterBlueprint** | BLOCKED if referenced | Any Cluster has `blueprintRef` pointing to it |
+| **ClusterBlueprintRevision** | BLOCKED if active | Any Cluster using this specific revision |
+| **Cluster (mode=infrastructure)** | BLOCKED if consumers | Workload clusters consuming its shared planes |
+| **Cluster (mode=provision/adopt/connect)** | Allowed with cleanup | Never blocked (triggers resource cleanup) |
+
+##### ClusterPlane Deletion
 
 Shared planes cannot be deleted while clusters are using them:
 
@@ -1759,6 +2049,48 @@ Error from server: admission webhook "clusterplane.validation.oam.dev" denied th
 
   To delete, first remove these clusters or update their blueprints.
   Use --force to delete anyway (DANGER: will orphan dependent infrastructure)
+```
+
+##### Cluster Deletion Cascade
+
+When a Cluster is deleted, the following cleanup occurs:
+
+```
+Cluster deletion triggered
+           │
+           ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Remove from shared plane consumers                       │
+│    → Decrements status.consumers.count on each shared plane │
+│    → Updates status.consumers.clusters list                 │
+│                                                             │
+│ 2. Clean up perCluster plane instances                      │
+│    → Deletes resources created for this cluster             │
+│    → Removes ResourceTrackers                               │
+│                                                             │
+│ 3. For mode=provision: Destroy cloud infrastructure         │
+│    → Triggers Terraform/Crossplane cleanup                  │
+│    → VPC, EKS, nodes are deleted                            │
+│                                                             │
+│ 4. Remove connectivity credentials (if controller-created)  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+##### Force Deletion
+
+Force deletion bypasses protection but requires explicit acknowledgment:
+
+```bash
+# Force delete with explicit confirmation
+$ kubectl delete clusterplane shared-vpc-us-east-1 \
+    --cascade=orphan \
+    --force
+
+⚠️  WARNING: Force deletion will orphan dependent infrastructure!
+    3 clusters depend on this shared plane.
+    Their resources will NOT be automatically cleaned up.
+
+Type 'DELETE shared-vpc-us-east-1' to confirm:
 ```
 
 **Status Tracking:**
@@ -2107,7 +2439,7 @@ spec:
         properties:
           plane: aws-foundation
           # For provisioning mode, this creates the actual K8s cluster
-          # Outputs are used to create cluster-gateway secret automatically
+          # Outputs are used to create connectivity credentials automatically
 
       - name: wait-for-cluster
         type: suspend
@@ -3231,21 +3563,23 @@ A key design goal is supporting the **full cluster lifecycle** - from provisioni
 │  │ Applied         │              │ Reconciled      │                       │
 │  └─────────────────┘              └─────────────────┘                       │
 │                                                                             │
-│  MODE 3: CONNECT                                                            │
-│  ───────────────                                                            │
-│  "Just manage what's in the cluster, don't provision infrastructure"        │
+│  MODE 3: CONNECT                 MODE 4: INFRASTRUCTURE                     │
+│  ───────────────                 ─────────────────────                      │
+│  "Just manage what's in the      "Virtual cluster to own shared            │
+│   cluster, no provisioning"       infrastructure planes"                    │
 │                                                                             │
-│  ┌─────────────────┐                                                        │
-│  │ Kubeconfig      │                                                        │
-│  │ + Blueprint     │                                                        │
-│  │ (optional)      │                                                        │
-│  └────────┬────────┘                                                        │
-│           │                                                                 │
-│           ▼                                                                 │
-│  ┌─────────────────┐                                                        │
-│  │ Inventory Scan  │                                                        │
-│  │ Blueprint Apply │                                                        │
-│  └─────────────────┘                                                        │
+│  ┌─────────────────┐              ┌─────────────────┐                       │
+│  │ Kubeconfig      │              │ Blueprint with  │                       │
+│  │ + Blueprint     │              │ shared planes   │                       │
+│  │ (optional)      │              │ (no kubeconfig) │                       │
+│  └────────┬────────┘              └────────┬────────┘                       │
+│           │                                │                                │
+│           ▼                                ▼                                │
+│  ┌─────────────────┐              ┌─────────────────┐                       │
+│  │ Inventory Scan  │              │ Shared Planes   │                       │
+│  │ Blueprint Apply │              │ Reconciled      │                       │
+│  └─────────────────┘              │ Outputs Exposed │                       │
+│                                   └─────────────────┘                       │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -3296,7 +3630,7 @@ status:
   connection:
     endpoint: "" # Populated when EKS is ready
     certificateAuthority: ""
-    # cluster-gateway secret is auto-created from plane outputs
+    # Connectivity credentials are auto-created from plane outputs
 
   # Plane provisioning progress (from blueprint)
   planes:
@@ -3388,96 +3722,86 @@ spec:
 
 #### Mode 2: Adopt - Connect to Existing Cluster
 
-Connect to an existing cluster using **KubeVela's existing cluster-gateway pattern**. This is the same mechanism used by `vela cluster join` - no new credential model is introduced.
+Connect to an existing cluster and bring it under management. The ClusterController manages connectivity directly.
 
-**Using Existing cluster-gateway Secret:**
+**Connectivity Options:**
+
+| Option | Description | Use Case |
+|--------|-------------|----------|
+| `credential` (inline) | Credentials directly in spec | Simple, self-contained |
+| `credential.secretRef` | Reference to kubeconfig secret | Standard Kubernetes pattern |
+| `credential.cloudProvider` | Cloud-native auth (IAM, workload identity) | Production cloud deployments |
+
+**Option 1: Inline Credentials:**
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Cluster
 metadata:
-  name: legacy-production
-  namespace: vela-system
+  name: new-partner-cluster
 spec:
-  # MODE: Adopt existing cluster
   mode: adopt
 
-  # Use existing cluster-gateway secret (same as vela cluster join)
-  # This is the SAME secret format that cluster-gateway already uses
-  clusterGatewayRef:
-    name: legacy-production # Secret name in vela-system namespace
+  # Inline credential - controller manages connectivity directly
+  credential:
+    type: X509  # X509, ServiceAccountToken, Bearer
+    endpoint: "https://partner.k8s.example.com:6443"
+    caData: "LS0tLS1CRUdJTi..."
+    certData: "LS0tLS1CRUdJTi..."
+    keyData: "LS0tLS1CRUdJTi..."
 
-  # Adoption configuration - discover what's already running
-  adoption:
-    # What to do with existing resources
-    existingResources:
-      mode: discover # discover, reconcile, ignore
+  blueprintRef:
+    name: partner-minimal
+```
 
-    # Map existing components to planes
-    componentMapping:
-      autoDiscover: true
+**Option 2: Secret Reference (Standard Kubernetes pattern):**
 
-  # Blueprint to reconcile towards
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: production-us-east-1
+spec:
+  mode: adopt
+
+  # Reference any kubeconfig secret
+  credential:
+    secretRef:
+      name: prod-cluster-kubeconfig
+      namespace: vela-system
+      key: kubeconfig  # Optional, defaults to "kubeconfig"
+
   blueprintRef:
     name: production-standard
-    reconcileMode: dryRun # dryRun, gradual, immediate
+```
 
-status:
+**Option 3: Cloud Provider Native Auth (Recommended for cloud):**
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: eks-production
+spec:
   mode: adopt
-  phase: Discovered
-  # ... adoption status
-```
 
-**Leveraging Existing cluster-gateway Pattern:**
+  # Use cloud-native authentication (no static credentials)
+  credential:
+    cloudProvider:
+      type: aws-eks
+      clusterName: my-eks-cluster
+      region: us-east-1
+      # Uses workload identity / IRSA - no credentials stored
+      # ClusterController assumes IAM role to get temporary credentials
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│               CLUSTER-GATEWAY INTEGRATION (EXISTING PATTERN)                │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  EXISTING: vela cluster join                                                │
-│  ───────────────────────────                                                │
-│  $ vela cluster join kubeconfig.yaml --name legacy-production               │
-│                                                                             │
-│  Creates Secret in vela-system:                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │ apiVersion: v1                                                      │    │
-│  │ kind: Secret                                                        │    │
-│  │ metadata:                                                           │    │
-│  │   name: legacy-production                                           │    │
-│  │   namespace: vela-system                                            │    │
-│  │   labels:                                                           │    │
-│  │     cluster.core.oam.dev/cluster-credential-type: X509              │    │
-│  │ data:                                                               │    │
-│  │   endpoint: <base64>                                                │    │
-│  │   ca.crt: <base64>                                                  │    │
-│  │   tls.crt: <base64>                                                 │    │
-│  │   tls.key: <base64>                                                 │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-│  NEW: Cluster CRD references the SAME secret                                │
-│  ─────────────────────────────────────────────                              │
-│  spec:                                                                      │
-│    clusterGatewayRef:                                                       │
-│      name: legacy-production  # ← Points to existing secret                 │
-│                                                                             │
-│  BENEFITS:                                                                  │
-│  ─────────                                                                  │
-│  ✓ No new credential format - uses existing cluster-gateway secrets         │
-│  ✓ Existing clusters joined via CLI work immediately                        │
-│  ✓ Single source of truth for cluster connectivity                          │
-│  ✓ VirtualCluster API continues to work unchanged                           │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+  blueprintRef:
+    name: production-standard
 ```
 
 **Step-by-Step Adoption Workflow:**
 
 ```yaml
-# Step 1: Join cluster using existing CLI (creates cluster-gateway secret)
-# $ vela cluster join kubeconfig.yaml --name legacy-production
-
-# Step 2: Create Cluster CRD to add blueprint management
+# Step 1: Create Cluster CRD with credentials (no CLI needed)
 apiVersion: core.oam.dev/v1beta1
 kind: Cluster
 metadata:
@@ -3485,8 +3809,9 @@ metadata:
   namespace: vela-system
 spec:
   mode: adopt
-  clusterGatewayRef:
-    name: legacy-production # Use existing cluster-gateway secret
+  credential:
+    secretRef:
+      name: legacy-production-kubeconfig
   adoption:
     existingResources:
       mode: discover
@@ -3495,7 +3820,7 @@ spec:
     reconcileMode: dryRun
 
 ---
-# Step 3: After reviewing status.adoptionStatus.discoveredComponents:
+# Step 2: After reviewing status.adoptionStatus.discoveredComponents:
 
 apiVersion: core.oam.dev/v1beta1
 kind: Cluster
@@ -3503,11 +3828,12 @@ metadata:
   name: legacy-production
 spec:
   mode: adopt
-  clusterGatewayRef:
-    name: legacy-production
+  credential:
+    secretRef:
+      name: legacy-production-kubeconfig
   adoption:
     existingResources:
-      mode: reconcile # Now actually reconcile
+      mode: reconcile  # Now actually reconcile
   blueprintRef:
     name: production-standard
     reconcileMode: gradual
@@ -3523,33 +3849,9 @@ spec:
       progression: manual
 ```
 
-**Alternative: Create Cluster with Inline Credentials:**
-
-If no cluster-gateway secret exists, you can provide credentials inline (controller creates the secret):
-
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: Cluster
-metadata:
-  name: new-partner-cluster
-spec:
-  mode: adopt
-  # Inline credential - controller creates cluster-gateway secret
-  credential:
-    type: X509 # X509, ServiceAccountToken (same as cluster-gateway types)
-    endpoint: "https://partner.k8s.example.com:6443"
-    caData: "LS0tLS1CRUdJTi..."
-    certData: "LS0tLS1CRUdJTi..."
-    keyData: "LS0tLS1CRUdJTi..."
-  blueprintRef:
-    name: partner-minimal
-```
-
-This creates a cluster-gateway secret automatically, equivalent to `vela cluster join`.
-
 #### Mode 3: Connect - Manage Existing Cluster
 
-Simply connect to an existing cluster without adopting infrastructure management. Uses the existing cluster-gateway secret (same as Mode 2).
+Simply connect to an existing cluster without adopting infrastructure management. Uses the same connectivity options as Mode 2.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -3561,9 +3863,18 @@ spec:
   # MODE: Just connect and manage Kubernetes resources
   mode: connect
 
-  # Use existing cluster-gateway secret (same as vela cluster join)
-  clusterGatewayRef:
-    name: partner-cluster # Existing cluster-gateway secret
+  # Any connectivity option works (see Mode 2 for all options)
+  credential:
+    secretRef:
+      name: partner-cluster-kubeconfig
+
+  # Or use cloud provider auth:
+  # credential:
+  #   cloudProvider:
+  #     type: gcp-gke
+  #     projectId: my-project
+  #     clusterName: partner-cluster
+  #     region: us-central1
 
   # What to manage (optional - limits scope)
   managementScope:
@@ -3588,6 +3899,96 @@ status:
   managementScope:
     managedNamespaces: 5
     managedResources: 47
+```
+
+#### Mode 4: Infrastructure - Own Shared Planes
+
+A **virtual cluster** that owns shared infrastructure planes. This is NOT a real Kubernetes cluster—it's a logical grouping for shared infrastructure with clear ownership semantics.
+
+**Key Characteristics:**
+- No kubeconfig or credentials needed (not a real K8s cluster)
+- Owns shared planes (VPC, Transit Gateway, shared DNS, etc.)
+- Workload clusters consume outputs from these shared planes
+- Deletion blocked while consumers exist
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: us-east-1-infrastructure
+  namespace: vela-system
+  labels:
+    cluster.oam.dev/role: infrastructure-preparer
+    region: us-east-1
+spec:
+  # MODE: Infrastructure preparer - owns shared planes
+  mode: infrastructure
+
+  # Where shared plane resources are created
+  infrastructureTarget:
+    # Option 1: Cloud resources (VPC, NAT Gateway, etc.)
+    type: cloud
+    providerRef:
+      name: aws-production
+
+    # Option 2: Hub cluster namespace (for K8s-native shared resources)
+    # type: hub
+    # namespace: shared-infrastructure-us-east
+
+  # Blueprint containing shared planes
+  blueprintRef:
+    name: shared-infrastructure-us-east
+
+status:
+  mode: infrastructure
+  phase: Ready
+
+  # Shared plane status
+  planes:
+    - name: shared-vpc
+      scope: shared
+      phase: Running
+      outputs:
+        vpcId: "vpc-0abc123def456"
+        privateSubnets: '["subnet-1a","subnet-1b","subnet-1c"]'
+
+  # Workload clusters consuming these shared planes
+  consumers:
+    count: 3
+    clusters:
+      - name: prod-us-east-1-a
+        consumedPlanes: [shared-vpc]
+      - name: prod-us-east-1-b
+        consumedPlanes: [shared-vpc]
+      - name: prod-us-east-1-c
+        consumedPlanes: [shared-vpc]
+```
+
+**Why Infrastructure Mode?**
+
+| Without Infrastructure Mode | With Infrastructure Mode |
+|-----------------------------|--------------------------|
+| Shared plane ownership unclear | Platform team owns infrastructure cluster |
+| First workload cluster triggers creation | Infrastructure cluster triggers creation |
+| Deletion semantics confusing | Natural deletion protection via consumers |
+| No clear RBAC boundary | Platform team manages infra, app teams manage workloads |
+
+**Deletion Protection:**
+
+```bash
+$ kubectl delete cluster us-east-1-infrastructure
+
+Error from server: admission webhook "cluster.validation.oam.dev" denied the request:
+  Cannot delete infrastructure cluster "us-east-1-infrastructure"
+
+  3 workload clusters are consuming shared planes:
+    - prod-us-east-1-a (consuming: shared-vpc)
+    - prod-us-east-1-b (consuming: shared-vpc)
+    - prod-us-east-1-c (consuming: shared-vpc)
+
+  To delete:
+  1. Remove or migrate consumers first
+  2. Or use --force (DANGER: will orphan shared infrastructure)
 ```
 
 #### ClusterProviderDefinition
@@ -3887,9 +4288,9 @@ vela cluster import-terraform production-us-east-1 \
 │                                                                             │
 │  After Provisioning:                                                        │
 │  ──────────────────                                                         │
-│  1. Cluster controller obtains kubeconfig                                   │
+│  1. ClusterController obtains kubeconfig                                    │
 │  2. Updates Cluster status with connection info                             │
-│  3. Triggers Blueprint controller to apply planes                           │
+│  3. ClusterController applies planes from referenced Blueprint              │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -5432,14 +5833,15 @@ spec:
 
 When these clusters are created:
 
-1. **shared-vpc-us-east-1** plane reconciles **once**:
+1. **shared-vpc-us-east-1** plane **is reconciled once** (by the first Cluster referencing it, or by an infrastructure-mode preparer cluster):
 
-   - Creates VPC, subnets, NAT Gateways
-   - Outputs become available
+   - VPC, subnets, NAT Gateways are created
+   - Outputs become available for consumption
 
-2. **eks-cluster** plane reconciles **three times** (once per cluster):
+2. **eks-cluster** plane **is reconciled three times** (once per Cluster that references it):
+   - Each Cluster triggers its own reconciliation
    - Each gets unique EKS cluster name from `${context.cluster.name}`
-   - All use the same VPC via `{{ inputs.vpcId }}`
+   - All consume the same VPC outputs via `{{ inputs.vpcId }}`
    - Each has its own node groups
 
 **Status After Provisioning:**
@@ -5535,7 +5937,7 @@ cluster.core.oam.dev "production-us-east-1-a" deleted
 
 | Field                                               | Type                | Description                                                   |
 | --------------------------------------------------- | ------------------- | ------------------------------------------------------------- |
-| `spec.mode`                                         | string              | Cluster mode: `provision`, `adopt`, or `connect`              |
+| `spec.mode`                                         | string              | Cluster mode: `provision`, `adopt`, `connect`, or `infrastructure` |
 | `spec.provider.type`                                | string              | Cloud provider: `aws`, `gcp`, `azure`, `kind`, `k3s`          |
 | `spec.provider.credentialRef`                       | SecretRef           | Reference to cloud credentials secret                         |
 | `spec.provider.region`                              | string              | Cloud region for provisioning                                 |
@@ -6601,6 +7003,41 @@ kubectl get clusterblueprints -A
 kubectl get clusterrollouts -A
 kubectl describe cluster production-us-east-1
 ```
+
+---
+
+## Appendix A: Backward Compatibility with cluster-gateway
+
+For organizations currently using `vela cluster join` and cluster-gateway secrets, backward compatibility is provided through the optional `clusterGatewayRef` field.
+
+### Migration Options
+
+| Current State | Migration Path | Effort |
+|--------------|----------------|--------|
+| Clusters joined via `vela cluster join` | Create Cluster CRD with `clusterGatewayRef` pointing to existing secret | Minimal |
+| cluster-gateway secrets in `vela-system` | Use `clusterGatewayRef`, or migrate to `credential.secretRef` | Optional |
+| Custom cluster-gateway configurations | Reference existing secrets OR migrate to cloud-native auth | Choose based on preference |
+
+### Example: Referencing Existing cluster-gateway Secret
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: my-existing-cluster
+spec:
+  mode: connect
+  # Reference existing cluster-gateway secret
+  clusterGatewayRef:
+    name: my-existing-cluster  # Same name as vela cluster join created
+    namespace: vela-system
+```
+
+### Key Points
+
+- **No forced migration**: Existing cluster-gateway secrets continue to work
+- **Incremental adoption**: Teams can migrate clusters at their own pace
+- **Future-proof**: New clusters should use `credential` options (inline, secretRef, cloudProvider)
 
 ---
 
