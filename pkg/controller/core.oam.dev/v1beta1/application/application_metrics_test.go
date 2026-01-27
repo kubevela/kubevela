@@ -184,16 +184,28 @@ func TestBuildWorkflowStatus(t *testing.T) {
 func TestBuildServiceDetails(t *testing.T) {
 	tests := []struct {
 		name     string
+		app      *v1beta1.Application
 		services []common.ApplicationComponentStatus
 		want     []map[string]interface{}
 	}{
 		{
-			name:     "empty services",
+			name: "empty services",
+			app: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{},
+			},
 			services: []common.ApplicationComponentStatus{},
 			want:     []map[string]interface{}{},
 		},
 		{
 			name: "services with details",
+			app: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{Name: "web", Type: "webservice"},
+						{Name: "db", Type: "worker"},
+					},
+				},
+			},
 			services: []common.ApplicationComponentStatus{
 				{
 					Name:      "web",
@@ -214,6 +226,7 @@ func TestBuildServiceDetails(t *testing.T) {
 			want: []map[string]interface{}{
 				{
 					"name":      "web",
+					"type":      "webservice",
 					"namespace": "default",
 					"cluster":   "local",
 					"healthy":   true,
@@ -222,6 +235,7 @@ func TestBuildServiceDetails(t *testing.T) {
 				},
 				{
 					"name":      "db",
+					"type":      "worker",
 					"namespace": "default",
 					"cluster":   "local",
 					"healthy":   false,
@@ -229,11 +243,66 @@ func TestBuildServiceDetails(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "services with traits",
+			app: &v1beta1.Application{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{Name: "web", Type: "webservice"},
+					},
+				},
+			},
+			services: []common.ApplicationComponentStatus{
+				{
+					Name:      "web",
+					Namespace: "default",
+					Cluster:   "local",
+					Healthy:   true,
+					Message:   "Running",
+					Traits: []common.ApplicationTraitStatus{
+						{
+							Type:    "ingress",
+							Healthy: true,
+							Message: "Ingress ready",
+							Details: map[string]string{"host": "example.com"},
+						},
+						{
+							Type:    "autoscaler",
+							Healthy: false,
+							Message: "Scaling",
+						},
+					},
+				},
+			},
+			want: []map[string]interface{}{
+				{
+					"name":      "web",
+					"type":      "webservice",
+					"namespace": "default",
+					"cluster":   "local",
+					"healthy":   true,
+					"message":   "Running",
+					"traits": []map[string]interface{}{
+						{
+							"type":    "ingress",
+							"healthy": true,
+							"message": "Ingress ready",
+							"details": map[string]string{"host": "example.com"},
+						},
+						{
+							"type":    "autoscaler",
+							"healthy": false,
+							"message": "Scaling",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildServiceDetails(tt.services)
+			got := buildServiceDetails(tt.app, tt.services)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -462,6 +531,12 @@ func TestUpdateMetricsAndLogFunction(t *testing.T) {
 					Name:      "test-app",
 					Namespace: "default",
 					UID:       "12345",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{Name: "web", Type: "webservice"},
+						{Name: "db", Type: "worker"},
+					},
 				},
 				Status: common.AppStatus{
 					Phase: common.ApplicationRunning,

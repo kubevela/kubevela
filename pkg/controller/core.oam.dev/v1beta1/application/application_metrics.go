@@ -42,7 +42,7 @@ func (r *Reconciler) updateMetricsAndLog(_ context.Context, app *v1beta1.Applica
 	updatePhaseMetrics(app)
 
 	workflowStatus := buildWorkflowStatus(app.Status.Workflow)
-	serviceDetails := buildServiceDetails(app.Status.Services)
+	serviceDetails := buildServiceDetails(app, app.Status.Services)
 	logApplicationStatus(app, healthStatus, workflowStatus, serviceDetails)
 }
 
@@ -106,13 +106,24 @@ func buildWorkflowStatus(workflow *common.WorkflowStatus) map[string]interface{}
 	}
 }
 
+// getComponentType looks up the component type from the application spec
+func getComponentType(app *v1beta1.Application, componentName string) string {
+	for _, comp := range app.Spec.Components {
+		if comp.Name == componentName {
+			return comp.Type
+		}
+	}
+	return ""
+}
+
 // buildServiceDetails builds service details for logging
-func buildServiceDetails(services []common.ApplicationComponentStatus) []map[string]interface{} {
+func buildServiceDetails(app *v1beta1.Application, services []common.ApplicationComponentStatus) []map[string]interface{} {
 	serviceDetails := make([]map[string]interface{}, 0, len(services))
 
 	for _, svc := range services {
 		svcDetails := map[string]interface{}{
 			"name":      svc.Name,
+			"type":      getComponentType(app, svc.Name),
 			"namespace": svc.Namespace,
 			"cluster":   svc.Cluster,
 			"healthy":   svc.Healthy,
@@ -120,6 +131,23 @@ func buildServiceDetails(services []common.ApplicationComponentStatus) []map[str
 		}
 		if len(svc.Details) > 0 {
 			svcDetails["details"] = svc.Details
+		}
+		if len(svc.Traits) > 0 {
+			traits := make([]map[string]interface{}, 0, len(svc.Traits))
+			for _, trait := range svc.Traits {
+				traitDetails := map[string]interface{}{
+					"type":    trait.Type,
+					"healthy": trait.Healthy,
+				}
+				if trait.Message != "" {
+					traitDetails["message"] = trait.Message
+				}
+				if len(trait.Details) > 0 {
+					traitDetails["details"] = trait.Details
+				}
+				traits = append(traits, traitDetails)
+			}
+			svcDetails["traits"] = traits
 		}
 		serviceDetails = append(serviceDetails, svcDetails)
 	}
