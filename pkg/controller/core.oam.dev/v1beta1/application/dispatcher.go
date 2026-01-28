@@ -255,7 +255,7 @@ func createPendingTraitStatus(traitName string) common.ApplicationTraitStatus {
 		Type:    traitName,
 		Healthy: false,
 		Pending: true,
-		Message: "\u23f3",
+		Message: "\u23f3 Waiting for component to be healthy",
 	}
 }
 
