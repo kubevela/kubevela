@@ -415,6 +415,7 @@ isHealth: *_isHealth | bool
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: app.Name}, checkApp)).Should(Succeed())
 				g.Expect(checkApp.Status.Services).ShouldNot(BeEmpty())
 				svc := checkApp.Status.Services[0]
+				g.Expect(svc.Healthy).Should(BeFalse())
 
 				traitFound := false
 				for _, traitStatus := range svc.Traits {
@@ -572,7 +573,7 @@ isHealth: *_isHealth | bool
 			By("Creating application that uses PostDispatch traits")
 			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
-			By("Waiting for trait to remain pending and not show in status while component image fails")
+			By("Waiting for trait to remain pending and show in application detail status while component image fails")
 			Eventually(func(g Gomega) {
 				checkApp := &v1beta1.Application{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: app.Name}, checkApp)).Should(Succeed())
@@ -580,13 +581,17 @@ isHealth: *_isHealth | bool
 				svc := checkApp.Status.Services[0]
 				g.Expect(svc.Healthy).Should(BeFalse())
 
+
 				traitFound := false
 				for _, traitStatus := range svc.Traits {
-					if traitStatus.Type == deploymentTraitName {
+					if traitStatus.Type == deploymentTraitName || traitStatus.Type == cmTraitName {
 						traitFound = true
+						g.Expect(traitStatus.Healthy).Should(BeFalse())
+						g.Expect(traitStatus.Pending).Should(BeTrue())
+						g.Expect(traitStatus.Message).Should(ContainSubstring("Waiting for component to be healthy"))
 					}
 				}
-				g.Expect(traitFound).Should(BeFalse())
+				g.Expect(traitFound).Should(BeTrue())
 			}, 180*time.Second, 5*time.Second).Should(Succeed())
 		})
 	})
@@ -703,6 +708,10 @@ outputs: statusConfigMap: {
 								{
 									Type: traitDefName,
 								},
+								{
+									Type: "scaler",
+									Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":3}`)},
+								},
 							},
 						},
 					},
@@ -715,6 +724,10 @@ outputs: statusConfigMap: {
 				checkApp := &v1beta1.Application{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-postdispatch-app"}, checkApp)).Should(Succeed())
 				g.Expect(checkApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+
+				dep := &appsv1.Deployment{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-worker"}, dep)).Should(Succeed())
+				g.Expect(*dep.Spec.Replicas).Should(Equal(int32(3)))
 			}, 60*time.Second, 3*time.Second).Should(Succeed())
 
 			By("Verifying component Deployment is created and healthy")
@@ -732,7 +745,7 @@ outputs: statusConfigMap: {
 				g.Expect(status).ShouldNot(BeNil())
 
 				replicas, _, _ := unstructured.NestedInt64(status, "replicas")
-				g.Expect(replicas).Should(Equal(int64(1)))
+				g.Expect(replicas).Should(Equal(int64(3)))
 			}, 30*time.Second, 2*time.Second).Should(Succeed())
 
 			By("Verifying PostDispatch trait ConfigMap was created with status data")
@@ -741,8 +754,8 @@ outputs: statusConfigMap: {
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-component-status"}, cm)).Should(Succeed())
 				g.Expect(cm.Data).ShouldNot(BeNil())
 				g.Expect(cm.Data["componentName"]).Should(Equal("test-component"))
-				g.Expect(cm.Data["replicas"]).Should(Equal("1"))
-				g.Expect(cm.Data["readyReplicas"]).Should(Equal("1"))
+				g.Expect(cm.Data["replicas"]).Should(Equal("3"))
+				g.Expect(cm.Data["readyReplicas"]).Should(Equal("3"))
 			}, 300*time.Second, 3*time.Second).Should(Succeed())
 
 			By("Verifying PostDispatch trait appears in application status")
@@ -908,14 +921,15 @@ outputs: marker: {
 				foundPendingTrait := false
 				for _, trait := range svc.Traits {
 					if trait.Type == traitDefName {
-						// Trait should show as pending and not healthy
+						// Trait should be pending and not healthy
 						foundPendingTrait = true
 						break
 					}
 				}
-				// If workflow is running, we will not be able to see the pending trait status yet
 				if checkApp.Status.Phase == common.ApplicationRunningWorkflow {
-					g.Expect(foundPendingTrait).Should(BeFalse())
+					g.Expect(foundPendingTrait).Should(BeTrue())
+					g.Expect(svc.Traits[0].Pending).Should(BeTrue())
+					g.Expect(svc.Traits[0].Message).Should(ContainSubstring("Waiting for component to be healthy"))
 				}
 			}, 20*time.Second, 500*time.Millisecond).Should(Succeed())
 
@@ -943,6 +957,7 @@ outputs: marker: {
 						foundTrait = true
 						// Trait should be healthy, not pending, and not waiting anymore
 						g.Expect(trait.Healthy).Should(BeTrue())
+						g.Expect(trait.Pending).Should(BeFalse())
 						break
 					}
 				}
