@@ -18,6 +18,8 @@ package application
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -346,7 +348,6 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 		Index int
 	}
 	traitStatusByKey := make(map[traitKey]common.ApplicationTraitStatus, len(status.Traits))
-	traitOrder := make([]traitKey, 0, len(status.Traits))
 	traitIndexByType := make(map[string]int)
 	for _, ts := range status.Traits {
 		key := traitKey{Type: ts.Type, Index: traitIndexByType[ts.Type]}
@@ -355,12 +356,8 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 			continue
 		}
 		traitStatusByKey[key] = ts
-		traitOrder = append(traitOrder, key)
 	}
 	addTraitStatus := func(key traitKey, ts common.ApplicationTraitStatus) {
-		if _, exists := traitStatusByKey[key]; !exists {
-			traitOrder = append(traitOrder, key)
-		}
 		traitStatusByKey[key] = ts
 	}
 	processedTraits := make(map[traitKey]struct{})
@@ -438,12 +435,7 @@ collectNext:
 			status.Message = "traits are not healthy"
 		}
 	}
-	status.Traits = make([]common.ApplicationTraitStatus, 0, len(traitStatusByKey))
-	for _, key := range traitOrder {
-		if ts, ok := traitStatusByKey[key]; ok {
-			status.Traits = append(status.Traits, ts)
-		}
-	}
+	status.Traits = slices.Collect(maps.Values(traitStatusByKey))
 	h.addServiceStatus(true, status)
 	return &status, output, outputs, isHealth, nil
 }
