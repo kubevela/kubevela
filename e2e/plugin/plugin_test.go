@@ -679,8 +679,7 @@ var livediffResult = `Application (test-vela-app) has been modified(*)
 +           /: 8080
         type: test-ingress
       type: test-webservice
-  status:
-    healthy: false
+  status: {}
   
 * Component (express-server) has been removed(-)
 - apiVersion: apps/v1

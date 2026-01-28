@@ -508,10 +508,6 @@ spec:
                           - type
                           type: object
                         type: array
-                      healthy:
-                        description: Healthy indicates whether the application is
-                          healthy.
-                        type: boolean
                       latestRevision:
                         description: LatestRevision of the application configuration
                           it generates

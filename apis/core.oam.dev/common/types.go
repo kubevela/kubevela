@@ -220,10 +220,6 @@ type AppStatus struct {
 
 	Phase ApplicationPhase `json:"status,omitempty"`
 
-	// Healthy indicates whether the application is healthy.
-	// +optional
-	Healthy bool `json:"healthy"`
-
 	// Components record the related Components created by Application Controller
 	Components []corev1.ObjectReference `json:"components,omitempty"`
 
