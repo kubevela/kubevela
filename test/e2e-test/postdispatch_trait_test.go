@@ -581,7 +581,6 @@ isHealth: *_isHealth | bool
 				svc := checkApp.Status.Services[0]
 				g.Expect(svc.Healthy).Should(BeFalse())
 
-
 				traitFound := false
 				for _, traitStatus := range svc.Traits {
 					if traitStatus.Type == deploymentTraitName || traitStatus.Type == cmTraitName {
@@ -709,7 +708,7 @@ outputs: statusConfigMap: {
 									Type: traitDefName,
 								},
 								{
-									Type: "scaler",
+									Type:       "scaler",
 									Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":3}`)},
 								},
 							},
