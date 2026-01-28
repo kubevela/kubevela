@@ -374,13 +374,6 @@ collectNext:
 		}
 
 		processedTraits[key] = struct{}{}
-		traitStage, stageErr := getTraitDispatchStage(h.Client, tr.Name, h.currentAppRev, h.app.Annotations)
-		isPostDispatch := stageErr == nil && traitStage == PostDispatch
-		if pendingEnabled && isPostDispatch && !workloadHealthy {
-			addTraitStatus(key, createPendingTraitStatus(tr.Name))
-			continue collectNext
-		}
-
 		traitStatus, _outputs, err := h.collectTraitHealthStatus(comp, tr, overrideNamespace)
 		if err != nil {
 			return nil, nil, nil, false, err
