@@ -29,7 +29,7 @@ spec:
     - jsonPath: .status.status
       name: PHASE
       type: string
-    - jsonPath: .status.healthy
+    - jsonPath: .status.services[*].healthy
       name: HEALTHY
       type: boolean
     - jsonPath: .status.services[*].message
@@ -458,9 +458,6 @@ spec:
                   - type
                   type: object
                 type: array
-              healthy:
-                description: Healthy indicates whether the application is healthy.
-                type: boolean
               latestRevision:
                 description: LatestRevision of the application configuration it generates
                 properties:

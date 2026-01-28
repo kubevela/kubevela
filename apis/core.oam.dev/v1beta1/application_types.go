@@ -73,7 +73,7 @@ type ApplicationSpec struct {
 // +kubebuilder:printcolumn:name="COMPONENT",type=string,JSONPath=`.spec.components[*].name`
 // +kubebuilder:printcolumn:name="TYPE",type=string,JSONPath=`.spec.components[*].type`
 // +kubebuilder:printcolumn:name="PHASE",type=string,JSONPath=`.status.status`
-// +kubebuilder:printcolumn:name="HEALTHY",type=boolean,JSONPath=`.status.healthy`
+// +kubebuilder:printcolumn:name="HEALTHY",type=boolean,JSONPath=`.status.services[*].healthy`
 // +kubebuilder:printcolumn:name="STATUS",type=string,JSONPath=`.status.services[*].message`
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
 // +genclient
