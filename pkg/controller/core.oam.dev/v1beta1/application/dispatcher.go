@@ -250,15 +250,6 @@ func getTraitDispatchStage(client client.Client, traitType string, appRev *v1bet
 	return stageType, nil
 }
 
-func createPendingTraitStatus(traitName string) common.ApplicationTraitStatus {
-	return common.ApplicationTraitStatus{
-		Type:    traitName,
-		Healthy: false,
-		Pending: true,
-		Message: "\u23f3 Waiting for component to be healthy",
-	}
-}
-
 // componentPropertiesChanged compares current component properties with the last
 // applied version in ApplicationRevision. Returns true if properties have changed
 func componentPropertiesChanged(comp *appfile.Component, appRev *v1beta1.ApplicationRevision) bool {
