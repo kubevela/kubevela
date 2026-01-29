@@ -374,7 +374,6 @@ var _ = Describe("Application Normal tests", func() {
 
 		By("Checking an application status")
 		verifyWorkloadRunningExpected(ctx, namespaceName, "myweb", 1, "stefanprodan/podinfo:4.0.3")
-
 		Expect(k8sClient.Delete(ctx, &newApp)).Should(Succeed())
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(&newApp), &newApp)).Should(Satisfy(errors.IsNotFound))
@@ -441,6 +440,7 @@ var _ = Describe("Application Normal tests", func() {
 		By("Checking the replication & application status")
 		verifyWorkloadRunningExpected(ctx, namespaceName, "hello-rep-beijing", 1, "crccheck/hello-world")
 		verifyWorkloadRunningExpected(ctx, namespaceName, "hello-rep-hangzhou", 1, "crccheck/hello-world")
+
 		By("Checking the origin component are not be dispatched")
 		var workload v1.Deployment
 		err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "hello-rep"}, &workload)
