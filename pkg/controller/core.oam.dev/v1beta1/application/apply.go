@@ -623,6 +623,20 @@ func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appPars
 		if err := h.Dispatch(dispatchCtx, h.Client, svc.Cluster, common.WorkflowResourceCreator, readyTraits...); err != nil {
 			return errors.WithMessagef(err, "failed to dispatch PostDispatch traits for component %s", comp.Name)
 		}
+		// Restore all traits and collect health status to update the application status.
+		//
+		// Why this is necessary:
+		// When the workflow is in "executing" state (e.g., one component is unhealthy),
+		// the reconcile loop returns early after applyPostDispatchTraits() and does NOT
+		// call evalStatus(). This means collectHealthStatus() would never be called for
+		// the healthy component's traits.
+		//
+		// During the initial workflow apply, prepareWorkloadAndManifests() filters out
+		// PostDispatch traits when serviceHealthy=false, so the status only contains
+		// non-PostDispatch traits (like "scaler"). Without this explicit call here,
+		// PostDispatch traits would be dispatched to the cluster but never reflected
+		// in the application status.
+		//
 		healthCtx := multicluster.ContextWithClusterName(ctx.GetContext(), svc.Cluster)
 		if _, _, _, _, err := h.collectHealthStatus(healthCtx, wl, svc.Namespace, false); err != nil {
 			ctx.Error(err, "failed to refresh PostDispatch trait status", "component", comp.Name)
