@@ -660,7 +660,6 @@ spec:
                           required:
                           - healthy
                           - name
-                          - workloadHealthy
                           type: object
                         type: array
                       status:

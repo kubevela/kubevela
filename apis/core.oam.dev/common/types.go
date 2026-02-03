@@ -177,7 +177,8 @@ type ApplicationComponentStatus struct {
 	WorkloadDefinition WorkloadGVK `json:"workloadDefinition,omitempty"`
 	Healthy            bool        `json:"healthy"`
 	// WorkloadHealthy indicates the workload health without considering trait health.
-	WorkloadHealthy bool                     `json:"workloadHealthy"`
+	// +optional
+	WorkloadHealthy bool                     `json:"workloadHealthy,omitempty"`
 	Details         map[string]string        `json:"details,omitempty"`
 	Message         string                   `json:"message,omitempty"`
 	Traits          []ApplicationTraitStatus `json:"traits,omitempty"`
