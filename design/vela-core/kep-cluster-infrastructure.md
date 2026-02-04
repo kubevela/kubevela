@@ -8,6 +8,12 @@
 ## Table of Contents
 
 - [Introduction](#introduction)
+- [Prerequisites and Architecture Overview](#prerequisites-and-architecture-overview)
+  - [Prerequisites](#prerequisites)
+  - [Architecture Overview](#architecture-overview)
+  - [Bootstrap Sequence](#bootstrap-sequence)
+  - [What Lives Where](#what-lives-where)
+  - [Provisioning Controller Flexibility](#provisioning-controller-flexibility)
 - [Background](#background)
   - [The Problem with Application-Centric Only](#the-problem-with-application-centric-only)
   - [What Platform Teams Need](#what-platform-teams-need)
@@ -64,6 +70,38 @@ This KEP proposes a new set of CRDs that bring OAM's abstraction model to **clus
 3. Enable different platform sub-teams to own their domain (networking team owns ingress, security team owns policies)
 4. Roll out infrastructure changes safely with canary, monitoring, and automatic rollback
 
+> **🎯 Positioning — Read This First:**
+> 1. KubeVela does **not** provision clusters directly
+> 2. KubeVela orchestrates **composition + ordering + rollout + ownership** across clusters and infrastructure layers
+> 3. Provisioning is delegated to CAPI / Crossplane / Terraform / KRO / cloud-native operators (pluggable)
+
+This KEP addresses the **orchestration gap** between cluster provisioning and fleet-wide infrastructure management:
+
+| Problem | Existing Solutions | This KEP's Role |
+|---------|-------------------|-----------------|
+| **Cluster provisioning** | CAPI, Crossplane, Terraform, KRO | Delegate to these tools |
+| **Cloud resource management** | ACK (AWS), Config Connector (GCP), ASO (Azure) | Delegate to these tools |
+| **Fleet blueprint composition** | Gap (duct-taped together) | **Solve** |
+| **Team-owned infrastructure slices** | Gap (no clear boundaries) | **Solve** |
+| **Rollout orchestration across fleet** | Gap (app-level only via Argo/Flagger) | **Solve** |
+| **Cross-cluster dependencies** | Gap (manual wiring) | **Solve** |
+
+**What this means practically:**
+
+ClusterPlane components use types defined via `PlaneComponentDefinition` (similar to how Application uses `ComponentDefinition`). Platform teams create definitions that delegate to underlying controllers:
+
+| Example Definition | Delegates To | KubeVela Does NOT |
+|-------------------|--------------|-------------------|
+| Wraps tf-controller | tf-controller | Run Terraform or manage state |
+| Wraps Crossplane XR | Crossplane | Call cloud APIs directly |
+| Wraps CAPI resources | Cluster API | Provision machines |
+| Wraps KRO instances | KRO | Manage resource graphs |
+| Wraps ACK resources | ACK | Call AWS APIs |
+| Wraps Config Connector | Config Connector | Call GCP APIs |
+| Wraps ASO resources | ASO | Call Azure APIs |
+
+**KubeVela's job:** Sequence components, gate rollouts, enforce ownership boundaries, aggregate status across the fleet.
+
 We introduce the following CRDs:
 
 **Core CRDs:**
@@ -97,6 +135,185 @@ We introduce the following CRDs:
 | **`ObservabilityProvider`** | Instance of an observability provider with connection details     |
 | **`ClusterDriftReport`**    | Report of detected drift between desired and actual cluster state |
 | **`ClusterDriftException`** | Allowlist for expected drift that should not trigger alerts       |
+
+---
+
+## Prerequisites and Architecture Overview
+
+### Prerequisites
+
+Before using the CRDs defined in this KEP, the following must be in place:
+
+| Prerequisite | Description | Responsibility |
+|--------------|-------------|----------------|
+| **Hub Cluster** | A Kubernetes cluster that serves as the management/control plane | Platform team bootstraps using Terraform, eksctl, cloud console, CAPI, or any other tool |
+| **KubeVela Installed** | vela-core and cluster-gateway installed on the hub cluster | `vela install` or Helm chart |
+| **Cloud Credentials** | Credentials for cloud providers where spoke clusters will be provisioned or connected | Stored as Secrets in hub cluster |
+| **Network Connectivity** | Hub cluster must be able to reach spoke cluster API servers | VPC peering, transit gateway, or public endpoints |
+
+> **Important**: KubeVela does NOT bootstrap the hub cluster. The hub cluster is created and configured using your existing infrastructure-as-code tooling (Terraform, Pulumi, eksctl, gcloud, az cli, cloud console, etc.). Once the hub exists, KubeVela is installed on it, and then the CRDs in this KEP can be used to manage the fleet.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           HUB-SPOKE ARCHITECTURE                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  ┌─────────────────────────────────────────────────────────────────────────┐    │
+│  │                     HUB / MANAGEMENT CLUSTER                             │    │
+│  │                                                                          │    │
+│  │   Bootstrapped externally via:                                           │    │
+│  │   • Terraform / Pulumi / CloudFormation                                  │    │
+│  │   • eksctl / gcloud / az aks create                                      │    │
+│  │   • Cloud Console (AWS/GCP/Azure)                                        │    │
+│  │                                                                          │    │
+│  │   ┌──────────────────────────────────────────────────────────────────┐   │    │
+│  │   │  KubeVela Components (installed on hub)                          │   │    │
+│  │   │                                                                  │   │    │
+│  │   │  • vela-core controller                                          │   │    │
+│  │   │  • cluster-gateway (multi-cluster connectivity)                  │   │    │
+│  │   │  • ClusterController (this KEP)                                  │   │    │
+│  │   │  • ClusterPlaneController (this KEP)                             │   │    │
+│  │   │  • ClusterBlueprintController (this KEP)                         │   │    │
+│  │   │  • ClusterRolloutController (this KEP)                           │   │    │
+│  │   └──────────────────────────────────────────────────────────────────┘   │    │
+│  │                                                                          │    │
+│  │   ┌──────────────────────────────────────────────────────────────────┐   │    │
+│  │   │  CRDs (all live on hub cluster)                                  │   │    │
+│  │   │                                                                  │   │    │
+│  │   │  • Cluster           (represents spoke clusters)                 │   │    │
+│  │   │  • ClusterPlane      (infrastructure layers)                     │   │    │
+│  │   │  • ClusterBlueprint  (composed specifications)                   │   │    │
+│  │   │  • ClusterRollout    (progressive rollout state)                 │   │    │
+│  │   │  • *Definition CRDs  (extensibility)                             │   │    │
+│  │   └──────────────────────────────────────────────────────────────────┘   │    │
+│  │                                                                          │    │
+│  │   ┌──────────────────────────────────────────────────────────────────┐   │    │
+│  │   │  Optional: Provisioning Controllers (delegated)                  │   │    │
+│  │   │                                                                  │   │    │
+│  │   │  • Crossplane (for cloud resources)                              │   │    │
+│  │   │  • Cluster API (for Kubernetes clusters)                         │   │    │
+│  │   │  • tf-controller (for Terraform modules)                         │   │    │
+│  │   │  • ACK / Config Connector / ASO (cloud-native)                   │   │    │
+│  │   │  • KRO (Kube Resource Orchestrator)                              │   │    │
+│  │   └──────────────────────────────────────────────────────────────────┘   │    │
+│  │                                                                          │    │
+│  └───────────────────────────────┬──────────────────────────────────────────┘    │
+│                                  │                                               │
+│                    Hub manages spoke clusters via                                │
+│                    Kubernetes API (through cluster-gateway)                      │
+│                                  │                                               │
+│         ┌────────────────────────┼────────────────────────┐                     │
+│         │                        │                        │                      │
+│         ▼                        ▼                        ▼                      │
+│  ┌─────────────┐          ┌─────────────┐          ┌─────────────┐              │
+│  │   SPOKE 1   │          │   SPOKE 2   │          │   SPOKE N   │              │
+│  │             │          │             │          │             │              │
+│  │  prod-east  │          │  prod-west  │          │  staging    │              │
+│  │             │          │             │          │             │              │
+│  │ Created via:│          │ Created via:│          │ Created via:│              │
+│  │ • Crossplane│          │ • CAPI      │          │ • Terraform │              │
+│  │ • Terraform │          │ • Terraform │          │ • eksctl    │              │
+│  │ • Manual    │          │ • KRO       │          │ • Manual    │              │
+│  │             │          │             │          │             │              │
+│  │ Receives:   │          │ Receives:   │          │ Receives:   │              │
+│  │ • Blueprints│          │ • Blueprints│          │ • Blueprints│              │
+│  │ • Planes    │          │ • Planes    │          │ • Planes    │              │
+│  └─────────────┘          └─────────────┘          └─────────────┘              │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Bootstrap Sequence
+
+The following sequence must be followed to set up the hub and begin managing spoke clusters:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           BOOTSTRAP SEQUENCE                                     │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                  │
+│  STEP 1: Create Hub Cluster (EXTERNAL TO KUBEVELA)                              │
+│  ─────────────────────────────────────────────────                              │
+│  Platform team uses existing tooling:                                           │
+│                                                                                  │
+│    # AWS EKS example                                                            │
+│    $ eksctl create cluster --name hub-cluster --region us-east-1                │
+│                                                                                  │
+│    # GKE example                                                                │
+│    $ gcloud container clusters create hub-cluster --region us-central1          │
+│                                                                                  │
+│    # AKS example                                                                │
+│    $ az aks create --name hub-cluster --resource-group platform-rg              │
+│                                                                                  │
+│    # Terraform example                                                          │
+│    $ terraform apply -target=module.hub_cluster                                 │
+│                                                                                  │
+│  STEP 2: Install KubeVela on Hub                                                │
+│  ───────────────────────────────                                                │
+│    $ vela install                                                               │
+│    # Or via Helm:                                                               │
+│    $ helm install vela kubevela/vela-core -n vela-system                        │
+│                                                                                  │
+│  STEP 3: Install Cluster Infrastructure Controllers (This KEP)                  │
+│  ─────────────────────────────────────────────────────────────                  │
+│    $ vela addon enable cluster-infrastructure                                   │
+│    # Installs: ClusterController, ClusterPlaneController, etc.                  │
+│                                                                                  │
+│  STEP 4: (Optional) Install Provisioning Controllers                            │
+│  ───────────────────────────────────────────────────                            │
+│    # If you want to provision spoke clusters from hub:                          │
+│    $ helm install crossplane crossplane-stable/crossplane                       │
+│    # Or:                                                                        │
+│    $ clusterctl init --infrastructure aws                                       │
+│    # Or:                                                                        │
+│    $ helm install tf-controller tf-controller/tf-controller                     │
+│                                                                                  │
+│  STEP 5: Configure Cloud Credentials                                            │
+│  ───────────────────────────────────                                            │
+│    # Store credentials for spoke cluster access/provisioning                    │
+│    $ kubectl create secret generic aws-credentials \                            │
+│        --from-literal=AWS_ACCESS_KEY_ID=xxx \                                   │
+│        --from-literal=AWS_SECRET_ACCESS_KEY=yyy \                               │
+│        -n vela-system                                                           │
+│                                                                                  │
+│  STEP 6: Create/Connect Spoke Clusters (via this KEP's CRDs)                    │
+│  ───────────────────────────────────────────────────────────                    │
+│    # Now you can use Cluster CRD to provision or connect spoke clusters         │
+│    $ kubectl apply -f cluster-spoke-production.yaml                             │
+│                                                                                  │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### What Lives Where
+
+| Resource | Location | Notes |
+|----------|----------|-------|
+| All CRDs from this KEP | Hub cluster only | `Cluster`, `ClusterPlane`, `ClusterBlueprint`, etc. |
+| KubeVela controllers | Hub cluster only | `vela-core`, `cluster-gateway`, new controllers from this KEP |
+| Provisioning controllers | Hub cluster only | Crossplane, CAPI, tf-controller, KRO (optional, user's choice) |
+| Cloud credentials | Hub cluster only | Secrets for provider access |
+| ClusterPlane definitions | Hub cluster only | `PlaneComponentDefinition`, `PlaneTraitDefinition`, etc. |
+| Deployed infrastructure | Spoke clusters | CNI, ingress, cert-manager, security policies, etc. |
+| Workload Applications | Spoke clusters | Your actual applications (managed via KubeVela Application CRD) |
+
+> **The hub cluster is the single pane of glass** for managing your entire fleet. All declarative state (desired state) lives on the hub; spoke clusters receive the rendered infrastructure components.
+
+### Provisioning Controller Flexibility
+
+This KEP is **agnostic** to which provisioning controller you use. The `Cluster` CRD can delegate cluster creation to any of:
+
+| Controller | Use Case | How It Integrates |
+|------------|----------|-------------------|
+| **Crossplane** | Cloud-native resource management | `ClusterProviderDefinition` wraps Crossplane XRs |
+| **Cluster API (CAPI)** | Kubernetes-native cluster lifecycle | `ClusterProviderDefinition` wraps CAPI resources |
+| **tf-controller** | Terraform modules in Kubernetes | `ClusterProviderDefinition` wraps Terraform resources |
+| **ACK/Config Connector/ASO** | Cloud-specific operators | `ClusterProviderDefinition` wraps cloud CRDs |
+| **KRO** | Kube Resource Orchestrator | `ClusterProviderDefinition` wraps KRO instances |
+| **None (Connect mode)** | Pre-existing clusters | No provisioning; just connect with kubeconfig |
+
+The platform team chooses which provisioning tools to install. KubeVela orchestrates **composition, ordering, rollout, and ownership** - it does NOT replace these tools.
 
 ---
 
@@ -3475,6 +3692,129 @@ status:
 │  + maintenance window   │                   │                   │           │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Fleet Scale Controls
+
+At scale, reconciling many clusters simultaneously can overwhelm the hub API server or downstream provisioning systems. This section provides guidance on scaling the controller architecture.
+
+#### When Do You Need Scale Controls?
+
+| Fleet Size | Recommendation |
+|------------|----------------|
+| <50 clusters | Single controller instance is sufficient |
+| 50-200 clusters | Add rate limiting to smooth API server load |
+| 200-500 clusters | Shard controllers (2-5 replicas) |
+| 500+ clusters | Sharding + status aggregation + consider multi-hub |
+| 1000+ clusters | Multi-hub architecture (regional GitOps instances) |
+
+#### Primary Mechanism: Controller Sharding
+
+**Sharding is the simplest and most effective approach.** Each controller instance watches a subset of clusters based on labels:
+
+```yaml
+# Deploy multiple controller replicas, each handling a partition
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-controller
+spec:
+  replicas: 3  # 3 shards
+  template:
+    spec:
+      containers:
+      - name: controller
+        args:
+        - --shard-id=$(SHARD_ID)
+        - --total-shards=3
+        env:
+        - name: SHARD_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['shard-id']
+```
+
+Clusters are assigned to shards via consistent hashing or explicit labels:
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: prod-us-east-1
+  labels:
+    cluster.oam.dev/shard: "1"  # Explicit shard assignment
+```
+
+This pattern is proven at scale (ArgoCD uses `--application-controller-shard`).
+
+#### Secondary Mechanism: Rate Limiting
+
+For smoother API server load within each shard, configure rate limiting using standard controller-runtime options:
+
+```yaml
+# Controller configuration (ConfigMap or flags)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-controller-config
+data:
+  # Max concurrent reconciles per controller instance
+  maxConcurrentReconciles: "10"
+
+  # Rate limiter settings (token bucket)
+  rateLimitQPS: "5"
+  rateLimitBurst: "10"
+```
+
+#### Rollout-Level Controls
+
+For ClusterRolloutStrategy, add scale controls to prevent thundering herd during fleet-wide updates:
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterRolloutStrategy
+metadata:
+  name: gradual-fleet-rollout
+spec:
+  scaleControls:
+    # Max clusters updating simultaneously across all waves
+    maxConcurrentUpdates: 20
+
+    # Rate limit: max clusters to start per minute
+    maxUpdatesPerMinute: 5
+
+    # Add jitter to spread reconciliation (reduces API spikes)
+    jitterPercent: 10
+
+  waves:
+    - name: canary
+      # ... wave config
+```
+
+#### Implementation Notes
+
+These controls leverage **existing Kubernetes primitives**—no custom implementation required:
+
+| Mechanism | Implementation |
+|-----------|----------------|
+| Sharding | Label selectors on controller watch + multiple replicas |
+| Rate limiting | client-go's `workqueue.RateLimiter` (built-in) |
+| Max concurrency | controller-runtime's `MaxConcurrentReconciles` |
+| Jitter | Random delay before requeue (`time.Sleep` + jitter) |
+
+For fleets >500 clusters, consider **status aggregation** to reduce the volume of status updates written to the hub:
+
+```yaml
+spec:
+  statusAggregation:
+    # Only write aggregated status every 30s instead of per-cluster
+    aggregationInterval: 30s
+    # Store detailed per-cluster status in external store
+    detailedStatusRef:
+      kind: ConfigMap
+      name: fleet-detailed-status
 ```
 
 ---
