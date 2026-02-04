@@ -174,12 +174,15 @@ type ApplicationComponentStatus struct {
 	Cluster   string `json:"cluster,omitempty"`
 	Env       string `json:"env,omitempty"`
 	// WorkloadDefinition is the definition of a WorkloadDefinition, such as deployments/apps.v1
-	WorkloadDefinition WorkloadGVK              `json:"workloadDefinition,omitempty"`
-	Healthy            bool                     `json:"healthy"`
-	Details            map[string]string        `json:"details,omitempty"`
-	Message            string                   `json:"message,omitempty"`
-	Traits             []ApplicationTraitStatus `json:"traits,omitempty"`
-	Scopes             []corev1.ObjectReference `json:"scopes,omitempty"`
+	WorkloadDefinition WorkloadGVK `json:"workloadDefinition,omitempty"`
+	Healthy            bool        `json:"healthy"`
+	// WorkloadHealthy indicates the workload health without considering trait health.
+	// +optional
+	WorkloadHealthy bool                     `json:"workloadHealthy,omitempty"`
+	Details         map[string]string        `json:"details,omitempty"`
+	Message         string                   `json:"message,omitempty"`
+	Traits          []ApplicationTraitStatus `json:"traits,omitempty"`
+	Scopes          []corev1.ObjectReference `json:"scopes,omitempty"`
 }
 
 // Equal check if two ApplicationComponentStatus are equal
@@ -192,6 +195,7 @@ func (in ApplicationComponentStatus) Equal(r ApplicationComponentStatus) bool {
 type ApplicationTraitStatus struct {
 	Type    string            `json:"type"`
 	Healthy bool              `json:"healthy"`
+	Pending bool              `json:"pending,omitempty"`
 	Details map[string]string `json:"details,omitempty"`
 	Message string            `json:"message,omitempty"`
 }

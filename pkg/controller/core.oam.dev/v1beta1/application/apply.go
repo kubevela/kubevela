@@ -18,12 +18,15 @@ package application
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sync"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
@@ -37,6 +40,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -333,11 +337,32 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 		if err != nil {
 			return nil, nil, nil, false, err
 		}
+		status.WorkloadHealthy = isHealth
 	}
 
-	var traitStatusList []common.ApplicationTraitStatus
+	multiStagingEnabled := utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply)
+	type traitKey struct {
+		Type  string
+		Index int
+	}
+	traitStatusByKey := make(map[traitKey]common.ApplicationTraitStatus, len(status.Traits))
+	traitIndexByType := make(map[string]int)
+	for _, ts := range status.Traits {
+		key := traitKey{Type: ts.Type, Index: traitIndexByType[ts.Type]}
+		traitIndexByType[ts.Type]++
+		if _, exists := traitStatusByKey[key]; exists {
+			continue
+		}
+		traitStatusByKey[key] = ts
+	}
+	addTraitStatus := func(key traitKey, ts common.ApplicationTraitStatus) {
+		traitStatusByKey[key] = ts
+	}
+	traitIndexByType = make(map[string]int)
 collectNext:
 	for _, tr := range comp.Traits {
+		key := traitKey{Type: tr.Name, Index: traitIndexByType[tr.Name]}
+		traitIndexByType[tr.Name]++
 		for _, filter := range traitFilters {
 			// If filtered out by one of the filters
 			if filter(*tr) {
@@ -355,17 +380,56 @@ collectNext:
 		if status.Message == "" && traitStatus.Message != "" {
 			status.Message = traitStatus.Message
 		}
-		traitStatusList = append(traitStatusList, traitStatus)
-
-		var oldStatus []common.ApplicationTraitStatus
-		for _, _trait := range status.Traits {
-			if _trait.Type != tr.Name {
-				oldStatus = append(oldStatus, _trait)
-			}
-		}
-		status.Traits = oldStatus
+		addTraitStatus(key, traitStatus)
 	}
-	status.Traits = append(status.Traits, traitStatusList...)
+	if multiStagingEnabled && !status.WorkloadHealthy {
+		for _, component := range h.currentAppRev.Spec.Application.Spec.Components {
+			if component.Name != comp.Name {
+				continue
+			}
+			traitIndexByType = make(map[string]int)
+			for _, trait := range component.Traits {
+				key := traitKey{Type: trait.Type, Index: traitIndexByType[trait.Type]}
+				traitIndexByType[trait.Type]++
+				if _, ok := traitStatusByKey[key]; ok {
+					continue
+				}
+				traitStage, err := getTraitDispatchStage(h.Client, trait.Type, h.currentAppRev, h.app.Annotations)
+				isPostDispatch := err == nil && traitStage == PostDispatch
+				if isPostDispatch {
+					addTraitStatus(
+						key,
+						common.ApplicationTraitStatus{
+							Type:    trait.Type,
+							Healthy: false,
+							Pending: true,
+							Message: "\u23f3 Waiting for component to be healthy",
+						},
+					)
+				}
+			}
+			break
+		}
+	}
+	traitHealthy := true
+	for _, ts := range traitStatusByKey {
+		if ts.Pending {
+			continue
+		}
+		if !ts.Healthy {
+			traitHealthy = false
+			break
+		}
+	}
+	if !skipWorkload {
+		status.Healthy = status.WorkloadHealthy && traitHealthy
+	} else if !traitHealthy {
+		status.Healthy = false
+		if status.Message == "" {
+			status.Message = "traits are not healthy"
+		}
+	}
+	status.Traits = slices.Collect(maps.Values(traitStatusByKey))
 	h.addServiceStatus(true, status)
 	return &status, output, outputs, isHealth, nil
 }
@@ -451,7 +515,11 @@ func extractOutputs(templateContext map[string]interface{}) []*unstructured.Unst
 // This is called after the workflow succeeds and component health is confirmed.
 func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appParser *appfile.Parser, af *appfile.Appfile) error {
 	for _, svc := range h.services {
-		if !svc.Healthy {
+		workloadHealthy := svc.WorkloadHealthy
+		if !workloadHealthy && svc.Healthy {
+			workloadHealthy = true
+		}
+		if !workloadHealthy {
 			continue
 		}
 
@@ -554,6 +622,24 @@ func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appPars
 		dispatchCtx := multicluster.ContextWithClusterName(ctx.GetContext(), svc.Cluster)
 		if err := h.Dispatch(dispatchCtx, h.Client, svc.Cluster, common.WorkflowResourceCreator, readyTraits...); err != nil {
 			return errors.WithMessagef(err, "failed to dispatch PostDispatch traits for component %s", comp.Name)
+		}
+		// Restore all traits and collect health status to update the application status.
+		//
+		// Why this is necessary:
+		// When the workflow is in "executing" state (e.g., one component is unhealthy),
+		// the reconcile loop returns early after applyPostDispatchTraits() and does NOT
+		// call evalStatus(). This means collectHealthStatus() would never be called for
+		// the healthy component's traits.
+		//
+		// During the initial workflow apply, prepareWorkloadAndManifests() filters out
+		// PostDispatch traits when serviceHealthy=false, so the status only contains
+		// non-PostDispatch traits (like "scaler"). Without this explicit call here,
+		// PostDispatch traits would be dispatched to the cluster but never reflected
+		// in the application status.
+		//
+		healthCtx := multicluster.ContextWithClusterName(ctx.GetContext(), svc.Cluster)
+		if _, _, _, _, err := h.collectHealthStatus(healthCtx, wl, svc.Namespace, false); err != nil {
+			ctx.Error(err, "failed to refresh PostDispatch trait status", "component", comp.Name)
 		}
 	}
 	return nil

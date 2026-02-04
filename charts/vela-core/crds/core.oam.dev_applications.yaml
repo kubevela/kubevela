@@ -580,6 +580,8 @@ spec:
                             type: boolean
                           message:
                             type: string
+                          pending:
+                            type: boolean
                           type:
                             type: string
                         required:
@@ -599,6 +601,10 @@ spec:
                       - apiVersion
                       - kind
                       type: object
+                    workloadHealthy:
+                      description: WorkloadHealthy indicates the workload health without
+                        considering trait health.
+                      type: boolean
                   required:
                   - healthy
                   - name
