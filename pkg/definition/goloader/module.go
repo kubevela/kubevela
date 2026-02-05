@@ -503,7 +503,7 @@ func discoverAndLoadDefinitions(ctx context.Context, modulePath string, opts Mod
 		// Fall back to non-optimized loading if environment creation fails
 		return discoverAndLoadDefinitionsFallback(ctx, modulePath, opts)
 	}
-	defer env.Close()
+	defer func() { _ = env.Close() }()
 
 	// Define conventional directories to scan
 	conventionalDirs := []struct {

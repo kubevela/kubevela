@@ -145,7 +145,7 @@ func defHelpFunc(cmd *cobra.Command, args []string) {
 		// If args provided, find and show help for subcommand
 		foundCmd, _, err := cmd.Find(args)
 		if foundCmd != nil && err == nil {
-			foundCmd.Help()
+			_ = foundCmd.Help()
 			return
 		}
 	}

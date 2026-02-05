@@ -881,7 +881,7 @@ func (g *TraitCUEGenerator) generateParameterBlock(t *TraitDefinition, depth int
 func cueTypeForParamType(pt ParamType) string {
 	switch pt {
 	case ParamTypeString:
-		return "string"
+		return string(ParamTypeString)
 	case ParamTypeInt:
 		return "int"
 	case ParamTypeBool:
@@ -1108,13 +1108,13 @@ func (g *TraitCUEGenerator) writePatchParamField(sb *strings.Builder, field Patc
 		// Infer type from field name/target
 		switch field.TargetField {
 		case "image":
-			typeStr = "string"
+			typeStr = string(ParamTypeString)
 		case "imagePullPolicy":
 			typeStr = "\"IfNotPresent\" | \"Always\" | \"Never\""
 		case "command", "args":
 			typeStr = "[...string]"
 		default:
-			typeStr = "string"
+			typeStr = string(ParamTypeString)
 		}
 	}
 

@@ -173,7 +173,7 @@ require %s v0.0.0
 `, moduleName, sourceReplaces, kubeVelaReplace, moduleName, moduleRoot)
 
 	if err := os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0600); err != nil {
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 		return nil, errors.Wrap(err, "failed to write go.mod")
 	}
 
@@ -197,7 +197,7 @@ func main() {
 `, imports.String())
 
 	if err := os.WriteFile(filepath.Join(tempDir, "main.go"), []byte(placeholderMain), 0600); err != nil {
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 		return nil, errors.Wrap(err, "failed to write placeholder main.go")
 	}
 
@@ -206,7 +206,7 @@ func main() {
 	tidyCmd.Dir = tempDir
 	tidyCmd.Env = append(os.Environ(), "GO111MODULE=on")
 	if output, err := tidyCmd.CombinedOutput(); err != nil {
-		os.RemoveAll(tempDir)
+		_ = os.RemoveAll(tempDir)
 		return nil, errors.Wrapf(err, "go mod tidy failed: %s", string(output))
 	}
 
@@ -550,7 +550,7 @@ func GenerateCUEFromGoFile(filePath string, defInfo DefinitionInfo) (string, err
 	if err != nil {
 		return "", errors.Wrap(err, "failed to create temp directory")
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Generate the temporary Go program
 	genProgram := generateCUEGeneratorProgram(importPath, defInfo)
@@ -902,7 +902,7 @@ func LoadFromDirectoryOptimized(dir string) ([]LoadResult, error) {
 		// Fall back to non-optimized loading on error
 		return LoadFromDirectory(dir)
 	}
-	defer env.Close()
+	defer func() { _ = env.Close() }()
 
 	return LoadFromDirectoryWithEnv(env, dir)
 }

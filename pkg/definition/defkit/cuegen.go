@@ -2158,7 +2158,7 @@ func (g *CUEGenerator) writeEnumParam(sb *strings.Builder, p *EnumParam, indent,
 func (g *CUEGenerator) cueTypeForParamType(pt ParamType) string {
 	switch pt {
 	case ParamTypeString:
-		return "string"
+		return string(ParamTypeString)
 	case ParamTypeInt:
 		return "int"
 	case ParamTypeBool:

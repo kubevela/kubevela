@@ -61,7 +61,7 @@ func (s *StatusBuilder) StringField(name, sourcePath string, defaultVal string) 
 		name:         name,
 		sourcePath:   sourcePath,
 		defaultValue: defaultVal,
-		fieldType:    "string",
+		fieldType:    string(ParamTypeString),
 	})
 	return s
 }
@@ -109,11 +109,11 @@ func (s *StatusBuilder) buildField(f *StatusField) string {
 	// Build the nested structure
 	var defaultExpr string
 	switch f.fieldType {
-	case "int":
+	case string(ParamTypeInt):
 		defaultExpr = fmt.Sprintf("*%d | int", f.defaultValue)
-	case "string":
+	case string(ParamTypeString):
 		defaultExpr = fmt.Sprintf("*%q | string", f.defaultValue)
-	case "bool":
+	case string(ParamTypeBool):
 		defaultExpr = fmt.Sprintf("*%v | bool", f.defaultValue)
 	}
 

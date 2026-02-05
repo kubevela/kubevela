@@ -836,7 +836,9 @@ func listModule(ctx context.Context, streams util.IOStreams, moduleRef string, o
 				def.Definition.FilePath,
 				status)
 		}
-		w.Flush()
+		if err := w.Flush(); err != nil {
+			return err
+		}
 	}
 
 	return nil
