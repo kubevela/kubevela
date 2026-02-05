@@ -594,11 +594,7 @@ type structField struct {
 func HelperStruct(fields ...StructFieldDef) *StructBuilder {
 	sb := &StructBuilder{fields: make([]structField, 0, len(fields))}
 	for _, f := range fields {
-		sb.fields = append(sb.fields, structField{
-			name:  f.name,
-			value: f.value,
-			cond:  f.cond,
-		})
+		sb.fields = append(sb.fields, structField(f))
 	}
 	return sb
 }
@@ -610,7 +606,7 @@ func (s *StructBuilder) expr()  {}
 func (s *StructBuilder) Fields() []StructFieldDef {
 	result := make([]StructFieldDef, len(s.fields))
 	for i, f := range s.fields {
-		result[i] = StructFieldDef{name: f.name, value: f.value, cond: f.cond}
+		result[i] = StructFieldDef(f)
 	}
 	return result
 }
@@ -715,7 +711,7 @@ type StructArrayBuilder struct {
 	template *Template
 }
 
-// StructArrayHelperBuilder starts building a struct-based array helper.
+// StructArrayHelper starts building a struct-based array helper.
 // This creates helpers like mountsArray or volumesArray where each source type
 // is a separate field in a struct.
 //

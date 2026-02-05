@@ -98,7 +98,7 @@ func (c *ParamCompareCondition) ParamName() string { return c.paramName }
 // Op returns the comparison operator.
 func (c *ParamCompareCondition) Op() string { return c.op }
 
-// Value returns the comparison value.
+// CompareValue returns the comparison value.
 func (c *ParamCompareCondition) CompareValue() any { return c.value }
 
 // StringParam represents a string parameter.

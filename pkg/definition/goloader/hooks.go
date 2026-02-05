@@ -285,7 +285,7 @@ func (e *HookExecutor) applyManifestFile(ctx context.Context, filePath string) (
 		}
 
 		// Skip empty documents
-		if obj.Object == nil || len(obj.Object) == 0 {
+		if len(obj.Object) == 0 {
 			continue
 		}
 

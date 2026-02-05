@@ -114,7 +114,7 @@ func CompileGoDefinitions(ctx context.Context, godefPath string) ([]ElementFile,
 
 	// Check if any definitions were discovered
 	if len(module.Definitions) == 0 {
-		return nil, fmt.Errorf("no Go definitions found in %s. Ensure your Go files define functions that return *defkit.ComponentDefinition, *defkit.TraitDefinition, etc.", godefPath)
+		return nil, fmt.Errorf("no Go definitions found in %s: ensure your Go files define functions that return *defkit.ComponentDefinition, *defkit.TraitDefinition, etc", godefPath)
 	}
 
 	// Compile all definitions to CUE, collecting errors

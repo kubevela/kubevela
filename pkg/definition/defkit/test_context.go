@@ -213,6 +213,8 @@ func (c *TestRuntimeContext) Workload() *Resource {
 
 // currentTestContext holds the current test context for parameter resolution.
 // This is set during Render() execution.
+//
+//lint:ignore U1000 used by setter/clearer, getter reserved for future use
 var currentTestContext *TestRuntimeContext
 
 // setCurrentTestContext sets the current test context.
@@ -226,6 +228,8 @@ func clearCurrentTestContext() {
 }
 
 // getCurrentTestContext returns the current test context, if any.
+//
+//lint:ignore U1000 reserved for future use
 func getCurrentTestContext() *TestRuntimeContext {
 	return currentTestContext
 }

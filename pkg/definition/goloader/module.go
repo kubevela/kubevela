@@ -875,7 +875,7 @@ func (m *LoadedModule) Summary() string {
 	if m.Metadata.Spec.Description != "" {
 		summary += fmt.Sprintf("Description: %s\n", m.Metadata.Spec.Description)
 	}
-	summary += fmt.Sprintf("\nDefinitions:\n")
+	summary += "\nDefinitions:\n"
 	summary += fmt.Sprintf("  Components:     %d\n", components)
 	summary += fmt.Sprintf("  Traits:         %d\n", traits)
 	summary += fmt.Sprintf("  Policies:       %d\n", policies)

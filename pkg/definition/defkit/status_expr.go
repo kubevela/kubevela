@@ -352,13 +352,6 @@ func (c *statusConcatExpr) ToCUE() string {
 		switch p := part.(type) {
 		case string:
 			sb.WriteString(p)
-		case StatusExpression:
-			// Extract the interpolation part from the expression
-			cue := p.ToCUE()
-			// Remove surrounding quotes if present
-			cue = strings.TrimPrefix(cue, `"`)
-			cue = strings.TrimSuffix(cue, `"`)
-			sb.WriteString(cue)
 		case *StatusFieldExpr:
 			if p.hasDefault {
 				sb.WriteString(fmt.Sprintf(`\(%s)`, p.getVarName()))
@@ -367,6 +360,13 @@ func (c *statusConcatExpr) ToCUE() string {
 			}
 		case *StatusConditionFieldExpr:
 			sb.WriteString(fmt.Sprintf(`\(%s)`, p.getFieldVarName()))
+		case StatusExpression:
+			// Extract the interpolation part from the expression
+			cue := p.ToCUE()
+			// Remove surrounding quotes if present
+			cue = strings.TrimPrefix(cue, `"`)
+			cue = strings.TrimSuffix(cue, `"`)
+			sb.WriteString(cue)
 		default:
 			sb.WriteString(fmt.Sprintf("%v", p))
 		}

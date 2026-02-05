@@ -1321,11 +1321,11 @@ func TestEvaluateCUEExpressionRealWorldScenarios(t *testing.T) {
 					"name": "my-deploy",
 				},
 				"status": map[string]interface{}{
-					"replicas":            int64(3),
-					"readyReplicas":       int64(3),
-					"availableReplicas":   int64(3),
-					"updatedReplicas":     int64(3),
-					"observedGeneration":  int64(2),
+					"replicas":           int64(3),
+					"readyReplicas":      int64(3),
+					"availableReplicas":  int64(3),
+					"updatedReplicas":    int64(3),
+					"observedGeneration": int64(2),
 					"conditions": []interface{}{
 						map[string]interface{}{
 							"type":   "Available",

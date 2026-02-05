@@ -112,7 +112,7 @@ func (c *CollectionOp) Flatten() *CollectionOp {
 // Source returns the source value.
 func (c *CollectionOp) Source() Value { return c.source }
 
-// Ops returns the operations to apply.
+// Operations returns the operations to apply.
 func (c *CollectionOp) Operations() []collectionOperation { return c.ops }
 
 // --- Go 1.23 Iterator Methods (iter.Seq) ---
@@ -304,7 +304,7 @@ func (f FieldEq) matches(item map[string]any) bool {
 	return item[f.field] == f.value
 }
 
-// Eq creates a field equality predicate.
+// FieldEquals creates a field equality predicate.
 func FieldEquals(field string, value any) FieldEq {
 	return FieldEq{field: field, value: value}
 }
@@ -319,7 +319,7 @@ func (f FieldIsSet) matches(item map[string]any) bool {
 	return exists && val != nil
 }
 
-// IsSet creates a field-is-set predicate.
+// FieldExists creates a field-is-set predicate.
 func FieldExists(field string) FieldIsSet {
 	return FieldIsSet{field: field}
 }
@@ -619,10 +619,12 @@ func (d *dedupeOp) apply(items []any) []any {
 	return result
 }
 
+//lint:ignore U1000 planned for future use
 type transformByTypeOp struct {
 	transforms map[string]FieldMap
 }
 
+//lint:ignore U1000 planned for future use
 func (t *transformByTypeOp) apply(items []any) []any {
 	// This is applied during resolution, not here
 	return items

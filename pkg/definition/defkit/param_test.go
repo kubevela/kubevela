@@ -351,7 +351,7 @@ var _ = Describe("Parameters", func() {
 				cond := replicas.Eq(3)
 				Expect(cond).NotTo(BeNil())
 				// Check it implements Condition interface
-				_, ok := cond.(defkit.Condition)
+				_, ok := cond.(defkit.Condition) //lint:ignore S1040 intentional interface check for documentation
 				Expect(ok).To(BeTrue())
 			})
 
@@ -394,7 +394,7 @@ var _ = Describe("Parameters", func() {
 				expr := replicas.Add(1)
 				Expect(expr).NotTo(BeNil())
 				// Check it implements Value interface
-				_, ok := expr.(defkit.Value)
+				_, ok := expr.(defkit.Value) //lint:ignore S1040 intentional interface check for documentation
 				Expect(ok).To(BeTrue())
 			})
 
@@ -425,7 +425,7 @@ var _ = Describe("Parameters", func() {
 				expr := name.Concat("-suffix")
 				Expect(expr).NotTo(BeNil())
 				// Check it implements Value interface
-				_, ok := expr.(defkit.Value)
+				_, ok := expr.(defkit.Value) //lint:ignore S1040 intentional interface check for documentation
 				Expect(ok).To(BeTrue())
 			})
 
@@ -434,7 +434,7 @@ var _ = Describe("Parameters", func() {
 				expr := name.Prepend("prefix-")
 				Expect(expr).NotTo(BeNil())
 				// Check it implements Value interface
-				_, ok := expr.(defkit.Value)
+				_, ok := expr.(defkit.Value) //lint:ignore S1040 intentional interface check for documentation
 				Expect(ok).To(BeTrue())
 			})
 		})

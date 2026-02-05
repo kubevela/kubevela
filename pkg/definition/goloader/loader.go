@@ -32,9 +32,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/pkg/errors"
+
 	"github.com/oam-dev/kubevela/pkg/definition/defkit"
 	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
-	"github.com/pkg/errors"
 )
 
 // GoExtension is the file extension for Go files

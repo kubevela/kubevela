@@ -239,12 +239,12 @@ type applyModuleOptions struct {
 // ApplyStats tracks statistics for module application
 type ApplyStats struct {
 	// Timing
-	StartTime        time.Time
-	ModuleLoadTime   time.Duration
-	PreApplyHookTime time.Duration
-	DefApplyTime     time.Duration
+	StartTime         time.Time
+	ModuleLoadTime    time.Duration
+	PreApplyHookTime  time.Duration
+	DefApplyTime      time.Duration
 	PostApplyHookTime time.Duration
-	TotalTime        time.Duration
+	TotalTime         time.Duration
 
 	// Hook timing details
 	PreApplyHookDetails  []HookTimingDetail
@@ -946,7 +946,7 @@ func validateModule(ctx context.Context, c common.Args, streams util.IOStreams, 
 // FlagModuleName is the flag for module name
 const FlagModuleName = "name"
 
-// FlagModuleDescription is the flag for module description
+// FlagModuleDesc is the flag for module description
 const FlagModuleDesc = "desc"
 
 // FlagGoModule is the flag for Go module path

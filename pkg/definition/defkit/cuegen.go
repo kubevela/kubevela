@@ -1450,6 +1450,8 @@ func (g *CUEGenerator) listComprehensionToCUE(lc *ListComprehension) string {
 }
 
 // listPredicateToCUE converts a ListPredicate to CUE filter condition.
+//
+//lint:ignore U1000 planned for future use
 func (g *CUEGenerator) listPredicateToCUE(pred ListPredicate) string {
 	switch p := pred.(type) {
 	case *ListFieldExistsPredicate:
