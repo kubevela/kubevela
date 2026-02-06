@@ -25,7 +25,7 @@ import (
 
 var _ = Describe("Expressions", func() {
 
-	Describe("Literal", func() {
+	Context("Literal", func() {
 		It("should create string literal", func() {
 			lit := defkit.Lit("hello")
 			Expect(lit.Val()).To(Equal("hello"))
@@ -52,7 +52,7 @@ var _ = Describe("Expressions", func() {
 		})
 	})
 
-	Describe("Comparisons", func() {
+	Context("Comparisons", func() {
 		var left, right defkit.Expr
 
 		BeforeEach(func() {
@@ -109,7 +109,7 @@ var _ = Describe("Expressions", func() {
 		})
 	})
 
-	Describe("Logical Operators", func() {
+	Context("Logical Operators", func() {
 		var cond1, cond2, cond3 defkit.Condition
 
 		BeforeEach(func() {
@@ -119,7 +119,7 @@ var _ = Describe("Expressions", func() {
 			cond3 = defkit.Ne(p, defkit.Lit(50))
 		})
 
-		Describe("And", func() {
+		Context("And", func() {
 			It("should create AND of two conditions", func() {
 				and := defkit.And(cond1, cond2)
 				Expect(and.Op()).To(Equal(defkit.OpAnd))
@@ -140,7 +140,7 @@ var _ = Describe("Expressions", func() {
 			})
 		})
 
-		Describe("Or", func() {
+		Context("Or", func() {
 			It("should create OR of two conditions", func() {
 				or := defkit.Or(cond1, cond2)
 				Expect(or.Op()).To(Equal(defkit.OpOr))
@@ -153,7 +153,7 @@ var _ = Describe("Expressions", func() {
 			})
 		})
 
-		Describe("Not", func() {
+		Context("Not", func() {
 			It("should create NOT of a condition", func() {
 				not := defkit.Not(cond1)
 				Expect(not.Cond()).To(Equal(cond1))
@@ -167,7 +167,7 @@ var _ = Describe("Expressions", func() {
 			})
 		})
 
-		Describe("Nested Logical Expressions", func() {
+		Context("Nested Logical Expressions", func() {
 			It("should support And within Or", func() {
 				inner := defkit.And(cond1, cond2)
 				outer := defkit.Or(inner, cond3)
@@ -190,6 +190,137 @@ var _ = Describe("Expressions", func() {
 				result := defkit.Or(left, right)
 				Expect(result.Conditions()).To(HaveLen(2))
 			})
+		})
+	})
+
+	Context("CueFunc expressions", func() {
+		It("should create StrconvFormatInt function", func() {
+			num := defkit.Int("port")
+			fn := defkit.StrconvFormatInt(num, 10)
+			Expect(fn).NotTo(BeNil())
+			Expect(fn.Package()).To(Equal("strconv"))
+			Expect(fn.Function()).To(Equal("FormatInt"))
+			Expect(fn.Args()).To(HaveLen(2))
+		})
+
+		It("should create StringsToLower function", func() {
+			str := defkit.String("name")
+			fn := defkit.StringsToLower(str)
+			Expect(fn).NotTo(BeNil())
+			Expect(fn.Package()).To(Equal("strings"))
+			Expect(fn.Function()).To(Equal("ToLower"))
+			Expect(fn.Args()).To(HaveLen(1))
+		})
+
+		It("should create StringsToUpper function", func() {
+			str := defkit.String("name")
+			fn := defkit.StringsToUpper(str)
+			Expect(fn).NotTo(BeNil())
+			Expect(fn.Package()).To(Equal("strings"))
+			Expect(fn.Function()).To(Equal("ToUpper"))
+			Expect(fn.Args()).To(HaveLen(1))
+		})
+
+		It("should create StringsHasPrefix function", func() {
+			str := defkit.String("path")
+			fn := defkit.StringsHasPrefix(str, "/api")
+			Expect(fn).NotTo(BeNil())
+			Expect(fn.Package()).To(Equal("strings"))
+			Expect(fn.Function()).To(Equal("HasPrefix"))
+			Expect(fn.Args()).To(HaveLen(2))
+		})
+
+		It("should create StringsHasSuffix function", func() {
+			str := defkit.String("file")
+			fn := defkit.StringsHasSuffix(str, ".yaml")
+			Expect(fn).NotTo(BeNil())
+			Expect(fn.Package()).To(Equal("strings"))
+			Expect(fn.Function()).To(Equal("HasSuffix"))
+			Expect(fn.Args()).To(HaveLen(2))
+		})
+
+		It("should create ListConcat function", func() {
+			list1 := defkit.List("list1")
+			list2 := defkit.List("list2")
+			fn := defkit.ListConcat(list1, list2)
+			Expect(fn).NotTo(BeNil())
+			Expect(fn.Package()).To(Equal("list"))
+			Expect(fn.Function()).To(Equal("Concat"))
+			Expect(fn.Args()).To(HaveLen(2))
+		})
+	})
+
+	Context("ArrayElement", func() {
+		It("should create new array element", func() {
+			elem := defkit.NewArrayElement()
+			Expect(elem).NotTo(BeNil())
+			Expect(elem.Ops()).To(BeEmpty())
+			Expect(elem.Fields()).To(BeEmpty())
+		})
+
+		It("should set fields on array element", func() {
+			elem := defkit.NewArrayElement().
+				Set("name", defkit.Lit("test")).
+				Set("port", defkit.Lit(8080))
+			Expect(elem.Fields()).To(HaveLen(2))
+			Expect(elem.Fields()["name"]).NotTo(BeNil())
+			Expect(elem.Fields()["port"]).NotTo(BeNil())
+		})
+
+		It("should set conditional fields on array element", func() {
+			enabled := defkit.Bool("enabled")
+			elem := defkit.NewArrayElement().
+				SetIf(enabled.IsTrue(), "active", defkit.Lit(true))
+			Expect(elem.Ops()).To(HaveLen(1))
+		})
+
+		It("should return fields from array element", func() {
+			elem := defkit.NewArrayElement().
+				Set("name", defkit.Lit("test"))
+			fields := elem.Fields()
+			Expect(fields).To(HaveLen(1))
+		})
+	})
+
+	Context("ForEachMap", func() {
+		It("should create ForEachMap expression", func() {
+			forEach := defkit.ForEachMap()
+			Expect(forEach).NotTo(BeNil())
+		})
+
+		It("should set source and variable names", func() {
+			forEach := defkit.ForEachMap().
+				Over("parameter.labels").
+				WithVars("k", "v")
+			Expect(forEach.KeyVar()).To(Equal("k"))
+			Expect(forEach.ValVar()).To(Equal("v"))
+			Expect(forEach.Source()).To(Equal("parameter.labels"))
+		})
+
+		It("should set key expression", func() {
+			forEach := defkit.ForEachMap().
+				Over("parameter.labels").
+				WithKeyExpr("k")
+			Expect(forEach.KeyExpr()).To(Equal("k"))
+		})
+
+		It("should set value expression", func() {
+			forEach := defkit.ForEachMap().
+				Over("parameter.labels").
+				WithValExpr("v")
+			Expect(forEach.ValExpr()).To(Equal("v"))
+		})
+	})
+
+	Context("ParamRef", func() {
+		It("should create parameter reference", func() {
+			ref := defkit.ParamRef("image")
+			Expect(ref).NotTo(BeNil())
+		})
+
+		It("should reference nested parameter", func() {
+			ref := defkit.ParamRef("config.port")
+			Expect(ref).NotTo(BeNil())
 		})
 	})
 })

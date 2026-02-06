@@ -25,14 +25,14 @@ import (
 
 var _ = Describe("VelaContext", func() {
 
-	Describe("VelaCtx", func() {
+	Context("VelaCtx", func() {
 		It("should create a context instance", func() {
 			vela := defkit.VelaCtx()
 			Expect(vela).NotTo(BeNil())
 		})
 	})
 
-	Describe("Basic Context References", func() {
+	Context("Basic Context References", func() {
 		var vela *defkit.VelaContext
 
 		BeforeEach(func() {
@@ -65,7 +65,7 @@ var _ = Describe("VelaContext", func() {
 		})
 	})
 
-	Describe("ClusterVersion", func() {
+	Context("ClusterVersion", func() {
 		var vela *defkit.VelaContext
 
 		BeforeEach(func() {
@@ -98,7 +98,73 @@ var _ = Describe("VelaContext", func() {
 		})
 	})
 
-	Describe("Context in Expressions", func() {
+	Context("Additional VelaContext Methods", func() {
+		var vela *defkit.VelaContext
+
+		BeforeEach(func() {
+			vela = defkit.VelaCtx()
+		})
+
+		It("should return revision reference", func() {
+			ref := vela.Revision()
+			Expect(ref.Path()).To(Equal("context.revision"))
+		})
+
+		It("should return output reference", func() {
+			ref := vela.Output()
+			Expect(ref.Path()).To(Equal("context.output"))
+		})
+
+		It("should return outputs reference with name", func() {
+			ref := vela.Outputs("service")
+			Expect(ref.Path()).To(Equal("context.outputs.service"))
+		})
+
+		It("should return outputs reference for configmap", func() {
+			ref := vela.Outputs("configmap")
+			Expect(ref.Path()).To(Equal("context.outputs.configmap"))
+		})
+	})
+
+	Context("ContextRef String Method", func() {
+		It("should return string representation for name", func() {
+			vela := defkit.VelaCtx()
+			ref := vela.Name()
+			Expect(ref.String()).To(Equal("$(context.name)"))
+		})
+
+		It("should return string representation for namespace", func() {
+			vela := defkit.VelaCtx()
+			ref := vela.Namespace()
+			Expect(ref.String()).To(Equal("$(context.namespace)"))
+		})
+
+		It("should return string representation for appName", func() {
+			vela := defkit.VelaCtx()
+			ref := vela.AppName()
+			Expect(ref.String()).To(Equal("$(context.appName)"))
+		})
+
+		It("should return string representation for revision", func() {
+			vela := defkit.VelaCtx()
+			ref := vela.Revision()
+			Expect(ref.String()).To(Equal("$(context.revision)"))
+		})
+
+		It("should return string representation for output", func() {
+			vela := defkit.VelaCtx()
+			ref := vela.Output()
+			Expect(ref.String()).To(Equal("$(context.output)"))
+		})
+
+		It("should return string representation for outputs", func() {
+			vela := defkit.VelaCtx()
+			ref := vela.Outputs("service")
+			Expect(ref.String()).To(Equal("$(context.outputs.service)"))
+		})
+	})
+
+	Context("Context in Expressions", func() {
 		It("should use context ref in comparison", func() {
 			vela := defkit.VelaCtx()
 			cond := defkit.Ge(vela.ClusterVersion().Minor(), defkit.Lit(21))
@@ -117,7 +183,7 @@ var _ = Describe("VelaContext", func() {
 
 var _ = Describe("TestContext", func() {
 
-	Describe("TestContextBuilder", func() {
+	Context("TestContextBuilder", func() {
 		It("should create test context with defaults", func() {
 			ctx := defkit.TestContext()
 			Expect(ctx.Name()).To(Equal("test-component"))
@@ -181,7 +247,7 @@ var _ = Describe("TestContext", func() {
 		})
 	})
 
-	Describe("Render", func() {
+	Context("Render", func() {
 		var (
 			image    *defkit.StringParam
 			replicas *defkit.IntParam
@@ -269,7 +335,7 @@ var _ = Describe("TestContext", func() {
 		})
 	})
 
-	Describe("SetIf with IsSet", func() {
+	Context("SetIf with IsSet", func() {
 		It("should set field when parameter is set", func() {
 			cpu := defkit.String("cpu").Optional()
 
@@ -307,7 +373,7 @@ var _ = Describe("TestContext", func() {
 		})
 	})
 
-	Describe("Literal values", func() {
+	Context("Literal values", func() {
 		It("should set literal string values", func() {
 			comp := defkit.NewComponent("test").
 				Template(func(tpl *defkit.Template) {
@@ -332,6 +398,324 @@ var _ = Describe("TestContext", func() {
 
 			rendered := comp.Render(defkit.TestContext())
 			Expect(rendered.Get("spec.replicas")).To(Equal(5))
+		})
+	})
+
+	Context("Comparison conditions in Render", func() {
+		It("should evaluate greater-than condition", func() {
+			replicas := defkit.Int("replicas")
+
+			comp := defkit.NewComponent("test").
+				Params(replicas).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							SetIf(defkit.Gt(replicas, defkit.Lit(1)), "spec.strategy.type", defkit.Lit("RollingUpdate")),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().WithParam("replicas", 3),
+			)
+			Expect(rendered.Get("spec.strategy.type")).To(Equal("RollingUpdate"))
+		})
+
+		It("should evaluate less-than condition", func() {
+			replicas := defkit.Int("replicas")
+
+			comp := defkit.NewComponent("test").
+				Params(replicas).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							SetIf(defkit.Lt(replicas, defkit.Lit(5)), "spec.minReplicas", replicas),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().WithParam("replicas", 3),
+			)
+			Expect(rendered.Get("spec.minReplicas")).To(Equal(3))
+		})
+
+		It("should evaluate greater-than-or-equal condition", func() {
+			port := defkit.Int("port")
+
+			comp := defkit.NewComponent("test").
+				Params(port).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("v1", "Service").
+							SetIf(defkit.Ge(port, defkit.Lit(8080)), "spec.ports[0].port", port),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().WithParam("port", 8080),
+			)
+			Expect(rendered.Get("spec.ports[0].port")).To(Equal(8080))
+		})
+
+		It("should evaluate less-than-or-equal condition", func() {
+			replicas := defkit.Int("replicas")
+
+			comp := defkit.NewComponent("test").
+				Params(replicas).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							SetIf(defkit.Le(replicas, defkit.Lit(10)), "spec.replicas", replicas),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().WithParam("replicas", 10),
+			)
+			Expect(rendered.Get("spec.replicas")).To(Equal(10))
+		})
+
+		It("should evaluate not-equal condition", func() {
+			env := defkit.String("env")
+
+			comp := defkit.NewComponent("test").
+				Params(env).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							SetIf(defkit.Ne(env, defkit.Lit("prod")), "spec.debug", defkit.Lit(true)),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().WithParam("env", "dev"),
+			)
+			Expect(rendered.Get("spec.debug")).To(Equal(true))
+		})
+	})
+
+	Context("Numeric value comparisons", func() {
+		It("should compare float values", func() {
+			threshold := defkit.Float("threshold")
+
+			comp := defkit.NewComponent("test").
+				Params(threshold).
+				Template(func(tpl *defkit.Template) {
+					cond := defkit.Gt(threshold, defkit.Lit(0.5))
+					tpl.Output(
+						defkit.NewResource("v1", "ConfigMap").
+							SetIf(cond, "data.highThreshold", defkit.Lit("true")),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().WithParam("threshold", 0.8),
+			)
+			Expect(rendered.Get("data.highThreshold")).To(Equal("true"))
+		})
+
+		It("should compare int values with different operators", func() {
+			priority := defkit.Int("priority")
+
+			comp := defkit.NewComponent("test").
+				Params(priority).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("v1", "ConfigMap").
+							SetIf(defkit.Ge(priority, defkit.Lit(1)), "data.low", defkit.Lit("yes")).
+							SetIf(defkit.Ge(priority, defkit.Lit(5)), "data.medium", defkit.Lit("yes")).
+							SetIf(defkit.Ge(priority, defkit.Lit(8)), "data.high", defkit.Lit("yes")),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().WithParam("priority", 6),
+			)
+			Expect(rendered.Get("data.low")).To(Equal("yes"))
+			Expect(rendered.Get("data.medium")).To(Equal("yes"))
+			Expect(rendered.Get("data.high")).To(BeNil())
+		})
+	})
+
+	Context("Logical conditions in Render", func() {
+		It("should evaluate And condition", func() {
+			replicas := defkit.Int("replicas")
+			cpu := defkit.String("cpu")
+
+			comp := defkit.NewComponent("test").
+				Params(replicas, cpu).
+				Template(func(tpl *defkit.Template) {
+					cond := defkit.And(
+						defkit.Gt(replicas, defkit.Lit(1)),
+						cpu.IsSet(),
+					)
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							SetIf(cond, "spec.resources.limits.cpu", cpu),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().
+					WithParam("replicas", 3).
+					WithParam("cpu", "500m"),
+			)
+			Expect(rendered.Get("spec.resources.limits.cpu")).To(Equal("500m"))
+		})
+
+		It("should evaluate Or condition", func() {
+			debug := defkit.Bool("debug")
+			env := defkit.String("env")
+
+			comp := defkit.NewComponent("test").
+				Params(debug, env).
+				Template(func(tpl *defkit.Template) {
+					cond := defkit.Or(
+						defkit.Eq(debug, defkit.Lit(true)),
+						defkit.Eq(env, defkit.Lit("dev")),
+					)
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							SetIf(cond, "spec.logging", defkit.Lit("verbose")),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().
+					WithParam("debug", false).
+					WithParam("env", "dev"),
+			)
+			Expect(rendered.Get("spec.logging")).To(Equal("verbose"))
+		})
+
+		It("should evaluate Not condition", func() {
+			enabled := defkit.Bool("enabled")
+
+			comp := defkit.NewComponent("test").
+				Params(enabled).
+				Template(func(tpl *defkit.Template) {
+					cond := defkit.Not(defkit.Eq(enabled, defkit.Lit(true)))
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							SetIf(cond, "spec.paused", defkit.Lit(true)),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().WithParam("enabled", false),
+			)
+			Expect(rendered.Get("spec.paused")).To(Equal(true))
+		})
+
+		It("should evaluate nested And/Or conditions", func() {
+			replicas := defkit.Int("replicas")
+			cpu := defkit.String("cpu")
+			memory := defkit.String("memory")
+
+			comp := defkit.NewComponent("test").
+				Params(replicas, cpu, memory).
+				Template(func(tpl *defkit.Template) {
+					// (replicas > 1) AND (cpu set OR memory set)
+					cond := defkit.And(
+						defkit.Gt(replicas, defkit.Lit(1)),
+						defkit.Or(cpu.IsSet(), memory.IsSet()),
+					)
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							SetIf(cond, "spec.autoscaling", defkit.Lit(true)),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().
+					WithParam("replicas", 3).
+					WithParam("memory", "512Mi"),
+			)
+			Expect(rendered.Get("spec.autoscaling")).To(Equal(true))
+		})
+	})
+
+	Context("If/EndIf blocks in Render", func() {
+		It("should evaluate If block when condition is true", func() {
+			enabled := defkit.Bool("enabled")
+			port := defkit.Int("port")
+
+			comp := defkit.NewComponent("test").
+				Params(enabled, port).
+				Template(func(tpl *defkit.Template) {
+					cond := defkit.Eq(enabled, defkit.Lit(true))
+					tpl.Output(
+						defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()).
+							If(cond).
+							Set("spec.ports[0].port", port).
+							Set("spec.ports[0].protocol", defkit.Lit("TCP")).
+							EndIf(),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().
+					WithName("my-svc").
+					WithParam("enabled", true).
+					WithParam("port", 8080),
+			)
+
+			Expect(rendered.Get("metadata.name")).To(Equal("my-svc"))
+			Expect(rendered.Get("spec.ports[0].port")).To(Equal(8080))
+			Expect(rendered.Get("spec.ports[0].protocol")).To(Equal("TCP"))
+		})
+
+		It("should skip If block when condition is false", func() {
+			enabled := defkit.Bool("enabled")
+			port := defkit.Int("port")
+
+			comp := defkit.NewComponent("test").
+				Params(enabled, port).
+				Template(func(tpl *defkit.Template) {
+					cond := defkit.Eq(enabled, defkit.Lit(true))
+					tpl.Output(
+						defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()).
+							If(cond).
+							Set("spec.ports[0].port", port).
+							EndIf(),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().
+					WithName("my-svc").
+					WithParam("enabled", false).
+					WithParam("port", 8080),
+			)
+
+			Expect(rendered.Get("metadata.name")).To(Equal("my-svc"))
+			Expect(rendered.Get("spec.ports[0].port")).To(BeNil())
+		})
+	})
+
+	Context("Array indexing in Render", func() {
+		It("should set values at array indices", func() {
+			ports := defkit.Array("ports")
+
+			comp := defkit.NewComponent("test").
+				Params(ports).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("v1", "Service").
+							Set("spec.ports[0].port", defkit.Lit(80)).
+							Set("spec.ports[0].name", defkit.Lit("http")).
+							Set("spec.ports[1].port", defkit.Lit(443)).
+							Set("spec.ports[1].name", defkit.Lit("https")),
+					)
+				})
+
+			rendered := comp.Render(defkit.TestContext())
+
+			Expect(rendered.Get("spec.ports[0].port")).To(Equal(80))
+			Expect(rendered.Get("spec.ports[0].name")).To(Equal("http"))
+			Expect(rendered.Get("spec.ports[1].port")).To(Equal(443))
+			Expect(rendered.Get("spec.ports[1].name")).To(Equal("https"))
 		})
 	})
 })

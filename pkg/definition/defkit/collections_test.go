@@ -25,7 +25,23 @@ import (
 
 var _ = Describe("Collections", func() {
 
-	Describe("Each", func() {
+	Context("From", func() {
+		It("should create a collection operation (alias for Each)", func() {
+			ports := defkit.List("ports")
+			col := defkit.From(ports)
+			Expect(col).NotTo(BeNil())
+			Expect(col.Source()).To(Equal(ports))
+		})
+	})
+
+	Context("F", func() {
+		It("should create a FieldRef (alias for FieldRef)", func() {
+			ref := defkit.F("port")
+			Expect(ref).To(Equal(defkit.FieldRef("port")))
+		})
+	})
+
+	Context("Each", func() {
 		It("should create a collection operation from a list parameter", func() {
 			ports := defkit.List("ports")
 			col := defkit.Each(ports)
@@ -70,9 +86,21 @@ var _ = Describe("Collections", func() {
 			col := defkit.Each(ports).Rename("port", "containerPort")
 			Expect(col.Operations()).To(HaveLen(1))
 		})
+
+		It("should chain Flatten operation", func() {
+			volumes := defkit.List("volumes")
+			col := defkit.Each(volumes).Flatten()
+			Expect(col.Operations()).To(HaveLen(1))
+		})
+
+		It("should chain DefaultField operation", func() {
+			ports := defkit.List("ports")
+			col := defkit.Each(ports).DefaultField("name", defkit.Format("port-%v", defkit.FieldRef("port")))
+			Expect(col.Operations()).To(HaveLen(1))
+		})
 	})
 
-	Describe("FieldRef", func() {
+	Context("FieldRef", func() {
 		It("should resolve field from item", func() {
 			ref := defkit.FieldRef("port")
 			Expect(ref).NotTo(BeNil())
@@ -84,35 +112,35 @@ var _ = Describe("Collections", func() {
 		})
 	})
 
-	Describe("FieldEquals", func() {
+	Context("FieldEquals", func() {
 		It("should create equality predicate", func() {
 			pred := defkit.FieldEquals("expose", true)
 			Expect(pred).NotTo(BeNil())
 		})
 	})
 
-	Describe("FieldExists", func() {
+	Context("FieldExists", func() {
 		It("should create existence predicate", func() {
 			pred := defkit.FieldExists("items")
 			Expect(pred).NotTo(BeNil())
 		})
 	})
 
-	Describe("Format", func() {
+	Context("Format", func() {
 		It("should create format field value", func() {
 			f := defkit.Format("port-%v", defkit.FieldRef("port"))
 			Expect(f).NotTo(BeNil())
 		})
 	})
 
-	Describe("LitField", func() {
+	Context("LitField", func() {
 		It("should create literal field value", func() {
 			lit := defkit.LitField("TCP")
 			Expect(lit).NotTo(BeNil())
 		})
 	})
 
-	Describe("FromFields", func() {
+	Context("FromFields", func() {
 		It("should create multi-source collection", func() {
 			volumeMounts := defkit.Object("volumeMounts")
 			ms := defkit.FromFields(volumeMounts, "pvc", "configMap", "secret")
@@ -152,7 +180,7 @@ var _ = Describe("Collections", func() {
 		})
 	})
 
-	Describe("Nested", func() {
+	Context("Nested", func() {
 		It("should create nested field mapping", func() {
 			nested := defkit.Nested(defkit.FieldMap{
 				"claimName": defkit.FieldRef("claimName"),
@@ -161,14 +189,45 @@ var _ = Describe("Collections", func() {
 		})
 	})
 
-	Describe("Optional", func() {
+	Context("Optional and OptionalFieldRef", func() {
 		It("should create optional field reference", func() {
 			opt := defkit.Optional("items")
 			Expect(opt).NotTo(BeNil())
 		})
+
+		It("should create optional field reference via OptionalFieldRef alias", func() {
+			opt := defkit.OptionalFieldRef("subPath")
+			Expect(opt).NotTo(BeNil())
+		})
 	})
 
-	Describe("Collection Resolution", func() {
+	Context("NestedFieldMap", func() {
+		It("should create nested field mapping (alias for Nested)", func() {
+			nested := defkit.NestedFieldMap(defkit.FieldMap{
+				"claimName": defkit.FieldRef("claimName"),
+			})
+			Expect(nested).NotTo(BeNil())
+		})
+	})
+
+	Context("ConcatExpr", func() {
+		It("should create concatenation expression from struct array helper", func() {
+			tpl := defkit.NewTemplate()
+			volumeMounts := defkit.Object("volumeMounts")
+			structHelper := tpl.StructArrayHelper("mountsArray", volumeMounts).
+				Field("pvc", defkit.FieldMap{"name": defkit.FieldRef("name")}).
+				Field("configMap", defkit.FieldMap{"name": defkit.FieldRef("name")}).
+				Build()
+
+			concatExpr := defkit.ConcatExpr(structHelper, "pvc", "configMap")
+
+			Expect(concatExpr).NotTo(BeNil())
+			Expect(concatExpr.Source()).To(Equal(structHelper))
+			Expect(concatExpr.Fields()).To(Equal([]string{"pvc", "configMap"}))
+		})
+	})
+
+	Context("Collection Resolution", func() {
 		var (
 			ports *defkit.ArrayParam
 			comp  *defkit.ComponentDefinition
@@ -269,7 +328,7 @@ var _ = Describe("Collections", func() {
 		})
 	})
 
-	Describe("MultiSource Resolution", func() {
+	Context("MultiSource Resolution", func() {
 		var (
 			volumeMounts *defkit.MapParam
 			comp         *defkit.ComponentDefinition
@@ -481,8 +540,8 @@ var _ = Describe("Collections", func() {
 	})
 
 	// --- Go 1.23 Iterator Methods Tests ---
-	Describe("Go 1.23 Iterator Methods", func() {
-		Describe("CollectionOp.All", func() {
+	Context("Go 1.23 Iterator Methods", func() {
+		Context("CollectionOp.All", func() {
 			It("should iterate over all items using iter.Seq", func() {
 				ports := defkit.List("ports")
 				col := defkit.Each(ports).
@@ -526,7 +585,7 @@ var _ = Describe("Collections", func() {
 			})
 		})
 
-		Describe("CollectionOp.AllPairs", func() {
+		Context("CollectionOp.AllPairs", func() {
 			It("should iterate with index and item using iter.Seq2", func() {
 				ports := defkit.List("ports")
 				col := defkit.Each(ports)
@@ -548,7 +607,7 @@ var _ = Describe("Collections", func() {
 			})
 		})
 
-		Describe("CollectionOp.Collect", func() {
+		Context("CollectionOp.Collect", func() {
 			It("should materialize iterator to slice using slices.Collect", func() {
 				ports := defkit.List("ports")
 				col := defkit.Each(ports).
@@ -565,7 +624,7 @@ var _ = Describe("Collections", func() {
 			})
 		})
 
-		Describe("CollectionOp.Count", func() {
+		Context("CollectionOp.Count", func() {
 			It("should count items after applying operations", func() {
 				ports := defkit.List("ports")
 				col := defkit.Each(ports).
@@ -581,7 +640,7 @@ var _ = Describe("Collections", func() {
 			})
 		})
 
-		Describe("CollectionOp.First", func() {
+		Context("CollectionOp.First", func() {
 			It("should return first item after applying operations", func() {
 				ports := defkit.List("ports")
 				col := defkit.Each(ports).
@@ -611,7 +670,7 @@ var _ = Describe("Collections", func() {
 			})
 		})
 
-		Describe("FieldMap iterators", func() {
+		Context("FieldMap iterators", func() {
 			It("should iterate over all key-value pairs using maps.All", func() {
 				fm := defkit.FieldMap{
 					"containerPort": defkit.FieldRef("port"),
@@ -626,9 +685,43 @@ var _ = Describe("Collections", func() {
 				Expect(keys).To(HaveLen(2))
 				Expect(keys).To(ContainElements("containerPort", "name"))
 			})
+
+			It("should iterate over all values using maps.Values", func() {
+				portRef := defkit.FieldRef("port")
+				nameRef := defkit.FieldRef("name")
+				fm := defkit.FieldMap{
+					"containerPort": portRef,
+					"name":          nameRef,
+				}
+
+				var count int
+				for range fm.Values() {
+					count++
+				}
+
+				Expect(count).To(Equal(2))
+			})
+
+			It("should iterate over all key-value pairs using All", func() {
+				portRef := defkit.FieldRef("port")
+				nameRef := defkit.FieldRef("name")
+				fm := defkit.FieldMap{
+					"containerPort": portRef,
+					"name":          nameRef,
+				}
+
+				pairs := make(map[string]defkit.FieldValue)
+				for key, val := range fm.All() {
+					pairs[key] = val
+				}
+
+				Expect(pairs).To(HaveLen(2))
+				Expect(pairs).To(HaveKey("containerPort"))
+				Expect(pairs).To(HaveKey("name"))
+			})
 		})
 
-		Describe("MultiSource.All", func() {
+		Context("MultiSource.All", func() {
 			It("should iterate over all items from multiple sources", func() {
 				volumeMounts := defkit.Object("volumeMounts")
 				ms := defkit.FromFields(volumeMounts, "pvc", "configMap").
@@ -659,7 +752,7 @@ var _ = Describe("Collections", func() {
 			})
 		})
 
-		Describe("MultiSource.Collect", func() {
+		Context("MultiSource.Collect", func() {
 			It("should materialize iterator to slice", func() {
 				volumeMounts := defkit.Object("volumeMounts")
 				ms := defkit.FromFields(volumeMounts, "pvc", "configMap")
@@ -678,7 +771,7 @@ var _ = Describe("Collections", func() {
 			})
 		})
 
-		Describe("MultiSource.Count", func() {
+		Context("MultiSource.Count", func() {
 			It("should count items from all sources", func() {
 				volumeMounts := defkit.Object("volumeMounts")
 				ms := defkit.FromFields(volumeMounts, "pvc", "configMap", "secret")
@@ -695,6 +788,112 @@ var _ = Describe("Collections", func() {
 				}
 
 				Expect(ms.Count(sourceData)).To(Equal(3))
+			})
+		})
+
+		Context("MultiSource.AllPairs", func() {
+			It("should iterate with index over all sources", func() {
+				volumeMounts := defkit.Object("volumeMounts")
+				ms := defkit.FromFields(volumeMounts, "pvc", "configMap")
+
+				sourceData := map[string]any{
+					"pvc": []map[string]any{
+						{"name": "data1"},
+					},
+					"configMap": []map[string]any{
+						{"name": "config"},
+					},
+				}
+
+				var indices []int
+				var names []string
+				for i, item := range ms.AllPairs(sourceData) {
+					indices = append(indices, i)
+					names = append(names, item["name"].(string))
+				}
+
+				Expect(indices).To(Equal([]int{0, 1}))
+				Expect(names).To(HaveLen(2))
+			})
+		})
+
+		Context("Flatten operation behavior", func() {
+			It("should flatten nested arrays", func() {
+				volumes := defkit.List("volumes")
+				col := defkit.Each(volumes).Flatten()
+
+				items := []any{
+					[]any{map[string]any{"name": "vol1"}},
+					[]any{map[string]any{"name": "vol2"}, map[string]any{"name": "vol3"}},
+					map[string]any{"name": "vol4"}, // non-array item should pass through
+				}
+
+				results := col.Collect(items)
+				Expect(results).To(HaveLen(4))
+				Expect(results[0]["name"]).To(Equal("vol1"))
+				Expect(results[1]["name"]).To(Equal("vol2"))
+				Expect(results[2]["name"]).To(Equal("vol3"))
+				Expect(results[3]["name"]).To(Equal("vol4"))
+			})
+		})
+
+		Context("DefaultField operation behavior", func() {
+			It("should set default value when field is missing", func() {
+				ports := defkit.List("ports")
+				col := defkit.Each(ports).DefaultField("name", defkit.LitField("default-port"))
+
+				items := []any{
+					map[string]any{"port": 80},                   // no name
+					map[string]any{"port": 443, "name": "https"}, // has name
+					map[string]any{"port": 8080, "name": ""},     // empty name
+				}
+
+				results := col.Collect(items)
+				Expect(results).To(HaveLen(3))
+				Expect(results[0]["name"]).To(Equal("default-port"))
+				Expect(results[1]["name"]).To(Equal("https"))
+				Expect(results[2]["name"]).To(Equal("default-port")) // empty string triggers default
+			})
+		})
+
+		Context("OrFieldRef behavior", func() {
+			It("should use fallback when primary field is nil", func() {
+				ports := defkit.List("ports")
+				col := defkit.Each(ports).Map(defkit.FieldMap{
+					"displayName": defkit.FieldRef("name").Or(defkit.Format("port-%v", defkit.FieldRef("port"))),
+				})
+
+				items := []any{
+					map[string]any{"port": 80, "name": "http"},
+					map[string]any{"port": 443},              // name is nil
+					map[string]any{"port": 8080, "name": ""}, // name is empty
+				}
+
+				results := col.Collect(items)
+				Expect(results).To(HaveLen(3))
+				Expect(results[0]["displayName"]).To(Equal("http"))
+				Expect(results[1]["displayName"]).To(Equal("port-443"))
+				Expect(results[2]["displayName"]).To(Equal("port-8080"))
+			})
+		})
+
+		Context("FormatField RequiredImports", func() {
+			It("should require strconv for numeric formatting", func() {
+				f := defkit.Format("port-%v", defkit.FieldRef("port"))
+				imports := f.RequiredImports()
+				Expect(imports).To(ContainElement("strconv"))
+			})
+
+			It("should require strconv for %d formatting", func() {
+				f := defkit.Format("count-%d", defkit.FieldRef("count"))
+				imports := f.RequiredImports()
+				Expect(imports).To(ContainElement("strconv"))
+			})
+
+			It("should return empty when format doesn't need strconv", func() {
+				f := defkit.Format("name is %s", defkit.LitField("test"))
+				imports := f.RequiredImports()
+				Expect(imports).To(BeNil())
 			})
 		})
 	})

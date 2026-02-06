@@ -25,7 +25,7 @@ import (
 
 var _ = Describe("Resource", func() {
 
-	Describe("NewResource", func() {
+	Context("NewResource", func() {
 		It("should create a resource with API version and kind", func() {
 			r := defkit.NewResource("apps/v1", "Deployment")
 			Expect(r.APIVersion()).To(Equal("apps/v1"))
@@ -34,7 +34,7 @@ var _ = Describe("Resource", func() {
 		})
 	})
 
-	Describe("Set", func() {
+	Context("Set", func() {
 		It("should record a Set operation", func() {
 			image := defkit.String("image").Required()
 			r := defkit.NewResource("apps/v1", "Deployment").
@@ -62,7 +62,7 @@ var _ = Describe("Resource", func() {
 		})
 	})
 
-	Describe("SetIf", func() {
+	Context("SetIf", func() {
 		It("should record a conditional Set operation", func() {
 			enabled := defkit.Bool("enabled")
 			port := defkit.Int("port")
@@ -77,7 +77,7 @@ var _ = Describe("Resource", func() {
 		})
 	})
 
-	Describe("If/EndIf Block", func() {
+	Context("If/EndIf Block", func() {
 		It("should group operations within If block", func() {
 			enabled := defkit.Bool("enabled")
 			port := defkit.Int("port")
@@ -129,6 +129,77 @@ var _ = Describe("Resource", func() {
 			Expect(ifBlock.Ops()).To(HaveLen(1))
 			_, isSetIf := ifBlock.Ops()[0].(*defkit.SetIfOp)
 			Expect(isSetIf).To(BeTrue())
+		})
+	})
+
+	Context("NewResourceWithConditionalVersion", func() {
+		It("should create a resource with conditional version", func() {
+			r := defkit.NewResourceWithConditionalVersion("CronJob")
+			Expect(r.Kind()).To(Equal("CronJob"))
+			Expect(r.APIVersion()).To(BeEmpty())
+			Expect(r.HasVersionConditionals()).To(BeFalse())
+		})
+
+		It("should add version conditionals with VersionIf", func() {
+			vela := defkit.VelaCtx()
+			r := defkit.NewResourceWithConditionalVersion("CronJob").
+				VersionIf(defkit.Lt(vela.ClusterVersion().Minor(), defkit.Lit(25)), "batch/v1beta1").
+				VersionIf(defkit.Ge(vela.ClusterVersion().Minor(), defkit.Lit(25)), "batch/v1")
+			Expect(r.HasVersionConditionals()).To(BeTrue())
+			Expect(r.VersionConditionals()).To(HaveLen(2))
+		})
+
+		It("should return version conditionals correctly", func() {
+			vela := defkit.VelaCtx()
+			cond := defkit.Lt(vela.ClusterVersion().Minor(), defkit.Lit(25))
+			r := defkit.NewResourceWithConditionalVersion("CronJob").
+				VersionIf(cond, "batch/v1beta1")
+			conditionals := r.VersionConditionals()
+			Expect(conditionals).To(HaveLen(1))
+			Expect(conditionals[0].Condition).To(Equal(cond))
+			Expect(conditionals[0].ApiVersion).To(Equal("batch/v1beta1"))
+		})
+	})
+
+	Context("SpreadIf", func() {
+		It("should record a SpreadIf operation", func() {
+			labels := defkit.Object("labels")
+			r := defkit.NewResource("apps/v1", "Deployment").
+				SpreadIf(labels.IsSet(), "spec.template.metadata.labels", labels)
+			Expect(r.Ops()).To(HaveLen(1))
+			spreadIfOp, ok := r.Ops()[0].(*defkit.SpreadIfOp)
+			Expect(ok).To(BeTrue())
+			Expect(spreadIfOp.Path()).To(Equal("spec.template.metadata.labels"))
+			Expect(spreadIfOp.Value()).To(Equal(labels))
+			Expect(spreadIfOp.Cond()).NotTo(BeNil())
+		})
+
+		It("should combine SpreadIf with Set operations", func() {
+			vela := defkit.VelaCtx()
+			labels := defkit.Object("labels")
+			r := defkit.NewResource("apps/v1", "Deployment").
+				Set("spec.template.metadata.labels[app.oam.dev/name]", vela.AppName()).
+				SpreadIf(labels.IsSet(), "spec.template.metadata.labels", labels)
+			Expect(r.Ops()).To(HaveLen(2))
+			_, isSetOp := r.Ops()[0].(*defkit.SetOp)
+			_, isSpreadIf := r.Ops()[1].(*defkit.SpreadIfOp)
+			Expect(isSetOp).To(BeTrue())
+			Expect(isSpreadIf).To(BeTrue())
+		})
+
+		It("should record SpreadIf within If block", func() {
+			enabled := defkit.Bool("enabled")
+			labels := defkit.Object("labels")
+			outerCond := defkit.Eq(enabled, defkit.Lit(true))
+			r := defkit.NewResource("apps/v1", "Deployment").
+				If(outerCond).
+				SpreadIf(labels.IsSet(), "spec.template.metadata.labels", labels).
+				EndIf()
+			Expect(r.Ops()).To(HaveLen(1))
+			ifBlock := r.Ops()[0].(*defkit.IfBlock)
+			Expect(ifBlock.Ops()).To(HaveLen(1))
+			_, isSpreadIf := ifBlock.Ops()[0].(*defkit.SpreadIfOp)
+			Expect(isSpreadIf).To(BeTrue())
 		})
 	})
 })

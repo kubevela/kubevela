@@ -14,109 +14,105 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package defkit
+package defkit_test
 
 import (
-	"strings"
-	"testing"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	"github.com/oam-dev/kubevela/pkg/definition/defkit"
 )
 
-func TestWorkflowStepDefinition_Basic(t *testing.T) {
-	step := NewWorkflowStep("deploy").
-		Description("A powerful and unified deploy step for components multi-cluster delivery.").
-		Category("Application Delivery").
-		Scope("Application").
-		Params(
-			Bool("auto").Default(true).Description("If set to false, the workflow will suspend automatically."),
-			StringList("policies").Description("Declare the policies for deployment."),
-			Int("parallelism").Default(5).Description("Maximum concurrent components."),
-		)
+var _ = Describe("WorkflowStepDefinition", func() {
 
-	// Test basic properties
-	if step.DefName() != "deploy" {
-		t.Errorf("expected name 'deploy', got %q", step.DefName())
-	}
-	if step.DefType() != DefinitionTypeWorkflowStep {
-		t.Errorf("expected type workflow-step, got %v", step.DefType())
-	}
-	if step.GetCategory() != "Application Delivery" {
-		t.Errorf("expected category 'Application Delivery', got %q", step.GetCategory())
-	}
-	if step.GetScope() != "Application" {
-		t.Errorf("expected scope 'Application', got %q", step.GetScope())
-	}
-	if len(step.GetParams()) != 3 {
-		t.Errorf("expected 3 params, got %d", len(step.GetParams()))
-	}
-}
+	Context("Basic Builder Methods", func() {
+		It("should create workflow step with name", func() {
+			step := defkit.NewWorkflowStep("deploy")
+			Expect(step.DefName()).To(Equal("deploy"))
+			Expect(step.DefType()).To(Equal(defkit.DefinitionTypeWorkflowStep))
+		})
 
-func TestWorkflowStepDefinition_ToCue(t *testing.T) {
-	step := NewWorkflowStep("deploy").
-		Description("Deploy step.").
-		Category("Application Delivery").
-		Scope("Application").
-		Params(
-			Bool("auto").Default(true),
-			Int("parallelism").Default(5),
-		)
+		It("should set description", func() {
+			step := defkit.NewWorkflowStep("deploy").
+				Description("A powerful deploy step")
+			Expect(step.GetDescription()).To(Equal("A powerful deploy step"))
+		})
 
-	cue := step.ToCue()
+		It("should set category", func() {
+			step := defkit.NewWorkflowStep("deploy").
+				Category("Application Delivery")
+			Expect(step.GetCategory()).To(Equal("Application Delivery"))
+		})
 
-	// Should contain workflow-step header
-	if !strings.Contains(cue, `type: "workflow-step"`) {
-		t.Error("expected CUE to contain type: \"workflow-step\"")
-	}
+		It("should set scope", func() {
+			step := defkit.NewWorkflowStep("deploy").
+				Scope("Application")
+			Expect(step.GetScope()).To(Equal("Application"))
+		})
 
-	// Should contain annotations with category
-	if !strings.Contains(cue, "annotations:") {
-		t.Error("expected CUE to contain annotations:")
-	}
-	if !strings.Contains(cue, `"category": "Application Delivery"`) {
-		t.Error("expected CUE to contain category annotation")
-	}
+		It("should add parameters using Params", func() {
+			step := defkit.NewWorkflowStep("deploy").
+				Params(
+					defkit.Bool("auto").Default(true),
+					defkit.Int("parallelism").Default(5),
+				)
+			Expect(step.GetParams()).To(HaveLen(2))
+		})
 
-	// Should contain labels with scope
-	if !strings.Contains(cue, "labels:") {
-		t.Error("expected CUE to contain labels:")
-	}
-	if !strings.Contains(cue, `"scope": "Application"`) {
-		t.Error("expected CUE to contain scope label")
-	}
+		It("should add single parameter using Param", func() {
+			step := defkit.NewWorkflowStep("deploy").
+				Param(defkit.Bool("auto"))
+			Expect(step.GetParams()).To(HaveLen(1))
+		})
+	})
 
-	// Should contain template block
-	if !strings.Contains(cue, "template:") {
-		t.Error("expected CUE to contain template:")
-	}
+	Context("Helper Method", func() {
+		It("should add helper definition with param", func() {
+			helperParam := defkit.Struct("placement").Fields(
+				defkit.Field("clusterName", defkit.ParamTypeString),
+			)
+			step := defkit.NewWorkflowStep("deploy").
+				Helper("Placement", helperParam)
 
-	// Should contain parameters
-	if !strings.Contains(cue, "parameter:") {
-		t.Error("expected CUE to contain parameter:")
-	}
-	if !strings.Contains(cue, "auto:") {
-		t.Error("expected CUE to contain auto parameter")
-	}
-}
+			helpers := step.GetHelperDefinitions()
+			Expect(helpers).To(HaveLen(1))
+			Expect(helpers[0].GetName()).To(Equal("Placement"))
+			Expect(helpers[0].HasParam()).To(BeTrue())
+		})
+	})
 
-func TestWorkflowStepDefinition_WithImports(t *testing.T) {
-	step := NewWorkflowStep("deploy").
-		Description("Deploy step.").
-		WithImports("vela/multicluster", "vela/builtin")
+	Context("Status and Health Methods", func() {
+		It("should set custom status", func() {
+			step := defkit.NewWorkflowStep("deploy").
+				CustomStatus("message: \"Deploying...\"")
+			Expect(step.GetCustomStatus()).To(Equal("message: \"Deploying...\""))
+		})
 
-	cue := step.ToCue()
+		It("should set health policy", func() {
+			step := defkit.NewWorkflowStep("deploy").
+				HealthPolicy("isHealth: true")
+			Expect(step.GetHealthPolicy()).To(Equal("isHealth: true"))
+		})
 
-	if !strings.Contains(cue, `import (`) {
-		t.Error("expected CUE to contain import block")
-	}
-	if !strings.Contains(cue, `"vela/multicluster"`) {
-		t.Error("expected CUE to contain vela/multicluster import")
-	}
-	if !strings.Contains(cue, `"vela/builtin"`) {
-		t.Error("expected CUE to contain vela/builtin import")
-	}
-}
+		It("should set health policy expression", func() {
+			h := defkit.Health()
+			step := defkit.NewWorkflowStep("deploy").
+				HealthPolicyExpr(h.Condition("Ready").IsTrue())
+			Expect(step.GetHealthPolicy()).NotTo(BeEmpty())
+		})
+	})
 
-func TestWorkflowStepDefinition_RawCUE(t *testing.T) {
-	rawCUE := `import (
+	Context("Imports", func() {
+		It("should add imports with WithImports", func() {
+			step := defkit.NewWorkflowStep("deploy").
+				WithImports("vela/multicluster", "vela/builtin")
+			Expect(step.GetImports()).To(ConsistOf("vela/multicluster", "vela/builtin"))
+		})
+	})
+
+	Context("RawCUE", func() {
+		It("should set raw CUE and bypass template generation", func() {
+			rawCUE := `import (
 	"vela/multicluster"
 )
 
@@ -128,86 +124,138 @@ template: {
 	deploy: multicluster.#Deploy
 	parameter: auto: *true | bool
 }`
+			step := defkit.NewWorkflowStep("deploy").RawCUE(rawCUE)
+			Expect(step.ToCue()).To(Equal(rawCUE))
+		})
+	})
 
-	step := NewWorkflowStep("deploy").RawCUE(rawCUE)
+	Context("ToCue Generation", func() {
+		It("should generate complete CUE definition", func() {
+			step := defkit.NewWorkflowStep("deploy").
+				Description("Deploy step").
+				Category("Application Delivery").
+				Scope("Application").
+				Params(
+					defkit.Bool("auto").Default(true),
+					defkit.Int("parallelism").Default(5),
+				)
 
-	if step.ToCue() != rawCUE {
-		t.Error("expected RawCUE to return exact raw CUE string")
-	}
-}
+			cue := step.ToCue()
 
-func TestWorkflowStepDefinition_ToYAML(t *testing.T) {
-	step := NewWorkflowStep("deploy").
-		Description("Deploy components.").
-		Category("Application Delivery").
-		Scope("Application").
-		Params(Bool("auto").Default(true))
+			Expect(cue).To(ContainSubstring(`type: "workflow-step"`))
+			Expect(cue).To(ContainSubstring(`annotations:`))
+			Expect(cue).To(ContainSubstring(`"category": "Application Delivery"`))
+			Expect(cue).To(ContainSubstring(`labels:`))
+			Expect(cue).To(ContainSubstring(`"scope": "Application"`))
+			Expect(cue).To(ContainSubstring(`template:`))
+			Expect(cue).To(ContainSubstring(`parameter:`))
+		})
 
-	yamlBytes, err := step.ToYAML()
-	if err != nil {
-		t.Fatalf("ToYAML failed: %v", err)
-	}
+		It("should include imports in CUE output", func() {
+			step := defkit.NewWorkflowStep("deploy").
+				Description("Deploy step").
+				WithImports("vela/multicluster", "vela/builtin")
 
-	yaml := string(yamlBytes)
+			cue := step.ToCue()
 
-	if !strings.Contains(yaml, "kind: WorkflowStepDefinition") {
-		t.Error("expected YAML to contain kind: WorkflowStepDefinition")
-	}
-	if !strings.Contains(yaml, "name: deploy") {
-		t.Error("expected YAML to contain name: deploy")
-	}
-}
+			Expect(cue).To(ContainSubstring(`import (`))
+			Expect(cue).To(ContainSubstring(`"vela/multicluster"`))
+			Expect(cue).To(ContainSubstring(`"vela/builtin"`))
+		})
+	})
 
-func TestWorkflowStepDefinition_Registry(t *testing.T) {
-	Clear() // Reset registry
+	Context("ToYAML Generation", func() {
+		It("should generate valid YAML manifest", func() {
+			step := defkit.NewWorkflowStep("deploy").
+				Description("Deploy components").
+				Category("Application Delivery").
+				Scope("Application").
+				Params(defkit.Bool("auto").Default(true))
 
-	step1 := NewWorkflowStep("deploy").Description("Deploy").Category("Application Delivery")
-	step2 := NewWorkflowStep("suspend").Description("Suspend").Category("Workflow Control")
-	comp := NewComponent("webservice").Description("Component")
+			yamlBytes, err := step.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
 
-	Register(step1)
-	Register(step2)
-	Register(comp)
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("kind: WorkflowStepDefinition"))
+			Expect(yaml).To(ContainSubstring("name: deploy"))
+		})
+	})
 
-	// Should have 3 definitions total
-	if Count() != 3 {
-		t.Errorf("expected 3 registered definitions, got %d", Count())
-	}
+	Context("WorkflowStepTemplate", func() {
+		It("should create template with Suspend action", func() {
+			tpl := defkit.NewWorkflowStepTemplate()
+			tpl.Suspend("Waiting for approval")
 
-	// Should have 2 workflow steps
-	steps := WorkflowSteps()
-	if len(steps) != 2 {
-		t.Errorf("expected 2 workflow steps, got %d", len(steps))
-	}
+			Expect(tpl.GetSuspendMessage()).To(Equal("Waiting for approval"))
+		})
 
-	Clear() // Clean up
-}
+		It("should create template with SuspendIf action", func() {
+			auto := defkit.Bool("auto").Default(true)
+			tpl := defkit.NewWorkflowStepTemplate()
+			tpl.SuspendIf(defkit.Not(auto.IsTrue()), "Waiting for approval")
 
-func TestWorkflowStepDefinition_Template(t *testing.T) {
-	auto := Bool("auto").Default(true)
-	policies := StringList("policies")
-	parallelism := Int("parallelism").Default(5)
+			Expect(tpl.GetActions()).To(HaveLen(1))
+		})
 
-	step := NewWorkflowStep("deploy").
-		Description("Deploy step.").
-		WithImports("vela/multicluster", "vela/builtin").
-		Params(auto, policies, parallelism).
-		Template(func(tpl *WorkflowStepTemplate) {
-			// Add conditional suspend (when auto is false)
-			tpl.SuspendIf(Not(auto.IsTrue()), `Waiting approval to the deploy step`)
+		It("should create template with Builtin action", func() {
+			policies := defkit.StringList("policies")
+			parallelism := defkit.Int("parallelism").Default(5)
 
-			// Add deploy action
+			tpl := defkit.NewWorkflowStepTemplate()
 			tpl.Builtin("deploy", "multicluster.#Deploy").
-				WithParams(map[string]Value{
+				WithParams(map[string]defkit.Value{
 					"policies":    policies,
 					"parallelism": parallelism,
 				}).Build()
+
+			Expect(tpl.GetActions()).To(HaveLen(1))
+		})
+	})
+
+	Context("Template with Actions", func() {
+		It("should generate CUE with template actions", func() {
+			auto := defkit.Bool("auto").Default(true)
+			policies := defkit.StringList("policies")
+			parallelism := defkit.Int("parallelism").Default(5)
+
+			step := defkit.NewWorkflowStep("deploy").
+				Description("Deploy step").
+				WithImports("vela/multicluster", "vela/builtin").
+				Params(auto, policies, parallelism).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.SuspendIf(defkit.Not(auto.IsTrue()), "Waiting approval to the deploy step")
+					tpl.Builtin("deploy", "multicluster.#Deploy").
+						WithParams(map[string]defkit.Value{
+							"policies":    policies,
+							"parallelism": parallelism,
+						}).Build()
+				})
+
+			cue := step.ToCue()
+			Expect(cue).To(ContainSubstring(`template:`))
+		})
+	})
+
+	Context("Registry", func() {
+		BeforeEach(func() {
+			defkit.Clear()
 		})
 
-	cue := step.ToCue()
+		AfterEach(func() {
+			defkit.Clear()
+		})
 
-	// Should contain template content
-	if !strings.Contains(cue, "template:") {
-		t.Error("expected CUE to contain template:")
-	}
-}
+		It("should register workflow steps", func() {
+			step1 := defkit.NewWorkflowStep("deploy").Description("Deploy").Category("Application Delivery")
+			step2 := defkit.NewWorkflowStep("suspend").Description("Suspend").Category("Workflow Control")
+			comp := defkit.NewComponent("webservice").Description("Component")
+
+			defkit.Register(step1)
+			defkit.Register(step2)
+			defkit.Register(comp)
+
+			Expect(defkit.Count()).To(Equal(3))
+			Expect(defkit.WorkflowSteps()).To(HaveLen(2))
+		})
+	})
+})

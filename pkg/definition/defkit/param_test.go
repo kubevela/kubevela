@@ -25,7 +25,7 @@ import (
 
 var _ = Describe("Parameters", func() {
 
-	Describe("StringParam", func() {
+	Context("StringParam", func() {
 		It("should create a string parameter with name", func() {
 			p := defkit.String("image")
 			Expect(p.Name()).To(Equal("image"))
@@ -63,7 +63,7 @@ var _ = Describe("Parameters", func() {
 		})
 	})
 
-	Describe("IntParam", func() {
+	Context("IntParam", func() {
 		It("should create an int parameter with name", func() {
 			p := defkit.Int("replicas")
 			Expect(p.Name()).To(Equal("replicas"))
@@ -87,7 +87,7 @@ var _ = Describe("Parameters", func() {
 		})
 	})
 
-	Describe("BoolParam", func() {
+	Context("BoolParam", func() {
 		It("should create a bool parameter with name", func() {
 			p := defkit.Bool("enabled")
 			Expect(p.Name()).To(Equal("enabled"))
@@ -111,7 +111,7 @@ var _ = Describe("Parameters", func() {
 		})
 	})
 
-	Describe("FloatParam", func() {
+	Context("FloatParam", func() {
 		It("should create a float parameter with name", func() {
 			p := defkit.Float("cpu")
 			Expect(p.Name()).To(Equal("cpu"))
@@ -135,7 +135,7 @@ var _ = Describe("Parameters", func() {
 		})
 	})
 
-	Describe("ArrayParam", func() {
+	Context("ArrayParam", func() {
 		It("should create an array parameter with name", func() {
 			p := defkit.Array("ports")
 			Expect(p.Name()).To(Equal("ports"))
@@ -164,7 +164,7 @@ var _ = Describe("Parameters", func() {
 		})
 	})
 
-	Describe("MapParam", func() {
+	Context("MapParam", func() {
 		It("should create a map parameter with name", func() {
 			p := defkit.Map("labels")
 			Expect(p.Name()).To(Equal("labels"))
@@ -193,7 +193,7 @@ var _ = Describe("Parameters", func() {
 		})
 	})
 
-	Describe("StructParam", func() {
+	Context("StructParam", func() {
 		It("should create a struct parameter with name", func() {
 			p := defkit.Struct("resources")
 			Expect(p.Name()).To(Equal("resources"))
@@ -260,7 +260,7 @@ var _ = Describe("Parameters", func() {
 		})
 	})
 
-	Describe("EnumParam", func() {
+	Context("EnumParam", func() {
 		It("should create an enum parameter with name", func() {
 			p := defkit.Enum("protocol")
 			Expect(p.Name()).To(Equal("protocol"))
@@ -292,7 +292,7 @@ var _ = Describe("Parameters", func() {
 		})
 	})
 
-	Describe("OneOfParam", func() {
+	Context("OneOfParam", func() {
 		It("should create a oneof parameter with name", func() {
 			p := defkit.OneOf("probe")
 			Expect(p.Name()).To(Equal("probe"))
@@ -344,8 +344,8 @@ var _ = Describe("Parameters", func() {
 		})
 	})
 
-	Describe("Parameter as Variable Pattern", func() {
-		Describe("Comparison methods", func() {
+	Context("Parameter as Variable Pattern", func() {
+		Context("Comparison methods", func() {
 			It("should create Eq condition from IntParam", func() {
 				replicas := defkit.Int("replicas")
 				cond := replicas.Eq(3)
@@ -388,7 +388,7 @@ var _ = Describe("Parameters", func() {
 			})
 		})
 
-		Describe("Arithmetic expressions", func() {
+		Context("Arithmetic expressions", func() {
 			It("should create Add expression from IntParam", func() {
 				replicas := defkit.Int("replicas")
 				expr := replicas.Add(1)
@@ -419,7 +419,7 @@ var _ = Describe("Parameters", func() {
 			})
 		})
 
-		Describe("String expressions", func() {
+		Context("String expressions", func() {
 			It("should create Concat expression from StringParam", func() {
 				name := defkit.String("name")
 				expr := name.Concat("-suffix")
@@ -439,7 +439,7 @@ var _ = Describe("Parameters", func() {
 			})
 		})
 
-		Describe("Struct field access", func() {
+		Context("Struct field access", func() {
 			It("should create field reference from StructParam", func() {
 				config := defkit.Struct("config").
 					Fields(
@@ -472,6 +472,311 @@ var _ = Describe("Parameters", func() {
 				cond := fieldRef.Eq(true)
 				Expect(cond).NotTo(BeNil())
 			})
+		})
+	})
+
+	Context("Additional Param Types", func() {
+		It("should create StringList parameter", func() {
+			p := defkit.StringList("tags")
+			Expect(p.Name()).To(Equal("tags"))
+		})
+
+		It("should create IntList parameter", func() {
+			p := defkit.IntList("ports")
+			Expect(p.Name()).To(Equal("ports"))
+		})
+
+		It("should create StringKeyMap parameter", func() {
+			p := defkit.StringKeyMap("labels")
+			Expect(p.Name()).To(Equal("labels"))
+		})
+
+		It("should create List parameter", func() {
+			p := defkit.List("items")
+			Expect(p.Name()).To(Equal("items"))
+		})
+
+		It("should create Object parameter", func() {
+			p := defkit.Object("config")
+			Expect(p.Name()).To(Equal("config"))
+		})
+	})
+
+	Context("IsSet and NotSet conditions", func() {
+		It("should create IsSet condition from param", func() {
+			replicas := defkit.Int("replicas")
+			cond := replicas.IsSet()
+			Expect(cond).NotTo(BeNil())
+		})
+
+		It("should create NotSet condition from param", func() {
+			replicas := defkit.Int("replicas")
+			cond := replicas.NotSet()
+			Expect(cond).NotTo(BeNil())
+		})
+	})
+
+	Context("BoolParam conditions", func() {
+		It("should create IsTrue condition", func() {
+			enabled := defkit.Bool("enabled")
+			cond := enabled.IsTrue()
+			Expect(cond).NotTo(BeNil())
+		})
+
+		It("should create IsFalse condition", func() {
+			enabled := defkit.Bool("enabled")
+			cond := enabled.IsFalse()
+			Expect(cond).NotTo(BeNil())
+		})
+	})
+
+	Context("ArrayParam additional methods", func() {
+		It("should set min and max items constraints", func() {
+			p := defkit.Array("tags").
+				Of(defkit.ParamTypeString).
+				MinItems(1).
+				MaxItems(10)
+			Expect(*p.GetMinItems()).To(Equal(1))
+			Expect(*p.GetMaxItems()).To(Equal(10))
+		})
+
+		It("should create length constraint conditions", func() {
+			arr := defkit.Array("items")
+			gteCond := arr.LenGte(1)
+			Expect(gteCond).NotTo(BeNil())
+		})
+
+		It("should set WithFields for array items", func() {
+			p := defkit.List("ports").WithFields(
+				defkit.Int("port").Required(),
+				defkit.String("name"),
+			)
+			Expect(p.GetFields()).To(HaveLen(2))
+		})
+	})
+
+	Context("MapParam Optional method", func() {
+		It("should set map as optional", func() {
+			p := defkit.Map("labels").Optional()
+			Expect(p.IsOptional()).To(BeTrue())
+		})
+
+		It("should set map as required", func() {
+			p := defkit.Map("labels").Required()
+			Expect(p.IsRequired()).To(BeTrue())
+		})
+	})
+
+	Context("StructParam Optional method", func() {
+		It("should set struct as optional", func() {
+			p := defkit.Struct("config").Optional()
+			Expect(p.IsOptional()).To(BeTrue())
+		})
+	})
+
+	Context("EnumParam Optional method", func() {
+		It("should set enum as optional", func() {
+			p := defkit.Enum("protocol").
+				Values("TCP", "UDP").
+				Optional()
+			Expect(p.IsOptional()).To(BeTrue())
+		})
+	})
+
+	Context("OneOfParam Optional method", func() {
+		It("should set oneof as optional", func() {
+			p := defkit.OneOf("storage").Optional()
+			Expect(p.IsOptional()).To(BeTrue())
+		})
+	})
+
+	Context("IntParam Optional method", func() {
+		It("should set int as optional", func() {
+			p := defkit.Int("replicas").Optional()
+			Expect(p.IsOptional()).To(BeTrue())
+		})
+	})
+
+	Context("FloatParam Optional method", func() {
+		It("should set float as optional", func() {
+			p := defkit.Float("ratio").Optional()
+			Expect(p.IsOptional()).To(BeTrue())
+		})
+	})
+
+	Context("StringParam Enum method", func() {
+		It("should set enum values on string param", func() {
+			p := defkit.String("protocol").Enum("TCP", "UDP", "SCTP")
+			Expect(p.GetEnumValues()).To(ConsistOf("TCP", "UDP", "SCTP"))
+		})
+	})
+
+	Context("ArrayParam Length Conditions", func() {
+		It("should create LenLt condition", func() {
+			arr := defkit.Array("items")
+			cond := arr.LenLt(10)
+			Expect(cond).NotTo(BeNil())
+		})
+
+		It("should create LenLte condition", func() {
+			arr := defkit.Array("items")
+			cond := arr.LenLte(10)
+			Expect(cond).NotTo(BeNil())
+		})
+	})
+
+	Context("ArrayParam WithSchema methods", func() {
+		It("should set WithSchema on array", func() {
+			p := defkit.Array("items").WithSchema("{ name: string }")
+			Expect(p.GetSchema()).To(Equal("{ name: string }"))
+		})
+
+		It("should set WithSchemaRef on array", func() {
+			p := defkit.Array("items").WithSchemaRef("#Schema")
+			Expect(p.GetSchemaRef()).To(Equal("#Schema"))
+		})
+	})
+
+	Context("DynamicMap param", func() {
+		It("should create dynamic map", func() {
+			p := defkit.DynamicMap()
+			Expect(p.IsDynamicMap()).To(BeTrue())
+		})
+
+		It("should set ValueType", func() {
+			p := defkit.DynamicMap().ValueType(defkit.ParamTypeString)
+			Expect(p.GetValueType()).To(Equal(defkit.ParamTypeString))
+		})
+
+		It("should set ValueTypeUnion", func() {
+			p := defkit.DynamicMap().ValueTypeUnion("string | int")
+			Expect(p.GetValueTypeUnion()).To(Equal("string | int"))
+		})
+
+		It("should set Description", func() {
+			p := defkit.DynamicMap().Description("Dynamic key-value pairs")
+			Expect(p.GetDescription()).To(Equal("Dynamic key-value pairs"))
+		})
+	})
+
+	Context("MapParam additional methods", func() {
+		It("should set Description", func() {
+			p := defkit.Map("labels").Description("Key-value labels")
+			Expect(p.GetDescription()).To(Equal("Key-value labels"))
+		})
+
+		It("should get ValueType after setting with Of", func() {
+			p := defkit.Map("labels").Of(defkit.ParamTypeString)
+			Expect(p.ValueType()).To(Equal(defkit.ParamTypeString))
+		})
+	})
+
+	Context("StructParam additional methods", func() {
+		It("should set WithSchemaRef on struct", func() {
+			p := defkit.Struct("config").WithSchemaRef("#ConfigSchema")
+			Expect(p.GetSchemaRef()).To(Equal("#ConfigSchema"))
+		})
+	})
+
+	Context("OpenStruct param", func() {
+		It("should create open struct", func() {
+			p := defkit.OpenStruct()
+			Expect(p.GetName()).To(Equal("")) // OpenStruct has no name - represents entire parameter schema
+			Expect(p.IsOpen()).To(BeTrue())
+		})
+
+		It("should set description", func() {
+			p := defkit.OpenStruct().Description("Open config")
+			Expect(p.GetDescription()).To(Equal("Open config"))
+		})
+
+		It("should return correct type", func() {
+			p := defkit.OpenStruct()
+			Expect(p.GetType()).To(Equal(defkit.ParamTypeStruct))
+		})
+
+		It("should be optional by default", func() {
+			p := defkit.OpenStruct()
+			Expect(p.IsRequired()).To(BeFalse())
+		})
+
+		It("should have nil default", func() {
+			p := defkit.OpenStruct()
+			Expect(p.GetDefault()).To(BeNil())
+		})
+	})
+
+	Context("OpenArray param", func() {
+		It("should create open array", func() {
+			p := defkit.OpenArray("items")
+			Expect(p.GetName()).To(Equal("items"))
+		})
+
+		It("should set description", func() {
+			p := defkit.OpenArray("items").Description("Open items array")
+			Expect(p.GetDescription()).To(Equal("Open items array"))
+		})
+
+		It("should return correct type", func() {
+			p := defkit.OpenArray("items")
+			Expect(p.GetType()).To(Equal(defkit.ParamTypeArray))
+		})
+
+		It("should be optional by default", func() {
+			p := defkit.OpenArray("items")
+			Expect(p.IsRequired()).To(BeFalse())
+		})
+
+		It("should have nil default", func() {
+			p := defkit.OpenArray("items")
+			Expect(p.GetDefault()).To(BeNil())
+		})
+	})
+
+	Context("ParamPath", func() {
+		It("should create param path", func() {
+			path := defkit.ParamPath("config.database.host")
+			Expect(path).NotTo(BeNil())
+			Expect(path.Path()).To(Equal("config.database.host"))
+		})
+
+		It("should create IsSet condition", func() {
+			path := defkit.ParamPath("config.port")
+			cond := path.IsSet()
+			Expect(cond).NotTo(BeNil())
+		})
+	})
+
+	Context("StructField Name method", func() {
+		It("should return field name", func() {
+			f := defkit.Field("port", defkit.ParamTypeInt)
+			Expect(f.Name()).To(Equal("port"))
+		})
+	})
+
+	Context("StructField Required, Optional, Default", func() {
+		It("should mark field as required", func() {
+			f := defkit.Field("port", defkit.ParamTypeInt).Required()
+			Expect(f.IsRequired()).To(BeTrue())
+		})
+
+		It("should mark field as optional", func() {
+			f := defkit.Field("port", defkit.ParamTypeInt).Optional()
+			Expect(f.IsRequired()).To(BeFalse())
+		})
+
+		It("should set default value", func() {
+			f := defkit.Field("port", defkit.ParamTypeInt).Default(8080)
+			Expect(f.HasDefault()).To(BeTrue())
+			Expect(f.GetDefault()).To(Equal(8080))
+		})
+	})
+
+	Context("IntParam Ne condition", func() {
+		It("should create Ne condition", func() {
+			p := defkit.Int("count")
+			cond := p.Ne(0)
+			Expect(cond).NotTo(BeNil())
 		})
 	})
 })
