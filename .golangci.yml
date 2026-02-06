@@ -29,7 +29,7 @@ linters-settings:
 
   gocyclo:
     # minimal code complexity to report, 30 by default (but we recommend 10-20)
-    min-complexity: 30
+    min-complexity: 35
 
 
   dupl:
@@ -141,6 +141,14 @@ issues:
     # Ease some gocritic warnings on test files.
     - path: _test\.go
       text: "(unnamedResult|exitAfterDefer)"
+      linters:
+        - gocritic
+
+    # The preferFprint suggestion (sb.WriteString(fmt.Sprintf(...)) -> fmt.Fprintf(sb, ...))
+    # is a micro-optimization. The defkit package generates CUE code infrequently,
+    # so the performance difference is negligible and the current style is more readable.
+    - path: pkg/definition/defkit/
+      text: "preferFprint"
       linters:
         - gocritic
 

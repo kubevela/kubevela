@@ -1133,6 +1133,8 @@ func prettyYAMLMarshal(obj map[string]interface{}) (string, error) {
 const FlagFormat = "format"
 
 // NewDefinitionRenderCommand create the `vela def render` command to help user render definition cue file into k8s YAML file, if used without kubernetes environment, set IGNORE_KUBE_CONFIG=true
+//
+//nolint:gocyclo // CLI command handling multiple input/output formats and file types
 func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "render DEFINITION.cue|DEFINITION.go",
@@ -1590,7 +1592,8 @@ func defApplyOne(ctx context.Context, c common.Args, namespace, defpath string, 
 }
 
 // defApplyGoFile handles applying Go definition files
-func defApplyGoFile(ctx context.Context, c common.Args, k8sClient client.Client, config *rest.Config, namespace, defpath string, dryRun bool) ([]string, error) {
+// Args is kept for future use (e.g., Schema for type registration, DiscoveryClient for API discovery)
+func defApplyGoFile(ctx context.Context, _ common.Args, k8sClient client.Client, config *rest.Config, namespace, defpath string, dryRun bool) ([]string, error) {
 	results, err := goloader.LoadFromFile(defpath)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to load Go definition from %s", defpath)

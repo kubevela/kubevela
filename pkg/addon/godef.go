@@ -18,6 +18,7 @@ package addon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -50,19 +51,19 @@ func ReadGoDefFolder(addonPath string) (*GoDefModule, error) {
 
 	// Read module.yaml if it exists
 	moduleYAMLPath := filepath.Join(godefPath, GoDefModuleFileName)
-	if data, err := os.ReadFile(moduleYAMLPath); err == nil {
+	if data, err := os.ReadFile(moduleYAMLPath); err == nil { //nolint:gosec // G304: Reading from addon's godef directory
 		module.ModuleYAML = string(data)
 	}
 
 	// Read go.mod if it exists
 	goModPath := filepath.Join(godefPath, "go.mod")
-	if data, err := os.ReadFile(goModPath); err == nil {
+	if data, err := os.ReadFile(goModPath); err == nil { //nolint:gosec // G304: Reading from addon's godef directory
 		module.GoMod = string(data)
 	}
 
 	// Read go.sum if it exists
 	goSumPath := filepath.Join(godefPath, "go.sum")
-	if data, err := os.ReadFile(goSumPath); err == nil {
+	if data, err := os.ReadFile(goSumPath); err == nil { //nolint:gosec // G304: Reading from addon's godef directory
 		module.GoSum = string(data)
 	}
 
@@ -75,7 +76,7 @@ func ReadGoDefFolder(addonPath string) (*GoDefModule, error) {
 			return nil
 		}
 		if strings.HasSuffix(path, ".go") {
-			data, err := os.ReadFile(path)
+			data, err := os.ReadFile(path) //nolint:gosec // G304: Reading Go files from addon's godef directory
 			if err != nil {
 				return fmt.Errorf("failed to read Go file %s: %w", path, err)
 			}
@@ -241,7 +242,7 @@ func ValidateGoDefModule(godefPath string) error {
 		}
 		return nil
 	})
-	if err != nil && err != filepath.SkipAll {
+	if err != nil && !errors.Is(err, filepath.SkipAll) {
 		return fmt.Errorf("failed to check for Go files: %w", err)
 	}
 	if !hasGoFile {

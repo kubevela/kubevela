@@ -209,7 +209,6 @@ func RewriteRawCUEName(rawCUE, newName string) string {
 	// We look for: optional whitespace, quote, name, quote, colon
 	inQuote := false
 	quoteStart := -1
-	quoteEnd := -1
 
 	for i, c := range rawCUE {
 		if c == '"' {
@@ -217,7 +216,7 @@ func RewriteRawCUEName(rawCUE, newName string) string {
 				inQuote = true
 				quoteStart = i
 			} else {
-				quoteEnd = i
+				quoteEnd := i
 				// Check if followed by colon (with optional whitespace)
 				rest := rawCUE[quoteEnd+1:]
 				for j, r := range rest {
@@ -234,7 +233,6 @@ func RewriteRawCUEName(rawCUE, newName string) string {
 				}
 				inQuote = false
 				quoteStart = -1
-				quoteEnd = -1
 			}
 		}
 	}

@@ -19,6 +19,7 @@ package goloader
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -26,7 +27,6 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 
 	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
@@ -275,16 +275,16 @@ func isLocalPath(ref string) bool {
 func loadModuleFromPath(ctx context.Context, modulePath string, opts ModuleLoadOptions) (*LoadedModule, error) {
 	absPath, err := filepath.Abs(modulePath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to resolve absolute path for %s", modulePath)
+		return nil, fmt.Errorf("failed to resolve absolute path for %s: %w", modulePath, err)
 	}
 
 	// Check if path exists
 	info, err := os.Stat(absPath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "module path does not exist: %s", absPath)
+		return nil, fmt.Errorf("module path does not exist %s: %w", absPath, err)
 	}
 	if !info.IsDir() {
-		return nil, errors.Errorf("module path must be a directory: %s", absPath)
+		return nil, fmt.Errorf("module path must be a directory: %s", absPath)
 	}
 
 	module := &LoadedModule{
@@ -295,9 +295,9 @@ func loadModuleFromPath(ctx context.Context, modulePath string, opts ModuleLoadO
 	metadata, err := loadModuleMetadata(absPath)
 	if err == nil {
 		module.Metadata = *metadata
-	} else if !os.IsNotExist(errors.Cause(err)) {
+	} else if !errors.Is(err, os.ErrNotExist) {
 		// Only fail if error is not "file not found"
-		return nil, errors.Wrap(err, "failed to load module metadata")
+		return nil, fmt.Errorf("failed to load module metadata: %w", err)
 	}
 
 	// Determine Go module path from go.mod
@@ -312,7 +312,7 @@ func loadModuleFromPath(ctx context.Context, modulePath string, opts ModuleLoadO
 	// Discover and load definitions
 	definitions, err := discoverAndLoadDefinitions(ctx, absPath, opts)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load definitions from module")
+		return nil, fmt.Errorf("failed to load definitions from module: %w", err)
 	}
 	module.Definitions = definitions
 
@@ -376,7 +376,7 @@ func loadModuleFromGoMod(ctx context.Context, moduleRef string, opts ModuleLoadO
 	// Download the module using go mod download
 	localPath, err := downloadGoModule(ctx, modulePath, version)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to download module %s", moduleRef)
+		return nil, fmt.Errorf("failed to download module %s: %w", moduleRef, err)
 	}
 
 	// Load from the downloaded path
@@ -409,15 +409,16 @@ func downloadGoModule(ctx context.Context, modulePath, version string) (string, 
 	}
 	moduleSpec := modulePath + "@" + version
 
-	cmd := exec.CommandContext(ctx, "go", "mod", "download", "-json", moduleSpec)
+	cmd := exec.CommandContext(ctx, "go", "mod", "download", "-json", moduleSpec) //nolint:gosec // G204: moduleSpec is from user input but only used with 'go mod download'
 	cmd.Env = append(os.Environ(), "GO111MODULE=on")
 
 	output, err := cmd.Output()
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return "", errors.Errorf("go mod download failed: %s", string(exitErr.Stderr))
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return "", fmt.Errorf("go mod download failed: %s", string(exitErr.Stderr))
 		}
-		return "", errors.Wrap(err, "go mod download failed")
+		return "", fmt.Errorf("go mod download failed: %w", err)
 	}
 
 	// Parse the JSON output to get the Dir field
@@ -431,16 +432,16 @@ func downloadGoModule(ctx context.Context, modulePath, version string) (string, 
 
 	// Check for empty output (can happen if go thinks module is main module)
 	if len(output) == 0 {
-		return "", errors.Errorf("go mod download returned empty output for %s; ensure the module exists and is accessible", moduleSpec)
+		return "", fmt.Errorf("go mod download returned empty output for %s; ensure the module exists and is accessible", moduleSpec)
 	}
 
 	if err := json.Unmarshal(output, &result); err != nil {
-		return "", errors.Wrapf(err, "failed to parse go mod download output: %s", string(output))
+		return "", fmt.Errorf("failed to parse go mod download output %s: %w", string(output), err)
 	}
 
 	// Check for error in JSON response
 	if result.Error != "" {
-		return "", errors.Errorf("go mod download failed for %s: %s", moduleSpec, result.Error)
+		return "", fmt.Errorf("go mod download failed for %s: %s", moduleSpec, result.Error)
 	}
 
 	if result.Dir == "" {
@@ -453,14 +454,14 @@ func downloadGoModule(ctx context.Context, modulePath, version string) (string, 
 // loadModuleMetadata loads module.yaml from a module directory
 func loadModuleMetadata(modulePath string) (*ModuleMetadata, error) {
 	metadataPath := filepath.Join(modulePath, "module.yaml")
-	content, err := os.ReadFile(metadataPath)
+	content, err := os.ReadFile(metadataPath) //nolint:gosec // G304: Reading module.yaml from user-specified module path
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read module.yaml")
+		return nil, fmt.Errorf("failed to read module.yaml: %w", err)
 	}
 
 	var metadata ModuleMetadata
 	if err := yaml.Unmarshal(content, &metadata); err != nil {
-		return nil, errors.Wrap(err, "failed to parse module.yaml")
+		return nil, fmt.Errorf("failed to parse module.yaml: %w", err)
 	}
 
 	return &metadata, nil
@@ -548,7 +549,7 @@ func discoverAndLoadDefinitions(ctx context.Context, modulePath string, opts Mod
 		// Discover definitions in this directory
 		files, err := DiscoverDefinitions(dirPath)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to discover definitions in %s", dirPath)
+			return nil, fmt.Errorf("failed to discover definitions in %s: %w", dirPath, err)
 		}
 
 		for _, file := range files {
@@ -617,6 +618,13 @@ func discoverAndLoadDefinitionsFallback(ctx context.Context, modulePath string, 
 	}
 
 	for _, conv := range conventionalDirs {
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			return allResults, ctx.Err()
+		default:
+		}
+
 		dirPath := filepath.Join(modulePath, conv.dir)
 
 		if _, err := os.Stat(dirPath); os.IsNotExist(err) {
@@ -640,10 +648,17 @@ func discoverAndLoadDefinitionsFallback(ctx context.Context, modulePath string, 
 
 		files, err := DiscoverDefinitions(dirPath)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to discover definitions in %s", dirPath)
+			return nil, fmt.Errorf("failed to discover definitions in %s: %w", dirPath, err)
 		}
 
 		for _, file := range files {
+			// Check for context cancellation
+			select {
+			case <-ctx.Done():
+				return allResults, ctx.Err()
+			default:
+			}
+
 			// Skip files we've already processed (from overlapping directory scans)
 			if seenFiles[file] {
 				continue
@@ -744,7 +759,7 @@ func ValidateModule(module *LoadedModule, velaVersion string) []error {
 	// Check for definition errors
 	for _, def := range module.Definitions {
 		if def.Error != nil {
-			errs = append(errs, errors.Wrapf(def.Error, "definition %s failed to load", def.Definition.FilePath))
+			errs = append(errs, fmt.Errorf("definition %s failed to load: %w", def.Definition.FilePath, def.Error))
 		}
 	}
 
@@ -760,7 +775,7 @@ func ValidateModule(module *LoadedModule, velaVersion string) []error {
 		currentVersion, curErr := semver.NewVersion(velaVersion)
 		if minErr == nil && curErr == nil {
 			if minVersion.GreaterThan(currentVersion) {
-				errs = append(errs, errors.Errorf(
+				errs = append(errs, fmt.Errorf(
 					"module requires KubeVela %s or later, but cluster has %s",
 					module.Metadata.Spec.MinVelaVersion,
 					velaVersion,
@@ -783,7 +798,7 @@ func validateHooks(phase string, hooks []Hook, modulePath string) []error {
 	var errs []error
 	for i, hook := range hooks {
 		if err := hook.Validate(); err != nil {
-			errs = append(errs, errors.Wrapf(err, "hooks.%s[%d]", phase, i))
+			errs = append(errs, fmt.Errorf("hooks.%s[%d]: %w", phase, i, err))
 			continue
 		}
 
@@ -791,17 +806,17 @@ func validateHooks(phase string, hooks []Hook, modulePath string) []error {
 		if hook.Path != "" {
 			fullPath := filepath.Join(modulePath, hook.Path)
 			if info, err := os.Stat(fullPath); err != nil {
-				errs = append(errs, errors.Wrapf(err, "hooks.%s[%d].path %q does not exist", phase, i, hook.Path))
+				errs = append(errs, fmt.Errorf("hooks.%s[%d].path %q does not exist: %w", phase, i, hook.Path, err))
 			} else if !info.IsDir() {
-				errs = append(errs, errors.Errorf("hooks.%s[%d].path %q must be a directory", phase, i, hook.Path))
+				errs = append(errs, fmt.Errorf("hooks.%s[%d].path %q must be a directory", phase, i, hook.Path))
 			}
 		}
 		if hook.Script != "" {
 			fullPath := filepath.Join(modulePath, hook.Script)
 			if info, err := os.Stat(fullPath); err != nil {
-				errs = append(errs, errors.Wrapf(err, "hooks.%s[%d].script %q does not exist", phase, i, hook.Script))
+				errs = append(errs, fmt.Errorf("hooks.%s[%d].script %q does not exist: %w", phase, i, hook.Script, err))
 			} else if info.IsDir() {
-				errs = append(errs, errors.Errorf("hooks.%s[%d].script %q must be a file, not a directory", phase, i, hook.Script))
+				errs = append(errs, fmt.Errorf("hooks.%s[%d].script %q must be a file, not a directory", phase, i, hook.Script))
 			}
 		}
 	}
@@ -814,7 +829,7 @@ func validatePlacementConditions(field string, conditions []ModulePlacementCondi
 	for i, cond := range conditions {
 		op := placement.Operator(cond.Operator)
 		if !op.IsValid() {
-			errs = append(errs, errors.Errorf(
+			errs = append(errs, fmt.Errorf(
 				"invalid operator %q in placement.%s[%d] (key=%q); valid operators: Eq, Ne, In, NotIn, Exists, NotExists",
 				cond.Operator, field, i, cond.Key,
 			))

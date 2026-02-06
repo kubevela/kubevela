@@ -1024,7 +1024,7 @@ func setNestedValue(data map[string]any, path string, value any) {
 				current[name] = arr
 			}
 			for len(arr) <= index {
-				arr = append(arr, make(map[string]any))
+				arr = append(arr, make(map[string]any)) //nolint:makezero // Only extends existing arrays; new arrays have len > index
 				current[name] = arr
 			}
 			if m, ok := arr[index].(map[string]any); ok {
@@ -1080,7 +1080,7 @@ func setNestedValue(data map[string]any, path string, value any) {
 			arr = make([]any, index+1)
 		}
 		for len(arr) <= index {
-			arr = append(arr, nil)
+			arr = append(arr, nil) //nolint:makezero // Only extends existing arrays; new arrays have len > index
 		}
 		arr[index] = value
 		current[name] = arr

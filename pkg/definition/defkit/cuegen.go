@@ -2100,6 +2100,10 @@ func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, n
 
 // writeStringKeyMapParam writes a string-to-string map parameter.
 func (g *CUEGenerator) writeStringKeyMapParam(sb *strings.Builder, p *StringKeyMapParam, indent, name, optional string) {
+	// Write description as comment if present
+	if desc := p.GetDescription(); desc != "" {
+		sb.WriteString(fmt.Sprintf("%s// +usage=%s\n", indent, desc))
+	}
 	sb.WriteString(fmt.Sprintf("%s%s%s: [string]: string\n", indent, name, optional))
 }
 

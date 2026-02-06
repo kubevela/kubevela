@@ -288,6 +288,8 @@ func NewApplyStats() *ApplyStats {
 }
 
 // applyModule loads and applies all definitions from a module
+//
+//nolint:gocyclo // Complex module apply logic with hooks, validation, and dry-run support
 func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, moduleRef string, opts applyModuleOptions) error {
 	// Initialize stats tracking
 	stats := NewApplyStats()
@@ -1140,7 +1142,7 @@ func initModule(streams util.IOStreams, targetDir string, opts initModuleOptions
 		return errors.Wrapf(err, "failed to resolve path %s", targetDir)
 	}
 
-	if err := os.MkdirAll(absPath, 0755); err != nil {
+	if err := os.MkdirAll(absPath, 0755); err != nil { //nolint:gosec // G301: Standard permissions for user-accessible module directory
 		return errors.Wrapf(err, "failed to create directory %s", absPath)
 	}
 
@@ -1167,7 +1169,7 @@ func initModule(streams util.IOStreams, targetDir string, opts initModuleOptions
 
 	for _, dir := range dirs {
 		dirPath := filepath.Join(absPath, dir)
-		if err := os.MkdirAll(dirPath, 0755); err != nil {
+		if err := os.MkdirAll(dirPath, 0755); err != nil { //nolint:gosec // G301: Standard permissions for module subdirectories
 			return errors.Wrapf(err, "failed to create directory %s", dirPath)
 		}
 		streams.Infof("  Created %s/\n", dir)
@@ -1246,35 +1248,35 @@ package workflowsteps
 
 	for pkg, doc := range packageDocs {
 		docPath := filepath.Join(absPath, pkg, "doc.go")
-		if err := os.WriteFile(docPath, []byte(doc), 0644); err != nil {
+		if err := os.WriteFile(docPath, []byte(doc), 0644); err != nil { //nolint:gosec // G306: Standard permissions for source files
 			return errors.Wrapf(err, "failed to write %s/doc.go", pkg)
 		}
 	}
 
 	// Create module.yaml
 	moduleYAML := generateModuleYAML(opts)
-	if err := os.WriteFile(filepath.Join(absPath, "module.yaml"), []byte(moduleYAML), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(absPath, "module.yaml"), []byte(moduleYAML), 0644); err != nil { //nolint:gosec // G306: Standard permissions for source files
 		return errors.Wrapf(err, "failed to write module.yaml")
 	}
 	streams.Infof("  Created module.yaml\n")
 
 	// Create go.mod
 	goMod := generateGoMod(opts)
-	if err := os.WriteFile(filepath.Join(absPath, "go.mod"), []byte(goMod), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(absPath, "go.mod"), []byte(goMod), 0644); err != nil { //nolint:gosec // G306: Standard permissions for source files
 		return errors.Wrapf(err, "failed to write go.mod")
 	}
 	streams.Infof("  Created go.mod\n")
 
 	// Create cmd/register/main.go - the registry entry point
 	registerMain := generateRegisterMain(opts)
-	if err := os.WriteFile(filepath.Join(absPath, "cmd/register/main.go"), []byte(registerMain), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(absPath, "cmd/register/main.go"), []byte(registerMain), 0644); err != nil { //nolint:gosec // G306: Standard permissions for source files
 		return errors.Wrapf(err, "failed to write cmd/register/main.go")
 	}
 	streams.Infof("  Created cmd/register/main.go\n")
 
 	// Create README.md
 	readme := generateModuleReadme(opts)
-	if err := os.WriteFile(filepath.Join(absPath, "README.md"), []byte(readme), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(absPath, "README.md"), []byte(readme), 0644); err != nil { //nolint:gosec // G306: Standard permissions for source files
 		return errors.Wrapf(err, "failed to write README.md")
 	}
 	streams.Infof("  Created README.md\n")
@@ -1316,7 +1318,7 @@ package workflowsteps
 .DS_Store
 Thumbs.db
 `
-	if err := os.WriteFile(filepath.Join(absPath, ".gitignore"), []byte(gitignore), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(absPath, ".gitignore"), []byte(gitignore), 0644); err != nil { //nolint:gosec // G306: Standard permissions for source files
 		return errors.Wrapf(err, "failed to write .gitignore")
 	}
 	streams.Infof("  Created .gitignore\n")
@@ -1390,7 +1392,7 @@ func createScaffoldedDefinitions(streams util.IOStreams, basePath string, opts i
 	for _, name := range opts.scaffold.components {
 		content := generateComponentScaffold(name)
 		filename := toSnakeCase(name) + ".go"
-		if err := os.WriteFile(filepath.Join(basePath, "components", filename), []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(basePath, "components", filename), []byte(content), 0644); err != nil { //nolint:gosec // G306: Standard permissions for source files
 			return errors.Wrapf(err, "failed to write components/%s", filename)
 		}
 		streams.Infof("  Created components/%s\n", filename)
@@ -1400,7 +1402,7 @@ func createScaffoldedDefinitions(streams util.IOStreams, basePath string, opts i
 	for _, name := range opts.scaffold.traits {
 		content := generateTraitScaffold(name)
 		filename := toSnakeCase(name) + ".go"
-		if err := os.WriteFile(filepath.Join(basePath, "traits", filename), []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(basePath, "traits", filename), []byte(content), 0644); err != nil { //nolint:gosec // G306: Standard permissions for source files
 			return errors.Wrapf(err, "failed to write traits/%s", filename)
 		}
 		streams.Infof("  Created traits/%s\n", filename)
@@ -1410,7 +1412,7 @@ func createScaffoldedDefinitions(streams util.IOStreams, basePath string, opts i
 	for _, name := range opts.scaffold.policies {
 		content := generatePolicyScaffold(name)
 		filename := toSnakeCase(name) + ".go"
-		if err := os.WriteFile(filepath.Join(basePath, "policies", filename), []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(basePath, "policies", filename), []byte(content), 0644); err != nil { //nolint:gosec // G306: Standard permissions for source files
 			return errors.Wrapf(err, "failed to write policies/%s", filename)
 		}
 		streams.Infof("  Created policies/%s\n", filename)
@@ -1420,7 +1422,7 @@ func createScaffoldedDefinitions(streams util.IOStreams, basePath string, opts i
 	for _, name := range opts.scaffold.workflowsteps {
 		content := generateWorkflowStepScaffold(name)
 		filename := toSnakeCase(name) + ".go"
-		if err := os.WriteFile(filepath.Join(basePath, "workflowsteps", filename), []byte(content), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(basePath, "workflowsteps", filename), []byte(content), 0644); err != nil { //nolint:gosec // G306: Standard permissions for source files
 			return errors.Wrapf(err, "failed to write workflowsteps/%s", filename)
 		}
 		streams.Infof("  Created workflowsteps/%s\n", filename)
@@ -1819,7 +1821,8 @@ Apache License 2.0
 }
 
 // createExampleDefinitions creates example definition files
-func createExampleDefinitions(streams util.IOStreams, basePath string, opts initModuleOptions) error {
+// opts is kept for future use to customize example definitions based on module options
+func createExampleDefinitions(streams util.IOStreams, basePath string, _ initModuleOptions) error {
 	// Example component - using correct defkit API
 	componentExample := `/*
 Copyright 2025 The KubeVela Authors.
@@ -1883,7 +1886,7 @@ func exampleComponentTemplate(tpl *defkit.Template) {
 	tpl.Output(deployment)
 }
 `
-	if err := os.WriteFile(filepath.Join(basePath, "components", "example.go"), []byte(componentExample), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(basePath, "components", "example.go"), []byte(componentExample), 0644); err != nil { //nolint:gosec // G306: Standard permissions for source files
 		return errors.Wrap(err, "failed to write example component")
 	}
 	streams.Infof("  Created components/example.go\n")
@@ -1938,7 +1941,7 @@ func exampleLabelsTemplate(tpl *defkit.Template) {
 	tpl.PatchOutput(patch)
 }
 `
-	if err := os.WriteFile(filepath.Join(basePath, "traits", "example.go"), []byte(traitExample), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(basePath, "traits", "example.go"), []byte(traitExample), 0644); err != nil { //nolint:gosec // G306: Standard permissions for source files
 		return errors.Wrap(err, "failed to write example trait")
 	}
 	streams.Infof("  Created traits/example.go\n")
@@ -2080,7 +2083,7 @@ func genModule(ctx context.Context, streams util.IOStreams, moduleRef string, op
 
 	for _, dir := range typeDirs {
 		dirPath := filepath.Join(absOutputDir, dir)
-		if err := os.MkdirAll(dirPath, 0755); err != nil {
+		if err := os.MkdirAll(dirPath, 0755); err != nil { //nolint:gosec // G301: Standard permissions for module subdirectories
 			return errors.Wrapf(err, "failed to create directory %s", dirPath)
 		}
 	}
@@ -2110,7 +2113,7 @@ func genModule(ctx context.Context, streams util.IOStreams, moduleRef string, op
 		outputPath := filepath.Join(absOutputDir, typeDir, filename)
 
 		// Write CUE content
-		if err := os.WriteFile(outputPath, []byte(result.CUE), 0644); err != nil {
+		if err := os.WriteFile(outputPath, []byte(result.CUE), 0644); err != nil { //nolint:gosec // G306: Standard permissions for source files
 			failed++
 			failedDefs = append(failedDefs, fmt.Sprintf("%s: failed to write: %v", result.Definition.Name, err))
 			continue

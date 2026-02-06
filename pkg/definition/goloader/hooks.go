@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -32,7 +33,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/pkg/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -157,7 +158,7 @@ func (e *HookExecutor) ExecuteHooks(ctx context.Context, phase string, hooks []H
 				continue
 			}
 			stats.TotalDuration = time.Since(totalStart)
-			return stats, errors.Wrapf(err, "hook %s failed", hookName)
+			return stats, fmt.Errorf("hook %s failed: %w", hookName, err)
 		}
 
 		e.Streams.Infof("    %s completed successfully\n", hookName)
@@ -176,7 +177,7 @@ func (e *HookExecutor) executePathHook(ctx context.Context, hook Hook) (created,
 	// Get list of YAML files, sorted alphabetically
 	files, err := getYAMLFiles(fullPath)
 	if err != nil {
-		return 0, 0, errors.Wrapf(err, "failed to list files in %s", hook.Path)
+		return 0, 0, fmt.Errorf("failed to list files in %s: %w", hook.Path, err)
 	}
 
 	if len(files) == 0 {
@@ -189,7 +190,7 @@ func (e *HookExecutor) executePathHook(ctx context.Context, hook Hook) (created,
 	for _, file := range files {
 		objs, fileCreated, fileUpdated, applyErr := e.applyManifestFile(ctx, file)
 		if applyErr != nil {
-			return created, updated, errors.Wrapf(applyErr, "failed to apply %s", filepath.Base(file))
+			return created, updated, fmt.Errorf("failed to apply %s: %w", filepath.Base(file), applyErr)
 		}
 		appliedObjects = append(appliedObjects, objs...)
 		created += fileCreated
@@ -200,7 +201,7 @@ func (e *HookExecutor) executePathHook(ctx context.Context, hook Hook) (created,
 	if hook.Wait && !e.DryRun && len(appliedObjects) > 0 {
 		timeout := parseTimeout(hook.Timeout, DefaultWaitTimeout)
 		if waitErr := e.waitForResources(ctx, appliedObjects, timeout, hook.WaitFor); waitErr != nil {
-			return created, updated, errors.Wrap(waitErr, "timed out waiting for resources")
+			return created, updated, fmt.Errorf("timed out waiting for resources: %w", waitErr)
 		}
 	}
 
@@ -224,12 +225,12 @@ func (e *HookExecutor) executeScriptHook(ctx context.Context, hook Hook) error {
 	}
 
 	// Make script executable
-	if err := os.Chmod(fullPath, 0755); err != nil {
-		return errors.Wrapf(err, "failed to make script executable")
+	if err := os.Chmod(fullPath, 0755); err != nil { //nolint:gosec // G302: 0755 required for script execution
+		return fmt.Errorf("failed to make script executable: %w", err)
 	}
 
 	// Execute the script
-	cmd := exec.CommandContext(ctx, fullPath)
+	cmd := exec.CommandContext(ctx, fullPath) //nolint:gosec // G204: Script path is from trusted module.yaml hooks config
 	cmd.Dir = e.ModulePath
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("MODULE_PATH=%s", e.ModulePath),
@@ -265,9 +266,9 @@ func (e *HookExecutor) executeScriptHook(ctx context.Context, hook Hook) error {
 // applyManifestFile reads and applies all resources from a YAML file
 // Returns the applied objects, count of created resources, count of updated resources, and any error
 func (e *HookExecutor) applyManifestFile(ctx context.Context, filePath string) ([]*unstructured.Unstructured, int, int, error) {
-	content, err := os.ReadFile(filePath)
+	content, err := os.ReadFile(filePath) //nolint:gosec // G304: File path is from trusted module hook directory
 	if err != nil {
-		return nil, 0, 0, errors.Wrapf(err, "failed to read file")
+		return nil, 0, 0, fmt.Errorf("failed to read file: %w", err)
 	}
 
 	// Parse YAML documents
@@ -278,10 +279,10 @@ func (e *HookExecutor) applyManifestFile(ctx context.Context, filePath string) (
 	for {
 		obj := &unstructured.Unstructured{}
 		if err := reader.Decode(obj); err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
-			return nil, created, updated, errors.Wrapf(err, "failed to decode YAML")
+			return nil, created, updated, fmt.Errorf("failed to decode YAML: %w", err)
 		}
 
 		// Skip empty documents
@@ -312,16 +313,16 @@ func (e *HookExecutor) applyManifestFile(ctx context.Context, filePath string) (
 				existing := &unstructured.Unstructured{}
 				existing.SetGroupVersionKind(obj.GroupVersionKind())
 				if getErr := e.Client.Get(ctx, client.ObjectKeyFromObject(obj), existing); getErr != nil {
-					return nil, created, updated, errors.Wrapf(getErr, "failed to get existing %s %s", obj.GetKind(), obj.GetName())
+					return nil, created, updated, fmt.Errorf("failed to get existing %s %s: %w", obj.GetKind(), obj.GetName(), getErr)
 				}
 				obj.SetResourceVersion(existing.GetResourceVersion())
 				if updateErr := e.Client.Update(ctx, obj); updateErr != nil {
-					return nil, created, updated, errors.Wrapf(updateErr, "failed to update %s %s", obj.GetKind(), obj.GetName())
+					return nil, created, updated, fmt.Errorf("failed to update %s %s: %w", obj.GetKind(), obj.GetName(), updateErr)
 				}
 				e.Streams.Infof("    Updated %s %s/%s\n", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 				updated++
 			} else {
-				return nil, created, updated, errors.Wrapf(err, "failed to create %s %s", obj.GetKind(), obj.GetName())
+				return nil, created, updated, fmt.Errorf("failed to create %s %s: %w", obj.GetKind(), obj.GetName(), err)
 			}
 		} else {
 			e.Streams.Infof("    Created %s %s/%s\n", obj.GetKind(), obj.GetNamespace(), obj.GetName())
@@ -363,7 +364,10 @@ func (e *HookExecutor) waitForResource(ctx context.Context, obj *unstructured.Un
 		current := &unstructured.Unstructured{}
 		current.SetGroupVersionKind(gvk)
 		if err := e.Client.Get(ctx, key, current); err != nil {
-			return false, nil // Keep waiting
+			if apierrors.IsNotFound(err) {
+				return false, nil // Resource doesn't exist yet, keep waiting
+			}
+			return false, err // Propagate other errors
 		}
 
 		// If a custom waitFor expression is provided, evaluate it
@@ -476,21 +480,21 @@ func evaluateCUEExpression(obj *unstructured.Unstructured, expr string) (bool, e
 	// Convert the unstructured object to JSON
 	jsonBytes, err := json.Marshal(obj.Object)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to marshal resource to JSON")
+		return false, fmt.Errorf("failed to marshal resource to JSON: %w", err)
 	}
 
 	// Create CUE context and compile the resource
 	ctx := cuecontext.New()
 	resourceValue := ctx.CompileBytes(jsonBytes)
 	if resourceValue.Err() != nil {
-		return false, errors.Wrap(resourceValue.Err(), "failed to compile resource as CUE")
+		return false, fmt.Errorf("failed to compile resource as CUE: %w", resourceValue.Err())
 	}
 
 	// Compile and evaluate the expression against the resource
 	// We create a CUE expression that references fields from the resource
 	exprValue := ctx.CompileString(expr, cue.Scope(resourceValue))
 	if exprValue.Err() != nil {
-		return false, errors.Wrapf(exprValue.Err(), "failed to compile waitFor expression: %s", expr)
+		return false, fmt.Errorf("failed to compile waitFor expression %s: %w", expr, exprValue.Err())
 	}
 
 	// The expression should evaluate to a boolean
@@ -500,7 +504,7 @@ func evaluateCUEExpression(obj *unstructured.Unstructured, expr string) (bool, e
 		if exprValue.Exists() && !exprValue.IsConcrete() {
 			return false, nil // Keep waiting
 		}
-		return false, errors.Wrapf(err, "waitFor expression must evaluate to boolean: %s", expr)
+		return false, fmt.Errorf("waitFor expression must evaluate to boolean %s: %w", expr, err)
 	}
 
 	return result, nil

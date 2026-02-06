@@ -543,7 +543,7 @@ func (g *TraitCUEGenerator) writeUnifiedTemplate(sb *strings.Builder, t *TraitDe
 
 	// Generate PatchContainer pattern if configured
 	if config := tpl.GetPatchContainerConfig(); config != nil {
-		g.writePatchContainerPattern(sb, config, t, depth)
+		g.writePatchContainerPattern(sb, config, depth)
 		return
 	}
 
@@ -848,7 +848,7 @@ func (g *TraitCUEGenerator) generateParameterBlock(t *TraitDefinition, depth int
 
 		// DynamicMapParam: parameter: [string]: T
 		if dynMap, ok := param.(*DynamicMapParam); ok {
-			typeStr := "string" // default
+			var typeStr string
 			if dynMap.GetValueTypeUnion() != "" {
 				typeStr = dynMap.GetValueTypeUnion()
 			} else {
@@ -902,7 +902,7 @@ func cueTypeForParamType(pt ParamType) string {
 // writePatchContainerPattern generates the complete PatchContainer pattern in CUE.
 // This generates the #PatchParams helper, PatchContainer definition, patch block,
 // parameter schema, and errs aggregation.
-func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, config *PatchContainerConfig, t *TraitDefinition, depth int) {
+func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, config *PatchContainerConfig, depth int) {
 	indent := strings.Repeat(g.indent, depth)
 	innerIndent := strings.Repeat(g.indent, depth+1)
 	deepIndent := strings.Repeat(g.indent, depth+2)

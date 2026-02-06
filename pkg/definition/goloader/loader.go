@@ -21,6 +21,7 @@ package goloader
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -31,8 +32,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-
-	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/definition/defkit"
 	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
@@ -136,13 +135,13 @@ func NewGeneratorEnvironment(moduleRoot string) (*GeneratorEnvironment, error) {
 	// Get the module name from go.mod
 	moduleName, err := getModuleNameFromRoot(moduleRoot)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to get module name for %s", moduleRoot)
+		return nil, fmt.Errorf("failed to get module name for %s: %w", moduleRoot, err)
 	}
 
 	// Create a temporary directory for the generator
 	tempDir, err := os.MkdirTemp("", "vela-def-gen-*")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create temp directory")
+		return nil, fmt.Errorf("failed to create temp directory: %w", err)
 	}
 
 	// Discover all Go packages in the module (components, traits, etc.)
@@ -174,7 +173,7 @@ require %s v0.0.0
 
 	if err := os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0600); err != nil {
 		_ = os.RemoveAll(tempDir)
-		return nil, errors.Wrap(err, "failed to write go.mod")
+		return nil, fmt.Errorf("failed to write go.mod: %w", err)
 	}
 
 	// Write a placeholder main.go that imports ALL subpackages
@@ -198,7 +197,7 @@ func main() {
 
 	if err := os.WriteFile(filepath.Join(tempDir, "main.go"), []byte(placeholderMain), 0600); err != nil {
 		_ = os.RemoveAll(tempDir)
-		return nil, errors.Wrap(err, "failed to write placeholder main.go")
+		return nil, fmt.Errorf("failed to write placeholder main.go: %w", err)
 	}
 
 	// Run go mod tidy ONCE for the entire module
@@ -207,7 +206,7 @@ func main() {
 	tidyCmd.Env = append(os.Environ(), "GO111MODULE=on")
 	if output, err := tidyCmd.CombinedOutput(); err != nil {
 		_ = os.RemoveAll(tempDir)
-		return nil, errors.Wrapf(err, "go mod tidy failed: %s", string(output))
+		return nil, fmt.Errorf("go mod tidy failed: %s: %w", string(output), err)
 	}
 
 	return &GeneratorEnvironment{
@@ -224,7 +223,7 @@ func discoverSubPackages(moduleRoot, moduleName string) []string {
 
 	_ = filepath.Walk(moduleRoot, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil // Skip errors
+			return nil //nolint:nilerr // Intentionally skip errors to continue walking
 		}
 		if info.IsDir() {
 			// Skip hidden directories and common non-Go directories
@@ -242,7 +241,7 @@ func discoverSubPackages(moduleRoot, moduleName string) []string {
 		dir := filepath.Dir(path)
 		relPath, err := filepath.Rel(moduleRoot, dir)
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr // Skip files where we can't compute relative path
 		}
 		// Build the import path
 		var importPath string
@@ -288,12 +287,12 @@ func (env *GeneratorEnvironment) generateCUEInternal(filePath string, defInfo De
 	// Get the import path for this file
 	absPath, err := filepath.Abs(filePath)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to get absolute path for %s", filePath)
+		return "", fmt.Errorf("failed to get absolute path for %s: %w", filePath, err)
 	}
 
 	_, importPath, err := findModuleInfo(filepath.Dir(absPath))
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to find module info for %s", filePath)
+		return "", fmt.Errorf("failed to find module info for %s: %w", filePath, err)
 	}
 
 	// Generate the Go program for this definition
@@ -302,7 +301,7 @@ func (env *GeneratorEnvironment) generateCUEInternal(filePath string, defInfo De
 	// Write the generator program
 	genFile := filepath.Join(env.TempDir, filename)
 	if err := os.WriteFile(genFile, []byte(genProgram), 0600); err != nil {
-		return "", errors.Wrap(err, "failed to write generator program")
+		return "", fmt.Errorf("failed to write generator program: %w", err)
 	}
 
 	// Run the generator (no go mod tidy needed - already done)
@@ -313,7 +312,7 @@ func (env *GeneratorEnvironment) generateCUEInternal(filePath string, defInfo De
 	runCmd.Stdout = &stdout
 	runCmd.Stderr = &stderr
 	if err := runCmd.Run(); err != nil {
-		return "", errors.Wrapf(err, "generator failed: %s", stderr.String())
+		return "", fmt.Errorf("generator failed: %s: %w", stderr.String(), err)
 	}
 
 	return stdout.String(), nil
@@ -386,9 +385,9 @@ func IsGoDefinitionFile(path string) (bool, error) {
 		return false, nil
 	}
 
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(path) //nolint:gosec // G304: Path is from trusted module directory walk
 	if err != nil {
-		return false, errors.Wrapf(err, "failed to read file %s", path)
+		return false, fmt.Errorf("failed to read file %s: %w", path, err)
 	}
 
 	// Quick check for defkit import
@@ -418,7 +417,7 @@ func DiscoverDefinitions(dir string) ([]string, error) {
 	})
 
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to walk directory %s", dir)
+		return nil, fmt.Errorf("failed to walk directory %s: %w", dir, err)
 	}
 
 	return files, nil
@@ -429,7 +428,7 @@ func AnalyzeGoFile(filePath string) ([]DefinitionInfo, error) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse Go file %s", filePath)
+		return nil, fmt.Errorf("failed to parse Go file %s: %w", filePath, err)
 	}
 
 	var definitions []DefinitionInfo
@@ -509,9 +508,25 @@ func getDefinitionType(expr ast.Expr) string {
 // extractDefinitionName extracts a definition name from a function name
 // e.g., "WebserviceComponent" -> "webservice", "Daemon" -> "daemon"
 func extractDefinitionName(funcName, defType string) string {
-	// Remove common suffixes
-	suffixes := []string{"Component", "Trait", "Policy", "WorkflowStep", "Definition"}
+	// Map definition type to expected suffix
+	typeToSuffix := map[string]string{
+		"component":     "Component",
+		"trait":         "Trait",
+		"policy":        "Policy",
+		"workflow-step": "WorkflowStep",
+	}
+
 	name := funcName
+
+	// First, try the suffix matching the definition type
+	if suffix, ok := typeToSuffix[defType]; ok {
+		if strings.HasSuffix(name, suffix) {
+			return strings.ToLower(strings.TrimSuffix(name, suffix))
+		}
+	}
+
+	// Fallback: try common suffixes
+	suffixes := []string{"Component", "Trait", "Policy", "WorkflowStep", "Definition"}
 	for _, suffix := range suffixes {
 		if strings.HasSuffix(name, suffix) {
 			name = strings.TrimSuffix(name, suffix)
@@ -519,7 +534,6 @@ func extractDefinitionName(funcName, defType string) string {
 		}
 	}
 
-	// Convert to lowercase (simple case conversion)
 	return strings.ToLower(name)
 }
 
@@ -530,25 +544,25 @@ func GenerateCUEFromGoFile(filePath string, defInfo DefinitionInfo) (string, err
 	// Get the absolute path and module information
 	absPath, err := filepath.Abs(filePath)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to get absolute path for %s", filePath)
+		return "", fmt.Errorf("failed to get absolute path for %s: %w", filePath, err)
 	}
 
 	// Find the module root and import path
 	moduleRoot, importPath, err := findModuleInfo(filepath.Dir(absPath))
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to find module info for %s", filePath)
+		return "", fmt.Errorf("failed to find module info for %s: %w", filePath, err)
 	}
 
 	// Get the module name from the import path (the base module, not subpackage)
 	moduleName, err := getModuleNameFromRoot(moduleRoot)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to get module name for %s", moduleRoot)
+		return "", fmt.Errorf("failed to get module name for %s: %w", moduleRoot, err)
 	}
 
 	// Create a temporary directory for the generator
 	tempDir, err := os.MkdirTemp("", "vela-def-gen-*")
 	if err != nil {
-		return "", errors.Wrap(err, "failed to create temp directory")
+		return "", fmt.Errorf("failed to create temp directory: %w", err)
 	}
 	defer func() { _ = os.RemoveAll(tempDir) }()
 
@@ -558,7 +572,7 @@ func GenerateCUEFromGoFile(filePath string, defInfo DefinitionInfo) (string, err
 	// Write the generator program
 	genFile := filepath.Join(tempDir, "main.go")
 	if err := os.WriteFile(genFile, []byte(genProgram), 0600); err != nil {
-		return "", errors.Wrap(err, "failed to write generator program")
+		return "", fmt.Errorf("failed to write generator program: %w", err)
 	}
 
 	// Create go.mod that references the original module
@@ -581,7 +595,7 @@ require %s v0.0.0
 `, moduleName, kubeVelaReplace, moduleName, moduleRoot)
 
 	if err := os.WriteFile(filepath.Join(tempDir, "go.mod"), []byte(goMod), 0600); err != nil {
-		return "", errors.Wrap(err, "failed to write go.mod")
+		return "", fmt.Errorf("failed to write go.mod: %w", err)
 	}
 
 	// Run go mod tidy with -e flag to ignore errors for missing modules
@@ -590,7 +604,7 @@ require %s v0.0.0
 	tidyCmd.Dir = tempDir
 	tidyCmd.Env = append(os.Environ(), "GO111MODULE=on")
 	if output, err := tidyCmd.CombinedOutput(); err != nil {
-		return "", errors.Wrapf(err, "go mod tidy failed: %s", string(output))
+		return "", fmt.Errorf("go mod tidy failed: %s: %w", string(output), err)
 	}
 
 	// Run the generator
@@ -601,7 +615,7 @@ require %s v0.0.0
 	runCmd.Stdout = &stdout
 	runCmd.Stderr = &stderr
 	if err := runCmd.Run(); err != nil {
-		return "", errors.Wrapf(err, "generator failed: %s", stderr.String())
+		return "", fmt.Errorf("generator failed: %s: %w", stderr.String(), err)
 	}
 
 	return stdout.String(), nil
@@ -609,9 +623,9 @@ require %s v0.0.0
 
 // getModuleNameFromRoot reads the module name from go.mod in the given directory
 func getModuleNameFromRoot(moduleRoot string) (string, error) {
-	goModContent, err := os.ReadFile(filepath.Join(moduleRoot, "go.mod"))
+	goModContent, err := os.ReadFile(filepath.Join(moduleRoot, "go.mod")) //nolint:gosec // G304: Reading go.mod from user-specified module
 	if err != nil {
-		return "", errors.Wrap(err, "failed to read go.mod")
+		return "", fmt.Errorf("failed to read go.mod: %w", err)
 	}
 
 	lines := strings.Split(string(goModContent), "\n")
@@ -628,7 +642,7 @@ func getModuleNameFromRoot(moduleRoot string) (string, error) {
 // and returns them as a string that can be included in another go.mod.
 // This allows copying replace directives from the source module to the temp module.
 func getReplacesFromGoMod(moduleRoot string) string {
-	goModContent, err := os.ReadFile(filepath.Join(moduleRoot, "go.mod"))
+	goModContent, err := os.ReadFile(filepath.Join(moduleRoot, "go.mod")) //nolint:gosec // G304: Reading go.mod from user-specified module
 	if err != nil {
 		return ""
 	}
@@ -675,7 +689,7 @@ func findKubeVelaRoot() string {
 		current := cwd
 		for {
 			goModPath := filepath.Join(current, "go.mod")
-			if content, err := os.ReadFile(goModPath); err == nil {
+			if content, err := os.ReadFile(goModPath); err == nil { //nolint:gosec // G304: Searching for kubevela root in parent directories
 				if strings.Contains(string(content), "module github.com/oam-dev/kubevela") {
 					return current
 				}
@@ -737,9 +751,9 @@ func findModuleInfo(dir string) (moduleRoot, importPath string, err error) {
 	}
 
 	// Read go.mod to get module name
-	goModContent, err := os.ReadFile(filepath.Join(moduleRoot, "go.mod"))
+	goModContent, err := os.ReadFile(filepath.Join(moduleRoot, "go.mod")) //nolint:gosec // G304: Reading go.mod from user-specified module
 	if err != nil {
-		return "", "", errors.Wrap(err, "failed to read go.mod")
+		return "", "", fmt.Errorf("failed to read go.mod: %w", err)
 	}
 
 	// Parse module name from go.mod
@@ -759,7 +773,7 @@ func findModuleInfo(dir string) (moduleRoot, importPath string, err error) {
 	// Calculate import path relative to module root
 	relPath, err := filepath.Rel(moduleRoot, dir)
 	if err != nil {
-		return "", "", errors.Wrap(err, "failed to calculate relative path")
+		return "", "", fmt.Errorf("failed to calculate relative path: %w", err)
 	}
 
 	if relPath == "." {
@@ -933,7 +947,7 @@ func LoadFromModuleWithRegistry(moduleRoot string) ([]LoadResult, error) {
 	// Check if module has cmd/register/main.go
 	mainPath := filepath.Join(moduleRoot, registryMainPath)
 	if _, err := os.Stat(mainPath); os.IsNotExist(err) {
-		return nil, errors.Errorf("module does not have %s - run 'vela def init-module' to create it", registryMainPath)
+		return nil, fmt.Errorf("module does not have %s - run 'vela def init-module' to create it", registryMainPath)
 	}
 
 	// Run go run ./cmd/register directly in the module
@@ -945,13 +959,13 @@ func LoadFromModuleWithRegistry(moduleRoot string) ([]LoadResult, error) {
 	runCmd.Stdout = &stdout
 	runCmd.Stderr = &stderr
 	if err := runCmd.Run(); err != nil {
-		return nil, errors.Wrapf(err, "registry generator failed: %s", stderr.String())
+		return nil, fmt.Errorf("registry generator failed: %s: %w", stderr.String(), err)
 	}
 
 	// Parse JSON output
 	var registryOutput defkit.RegistryOutput
 	if err := json.Unmarshal(stdout.Bytes(), &registryOutput); err != nil {
-		return nil, errors.Wrapf(err, "failed to parse registry output: %s", stdout.String())
+		return nil, fmt.Errorf("failed to parse registry output %s: %w", stdout.String(), err)
 	}
 
 	// Convert to LoadResults

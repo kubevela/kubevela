@@ -161,35 +161,33 @@ func CheckAddonName(addonName string) error {
 
 // createGoDefScaffold creates Go definition module scaffolding
 func (cmd *InitCmd) createGoDefScaffold() {
-	// module.yaml
-	cmd.GoDefFiles = append(cmd.GoDefFiles, ElementFile{
-		Name: path.Join(GoDefDirName, GoDefModuleFileName),
-		Data: strings.ReplaceAll(godefModuleYAMLTemplate, "ADDON_NAME", cmd.AddonName),
-	})
-
-	// go.mod
-	cmd.GoDefFiles = append(cmd.GoDefFiles, ElementFile{
-		Name: path.Join(GoDefDirName, "go.mod"),
-		Data: strings.ReplaceAll(godefGoModTemplate, "ADDON_NAME", cmd.AddonName),
-	})
-
-	// Always create doc.go files for each definition type folder
-	cmd.GoDefFiles = append(cmd.GoDefFiles, ElementFile{
-		Name: path.Join(GoDefDirName, "components", "doc.go"),
-		Data: godefComponentsDocTemplate,
-	})
-	cmd.GoDefFiles = append(cmd.GoDefFiles, ElementFile{
-		Name: path.Join(GoDefDirName, "traits", "doc.go"),
-		Data: godefTraitsDocTemplate,
-	})
-	cmd.GoDefFiles = append(cmd.GoDefFiles, ElementFile{
-		Name: path.Join(GoDefDirName, "policies", "doc.go"),
-		Data: godefPoliciesDocTemplate,
-	})
-	cmd.GoDefFiles = append(cmd.GoDefFiles, ElementFile{
-		Name: path.Join(GoDefDirName, "workflowsteps", "doc.go"),
-		Data: godefWorkflowStepsDocTemplate,
-	})
+	// Core module files and doc.go files for each definition type folder
+	cmd.GoDefFiles = append(cmd.GoDefFiles,
+		ElementFile{
+			Name: path.Join(GoDefDirName, GoDefModuleFileName),
+			Data: strings.ReplaceAll(godefModuleYAMLTemplate, "ADDON_NAME", cmd.AddonName),
+		},
+		ElementFile{
+			Name: path.Join(GoDefDirName, "go.mod"),
+			Data: strings.ReplaceAll(godefGoModTemplate, "ADDON_NAME", cmd.AddonName),
+		},
+		ElementFile{
+			Name: path.Join(GoDefDirName, "components", "doc.go"),
+			Data: godefComponentsDocTemplate,
+		},
+		ElementFile{
+			Name: path.Join(GoDefDirName, "traits", "doc.go"),
+			Data: godefTraitsDocTemplate,
+		},
+		ElementFile{
+			Name: path.Join(GoDefDirName, "policies", "doc.go"),
+			Data: godefPoliciesDocTemplate,
+		},
+		ElementFile{
+			Name: path.Join(GoDefDirName, "workflowsteps", "doc.go"),
+			Data: godefWorkflowStepsDocTemplate,
+		},
+	)
 
 	// Create scaffold files for specified components
 	for _, name := range parseCommaSeparated(cmd.GoDefComponents) {
