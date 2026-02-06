@@ -48,20 +48,27 @@ runs:
       run: |
         # Detect architecture
         ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
-        
+
         # Install kubectl
         echo "Installing kubectl for architecture: $ARCH"
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${ARCH}/kubectl"
+        # Get kubectl version with retry and fallback
+        KUBECTL_VERSION=$(curl -L -s --retry 3 https://dl.k8s.io/release/stable.txt)
+        if [ -z "$KUBECTL_VERSION" ]; then
+          echo "Failed to get latest kubectl version, using fallback v1.31.0"
+          KUBECTL_VERSION="v1.31.0"
+        fi
+        echo "Installing kubectl version: $KUBECTL_VERSION"
+        curl -LO --retry 3 "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl"
         chmod +x kubectl
         sudo mv kubectl /usr/local/bin/
-        
+
         # Install helm using the official script (more reliable)
         echo "Installing Helm using official script..."
-        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        curl -fsSL --retry 3 -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
         chmod 700 get_helm.sh
         ./get_helm.sh
         rm get_helm.sh
-        
+
         # Verify installations
         echo "Verifying installations..."
         kubectl version --client
