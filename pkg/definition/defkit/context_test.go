@@ -718,4 +718,123 @@ var _ = Describe("TestContext", func() {
 			Expect(rendered.Get("spec.ports[1].name")).To(Equal("https"))
 		})
 	})
+
+	Context("Context references in Render", func() {
+		It("should resolve appRevision context ref", func() {
+			comp := defkit.NewComponent("test").
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("v1", "ConfigMap").
+							Set("metadata.name", defkit.VelaCtx().Name()).
+							Set("metadata.labels.app", defkit.VelaCtx().AppName()).
+							Set("metadata.labels.revision", defkit.VelaCtx().AppRevision()),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().
+					WithName("my-config").
+					WithAppName("my-app"),
+			)
+
+			Expect(rendered.Get("metadata.name")).To(Equal("my-config"))
+			Expect(rendered.Get("metadata.labels.app")).To(Equal("my-app"))
+		})
+
+		It("should resolve namespace context ref", func() {
+			comp := defkit.NewComponent("test").
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("v1", "ConfigMap").
+							Set("metadata.namespace", defkit.VelaCtx().Namespace()),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().WithNamespace("prod"),
+			)
+
+			Expect(rendered.Get("metadata.namespace")).To(Equal("prod"))
+		})
+	})
+
+	Context("Different numeric types in comparison", func() {
+		It("should compare int64 values", func() {
+			count := defkit.Int("count")
+
+			comp := defkit.NewComponent("test").
+				Params(count).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("v1", "ConfigMap").
+							SetIf(defkit.Gt(count, defkit.Lit(int64(100))), "data.large", defkit.Lit("true")),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().WithParam("count", int64(150)),
+			)
+
+			Expect(rendered.Get("data.large")).To(Equal("true"))
+		})
+
+		It("should compare float32 values", func() {
+			ratio := defkit.Float("ratio")
+
+			comp := defkit.NewComponent("test").
+				Params(ratio).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("v1", "ConfigMap").
+							SetIf(defkit.Lt(ratio, defkit.Lit(float32(0.5))), "data.low", defkit.Lit("true")),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().WithParam("ratio", float32(0.3)),
+			)
+
+			Expect(rendered.Get("data.low")).To(Equal("true"))
+		})
+	})
+
+	Context("Boolean parameter conditions", func() {
+		It("should evaluate boolean parameter directly", func() {
+			debug := defkit.Bool("debug")
+
+			comp := defkit.NewComponent("test").
+				Params(debug).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("v1", "ConfigMap").
+							SetIf(debug.IsTrue(), "data.debug", defkit.Lit("enabled")),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().WithParam("debug", true),
+			)
+
+			Expect(rendered.Get("data.debug")).To(Equal("enabled"))
+		})
+
+		It("should evaluate boolean false condition", func() {
+			enabled := defkit.Bool("enabled")
+
+			comp := defkit.NewComponent("test").
+				Params(enabled).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("v1", "ConfigMap").
+							SetIf(enabled.IsFalse(), "data.disabled", defkit.Lit("true")),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().WithParam("enabled", false),
+			)
+
+			Expect(rendered.Get("data.disabled")).To(Equal("true"))
+		})
+	})
 })

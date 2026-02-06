@@ -407,6 +407,24 @@ var _ = Describe("ComponentDefinition", func() {
 			Expect(data).NotTo(BeNil())
 			Expect(data["metadata"].(map[string]any)["name"]).To(Equal("myapp"))
 		})
+
+		It("should return correct APIVersion and Kind", func() {
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", defkit.VelaCtx().Name()),
+					)
+				})
+
+			rendered := comp.Render(
+				defkit.TestContext().WithName("myapp"),
+			)
+
+			Expect(rendered.APIVersion()).To(Equal("apps/v1"))
+			Expect(rendered.Kind()).To(Equal("Deployment"))
+		})
 	})
 
 	Context("DefName and DefType", func() {
