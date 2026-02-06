@@ -1023,11 +1023,12 @@ and applied using 'vela def apply-module'.`,
 			// 2. If --name is given but no path, create directory with that name
 			// 3. Otherwise, use current directory
 			var targetDir string
-			if len(args) > 0 {
+			switch {
+			case len(args) > 0:
 				targetDir = args[0]
-			} else if moduleName != "" {
+			case moduleName != "":
 				targetDir = moduleName
-			} else {
+			default:
 				targetDir = "."
 			}
 

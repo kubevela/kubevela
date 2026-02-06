@@ -1075,7 +1075,8 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 	}
 
 	// Generate parameter block
-	if config.CustomParameterBlock != "" {
+	switch {
+	case config.CustomParameterBlock != "":
 		// Use custom parameter block
 		sb.WriteString(fmt.Sprintf("%sparameter: ", indent))
 		for i, line := range strings.Split(strings.TrimSpace(config.CustomParameterBlock), "\n") {
@@ -1085,12 +1086,12 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 				sb.WriteString(fmt.Sprintf("%s%s\n", indent, line))
 			}
 		}
-	} else if config.AllowMultiple && multiParam != "" {
+	case config.AllowMultiple && multiParam != "":
 		sb.WriteString(fmt.Sprintf("%sparameter: *#PatchParams | close({\n", indent))
 		sb.WriteString(fmt.Sprintf("%s// +usage=Specify the settings for multiple containers\n", innerIndent))
 		sb.WriteString(fmt.Sprintf("%s%s: [...#PatchParams]\n", innerIndent, multiParam))
 		sb.WriteString(fmt.Sprintf("%s})\n", indent))
-	} else {
+	default:
 		sb.WriteString(fmt.Sprintf("%sparameter: #PatchParams\n", indent))
 	}
 

@@ -222,7 +222,7 @@ func discoverSubPackages(moduleRoot, moduleName string) []string {
 	var packages []string
 	seen := make(map[string]bool)
 
-	filepath.Walk(moduleRoot, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(moduleRoot, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil // Skip errors
 		}

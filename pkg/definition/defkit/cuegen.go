@@ -48,6 +48,9 @@ var CUEImports = struct {
 	Encoding: "encoding/json",
 }
 
+// cueBoolTrue is the CUE literal for a true boolean value.
+const cueBoolTrue = "true"
+
 // ImportRequirer is implemented by types that require CUE imports.
 // This allows the CUE generator to automatically detect and add required imports.
 type ImportRequirer interface {
@@ -953,7 +956,8 @@ func (g *CUEGenerator) insertIntoTree(root *fieldNode, path string, value Value,
 		node := current.children[name]
 
 		// Handle array access
-		if index >= 0 {
+		switch {
+		case index >= 0:
 			node.isArray = true
 			idxKey := fmt.Sprintf("[%d]", index)
 			if _, exists := node.children[idxKey]; !exists {
@@ -962,7 +966,7 @@ func (g *CUEGenerator) insertIntoTree(root *fieldNode, path string, value Value,
 				node.childOrder = append(node.childOrder, idxKey)
 			}
 			current = node.children[idxKey]
-		} else if key != "" {
+		case key != "":
 			// Map key access (e.g., labels[app.oam.dev/name])
 			// Create a special child for the key
 			keyNode := fmt.Sprintf("[%s]", key)
@@ -971,7 +975,7 @@ func (g *CUEGenerator) insertIntoTree(root *fieldNode, path string, value Value,
 				node.childOrder = append(node.childOrder, keyNode)
 			}
 			current = node.children[keyNode]
-		} else {
+		default:
 			current = node
 		}
 
@@ -1001,7 +1005,8 @@ func (g *CUEGenerator) insertSpreadIntoTree(root *fieldNode, path string, value 
 		node := current.children[name]
 
 		// Handle array access
-		if index >= 0 {
+		switch {
+		case index >= 0:
 			node.isArray = true
 			idxKey := fmt.Sprintf("[%d]", index)
 			if _, exists := node.children[idxKey]; !exists {
@@ -1010,7 +1015,7 @@ func (g *CUEGenerator) insertSpreadIntoTree(root *fieldNode, path string, value 
 				node.childOrder = append(node.childOrder, idxKey)
 			}
 			current = node.children[idxKey]
-		} else if key != "" {
+		case key != "":
 			// Map key access
 			keyNode := fmt.Sprintf("[%s]", key)
 			if _, exists := node.children[keyNode]; !exists {
@@ -1018,7 +1023,7 @@ func (g *CUEGenerator) insertSpreadIntoTree(root *fieldNode, path string, value 
 				node.childOrder = append(node.childOrder, keyNode)
 			}
 			current = node.children[keyNode]
-		} else {
+		default:
 			current = node
 		}
 	}
@@ -1044,7 +1049,8 @@ func (g *CUEGenerator) insertForEachIntoTree(root *fieldNode, op *ForEachOp, con
 		node := current.children[name]
 
 		// Handle array access
-		if index >= 0 {
+		switch {
+		case index >= 0:
 			node.isArray = true
 			idxKey := fmt.Sprintf("[%d]", index)
 			if _, exists := node.children[idxKey]; !exists {
@@ -1053,7 +1059,7 @@ func (g *CUEGenerator) insertForEachIntoTree(root *fieldNode, op *ForEachOp, con
 				node.childOrder = append(node.childOrder, idxKey)
 			}
 			current = node.children[idxKey]
-		} else if key != "" {
+		case key != "":
 			// Map key access
 			keyNode := fmt.Sprintf("[%s]", key)
 			if _, exists := node.children[keyNode]; !exists {
@@ -1061,7 +1067,7 @@ func (g *CUEGenerator) insertForEachIntoTree(root *fieldNode, op *ForEachOp, con
 				node.childOrder = append(node.childOrder, keyNode)
 			}
 			current = node.children[keyNode]
-		} else {
+		default:
 			current = node
 		}
 	}
@@ -1089,7 +1095,8 @@ func (g *CUEGenerator) insertPatchKeyIntoTree(root *fieldNode, op *PatchKeyOp, c
 		node := current.children[name]
 
 		// Handle array access
-		if index >= 0 {
+		switch {
+		case index >= 0:
 			node.isArray = true
 			idxKey := fmt.Sprintf("[%d]", index)
 			if _, exists := node.children[idxKey]; !exists {
@@ -1098,7 +1105,7 @@ func (g *CUEGenerator) insertPatchKeyIntoTree(root *fieldNode, op *PatchKeyOp, c
 				node.childOrder = append(node.childOrder, idxKey)
 			}
 			current = node.children[idxKey]
-		} else if key != "" {
+		case key != "":
 			// Map key access
 			keyNode := fmt.Sprintf("[%s]", key)
 			if _, exists := node.children[keyNode]; !exists {
@@ -1106,7 +1113,7 @@ func (g *CUEGenerator) insertPatchKeyIntoTree(root *fieldNode, op *PatchKeyOp, c
 				node.childOrder = append(node.childOrder, keyNode)
 			}
 			current = node.children[keyNode]
-		} else {
+		default:
 			current = node
 		}
 	}
@@ -1390,7 +1397,7 @@ func (g *CUEGenerator) predicateToCUE(pred Predicate) string {
 		// Generate: v.field != _|_
 		return fmt.Sprintf("v.%s != _|_", p.field)
 	default:
-		return "true"
+		return cueBoolTrue
 	}
 }
 
@@ -1457,7 +1464,7 @@ func (g *CUEGenerator) listPredicateToCUE(pred ListPredicate) string {
 	case *ListFieldExistsPredicate:
 		return fmt.Sprintf("v.%s != _|_", p.GetField())
 	default:
-		return "true"
+		return cueBoolTrue
 	}
 }
 
@@ -1540,11 +1547,22 @@ func (g *CUEGenerator) generateMapBySourceCUE(sourceStr string, sources []string
 
 		if hasMapping {
 			for fieldName, fieldVal := range mapping {
-				valStr := g.fieldValueToCUE(fieldVal)
-				// Handle nested objects specially
-				if _, isNested := fieldVal.(*NestedField); isNested {
-					sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t\t%s: %s\n", fieldName, valStr))
+				if nf, isNested := fieldVal.(*NestedField); isNested {
+					// Inline nested field expansion with correct indentation
+					sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t\t%s: {\n", fieldName))
+					for nestedName, nestedVal := range nf.mapping {
+						if optField, isOptional := nestedVal.(*OptionalField); isOptional {
+							sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t\t\tif v.%s != _|_ {\n", optField.field))
+							sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t\t\t\t%s: v.%s\n", nestedName, optField.field))
+							sb.WriteString("\t\t\t\t\t\t\t\t}\n")
+						} else {
+							valStr := g.fieldValueToCUE(nestedVal)
+							sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t\t\t%s: %s\n", nestedName, valStr))
+						}
+					}
+					sb.WriteString("\t\t\t\t\t\t\t}\n")
 				} else {
+					valStr := g.fieldValueToCUE(fieldVal)
 					sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t\t%s: %s\n", fieldName, valStr))
 				}
 			}
@@ -1729,7 +1747,7 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		// which will be used in a single if statement
 		return strings.Join(parts, " && ")
 	default:
-		return "true"
+		return cueBoolTrue
 	}
 }
 

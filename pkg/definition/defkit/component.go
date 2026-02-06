@@ -1015,7 +1015,8 @@ func setNestedValue(data map[string]any, path string, value any) {
 		// Handle bracket notation: containers[0] (array) or labels[app.oam.dev/name] (map key)
 		name, key, index := parseBracketAccess(part)
 
-		if index >= 0 {
+		switch {
+		case index >= 0:
 			// Array access
 			arr, ok := current[name].([]any)
 			if !ok {
@@ -1034,7 +1035,7 @@ func setNestedValue(data map[string]any, path string, value any) {
 				current[name] = arr
 				current = m
 			}
-		} else if key != "" {
+		case key != "":
 			// Map key access like labels[app.oam.dev/name]
 			if _, exists := current[name]; !exists {
 				current[name] = make(map[string]any)
@@ -1052,7 +1053,7 @@ func setNestedValue(data map[string]any, path string, value any) {
 					current = newMap
 				}
 			}
-		} else {
+		default:
 			// Regular map access
 			if _, exists := current[name]; !exists {
 				current[name] = make(map[string]any)
@@ -1072,7 +1073,8 @@ func setNestedValue(data map[string]any, path string, value any) {
 	// Set the final value
 	lastPart := parts[len(parts)-1]
 	name, key, index := parseBracketAccess(lastPart)
-	if index >= 0 {
+	switch {
+	case index >= 0:
 		arr, ok := current[name].([]any)
 		if !ok {
 			arr = make([]any, index+1)
@@ -1082,7 +1084,7 @@ func setNestedValue(data map[string]any, path string, value any) {
 		}
 		arr[index] = value
 		current[name] = arr
-	} else if key != "" {
+	case key != "":
 		// Map key access like labels[app.oam.dev/name]
 		if _, exists := current[name]; !exists {
 			current[name] = make(map[string]any)
@@ -1090,7 +1092,7 @@ func setNestedValue(data map[string]any, path string, value any) {
 		if m, ok := current[name].(map[string]any); ok {
 			m[key] = value
 		}
-	} else {
+	default:
 		current[name] = value
 	}
 }
@@ -1133,18 +1135,19 @@ func splitPath(path string) []string {
 	bracketDepth := 0
 
 	for _, c := range path {
-		if c == '[' {
+		switch {
+		case c == '[':
 			bracketDepth++
 			current += string(c)
-		} else if c == ']' {
+		case c == ']':
 			bracketDepth--
 			current += string(c)
-		} else if c == '.' && bracketDepth == 0 {
+		case c == '.' && bracketDepth == 0:
 			if current != "" {
 				parts = append(parts, current)
 				current = ""
 			}
-		} else {
+		default:
 			current += string(c)
 		}
 	}
