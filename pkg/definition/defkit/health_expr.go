@@ -227,7 +227,7 @@ func (f *fieldContainsExpr) Preamble() string {
 
 func (f *fieldContainsExpr) ToCUE() string {
 	fullPath := "context.output." + f.path
-	return fmt.Sprintf(`strings.Contains(%s, "%s")`, fullPath, f.substr)
+	return fmt.Sprintf(`strings.Contains(%s, %s)`, fullPath, formatValue(f.substr))
 }
 
 // --- FieldRef for field-to-field comparisons ---
@@ -345,7 +345,7 @@ func (a *alwaysExpr) ToCUE() string {
 func formatValue(v any) string {
 	switch val := v.(type) {
 	case string:
-		return fmt.Sprintf(`"%s"`, val)
+		return fmt.Sprintf("%q", val) // %q properly escapes quotes and special chars
 	case int, int32, int64, float32, float64:
 		return fmt.Sprintf("%v", val)
 	case bool:
