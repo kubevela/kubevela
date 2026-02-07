@@ -607,9 +607,9 @@ var _ = Describe("Helper", func() {
 				rendered := comp.Render(
 					defkit.TestContext().
 						WithParam("ports", []map[string]any{
-							{"port": 80, "name": "http"}, // no protocol - should get default
+							{"port": 80, "name": "http"},                      // no protocol - should get default
 							{"port": 443, "name": "https", "protocol": "TCP"}, // has protocol - keep it
-							{"port": 53, "name": "dns", "protocol": "UDP"}, // has different protocol - keep it
+							{"port": 53, "name": "dns", "protocol": "UDP"},    // has different protocol - keep it
 						}),
 				)
 
