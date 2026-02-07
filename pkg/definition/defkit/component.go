@@ -1165,6 +1165,9 @@ func splitPath(path string) []string {
 func parseBracketAccess(part string) (name string, key string, index int) {
 	for i, c := range part {
 		if c == '[' {
+			if part[len(part)-1] != ']' {
+				return part, "", -1
+			}
 			name = part[:i]
 			bracketContent := part[i+1 : len(part)-1]
 			// Check if the content is numeric (array index)

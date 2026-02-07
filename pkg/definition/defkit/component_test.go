@@ -651,4 +651,13 @@ var _ = Describe("ComponentDefinition", func() {
 			Expect(tpl.GetOutputs()).To(HaveKey("service"))
 		})
 	})
+
+	Context("Set with malformed bracket paths", func() {
+		It("should not panic on missing closing bracket", func() {
+			Expect(func() {
+				r := defkit.NewResource("v1", "ConfigMap")
+				r.Set("data.items[", defkit.Lit("value"))
+			}).NotTo(Panic())
+		})
+	})
 })
