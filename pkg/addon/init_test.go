@@ -54,6 +54,48 @@ func TestCheckAddonName(t *testing.T) {
 	}
 }
 
+func TestCheckGoDefName(t *testing.T) {
+	var err error
+
+	// Empty name should fail
+	err = CheckGoDefName("")
+	assert.ErrorContains(t, err, "should not be empty")
+
+	// Path traversal attempts should fail
+	invalidNames := []string{
+		"../../../etc/passwd",
+		"..%2F..%2Fetc",
+		"/absolute/path",
+		"name/with/slashes",
+		"name\\with\\backslashes",
+		"-starts-with-dash",
+		"has-dashes",
+		"has.dots",
+		"123startswithnumber",
+		"has spaces",
+		"special@chars!",
+	}
+	for _, name := range invalidNames {
+		err = CheckGoDefName(name)
+		assert.Error(t, err, "expected error for invalid name: %s", name)
+	}
+
+	// Valid Go identifiers should pass
+	validNames := []string{
+		"webservice",
+		"myComponent",
+		"my_component",
+		"_private",
+		"Component123",
+		"a",
+		"A",
+	}
+	for _, name := range validNames {
+		err = CheckGoDefName(name)
+		assert.NoError(t, err, "expected no error for valid name: %s", name)
+	}
+}
+
 func TestInitCmd_CreateScaffold(t *testing.T) {
 	var err error
 

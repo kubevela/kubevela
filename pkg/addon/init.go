@@ -38,6 +38,8 @@ import (
 const (
 	// AddonNameRegex is the regex to validate addon names
 	AddonNameRegex = `^[a-z\d]+(-[a-z\d]+)*$`
+	// GoDefNameRegex validates Go definition names (valid Go identifiers: letters, digits, underscores)
+	GoDefNameRegex = `^[a-zA-Z_][a-zA-Z0-9_]*$`
 	// helmComponentDependency is the dependent addon of Helm Component
 	helmComponentDependency = "fluxcd"
 )
@@ -124,7 +126,9 @@ func (cmd *InitCmd) CreateScaffold() error {
 
 	if cmd.EnableGoDef {
 		klog.Info("Creating Go definition module scaffolding...")
-		cmd.createGoDefScaffold()
+		if err := cmd.createGoDefScaffold(); err != nil {
+			return err
+		}
 	}
 
 	err = cmd.writeFiles()
@@ -159,8 +163,24 @@ func CheckAddonName(addonName string) error {
 	return nil
 }
 
+// CheckGoDefName checks if a Go definition name is valid.
+// Names must be valid Go identifiers to prevent path traversal attacks
+// and ensure they can be used as Go type/function names.
+func CheckGoDefName(name string) error {
+	if len(name) == 0 {
+		return fmt.Errorf("definition name should not be empty")
+	}
+
+	re := regexp.MustCompile(GoDefNameRegex)
+	if !re.MatchString(name) {
+		return fmt.Errorf("definition name %q is invalid: must be a valid Go identifier (letters, digits, underscores, starting with a letter or underscore)", name)
+	}
+
+	return nil
+}
+
 // createGoDefScaffold creates Go definition module scaffolding
-func (cmd *InitCmd) createGoDefScaffold() {
+func (cmd *InitCmd) createGoDefScaffold() error {
 	// Core module files and doc.go files for each definition type folder
 	cmd.GoDefFiles = append(cmd.GoDefFiles,
 		ElementFile{
@@ -191,6 +211,9 @@ func (cmd *InitCmd) createGoDefScaffold() {
 
 	// Create scaffold files for specified components
 	for _, name := range parseCommaSeparated(cmd.GoDefComponents) {
+		if err := CheckGoDefName(name); err != nil {
+			return fmt.Errorf("invalid component name: %w", err)
+		}
 		cmd.GoDefFiles = append(cmd.GoDefFiles, ElementFile{
 			Name: path.Join(GoDefDirName, "components", name+".go"),
 			Data: generateComponentScaffold(name),
@@ -199,6 +222,9 @@ func (cmd *InitCmd) createGoDefScaffold() {
 
 	// Create scaffold files for specified traits
 	for _, name := range parseCommaSeparated(cmd.GoDefTraits) {
+		if err := CheckGoDefName(name); err != nil {
+			return fmt.Errorf("invalid trait name: %w", err)
+		}
 		cmd.GoDefFiles = append(cmd.GoDefFiles, ElementFile{
 			Name: path.Join(GoDefDirName, "traits", name+".go"),
 			Data: generateTraitScaffold(name),
@@ -207,6 +233,9 @@ func (cmd *InitCmd) createGoDefScaffold() {
 
 	// Create scaffold files for specified policies
 	for _, name := range parseCommaSeparated(cmd.GoDefPolicies) {
+		if err := CheckGoDefName(name); err != nil {
+			return fmt.Errorf("invalid policy name: %w", err)
+		}
 		cmd.GoDefFiles = append(cmd.GoDefFiles, ElementFile{
 			Name: path.Join(GoDefDirName, "policies", name+".go"),
 			Data: generatePolicyScaffold(name),
@@ -215,11 +244,16 @@ func (cmd *InitCmd) createGoDefScaffold() {
 
 	// Create scaffold files for specified workflow steps
 	for _, name := range parseCommaSeparated(cmd.GoDefWorkflowSteps) {
+		if err := CheckGoDefName(name); err != nil {
+			return fmt.Errorf("invalid workflow step name: %w", err)
+		}
 		cmd.GoDefFiles = append(cmd.GoDefFiles, ElementFile{
 			Name: path.Join(GoDefDirName, "workflowsteps", name+".go"),
 			Data: generateWorkflowStepScaffold(name),
 		})
 	}
+
+	return nil
 }
 
 // parseCommaSeparated splits a comma-separated string into trimmed parts
