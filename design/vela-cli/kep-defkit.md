@@ -79,14 +79,14 @@ This reads naturally: "Define image, replicas, and cpu as parameters. Create a w
 
 The SDK provides typed helpers for common definition patterns:
 
-| Pattern | Go API | Example |
-|---------|--------|---------|
-| Required parameter | `defkit.String("image").Required()` | `image` must be provided |
-| Default value | `defkit.Int("replicas").Default(3)` | `replicas` defaults to 3 |
-| Validation | `defkit.Int("replicas").Min(1).Max(100)` | `replicas` between 1-100 |
-| Enums | `defkit.Enum("policy").Values("Always", "Never")` | `policy` with allowed values |
-| Optional object | `defkit.Object("persistence").WithFields(...)` | `persistence` block |
-| Lists | `defkit.StringList("args")` or `defkit.List("args").WithFields(...)` | `args` list |
+| Pattern            | Go API                                                               | Example                      |
+| ------------------ | -------------------------------------------------------------------- | ---------------------------- |
+| Required parameter | `defkit.String("image").Required()`                                  | `image` must be provided     |
+| Default value      | `defkit.Int("replicas").Default(3)`                                  | `replicas` defaults to 3     |
+| Validation         | `defkit.Int("replicas").Min(1).Max(100)`                             | `replicas` between 1-100     |
+| Enums              | `defkit.Enum("policy").Values("Always", "Never")`                    | `policy` with allowed values |
+| Optional object    | `defkit.Object("persistence").WithFields(...)`                       | `persistence` block          |
+| Lists              | `defkit.StringList("args")` or `defkit.List("args").WithFields(...)` | `args` list                  |
 
 ### Runtime Context Access
 
@@ -112,6 +112,8 @@ def.CustomStatus(defkit.DeploymentStatus().Build())
 ```
 
 ### When to Use What
+
+> **Note:** `RawCUE()` is an escape hatch for the rare patterns (~5% of cases) that cannot be expressed in the Go API. It allows embedding raw CUE code directly. See the [RawCUE() Escape Hatch](#rawcue-escape-hatch) section for details.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -186,43 +188,43 @@ func WebserviceComponent() *defkit.ComponentDefinition {
 
 The `defkit.VelaCtx()` function provides access to runtime context values:
 
-| Go Method | Generated CUE | Description |
-|-----------|---------------|-------------|
-| `vela.Name()` | `context.name` | Component name |
-| `vela.Namespace()` | `context.namespace` | Target namespace |
-| `vela.AppName()` | `context.appName` | Application name |
-| `vela.AppRevision()` | `context.appRevision` | Application revision |
-| `vela.Revision()` | `context.revision` | Component revision |
-| `vela.ClusterVersion().Minor()` | `context.clusterVersion.minor` | K8s minor version |
-| `vela.ClusterVersion().Major()` | `context.clusterVersion.major` | K8s major version |
+| Go Method                       | Generated CUE                  | Description          |
+| ------------------------------- | ------------------------------ | -------------------- |
+| `vela.Name()`                   | `context.name`                 | Component name       |
+| `vela.Namespace()`              | `context.namespace`            | Target namespace     |
+| `vela.AppName()`                | `context.appName`              | Application name     |
+| `vela.AppRevision()`            | `context.appRevision`          | Application revision |
+| `vela.Revision()`               | `context.revision`             | Component revision   |
+| `vela.ClusterVersion().Minor()` | `context.clusterVersion.minor` | K8s minor version    |
+| `vela.ClusterVersion().Major()` | `context.clusterVersion.major` | K8s major version    |
 
 ### Parameter Variables
 
 Parameters are typed variables that generate CUE paths automatically:
 
-| Go Usage | Generated CUE | Description |
-|----------|---------------|-------------|
-| `image` (in template) | `parameter.image` | Parameter value (from variable name) |
-| `cpu.IsSet()` | `parameter.cpu != _\|_` | Check if optional parameter is set |
-| `persistence.Field("size")` | `parameter.persistence.size` | Nested field access |
+| Go Usage                    | Generated CUE                | Description                          |
+| --------------------------- | ---------------------------- | ------------------------------------ |
+| `image` (in template)       | `parameter.image`            | Parameter value (from variable name) |
+| `cpu.IsSet()`               | `parameter.cpu != _\|_`      | Check if optional parameter is set   |
+| `persistence.Field("size")` | `parameter.persistence.size` | Nested field access                  |
 
 **How it works**: Each parameter variable knows its name and type. When used in a template expression, it compiles to the corresponding `parameter.X` CUE path.
 
 ### Comparison and Conditional Helpers
 
-| Go Method | Generated CUE | Description |
-|-----------|---------------|-------------|
-| `defkit.Eq(a, b)` | `a == b` | Equality comparison |
-| `defkit.Ne(a, b)` | `a != b` | Inequality comparison |
-| `defkit.Lt(a, b)` | `a < b` | Less than |
-| `defkit.Le(a, b)` | `a <= b` | Less than or equal |
-| `defkit.Gt(a, b)` | `a > b` | Greater than |
-| `defkit.Ge(a, b)` | `a >= b` | Greater than or equal |
-| `defkit.And(a, b)` | `a && b` | Logical AND |
-| `defkit.Or(a, b)` | `a \|\| b` | Logical OR |
-| `defkit.Not(cond)` | `!cond` | Logical NOT |
-| `defkit.Lit(value)` | `value` | Literal value (for comparisons) |
-| `param.IsSet()` | `param != _\|_` | Check if optional param is set |
+| Go Method           | Generated CUE   | Description                     |
+| ------------------- | --------------- | ------------------------------- |
+| `defkit.Eq(a, b)`   | `a == b`        | Equality comparison             |
+| `defkit.Ne(a, b)`   | `a != b`        | Inequality comparison           |
+| `defkit.Lt(a, b)`   | `a < b`         | Less than                       |
+| `defkit.Le(a, b)`   | `a <= b`        | Less than or equal              |
+| `defkit.Gt(a, b)`   | `a > b`         | Greater than                    |
+| `defkit.Ge(a, b)`   | `a >= b`        | Greater than or equal           |
+| `defkit.And(a, b)`  | `a && b`        | Logical AND                     |
+| `defkit.Or(a, b)`   | `a \|\| b`      | Logical OR                      |
+| `defkit.Not(cond)`  | `!cond`         | Logical NOT                     |
+| `defkit.Lit(value)` | `value`         | Literal value (for comparisons) |
+| `param.IsSet()`     | `param != _\|_` | Check if optional param is set  |
 
 ---
 
@@ -238,18 +240,18 @@ defkit provides a fully composable expression-based API for defining health poli
 
 All health expression methods are accessed via the `Health()` builder, providing a unified API:
 
-| Primitive | Purpose | Example |
-|-----------|---------|---------|
-| `Health().Condition(type)` | Check `status.conditions[]` array | `Health().Condition("Ready").IsTrue()` |
-| `Health().Phase(phases...)` | Check `status.phase` field | `Health().Phase("Running", "Succeeded")` |
-| `Health().Field(path)` | Compare any status field | `Health().Field("status.state").Eq("active")` |
-| `Health().Exists(path)` | Check field existence | `Health().Exists("status.endpoint")` |
-| `Health().And(...)` | All expressions must be true | `Health().And(expr1, expr2)` |
-| `Health().Or(...)` | Any expression must be true | `Health().Or(expr1, expr2)` |
-| `Health().Not(...)` | Negate expression | `Health().Not(h.Condition("Stalled").IsTrue())` |
-| `Health().AllTrue(conds...)` | All conditions are True | `Health().AllTrue("Ready", "Synced")` |
-| `Health().AnyTrue(conds...)` | Any condition is True | `Health().AnyTrue("Ready", "Available")` |
-| `Health().Always()` | Always healthy (existence) | `Health().Always()` |
+| Primitive                    | Purpose                           | Example                                         |
+| ---------------------------- | --------------------------------- | ----------------------------------------------- |
+| `Health().Condition(type)`   | Check `status.conditions[]` array | `Health().Condition("Ready").IsTrue()`          |
+| `Health().Phase(phases...)`  | Check `status.phase` field        | `Health().Phase("Running", "Succeeded")`        |
+| `Health().Field(path)`       | Compare any status field          | `Health().Field("status.state").Eq("active")`   |
+| `Health().Exists(path)`      | Check field existence             | `Health().Exists("status.endpoint")`            |
+| `Health().And(...)`          | All expressions must be true      | `Health().And(expr1, expr2)`                    |
+| `Health().Or(...)`           | Any expression must be true       | `Health().Or(expr1, expr2)`                     |
+| `Health().Not(...)`          | Negate expression                 | `Health().Not(h.Condition("Stalled").IsTrue())` |
+| `Health().AllTrue(conds...)` | All conditions are True           | `Health().AllTrue("Ready", "Synced")`           |
+| `Health().AnyTrue(conds...)` | Any condition is True             | `Health().AnyTrue("Ready", "Available")`        |
+| `Health().Always()`          | Always healthy (existence)        | `Health().Always()`                             |
 
 **Condition Expressions:**
 
@@ -273,12 +275,14 @@ HealthPolicyExpr(h.Condition("Ready").ReasonIs("Available"))
 ```
 
 **Generated CUE for `h.Condition("Ready").IsTrue()`:**
+
 ```cue
 _readyCond: [ for c in context.output.status.conditions if c.type == "Ready" { c } ]
 isHealth: len(_readyCond) > 0 && _readyCond[0].status == "True"
 ```
 
 **Generated CUE for `h.AllTrue("Ready", "Synced")`:**
+
 ```cue
 _readyCond: [ for c in context.output.status.conditions if c.type == "Ready" { c } ]
 _syncedCond: [ for c in context.output.status.conditions if c.type == "Synced" { c } ]
@@ -299,6 +303,7 @@ HealthPolicyExpr(h.PhaseField("status.currentPhase", "Active", "Ready"))
 ```
 
 **Generated CUE for `h.Phase("Running", "Succeeded")`:**
+
 ```cue
 isHealth: context.output.status.phase == "Running" ||
           context.output.status.phase == "Succeeded"
@@ -327,11 +332,13 @@ HealthPolicyExpr(h.Field("status.readyReplicas").Eq(h.FieldRef("spec.replicas"))
 ```
 
 **Generated CUE for `h.Field("status.state").Eq("active")`:**
+
 ```cue
 isHealth: context.output.status.state == "active"
 ```
 
 **Generated CUE for `h.Field("status.readyReplicas").Eq(h.FieldRef("spec.replicas"))`:**
+
 ```cue
 isHealth: context.output.status.readyReplicas == context.output.spec.replicas
 ```
@@ -365,6 +372,7 @@ HealthPolicyExpr(h.And(
 ```
 
 **Generated CUE for nested And/Or:**
+
 ```cue
 _readyCond: [ for c in context.output.status.conditions if c.type == "Ready" { c } ]
 isHealth: (len(_readyCond) > 0 && _readyCond[0].status == "True") &&
@@ -373,17 +381,17 @@ isHealth: (len(_readyCond) > 0 && _readyCond[0].status == "True") &&
 
 **Field Expression Methods:**
 
-| Method | CUE Output | Description |
-|--------|------------|-------------|
-| `.Eq(value)` | `field == value` | Equal to |
-| `.Ne(value)` | `field != value` | Not equal to |
-| `.Gt(value)` | `field > value` | Greater than |
-| `.Gte(value)` | `field >= value` | Greater than or equal |
-| `.Lt(value)` | `field < value` | Less than |
-| `.Lte(value)` | `field <= value` | Less than or equal |
-| `.In(values...)` | `field == v1 \|\| field == v2` | In set of values |
-| `.Contains(substr)` | String contains | For string fields |
-| `.Eq(h.FieldRef(path))` | `field == otherField` | Compare to another field |
+| Method                  | CUE Output                     | Description              |
+| ----------------------- | ------------------------------ | ------------------------ |
+| `.Eq(value)`            | `field == value`               | Equal to                 |
+| `.Ne(value)`            | `field != value`               | Not equal to             |
+| `.Gt(value)`            | `field > value`                | Greater than             |
+| `.Gte(value)`           | `field >= value`               | Greater than or equal    |
+| `.Lt(value)`            | `field < value`                | Less than                |
+| `.Lte(value)`           | `field <= value`               | Less than or equal       |
+| `.In(values...)`        | `field == v1 \|\| field == v2` | In set of values         |
+| `.Contains(substr)`     | String contains                | For string fields        |
+| `.Eq(h.FieldRef(path))` | `field == otherField`          | Compare to another field |
 
 #### Built-in Workload Helpers
 
@@ -395,6 +403,7 @@ HealthPolicy(defkit.DeploymentHealth().Build())
 ```
 
 **Generated CUE:**
+
 ```cue
 ready: {
     updatedReplicas:    *0 | int
@@ -438,17 +447,17 @@ defkit provides a fully composable expression-based API for defining custom stat
 
 All status expression methods are accessed via the `Status()` builder, providing a unified API:
 
-| Primitive | Purpose | Example |
-|-----------|---------|---------|
-| `Status().Condition(type)` | Check `status.conditions[]` array | `Status().Condition("Ready").StatusValue()` |
-| `Status().Field(path)` | Extract any status field value | `Status().Field("status.replicas")` |
-| `Status().SpecField(path)` | Extract spec field value | `Status().SpecField("spec.replicas")` |
-| `Status().Exists(path)` | Check field existence | `Status().Exists("status.endpoint")` |
-| `Status().Format(template, ...)` | Build formatted message | `Status().Format("Ready: %v/%v", readyExpr, desiredExpr)` |
-| `Status().Concat(...)` | Concatenate string parts | `Status().Concat(part1, " - ", part2)` |
-| `Status().Switch(...)` | Conditional message selection | `Status().Switch(case1, case2, default)` |
-| `Status().HealthAware(...)` | Message based on health status | `Status().HealthAware(healthyMsg, unhealthyMsg)` |
-| `Status().WithDetails(...)` | Add structured details | `Status().WithDetails(detail1, detail2)` |
+| Primitive                        | Purpose                           | Example                                                   |
+| -------------------------------- | --------------------------------- | --------------------------------------------------------- |
+| `Status().Condition(type)`       | Check `status.conditions[]` array | `Status().Condition("Ready").StatusValue()`               |
+| `Status().Field(path)`           | Extract any status field value    | `Status().Field("status.replicas")`                       |
+| `Status().SpecField(path)`       | Extract spec field value          | `Status().SpecField("spec.replicas")`                     |
+| `Status().Exists(path)`          | Check field existence             | `Status().Exists("status.endpoint")`                      |
+| `Status().Format(template, ...)` | Build formatted message           | `Status().Format("Ready: %v/%v", readyExpr, desiredExpr)` |
+| `Status().Concat(...)`           | Concatenate string parts          | `Status().Concat(part1, " - ", part2)`                    |
+| `Status().Switch(...)`           | Conditional message selection     | `Status().Switch(case1, case2, default)`                  |
+| `Status().HealthAware(...)`      | Message based on health status    | `Status().HealthAware(healthyMsg, unhealthyMsg)`          |
+| `Status().WithDetails(...)`      | Add structured details            | `Status().WithDetails(detail1, detail2)`                  |
 
 **Field Expressions:**
 
@@ -468,6 +477,7 @@ CustomStatusExpr(s.Format("Ready: %v/%v", readyReplicas, desiredReplicas))
 ```
 
 **Generated CUE for field extraction:**
+
 ```cue
 _readyReplicas: *0 | int
 if context.output.status.readyReplicas != _|_ {
@@ -499,6 +509,7 @@ CustomStatusExpr(s.Format("%v: %v",
 ```
 
 **Generated CUE for condition extraction:**
+
 ```cue
 _readyCond: [ for c in context.output.status.conditions if c.type == "Ready" { c } ]
 _readyStatus: *"Unknown" | string
@@ -531,6 +542,7 @@ CustomStatusExpr(s.HealthAware(
 ```
 
 **Generated CUE for Switch:**
+
 ```cue
 message: *"Unknown status" | string
 if context.output.status.phase == "Running" {
@@ -570,6 +582,7 @@ CustomStatusExpr(s.Concat(
 ```
 
 **Generated CUE for Concat:**
+
 ```cue
 _readyReplicas: *0 | int
 if context.output.status.readyReplicas != _|_ {
@@ -606,28 +619,28 @@ CustomStatusExpr(s.
 
 **Field Expression Methods:**
 
-| Method | CUE Output | Description |
-|--------|------------|-------------|
-| `.Field(path)` | Extract from `context.output.path` | Status field value |
-| `.SpecField(path)` | Extract from `context.output.path` | Spec field value |
-| `.Default(value)` | `*value \| type` | Default if field missing |
-| `.Exists(path)` | `path != _\|_` | Check field exists |
-| `.Condition(type)` | Array filter | Access condition by type |
-| `.StatusValue()` | Condition status | Get condition status |
-| `.Is(value)` | `status == value` | Check condition status equals value |
-| `.Message()` | Condition message | Get condition message |
-| `.Reason()` | Condition reason | Get condition reason |
+| Method             | CUE Output                         | Description                         |
+| ------------------ | ---------------------------------- | ----------------------------------- |
+| `.Field(path)`     | Extract from `context.output.path` | Status field value                  |
+| `.SpecField(path)` | Extract from `context.output.path` | Spec field value                    |
+| `.Default(value)`  | `*value \| type`                   | Default if field missing            |
+| `.Exists(path)`    | `path != _\|_`                     | Check field exists                  |
+| `.Condition(type)` | Array filter                       | Access condition by type            |
+| `.StatusValue()`   | Condition status                   | Get condition status                |
+| `.Is(value)`       | `status == value`                  | Check condition status equals value |
+| `.Message()`       | Condition message                  | Get condition message               |
+| `.Reason()`        | Condition reason                   | Get condition reason                |
 
 **Message Building Methods:**
 
-| Method | Description | Example |
-|--------|-------------|---------|
+| Method                      | Description             | Example                                |
+| --------------------------- | ----------------------- | -------------------------------------- |
 | `Format(template, args...)` | Printf-style formatting | `Format("Ready: %v/%v", ready, total)` |
-| `Concat(parts...)` | String concatenation | `Concat("State: ", state, " - ", msg)` |
-| `Switch(cases...)` | Conditional selection | `Switch(case1, case2, default)` |
-| `Case(cond, msg)` | Switch case | `Case(phase.Eq("Running"), "OK")` |
-| `Default(msg)` | Switch default | `Default("Unknown")` |
-| `HealthAware(ok, fail)` | Health-based | `HealthAware("OK", errMsg)` |
+| `Concat(parts...)`          | String concatenation    | `Concat("State: ", state, " - ", msg)` |
+| `Switch(cases...)`          | Conditional selection   | `Switch(case1, case2, default)`        |
+| `Case(cond, msg)`           | Switch case             | `Case(phase.Eq("Running"), "OK")`      |
+| `Default(msg)`              | Switch default          | `Default("Unknown")`                   |
+| `HealthAware(ok, fail)`     | Health-based            | `HealthAware("OK", errMsg)`            |
 
 #### Built-in Workload Helpers
 
@@ -639,6 +652,7 @@ CustomStatus(defkit.DeploymentStatus().Build())
 ```
 
 **Generated CUE:**
+
 ```cue
 ready: {
     readyReplicas: *0 | int
@@ -698,13 +712,13 @@ CustomStatusExpr(DatabaseStatus())
 
 defkit provides pre-configured helpers for common Kubernetes workloads:
 
-| Workload | Status Helper | Health Helper |
-|----------|---------------|---------------|
-| Deployment | `DeploymentStatus()` | `DeploymentHealth()` |
-| DaemonSet | `DaemonSetStatus()` | `DaemonSetHealth()` |
+| Workload    | Status Helper         | Health Helper         |
+| ----------- | --------------------- | --------------------- |
+| Deployment  | `DeploymentStatus()`  | `DeploymentHealth()`  |
+| DaemonSet   | `DaemonSetStatus()`   | `DaemonSetHealth()`   |
 | StatefulSet | `StatefulSetStatus()` | `StatefulSetHealth()` |
-| Job | - | `JobHealth()` |
-| CronJob | - | `CronJobHealth()` |
+| Job         | -                     | `JobHealth()`         |
+| CronJob     | -                     | `CronJobHealth()`     |
 
 Example for DaemonSet:
 
@@ -714,6 +728,7 @@ HealthPolicy(defkit.DaemonSetHealth().Build())
 ```
 
 **Generated CUE:**
+
 ```cue
 ready: {
     replicas: *0 | int
@@ -884,6 +899,7 @@ deploy.SetIf(
 ```
 
 **Generated CUE:**
+
 ```cue
 if parameter.cpu != _|_ {
     spec: resources: limits: cpu: parameter.cpu
@@ -950,21 +966,21 @@ defkit.RawCUE(`
 
 ## Parameter Types
 
-| defkit Type | CUE Equivalent | Go Type |
-|-------------|----------------|---------|
-| `defkit.String("name")` | `name: string` | `string` |
-| `defkit.Int("name")` | `name: int` | `int` |
-| `defkit.Bool("name")` | `name: bool` | `bool` |
-| `defkit.Float("name")` | `name: float` | `float64` |
-| `defkit.List("name").WithFields(...)` | `name: [...{...}]` | `[]T` |
-| `defkit.Map("name").Of(V)` | `name: {[string]: V}` | `map[string]V` |
-| `defkit.Object("name").WithFields(...)` | `name: {field: type}` | struct |
-| `defkit.Enum("name").Values("a", "b")` | `name: "a" \| "b"` | string with validation |
-| `defkit.OneOf("name", ...)` | `name: close({...}) \| close({...})` | discriminated union |
-| `defkit.Struct("name")` | `name: {...}` | struct with named fields |
-| `defkit.StringList("name")` | `name: [...string]` | convenience alias |
-| `defkit.IntList("name")` | `name: [...int]` | convenience alias |
-| `defkit.StringKeyMap("name")` | `name: {[string]: string}` | string→string map |
+| defkit Type                             | CUE Equivalent                       | Go Type                  |
+| --------------------------------------- | ------------------------------------ | ------------------------ |
+| `defkit.String("name")`                 | `name: string`                       | `string`                 |
+| `defkit.Int("name")`                    | `name: int`                          | `int`                    |
+| `defkit.Bool("name")`                   | `name: bool`                         | `bool`                   |
+| `defkit.Float("name")`                  | `name: float`                        | `float64`                |
+| `defkit.List("name").WithFields(...)`   | `name: [...{...}]`                   | `[]T`                    |
+| `defkit.Map("name").Of(V)`              | `name: {[string]: V}`                | `map[string]V`           |
+| `defkit.Object("name").WithFields(...)` | `name: {field: type}`                | struct                   |
+| `defkit.Enum("name").Values("a", "b")`  | `name: "a" \| "b"`                   | string with validation   |
+| `defkit.OneOf("name", ...)`             | `name: close({...}) \| close({...})` | discriminated union      |
+| `defkit.Struct("name")`                 | `name: {...}`                        | struct with named fields |
+| `defkit.StringList("name")`             | `name: [...string]`                  | convenience alias        |
+| `defkit.IntList("name")`                | `name: [...int]`                     | convenience alias        |
+| `defkit.StringKeyMap("name")`           | `name: {[string]: string}`           | string→string map        |
 
 ### Parameter Modifiers
 
@@ -1053,16 +1069,16 @@ exposedPorts := defkit.Each(ports).
 
 ### Collection Operations Reference
 
-| Operation | Description | Example |
-|-----------|-------------|---------|
-| `Each(source)` | Start a collection pipeline | `defkit.Each(ports)` |
-| `.Filter(pred)` | Keep items matching predicate | `.Filter(FieldEquals("expose", true))` |
-| `.Map(fieldMap)` | Transform item fields | `.Map(FieldMap{"newKey": FieldRef("oldKey")})` |
-| `.Pick(fields...)` | Select only specified fields | `.Pick("name", "mountPath")` |
-| `.Rename(from, to)` | Rename a field | `.Rename("port", "containerPort")` |
-| `.Wrap(key)` | Wrap item under a key | `.Wrap("name")` → `{name: value}` |
-| `.DefaultField(f, v)` | Set default for missing field | `.DefaultField("name", Lit("default"))` |
-| `.Flatten()` | Flatten nested arrays | `.Flatten()` |
+| Operation             | Description                   | Example                                        |
+| --------------------- | ----------------------------- | ---------------------------------------------- |
+| `Each(source)`        | Start a collection pipeline   | `defkit.Each(ports)`                           |
+| `.Filter(pred)`       | Keep items matching predicate | `.Filter(FieldEquals("expose", true))`         |
+| `.Map(fieldMap)`      | Transform item fields         | `.Map(FieldMap{"newKey": FieldRef("oldKey")})` |
+| `.Pick(fields...)`    | Select only specified fields  | `.Pick("name", "mountPath")`                   |
+| `.Rename(from, to)`   | Rename a field                | `.Rename("port", "containerPort")`             |
+| `.Wrap(key)`          | Wrap item under a key         | `.Wrap("name")` → `{name: value}`              |
+| `.DefaultField(f, v)` | Set default for missing field | `.DefaultField("name", Lit("default"))`        |
+| `.Flatten()`          | Flatten nested arrays         | `.Flatten()`                                   |
 
 ### Multi-Source Collections
 
@@ -1080,24 +1096,24 @@ mounts := tpl.Helper("mounts").
     Build()
 ```
 
-| Operation | Description | Example |
-|-----------|-------------|---------|
+| Operation                    | Description                               | Example                                        |
+| ---------------------------- | ----------------------------------------- | ---------------------------------------------- |
 | `FromFields(src, fields...)` | Combine items from multiple object fields | `FromFields(volumeMounts, "pvc", "configMap")` |
-| `.MapBySource(map)` | Apply different mappings per source type | `.MapBySource(map[string]FieldMap{...})` |
-| `.Dedupe(keyField)` | Remove duplicates by key | `.Dedupe("name")` |
+| `.MapBySource(map)`          | Apply different mappings per source type  | `.MapBySource(map[string]FieldMap{...})`       |
+| `.Dedupe(keyField)`          | Remove duplicates by key                  | `.Dedupe("name")`                              |
 
 ### Field Value Helpers
 
-| Helper | Description | Example |
-|--------|-------------|---------|
-| `FieldRef("field")` | Reference item field | `FieldRef("port")` |
-| `FieldRef("f").Or(fallback)` | Field with fallback | `FieldRef("name").Or(LitField("default"))` |
-| `LitField(value)` | Literal value | `LitField("TCP")` |
-| `Format(fmt, args...)` | Formatted string | `Format("port-%v", FieldRef("port"))` |
-| `Nested(fieldMap)` | Nested object | `Nested(FieldMap{"claimName": FieldRef("name")})` |
-| `Optional("field")` | Include only if field exists | `Optional("subPath")` |
-| `FieldEquals(f, v)` | Predicate: field equals value | `FieldEquals("expose", true)` |
-| `FieldExists("field")` | Predicate: field is set | `FieldExists("mountPath")` |
+| Helper                       | Description                   | Example                                           |
+| ---------------------------- | ----------------------------- | ------------------------------------------------- |
+| `FieldRef("field")`          | Reference item field          | `FieldRef("port")`                                |
+| `FieldRef("f").Or(fallback)` | Field with fallback           | `FieldRef("name").Or(LitField("default"))`        |
+| `LitField(value)`            | Literal value                 | `LitField("TCP")`                                 |
+| `Format(fmt, args...)`       | Formatted string              | `Format("port-%v", FieldRef("port"))`             |
+| `Nested(fieldMap)`           | Nested object                 | `Nested(FieldMap{"claimName": FieldRef("name")})` |
+| `Optional("field")`          | Include only if field exists  | `Optional("subPath")`                             |
+| `FieldEquals(f, v)`          | Predicate: field equals value | `FieldEquals("expose", true)`                     |
+| `FieldExists("field")`       | Predicate: field is set       | `FieldExists("mountPath")`                        |
 
 ---
 
@@ -1128,26 +1144,26 @@ Template(func(tpl *defkit.Template) {
 
 ### Helper Builder Methods
 
-| Method | Description |
-|--------|-------------|
-| `tpl.Helper(name)` | Start building a named helper |
-| `.From(source)` | Set single source |
-| `.FromFields(src, fields...)` | Set multiple sources |
-| `.FromHelper(helper)` | Reference another helper |
-| `.Guard(cond)` | Outer condition for comprehension |
-| `.Each(fn)` | Transform each item with function |
-| `.Pick(fields...)` | Select fields |
-| `.PickIf(cond, field)` | Conditionally include field |
-| `.Map(fieldMap)` | Transform fields |
-| `.MapBySource(map)` | Per-source transformations |
-| `.Filter(cond)` | Filter by condition |
-| `.FilterPred(pred)` | Filter by predicate |
-| `.Wrap(key)` | Wrap items under key |
-| `.Dedupe(keyField)` | Remove duplicates |
-| `.DefaultField(f, v)` | Set default value |
-| `.Rename(from, to)` | Rename field |
-| `.AfterOutput()` | Place helper after output block |
-| `.Build()` | Finalize and register helper |
+| Method                        | Description                       |
+| ----------------------------- | --------------------------------- |
+| `tpl.Helper(name)`            | Start building a named helper     |
+| `.From(source)`               | Set single source                 |
+| `.FromFields(src, fields...)` | Set multiple sources              |
+| `.FromHelper(helper)`         | Reference another helper          |
+| `.Guard(cond)`                | Outer condition for comprehension |
+| `.Each(fn)`                   | Transform each item with function |
+| `.Pick(fields...)`            | Select fields                     |
+| `.PickIf(cond, field)`        | Conditionally include field       |
+| `.Map(fieldMap)`              | Transform fields                  |
+| `.MapBySource(map)`           | Per-source transformations        |
+| `.Filter(cond)`               | Filter by condition               |
+| `.FilterPred(pred)`           | Filter by predicate               |
+| `.Wrap(key)`                  | Wrap items under key              |
+| `.Dedupe(keyField)`           | Remove duplicates                 |
+| `.DefaultField(f, v)`         | Set default value                 |
+| `.Rename(from, to)`           | Rename field                      |
+| `.AfterOutput()`              | Place helper after output block   |
+| `.Build()`                    | Finalize and register helper      |
 
 ### Advanced Helpers
 
@@ -1186,12 +1202,12 @@ deDupVolumes := tpl.DedupeHelper("deDupVolumesArray", volumesList).
 
 ### Helper Types
 
-| Type | Purpose | Example |
-|------|---------|---------|
-| `*HelperVar` | Reference to basic helper | Returned by `Helper(...).Build()` |
-| `*StructArrayHelper` | Struct with array fields | `tpl.StructArrayHelper(name, src)` |
-| `*ConcatHelper` | Concatenate arrays | `tpl.ConcatHelper(name, src)` |
-| `*DedupeHelper` | Deduplicate by key | `tpl.DedupeHelper(name, src)` |
+| Type                 | Purpose                   | Example                            |
+| -------------------- | ------------------------- | ---------------------------------- |
+| `*HelperVar`         | Reference to basic helper | Returned by `Helper(...).Build()`  |
+| `*StructArrayHelper` | Struct with array fields  | `tpl.StructArrayHelper(name, src)` |
+| `*ConcatHelper`      | Concatenate arrays        | `tpl.ConcatHelper(name, src)`      |
+| `*DedupeHelper`      | Deduplicate by key        | `tpl.DedupeHelper(name, src)`      |
 
 ---
 
@@ -1335,18 +1351,18 @@ vela def validate-module ./my-definitions --verbose
 
 ### New Subcommands
 
-| Command | Description |
-|---------|-------------|
-| `vela def init-module` | Scaffold a complete Go definition module with example components |
-| `vela def validate-module` | Validate all Go definitions in a module without requiring a cluster |
-| `vela def gen-go` | Generate Go defkit code from existing CUE definitions (Phase 3 - migration) |
+| Command                    | Description                                                                 |
+| -------------------------- | --------------------------------------------------------------------------- |
+| `vela def init-module`     | Scaffold a complete Go definition module with example components            |
+| `vela def validate-module` | Validate all Go definitions in a module without requiring a cluster         |
+| `vela def gen-go`          | Generate Go defkit code from existing CUE definitions (Phase 3 - migration) |
 
 ### Extended Existing Commands
 
-| Command | Extension |
-|---------|-----------|
-| `vela def apply` | Accepts `.go` files, compiles to CUE transparently |
-| `vela def vet` | Validates `.go` definitions including Go compilation |
+| Command            | Extension                                             |
+| ------------------ | ----------------------------------------------------- |
+| `vela def apply`   | Accepts `.go` files, compiles to CUE transparently    |
+| `vela def vet`     | Validates `.go` definitions including Go compilation  |
 | `vela def gen-api` | Already generates Go SDK from CUE (inverse direction) |
 
 ### Module Scaffolding
@@ -1383,12 +1399,12 @@ Definition modules use **git tags** for versioning rather than storing version i
 
 When a module is loaded (via `vela def apply-module`, `list-module`, `validate-module`, or `gen-module`), the version is automatically derived from git in the following order:
 
-| Priority | Git Command | Example Output | Description |
-|----------|-------------|----------------|-------------|
-| 1 | `git describe --tags --exact-match HEAD` | `v1.0.0` | Exact tag on current commit |
-| 2 | `git describe --tags --always` | `v1.0.0-5-gabcdef` | Tag with commit distance |
-| 3 | `git rev-parse --short HEAD` | `v0.0.0-dev+abcdef` | Commit hash only |
-| 4 | (fallback) | `v0.0.0-local` | Not in a git repository |
+| Priority | Git Command                              | Example Output      | Description                 |
+| -------- | ---------------------------------------- | ------------------- | --------------------------- |
+| 1        | `git describe --tags --exact-match HEAD` | `v1.0.0`            | Exact tag on current commit |
+| 2        | `git describe --tags --always`           | `v1.0.0-5-gabcdef`  | Tag with commit distance    |
+| 3        | `git rev-parse --short HEAD`             | `v0.0.0-dev+abcdef` | Commit hash only            |
+| 4        | (fallback)                               | `v0.0.0-local`      | Not in a git repository     |
 
 **Best Practices:**
 
@@ -1455,6 +1471,7 @@ spec:
 ### Compilation Approach
 
 The SDK uses **declarative capture** rather than Go AST transformation:
+
 - Template functions execute with a tracing context
 - Each `Set()`, `If()`, `tpl.Output()` call is recorded
 - Parameter variables track their usage and generate corresponding CUE paths
@@ -1500,12 +1517,12 @@ defkit provides testing support using Ginkgo and Gomega with custom matchers, en
 
 ### Test Levels
 
-| Test Level | Framework | Cluster Required | What It Tests |
-|------------|-----------|------------------|---------------|
-| Unit tests | Ginkgo/Gomega | No | Parameter validation, template output, conditional logic |
-| CUE compilation | Ginkgo/Gomega | No | Generated CUE is syntactically valid |
-| Integration | envtest | No | Controller reconciliation with fake cluster |
-| E2E | Full cluster | Yes | Complete deployment lifecycle |
+| Test Level      | Framework     | Cluster Required | What It Tests                                            |
+| --------------- | ------------- | ---------------- | -------------------------------------------------------- |
+| Unit tests      | Ginkgo/Gomega | No               | Parameter validation, template output, conditional logic |
+| CUE compilation | Ginkgo/Gomega | No               | Generated CUE is syntactically valid                     |
+| Integration     | envtest       | No               | Controller reconciliation with fake cluster              |
+| E2E             | Full cluster  | Yes              | Complete deployment lifecycle                            |
 
 ### Custom Matchers
 
@@ -1682,24 +1699,24 @@ var _ = Describe("CronJob", func() {
 
 #### DO Test
 
-| What | Why | Example |
-|------|-----|---------|
-| Parameter validation | Catch invalid inputs early | Required fields, min/max constraints |
-| Template output structure | Ensure correct K8s resources | Resource kind, API version, spec fields |
-| Conditional logic | Verify branches work correctly | If cpu is set, limits are added |
-| Default values | Ensure defaults are applied | replicas defaults to 3 |
-| Health policy evaluation | Verify health checks work | Ready when replicas match |
-| Auxiliary outputs | Verify all resources generated | Service, Ingress alongside Deployment |
-| Edge cases | Handle unusual inputs | Empty arrays, nil values |
+| What                      | Why                            | Example                                 |
+| ------------------------- | ------------------------------ | --------------------------------------- |
+| Parameter validation      | Catch invalid inputs early     | Required fields, min/max constraints    |
+| Template output structure | Ensure correct K8s resources   | Resource kind, API version, spec fields |
+| Conditional logic         | Verify branches work correctly | If cpu is set, limits are added         |
+| Default values            | Ensure defaults are applied    | replicas defaults to 3                  |
+| Health policy evaluation  | Verify health checks work      | Ready when replicas match               |
+| Auxiliary outputs         | Verify all resources generated | Service, Ingress alongside Deployment   |
+| Edge cases                | Handle unusual inputs          | Empty arrays, nil values                |
 
 #### DO NOT Test
 
-| What | Why |
-|------|-----|
-| CUE language behavior | CUE is well-tested; trust it |
-| Controller reconciliation logic | Out of defkit's scope |
-| Kubernetes API behavior | Not your code |
-| Network operations | Use mocks/fakes for integration tests |
+| What                            | Why                                   |
+| ------------------------------- | ------------------------------------- |
+| CUE language behavior           | CUE is well-tested; trust it          |
+| Controller reconciliation logic | Out of defkit's scope                 |
+| Kubernetes API behavior         | Not your code                         |
+| Network operations              | Use mocks/fakes for integration tests |
 
 ### Testing Anti-Patterns to Avoid
 
@@ -1812,7 +1829,7 @@ name: Definition CI
 on:
   push:
     paths:
-      - 'definitions/**'
+      - "definitions/**"
 
 jobs:
   test:
@@ -1823,7 +1840,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: "1.23"
 
       - name: Run Unit Tests
         run: go test ./definitions/... -v
@@ -1920,6 +1937,7 @@ func MonitoredWebservice() *defkit.ComponentDefinition {
 ```
 
 This would enable:
+
 - **Layered platforms**: Base definitions from central team, extended by product teams
 - **Third-party ecosystems**: Community-contributed definition libraries
 - **Version control**: Semantic versioning for definition dependencies via Go modules
@@ -2025,9 +2043,9 @@ spec:
 
 ### Hook Types
 
-| Type | Description |
-|------|-------------|
-| `path` | Apply YAML manifests from a directory (alphabetically ordered) |
+| Type     | Description                                                        |
+| -------- | ------------------------------------------------------------------ |
+| `path`   | Apply YAML manifests from a directory (alphabetically ordered)     |
 | `script` | Execute a shell script with `MODULE_PATH` and `NAMESPACE` env vars |
 
 ### The `waitFor` Field
@@ -2035,6 +2053,7 @@ spec:
 Different resources have different readiness semantics. The `waitFor` field supports:
 
 **Simple condition name** (for standard Kubernetes conditions):
+
 ```yaml
 waitFor: Established    # CRDs
 waitFor: Ready          # Most resources
@@ -2042,6 +2061,7 @@ waitFor: Available      # Deployments
 ```
 
 **CUE expression** (for complex readiness logic):
+
 ```yaml
 waitFor: "status.replicas == status.readyReplicas"
 waitFor: 'status.phase == "Running"'
@@ -2072,15 +2092,16 @@ In enterprise environments, organizations often manage multiple Kubernetes clust
 
 Not all definitions are appropriate for all cluster types. For example:
 
-| Definition | Should Run On | Should NOT Run On |
-|------------|---------------|-------------------|
-| `aws-load-balancer` | EKS clusters | GKE, AKS, vclusters |
-| `gcp-cloud-sql` | GKE clusters | EKS, AKS, on-prem |
-| `dev-namespace-provisioner` | vclusters, dev clusters | Production clusters |
-| `production-pdb` | Production clusters | Dev/test clusters |
-| `lightweight-ingress` | vclusters | Full clusters with real LBs |
+| Definition                  | Should Run On           | Should NOT Run On           |
+| --------------------------- | ----------------------- | --------------------------- |
+| `aws-load-balancer`         | EKS clusters            | GKE, AKS, vclusters         |
+| `gcp-cloud-sql`             | GKE clusters            | EKS, AKS, on-prem           |
+| `dev-namespace-provisioner` | vclusters, dev clusters | Production clusters         |
+| `production-pdb`            | Production clusters     | Dev/test clusters           |
+| `lightweight-ingress`       | vclusters               | Full clusters with real LBs |
 
 Without placement constraints, platform engineers must manually track which definitions belong where, leading to:
+
 - Accidental deployment of cloud-specific definitions to wrong providers
 - Production-grade components wasting resources in dev environments
 - Definitions failing at runtime because required infrastructure isn't available
@@ -2115,12 +2136,12 @@ data:
 
 **Well-known labels**:
 
-| Label | Values | Description |
-|-------|--------|-------------|
-| `provider` | `aws`, `gcp`, `azure`, `on-prem`, `local` | Cloud provider |
-| `cluster-type` | `eks`, `gke`, `aks`, `vcluster`, `kind`, `k3s`, `openshift` | Cluster type |
-| `environment` | `production`, `staging`, `dev`, `test` | Environment tier |
-| `region` | `us-east-1`, `eu-west-1`, etc. | Geographic region |
+| Label          | Values                                                      | Description       |
+| -------------- | ----------------------------------------------------------- | ----------------- |
+| `provider`     | `aws`, `gcp`, `azure`, `on-prem`, `local`                   | Cloud provider    |
+| `cluster-type` | `eks`, `gke`, `aks`, `vcluster`, `kind`, `k3s`, `openshift` | Cluster type      |
+| `environment`  | `production`, `staging`, `dev`, `test`                      | Environment tier  |
+| `region`       | `us-east-1`, `eu-west-1`, etc.                              | Geographic region |
 
 **Custom labels** can be added for organization-specific needs (team, cost-center, tier, etc.).
 
@@ -2290,6 +2311,7 @@ spec:
 ```
 
 **Inheritance behavior:**
+
 - Definition without `RunOn`/`NotRunOn` → inherits module defaults
 - Definition with `RunOn`/`NotRunOn` → uses its own constraints (overrides module)
 
@@ -2313,17 +2335,17 @@ spec:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-| RunOn | NotRunOn | Cluster Matches RunOn | Cluster Matches NotRunOn | Result |
-|-------|----------|----------------------|-------------------------|--------|
-| not set | not set | n/a | n/a | ✓ Apply |
-| set | not set | yes | n/a | ✓ Apply |
-| set | not set | no | n/a | ✗ Skip |
-| not set | set | n/a | no | ✓ Apply |
-| not set | set | n/a | yes | ✗ Skip |
-| set | set | yes | no | ✓ Apply |
-| set | set | yes | yes | ✗ Skip |
-| set | set | no | no | ✗ Skip |
-| set | set | no | yes | ✗ Skip |
+| RunOn   | NotRunOn | Cluster Matches RunOn | Cluster Matches NotRunOn | Result  |
+| ------- | -------- | --------------------- | ------------------------ | ------- |
+| not set | not set  | n/a                   | n/a                      | ✓ Apply |
+| set     | not set  | yes                   | n/a                      | ✓ Apply |
+| set     | not set  | no                    | n/a                      | ✗ Skip  |
+| not set | set      | n/a                   | no                       | ✓ Apply |
+| not set | set      | n/a                   | yes                      | ✗ Skip  |
+| set     | set      | yes                   | no                       | ✓ Apply |
+| set     | set      | yes                   | yes                      | ✗ Skip  |
+| set     | set      | no                    | no                       | ✗ Skip  |
+| set     | set      | no                    | yes                      | ✗ Skip  |
 
 ### CLI Experience
 
@@ -2540,6 +2562,7 @@ $ vela cluster labels add prod-eks provider=aws cluster-type=eks
 > **Note**: This implementation plan represents the proposed design direction. API names, method signatures, and specific features may evolve during implementation as we discover edge cases, gather community feedback, or identify opportunities for improvement. The core goals and architecture will remain stable, but implementation details are subject to refinement.
 
 ### Phase 1: Core Framework
+
 - Single `defkit` package with `NewComponent()`, `NewTrait()`, `NewPolicy()`, `NewWorkflowStep()` functions
 - `VelaCtx()` API for runtime context (`Name()`, `Namespace()`, `AppName()`, `ClusterVersion()`, etc.)
 - Parameter type system: String, Int, Bool, Float, Enum, List, Object, Map, Struct, OneOf, Variant with validation
@@ -2580,6 +2603,7 @@ $ vela cluster labels add prod-eks provider=aws cluster-type=eks
 - Example components: webservice, worker, task, cron-task, daemon, statefulset, k8s-objects, ref-objects
 
 ### Phase 2: Complete Definition Support
+
 - PolicyDefinition with `NewPolicy()`
   - Example policies: topology, apply-once, garbage-collect, override, read-only, replication, resource-update, shared-resource, take-over
 - WorkflowStepDefinition with `NewWorkflowStep()`
@@ -2596,6 +2620,7 @@ $ vela cluster labels add prod-eks provider=aws cluster-type=eks
 - Trait patterns: PatchContainer helper, SetRawPatchBlock, SetRawOutputsBlock
 
 ### Phase 3: Definition Placement
+
 - **Cluster labels**: ConfigMap-based cluster label storage (`vela-system/vela-cluster-identity`)
 - **CLI cluster labels** (future): Integration with `vela cluster labels` command
 - **Placement API** (`placement` package): `Label()`, `Eq()`, `Ne()`, `In()`, `NotIn()`, `Exists()`, `NotExists()`, `All()`, `Any()`, `Not()`
@@ -2606,6 +2631,7 @@ $ vela cluster labels add prod-eks provider=aws cluster-type=eks
 - **Placement storage**: Store constraints in definition CR annotations
 
 ### Phase 4: Distribution & Ecosystem
+
 - **Addon integration**: Support `godef/` folder in addon structure for Go-based definitions
 - **Module dependencies**: Enable defkit modules to import definitions from other Go modules
 - **CLI addon commands**: `vela addon enable` detects and compiles Go definitions
@@ -2615,6 +2641,7 @@ $ vela cluster labels add prod-eks provider=aws cluster-type=eks
 - Enhanced documentation and tutorials
 
 ### Phase 5: Advanced Features
+
 - Multi-cluster placement: Integration with KubeVela cluster management
 - Other languages based on community demand
 - IDE plugins
@@ -2657,21 +2684,21 @@ defkit definitions involve executing Go code, which requires careful security co
 
 ### Security Benefits Over CUE
 
-| Aspect | CUE Definitions | Go Definitions |
-|--------|-----------------|----------------|
-| Static Analysis | Limited tooling | Standard Go security tools (gosec, staticcheck) |
-| Dependency Scanning | Manual review | Go modules enable vulnerability scanning |
-| Type Safety | Runtime errors | Compile-time type checking prevents many error classes |
-| Code Review | CUE-specific knowledge required | Standard Go code review practices apply |
+| Aspect              | CUE Definitions                 | Go Definitions                                         |
+| ------------------- | ------------------------------- | ------------------------------------------------------ |
+| Static Analysis     | Limited tooling                 | Standard Go security tools (gosec, staticcheck)        |
+| Dependency Scanning | Manual review                   | Go modules enable vulnerability scanning               |
+| Type Safety         | Runtime errors                  | Compile-time type checking prevents many error classes |
+| Code Review         | CUE-specific knowledge required | Standard Go code review practices apply                |
 
 ### Threat Model
 
-| Threat | Mitigation |
-|--------|------------|
-| Malicious addon code | Code runs in CLI context with user's permissions, not in controller. Addon installation requires explicit user action. |
-| Dependency hijacking | Go module checksums (go.sum) verify dependency integrity. Use `go mod verify` in CI. |
-| Code injection via parameters | Parameters are schema-validated. Go type system prevents injection into generated CUE. |
-| Privilege escalation | Generated CUE runs with same privileges as any CUE definition. No additional capabilities granted. |
+| Threat                        | Mitigation                                                                                                             |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Malicious addon code          | Code runs in CLI context with user's permissions, not in controller. Addon installation requires explicit user action. |
+| Dependency hijacking          | Go module checksums (go.sum) verify dependency integrity. Use `go mod verify` in CI.                                   |
+| Code injection via parameters | Parameters are schema-validated. Go type system prevents injection into generated CUE.                                 |
+| Privilege escalation          | Generated CUE runs with same privileges as any CUE definition. No additional capabilities granted.                     |
 
 ---
 
@@ -2697,6 +2724,7 @@ A: Yes. Use `vela def render ./definition.go --output cue` or `def.ToCUE()` in t
 
 **Q: How do I restrict a definition to specific cluster types?**
 A: Use the `RunOn()` and `NotRunOn()` methods with `placement.Label()` conditions:
+
 ```go
 defkit.NewComponent("aws-lb").
     RunOn(placement.Label("provider").Eq("aws")).
