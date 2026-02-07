@@ -867,7 +867,7 @@ func (g *TraitCUEGenerator) generateParameterBlock(t *TraitDefinition, depth int
 		// Handle OpenArrayParam specially
 		if openArr, ok := param.(*OpenArrayParam); ok {
 			innerIndent := strings.Repeat(g.indent, depth+1)
-			sb.WriteString(fmt.Sprintf("%s%s: [...{...}]\n", innerIndent, openArr.GetName()))
+			sb.WriteString(fmt.Sprintf("%s%s: [...{...}]\n", innerIndent, openArr.Name()))
 			continue
 		}
 		gen.writeParam(&sb, param, depth+1)

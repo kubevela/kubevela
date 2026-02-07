@@ -1327,7 +1327,6 @@ func (p *OpenStructParam) GetDefault() any { return nil }
 // Used for json-patch trait where operations array accepts any operations.
 type OpenArrayParam struct {
 	baseParam
-	name string
 }
 
 // OpenArray creates a new open array parameter.
@@ -1339,7 +1338,7 @@ type OpenArrayParam struct {
 //	defkit.OpenArray("operations") // generates: operations: [...{...}]
 func OpenArray(name string) *OpenArrayParam {
 	return &OpenArrayParam{
-		name: name,
+		baseParam: baseParam{name: name},
 	}
 }
 
@@ -1348,9 +1347,6 @@ func (p *OpenArrayParam) Description(desc string) *OpenArrayParam {
 	p.description = desc
 	return p
 }
-
-// GetName returns the parameter name.
-func (p *OpenArrayParam) GetName() string { return p.name }
 
 // GetDescription returns the parameter description.
 func (p *OpenArrayParam) GetDescription() string { return p.description }

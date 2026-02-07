@@ -709,7 +709,7 @@ var _ = Describe("Parameters", func() {
 	Context("OpenArray param", func() {
 		It("should create open array", func() {
 			p := defkit.OpenArray("items")
-			Expect(p.GetName()).To(Equal("items"))
+			Expect(p.Name()).To(Equal("items"))
 		})
 
 		It("should set description", func() {
