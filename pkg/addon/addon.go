@@ -117,6 +117,12 @@ const (
 	// ViewDirName is the addon views dir name
 	ViewDirName string = "views"
 
+	// GoDefDirName is the addon godef/ dir name for Go-based definitions
+	GoDefDirName string = "godef"
+
+	// GoDefModuleFileName is the module.yaml file name in godef/
+	GoDefModuleFileName string = "module.yaml"
+
 	// AddonParameterDataKey is the key of parameter in addon args secrets
 	AddonParameterDataKey string = "addonParameterDataKey"
 
@@ -178,6 +184,8 @@ var Patterns = []Pattern{
 	{Value: ParameterFileName},
 	// directory files
 	{IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName}, {IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName},
+	// Go-based definitions directory
+	{IsDir: true, Value: GoDefDirName},
 	// CUE app template, parameter and notes
 	{Value: AppTemplateCueFileName}, {Value: GlobalParameterFileName}, {Value: NotesCUEFileName},
 	{Value: LegacyReadmeFileName}}

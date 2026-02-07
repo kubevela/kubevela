@@ -51,6 +51,9 @@ type InstallPackage struct {
 	Definitions    []ElementFile `json:"definitions"`
 	CUEDefinitions []ElementFile `json:"CUEDefinitions"`
 
+	// GoDefModule contains Go-based definition module info when godef/ folder exists
+	GoDefModule *GoDefModule `json:"goDefModule,omitempty"`
+
 	ConfigTemplates []ElementFile `json:"configTemplates"`
 
 	// YAMLViews and CUEViews are the instances of velaql, they will only in control plane cluster
@@ -124,4 +127,20 @@ type ElementFile struct {
 type SystemRequirements struct {
 	VelaVersion       string `json:"vela,omitempty"`
 	KubernetesVersion string `json:"kubernetes,omitempty"`
+}
+
+// GoDefModule contains information about a Go-based definition module in an addon
+type GoDefModule struct {
+	// Path is the path to the godef/ directory
+	Path string `json:"path"`
+	// ModuleYAML is the contents of the module.yaml file
+	ModuleYAML string `json:"moduleYAML,omitempty"`
+	// GoFiles contains the Go source files
+	GoFiles []ElementFile `json:"goFiles,omitempty"`
+	// GoMod is the go.mod file content
+	GoMod string `json:"goMod,omitempty"`
+	// GoSum is the go.sum file content
+	GoSum string `json:"goSum,omitempty"`
+	// CompiledDefinitions contains the compiled CUE definitions from Go sources
+	CompiledDefinitions []ElementFile `json:"compiledDefinitions,omitempty"`
 }
