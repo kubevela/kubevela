@@ -734,11 +734,13 @@ var _ = Describe("TestContext", func() {
 			rendered := comp.Render(
 				defkit.TestContext().
 					WithName("my-config").
-					WithAppName("my-app"),
+					WithAppName("my-app").
+					WithAppRevision("my-app-v1"),
 			)
 
 			Expect(rendered.Get("metadata.name")).To(Equal("my-config"))
 			Expect(rendered.Get("metadata.labels.app")).To(Equal("my-app"))
+			Expect(rendered.Get("metadata.labels.revision")).To(Equal("my-app-v1"))
 		})
 
 		It("should resolve namespace context ref", func() {
