@@ -124,6 +124,9 @@ func (c *LabelCondition) Evaluate(labels map[string]string) bool {
 		return false
 
 	case OperatorNotIn:
+		if len(c.Values) == 0 {
+			return false
+		}
 		if !exists {
 			return true
 		}

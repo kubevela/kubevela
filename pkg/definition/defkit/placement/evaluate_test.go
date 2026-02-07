@@ -195,10 +195,10 @@ func TestLabelCondition_NotIn(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "not in with empty values always matches",
+			name:     "not in with empty values fails closed",
 			cond:     Label("provider").NotIn(),
 			labels:   map[string]string{"provider": "aws"},
-			expected: true,
+			expected: false,
 		},
 	}
 
@@ -1148,13 +1148,13 @@ func TestLabelCondition_EmptyValues(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "NotIn with empty values returns true (nothing to exclude)",
+			name: "NotIn with empty values returns false (fail closed)",
 			cond: &LabelCondition{
 				Key:      "provider",
 				Operator: OperatorNotIn,
 				Values:   []string{},
 			},
-			expected: true,
+			expected: false,
 		},
 	}
 
