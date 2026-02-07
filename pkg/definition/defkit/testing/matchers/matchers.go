@@ -64,6 +64,9 @@ func (m *resourceKindMatcher) Match(actual interface{}) (bool, error) {
 	if !ok {
 		return false, fmt.Errorf("BeResourceOfKind expects a *defkit.Resource, got %T", actual)
 	}
+	if resource == nil {
+		return false, fmt.Errorf("BeResourceOfKind received nil *defkit.Resource")
+	}
 	return resource.Kind() == m.expectedKind, nil
 }
 
@@ -90,6 +93,9 @@ func (m *apiVersionMatcher) Match(actual interface{}) (bool, error) {
 	if !ok {
 		return false, fmt.Errorf("HaveAPIVersion expects a *defkit.Resource, got %T", actual)
 	}
+	if resource == nil {
+		return false, fmt.Errorf("HaveAPIVersion received nil *defkit.Resource")
+	}
 	return resource.APIVersion() == m.expectedVersion, nil
 }
 
@@ -115,6 +121,9 @@ func (m *setOpMatcher) Match(actual interface{}) (bool, error) {
 	resource, ok := actual.(*defkit.Resource)
 	if !ok {
 		return false, fmt.Errorf("HaveSetOp expects a *defkit.Resource, got %T", actual)
+	}
+	if resource == nil {
+		return false, fmt.Errorf("HaveSetOp received nil *defkit.Resource")
 	}
 	for _, op := range resource.Ops() {
 		if setOp, ok := op.(*defkit.SetOp); ok {
@@ -147,6 +156,9 @@ func (m *opCountMatcher) Match(actual interface{}) (bool, error) {
 	resource, ok := actual.(*defkit.Resource)
 	if !ok {
 		return false, fmt.Errorf("HaveOpCount expects a *defkit.Resource, got %T", actual)
+	}
+	if resource == nil {
+		return false, fmt.Errorf("HaveOpCount received nil *defkit.Resource")
 	}
 	return len(resource.Ops()) == m.expectedCount, nil
 }
