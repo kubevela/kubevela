@@ -105,7 +105,10 @@ func (c *LabelCondition) Evaluate(labels map[string]string) bool {
 
 	case OperatorNotEquals:
 		if len(c.Values) == 0 {
-			return true
+			// Fail closed: empty values is an invalid constraint, match nothing
+			// This is consistent with Kubernetes which requires non-empty values
+			// for In/NotIn operators, and matches the behavior of OperatorEquals
+			return false
 		}
 		return !exists || value != c.Values[0]
 

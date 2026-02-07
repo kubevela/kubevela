@@ -1108,3 +1108,60 @@ func TestValidOperators(t *testing.T) {
 	assert.Contains(t, ops, OperatorExists)
 	assert.Contains(t, ops, OperatorNotExists)
 }
+
+// TestLabelCondition_EmptyValues tests fail-closed behavior for empty values.
+// Following Kubernetes label selector semantics, Eq/Ne/In/NotIn with empty
+// values are invalid configurations that should fail closed (return false).
+func TestLabelCondition_EmptyValues(t *testing.T) {
+	labels := map[string]string{"provider": "aws"}
+
+	tests := []struct {
+		name     string
+		cond     *LabelCondition
+		expected bool
+	}{
+		{
+			name: "Equals with empty values returns false",
+			cond: &LabelCondition{
+				Key:      "provider",
+				Operator: OperatorEquals,
+				Values:   []string{},
+			},
+			expected: false,
+		},
+		{
+			name: "NotEquals with empty values returns false (fail closed)",
+			cond: &LabelCondition{
+				Key:      "provider",
+				Operator: OperatorNotEquals,
+				Values:   []string{},
+			},
+			expected: false,
+		},
+		{
+			name: "In with empty values returns false",
+			cond: &LabelCondition{
+				Key:      "provider",
+				Operator: OperatorIn,
+				Values:   []string{},
+			},
+			expected: false,
+		},
+		{
+			name: "NotIn with empty values returns true (nothing to exclude)",
+			cond: &LabelCondition{
+				Key:      "provider",
+				Operator: OperatorNotIn,
+				Values:   []string{},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.cond.Evaluate(labels)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
