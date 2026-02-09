@@ -1,0 +1,20 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: special-application
+  namespace: default
+  annotations:
+    # Opt out of ALL global policies
+    policy.oam.dev/skip-global: "true"
+spec:
+  components:
+    - name: my-component
+      type: webservice
+      properties:
+        image: nginx:latest
+        ports:
+          - port: 80
+            expose: true
+
+  # This application will NOT have any global policies applied
+  # Only explicit policies in the spec will be processed

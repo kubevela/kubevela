@@ -1,0 +1,33 @@
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: add-environment-labels
+  namespace: vela-system  # Cluster-wide
+spec:
+  # Global policies automatically apply to Applications
+  global: true
+  priority: 100  # Higher priority runs first
+  # Application scope means this policy transforms the Application CR before parsing
+  scope: Application
+  schematic:
+    cue:
+      template: |
+        parameter: {}
+
+        enabled: true  # Always apply
+
+        // Add labels to the Application
+        transforms: {
+          labels: {
+            type: "merge"
+            value: {
+              "platform.io/managed-by": "kubevela"
+              "platform.io/version": "v1.9"
+            }
+          }
+        }
+
+        // Store context for workflow steps
+        additionalContext: {
+          policyApplied: "add-environment-labels"
+        }

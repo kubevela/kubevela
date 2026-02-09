@@ -1,0 +1,45 @@
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: inject-monitoring-sidecar
+  namespace: default
+spec:
+  scope: Application
+  schematic:
+    cue:
+      template: |
+        parameter: {
+          enableMonitoring: *true | bool
+          sidecarImage: *"monitoring-agent:latest" | string
+        }
+
+        // Only apply if monitoring is enabled
+        enabled: parameter.enableMonitoring
+
+        // Inject sidecar into all components
+        transforms: {
+          spec: {
+            type: "merge"
+            value: {
+              components: [ for comp in context.application.spec.components {
+                name: comp.name
+                type: comp.type
+                properties: {
+                  if comp.properties != _|_ {
+                    comp.properties
+                  }
+                  // Add sidecar container configuration
+                  sidecars: [{
+                    name: "monitoring-agent"
+                    image: parameter.sidecarImage
+                  }]
+                }
+              }]
+            }
+          }
+        }
+
+        additionalContext: {
+          monitoringEnabled: true
+          sidecarImage: parameter.sidecarImage
+        }

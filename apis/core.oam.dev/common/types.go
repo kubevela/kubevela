@@ -205,6 +205,24 @@ type Revision struct {
 	RevisionHash string `json:"revisionHash,omitempty"`
 }
 
+// AppliedGlobalPolicy records information about a global policy's application
+type AppliedGlobalPolicy struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	Applied   bool   `json:"applied"`
+	Reason    string `json:"reason,omitempty"` // e.g., "enabled=false: namespace mismatch"
+
+	// Track what this policy changed (for debugging/observability)
+	AddedLabels       map[string]string      `json:"addedLabels,omitempty"`
+	AddedAnnotations  map[string]string      `json:"addedAnnotations,omitempty"`
+	AdditionalContext map[string]interface{} `json:"additionalContext,omitempty"`
+	SpecModified      bool                   `json:"specModified,omitempty"`
+
+	// Execution order tracking
+	Sequence int   `json:"sequence"`          // Execution order (1, 2, 3, ...)
+	Priority int32 `json:"priority"`          // Policy priority for reference
+}
+
 // AppStatus defines the observed state of Application
 type AppStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
@@ -238,6 +256,16 @@ type AppStatus struct {
 
 	// AppliedResources record the resources that the  workflow step apply.
 	AppliedResources []ClusterObjectReference `json:"appliedResources,omitempty"`
+
+	// AppliedGlobalPolicies lists global policies that were discovered and applied
+	// (or skipped) during reconciliation. This provides transparency for debugging.
+	// +optional
+	AppliedGlobalPolicies []AppliedGlobalPolicy `json:"appliedGlobalPolicies,omitempty"`
+
+	// PolicyDiffsConfigMap references the ConfigMap containing spec diffs from global policies.
+	// Format: "{app-name}-policy-diffs"
+	// +optional
+	PolicyDiffsConfigMap string `json:"policyDiffsConfigMap,omitempty"`
 
 	// PolicyStatus records the status of policy
 	// Deprecated This field is only used by EnvBinding Policy which is deprecated.

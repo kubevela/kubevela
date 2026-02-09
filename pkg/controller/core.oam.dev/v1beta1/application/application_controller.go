@@ -35,6 +35,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	ctrlEvent "sigs.k8s.io/controller-runtime/pkg/event"
@@ -156,6 +157,25 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	if endReconcile {
 		return result, nil
+	}
+
+	// Apply Application-scoped policy transforms (in-memory modifications before parsing)
+	// Returns updated context with additionalContext that will be available in workflow
+	logCtx, err = handler.ApplyApplicationScopeTransforms(logCtx, app)
+	if err != nil {
+		logCtx.Error(err, "Failed to apply Application-scoped policy transforms")
+		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationStarting)
+	}
+
+	// Emit events for applied global policies (for observability)
+	for _, appliedPolicy := range app.Status.AppliedGlobalPolicies {
+		if appliedPolicy.Applied {
+			r.Recorder.Event(app, event.Normal("GlobalPolicyApplied",
+				fmt.Sprintf("Applied global policy %s from namespace %s", appliedPolicy.Name, appliedPolicy.Namespace)))
+		} else {
+			r.Recorder.Event(app, event.Normal("GlobalPolicySkipped",
+				fmt.Sprintf("Skipped global policy %s: %s", appliedPolicy.Name, appliedPolicy.Reason)))
+		}
 	}
 
 	appFile, err := appParser.GenerateAppFile(logCtx, app)
@@ -640,6 +660,24 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return true
 			},
 		}).
+		Watches(
+			&v1beta1.PolicyDefinition{},
+			ctrlHandler.EnqueueRequestsFromMapFunc(findApplicationsForGlobalPolicy),
+			builder.WithPredicates(predicate.Funcs{
+				CreateFunc: func(e ctrlEvent.CreateEvent) bool {
+					policy := e.Object.(*v1beta1.PolicyDefinition)
+					return policy.Spec.Global && policy.Spec.Scope == v1beta1.ApplicationScope
+				},
+				UpdateFunc: func(e ctrlEvent.UpdateEvent) bool {
+					policy := e.ObjectNew.(*v1beta1.PolicyDefinition)
+					return policy.Spec.Global && policy.Spec.Scope == v1beta1.ApplicationScope
+				},
+				DeleteFunc: func(e ctrlEvent.DeleteEvent) bool {
+					policy := e.Object.(*v1beta1.PolicyDefinition)
+					return policy.Spec.Global && policy.Spec.Scope == v1beta1.ApplicationScope
+				},
+			}),
+		).
 		For(&v1beta1.Application{}).
 		Complete(r)
 }
@@ -676,6 +714,24 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 	newTracker.ManagedFields = old.ManagedFields
 	newTracker.ResourceVersion = old.ResourceVersion
 	return !reflect.DeepEqual(newTracker, old)
+}
+
+func findApplicationsForGlobalPolicy(_ context.Context, obj client.Object) []reconcile.Request {
+	policy := obj.(*v1beta1.PolicyDefinition)
+
+	// Invalidate cache when global policies change
+	if policy.Namespace == oam.SystemDefinitionNamespace {
+		// vela-system policy affects all namespaces - invalidate entire cache
+		globalPolicyCache.InvalidateAll()
+	} else {
+		// Namespace-specific policy - invalidate for that namespace
+		globalPolicyCache.InvalidateForNamespace(policy.Namespace)
+	}
+
+	// Strategy: Don't trigger immediate reconciliation
+	// Applications will pick up changes on next natural reconciliation (spec change, etc.)
+	// This avoids thundering herd problem when global policies change
+	return []reconcile.Request{}
 }
 
 func findObjectForResourceTracker(_ context.Context, rt client.Object) []reconcile.Request {
@@ -730,6 +786,8 @@ const (
 	ReplicaKeyContextKey
 	// OriginalAppKey is the key in the context that records the in coming original app
 	OriginalAppKey
+	// PolicyAdditionalContextKey is the key in the context that records additional context from Application-scoped policies
+	PolicyAdditionalContextKey
 )
 
 func withOriginalApp(ctx context.Context, app *v1beta1.Application) context.Context {

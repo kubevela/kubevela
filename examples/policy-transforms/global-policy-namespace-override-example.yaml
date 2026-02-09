@@ -1,0 +1,63 @@
+# Example: Namespace Override Pattern
+# This shows how a namespace can override a cluster-wide global policy
+
+---
+# Cluster-wide default: all apps get production environment
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: environment-config
+  namespace: vela-system
+spec:
+  global: true
+  priority: 50
+  scope: Application
+  schematic:
+    cue:
+      template: |
+        parameter: {}
+        enabled: true
+
+        transforms: {
+          labels: {
+            type: "merge"
+            value: {
+              "environment": "production"
+              "compliance": "enabled"
+              "backup": "daily"
+            }
+          }
+        }
+
+---
+# Development namespace override: different rules for dev
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: environment-config  # SAME NAME - overrides vela-system version
+  namespace: dev  # Only applies in dev namespace
+spec:
+  global: true
+  priority: 50
+  scope: Application
+  schematic:
+    cue:
+      template: |
+        parameter: {}
+        enabled: true
+
+        transforms: {
+          labels: {
+            type: "merge"
+            value: {
+              "environment": "development"
+              "compliance": "disabled"  # Relaxed rules for dev
+              "backup": "none"
+            }
+          }
+        }
+
+---
+# Result:
+# - Applications in "dev" namespace: environment=development, compliance=disabled
+# - Applications in other namespaces: environment=production, compliance=enabled

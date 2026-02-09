@@ -1,0 +1,49 @@
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: canary-deployment-override
+  namespace: default
+spec:
+  scope: Application
+  schematic:
+    cue:
+      template: |
+        parameter: {
+          canaryEnabled: bool
+          canaryReplicas: *1 | int
+        }
+
+        // Only replace spec if canary is enabled
+        enabled: parameter.canaryEnabled
+
+        // Replace entire spec with canary configuration
+        transforms: {
+          spec: {
+            type: "replace"
+            value: {
+              components: [{
+                name: context.application.spec.components[0].name + "-canary"
+                type: context.application.spec.components[0].type
+                properties: {
+                  // Copy original properties
+                  if context.application.spec.components[0].properties != _|_ {
+                    context.application.spec.components[0].properties
+                  }
+                  // Override replicas
+                  replicas: parameter.canaryReplicas
+                }
+                traits: [{
+                  type: "labels"
+                  properties: {
+                    "deployment-type": "canary"
+                  }
+                }]
+              }]
+            }
+          }
+        }
+
+        additionalContext: {
+          deploymentMode: "canary"
+          canaryReplicas: parameter.canaryReplicas
+        }

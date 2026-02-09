@@ -1,0 +1,60 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: my-web-app
+  namespace: default
+  labels:
+    app: my-web-app
+spec:
+  components:
+    - name: frontend
+      type: webservice
+      properties:
+        image: nginx:latest
+        ports:
+          - port: 80
+            expose: true
+    - name: backend
+      type: webservice
+      properties:
+        image: my-backend:v1.0
+        env:
+          - name: DATABASE_URL
+            value: "postgres://db:5432/mydb"
+
+  # Application-scoped policy that will transform the Application before parsing
+  policies:
+    - name: env-labels
+      type: add-environment-labels
+      properties:
+        environment: production
+        team: platform-team
+
+  workflow:
+    steps:
+      - name: deploy-frontend
+        type: apply-component
+        properties:
+          component: frontend
+      - name: deploy-backend
+        type: apply-component
+        properties:
+          component: backend
+      - name: check-context
+        type: step-group
+        subSteps:
+          # The additionalContext from the policy will be available here
+          # as context.custom.policyApplied and context.custom.environment
+          - name: log-policy-context
+            type: apply-object
+            properties:
+              value:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: policy-context
+                  namespace: default
+                data:
+                  # These values come from additionalContext in the policy
+                  policyApplied: "add-environment-labels"
+                  environment: "production"

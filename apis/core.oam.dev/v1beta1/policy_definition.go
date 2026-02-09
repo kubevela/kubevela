@@ -24,6 +24,14 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
+// PolicyScope defines the scope at which a policy operates
+type PolicyScope string
+
+const (
+	// ApplicationScope means the policy transforms the Application CR before parsing
+	ApplicationScope PolicyScope = "Application"
+)
+
 // PolicyDefinitionSpec defines the desired state of PolicyDefinition
 type PolicyDefinitionSpec struct {
 	// Reference to the CustomResourceDefinition that defines this trait kind.
@@ -40,6 +48,26 @@ type PolicyDefinitionSpec struct {
 
 	//+optional
 	Version string `json:"version,omitempty"`
+
+	// Scope defines the scope at which this policy operates.
+	// Application scope policies transform the Application CR before it's parsed.
+	// Policies without this field use the default resource-generation behavior.
+	// +optional
+	Scope PolicyScope `json:"scope,omitempty"`
+
+	// Global indicates this policy should automatically apply to all Applications
+	// in this namespace (or all namespaces if in vela-system).
+	// Global policies cannot be explicitly referenced in Application specs.
+	// Requires EnableGlobalPolicies feature gate.
+	// +optional
+	Global bool `json:"global,omitempty"`
+
+	// Priority defines the order in which global policies are applied.
+	// Higher priority policies run first. Policies with the same priority
+	// are applied in alphabetical order by name.
+	// If not specified, defaults to 0.
+	// +optional
+	Priority int32 `json:"priority,omitempty"`
 }
 
 // PolicyDefinitionStatus is the status of PolicyDefinition

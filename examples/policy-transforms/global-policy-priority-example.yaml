@@ -1,0 +1,87 @@
+# Example: Priority Ordering
+# Demonstrates how Priority field controls execution order
+
+---
+# Critical security policy - runs FIRST (highest priority)
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: security-hardening
+  namespace: vela-system
+spec:
+  global: true
+  priority: 1000  # Highest - runs first
+  scope: Application
+  schematic:
+    cue:
+      template: |
+        parameter: {}
+        enabled: true
+
+        transforms: {
+          annotations: {
+            type: "merge"
+            value: {
+              "security.platform.io/scan-required": "true"
+              "security.platform.io/minimum-tls": "1.2"
+            }
+          }
+        }
+
+---
+# Standard platform labels - runs SECOND
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: platform-labels
+  namespace: vela-system
+spec:
+  global: true
+  priority: 100
+  scope: Application
+  schematic:
+    cue:
+      template: |
+        parameter: {}
+        enabled: true
+
+        transforms: {
+          labels: {
+            type: "merge"
+            value: {
+              "platform.io/managed-by": "kubevela"
+              "platform.io/region": "us-west-2"
+            }
+          }
+        }
+
+---
+# Optional observability - runs THIRD (lower priority)
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: observability-config
+  namespace: vela-system
+spec:
+  global: true
+  priority: 50
+  scope: Application
+  schematic:
+    cue:
+      template: |
+        parameter: {}
+        enabled: true
+
+        transforms: {
+          annotations: {
+            type: "merge"
+            value: {
+              "monitoring.platform.io/enabled": "true"
+              "monitoring.platform.io/retention": "30d"
+            }
+          }
+        }
+
+---
+# Execution order: security-hardening → platform-labels → observability-config
+# Policies with same priority are applied alphabetically by name

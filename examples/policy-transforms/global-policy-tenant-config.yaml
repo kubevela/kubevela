@@ -1,0 +1,42 @@
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: inject-tenant-config
+  namespace: vela-system
+spec:
+  global: true
+  priority: 50
+  scope: Application
+  schematic:
+    cue:
+      template: |
+        import "strings"
+
+        parameter: {}
+
+        // Only apply to tenant namespaces
+        enabled: strings.HasPrefix(context.application.metadata.namespace, "tenant-")
+
+        transforms: {
+          annotations: {
+            type: "merge"
+            value: {
+              "config.platform.io/tenant-mode": "true"
+              "config.platform.io/backup-enabled": "true"
+            }
+          }
+          labels: {
+            type: "merge"
+            value: {
+              "tenant": "true"
+            }
+          }
+        }
+
+        additionalContext: {
+          tenantConfig: {
+            isolated: true
+            backupEnabled: true
+            monitoring: "enhanced"
+          }
+        }
