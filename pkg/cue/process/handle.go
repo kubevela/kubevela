@@ -53,8 +53,26 @@ type ContextData struct {
 	Output         interface{}
 }
 
+// policyAdditionalContextKeyString is the string key for policy additionalContext in Go context
+// We use a string key to avoid type mismatches across packages
+const policyAdditionalContextKeyString = "kubevela.oam.dev/policy-additional-context"
+
 // NewContext creates a new process context
 func NewContext(data ContextData) process.Context {
+	// Extract policy additionalContext from Go context if it exists
+	// This allows Application-scoped policies to inject data into component/trait rendering
+	var customData map[string]interface{}
+	if data.Ctx != nil {
+		if val := data.Ctx.Value(policyAdditionalContextKeyString); val != nil {
+			if contextMap, ok := val.(map[string]interface{}); ok {
+				// Wrap additionalContext under "custom" key so it's accessible as context.custom
+				customData = map[string]interface{}{
+					"custom": contextMap,
+				}
+			}
+		}
+	}
+
 	ctx := process.NewContext(process.ContextData{
 		Namespace:      data.Namespace,
 		Name:           data.CompName,
@@ -64,6 +82,7 @@ func NewContext(data ContextData) process.Context {
 		Ctx:            data.Ctx,
 		BaseHooks:      data.BaseHooks,
 		AuxiliaryHooks: data.AuxiliaryHooks,
+		CustomData:     customData,
 	})
 	ctx.PushData(ContextAppName, data.AppName)
 	ctx.PushData(ContextAppRevision, data.AppRevisionName)

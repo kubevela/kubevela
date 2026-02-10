@@ -186,6 +186,10 @@ type Appfile struct {
 
 	app *v1beta1.Application
 
+	// GoContext stores the Go context from the controller, which may contain
+	// policy additionalContext for components to access via context.custom
+	GoContext context.Context
+
 	Debug bool
 }
 
@@ -781,6 +785,7 @@ func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) velaprocess
 		CompName:        wlName,
 		AppRevisionName: appfile.AppRevisionName,
 		Components:      appfile.Components,
+		Ctx:             appfile.GoContext, // Pass Go context with policy additionalContext
 	}
 	if appfile.AppAnnotations != nil {
 		data.WorkflowName = appfile.AppAnnotations[oam.AnnotationWorkflowName]

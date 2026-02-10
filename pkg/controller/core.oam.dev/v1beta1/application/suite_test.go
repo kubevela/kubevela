@@ -80,9 +80,10 @@ var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	rand.Seed(time.Now().UnixNano())
 
-	// Enable global policies feature gate for tests
+	// Enable both Application-scoped policy feature gates for tests
 	Expect(utilfeature.DefaultMutableFeatureGate.Set("EnableGlobalPolicies=true")).ToNot(HaveOccurred())
-	logf.Log.Info("Enabled EnableGlobalPolicies feature gate for tests")
+	Expect(utilfeature.DefaultMutableFeatureGate.Set("EnableApplicationScopedPolicies=true")).ToNot(HaveOccurred())
+	logf.Log.Info("Enabled Application-scoped policy feature gates for tests")
 
 	By("bootstrapping test environment")
 	var yamlPath string

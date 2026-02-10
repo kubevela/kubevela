@@ -114,6 +114,13 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 		appFile.AppRevisionName = app.Status.LatestRevision.Name
 	}
 
+	// Store the Go context so component rendering can access policy additionalContext
+	if monCtx, ok := ctx.(monitorContext.Context); ok {
+		appFile.GoContext = monCtx.GetContext()
+	} else {
+		appFile.GoContext = ctx
+	}
+
 	var err error
 	if err = p.parseComponents(ctx, appFile); err != nil {
 		return nil, errors.Wrap(err, "failed to parseComponents")

@@ -59,13 +59,15 @@ type PolicyDefinitionSpec struct {
 	//   These generate Kubernetes resources from CUE templates with an 'output' field.
 	// - ApplicationScope: Transform-based policies that modify the Application CR before parsing.
 	//   These use 'transforms' instead of 'output' and don't generate resources.
+	//   Requires EnableApplicationScopedPolicies feature gate.
 	// +optional
 	Scope PolicyScope `json:"scope,omitempty"`
 
 	// Global indicates this policy should automatically apply to all Applications
 	// in this namespace (or all namespaces if in vela-system).
 	// Global policies cannot be explicitly referenced in Application specs.
-	// Requires EnableGlobalPolicies feature gate.
+	// Requires EnableGlobalPolicies feature gate for discovery and
+	// EnableApplicationScopedPolicies feature gate for execution.
 	// +optional
 	Global bool `json:"global,omitempty"`
 

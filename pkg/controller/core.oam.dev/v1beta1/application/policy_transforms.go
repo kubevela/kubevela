@@ -42,8 +42,13 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/config"
+	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -166,6 +171,15 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 
 		// Apply the rendered global policy results (either from cache or freshly rendered)
 		for _, result := range globalRenderedResults {
+			// Check feature gate for Application-scoped policies
+			if !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationScopedPolicies) {
+				ctx.Info("Skipping Application-scoped global policy (feature gate disabled)",
+					"policy", result.PolicyName,
+					"namespace", result.PolicyNamespace,
+					"featureGate", "EnableApplicationScopedPolicies")
+				continue
+			}
+
 			ctx.Info("Applying global policy result", "policy", result.PolicyName, "enabled", result.Enabled, "fromCache", cacheHit, "sequence", sequence)
 
 			// Get priority from the result (stored during render)
@@ -210,6 +224,15 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 
 		// Check if Application-scoped
 		if templ.PolicyDefinition == nil || templ.PolicyDefinition.Spec.Scope != v1beta1.ApplicationScope {
+			continue
+		}
+
+		// Check feature gate for Application-scoped policies
+		if !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationScopedPolicies) {
+			ctx.Info("Skipping Application-scoped policy (feature gate disabled)",
+				"policy", policy.Type,
+				"name", policy.Name,
+				"featureGate", "EnableApplicationScopedPolicies")
 			continue
 		}
 
@@ -622,50 +645,74 @@ func (h *AppHandler) applyRenderedPolicyResult(ctx monitorContext.Context, app *
 }
 
 // renderPolicyCUETemplate renders the policy CUE template with parameter and context.application
-// Follows the same pattern as workloadDef.Complete() and traitDef.Complete() to properly handle import statements
+// Now includes CueX support by creating a proper process.Context with runtime parameters.
+// This enables CueX actions like kube.#Read while preserving all existing functionality:
+// - context.application (Full Application CR)
+// - context.prior (Previous policy result for incremental policies)
+// - parameter (Policy parameters from Application spec)
 func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1beta1.Application, params map[string]interface{}, policyDef *v1beta1.PolicyDefinition, priorResult map[string]interface{}) (cue.Value, error) {
-	// Build CUE source following the pattern from pkg/cue/definition/template.go
-	// Order matters: template (with imports) must come first, then type annotations, then values
-	var cueSources []string
+	// Create runtime context with KubeClient so kube.#Read and other CueX actions work
+	runtimeCtx := oamprovidertypes.WithRuntimeParams(ctx.GetContext(), oamprovidertypes.RuntimeParams{
+		KubeClient: h.Client,
+		ConfigFactory: config.NewConfigFactoryWithDispatcher(h.Client, func(goCtx context.Context, resources []*unstructured.Unstructured, applyOptions []apply.ApplyOption) error {
+			// Policies don't dispatch resources directly, but provide this for CueX consistency
+			return nil
+		}),
+	})
 
-	// 1. Add the policy template FIRST (preserves any import statements at the top)
-	cueSources = append(cueSources, policyDef.Spec.Schematic.CUE.Template)
+	// Create a process.Context with proper runtime parameters embedded for CueX execution
+	pCtx := velaprocess.NewContext(velaprocess.ContextData{
+		Namespace: app.Namespace,
+		AppName:   app.Name,
+		CompName:  app.Name, // Policy context doesn't have specific component
+		Ctx:       runtimeCtx, // Use runtime context with CueX providers
+	})
 
-	// 2. Add type annotations (following renderTemplate() pattern from template.go:489)
-	cueSources = append(cueSources, "parameter: _")
-	cueSources = append(cueSources, "context: _")
-
-	// 3. Add parameter values
+	// Build parameter file (as JSON, not type annotation)
+	var paramFile string
 	if params != nil {
 		paramJSON, err := json.Marshal(params)
 		if err != nil {
 			return cue.Value{}, errors.Wrap(err, "failed to marshal parameters")
 		}
-		cueSources = append(cueSources, fmt.Sprintf("parameter: %s", string(paramJSON)))
+		paramFile = fmt.Sprintf("parameter: %s", string(paramJSON))
 	} else {
-		cueSources = append(cueSources, "parameter: {}")
+		paramFile = "parameter: {}"
 	}
 
-	// 4. Add context.application (convert Application to JSON)
+	// Build context object - PRESERVES ALL EXISTING FUNCTIONALITY
+	// context.application: Full Application CR (existing feature)
+	// context.prior: Previous policy result for incremental policies (existing feature)
+	contextParts := []string{}
+
+	// Add application - SAME AS BEFORE
 	appJSON, err := json.Marshal(app)
 	if err != nil {
 		return cue.Value{}, errors.Wrap(err, "failed to marshal Application")
 	}
-	cueSources = append(cueSources, fmt.Sprintf("context: application: %s", string(appJSON)))
+	contextParts = append(contextParts, fmt.Sprintf("application: %s", string(appJSON)))
 
-	// 5. Add context.prior if available (previous cached policy result)
+	// Add prior if available - SAME AS BEFORE
 	if priorResult != nil {
 		priorJSON, err := json.Marshal(priorResult)
 		if err != nil {
 			return cue.Value{}, errors.Wrap(err, "failed to marshal prior result")
 		}
-		cueSources = append(cueSources, fmt.Sprintf("context: prior: %s", string(priorJSON)))
+		contextParts = append(contextParts, fmt.Sprintf("prior: %s", string(priorJSON)))
 	}
 
-	// Compile the CUE using the default CueX compiler
-	cueSource := strings.Join(cueSources, "\n")
-	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetContext(), cueSource)
+	contextFile := fmt.Sprintf("context: {\n%s\n}", strings.Join(contextParts, "\n"))
 
+	// Build CUE source - NO baseContext needed!
+	// cuex.DefaultCompiler already has all the imports (kube, http, etc.)
+	cueSource := strings.Join([]string{
+		policyDef.Spec.Schematic.CUE.Template,
+		paramFile,
+		contextFile,
+	}, "\n")
+
+	// Compile with CueX execution enabled (cuex.DefaultCompiler automatically resolves actions)
+	val, err := cuex.DefaultCompiler.Get().CompileString(pCtx.GetCtx(), cueSource)
 	if err != nil {
 		return cue.Value{}, errors.Wrap(err, "failed to compile CUE template")
 	}
@@ -907,6 +954,10 @@ func deepMerge(target, source map[string]interface{}) map[string]interface{} {
 	return result
 }
 
+// policyAdditionalContextKeyString is the string key for storing additionalContext in Go context
+// We use a string key to avoid type mismatches when accessing from different packages (e.g., pkg/cue/process)
+const policyAdditionalContextKeyString = "kubevela.oam.dev/policy-additional-context"
+
 // storeAdditionalContextInCtx stores additional policy context in the Go context
 // This context will be available in workflow steps as context.custom
 func storeAdditionalContextInCtx(ctx monitorContext.Context, additionalContext map[string]interface{}) monitorContext.Context {
@@ -919,16 +970,16 @@ func storeAdditionalContextInCtx(ctx monitorContext.Context, additionalContext m
 	// Merge new context into existing
 	merged := deepMerge(existing, additionalContext)
 
-	// Store back in context using the PolicyAdditionalContextKey from application_controller.go
+	// Store back in context using a string key (avoids type mismatches across packages)
 	// We need to extract the underlying context.Context, add our value, and wrap it back
-	baseCtx := context.WithValue(ctx.GetContext(), PolicyAdditionalContextKey, merged)
+	baseCtx := context.WithValue(ctx.GetContext(), policyAdditionalContextKeyString, merged)
 	ctx.SetContext(baseCtx)
 	return ctx
 }
 
 // getAdditionalContextFromCtx retrieves additional policy context from the Go context
 func getAdditionalContextFromCtx(ctx monitorContext.Context) map[string]interface{} {
-	if val := ctx.GetContext().Value(PolicyAdditionalContextKey); val != nil {
+	if val := ctx.GetContext().Value(policyAdditionalContextKeyString); val != nil {
 		if contextMap, ok := val.(map[string]interface{}); ok {
 			return contextMap
 		}

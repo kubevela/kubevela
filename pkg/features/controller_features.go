@@ -124,8 +124,15 @@ const (
 	// ComponentDefinition/TraitDefinition/WorkflowStepDefinition/PolicyDefinition CUE templates exist in the cluster
 	ValidateResourcesExist = "ValidateResourcesExist"
 
-	// EnableGlobalPolicies enables automatic application of global PolicyDefinitions to Applications
+	// EnableGlobalPolicies enables automatic discovery of global PolicyDefinitions
+	// Controls whether policies with global: true are discovered from vela-system and namespace
 	EnableGlobalPolicies featuregate.Feature = "EnableGlobalPolicies"
+
+	// EnableApplicationScopedPolicies enables the execution of Application-scoped policies.
+	// When disabled, policies with scope: Application will not be applied (both global and explicit).
+	// This gates the core Application transform functionality. Use EnableGlobalPolicies to
+	// separately control global policy discovery.
+	EnableApplicationScopedPolicies featuregate.Feature = "EnableApplicationScopedPolicies"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -155,6 +162,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	EnableApplicationStatusMetrics:                {Default: false, PreRelease: featuregate.Alpha},
 	ValidateResourcesExist:                        {Default: false, PreRelease: featuregate.Alpha},
 	EnableGlobalPolicies:                          {Default: false, PreRelease: featuregate.Alpha},
+	EnableApplicationScopedPolicies:               {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {
