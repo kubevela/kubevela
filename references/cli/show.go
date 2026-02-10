@@ -64,6 +64,24 @@ var (
 	showFormat      string
 )
 
+// getShowCommandType returns the appropriate command type based on context.
+// When order is empty (used under vela def), it returns TypeDefGeneration.
+// Otherwise, it returns TypeStart for the main vela command.
+func getShowCommandType(order string) string {
+	if order == "" {
+		return types.TypeDefGeneration
+	}
+	return types.TypeStart
+}
+
+// getShowCommandOrder returns the appropriate command order based on context.
+func getShowCommandOrder(order string) string {
+	if order == "" {
+		return "5" // Order within Code Generation group
+	}
+	return order
+}
+
 // NewCapabilityShowCommand shows the reference doc for a component type or trait
 func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var revision, path, location, i18nPath string
@@ -128,8 +146,8 @@ func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOS
 			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, namespace, location, i18nPath, int64(ver))
 		},
 		Annotations: map[string]string{
-			types.TagCommandType:  types.TypeStart,
-			types.TagCommandOrder: order,
+			types.TagCommandType:  getShowCommandType(order),
+			types.TagCommandOrder: getShowCommandOrder(order),
 		},
 	}
 

@@ -38,6 +38,8 @@ import (
 const (
 	// AddonNameRegex is the regex to validate addon names
 	AddonNameRegex = `^[a-z\d]+(-[a-z\d]+)*$`
+	// GoDefNameRegex validates Go definition names (valid Go identifiers: letters, digits, underscores)
+	GoDefNameRegex = `^[a-zA-Z_][a-zA-Z0-9_]*$`
 	// helmComponentDependency is the dependent addon of Helm Component
 	helmComponentDependency = "fluxcd"
 )
@@ -52,6 +54,16 @@ type InitCmd struct {
 	Path             string
 	Overwrite        bool
 	RefObjURLs       []string
+	// EnableGoDef enables Go-based definition scaffolding in godef/ folder
+	EnableGoDef bool
+	// GoDefComponents is a comma-separated list of component names to scaffold
+	GoDefComponents string
+	// GoDefTraits is a comma-separated list of trait names to scaffold
+	GoDefTraits string
+	// GoDefPolicies is a comma-separated list of policy names to scaffold
+	GoDefPolicies string
+	// GoDefWorkflowSteps is a comma-separated list of workflow step names to scaffold
+	GoDefWorkflowSteps string
 	// We use string instead of v1beta1.Application is because
 	// the cue formatter is having some problems: it will keep
 	// TypeMeta (instead of inlined).
@@ -62,6 +74,8 @@ type InitCmd struct {
 	Schemas     []ElementFile
 	Views       []ElementFile
 	Definitions []ElementFile
+	// GoDefFiles contains Go definition scaffolding files
+	GoDefFiles []ElementFile
 }
 
 // CreateScaffold creates an addon scaffold
@@ -110,6 +124,13 @@ func (cmd *InitCmd) CreateScaffold() error {
 		cmd.createSamples()
 	}
 
+	if cmd.EnableGoDef {
+		klog.Info("Creating Go definition module scaffolding...")
+		if err := cmd.createGoDefScaffold(); err != nil {
+			return err
+		}
+	}
+
 	err = cmd.writeFiles()
 	if err != nil {
 		return err
@@ -140,6 +161,221 @@ func CheckAddonName(addonName string) error {
 	}
 
 	return nil
+}
+
+// CheckGoDefName checks if a Go definition name is valid.
+// Names must be valid Go identifiers to prevent path traversal attacks
+// and ensure they can be used as Go type/function names.
+func CheckGoDefName(name string) error {
+	if len(name) == 0 {
+		return fmt.Errorf("definition name should not be empty")
+	}
+
+	re := regexp.MustCompile(GoDefNameRegex)
+	if !re.MatchString(name) {
+		return fmt.Errorf("definition name %q is invalid: must be a valid Go identifier (letters, digits, underscores, starting with a letter or underscore)", name)
+	}
+
+	return nil
+}
+
+// createGoDefScaffold creates Go definition module scaffolding
+func (cmd *InitCmd) createGoDefScaffold() error {
+	// Core module files and doc.go files for each definition type folder
+	cmd.GoDefFiles = append(cmd.GoDefFiles,
+		ElementFile{
+			Name: path.Join(GoDefDirName, GoDefModuleFileName),
+			Data: strings.ReplaceAll(godefModuleYAMLTemplate, "ADDON_NAME", cmd.AddonName),
+		},
+		ElementFile{
+			Name: path.Join(GoDefDirName, "go.mod"),
+			Data: strings.ReplaceAll(godefGoModTemplate, "ADDON_NAME", cmd.AddonName),
+		},
+		ElementFile{
+			Name: path.Join(GoDefDirName, "components", "doc.go"),
+			Data: godefComponentsDocTemplate,
+		},
+		ElementFile{
+			Name: path.Join(GoDefDirName, "traits", "doc.go"),
+			Data: godefTraitsDocTemplate,
+		},
+		ElementFile{
+			Name: path.Join(GoDefDirName, "policies", "doc.go"),
+			Data: godefPoliciesDocTemplate,
+		},
+		ElementFile{
+			Name: path.Join(GoDefDirName, "workflowsteps", "doc.go"),
+			Data: godefWorkflowStepsDocTemplate,
+		},
+	)
+
+	// Create scaffold files for specified components
+	for _, name := range parseCommaSeparated(cmd.GoDefComponents) {
+		if err := CheckGoDefName(name); err != nil {
+			return fmt.Errorf("invalid component name: %w", err)
+		}
+		cmd.GoDefFiles = append(cmd.GoDefFiles, ElementFile{
+			Name: path.Join(GoDefDirName, "components", name+".go"),
+			Data: generateComponentScaffold(name),
+		})
+	}
+
+	// Create scaffold files for specified traits
+	for _, name := range parseCommaSeparated(cmd.GoDefTraits) {
+		if err := CheckGoDefName(name); err != nil {
+			return fmt.Errorf("invalid trait name: %w", err)
+		}
+		cmd.GoDefFiles = append(cmd.GoDefFiles, ElementFile{
+			Name: path.Join(GoDefDirName, "traits", name+".go"),
+			Data: generateTraitScaffold(name),
+		})
+	}
+
+	// Create scaffold files for specified policies
+	for _, name := range parseCommaSeparated(cmd.GoDefPolicies) {
+		if err := CheckGoDefName(name); err != nil {
+			return fmt.Errorf("invalid policy name: %w", err)
+		}
+		cmd.GoDefFiles = append(cmd.GoDefFiles, ElementFile{
+			Name: path.Join(GoDefDirName, "policies", name+".go"),
+			Data: generatePolicyScaffold(name),
+		})
+	}
+
+	// Create scaffold files for specified workflow steps
+	for _, name := range parseCommaSeparated(cmd.GoDefWorkflowSteps) {
+		if err := CheckGoDefName(name); err != nil {
+			return fmt.Errorf("invalid workflow step name: %w", err)
+		}
+		cmd.GoDefFiles = append(cmd.GoDefFiles, ElementFile{
+			Name: path.Join(GoDefDirName, "workflowsteps", name+".go"),
+			Data: generateWorkflowStepScaffold(name),
+		})
+	}
+
+	return nil
+}
+
+// parseCommaSeparated splits a comma-separated string into trimmed parts
+func parseCommaSeparated(s string) []string {
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	var result []string
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+// generateComponentScaffold generates a minimal component scaffold
+func generateComponentScaffold(name string) string {
+	return fmt.Sprintf(`package components
+
+import (
+	"github.com/oam-dev/kubevela/pkg/definition/defkit"
+)
+
+func init() {
+	defkit.Register(%sComponent())
+}
+
+// %sComponent creates the %s component definition
+func %sComponent() *defkit.ComponentDefinition {
+	return defkit.NewComponent("%s").
+		Description("TODO: Add description for %s component").
+		// Add parameters here
+		// WithParameter("param", defkit.String().Description("...")).
+		Template(func(tpl *defkit.Template) {
+			// TODO: Implement template
+		})
+}
+`, toCamelCase(name), toCamelCase(name), name, toCamelCase(name), name, name)
+}
+
+// generateTraitScaffold generates a minimal trait scaffold
+func generateTraitScaffold(name string) string {
+	return fmt.Sprintf(`package traits
+
+import (
+	"github.com/oam-dev/kubevela/pkg/definition/defkit"
+)
+
+func init() {
+	defkit.Register(%sTrait())
+}
+
+// %sTrait creates the %s trait definition
+func %sTrait() *defkit.TraitDefinition {
+	return defkit.NewTrait("%s").
+		Description("TODO: Add description for %s trait").
+		AppliesToWorkloads("deployments.apps").
+		// Add parameters here
+		// WithParameter("param", defkit.String().Description("...")).
+		PatchTemplate(func(tpl *defkit.PatchTemplate) {
+			// TODO: Implement patch template
+		})
+}
+`, toCamelCase(name), toCamelCase(name), name, toCamelCase(name), name, name)
+}
+
+// generatePolicyScaffold generates a minimal policy scaffold
+func generatePolicyScaffold(name string) string {
+	return fmt.Sprintf(`package policies
+
+import (
+	"github.com/oam-dev/kubevela/pkg/definition/defkit"
+)
+
+func init() {
+	defkit.Register(%sPolicy())
+}
+
+// %sPolicy creates the %s policy definition
+func %sPolicy() *defkit.PolicyDefinition {
+	return defkit.NewPolicy("%s").
+		Description("TODO: Add description for %s policy")
+		// Add parameters here
+		// WithParameter("param", defkit.String().Description("...")).
+}
+`, toCamelCase(name), toCamelCase(name), name, toCamelCase(name), name, name)
+}
+
+// generateWorkflowStepScaffold generates a minimal workflow step scaffold
+func generateWorkflowStepScaffold(name string) string {
+	return fmt.Sprintf(`package workflowsteps
+
+import (
+	"github.com/oam-dev/kubevela/pkg/definition/defkit"
+)
+
+func init() {
+	defkit.Register(%sStep())
+}
+
+// %sStep creates the %s workflow step definition
+func %sStep() *defkit.WorkflowStepDefinition {
+	return defkit.NewWorkflowStep("%s").
+		Description("TODO: Add description for %s workflow step")
+		// Add parameters here
+		// WithParameter("param", defkit.String().Description("...")).
+}
+`, toCamelCase(name), toCamelCase(name), name, toCamelCase(name), name, name)
+}
+
+// toCamelCase converts a kebab-case string to CamelCase
+func toCamelCase(s string) string {
+	parts := strings.Split(s, "-")
+	for i, p := range parts {
+		if len(p) > 0 {
+			parts[i] = strings.ToUpper(p[:1]) + p[1:]
+		}
+	}
+	return strings.Join(parts, "")
 }
 
 // createSamples creates sample files
@@ -310,6 +546,17 @@ func (cmd *InitCmd) createDirs() error {
 		path.Join(cmd.Path, ViewDirName),
 	}
 
+	// Add godef directories if enabled
+	if cmd.EnableGoDef {
+		dirs = append(dirs,
+			path.Join(cmd.Path, GoDefDirName),
+			path.Join(cmd.Path, GoDefDirName, "components"),
+			path.Join(cmd.Path, GoDefDirName, "traits"),
+			path.Join(cmd.Path, GoDefDirName, "policies"),
+			path.Join(cmd.Path, GoDefDirName, "workflowsteps"),
+		)
+	}
+
 	for _, dir := range dirs {
 		// nolint:gosec
 		err = os.MkdirAll(dir, 0755)
@@ -355,6 +602,14 @@ func (cmd *InitCmd) writeFiles() error {
 		files = append(files, ElementFile{
 			Data: v.Data,
 			Name: filepath.Join(DefSchemaName, v.Name),
+		})
+	}
+
+	// Add godef files (paths already include godef/ prefix)
+	for _, v := range cmd.GoDefFiles {
+		files = append(files, ElementFile{
+			Data: v.Data,
+			Name: v.Name,
 		})
 	}
 
@@ -516,5 +771,97 @@ output: {
 		policies: []
 	}
 }
+`
+
+	// Go definition templates
+	godefModuleYAMLTemplate = `apiVersion: defkit.oam.dev/v1
+kind: DefinitionModule
+metadata:
+  name: ADDON_NAME
+spec:
+  description: Go-based definitions for ADDON_NAME addon
+`
+
+	godefGoModTemplate = `module github.com/my-org/ADDON_NAME/godef
+
+go 1.23
+
+require github.com/oam-dev/kubevela v1.10.0
+`
+
+	// doc.go templates for each definition type
+	godefComponentsDocTemplate = `// Package components contains KubeVela ComponentDefinition implementations.
+// Components define the types of workloads that can be deployed.
+//
+// To create a new component:
+//
+//	func init() {
+//	    defkit.Register(myComponent())
+//	}
+//
+//	func myComponent() *defkit.ComponentDefinition {
+//	    return defkit.NewComponent("my-component").
+//	        Description("My component description").
+//	        WithParameter("image", defkit.String().Required()).
+//	        Template(func(tpl *defkit.Template) {
+//	            // Generate Kubernetes resources
+//	        })
+//	}
+package components
+`
+
+	godefTraitsDocTemplate = `// Package traits contains KubeVela TraitDefinition implementations.
+// Traits modify or enhance components with additional capabilities.
+//
+// To create a new trait:
+//
+//	func init() {
+//	    defkit.Register(myTrait())
+//	}
+//
+//	func myTrait() *defkit.TraitDefinition {
+//	    return defkit.NewTrait("my-trait").
+//	        Description("My trait description").
+//	        AppliesToWorkloads("deployments.apps").
+//	        WithParameter("replicas", defkit.Int().Required()).
+//	        PatchTemplate(func(tpl *defkit.PatchTemplate) {
+//	            // Patch the component output
+//	        })
+//	}
+package traits
+`
+
+	godefPoliciesDocTemplate = `// Package policies contains KubeVela PolicyDefinition implementations.
+// Policies define application-level behaviors like topology and override rules.
+//
+// To create a new policy:
+//
+//	func init() {
+//	    defkit.Register(myPolicy())
+//	}
+//
+//	func myPolicy() *defkit.PolicyDefinition {
+//	    return defkit.NewPolicy("my-policy").
+//	        Description("My policy description").
+//	        WithParameter("clusters", defkit.StringArray().Required())
+//	}
+package policies
+`
+
+	godefWorkflowStepsDocTemplate = `// Package workflowsteps contains KubeVela WorkflowStepDefinition implementations.
+// Workflow steps define actions in the application delivery workflow.
+//
+// To create a new workflow step:
+//
+//	func init() {
+//	    defkit.Register(myStep())
+//	}
+//
+//	func myStep() *defkit.WorkflowStepDefinition {
+//	    return defkit.NewWorkflowStep("my-step").
+//	        Description("My workflow step description").
+//	        WithParameter("message", defkit.String().Required())
+//	}
+package workflowsteps
 `
 )

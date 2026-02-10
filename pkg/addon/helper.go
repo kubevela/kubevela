@@ -87,7 +87,8 @@ func DisableAddon(ctx context.Context, cli client.Client, name string, config *r
 }
 
 // EnableAddonByLocalDir enable an addon from local dir
-func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli client.Client, dc *discovery.DiscoveryClient, applicator apply.Applicator, config *rest.Config, args map[string]interface{}, opts ...InstallOption) (string, error) {
+// The allowGoDefOverride parameter allows Go definitions to override CUE definitions when conflicts are detected
+func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli client.Client, dc *discovery.DiscoveryClient, applicator apply.Applicator, config *rest.Config, args map[string]interface{}, allowGoDefOverride bool, opts ...InstallOption) (string, error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
 		return "", err
@@ -106,6 +107,29 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 	if err != nil {
 		return "", err
 	}
+
+	// Compile Go definitions if godef/ folder exists
+	if HasGoDefFolder(absDir) {
+		compiledDefs, err := CompileGoDefinitionsFromAddon(ctx, absDir)
+		if err != nil {
+			return "", errors.Wrap(err, "failed to compile Go definitions")
+		}
+
+		// Check for conflicts between CUE and Go definitions
+		conflicts := DetectDefinitionConflicts(pkg.CUEDefinitions, compiledDefs)
+		if len(conflicts) > 0 {
+			if !allowGoDefOverride {
+				return "", fmt.Errorf("definition name conflicts detected between definitions/ and godef/: %v. "+
+					"Use --override-definitions flag to allow Go definitions to override CUE definitions", conflicts)
+			}
+			// Remove conflicting CUE definitions when override is allowed
+			pkg.CUEDefinitions = removeConflictingDefinitions(pkg.CUEDefinitions, conflicts)
+		}
+
+		// Merge compiled Go definitions with existing CUE definitions
+		pkg.CUEDefinitions = append(pkg.CUEDefinitions, compiledDefs...)
+	}
+
 	if err := validateAddonPackage(pkg); err != nil {
 		return "", errors.Wrap(err, fmt.Sprintf("failed to enable addon by local dir: %s", dir))
 	}
@@ -118,6 +142,30 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 		return "", fmt.Errorf("you must first enable dependencies: %v", needEnableAddonNames)
 	}
 	return h.enableAddon(ctx, pkg)
+}
+
+// removeConflictingDefinitions removes definitions from the list that match the conflicting names
+func removeConflictingDefinitions(definitions []ElementFile, conflicts []string) []ElementFile {
+	conflictMap := make(map[string]bool)
+	for _, name := range conflicts {
+		conflictMap[name] = true
+	}
+
+	var result []ElementFile
+	for _, def := range definitions {
+		name := extractDefinitionNameFromFile(def)
+		if !conflictMap[name] {
+			result = append(result, def)
+		}
+	}
+	return result
+}
+
+// extractDefinitionNameFromFile extracts the definition name from an ElementFile (same as extractDefinitionName in godef.go)
+func extractDefinitionNameFromFile(def ElementFile) string {
+	name := filepath.Base(def.Name)
+	name = name[:len(name)-len(filepath.Ext(name))] // Remove extension
+	return name
 }
 
 // GetAddonStatus is general func for cli and apiServer get addon status
