@@ -158,7 +158,7 @@ func (d *Option) ExecuteDryRun(ctx context.Context, application *v1beta1.Applica
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "cannot generate manifests from components and traits")
 	}
-	policyManifests, err := appFile.GeneratePolicyManifests(ctx)
+	policyManifests, err := appFile.GeneratePolicyManifests(ctx, d.Client)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "cannot generate manifests from policies")
 	}

@@ -51,7 +51,9 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	_ "github.com/oam-dev/kubevela/pkg/features" // Import to register feature gates
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -77,6 +79,11 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	rand.Seed(time.Now().UnixNano())
+
+	// Enable global policies feature gate for tests
+	Expect(utilfeature.DefaultMutableFeatureGate.Set("EnableGlobalPolicies=true")).ToNot(HaveOccurred())
+	logf.Log.Info("Enabled EnableGlobalPolicies feature gate for tests")
+
 	By("bootstrapping test environment")
 	var yamlPath string
 	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {

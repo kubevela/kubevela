@@ -389,15 +389,137 @@ metadata:
     security.platform.io/scanned: "true"
 ```
 
+## Viewing Spec Diffs (✅ Implemented)
+
+When global policies modify the Application spec, KubeVela stores detailed JSON Merge Patch diffs in a ConfigMap for debugging and auditing.
+
+### ConfigMap Structure
+
+Policy diffs are stored in a ConfigMap named `{app-name}-policy-diffs` with:
+- **Labels**: Standard KubeVela labels (`app.oam.dev/name`, `app.oam.dev/namespace`, `app.oam.dev/uid`)
+- **Keys**: Sequence-prefixed format `001-policy-name`, `002-policy-name` to preserve execution order
+- **Values**: JSON Merge Patch (RFC 7386) showing what changed
+
+### Basic Diff Viewing
+
+```bash
+# Check if policy diffs exist
+kubectl get app my-app -o jsonpath='{.status.policyDiffsConfigMap}'
+# Output: my-app-policy-diffs
+
+# List all policy diffs in execution order
+kubectl get configmap my-app-policy-diffs -o jsonpath='{.data}' | jq 'keys'
+# Output: ["001-inject-sidecar", "002-resource-limits"]
+
+# View specific policy diff
+kubectl get configmap my-app-policy-diffs -o jsonpath='{.data.001-inject-sidecar}' | jq
+```
+
+### Example Diff Output
+
+```json
+{
+  "components": [
+    null,
+    {
+      "name": "monitoring-sidecar",
+      "type": "webservice",
+      "properties": {
+        "image": "monitoring:latest",
+        "cpu": "100m"
+      }
+    }
+  ]
+}
+```
+
+This shows the `inject-sidecar` policy added a new component at index 1.
+
+### Finding All Applications with Policy Diffs
+
+```bash
+# List all policy-diffs ConfigMaps
+kubectl get configmaps -l "app.oam.dev/policy-diffs=true"
+
+# List ConfigMaps for a specific app
+kubectl get configmaps -l "app.oam.dev/name=my-app"
+```
+
+### Diff Interpretation
+
+JSON Merge Patch format:
+- **New fields**: Added to object (e.g., `"components": [null, {...}]` adds component at index 1)
+- **Modified fields**: Replaced with new value (e.g., `"replicas": 3` changes replicas)
+- **`null` values**: Indicate no change at that position
+
+### Combining Status + Diffs
+
+Get complete picture of policy effects:
+
+```bash
+# Get metadata about policies
+kubectl get app my-app -o json | jq '.status.appliedGlobalPolicies[]'
+
+# Get actual spec changes
+kubectl get configmap my-app-policy-diffs -o json | jq '.data'
+```
+
 ## Future Enhancements
 
 Planned improvements to observability:
 
-1. **Dry-Run Mode**: Preview policy effects before applying
-2. **Policy Diff**: Show before/after comparison in status
-3. **Metrics**: Prometheus metrics for policy application
-4. **CLI Tool**: `kubectl vela policy audit my-app`
-5. **Web UI**: Visual policy impact dashboard
+### 1. CLI Tools (High Priority)
+
+**`vela policy view <app>`**
+- Interactive viewer for policy changes
+- Shows before/after comparison
+- Highlights which policies made which changes
+- Similar UX to `vela debug`
+
+Example usage:
+```bash
+$ vela policy view my-app
+
+Applied Global Policies (3):
+┌──────────────────────┬─────────────┬──────────┬──────────────┐
+│ Policy               │ Namespace   │ Sequence │ Spec Changed │
+├──────────────────────┼─────────────┼──────────┼──────────────┤
+│ inject-sidecar       │ vela-system │ 1        │ Yes          │
+│ resource-limits      │ vela-system │ 2        │ Yes          │
+│ platform-labels      │ vela-system │ 3        │ No           │
+└──────────────────────┴─────────────┴──────────┴──────────────┘
+
+Select a policy to view changes: [Use arrows to move, type to filter]
+> inject-sidecar (added monitoring-sidecar component)
+  resource-limits (modified resource constraints)
+```
+
+**`vela policy dry-run <app> --policies <policy1> <policy2> <policyN>`**
+- Preview policy effects before applying
+- Test policy changes without creating Application
+- Validate policy templates and detect conflicts
+
+Example usage:
+```bash
+$ vela policy dry-run my-app --policies inject-sidecar resource-limits
+
+Dry-run simulation:
+✓ Policy: inject-sidecar (priority: 100)
+  - Added component: monitoring-sidecar
+  - Added label: sidecar.io/injected=true
+
+✓ Policy: resource-limits (priority: 50)
+  - Modified: components[0].properties.resources.limits.cpu → 500m
+  - Modified: components[0].properties.resources.limits.memory → 512Mi
+
+⚠ Warning: No conflicts detected
+```
+
+### 2. Additional Tools
+
+1. **Metrics**: Prometheus metrics for policy application
+2. **Web UI**: Visual policy impact dashboard in VelaUX
+3. **Policy Audit**: `vela policy audit <app>` - complete audit trail
 
 ## Summary
 

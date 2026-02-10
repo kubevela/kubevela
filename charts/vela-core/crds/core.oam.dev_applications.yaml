@@ -322,6 +322,48 @@ spec:
           status:
             description: AppStatus defines the observed state of Application
             properties:
+              applicationPoliciesConfigMap:
+                description: |-
+                  ApplicationPoliciesConfigMap references the ConfigMap containing rendered policy outputs
+                  (transforms, additionalContext, etc.) for Application-scoped policies.
+                  Format: "application-policies-{namespace}-{name}"
+                type: string
+              appliedApplicationPolicies:
+                description: |-
+                  AppliedApplicationPolicies lists Application-scoped policies (both global and explicit)
+                  that were discovered and applied (or skipped) during reconciliation.
+                  This provides transparency for debugging policy effects on the Application spec.
+                items:
+                  description: |-
+                    AppliedApplicationPolicy records minimal status information about an Application-scoped policy.
+                    This covers both global (auto-discovered) and explicit (spec-referenced) policies.
+                    Full details (transforms, labels, annotations, etc.) are stored in the ConfigMap referenced
+                    by ApplicationPoliciesConfigMap for persistent storage and observability.
+                  properties:
+                    annotationsCount:
+                      type: integer
+                    applied:
+                      type: boolean
+                    hasContext:
+                      type: boolean
+                    labelsCount:
+                      type: integer
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                    reason:
+                      type: string
+                    specModified:
+                      description: Summary of changes (counts only - full details
+                        in ConfigMap)
+                      type: boolean
+                  required:
+                  - applied
+                  - name
+                  - namespace
+                  type: object
+                type: array
               appliedResources:
                 description: AppliedResources record the resources that the  workflow
                   step apply.

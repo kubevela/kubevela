@@ -110,7 +110,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		}
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
-		_, err = af.GeneratePolicyManifests(context.Background())
+		_, err = af.GeneratePolicyManifests(context.Background(), k8sClient)
 		Expect(err).Should(BeNil())
 
 		handler, err := NewAppHandler(ctx, reconciler, app)
@@ -153,7 +153,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		}
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
-		_, err = af.GeneratePolicyManifests(context.Background())
+		_, err = af.GeneratePolicyManifests(context.Background(), k8sClient)
 		Expect(err).Should(BeNil())
 
 		handler, err := NewAppHandler(ctx, reconciler, app)

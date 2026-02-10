@@ -191,9 +191,15 @@ type Appfile struct {
 
 // GeneratePolicyManifests generates policy manifests from an appFile
 // internal policies like apply-once, topology, will not render manifests
-func (af *Appfile) GeneratePolicyManifests(_ context.Context) ([]*unstructured.Unstructured, error) {
+func (af *Appfile) GeneratePolicyManifests(ctx context.Context, cli client.Client) ([]*unstructured.Unstructured, error) {
 	var manifests []*unstructured.Unstructured
 	for _, policy := range af.ParsedPolicies {
+		// Skip Application-scoped policies - they were already processed in ApplyApplicationScopeTransforms
+		if af.isApplicationScopedPolicy(ctx, cli, policy) {
+			// Policy has non-default scope, skip resource generation
+			continue
+		}
+
 		un, err := af.generatePolicyUnstructured(policy)
 		if err != nil {
 			return nil, err
@@ -244,6 +250,44 @@ func generatePolicyUnstructuredFromCUEModule(comp *Component, artifacts []*types
 		res = append(res, tr)
 	}
 	return res, nil
+}
+
+// isApplicationScopedPolicy checks if a policy has a non-default Scope
+// DefaultScope (empty) policies use standard output-based rendering
+// Non-default scopes (e.g., ApplicationScope) are handled in specialized pipelines
+// and should not be rendered as standard K8s resources
+// Note: Backward compatible - unset Scope field defaults to empty string (DefaultScope)
+func (af *Appfile) isApplicationScopedPolicy(ctx context.Context, cli client.Client, policy *Component) bool {
+	var policyDef *v1beta1.PolicyDefinition
+
+	// Try to get from AppRevision first (preferred - cached in revision)
+	if af.AppRevision != nil && af.AppRevision.Spec.PolicyDefinitions != nil {
+		if def, ok := af.AppRevision.Spec.PolicyDefinitions[policy.Type]; ok {
+			policyDef = &def
+		}
+	}
+
+	// If not in AppRevision, look it up from cluster
+	// This handles the case where GeneratePolicyManifests is called before AppRevision is set
+	if policyDef == nil && cli != nil {
+		def := &v1beta1.PolicyDefinition{}
+		// Try app namespace first, then vela-system
+		err := util.GetCapabilityDefinition(ctx, cli, def, policy.Type, af.app.Annotations)
+		if err != nil {
+			// Policy not found or error - assume default scope
+			return false
+		}
+		policyDef = def
+	}
+
+	// If still not found, assume default scope
+	if policyDef == nil {
+		return false
+	}
+
+	// Check if it has a non-default scope
+	// DefaultScope = "", so any non-empty scope means it's scoped
+	return policyDef.Spec.Scope != v1beta1.DefaultScope
 }
 
 // artifacts contains resources in unstructured shape of all components

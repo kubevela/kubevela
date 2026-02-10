@@ -61,15 +61,6 @@ var _ = Describe("Test Application-scoped PolicyDefinition transforms", func() {
 		Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	})
 
-	AfterEach(func() {
-		// Clean up PolicyDefinitions to avoid test pollution
-		policyList := &v1beta1.PolicyDefinitionList{}
-		_ = k8sClient.List(ctx, policyList, client.InNamespace(namespace))
-		for _, policy := range policyList.Items {
-			_ = k8sClient.Delete(ctx, &policy)
-		}
-	})
-
 	It("Test Application-scoped policy with spec merge transform", func() {
 		// Create a PolicyDefinition with Application scope
 		policyDef := &v1beta1.PolicyDefinition{
@@ -209,10 +200,6 @@ transforms: {
 
 		// Create an Application with existing labels
 		app := &v1beta1.Application{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: v1beta1.SchemeGroupVersion.String(),
-				Kind:       v1beta1.ApplicationKind,
-			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-app-labels",
 				Namespace: namespace,
@@ -238,9 +225,6 @@ transforms: {
 				},
 			},
 		}
-
-		// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
 		handler := &AppHandler{
 			Client: k8sClient,
@@ -491,15 +475,6 @@ var _ = Describe("Test Global Policy Cache", func() {
 
 		// Clear cache before each test
 		globalPolicyCache.InvalidateAll()
-	})
-
-	AfterEach(func() {
-		// Clean up PolicyDefinitions to avoid test pollution
-		policyList := &v1beta1.PolicyDefinitionList{}
-		_ = k8sClient.List(ctx, policyList, client.InNamespace(namespace))
-		for _, policy := range policyList.Items {
-			_ = k8sClient.Delete(ctx, &policy)
-		}
 	})
 
 	It("Test cache basic operations", func() {
@@ -863,22 +838,6 @@ var _ = Describe("Test Global PolicyDefinition Features", func() {
 		globalPolicyCache.InvalidateAll()
 	})
 
-	AfterEach(func() {
-		// Clean up PolicyDefinitions to avoid test pollution in both namespaces
-		policyList := &v1beta1.PolicyDefinitionList{}
-		_ = k8sClient.List(ctx, policyList, client.InNamespace(namespace))
-		for _, policy := range policyList.Items {
-			_ = k8sClient.Delete(ctx, &policy)
-		}
-
-		// Also clean up vela-system policies
-		velaSystemPolicyList := &v1beta1.PolicyDefinitionList{}
-		_ = k8sClient.List(ctx, velaSystemPolicyList, client.InNamespace(velaSystem))
-		for _, policy := range velaSystemPolicyList.Items {
-			_ = k8sClient.Delete(ctx, &policy)
-		}
-	})
-
 	It("Test global policy discovery from vela-system applies to all namespaces", func() {
 		// Create global policy in vela-system
 		policyDef := &v1beta1.PolicyDefinition{
@@ -1225,15 +1184,6 @@ var _ = Describe("Test Application-scoped Policy Rendering", func() {
 			},
 		}
 		Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	})
-
-	AfterEach(func() {
-		// Clean up PolicyDefinitions to avoid test pollution
-		policyList := &v1beta1.PolicyDefinitionList{}
-		_ = k8sClient.List(ctx, policyList, client.InNamespace(namespace))
-		for _, policy := range policyList.Items {
-			_ = k8sClient.Delete(ctx, &policy)
-		}
 	})
 
 	It("Test annotation transforms with merge", func() {
@@ -1873,13 +1823,10 @@ transforms: {
 
 			// Create Application with initial spec
 			app := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-diff-app",
 					Namespace: namespace,
+					UID:       "test-uid-123",
 				},
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{
@@ -1893,9 +1840,6 @@ transforms: {
 					},
 				},
 			}
-
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
 			handler := &AppHandler{
 				Client: k8sClient,
@@ -2042,13 +1986,10 @@ transforms: {
 			Expect(k8sClient.Create(ctx, policy3)).Should(Succeed())
 
 			app := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-multi-diff-app",
+					Name:      "test-multi-diff-app",
 					Namespace: namespace,
+					UID:       "test-uid-456",
 				},
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{
@@ -2062,9 +2003,6 @@ transforms: {
 					},
 				},
 			}
-
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
 			handler := &AppHandler{
 				Client: k8sClient,
@@ -2131,13 +2069,10 @@ transforms: {
 		waitForPolicyDef(ctx, "labels-only-policy", namespace)
 
 			app := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-no-diff-app",
+					Name:      "test-no-diff-app",
 					Namespace: namespace,
+					UID:       "test-uid-789",
 				},
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{
@@ -2151,9 +2086,6 @@ transforms: {
 					},
 				},
 			}
-
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
 			handler := &AppHandler{
 				Client: k8sClient,
@@ -2221,13 +2153,10 @@ transforms: {
 		waitForPolicyDef(ctx, "complex-changes-policy", namespace)
 
 			app := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-complex-diff-app",
+					Name:      "test-complex-diff-app",
 					Namespace: namespace,
+					UID:       "test-uid-complex",
 				},
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{
@@ -2241,9 +2170,6 @@ transforms: {
 					},
 				},
 			}
-
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
 			handler := &AppHandler{
 				Client: k8sClient,
@@ -2275,17 +2201,8 @@ transforms: {
 			// Verify diff is not empty (contains actual changes)
 			Expect(diff).ShouldNot(BeEmpty())
 
-			// The diff should contain transforms with spec changes
-			Expect(diff).Should(HaveKey("transforms"))
-			transforms, ok := diff["transforms"].(map[string]interface{})
-			Expect(ok).Should(BeTrue())
-			Expect(transforms).Should(HaveKey("spec"))
-			spec, ok := transforms["spec"].(map[string]interface{})
-			Expect(ok).Should(BeTrue())
-			Expect(spec).Should(HaveKey("value"))
-			value, ok := spec["value"].(map[string]interface{})
-			Expect(ok).Should(BeTrue())
-			Expect(value).Should(HaveKey("components"))
+			// The diff should contain component changes
+			Expect(diff).Should(HaveKey("components"))
 		})
 
 		It("Test ConfigMap updates when policies change", func() {
@@ -2325,13 +2242,10 @@ transforms: {
 		waitForPolicyDef(ctx, "updateable-policy", namespace)
 
 			app := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-update-app",
+					Name:      "test-update-app",
 					Namespace: namespace,
+					UID:       "test-uid-update",
 				},
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{
@@ -2345,9 +2259,6 @@ transforms: {
 					},
 				},
 			}
-
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
 			handler := &AppHandler{
 				Client: k8sClient,
@@ -2376,13 +2287,10 @@ transforms: {
 
 			// Second reconciliation with same policy should update ConfigMap
 			app2 := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-update-app",
+					Name:      "test-update-app",
 					Namespace: namespace,
+					UID:       "test-uid-update",
 				},
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{
@@ -2453,13 +2361,10 @@ transforms: {
 		waitForPolicyDef(ctx, "hash-test-policy", namespace)
 
 			app := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "hash-test-app",
+					Name:      "hash-test-app",
 					Namespace: namespace,
+					UID:       "hash-test-uid",
 				},
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{
@@ -2470,9 +2375,6 @@ transforms: {
 					},
 				},
 			}
-
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
 			handler := &AppHandler{
 				Client: k8sClient,
@@ -2584,9 +2486,6 @@ transforms: {
 				},
 			}
 
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
-
 			handler := &AppHandler{Client: k8sClient, app: app}
 			monCtx := monitorContext.NewTraceContext(ctx, "test")
 			_, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
@@ -2666,21 +2565,15 @@ transforms: {
 		waitForPolicyDef(ctx, "ttl-never-policy", namespace)
 
 			app := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "ttl-never-app",
+					Name:      "ttl-never-app",
 					Namespace: namespace,
+					UID:       "ttl-never-uid",
 				},
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{Name: "comp", Type: "webservice"}},
 				},
 			}
-
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
 			handler := &AppHandler{Client: k8sClient, app: app}
 			monCtx := monitorContext.NewTraceContext(ctx, "test")
@@ -2740,21 +2633,15 @@ transforms: {
 		waitForPolicyDef(ctx, "ttl-60-policy", namespace)
 
 			app := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "ttl-60-app",
+					Name:      "ttl-60-app",
 					Namespace: namespace,
+					UID:       "ttl-60-uid",
 				},
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{Name: "comp", Type: "webservice"}},
 				},
 			}
-
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
 			handler := &AppHandler{Client: k8sClient, app: app}
 			monCtx := monitorContext.NewTraceContext(ctx, "test")
@@ -2778,7 +2665,7 @@ transforms: {
 			}
 		})
 
-		It("Test policy with cacheTTLSeconds not specified", func() {
+		It("Test policy defaults to cacheTTLSeconds: -1 when not specified", func() {
 			policyDef := &v1beta1.PolicyDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "ttl-default-policy",
@@ -2788,7 +2675,7 @@ transforms: {
 					Global:   true,
 					Priority: 100,
 					Scope:    v1beta1.ApplicationScope,
-					// CacheTTLSeconds not specified - in tests it's 0, but CRD default is -1 in production
+					// CacheTTLSeconds not specified - should default to -1
 					Schematic: &common.Schematic{
 						CUE: &common.CUE{
 							Template: `
@@ -2809,29 +2696,22 @@ transforms: {
 		waitForPolicyDef(ctx, "ttl-default-policy", namespace)
 
 			app := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "ttl-default-app",
+					Name:      "ttl-default-app",
 					Namespace: namespace,
+					UID:       "ttl-default-uid",
 				},
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{Name: "comp", Type: "webservice"}},
 				},
 			}
 
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
-
 			handler := &AppHandler{Client: k8sClient, app: app}
 			monCtx := monitorContext.NewTraceContext(ctx, "test")
 			_, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
 			Expect(err).Should(BeNil())
 
-			// Verify ConfigMap contains ttl_seconds: 0 (Go zero value when not specified in tests)
-			// Note: CRD default marker will set it to -1 in production when CRDs are regenerated
+			// Verify ConfigMap contains ttl_seconds: -1 (default)
 			cmName := "application-policies-" + namespace + "-ttl-default-app"
 			cm := &corev1.ConfigMap{}
 			err = k8sClient.Get(ctx, client.ObjectKey{Name: cmName, Namespace: namespace}, cm)
@@ -2844,7 +2724,7 @@ transforms: {
 
 				ttl, ok := record["ttl_seconds"].(float64)
 				Expect(ok).Should(BeTrue())
-				Expect(int32(ttl)).Should(Equal(int32(0)), "Should be 0 (Go zero value) in tests")
+				Expect(int32(ttl)).Should(Equal(int32(-1)), "Should default to -1")
 			}
 		})
 	})
@@ -2893,21 +2773,15 @@ transforms: {
 		waitForPolicyDef(ctx, "prior-context-policy", namespace)
 
 			app := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "prior-test-app",
+					Name:      "prior-test-app",
 					Namespace: namespace,
+					UID:       "prior-test-uid",
 				},
 				Spec: v1beta1.ApplicationSpec{
 					Components: []common.ApplicationComponent{{Name: "comp", Type: "webservice"}},
 				},
 			}
-
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
 			// First render - no prior context
 			handler := &AppHandler{Client: k8sClient, app: app}
@@ -2921,9 +2795,6 @@ transforms: {
 			// Store ConfigMap name
 			cmName := app.Status.ApplicationPoliciesConfigMap
 			Expect(cmName).ShouldNot(BeEmpty())
-
-			// Clear in-memory cache to force re-render (TTL=0 means never cache)
-			globalPolicyCache.InvalidateAll()
 
 			// Second render - should have prior context
 			app2 := app.DeepCopy()

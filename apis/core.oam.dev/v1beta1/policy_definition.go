@@ -28,7 +28,12 @@ import (
 type PolicyScope string
 
 const (
+	// DefaultScope (empty string) means standard output-based policy (topology, override, etc.)
+	// These policies generate Kubernetes resources from their CUE templates
+	DefaultScope PolicyScope = ""
+
 	// ApplicationScope means the policy transforms the Application CR before parsing
+	// These policies use the transforms pattern and don't generate resources
 	ApplicationScope PolicyScope = "Application"
 )
 
@@ -50,8 +55,10 @@ type PolicyDefinitionSpec struct {
 	Version string `json:"version,omitempty"`
 
 	// Scope defines the scope at which this policy operates.
-	// Application scope policies transform the Application CR before it's parsed.
-	// Policies without this field use the default resource-generation behavior.
+	// - DefaultScope (empty/omitted): Standard output-based policies (topology, override, etc.)
+	//   These generate Kubernetes resources from CUE templates with an 'output' field.
+	// - ApplicationScope: Transform-based policies that modify the Application CR before parsing.
+	//   These use 'transforms' instead of 'output' and don't generate resources.
 	// +optional
 	Scope PolicyScope `json:"scope,omitempty"`
 
@@ -68,6 +75,16 @@ type PolicyDefinitionSpec struct {
 	// If not specified, defaults to 0.
 	// +optional
 	Priority int32 `json:"priority,omitempty"`
+
+	// CacheTTLSeconds defines how long the rendered policy output should be cached
+	// before re-rendering. This is stored per-policy in the ConfigMap.
+	// - -1 (default): Never refresh, always reuse cached result (deterministic)
+	// - 0: Never cache, always re-render (useful for policies with external dependencies)
+	// - >0: Cache for this many seconds before re-rendering
+	// The prior cached result is available to the policy template as context.prior
+	// +optional
+	// +kubebuilder:default=-1
+	CacheTTLSeconds int32 `json:"cacheTTLSeconds,omitempty"`
 }
 
 // PolicyDefinitionStatus is the status of PolicyDefinition

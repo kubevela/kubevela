@@ -380,6 +380,16 @@ spec:
                     description: PolicyDefinitionSpec defines the desired state of
                       PolicyDefinition
                     properties:
+                      cacheTTLSeconds:
+                        description: |-
+                          CacheTTLSeconds defines how long the rendered policy output should be cached
+                          before re-rendering. This is stored per-policy in the ConfigMap.
+                          - -1 (default): Never refresh, always reuse cached result (deterministic)
+                          - 0: Never cache, always re-render (useful for policies with external dependencies)
+                          - >0: Cache for this many seconds before re-rendering
+                          The prior cached result is available to the policy template as context.prior
+                        format: int32
+                        type: integer
                       definitionRef:
                         description: Reference to the CustomResourceDefinition that
                           defines this trait kind.
@@ -395,11 +405,26 @@ spec:
                         required:
                         - name
                         type: object
+                      global:
+                        description: |-
+                          Global indicates this policy should automatically apply to all Applications
+                          in this namespace (or all namespaces if in vela-system).
+                          Global policies cannot be explicitly referenced in Application specs.
+                          Requires EnableGlobalPolicies feature gate.
+                        type: boolean
                       manageHealthCheck:
                         description: |-
                           ManageHealthCheck means the policy will handle health checking and skip application controller
                           built-in health checking.
                         type: boolean
+                      priority:
+                        description: |-
+                          Priority defines the order in which global policies are applied.
+                          Higher priority policies run first. Policies with the same priority
+                          are applied in alphabetical order by name.
+                          If not specified, defaults to 0.
+                        format: int32
+                        type: integer
                       schematic:
                         description: |-
                           Schematic defines the data format and template of the encapsulation of the policy definition.
@@ -495,6 +520,14 @@ spec:
                             - configuration
                             type: object
                         type: object
+                      scope:
+                        description: |-
+                          Scope defines the scope at which this policy operates.
+                          - DefaultScope (empty/omitted): Standard output-based policies (topology, override, etc.)
+                            These generate Kubernetes resources from CUE templates with an 'output' field.
+                          - ApplicationScope: Transform-based policies that modify the Application CR before parsing.
+                            These use 'transforms' instead of 'output' and don't generate resources.
+                        type: string
                       version:
                         type: string
                     type: object

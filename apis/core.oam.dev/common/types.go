@@ -205,22 +205,21 @@ type Revision struct {
 	RevisionHash string `json:"revisionHash,omitempty"`
 }
 
-// AppliedGlobalPolicy records information about a global policy's application
-type AppliedGlobalPolicy struct {
+// AppliedApplicationPolicy records minimal status information about an Application-scoped policy.
+// This covers both global (auto-discovered) and explicit (spec-referenced) policies.
+// Full details (transforms, labels, annotations, etc.) are stored in the ConfigMap referenced
+// by ApplicationPoliciesConfigMap for persistent storage and observability.
+type AppliedApplicationPolicy struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
 	Applied   bool   `json:"applied"`
 	Reason    string `json:"reason,omitempty"` // e.g., "enabled=false: namespace mismatch"
 
-	// Track what this policy changed (for debugging/observability)
-	AddedLabels       map[string]string      `json:"addedLabels,omitempty"`
-	AddedAnnotations  map[string]string      `json:"addedAnnotations,omitempty"`
-	AdditionalContext map[string]interface{} `json:"additionalContext,omitempty"`
-	SpecModified      bool                   `json:"specModified,omitempty"`
-
-	// Execution order tracking
-	Sequence int   `json:"sequence"`          // Execution order (1, 2, 3, ...)
-	Priority int32 `json:"priority"`          // Policy priority for reference
+	// Summary of changes (counts only - full details in ConfigMap)
+	SpecModified     bool `json:"specModified,omitempty"`
+	LabelsCount      int  `json:"labelsCount,omitempty"`      // Number of labels added
+	AnnotationsCount int  `json:"annotationsCount,omitempty"` // Number of annotations added
+	HasContext       bool `json:"hasContext,omitempty"`       // Has additionalContext data
 }
 
 // AppStatus defines the observed state of Application
@@ -257,15 +256,17 @@ type AppStatus struct {
 	// AppliedResources record the resources that the  workflow step apply.
 	AppliedResources []ClusterObjectReference `json:"appliedResources,omitempty"`
 
-	// AppliedGlobalPolicies lists global policies that were discovered and applied
-	// (or skipped) during reconciliation. This provides transparency for debugging.
+	// AppliedApplicationPolicies lists Application-scoped policies (both global and explicit)
+	// that were discovered and applied (or skipped) during reconciliation.
+	// This provides transparency for debugging policy effects on the Application spec.
 	// +optional
-	AppliedGlobalPolicies []AppliedGlobalPolicy `json:"appliedGlobalPolicies,omitempty"`
+	AppliedApplicationPolicies []AppliedApplicationPolicy `json:"appliedApplicationPolicies,omitempty"`
 
-	// PolicyDiffsConfigMap references the ConfigMap containing spec diffs from global policies.
-	// Format: "{app-name}-policy-diffs"
+	// ApplicationPoliciesConfigMap references the ConfigMap containing rendered policy outputs
+	// (transforms, additionalContext, etc.) for Application-scoped policies.
+	// Format: "application-policies-{namespace}-{name}"
 	// +optional
-	PolicyDiffsConfigMap string `json:"policyDiffsConfigMap,omitempty"`
+	ApplicationPoliciesConfigMap string `json:"applicationPoliciesConfigMap,omitempty"`
 
 	// PolicyStatus records the status of policy
 	// Deprecated This field is only used by EnvBinding Policy which is deprecated.

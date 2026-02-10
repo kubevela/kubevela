@@ -339,6 +339,48 @@ To test this feature:
 
 4. **Conditional Execution**: Use `enabled: false` to skip policy application
 
+## Debugging & Observability
+
+### Viewing Applied Policies
+
+Check which global policies were applied:
+
+```bash
+kubectl get app my-app -o jsonpath='{.status.appliedGlobalPolicies}' | jq
+```
+
+This shows:
+- Which policies were discovered and applied
+- Labels, annotations, and context added by each policy
+- Whether each policy modified the Application spec
+- Why policies were skipped (if `applied: false`)
+
+### Viewing Spec Changes (✅ New Feature)
+
+When global policies modify the Application spec, KubeVela stores detailed diffs in a ConfigMap for auditing:
+
+```bash
+# Check if spec diffs exist
+kubectl get app my-app -o jsonpath='{.status.policyDiffsConfigMap}'
+# Output: my-app-policy-diffs
+
+# View diff for first policy
+kubectl get configmap my-app-policy-diffs -o jsonpath='{.data.001-policy-name}' | jq
+```
+
+The ConfigMap contains:
+- **Sequence-prefixed keys**: `001-policy-name`, `002-policy-name` (preserves execution order)
+- **JSON Merge Patch diffs**: Shows exactly what each policy changed
+- **Standard labels**: Discoverable with `kubectl get cm -l "app.oam.dev/policy-diffs=true"`
+
+### Future: CLI Tools
+
+Planned CLI commands for better UX:
+- `vela policy view <app>` - Interactive viewer for policy changes with before/after comparison
+- `vela policy dry-run <app> --policies <p1> <p2>` - Preview policy effects before applying
+
+See [OBSERVABILITY.md](./OBSERVABILITY.md) for detailed debugging examples and use cases.
+
 ## Implementation Details
 
 - **File**: `pkg/controller/core.oam.dev/v1beta1/application/policy_transforms.go`

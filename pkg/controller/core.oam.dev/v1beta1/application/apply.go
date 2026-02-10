@@ -401,7 +401,7 @@ func (h *AppHandler) ApplyPolicies(ctx context.Context, af *appfile.Appfile) err
 		}))
 		defer subCtx.Commit("finish apply policies")
 	}
-	policyManifests, err := af.GeneratePolicyManifests(ctx)
+	policyManifests, err := af.GeneratePolicyManifests(ctx, h.Client)
 	if err != nil {
 		return errors.Wrapf(err, "failed to render policy manifests")
 	}

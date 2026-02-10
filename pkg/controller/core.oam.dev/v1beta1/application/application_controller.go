@@ -168,7 +168,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Emit events for applied global policies (for observability)
-	for _, appliedPolicy := range app.Status.AppliedGlobalPolicies {
+	for _, appliedPolicy := range app.Status.AppliedApplicationPolicies {
 		if appliedPolicy.Applied {
 			r.Recorder.Event(app, event.Normal("GlobalPolicyApplied",
 				fmt.Sprintf("Applied global policy %s from namespace %s", appliedPolicy.Name, appliedPolicy.Namespace)))

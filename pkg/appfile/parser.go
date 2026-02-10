@@ -342,6 +342,16 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 		case v1alpha1.DebugPolicyType:
 			af.Debug = true
 		default:
+			// Skip policies with non-default scope - they're already processed earlier
+			// Check PolicyDefinition scope from AppRevision
+			if af.AppRevision != nil && af.AppRevision.Spec.PolicyDefinitions != nil {
+				if policyDef, ok := af.AppRevision.Spec.PolicyDefinitions[policy.Type]; ok {
+					if policyDef.Spec.Scope != v1beta1.DefaultScope {
+						continue // Skip - non-default scope
+					}
+				}
+			}
+
 			w, err := p.makeComponentFromRevision(policy.Name, policy.Type, types.TypePolicy, policy.Properties, af.AppRevision)
 			if err != nil {
 				return err
@@ -385,6 +395,12 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 				af.RelatedTraitDefinitions[def.Name] = def
 			}
 		default:
+			// Skip Application-scoped policies - they're already processed in ApplyApplicationScopeTransforms()
+			// and should not be rendered as K8s resources
+			if p.isApplicationScopedPolicy(ctx, policy.Type, af.app.Annotations) {
+				continue
+			}
+
 			w, err := p.makeComponent(ctx, policy.Name, policy.Type, types.TypePolicy, policy.Properties, af.app.Annotations)
 			if err != nil {
 				return err
@@ -393,6 +409,25 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 		}
 	}
 	return nil
+}
+
+// isApplicationScopedPolicy checks if a policy has a non-default Scope.
+// Policies with non-default scopes (e.g., "Application") are handled in specialized
+// pipelines before parsing and should not be added to ParsedPolicies.
+// Returns true if the policy has ANY non-default scope (Scope != DefaultScope).
+func (p *Parser) isApplicationScopedPolicy(ctx context.Context, policyType string, annotations map[string]string) bool {
+	policyDef := &v1beta1.PolicyDefinition{}
+
+	// Try to load PolicyDefinition (checks namespace first, then vela-system)
+	err := util.GetCapabilityDefinition(ctx, p.client, policyDef, policyType, annotations)
+	if err != nil {
+		// If not found or error, assume DefaultScope (safe default - include the policy)
+		return false
+	}
+
+	// Check if scope is non-default
+	// DefaultScope = "" (empty string), so ANY non-empty scope means it should be filtered
+	return policyDef.Spec.Scope != v1beta1.DefaultScope
 }
 
 func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {
