@@ -2,7 +2,6 @@ import (
 	"vela/builtin"
 	"vela/kube"
 	"vela/util"
-	"encoding/json"
 	"strings"
 )
 
@@ -28,95 +27,85 @@ template: {
 		}
 	}
 	kaniko: kube.#Apply & {
-		$params: {
-			value: {
-				apiVersion: "v1"
-				kind:       "Pod"
-				metadata: {
-					name:      "\(context.name)-\(context.stepSessionID)-kaniko"
-					namespace: context.namespace
-				}
-				spec: {
-					containers: [
-						{
-							args: [
-								"--dockerfile=\(parameter.dockerfile)",
-								"--context=\(url.value)",
-								"--destination=\(parameter.image)",
-								"--verbosity=\(parameter.verbosity)",
-								if parameter.platform != _|_ {
-									"--customPlatform=\(parameter.platform)"
-								},
-								if parameter.buildArgs != _|_ for arg in parameter.buildArgs {
-									"--build-arg=\(arg)"
+		$params: value: {
+			apiVersion: "v1"
+			kind:       "Pod"
+			metadata: {
+				name:      "\(context.name)-\(context.stepSessionID)-kaniko"
+				namespace: context.namespace
+			}
+			spec: {
+				containers: [
+					{
+						args: [
+							"--dockerfile=\(parameter.dockerfile)",
+							"--context=\(url.value)",
+							"--destination=\(parameter.image)",
+							"--verbosity=\(parameter.verbosity)",
+							if parameter.platform != _|_ {
+								"--customPlatform=\(parameter.platform)"
+							},
+							if parameter.buildArgs != _|_ for arg in parameter.buildArgs {
+								"--build-arg=\(arg)"
+							},
+						]
+						image: parameter.kanikoExecutor
+						name:  "kaniko"
+						if parameter.credentials != _|_ && parameter.credentials.image != _|_ {
+							volumeMounts: [
+								{
+									mountPath: "/kaniko/.docker/"
+									name:      parameter.credentials.image.name
 								},
 							]
-							image: parameter.kanikoExecutor
-							name:  "kaniko"
-							if parameter.credentials != _|_ && parameter.credentials.image != _|_ {
-								volumeMounts: [
+						}
+						if parameter.credentials != _|_ && parameter.credentials.git != _|_ {
+							env: [
+								{
+									name: "GIT_TOKEN"
+									valueFrom: secretKeyRef: {
+										key:  parameter.credentials.git.key
+										name: parameter.credentials.git.name
+									}
+								},
+							]
+						}
+					},
+				]
+				if parameter.credentials != _|_ && parameter.credentials.image != _|_ {
+					volumes: [
+						{
+							name: parameter.credentials.image.name
+							secret: {
+								defaultMode: 420
+								items: [
 									{
-										mountPath: "/kaniko/.docker/"
-										name:      parameter.credentials.image.name
+										key:  parameter.credentials.image.key
+										path: "config.json"
 									},
 								]
-							}
-							if parameter.credentials != _|_ && parameter.credentials.git != _|_ {
-								env: [
-									{
-										name: "GIT_TOKEN"
-										valueFrom: {
-											secretKeyRef: {
-												key:  parameter.credentials.git.key
-												name: parameter.credentials.git.name
-											}
-										}
-									},
-								]
+								secretName: parameter.credentials.image.name
 							}
 						},
 					]
-					if parameter.credentials != _|_ && parameter.credentials.image != _|_ {
-						volumes: [
-							{
-								name: parameter.credentials.image.name
-								secret: {
-									defaultMode: 420
-									items: [
-										{
-											key:  parameter.credentials.image.key
-											path: "config.json"
-										},
-									]
-									secretName: parameter.credentials.image.name
-								}
-							},
-						]
-					}
-					restartPolicy: "Never"
 				}
+				restartPolicy: "Never"
 			}
 		}
 	}
 	log: util.#Log & {
-		$params: {
-			source: {
-				resources: [{
-					name:      "\(context.name)-\(context.stepSessionID)-kaniko"
-					namespace: context.namespace
-				}]
-			}
-		}
+		$params: source: resources: [{
+			name:      "\(context.name)-\(context.stepSessionID)-kaniko"
+			namespace: context.namespace
+		}]
 	}
 	read: kube.#Read & {
-		$params: {
-			value: {
-				apiVersion: "v1"
-				kind:       "Pod"
-				metadata: {
-					name:      "\(context.name)-\(context.stepSessionID)-kaniko"
-					namespace: context.namespace
-				}
+		$params: value: {
+			apiVersion: "v1"
+			kind:       "Pod"
+			metadata: {
+				name:      "\(context.name)-\(context.stepSessionID)-kaniko"
+				namespace: context.namespace
 			}
 		}
 	}
@@ -134,8 +123,8 @@ template: {
 		branch: *"master" | string
 	}
 	parameter: {
-		// +usage=Specify the kaniko executor image, default to oamdev/kaniko-executor:v1.9.1
-		kanikoExecutor: *"oamdev/kaniko-executor:v1.9.1" | string
+		// +usage=Specify the kaniko executor image, default to gcr.io/kaniko-project/executor:v1.9.0
+		kanikoExecutor: *"gcr.io/kaniko-project/executor:v1.9.0" | string
 		// +usage=Specify the context to build image, you can use context with git and branch or directly specify the context, please refer to https://github.com/GoogleContainerTools/kaniko#kaniko-build-contexts
 		context: #git | string
 		// +usage=Specify the dockerfile
