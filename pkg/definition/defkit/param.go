@@ -801,6 +801,7 @@ type StructField struct {
 	nested       *StructParam // for nested structs
 	schemaRef    string       // reference to a helper definition (e.g., "HealthProbe")
 	enumValues   []string     // allowed enum values for string fields
+	elementType  ParamType    // for array fields: element type (e.g., ParamTypeString for [...string])
 }
 
 // Field creates a new struct field definition.
@@ -882,6 +883,15 @@ func (f *StructField) Enum(values ...string) *StructField {
 
 // GetEnumValues returns the allowed enum values.
 func (f *StructField) GetEnumValues() []string { return f.enumValues }
+
+// ArrayOf sets the element type for array fields (e.g., ParamTypeString for [...string]).
+func (f *StructField) ArrayOf(elemType ParamType) *StructField {
+	f.elementType = elemType
+	return f
+}
+
+// GetElementType returns the element type for array fields.
+func (f *StructField) GetElementType() ParamType { return f.elementType }
 
 // StructParam represents a structured parameter with named fields.
 type StructParam struct {

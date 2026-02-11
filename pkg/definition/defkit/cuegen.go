@@ -473,7 +473,27 @@ func (g *CUEGenerator) writeStructFieldForHelper(sb *strings.Builder, f *StructF
 	fieldType := g.cueTypeForParamType(f.FieldType())
 
 	if f.HasDefault() {
-		sb.WriteString(fmt.Sprintf("%s%s: *%v | %s\n", indent, name, formatCUEValue(f.GetDefault()), fieldType))
+		enumValues := f.GetEnumValues()
+		if len(enumValues) > 0 {
+			// Enum with default: *"default" | "other1" | "other2"
+			defaultStr := fmt.Sprintf("%v", f.GetDefault())
+			var enumParts []string
+			enumParts = append(enumParts, fmt.Sprintf("*%s", formatCUEValue(f.GetDefault())))
+			for _, v := range enumValues {
+				if v != defaultStr {
+					enumParts = append(enumParts, fmt.Sprintf("%q", v))
+				}
+			}
+			sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, name, strings.Join(enumParts, " | ")))
+		} else if f.FieldType() == ParamTypeArray && f.GetElementType() != "" {
+			elemCUE := g.cueTypeForParamType(f.GetElementType())
+			sb.WriteString(fmt.Sprintf("%s%s: *%v | [...%s]\n", indent, name, formatCUEValue(f.GetDefault()), elemCUE))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s: *%v | %s\n", indent, name, formatCUEValue(f.GetDefault()), fieldType))
+		}
+	} else if f.FieldType() == ParamTypeArray && f.GetElementType() != "" {
+		elemCUE := g.cueTypeForParamType(f.GetElementType())
+		sb.WriteString(fmt.Sprintf("%s%s%s: [...%s]\n", indent, name, optional, elemCUE))
 	} else {
 		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, fieldType))
 	}
@@ -2280,6 +2300,14 @@ func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, n
 			g.writeParam(sb, field, depth+1)
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	} else if valType := p.ValueType(); valType != "" {
+		// Typed map: [string]: type
+		cueType := g.cueTypeForParamType(valType)
+		if cueType != "" {
+			sb.WriteString(fmt.Sprintf("%s%s%s: [string]: %s\n", indent, name, optional, cueType))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s%s: {...}\n", indent, name, optional))
+		}
 	} else {
 		// Generic object
 		sb.WriteString(fmt.Sprintf("%s%s%s: {...}\n", indent, name, optional))
@@ -2328,7 +2356,27 @@ func (g *CUEGenerator) writeStructField(sb *strings.Builder, f *StructField, dep
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	} else if f.HasDefault() {
-		sb.WriteString(fmt.Sprintf("%s%s: *%v | %s\n", indent, name, formatCUEValue(f.GetDefault()), fieldType))
+		enumValues := f.GetEnumValues()
+		if len(enumValues) > 0 {
+			// Enum with default: *"default" | "other1" | "other2"
+			defaultStr := fmt.Sprintf("%v", f.GetDefault())
+			var enumParts []string
+			enumParts = append(enumParts, fmt.Sprintf("*%s", formatCUEValue(f.GetDefault())))
+			for _, v := range enumValues {
+				if v != defaultStr {
+					enumParts = append(enumParts, fmt.Sprintf("%q", v))
+				}
+			}
+			sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, name, strings.Join(enumParts, " | ")))
+		} else if f.FieldType() == ParamTypeArray && f.GetElementType() != "" {
+			elemCUE := g.cueTypeForParamType(f.GetElementType())
+			sb.WriteString(fmt.Sprintf("%s%s: *%v | [...%s]\n", indent, name, formatCUEValue(f.GetDefault()), elemCUE))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s: *%v | %s\n", indent, name, formatCUEValue(f.GetDefault()), fieldType))
+		}
+	} else if f.FieldType() == ParamTypeArray && f.GetElementType() != "" {
+		elemCUE := g.cueTypeForParamType(f.GetElementType())
+		sb.WriteString(fmt.Sprintf("%s%s%s: [...%s]\n", indent, name, optional, elemCUE))
 	} else {
 		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, fieldType))
 	}
