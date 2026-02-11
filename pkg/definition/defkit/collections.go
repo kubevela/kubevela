@@ -28,6 +28,7 @@ import (
 type CollectionOp struct {
 	source Value
 	ops    []collectionOperation
+	guard  Condition // optional guard: wraps entire comprehension in if cond
 }
 
 type collectionOperation interface {
@@ -59,6 +60,21 @@ func F(name string) FieldRef {
 
 func (c *CollectionOp) expr()  {}
 func (c *CollectionOp) value() {}
+
+// Guard adds a guard condition that wraps the entire comprehension.
+// When the guard is set, the generated CUE is:
+//
+//	[if guard for v in source if filter {v}]
+//
+// This is used when the source may not exist and needs a
+// protective condition (e.g., if parameter.privileges != _|_).
+func (c *CollectionOp) Guard(cond Condition) *CollectionOp {
+	c.guard = cond
+	return c
+}
+
+// GetGuard returns the guard condition, if any.
+func (c *CollectionOp) GetGuard() Condition { return c.guard }
 
 // Filter keeps only items matching the predicate.
 // Usage: .Filter(Field("expose").Eq(true))

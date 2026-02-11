@@ -407,12 +407,8 @@ func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
 		sb.WriteString(")\n\n")
 	}
 
-	// Write trait header - quote names with special characters
-	name := t.GetName()
-	if strings.ContainsAny(name, "-./") {
-		name = fmt.Sprintf("%q", name)
-	}
-	sb.WriteString(fmt.Sprintf("%s: {\n", name))
+	// Write trait header
+	sb.WriteString(fmt.Sprintf("%s: {\n", cueLabel(t.GetName())))
 	sb.WriteString(fmt.Sprintf("%stype: \"trait\"\n", g.indent))
 	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
 
@@ -556,6 +552,12 @@ func (g *TraitCUEGenerator) writeUnifiedTemplate(sb *strings.Builder, t *TraitDe
 		return
 	}
 
+	// Render let bindings before patch/outputs
+	for _, lb := range tpl.GetLetBindings() {
+		exprStr := gen.valueToCUE(lb.Expr())
+		sb.WriteString(fmt.Sprintf("%slet %s = %s\n", indent, lb.Name(), exprStr))
+	}
+
 	// Generate patch block if present
 	if tpl.HasPatch() {
 		// Write patch strategy comment if set
@@ -572,7 +574,16 @@ func (g *TraitCUEGenerator) writeUnifiedTemplate(sb *strings.Builder, t *TraitDe
 	if outputs := tpl.GetOutputs(); len(outputs) > 0 {
 		sb.WriteString(fmt.Sprintf("%soutputs: {\n", indent))
 		for name, res := range outputs {
-			g.writeResourceOutput(sb, gen, name, res, depth+1)
+			g.writeTraitResourceOutput(sb, gen, name, res, depth+1)
+		}
+		// Render output groups (multiple outputs under one condition)
+		for _, group := range tpl.GetOutputGroups() {
+			condStr := gen.conditionToCUE(group.cond)
+			sb.WriteString(fmt.Sprintf("%s\tif %s {\n", indent, condStr))
+			for gName, gRes := range group.outputs {
+				g.writeTraitResourceOutput(sb, gen, gName, gRes, depth+2)
+			}
+			sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	}
@@ -815,6 +826,13 @@ func (g *TraitCUEGenerator) writePatchKeyOp(sb *strings.Builder, gen *CUEGenerat
 		}
 		sb.WriteString("]")
 	}
+}
+
+// writeTraitResourceOutput writes a resource as CUE for trait outputs.
+// This handles OutputsIf conditions and VersionConditionals, which the old
+// writeResourceOutput method did not support.
+func (g *TraitCUEGenerator) writeTraitResourceOutput(sb *strings.Builder, gen *CUEGenerator, name string, res *Resource, depth int) {
+	gen.writeResourceOutput(sb, name, res, res.outputCondition, depth)
 }
 
 // writeResourceOutput writes a resource as CUE (reusing component generation logic).
@@ -1225,12 +1243,8 @@ func (g *TraitCUEGenerator) GenerateDefinitionWithRawTemplate(t *TraitDefinition
 		sb.WriteString(")\n\n")
 	}
 
-	// Write trait header - quote names with special characters
-	name := t.GetName()
-	if strings.ContainsAny(name, "-./") {
-		name = fmt.Sprintf("%q", name)
-	}
-	sb.WriteString(fmt.Sprintf("%s: {\n", name))
+	// Write trait header
+	sb.WriteString(fmt.Sprintf("%s: {\n", cueLabel(t.GetName())))
 	sb.WriteString(fmt.Sprintf("%stype: \"trait\"\n", g.indent))
 	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
 

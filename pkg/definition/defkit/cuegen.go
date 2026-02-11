@@ -21,6 +21,15 @@ import (
 	"strings"
 )
 
+// cueLabel quotes a CUE field label if it contains characters that are not
+// valid in a CUE identifier (letters, digits, underscore, $).
+func cueLabel(name string) string {
+	if strings.ContainsAny(name, "-./") {
+		return fmt.Sprintf("%q", name)
+	}
+	return name
+}
+
 // CUEGenerator generates CUE definitions from Go component definitions.
 type CUEGenerator struct {
 	indent  string
@@ -247,12 +256,8 @@ func (g *CUEGenerator) GenerateFullDefinition(c *ComponentDefinition) string {
 		sb.WriteString(")\n\n")
 	}
 
-	// Write component header - quote names that contain special characters
-	name := c.GetName()
-	if strings.ContainsAny(name, "-./") {
-		name = fmt.Sprintf("%q", name)
-	}
-	sb.WriteString(fmt.Sprintf("%s: {\n", name))
+	// Write component header
+	sb.WriteString(fmt.Sprintf("%s: {\n", cueLabel(c.GetName())))
 	sb.WriteString(fmt.Sprintf("%stype: \"component\"\n", g.indent))
 	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
 	sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
@@ -833,7 +838,8 @@ func (g *CUEGenerator) writeResourceOutput(sb *strings.Builder, name string, res
 		indent = strings.Repeat(g.indent, depth)
 	}
 
-	sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, name))
+	quotedName := cueLabel(name)
+	sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, quotedName))
 	innerIndent := strings.Repeat(g.indent, depth+1)
 
 	// Handle conditional apiVersion or static apiVersion
@@ -1273,6 +1279,10 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 	case *LetRef:
 		// Return reference to a let binding variable
 		return val.Name()
+	case *ArrayBuilder:
+		return g.arrayBuilderToCUE(val, 1)
+	case *ArrayConcatValue:
+		return g.valueToCUE(val.Left()) + " + " + g.valueToCUE(val.Right())
 	case *ListComprehension:
 		// Return list comprehension CUE
 		return g.listComprehensionToCUE(val)
@@ -1288,6 +1298,20 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 	case *ParamFieldRef:
 		// Reference to a field within a struct parameter: parameter.name.field.path
 		return fmt.Sprintf("parameter.%s.%s", val.ParamName(), val.FieldPath())
+	case *InterpolatedString:
+		return g.interpolatedStringToCUE(val)
+	case *PlusExpr:
+		parts := make([]string, len(val.Parts()))
+		for i, p := range val.Parts() {
+			parts[i] = g.valueToCUE(p)
+		}
+		return strings.Join(parts, " + ")
+	case *IterVarRef:
+		return val.VarName()
+	case *IterFieldRef:
+		return fmt.Sprintf("%s.%s", val.VarName(), val.FieldName())
+	case *IterLetRef:
+		return val.RefName()
 	default:
 		// Try to get name from Param interface
 		if p, ok := v.(Param); ok {
@@ -1304,6 +1328,41 @@ func (g *CUEGenerator) cueFuncToCUE(fn *CUEFunc) string {
 		args[i] = g.valueToCUE(arg)
 	}
 	return fmt.Sprintf("%s.%s(%s)", fn.Package(), fn.Function(), strings.Join(args, ", "))
+}
+
+// interpolatedStringToCUE converts an InterpolatedString to CUE string interpolation.
+// Literal string values are inlined directly. All other values are wrapped in \(...).
+// Example: Interpolation(vela.Namespace(), Lit(":"), name) → "\(context.namespace):\(parameter.name)"
+func (g *CUEGenerator) interpolatedStringToCUE(is *InterpolatedString) string {
+	var sb strings.Builder
+	sb.WriteString(`"`)
+	for _, part := range is.Parts() {
+		if lit, ok := part.(*Literal); ok {
+			if s, ok := lit.Val().(string); ok {
+				sb.WriteString(s)
+				continue
+			}
+		}
+		sb.WriteString(`\(`)
+		sb.WriteString(g.valueToCUE(part))
+		sb.WriteString(`)`)
+	}
+	sb.WriteString(`"`)
+	return sb.String()
+}
+
+// valueToCUEAtDepth converts a Value to CUE syntax with depth-aware indentation.
+// For types that support depth (ArrayBuilder, ArrayConcatValue), it uses the given depth.
+// For all other types, it falls back to the standard valueToCUE.
+func (g *CUEGenerator) valueToCUEAtDepth(v Value, depth int) string {
+	switch val := v.(type) {
+	case *ArrayBuilder:
+		return g.arrayBuilderToCUE(val, depth)
+	case *ArrayConcatValue:
+		return g.valueToCUEAtDepth(val.Left(), depth) + " + " + g.valueToCUE(val.Right())
+	default:
+		return g.valueToCUE(v)
+	}
 }
 
 // arrayElementToCUE converts an ArrayElement to CUE syntax.
@@ -1336,8 +1395,104 @@ func (g *CUEGenerator) arrayElementToCUEWithDepth(elem *ArrayElement, depth int)
 			sb.WriteString(fmt.Sprintf("%s}\n", innerIndent))
 		}
 	}
+	// Write patchKey-annotated fields (nested patchKey inside array elements)
+	for _, pkf := range elem.PatchKeyFields() {
+		sb.WriteString(fmt.Sprintf("%s// +patchKey=%s\n", innerIndent, pkf.key))
+		valStr := g.valueToCUEAtDepth(pkf.value, depth+1)
+		sb.WriteString(fmt.Sprintf("%s%s: %s\n", innerIndent, pkf.field, valStr))
+	}
 	sb.WriteString(fmt.Sprintf("%s}", indent))
 	return sb.String()
+}
+
+// arrayBuilderToCUE converts an ArrayBuilder to CUE syntax.
+// Generates: [{static}, if cond {{conditional}}, if guard for m in source {iterated}]
+func (g *CUEGenerator) arrayBuilderToCUE(ab *ArrayBuilder, depth int) string {
+	var sb strings.Builder
+	indent := strings.Repeat(g.indent, depth)
+	innerIndent := strings.Repeat(g.indent, depth+1)
+	deepIndent := strings.Repeat(g.indent, depth+2)
+
+	sb.WriteString("[\n")
+
+	for _, entry := range ab.Entries() {
+		switch entry.kind {
+		case entryStatic:
+			sb.WriteString(innerIndent)
+			sb.WriteString(g.arrayElementToCUEWithDepth(entry.element, depth+1))
+			sb.WriteString(",\n")
+
+		case entryConditional:
+			condStr := g.conditionToCUE(entry.cond)
+			sb.WriteString(fmt.Sprintf("%sif %s {\n", innerIndent, condStr))
+			sb.WriteString(deepIndent)
+			sb.WriteString(g.arrayElementToCUEWithDepth(entry.element, depth+2))
+			sb.WriteString("\n")
+			sb.WriteString(fmt.Sprintf("%s},\n", innerIndent))
+
+		case entryForEach:
+			sourceStr := g.valueToCUE(entry.source)
+			if entry.guard != nil {
+				guardStr := g.conditionToCUE(entry.guard)
+				sb.WriteString(fmt.Sprintf("%sif %s for m in %s {\n", innerIndent, guardStr, sourceStr))
+			} else {
+				sb.WriteString(fmt.Sprintf("%sfor m in %s {\n", innerIndent, sourceStr))
+			}
+			// Write each field from the element template
+			for key, val := range entry.element.Fields() {
+				valStr := g.valueToCUE(val)
+				sb.WriteString(fmt.Sprintf("%s%s: %s\n", deepIndent, key, valStr))
+			}
+			// Write conditional operations
+			for _, op := range entry.element.Ops() {
+				if setIf, ok := op.(*SetIfOp); ok {
+					condStr := g.conditionToCUE(setIf.Cond())
+					valStr := g.valueToCUE(setIf.Value())
+					cuePath := strings.ReplaceAll(setIf.Path(), ".", ": ")
+					sb.WriteString(fmt.Sprintf("%sif %s {\n", deepIndent, condStr))
+					sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", deepIndent, cuePath, valStr))
+					sb.WriteString(fmt.Sprintf("%s}\n", deepIndent))
+				}
+			}
+			sb.WriteString(fmt.Sprintf("%s},\n", innerIndent))
+
+		case entryForEachWith:
+			sourceStr := g.valueToCUE(entry.source)
+			sb.WriteString(fmt.Sprintf("%sfor %s in %s {\n", innerIndent, entry.itemBuilder.VarName(), sourceStr))
+			g.writeItemBuilderOps(&sb, entry.itemBuilder.Ops(), depth+2)
+			sb.WriteString(fmt.Sprintf("%s},\n", innerIndent))
+		}
+	}
+
+	sb.WriteString(fmt.Sprintf("%s]", indent))
+	return sb.String()
+}
+
+// writeItemBuilderOps writes the CUE for ItemBuilder operations.
+func (g *CUEGenerator) writeItemBuilderOps(sb *strings.Builder, ops []itemOp, depth int) {
+	indent := strings.Repeat(g.indent, depth)
+
+	for _, op := range ops {
+		switch o := op.(type) {
+		case setOp:
+			valStr := g.valueToCUE(o.value)
+			sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, o.field, valStr))
+
+		case ifBlockOp:
+			condStr := g.conditionToCUE(o.cond)
+			sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
+			g.writeItemBuilderOps(sb, o.body, depth+1)
+			sb.WriteString(fmt.Sprintf("%s}\n", indent))
+
+		case letOp:
+			valStr := g.valueToCUE(o.value)
+			sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, o.name, valStr))
+
+		case setDefaultOp:
+			defStr := g.valueToCUE(o.defValue)
+			sb.WriteString(fmt.Sprintf("%s%s: *%s | %s\n", indent, o.field, defStr, o.typeName))
+		}
+	}
 }
 
 // collectionOpToCUE generates CUE for a collection operation.
@@ -1360,29 +1515,52 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 		}
 	}
 
-	// Build the list comprehension for Map operations
+	// Check if there's a Map operation
+	hasMap := false
+	for _, op := range ops {
+		if _, ok := op.(*mapOp); ok {
+			hasMap = true
+			break
+		}
+	}
+
+	// Build the list comprehension
 	var sb strings.Builder
-	sb.WriteString("[for v in ")
+	sb.WriteString("[")
+
+	// Add guard condition if present (wraps entire comprehension)
+	if guard := col.GetGuard(); guard != nil {
+		guardStr := g.conditionToCUE(guard)
+		sb.WriteString("if ")
+		sb.WriteString(guardStr)
+		sb.WriteString(" ")
+	}
+
+	sb.WriteString("for v in ")
 	sb.WriteString(sourceStr)
 	if filterCondition != "" {
 		sb.WriteString(" if ")
 		sb.WriteString(filterCondition)
 	}
-	sb.WriteString(" {\n")
-	sb.WriteString("\t\t\t\t{\n")
 
-	// Check operations for Map
-	for _, op := range ops {
-		if mOp, ok := op.(*mapOp); ok {
-			for fieldName, fieldVal := range mOp.mappings {
-				valStr := g.fieldValueToCUE(fieldVal)
-				sb.WriteString(fmt.Sprintf("\t\t\t\t\t%s: %s\n", fieldName, valStr))
+	if hasMap {
+		// Map operations: render mapped fields in a struct
+		sb.WriteString(" {\n")
+		sb.WriteString("\t\t\t\t{\n")
+		for _, op := range ops {
+			if mOp, ok := op.(*mapOp); ok {
+				for fieldName, fieldVal := range mOp.mappings {
+					valStr := g.fieldValueToCUE(fieldVal)
+					sb.WriteString(fmt.Sprintf("\t\t\t\t\t%s: %s\n", fieldName, valStr))
+				}
 			}
 		}
+		sb.WriteString("\t\t\t\t}\n")
+		sb.WriteString("\t\t\t}]")
+	} else {
+		// Filter-only: pass through the iteration variable
+		sb.WriteString(" {v}]")
 	}
-
-	sb.WriteString("\t\t\t\t}\n")
-	sb.WriteString("\t\t\t}]")
 
 	return sb.String()
 }
@@ -1722,6 +1900,16 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		// Check if len(source) != 0
 		sourceStr := g.valueToCUE(c.Source())
 		return fmt.Sprintf("len(%s) != 0", sourceStr)
+	case *LenValueCondition:
+		// Check len(source) op n for arbitrary values
+		sourceStr := g.valueToCUE(c.Source())
+		return fmt.Sprintf("len(%s) %s %d", sourceStr, c.Op(), c.Length())
+	case *IterFieldExistsCondition:
+		// Check if iteration variable field exists/not exists
+		if c.IsNegated() {
+			return fmt.Sprintf("%s.%s == _|_", c.VarName(), c.FieldName())
+		}
+		return fmt.Sprintf("%s.%s != _|_", c.VarName(), c.FieldName())
 	case *PathExistsCondition:
 		// Check if a path exists: path != _|_
 		return fmt.Sprintf("%s != _|_", c.Path())
