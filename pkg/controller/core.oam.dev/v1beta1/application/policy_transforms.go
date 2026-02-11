@@ -685,8 +685,9 @@ func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1
 	// context.prior: Previous policy result for incremental policies (existing feature)
 	contextParts := []string{}
 
-	// Add application - SAME AS BEFORE
-	appJSON, err := json.Marshal(app)
+	// Add application - clean server-generated fields before exposing to policy
+	cleanApp := cleanApplicationForPolicyContext(app)
+	appJSON, err := json.Marshal(cleanApp)
 	if err != nil {
 		return cue.Value{}, errors.Wrap(err, "failed to marshal Application")
 	}
@@ -1049,6 +1050,7 @@ func recordApplicationPolicyStatus(app *v1beta1.Application, policyName, policyN
 		Namespace: policyNamespace,
 		Applied:   applied,
 		Reason:    reason,
+		Source:    source, // "global" or "explicit"
 	}
 
 	// Record summary counts of what was changed (if policy was applied)
@@ -1384,4 +1386,45 @@ func createOrUpdateDiffsConfigMap(ctx context.Context, cli client.Client, app *v
 // ptrBool returns a pointer to a bool value
 func ptrBool(b bool) *bool {
 	return &b
+}
+
+// cleanApplicationForPolicyContext removes server-generated fields from the Application
+// before exposing it to policy templates via context.application.
+// This ensures policies only see user-provided fields from the original manifest.
+func cleanApplicationForPolicyContext(app *v1beta1.Application) map[string]interface{} {
+	// Build a clean representation with only user-provided fields
+	cleaned := make(map[string]interface{})
+
+	// Add apiVersion and kind - core manifest fields
+	cleaned["apiVersion"] = app.APIVersion
+	cleaned["kind"] = app.Kind
+
+	// Add metadata with only user-provided fields
+	metadata := map[string]interface{}{
+		"name":      app.Name,
+		"namespace": app.Namespace,
+	}
+
+	// Add labels if present
+	if len(app.Labels) > 0 {
+		metadata["labels"] = app.Labels
+	}
+
+	// Add annotations if present
+	if len(app.Annotations) > 0 {
+		metadata["annotations"] = app.Annotations
+	}
+
+	cleaned["metadata"] = metadata
+
+	// Add spec (all user-provided)
+	// Marshal and unmarshal to convert to map[string]interface{}
+	specBytes, _ := json.Marshal(app.Spec)
+	var specMap map[string]interface{}
+	_ = json.Unmarshal(specBytes, &specMap)
+	cleaned["spec"] = specMap
+
+	// Don't include status - it's all server-generated
+
+	return cleaned
 }

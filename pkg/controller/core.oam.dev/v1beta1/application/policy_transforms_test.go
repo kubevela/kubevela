@@ -70,6 +70,13 @@ var _ = Describe("Test Application-scoped PolicyDefinition transforms", func() {
 		for _, policy := range policyList.Items {
 			_ = k8sClient.Delete(ctx, &policy)
 		}
+
+		// Also clean up vela-system policies to avoid polluting other test suites
+		velaSystemPolicyList := &v1beta1.PolicyDefinitionList{}
+		_ = k8sClient.List(ctx, velaSystemPolicyList, client.InNamespace("vela-system"))
+		for _, policy := range velaSystemPolicyList.Items {
+			_ = k8sClient.Delete(ctx, &policy)
+		}
 	})
 
 	It("Test Application-scoped policy with spec merge transform", func() {
@@ -725,6 +732,234 @@ output: {
 
 		// This additionalContext will be extracted by process.NewContext(), wrapped under
 		// "custom" key, and made available to component/trait templates as context.custom.config
+	})
+
+	It("Test policy source field is correctly set for global vs explicit policies", func() {
+		// Create a global policy
+		globalPolicy := &v1beta1.PolicyDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "global-test-policy",
+				Namespace: "vela-system",
+			},
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Scope:  v1beta1.ApplicationScope,
+				Global: true,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {}
+enabled: true
+transforms: {
+  labels: {
+    type: "merge"
+    value: {
+      "global-policy": "true"
+    }
+  }
+}
+`,
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, globalPolicy)).Should(Succeed())
+		waitForPolicyDef(ctx, "global-test-policy", "vela-system")
+
+		// Create an explicit policy in app namespace
+		explicitPolicy := &v1beta1.PolicyDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "explicit-test-policy",
+				Namespace: namespace,
+			},
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Scope: v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {}
+enabled: true
+transforms: {
+  labels: {
+    type: "merge"
+    value: {
+      "explicit-policy": "true"
+    }
+  }
+}
+`,
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, explicitPolicy)).Should(Succeed())
+		waitForPolicyDef(ctx, "explicit-test-policy", namespace)
+
+		// Create Application that references the explicit policy
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-policy-source",
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Policies: []v1beta1.AppPolicy{
+					{
+						Name: "my-explicit",
+						Type: "explicit-test-policy",
+					},
+				},
+				Components: []common.ApplicationComponent{
+					{
+						Name: "test-comp",
+						Type: "webservice",
+						Properties: &runtime.RawExtension{
+							Raw: []byte(`{"image": "nginx"}`),
+						},
+					},
+				},
+			},
+		}
+
+		handler := &AppHandler{
+			Client: k8sClient,
+		}
+
+		monCtx := monitorContext.NewTraceContext(ctx, "test-source-field")
+		monCtx, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
+		Expect(err).Should(BeNil())
+
+		// Verify status contains both policies with correct source
+		Expect(len(app.Status.AppliedApplicationPolicies)).Should(Equal(2))
+
+		// Find the global policy in status
+		var globalEntry, explicitEntry *common.AppliedApplicationPolicy
+		for i := range app.Status.AppliedApplicationPolicies {
+			if app.Status.AppliedApplicationPolicies[i].Name == "global-test-policy" {
+				globalEntry = &app.Status.AppliedApplicationPolicies[i]
+			}
+			if app.Status.AppliedApplicationPolicies[i].Name == "my-explicit" {
+				explicitEntry = &app.Status.AppliedApplicationPolicies[i]
+			}
+		}
+
+		Expect(globalEntry).ShouldNot(BeNil())
+		Expect(globalEntry.Source).Should(Equal("global"))
+		Expect(globalEntry.Applied).Should(BeTrue())
+
+		Expect(explicitEntry).ShouldNot(BeNil())
+		Expect(explicitEntry.Source).Should(Equal("explicit"))
+		Expect(explicitEntry.Applied).Should(BeTrue())
+	})
+
+	It("Test context.application only exposes user-provided fields", func() {
+		// Create a policy that captures context.application
+		capturePolicy := &v1beta1.PolicyDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "capture-context-policy",
+				Namespace: namespace,
+			},
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Scope: v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {}
+enabled: true
+
+// Capture what's in context.application
+additionalContext: {
+  capturedApp: context.application
+}
+`,
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, capturePolicy)).Should(Succeed())
+		waitForPolicyDef(ctx, "capture-context-policy", namespace)
+
+		// Create Application with labels and annotations
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-clean-context",
+				Namespace: namespace,
+				Labels: map[string]string{
+					"user-label": "test",
+				},
+				Annotations: map[string]string{
+					"user-annotation": "test",
+				},
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Policies: []v1beta1.AppPolicy{
+					{
+						Name: "capture",
+						Type: "capture-context-policy",
+					},
+				},
+				Components: []common.ApplicationComponent{
+					{
+						Name: "test-comp",
+						Type: "webservice",
+						Properties: &runtime.RawExtension{
+							Raw: []byte(`{"image": "nginx"}`),
+						},
+					},
+				},
+			},
+		}
+
+		// Simulate server-generated fields being added
+		app.UID = "test-uid-123"
+		app.CreationTimestamp = metav1.Now()
+		app.ResourceVersion = "12345"
+		app.Generation = 1
+
+		handler := &AppHandler{
+			Client: k8sClient,
+		}
+
+		monCtx := monitorContext.NewTraceContext(ctx, "test-clean-context")
+		monCtx, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
+		Expect(err).Should(BeNil())
+
+		// Get the additionalContext to check what was exposed
+		const policyAdditionalContextKeyString = "kubevela.oam.dev/policy-additional-context"
+		additionalCtx := monCtx.GetContext().Value(policyAdditionalContextKeyString)
+		Expect(additionalCtx).ShouldNot(BeNil())
+
+		ctxMap, ok := additionalCtx.(map[string]interface{})
+		Expect(ok).Should(BeTrue())
+		Expect(ctxMap).Should(HaveKey("capturedApp"))
+
+		capturedApp, ok := ctxMap["capturedApp"].(map[string]interface{})
+		Expect(ok).Should(BeTrue())
+
+		// Verify apiVersion and kind ARE present (core manifest fields)
+		Expect(capturedApp).Should(HaveKey("apiVersion"))
+		Expect(capturedApp).Should(HaveKey("kind"))
+
+		// Verify user-provided fields ARE present
+		metadata, ok := capturedApp["metadata"].(map[string]interface{})
+		Expect(ok).Should(BeTrue())
+		Expect(metadata["name"]).Should(Equal("test-clean-context"))
+		Expect(metadata["namespace"]).Should(Equal(namespace))
+
+		labels, ok := metadata["labels"].(map[string]interface{})
+		Expect(ok).Should(BeTrue())
+		Expect(labels["user-label"]).Should(Equal("test"))
+
+		annotations, ok := metadata["annotations"].(map[string]interface{})
+		Expect(ok).Should(BeTrue())
+		Expect(annotations["user-annotation"]).Should(Equal("test"))
+
+		// Verify server-generated fields are NOT present
+		Expect(metadata).ShouldNot(HaveKey("uid"))
+		Expect(metadata).ShouldNot(HaveKey("creationTimestamp"))
+		Expect(metadata).ShouldNot(HaveKey("resourceVersion"))
+		Expect(metadata).ShouldNot(HaveKey("generation"))
+
+		// Verify status is empty
+		Expect(capturedApp).ShouldNot(HaveKey("status"))
 	})
 })
 

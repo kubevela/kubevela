@@ -214,6 +214,7 @@ type AppliedApplicationPolicy struct {
 	Namespace string `json:"namespace"`
 	Applied   bool   `json:"applied"`
 	Reason    string `json:"reason,omitempty"` // e.g., "enabled=false: namespace mismatch"
+	Source    string `json:"source,omitempty"` // "global" or "explicit" - how the policy was applied
 
 	// Summary of changes (counts only - full details in ConfigMap)
 	SpecModified     bool `json:"specModified,omitempty"`

@@ -167,14 +167,27 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationStarting)
 	}
 
-	// Emit events for applied global policies (for observability)
+	// Emit events for applied Application-scoped policies (for observability)
 	for _, appliedPolicy := range app.Status.AppliedApplicationPolicies {
+		// Use the Source field to determine if it's global or explicit
+		isGlobal := appliedPolicy.Source == "global"
+
 		if appliedPolicy.Applied {
-			r.Recorder.Event(app, event.Normal("GlobalPolicyApplied",
-				fmt.Sprintf("Applied global policy %s from namespace %s", appliedPolicy.Name, appliedPolicy.Namespace)))
+			if isGlobal {
+				r.Recorder.Event(app, event.Normal("GlobalPolicyApplied",
+					fmt.Sprintf("Applied global policy %s from namespace %s", appliedPolicy.Name, appliedPolicy.Namespace)))
+			} else {
+				r.Recorder.Event(app, event.Normal("PolicyApplied",
+					fmt.Sprintf("Applied policy %s", appliedPolicy.Name)))
+			}
 		} else {
-			r.Recorder.Event(app, event.Normal("GlobalPolicySkipped",
-				fmt.Sprintf("Skipped global policy %s: %s", appliedPolicy.Name, appliedPolicy.Reason)))
+			if isGlobal {
+				r.Recorder.Event(app, event.Normal("GlobalPolicySkipped",
+					fmt.Sprintf("Skipped global policy %s: %s", appliedPolicy.Name, appliedPolicy.Reason)))
+			} else {
+				r.Recorder.Event(app, event.Normal("PolicySkipped",
+					fmt.Sprintf("Skipped policy %s: %s", appliedPolicy.Name, appliedPolicy.Reason)))
+			}
 		}
 	}
 
