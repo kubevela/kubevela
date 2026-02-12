@@ -459,11 +459,21 @@ func PathExists(path string) *PathExistsCondition {
 
 // --- Array Element Struct ---
 
+// patchKeyField represents a field within an ArrayElement that has a patchKey annotation.
+// This is used for nested patchKey annotations inside array elements,
+// e.g., volumeMounts inside a containers element.
+type patchKeyField struct {
+	field string // field name (e.g., "volumeMounts")
+	key   string // patchKey value (e.g., "name")
+	value Value  // the array value
+}
+
 // ArrayElement represents a single element in an array patch.
 // Used for building array values with struct elements.
 type ArrayElement struct {
-	fields map[string]Value
-	ops    []ResourceOp // nested operations for complex structs
+	fields         map[string]Value
+	ops            []ResourceOp    // nested operations for complex structs
+	patchKeyFields []patchKeyField // nested patchKey-annotated array fields
 }
 
 func (a *ArrayElement) expr()  {}
@@ -489,11 +499,27 @@ func (a *ArrayElement) SetIf(cond Condition, key string, value Value) *ArrayElem
 	return a
 }
 
+// PatchKeyField adds a patchKey-annotated array field to the array element.
+// This generates within the element:
+//
+//	// +patchKey=key
+//	field: value
+//
+// Used for nested patchKey annotations inside array elements, e.g.,
+// volumeMounts with patchKey=name inside a containers element.
+func (a *ArrayElement) PatchKeyField(field string, key string, value Value) *ArrayElement {
+	a.patchKeyFields = append(a.patchKeyFields, patchKeyField{field: field, key: key, value: value})
+	return a
+}
+
 // Fields returns all fields set on this element.
 func (a *ArrayElement) Fields() map[string]Value { return a.fields }
 
 // Ops returns any conditional operations.
 func (a *ArrayElement) Ops() []ResourceOp { return a.ops }
+
+// PatchKeyFields returns the patchKey-annotated fields.
+func (a *ArrayElement) PatchKeyFields() []patchKeyField { return a.patchKeyFields }
 
 // --- Reference Expressions ---
 
@@ -582,6 +608,68 @@ func ForEachMap() *ForEachMapOp {
 	}
 }
 
+// --- CUE String Interpolation ---
+
+// InterpolatedString represents a CUE string interpolation expression.
+// Literal string parts are inlined, Value parts are wrapped in \(...).
+//
+// Example:
+//
+//	Interpolation(vela.Namespace(), Lit(":"), name)
+//	// Generates: "\(context.namespace):\(parameter.name)"
+type InterpolatedString struct {
+	parts []Value
+}
+
+func (i *InterpolatedString) value() {}
+func (i *InterpolatedString) expr()  {}
+
+// Parts returns the interpolation parts.
+func (i *InterpolatedString) Parts() []Value { return i.parts }
+
+// Interpolation creates a CUE string interpolation expression.
+// Literal string values are inlined directly. All other values are
+// wrapped in \(...) interpolation syntax.
+func Interpolation(parts ...Value) *InterpolatedString {
+	return &InterpolatedString{parts: parts}
+}
+
+// --- LenValueCondition ---
+
+// LenValueCondition checks the length of an arbitrary Value (not just a parameter).
+// This extends LenCondition to work with let variables and other expressions.
+// Generates: len(source) op n
+type LenValueCondition struct {
+	baseCondition
+	source Value
+	op     string // ==, !=, <, <=, >, >=
+	length int
+}
+
+// Source returns the source value being measured.
+func (c *LenValueCondition) Source() Value { return c.source }
+
+// Op returns the comparison operator.
+func (c *LenValueCondition) Op() string { return c.op }
+
+// Length returns the length to compare against.
+func (c *LenValueCondition) Length() int { return c.length }
+
+// LenGt creates a condition: len(source) > n.
+func LenGt(source Value, n int) *LenValueCondition {
+	return &LenValueCondition{source: source, op: ">", length: n}
+}
+
+// LenGe creates a condition: len(source) >= n.
+func LenGe(source Value, n int) *LenValueCondition {
+	return &LenValueCondition{source: source, op: ">=", length: n}
+}
+
+// LenEq creates a condition: len(source) == n.
+func LenEq(source Value, n int) *LenValueCondition {
+	return &LenValueCondition{source: source, op: "==", length: n}
+}
+
 // Over specifies the source to iterate over.
 func (f *ForEachMapOp) Over(source string) *ForEachMapOp {
 	f.source = source
@@ -612,3 +700,80 @@ func (f *ForEachMapOp) WithBody(ops ...ResourceOp) *ForEachMapOp {
 	f.body = append(f.body, ops...)
 	return f
 }
+
+// PlusExpr represents a + operator between multiple values.
+// Generates CUE: a + b + c
+// Works for string concatenation, array concatenation, etc.
+type PlusExpr struct {
+	parts []Value
+}
+
+func (p *PlusExpr) value() {}
+func (p *PlusExpr) expr()  {}
+
+// Parts returns the operands.
+func (p *PlusExpr) Parts() []Value { return p.parts }
+
+// Plus creates a + expression between values.
+// Generates CUE: parts[0] + parts[1] + ...
+func Plus(parts ...Value) *PlusExpr {
+	return &PlusExpr{parts: parts}
+}
+
+// IterFieldRef references a field on the iteration variable.
+// Generates CUE: v.fieldName (where v is the iteration variable).
+type IterFieldRef struct {
+	varName string
+	field   string
+}
+
+func (r *IterFieldRef) value() {}
+func (r *IterFieldRef) expr()  {}
+
+// VarName returns the iteration variable name.
+func (r *IterFieldRef) VarName() string { return r.varName }
+
+// FieldName returns the field name.
+func (r *IterFieldRef) FieldName() string { return r.field }
+
+// IterVarRef references the iteration variable itself (not a field on it).
+// Generates CUE: v (where v is the iteration variable).
+type IterVarRef struct {
+	varName string
+}
+
+func (r *IterVarRef) value() {}
+func (r *IterVarRef) expr()  {}
+
+// VarName returns the iteration variable name.
+func (r *IterVarRef) VarName() string { return r.varName }
+
+// IterLetRef references a let binding defined inside an iteration body.
+// Generates CUE: _name (a private CUE identifier).
+type IterLetRef struct {
+	name string
+}
+
+func (r *IterLetRef) value() {}
+func (r *IterLetRef) expr()  {}
+
+// RefName returns the binding name.
+func (r *IterLetRef) RefName() string { return r.name }
+
+// IterFieldExistsCondition checks if an iteration variable field exists.
+// Generates CUE: v.field != _|_ (or v.field == _|_ when negated).
+type IterFieldExistsCondition struct {
+	baseCondition
+	varName string
+	field   string
+	negate  bool
+}
+
+// VarName returns the iteration variable name.
+func (c *IterFieldExistsCondition) VarName() string { return c.varName }
+
+// FieldName returns the field name.
+func (c *IterFieldExistsCondition) FieldName() string { return c.field }
+
+// IsNegated returns true if this is a "not exists" check.
+func (c *IterFieldExistsCondition) IsNegated() bool { return c.negate }

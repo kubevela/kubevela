@@ -296,6 +296,9 @@ type Template struct {
 	concatHelpers      []*ConcatHelper      // list.Concat helpers
 	dedupeHelpers      []*DedupeHelper      // Deduplication helpers
 
+	// Output groups for grouped conditional outputs
+	outputGroups []*outputGroup
+
 	// Trait-specific fields
 	patch         *PatchResource // Patch operations for traits
 	patchStrategy string         // Patch strategy (e.g., "retainKeys", "jsonMergePatch")
@@ -415,6 +418,48 @@ func (t *Template) GetOutput() *Resource { return t.output }
 
 // GetOutputs returns all auxiliary resources.
 func (t *Template) GetOutputs() map[string]*Resource { return t.outputs }
+
+// outputGroup represents a group of outputs that share a common condition.
+type outputGroup struct {
+	cond    Condition
+	outputs map[string]*Resource
+}
+
+// OutputGroup is a builder for adding outputs within a grouped condition.
+type OutputGroup struct {
+	tpl     *Template
+	cond    Condition
+	outputs map[string]*Resource
+}
+
+// Add adds a named resource to the output group.
+func (g *OutputGroup) Add(name string, r *Resource) *OutputGroup {
+	g.outputs[name] = r
+	return g
+}
+
+// OutputsGroupIf groups multiple outputs under a single condition.
+// This generates one `if cond { ... }` block containing all grouped outputs.
+func (t *Template) OutputsGroupIf(cond Condition, fn func(g *OutputGroup)) {
+	group := &OutputGroup{
+		tpl:     t,
+		cond:    cond,
+		outputs: make(map[string]*Resource),
+	}
+	fn(group)
+	if t.outputGroups == nil {
+		t.outputGroups = make([]*outputGroup, 0)
+	}
+	t.outputGroups = append(t.outputGroups, &outputGroup{
+		cond:    cond,
+		outputs: group.outputs,
+	})
+}
+
+// GetOutputGroups returns all output groups.
+func (t *Template) GetOutputGroups() []*outputGroup {
+	return t.outputGroups
+}
 
 // --- Patch methods for traits ---
 
