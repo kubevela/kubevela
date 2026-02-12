@@ -75,12 +75,61 @@ generate_certificates() {
     # Generate server private key
     openssl genrsa -out ${CERT_DIR}/tls.key 2048
 
-    # Get host IP for Docker internal network
-    # NOTE: 192.168.5.2 is the standard k3d host gateway IP that allows containers to reach the host machine
+    # Auto-detect host IP for Docker/k3d internal network
     # This is only for local k3d development environments - DO NOT use this script in production
     # With failurePolicy: Fail, an unreachable webhook can block CRD operations cluster-wide
-    HOST_IP="192.168.5.2"
-    LOCAL_IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | head -1 | awk '{print $2}')
+
+    # Try to detect k3d cluster
+    K3D_CLUSTER=$(kubectl config current-context | grep -o 'k3d-[^@]*' | sed 's/k3d-//' || echo "")
+
+    if [ -n "$K3D_CLUSTER" ]; then
+        echo "Detected k3d cluster: $K3D_CLUSTER"
+
+        # Check if k3d is using host network
+        NETWORK_MODE=$(docker inspect "k3d-${K3D_CLUSTER}-server-0" 2>/dev/null | grep -o '"NetworkMode": "[^"]*"' | cut -d'"' -f4 || echo "")
+
+        if [ "$NETWORK_MODE" = "host" ]; then
+            # Host network mode - detect OS
+            if [ "$(uname)" = "Darwin" ]; then
+                # macOS with Docker Desktop - use host.docker.internal
+                echo "Detected k3d with --network host on macOS, using host.docker.internal"
+                HOST_IP="host.docker.internal"
+            else
+                # Linux - true host networking works
+                echo "Detected k3d with --network host, using localhost"
+                HOST_IP="127.0.0.1"
+            fi
+        else
+            # Bridge network mode - get gateway IP
+            NETWORK_NAME="k3d-${K3D_CLUSTER}"
+            HOST_IP=$(docker network inspect "$NETWORK_NAME" -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || echo "")
+
+            if [ -z "$HOST_IP" ]; then
+                # Fallback to common k3d gateway IPs
+                echo "Could not detect gateway IP, trying common defaults..."
+                if docker exec "k3d-${K3D_CLUSTER}-server-0" getent hosts host.k3d.internal 2>/dev/null | awk '{print $1}' | grep -q .; then
+                    HOST_IP=$(docker exec "k3d-${K3D_CLUSTER}-server-0" cat /etc/hosts | grep host.k3d.internal | awk '{print $1}')
+                else
+                    HOST_IP="172.18.0.1"
+                fi
+            fi
+
+            echo "Detected k3d with bridge network, using gateway IP: $HOST_IP"
+        fi
+    else
+        # Not k3d, use default
+        echo "Not using k3d, defaulting to 192.168.5.2"
+        HOST_IP="192.168.5.2"
+    fi
+
+    # Get local machine IP for SANs (optional, for reference)
+    if command -v ifconfig &> /dev/null; then
+        LOCAL_IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | head -1 | awk '{print $2}')
+    elif command -v ip &> /dev/null; then
+        LOCAL_IP=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v 127.0.0.1 | head -1)
+    else
+        LOCAL_IP=""
+    fi
 
     # Create certificate config with SANs
     cat > /tmp/webhook.conf << EOF
@@ -98,10 +147,25 @@ DNS.2 = vela-webhook.${NAMESPACE}.svc
 DNS.3 = vela-webhook.${NAMESPACE}.svc.cluster.local
 DNS.4 = *.${NAMESPACE}.svc
 DNS.5 = *.${NAMESPACE}.svc.cluster.local
+DNS.6 = host.k3d.internal
+DNS.7 = host.docker.internal
+DNS.8 = host.lima.internal
 IP.1 = 127.0.0.1
-IP.2 = ${HOST_IP}
-IP.3 = ${LOCAL_IP}
 EOF
+
+    # Add HOST_IP - check if it's a hostname or IP
+    if [[ "$HOST_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        # It's an IP address
+        echo "IP.2 = ${HOST_IP}" >> /tmp/webhook.conf
+    else
+        # It's a hostname - already covered by DNS SANs above
+        echo "# HOST_IP is hostname: ${HOST_IP} (already in DNS SANs)" >> /tmp/webhook.conf
+    fi
+
+    # Add LOCAL_IP to SANs only if detected and is an IP
+    if [ -n "$LOCAL_IP" ] && [[ "$LOCAL_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "IP.3 = ${LOCAL_IP}" >> /tmp/webhook.conf
+    fi
 
     # Generate certificate request
     openssl req -new -key ${CERT_DIR}/tls.key -out /tmp/server.csr \
@@ -226,19 +290,38 @@ show_next_steps() {
     echo "Webhook debugging setup complete!"
     echo "========================================="
     echo -e "${NC}"
+
+    echo "Configuration:"
+    echo "  - Webhook URL: https://${HOST_IP}:9445"
+    echo "  - Certificate directory: ${CERT_DIR}"
+
+    if [ -n "$K3D_CLUSTER" ]; then
+        echo "  - k3d cluster: ${K3D_CLUSTER}"
+        if [ "$NETWORK_MODE" = "host" ]; then
+            echo "  - Network mode: host (using ${HOST_IP})"
+        else
+            echo "  - Network mode: bridge (using gateway ${HOST_IP})"
+        fi
+    fi
+
+    echo ""
     echo "Next steps:"
-    echo "1. Open VS Code"
+    echo "1. Open your IDE (VS Code, GoLand, etc.)"
     echo "2. Set breakpoints in webhook validation code:"
-    echo "   - pkg/webhook/utils/utils.go:141"
-    echo "   - pkg/webhook/core.oam.dev/v1beta1/componentdefinition/validating_handler.go:74"
-    echo "3. Press F5 and select 'Debug Webhook Validation'"
-    echo "4. Wait for webhook server to start (port 9445)"
+    echo "   - pkg/webhook/core.oam.dev/v1beta1/application/validating_handler.go:66"
+    echo "   - pkg/webhook/core.oam.dev/v1beta1/componentdefinition/component_definition_validating_handler.go:74"
+    echo "3. Start debugging cmd/core/main.go with arguments:"
+    echo "   --use-webhook=true"
+    echo "   --webhook-port=9445"
+    echo "   --webhook-cert-dir=${CERT_DIR}"
+    echo "   --leader-elect=false"
+    echo "4. Wait for webhook server to start"
     echo "5. Test with kubectl apply commands"
     echo ""
-    echo -e "${YELLOW}Test command (should be rejected):${NC}"
-    echo 'kubectl apply -f test/webhook-test-invalid.yaml'
+    echo -e "${YELLOW}Test command:${NC}"
+    echo 'kubectl apply -f <your-application.yaml>'
     echo ""
-    echo -e "${GREEN}The webhook will reject ComponentDefinitions with non-existent CRDs${NC}"
+    echo -e "${GREEN}Your breakpoints will hit when kubectl applies resources!${NC}"
 }
 
 # Main execution
