@@ -835,22 +835,6 @@ func (g *TraitCUEGenerator) writeTraitResourceOutput(sb *strings.Builder, gen *C
 	gen.writeResourceOutput(sb, name, res, res.outputCondition, depth)
 }
 
-// writeResourceOutput writes a resource as CUE (reusing component generation logic).
-func (g *TraitCUEGenerator) writeResourceOutput(sb *strings.Builder, gen *CUEGenerator, name string, res *Resource, depth int) {
-	indent := strings.Repeat(g.indent, depth)
-	innerIndent := strings.Repeat(g.indent, depth+1)
-
-	sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, name))
-	sb.WriteString(fmt.Sprintf("%sapiVersion: %q\n", innerIndent, res.APIVersion()))
-	sb.WriteString(fmt.Sprintf("%skind:       %q\n", innerIndent, res.Kind()))
-
-	// Build field tree and write it
-	tree := gen.buildFieldTree(res.Ops())
-	gen.writeFieldTree(sb, tree, depth+1)
-
-	sb.WriteString(fmt.Sprintf("%s}\n", indent))
-}
-
 // generateParameterBlock generates the parameter schema for the trait.
 func (g *TraitCUEGenerator) generateParameterBlock(t *TraitDefinition, depth int) string {
 	var sb strings.Builder

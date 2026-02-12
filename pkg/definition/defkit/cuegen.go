@@ -472,9 +472,11 @@ func (g *CUEGenerator) writeStructFieldForHelper(sb *strings.Builder, f *StructF
 	// Get CUE type for the field type
 	fieldType := g.cueTypeForParamType(f.FieldType())
 
-	if f.HasDefault() {
+	switch {
+	case f.HasDefault():
 		enumValues := f.GetEnumValues()
-		if len(enumValues) > 0 {
+		switch {
+		case len(enumValues) > 0:
 			// Enum with default: *"default" | "other1" | "other2"
 			defaultStr := fmt.Sprintf("%v", f.GetDefault())
 			var enumParts []string
@@ -485,16 +487,16 @@ func (g *CUEGenerator) writeStructFieldForHelper(sb *strings.Builder, f *StructF
 				}
 			}
 			sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, name, strings.Join(enumParts, " | ")))
-		} else if f.FieldType() == ParamTypeArray && f.GetElementType() != "" {
+		case f.FieldType() == ParamTypeArray && f.GetElementType() != "":
 			elemCUE := g.cueTypeForParamType(f.GetElementType())
 			sb.WriteString(fmt.Sprintf("%s%s: *%v | [...%s]\n", indent, name, formatCUEValue(f.GetDefault()), elemCUE))
-		} else {
+		default:
 			sb.WriteString(fmt.Sprintf("%s%s: *%v | %s\n", indent, name, formatCUEValue(f.GetDefault()), fieldType))
 		}
-	} else if f.FieldType() == ParamTypeArray && f.GetElementType() != "" {
+	case f.FieldType() == ParamTypeArray && f.GetElementType() != "":
 		elemCUE := g.cueTypeForParamType(f.GetElementType())
 		sb.WriteString(fmt.Sprintf("%s%s%s: [...%s]\n", indent, name, optional, elemCUE))
-	} else {
+	default:
 		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, fieldType))
 	}
 }
@@ -1255,22 +1257,8 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 	case *HelperVar:
 		// Return reference to the helper by name
 		return val.Name()
-	case *StringParam:
-		return "parameter." + val.Name()
-	case *IntParam:
-		return "parameter." + val.Name()
-	case *BoolParam:
-		return "parameter." + val.Name()
-	case *FloatParam:
-		return "parameter." + val.Name()
-	case *ArrayParam:
-		return "parameter." + val.Name()
-	case *MapParam:
-		return "parameter." + val.Name()
-	case *StringKeyMapParam:
-		return "parameter." + val.Name()
-	case *EnumParam:
-		return "parameter." + val.Name()
+	case *StringParam, *IntParam, *BoolParam, *FloatParam, *ArrayParam, *MapParam, *StringKeyMapParam, *EnumParam:
+		return "parameter." + v.(Param).Name()
 	case *DynamicMapParam:
 		// Dynamic map parameters reference just "parameter"
 		return "parameter"
@@ -1858,12 +1846,7 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	case *FalsyCondition:
 		return fmt.Sprintf("!parameter.%s", c.ParamName())
 	case *InCondition:
-		// Generate: parameter.name == val1 || parameter.name == val2 || ...
-		parts := make([]string, len(c.Values()))
-		for i, v := range c.Values() {
-			parts[i] = fmt.Sprintf("parameter.%s == %s", c.ParamName(), formatCUEValue(v))
-		}
-		return strings.Join(parts, " || ")
+		return g.inConditionToCUE(c)
 	case *StringContainsCondition:
 		return fmt.Sprintf(`strings.Contains(parameter.%s, %q)`, c.ParamName(), c.Substr())
 	case *StringMatchesCondition:
@@ -1957,6 +1940,16 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	default:
 		return cueBoolTrue
 	}
+}
+
+// inConditionToCUE converts an InCondition to CUE syntax.
+// Generates: parameter.name == val1 || parameter.name == val2 || ...
+func (g *CUEGenerator) inConditionToCUE(c *InCondition) string {
+	parts := make([]string, len(c.Values()))
+	for i, v := range c.Values() {
+		parts[i] = fmt.Sprintf("parameter.%s == %s", c.ParamName(), formatCUEValue(v))
+	}
+	return strings.Join(parts, " || ")
 }
 
 // exprToCUE converts an Expr to CUE syntax.
@@ -2349,15 +2342,18 @@ func (g *CUEGenerator) writeStructField(sb *strings.Builder, f *StructField, dep
 
 	fieldType := g.cueTypeForParamType(f.FieldType())
 
-	if nested := f.GetNested(); nested != nil {
+	nested := f.GetNested()
+	switch {
+	case nested != nil:
 		sb.WriteString(fmt.Sprintf("%s%s%s: {\n", indent, name, optional))
 		for _, nestedField := range nested.GetFields() {
 			g.writeStructField(sb, nestedField, depth+1)
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
-	} else if f.HasDefault() {
+	case f.HasDefault():
 		enumValues := f.GetEnumValues()
-		if len(enumValues) > 0 {
+		switch {
+		case len(enumValues) > 0:
 			// Enum with default: *"default" | "other1" | "other2"
 			defaultStr := fmt.Sprintf("%v", f.GetDefault())
 			var enumParts []string
@@ -2368,16 +2364,16 @@ func (g *CUEGenerator) writeStructField(sb *strings.Builder, f *StructField, dep
 				}
 			}
 			sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, name, strings.Join(enumParts, " | ")))
-		} else if f.FieldType() == ParamTypeArray && f.GetElementType() != "" {
+		case f.FieldType() == ParamTypeArray && f.GetElementType() != "":
 			elemCUE := g.cueTypeForParamType(f.GetElementType())
 			sb.WriteString(fmt.Sprintf("%s%s: *%v | [...%s]\n", indent, name, formatCUEValue(f.GetDefault()), elemCUE))
-		} else {
+		default:
 			sb.WriteString(fmt.Sprintf("%s%s: *%v | %s\n", indent, name, formatCUEValue(f.GetDefault()), fieldType))
 		}
-	} else if f.FieldType() == ParamTypeArray && f.GetElementType() != "" {
+	case f.FieldType() == ParamTypeArray && f.GetElementType() != "":
 		elemCUE := g.cueTypeForParamType(f.GetElementType())
 		sb.WriteString(fmt.Sprintf("%s%s%s: [...%s]\n", indent, name, optional, elemCUE))
-	} else {
+	default:
 		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, fieldType))
 	}
 }
