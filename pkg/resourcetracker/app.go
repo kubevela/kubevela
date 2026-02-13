@@ -38,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
+	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application"
 )
 
 const (
@@ -143,14 +144,21 @@ func newResourceTrackerFromApplicationResourceTracker(appRt *unstructured.Unstru
 func listApplicationResourceTrackers(ctx context.Context, cli client.Client, app *v1beta1.Application) ([]v1beta1.ResourceTracker, error) {
 	rts := v1beta1.ResourceTrackerList{}
 	var err error
-	if cache.OptimizeListOp {
-		err = cli.List(ctx, &rts, client.MatchingFields{cache.AppIndex: app.Namespace + "/" + app.Name})
+	_, needReschedule := app.Labels[application.RescheduleLabelKey]
+	listOpts := []client.ListOption{}
+	// If this is a rescheduling operation, fall back to label-based List.
+	// Non-cached clients do not support field selectors with cache.AppIndex.
+	if cache.OptimizeListOp && !needReschedule {
+		listOpts = append(listOpts, client.MatchingFields{
+			cache.AppIndex: app.Namespace + "/" + app.Name,
+		})
 	} else {
-		err = cli.List(ctx, &rts, client.MatchingLabels{
+		listOpts = append(listOpts, client.MatchingLabels{
 			oam.LabelAppName:      app.Name,
 			oam.LabelAppNamespace: app.Namespace,
 		})
 	}
+	err = cli.List(ctx, &rts, listOpts...)
 	if err == nil {
 		return rts.Items, nil
 	}
@@ -184,7 +192,10 @@ func listApplicationResourceTrackers(ctx context.Context, cli client.Client, app
 // currentRT -> The ResourceTracker that tracks the resources used by the latest version of application.
 // historyRTs -> The ResourceTrackers that tracks the resources in outdated versions.
 // crRT -> The ResourceTracker that tracks the component revisions created by the application.
-func ListApplicationResourceTrackers(ctx context.Context, cli client.Client, app *v1beta1.Application) (rootRT *v1beta1.ResourceTracker, currentRT *v1beta1.ResourceTracker, historyRTs []*v1beta1.ResourceTracker, crRT *v1beta1.ResourceTracker, err error) {
+func ListApplicationResourceTrackers(
+	ctx context.Context,
+	cli client.Client,
+	app *v1beta1.Application) (rootRT *v1beta1.ResourceTracker, currentRT *v1beta1.ResourceTracker, historyRTs []*v1beta1.ResourceTracker, crRT *v1beta1.ResourceTracker, err error) {
 	metrics.ListResourceTrackerCounter.WithLabelValues("application").Inc()
 	rts, err := listApplicationResourceTrackers(ctx, cli, app)
 	if err != nil {
