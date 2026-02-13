@@ -218,10 +218,8 @@ var _ = Describe("Status", func() {
 			h := defkit.JobHealth()
 			cue := h.Build()
 			Expect(cue).To(ContainSubstring("succeeded:"))
-			Expect(cue).To(ContainSubstring("failed:"))
 			Expect(cue).To(ContainSubstring("status.succeeded"))
-			Expect(cue).To(ContainSubstring("status.failed"))
-			Expect(cue).To(ContainSubstring("isHealth: succeeded >= 1 || failed >= 1"))
+			Expect(cue).To(ContainSubstring("isHealth: succeeded == context.output.spec.parallelism"))
 		})
 
 		It("should create CronJobHealth builder", func() {

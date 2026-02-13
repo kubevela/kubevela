@@ -439,8 +439,7 @@ func StatefulSetHealth() *HealthBuilder {
 func JobHealth() *HealthBuilder {
 	return Health().
 		IntField("succeeded", "status.succeeded", 0).
-		IntField("failed", "status.failed", 0).
-		HealthyWhen("succeeded >= 1 || failed >= 1")
+		HealthyWhen("succeeded == context.output.spec.parallelism")
 }
 
 // CronJobHealth returns a pre-configured health builder for CronJob.
