@@ -1,0 +1,16 @@
+apiVersion: v1
+data:
+  registries: '{ "KubeVela":{ "name": "KubeVela", "helm": { "url": "https://kubevela.github.io/catalog/official"
+    } } }'
+kind: ConfigMap
+metadata:
+  annotations:
+    meta.helm.sh/release-name: kubevela
+    meta.helm.sh/release-namespace: vela-system
+  creationTimestamp: "2025-08-12T06:32:13Z"
+  labels:
+    app.kubernetes.io/managed-by: Helm
+  name: vela-addon-registry
+  namespace: vela-system
+  resourceVersion: "809"
+  uid: 41a1c444-f90c-417e-babe-01de7d1f35f0

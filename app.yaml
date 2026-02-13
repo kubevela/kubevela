@@ -1,0 +1,188 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: test-deployment-trait
+spec:
+  definitionRef:
+    name: ""
+  stage: PostDispatch
+  schematic:
+    cue:
+      template: |
+        outputs: statusPod: {
+          apiVersion: "apps/v1"
+          kind: "Deployment"
+          metadata: {
+            name: parameter.name
+          }
+          spec: {
+            replicas: 1
+            selector: matchLabels: {
+              app: parameter.name
+            }
+            template: {
+              metadata: labels: {
+                app: parameter.name
+              }
+              spec: containers: [{
+                name: parameter.name
+                image: parameter.image
+              }]
+            }
+          }
+        }
+
+        parameter: {
+          name: string
+          image: string
+        }
+  status:
+    healthPolicy: |-
+      pod: context.outputs.statusPod
+      ready: {
+        updatedReplicas:    *0 | int
+        readyReplicas:      *0 | int
+        replicas:           *0 | int
+        observedGeneration: *0 | int
+      } & {
+        if pod.status.updatedReplicas != _|_ {
+            updatedReplicas: pod.status.updatedReplicas
+        }
+        if pod.status.readyReplicas != _|_ {
+            readyReplicas: pod.status.readyReplicas
+        }
+        if pod.status.replicas != _|_ {
+            replicas: pod.status.replicas
+        }
+        if pod.status.observedGeneration != _|_ {
+            observedGeneration: pod.status.observedGeneration
+        }
+      }
+      _isHealth: (pod.spec.replicas == ready.readyReplicas) && (pod.spec.replicas == ready.updatedReplicas) && (pod.spec.replicas == ready.replicas) && (ready.observedGeneration == pod.metadata.generation || ready.observedGeneration > pod.metadata.generation)
+      isHealth: _isHealth
+      if pod.metadata.annotations != _|_ {
+        if pod.metadata.annotations["app.oam.dev/disable-health-check"] != _|_ {
+            isHealth: true
+        }
+      }
+
+---
+
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: test-cm-trait
+spec:
+  definitionRef:
+    name: ""
+  stage: PostDispatch
+  schematic:
+    cue:
+      template: |
+        outputs: statusConfigMap: {
+          apiVersion: "v1"
+          kind: "ConfigMap"
+          metadata: {
+            name: context.name + "-status"
+            namespace: context.namespace
+            labels: {
+                  "labeltest" : "\(context.output.status.replicas)"
+                  "hello" : "world"
+            }
+          }
+          data: {
+          // Access the component's output status
+            replicas: "\(context.output.status.replicas)"
+            componentName: context.name
+          }
+        }
+  status:
+    healthPolicy: |-
+      cm: context.outputs.statusConfigMap
+      isHealth: (cm != _|_ && cm.data != _|_ && cm.data.replicas != _|_ && cm.data.replicas != "2")
+
+---
+
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: test-worker
+spec:
+  schematic:
+    cue:
+      template: |
+        output: {
+          apiVersion: "apps/v1"
+          kind: "Deployment"
+          metadata: {
+            name: parameter.name
+            labels: {
+              app: parameter.name
+            }
+          }
+          spec: {
+            replicas: parameter.replicas
+            selector: matchLabels: {
+              app: parameter.name
+            }
+            template: {
+              metadata: labels: {
+                  app: parameter.name
+              }
+              spec: containers: [{
+                name: parameter.name
+                image: parameter.image
+              }]
+            }
+          }
+        }
+
+        parameter: {
+          name: string
+          image: string
+          replicas: int
+        }
+  status:
+    healthPolicy: 'isHealth: context.output.status.readyReplicas > 0'
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+
+---
+
+
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: pdapp
+  namespace: default
+spec:
+  components:
+    - name: test-deployment
+      type: test-worker
+      properties:
+        image: nginx:1.21a
+        name: test-deployment
+        replicas: 3
+      traits:
+        - type: scaler
+          properties:
+            replicas: 3
+        - type: expose
+          properties:
+            port: [ 8000 ]
+        - type: test-deployment-trait
+          properties:
+            name: trait-deployment
+            image: vishal210893/dockerpoc-1:20251031-124811af
+
+    - name: test-deployment12
+      type: webservice
+      properties:
+        image: nginx:1.21a
+        name: test-deployment12
+      traits:
+        - type: expose
+          properties:
+            port: [ 8001 ]

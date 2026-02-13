@@ -1,0 +1,15 @@
+{
+  "name": "app-basic",
+  "services": {
+    "app-basic": {
+      "type": "webservice",
+      "image": "nginx:1.29.0",
+      "ports": [
+        {
+          port: 80,
+          expose: true
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,13 @@
+apiVersion: core.oam.dev/v1alpha1
+kind: WorkflowRun
+metadata:
+  name: workflowrun
+spec:
+  workflowSpec:
+    steps:
+      - name: abccm
+        type: myworkflow
+        properties:
+          name: abccm
+          namespace: vela-system
+
