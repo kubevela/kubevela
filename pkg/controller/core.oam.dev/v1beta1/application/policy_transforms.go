@@ -1428,3 +1428,50 @@ func cleanApplicationForPolicyContext(app *v1beta1.Application) map[string]inter
 
 	return cleaned
 }
+
+// Internal/system metadata prefixes to exclude from policy context
+// Using a map for O(1) lookup instead of O(n) slice iteration
+var internalMetadataPrefixes = map[string]struct{}{
+	"app.oam.dev/":           {},
+	"oam.dev/":               {},
+	"kubectl.kubernetes.io/": {},
+	"kubernetes.io/":         {},
+	"k8s.io/":                {},
+	"helm.sh/":               {},
+	"app.kubernetes.io/":     {},
+}
+
+// filterUserMetadata filters out internal/system labels and annotations
+// to prevent policies from accessing sensitive internal metadata.
+// Returns a new map with only user metadata. Returns nil for empty results.
+// Optimized for hot path - runs on every reconciliation with policies.
+func filterUserMetadata(metadata map[string]string) map[string]string {
+	if len(metadata) == 0 {
+		return nil
+	}
+
+	// Pre-allocate for common case where most metadata is user-provided
+	filtered := make(map[string]string, len(metadata))
+
+	for k, v := range metadata {
+		// Extract prefix (everything before first "/" if present)
+		// Most keys have prefixes, so check for "/" first
+		slashIdx := strings.IndexByte(k, '/')
+		if slashIdx > 0 {
+			prefix := k[:slashIdx+1] // Include the trailing "/"
+			if _, isInternal := internalMetadataPrefixes[prefix]; isInternal {
+				continue // Skip internal metadata
+			}
+		}
+
+		// Include user-provided metadata
+		filtered[k] = v
+	}
+
+	// Return nil instead of empty map to avoid unnecessary allocations
+	if len(filtered) == 0 {
+		return nil
+	}
+
+	return filtered
+}
