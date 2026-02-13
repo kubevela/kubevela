@@ -24,6 +24,7 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/process"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -48,6 +49,9 @@ type ContextData struct {
 
 	AppLabels      map[string]string
 	AppAnnotations map[string]string
+	AppComponents  []common.ApplicationComponent
+	AppWorkflow    *v1beta1.Workflow
+	AppPolicies    []v1beta1.AppPolicy
 
 	ClusterVersion types.ClusterVersion
 	Output         interface{}
@@ -90,6 +94,9 @@ func NewContext(data ContextData) process.Context {
 	ctx.PushData(ContextComponents, data.Components)
 	ctx.PushData(ContextAppLabels, data.AppLabels)
 	ctx.PushData(ContextAppAnnotations, data.AppAnnotations)
+	ctx.PushData(ContextAppComponents, data.AppComponents)
+	ctx.PushData(ContextAppWorkflow, data.AppWorkflow)
+	ctx.PushData(ContextAppPolicies, data.AppPolicies)
 	ctx.PushData(ContextReplicaKey, data.ReplicaKey)
 	revNum, _ := util.ExtractRevisionNum(data.AppRevisionName, "-")
 	ctx.PushData(ContextAppRevisionNum, revNum)

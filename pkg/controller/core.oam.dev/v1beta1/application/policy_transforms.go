@@ -38,6 +38,8 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -48,7 +50,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -60,12 +61,12 @@ const (
 // and applies transforms from any Application-scoped PolicyDefinitions.
 //
 // Two-level caching strategy:
-// 1. In-memory global cache (globalPolicyCache) - Caches rendered policy results for rapid
-//    reconciliations. Invalidated when Application or global policy set changes.
-// 2. ConfigMap persistent cache - Stores individual policy results with TTL control:
-//    - TTL=-1: Never refresh (deterministic policies)
-//    - TTL=0: Never cache (policies with external dependencies)
-//    - TTL>0: Refresh after N seconds
+//  1. In-memory global cache (globalPolicyCache) - Caches rendered policy results for rapid
+//     reconciliations. Invalidated when Application or global policy set changes.
+//  2. ConfigMap persistent cache - Stores individual policy results with TTL control:
+//     - TTL=-1: Never refresh (deterministic policies)
+//     - TTL=0: Never cache (policies with external dependencies)
+//     - TTL>0: Refresh after N seconds
 //
 // It first discovers and applies any global policies (if feature gate enabled),
 // then applies explicit policies from the Application spec.
@@ -84,9 +85,9 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 
 	// Step 2: Handle global policies (if feature gate enabled and not opted out)
 	var globalRenderedResults []RenderedPolicyResult
-	allPolicyChanges := make(map[string]*PolicyChanges) // Track full changes for ConfigMap storage
+	allPolicyChanges := make(map[string]*PolicyChanges)         // Track full changes for ConfigMap storage
 	policyMetadata := make(map[string]*policyConfigMapMetadata) // Track metadata for ConfigMap
-	sequence := 1                                       // Track execution order
+	sequence := 1                                               // Track execution order
 
 	if !shouldSkipGlobalPolicies(app) && utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableGlobalPolicies) {
 		// Compute current global policy hash for cache validation
@@ -671,11 +672,14 @@ func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1
 	pCtx := velaprocess.NewContext(velaprocess.ContextData{
 		Namespace:       app.Namespace,
 		AppName:         app.Name,
-		CompName:        app.Name,                         // Policy context doesn't have specific component
-		AppRevisionName: appRevisionName,                  // Explicit appRevision field
-		AppLabels:       filterUserMetadata(app.Labels),   // Filtered labels (security)
+		CompName:        app.Name,                            // Policy context doesn't have specific component
+		AppRevisionName: appRevisionName,                     // Explicit appRevision field
+		AppLabels:       filterUserMetadata(app.Labels),      // Filtered labels (security)
 		AppAnnotations:  filterUserMetadata(app.Annotations), // Filtered annotations (security)
-		Ctx:             runtimeCtx,                       // Use runtime context with CueX providers
+		AppComponents:   app.Spec.Components,                 // Controlled spec access
+		AppWorkflow:     app.Spec.Workflow,                   // Controlled spec access
+		AppPolicies:     app.Spec.Policies,                   // Controlled spec access
+		Ctx:             runtimeCtx,                          // Use runtime context with CueX providers
 	})
 
 	// Build parameter file (as JSON, not type annotation)
@@ -697,38 +701,24 @@ func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1
 		return cue.Value{}, errors.Wrap(err, "failed to generate base context")
 	}
 
-	// Build additional context fields - PRESERVES ALL EXISTING FUNCTIONALITY
-	// context.application: Full Application CR (existing feature)
-	// context.prior: Previous policy result for incremental policies (existing feature)
-	contextParts := []string{}
-
-	// Add application - clean server-generated fields before exposing to policy
-	cleanApp := cleanApplicationForPolicyContext(app)
-	appJSON, err := json.Marshal(cleanApp)
-	if err != nil {
-		return cue.Value{}, errors.Wrap(err, "failed to marshal Application")
-	}
-	contextParts = append(contextParts, fmt.Sprintf("application: %s", string(appJSON)))
-
-	// Add prior if available - SAME AS BEFORE
+	// Build additional context fields for context.prior (if available)
+	// context.prior: Previous policy result for incremental policies
+	var contextFile string
 	if priorResult != nil {
 		priorJSON, err := json.Marshal(priorResult)
 		if err != nil {
 			return cue.Value{}, errors.Wrap(err, "failed to marshal prior result")
 		}
-		contextParts = append(contextParts, fmt.Sprintf("prior: %s", string(priorJSON)))
+		contextFile = fmt.Sprintf("context: {\nprior: %s\n}", string(priorJSON))
 	}
 
-	contextFile := fmt.Sprintf("context: {\n%s\n}", strings.Join(contextParts, "\n"))
-
-	// Build CUE source with base context (explicit fields + filtered metadata),
-	// additional context fields (application, prior), and parameters
+	// Build CUE source with base context (explicit fields + filtered metadata), parameters, and prior
 	// cuex.DefaultCompiler already has all the imports (kube, http, etc.)
 	cueSource := strings.Join([]string{
 		policyDef.Spec.Schematic.CUE.Template,
 		paramFile,
-		baseContext,   // Explicit fields (appName, namespace, etc.) + filtered metadata
-		contextFile,   // Additional fields (application, prior)
+		baseContext,  // Explicit fields (appName, namespace, appLabels, appComponents, etc.) + filtered metadata
+		contextFile,  // context.prior (if available)
 	}, "\n")
 
 	// Compile with CueX execution enabled (cuex.DefaultCompiler automatically resolves actions)
@@ -1364,9 +1354,9 @@ func createOrUpdateDiffsConfigMap(ctx context.Context, cli client.Client, app *v
 
 	// Add standard KubeVela labels (following ResourceTracker pattern)
 	meta.AddLabels(cm, map[string]string{
-		oam.LabelAppName:      app.Name,
-		oam.LabelAppNamespace: app.Namespace,
-		oam.LabelAppUID:       string(app.UID),
+		oam.LabelAppName:                   app.Name,
+		oam.LabelAppNamespace:              app.Namespace,
+		oam.LabelAppUID:                    string(app.UID),
 		"app.oam.dev/application-policies": "true", // Identify this as an application-policies ConfigMap
 	})
 
@@ -1410,43 +1400,6 @@ func ptrBool(b bool) *bool {
 // cleanApplicationForPolicyContext removes server-generated fields from the Application
 // before exposing it to policy templates via context.application.
 // This ensures policies only see user-provided fields from the original manifest.
-func cleanApplicationForPolicyContext(app *v1beta1.Application) map[string]interface{} {
-	// Build a clean representation with only user-provided fields
-	cleaned := make(map[string]interface{})
-
-	// Add apiVersion and kind - core manifest fields
-	cleaned["apiVersion"] = app.APIVersion
-	cleaned["kind"] = app.Kind
-
-	// Add metadata with only user-provided fields
-	metadata := map[string]interface{}{
-		"name":      app.Name,
-		"namespace": app.Namespace,
-	}
-
-	// Add labels if present
-	if len(app.Labels) > 0 {
-		metadata["labels"] = app.Labels
-	}
-
-	// Add annotations if present
-	if len(app.Annotations) > 0 {
-		metadata["annotations"] = app.Annotations
-	}
-
-	cleaned["metadata"] = metadata
-
-	// Add spec (all user-provided)
-	// Marshal and unmarshal to convert to map[string]interface{}
-	specBytes, _ := json.Marshal(app.Spec)
-	var specMap map[string]interface{}
-	_ = json.Unmarshal(specBytes, &specMap)
-	cleaned["spec"] = specMap
-
-	// Don't include status - it's all server-generated
-
-	return cleaned
-}
 
 // Internal/system metadata prefixes to exclude from policy context
 // Using a map for O(1) lookup instead of O(n) slice iteration

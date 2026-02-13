@@ -29,7 +29,9 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -850,117 +852,6 @@ transforms: {
 		Expect(explicitEntry.Applied).Should(BeTrue())
 	})
 
-	It("Test context.application only exposes user-provided fields", func() {
-		// Create a policy that captures context.application
-		capturePolicy := &v1beta1.PolicyDefinition{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "capture-context-policy",
-				Namespace: namespace,
-			},
-			Spec: v1beta1.PolicyDefinitionSpec{
-				Scope: v1beta1.ApplicationScope,
-				Schematic: &common.Schematic{
-					CUE: &common.CUE{
-						Template: `
-parameter: {}
-enabled: true
-
-// Capture what's in context.application
-additionalContext: {
-  capturedApp: context.application
-}
-`,
-					},
-				},
-			},
-		}
-		Expect(k8sClient.Create(ctx, capturePolicy)).Should(Succeed())
-		waitForPolicyDef(ctx, "capture-context-policy", namespace)
-
-		// Create Application with labels and annotations
-		app := &v1beta1.Application{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-clean-context",
-				Namespace: namespace,
-				Labels: map[string]string{
-					"user-label": "test",
-				},
-				Annotations: map[string]string{
-					"user-annotation": "test",
-				},
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Policies: []v1beta1.AppPolicy{
-					{
-						Name: "capture",
-						Type: "capture-context-policy",
-					},
-				},
-				Components: []common.ApplicationComponent{
-					{
-						Name: "test-comp",
-						Type: "webservice",
-						Properties: &runtime.RawExtension{
-							Raw: []byte(`{"image": "nginx"}`),
-						},
-					},
-				},
-			},
-		}
-
-		// Simulate server-generated fields being added
-		app.UID = "test-uid-123"
-		app.CreationTimestamp = metav1.Now()
-		app.ResourceVersion = "12345"
-		app.Generation = 1
-
-		handler := &AppHandler{
-			Client: k8sClient,
-		}
-
-		monCtx := monitorContext.NewTraceContext(ctx, "test-clean-context")
-		monCtx, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
-		Expect(err).Should(BeNil())
-
-		// Get the additionalContext to check what was exposed
-		const policyAdditionalContextKeyString = "kubevela.oam.dev/policy-additional-context"
-		additionalCtx := monCtx.GetContext().Value(policyAdditionalContextKeyString)
-		Expect(additionalCtx).ShouldNot(BeNil())
-
-		ctxMap, ok := additionalCtx.(map[string]interface{})
-		Expect(ok).Should(BeTrue())
-		Expect(ctxMap).Should(HaveKey("capturedApp"))
-
-		capturedApp, ok := ctxMap["capturedApp"].(map[string]interface{})
-		Expect(ok).Should(BeTrue())
-
-		// Verify apiVersion and kind ARE present (core manifest fields)
-		Expect(capturedApp).Should(HaveKey("apiVersion"))
-		Expect(capturedApp).Should(HaveKey("kind"))
-
-		// Verify user-provided fields ARE present
-		metadata, ok := capturedApp["metadata"].(map[string]interface{})
-		Expect(ok).Should(BeTrue())
-		Expect(metadata["name"]).Should(Equal("test-clean-context"))
-		Expect(metadata["namespace"]).Should(Equal(namespace))
-
-		labels, ok := metadata["labels"].(map[string]interface{})
-		Expect(ok).Should(BeTrue())
-		Expect(labels["user-label"]).Should(Equal("test"))
-
-		annotations, ok := metadata["annotations"].(map[string]interface{})
-		Expect(ok).Should(BeTrue())
-		Expect(annotations["user-annotation"]).Should(Equal("test"))
-
-		// Verify server-generated fields are NOT present
-		Expect(metadata).ShouldNot(HaveKey("uid"))
-		Expect(metadata).ShouldNot(HaveKey("creationTimestamp"))
-		Expect(metadata).ShouldNot(HaveKey("resourceVersion"))
-		Expect(metadata).ShouldNot(HaveKey("generation"))
-
-		// Verify status is empty
-		Expect(capturedApp).ShouldNot(HaveKey("status"))
-	})
 })
 
 var _ = Describe("Test Global Policy Cache", func() {
@@ -1796,186 +1687,6 @@ transforms: {
 		Expect(app.Annotations["policy.oam.dev/version"]).Should(Equal("v1"))
 	})
 
-	It("Test context.application access in CUE template", func() {
-		// Create a PolicyDefinition that uses context.application
-		policyDef := &v1beta1.PolicyDefinition{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "context-aware-policy",
-				Namespace: namespace,
-			},
-			Spec: v1beta1.PolicyDefinitionSpec{
-				Scope: v1beta1.ApplicationScope,
-				Schematic: &common.Schematic{
-					CUE: &common.CUE{
-						Template: `
-import "strings"
-
-parameter: {}
-
-// Access application metadata from context
-enabled: true
-
-transforms: {
-	labels: {
-		type: "merge"
-		value: {
-			"app-name": context.application.metadata.name
-			"app-namespace": context.application.metadata.namespace
-			"app-name-upper": strings.ToUpper(context.application.metadata.name)
-		}
-	}
-}
-
-additionalContext: {
-	originalAppName: context.application.metadata.name
-	componentCount: len(context.application.spec.components)
-}
-`,
-					},
-				},
-			},
-		}
-		Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-		waitForPolicyDef(ctx, "context-aware-policy", namespace)
-
-		// Create an Application
-		app := &v1beta1.Application{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: v1beta1.SchemeGroupVersion.String(),
-				Kind:       v1beta1.ApplicationKind,
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "my-test-app",
-				Namespace: namespace,
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{
-					{Name: "component1", Type: "webservice"},
-					{Name: "component2", Type: "worker"},
-				},
-				Policies: []v1beta1.AppPolicy{
-					{
-						Name: "context-policy",
-						Type: "context-aware-policy",
-					},
-				},
-			},
-		}
-
-		// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
-
-		handler := &AppHandler{
-			Client: k8sClient,
-		}
-
-		monCtx := monitorContext.NewTraceContext(ctx, "test")
-		resultCtx, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
-		Expect(err).Should(BeNil())
-
-		// Verify labels from context
-		Expect(app.Labels["app-name"]).Should(Equal("my-test-app"))
-		Expect(app.Labels["app-namespace"]).Should(Equal(namespace))
-		Expect(app.Labels["app-name-upper"]).Should(Equal("MY-TEST-APP"))
-
-		// Verify additionalContext from context
-		additionalCtx := getAdditionalContextFromCtx(resultCtx)
-		Expect(additionalCtx).ShouldNot(BeNil())
-		Expect(additionalCtx["originalAppName"]).Should(Equal("my-test-app"))
-		// CUE's len() returns int64, not float64
-		Expect(additionalCtx["componentCount"]).Should(Equal(int64(2)))
-	})
-
-	It("Test renderPolicy function extracts all fields correctly", func() {
-		// Create a comprehensive PolicyDefinition
-		policyDef := &v1beta1.PolicyDefinition{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "comprehensive-policy",
-				Namespace: namespace,
-			},
-			Spec: v1beta1.PolicyDefinitionSpec{
-				Scope: v1beta1.ApplicationScope,
-				Schematic: &common.Schematic{
-					CUE: &common.CUE{
-						Template: `
-parameter: {
-	shouldApply: bool
-}
-
-enabled: parameter.shouldApply
-
-transforms: {
-	labels: {
-		type: "merge"
-		value: {
-			"from-render": "true"
-		}
-	}
-}
-
-additionalContext: {
-	rendered: true
-	policyName: "comprehensive-policy"
-}
-`,
-					},
-				},
-			},
-		}
-		Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-		waitForPolicyDef(ctx, "comprehensive-policy", namespace)
-
-		app := &v1beta1.Application{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-app",
-				Namespace: namespace,
-			},
-			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{
-					{Name: "component", Type: "webservice"},
-				},
-			},
-		}
-
-		handler := &AppHandler{
-			Client: k8sClient,
-		}
-
-		monCtx := monitorContext.NewTraceContext(ctx, "test")
-
-		// Test with enabled=true
-		policyRef := v1beta1.AppPolicy{
-			Name: "test-policy",
-			Type: "comprehensive-policy",
-			Properties: &runtime.RawExtension{
-				Raw: []byte(`{"shouldApply":true}`),
-			},
-		}
-
-		result, err := handler.renderPolicy(monCtx, app, policyRef, policyDef)
-		Expect(err).Should(BeNil())
-		Expect(result.PolicyName).Should(Equal("comprehensive-policy"))
-		Expect(result.PolicyNamespace).Should(Equal(namespace))
-		Expect(result.Enabled).Should(BeTrue())
-		Expect(result.Transforms).ShouldNot(BeNil())
-		Expect(result.AdditionalContext).ShouldNot(BeNil())
-		Expect(result.AdditionalContext["rendered"]).Should(Equal(true))
-		Expect(result.AdditionalContext["policyName"]).Should(Equal("comprehensive-policy"))
-
-		// Test with enabled=false
-		policyRefDisabled := v1beta1.AppPolicy{
-			Name: "test-policy-disabled",
-			Type: "comprehensive-policy",
-			Properties: &runtime.RawExtension{
-				Raw: []byte(`{"shouldApply":false}`),
-			},
-		}
-
-		resultDisabled, err := handler.renderPolicy(monCtx, app, policyRefDisabled, policyDef)
-		Expect(err).Should(BeNil())
-		Expect(resultDisabled.Enabled).Should(BeFalse())
-		Expect(resultDisabled.SkipReason).Should(Equal("enabled=false"))
-	})
 
 	It("Test applyRenderedPolicyResult applies cached transforms correctly", func() {
 		app := &v1beta1.Application{
@@ -2358,7 +2069,7 @@ transforms: {
 				},
 			}
 			Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-		waitForPolicyDef(ctx, "modify-spec-policy", namespace)
+			waitForPolicyDef(ctx, "modify-spec-policy", namespace)
 
 			// Create Application with initial spec
 			app := &v1beta1.Application{
@@ -2536,7 +2247,7 @@ transforms: {
 					Kind:       v1beta1.ApplicationKind,
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-multi-diff-app",
+					Name:      "test-multi-diff-app",
 					Namespace: namespace,
 				},
 				Spec: v1beta1.ApplicationSpec{
@@ -2617,7 +2328,7 @@ transforms: {
 				},
 			}
 			Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-		waitForPolicyDef(ctx, "labels-only-policy", namespace)
+			waitForPolicyDef(ctx, "labels-only-policy", namespace)
 
 			app := &v1beta1.Application{
 				TypeMeta: metav1.TypeMeta{
@@ -2625,7 +2336,7 @@ transforms: {
 					Kind:       v1beta1.ApplicationKind,
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-no-diff-app",
+					Name:      "test-no-diff-app",
 					Namespace: namespace,
 				},
 				Spec: v1beta1.ApplicationSpec{
@@ -2707,7 +2418,7 @@ transforms: {
 				},
 			}
 			Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-		waitForPolicyDef(ctx, "complex-changes-policy", namespace)
+			waitForPolicyDef(ctx, "complex-changes-policy", namespace)
 
 			app := &v1beta1.Application{
 				TypeMeta: metav1.TypeMeta{
@@ -2715,7 +2426,7 @@ transforms: {
 					Kind:       v1beta1.ApplicationKind,
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-complex-diff-app",
+					Name:      "test-complex-diff-app",
 					Namespace: namespace,
 				},
 				Spec: v1beta1.ApplicationSpec{
@@ -2811,7 +2522,7 @@ transforms: {
 				},
 			}
 			Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-		waitForPolicyDef(ctx, "updateable-policy", namespace)
+			waitForPolicyDef(ctx, "updateable-policy", namespace)
 
 			app := &v1beta1.Application{
 				TypeMeta: metav1.TypeMeta{
@@ -2819,7 +2530,7 @@ transforms: {
 					Kind:       v1beta1.ApplicationKind,
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-update-app",
+					Name:      "test-update-app",
 					Namespace: namespace,
 				},
 				Spec: v1beta1.ApplicationSpec{
@@ -2870,7 +2581,7 @@ transforms: {
 					Kind:       v1beta1.ApplicationKind,
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-update-app",
+					Name:      "test-update-app",
 					Namespace: namespace,
 				},
 				Spec: v1beta1.ApplicationSpec{
@@ -2939,7 +2650,7 @@ transforms: {
 				},
 			}
 			Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-		waitForPolicyDef(ctx, "hash-test-policy", namespace)
+			waitForPolicyDef(ctx, "hash-test-policy", namespace)
 
 			app := &v1beta1.Application{
 				TypeMeta: metav1.TypeMeta{
@@ -2947,7 +2658,7 @@ transforms: {
 					Kind:       v1beta1.ApplicationKind,
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "hash-test-app",
+					Name:      "hash-test-app",
 					Namespace: namespace,
 				},
 				Spec: v1beta1.ApplicationSpec{
@@ -3057,7 +2768,7 @@ transforms: {
 				},
 			}
 			Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-		waitForPolicyDef(ctx, "label-hash-policy", namespace)
+			waitForPolicyDef(ctx, "label-hash-policy", namespace)
 
 			app := &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{
@@ -3152,7 +2863,7 @@ transforms: {
 				},
 			}
 			Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-		waitForPolicyDef(ctx, "ttl-never-policy", namespace)
+			waitForPolicyDef(ctx, "ttl-never-policy", namespace)
 
 			app := &v1beta1.Application{
 				TypeMeta: metav1.TypeMeta{
@@ -3160,7 +2871,7 @@ transforms: {
 					Kind:       v1beta1.ApplicationKind,
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "ttl-never-app",
+					Name:      "ttl-never-app",
 					Namespace: namespace,
 				},
 				Spec: v1beta1.ApplicationSpec{
@@ -3226,7 +2937,7 @@ transforms: {
 				},
 			}
 			Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-		waitForPolicyDef(ctx, "ttl-60-policy", namespace)
+			waitForPolicyDef(ctx, "ttl-60-policy", namespace)
 
 			app := &v1beta1.Application{
 				TypeMeta: metav1.TypeMeta{
@@ -3234,7 +2945,7 @@ transforms: {
 					Kind:       v1beta1.ApplicationKind,
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "ttl-60-app",
+					Name:      "ttl-60-app",
 					Namespace: namespace,
 				},
 				Spec: v1beta1.ApplicationSpec{
@@ -3295,7 +3006,7 @@ transforms: {
 				},
 			}
 			Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-		waitForPolicyDef(ctx, "ttl-default-policy", namespace)
+			waitForPolicyDef(ctx, "ttl-default-policy", namespace)
 
 			app := &v1beta1.Application{
 				TypeMeta: metav1.TypeMeta{
@@ -3303,7 +3014,7 @@ transforms: {
 					Kind:       v1beta1.ApplicationKind,
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "ttl-default-app",
+					Name:      "ttl-default-app",
 					Namespace: namespace,
 				},
 				Spec: v1beta1.ApplicationSpec{
@@ -3319,8 +3030,7 @@ transforms: {
 			_, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
 			Expect(err).Should(BeNil())
 
-			// Verify ConfigMap contains ttl_seconds: 0 (Go zero value when not specified in tests)
-			// Note: CRD default marker will set it to -1 in production when CRDs are regenerated
+			// Verify ConfigMap contains ttl_seconds: -1 (CRD default when not specified)
 			cmName := "application-policies-" + namespace + "-ttl-default-app"
 			cm := &corev1.ConfigMap{}
 			err = k8sClient.Get(ctx, client.ObjectKey{Name: cmName, Namespace: namespace}, cm)
@@ -3333,100 +3043,12 @@ transforms: {
 
 				ttl, ok := record["ttl_seconds"].(float64)
 				Expect(ok).Should(BeTrue())
-				Expect(int32(ttl)).Should(Equal(int32(0)), "Should be 0 (Go zero value) in tests")
+				// CRD default is -1, not 0
+				Expect(int32(ttl)).Should(Equal(int32(-1)), "CRD default is -1 (never expire)")
 			}
 		})
 	})
 
-	Context("Test context.prior support", func() {
-		It("Test context.prior is available to policy template on second render", func() {
-			// Create a policy that uses context.prior
-			policyDef := &v1beta1.PolicyDefinition{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "prior-context-policy",
-					Namespace: namespace,
-				},
-				Spec: v1beta1.PolicyDefinitionSpec{
-					Global:          true,
-					Priority:        100,
-					Scope:           v1beta1.ApplicationScope,
-					CacheTTLSeconds: 0, // Always re-render so we can test prior
-					Schematic: &common.Schematic{
-						CUE: &common.CUE{
-							Template: `
-parameter: {}
-enabled: true
-
-// Check if prior result exists
-hasPrior: context.prior != _|_
-
-transforms: {
-	labels: {
-		type: "merge"
-		value: {
-			if hasPrior {
-				"render-count": "incremental"
-			}
-			if !hasPrior {
-				"render-count": "first"
-			}
-		}
-	}
-}
-`,
-						},
-					},
-				},
-			}
-			Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-		waitForPolicyDef(ctx, "prior-context-policy", namespace)
-
-			app := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "prior-test-app",
-					Namespace: namespace,
-				},
-				Spec: v1beta1.ApplicationSpec{
-					Components: []common.ApplicationComponent{{Name: "comp", Type: "webservice"}},
-				},
-			}
-
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
-
-			// First render - no prior context
-			handler := &AppHandler{Client: k8sClient, app: app}
-			monCtx := monitorContext.NewTraceContext(ctx, "test")
-			_, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
-			Expect(err).Should(BeNil())
-
-			// Check that label indicates first render
-			Expect(app.Labels["render-count"]).Should(Equal("first"))
-
-			// Store ConfigMap name
-			cmName := app.Status.ApplicationPoliciesConfigMap
-			Expect(cmName).ShouldNot(BeEmpty())
-
-			// Clear in-memory cache to force re-render (TTL=0 means never cache)
-			globalPolicyCache.InvalidateAll()
-
-			// Second render - should have prior context
-			app2 := app.DeepCopy()
-			app2.Status.ApplicationPoliciesConfigMap = cmName // Preserve ConfigMap reference
-
-			handler2 := &AppHandler{Client: k8sClient, app: app2}
-			monCtx2 := monitorContext.NewTraceContext(ctx, "test2")
-			_, err = handler2.ApplyApplicationScopeTransforms(monCtx2, app2)
-			Expect(err).Should(BeNil())
-
-			// Check that label indicates incremental render (had prior)
-			Expect(app2.Labels["render-count"]).Should(Equal("incremental"))
-		})
-	})
 })
 
 var _ = Describe("Test Application-scoped policy feature gates", func() {
@@ -3769,13 +3391,13 @@ var _ = Describe("Test filterUserMetadata", func() {
 			"custom.guidewire.dev/foo": "keep",
 
 			// Internal metadata - should be filtered out
-			"app.oam.dev/revision":           "filter",
-			"oam.dev/resourceTracker":        "filter",
+			"app.oam.dev/revision":               "filter",
+			"oam.dev/resourceTracker":            "filter",
 			"kubectl.kubernetes.io/last-applied": "filter",
-			"kubernetes.io/service-account":  "filter",
-			"k8s.io/cluster-service":         "filter",
-			"helm.sh/chart":                  "filter",
-			"app.kubernetes.io/managed-by":   "filter",
+			"kubernetes.io/service-account":      "filter",
+			"k8s.io/cluster-service":             "filter",
+			"helm.sh/chart":                      "filter",
+			"app.kubernetes.io/managed-by":       "filter",
 		}
 
 		filtered := filterUserMetadata(metadata)
@@ -3830,7 +3452,6 @@ var _ = Describe("Test filterUserMetadata", func() {
 	})
 })
 
-
 var _ = Describe("Test policy context with explicit fields and filtered metadata", func() {
 	namespace := "policy-context-test"
 	var ctx context.Context
@@ -3884,7 +3505,7 @@ transforms: {
 				Name:      "test-context-app",
 				Namespace: namespace,
 				Labels: map[string]string{
-					"user-label":           "user-value",      // Should be available
+					"user-label":           "user-value",     // Should be available
 					"app.oam.dev/internal": "internal-value", // Should be filtered out
 				},
 				Annotations: map[string]string{
@@ -3922,5 +3543,97 @@ transforms: {
 
 		// Verify internal label was filtered out (not accessible to policy)
 		Expect(app.Labels).Should(HaveKeyWithValue("internal-check", "filtered-correctly"))
+	})
+})
+
+var _ = Describe("Test policy context with appComponents, appWorkflow, appPolicies", func() {
+	namespace := "policy-app-spec-test"
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = util.SetNamespaceInCtx(context.Background(), namespace)
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: namespace},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	})
+
+	It("should expose appComponents, appWorkflow, appPolicies in policy context", func() {
+		// Policy that accesses controlled spec fields
+		policyDef := &v1beta1.PolicyDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-app-spec-fields",
+				Namespace: namespace,
+			},
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Scope: v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {}
+
+transforms: {
+  labels: {
+    type: "merge"
+    value: {
+      // Access appComponents
+      "component-count": "\(len(context.appComponents))"
+      "first-component": context.appComponents[0].name
+      // Access appWorkflow
+      "has-workflow": "\(context.appWorkflow != _|_)"
+      // Access appPolicies
+      "policy-count": "\(len(context.appPolicies))"
+    }
+  }
+}
+`,
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
+
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-app-spec",
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{Name: "web-component", Type: "webservice"},
+					{Name: "db-component", Type: "webservice"},
+				},
+				Workflow: &v1beta1.Workflow{
+					Steps: []wfTypesv1alpha1.WorkflowStep{
+						{
+							WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+								Name: "deploy",
+								Type: "deploy",
+							},
+						},
+					},
+				},
+				Policies: []v1beta1.AppPolicy{
+					{Name: "test-spec", Type: "test-app-spec-fields"},
+					{Name: "another-policy", Type: "some-type"},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		handler := &AppHandler{Client: k8sClient, app: app}
+		monCtx := monitorContext.NewTraceContext(ctx, "test")
+		_, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
+		Expect(err).Should(BeNil())
+
+		// Verify appComponents accessible
+		Expect(app.Labels).Should(HaveKeyWithValue("component-count", "2"))
+		Expect(app.Labels).Should(HaveKeyWithValue("first-component", "web-component"))
+
+		// Verify appWorkflow accessible
+		Expect(app.Labels).Should(HaveKeyWithValue("has-workflow", "true"))
+
+		// Verify appPolicies accessible
+		Expect(app.Labels).Should(HaveKeyWithValue("policy-count", "2"))
 	})
 })

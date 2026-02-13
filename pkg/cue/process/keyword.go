@@ -35,6 +35,12 @@ const (
 	ContextAppLabels = "appLabels"
 	// ContextAppAnnotations is the annotations of app of context
 	ContextAppAnnotations = "appAnnotations"
+	// ContextAppComponents is the components array of the app
+	ContextAppComponents = "appComponents"
+	// ContextAppWorkflow is the workflow object of the app
+	ContextAppWorkflow = "appWorkflow"
+	// ContextAppPolicies is the policies array of the app
+	ContextAppPolicies = "appPolicies"
 	// ContextNamespace is the namespace of the app
 	ContextNamespace = "namespace"
 	// ContextCluster is the cluster currently focusing on
