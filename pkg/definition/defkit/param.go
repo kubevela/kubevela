@@ -839,7 +839,14 @@ func (f *StructField) Description(desc string) *StructField {
 // Nested sets a nested struct definition for this field.
 func (f *StructField) Nested(s *StructParam) *StructField {
 	f.nested = s
-	f.fieldType = ParamTypeStruct
+	if f.fieldType == ParamTypeArray {
+		// Preserve array type; this indicates an array of nested structs.
+		if f.elementType == "" {
+			f.elementType = ParamTypeStruct
+		}
+	} else {
+		f.fieldType = ParamTypeStruct
+	}
 	return f
 }
 

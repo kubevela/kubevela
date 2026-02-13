@@ -642,6 +642,8 @@ func (g *TraitCUEGenerator) writePatchResourceOps(sb *strings.Builder, gen *CUEG
 
 	// Build a tree structure from operations (similar to component resources)
 	tree := gen.buildFieldTree(ops)
+	// Normalize conditional nodes to avoid empty parent structs in patches
+	gen.liftChildConditions(tree)
 	g.writePatchFieldTree(sb, gen, tree, depth)
 }
 

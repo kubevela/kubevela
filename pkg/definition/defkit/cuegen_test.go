@@ -182,6 +182,25 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring("name?:"))
 			Expect(cue).To(ContainSubstring("protocol:"))
 		})
+
+		It("should generate CUE for nested array struct fields", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.Struct("selector").Fields(
+						defkit.Field("matchExpressions", defkit.ParamTypeArray).
+							Nested(defkit.Struct("matchExpression").Fields(
+								defkit.Field("key", defkit.ParamTypeString).Required(),
+								defkit.Field("operator", defkit.ParamTypeString),
+							)),
+					),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("matchExpressions?: [...{"))
+			Expect(cue).To(ContainSubstring("key: string"))
+			Expect(cue).To(ContainSubstring("operator?: string"))
+		})
 	})
 
 	Describe("GenerateFullDefinition", func() {
