@@ -3829,3 +3829,98 @@ var _ = Describe("Test filterUserMetadata", func() {
 		Expect(len(filtered)).Should(Equal(2))
 	})
 })
+
+
+var _ = Describe("Test policy context with explicit fields and filtered metadata", func() {
+	namespace := "policy-context-test"
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = util.SetNamespaceInCtx(context.Background(), namespace)
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: namespace},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	})
+
+	It("should expose explicit context fields and filtered metadata to policies", func() {
+		// Policy that accesses explicit fields and filtered metadata
+		policyDef := &v1beta1.PolicyDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-context-fields",
+				Namespace: namespace,
+			},
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Scope: v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {}
+
+transforms: {
+  labels: {
+    type: "merge"
+    value: {
+      // Use explicit context fields
+      "context-app-name": context.appName
+      "context-namespace": context.namespace
+      "context-app-revision": context.appRevision
+      // Use filtered appLabels
+      "user-label-value": *context.appLabels["user-label"] | "not-found"
+      // Internal label should NOT be available
+      "internal-check": *context.appLabels["app.oam.dev/internal"] | "filtered-correctly"
+    }
+  }
+}
+`,
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
+
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-context-app",
+				Namespace: namespace,
+				Labels: map[string]string{
+					"user-label":           "user-value",      // Should be available
+					"app.oam.dev/internal": "internal-value", // Should be filtered out
+				},
+				Annotations: map[string]string{
+					"user-annotation":       "user-anno-value", // Should be available
+					"kubernetes.io/managed": "internal-anno",   // Should be filtered out
+				},
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{Name: "test-comp", Type: "webservice"},
+				},
+				Policies: []v1beta1.AppPolicy{
+					{
+						Name: "test-context",
+						Type: "test-context-fields",
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		handler := &AppHandler{Client: k8sClient, app: app}
+		monCtx := monitorContext.NewTraceContext(ctx, "test")
+		_, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
+		Expect(err).Should(BeNil())
+
+		// Verify explicit fields were accessible
+		Expect(app.Labels).Should(HaveKeyWithValue("context-app-name", "test-context-app"))
+		Expect(app.Labels).Should(HaveKeyWithValue("context-namespace", namespace))
+		// appRevision might be empty in test context, so just check it exists
+		Expect(app.Labels).Should(HaveKey("context-app-revision"))
+
+		// Verify filtered user label was accessible
+		Expect(app.Labels).Should(HaveKeyWithValue("user-label-value", "user-value"))
+
+		// Verify internal label was filtered out (not accessible to policy)
+		Expect(app.Labels).Should(HaveKeyWithValue("internal-check", "filtered-correctly"))
+	})
+})

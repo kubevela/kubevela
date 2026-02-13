@@ -660,12 +660,22 @@ func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1
 		}),
 	})
 
+	// Get current ApplicationRevision name for context
+	var appRevisionName string
+	if h.currentAppRev != nil {
+		appRevisionName = h.currentAppRev.Name
+	}
+
 	// Create a process.Context with proper runtime parameters embedded for CueX execution
+	// This provides explicit fields and filtered metadata for security
 	pCtx := velaprocess.NewContext(velaprocess.ContextData{
-		Namespace: app.Namespace,
-		AppName:   app.Name,
-		CompName:  app.Name, // Policy context doesn't have specific component
-		Ctx:       runtimeCtx, // Use runtime context with CueX providers
+		Namespace:       app.Namespace,
+		AppName:         app.Name,
+		CompName:        app.Name,                         // Policy context doesn't have specific component
+		AppRevisionName: appRevisionName,                  // Explicit appRevision field
+		AppLabels:       filterUserMetadata(app.Labels),   // Filtered labels (security)
+		AppAnnotations:  filterUserMetadata(app.Annotations), // Filtered annotations (security)
+		Ctx:             runtimeCtx,                       // Use runtime context with CueX providers
 	})
 
 	// Build parameter file (as JSON, not type annotation)
@@ -680,7 +690,14 @@ func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1
 		paramFile = "parameter: {}"
 	}
 
-	// Build context object - PRESERVES ALL EXISTING FUNCTIONALITY
+	// Get base context with explicit fields (appName, namespace, appRevision, etc.)
+	// and filtered metadata (appLabels, appAnnotations) from process.Context
+	baseContext, err := pCtx.BaseContextFile()
+	if err != nil {
+		return cue.Value{}, errors.Wrap(err, "failed to generate base context")
+	}
+
+	// Build additional context fields - PRESERVES ALL EXISTING FUNCTIONALITY
 	// context.application: Full Application CR (existing feature)
 	// context.prior: Previous policy result for incremental policies (existing feature)
 	contextParts := []string{}
@@ -704,12 +721,14 @@ func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1
 
 	contextFile := fmt.Sprintf("context: {\n%s\n}", strings.Join(contextParts, "\n"))
 
-	// Build CUE source - NO baseContext needed!
+	// Build CUE source with base context (explicit fields + filtered metadata),
+	// additional context fields (application, prior), and parameters
 	// cuex.DefaultCompiler already has all the imports (kube, http, etc.)
 	cueSource := strings.Join([]string{
 		policyDef.Spec.Schematic.CUE.Template,
 		paramFile,
-		contextFile,
+		baseContext,   // Explicit fields (appName, namespace, etc.) + filtered metadata
+		contextFile,   // Additional fields (application, prior)
 	}, "\n")
 
 	// Compile with CueX execution enabled (cuex.DefaultCompiler automatically resolves actions)
