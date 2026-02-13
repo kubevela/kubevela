@@ -4635,6 +4635,420 @@ vela cluster import-terraform production-us-east-1 \
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+#### Cluster Decommissioning Workflow
+
+Safe, reversible cluster removal with rollback checkpoints. Decommissioning is a first-class lifecycle operation.
+
+**Phase Progression:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      DECOMMISSIONING PHASES                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   ACTIVE ──► CORDONED ──► DRAINING ──► SNAPSHOTTED ──► DEPROVISIONED       │
+│                 │            │             │                │               │
+│                 │            │             │                └─ Infra        │
+│                 │            │             │                   deleted      │
+│                 │            │             └─ State backed up               │
+│                 │            └─ Workloads evicted                           │
+│                 └─ New deployments blocked                                  │
+│                                                                             │
+│   ◄──────────── ROLLBACK POSSIBLE ─────────────►│◄───── NO ROLLBACK ──►    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+| Phase | Actions | Rollback? | Gate |
+|-------|---------|-----------|------|
+| `Cordoned` | Block new Applications, mark cluster unhealthy for scheduling | ✅ Yes | Automatic or manual approval |
+| `Draining` | Evict workloads respecting PDBs, wait for graceful termination | ✅ Yes | All pods evicted or timeout |
+| `Snapshotted` | Create ClusterBlueprint snapshot, backup etcd/state | ✅ Yes | Snapshot verified |
+| `Deprovisioning` | Trigger infrastructure deletion via provisioning backend | ❌ No | Manual approval required |
+| `Decommissioned` | Remove from fleet inventory, cleanup cross-cluster references | ❌ No | Infrastructure deleted |
+
+**Cluster Decommission Spec:**
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: prod-us-east-1
+spec:
+  decommission:
+    enabled: true
+    strategy: graceful  # graceful | force | drain-only
+
+    # Drain configuration
+    drainTimeout: 1h
+    respectPodDisruptionBudgets: true
+    deleteLocalData: false  # Evict pods with emptyDir
+
+    # Snapshot before destruction
+    snapshotBefore: true
+    snapshotStorageRef:
+      name: cluster-snapshots-bucket
+
+    # Cross-cluster dependency handling
+    crossClusterDependencies:
+      action: block  # block | warn | ignore (default: block)
+      # block = fail if other clusters have crossClusterInputs referencing this cluster
+      # warn  = proceed but emit warning events
+      # ignore = proceed without checking
+
+    # Orphaned resource handling
+    orphanedResourceCheck:
+      enabled: true
+      resourceTypes:
+        - LoadBalancer
+        - PersistentVolume
+        - DNSRecord
+
+status:
+  decommission:
+    phase: Draining
+    startedAt: "2024-12-28T10:00:00Z"
+
+    # Rollback checkpoint (can restore to this phase)
+    checkpoint: Cordoned
+    checkpointCreatedAt: "2024-12-28T10:05:00Z"
+
+    # Drain progress
+    drainProgress:
+      total: 150
+      evicted: 120
+      pending: 30
+      blocked: 0
+
+    # Blockers preventing progress
+    blockers: []
+    # Example blockers:
+    # - type: PDB
+    #   name: budget-service
+    #   namespace: production
+    #   message: "PDB blocks eviction, minAvailable=3, current=3"
+    # - type: CrossClusterDependency
+    #   cluster: prod-us-west-2
+    #   resource: "crossClusterInputs.networking.vpcPeeringId"
+
+    # Orphaned resource warnings
+    orphanedResources:
+      - type: LoadBalancer
+        name: ingress-nginx
+        cloudId: "arn:aws:elasticloadbalancing:..."
+        action: "Will be deleted with cluster"
+```
+
+**Decommission Strategies:**
+
+| Strategy | Behavior | Use Case |
+|----------|----------|----------|
+| `graceful` | Full phase progression with gates | Normal planned decommission |
+| `force` | Skip drain/snapshot, proceed directly to deprovisioning | Emergency (security breach, cost) |
+| `drain-only` | Cordon and drain but don't delete infrastructure | Temporary maintenance, cluster replacement |
+
+**Rollback:**
+
+```yaml
+# To rollback from Draining to Active:
+spec:
+  decommission:
+    enabled: false  # Disabling triggers rollback
+    rollbackTo: Active  # Or "Cordoned" to stay cordoned
+```
+
+**Cross-Cluster Dependency Check:**
+
+Before decommissioning, the controller checks if other clusters reference this cluster:
+
+```yaml
+# Example: prod-us-west-2 depends on prod-us-east-1
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: prod-us-west-2
+spec:
+  crossClusterInputs:
+    vpcPeering:
+      sourceCluster: prod-us-east-1  # ← Dependency
+      outputPath: "planes.networking.outputs.vpcId"
+```
+
+With `crossClusterDependencies.action: block` (default), decommissioning prod-us-east-1 fails:
+
+```bash
+$ kubectl patch cluster prod-us-east-1 --type=merge -p '{"spec":{"decommission":{"enabled":true}}}'
+
+Error: Cannot decommission cluster "prod-us-east-1"
+
+Dependent clusters found:
+  - prod-us-west-2 (crossClusterInputs.vpcPeering.sourceCluster)
+
+To proceed:
+  1. Migrate dependencies first, OR
+  2. Set spec.decommission.crossClusterDependencies.action: warn
+```
+
+**CLI Commands:**
+
+```bash
+# Initiate graceful decommission
+vela cluster decommission prod-us-east-1 --strategy graceful
+
+# Check decommission status
+vela cluster decommission-status prod-us-east-1
+Phase: Draining (45m elapsed)
+Progress: 120/150 pods evicted
+Blockers: None
+Checkpoint: Cordoned (rollback available)
+
+# Rollback to active
+vela cluster decommission-rollback prod-us-east-1 --to Active
+
+# Force decommission (emergency)
+vela cluster decommission prod-us-east-1 --strategy force --confirm
+```
+
+**Garbage Collection Policy:**
+
+When a Cluster is deleted, ClusterPlanes and their components must be cleaned up in the correct order to respect dependencies. This mirrors KubeVela's existing garbage collection for Applications but adapted for infrastructure.
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: prod-us-east-1
+spec:
+  garbageCollection:
+    # Deletion policy
+    policy: cascading  # cascading | orphan | keep-snapshots
+    # cascading      = Delete all planes and components (default)
+    # orphan         = Delete Cluster CR but leave planes running
+    # keep-snapshots = Delete everything except snapshots/backups
+
+    # Plane deletion order
+    planeDeletionOrder: dependency-aware  # dependency-aware | parallel
+    # dependency-aware = Delete in reverse order of dependsOn (safe, slower)
+    # parallel         = Delete all planes simultaneously (fast, risky)
+
+    # Component deletion within planes
+    componentDeletionOrder: dependency-aware  # dependency-aware | parallel
+
+    # Timeout for each plane deletion
+    planeGracePeriod: 10m
+
+    # Cloud resource handling
+    orphanedCloudResources:
+      action: delete  # delete | detach | warn-only
+      # delete     = Delete cloud resources (LoadBalancers, EBS, etc.)
+      # detach     = Remove from KubeVela tracking but leave in cloud
+      # warn-only  = Emit events but don't block deletion
+
+      # Resource-specific exemptions
+      exemptions:
+        - type: PersistentVolume
+          action: detach  # Keep PVs for data safety
+          retentionDays: 30
+
+        - type: Snapshot
+          action: keep  # Always keep snapshots
+          retentionDays: 90
+
+        - type: LoadBalancer
+          action: delete  # Clean up LBs to avoid cost
+
+    # Finalizer behavior
+    finalizers:
+      - cluster.oam.dev/plane-cleanup
+      - cluster.oam.dev/cross-cluster-ref-cleanup
+      - cluster.oam.dev/orphaned-resource-check
+```
+
+**Deletion Order Example:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         GARBAGE COLLECTION ORDER                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  1. VALIDATE DELETION                                                       │
+│     ✓ Check cross-cluster dependencies (fail if consumers exist)            │
+│     ✓ Check shared plane consumers (infrastructure-mode clusters)           │
+│                                                                             │
+│  2. DELETE PLANES (reverse dependency order)                                │
+│     ┌──────────────────────────────────────────────────────────────┐        │
+│     │  Plane: observability (no dependencies)                      │        │
+│     │    ├─ Component: prometheus (deleted)                        │        │
+│     │    └─ Component: loki (deleted)                              │        │
+│     └──────────────────────────────────────────────────────────────┘        │
+│                              ▼                                              │
+│     ┌──────────────────────────────────────────────────────────────┐        │
+│     │  Plane: security (depends on: aws-foundation)                │        │
+│     │    ├─ Component: cert-manager (deleted)                      │        │
+│     │    └─ Component: gatekeeper (deleted)                        │        │
+│     └──────────────────────────────────────────────────────────────┘        │
+│                              ▼                                              │
+│     ┌──────────────────────────────────────────────────────────────┐        │
+│     │  Plane: networking (depends on: aws-foundation)              │        │
+│     │    ├─ Component: aws-load-balancer-controller (deleted)      │        │
+│     │    ├─ Component: external-dns (deleted)                      │        │
+│     │    └─ Component: cilium (deleted)                            │        │
+│     └──────────────────────────────────────────────────────────────┘        │
+│                              ▼                                              │
+│     ┌──────────────────────────────────────────────────────────────┐        │
+│     │  Plane: aws-foundation (last to delete)                      │        │
+│     │    ├─ Component: node-pool-workload (deleted)                │        │
+│     │    ├─ Component: node-pool-system (deleted)                  │        │
+│     │    ├─ Component: eks-cluster (deleted)                       │        │
+│     │    └─ Component: vpc (deleted last)                          │        │
+│     └──────────────────────────────────────────────────────────────┘        │
+│                                                                             │
+│  3. CLEAN UP ORPHANED CLOUD RESOURCES                                       │
+│     ✓ Scan for LoadBalancers, EBS volumes, DNS records                      │
+│     ✓ Delete according to orphanedCloudResources policy                     │
+│                                                                             │
+│  4. REMOVE FINALIZERS AND DELETE CLUSTER CR                                 │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Handling Cross-Cluster References:**
+
+If another cluster references this cluster via `crossClusterInputs`, the finalizer blocks deletion:
+
+```yaml
+status:
+  conditions:
+    - type: ReadyToDelete
+      status: "False"
+      reason: CrossClusterDependencies
+      message: |
+        Cannot delete cluster prod-us-east-1.
+
+        Dependent clusters:
+          - prod-us-west-2 references planes.networking.outputs.vpcId
+
+        Action required:
+          1. Update prod-us-west-2 to remove crossClusterInputs, OR
+          2. Delete prod-us-west-2 first, OR
+          3. Set spec.garbageCollection.policy: orphan (leaves resources)
+```
+
+**Shared Plane Protection:**
+
+Infrastructure-mode clusters cannot be deleted while workload clusters consume their shared planes:
+
+```bash
+$ kubectl delete cluster us-east-1-infrastructure
+
+Error from server (Forbidden): admission webhook denied the request:
+  Cannot delete infrastructure cluster "us-east-1-infrastructure"
+
+  3 workload clusters are consuming shared planes:
+    - prod-us-east-1-a (consuming: shared-vpc)
+    - prod-us-east-1-b (consuming: shared-vpc)
+    - prod-us-east-1-c (consuming: shared-vpc)
+
+  This is protected by finalizer: cluster.oam.dev/shared-plane-consumer-check
+
+  To delete:
+    1. Delete or migrate consumers first
+    2. Or use spec.garbageCollection.policy: orphan (unsafe)
+```
+
+**Orphaned Resource Detection:**
+
+After plane deletion, scan for orphaned cloud resources that weren't properly cleaned up:
+
+```yaml
+status:
+  garbageCollection:
+    phase: CleaningOrphanedResources
+    orphanedResources:
+      - type: LoadBalancer
+        name: a1b2c3d4e5f6.elb.amazonaws.com
+        cloudId: "arn:aws:elasticloadbalancing:us-east-1:..."
+        action: deleting
+        reason: "Created by ingress-nginx, not cleaned up by controller"
+
+      - type: EBSVolume
+        cloudId: "vol-0abc123def456"
+        action: detached
+        reason: "PersistentVolume exemption policy"
+
+      - type: Snapshot
+        cloudId: "snap-0xyz789"
+        action: kept
+        retentionUntil: "2025-03-28T10:00:00Z"
+```
+
+**CLI Support:**
+
+```bash
+# Check what will be deleted
+vela cluster delete prod-us-east-1 --dry-run
+Deletion Plan:
+  Planes (reverse dependency order):
+    1. observability (2 components)
+    2. security (2 components)
+    3. networking (3 components)
+    4. aws-foundation (4 components)
+
+  Orphaned Resources:
+    - 2 LoadBalancers (will be deleted)
+    - 5 PersistentVolumes (will be detached, kept for 30d)
+    - 1 Snapshot (will be kept for 90d)
+
+# Delete with custom policy
+vela cluster delete prod-us-east-1 --gc-policy orphan
+Warning: Cluster CR will be deleted but planes will remain running.
+         You must clean up cloud resources manually.
+
+# Force delete (skip finalizers - dangerous)
+vela cluster delete prod-us-east-1 --force --confirm
+```
+
+**Cluster Replacement Pattern (Blue/Green):**
+
+For in-place cluster upgrades, use decommissioning with a replacement cluster:
+
+```yaml
+# Step 1: Create replacement cluster with same blueprint
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: prod-us-east-1-v2
+spec:
+  blueprintRef:
+    name: production-standard
+  # ... same config as original
+
+---
+# Step 2: After v2 is healthy, decommission original
+# The rollout strategy can automate this via cluster selectors
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterRolloutStrategy
+metadata:
+  name: blue-green-replacement
+spec:
+  waves:
+    - name: activate-new
+      clusterSelector:
+        matchLabels:
+          cluster.oam.dev/name: prod-us-east-1-v2
+      # Wait for new cluster to be fully healthy
+
+    - name: decommission-old
+      clusterSelector:
+        matchLabels:
+          cluster.oam.dev/name: prod-us-east-1
+      decommission:
+        enabled: true
+        strategy: graceful
+      waitFor:
+        previousWaveHealthy: true
+```
+
 ---
 
 ### Definition Types
