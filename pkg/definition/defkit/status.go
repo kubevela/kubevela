@@ -137,7 +137,7 @@ func (s *StatusBuilder) buildField(f *StatusField) string {
 	return fmt.Sprintf(`%s: %s
 if context.output.%s != _|_ {
 	%s: context.output.%s
-}`, f.name, defaultExpr, f.sourcePath, f.name, f.sourcePath)
+}`, f.name, defExpr, f.sourcePath, f.name, f.sourcePath)
 }
 
 // HealthBuilder provides a fluent API for building health policy expressions.
