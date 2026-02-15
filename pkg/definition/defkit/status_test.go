@@ -17,6 +17,8 @@ limitations under the License.
 package defkit_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -177,15 +179,20 @@ var _ = Describe("Status", func() {
 			Expect(cue).To(ContainSubstring("message:"))
 		})
 
-		It("should create DeploymentHealth builder with raw CUE", func() {
+		It("should create DeploymentHealth builder with consolidated fields", func() {
 			h := defkit.DeploymentHealth()
 			cue := h.Build()
+			// Verify consolidated ready block with all fields
+			Expect(cue).To(ContainSubstring("ready: {"))
 			Expect(cue).To(ContainSubstring("updatedReplicas:"))
 			Expect(cue).To(ContainSubstring("readyReplicas:"))
 			Expect(cue).To(ContainSubstring("replicas:"))
 			Expect(cue).To(ContainSubstring("observedGeneration:"))
+			// Verify _isHealth intermediate pattern
 			Expect(cue).To(ContainSubstring("_isHealth:"))
-			Expect(cue).To(ContainSubstring("isHealth:"))
+			Expect(cue).To(ContainSubstring("isHealth: *_isHealth | bool"))
+			// Verify annotation-based disable override
+			Expect(cue).To(ContainSubstring("app.oam.dev/disable-health-check"))
 		})
 
 		It("should create StatefulSetStatus builder", func() {
@@ -221,6 +228,63 @@ var _ = Describe("Status", func() {
 			h := defkit.CronJobHealth()
 			cue := h.Build()
 			Expect(cue).To(ContainSubstring("isHealth: true"))
+		})
+	})
+
+	Context("HealthBuilder field grouping", func() {
+		It("should consolidate multiple fields with same parent into one block", func() {
+			h := defkit.Health().
+				IntField("ready.replicas", "status.readyReplicas", 0).
+				IntField("ready.updated", "status.updatedReplicas", 0).
+				HealthyWhen("ready.replicas == ready.updated")
+			cue := h.Build()
+			// Should produce a single consolidated "ready:" block, not two separate ones
+			Expect(strings.Count(cue, "ready: {")).To(Equal(1))
+			Expect(cue).To(ContainSubstring("replicas:"))
+			Expect(cue).To(ContainSubstring("updated:"))
+		})
+
+		It("should keep single-field groups as consolidated blocks", func() {
+			h := defkit.Health().
+				IntField("ready.replicas", "status.readyReplicas", 0).
+				IntField("desired.replicas", "status.replicas", 0).
+				HealthyWhen("ready.replicas == desired.replicas")
+			cue := h.Build()
+			Expect(cue).To(ContainSubstring("ready: {"))
+			Expect(cue).To(ContainSubstring("desired: {"))
+		})
+
+		It("should handle simple (non-nested) fields without grouping", func() {
+			h := defkit.Health().
+				IntField("succeeded", "status.succeeded", 0).
+				HealthyWhen("succeeded >= 1")
+			cue := h.Build()
+			Expect(cue).To(ContainSubstring("succeeded:"))
+			Expect(cue).To(ContainSubstring("isHealth: succeeded >= 1"))
+		})
+
+		It("should place metadata fields in defaults block of consolidated group", func() {
+			h := defkit.Health().
+				MetadataField("generation.metadata", "metadata.generation").
+				IntField("generation.observed", "status.observedGeneration", 0)
+			cue := h.Build()
+			// Should be one consolidated generation: block
+			Expect(strings.Count(cue, "generation: {")).To(Equal(1))
+			// Metadata field should appear as a direct reference (no default value)
+			Expect(cue).To(ContainSubstring("metadata: context.output.metadata.generation"))
+			// Int field should have default
+			Expect(cue).To(ContainSubstring("observed:"))
+			Expect(cue).To(ContainSubstring("*0 | int"))
+		})
+
+		It("should column-align fields in consolidated blocks", func() {
+			h := defkit.Health().
+				IntField("ready.a", "status.a", 0).
+				IntField("ready.longFieldName", "status.longFieldName", 0)
+			cue := h.Build()
+			// The shorter field "a" should have more padding than "longFieldName"
+			Expect(cue).To(ContainSubstring("a:"))
+			Expect(cue).To(ContainSubstring("longFieldName:"))
 		})
 	})
 

@@ -1881,6 +1881,10 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		right := g.conditionToCUE(c.right)
 		return fmt.Sprintf("(%s) || (%s)", left, right)
 	case *NotCondition:
+		// Special case: Not(IsSet("x")) -> parameter.x == _|_ (cleaner than !(parameter.x != _|_))
+		if isSet, ok := c.Inner().(*IsSetCondition); ok {
+			return fmt.Sprintf("parameter.%s == _|_", isSet.ParamName())
+		}
 		inner := g.conditionToCUE(c.Inner())
 		return fmt.Sprintf("!(%s)", inner)
 	case *LogicalExpr:
@@ -1919,12 +1923,6 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	case *ContextPathExistsCondition:
 		// Check if a context output path exists
 		return fmt.Sprintf("%s != _|_", c.FullPath())
-	case *ParamIsSetCondition:
-		// Check if a parameter is set: parameter.name != _|_
-		return fmt.Sprintf("parameter.%s != _|_", c.Param())
-	case *ParamNotSetCondition:
-		// Check if a parameter is NOT set: parameter.name == _|_
-		return fmt.Sprintf("parameter.%s == _|_", c.Param())
 	case *ContextOutputExistsCondition:
 		// Check if a context.output path exists
 		return fmt.Sprintf("context.output.%s != _|_", c.Path())

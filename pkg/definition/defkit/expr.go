@@ -186,14 +186,18 @@ func (c *CompareCondition) Right() any { return c.right }
 // Operator returns the comparison operator.
 func (c *CompareCondition) Operator() string { return c.op }
 
-// AndCondition represents a logical AND of two conditions.
+// AndCondition represents a binary logical AND of two conditions.
+// This is an internal IR type used by cuegen to combine conditions during code generation.
+// For the user-facing API, use And() which accepts variadic conditions via LogicalExpr.
 type AndCondition struct {
 	baseCondition
 	left  Condition
 	right Condition
 }
 
-// OrCondition represents a logical OR of two conditions.
+// OrCondition represents a binary logical OR of two conditions.
+// This is an internal IR type used by cuegen to combine conditions during code generation.
+// For the user-facing API, use Or() which accepts variadic conditions via LogicalExpr.
 type OrCondition struct {
 	baseCondition
 	left  Condition
@@ -201,6 +205,7 @@ type OrCondition struct {
 }
 
 // NotCondition represents a logical NOT of a condition.
+// Used both internally (e.g., by ParamNotSet) and as part of the user-facing Not() API.
 type NotCondition struct {
 	baseCondition
 	inner Condition

@@ -20,37 +20,7 @@ package defkit
 // - PatchContainerConfig: for traits that patch containers by name
 // - LetBinding: for CUE let bindings (local variables)
 // - ListComprehension: for CUE list comprehensions with conditional fields
-// - ParamIsSet: condition checking if a parameter is set
-
-// PatchContainerHelper generates the PatchContainer CUE helper pattern.
-// This helper is used by traits that need to patch a specific container by name
-// within context.output.spec.template.spec.containers.
-//
-// The PatchContainer pattern:
-// 1. Looks up the container by name in context.output.spec.template.spec.containers
-// 2. Reports an error if the container is not found
-// 3. Applies the patch fields to the matching container
-//
-// Usage in trait:
-//
-//	defkit.NewTrait("command").
-//	    Template(func(tpl *defkit.Template) {
-//	        tpl.UsePatchContainer(defkit.PatchContainerConfig{
-//	            ContainerNameParam: "containerName",
-//	            DefaultToContextName: true,
-//	            PatchFields: []defkit.PatchContainerField{
-//	                {ParamName: "command", TargetField: "command", PatchStrategy: "replace"},
-//	                {ParamName: "args", TargetField: "args", PatchStrategy: "replace"},
-//	            },
-//	        })
-//	    })
-type PatchContainerHelper struct {
-	name               string                // helper name (default: "PatchContainer")
-	containerNameParam string                // parameter name for container name (e.g., "containerName")
-	defaultToContext   bool                  // if true, defaults container name to context.name
-	fields             []PatchContainerField // fields to patch
-	customLogic        string                // optional custom CUE logic
-}
+// - ParamIsSet/ParamNotSet: convenience constructors for parameter existence conditions
 
 // PatchContainerField defines a field to be patched in the container.
 type PatchContainerField struct {
@@ -89,43 +59,6 @@ type PatchContainerConfig struct {
 	CustomPatchBlock          string                // custom CUE block for the patch: spec: template: spec: { ... } body
 	CustomParameterBlock      string                // custom CUE block for the parameter definition
 }
-
-// NewPatchContainerHelper creates a new PatchContainer helper.
-func NewPatchContainerHelper(config PatchContainerConfig) *PatchContainerHelper {
-	return &PatchContainerHelper{
-		name:               "PatchContainer",
-		containerNameParam: config.ContainerNameParam,
-		defaultToContext:   config.DefaultToContextName,
-		fields:             config.PatchFields,
-	}
-}
-
-// WithName sets a custom name for the helper.
-func (h *PatchContainerHelper) WithName(name string) *PatchContainerHelper {
-	h.name = name
-	return h
-}
-
-// WithCustomLogic adds custom CUE logic to the helper.
-func (h *PatchContainerHelper) WithCustomLogic(logic string) *PatchContainerHelper {
-	h.customLogic = logic
-	return h
-}
-
-// Name returns the helper name.
-func (h *PatchContainerHelper) Name() string { return h.name }
-
-// ContainerNameParam returns the container name parameter.
-func (h *PatchContainerHelper) ContainerNameParam() string { return h.containerNameParam }
-
-// DefaultToContext returns whether to default to context.name.
-func (h *PatchContainerHelper) DefaultToContext() bool { return h.defaultToContext }
-
-// Fields returns the patch fields.
-func (h *PatchContainerHelper) Fields() []PatchContainerField { return h.fields }
-
-// CustomLogic returns any custom CUE logic.
-func (h *PatchContainerHelper) CustomLogic() string { return h.customLogic }
 
 // --- Let Binding Support ---
 
@@ -360,49 +293,31 @@ func (t *Template) GetRawHeaderBlock() string {
 	return t.rawHeaderBlock
 }
 
-// --- ParamIsSet condition ---
-
-// ParamIsSetCondition checks if a parameter is set (not bottom).
-type ParamIsSetCondition struct {
-	baseCondition
-	param string
-}
-
-// Param returns the parameter name being checked.
-func (p *ParamIsSetCondition) Param() string { return p.param }
-
 // ParamIsSet creates a condition that checks if a parameter is set.
 // This generates CUE: parameter.name != _|_
+//
+// This is a convenience wrapper around IsSetCondition.
 //
 // Example:
 //
 //	tpl.Patch().
 //	    SetIf(defkit.ParamIsSet("replicas"), "spec.replicas", defkit.ParamRef("replicas"))
-func ParamIsSet(name string) *ParamIsSetCondition {
-	return &ParamIsSetCondition{param: name}
+func ParamIsSet(name string) *IsSetCondition {
+	return &IsSetCondition{paramName: name}
 }
-
-// --- ParamNotSet condition ---
-
-// ParamNotSetCondition checks if a parameter is NOT set (is bottom).
-type ParamNotSetCondition struct {
-	baseCondition
-	param string
-}
-
-// Param returns the parameter name being checked.
-func (p *ParamNotSetCondition) Param() string { return p.param }
 
 // ParamNotSet creates a condition that checks if a parameter is NOT set.
 // This generates CUE: parameter.name == _|_
+//
+// This is a convenience wrapper around NotCondition{inner: IsSetCondition}.
 //
 // Example:
 //
 //	// Set default only if not explicitly specified
 //	tpl.Patch().
 //	    SetIf(defkit.ParamNotSet("replicas"), "spec.replicas", defkit.Literal(1))
-func ParamNotSet(name string) *ParamNotSetCondition {
-	return &ParamNotSetCondition{param: name}
+func ParamNotSet(name string) *NotCondition {
+	return &NotCondition{inner: &IsSetCondition{paramName: name}}
 }
 
 // --- ContextOutputExists condition ---
