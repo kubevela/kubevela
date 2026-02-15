@@ -239,8 +239,7 @@ func (h *HealthBuilder) Build() string {
 	if len(h.conditions) > 0 {
 		healthExpr := strings.Join(h.conditions, " && ")
 		if h.useDefault {
-			parts = append(parts, fmt.Sprintf("_isHealth: %s", healthExpr))
-			parts = append(parts, "isHealth: *_isHealth | bool")
+			parts = append(parts, fmt.Sprintf("_isHealth: %s", healthExpr), "isHealth: *_isHealth | bool")
 		} else {
 			parts = append(parts, fmt.Sprintf("isHealth: %s", healthExpr))
 		}
