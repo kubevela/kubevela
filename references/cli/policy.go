@@ -360,10 +360,10 @@ func outputPolicyViewTable(app *v1beta1.Application, diffsConfigMap *corev1.Conf
 // outputPolicyViewJSON outputs policy view in JSON format
 func outputPolicyViewJSON(app *v1beta1.Application, diffsConfigMap *corev1.ConfigMap, ioStreams cmdutil.IOStreams) error {
 	output := map[string]interface{}{
-		"application":            app.Name,
-		"namespace":              app.Namespace,
-		"appliedPolicies":        app.Status.AppliedApplicationPolicies,
-		"policyDiffsConfigMap":   app.Status.ApplicationPoliciesConfigMap,
+		"application":          app.Name,
+		"namespace":            app.Namespace,
+		"appliedPolicies":      app.Status.AppliedApplicationPolicies,
+		"policyDiffsConfigMap": app.Status.ApplicationPoliciesConfigMap,
 	}
 
 	// Add summary
@@ -387,12 +387,12 @@ func outputPolicyViewJSON(app *v1beta1.Application, diffsConfigMap *corev1.Confi
 	}
 
 	output["summary"] = map[string]interface{}{
-		"totalDiscovered":    len(app.Status.AppliedApplicationPolicies),
-		"applied":            applied,
-		"skipped":            skipped,
-		"specModifications":  specMod,
-		"labelsAdded":        totalLabels,
-		"annotationsAdded":   totalAnnotations,
+		"totalDiscovered":   len(app.Status.AppliedApplicationPolicies),
+		"applied":           applied,
+		"skipped":           skipped,
+		"specModifications": specMod,
+		"labelsAdded":       totalLabels,
+		"annotationsAdded":  totalAnnotations,
 	}
 
 	data, err := json.MarshalIndent(output, "", "  ")
@@ -407,10 +407,10 @@ func outputPolicyViewJSON(app *v1beta1.Application, diffsConfigMap *corev1.Confi
 // outputPolicyViewYAML outputs policy view in YAML format
 func outputPolicyViewYAML(app *v1beta1.Application, diffsConfigMap *corev1.ConfigMap, ioStreams cmdutil.IOStreams) error {
 	output := map[string]interface{}{
-		"application":            app.Name,
-		"namespace":              app.Namespace,
-		"appliedPolicies":        app.Status.AppliedApplicationPolicies,
-		"policyDiffsConfigMap":   app.Status.ApplicationPoliciesConfigMap,
+		"application":          app.Name,
+		"namespace":            app.Namespace,
+		"appliedPolicies":      app.Status.AppliedApplicationPolicies,
+		"policyDiffsConfigMap": app.Status.ApplicationPoliciesConfigMap,
 	}
 
 	data, err := yaml.Marshal(output)
@@ -488,6 +488,7 @@ func runPolicyDryRun(ctx context.Context, c velacommon.Args, appName, namespace 
 		return fmt.Errorf("unknown output format: %s", outputFormat)
 	}
 }
+
 // outputDryRunTable outputs dry-run results in table format
 func outputDryRunTable(result *application.PolicyDryRunResult, ioStreams cmdutil.IOStreams) error {
 	// Show execution plan
@@ -784,14 +785,14 @@ func outputDryRunDiff(result *application.PolicyDryRunResult, ioStreams cmdutil.
 // outputDryRunJSON outputs JSON format
 func outputDryRunJSON(result *application.PolicyDryRunResult, ioStreams cmdutil.IOStreams) error {
 	output := map[string]interface{}{
-		"application":    result.Application.Name,
-		"namespace":      result.Application.Namespace,
-		"executionPlan":  result.ExecutionPlan,
-		"policyResults":  result.PolicyResults,
-		"warnings":       result.Warnings,
-		"errors":         result.Errors,
-		"finalSpec":      result.Application.Spec,
-		"finalLabels":    result.Application.Labels,
+		"application":      result.Application.Name,
+		"namespace":        result.Application.Namespace,
+		"executionPlan":    result.ExecutionPlan,
+		"policyResults":    result.PolicyResults,
+		"warnings":         result.Warnings,
+		"errors":           result.Errors,
+		"finalSpec":        result.Application.Spec,
+		"finalLabels":      result.Application.Labels,
 		"finalAnnotations": result.Application.Annotations,
 	}
 
@@ -807,14 +808,14 @@ func outputDryRunJSON(result *application.PolicyDryRunResult, ioStreams cmdutil.
 // outputDryRunYAML outputs YAML format
 func outputDryRunYAML(result *application.PolicyDryRunResult, ioStreams cmdutil.IOStreams) error {
 	output := map[string]interface{}{
-		"application":    result.Application.Name,
-		"namespace":      result.Application.Namespace,
-		"executionPlan":  result.ExecutionPlan,
-		"policyResults":  result.PolicyResults,
-		"warnings":       result.Warnings,
-		"errors":         result.Errors,
-		"finalSpec":      result.Application.Spec,
-		"finalLabels":    result.Application.Labels,
+		"application":      result.Application.Name,
+		"namespace":        result.Application.Namespace,
+		"executionPlan":    result.ExecutionPlan,
+		"policyResults":    result.PolicyResults,
+		"warnings":         result.Warnings,
+		"errors":           result.Errors,
+		"finalSpec":        result.Application.Spec,
+		"finalLabels":      result.Application.Labels,
 		"finalAnnotations": result.Application.Annotations,
 	}
 

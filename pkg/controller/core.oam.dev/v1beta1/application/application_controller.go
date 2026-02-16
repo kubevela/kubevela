@@ -204,11 +204,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Revision", err), common.ApplicationRendering)
 	}
+
 	if err := handler.FinalizeAndApplyAppRevision(logCtx); err != nil {
 		logCtx.Error(err, "Failed to apply app revision")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Revision", err), common.ApplicationRendering)
 	}
+
 	logCtx.Info("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
 		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
 	app.Status.SetConditions(condition.ReadyCondition("Revision"))

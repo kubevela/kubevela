@@ -49,11 +49,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	_ "github.com/oam-dev/kubevela/pkg/features" // Import to register feature gates
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	// +kubebuilder:scaffold:imports
 )
 

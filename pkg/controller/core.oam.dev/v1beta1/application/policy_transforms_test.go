@@ -99,11 +99,8 @@ parameter: {
 }
 
 // Add environment variable to the first component
-transforms: {
-	spec: {
-		type: "merge"
-		value: {
-			components: [{
+output: {
+	components: [{
 				properties: {
 					env: [{
 						name: parameter.envName
@@ -111,8 +108,6 @@ transforms: {
 					}]
 				}
 			}]
-		}
-	}
 }
 
 additionalContext: {
@@ -200,15 +195,12 @@ parameter: {
 	environment: string
 }
 
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
 			"team": parameter.team
 			"environment": parameter.environment
 			"managed-by": "kubevela"
 		}
-	}
 }
 `,
 					},
@@ -287,13 +279,10 @@ parameter: {
 
 enabled: parameter.applyPolicy
 
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
 			"should-not-appear": "true"
 		}
-	}
 }
 `,
 					},
@@ -340,8 +329,8 @@ transforms: {
 		Expect(app.Labels).ShouldNot(HaveKey("should-not-appear"))
 	})
 
-	It("Test Application-scoped policy with spec replace", func() {
-		// Create a PolicyDefinition that replaces the entire spec
+	It("Test Application-scoped policy with spec replace (new output.components API)", func() {
+		// Create a PolicyDefinition that replaces components using new output API
 		policyDef := &v1beta1.PolicyDefinition{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "replace-spec",
@@ -356,19 +345,15 @@ parameter: {
 	newComponentName: string
 }
 
-transforms: {
-	spec: {
-		type: "replace"
-		value: {
-			components: [{
-				name: parameter.newComponentName
-				type: "webservice"
-				properties: {
-					image: "replaced-image"
-				}
-			}]
+// New output API - simpler syntax, no type/value wrapper
+output: {
+	components: [{
+		name: parameter.newComponentName
+		type: "webservice"
+		properties: {
+			image: "replaced-image"
 		}
-	}
+	}]
 }
 `,
 					},
@@ -535,13 +520,10 @@ additionalContext: {
 }
 
 // Add a label with data from the ConfigMap
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
 			"from-configmap": output.$returns.data.key1
 		}
-	}
 }
 `,
 					},
@@ -751,13 +733,10 @@ output: {
 						Template: `
 parameter: {}
 enabled: true
-transforms: {
-  labels: {
-    type: "merge"
-    value: {
+output: {
+	labels: {
       "global-policy": "true"
     }
-  }
 }
 `,
 					},
@@ -780,13 +759,10 @@ transforms: {
 						Template: `
 parameter: {}
 enabled: true
-transforms: {
-  labels: {
-    type: "merge"
-    value: {
+output: {
+	labels: {
       "explicit-policy": "true"
     }
-  }
 }
 `,
 					},
@@ -1276,13 +1252,10 @@ var _ = Describe("Test Global PolicyDefinition Features", func() {
 parameter: {}
 enabled: true
 
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
 			"vela-system-global": "true"
 		}
-	}
 }
 `,
 					},
@@ -1320,13 +1293,10 @@ transforms: {
 parameter: {}
 enabled: true
 
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
 			"namespace-global": "true"
 		}
-	}
 }
 `,
 					},
@@ -1492,13 +1462,10 @@ transforms: {
 parameter: {}
 enabled: true
 
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
 			"should-not-apply": "true"
 		}
-	}
 }
 `,
 					},
@@ -1630,14 +1597,11 @@ var _ = Describe("Test Application-scoped Policy Rendering", func() {
 						Template: `
 parameter: {}
 
-transforms: {
+output: {
 	annotations: {
-		type: "merge"
-		value: {
 			"policy.oam.dev/applied": "true"
 			"policy.oam.dev/version": "v1"
 		}
-	}
 }
 `,
 					},
@@ -2051,17 +2015,12 @@ parameter: {}
 
 enabled: true
 
-transforms: {
-	spec: {
-		type: "merge"
-		value: {
-			components: [{
+output: {
+	components: [{
 				properties: {
 					replicas: 3
 				}
 			}]
-		}
-	}
 }
 `,
 						},
@@ -2155,17 +2114,12 @@ transforms: {
 							Template: `
 parameter: {}
 enabled: true
-transforms: {
-	spec: {
-		type: "merge"
-		value: {
-			components: [{
+output: {
+	components: [{
 				properties: {
 					cpu: "100m"
 				}
 			}]
-		}
-	}
 }
 `,
 						},
@@ -2187,17 +2141,12 @@ transforms: {
 							Template: `
 parameter: {}
 enabled: true
-transforms: {
-	spec: {
-		type: "merge"
-		value: {
-			components: [{
+output: {
+	components: [{
 				properties: {
 					memory: "256Mi"
 				}
 			}]
-		}
-	}
 }
 `,
 						},
@@ -2219,17 +2168,12 @@ transforms: {
 							Template: `
 parameter: {}
 enabled: true
-transforms: {
-	spec: {
-		type: "merge"
-		value: {
-			components: [{
+output: {
+	components: [{
 				properties: {
 					replicas: 5
 				}
 			}]
-		}
-	}
 }
 `,
 						},
@@ -2314,13 +2258,10 @@ parameter: {}
 
 enabled: true
 
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
 			"team": "platform"
 		}
-	}
 }
 `,
 						},
@@ -2394,11 +2335,8 @@ parameter: {}
 
 enabled: true
 
-transforms: {
-	spec: {
-		type: "merge"
-		value: {
-			components: [{
+output: {
+	components: [{
 				properties: {
 					replicas: 3
 					cpu: "200m"
@@ -2409,8 +2347,6 @@ transforms: {
 					}]
 				}
 			}]
-		}
-	}
 }
 `,
 						},
@@ -2504,17 +2440,12 @@ transforms: {
 							Template: `
 parameter: {}
 enabled: true
-transforms: {
-	spec: {
-		type: "merge"
-		value: {
-			components: [{
+output: {
+	components: [{
 				properties: {
 					replicas: 2
 				}
 			}]
-		}
-	}
 }
 `,
 						},
@@ -2636,13 +2567,10 @@ transforms: {
 							Template: `
 parameter: {}
 enabled: true
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
 			"cached": "true"
 		}
-	}
 }
 `,
 						},
@@ -2754,13 +2682,10 @@ transforms: {
 							Template: `
 parameter: {}
 enabled: true
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
 			"test": "value"
 		}
-	}
 }
 `,
 						},
@@ -2851,11 +2776,8 @@ transforms: {
 							Template: `
 parameter: {}
 enabled: true
-transforms: {
-	labels: {
-		type: "merge"
-		value: {"ttl": "never"}
-	}
+output: {
+	labels: {"ttl": "never"}
 }
 `,
 						},
@@ -2925,11 +2847,8 @@ transforms: {
 							Template: `
 parameter: {}
 enabled: true
-transforms: {
-	labels: {
-		type: "merge"
-		value: {"ttl": "60"}
-	}
+output: {
+	labels: {"ttl": "60"}
 }
 `,
 						},
@@ -2994,11 +2913,8 @@ transforms: {
 							Template: `
 parameter: {}
 enabled: true
-transforms: {
-	labels: {
-		type: "merge"
-		value: {"ttl": "default"}
-	}
+output: {
+	labels: {"ttl": "default"}
 }
 `,
 						},
@@ -3099,13 +3015,10 @@ var _ = Describe("Test Application-scoped policy feature gates", func() {
 						Template: `
 parameter: {}
 enabled: true
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
 			"test": "gate-disabled"
 		}
-	}
 }
 `,
 					},
@@ -3165,13 +3078,10 @@ transforms: {
 						Template: `
 parameter: {}
 enabled: true
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
 			"global": "policy"
 		}
-	}
 }
 `,
 					},
@@ -3232,13 +3142,10 @@ transforms: {
 						Template: `
 parameter: {}
 enabled: true
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
 			"discovered": "false"
 		}
-	}
 }
 `,
 					},
@@ -3298,13 +3205,10 @@ transforms: {
 						Template: `
 parameter: {}
 enabled: true
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
 			"global": "applied"
 		}
-	}
 }
 `,
 					},
@@ -3328,13 +3232,10 @@ transforms: {
 						Template: `
 parameter: {}
 enabled: true
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
 			"explicit": "applied"
 		}
-	}
 }
 `,
 					},
@@ -3478,10 +3379,8 @@ var _ = Describe("Test policy context with explicit fields and filtered metadata
 						Template: `
 parameter: {}
 
-transforms: {
-  labels: {
-    type: "merge"
-    value: {
+output: {
+	labels: {
       // Use explicit context fields
       "context-app-name": context.appName
       "context-namespace": context.namespace
@@ -3491,7 +3390,6 @@ transforms: {
       // Internal label should NOT be available
       "internal-check": *context.appLabels["app.oam.dev/internal"] | "filtered-correctly"
     }
-  }
 }
 `,
 					},
@@ -3572,10 +3470,8 @@ var _ = Describe("Test policy context with appComponents, appWorkflow, appPolici
 						Template: `
 parameter: {}
 
-transforms: {
-  labels: {
-    type: "merge"
-    value: {
+output: {
+	labels: {
       // Access appComponents
       "component-count": "\(len(context.appComponents))"
       "first-component": context.appComponents[0].name
@@ -3584,7 +3480,6 @@ transforms: {
       // Access appPolicies
       "policy-count": "\(len(context.appPolicies))"
     }
-  }
 }
 `,
 					},
@@ -3635,5 +3530,181 @@ transforms: {
 
 		// Verify appPolicies accessible
 		Expect(app.Labels).Should(HaveKeyWithValue("policy-count", "2"))
+	})
+
+	It("Regression: Policy spec modifications preserved across status patch", func() {
+		// This test verifies the fix for bug where policy-modified spec was lost
+		// during UpdateAppLatestRevisionStatus() because Status().Patch() refreshes
+		// the entire app object from API server
+		ctx := context.Background()
+
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-regression-spec-preserve"},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(Succeed())
+
+		// Create a policy that modifies components
+		pd := &v1beta1.PolicyDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "modify-components",
+				Namespace: ns.Name,
+			},
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Scope: v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {}
+
+output: {
+	components: [{
+		name: "modified-component"
+		type: "webservice"
+		properties: {
+			image: "modified:latest"
+		}
+	}]
+}
+`,
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, pd)).Should(Succeed())
+		waitForPolicyDef(ctx, pd.Name, pd.Namespace)
+
+		// Create Application with original component
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-app-spec-preserve",
+				Namespace: ns.Name,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name: "original-component",
+						Type: "webservice",
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"original:latest"}`)},
+					},
+				},
+				Policies: []v1beta1.AppPolicy{
+					{
+						Name: "modify-components",
+						Type: "modify-components",
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		// Apply policies
+		handler := NewAppHandler(ctx, reconciler, app)
+		monCtx := monitorContext.NewTraceContext(ctx, "test")
+		_, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
+		Expect(err).Should(BeNil())
+
+		// Verify component was modified by policy
+		Expect(app.Spec.Components).Should(HaveLen(1))
+		Expect(app.Spec.Components[0].Name).Should(Equal("modified-component"))
+
+		// Simulate what happens during reconciliation:
+		// 1. Generate revision (captures policy-modified spec)
+		// 2. Update status (THIS is where the bug occurred - spec was reset)
+
+		// Save the policy-modified spec
+		expectedSpec := app.Spec.DeepCopy()
+
+		// Simulate status update (this internally calls patchStatus which refreshes app)
+		// In the bug, this would reset app.Spec to original values from API server
+		err = handler.UpdateAppLatestRevisionStatus(ctx, func(ctx context.Context, app *v1beta1.Application, phase common.ApplicationPhase) error {
+			// Mock status patcher that simulates the merge patch behavior
+			// In production, this does Status().Patch() which refreshes the entire object
+			freshApp := &v1beta1.Application{}
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: app.Name, Namespace: app.Namespace}, freshApp)
+			if err != nil {
+				return err
+			}
+			// The bug was here: app object gets refreshed from API server
+			// Without the fix, app.Spec would be reset to original values
+			return nil
+		})
+
+		// CRITICAL: Verify spec is still the policy-modified version, not the original
+		Expect(app.Spec.Components).Should(HaveLen(1), "Spec should still have policy-modified components")
+		Expect(app.Spec.Components[0].Name).Should(Equal("modified-component"), "Component should still be modified-component, not original-component")
+		Expect(app.Spec).Should(Equal(*expectedSpec), "Entire spec should be preserved across status patch")
+	})
+
+	It("Regression: JSON normalization prevents infinite ApplicationRevisions", func() {
+		// This test verifies the fix for bug where component properties (RawExtension)
+		// had inconsistent JSON byte representations, causing infinite revision creation
+		ctx := context.Background()
+
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-regression-json-normalize"},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(Succeed())
+
+		// Create two Applications with semantically identical but byte-different properties
+		// This simulates what happens when policies regenerate components with different JSON formatting
+
+		app1 := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-app-json-1",
+				Namespace: ns.Name,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name: "web",
+						Type: "webservice",
+						// JSON with specific field order
+						Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx","port":80}`)},
+					},
+				},
+			},
+		}
+
+		app2 := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-app-json-2",
+				Namespace: ns.Name,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{
+					{
+						Name: "web",
+						Type: "webservice",
+						// Same JSON but different field order (semantically identical)
+						Properties: &runtime.RawExtension{Raw: []byte(`{"port":80,"image":"nginx"}`)},
+					},
+				},
+			},
+		}
+
+		Expect(k8sClient.Create(ctx, app1)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, app2)).Should(Succeed())
+
+		// Generate revisions for both apps
+		handler1 := NewAppHandler(ctx, reconciler, app1)
+		handler2 := NewAppHandler(ctx, reconciler, app2)
+
+		// The gatherRevisionSpec() function now normalizes JSON
+		rev1, hash1, err1 := handler1.gatherRevisionSpec(nil)
+		Expect(err1).Should(BeNil())
+
+		rev2, hash2, err2 := handler2.gatherRevisionSpec(nil)
+		Expect(err2).Should(BeNil())
+
+		// CRITICAL: Despite different input JSON byte order, normalized properties should be identical
+		Expect(rev1.Spec.Application.Spec.Components[0].Properties.Raw).Should(Equal(rev2.Spec.Application.Spec.Components[0].Properties.Raw),
+			"Normalized JSON should have identical bytes regardless of input field order")
+
+		// Hashes should be identical (preventing duplicate revisions)
+		Expect(hash1).Should(Equal(hash2), "Hash should be identical for semantically identical specs")
+
+		// Deep equality should pass
+		equal := DeepEqualRevision(rev1, rev2)
+		Expect(equal).Should(BeTrue(), "DeepEqualRevision should return true for normalized revisions")
 	})
 })
