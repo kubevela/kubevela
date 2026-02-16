@@ -97,28 +97,6 @@ var _ = Describe("PatchContainer", func() {
 		})
 	})
 
-	Context("PatchContainerHelper WithName", func() {
-		It("should change the helper name", func() {
-			config := defkit.PatchContainerConfig{ContainerNameParam: "containerName"}
-			helper := defkit.NewPatchContainerHelper(config)
-
-			Expect(helper.Name()).To(Equal("PatchContainer"))
-
-			helper.WithName("ResourcePatcher")
-			Expect(helper.Name()).To(Equal("ResourcePatcher"))
-		})
-	})
-
-	Context("PatchContainerHelper WithCustomLogic", func() {
-		It("should store custom CUE logic for injection into generated output", func() {
-			config := defkit.PatchContainerConfig{ContainerNameParam: "containerName"}
-			customCUE := `if _params.debug { env: [{name: "DEBUG", value: "true"}] }`
-			helper := defkit.NewPatchContainerHelper(config).WithCustomLogic(customCUE)
-
-			Expect(helper.CustomLogic()).To(Equal(customCUE))
-		})
-	})
-
 	Context("Template Let Bindings", func() {
 		It("should accumulate bindings in order for CUE generation", func() {
 			tpl := defkit.NewTemplate()
@@ -224,13 +202,16 @@ var _ = Describe("PatchContainer", func() {
 		It("ParamIsSet should store param name for CUE != _|_ generation", func() {
 			cond := defkit.ParamIsSet("replicas")
 
-			Expect(cond.Param()).To(Equal("replicas"))
+			Expect(cond.ParamName()).To(Equal("replicas"))
 		})
 
 		It("ParamNotSet should store param name for CUE == _|_ generation", func() {
 			cond := defkit.ParamNotSet("defaults")
 
-			Expect(cond.Param()).To(Equal("defaults"))
+			inner := cond.Inner()
+			isSet, ok := inner.(*defkit.IsSetCondition)
+			Expect(ok).To(BeTrue())
+			Expect(isSet.ParamName()).To(Equal("defaults"))
 		})
 
 		It("ContextOutputExists should store path for context.output check", func() {

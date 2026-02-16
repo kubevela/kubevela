@@ -36,6 +36,21 @@ type StatusField struct {
 	fieldType    string // "int", "string", "bool"
 }
 
+// defaultExpr returns the CUE default expression for this field's type and value.
+// For example: "*0 | int", "*\"\" | string", "*false | bool".
+func (f *StatusField) defaultExpr() string {
+	switch f.fieldType {
+	case string(ParamTypeInt):
+		return fmt.Sprintf("*%d | int", f.defaultValue)
+	case string(ParamTypeString):
+		return fmt.Sprintf("*%q | string", f.defaultValue)
+	case string(ParamTypeBool):
+		return fmt.Sprintf("*%v | bool", f.defaultValue)
+	default:
+		return fmt.Sprintf("*%v | _", f.defaultValue)
+	}
+}
+
 // Status creates a new status builder.
 func Status() *StatusBuilder {
 	return &StatusBuilder{
@@ -105,17 +120,7 @@ func (s *StatusBuilder) RawCUE(cue string) *StatusBuilder {
 func (s *StatusBuilder) buildField(f *StatusField) string {
 	// Split nested path like "ready.replicas" into ["ready", "replicas"]
 	pathParts := strings.Split(f.name, ".")
-
-	// Build the nested structure
-	var defaultExpr string
-	switch f.fieldType {
-	case string(ParamTypeInt):
-		defaultExpr = fmt.Sprintf("*%d | int", f.defaultValue)
-	case string(ParamTypeString):
-		defaultExpr = fmt.Sprintf("*%q | string", f.defaultValue)
-	case string(ParamTypeBool):
-		defaultExpr = fmt.Sprintf("*%v | bool", f.defaultValue)
-	}
+	defExpr := f.defaultExpr()
 
 	// For nested paths, build the structure
 	if len(pathParts) == 2 {
@@ -125,7 +130,7 @@ func (s *StatusBuilder) buildField(f *StatusField) string {
 	if context.output.%s != _|_ {
 		%s: context.output.%s
 	}
-}`, pathParts[0], pathParts[1], defaultExpr, f.sourcePath, pathParts[1], f.sourcePath)
+}`, pathParts[0], pathParts[1], defExpr, f.sourcePath, pathParts[1], f.sourcePath)
 	}
 
 	// Simple field
@@ -133,14 +138,16 @@ func (s *StatusBuilder) buildField(f *StatusField) string {
 	if context.output.%s != _|_ {
 		%s: context.output.%s
 	}
-}`, f.name, defaultExpr, f.sourcePath, f.name, f.sourcePath)
+}`, f.name, defExpr, f.sourcePath, f.name, f.sourcePath)
 }
 
 // HealthBuilder provides a fluent API for building health policy expressions.
 type HealthBuilder struct {
 	*StatusBuilder
-	conditions []string
-	rawCUE     string // Raw CUE string for complex health policies that don't fit the builder pattern
+	conditions        []string
+	rawCUE            string // Raw CUE string for complex health policies that don't fit the builder pattern
+	useDefault        bool   // if true, generates _isHealth: expr + isHealth: *_isHealth | bool
+	disableAnnotation string // if set, generates annotation-based health-check disable override
 }
 
 // Health creates a new health policy builder.
@@ -181,6 +188,21 @@ func (h *HealthBuilder) HealthyWhen(conditions ...string) *HealthBuilder {
 	return h
 }
 
+// WithDefault enables the _isHealth intermediate pattern.
+// Generates: _isHealth: (expr) + isHealth: *_isHealth | bool
+// instead of: isHealth: expr
+func (h *HealthBuilder) WithDefault() *HealthBuilder {
+	h.useDefault = true
+	return h
+}
+
+// WithDisableAnnotation adds an annotation-based health-check disable override.
+// Generates CUE that checks for the given annotation and sets isHealth: true if present.
+func (h *HealthBuilder) WithDisableAnnotation(annotation string) *HealthBuilder {
+	h.disableAnnotation = annotation
+	return h
+}
+
 // StatusEq is a helper for equality conditions in status expressions.
 // Usage: .HealthyWhen(StatusEq("desired.replicas", "ready.replicas"))
 func StatusEq(left, right string) string {
@@ -211,20 +233,113 @@ func (h *HealthBuilder) Build() string {
 
 	var parts []string
 
-	for _, f := range h.fields {
-		if f.fieldType == "metadata" {
-			parts = append(parts, h.buildMetadataField(f))
-		} else {
-			parts = append(parts, h.StatusBuilder.buildField(f))
-		}
-	}
+	// Group fields by parent prefix and generate consolidated blocks
+	parts = append(parts, h.buildGroupedFields()...)
 
 	if len(h.conditions) > 0 {
 		healthExpr := strings.Join(h.conditions, " && ")
-		parts = append(parts, fmt.Sprintf("isHealth: %s", healthExpr))
+		if h.useDefault {
+			parts = append(parts, fmt.Sprintf("_isHealth: %s", healthExpr), "isHealth: *_isHealth | bool")
+		} else {
+			parts = append(parts, fmt.Sprintf("isHealth: %s", healthExpr))
+		}
+	}
+
+	if h.disableAnnotation != "" {
+		parts = append(parts, fmt.Sprintf("if context.output.metadata.annotations != _|_ {\n\tif context.output.metadata.annotations[%q] != _|_ {\n\t\tisHealth: true\n\t}\n}", h.disableAnnotation))
 	}
 
 	return strings.Join(parts, "\n")
+}
+
+// buildGroupedFields groups fields by parent prefix and generates consolidated CUE blocks.
+// Fields with the same parent (e.g., "ready.replicas", "ready.updatedReplicas") are
+// consolidated into a single block with column-aligned defaults.
+//
+// Only 2-level paths (parent.child) are grouped. Deeper paths (a.b.c) and simple
+// paths (name) are treated as simple fields and rendered individually via buildField.
+func (h *HealthBuilder) buildGroupedFields() []string {
+	type fieldGroup struct {
+		parent string
+		fields []*StatusField
+	}
+
+	groups := make([]fieldGroup, 0)
+	groupIndex := make(map[string]int)
+	var simpleFields []*StatusField
+
+	for _, f := range h.fields {
+		parts := strings.Split(f.name, ".")
+		if len(parts) == 2 {
+			parent := parts[0]
+			if idx, ok := groupIndex[parent]; ok {
+				groups[idx].fields = append(groups[idx].fields, f)
+			} else {
+				groupIndex[parent] = len(groups)
+				groups = append(groups, fieldGroup{parent: parent, fields: []*StatusField{f}})
+			}
+		} else {
+			simpleFields = append(simpleFields, f)
+		}
+	}
+
+	var result []string
+
+	for _, g := range groups {
+		result = append(result, h.buildConsolidatedGroup(g.parent, g.fields))
+	}
+
+	for _, f := range simpleFields {
+		if f.fieldType == "metadata" {
+			result = append(result, h.buildMetadataField(f))
+		} else {
+			result = append(result, h.StatusBuilder.buildField(f))
+		}
+	}
+
+	return result
+}
+
+// buildConsolidatedGroup generates a single CUE block for fields sharing a parent prefix.
+// Metadata fields are placed in the defaults block. Typed fields get default values in the
+// defaults block and conditional overrides in the conditionals block.
+// Field values are column-aligned within the block.
+func (h *HealthBuilder) buildConsolidatedGroup(parent string, fields []*StatusField) string {
+	var defaults []string
+	var conditionals []string
+
+	// Calculate max child field name length for column alignment
+	maxLen := 0
+	for _, f := range fields {
+		parts := strings.Split(f.name, ".")
+		childName := parts[1]
+		if len(childName) > maxLen {
+			maxLen = len(childName)
+		}
+	}
+
+	for _, f := range fields {
+		parts := strings.Split(f.name, ".")
+		childName := parts[1]
+		padding := strings.Repeat(" ", maxLen-len(childName))
+
+		if f.fieldType == "metadata" {
+			// Metadata fields go in defaults block as direct references
+			defaults = append(defaults, fmt.Sprintf("\t%s:%s context.output.%s", childName, padding, f.sourcePath))
+		} else {
+			// Typed fields get default value in defaults block
+			defaults = append(defaults, fmt.Sprintf("\t%s:%s %s", childName, padding, f.defaultExpr()))
+
+			// Add conditional override
+			conditionals = append(conditionals, fmt.Sprintf("\tif context.output.%s != _|_ {\n\t\t%s: context.output.%s\n\t}", f.sourcePath, childName, f.sourcePath))
+		}
+	}
+
+	if len(conditionals) == 0 {
+		return fmt.Sprintf("%s: {\n%s\n}", parent, strings.Join(defaults, "\n"))
+	}
+
+	return fmt.Sprintf("%s: {\n%s\n} & {\n%s\n}", parent, strings.Join(defaults, "\n"), strings.Join(conditionals, "\n"))
 }
 
 // RawCUE sets raw CUE for complex health policies that don't fit the builder pattern.
@@ -279,40 +394,22 @@ func DeploymentStatus() *StatusBuilder {
 }
 
 // DeploymentHealth returns a pre-configured health builder for Deployment.
-// Uses flat structure matching the original CUE healthPolicy with all fields in single block.
+// Uses consolidated structure with all fields in a single "ready" block,
+// the _isHealth intermediate pattern, and annotation-based health disable.
 func DeploymentHealth() *HealthBuilder {
-	h := &HealthBuilder{
-		StatusBuilder: Status(),
-		conditions:    make([]string, 0),
-	}
-	// Use raw CUE that matches original exactly
-	h.rawCUE = `ready: {
-	updatedReplicas:    *0 | int
-	readyReplicas:      *0 | int
-	replicas:           *0 | int
-	observedGeneration: *0 | int
-} & {
-	if context.output.status.updatedReplicas != _|_ {
-		updatedReplicas: context.output.status.updatedReplicas
-	}
-	if context.output.status.readyReplicas != _|_ {
-		readyReplicas: context.output.status.readyReplicas
-	}
-	if context.output.status.replicas != _|_ {
-		replicas: context.output.status.replicas
-	}
-	if context.output.status.observedGeneration != _|_ {
-		observedGeneration: context.output.status.observedGeneration
-	}
-}
-_isHealth: (context.output.spec.replicas == ready.readyReplicas) && (context.output.spec.replicas == ready.updatedReplicas) && (context.output.spec.replicas == ready.replicas) && (ready.observedGeneration == context.output.metadata.generation || ready.observedGeneration > context.output.metadata.generation)
-isHealth: *_isHealth | bool
-if context.output.metadata.annotations != _|_ {
-	if context.output.metadata.annotations["app.oam.dev/disable-health-check"] != _|_ {
-		isHealth: true
-	}
-}`
-	return h
+	return Health().
+		IntField("ready.updatedReplicas", "status.updatedReplicas", 0).
+		IntField("ready.readyReplicas", "status.readyReplicas", 0).
+		IntField("ready.replicas", "status.replicas", 0).
+		IntField("ready.observedGeneration", "status.observedGeneration", 0).
+		HealthyWhen(
+			"("+StatusEq("context.output.spec.replicas", "ready.readyReplicas")+")",
+			"("+StatusEq("context.output.spec.replicas", "ready.updatedReplicas")+")",
+			"("+StatusEq("context.output.spec.replicas", "ready.replicas")+")",
+			StatusOr(StatusEq("ready.observedGeneration", "context.output.metadata.generation"), "ready.observedGeneration > context.output.metadata.generation"),
+		).
+		WithDefault().
+		WithDisableAnnotation("app.oam.dev/disable-health-check")
 }
 
 // StatefulSetStatus returns a pre-configured status builder for StatefulSet.

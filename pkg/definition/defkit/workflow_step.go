@@ -297,6 +297,7 @@ type BuiltinActionBuilder struct {
 	template *WorkflowStepTemplate
 	action   *BuiltinAction
 	varName  string
+	cond     Condition // optional condition set by If()
 }
 
 // WithParams sets parameters for the builtin.
@@ -309,18 +310,21 @@ func (b *BuiltinActionBuilder) WithParams(params map[string]Value) *BuiltinActio
 
 // Build finalizes the action and adds it to the template.
 func (b *BuiltinActionBuilder) Build() *WorkflowStepTemplate {
-	b.template.actions = append(b.template.actions, b.action)
+	if b.cond != nil {
+		b.template.actions = append(b.template.actions, &ConditionalAction{
+			cond:   b.cond,
+			action: b.action,
+		})
+	} else {
+		b.template.actions = append(b.template.actions, b.action)
+	}
 	return b.template
 }
 
 // If makes this action conditional.
+// The condition is applied when Build() is called.
 func (b *BuiltinActionBuilder) If(cond Condition) *BuiltinActionBuilder {
-	// Replace action with conditional version
-	condAction := &ConditionalAction{
-		cond:   cond,
-		action: b.action,
-	}
-	b.template.actions = append(b.template.actions, condAction)
+	b.cond = cond
 	return b
 }
 

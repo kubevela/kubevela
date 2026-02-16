@@ -167,7 +167,7 @@ func (c *StatusConditionFieldExpr) getVarName() string {
 }
 
 func (c *StatusConditionFieldExpr) getFieldVarName() string {
-	return "_" + strings.ToLower(c.condType) + strings.Title(c.field)
+	return "_" + strings.ToLower(c.condType) + strings.ToUpper(c.field[:1]) + c.field[1:]
 }
 
 func (c *StatusConditionFieldExpr) Preamble() string {
