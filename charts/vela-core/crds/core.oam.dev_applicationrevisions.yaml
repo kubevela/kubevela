@@ -404,6 +404,8 @@ spec:
                               type: string
                             reason:
                               type: string
+                            source:
+                              type: string
                             specModified:
                               description: Summary of changes (counts only - full
                                 details in ConfigMap)
@@ -1253,6 +1255,7 @@ spec:
                         of PolicyDefinition
                       properties:
                         cacheTTLSeconds:
+                          default: -1
                           description: |-
                             CacheTTLSeconds defines how long the rendered policy output should be cached
                             before re-rendering. This is stored per-policy in the ConfigMap.
@@ -1282,7 +1285,8 @@ spec:
                             Global indicates this policy should automatically apply to all Applications
                             in this namespace (or all namespaces if in vela-system).
                             Global policies cannot be explicitly referenced in Application specs.
-                            Requires EnableGlobalPolicies feature gate.
+                            Requires EnableGlobalPolicies feature gate for discovery and
+                            EnableApplicationScopedPolicies feature gate for execution.
                           type: boolean
                         manageHealthCheck:
                           description: |-
@@ -1400,6 +1404,7 @@ spec:
                               These generate Kubernetes resources from CUE templates with an 'output' field.
                             - ApplicationScope: Transform-based policies that modify the Application CR before parsing.
                               These use 'transforms' instead of 'output' and don't generate resources.
+                              Requires EnableApplicationScopedPolicies feature gate.
                           type: string
                         version:
                           type: string

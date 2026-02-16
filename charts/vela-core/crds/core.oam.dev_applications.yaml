@@ -354,6 +354,8 @@ spec:
                       type: string
                     reason:
                       type: string
+                    source:
+                      type: string
                     specModified:
                       description: Summary of changes (counts only - full details
                         in ConfigMap)
