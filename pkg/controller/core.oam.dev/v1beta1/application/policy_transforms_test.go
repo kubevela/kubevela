@@ -3598,9 +3598,10 @@ output: {
 		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
 		// Apply policies
-		handler := NewAppHandler(ctx, reconciler, app)
+		handler, err := NewAppHandler(ctx, reconciler, app)
+		Expect(err).Should(BeNil())
 		monCtx := monitorContext.NewTraceContext(ctx, "test")
-		_, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
+		_, err = handler.ApplyApplicationScopeTransforms(monCtx, app)
 		Expect(err).Should(BeNil())
 
 		// Verify component was modified by policy
@@ -3686,8 +3687,10 @@ output: {
 		Expect(k8sClient.Create(ctx, app2)).Should(Succeed())
 
 		// Generate revisions for both apps
-		handler1 := NewAppHandler(ctx, reconciler, app1)
-		handler2 := NewAppHandler(ctx, reconciler, app2)
+		handler1, err := NewAppHandler(ctx, reconciler, app1)
+		Expect(err).Should(BeNil())
+		handler2, err := NewAppHandler(ctx, reconciler, app2)
+		Expect(err).Should(BeNil())
 
 		// The gatherRevisionSpec() function now normalizes JSON
 		rev1, hash1, err1 := handler1.gatherRevisionSpec(nil)
