@@ -402,11 +402,6 @@ func (h *AppHandler) applyPolicyTransform(ctx monitorContext.Context, app *v1bet
 		return ctx, nil, errors.Wrap(err, "failed to extract output")
 	}
 
-	// Check for deprecated transforms API
-	if _, err := h.extractTransforms(rendered); err != nil {
-		return ctx, nil, err // Return the deprecation error
-	}
-
 	// Require output field
 	if output == nil {
 		return ctx, nil, errors.New("policy must specify 'output' field - see documentation for API reference")
@@ -603,12 +598,6 @@ func (h *AppHandler) renderPolicy(ctx monitorContext.Context, app *v1beta1.Appli
 	if err != nil {
 		result.SkipReason = fmt.Sprintf("output extraction error: %s", err.Error())
 		return result, errors.Wrap(err, "failed to extract output")
-	}
-
-	// Check for deprecated transforms API
-	if _, err := h.extractTransforms(rendered); err != nil {
-		result.SkipReason = "using deprecated transforms API"
-		return result, err // Return the deprecation error
 	}
 
 	// Require output field
@@ -837,18 +826,6 @@ type PolicyOutput struct {
 	Ctx         map[string]interface{}        `json:"ctx,omitempty"`
 }
 
-// extractTransforms extracts the transforms field from rendered CUE
-// Only spec, labels, and annotations with type+value structure are permitted
-func (h *AppHandler) extractTransforms(val cue.Value) (*PolicyTransforms, error) {
-	transformsVal := val.LookupPath(cue.ParsePath("transforms"))
-	if !transformsVal.Exists() {
-		// No transforms field, that's OK - policy should use output API
-		return nil, nil
-	}
-
-	// Reject old transforms API - policies must use new output API
-	return nil, errors.New("the 'transforms' field is deprecated - please use 'output' field instead. See documentation for migration guide")
-}
 
 // extractOutput extracts the output field from rendered CUE (new API)
 // Returns nil if output doesn't exist (old API being used or no output specified)

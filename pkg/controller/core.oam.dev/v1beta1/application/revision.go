@@ -159,6 +159,17 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 			},
 		},
 	}
+
+	// If af is nil, skip gathering definitions from appfile
+	// This can happen in tests that only need to test the JSON normalization behavior
+	if af == nil {
+		hash, err := ComputeAppRevisionHash(appRev)
+		if err != nil {
+			return nil, "", errors.Wrapf(err, "failed to compute hash for application revision")
+		}
+		return appRev, hash, nil
+	}
+
 	for _, w := range af.ParsedComponents {
 		if w == nil {
 			continue
@@ -393,17 +404,20 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 		return false
 	}
 	for key, wd := range new.Spec.WorkloadDefinitions {
-		if !apiequality.Semantic.DeepEqual(old.Spec.WorkloadDefinitions[key].Spec, wd.Spec) {
+		oldWd, exists := old.Spec.WorkloadDefinitions[key]
+		if !exists || !apiequality.Semantic.DeepEqual(oldWd.Spec, wd.Spec) {
 			return false
 		}
 	}
 	for key, cd := range new.Spec.ComponentDefinitions {
-		if !apiequality.Semantic.DeepEqual(old.Spec.ComponentDefinitions[key].Spec, cd.Spec) {
+		oldCd, exists := old.Spec.ComponentDefinitions[key]
+		if !exists || !apiequality.Semantic.DeepEqual(oldCd.Spec, cd.Spec) {
 			return false
 		}
 	}
 	for key, td := range newTraitDefinitions {
-		if !apiequality.Semantic.DeepEqual(oldTraitDefinitions[key].Spec, td.Spec) {
+		oldTd, exists := oldTraitDefinitions[key]
+		if !exists || !apiequality.Semantic.DeepEqual(oldTd.Spec, td.Spec) {
 			return false
 		}
 	}

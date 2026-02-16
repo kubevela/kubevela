@@ -323,32 +323,4 @@ output: {
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("must have a CUE schematic")))
 	})
 
-	It("Test old transforms API is rejected with clear error", func() {
-		policy := &v1beta1.PolicyDefinition{
-			Spec: v1beta1.PolicyDefinitionSpec{
-				Scope: v1beta1.ApplicationScope,
-				Schematic: &common.Schematic{
-					CUE: &common.CUE{
-						Template: `
-parameter: {}
-
-transforms: {
-	labels: {
-		type: "merge"
-		value: {
-			"test": "value"
-		}
-	}
-}
-`,
-					},
-				},
-			},
-		}
-
-		result := ValidatePolicyDefinition(policy)
-		Expect(result.IsValid()).Should(BeFalse())
-		Expect(result.Errors).Should(ContainElement(ContainSubstring("'transforms' field is deprecated")))
-		Expect(result.Errors).Should(ContainElement(ContainSubstring("use 'output' field instead")))
-	})
 })
