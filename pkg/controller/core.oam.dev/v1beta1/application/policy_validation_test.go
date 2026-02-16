@@ -39,12 +39,9 @@ parameter: {}
 
 enabled: true
 
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
-			"test": "value"
-		}
+		"test": "value"
 	}
 }
 `,
@@ -71,12 +68,9 @@ parameter: {
 	envName: string  // Required field - no default!
 }
 
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
-			"env": parameter.envName
-		}
+		"env": parameter.envName
 	}
 }
 `,
@@ -105,12 +99,9 @@ parameter: {
 	envName?: string  // Optional but no default - can't compile!
 }
 
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
-			"env": parameter.envName
-		}
+		"env": parameter.envName
 	}
 }
 `,
@@ -140,13 +131,10 @@ parameter: {
 	replicas: *3 | int  // Has default
 }
 
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
-			"env": parameter.envName
-			"replicas": "\(parameter.replicas)"
-		}
+		"env": parameter.envName
+		"replicas": "\(parameter.replicas)"
 	}
 }
 `,
@@ -171,12 +159,9 @@ transforms: {
 						Template: `
 parameter: {}  // Empty is fine
 
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
-			"static": "value"
-		}
+		"static": "value"
 	}
 }
 `,
@@ -273,142 +258,6 @@ parameter: {
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("syntax error")))
 	})
 
-	It("Test labels transform must use 'merge' type", func() {
-		policy := &v1beta1.PolicyDefinition{
-			Spec: v1beta1.PolicyDefinitionSpec{
-				Scope: v1beta1.ApplicationScope,
-				Schematic: &common.Schematic{
-					CUE: &common.CUE{
-						Template: `
-parameter: {}
-
-transforms: {
-	labels: {
-		type: "replace"  // Invalid! Must be "merge"
-		value: {
-			"test": "value"
-		}
-	}
-}
-`,
-					},
-				},
-			},
-		}
-
-		result := ValidatePolicyDefinition(policy)
-		Expect(result.IsValid()).Should(BeFalse())
-		Expect(result.Errors).Should(ContainElement(ContainSubstring("labels.type must be 'merge'")))
-	})
-
-	It("Test annotations transform must use 'merge' type", func() {
-		policy := &v1beta1.PolicyDefinition{
-			Spec: v1beta1.PolicyDefinitionSpec{
-				Scope: v1beta1.ApplicationScope,
-				Schematic: &common.Schematic{
-					CUE: &common.CUE{
-						Template: `
-parameter: {}
-
-transforms: {
-	annotations: {
-		type: "replace"  // Invalid! Must be "merge"
-		value: {
-			"test": "value"
-		}
-	}
-}
-`,
-					},
-				},
-			},
-		}
-
-		result := ValidatePolicyDefinition(policy)
-		Expect(result.IsValid()).Should(BeFalse())
-		Expect(result.Errors).Should(ContainElement(ContainSubstring("annotations.type must be 'merge'")))
-	})
-
-	It("Test spec transform can use 'merge' or 'replace'", func() {
-		// Test with merge
-		policyMerge := &v1beta1.PolicyDefinition{
-			Spec: v1beta1.PolicyDefinitionSpec{
-				Scope: v1beta1.ApplicationScope,
-				Schematic: &common.Schematic{
-					CUE: &common.CUE{
-						Template: `
-parameter: {}
-
-transforms: {
-	spec: {
-		type: "merge"
-		value: {
-			components: []
-		}
-	}
-}
-`,
-					},
-				},
-			},
-		}
-
-		resultMerge := ValidatePolicyDefinition(policyMerge)
-		Expect(resultMerge.IsValid()).Should(BeTrue())
-
-		// Test with replace
-		policyReplace := &v1beta1.PolicyDefinition{
-			Spec: v1beta1.PolicyDefinitionSpec{
-				Scope: v1beta1.ApplicationScope,
-				Schematic: &common.Schematic{
-					CUE: &common.CUE{
-						Template: `
-parameter: {}
-
-transforms: {
-	spec: {
-		type: "replace"
-		value: {
-			components: []
-		}
-	}
-}
-`,
-					},
-				},
-			},
-		}
-
-		resultReplace := ValidatePolicyDefinition(policyReplace)
-		Expect(resultReplace.IsValid()).Should(BeTrue())
-	})
-
-	It("Test spec transform with invalid type fails", func() {
-		policy := &v1beta1.PolicyDefinition{
-			Spec: v1beta1.PolicyDefinitionSpec{
-				Scope: v1beta1.ApplicationScope,
-				Schematic: &common.Schematic{
-					CUE: &common.CUE{
-						Template: `
-parameter: {}
-
-transforms: {
-	spec: {
-		type: "invalid"  // Invalid type!
-		value: {}
-	}
-}
-`,
-					},
-				},
-			},
-		}
-
-		result := ValidatePolicyDefinition(policy)
-		Expect(result.IsValid()).Should(BeFalse())
-		Expect(result.Errors).Should(ContainElement(ContainSubstring("'merge' or 'replace'")))
-	})
-
 	It("Test enabled field must be bool", func() {
 		policy := &v1beta1.PolicyDefinition{
 			Spec: v1beta1.PolicyDefinitionSpec{
@@ -443,12 +292,9 @@ parameter: {
 	envName: string  // Required is OK for non-global policies
 }
 
-transforms: {
+output: {
 	labels: {
-		type: "merge"
-		value: {
-			"env": parameter.envName
-		}
+		"env": parameter.envName
 	}
 }
 `,
@@ -477,7 +323,7 @@ transforms: {
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("must have a CUE schematic")))
 	})
 
-	It("Test transform without type field fails", func() {
+	It("Test old transforms API is rejected with clear error", func() {
 		policy := &v1beta1.PolicyDefinition{
 			Spec: v1beta1.PolicyDefinitionSpec{
 				Scope: v1beta1.ApplicationScope,
@@ -488,7 +334,7 @@ parameter: {}
 
 transforms: {
 	labels: {
-		// Missing 'type' field!
+		type: "merge"
 		value: {
 			"test": "value"
 		}
@@ -502,32 +348,7 @@ transforms: {
 
 		result := ValidatePolicyDefinition(policy)
 		Expect(result.IsValid()).Should(BeFalse())
-		Expect(result.Errors).Should(ContainElement(ContainSubstring("must have 'type' field")))
-	})
-
-	It("Test transform without value field fails", func() {
-		policy := &v1beta1.PolicyDefinition{
-			Spec: v1beta1.PolicyDefinitionSpec{
-				Scope: v1beta1.ApplicationScope,
-				Schematic: &common.Schematic{
-					CUE: &common.CUE{
-						Template: `
-parameter: {}
-
-transforms: {
-	labels: {
-		type: "merge"
-		// Missing 'value' field!
-	}
-}
-`,
-					},
-				},
-			},
-		}
-
-		result := ValidatePolicyDefinition(policy)
-		Expect(result.IsValid()).Should(BeFalse())
-		Expect(result.Errors).Should(ContainElement(ContainSubstring("must have 'value' field")))
+		Expect(result.Errors).Should(ContainElement(ContainSubstring("'transforms' field is deprecated")))
+		Expect(result.Errors).Should(ContainElement(ContainSubstring("use 'output' field instead")))
 	})
 })

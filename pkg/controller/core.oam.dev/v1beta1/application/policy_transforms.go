@@ -36,6 +36,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -250,8 +251,7 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 
 		// Record successful application in status
 		if changes != nil {
-			// Determine if spec was modified by checking if transforms.Spec exists
-			changes.SpecModified = changes.Transforms != nil && changes.Transforms.Spec != nil
+			// SpecModified is already set correctly in applyPolicyTransform
 			allPolicyChanges[policy.Name] = changes // Store for ConfigMap serialization
 		}
 		recordApplicationPolicyStatus(app, policy.Name, templ.PolicyDefinition.Namespace, "explicit", sequence, 0, true, "", changes)
@@ -300,13 +300,13 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 			"application_hash": appHash, // Hash of Application for cache invalidation
 		}
 
-		// Get the full policy changes if available (includes transforms, labels, annotations, context)
+		// Get the full policy changes if available (includes output, labels, annotations, context)
 		if policyChanges, ok := allPolicyChanges[policyName]; ok && policyChanges != nil {
-			// Store the full transforms object in reusable format
-			if policyChanges.Transforms != nil {
-				transformsData := serializeTransformsForStorage(policyChanges.Transforms)
-				if len(transformsData) > 0 {
-					policyRecord["transforms"] = transformsData
+			// Store the output object in reusable format
+			if policyChanges.Output != nil {
+				outputData := serializeOutputForStorage(policyChanges.Output)
+				if len(outputData) > 0 {
+					policyRecord["output"] = outputData
 				}
 			}
 
@@ -396,16 +396,26 @@ func (h *AppHandler) applyPolicyTransform(ctx monitorContext.Context, app *v1bet
 		return ctx, nil, nil
 	}
 
-	// Extract transforms field
-	transforms, err := h.extractTransforms(rendered)
+	// Extract output (new API only)
+	output, err := h.extractOutput(rendered)
 	if err != nil {
-		return ctx, nil, errors.Wrap(err, "failed to extract transforms")
+		return ctx, nil, errors.Wrap(err, "failed to extract output")
+	}
+
+	// Check for deprecated transforms API
+	if _, err := h.extractTransforms(rendered); err != nil {
+		return ctx, nil, err // Return the deprecation error
+	}
+
+	// Require output field
+	if output == nil {
+		return ctx, nil, errors.New("policy must specify 'output' field - see documentation for API reference")
 	}
 
 	// Track changes from before transform application
 	changes := &PolicyChanges{
-		Enabled:    true, // We already checked it's enabled above
-		Transforms: transforms,
+		Enabled: true, // We already checked it's enabled above
+		Output:  output,
 	}
 
 	// Take snapshot of labels and annotations BEFORE applying transform
@@ -422,12 +432,49 @@ func (h *AppHandler) applyPolicyTransform(ctx monitorContext.Context, app *v1bet
 		}
 	}
 
-	// Apply transforms to the in-memory Application
-	if transforms != nil {
-		if err := h.applyTransformsToApplication(ctx, app, transforms); err != nil {
-			return ctx, nil, errors.Wrap(err, "failed to apply transforms")
+	// Apply output to Application spec
+	// Build new spec struct (like old code did) to survive status patch operations
+	newSpec := app.Spec.DeepCopy()
+
+	if output.Components != nil {
+		newSpec.Components = output.Components
+		ctx.Info("Replaced components from output", "policy", policyRef.Type, "count", len(output.Components))
+		changes.SpecModified = true
+	}
+	if output.Workflow != nil {
+		newSpec.Workflow = output.Workflow
+		ctx.Info("Replaced workflow from output", "policy", policyRef.Type)
+		changes.SpecModified = true
+	}
+	if output.Policies != nil {
+		newSpec.Policies = output.Policies
+		ctx.Info("Replaced policies from output", "policy", policyRef.Type, "count", len(output.Policies))
+		changes.SpecModified = true
+	}
+
+	// Replace entire spec (matches old transforms behavior)
+	app.Spec = *newSpec
+
+	// Apply labels (always merge)
+	if output.Labels != nil && len(output.Labels) > 0 {
+		if app.Labels == nil {
+			app.Labels = make(map[string]string)
 		}
-		ctx.Info("Applied transforms to Application", "policy", policyRef.Type)
+		for k, v := range output.Labels {
+			app.Labels[k] = v
+		}
+		ctx.Info("Merged labels from output", "policy", policyRef.Type, "count", len(output.Labels))
+	}
+
+	// Apply annotations (always merge)
+	if output.Annotations != nil && len(output.Annotations) > 0 {
+		if app.Annotations == nil {
+			app.Annotations = make(map[string]string)
+		}
+		for k, v := range output.Annotations {
+			app.Annotations[k] = v
+		}
+		ctx.Info("Merged annotations from output", "policy", policyRef.Type, "count", len(output.Annotations))
 	}
 
 	// Compare AFTER to capture actual changes (works regardless of how CUE modifies the Application)
@@ -455,11 +502,8 @@ func (h *AppHandler) applyPolicyTransform(ctx monitorContext.Context, app *v1bet
 		changes.AddedAnnotations = annotationsAdded
 	}
 
-	// Extract and store additionalContext
-	additionalContext, err := h.extractAdditionalContext(rendered)
-	if err != nil {
-		return ctx, nil, errors.Wrap(err, "failed to extract additionalContext")
-	}
+	// Store ctx as additionalContext
+	additionalContext := output.Ctx
 
 	if additionalContext != nil {
 		ctx = storeAdditionalContextInCtx(ctx, additionalContext)
@@ -490,9 +534,13 @@ func (h *AppHandler) renderPolicy(ctx monitorContext.Context, app *v1beta1.Appli
 	} else if cachedRecord != nil {
 		ctx.Info("Using cached policy result", "policy", policyDef.Name, "ttl", ttlSeconds)
 
-		// Deserialize the cached result
-		if transformsData, ok := cachedRecord["transforms"].(map[string]interface{}); ok {
-			result.Transforms = deserializeTransformsFromStorage(transformsData)
+		// Deserialize the cached output
+		if outputData, ok := cachedRecord["output"].(map[string]interface{}); ok {
+			result.Transforms = deserializeOutputFromStorage(outputData)
+		} else {
+			// No output in cache - policy needs re-rendering
+			klog.Warningf("Policy %s cached without output data - will re-render", policyDef.Name)
+			return RenderedPolicyResult{}, nil
 		}
 
 		if additionalContext, ok := cachedRecord["additional_context"].(map[string]interface{}); ok {
@@ -550,21 +598,29 @@ func (h *AppHandler) renderPolicy(ctx monitorContext.Context, app *v1beta1.Appli
 		return result, nil
 	}
 
-	// Extract transforms field
-	transforms, err := h.extractTransforms(rendered)
+	// Extract output (new API only)
+	output, err := h.extractOutput(rendered)
 	if err != nil {
-		result.SkipReason = fmt.Sprintf("transforms extraction error: %s", err.Error())
-		return result, errors.Wrap(err, "failed to extract transforms")
+		result.SkipReason = fmt.Sprintf("output extraction error: %s", err.Error())
+		return result, errors.Wrap(err, "failed to extract output")
 	}
-	result.Transforms = transforms
 
-	// Extract additionalContext
-	additionalContext, err := h.extractAdditionalContext(rendered)
-	if err != nil {
-		result.SkipReason = fmt.Sprintf("additionalContext extraction error: %s", err.Error())
-		return result, errors.Wrap(err, "failed to extract additionalContext")
+	// Check for deprecated transforms API
+	if _, err := h.extractTransforms(rendered); err != nil {
+		result.SkipReason = "using deprecated transforms API"
+		return result, err // Return the deprecation error
 	}
-	result.AdditionalContext = additionalContext
+
+	// Require output field
+	if output == nil {
+		result.SkipReason = "missing output field"
+		return result, errors.New("policy must specify 'output' field - see documentation for API reference")
+	}
+
+	// Store output
+	result.Transforms = output
+	// Extract ctx as additionalContext
+	result.AdditionalContext = output.Ctx
 
 	return result, nil
 }
@@ -579,59 +635,58 @@ func (h *AppHandler) applyRenderedPolicyResult(ctx monitorContext.Context, app *
 		return ctx, nil, nil
 	}
 
-	// Cast transforms from interface{}
-	transforms, ok := result.Transforms.(*PolicyTransforms)
-	if !ok && result.Transforms != nil {
-		return ctx, nil, errors.Errorf("cached transforms have invalid type for policy %s", result.PolicyName)
+	// Extract PolicyOutput from cached result
+	output, ok := result.Transforms.(*PolicyOutput)
+	if !ok || output == nil {
+		return ctx, nil, errors.Errorf("cached policy has invalid or missing output for policy %s", result.PolicyName)
 	}
 
 	// Track what changes we're making
 	changes := &PolicyChanges{
 		AdditionalContext: result.AdditionalContext,
 		Enabled:           result.Enabled,
-		Transforms:        transforms,
+		Output:            output,
 	}
 
-	// Apply transforms to the in-memory Application
-	if transforms != nil {
-		if err := h.applyTransformsToApplication(ctx, app, transforms); err != nil {
-			return ctx, nil, errors.Wrap(err, "failed to apply transforms")
-		}
-		ctx.Info("Applied cached transforms to Application", "policy", result.PolicyName)
+	// Apply output to Application spec
+	if output.Components != nil {
+		app.Spec.Components = output.Components
+		ctx.Info("Replaced components from output", "policy", result.PolicyName, "count", len(output.Components))
+		changes.SpecModified = true
+	}
+	if output.Workflow != nil {
+		app.Spec.Workflow = output.Workflow
+		ctx.Info("Replaced workflow from output", "policy", result.PolicyName)
+		changes.SpecModified = true
+	}
+	if output.Policies != nil {
+		app.Spec.Policies = output.Policies
+		ctx.Info("Replaced policies from output", "policy", result.PolicyName, "count", len(output.Policies))
+		changes.SpecModified = true
+	}
 
-		// Extract changes directly from transforms
-		if transforms.Labels != nil {
-			if labelsMap, ok := transforms.Labels.Value.(map[string]string); ok {
-				changes.AddedLabels = labelsMap
-			} else if labelsMap, ok := transforms.Labels.Value.(map[string]interface{}); ok {
-				// Convert from interface{} map
-				stringMap := make(map[string]string)
-				for k, v := range labelsMap {
-					if strVal, ok := v.(string); ok {
-						stringMap[k] = strVal
-					}
-				}
-				changes.AddedLabels = stringMap
-			}
+	// Apply labels (always merge)
+	if output.Labels != nil && len(output.Labels) > 0 {
+		if app.Labels == nil {
+			app.Labels = make(map[string]string)
 		}
-
-		if transforms.Annotations != nil {
-			if annotationsMap, ok := transforms.Annotations.Value.(map[string]string); ok {
-				changes.AddedAnnotations = annotationsMap
-			} else if annotationsMap, ok := transforms.Annotations.Value.(map[string]interface{}); ok {
-				// Convert from interface{} map
-				stringMap := make(map[string]string)
-				for k, v := range annotationsMap {
-					if strVal, ok := v.(string); ok {
-						stringMap[k] = strVal
-					}
-				}
-				changes.AddedAnnotations = stringMap
-			}
+		for k, v := range output.Labels {
+			app.Labels[k] = v
 		}
+		changes.AddedLabels = output.Labels
+		ctx.Info("Merged labels from output", "policy", result.PolicyName, "count", len(output.Labels))
+	}
 
-		// Check if spec was modified
-		changes.SpecModified = transforms.Spec != nil
+	// Apply annotations (always merge)
+	if output.Annotations != nil && len(output.Annotations) > 0 {
+		if app.Annotations == nil {
+			app.Annotations = make(map[string]string)
+		}
+		for k, v := range output.Annotations {
+			app.Annotations[k] = v
+		}
+		changes.AddedAnnotations = output.Annotations
+		ctx.Info("Merged annotations from output", "policy", result.PolicyName, "count", len(output.Annotations))
 	}
 
 	// Store additionalContext in context
@@ -765,11 +820,21 @@ type Transform struct {
 	Value interface{}            `json:"value"`
 }
 
-// PolicyTransforms represents the allowed transformation operations
+// PolicyTransforms represents the allowed transformation operations (old API)
 type PolicyTransforms struct {
 	Spec        *Transform `json:"spec,omitempty"`
 	Labels      *Transform `json:"labels,omitempty"`
 	Annotations *Transform `json:"annotations,omitempty"`
+}
+
+// PolicyOutput represents the new simplified output structure (new API)
+type PolicyOutput struct {
+	Components  []common.ApplicationComponent `json:"components,omitempty"`
+	Workflow    *v1beta1.Workflow             `json:"workflow,omitempty"`
+	Policies    []v1beta1.AppPolicy           `json:"policies,omitempty"`
+	Labels      map[string]string             `json:"labels,omitempty"`
+	Annotations map[string]string             `json:"annotations,omitempty"`
+	Ctx         map[string]interface{}        `json:"ctx,omitempty"`
 }
 
 // extractTransforms extracts the transforms field from rendered CUE
@@ -777,54 +842,50 @@ type PolicyTransforms struct {
 func (h *AppHandler) extractTransforms(val cue.Value) (*PolicyTransforms, error) {
 	transformsVal := val.LookupPath(cue.ParsePath("transforms"))
 	if !transformsVal.Exists() {
-		// No transforms field, that's OK
+		// No transforms field, that's OK - policy should use output API
 		return nil, nil
 	}
 
-	var transforms PolicyTransforms
-	if err := transformsVal.Decode(&transforms); err != nil {
-		return nil, errors.Wrap(err, "failed to decode transforms")
+	// Reject old transforms API - policies must use new output API
+	return nil, errors.New("the 'transforms' field is deprecated - please use 'output' field instead. See documentation for migration guide")
+}
+
+// extractOutput extracts the output field from rendered CUE (new API)
+// Returns nil if output doesn't exist (old API being used or no output specified)
+func (h *AppHandler) extractOutput(val cue.Value) (*PolicyOutput, error) {
+	outputVal := val.LookupPath(cue.ParsePath("output"))
+	if !outputVal.Exists() {
+		return nil, nil // No output field
 	}
 
-	// Validate structure: only 'spec', 'labels', and 'annotations' are allowed
-	iter, err := transformsVal.Fields()
+	var output PolicyOutput
+	if err := outputVal.Decode(&output); err != nil {
+		return nil, errors.Wrap(err, "failed to decode output")
+	}
+
+	// Validate structure: only allowed fields
+	iter, err := outputVal.Fields()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to iterate transforms fields")
+		return nil, errors.Wrap(err, "failed to iterate output fields")
 	}
 
 	allowedFields := map[string]bool{
-		"spec":        true,
+		"components":  true,
+		"workflow":    true,
+		"policies":    true,
 		"labels":      true,
 		"annotations": true,
+		"ctx":         true,
 	}
 
 	for iter.Next() {
 		fieldName := iter.Selector().String()
 		if !allowedFields[fieldName] {
-			return nil, errors.Errorf("transforms.%s is not allowed; only 'spec', 'labels', and 'annotations' are permitted", fieldName)
+			return nil, errors.Errorf("output.%s is not allowed; only 'components', 'workflow', 'policies', 'labels', 'annotations', and 'ctx' are permitted", fieldName)
 		}
 	}
 
-	// Validate each transform has correct type
-	if transforms.Spec != nil {
-		if err := validateTransformType(transforms.Spec.Type, "spec", true); err != nil {
-			return nil, err
-		}
-	}
-	if transforms.Labels != nil {
-		// Labels only support merge for safety
-		if err := validateTransformType(transforms.Labels.Type, "labels", false); err != nil {
-			return nil, err
-		}
-	}
-	if transforms.Annotations != nil {
-		// Annotations only support merge for safety
-		if err := validateTransformType(transforms.Annotations.Type, "annotations", false); err != nil {
-			return nil, err
-		}
-	}
-
-	return &transforms, nil
+	return &output, nil
 }
 
 // validateTransformType ensures the transform type is valid
@@ -1083,7 +1144,8 @@ type PolicyChanges struct {
 
 	// Full rendered output for caching/reuse
 	Enabled    bool
-	Transforms *PolicyTransforms
+	Transforms *PolicyTransforms // Old transforms API
+	Output     *PolicyOutput     // New output API
 }
 
 // policyConfigMapMetadata tracks metadata needed for ConfigMap storage
@@ -1125,6 +1187,113 @@ func serializeTransformsForStorage(transforms *PolicyTransforms) map[string]inte
 	}
 
 	return result
+}
+
+// serializeOutputForStorage converts PolicyOutput to a format suitable for storage and reuse
+func serializeOutputForStorage(output *PolicyOutput) map[string]interface{} {
+	if output == nil {
+		return nil
+	}
+
+	result := make(map[string]interface{})
+
+	if output.Components != nil {
+		result["components"] = output.Components
+	}
+
+	if output.Workflow != nil {
+		result["workflow"] = output.Workflow
+	}
+
+	if output.Policies != nil {
+		result["policies"] = output.Policies
+	}
+
+	if output.Labels != nil {
+		result["labels"] = output.Labels
+	}
+
+	if output.Annotations != nil {
+		result["annotations"] = output.Annotations
+	}
+
+	if output.Ctx != nil {
+		result["ctx"] = output.Ctx
+	}
+
+	return result
+}
+
+// deserializeOutputFromStorage converts stored output back to PolicyOutput
+func deserializeOutputFromStorage(outputData map[string]interface{}) *PolicyOutput {
+	if outputData == nil {
+		return nil
+	}
+
+	output := &PolicyOutput{}
+
+	// Decode components
+	if componentsData, ok := outputData["components"]; ok {
+		jsonBytes, err := json.Marshal(componentsData)
+		if err != nil {
+			klog.Errorf("Failed to marshal components data: %v", err)
+		} else {
+			if err := json.Unmarshal(jsonBytes, &output.Components); err != nil {
+				klog.Errorf("Failed to unmarshal components: %v", err)
+			}
+		}
+	}
+
+	// Decode workflow
+	if workflowData, ok := outputData["workflow"]; ok {
+		jsonBytes, err := json.Marshal(workflowData)
+		if err != nil {
+			klog.Errorf("Failed to marshal workflow data: %v", err)
+		} else {
+			if err := json.Unmarshal(jsonBytes, &output.Workflow); err != nil {
+				klog.Errorf("Failed to unmarshal workflow: %v", err)
+			}
+		}
+	}
+
+	// Decode policies
+	if policiesData, ok := outputData["policies"]; ok {
+		jsonBytes, err := json.Marshal(policiesData)
+		if err != nil {
+			klog.Errorf("Failed to marshal policies data: %v", err)
+		} else {
+			if err := json.Unmarshal(jsonBytes, &output.Policies); err != nil {
+				klog.Errorf("Failed to unmarshal policies: %v", err)
+			}
+		}
+	}
+
+	// Decode labels
+	if labelsData, ok := outputData["labels"].(map[string]interface{}); ok {
+		output.Labels = make(map[string]string)
+		for k, v := range labelsData {
+			if strVal, ok := v.(string); ok {
+				output.Labels[k] = strVal
+			}
+		}
+	}
+
+	// Decode annotations
+	if annotationsData, ok := outputData["annotations"].(map[string]interface{}); ok {
+		output.Annotations = make(map[string]string)
+		for k, v := range annotationsData {
+			if strVal, ok := v.(string); ok {
+				output.Annotations[k] = strVal
+			}
+		}
+	}
+
+	// Decode ctx
+	if ctxData, ok := outputData["ctx"].(map[string]interface{}); ok {
+		output.Ctx = ctxData
+	}
+
+	return output
 }
 
 // loadCachedPolicyFromConfigMap attempts to load a cached policy result from the ConfigMap

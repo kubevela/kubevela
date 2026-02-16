@@ -18,6 +18,7 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 
 	"github.com/hashicorp/go-version"
@@ -130,6 +131,21 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	copiedApp := h.app.DeepCopy()
 	// We better to remove all object status in the appRevision
 	copiedApp.Status = common.AppStatus{}
+
+	// Normalize component properties (RawExtension) to ensure consistent JSON encoding
+	// This prevents spurious revision creation due to JSON field order/formatting differences
+	for i := range copiedApp.Spec.Components {
+		if copiedApp.Spec.Components[i].Properties != nil && copiedApp.Spec.Components[i].Properties.Raw != nil {
+			// Decode and re-encode to normalize JSON
+			var obj map[string]interface{}
+			if err := json.Unmarshal(copiedApp.Spec.Components[i].Properties.Raw, &obj); err == nil {
+				if normalized, err := json.Marshal(obj); err == nil {
+					copiedApp.Spec.Components[i].Properties.Raw = normalized
+				}
+			}
+		}
+	}
+
 	appRev := &v1beta1.ApplicationRevision{
 		Spec: v1beta1.ApplicationRevisionSpec{
 			ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
@@ -346,9 +362,11 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 
 	for _, _rev := range revs {
 		rev := _rev.DeepCopy()
-		if rev.GetLabels()[oam.LabelAppRevisionHash] == h.currentRevHash &&
-			DeepEqualRevision(rev, h.currentAppRev) &&
-			oam.GetPublishVersion(rev) == oam.GetPublishVersion(h.app) {
+		hashMatches := rev.GetLabels()[oam.LabelAppRevisionHash] == h.currentRevHash
+		deepEqual := DeepEqualRevision(rev, h.currentAppRev)
+		publishVersionMatches := oam.GetPublishVersion(rev) == oam.GetPublishVersion(h.app)
+
+		if hashMatches && deepEqual && publishVersionMatches {
 			// we set currentAppRev to existRevision
 			h.currentAppRev = rev
 			return true, false, nil
@@ -507,6 +525,7 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context, patchSta
 		// skip update if app revision is not changed
 		return nil
 	}
+
 	if ctx, ok := ctx.(monitorContext.Context); ok {
 		subCtx := ctx.Fork("update-apprev-status", monitorContext.DurationMetric(func(v float64) {
 			metrics.AppReconcileStageDurationHistogram.WithLabelValues("update-apprev-status").Observe(v)
@@ -520,13 +539,23 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context, patchSta
 		Revision:     int64(revNum),
 		RevisionHash: h.currentRevHash,
 	}
+
+	// Save the spec before patchStatus - the merge patch operation refreshes the entire app from API server
+	// This would lose any in-memory policy modifications to app.Spec
+	savedSpec := h.app.Spec.DeepCopy()
+
 	if err := patchStatus(ctx, h.app, common.ApplicationRendering); err != nil {
 		klog.InfoS("Failed to update the latest appConfig revision to status", "application", klog.KObj(h.app),
 			"latest revision", revName, "err", err)
 		return err
 	}
+
+	// Restore the spec after patchStatus to preserve policy modifications
+	h.app.Spec = *savedSpec
+
 	klog.InfoS("Successfully update application latest revision status", "application", klog.KObj(h.app),
 		"latest revision", revName)
+
 	return nil
 }
 
