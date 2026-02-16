@@ -49,8 +49,9 @@ type WorkflowAction interface {
 
 // BuiltinAction represents a call to a vela builtin.
 type BuiltinAction struct {
-	name   string           // e.g., "multicluster.#Deploy", "builtin.#Suspend"
-	params map[string]Value // parameters to pass
+	varName string           // explicit action variable name in template (e.g., "deploy", "wait")
+	name    string           // e.g., "multicluster.#Deploy", "builtin.#Suspend"
+	params  map[string]Value // parameters to pass
 }
 
 func (b *BuiltinAction) isWorkflowAction() {}
@@ -254,8 +255,9 @@ func NewWorkflowStepTemplate() *WorkflowStepTemplate {
 // Example: tpl.Builtin("deploy", "multicluster.#Deploy").WithParams(...)
 func (wt *WorkflowStepTemplate) Builtin(name, builtinRef string) *BuiltinActionBuilder {
 	action := &BuiltinAction{
-		name:   builtinRef,
-		params: make(map[string]Value),
+		varName: name,
+		name:    builtinRef,
+		params:  make(map[string]Value),
 	}
 	return &BuiltinActionBuilder{
 		template: wt,
@@ -297,7 +299,6 @@ type BuiltinActionBuilder struct {
 	template *WorkflowStepTemplate
 	action   *BuiltinAction
 	varName  string
-	cond     Condition // optional condition set by If()
 }
 
 // WithParams sets parameters for the builtin.
@@ -310,21 +311,18 @@ func (b *BuiltinActionBuilder) WithParams(params map[string]Value) *BuiltinActio
 
 // Build finalizes the action and adds it to the template.
 func (b *BuiltinActionBuilder) Build() *WorkflowStepTemplate {
-	if b.cond != nil {
-		b.template.actions = append(b.template.actions, &ConditionalAction{
-			cond:   b.cond,
-			action: b.action,
-		})
-	} else {
-		b.template.actions = append(b.template.actions, b.action)
-	}
+	b.template.actions = append(b.template.actions, b.action)
 	return b.template
 }
 
 // If makes this action conditional.
-// The condition is applied when Build() is called.
 func (b *BuiltinActionBuilder) If(cond Condition) *BuiltinActionBuilder {
-	b.cond = cond
+	// Replace action with conditional version
+	condAction := &ConditionalAction{
+		cond:   cond,
+		action: b.action,
+	}
+	b.template.actions = append(b.template.actions, condAction)
 	return b
 }
 
@@ -444,9 +442,12 @@ func (g *WorkflowStepCUEGenerator) writeActions(sb *strings.Builder, wt *Workflo
 
 // writeBuiltinAction writes a builtin action.
 func (g *WorkflowStepCUEGenerator) writeBuiltinAction(sb *strings.Builder, a *BuiltinAction, extraIndent, indent string, gen *CUEGenerator) {
-	// Extract the action name from the builtin reference
-	// e.g., "multicluster.#Deploy" -> "deploy"
-	actionName := extractActionName(a.name)
+	actionName := a.varName
+	if actionName == "" {
+		// Backward-compatible fallback when no explicit name is set.
+		// e.g., "multicluster.#Deploy" -> "deploy"
+		actionName = extractActionName(a.name)
+	}
 
 	sb.WriteString(fmt.Sprintf("%s%s%s: %s & {\n", indent, extraIndent, actionName, a.name))
 	if len(a.params) > 0 {
