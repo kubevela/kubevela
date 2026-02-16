@@ -30,9 +30,9 @@ type WebhookConfig struct {
 // NewWebhookConfig creates a new WebhookConfig with defaults.
 func NewWebhookConfig() *WebhookConfig {
 	return &WebhookConfig{
-		UseWebhook:  true,
-		CertDir:     "/Users/viskumar/Open_Source/kubevela/k8s-webhook-server/serving-certs",
-		WebhookPort: 9445,
+		UseWebhook:  false,
+		CertDir:     "/k8s-webhook-server/serving-certs",
+		WebhookPort: 9443,
 	}
 }
 
