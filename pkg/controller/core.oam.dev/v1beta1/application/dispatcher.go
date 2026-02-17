@@ -114,7 +114,7 @@ type manifestDispatcher struct {
 	healthCheck func(ctx context.Context, c *appfile.Component, appRev *v1beta1.ApplicationRevision) (bool, error)
 }
 
-func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, readyWorkload *unstructured.Unstructured, readyTraits []*unstructured.Unstructured, overrideNamespace string, annotations map[string]string) ([]*manifestDispatcher, error) {
+func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, previousAppRev *v1beta1.ApplicationRevision, readyWorkload *unstructured.Unstructured, readyTraits []*unstructured.Unstructured, overrideNamespace string, annotations map[string]string) ([]*manifestDispatcher, error) {
 	dispatcherGenerator := func(options DispatchOptions) *manifestDispatcher {
 		assembleManifestFn := func(skipApplyWorkload bool) (bool, []*unstructured.Unstructured) {
 			manifests := options.Traits
@@ -152,7 +152,24 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, rea
 			// Note: componentPropertiesChanged handles nil comp.Params correctly, so we don't check it here
 			propertiesChanged := false
 			if isHealth && err == nil {
-				propertiesChanged = componentPropertiesChanged(comp, appRev)
+				// NOTE: The default comparison logic (comparing component against currentAppRev)
+				// seems unclear and may have become over-complicated over time. It compares the
+				// current component properties against the NEW ApplicationRevision being created,
+				// which already contains those same properties - so they typically match.
+				//
+				// For application-scoped policies with autoRevision=true, we need to compare against
+				// the PREVIOUS revision to detect policy-driven changes. Future developers should
+				// consider whether this logic should be simplified and applied unconditionally.
+
+				comparisonRev := appRev // Default: use currentAppRev (existing behavior)
+
+				// If autoRevision=true and we have a previous revision, compare against it
+				// This detects policy-driven changes when ApplicationRevisions are created
+				if annotations[oam.AnnotationAutoRevision] == "true" && previousAppRev != nil {
+					comparisonRev = previousAppRev // Use previous revision for comparison
+				}
+
+				propertiesChanged = componentPropertiesChanged(comp, comparisonRev)
 			}
 
 			// Dispatch if: unhealthy, health error, properties changed, or auto-update enabled
@@ -250,8 +267,17 @@ func getTraitDispatchStage(client client.Client, traitType string, appRev *v1bet
 	return stageType, nil
 }
 
-// componentPropertiesChanged compares current component properties with the last
-// applied version in ApplicationRevision. Returns true if properties have changed
+// componentPropertiesChanged compares current component properties against an ApplicationRevision.
+//
+// When autoRevision=true (policy transforms create revisions):
+//   - Compares against the PREVIOUS revision to detect policy-driven changes
+//   - This ensures policies that transform components trigger redeployment
+//
+// When autoRevision=false or not set (default):
+//   - Compares against the CURRENT revision
+//   - This detects when workflow steps dynamically modify component properties
+//
+// Returns true if properties have changed.
 func componentPropertiesChanged(comp *appfile.Component, appRev *v1beta1.ApplicationRevision) bool {
 	var revComponent *common.ApplicationComponent
 	for i := range appRev.Spec.Application.Spec.Components {

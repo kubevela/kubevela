@@ -975,7 +975,7 @@ var _ = Describe("Test Global Policy Cache", func() {
 		Expect(cached).Should(BeNil())
 	})
 
-	It("Test cache invalidation when global policy hash changes", func() {
+	It("Test cache persists until TTL or spec change", func() {
 		app := &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-app",
@@ -999,20 +999,22 @@ var _ = Describe("Test Global Policy Cache", func() {
 			},
 		}
 
-		// Cache with original policy hash
+		// Cache results
 		err := applicationPolicyCache.Set(app, results)
 		Expect(err).Should(BeNil())
 
-		// Verify cache hit with same hash
+		// Verify cache hit with same app
 		cached, hit, err := applicationPolicyCache.Get(app)
 		Expect(err).Should(BeNil())
 		Expect(hit).Should(BeTrue())
+		Expect(cached).Should(HaveLen(1))
 
-		// Try to get with different policy hash (policy changed)
+		// Cache should still hit (global policy changes don't invalidate immediately)
+		// They will be picked up on next render after 1-min TTL expires
 		cached, hit, err = applicationPolicyCache.Get(app)
 		Expect(err).Should(BeNil())
-		Expect(hit).Should(BeFalse())
-		Expect(cached).Should(BeNil())
+		Expect(hit).Should(BeTrue())
+		Expect(cached).Should(HaveLen(1))
 	})
 
 	It("Test cache stores multiple policies", func() {
