@@ -1558,8 +1558,14 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 		for _, op := range ops {
 			if mOp, ok := op.(*mapOp); ok {
 				for fieldName, fieldVal := range mOp.mappings {
-					valStr := g.fieldValueToCUE(fieldVal)
-					sb.WriteString(fmt.Sprintf("\t\t\t\t\t%s: %s\n", fieldName, valStr))
+					if optField, isOptional := fieldVal.(*OptionalField); isOptional {
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\tif v.%s != _|_ {\n", optField.field))
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t%s: v.%s\n", fieldName, optField.field))
+						sb.WriteString("\t\t\t\t\t}\n")
+					} else {
+						valStr := g.fieldValueToCUE(fieldVal)
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\t%s: %s\n", fieldName, valStr))
+					}
 				}
 			}
 		}
@@ -2306,11 +2312,8 @@ func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, n
 }
 
 // writeStringKeyMapParam writes a string-to-string map parameter.
+// Note: description is already written by writeParam, so we don't write it here.
 func (g *CUEGenerator) writeStringKeyMapParam(sb *strings.Builder, p *StringKeyMapParam, indent, name, optional string) {
-	// Write description as comment if present
-	if desc := p.GetDescription(); desc != "" {
-		sb.WriteString(fmt.Sprintf("%s// +usage=%s\n", indent, desc))
-	}
 	sb.WriteString(fmt.Sprintf("%s%s%s: [string]: string\n", indent, name, optional))
 }
 
