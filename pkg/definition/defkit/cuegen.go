@@ -1320,6 +1320,17 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 		return fmt.Sprintf("%s.%s", val.VarName(), val.FieldName())
 	case *IterLetRef:
 		return val.RefName()
+	case *ForEachMapOp:
+		// Render as a struct comprehension: { for k, v in source { (k): v } }
+		keyExpr := "(" + val.KeyVar() + ")"
+		if val.KeyExpr() != "" {
+			keyExpr = val.KeyExpr()
+		}
+		valExpr := val.ValVar()
+		if val.ValExpr() != "" {
+			valExpr = val.ValExpr()
+		}
+		return fmt.Sprintf("{\n\t\tfor %s, %s in %s {\n\t\t\t%s: %s\n\t\t}\n\t}", val.KeyVar(), val.ValVar(), val.Source(), keyExpr, valExpr)
 	default:
 		// Try to get name from Param interface
 		if p, ok := v.(Param); ok {
