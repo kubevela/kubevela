@@ -1940,6 +1940,208 @@ func deepCopyAppSpec(spec *v1beta1.ApplicationSpec) (*v1beta1.ApplicationSpec, e
 	return &copy, nil
 }
 
+// extractRenderedSpec extracts spec fields (components, workflow, policies) from rendered policy results
+func extractRenderedSpec(results []RenderedPolicyResult) *v1beta1.ApplicationSpec {
+	spec := &v1beta1.ApplicationSpec{}
+
+	for _, result := range results {
+		if !result.Enabled || result.Transforms == nil {
+			continue
+		}
+
+		policyOutput, ok := result.Transforms.(*PolicyOutput)
+		if !ok {
+			continue
+		}
+
+		// Merge components
+		if len(policyOutput.Components) > 0 {
+			spec.Components = append(spec.Components, policyOutput.Components...)
+		}
+
+		// Workflow (last one wins)
+		if policyOutput.Workflow != nil {
+			spec.Workflow = policyOutput.Workflow
+		}
+
+		// Merge policies
+		if len(policyOutput.Policies) > 0 {
+			spec.Policies = append(spec.Policies, policyOutput.Policies...)
+		}
+	}
+
+	return spec
+}
+
+// extractRenderedMetadata extracts metadata fields (labels, annotations, context) from rendered policy results
+func extractRenderedMetadata(results []RenderedPolicyResult) map[string]interface{} {
+	metadata := map[string]interface{}{
+		"labels":      make(map[string]string),
+		"annotations": make(map[string]string),
+		"context":     make(map[string]interface{}),
+	}
+
+	labels := metadata["labels"].(map[string]string)
+	annotations := metadata["annotations"].(map[string]string)
+	ctx := metadata["context"].(map[string]interface{})
+
+	for _, result := range results {
+		if !result.Enabled || result.Transforms == nil {
+			continue
+		}
+
+		policyOutput, ok := result.Transforms.(*PolicyOutput)
+		if !ok {
+			continue
+		}
+
+		// Merge labels
+		for k, v := range policyOutput.Labels {
+			labels[k] = v
+		}
+
+		// Merge annotations
+		for k, v := range policyOutput.Annotations {
+			annotations[k] = v
+		}
+
+		// Merge additional context
+		if result.AdditionalContext != nil {
+			for k, v := range result.AdditionalContext {
+				ctx[k] = v
+			}
+		}
+	}
+
+	return metadata
+}
+
+// applyMetadataToApp applies labels and annotations to the Application CR
+func applyMetadataToApp(app *v1beta1.Application, metadata map[string]interface{}) {
+	if labels, ok := metadata["labels"].(map[string]string); ok {
+		if app.Labels == nil {
+			app.Labels = make(map[string]string)
+		}
+		for k, v := range labels {
+			app.Labels[k] = v
+		}
+	}
+
+	if annotations, ok := metadata["annotations"].(map[string]string); ok {
+		if app.Annotations == nil {
+			app.Annotations = make(map[string]string)
+		}
+		for k, v := range annotations {
+			app.Annotations[k] = v
+		}
+	}
+}
+
+// applySpecToApp applies rendered spec to the Application
+func applySpecToApp(app *v1beta1.Application, renderedSpec *v1beta1.ApplicationSpec) {
+	if len(renderedSpec.Components) > 0 {
+		app.Spec.Components = renderedSpec.Components
+	}
+	if renderedSpec.Workflow != nil {
+		app.Spec.Workflow = renderedSpec.Workflow
+	}
+	if len(renderedSpec.Policies) > 0 {
+		app.Spec.Policies = renderedSpec.Policies
+	}
+}
+
+// renderAllPolicies renders both global and explicit policies, returning complete results
+func (h *AppHandler) renderAllPolicies(ctx monitorContext.Context, app *v1beta1.Application) []RenderedPolicyResult {
+	var allResults []RenderedPolicyResult
+
+	// 1. Render global policies (if not opted out)
+	if !shouldSkipGlobalPolicies(app) && utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableGlobalPolicies) {
+		var globalPolicies []v1beta1.PolicyDefinition
+		var velaSystemPolicies, namespacePolicies []v1beta1.PolicyDefinition
+
+		// Discover from vela-system
+		velaSystemPolicies, err := discoverGlobalPolicies(ctx, h.Client, oam.SystemDefinitionNamespace)
+		if err != nil {
+			ctx.Info("Failed to discover vela-system global policies", "error", err)
+		}
+
+		// Discover from application namespace (if different)
+		if app.Namespace != oam.SystemDefinitionNamespace {
+			namespacePolicies, err = discoverGlobalPolicies(ctx, h.Client, app.Namespace)
+			if err != nil {
+				ctx.Info("Failed to discover namespace global policies", "error", err)
+			}
+		}
+
+		// Deduplicate: namespace policies win over vela-system policies
+		namespacePolicyNames := make(map[string]bool)
+		for _, policy := range namespacePolicies {
+			namespacePolicyNames[policy.Name] = true
+		}
+
+		// Combine: namespace policies first, then vela-system (deduped)
+		globalPolicies = append(globalPolicies, namespacePolicies...)
+		for _, policy := range velaSystemPolicies {
+			if !namespacePolicyNames[policy.Name] {
+				globalPolicies = append(globalPolicies, policy)
+			}
+		}
+
+		// Render each global policy
+		for _, policy := range globalPolicies {
+			ctx.Info("Rendering global policy", "policy", policy.Name, "namespace", policy.Namespace)
+
+			policyRef := v1beta1.AppPolicy{
+				Name: policy.Name,
+				Type: policy.Name,
+			}
+
+			result, err := h.renderPolicy(ctx, app, policyRef, &policy)
+			if err != nil {
+				ctx.Info("Failed to render global policy", "policy", policy.Name, "error", err)
+				result.PolicyName = policy.Name
+				result.PolicyNamespace = policy.Namespace
+				result.Enabled = false
+				result.SkipReason = fmt.Sprintf("render error: %s", err.Error())
+			}
+			result.Priority = policy.Spec.Priority // Store priority for sorting
+
+			allResults = append(allResults, result)
+		}
+	}
+
+	// 2. Render explicit policies from Application spec
+	for _, policy := range app.Spec.Policies {
+		// Load PolicyDefinition template
+		templ, err := appfile.LoadTemplate(ctx, h.Client, policy.Type, types.TypePolicy, app.Annotations)
+		if err != nil {
+			ctx.Info("Failed to load PolicyDefinition", "policy", policy.Type, "error", err)
+			continue
+		}
+
+		// Check if Application-scoped
+		if templ.PolicyDefinition == nil || templ.PolicyDefinition.Spec.Scope != v1beta1.ApplicationScope {
+			continue
+		}
+
+		ctx.Info("Rendering explicit policy", "policy", policy.Type, "name", policy.Name)
+
+		result, err := h.renderPolicy(ctx, app, policy, templ.PolicyDefinition)
+		if err != nil {
+			ctx.Info("Failed to render explicit policy", "policy", policy.Name, "error", err)
+			result.PolicyName = policy.Name
+			result.PolicyNamespace = templ.PolicyDefinition.Namespace
+			result.Enabled = false
+			result.SkipReason = fmt.Sprintf("render error: %s", err.Error())
+		}
+		result.Priority = 0 // Explicit policies don't have priority
+
+		allResults = append(allResults, result)
+	}
+
+	return allResults
+}
+
 // computeJSONPatch computes a JSON Merge Patch (RFC 7386) diff between two Application specs
 // This is simpler than JSON Patch (RFC 6902) but sufficient for our observability needs
 func computeJSONPatch(before, after *v1beta1.ApplicationSpec) ([]byte, error) {
