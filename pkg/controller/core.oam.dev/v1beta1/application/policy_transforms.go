@@ -1226,6 +1226,16 @@ func shouldSkipGlobalPolicies(app *v1beta1.Application) bool {
 	return app.Annotations[SkipGlobalPoliciesAnnotation] == "true"
 }
 
+// shouldAutoCreateRevision checks if the Application has auto-revision enabled
+// When enabled, policy-rendered spec changes will be applied to Application.Spec
+// and trigger new ApplicationRevision creation.
+func shouldAutoCreateRevision(app *v1beta1.Application) bool {
+	if app.Annotations == nil {
+		return false
+	}
+	return app.Annotations[oam.AnnotationAutoRevision] == "true"
+}
+
 // discoverGlobalPolicies discovers and returns Application-scoped global policies from a namespace
 // Policies are sorted by Priority (descending) then Name (alphabetical)
 func discoverGlobalPolicies(ctx monitorContext.Context, cli client.Client, namespace string) ([]v1beta1.PolicyDefinition, error) {
