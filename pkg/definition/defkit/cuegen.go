@@ -1854,7 +1854,7 @@ func (g *CUEGenerator) concatExprToCUE(ce *ConcatExprValue) string {
 func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	switch c := cond.(type) {
 	case *IsSetCondition:
-		return fmt.Sprintf("parameter.%s != _|_", c.ParamName())
+		return fmt.Sprintf("parameter[%q] != _|_", c.ParamName())
 	case *ParamPathIsSetCondition:
 		// Check if a nested parameter path is set: parameter.path != _|_
 		return fmt.Sprintf("parameter.%s != _|_", c.Path())
@@ -1898,9 +1898,9 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		right := g.conditionToCUE(c.right)
 		return fmt.Sprintf("(%s) || (%s)", left, right)
 	case *NotCondition:
-		// Special case: Not(IsSet("x")) -> parameter.x == _|_ (cleaner than !(parameter.x != _|_))
+		// Special case: Not(IsSet("x")) -> parameter["x"] == _|_ (cleaner than !(parameter["x"] != _|_))
 		if isSet, ok := c.Inner().(*IsSetCondition); ok {
-			return fmt.Sprintf("parameter.%s == _|_", isSet.ParamName())
+			return fmt.Sprintf("parameter[%q] == _|_", isSet.ParamName())
 		}
 		inner := g.conditionToCUE(c.Inner())
 		return fmt.Sprintf("!(%s)", inner)

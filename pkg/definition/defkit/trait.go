@@ -818,10 +818,21 @@ func (g *TraitCUEGenerator) writePatchKeyOp(sb *strings.Builder, gen *CUEGenerat
 	} else {
 		// Write the patchKey annotation comment
 		sb.WriteString(fmt.Sprintf("// +patchKey=%s\n", op.Key()))
+
+		// If there is exactly one element and it's an ArrayParam, emit without
+		// array wrapping since the parameter already represents the whole array.
+		elems := op.Elements()
+		if len(elems) == 1 {
+			if _, ok := elems[0].(*ArrayParam); ok {
+				sb.WriteString(fmt.Sprintf("%s%s: %s", indent, key, gen.valueToCUE(elems[0])))
+				return
+			}
+		}
+
 		sb.WriteString(fmt.Sprintf("%s%s: [", indent, key))
 
 		// Write elements
-		for i, elem := range op.Elements() {
+		for i, elem := range elems {
 			if i > 0 {
 				sb.WriteString(", ")
 			}

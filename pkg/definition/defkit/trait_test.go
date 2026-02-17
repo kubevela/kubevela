@@ -624,7 +624,7 @@ template: {
 			cue := trait.ToCue()
 
 			// Both conditions should appear (AND-combined by the field tree)
-			Expect(cue).To(ContainSubstring("parameter.parent != _|_"))
+			Expect(cue).To(ContainSubstring(`parameter["parent"] != _|_`))
 			Expect(cue).To(ContainSubstring("parameter.parent.required != _|_"))
 			Expect(cue).To(ContainSubstring("parameter.parent.preferred != _|_"))
 			// Verify the For comprehension sources
@@ -695,6 +695,116 @@ template: {
 			Expect(cue).To(ContainSubstring("for key, val in parameter.labels"))
 			Expect(cue).To(ContainSubstring("(key): val"))
 			Expect(cue).To(ContainSubstring("metadata: labels: labelContent"))
+		})
+	})
+
+	Context("PatchKey with ArrayParam (no array wrapping)", func() {
+		It("should emit direct assignment when single element is an ArrayParam", func() {
+			items := defkit.Array("items").WithFields(
+				defkit.String("name").Required(),
+				defkit.String("value").Required(),
+			).Required()
+
+			trait := defkit.NewTrait("patchkey-array-test").
+				Description("Test PatchKey with ArrayParam").
+				AppliesTo("deployments.apps").
+				Params(items).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						PatchKey("spec.template.spec.items", "name", items)
+				})
+
+			cue := trait.ToCue()
+
+			// Should emit patchKey annotation
+			Expect(cue).To(ContainSubstring("// +patchKey=name"))
+			// Should assign parameter directly, NOT wrapped in [...]
+			Expect(cue).To(ContainSubstring("items: parameter.items"))
+			// Should NOT have array wrapping around the parameter
+			Expect(cue).NotTo(ContainSubstring("[parameter.items]"))
+		})
+
+		It("should still wrap individual ArrayElements in array brackets", func() {
+			elem := defkit.NewArrayElement().
+				Set("name", defkit.Lit("test")).
+				Set("value", defkit.Lit("foo"))
+
+			trait := defkit.NewTrait("patchkey-elem-test").
+				Description("Test PatchKey with ArrayElement").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						PatchKey("spec.items", "name", elem)
+				})
+
+			cue := trait.ToCue()
+
+			// ArrayElement should still be wrapped in [...]
+			Expect(cue).To(ContainSubstring("// +patchKey=name"))
+			Expect(cue).To(ContainSubstring("items: [{"))
+		})
+	})
+
+	Context("IsSet bracket notation for optional field checks", func() {
+		It("should generate bracket notation for IsSet conditions", func() {
+			optParam := defkit.Array("env").Of(defkit.ParamTypeString).Optional()
+
+			trait := defkit.NewTrait("isset-bracket-test").
+				Description("Test bracket notation for IsSet").
+				AppliesTo("deployments.apps").
+				Params(optParam).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						SetIf(optParam.IsSet(), "spec.env", optParam)
+				})
+
+			cue := trait.ToCue()
+
+			// Should use bracket notation: parameter["env"] != _|_
+			Expect(cue).To(ContainSubstring(`parameter["env"] != _|_`))
+			// Should NOT use dot notation for the condition
+			Expect(cue).NotTo(ContainSubstring("parameter.env != _|_"))
+		})
+
+		It("should generate bracket notation for NotSet (negated IsSet) conditions", func() {
+			optParam := defkit.String("debug").Optional()
+
+			trait := defkit.NewTrait("notset-bracket-test").
+				Description("Test bracket notation for NotSet").
+				AppliesTo("deployments.apps").
+				Params(optParam).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						SetIf(optParam.NotSet(), "spec.debug", defkit.Lit(false))
+				})
+
+			cue := trait.ToCue()
+
+			// Should use bracket notation: parameter["debug"] == _|_
+			Expect(cue).To(ContainSubstring(`parameter["debug"] == _|_`))
+			// Should NOT use dot notation
+			Expect(cue).NotTo(ContainSubstring("parameter.debug == _|_"))
+		})
+
+		It("should use bracket notation in compound conditions", func() {
+			cpu := defkit.String("cpu").Optional()
+			memory := defkit.String("memory").Optional()
+
+			trait := defkit.NewTrait("compound-bracket-test").
+				Description("Test bracket notation in compound conditions").
+				AppliesTo("deployments.apps").
+				Params(cpu, memory).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						SetIf(defkit.And(cpu.IsSet(), memory.IsSet()),
+							"spec.resources", defkit.Lit("configured"))
+				})
+
+			cue := trait.ToCue()
+
+			// Both parts of the compound condition should use bracket notation
+			Expect(cue).To(ContainSubstring(`parameter["cpu"] != _|_`))
+			Expect(cue).To(ContainSubstring(`parameter["memory"] != _|_`))
 		})
 	})
 })
