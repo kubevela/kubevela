@@ -17,6 +17,8 @@ limitations under the License.
 package defkit_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -630,6 +632,69 @@ template: {
 			Expect(cue).To(ContainSubstring("for v in parameter.parent.preferred"))
 			Expect(cue).To(ContainSubstring("key: v.key"))
 			Expect(cue).To(ContainSubstring("weight: v.weight"))
+		})
+	})
+
+	Context("Let Bindings with ForEachMap", func() {
+		It("should generate let binding with ForEachMap and LetVariable references", func() {
+			trait := defkit.NewTrait("let-foreach-test").
+				Description("Test let binding with ForEachMap").
+				AppliesTo("*").
+				PodDisruptive(true).
+				Param(defkit.DynamicMap().ValueTypeUnion("string | null")).
+				Template(func(tpl *defkit.Template) {
+					tpl.PatchStrategy("jsonMergePatch")
+					tpl.AddLetBinding("content", defkit.ForEachMap())
+					tpl.Patch().
+						Set("metadata.annotations", defkit.LetVariable("content"))
+					tpl.Patch().
+						If(defkit.And(
+							defkit.ContextOutput().HasPath("spec"),
+							defkit.ContextOutput().HasPath("spec.template"),
+						)).
+						Set("spec.template.metadata.annotations", defkit.LetVariable("content")).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// Let binding should appear before the patch block
+			Expect(cue).To(ContainSubstring("let content ="))
+			// ForEachMap should render as a struct comprehension
+			Expect(cue).To(ContainSubstring("for k, v in parameter"))
+			Expect(cue).To(ContainSubstring("(k): v"))
+			// Let variable references should appear in the patch
+			Expect(cue).To(ContainSubstring("metadata: annotations: content"))
+			// Conditional block should reference the let variable
+			Expect(cue).To(ContainSubstring("annotations: content"))
+			Expect(cue).To(ContainSubstring("context.output.spec != _|_"))
+			Expect(cue).To(ContainSubstring("context.output.spec.template != _|_"))
+			// The for-each comprehension should NOT be inlined at each usage site
+			// It should only appear once in the let binding
+			Expect(strings.Count(cue, "for k, v in parameter")).To(Equal(1))
+			// Patch strategy should be present
+			Expect(cue).To(ContainSubstring("// +patchStrategy=jsonMergePatch"))
+		})
+
+		It("should render ForEachMap with custom source and vars via valueToCUE", func() {
+			trait := defkit.NewTrait("custom-foreach-test").
+				Description("Test custom ForEachMap rendering").
+				AppliesTo("deployments.apps").
+				Param(defkit.DynamicMap().ValueTypeUnion("string | null")).
+				Template(func(tpl *defkit.Template) {
+					tpl.AddLetBinding("labelContent",
+						defkit.ForEachMap().Over("parameter.labels").WithVars("key", "val"))
+					tpl.Patch().
+						Set("metadata.labels", defkit.LetVariable("labelContent"))
+				})
+
+			cue := trait.ToCue()
+
+			// Custom variable names and source
+			Expect(cue).To(ContainSubstring("let labelContent ="))
+			Expect(cue).To(ContainSubstring("for key, val in parameter.labels"))
+			Expect(cue).To(ContainSubstring("(key): val"))
+			Expect(cue).To(ContainSubstring("metadata: labels: labelContent"))
 		})
 	})
 })
