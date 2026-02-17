@@ -123,6 +123,7 @@ template: {
 
 	#podAffinityTerm: {
 		labelSelector?: #labelSelector
+		namespace?:     string
 		namespaces?: [...string]
 		topologyKey:        string
 		namespaceSelector?: #labelSelector
