@@ -486,7 +486,7 @@ spec:
 - Both `comp.Params` and `currentAppRev` had the same transformed values
 - Result: No difference detected → No dispatch
 
-**The Fix** (commit SHA: pending):
+**The Fix** (commit SHA: 06e1d20a7):
 
 Modified 2 files to conditionally use `latestAppRev` (previous revision) for comparison when `autoRevision=true`:
 
