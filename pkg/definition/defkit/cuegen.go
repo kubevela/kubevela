@@ -1423,6 +1423,8 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 		return fmt.Sprintf("%s.%s", val.VarName(), val.FieldName())
 	case *IterLetRef:
 		return val.RefName()
+	case *ForEachMapOp:
+		return g.forEachMapOpToCUE(val)
 	default:
 		// Try to get name from Param interface
 		if p, ok := v.(Param); ok {
@@ -1430,6 +1432,32 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 		}
 		return "_"
 	}
+}
+
+// forEachMapOpToCUE converts a ForEachMapOp to CUE map comprehension syntax.
+// Generates: {for k, v in source { (keyExpr): valExpr }}.
+func (g *CUEGenerator) forEachMapOpToCUE(op *ForEachMapOp) string {
+	keyVar := op.KeyVar()
+	if keyVar == "" {
+		keyVar = "k"
+	}
+
+	valVar := op.ValVar()
+	if valVar == "" {
+		valVar = "v"
+	}
+
+	keyExpr := op.KeyExpr()
+	if keyExpr == "" {
+		keyExpr = keyVar
+	}
+
+	valExpr := op.ValExpr()
+	if valExpr == "" {
+		valExpr = valVar
+	}
+
+	return fmt.Sprintf("{for %s, %s in %s { (%s): %s }}", keyVar, valVar, op.Source(), keyExpr, valExpr)
 }
 
 // cueFuncToCUE converts a CUE function call to CUE syntax.
