@@ -280,12 +280,8 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 
 	// Build ConfigMap data from metadata and changes tracked during reconciliation
 	for policyName, metadata := range policyMetadata {
-		// Get TTL from PolicyDefinition (default -1 = never refresh)
-		ttlSeconds := int32(-1)
-		policyDef := &v1beta1.PolicyDefinition{}
-		if err := h.Client.Get(ctx, client.ObjectKey{Name: metadata.Name, Namespace: metadata.Namespace}, policyDef); err == nil {
-			ttlSeconds = policyDef.Spec.CacheTTLSeconds
-		}
+		// TTL is no longer stored on PolicyDefinition - it's now part of config.refresh in the template
+		ttlSeconds := int32(-1) // Default for backwards compatibility with old format
 
 		// Build the rendered policy record with everything needed to reapply it
 		policyRecord := map[string]interface{}{
@@ -520,14 +516,14 @@ func (h *AppHandler) renderPolicy(ctx monitorContext.Context, app *v1beta1.Appli
 		Enabled:         false,
 	}
 
-	// Check if we have a valid cached result based on TTL
-	ttlSeconds := policyDef.Spec.CacheTTLSeconds
-	cachedRecord, err := loadCachedPolicyFromConfigMap(ctx, h.Client, app, policyDef.Name, ttlSeconds)
+	// Check if we have a valid cached result (old format - kept for backwards compatibility)
+	// New code should use loadCachedPolicyRecord with config.refresh instead
+	cachedRecord, err := loadCachedPolicyFromConfigMap(ctx, h.Client, app, policyDef.Name, -1)
 	if err != nil {
 		ctx.Info("Failed to load cached policy from ConfigMap", "policy", policyDef.Name, "error", err)
 		// Continue with rendering
 	} else if cachedRecord != nil {
-		ctx.Info("Using cached policy result", "policy", policyDef.Name, "ttl", ttlSeconds)
+		ctx.Info("Using cached policy result (old format)", "policy", policyDef.Name)
 
 		// Deserialize the cached output
 		if outputData, ok := cachedRecord["output"].(map[string]interface{}); ok {
@@ -779,10 +775,33 @@ func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1
 	return val, nil
 }
 
+// RefreshMode defines how often a policy output should be refreshed
+type RefreshMode string
+
+const (
+	RefreshAlways   RefreshMode = "always"   // Re-render on every reconciliation
+	RefreshNever    RefreshMode = "never"    // Cache indefinitely (until Application revision changes)
+	RefreshPeriodic RefreshMode = "periodic" // Re-render after interval seconds
+)
+
+// OutputRefreshConfig configures refresh behavior for a specific output type
+type OutputRefreshConfig struct {
+	Mode         RefreshMode `json:"mode"`                   // How often to refresh
+	Interval     *int32      `json:"interval,omitempty"`     // Seconds between refreshes (for periodic mode)
+	ForceRefresh *bool       `json:"forceRefresh,omitempty"` // Dynamic expression to force immediate refresh
+}
+
 // PolicyConfig represents policy configuration settings
 type PolicyConfig struct {
-	Enabled       bool  `json:"enabled"`
-	CacheDuration int32 `json:"cacheDuration,omitempty"`
+	Enabled bool `json:"enabled"` // Whether policy is enabled (default: true)
+
+	// Per-output-type refresh control
+	Refresh struct {
+		Spec        *OutputRefreshConfig `json:"spec,omitempty"`        // components, workflow, policies
+		Labels      *OutputRefreshConfig `json:"labels,omitempty"`      // metadata labels
+		Annotations *OutputRefreshConfig `json:"annotations,omitempty"` // metadata annotations
+		Ctx         *OutputRefreshConfig `json:"ctx,omitempty"`         // additional context
+	} `json:"refresh,omitempty"`
 }
 
 // extractEnabled extracts the enabled field from rendered CUE (defaults to true)
@@ -818,6 +837,63 @@ func (h *AppHandler) extractEnabled(val cue.Value) (bool, error) {
 	return enabled, nil
 }
 
+// extractRefreshConfig extracts the refresh configuration from rendered CUE
+// Returns PolicyConfig with defaults applied if config doesn't exist
+func (h *AppHandler) extractRefreshConfig(val cue.Value) (*PolicyConfig, error) {
+	configVal := val.LookupPath(cue.ParsePath("config"))
+	if !configVal.Exists() {
+		// No config block - return defaults
+		return applyRefreshDefaults(&PolicyConfig{Enabled: true}), nil
+	}
+
+	var config PolicyConfig
+	if err := configVal.Decode(&config); err != nil {
+		return nil, errors.Wrap(err, "failed to decode config")
+	}
+
+	// Apply defaults for any missing refresh configs
+	config = *applyRefreshDefaults(&config)
+
+	// Validate: periodic mode requires interval > 0
+	validationErrors := []string{}
+	for name, cfg := range map[string]*OutputRefreshConfig{
+		"spec":        config.Refresh.Spec,
+		"labels":      config.Refresh.Labels,
+		"annotations": config.Refresh.Annotations,
+		"ctx":         config.Refresh.Ctx,
+	} {
+		if cfg != nil && cfg.Mode == RefreshPeriodic {
+			if cfg.Interval == nil || *cfg.Interval <= 0 {
+				validationErrors = append(validationErrors,
+					fmt.Sprintf("config.refresh.%s.mode='periodic' requires interval > 0", name))
+			}
+		}
+	}
+
+	if len(validationErrors) > 0 {
+		return nil, errors.New(strings.Join(validationErrors, "; "))
+	}
+
+	return &config, nil
+}
+
+// applyRefreshDefaults applies default values to refresh configuration
+func applyRefreshDefaults(config *PolicyConfig) *PolicyConfig {
+	if config.Refresh.Spec == nil {
+		config.Refresh.Spec = &OutputRefreshConfig{Mode: RefreshNever}
+	}
+	if config.Refresh.Labels == nil {
+		config.Refresh.Labels = &OutputRefreshConfig{Mode: RefreshNever}
+	}
+	if config.Refresh.Annotations == nil {
+		config.Refresh.Annotations = &OutputRefreshConfig{Mode: RefreshNever}
+	}
+	if config.Refresh.Ctx == nil {
+		config.Refresh.Ctx = &OutputRefreshConfig{Mode: RefreshNever}
+	}
+	return config
+}
+
 // TransformOperationType defines the type of operation for a transform
 type TransformOperationType string
 
@@ -849,6 +925,30 @@ type PolicyOutput struct {
 	Ctx         map[string]interface{}        `json:"ctx,omitempty"`
 }
 
+// CachedOutputData represents cached data for a specific output type with refresh metadata
+type CachedOutputData struct {
+	RenderedAt      string      `json:"rendered_at"`              // RFC3339 timestamp
+	RefreshMode     RefreshMode `json:"refresh_mode"`             // "always", "never", "periodic"
+	RefreshInterval *int32      `json:"refresh_interval,omitempty"` // seconds (for periodic mode)
+	Data            interface{} `json:"data,omitempty"`           // The actual output data
+}
+
+// PolicyCacheRecord represents the complete cache entry for a policy in ConfigMap
+// This is the new per-output-type structure with cascade tracking
+type PolicyCacheRecord struct {
+	PolicyName      string `json:"policy_name"`
+	PolicyNamespace string `json:"policy_namespace"`
+	Priority        int    `json:"priority"`
+	Sequence        int    `json:"sequence"`
+	ApplicationHash string `json:"application_hash"` // For revision change detection
+	LastCascadeID   string `json:"last_cascade_id"`  // Tracks upstream policy changes
+
+	// Per-output-type cached data
+	Spec        *CachedOutputData `json:"spec,omitempty"`        // components, workflow, policies
+	Labels      *CachedOutputData `json:"labels,omitempty"`      // metadata labels
+	Annotations *CachedOutputData `json:"annotations,omitempty"` // metadata annotations
+	Ctx         *CachedOutputData `json:"ctx,omitempty"`         // additional context
+}
 
 // extractOutput extracts the output field from rendered CUE (new API)
 // Returns nil if output doesn't exist (old API being used or no output specified)
@@ -1296,8 +1396,296 @@ func deserializeOutputFromStorage(outputData map[string]interface{}) *PolicyOutp
 	return output
 }
 
+// createPolicyCacheRecord creates a new PolicyCacheRecord with per-output-type caching
+func createPolicyCacheRecord(
+	policyName, policyNamespace string,
+	priority, sequence int,
+	appHash, cascadeID string,
+	output *PolicyOutput,
+	config *PolicyConfig,
+) *PolicyCacheRecord {
+	now := time.Now().Format(time.RFC3339)
+
+	record := &PolicyCacheRecord{
+		PolicyName:      policyName,
+		PolicyNamespace: policyNamespace,
+		Priority:        priority,
+		Sequence:        sequence,
+		ApplicationHash: appHash,
+		LastCascadeID:   cascadeID,
+	}
+
+	// Create spec cache entry (components, workflow, policies)
+	if config.Refresh.Spec != nil {
+		specData := make(map[string]interface{})
+		if output.Components != nil {
+			specData["components"] = output.Components
+		}
+		if output.Workflow != nil {
+			specData["workflow"] = output.Workflow
+		}
+		if output.Policies != nil {
+			specData["policies"] = output.Policies
+		}
+
+		if len(specData) > 0 {
+			record.Spec = &CachedOutputData{
+				RenderedAt:      now,
+				RefreshMode:     config.Refresh.Spec.Mode,
+				RefreshInterval: config.Refresh.Spec.Interval,
+				Data:            specData,
+			}
+		}
+	}
+
+	// Create labels cache entry
+	if config.Refresh.Labels != nil && output.Labels != nil && len(output.Labels) > 0 {
+		record.Labels = &CachedOutputData{
+			RenderedAt:      now,
+			RefreshMode:     config.Refresh.Labels.Mode,
+			RefreshInterval: config.Refresh.Labels.Interval,
+			Data:            output.Labels,
+		}
+	}
+
+	// Create annotations cache entry
+	if config.Refresh.Annotations != nil && output.Annotations != nil && len(output.Annotations) > 0 {
+		record.Annotations = &CachedOutputData{
+			RenderedAt:      now,
+			RefreshMode:     config.Refresh.Annotations.Mode,
+			RefreshInterval: config.Refresh.Annotations.Interval,
+			Data:            output.Annotations,
+		}
+	}
+
+	// Create ctx cache entry
+	if config.Refresh.Ctx != nil && output.Ctx != nil && len(output.Ctx) > 0 {
+		record.Ctx = &CachedOutputData{
+			RenderedAt:      now,
+			RefreshMode:     config.Refresh.Ctx.Mode,
+			RefreshInterval: config.Refresh.Ctx.Interval,
+			Data:            output.Ctx,
+		}
+	}
+
+	return record
+}
+
+// reconstructPolicyOutputFromCache reconstructs a PolicyOutput from a PolicyCacheRecord
+func reconstructPolicyOutputFromCache(record *PolicyCacheRecord) *PolicyOutput {
+	if record == nil {
+		return nil
+	}
+
+	output := &PolicyOutput{}
+
+	// Reconstruct spec (components, workflow, policies)
+	if record.Spec != nil && record.Spec.Data != nil {
+		if specData, ok := record.Spec.Data.(map[string]interface{}); ok {
+			// Decode components
+			if componentsData, ok := specData["components"]; ok {
+				jsonBytes, err := json.Marshal(componentsData)
+				if err == nil {
+					json.Unmarshal(jsonBytes, &output.Components)
+				}
+			}
+
+			// Decode workflow
+			if workflowData, ok := specData["workflow"]; ok {
+				jsonBytes, err := json.Marshal(workflowData)
+				if err == nil {
+					json.Unmarshal(jsonBytes, &output.Workflow)
+				}
+			}
+
+			// Decode policies
+			if policiesData, ok := specData["policies"]; ok {
+				jsonBytes, err := json.Marshal(policiesData)
+				if err == nil {
+					json.Unmarshal(jsonBytes, &output.Policies)
+				}
+			}
+		}
+	}
+
+	// Reconstruct labels
+	if record.Labels != nil && record.Labels.Data != nil {
+		if labelsData, ok := record.Labels.Data.(map[string]interface{}); ok {
+			output.Labels = make(map[string]string)
+			for k, v := range labelsData {
+				if strVal, ok := v.(string); ok {
+					output.Labels[k] = strVal
+				}
+			}
+		}
+	}
+
+	// Reconstruct annotations
+	if record.Annotations != nil && record.Annotations.Data != nil {
+		if annotationsData, ok := record.Annotations.Data.(map[string]interface{}); ok {
+			output.Annotations = make(map[string]string)
+			for k, v := range annotationsData {
+				if strVal, ok := v.(string); ok {
+					output.Annotations[k] = strVal
+				}
+			}
+		}
+	}
+
+	// Reconstruct ctx
+	if record.Ctx != nil && record.Ctx.Data != nil {
+		if ctxData, ok := record.Ctx.Data.(map[string]interface{}); ok {
+			output.Ctx = ctxData
+		}
+	}
+
+	return output
+}
+
+// shouldRefreshOutput determines if a cached output needs to be refreshed
+// based on the refresh mode, interval, and forceRefresh flag
+func shouldRefreshOutput(cachedData *CachedOutputData, config *OutputRefreshConfig) bool {
+	if cachedData == nil || config == nil {
+		return true // No cache or config - must render
+	}
+
+	// Check forceRefresh flag first
+	if config.ForceRefresh != nil && *config.ForceRefresh {
+		return true // Force refresh requested
+	}
+
+	// Check refresh mode
+	switch config.Mode {
+	case RefreshAlways:
+		return true // Always refresh
+
+	case RefreshNever:
+		return false // Never refresh (cache is valid)
+
+	case RefreshPeriodic:
+		// Check if enough time has elapsed
+		if config.Interval == nil || *config.Interval <= 0 {
+			// Invalid interval - treat as "never"
+			return false
+		}
+
+		renderedAt, err := time.Parse(time.RFC3339, cachedData.RenderedAt)
+		if err != nil {
+			// Invalid timestamp - must refresh
+			return true
+		}
+
+		elapsed := time.Since(renderedAt)
+		interval := time.Duration(*config.Interval) * time.Second
+		return elapsed >= interval
+
+	default:
+		// Unknown mode - be safe and refresh
+		return true
+	}
+}
+
+// loadCachedPolicyRecord loads a PolicyCacheRecord from ConfigMap with cascade and refresh checks
+// Returns the cached record if valid, nil if cache miss or invalidated
+func loadCachedPolicyRecord(
+	ctx context.Context,
+	cli client.Client,
+	app *v1beta1.Application,
+	policyName string,
+	config *PolicyConfig,
+	upstreamOutputs []*PolicyOutput,
+) (*PolicyCacheRecord, error) {
+	if app.Status.ApplicationPoliciesConfigMap == "" {
+		return nil, nil // No ConfigMap exists yet
+	}
+
+	// Get the ConfigMap
+	cm := &corev1.ConfigMap{}
+	cmName := app.Status.ApplicationPoliciesConfigMap
+	if err := cli.Get(ctx, client.ObjectKey{Name: cmName, Namespace: app.Namespace}, cm); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			return nil, nil // ConfigMap doesn't exist
+		}
+		return nil, err
+	}
+
+	// Find the entry for this policy
+	var cachedData string
+	for key, value := range cm.Data {
+		// Keys are formatted as "001-policy-name"
+		if strings.HasSuffix(key, "-"+policyName) {
+			cachedData = value
+			break
+		}
+	}
+
+	if cachedData == "" {
+		return nil, nil // Policy not in ConfigMap
+	}
+
+	// Parse the cached record
+	var record PolicyCacheRecord
+	if err := json.Unmarshal([]byte(cachedData), &record); err != nil {
+		// Try old format for backwards compatibility
+		return nil, nil // Can't parse - treat as cache miss
+	}
+
+	// Check if Application state has changed (cache invalidation)
+	currentHash, err := computeApplicationHash(app)
+	if err == nil && currentHash != "" {
+		if record.ApplicationHash != currentHash {
+			// Application changed - cache is invalid
+			return nil, nil
+		}
+	}
+
+	// Check cascade ID - if upstream policies changed, this cache is stale
+	currentCascadeID, err := computeCascadeID(upstreamOutputs)
+	if err == nil {
+		if record.LastCascadeID != currentCascadeID {
+			// Upstream policies changed - cascade invalidation
+			return nil, nil
+		}
+	}
+
+	// Check if any output type needs refresh
+	needsRefresh := false
+
+	if config != nil && config.Refresh.Spec != nil {
+		if shouldRefreshOutput(record.Spec, config.Refresh.Spec) {
+			needsRefresh = true
+		}
+	}
+
+	if config != nil && config.Refresh.Labels != nil {
+		if shouldRefreshOutput(record.Labels, config.Refresh.Labels) {
+			needsRefresh = true
+		}
+	}
+
+	if config != nil && config.Refresh.Annotations != nil {
+		if shouldRefreshOutput(record.Annotations, config.Refresh.Annotations) {
+			needsRefresh = true
+		}
+	}
+
+	if config != nil && config.Refresh.Ctx != nil {
+		if shouldRefreshOutput(record.Ctx, config.Refresh.Ctx) {
+			needsRefresh = true
+		}
+	}
+
+	if needsRefresh {
+		return nil, nil // Cache expired or force refresh
+	}
+
+	// Cache is valid
+	return &record, nil
+}
+
 // loadCachedPolicyFromConfigMap attempts to load a cached policy result from the ConfigMap
 // Returns the cached result if found and valid according to TTL and Application state, nil otherwise
+// DEPRECATED: This is the old format loader kept for backwards compatibility
 func loadCachedPolicyFromConfigMap(ctx context.Context, cli client.Client, app *v1beta1.Application, policyName string, ttlSeconds int32) (map[string]interface{}, error) {
 	if app.Status.ApplicationPoliciesConfigMap == "" {
 		return nil, nil // No ConfigMap exists yet
@@ -1391,6 +1779,26 @@ func computeApplicationHash(app *v1beta1.Application) (string, error) {
 	jsonBytes, err := json.Marshal(hashInput)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to marshal Application for hashing")
+	}
+
+	// Compute SHA256 hash
+	hash := sha256.Sum256(jsonBytes)
+	return hex.EncodeToString(hash[:]), nil
+}
+
+// computeCascadeID computes a hash of all upstream policy outputs
+// This is used for cascade invalidation - if upstream policies change, downstream caches must be invalidated
+// upstreamOutputs should contain the PolicyOutput from all policies that executed before this one
+func computeCascadeID(upstreamOutputs []*PolicyOutput) (string, error) {
+	if len(upstreamOutputs) == 0 {
+		// First policy in the chain - no upstream dependencies
+		return "", nil
+	}
+
+	// Marshal all upstream outputs to JSON for consistent hashing
+	jsonBytes, err := json.Marshal(upstreamOutputs)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to marshal upstream outputs for cascade ID")
 	}
 
 	// Compute SHA256 hash

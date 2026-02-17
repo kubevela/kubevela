@@ -77,16 +77,6 @@ type PolicyDefinitionSpec struct {
 	// If not specified, defaults to 0.
 	// +optional
 	Priority int32 `json:"priority,omitempty"`
-
-	// CacheTTLSeconds defines how long the rendered policy output should be cached
-	// before re-rendering. This is stored per-policy in the ConfigMap.
-	// - -1 (default): Never refresh, always reuse cached result (deterministic)
-	// - 0: Never cache, always re-render (useful for policies with external dependencies)
-	// - >0: Cache for this many seconds before re-rendering
-	// The prior cached result is available to the policy template as context.prior
-	// +optional
-	// +kubebuilder:default=-1
-	CacheTTLSeconds int32 `json:"cacheTTLSeconds,omitempty"`
 }
 
 // PolicyDefinitionStatus is the status of PolicyDefinition

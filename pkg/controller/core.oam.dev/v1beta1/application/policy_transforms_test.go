@@ -2574,7 +2574,6 @@ output: {
 					Global:          true,
 					Priority:        100,
 					Scope:           v1beta1.ApplicationScope,
-					CacheTTLSeconds: -1, // Never expire based on time
 					Schematic: &common.Schematic{
 						CUE: &common.CUE{
 							Template: `
@@ -2693,7 +2692,6 @@ output: {
 					Global:          true,
 					Priority:        100,
 					Scope:           v1beta1.ApplicationScope,
-					CacheTTLSeconds: -1,
 					Schematic: &common.Schematic{
 						CUE: &common.CUE{
 							Template: `
@@ -2791,7 +2789,6 @@ output: {
 					Global:          true,
 					Priority:        100,
 					Scope:           v1beta1.ApplicationScope,
-					CacheTTLSeconds: -1, // Never refresh
 					Schematic: &common.Schematic{
 						CUE: &common.CUE{
 							Template: `
@@ -2856,75 +2853,6 @@ output: {
 			}
 		})
 
-		It("Test policy with cacheTTLSeconds: 60 stores TTL in ConfigMap", func() {
-			policyDef := &v1beta1.PolicyDefinition{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "ttl-60-policy",
-					Namespace: namespace,
-				},
-				Spec: v1beta1.PolicyDefinitionSpec{
-					Global:          true,
-					Priority:        100,
-					Scope:           v1beta1.ApplicationScope,
-					CacheTTLSeconds: 60, // Cache for 60 seconds
-					Schematic: &common.Schematic{
-						CUE: &common.CUE{
-							Template: `
-parameter: {}
-
-config: {
-  enabled: true
-}
-
-output: {
-	labels: {"ttl": "60"}
-}
-`,
-						},
-					},
-				},
-			}
-			Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-			waitForPolicyDef(ctx, "ttl-60-policy", namespace)
-
-			app := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "ttl-60-app",
-					Namespace: namespace,
-				},
-				Spec: v1beta1.ApplicationSpec{
-					Components: []common.ApplicationComponent{{Name: "comp", Type: "webservice"}},
-				},
-			}
-
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
-
-			handler := &AppHandler{Client: k8sClient, app: app}
-			monCtx := monitorContext.NewTraceContext(ctx, "test")
-			_, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
-			Expect(err).Should(BeNil())
-
-			// Verify ConfigMap contains ttl_seconds: 60
-			cmName := "application-policies-" + namespace + "-ttl-60-app"
-			cm := &corev1.ConfigMap{}
-			err = k8sClient.Get(ctx, client.ObjectKey{Name: cmName, Namespace: namespace}, cm)
-			Expect(err).Should(BeNil())
-
-			for _, value := range cm.Data {
-				var record map[string]interface{}
-				err := json.Unmarshal([]byte(value), &record)
-				Expect(err).Should(BeNil())
-
-				ttl, ok := record["ttl_seconds"].(float64)
-				Expect(ok).Should(BeTrue())
-				Expect(int32(ttl)).Should(Equal(int32(60)))
-			}
-		})
 
 		It("Test policy with cacheTTLSeconds not specified", func() {
 			policyDef := &v1beta1.PolicyDefinition{
@@ -2936,7 +2864,6 @@ output: {
 					Global:   true,
 					Priority: 100,
 					Scope:    v1beta1.ApplicationScope,
-					// CacheTTLSeconds not specified - in tests it's 0, but CRD default is -1 in production
 					Schematic: &common.Schematic{
 						CUE: &common.CUE{
 							Template: `
