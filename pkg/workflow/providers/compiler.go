@@ -87,3 +87,10 @@ var DefaultCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compil
 	}
 	return c
 })
+
+// InitDefaultCompiler overrides the upstream cuex.DefaultCompiler with the
+// workflow providers compiler so that component/trait definitions have access
+// to all vela/ internal packages (not just the 4 upstream defaults).
+func InitDefaultCompiler() {
+	cuex.DefaultCompiler.Set(DefaultCompiler.Get())
+}
