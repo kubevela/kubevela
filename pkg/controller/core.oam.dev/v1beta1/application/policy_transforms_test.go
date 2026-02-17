@@ -858,7 +858,7 @@ var _ = Describe("Test Global Policy Cache", func() {
 		Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		// Clear cache before each test
-		globalPolicyCache.InvalidateAll()
+		applicationPolicyCache.InvalidateAll()
 	})
 
 	AfterEach(func() {
@@ -872,11 +872,11 @@ var _ = Describe("Test Global Policy Cache", func() {
 
 	It("Test cache basic operations", func() {
 		// Verify cache starts empty
-		Expect(globalPolicyCache.Size()).Should(Equal(0))
+		Expect(applicationPolicyCache.Size()).Should(Equal(0))
 
 		// Test that cache can be cleared
-		globalPolicyCache.InvalidateAll()
-		Expect(globalPolicyCache.Size()).Should(Equal(0))
+		applicationPolicyCache.InvalidateAll()
+		Expect(applicationPolicyCache.Size()).Should(Equal(0))
 	})
 
 	It("Test cache stores and retrieves rendered results", func() {
@@ -913,14 +913,14 @@ var _ = Describe("Test Global Policy Cache", func() {
 		}
 
 		// Set in cache
-		err := globalPolicyCache.Set(app, results, "test-hash")
+		err := applicationPolicyCache.Set(app, results)
 		Expect(err).Should(BeNil())
 
 		// Verify cache size
-		Expect(globalPolicyCache.Size()).Should(Equal(1))
+		Expect(applicationPolicyCache.Size()).Should(Equal(1))
 
 		// Get from cache
-		cached, hit, err := globalPolicyCache.Get(app, "test-hash")
+		cached, hit, err := applicationPolicyCache.Get(app)
 		Expect(err).Should(BeNil())
 		Expect(hit).Should(BeTrue())
 		Expect(cached).Should(HaveLen(1))
@@ -953,11 +953,11 @@ var _ = Describe("Test Global Policy Cache", func() {
 		}
 
 		// Cache with original spec
-		err := globalPolicyCache.Set(app, results, "hash1")
+		err := applicationPolicyCache.Set(app, results)
 		Expect(err).Should(BeNil())
 
 		// Verify cache hit
-		cached, hit, err := globalPolicyCache.Get(app, "hash1")
+		cached, hit, err := applicationPolicyCache.Get(app)
 		Expect(err).Should(BeNil())
 		Expect(hit).Should(BeTrue())
 		Expect(cached).Should(HaveLen(1))
@@ -969,7 +969,7 @@ var _ = Describe("Test Global Policy Cache", func() {
 		})
 
 		// Cache should miss (spec hash changed)
-		cached, hit, err = globalPolicyCache.Get(app, "hash1")
+		cached, hit, err = applicationPolicyCache.Get(app)
 		Expect(err).Should(BeNil())
 		Expect(hit).Should(BeFalse())
 		Expect(cached).Should(BeNil())
@@ -1000,16 +1000,16 @@ var _ = Describe("Test Global Policy Cache", func() {
 		}
 
 		// Cache with original policy hash
-		err := globalPolicyCache.Set(app, results, "old-policy-hash")
+		err := applicationPolicyCache.Set(app, results)
 		Expect(err).Should(BeNil())
 
 		// Verify cache hit with same hash
-		cached, hit, err := globalPolicyCache.Get(app, "old-policy-hash")
+		cached, hit, err := applicationPolicyCache.Get(app)
 		Expect(err).Should(BeNil())
 		Expect(hit).Should(BeTrue())
 
 		// Try to get with different policy hash (policy changed)
-		cached, hit, err = globalPolicyCache.Get(app, "new-policy-hash")
+		cached, hit, err = applicationPolicyCache.Get(app)
 		Expect(err).Should(BeNil())
 		Expect(hit).Should(BeFalse())
 		Expect(cached).Should(BeNil())
@@ -1062,11 +1062,11 @@ var _ = Describe("Test Global Policy Cache", func() {
 		}
 
 		// Cache all results
-		err := globalPolicyCache.Set(app, results, "multi-policy-hash")
+		err := applicationPolicyCache.Set(app, results)
 		Expect(err).Should(BeNil())
 
 		// Get from cache
-		cached, hit, err := globalPolicyCache.Get(app, "multi-policy-hash")
+		cached, hit, err := applicationPolicyCache.Get(app)
 		Expect(err).Should(BeNil())
 		Expect(hit).Should(BeTrue())
 		Expect(cached).Should(HaveLen(3))
@@ -1107,18 +1107,18 @@ var _ = Describe("Test Global Policy Cache", func() {
 		}
 
 		// Cache for both apps
-		err := globalPolicyCache.Set(app1, results, "hash1")
+		err := applicationPolicyCache.Set(app1, results)
 		Expect(err).Should(BeNil())
-		err = globalPolicyCache.Set(app2, results, "hash1")
+		err = applicationPolicyCache.Set(app2, results)
 		Expect(err).Should(BeNil())
 
-		Expect(globalPolicyCache.Size()).Should(Equal(2))
+		Expect(applicationPolicyCache.Size()).Should(Equal(2))
 
 		// Invalidate namespace
-		globalPolicyCache.InvalidateForNamespace(namespace)
+		applicationPolicyCache.InvalidateForNamespace(namespace)
 
 		// Both should be invalidated
-		Expect(globalPolicyCache.Size()).Should(Equal(0))
+		Expect(applicationPolicyCache.Size()).Should(Equal(0))
 	})
 
 	It("Test cache cleanup stale entries", func() {
@@ -1139,11 +1139,11 @@ var _ = Describe("Test Global Policy Cache", func() {
 		}
 
 		// Cache results
-		err := globalPolicyCache.Set(app, results, "hash1")
+		err := applicationPolicyCache.Set(app, results)
 		Expect(err).Should(BeNil())
 
 		// Verify cache hit immediately
-		cached, hit, err := globalPolicyCache.Get(app, "hash1")
+		cached, hit, err := applicationPolicyCache.Get(app)
 		Expect(err).Should(BeNil())
 		Expect(hit).Should(BeTrue())
 		Expect(cached).Should(HaveLen(1))
@@ -1173,24 +1173,24 @@ var _ = Describe("Test Global Policy Cache", func() {
 		}
 
 		// Cache both apps
-		err := globalPolicyCache.Set(app1, results, "hash1")
+		err := applicationPolicyCache.Set(app1, results)
 		Expect(err).Should(BeNil())
-		err = globalPolicyCache.Set(app2, results, "hash1")
+		err = applicationPolicyCache.Set(app2, results)
 		Expect(err).Should(BeNil())
 
-		Expect(globalPolicyCache.Size()).Should(Equal(2))
+		Expect(applicationPolicyCache.Size()).Should(Equal(2))
 
 		// Invalidate only app1
-		globalPolicyCache.InvalidateApplication(namespace, "app1")
+		applicationPolicyCache.InvalidateApplication(namespace, "app1")
 
-		Expect(globalPolicyCache.Size()).Should(Equal(1))
+		Expect(applicationPolicyCache.Size()).Should(Equal(1))
 
 		// app1 should miss
-		_, hit, _ := globalPolicyCache.Get(app1, "hash1")
+		_, hit, _ := applicationPolicyCache.Get(app1)
 		Expect(hit).Should(BeFalse())
 
 		// app2 should still hit
-		_, hit, _ = globalPolicyCache.Get(app2, "hash1")
+		_, hit, _ = applicationPolicyCache.Get(app2)
 		Expect(hit).Should(BeTrue())
 	})
 })
@@ -1219,7 +1219,7 @@ var _ = Describe("Test Global PolicyDefinition Features", func() {
 		Expect(k8sClient.Create(ctx, &velaSystemNs)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		// Clear cache
-		globalPolicyCache.InvalidateAll()
+		applicationPolicyCache.InvalidateAll()
 	})
 
 	AfterEach(func() {
@@ -3061,7 +3061,7 @@ output: {
 		waitForPolicyDef(velaCtx, "global-add-label", velaSystem)
 
 		// Clear in-memory cache to ensure fresh discovery
-		globalPolicyCache.InvalidateAll()
+		applicationPolicyCache.InvalidateAll()
 
 		// Create Application
 		app := &v1beta1.Application{
@@ -3129,7 +3129,7 @@ output: {
 		waitForPolicyDef(velaCtx, "global-no-discovery", velaSystem)
 
 		// Clear in-memory cache
-		globalPolicyCache.InvalidateAll()
+		applicationPolicyCache.InvalidateAll()
 
 		// Create Application
 		app := &v1beta1.Application{
@@ -3226,7 +3226,7 @@ output: {
 		waitForPolicyDef(ctx, "explicit-full-func", namespace)
 
 		// Clear in-memory cache
-		globalPolicyCache.InvalidateAll()
+		applicationPolicyCache.InvalidateAll()
 
 		// Create Application with explicit policy
 		app := &v1beta1.Application{

@@ -737,10 +737,10 @@ func findApplicationsForGlobalPolicy(_ context.Context, obj client.Object) []rec
 	// Invalidate cache when global policies change
 	if policy.Namespace == oam.SystemDefinitionNamespace {
 		// vela-system policy affects all namespaces - invalidate entire cache
-		globalPolicyCache.InvalidateAll()
+		applicationPolicyCache.InvalidateAll()
 	} else {
 		// Namespace-specific policy - invalidate for that namespace
-		globalPolicyCache.InvalidateForNamespace(policy.Namespace)
+		applicationPolicyCache.InvalidateForNamespace(policy.Namespace)
 	}
 
 	// Strategy: Don't trigger immediate reconciliation

@@ -98,17 +98,13 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 	allPolicyChanges := make(map[string]*PolicyChanges)         // Track full changes for ConfigMap storage
 	policyMetadata := make(map[string]*policyConfigMapMetadata) // Track metadata for ConfigMap
 	sequence := 1                                               // Track execution order
+	// TODO: Remove cascade invalidation code (upstreamOutputs tracking)
+	// For now, stub it out to keep code compiling
+	var upstreamOutputs []*PolicyOutput
 
 	if !shouldSkipGlobalPolicies(app) && utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableGlobalPolicies) {
-		// Compute current global policy hash for cache validation
-		currentGlobalPolicyHash, err := h.computeCurrentGlobalPolicyHash(ctx, app.Namespace)
-		if err != nil {
-			ctx.Info("Failed to compute global policy hash, proceeding without cache", "error", err)
-			currentGlobalPolicyHash = ""
-		}
-
 		// Try cache first - this returns the RENDERED results, not PolicyDefinitions
-		cachedResults, cacheHit, err := globalPolicyCache.Get(app, currentGlobalPolicyHash)
+		cachedResults, cacheHit, err := applicationPolicyCache.Get(app)
 		if err != nil {
 			ctx.Info("Cache error, will discover and render policies", "error", err)
 		} else if cacheHit {
@@ -173,15 +169,12 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 			}
 
 			// Cache the rendered results for next time
-			if err := globalPolicyCache.Set(app, globalRenderedResults, currentGlobalPolicyHash); err != nil {
+			if err := applicationPolicyCache.Set(app, globalRenderedResults); err != nil {
 				ctx.Info("Failed to update cache", "error", err)
 			} else {
 				ctx.Info("Cached rendered global policy results", "count", len(globalRenderedResults))
 			}
 		}
-
-		// Track upstream policy outputs for cascade invalidation
-		var upstreamOutputs []*PolicyOutput
 
 		// Apply the rendered global policy results (either from cache or freshly rendered)
 		for _, result := range globalRenderedResults {
@@ -1921,28 +1914,6 @@ func deserializeTransformsFromStorage(transformsData map[string]interface{}) *Po
 
 // computeCurrentGlobalPolicyHash discovers current global policies and computes their hash
 // This is used for cache validation
-func (h *AppHandler) computeCurrentGlobalPolicyHash(ctx monitorContext.Context, appNamespace string) (string, error) {
-	var allPolicies []v1beta1.PolicyDefinition
-
-	// Get policies from vela-system
-	velaSystemPolicies, err := discoverGlobalPolicies(ctx, h.Client, oam.SystemDefinitionNamespace)
-	if err != nil {
-		return "", errors.Wrap(err, "failed to discover vela-system policies for hash")
-	}
-	allPolicies = append(allPolicies, velaSystemPolicies...)
-
-	// Get policies from app namespace (if different)
-	if appNamespace != oam.SystemDefinitionNamespace {
-		namespacePolicies, err := discoverGlobalPolicies(ctx, h.Client, appNamespace)
-		if err != nil {
-			return "", errors.Wrap(err, "failed to discover namespace policies for hash")
-		}
-		allPolicies = append(allPolicies, namespacePolicies...)
-	}
-
-	return computeGlobalPolicyHash(allPolicies)
-}
-
 // deepCopyAppSpec creates a deep copy of the Application spec for diff computation
 func deepCopyAppSpec(spec *v1beta1.ApplicationSpec) (*v1beta1.ApplicationSpec, error) {
 	// Marshal to JSON and unmarshal back to create a deep copy

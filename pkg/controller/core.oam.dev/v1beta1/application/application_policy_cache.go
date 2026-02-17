@@ -28,8 +28,8 @@ import (
 )
 
 const (
-	// GlobalPolicyCacheTTL defines how long cache entries are valid
-	GlobalPolicyCacheTTL = 1 * time.Minute
+	// ApplicationPolicyCacheTTL defines how long cache entries are valid
+	ApplicationPolicyCacheTTL = 1 * time.Minute
 )
 
 // RenderedPolicyResult stores the complete rendered output of a policy's CUE template
@@ -44,32 +44,32 @@ type RenderedPolicyResult struct {
 	Config            *PolicyConfig          // Policy configuration including refresh settings
 }
 
-// GlobalPolicyCacheEntry represents cached rendered results for an Application
-type GlobalPolicyCacheEntry struct {
-	appSpecHash      string                 // Hash of Application.Spec
-	globalPolicyHash string                 // Hash of global policy specs
-	renderedResults  []RenderedPolicyResult // Cached rendering results
-	timestamp        time.Time              // For TTL
+// ApplicationPolicyCacheEntry represents cached rendered results for an Application
+// Simple 1-minute TTL cache - invalidates on Application.Spec changes or time expiry
+type ApplicationPolicyCacheEntry struct {
+	appSpecHash     string                 // Hash of Application.Spec for invalidation
+	renderedResults []RenderedPolicyResult // Cached rendering results
+	timestamp       time.Time              // For 1-minute TTL
 }
 
-// GlobalPolicyCache caches discovered global policies with smart invalidation
-type GlobalPolicyCache struct {
+// ApplicationPolicyCache caches rendered policy results (both global and explicit policies)
+type ApplicationPolicyCache struct {
 	mu      sync.RWMutex
-	entries map[string]*GlobalPolicyCacheEntry
+	entries map[string]*ApplicationPolicyCacheEntry
 }
 
-// NewGlobalPolicyCache creates a new cache instance
-func NewGlobalPolicyCache() *GlobalPolicyCache {
-	return &GlobalPolicyCache{
-		entries: make(map[string]*GlobalPolicyCacheEntry),
+// NewApplicationPolicyCache creates a new cache instance
+func NewApplicationPolicyCache() *ApplicationPolicyCache {
+	return &ApplicationPolicyCache{
+		entries: make(map[string]*ApplicationPolicyCacheEntry),
 	}
 }
 
 // Package-level singleton cache instance
-var globalPolicyCache = NewGlobalPolicyCache()
+var applicationPolicyCache = NewApplicationPolicyCache()
 
-// computeGlobalPolicyCacheKey generates a cache key for an Application
-func computeGlobalPolicyCacheKey(app *v1beta1.Application) string {
+// computeApplicationPolicyCacheKey generates a cache key for an Application
+func computeApplicationPolicyCacheKey(app *v1beta1.Application) string {
 	return fmt.Sprintf("%s/%s", app.Namespace, app.Name)
 }
 
@@ -78,24 +78,10 @@ func computeAppSpecHash(app *v1beta1.Application) (string, error) {
 	return apply.ComputeSpecHash(app.Spec)
 }
 
-// computeGlobalPolicyHash computes a hash of global policy specs
-func computeGlobalPolicyHash(policies []v1beta1.PolicyDefinition) (string, error) {
-	if len(policies) == 0 {
-		return "empty", nil
-	}
-
-	// Hash all policy specs to detect changes
-	specs := make([]v1beta1.PolicyDefinitionSpec, len(policies))
-	for i, p := range policies {
-		specs[i] = p.Spec
-	}
-	return apply.ComputeSpecHash(specs)
-}
-
 // Get retrieves cached rendered policy results if valid
 // Returns (renderedResults, cacheHit, error)
-func (c *GlobalPolicyCache) Get(app *v1beta1.Application, currentGlobalPolicyHash string) ([]RenderedPolicyResult, bool, error) {
-	cacheKey := computeGlobalPolicyCacheKey(app)
+func (c *ApplicationPolicyCache) Get(app *v1beta1.Application) ([]RenderedPolicyResult, bool, error) {
+	cacheKey := computeApplicationPolicyCacheKey(app)
 	appSpecHash, err := computeAppSpecHash(app)
 	if err != nil {
 		return nil, false, errors.Wrap(err, "failed to compute app spec hash")
@@ -114,13 +100,8 @@ func (c *GlobalPolicyCache) Get(app *v1beta1.Application, currentGlobalPolicyHas
 		return nil, false, nil // Spec changed, cache invalid
 	}
 
-	// Check if global policies changed
-	if entry.globalPolicyHash != currentGlobalPolicyHash {
-		return nil, false, nil // Global policies changed, cache invalid
-	}
-
 	// Check TTL
-	if time.Since(entry.timestamp) > GlobalPolicyCacheTTL {
+	if time.Since(entry.timestamp) > ApplicationPolicyCacheTTL {
 		return nil, false, nil // Stale, recompute
 	}
 
@@ -129,8 +110,8 @@ func (c *GlobalPolicyCache) Get(app *v1beta1.Application, currentGlobalPolicyHas
 }
 
 // Set stores rendered policy results in the cache
-func (c *GlobalPolicyCache) Set(app *v1beta1.Application, results []RenderedPolicyResult, globalPolicyHash string) error {
-	cacheKey := computeGlobalPolicyCacheKey(app)
+func (c *ApplicationPolicyCache) Set(app *v1beta1.Application, results []RenderedPolicyResult) error {
+	cacheKey := computeApplicationPolicyCacheKey(app)
 
 	appSpecHash, err := computeAppSpecHash(app)
 	if err != nil {
@@ -140,18 +121,17 @@ func (c *GlobalPolicyCache) Set(app *v1beta1.Application, results []RenderedPoli
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.entries[cacheKey] = &GlobalPolicyCacheEntry{
-		appSpecHash:      appSpecHash,
-		renderedResults:  results,
-		globalPolicyHash: globalPolicyHash,
-		timestamp:        time.Now(),
+	c.entries[cacheKey] = &ApplicationPolicyCacheEntry{
+		appSpecHash:     appSpecHash,
+		renderedResults: results,
+		timestamp:       time.Now(),
 	}
 
 	return nil
 }
 
 // InvalidateForNamespace invalidates all cache entries that might be affected by changes in a namespace
-func (c *GlobalPolicyCache) InvalidateForNamespace(namespace string) {
+func (c *ApplicationPolicyCache) InvalidateForNamespace(namespace string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -163,15 +143,15 @@ func (c *GlobalPolicyCache) InvalidateForNamespace(namespace string) {
 
 // InvalidateAll clears the entire cache
 // Used when vela-system global policies change (affects all namespaces)
-func (c *GlobalPolicyCache) InvalidateAll() {
+func (c *ApplicationPolicyCache) InvalidateAll() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.entries = make(map[string]*GlobalPolicyCacheEntry)
+	c.entries = make(map[string]*ApplicationPolicyCacheEntry)
 }
 
 // InvalidateApplication invalidates cache for a specific Application
-func (c *GlobalPolicyCache) InvalidateApplication(namespace, name string) {
+func (c *ApplicationPolicyCache) InvalidateApplication(namespace, name string) {
 	cacheKey := fmt.Sprintf("%s/%s", namespace, name)
 
 	c.mu.Lock()
@@ -181,7 +161,7 @@ func (c *GlobalPolicyCache) InvalidateApplication(namespace, name string) {
 }
 
 // Size returns the number of cached entries
-func (c *GlobalPolicyCache) Size() int {
+func (c *ApplicationPolicyCache) Size() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -189,7 +169,7 @@ func (c *GlobalPolicyCache) Size() int {
 }
 
 // CleanupStale removes stale entries older than TTL
-func (c *GlobalPolicyCache) CleanupStale() int {
+func (c *ApplicationPolicyCache) CleanupStale() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -197,7 +177,7 @@ func (c *GlobalPolicyCache) CleanupStale() int {
 	now := time.Now()
 
 	for key, entry := range c.entries {
-		if now.Sub(entry.timestamp) > GlobalPolicyCacheTTL {
+		if now.Sub(entry.timestamp) > ApplicationPolicyCacheTTL {
 			delete(c.entries, key)
 			removed++
 		}
