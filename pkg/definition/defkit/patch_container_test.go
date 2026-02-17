@@ -17,6 +17,8 @@ limitations under the License.
 package defkit_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -90,10 +92,133 @@ var _ = Describe("PatchContainer", func() {
 			// Verify error collection
 			Expect(cue).To(ContainSubstring(`errs: [for c in patch.spec.template.spec.containers if c.err != _|_ {c.err}]`))
 
-			// Verify parameter block with optional fields
-			Expect(cue).To(ContainSubstring(`parameter: {`))
-			Expect(cue).To(ContainSubstring(`command?: [...string]`))
-			Expect(cue).To(ContainSubstring(`args?: [...string]`))
+			// Verify parameter block comes from PatchContainer (no duplicate from regular params)
+			Expect(cue).To(ContainSubstring(`parameter: #PatchParams`))
+			// The extra parameter: {} from regular params should NOT appear
+			Expect(strings.Count(cue, "parameter:")).To(Equal(1))
+		})
+
+		It("should use *empty-string default for string-equality conditions", func() {
+			trait := defkit.NewTrait("image-test").
+				Description("Test string-equality condition default").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						PatchFields: []defkit.PatchContainerField{
+							{ParamName: "image", TargetField: "image", PatchStrategy: "retainKeys"},
+							{ParamName: "imagePullPolicy", TargetField: "imagePullPolicy", PatchStrategy: "retainKeys", Condition: `!= ""`},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// String-equality condition should default to empty string, not null
+			Expect(cue).To(ContainSubstring(`imagePullPolicy: *"" |`))
+			Expect(cue).NotTo(ContainSubstring(`imagePullPolicy: *null |`))
+		})
+
+		It("should map params unconditionally in single-container _params block", func() {
+			trait := defkit.NewTrait("unconditional-test").
+				Description("Test unconditional param mapping").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						AllowMultiple:        true,
+						ContainersParam:      "containers",
+						PatchFields: []defkit.PatchContainerField{
+							{ParamName: "image", TargetField: "image"},
+							{ParamName: "imagePullPolicy", TargetField: "imagePullPolicy", Condition: `!= ""`},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// In the single-container _params block, all fields should be mapped unconditionally
+			Expect(cue).To(ContainSubstring("image:           parameter.image"))
+			Expect(cue).To(ContainSubstring("imagePullPolicy: parameter.imagePullPolicy"))
+			// The conditional should NOT wrap the param mapping in the _params block
+			Expect(cue).NotTo(MatchRegexp(`if parameter\.imagePullPolicy != ""[^}]*\n[^}]*imagePullPolicy: parameter\.imagePullPolicy`))
+			// But the PatchContainer body should still have the condition
+			Expect(cue).To(ContainSubstring(`if _params.imagePullPolicy != ""`))
+		})
+
+		It("should not emit *#PatchParams with star in multi-container parameter block", func() {
+			trait := defkit.NewTrait("no-star-test").
+				Description("Test no star in parameter").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						AllowMultiple:        true,
+						ContainersParam:      "containers",
+						PatchFields: []defkit.PatchContainerField{
+							{ParamName: "image", TargetField: "image"},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Should be #PatchParams without star
+			Expect(cue).To(ContainSubstring("parameter: #PatchParams | close({"))
+			Expect(cue).NotTo(ContainSubstring("parameter: *#PatchParams"))
+		})
+
+		It("should use custom Description and ContainersDescription", func() {
+			trait := defkit.NewTrait("desc-test").
+				Description("Test custom descriptions").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:    "containerName",
+						DefaultToContextName:  true,
+						AllowMultiple:         true,
+						ContainersParam:       "containers",
+						ContainersDescription: "Specify the container image for multiple containers",
+						PatchFields: []defkit.PatchContainerField{
+							{ParamName: "image", TargetField: "image", Description: "Specify the image of the container"},
+							{ParamName: "imagePullPolicy", TargetField: "imagePullPolicy", Condition: `!= ""`, Description: "Specify the image pull policy of the container"},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Custom field descriptions
+			Expect(cue).To(ContainSubstring("// +usage=Specify the image of the container"))
+			Expect(cue).To(ContainSubstring("// +usage=Specify the image pull policy of the container"))
+			// Custom containers description
+			Expect(cue).To(ContainSubstring("// +usage=Specify the container image for multiple containers"))
+		})
+
+		It("should not emit duplicate parameter: {} when using PatchContainer", func() {
+			trait := defkit.NewTrait("no-dup-param-test").
+				Description("Test no duplicate parameter block").
+				AppliesTo("deployments.apps").
+				Params(defkit.String("image").Required()).
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						PatchFields: []defkit.PatchContainerField{
+							{ParamName: "image", TargetField: "image"},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Only one parameter: line should appear (from PatchContainer)
+			Expect(strings.Count(cue, "parameter:")).To(Equal(1))
+			// Should not have parameter: {}
+			Expect(cue).NotTo(ContainSubstring("parameter: {}"))
 		})
 	})
 

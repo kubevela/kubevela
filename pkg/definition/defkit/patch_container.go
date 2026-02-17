@@ -30,6 +30,7 @@ type PatchContainerField struct {
 	Condition     string // optional CUE condition (e.g., "!= null")
 	ParamType     string // explicit CUE type (e.g., "string", "[...string]", "{...}")
 	ParamDefault  string // explicit default value (e.g., "0", "\"\"", "false")
+	Description   string // optional +usage description (auto-generated if empty)
 }
 
 // PatchContainerGroup defines a group of fields under a common parent field.
@@ -53,6 +54,7 @@ type PatchContainerConfig struct {
 	Groups                    []PatchContainerGroup // grouped fields (e.g., startupProbe: { ... })
 	AllowMultiple             bool                  // if true, allow patching multiple containers
 	ContainersParam           string                // for multi-container mode, the array param name
+	ContainersDescription     string                // +usage description for the containers param (auto-generated if empty)
 	CustomParamsBlock         string                // custom CUE block for #PatchParams (for complex types)
 	MultiContainerParam       string                // alternate name for multi-container param (default: "probes" for probes, "containers" for others)
 	CustomPatchContainerBlock string                // custom CUE block for PatchContainer body (for complex merge logic)

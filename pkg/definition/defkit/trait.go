@@ -508,12 +508,20 @@ func (g *TraitCUEGenerator) GenerateTemplate(t *TraitDefinition) string {
 	sb.WriteString("template: {\n")
 
 	// Check if using Template API
+	usedPatchContainer := false
 	if t.HasTemplate() {
+		// Check if PatchContainer is configured (it generates its own parameter block)
+		tpl := NewTemplate()
+		t.GetTemplate()(tpl)
+		usedPatchContainer = tpl.GetPatchContainerConfig() != nil
+
 		g.writeUnifiedTemplate(&sb, t, 1)
 	}
 
-	// Generate parameter section
-	sb.WriteString(g.generateParameterBlock(t, 1))
+	// Generate parameter section (skip if PatchContainer already generated it)
+	if !usedPatchContainer {
+		sb.WriteString(g.generateParameterBlock(t, 1))
+	}
 
 	// Generate helper type definitions (like #HealthProbe, #labelSelector)
 	gen := NewCUEGenerator()
@@ -1089,8 +1097,12 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 			}
 		}
 	case config.AllowMultiple && multiParam != "":
-		sb.WriteString(fmt.Sprintf("%sparameter: *#PatchParams | close({\n", indent))
-		sb.WriteString(fmt.Sprintf("%s// +usage=Specify the settings for multiple containers\n", innerIndent))
+		sb.WriteString(fmt.Sprintf("%sparameter: #PatchParams | close({\n", indent))
+		containersDesc := config.ContainersDescription
+		if containersDesc == "" {
+			containersDesc = "Specify the settings for multiple containers"
+		}
+		sb.WriteString(fmt.Sprintf("%s// +usage=%s\n", innerIndent, containersDesc))
 		sb.WriteString(fmt.Sprintf("%s%s: [...#PatchParams]\n", innerIndent, multiParam))
 		sb.WriteString(fmt.Sprintf("%s})\n", indent))
 	default:
@@ -1103,7 +1115,11 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 
 // writePatchParamField writes a single field in the #PatchParams schema.
 func (g *TraitCUEGenerator) writePatchParamField(sb *strings.Builder, field PatchContainerField, indent string) {
-	sb.WriteString(fmt.Sprintf("%s// +usage=Specify the %s for the container\n", indent, field.ParamName))
+	desc := field.Description
+	if desc == "" {
+		desc = fmt.Sprintf("Specify the %s of the container", field.ParamName)
+	}
+	sb.WriteString(fmt.Sprintf("%s// +usage=%s\n", indent, desc))
 
 	// Determine the type string
 	typeStr := field.ParamType
@@ -1124,8 +1140,13 @@ func (g *TraitCUEGenerator) writePatchParamField(sb *strings.Builder, field Patc
 	// Determine default value
 	defaultVal := field.ParamDefault
 	if defaultVal == "" && field.Condition != "" {
-		// Has condition, likely optional - default to null
-		defaultVal = "null"
+		// Has condition, likely optional - choose appropriate default
+		if field.Condition == "!= \"\"" {
+			// String-equality condition: default to empty string
+			defaultVal = "\"\""
+		} else {
+			defaultVal = "null"
+		}
 	}
 
 	if defaultVal != "" {
@@ -1190,15 +1211,10 @@ func (g *TraitCUEGenerator) writePatchContainerGroup(sb *strings.Builder, group 
 }
 
 // writePatchParamMapping writes a parameter mapping in the patch block.
+// In single-container mode (prefix="parameter."), fields are always mapped
+// unconditionally because PatchContainer itself handles the conditional logic.
 func (g *TraitCUEGenerator) writePatchParamMapping(sb *strings.Builder, field PatchContainerField, indent string, prefix string) {
-	if field.Condition != "" {
-		// Optional field - map conditionally
-		sb.WriteString(fmt.Sprintf("%sif %s%s %s {\n", indent, prefix, field.ParamName, field.Condition))
-		sb.WriteString(fmt.Sprintf("%s\t%s: %s%s\n", indent, field.ParamName, prefix, field.ParamName))
-		sb.WriteString(fmt.Sprintf("%s}\n", indent))
-	} else {
-		sb.WriteString(fmt.Sprintf("%s%s: %s%s\n", indent, field.ParamName, prefix, field.ParamName))
-	}
+	sb.WriteString(fmt.Sprintf("%s%s: %s%s\n", indent, field.ParamName, prefix, field.ParamName))
 }
 
 // writePatchGroupMapping writes a group parameter mapping in the patch block.
