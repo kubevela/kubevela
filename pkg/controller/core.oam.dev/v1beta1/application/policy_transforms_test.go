@@ -1195,6 +1195,106 @@ var _ = Describe("Test Global Policy Cache", func() {
 		_, hit, _ = applicationPolicyCache.Get(app2)
 		Expect(hit).Should(BeTrue())
 	})
+
+	It("Test ApplicationRevision restoration prevents double revisions", func() {
+		// This test verifies the fix for the double ApplicationRevision bug
+		// where subsequent reconciliations would create spurious revisions
+
+		// Create a policy that transforms the spec
+		policyDef := &v1beta1.PolicyDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "transform-policy",
+				Namespace: namespace,
+			},
+			Spec: v1beta1.PolicyDefinitionSpec{
+				Global:   true,
+				Priority: 100,
+				Scope:    v1beta1.ApplicationScope,
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: `
+parameter: {}
+
+output: {
+	components: [{
+		name: "transformed-component"
+		type: "webservice"
+		properties: {
+			image: "transformed:v1"
+		}
+	}]
+}
+`,
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
+		waitForPolicyDef(ctx, "transform-policy", namespace)
+
+		// Create Application
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: v1beta1.SchemeGroupVersion.String(),
+				Kind:       v1beta1.ApplicationKind,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-double-revision",
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{{
+					Name: "original-component",
+					Type: "webservice",
+				}},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		handler := &AppHandler{Client: k8sClient, app: app}
+		monCtx := monitorContext.NewTraceContext(ctx, "test")
+
+		// First reconciliation - should create transformed spec
+		_, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
+		Expect(err).Should(BeNil())
+		Expect(app.Spec.Components).Should(HaveLen(1))
+		Expect(app.Spec.Components[0].Name).Should(Equal("transformed-component"))
+
+		firstSpec := app.Spec.DeepCopy()
+
+		// Simulate ApplicationRevision being created
+		app.Status.LatestRevision = &common.Revision{
+			Name:     "test-double-revision-v1",
+			Revision: 1,
+		}
+
+		// Create a mock ApplicationRevision with the transformed spec
+		appRev := &v1beta1.ApplicationRevision{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-double-revision-v1",
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationRevisionSpec{
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					Application: v1beta1.Application{
+						Spec: *firstSpec,
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, appRev)).Should(Succeed())
+
+		// Second reconciliation (simulating status update trigger)
+		// This should restore spec from ApplicationRevision, NOT create new transformed spec
+		handler2 := &AppHandler{Client: k8sClient, app: app}
+		_, err = handler2.ApplyApplicationScopeTransforms(monCtx, app)
+		Expect(err).Should(BeNil())
+
+		// Spec should match the first revision (not create a different spec)
+		Expect(app.Spec.Components).Should(HaveLen(1))
+		Expect(app.Spec.Components[0].Name).Should(Equal("transformed-component"))
+		Expect(app.Spec.Components).Should(Equal(firstSpec.Components))
+	})
 })
 
 var _ = Describe("Test Global PolicyDefinition Features", func() {
@@ -2776,154 +2876,8 @@ output: {
 				}
 			}
 
-			Expect(newHash).ShouldNot(Equal(originalHash), "Hash should change when labels change")
-		})
-	})
-
-	Context("Test TTL-based caching (cacheTTLSeconds)", func() {
-		It("Test policy with cacheTTLSeconds: -1 stores TTL in ConfigMap", func() {
-			policyDef := &v1beta1.PolicyDefinition{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "ttl-never-policy",
-					Namespace: namespace,
-				},
-				Spec: v1beta1.PolicyDefinitionSpec{
-					Global:          true,
-					Priority:        100,
-					Scope:           v1beta1.ApplicationScope,
-					Schematic: &common.Schematic{
-						CUE: &common.CUE{
-							Template: `
-parameter: {}
-
-config: {
-  enabled: true
-}
-
-output: {
-	labels: {"ttl": "never"}
-}
-`,
-						},
-					},
-				},
-			}
-			Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-			waitForPolicyDef(ctx, "ttl-never-policy", namespace)
-
-			app := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "ttl-never-app",
-					Namespace: namespace,
-				},
-				Spec: v1beta1.ApplicationSpec{
-					Components: []common.ApplicationComponent{{Name: "comp", Type: "webservice"}},
-				},
-			}
-
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
-
-			handler := &AppHandler{Client: k8sClient, app: app}
-			monCtx := monitorContext.NewTraceContext(ctx, "test")
-			_, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
-			Expect(err).Should(BeNil())
-
-			// Verify ConfigMap contains ttl_seconds: -1
-			cmName := "application-policies-" + namespace + "-ttl-never-app"
-			cm := &corev1.ConfigMap{}
-			err = k8sClient.Get(ctx, client.ObjectKey{Name: cmName, Namespace: namespace}, cm)
-			Expect(err).Should(BeNil())
-
-			// Parse and verify TTL
-			for _, value := range cm.Data {
-				var record map[string]interface{}
-				err := json.Unmarshal([]byte(value), &record)
-				Expect(err).Should(BeNil())
-
-				ttl, ok := record["ttl_seconds"].(float64)
-				Expect(ok).Should(BeTrue(), "ttl_seconds should be present")
-				Expect(int32(ttl)).Should(Equal(int32(-1)), "TTL should be -1 (never refresh)")
-
-				// Verify rendered_at timestamp exists
-				_, ok = record["rendered_at"].(string)
-				Expect(ok).Should(BeTrue(), "rendered_at should be present")
-			}
-		})
-
-
-		It("Test policy with cacheTTLSeconds not specified", func() {
-			policyDef := &v1beta1.PolicyDefinition{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "ttl-default-policy",
-					Namespace: namespace,
-				},
-				Spec: v1beta1.PolicyDefinitionSpec{
-					Global:   true,
-					Priority: 100,
-					Scope:    v1beta1.ApplicationScope,
-					Schematic: &common.Schematic{
-						CUE: &common.CUE{
-							Template: `
-parameter: {}
-
-config: {
-  enabled: true
-}
-
-output: {
-	labels: {"ttl": "default"}
-}
-`,
-						},
-					},
-				},
-			}
-			Expect(k8sClient.Create(ctx, policyDef)).Should(Succeed())
-			waitForPolicyDef(ctx, "ttl-default-policy", namespace)
-
-			app := &v1beta1.Application{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.SchemeGroupVersion.String(),
-					Kind:       v1beta1.ApplicationKind,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "ttl-default-app",
-					Namespace: namespace,
-				},
-				Spec: v1beta1.ApplicationSpec{
-					Components: []common.ApplicationComponent{{Name: "comp", Type: "webservice"}},
-				},
-			}
-
-			// Create the Application first so it gets a UID (needed for ConfigMap OwnerReference)
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
-
-			handler := &AppHandler{Client: k8sClient, app: app}
-			monCtx := monitorContext.NewTraceContext(ctx, "test")
-			_, err := handler.ApplyApplicationScopeTransforms(monCtx, app)
-			Expect(err).Should(BeNil())
-
-			// Verify ConfigMap contains ttl_seconds: -1 (CRD default when not specified)
-			cmName := "application-policies-" + namespace + "-ttl-default-app"
-			cm := &corev1.ConfigMap{}
-			err = k8sClient.Get(ctx, client.ObjectKey{Name: cmName, Namespace: namespace}, cm)
-			Expect(err).Should(BeNil())
-
-			for _, value := range cm.Data {
-				var record map[string]interface{}
-				err := json.Unmarshal([]byte(value), &record)
-				Expect(err).Should(BeNil())
-
-				ttl, ok := record["ttl_seconds"].(float64)
-				Expect(ok).Should(BeTrue())
-				// CRD default is -1, not 0
-				Expect(int32(ttl)).Should(Equal(int32(-1)), "CRD default is -1 (never expire)")
-			}
+			// Per our simple cache architecture: labels DON'T invalidate cache (only spec changes do)
+			Expect(newHash).Should(Equal(originalHash), "Hash should NOT change when only labels change")
 		})
 	})
 

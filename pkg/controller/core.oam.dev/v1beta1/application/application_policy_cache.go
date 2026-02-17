@@ -38,6 +38,7 @@ type RenderedPolicyResult struct {
 	PolicyNamespace   string                 // Namespace of the policy
 	Priority          int32                  // Priority of the policy (for execution order)
 	Enabled           bool                   // Whether the policy should be applied
+	Source            string                 // "global" or "explicit" - how the policy was discovered
 	Transforms        interface{}            // The transforms (*PolicyTransforms) from CUE template
 	AdditionalContext map[string]interface{} // The additionalContext field from CUE template
 	SkipReason        string                 // Reason for skipping (if enabled=false or error)
@@ -81,10 +82,18 @@ func computeAppSpecHash(app *v1beta1.Application) (string, error) {
 // Get retrieves cached rendered policy results if valid
 // Returns (renderedResults, cacheHit, error)
 func (c *ApplicationPolicyCache) Get(app *v1beta1.Application) ([]RenderedPolicyResult, bool, error) {
+	results, hit, _, err := c.GetWithReason(app)
+	return results, hit, err
+}
+
+// GetWithReason retrieves cached rendered policy results if valid and returns the reason for cache miss
+// Returns (renderedResults, cacheHit, missReason, error)
+// missReason values: "not_found", "spec_changed", "ttl_expired", "" (on cache hit)
+func (c *ApplicationPolicyCache) GetWithReason(app *v1beta1.Application) ([]RenderedPolicyResult, bool, string, error) {
 	cacheKey := computeApplicationPolicyCacheKey(app)
 	appSpecHash, err := computeAppSpecHash(app)
 	if err != nil {
-		return nil, false, errors.Wrap(err, "failed to compute app spec hash")
+		return nil, false, "error", errors.Wrap(err, "failed to compute app spec hash")
 	}
 
 	c.mu.RLock()
@@ -92,21 +101,21 @@ func (c *ApplicationPolicyCache) Get(app *v1beta1.Application) ([]RenderedPolicy
 
 	entry, found := c.entries[cacheKey]
 	if !found {
-		return nil, false, nil // Cache miss
+		return nil, false, "not_found", nil // Cache miss - first time
 	}
 
 	// Check if Application spec changed
 	if entry.appSpecHash != appSpecHash {
-		return nil, false, nil // Spec changed, cache invalid
+		return nil, false, "spec_changed", nil // Spec changed, cache invalid
 	}
 
 	// Check TTL
 	if time.Since(entry.timestamp) > ApplicationPolicyCacheTTL {
-		return nil, false, nil // Stale, recompute
+		return nil, false, "ttl_expired", nil // Stale, recompute
 	}
 
 	// Cache hit!
-	return entry.renderedResults, true, nil
+	return entry.renderedResults, true, "", nil
 }
 
 // Set stores rendered policy results in the cache

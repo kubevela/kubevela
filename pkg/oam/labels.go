@@ -162,7 +162,7 @@ const (
 	// AnnotationAutoRevision controls whether policy-rendered spec changes create new ApplicationRevisions.
 	// When set to "true", policies can modify Application.Spec and trigger new revisions.
 	// This is orthogonal to AnnotationAutoUpdate which controls definition version updates.
-	AnnotationAutoRevision = "app.oam.dev/autoRevision"
+	AnnotationAutoRevision = "policy.oam.dev/autoRevision"
 
 	// AnnotationWorkflowName specifies the workflow name for execution.
 	AnnotationWorkflowName = "app.oam.dev/workflowName"

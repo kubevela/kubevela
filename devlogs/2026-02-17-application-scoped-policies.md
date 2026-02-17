@@ -95,7 +95,7 @@ output: {
 - `renderAllPolicies()` - Discovers and renders global + explicit policies
 - `renderSinglePolicy()` - Renders one policy with chaining context
 - `applySpecToApp()` - Applies transformed spec to Application (in-memory)
-- `shouldAutoCreateRevision()` - Checks `app.oam.dev/autoRevision` annotation
+- `shouldAutoCreateRevision()` - Checks `policy.oam.dev/autoRevision` annotation
 
 **Critical Lines**:
 - **Lines 93-117**: Cache check and policy rendering
@@ -128,7 +128,7 @@ output: {
 #### 4. `/pkg/oam/labels.go`
 **Purpose**: Label and annotation constants
 **Key Addition**:
-- **Lines 162-165**: `AnnotationAutoRevision = "app.oam.dev/autoRevision"`
+- **Lines 162-165**: `AnnotationAutoRevision = "policy.oam.dev/autoRevision"`
   - Controls whether policy transformations create new ApplicationRevisions
   - Default: `false` (stable spec, restore from ApplicationRevision)
   - Set to `"true"` to enable revision creation on every transformation
@@ -459,7 +459,7 @@ kind: Application
 metadata:
   name: my-app
   annotations:
-    app.oam.dev/autoRevision: "true"  # <-- Enable revision creation
+    policy.oam.dev/autoRevision: "true"  # <-- Enable revision creation
 spec:
   components:
     - name: my-component
@@ -655,7 +655,7 @@ output: {
 2. Added policy caching with TTL and spec hash invalidation
 3. **[CRITICAL FIX]** Fixed double ApplicationRevision bug by restoring from ApplicationRevision
 4. Added test case for ApplicationRevision restoration
-5. Added `app.oam.dev/autoRevision` annotation support
+5. Added `policy.oam.dev/autoRevision` annotation support
 
 ### Test Commits
 - Added global policy discovery tests

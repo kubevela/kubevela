@@ -77,6 +77,12 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 	// Clear previous policy status
 	app.Status.AppliedApplicationPolicies = nil
 
+	// Check if Application-scoped policy execution is enabled
+	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationScopedPolicies) {
+		ctx.Info("Application-scoped policies disabled by feature gate")
+		return ctx, nil
+	}
+
 	// Step 1: Validate explicit policies are not global
 	for _, policy := range app.Spec.Policies {
 		if err := validateNotGlobalPolicy(ctx, h.Client, policy.Type, app.Namespace); err != nil {
@@ -85,12 +91,13 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 	}
 
 	// Step 2: Check in-memory cache first (1-minute TTL + spec hash invalidation)
-	cachedResults, cacheHit, err := applicationPolicyCache.Get(app)
+	cachedResults, cacheHit, cacheMissReason, err := applicationPolicyCache.GetWithReason(app)
 	var renderedResults []RenderedPolicyResult
 
 	if err != nil {
 		ctx.Info("Cache error, will render policies", "error", err)
 		cacheHit = false
+		cacheMissReason = "error"
 	}
 
 	if cacheHit {
@@ -98,7 +105,7 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 		renderedResults = cachedResults
 	} else {
 		// Step 3: Cache miss - render ALL policies (global + explicit)
-		ctx.Info("Cache MISS - rendering all policies")
+		ctx.Info("Cache MISS - rendering all policies", "reason", cacheMissReason)
 		renderedResults = h.renderAllPolicies(ctx, app)
 
 		// Cache the rendered results
@@ -121,46 +128,187 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 	// Merge context into workflow context (stored in context for workflow/components to access)
 	if policyContext, ok := renderedMetadata["context"].(map[string]interface{}); ok && len(policyContext) > 0 {
 		// Store policy context in the context using the standard key
-		for k, v := range policyContext {
-			// TODO: implement proper context storage for workflow
-			_ = k
-			_ = v
-		}
+		ctx = storeAdditionalContextInCtx(ctx, policyContext)
 		ctx.Info("Policy context available for workflow", "keys", len(policyContext))
 	}
 
-	// Step 6: Conditionally apply spec based on autoRevision annotation
+	// Step 6: Apply policy-transformed spec, but restore from ApplicationRevision if needed
+	// For observability, we always render policies. But on subsequent reconciliations,
+	// we use the ApplicationRevision as the source of truth to avoid creating spurious revisions.
+	hasSpecChanges := len(renderedSpec.Components) > 0 || renderedSpec.Workflow != nil || len(renderedSpec.Policies) > 0
 	autoRevision := shouldAutoCreateRevision(app)
+	isFirstRevision := app.Status.LatestRevision == nil || app.Status.LatestRevision.Name == ""
 
-	if autoRevision {
-		// Apply rendered spec to Application
+	if hasSpecChanges {
+		// Apply rendered spec to Application (in-memory only)
 		applySpecToApp(app, renderedSpec)
-		ctx.Info("Applied policy-rendered spec (autoRevision enabled)",
-			"components", len(renderedSpec.Components),
-			"hasWorkflow", renderedSpec.Workflow != nil,
-			"policies", len(renderedSpec.Policies))
-	} else {
-		// Keep current spec, log if there are changes
-		if len(renderedSpec.Components) > 0 || renderedSpec.Workflow != nil || len(renderedSpec.Policies) > 0 {
-			ctx.Info("Spec changes available but NOT applied (autoRevision disabled)",
-				"renderedComponents", len(renderedSpec.Components),
-				"annotation", oam.AnnotationAutoRevision)
+
+		// Step 6.5: Restore spec from ApplicationRevision if autoRevision is disabled
+		// This prevents creating new revisions from cached policy renders
+		if !isFirstRevision && !autoRevision {
+			// Load latest ApplicationRevision
+			latestRev := &v1beta1.ApplicationRevision{}
+			revName := app.Status.LatestRevision.Name
+			err := h.Client.Get(ctx, client.ObjectKey{
+				Name:      revName,
+				Namespace: app.Namespace,
+			}, latestRev)
+
+			if err == nil && latestRev.Spec.Application.Spec.Components != nil {
+				// Restore spec from revision (has policy transforms baked in)
+				app.Spec.Components = latestRev.Spec.Application.Spec.Components
+				if latestRev.Spec.Application.Spec.Workflow != nil {
+					app.Spec.Workflow = latestRev.Spec.Application.Spec.Workflow
+				}
+				if len(latestRev.Spec.Application.Spec.Policies) > 0 {
+					app.Spec.Policies = latestRev.Spec.Application.Spec.Policies
+				}
+				ctx.Info("Restored spec from ApplicationRevision (autoRevision disabled)",
+					"revision", revName)
+			} else if err != nil {
+				ctx.Error(err, "Failed to load ApplicationRevision, using rendered spec", "revision", revName)
+			}
+		} else {
+			ctx.Info("Applied policy-rendered spec",
+				"components", len(renderedSpec.Components),
+				"hasWorkflow", renderedSpec.Workflow != nil,
+				"policies", len(renderedSpec.Policies),
+				"isFirstRevision", isFirstRevision,
+				"autoRevision", autoRevision)
 		}
 	}
 
 	// Step 7: Update status with applied policies
 	for _, result := range renderedResults {
 		if result.Enabled {
+			// Determine if this policy modified spec/labels/annotations
+			specModified := false
+			labelsCount := 0
+			annotationsCount := 0
+
+			if policyOutput, ok := result.Transforms.(*PolicyOutput); ok {
+				// Check if policy has spec changes
+				if len(policyOutput.Components) > 0 || policyOutput.Workflow != nil || len(policyOutput.Policies) > 0 {
+					specModified = true
+				}
+				// Count metadata changes
+				labelsCount = len(policyOutput.Labels)
+				annotationsCount = len(policyOutput.Annotations)
+			}
+
 			app.Status.AppliedApplicationPolicies = append(app.Status.AppliedApplicationPolicies, common.AppliedApplicationPolicy{
-				Name:    result.PolicyName,
-				Applied: true,
+				Name:             result.PolicyName,
+				Namespace:        result.PolicyNamespace,
+				Applied:          true,
+				Source:           result.Source,
+				SpecModified:     specModified,
+				LabelsCount:      labelsCount,
+				AnnotationsCount: annotationsCount,
 			})
 		}
 	}
 
-	// Step 8: Store in ConfigMap for observability (TODO: will be refactored in next step)
-	// For now, just a placeholder to keep tests passing
-	ctx.Info("Policy transforms applied", "total", len(renderedResults),
+	// Step 8: Store results in ConfigMap for observability and context.previous
+	if len(renderedResults) > 0 {
+		configMapData := make(map[string]string)
+
+		// Store combined rendered spec
+		renderedSpecJSON, err := json.MarshalIndent(renderedSpec, "", "  ")
+		if err == nil {
+			configMapData["rendered_spec"] = string(renderedSpecJSON)
+		}
+
+		// Store applied spec (what's actually in Application.Spec now)
+		appliedSpecJSON, err := json.MarshalIndent(app.Spec, "", "  ")
+		if err == nil {
+			configMapData["applied_spec"] = string(appliedSpecJSON)
+		}
+
+		// Store metadata
+		metadataJSON, err := json.MarshalIndent(renderedMetadata, "", "  ")
+		if err == nil {
+			configMapData["metadata"] = string(metadataJSON)
+		}
+
+		// Store per-policy outputs
+		sequence := 1
+		for _, result := range renderedResults {
+			if !result.Enabled {
+				continue
+			}
+
+			policyData := map[string]interface{}{
+				"name":      result.PolicyName,
+				"namespace": result.PolicyNamespace,
+				"enabled":   result.Enabled,
+				"priority":  result.Priority,
+			}
+
+			// Store the output in CUE format (output.components, output.labels, etc.)
+			if result.Transforms != nil {
+				if policyOutput, ok := result.Transforms.(*PolicyOutput); ok {
+					output := make(map[string]interface{})
+					if len(policyOutput.Components) > 0 {
+						output["components"] = policyOutput.Components
+					}
+					if policyOutput.Workflow != nil {
+						output["workflow"] = policyOutput.Workflow
+					}
+					if len(policyOutput.Policies) > 0 {
+						output["policies"] = policyOutput.Policies
+					}
+					if len(policyOutput.Labels) > 0 {
+						output["labels"] = policyOutput.Labels
+					}
+					if len(policyOutput.Annotations) > 0 {
+						output["annotations"] = policyOutput.Annotations
+					}
+					if len(policyOutput.Ctx) > 0 {
+						output["ctx"] = policyOutput.Ctx
+					}
+					if len(output) > 0 {
+						policyData["output"] = output
+					}
+				}
+			}
+
+			policyJSON, err := json.MarshalIndent(policyData, "", "  ")
+			if err == nil {
+				key := fmt.Sprintf("%03d-%s", sequence, result.PolicyName)
+				configMapData[key] = string(policyJSON)
+				sequence++
+			}
+		}
+
+		// Store info
+		appHash, _ := computeAppSpecHash(app)
+		infoData := map[string]interface{}{
+			"rendered_at":       time.Now().Format(time.RFC3339),
+			"auto_revision":     autoRevision,
+			"total_policies":    len(renderedResults),
+			"enabled_policies":  len(app.Status.AppliedApplicationPolicies),
+			"cache_hit":         cacheHit,
+			"application_hash":  appHash,
+		}
+		infoJSON, err := json.MarshalIndent(infoData, "", "  ")
+		if err == nil {
+			configMapData["info"] = string(infoJSON)
+		}
+
+		// Create or update ConfigMap
+		if len(configMapData) > 0 {
+			err := createOrUpdateDiffsConfigMap(ctx, h.Client, app, configMapData)
+			if err != nil {
+				ctx.Info("Failed to store policy ConfigMap", "error", err)
+			} else {
+				configMapName := fmt.Sprintf("application-policies-%s-%s", app.Namespace, app.Name)
+				app.Status.ApplicationPoliciesConfigMap = configMapName
+				ctx.Info("Stored policy results in ConfigMap", "configmap", configMapName, "keys", len(configMapData))
+			}
+		}
+	}
+
+	ctx.Info("Policy transforms completed", "total", len(renderedResults),
 		"enabled", len(app.Status.AppliedApplicationPolicies),
 		"autoRevision", autoRevision)
 
@@ -336,7 +484,7 @@ func (h *AppHandler) renderPolicy(ctx monitorContext.Context, app *v1beta1.Appli
 // renderPolicyWithUpstream renders a policy with upstream output tracking for cascade invalidation
 func (h *AppHandler) renderPolicyWithUpstream(ctx monitorContext.Context, app *v1beta1.Application, policyRef v1beta1.AppPolicy, policyDef *v1beta1.PolicyDefinition, upstreamOutputs []*PolicyOutput) (RenderedPolicyResult, error) {
 	result := RenderedPolicyResult{
-		PolicyName:      policyDef.Name,
+		PolicyName:      policyRef.Name, // Use the name from AppPolicy (what user specified in app.Spec.Policies)
 		PolicyNamespace: policyDef.Namespace,
 		Priority:        policyDef.Spec.Priority,
 		Enabled:         false,
@@ -1812,11 +1960,24 @@ func applySpecToApp(app *v1beta1.Application, renderedSpec *v1beta1.ApplicationS
 	}
 }
 
-// renderAllPolicies renders both global and explicit policies, returning complete results
+// renderAllPolicies renders both global and explicit policies, chaining them together
+// Policies are applied in sequence: each policy sees the Application as modified by previous policies
 func (h *AppHandler) renderAllPolicies(ctx monitorContext.Context, app *v1beta1.Application) []RenderedPolicyResult {
 	var allResults []RenderedPolicyResult
 
-	// 1. Render global policies (if not opted out)
+	// Create a working copy of the Application that we'll modify as we go
+	workingApp := app.DeepCopy()
+
+	// 1. Discover and collect all policies
+	type policyToRender struct {
+		policyDef *v1beta1.PolicyDefinition
+		policyRef v1beta1.AppPolicy
+		priority  int32
+		source    string
+	}
+	var policiesToRender []policyToRender
+
+	// 1a. Discover global policies (if not opted out)
 	if !shouldSkipGlobalPolicies(app) && utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableGlobalPolicies) {
 		var globalPolicies []v1beta1.PolicyDefinition
 		var velaSystemPolicies, namespacePolicies []v1beta1.PolicyDefinition
@@ -1849,30 +2010,22 @@ func (h *AppHandler) renderAllPolicies(ctx monitorContext.Context, app *v1beta1.
 			}
 		}
 
-		// Render each global policy
+		// Add to render queue
 		for _, policy := range globalPolicies {
-			ctx.Info("Rendering global policy", "policy", policy.Name, "namespace", policy.Namespace)
-
 			policyRef := v1beta1.AppPolicy{
 				Name: policy.Name,
 				Type: policy.Name,
 			}
-
-			result, err := h.renderPolicy(ctx, app, policyRef, &policy)
-			if err != nil {
-				ctx.Info("Failed to render global policy", "policy", policy.Name, "error", err)
-				result.PolicyName = policy.Name
-				result.PolicyNamespace = policy.Namespace
-				result.Enabled = false
-				result.SkipReason = fmt.Sprintf("render error: %s", err.Error())
-			}
-			result.Priority = policy.Spec.Priority // Store priority for sorting
-
-			allResults = append(allResults, result)
+			policiesToRender = append(policiesToRender, policyToRender{
+				policyDef: &policy,
+				policyRef: policyRef,
+				priority:  policy.Spec.Priority,
+				source:    "global",
+			})
 		}
 	}
 
-	// 2. Render explicit policies from Application spec
+	// 1b. Add explicit policies from Application spec
 	for _, policy := range app.Spec.Policies {
 		// Load PolicyDefinition template
 		templ, err := appfile.LoadTemplate(ctx, h.Client, policy.Type, types.TypePolicy, app.Annotations)
@@ -1886,19 +2039,69 @@ func (h *AppHandler) renderAllPolicies(ctx monitorContext.Context, app *v1beta1.
 			continue
 		}
 
-		ctx.Info("Rendering explicit policy", "policy", policy.Type, "name", policy.Name)
+		policiesToRender = append(policiesToRender, policyToRender{
+			policyDef: templ.PolicyDefinition,
+			policyRef: policy,
+			priority:  0, // Explicit policies don't have priority
+			source:    "explicit",
+		})
+	}
 
-		result, err := h.renderPolicy(ctx, app, policy, templ.PolicyDefinition)
+	// 2. Sort policies by priority (higher priority first)
+	sort.Slice(policiesToRender, func(i, j int) bool {
+		return policiesToRender[i].priority > policiesToRender[j].priority
+	})
+
+	// 3. Render policies in sequence, chaining their outputs
+	for _, p := range policiesToRender {
+		ctx.Info("Rendering policy (chained)", "policy", p.policyRef.Name, "priority", p.priority, "source", p.source)
+
+		result, err := h.renderPolicy(ctx, workingApp, p.policyRef, p.policyDef)
 		if err != nil {
-			ctx.Info("Failed to render explicit policy", "policy", policy.Name, "error", err)
-			result.PolicyName = policy.Name
-			result.PolicyNamespace = templ.PolicyDefinition.Namespace
+			ctx.Info("Failed to render policy", "policy", p.policyRef.Name, "error", err)
+			result.PolicyName = p.policyRef.Name
+			result.PolicyNamespace = p.policyDef.Namespace
 			result.Enabled = false
 			result.SkipReason = fmt.Sprintf("render error: %s", err.Error())
 		}
-		result.Priority = 0 // Explicit policies don't have priority
+		result.Priority = p.priority
+		result.Source = p.source
 
 		allResults = append(allResults, result)
+
+		// Apply this policy's changes to workingApp for next policy
+		if result.Enabled && result.Transforms != nil {
+			if policyOutput, ok := result.Transforms.(*PolicyOutput); ok {
+				// Apply labels
+				if len(policyOutput.Labels) > 0 {
+					if workingApp.Labels == nil {
+						workingApp.Labels = make(map[string]string)
+					}
+					for k, v := range policyOutput.Labels {
+						workingApp.Labels[k] = v
+					}
+				}
+				// Apply annotations
+				if len(policyOutput.Annotations) > 0 {
+					if workingApp.Annotations == nil {
+						workingApp.Annotations = make(map[string]string)
+					}
+					for k, v := range policyOutput.Annotations {
+						workingApp.Annotations[k] = v
+					}
+				}
+				// Apply spec changes (components/workflow/policies)
+				if len(policyOutput.Components) > 0 {
+					workingApp.Spec.Components = policyOutput.Components
+				}
+				if policyOutput.Workflow != nil {
+					workingApp.Spec.Workflow = policyOutput.Workflow
+				}
+				if len(policyOutput.Policies) > 0 {
+					workingApp.Spec.Policies = policyOutput.Policies
+				}
+			}
+		}
 	}
 
 	return allResults
