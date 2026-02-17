@@ -779,11 +779,34 @@ func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1
 	return val, nil
 }
 
+// PolicyConfig represents policy configuration settings
+type PolicyConfig struct {
+	Enabled       bool  `json:"enabled"`
+	CacheDuration int32 `json:"cacheDuration,omitempty"`
+}
+
 // extractEnabled extracts the enabled field from rendered CUE (defaults to true)
+// Supports both new API (config.enabled) and old API (enabled at root)
 func (h *AppHandler) extractEnabled(val cue.Value) (bool, error) {
+	// Try new API first: config.enabled
+	configVal := val.LookupPath(cue.ParsePath("config"))
+	if configVal.Exists() {
+		enabledVal := configVal.LookupPath(cue.ParsePath("enabled"))
+		if enabledVal.Exists() {
+			enabled, err := enabledVal.Bool()
+			if err != nil {
+				return false, errors.Wrap(err, "failed to decode config.enabled (must be boolean)")
+			}
+			return enabled, nil
+		}
+		// config exists but no enabled field - default to true
+		return true, nil
+	}
+
+	// Fall back to old API: enabled at root level (for backwards compatibility)
 	enabledVal := val.LookupPath(cue.ParsePath("enabled"))
 	if !enabledVal.Exists() {
-		// No enabled field, default to true
+		// No enabled field in either location, default to true
 		return true, nil
 	}
 

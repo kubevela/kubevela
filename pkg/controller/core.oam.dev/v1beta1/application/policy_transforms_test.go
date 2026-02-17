@@ -276,7 +276,9 @@ parameter: {
 	applyPolicy: bool
 }
 
-enabled: parameter.applyPolicy
+config: {
+  enabled: parameter.applyPolicy
+}
 
 output: {
 	labels: {
@@ -496,7 +498,10 @@ output: {
 import "vela/kube"
 
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
 
 // Use kube.#Get to read a ConfigMap from the cluster
 _configmap: kube.#Get & {
@@ -592,7 +597,10 @@ output: {
 import "vela/kube"
 
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
 
 _configmap: kube.#Get & {
   $params: {
@@ -728,7 +736,11 @@ output: {
 					CUE: &common.CUE{
 						Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	labels: {
       "global-policy": "true"
@@ -754,7 +766,11 @@ output: {
 					CUE: &common.CUE{
 						Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	labels: {
       "explicit-policy": "true"
@@ -1237,7 +1253,10 @@ var _ = Describe("Test Global PolicyDefinition Features", func() {
 					CUE: &common.CUE{
 						Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
 
 output: {
 	labels: {
@@ -1278,7 +1297,10 @@ output: {
 					CUE: &common.CUE{
 						Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
 
 output: {
 	labels: {
@@ -1447,7 +1469,10 @@ output: {
 					CUE: &common.CUE{
 						Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
 
 output: {
 	labels: {
@@ -1982,7 +2007,9 @@ output: {
 							Template: `
 parameter: {}
 
-enabled: true
+config: {
+  enabled: true
+}
 
 output: {
 	components: [{
@@ -2082,7 +2109,11 @@ output: {
 						CUE: &common.CUE{
 							Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	components: [{
 				properties: {
@@ -2109,7 +2140,11 @@ output: {
 						CUE: &common.CUE{
 							Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	components: [{
 				properties: {
@@ -2136,7 +2171,11 @@ output: {
 						CUE: &common.CUE{
 							Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	components: [{
 				properties: {
@@ -2225,7 +2264,9 @@ output: {
 							Template: `
 parameter: {}
 
-enabled: true
+config: {
+  enabled: true
+}
 
 output: {
 	labels: {
@@ -2302,7 +2343,9 @@ output: {
 							Template: `
 parameter: {}
 
-enabled: true
+config: {
+  enabled: true
+}
 
 output: {
 	components: [{
@@ -2405,7 +2448,11 @@ output: {
 						CUE: &common.CUE{
 							Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	components: [{
 				properties: {
@@ -2532,7 +2579,11 @@ output: {
 						CUE: &common.CUE{
 							Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	labels: {
 			"cached": "true"
@@ -2647,7 +2698,11 @@ output: {
 						CUE: &common.CUE{
 							Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	labels: {
 			"test": "value"
@@ -2741,7 +2796,11 @@ output: {
 						CUE: &common.CUE{
 							Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	labels: {"ttl": "never"}
 }
@@ -2812,7 +2871,11 @@ output: {
 						CUE: &common.CUE{
 							Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	labels: {"ttl": "60"}
 }
@@ -2878,7 +2941,11 @@ output: {
 						CUE: &common.CUE{
 							Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	labels: {"ttl": "default"}
 }
@@ -2980,7 +3047,11 @@ var _ = Describe("Test Application-scoped policy feature gates", func() {
 					CUE: &common.CUE{
 						Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	labels: {
 			"test": "gate-disabled"
@@ -3043,7 +3114,11 @@ output: {
 					CUE: &common.CUE{
 						Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	labels: {
 			"global": "policy"
@@ -3107,7 +3182,11 @@ output: {
 					CUE: &common.CUE{
 						Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	labels: {
 			"discovered": "false"
@@ -3170,7 +3249,11 @@ output: {
 					CUE: &common.CUE{
 						Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	labels: {
 			"global": "applied"
@@ -3197,7 +3280,11 @@ output: {
 					CUE: &common.CUE{
 						Template: `
 parameter: {}
-enabled: true
+
+config: {
+  enabled: true
+}
+
 output: {
 	labels: {
 			"explicit": "applied"
