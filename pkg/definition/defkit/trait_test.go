@@ -555,5 +555,81 @@ template: {
 
 			Expect(cue).To(ContainSubstring("patch:"))
 		})
+
+		It("should generate Optional field guards in Map comprehension", func() {
+			items := defkit.Array("items").WithFields(
+				defkit.String("name").Required(),
+				defkit.String("label"),
+				defkit.Int("priority"),
+			)
+			trait := defkit.NewTrait("optional-test").
+				Description("Test optional fields").
+				AppliesTo("deployments.apps").
+				Params(items).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						SetIf(items.IsSet(), "spec.template.spec.items",
+							defkit.From(items).Map(defkit.FieldMap{
+								"name":     defkit.F("name"),
+								"label":    defkit.Optional("label"),
+								"priority": defkit.Optional("priority"),
+							}))
+				})
+
+			cue := trait.ToCue()
+
+			// Required field should use direct access
+			Expect(cue).To(ContainSubstring("name: v.name"))
+			// Optional fields should have if guards
+			Expect(cue).To(ContainSubstring("if v.label != _|_"))
+			Expect(cue).To(ContainSubstring("label: v.label"))
+			Expect(cue).To(ContainSubstring("if v.priority != _|_"))
+			Expect(cue).To(ContainSubstring("priority: v.priority"))
+			// Should NOT contain top-level underscore for optional fields
+			Expect(cue).NotTo(ContainSubstring("label: _"))
+			Expect(cue).NotTo(ContainSubstring("priority: _"))
+		})
+
+		It("should generate If/EndIf with SetIf using sub-field conditions", func() {
+			parent := defkit.Map("parent").WithFields(
+				defkit.Array("required").WithFields(
+					defkit.String("key").Required(),
+				),
+				defkit.Array("preferred").WithFields(
+					defkit.Int("weight").Required(),
+				),
+			)
+			trait := defkit.NewTrait("if-subfield-test").
+				Description("Test If/EndIf with sub-field conditions").
+				AppliesTo("deployments.apps").
+				Params(parent).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						If(parent.IsSet()).
+						SetIf(parent.Field("required").IsSet(),
+							"spec.requiredItems",
+							defkit.From(defkit.ParamPath("parent.required")).Map(defkit.FieldMap{
+								"key": defkit.F("key"),
+							})).
+						SetIf(parent.Field("preferred").IsSet(),
+							"spec.preferredItems",
+							defkit.From(defkit.ParamPath("parent.preferred")).Map(defkit.FieldMap{
+								"weight": defkit.F("weight"),
+							})).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// Both conditions should appear (AND-combined by the field tree)
+			Expect(cue).To(ContainSubstring("parameter.parent != _|_"))
+			Expect(cue).To(ContainSubstring("parameter.parent.required != _|_"))
+			Expect(cue).To(ContainSubstring("parameter.parent.preferred != _|_"))
+			// Verify the For comprehension sources
+			Expect(cue).To(ContainSubstring("for v in parameter.parent.required"))
+			Expect(cue).To(ContainSubstring("for v in parameter.parent.preferred"))
+			Expect(cue).To(ContainSubstring("key: v.key"))
+			Expect(cue).To(ContainSubstring("weight: v.weight"))
+		})
 	})
 })
