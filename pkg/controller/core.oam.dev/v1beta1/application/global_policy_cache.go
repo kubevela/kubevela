@@ -41,6 +41,7 @@ type RenderedPolicyResult struct {
 	Transforms        interface{}            // The transforms (*PolicyTransforms) from CUE template
 	AdditionalContext map[string]interface{} // The additionalContext field from CUE template
 	SkipReason        string                 // Reason for skipping (if enabled=false or error)
+	Config            *PolicyConfig          // Policy configuration including refresh settings
 }
 
 // GlobalPolicyCacheEntry represents cached rendered results for an Application
