@@ -930,8 +930,8 @@ type fieldNode struct {
 	spreads       []spreadEntry // Spread operations at this node level
 	forEach       *ForEachOp    // ForEach operation (for trait patches)
 	patchKey      *PatchKeyOp   // PatchKey operation (for array patches with merge key)
-	spreadAll     *SpreadAllOp // SpreadAll operation (for array constraint patches)
-	patchStrategy string       // e.g. "retainKeys" → generates // +patchStrategy=retainKeys
+	spreadAll     *SpreadAllOp  // SpreadAll operation (for array constraint patches)
+	patchStrategy string        // e.g. "retainKeys" → generates // +patchStrategy=retainKeys
 }
 
 // spreadEntry represents a conditional spread operation.
@@ -2526,7 +2526,7 @@ func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, n
 
 // writeStringKeyMapParam writes a string-to-string map parameter.
 // Note: description is already written by writeParam, so we don't write it here.
-func (g *CUEGenerator) writeStringKeyMapParam(sb *strings.Builder, p *StringKeyMapParam, indent, name, optional string) {
+func (g *CUEGenerator) writeStringKeyMapParam(sb *strings.Builder, _ *StringKeyMapParam, indent, name, optional string) {
 	sb.WriteString(fmt.Sprintf("%s%s%s: [string]: string\n", indent, name, optional))
 }
 
