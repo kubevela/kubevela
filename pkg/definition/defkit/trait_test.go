@@ -807,4 +807,252 @@ template: {
 			Expect(cue).To(ContainSubstring(`parameter["memory"] != _|_`))
 		})
 	})
+
+	Context("PatchStrategyAnnotation", func() {
+		It("should record PatchStrategyAnnotation ops on PatchResource", func() {
+			p := defkit.NewPatchResource()
+			p.PatchStrategyAnnotation("spec.strategy", "retainKeys")
+
+			ops := p.Ops()
+			Expect(ops).To(HaveLen(1))
+			ann, ok := ops[0].(*defkit.PatchStrategyAnnotationOp)
+			Expect(ok).To(BeTrue())
+			Expect(ann.Path()).To(Equal("spec.strategy"))
+			Expect(ann.Strategy()).To(Equal("retainKeys"))
+		})
+
+		It("should record PatchStrategyAnnotation inside If block", func() {
+			p := defkit.NewPatchResource()
+			cond := defkit.Eq(defkit.ParameterField("kind"), defkit.Lit("Deployment"))
+			p.If(cond).
+				PatchStrategyAnnotation("spec.strategy", "retainKeys").
+				Set("spec.strategy.type", defkit.ParameterField("strategyType")).
+				EndIf()
+
+			ops := p.Ops()
+			Expect(ops).To(HaveLen(1))
+			ifBlock, ok := ops[0].(*defkit.IfBlock)
+			Expect(ok).To(BeTrue())
+			Expect(ifBlock.Ops()).To(HaveLen(2)) // PatchStrategyAnnotation + Set
+		})
+
+		It("should emit patchStrategy annotation in CUE output for unconditional field", func() {
+			strategy := defkit.Struct("strategy").Required().Fields(
+				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate"),
+			)
+
+			trait := defkit.NewTrait("annotation-test").
+				Description("Test patchStrategy annotation").
+				AppliesTo("deployments.apps").
+				Params(strategy).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						PatchStrategyAnnotation("spec.strategy", "retainKeys").
+						Set("spec.strategy.type", defkit.ParameterField("strategy.type"))
+				})
+
+			cue := trait.ToCue()
+
+			// Should contain the annotation comment
+			Expect(cue).To(ContainSubstring("// +patchStrategy=retainKeys"))
+			// Annotation should appear before the field
+			Expect(cue).To(ContainSubstring("strategy: type: parameter.strategy.type"))
+		})
+
+		It("should emit patchStrategy annotation inside conditional block", func() {
+			kind := defkit.String("kind").Default("Deployment").Enum("Deployment", "StatefulSet")
+			strategy := defkit.Struct("strategy").Required().Fields(
+				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate"),
+			)
+
+			trait := defkit.NewTrait("cond-annotation-test").
+				Description("Test patchStrategy in conditional block").
+				AppliesTo("deployments.apps").
+				Params(kind, strategy).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						If(defkit.Eq(kind, defkit.Lit("Deployment"))).
+						PatchStrategyAnnotation("spec.strategy", "retainKeys").
+						Set("spec.strategy.type", defkit.ParameterField("strategy.type")).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// Should contain the annotation inside the if block
+			Expect(cue).To(ContainSubstring("// +patchStrategy=retainKeys"))
+			Expect(cue).To(ContainSubstring(`parameter.kind == "Deployment"`))
+		})
+	})
+
+	Context("Condition hoisting", func() {
+		It("should hoist matching conditions from children to parent", func() {
+			enabled := defkit.Bool("enabled")
+			replicas := defkit.Int("replicas")
+			image := defkit.String("image")
+
+			trait := defkit.NewTrait("hoist-test").
+				Description("Test condition hoisting").
+				AppliesTo("deployments.apps").
+				Params(enabled, replicas, image).
+				Template(func(tpl *defkit.Template) {
+					cond := defkit.Eq(enabled, defkit.Lit(true))
+					tpl.Patch().
+						If(cond).
+						Set("spec.replicas", replicas).
+						Set("spec.template.spec.image", image).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// The If condition should appear
+			Expect(cue).To(ContainSubstring(`parameter.enabled == true`))
+			// Both fields should be set inside the condition
+			Expect(cue).To(ContainSubstring("replicas: parameter.replicas"))
+			Expect(cue).To(ContainSubstring("image: parameter.image"))
+		})
+
+		It("should hoist common condition from AND combinations", func() {
+			kind := defkit.String("kind").Default("Deployment")
+			replicas := defkit.Int("replicas")
+			image := defkit.String("image")
+
+			trait := defkit.NewTrait("hoist-and-test").
+				Description("Test AND condition hoisting").
+				AppliesTo("deployments.apps").
+				Params(kind, replicas, image).
+				Template(func(tpl *defkit.Template) {
+					isDeployment := defkit.Eq(kind, defkit.Lit("Deployment"))
+					replicasSet := replicas.IsSet()
+					imageSet := image.IsSet()
+					tpl.Patch().
+						If(isDeployment).
+						SetIf(replicasSet, "spec.replicas", replicas).
+						SetIf(imageSet, "spec.template.spec.image", image).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// The outer condition should appear at the parent level
+			Expect(cue).To(ContainSubstring(`parameter.kind == "Deployment"`))
+			// The inner conditions should remain on the children
+			Expect(cue).To(ContainSubstring(`parameter["replicas"] != _|_`))
+			Expect(cue).To(ContainSubstring(`parameter["image"] != _|_`))
+		})
+	})
+
+	Context("Multiple IfBlocks with overlapping paths", func() {
+		It("should render multiple IfBlocks as separate conditional blocks", func() {
+			kind := defkit.String("kind").Default("Deployment").Enum("Deployment", "StatefulSet", "DaemonSet")
+			strategyType := defkit.String("strategyType").Default("RollingUpdate")
+			maxSurge := defkit.String("maxSurge").Default("25%")
+			partition := defkit.Int("partition").Default(0)
+
+			trait := defkit.NewTrait("multi-ifblock-test").
+				Description("Test multiple IfBlocks").
+				AppliesTo("deployments.apps", "statefulsets.apps", "daemonsets.apps").
+				Params(kind, strategyType, maxSurge, partition).
+				Template(func(tpl *defkit.Template) {
+					isDeployment := defkit.Eq(kind, defkit.Lit("Deployment"))
+					isStatefulSet := defkit.Eq(kind, defkit.Lit("StatefulSet"))
+
+					tpl.Patch().
+						If(isDeployment).
+						PatchStrategyAnnotation("spec.strategy", "retainKeys").
+						Set("spec.strategy.type", strategyType).
+						Set("spec.strategy.rollingUpdate.maxSurge", maxSurge).
+						EndIf().
+						If(isStatefulSet).
+						PatchStrategyAnnotation("spec.updateStrategy", "retainKeys").
+						Set("spec.updateStrategy.type", strategyType).
+						Set("spec.updateStrategy.rollingUpdate.partition", partition).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// Should have two separate if blocks (not merged)
+			Expect(cue).To(ContainSubstring(`parameter.kind == "Deployment"`))
+			Expect(cue).To(ContainSubstring(`parameter.kind == "StatefulSet"`))
+			// Each should have its own patchStrategy annotation
+			Expect(strings.Count(cue, "// +patchStrategy=retainKeys")).To(Equal(2))
+			// Deployment uses "strategy", StatefulSet uses "updateStrategy"
+			Expect(cue).To(ContainSubstring("strategy: {"))
+			Expect(cue).To(ContainSubstring("updateStrategy: {"))
+			// Fields should be present
+			Expect(cue).To(ContainSubstring("maxSurge: parameter.maxSurge"))
+			Expect(cue).To(ContainSubstring("partition: parameter.partition"))
+		})
+
+		It("should produce correct k8s-update-strategy-like pattern", func() {
+			targetKind := defkit.String("targetKind").Default("Deployment").Enum("Deployment", "StatefulSet", "DaemonSet")
+			strategy := defkit.Struct("strategy").Required().Fields(
+				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate").Enum("RollingUpdate", "Recreate", "OnDelete"),
+				defkit.Field("rollingStrategy", defkit.ParamTypeStruct).
+					Nested(defkit.Struct("rollingStrategy").Fields(
+						defkit.Field("maxSurge", defkit.ParamTypeString).Default("25%"),
+						defkit.Field("maxUnavailable", defkit.ParamTypeString).Default("25%"),
+						defkit.Field("partition", defkit.ParamTypeInt).Default(0),
+					)),
+			)
+
+			trait := defkit.NewTrait("k8s-update-strategy-test").
+				Description("Test k8s-update-strategy pattern").
+				AppliesTo("deployments.apps", "statefulsets.apps", "daemonsets.apps").
+				PodDisruptive(false).
+				Params(targetKind, strategy).
+				Template(func(tpl *defkit.Template) {
+					strategyType := defkit.ParameterField("strategy.type")
+					maxSurge := defkit.ParameterField("strategy.rollingStrategy.maxSurge")
+					maxUnavailable := defkit.ParameterField("strategy.rollingStrategy.maxUnavailable")
+					partition := defkit.ParameterField("strategy.rollingStrategy.partition")
+
+					isDeployment := defkit.Eq(defkit.ParameterField("targetKind"), defkit.Lit("Deployment"))
+					isStatefulSet := defkit.Eq(defkit.ParameterField("targetKind"), defkit.Lit("StatefulSet"))
+					isDaemonSet := defkit.Eq(defkit.ParameterField("targetKind"), defkit.Lit("DaemonSet"))
+					isNotOnDelete := defkit.Ne(strategyType, defkit.Lit("OnDelete"))
+					isNotRecreate := defkit.Ne(strategyType, defkit.Lit("Recreate"))
+					isRollingUpdate := defkit.Eq(strategyType, defkit.Lit("RollingUpdate"))
+
+					tpl.Patch().
+						If(defkit.And(isDeployment, isNotOnDelete)).
+						PatchStrategyAnnotation("spec.strategy", "retainKeys").
+						Set("spec.strategy.type", strategyType).
+						SetIf(isRollingUpdate, "spec.strategy.rollingUpdate.maxSurge", maxSurge).
+						SetIf(isRollingUpdate, "spec.strategy.rollingUpdate.maxUnavailable", maxUnavailable).
+						EndIf().
+						If(defkit.And(isStatefulSet, isNotRecreate)).
+						PatchStrategyAnnotation("spec.updateStrategy", "retainKeys").
+						Set("spec.updateStrategy.type", strategyType).
+						SetIf(isRollingUpdate, "spec.updateStrategy.rollingUpdate.partition", partition).
+						EndIf().
+						If(defkit.And(isDaemonSet, isNotRecreate)).
+						PatchStrategyAnnotation("spec.updateStrategy", "retainKeys").
+						Set("spec.updateStrategy.type", strategyType).
+						SetIf(isRollingUpdate, "spec.updateStrategy.rollingUpdate.maxSurge", maxSurge).
+						SetIf(isRollingUpdate, "spec.updateStrategy.rollingUpdate.maxUnavailable", maxUnavailable).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// Three separate if blocks
+			Expect(cue).To(ContainSubstring(`parameter.targetKind == "Deployment" && parameter.strategy.type != "OnDelete"`))
+			Expect(cue).To(ContainSubstring(`parameter.targetKind == "StatefulSet" && parameter.strategy.type != "Recreate"`))
+			Expect(cue).To(ContainSubstring(`parameter.targetKind == "DaemonSet" && parameter.strategy.type != "Recreate"`))
+			// Three patchStrategy annotations
+			Expect(strings.Count(cue, "// +patchStrategy=retainKeys")).To(Equal(3))
+			// RollingUpdate inner conditions
+			Expect(cue).To(ContainSubstring(`parameter.strategy.type == "RollingUpdate"`))
+			// Deployment uses "strategy", others use "updateStrategy"
+			Expect(cue).To(ContainSubstring("strategy: {"))
+			Expect(cue).To(ContainSubstring("updateStrategy: {"))
+			// Correct field assignments
+			Expect(cue).To(ContainSubstring("maxSurge:       parameter.strategy.rollingStrategy.maxSurge"))
+			Expect(cue).To(ContainSubstring("maxUnavailable: parameter.strategy.rollingStrategy.maxUnavailable"))
+			Expect(cue).To(ContainSubstring("partition: parameter.strategy.rollingStrategy.partition"))
+		})
+	})
 })

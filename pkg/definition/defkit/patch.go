@@ -122,6 +122,22 @@ func (p *PatchResource) PatchKey(path string, key string, elements ...Value) *Pa
 	return p
 }
 
+// PatchStrategyAnnotation annotates a specific field path with // +patchStrategy=strategy.
+// This generates a CUE comment annotation before the field.
+// Example: p.PatchStrategyAnnotation("spec.strategy", "retainKeys")
+// Generates: // +patchStrategy=retainKeys
+//
+//	strategy: { ... }
+func (p *PatchResource) PatchStrategyAnnotation(path string, strategy string) *PatchResource {
+	op := &PatchStrategyAnnotationOp{path: path, strategy: strategy}
+	if p.currentIf != nil {
+		p.currentIf.ops = append(p.currentIf.ops, op)
+	} else {
+		p.ops = append(p.ops, op)
+	}
+	return p
+}
+
 // Ops returns all recorded operations.
 func (p *PatchResource) Ops() []ResourceOp { return p.ops }
 
@@ -137,6 +153,20 @@ func (p *PatchResource) Passthrough() *PatchResource {
 type PassthroughOp struct{}
 
 func (p *PassthroughOp) resourceOp() {}
+
+// PatchStrategyAnnotationOp records a patchStrategy annotation on a field path.
+type PatchStrategyAnnotationOp struct {
+	path     string
+	strategy string
+}
+
+func (p *PatchStrategyAnnotationOp) resourceOp() {}
+
+// Path returns the path being annotated.
+func (p *PatchStrategyAnnotationOp) Path() string { return p.path }
+
+// Strategy returns the patch strategy value.
+func (p *PatchStrategyAnnotationOp) Strategy() string { return p.strategy }
 
 // ForEachOp represents a for-each spread operation in a patch.
 // This generates CUE like: for k, v in source { (k): v }

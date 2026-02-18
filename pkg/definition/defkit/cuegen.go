@@ -898,15 +898,16 @@ func (g *CUEGenerator) writeResourceOutput(sb *strings.Builder, name string, res
 
 // fieldNode represents a node in the field tree being built.
 type fieldNode struct {
-	value      Value     // Direct value (if leaf)
-	cond       Condition // Condition for this field
-	children   map[string]*fieldNode
-	childOrder []string // Track insertion order
-	isArray    bool
-	arrayIndex int
-	spreads    []spreadEntry // Spread operations at this node level
-	forEach    *ForEachOp    // ForEach operation (for trait patches)
-	patchKey   *PatchKeyOp   // PatchKey operation (for array patches with merge key)
+	value         Value     // Direct value (if leaf)
+	cond          Condition // Condition for this field
+	children      map[string]*fieldNode
+	childOrder    []string // Track insertion order
+	isArray       bool
+	arrayIndex    int
+	spreads       []spreadEntry // Spread operations at this node level
+	forEach       *ForEachOp    // ForEach operation (for trait patches)
+	patchKey      *PatchKeyOp   // PatchKey operation (for array patches with merge key)
+	patchStrategy string        // e.g. "retainKeys" → generates // +patchStrategy=retainKeys
 }
 
 // spreadEntry represents a conditional spread operation.
@@ -940,6 +941,8 @@ func (g *CUEGenerator) buildFieldTree(ops []ResourceOp) *fieldNode {
 		case *PatchKeyOp:
 			// PatchKeyOp creates an array patch with merge key annotation
 			g.insertPatchKeyIntoTree(root, o, nil)
+		case *PatchStrategyAnnotationOp:
+			g.insertAnnotationIntoTree(root, o.Path(), o.Strategy())
 		case *IfBlock:
 			// For if blocks, process inner ops with the block's condition
 			for _, innerOp := range o.Ops() {
@@ -960,12 +963,28 @@ func (g *CUEGenerator) buildFieldTree(ops []ResourceOp) *fieldNode {
 				case *PatchKeyOp:
 					// PatchKey inside an if block - pass the block's condition
 					g.insertPatchKeyIntoTree(root, inner, o.Cond())
+				case *PatchStrategyAnnotationOp:
+					g.insertAnnotationIntoTree(root, inner.Path(), inner.Strategy())
 				}
 			}
 		}
 	}
 
 	return root
+}
+
+// insertAnnotationIntoTree navigates to a node by path and sets its patchStrategy annotation.
+func (g *CUEGenerator) insertAnnotationIntoTree(root *fieldNode, path string, strategy string) {
+	parts := splitPath(path)
+	current := root
+	for _, part := range parts {
+		if _, exists := current.children[part]; !exists {
+			current.children[part] = newFieldNode()
+			current.childOrder = append(current.childOrder, part)
+		}
+		current = current.children[part]
+	}
+	current.patchStrategy = strategy
 }
 
 // insertIntoTree inserts a value at a path into the field tree.

@@ -648,9 +648,164 @@ func (g *TraitCUEGenerator) writePatchResourceOps(sb *strings.Builder, gen *CUEG
 		}
 	}
 
-	// Build a tree structure from operations (similar to component resources)
-	tree := gen.buildFieldTree(ops)
-	g.writePatchFieldTree(sb, gen, tree, depth)
+	// Separate IfBlocks from other ops
+	var bareOps []ResourceOp
+	var ifBlocks []*IfBlock
+	for _, op := range ops {
+		if ib, ok := op.(*IfBlock); ok {
+			ifBlocks = append(ifBlocks, ib)
+		} else {
+			bareOps = append(bareOps, op)
+		}
+	}
+
+	// If 0 or 1 IfBlock, use existing merged approach (no path conflicts possible)
+	if len(ifBlocks) <= 1 {
+		tree := gen.buildFieldTree(ops)
+		g.hoistConditions(tree)
+		g.writePatchFieldTree(sb, gen, tree, depth)
+		return
+	}
+
+	// Multiple IfBlocks: process each separately to avoid path conflicts
+	// when different IfBlocks target the same field paths with different conditions.
+	prefix := g.findIfBlockCommonPrefix(ifBlocks, bareOps)
+	var prefixParts []string
+	if prefix != "" {
+		prefixParts = strings.Split(prefix, ".")
+	}
+
+	// Write the common prefix inline (e.g., "spec: ")
+	for _, p := range prefixParts {
+		sb.WriteString(fmt.Sprintf("%s: ", p))
+	}
+
+	innerDepth := depth + len(prefixParts)
+
+	// Open block for the children
+	sb.WriteString("{\n")
+
+	indent := strings.Repeat(g.indent, innerDepth+1)
+	first := true
+
+	// Render bare ops first (if any)
+	if len(bareOps) > 0 {
+		bareTree := gen.buildFieldTree(bareOps)
+		// Navigate to subtree below common prefix
+		subtree := bareTree
+		for _, p := range prefixParts {
+			if child, ok := subtree.children[p]; ok {
+				subtree = child
+			}
+		}
+		g.hoistConditions(subtree)
+		for _, key := range subtree.childOrder {
+			node := subtree.children[key]
+			sb.WriteString(indent)
+			g.writePatchFieldNode(sb, gen, key, node, innerDepth+1)
+			sb.WriteString("\n")
+		}
+		first = false
+	}
+
+	// Render each IfBlock as a separate subtree
+	for _, ib := range ifBlocks {
+		if !first {
+			sb.WriteString("\n")
+		}
+
+		// Build tree from inner ops only (without the outer If condition)
+		innerTree := gen.buildFieldTree(ib.Ops())
+
+		// Navigate to subtree below common prefix
+		subtree := innerTree
+		for _, p := range prefixParts {
+			if child, ok := subtree.children[p]; ok {
+				subtree = child
+			}
+		}
+
+		// Apply hoisting to the subtree
+		g.hoistConditions(subtree)
+
+		// Emit: if condition { ... }
+		condStr := gen.conditionToCUE(ib.Cond())
+		sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
+
+		// Render subtree children inside the if block
+		innerBlockIndent := strings.Repeat(g.indent, innerDepth+2)
+		for _, key := range subtree.childOrder {
+			node := subtree.children[key]
+			sb.WriteString(innerBlockIndent)
+			g.writePatchFieldNode(sb, gen, key, node, innerDepth+2)
+			sb.WriteString("\n")
+		}
+
+		sb.WriteString(fmt.Sprintf("%s}", indent))
+		first = false
+	}
+
+	// Close outer block
+	sb.WriteString(fmt.Sprintf("\n%s}", strings.Repeat(g.indent, innerDepth)))
+}
+
+// findIfBlockCommonPrefix finds the longest common path prefix across all IfBlocks and bare ops.
+// For example, if all paths start with "spec.", the prefix is "spec".
+func (g *TraitCUEGenerator) findIfBlockCommonPrefix(ifBlocks []*IfBlock, bareOps []ResourceOp) string {
+	var allPaths []string
+
+	for _, ib := range ifBlocks {
+		for _, op := range ib.Ops() {
+			switch o := op.(type) {
+			case *SetOp:
+				allPaths = append(allPaths, o.Path())
+			case *SetIfOp:
+				allPaths = append(allPaths, o.Path())
+			case *PatchStrategyAnnotationOp:
+				allPaths = append(allPaths, o.Path())
+			}
+		}
+	}
+
+	for _, op := range bareOps {
+		switch o := op.(type) {
+		case *SetOp:
+			allPaths = append(allPaths, o.Path())
+		case *SetIfOp:
+			allPaths = append(allPaths, o.Path())
+		}
+	}
+
+	if len(allPaths) == 0 {
+		return ""
+	}
+
+	firstParts := strings.Split(allPaths[0], ".")
+	commonLen := len(firstParts)
+
+	for _, p := range allPaths[1:] {
+		parts := strings.Split(p, ".")
+		minLen := commonLen
+		if len(parts) < minLen {
+			minLen = len(parts)
+		}
+		matched := 0
+		for i := 0; i < minLen; i++ {
+			if parts[i] != firstParts[i] {
+				break
+			}
+			matched++
+		}
+		commonLen = matched
+	}
+
+	if commonLen == 0 {
+		return ""
+	}
+
+	// Don't include leaf-level parts — only include the common ancestor path
+	// (at least one level must remain below the prefix for each IfBlock)
+	return strings.Join(firstParts[:commonLen], ".")
 }
 
 // writePatchFieldTree writes a field tree as CUE patch syntax.
@@ -695,6 +850,10 @@ func (g *TraitCUEGenerator) writePatchFieldNode(sb *strings.Builder, gen *CUEGen
 		condStr := gen.conditionToCUE(node.cond)
 		sb.WriteString(fmt.Sprintf("if %s {\n", condStr))
 		innerIndent := strings.Repeat(g.indent, depth+1)
+		// Emit patchStrategy annotation inside the if block
+		if node.patchStrategy != "" {
+			sb.WriteString(fmt.Sprintf("%s// +patchStrategy=%s\n", innerIndent, node.patchStrategy))
+		}
 		sb.WriteString(fmt.Sprintf("%s%s: ", innerIndent, key))
 		if len(node.children) > 0 {
 			g.writePatchFieldTreeFromChildren(sb, gen, node, depth+1)
@@ -707,6 +866,9 @@ func (g *TraitCUEGenerator) writePatchFieldNode(sb *strings.Builder, gen *CUEGen
 	}
 
 	// Regular field
+	if node.patchStrategy != "" {
+		sb.WriteString(fmt.Sprintf("// +patchStrategy=%s\n%s", node.patchStrategy, strings.Repeat(g.indent, depth)))
+	}
 	sb.WriteString(fmt.Sprintf("%s: ", key))
 	if len(node.children) > 0 {
 		g.writePatchFieldTreeFromChildren(sb, gen, node, depth)
@@ -747,9 +909,9 @@ func (g *TraitCUEGenerator) hasConditionalDescendant(node *fieldNode) bool {
 	if node.cond != nil {
 		return true
 	}
-	// PatchKey and ForEach operations require block format because they need
-	// to write comments or special syntax that can't appear inline
-	if node.patchKey != nil || node.forEach != nil {
+	// PatchKey, ForEach, and patchStrategy annotations require block format
+	// because they need to write comments or special syntax that can't appear inline
+	if node.patchKey != nil || node.forEach != nil || node.patchStrategy != "" {
 		return true
 	}
 	for _, child := range node.children {
@@ -758,6 +920,119 @@ func (g *TraitCUEGenerator) hasConditionalDescendant(node *fieldNode) bool {
 		}
 	}
 	return false
+}
+
+// hoistConditions is a post-processing step on the field tree that moves common
+// conditions from children to parent nodes. This produces cleaner nested CUE output.
+// For example, if all children of "strategy" share condition A, the condition is
+// hoisted to "strategy" and removed from children. If some children have "A && B",
+// the common "A" is hoisted and the residual "B" remains on those children.
+func (g *TraitCUEGenerator) hoistConditions(node *fieldNode) {
+	g.hoistConditionsInner(node, true)
+}
+
+func (g *TraitCUEGenerator) hoistConditionsInner(node *fieldNode, isRoot bool) {
+	// Recurse first (bottom-up processing)
+	for _, child := range node.children {
+		g.hoistConditionsInner(child, false)
+	}
+
+	// Skip root node — its condition is never rendered by writePatchFieldTree
+	if isRoot {
+		return
+	}
+
+	// Skip if no children
+	if len(node.children) < 1 {
+		return
+	}
+
+	// Collect all conditions from direct children
+	var conditions []Condition
+	allHaveConditions := true
+	for _, key := range node.childOrder {
+		child := node.children[key]
+		if child.cond == nil {
+			allHaveConditions = false
+			break
+		}
+		conditions = append(conditions, child.cond)
+	}
+
+	if !allHaveConditions || len(conditions) == 0 {
+		return
+	}
+
+	// Find common condition factor
+	gen := NewCUEGenerator()
+	common := g.findCommonCondition(gen, conditions)
+	if common == nil {
+		return
+	}
+
+	// Hoist: set common condition on parent, remove from children
+	node.cond = common
+	for _, key := range node.childOrder {
+		child := node.children[key]
+		child.cond = g.removeCommonCondition(gen, child.cond, common)
+	}
+}
+
+// findCommonCondition finds a condition that is shared across all given conditions.
+// Uses CUE string comparison for equality.
+func (g *TraitCUEGenerator) findCommonCondition(gen *CUEGenerator, conditions []Condition) Condition {
+	if len(conditions) == 0 {
+		return nil
+	}
+
+	// Get the "base" of the first condition
+	first := g.conditionBase(conditions[0])
+	firstStr := gen.conditionToCUE(first)
+
+	// Check if all conditions share this base
+	for _, c := range conditions[1:] {
+		base := g.conditionBase(c)
+		if gen.conditionToCUE(base) == firstStr {
+			continue
+		}
+		// Check if c is an AndCondition with first as left side
+		if and, ok := c.(*AndCondition); ok {
+			if gen.conditionToCUE(and.left) == firstStr {
+				continue
+			}
+		}
+		// Check if c is a LogicalExpr AND starting with first
+		if logical, ok := c.(*LogicalExpr); ok && logical.Op() == OpAnd && len(logical.Conditions()) > 0 {
+			if gen.conditionToCUE(logical.Conditions()[0]) == firstStr {
+				continue
+			}
+		}
+		return nil // No common factor
+	}
+
+	return first
+}
+
+// conditionBase returns the "base" condition (leftmost in AND chain).
+func (g *TraitCUEGenerator) conditionBase(cond Condition) Condition {
+	if and, ok := cond.(*AndCondition); ok {
+		return and.left
+	}
+	return cond
+}
+
+// removeCommonCondition removes the common condition factor, returning the residual.
+func (g *TraitCUEGenerator) removeCommonCondition(gen *CUEGenerator, cond Condition, common Condition) Condition {
+	commonStr := gen.conditionToCUE(common)
+	if gen.conditionToCUE(cond) == commonStr {
+		return nil // Exact match, no residual
+	}
+	if and, ok := cond.(*AndCondition); ok {
+		if gen.conditionToCUE(and.left) == commonStr {
+			return and.right
+		}
+	}
+	return cond // Can't remove, keep as-is
 }
 
 // writeForEachOp writes a ForEach operation as CUE.
