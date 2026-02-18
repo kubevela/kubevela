@@ -129,15 +129,15 @@ template: {
 		namespaceSelector?: #labelSelector
 	}
 
-	#nodeSelecor: {
+	#nodeSelector: {
 		key:      string
 		operator: *"In" | "NotIn" | "Exists" | "DoesNotExist" | "Gt" | "Lt"
 		values?: [...string]
 	}
 
 	#nodeSelectorTerm: {
-		matchExpressions?: [...#nodeSelecor]
-		matchFields?: [...#nodeSelecor]
+		matchExpressions?: [...#nodeSelector]
+		matchFields?: [...#nodeSelector]
 	}
 
 	parameter: {
