@@ -234,6 +234,30 @@ template: {
 			cue := step.ToCue()
 			Expect(cue).To(ContainSubstring(`template:`))
 		})
+
+		It("should preserve explicit builtin action names", func() {
+			step := defkit.NewWorkflowStep("apply-deployment").
+				Description("Apply deployment with specified image and cmd.").
+				WithImports("vela/kube", "vela/builtin").
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Builtin("output", "kube.#Apply").
+						WithParams(map[string]defkit.Value{
+							"value": defkit.Reference("parameter.value"),
+						}).
+						Build()
+					tpl.Builtin("wait", "builtin.#ConditionalWait").
+						WithParams(map[string]defkit.Value{
+							"continue": defkit.Reference("output.$returns.value.status.readyReplicas == parameter.replicas"),
+						}).
+						Build()
+				})
+
+			cue := step.ToCue()
+			Expect(cue).To(ContainSubstring(`output: kube.#Apply & {`))
+			Expect(cue).To(ContainSubstring(`wait: builtin.#ConditionalWait & {`))
+			Expect(cue).NotTo(ContainSubstring(`apply: kube.#Apply & {`))
+			Expect(cue).NotTo(ContainSubstring(`conditionalwait: builtin.#ConditionalWait & {`))
+		})
 	})
 
 	Context("Registry", func() {

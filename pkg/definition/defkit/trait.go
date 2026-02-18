@@ -642,6 +642,8 @@ func (g *TraitCUEGenerator) writePatchResourceOps(sb *strings.Builder, gen *CUEG
 
 	// Build a tree structure from operations (similar to component resources)
 	tree := gen.buildFieldTree(ops)
+	// Normalize conditional nodes to avoid empty parent structs in patches
+	gen.liftChildConditions(tree)
 	g.writePatchFieldTree(sb, gen, tree, depth)
 }
 
@@ -787,44 +789,59 @@ func (g *TraitCUEGenerator) writeForEachOp(sb *strings.Builder, gen *CUEGenerato
 // If cond is provided, wraps in: if cond { ... }
 func (g *TraitCUEGenerator) writePatchKeyOp(sb *strings.Builder, gen *CUEGenerator, key string, op *PatchKeyOp, cond Condition, depth int) {
 	indent := strings.Repeat(g.indent, depth)
+	elements := op.Elements()
+	useArrayValue := len(elements) == 1
+	if useArrayValue {
+		_, useArrayValue = elements[0].(*ArrayParam)
+	}
 
 	// Wrap in condition if present
 	if cond != nil {
 		condStr := gen.conditionToCUE(cond)
 		sb.WriteString(fmt.Sprintf("if %s {\n", condStr))
 		sb.WriteString(fmt.Sprintf("%s\t// +patchKey=%s\n", indent, op.Key()))
-		sb.WriteString(fmt.Sprintf("%s\t%s: [", indent, key))
-		for i, elem := range op.Elements() {
-			if i > 0 {
-				sb.WriteString(", ")
+		if useArrayValue {
+			valStr := gen.valueToCUEAtDepth(elements[0], depth+1)
+			sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, key, valStr))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s\t%s: [", indent, key))
+			for i, elem := range elements {
+				if i > 0 {
+					sb.WriteString(", ")
+				}
+				// Use depth-aware formatting for ArrayElement
+				if arrElem, ok := elem.(*ArrayElement); ok {
+					sb.WriteString(gen.arrayElementToCUEWithDepth(arrElem, depth+1))
+				} else {
+					sb.WriteString(gen.valueToCUE(elem))
+				}
 			}
-			// Use depth-aware formatting for ArrayElement
-			if arrElem, ok := elem.(*ArrayElement); ok {
-				sb.WriteString(gen.arrayElementToCUEWithDepth(arrElem, depth+1))
-			} else {
-				sb.WriteString(gen.valueToCUE(elem))
-			}
+			sb.WriteString("]\n")
 		}
-		sb.WriteString("]\n")
 		sb.WriteString(fmt.Sprintf("%s}", indent))
 	} else {
 		// Write the patchKey annotation comment
 		sb.WriteString(fmt.Sprintf("// +patchKey=%s\n", op.Key()))
-		sb.WriteString(fmt.Sprintf("%s%s: [", indent, key))
+		if useArrayValue {
+			valStr := gen.valueToCUEAtDepth(elements[0], depth)
+			sb.WriteString(fmt.Sprintf("%s%s: %s", indent, key, valStr))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s: [", indent, key))
 
-		// Write elements
-		for i, elem := range op.Elements() {
-			if i > 0 {
-				sb.WriteString(", ")
+			// Write elements
+			for i, elem := range elements {
+				if i > 0 {
+					sb.WriteString(", ")
+				}
+				// Use depth-aware formatting for ArrayElement
+				if arrElem, ok := elem.(*ArrayElement); ok {
+					sb.WriteString(gen.arrayElementToCUEWithDepth(arrElem, depth))
+				} else {
+					sb.WriteString(gen.valueToCUE(elem))
+				}
 			}
-			// Use depth-aware formatting for ArrayElement
-			if arrElem, ok := elem.(*ArrayElement); ok {
-				sb.WriteString(gen.arrayElementToCUEWithDepth(arrElem, depth))
-			} else {
-				sb.WriteString(gen.valueToCUE(elem))
-			}
+			sb.WriteString("]")
 		}
-		sb.WriteString("]")
 	}
 }
 

@@ -461,11 +461,19 @@ func (g *CUEGenerator) writeStructFieldForHelper(sb *strings.Builder, f *StructF
 
 	// Check for nested struct
 	if nested := f.GetNested(); nested != nil {
-		sb.WriteString(fmt.Sprintf("%s%s%s: {\n", indent, name, optional))
-		for _, nestedField := range nested.GetFields() {
-			g.writeStructFieldForHelper(sb, nestedField, depth+1)
+		if f.FieldType() == ParamTypeArray {
+			sb.WriteString(fmt.Sprintf("%s%s%s: [...{\n", indent, name, optional))
+			for _, nestedField := range nested.GetFields() {
+				g.writeStructFieldForHelper(sb, nestedField, depth+1)
+			}
+			sb.WriteString(fmt.Sprintf("%s}]\n", indent))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s%s: {\n", indent, name, optional))
+			for _, nestedField := range nested.GetFields() {
+				g.writeStructFieldForHelper(sb, nestedField, depth+1)
+			}
+			sb.WriteString(fmt.Sprintf("%s}\n", indent))
 		}
-		sb.WriteString(fmt.Sprintf("%s}\n", indent))
 		return
 	}
 
@@ -1155,6 +1163,11 @@ func (g *CUEGenerator) insertPatchKeyIntoTree(root *fieldNode, op *PatchKeyOp, c
 func (g *CUEGenerator) writeFieldTree(sb *strings.Builder, node *fieldNode, depth int) {
 	indent := strings.Repeat(g.indent, depth)
 
+	// Lift child conditions to the parent field when all children share the same
+	// condition and the parent has no own value/spread/foreach/patchKey. This avoids
+	// emitting empty parent structs like `foo: { if cond { bar: ... } }`.
+	g.liftChildConditions(node)
+
 	// Write spread entries FIRST (user labels spread before OAM labels)
 	// This matches the KubeVela convention of spreading user-provided values
 	// before adding fixed OAM labels, so user values can be overridden if needed.
@@ -1200,6 +1213,57 @@ func (g *CUEGenerator) writeFieldTree(sb *strings.Builder, node *fieldNode, dept
 	}
 }
 
+// liftChildConditions promotes a shared child condition to the parent node.
+// It recursively processes the tree so inner nodes are normalized before parent rendering.
+func (g *CUEGenerator) liftChildConditions(node *fieldNode) {
+	for _, name := range node.childOrder {
+		child := node.children[name]
+		if child == nil {
+			continue
+		}
+		// Recurse first so deeper nodes are normalized
+		g.liftChildConditions(child)
+
+		if child.cond != nil {
+			continue
+		}
+		if child.value != nil || child.isArray || len(child.spreads) > 0 || child.forEach != nil || child.patchKey != nil {
+			continue
+		}
+		if len(child.children) == 0 {
+			continue
+		}
+
+		var sharedCond Condition
+		var sharedCondStr string
+		canLift := true
+		for _, grandName := range child.childOrder {
+			grand := child.children[grandName]
+			if grand == nil || grand.cond == nil {
+				canLift = false
+				break
+			}
+			condStr := g.conditionToCUE(grand.cond)
+			if sharedCondStr == "" {
+				sharedCondStr = condStr
+				sharedCond = grand.cond
+			} else if sharedCondStr != condStr {
+				canLift = false
+				break
+			}
+		}
+		if canLift && sharedCond != nil {
+			child.cond = sharedCond
+			for _, grandName := range child.childOrder {
+				grand := child.children[grandName]
+				if grand != nil {
+					grand.cond = nil
+				}
+			}
+		}
+	}
+}
+
 // writeFieldNode writes a single field node as CUE.
 func (g *CUEGenerator) writeFieldNode(sb *strings.Builder, name string, node *fieldNode, depth int) {
 	indent := strings.Repeat(g.indent, depth)
@@ -1228,6 +1292,45 @@ func (g *CUEGenerator) writeFieldNode(sb *strings.Builder, name string, node *fi
 		}
 		sb.WriteString(fmt.Sprintf("%s}]\n", indent))
 		return
+	}
+
+	// If all children share the same condition and there are no unconditional parts,
+	// lift the condition to avoid emitting empty parent structs.
+	if node.value == nil && len(node.children) > 0 && len(node.spreads) == 0 && node.forEach == nil && node.patchKey == nil {
+		condStr := ""
+		canLift := true
+		for _, childName := range node.childOrder {
+			child := node.children[childName]
+			if child.cond == nil {
+				canLift = false
+				break
+			}
+			childCondStr := g.conditionToCUE(child.cond)
+			if condStr == "" {
+				condStr = childCondStr
+			} else if condStr != childCondStr {
+				canLift = false
+				break
+			}
+		}
+		if canLift && condStr != "" {
+			// Clone node with cleared child conditions for rendering.
+			clone := &fieldNode{
+				children:   make(map[string]*fieldNode, len(node.children)),
+				childOrder: append([]string(nil), node.childOrder...),
+			}
+			for childName, child := range node.children {
+				childCopy := *child
+				childCopy.cond = nil
+				clone.children[childName] = &childCopy
+			}
+			sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
+			sb.WriteString(fmt.Sprintf("%s\t%s: {\n", indent, name))
+			g.writeFieldTree(sb, clone, depth+2)
+			sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
+			sb.WriteString(fmt.Sprintf("%s}\n", indent))
+			return
+		}
 	}
 
 	// Regular field
@@ -1320,6 +1423,8 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 		return fmt.Sprintf("%s.%s", val.VarName(), val.FieldName())
 	case *IterLetRef:
 		return val.RefName()
+	case *ForEachMapOp:
+		return g.forEachMapOpToCUE(val)
 	default:
 		// Try to get name from Param interface
 		if p, ok := v.(Param); ok {
@@ -1327,6 +1432,32 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 		}
 		return "_"
 	}
+}
+
+// forEachMapOpToCUE converts a ForEachMapOp to CUE map comprehension syntax.
+// Generates: {for k, v in source { (keyExpr): valExpr }}.
+func (g *CUEGenerator) forEachMapOpToCUE(op *ForEachMapOp) string {
+	keyVar := op.KeyVar()
+	if keyVar == "" {
+		keyVar = "k"
+	}
+
+	valVar := op.ValVar()
+	if valVar == "" {
+		valVar = "v"
+	}
+
+	keyExpr := op.KeyExpr()
+	if keyExpr == "" {
+		keyExpr = keyVar
+	}
+
+	valExpr := op.ValExpr()
+	if valExpr == "" {
+		valExpr = valVar
+	}
+
+	return fmt.Sprintf("{for %s, %s in %s { (%s): %s }}", keyVar, valVar, op.Source(), keyExpr, valExpr)
 }
 
 // cueFuncToCUE converts a CUE function call to CUE syntax.
@@ -2343,11 +2474,19 @@ func (g *CUEGenerator) writeStructField(sb *strings.Builder, f *StructField, dep
 	nested := f.GetNested()
 	switch {
 	case nested != nil:
-		sb.WriteString(fmt.Sprintf("%s%s%s: {\n", indent, name, optional))
-		for _, nestedField := range nested.GetFields() {
-			g.writeStructField(sb, nestedField, depth+1)
+		if f.FieldType() == ParamTypeArray {
+			sb.WriteString(fmt.Sprintf("%s%s%s: [...{\n", indent, name, optional))
+			for _, nestedField := range nested.GetFields() {
+				g.writeStructField(sb, nestedField, depth+1)
+			}
+			sb.WriteString(fmt.Sprintf("%s}]\n", indent))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s%s: {\n", indent, name, optional))
+			for _, nestedField := range nested.GetFields() {
+				g.writeStructField(sb, nestedField, depth+1)
+			}
+			sb.WriteString(fmt.Sprintf("%s}\n", indent))
 		}
-		sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	case f.HasDefault():
 		enumValues := f.GetEnumValues()
 		switch {

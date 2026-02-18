@@ -134,10 +134,9 @@ func (s *StatusBuilder) buildField(f *StatusField) string {
 	}
 
 	// Simple field
-	return fmt.Sprintf(`%s: %s & {
-	if context.output.%s != _|_ {
-		%s: context.output.%s
-	}
+	return fmt.Sprintf(`%s: %s
+if context.output.%s != _|_ {
+	%s: context.output.%s
 }`, f.name, defExpr, f.sourcePath, f.name, f.sourcePath)
 }
 
@@ -439,8 +438,7 @@ func StatefulSetHealth() *HealthBuilder {
 func JobHealth() *HealthBuilder {
 	return Health().
 		IntField("succeeded", "status.succeeded", 0).
-		IntField("failed", "status.failed", 0).
-		HealthyWhen("succeeded >= 1 || failed >= 1")
+		HealthyWhen("succeeded == context.output.spec.parallelism")
 }
 
 // CronJobHealth returns a pre-configured health builder for CronJob.
