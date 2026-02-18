@@ -1134,38 +1134,47 @@ func (g *TraitCUEGenerator) writePatchKeyOp(sb *strings.Builder, gen *CUEGenerat
 func (g *TraitCUEGenerator) writeSpreadAllOp(sb *strings.Builder, gen *CUEGenerator, key string, op *SpreadAllOp, cond Condition, depth int) {
 	indent := strings.Repeat(g.indent, depth)
 
+	writeElements := func(sb *strings.Builder, elemDepth int) {
+		for i, elem := range op.Elements() {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+			if arrElem, ok := elem.(*ArrayElement); ok {
+				// Build a field tree from the element's ops for proper nesting
+				tree := gen.buildFieldTree(arrElem.Ops())
+				g.hoistConditions(tree)
+				// Also add direct field assignments
+				for fk, fv := range arrElem.Fields() {
+					gen.insertIntoTree(tree, fk, fv, nil)
+				}
+				sb.WriteString("...{\n")
+				// Write tree children with explicit indentation
+				// (avoid writePatchFieldTree's single-child inline optimization)
+				innerIndent := strings.Repeat(g.indent, elemDepth+1)
+				for _, tk := range tree.childOrder {
+					tn := tree.children[tk]
+					sb.WriteString(innerIndent)
+					g.writePatchFieldNode(sb, gen, tk, tn, elemDepth+1)
+					sb.WriteString("\n")
+				}
+				sb.WriteString(fmt.Sprintf("%s}", strings.Repeat(g.indent, elemDepth)))
+			} else {
+				sb.WriteString("...")
+				sb.WriteString(gen.valueToCUE(elem))
+			}
+		}
+	}
+
 	if cond != nil {
 		condStr := gen.conditionToCUE(cond)
 		sb.WriteString(fmt.Sprintf("if %s {\n", condStr))
 		sb.WriteString(fmt.Sprintf("%s\t%s: [", indent, key))
-		for i, elem := range op.Elements() {
-			if i > 0 {
-				sb.WriteString(", ")
-			}
-			if arrElem, ok := elem.(*ArrayElement); ok {
-				sb.WriteString("...")
-				sb.WriteString(gen.arrayElementToCUEWithDepth(arrElem, depth+1))
-			} else {
-				sb.WriteString("...")
-				sb.WriteString(gen.valueToCUE(elem))
-			}
-		}
+		writeElements(sb, depth+1)
 		sb.WriteString("]\n")
 		sb.WriteString(fmt.Sprintf("%s}", indent))
 	} else {
 		sb.WriteString(fmt.Sprintf("%s: [", key))
-		for i, elem := range op.Elements() {
-			if i > 0 {
-				sb.WriteString(", ")
-			}
-			if arrElem, ok := elem.(*ArrayElement); ok {
-				sb.WriteString("...")
-				sb.WriteString(gen.arrayElementToCUEWithDepth(arrElem, depth))
-			} else {
-				sb.WriteString("...")
-				sb.WriteString(gen.valueToCUE(elem))
-			}
-		}
+		writeElements(sb, depth)
 		sb.WriteString("]")
 	}
 }
