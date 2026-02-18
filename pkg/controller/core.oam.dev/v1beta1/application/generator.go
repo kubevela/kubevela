@@ -60,6 +60,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/workflow/template"
 )
 
+func init() {
+	// Override the upstream cuex.DefaultCompiler with the workflow providers
+	// compiler so that component/trait definitions have access to all vela/
+	// internal packages (e.g., multicluster, config, oam, builtin, etc.).
+	providers.InitDefaultCompiler()
+}
+
 var (
 	// DisableResourceApplyDoubleCheck optimize applyComponentFunc by disable post resource existing check after dispatch
 	DisableResourceApplyDoubleCheck = false
