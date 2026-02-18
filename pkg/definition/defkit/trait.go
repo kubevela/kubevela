@@ -845,6 +845,12 @@ func (g *TraitCUEGenerator) writePatchFieldNode(sb *strings.Builder, gen *CUEGen
 		return
 	}
 
+	// Handle SpreadAll operations (array constraint patches)
+	if node.spreadAll != nil {
+		g.writeSpreadAllOp(sb, gen, key, node.spreadAll, node.cond, depth)
+		return
+	}
+
 	// Handle conditional fields
 	if node.cond != nil {
 		condStr := gen.conditionToCUE(node.cond)
@@ -1115,6 +1121,48 @@ func (g *TraitCUEGenerator) writePatchKeyOp(sb *strings.Builder, gen *CUEGenerat
 			if arrElem, ok := elem.(*ArrayElement); ok {
 				sb.WriteString(gen.arrayElementToCUEWithDepth(arrElem, depth))
 			} else {
+				sb.WriteString(gen.valueToCUE(elem))
+			}
+		}
+		sb.WriteString("]")
+	}
+}
+
+// writeSpreadAllOp writes a SpreadAll operation as CUE.
+// Generates: path: [...{element}]
+// If cond is provided, wraps in: if cond { ... }
+func (g *TraitCUEGenerator) writeSpreadAllOp(sb *strings.Builder, gen *CUEGenerator, key string, op *SpreadAllOp, cond Condition, depth int) {
+	indent := strings.Repeat(g.indent, depth)
+
+	if cond != nil {
+		condStr := gen.conditionToCUE(cond)
+		sb.WriteString(fmt.Sprintf("if %s {\n", condStr))
+		sb.WriteString(fmt.Sprintf("%s\t%s: [", indent, key))
+		for i, elem := range op.Elements() {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+			if arrElem, ok := elem.(*ArrayElement); ok {
+				sb.WriteString("...")
+				sb.WriteString(gen.arrayElementToCUEWithDepth(arrElem, depth+1))
+			} else {
+				sb.WriteString("...")
+				sb.WriteString(gen.valueToCUE(elem))
+			}
+		}
+		sb.WriteString("]\n")
+		sb.WriteString(fmt.Sprintf("%s}", indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%s: [", key))
+		for i, elem := range op.Elements() {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+			if arrElem, ok := elem.(*ArrayElement); ok {
+				sb.WriteString("...")
+				sb.WriteString(gen.arrayElementToCUEWithDepth(arrElem, depth))
+			} else {
+				sb.WriteString("...")
 				sb.WriteString(gen.valueToCUE(elem))
 			}
 		}

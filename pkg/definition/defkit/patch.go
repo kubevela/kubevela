@@ -122,6 +122,26 @@ func (p *PatchResource) PatchKey(path string, key string, elements ...Value) *Pa
 	return p
 }
 
+// SpreadAll adds a spread constraint that applies to all array elements.
+// This generates: path: [...{element1}, ...{element2}]
+// Used for applying the same patch to every element in an array.
+//
+// Example:
+//
+//	lifecycleObj := defkit.NewArrayElement().
+//	    SetIf(postStart.IsSet(), "lifecycle.postStart", postStart)
+//	tpl.Patch().SpreadAll("spec.template.spec.containers", lifecycleObj)
+//	// Generates: containers: [...{lifecycle: { if ... { postStart: ... } }}]
+func (p *PatchResource) SpreadAll(path string, elements ...Value) *PatchResource {
+	op := &SpreadAllOp{path: path, elements: elements}
+	if p.currentIf != nil {
+		p.currentIf.ops = append(p.currentIf.ops, op)
+	} else {
+		p.ops = append(p.ops, op)
+	}
+	return p
+}
+
 // PatchStrategyAnnotation annotates a specific field path with // +patchStrategy=strategy.
 // This generates a CUE comment annotation before the field.
 // Example: p.PatchStrategyAnnotation("spec.strategy", "retainKeys")

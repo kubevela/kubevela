@@ -1055,4 +1055,163 @@ template: {
 			Expect(cue).To(ContainSubstring("partition: parameter.strategy.rollingStrategy.partition"))
 		})
 	})
+
+	Context("Raw patch block with fluent params and helpers", func() {
+		It("should render raw patch block followed by fluent parameter and helper definitions", func() {
+			postStart := defkit.Map("postStart").WithSchemaRef("Handler")
+			preStop := defkit.Map("preStop").WithSchemaRef("Handler")
+
+			trait := defkit.NewTrait("lifecycle").
+				Description("test").
+				AppliesTo("deployments.apps").
+				PodDisruptive(true).
+				Params(postStart, preStop).
+				Helper("Handler", defkit.Struct("Handler").Fields(
+					defkit.Field("exec", defkit.ParamTypeStruct).
+						Nested(defkit.Struct("exec").Fields(
+							defkit.Field("command", defkit.ParamTypeArray).ArrayOf(defkit.ParamTypeString).Required(),
+						)),
+				)).
+				Template(func(tpl *defkit.Template) {
+					tpl.SetRawPatchBlock(`patch: spec: containers: [...{
+	lifecycle: {
+		if parameter.postStart != _|_ {
+			postStart: parameter.postStart
+		}
+	}
+}]`)
+				})
+
+			cue := trait.ToCue()
+
+			// Raw patch block is rendered
+			Expect(cue).To(ContainSubstring("containers: [...{"))
+			Expect(cue).To(ContainSubstring("lifecycle: {"))
+			Expect(cue).To(ContainSubstring("if parameter.postStart != _|_"))
+
+			// Fluent parameter block is rendered (not skipped)
+			Expect(cue).To(ContainSubstring("parameter: {"))
+			Expect(cue).To(ContainSubstring("postStart?: #Handler"))
+			// CUE formatter may add alignment spaces: preStop?:   #Handler
+			Expect(cue).To(ContainSubstring("preStop?:"))
+			Expect(cue).To(MatchRegexp(`preStop\?:\s+#Handler`))
+
+			// Helper definition is rendered (not skipped)
+			// CUE formatter collapses single-field struct to inline form
+			Expect(cue).To(ContainSubstring("#Handler:"))
+			Expect(cue).To(ContainSubstring("command: [...string]"))
+		})
+
+		It("should still use full raw mode when raw parameter block is set", func() {
+			trait := defkit.NewTrait("raw-all").
+				Description("test").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.SetRawPatchBlock(`patch: spec: replicas: parameter.replicas`)
+					tpl.SetRawParameterBlock(`parameter: {
+	replicas: *1 | int
+}`)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("replicas: parameter.replicas"))
+			Expect(cue).To(ContainSubstring("replicas: *1 | int"))
+			// Should NOT have a duplicate parameter block
+			Expect(strings.Count(cue, "parameter:")).To(Equal(2)) // one in patch ref, one in param block
+		})
+	})
+
+	Context("IntParam helper definition rendering", func() {
+		It("should render constrained int helper with min and max", func() {
+			trait := defkit.NewTrait("int-helper-test").
+				Description("test").
+				AppliesTo("deployments.apps").
+				Helper("Port", defkit.Int("Port").Min(1).Max(65535)).
+				Template(func(tpl *defkit.Template) {
+					tpl.SetRawPatchBlock(`patch: spec: port: parameter.port`)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("#Port: int & >=1 & <=65535"))
+		})
+
+		It("should render int helper with only min constraint", func() {
+			trait := defkit.NewTrait("int-min-test").
+				Description("test").
+				AppliesTo("deployments.apps").
+				Helper("Positive", defkit.Int("Positive").Min(0)).
+				Template(func(tpl *defkit.Template) {
+					tpl.SetRawPatchBlock(`patch: spec: count: parameter.count`)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("#Positive: int & >=0"))
+			Expect(cue).NotTo(ContainSubstring("<="))
+		})
+
+		It("should render int helper without constraints", func() {
+			trait := defkit.NewTrait("int-bare-test").
+				Description("test").
+				AppliesTo("deployments.apps").
+				Helper("Count", defkit.Int("Count")).
+				Template(func(tpl *defkit.Template) {
+					tpl.SetRawPatchBlock(`patch: spec: count: parameter.count`)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("#Count: int"))
+			Expect(cue).NotTo(ContainSubstring(">="))
+			Expect(cue).NotTo(ContainSubstring("<="))
+		})
+	})
+
+	Context("Nested array struct in helper definitions", func() {
+		It("should render array field with nested struct as [...{fields}]", func() {
+			trait := defkit.NewTrait("nested-array-test").
+				Description("test").
+				AppliesTo("deployments.apps").
+				Helper("Config", defkit.Struct("Config").Fields(
+					defkit.Field("headers", defkit.ParamTypeArray).
+						Nested(defkit.Struct("headers").Fields(
+							defkit.Field("name", defkit.ParamTypeString).Required(),
+							defkit.Field("value", defkit.ParamTypeString).Required(),
+						)),
+				)).
+				Template(func(tpl *defkit.Template) {
+					tpl.SetRawPatchBlock(`patch: spec: config: parameter.config`)
+				})
+
+			cue := trait.ToCue()
+
+			// CUE formatter collapses single-field struct to inline form
+			Expect(cue).To(ContainSubstring("#Config: headers?: [...{"))
+			Expect(cue).To(ContainSubstring("name:  string"))
+			Expect(cue).To(ContainSubstring("value: string"))
+		})
+
+		It("should render schema ref on fields within helper structs", func() {
+			trait := defkit.NewTrait("schema-ref-test").
+				Description("test").
+				AppliesTo("deployments.apps").
+				Helper("Port", defkit.Int("Port").Min(1).Max(65535)).
+				Helper("Endpoint", defkit.Struct("Endpoint").Fields(
+					defkit.Field("port", defkit.ParamTypeInt).WithSchemaRef("Port").Required(),
+					defkit.Field("host", defkit.ParamTypeString),
+				)).
+				Template(func(tpl *defkit.Template) {
+					tpl.SetRawPatchBlock(`patch: spec: endpoint: parameter.endpoint`)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("#Port: int & >=1 & <=65535"))
+			Expect(cue).To(ContainSubstring("#Endpoint: {"))
+			Expect(cue).To(ContainSubstring("port:  #Port"))
+			Expect(cue).To(ContainSubstring("host?: string"))
+		})
+	})
 })

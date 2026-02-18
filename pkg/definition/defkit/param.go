@@ -837,9 +837,13 @@ func (f *StructField) Description(desc string) *StructField {
 }
 
 // Nested sets a nested struct definition for this field.
+// For ParamTypeStruct fields, this defines the struct's shape.
+// For ParamTypeArray fields, this defines the array element struct shape (generates [...{fields}]).
 func (f *StructField) Nested(s *StructParam) *StructField {
 	f.nested = s
-	f.fieldType = ParamTypeStruct
+	if f.fieldType != ParamTypeArray {
+		f.fieldType = ParamTypeStruct
+	}
 	return f
 }
 
