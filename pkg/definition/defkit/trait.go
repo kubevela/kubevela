@@ -662,7 +662,7 @@ func (g *TraitCUEGenerator) writePatchResourceOps(sb *strings.Builder, gen *CUEG
 	// If 0 or 1 IfBlock, use existing merged approach (no path conflicts possible)
 	if len(ifBlocks) <= 1 {
 		tree := gen.buildFieldTree(ops)
-		g.hoistConditions(tree)
+		gen.liftChildConditions(tree)
 		g.writePatchFieldTree(sb, gen, tree, depth)
 		return
 	}
@@ -698,7 +698,7 @@ func (g *TraitCUEGenerator) writePatchResourceOps(sb *strings.Builder, gen *CUEG
 				subtree = child
 			}
 		}
-		g.hoistConditions(subtree)
+		gen.liftChildConditions(subtree)
 		for _, key := range subtree.childOrder {
 			node := subtree.children[key]
 			sb.WriteString(indent)
@@ -725,8 +725,8 @@ func (g *TraitCUEGenerator) writePatchResourceOps(sb *strings.Builder, gen *CUEG
 			}
 		}
 
-		// Apply hoisting to the subtree
-		g.hoistConditions(subtree)
+		// Normalize conditional nodes in the subtree
+		gen.liftChildConditions(subtree)
 
 		// Emit: if condition { ... }
 		condStr := gen.conditionToCUE(ib.Cond())
@@ -928,119 +928,6 @@ func (g *TraitCUEGenerator) hasConditionalDescendant(node *fieldNode) bool {
 	return false
 }
 
-// hoistConditions is a post-processing step on the field tree that moves common
-// conditions from children to parent nodes. This produces cleaner nested CUE output.
-// For example, if all children of "strategy" share condition A, the condition is
-// hoisted to "strategy" and removed from children. If some children have "A && B",
-// the common "A" is hoisted and the residual "B" remains on those children.
-func (g *TraitCUEGenerator) hoistConditions(node *fieldNode) {
-	g.hoistConditionsInner(node, true)
-}
-
-func (g *TraitCUEGenerator) hoistConditionsInner(node *fieldNode, isRoot bool) {
-	// Recurse first (bottom-up processing)
-	for _, child := range node.children {
-		g.hoistConditionsInner(child, false)
-	}
-
-	// Skip root node — its condition is never rendered by writePatchFieldTree
-	if isRoot {
-		return
-	}
-
-	// Skip if no children
-	if len(node.children) < 1 {
-		return
-	}
-
-	// Collect all conditions from direct children
-	var conditions []Condition
-	allHaveConditions := true
-	for _, key := range node.childOrder {
-		child := node.children[key]
-		if child.cond == nil {
-			allHaveConditions = false
-			break
-		}
-		conditions = append(conditions, child.cond)
-	}
-
-	if !allHaveConditions || len(conditions) == 0 {
-		return
-	}
-
-	// Find common condition factor
-	gen := NewCUEGenerator()
-	common := g.findCommonCondition(gen, conditions)
-	if common == nil {
-		return
-	}
-
-	// Hoist: set common condition on parent, remove from children
-	node.cond = common
-	for _, key := range node.childOrder {
-		child := node.children[key]
-		child.cond = g.removeCommonCondition(gen, child.cond, common)
-	}
-}
-
-// findCommonCondition finds a condition that is shared across all given conditions.
-// Uses CUE string comparison for equality.
-func (g *TraitCUEGenerator) findCommonCondition(gen *CUEGenerator, conditions []Condition) Condition {
-	if len(conditions) == 0 {
-		return nil
-	}
-
-	// Get the "base" of the first condition
-	first := g.conditionBase(conditions[0])
-	firstStr := gen.conditionToCUE(first)
-
-	// Check if all conditions share this base
-	for _, c := range conditions[1:] {
-		base := g.conditionBase(c)
-		if gen.conditionToCUE(base) == firstStr {
-			continue
-		}
-		// Check if c is an AndCondition with first as left side
-		if and, ok := c.(*AndCondition); ok {
-			if gen.conditionToCUE(and.left) == firstStr {
-				continue
-			}
-		}
-		// Check if c is a LogicalExpr AND starting with first
-		if logical, ok := c.(*LogicalExpr); ok && logical.Op() == OpAnd && len(logical.Conditions()) > 0 {
-			if gen.conditionToCUE(logical.Conditions()[0]) == firstStr {
-				continue
-			}
-		}
-		return nil // No common factor
-	}
-
-	return first
-}
-
-// conditionBase returns the "base" condition (leftmost in AND chain).
-func (g *TraitCUEGenerator) conditionBase(cond Condition) Condition {
-	if and, ok := cond.(*AndCondition); ok {
-		return and.left
-	}
-	return cond
-}
-
-// removeCommonCondition removes the common condition factor, returning the residual.
-func (g *TraitCUEGenerator) removeCommonCondition(gen *CUEGenerator, cond Condition, common Condition) Condition {
-	commonStr := gen.conditionToCUE(common)
-	if gen.conditionToCUE(cond) == commonStr {
-		return nil // Exact match, no residual
-	}
-	if and, ok := cond.(*AndCondition); ok {
-		if gen.conditionToCUE(and.left) == commonStr {
-			return and.right
-		}
-	}
-	return cond // Can't remove, keep as-is
-}
-
 // writeForEachOp writes a ForEach operation as CUE.
 // Generates: for k, v in source { (k): v }
 // If cond is provided, wraps in: if cond { ... }
@@ -1076,55 +963,59 @@ func (g *TraitCUEGenerator) writeForEachOp(sb *strings.Builder, gen *CUEGenerato
 // If cond is provided, wraps in: if cond { ... }
 func (g *TraitCUEGenerator) writePatchKeyOp(sb *strings.Builder, gen *CUEGenerator, key string, op *PatchKeyOp, cond Condition, depth int) {
 	indent := strings.Repeat(g.indent, depth)
+	elements := op.Elements()
+	useArrayValue := len(elements) == 1
+	if useArrayValue {
+		_, useArrayValue = elements[0].(*ArrayParam)
+	}
 
 	// Wrap in condition if present
 	if cond != nil {
 		condStr := gen.conditionToCUE(cond)
 		sb.WriteString(fmt.Sprintf("if %s {\n", condStr))
 		sb.WriteString(fmt.Sprintf("%s\t// +patchKey=%s\n", indent, op.Key()))
-		sb.WriteString(fmt.Sprintf("%s\t%s: [", indent, key))
-		for i, elem := range op.Elements() {
-			if i > 0 {
-				sb.WriteString(", ")
+		if useArrayValue {
+			valStr := gen.valueToCUEAtDepth(elements[0], depth+1)
+			sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, key, valStr))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s\t%s: [", indent, key))
+			for i, elem := range elements {
+				if i > 0 {
+					sb.WriteString(", ")
+				}
+				// Use depth-aware formatting for ArrayElement
+				if arrElem, ok := elem.(*ArrayElement); ok {
+					sb.WriteString(gen.arrayElementToCUEWithDepth(arrElem, depth+1))
+				} else {
+					sb.WriteString(gen.valueToCUE(elem))
+				}
 			}
-			// Use depth-aware formatting for ArrayElement
-			if arrElem, ok := elem.(*ArrayElement); ok {
-				sb.WriteString(gen.arrayElementToCUEWithDepth(arrElem, depth+1))
-			} else {
-				sb.WriteString(gen.valueToCUE(elem))
-			}
+			sb.WriteString("]\n")
 		}
-		sb.WriteString("]\n")
 		sb.WriteString(fmt.Sprintf("%s}", indent))
 	} else {
 		// Write the patchKey annotation comment
 		sb.WriteString(fmt.Sprintf("// +patchKey=%s\n", op.Key()))
+		if useArrayValue {
+			valStr := gen.valueToCUEAtDepth(elements[0], depth)
+			sb.WriteString(fmt.Sprintf("%s%s: %s", indent, key, valStr))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s: [", indent, key))
 
-		// If there is exactly one element and it's an ArrayParam, emit without
-		// array wrapping since the parameter already represents the whole array.
-		elems := op.Elements()
-		if len(elems) == 1 {
-			if _, ok := elems[0].(*ArrayParam); ok {
-				sb.WriteString(fmt.Sprintf("%s%s: %s", indent, key, gen.valueToCUE(elems[0])))
-				return
+			// Write elements
+			for i, elem := range elements {
+				if i > 0 {
+					sb.WriteString(", ")
+				}
+				// Use depth-aware formatting for ArrayElement
+				if arrElem, ok := elem.(*ArrayElement); ok {
+					sb.WriteString(gen.arrayElementToCUEWithDepth(arrElem, depth))
+				} else {
+					sb.WriteString(gen.valueToCUE(elem))
+				}
 			}
+			sb.WriteString("]")
 		}
-
-		sb.WriteString(fmt.Sprintf("%s%s: [", indent, key))
-
-		// Write elements
-		for i, elem := range elems {
-			if i > 0 {
-				sb.WriteString(", ")
-			}
-			// Use depth-aware formatting for ArrayElement
-			if arrElem, ok := elem.(*ArrayElement); ok {
-				sb.WriteString(gen.arrayElementToCUEWithDepth(arrElem, depth))
-			} else {
-				sb.WriteString(gen.valueToCUE(elem))
-			}
-		}
-		sb.WriteString("]")
 	}
 }
 
@@ -1142,7 +1033,7 @@ func (g *TraitCUEGenerator) writeSpreadAllOp(sb *strings.Builder, gen *CUEGenera
 			if arrElem, ok := elem.(*ArrayElement); ok {
 				// Build a field tree from the element's ops for proper nesting
 				tree := gen.buildFieldTree(arrElem.Ops())
-				g.hoistConditions(tree)
+				gen.liftChildConditions(tree)
 				// Also add direct field assignments
 				for fk, fv := range arrElem.Fields() {
 					gen.insertIntoTree(tree, fk, fv, nil)

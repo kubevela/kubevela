@@ -32,6 +32,8 @@ type WorkflowStepDefinition struct {
 	baseDefinition                                 // embedded common fields and methods
 	category       string                          // e.g., "Application Delivery", "Notification"
 	scope          string                          // e.g., "Application", "Workflow"
+	alias          string                          // optional alias for definition metadata annotation
+	hasAlias       bool                            // tracks whether alias was explicitly set (including empty string)
 	stepTemplate   func(tpl *WorkflowStepTemplate) // template function for step logic (type-specific)
 }
 
@@ -49,11 +51,20 @@ type WorkflowAction interface {
 
 // BuiltinAction represents a call to a vela builtin.
 type BuiltinAction struct {
-	name   string           // e.g., "multicluster.#Deploy", "builtin.#Suspend"
-	params map[string]Value // parameters to pass
+	varName string           // explicit action variable name in template (e.g., "deploy", "wait")
+	name    string           // e.g., "multicluster.#Deploy", "builtin.#Suspend"
+	params  map[string]Value // parameters to pass
 }
 
 func (b *BuiltinAction) isWorkflowAction() {}
+
+// ValueAction represents assigning a value to a template field.
+type ValueAction struct {
+	name  string
+	value Value
+}
+
+func (v *ValueAction) isWorkflowAction() {}
 
 // ConditionalAction represents a conditional workflow action.
 type ConditionalAction struct {
@@ -90,6 +101,14 @@ func (w *WorkflowStepDefinition) Category(category string) *WorkflowStepDefiniti
 // Common values: "Application", "Workflow"
 func (w *WorkflowStepDefinition) Scope(scope string) *WorkflowStepDefinition {
 	w.scope = scope
+	return w
+}
+
+// Alias sets an optional alias for the workflow step definition.
+// This maps to metadata annotation `definition.oam.dev/alias` in generated YAML.
+func (w *WorkflowStepDefinition) Alias(alias string) *WorkflowStepDefinition {
+	w.alias = alias
+	w.hasAlias = true
 	return w
 }
 
@@ -201,6 +220,12 @@ func (w *WorkflowStepDefinition) GetCategory() string { return w.category }
 // GetScope returns the workflow step scope.
 func (w *WorkflowStepDefinition) GetScope() string { return w.scope }
 
+// GetAlias returns the workflow step alias.
+func (w *WorkflowStepDefinition) GetAlias() string { return w.alias }
+
+// HasAlias returns true if alias was explicitly set.
+func (w *WorkflowStepDefinition) HasAlias() bool { return w.hasAlias }
+
 // ToCue generates the complete CUE definition string for this workflow step.
 func (w *WorkflowStepDefinition) ToCue() string {
 	// If raw CUE is set, use it with the name from NewWorkflowStep() taking precedence
@@ -254,14 +279,32 @@ func NewWorkflowStepTemplate() *WorkflowStepTemplate {
 // Example: tpl.Builtin("deploy", "multicluster.#Deploy").WithParams(...)
 func (wt *WorkflowStepTemplate) Builtin(name, builtinRef string) *BuiltinActionBuilder {
 	action := &BuiltinAction{
-		name:   builtinRef,
-		params: make(map[string]Value),
+		varName: name,
+		name:    builtinRef,
+		params:  make(map[string]Value),
 	}
 	return &BuiltinActionBuilder{
 		template: wt,
 		action:   action,
 		varName:  name,
 	}
+}
+
+// Set assigns a value to a top-level field in the workflow template.
+// Example: tpl.Set("object", someValue)
+func (wt *WorkflowStepTemplate) Set(name string, value Value) *WorkflowStepTemplate {
+	wt.actions = append(wt.actions, &ValueAction{name: name, value: value})
+	return wt
+}
+
+// SetIf conditionally assigns a value to a top-level field in the workflow template.
+// Example: tpl.SetIf(param.IsSet(), "object", someValue)
+func (wt *WorkflowStepTemplate) SetIf(cond Condition, name string, value Value) *WorkflowStepTemplate {
+	wt.actions = append(wt.actions, &ConditionalAction{
+		cond:   cond,
+		action: &ValueAction{name: name, value: value},
+	})
+	return wt
 }
 
 // Suspend adds a suspend action.
@@ -297,7 +340,6 @@ type BuiltinActionBuilder struct {
 	template *WorkflowStepTemplate
 	action   *BuiltinAction
 	varName  string
-	cond     Condition // optional condition set by If()
 }
 
 // WithParams sets parameters for the builtin.
@@ -310,21 +352,18 @@ func (b *BuiltinActionBuilder) WithParams(params map[string]Value) *BuiltinActio
 
 // Build finalizes the action and adds it to the template.
 func (b *BuiltinActionBuilder) Build() *WorkflowStepTemplate {
-	if b.cond != nil {
-		b.template.actions = append(b.template.actions, &ConditionalAction{
-			cond:   b.cond,
-			action: b.action,
-		})
-	} else {
-		b.template.actions = append(b.template.actions, b.action)
-	}
+	b.template.actions = append(b.template.actions, b.action)
 	return b.template
 }
 
 // If makes this action conditional.
-// The condition is applied when Build() is called.
 func (b *BuiltinActionBuilder) If(cond Condition) *BuiltinActionBuilder {
-	b.cond = cond
+	// Replace action with conditional version
+	condAction := &ConditionalAction{
+		cond:   cond,
+		action: b.action,
+	}
+	b.template.actions = append(b.template.actions, condAction)
 	return b
 }
 
@@ -385,6 +424,11 @@ func (g *WorkflowStepCUEGenerator) GenerateFullDefinition(w *WorkflowStepDefinit
 	}
 	sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 
+	// Write alias when explicitly set (including empty string).
+	if w.HasAlias() {
+		sb.WriteString(fmt.Sprintf("%salias: %q\n", g.indent, w.GetAlias()))
+	}
+
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, w.GetDescription()))
 	sb.WriteString("}\n")
 
@@ -431,11 +475,16 @@ func (g *WorkflowStepCUEGenerator) writeActions(sb *strings.Builder, wt *Workflo
 		switch a := action.(type) {
 		case *BuiltinAction:
 			g.writeBuiltinAction(sb, a, "", indent, gen)
+		case *ValueAction:
+			g.writeValueAction(sb, a, "", indent, gen)
 		case *ConditionalAction:
 			condStr := gen.conditionToCUE(a.cond)
 			sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
 			if builtin, ok := a.action.(*BuiltinAction); ok {
 				g.writeBuiltinAction(sb, builtin, "\t", indent, gen)
+			}
+			if value, ok := a.action.(*ValueAction); ok {
+				g.writeValueAction(sb, value, "\t", indent, gen)
 			}
 			sb.WriteString(fmt.Sprintf("%s}\n", indent))
 		}
@@ -444,9 +493,12 @@ func (g *WorkflowStepCUEGenerator) writeActions(sb *strings.Builder, wt *Workflo
 
 // writeBuiltinAction writes a builtin action.
 func (g *WorkflowStepCUEGenerator) writeBuiltinAction(sb *strings.Builder, a *BuiltinAction, extraIndent, indent string, gen *CUEGenerator) {
-	// Extract the action name from the builtin reference
-	// e.g., "multicluster.#Deploy" -> "deploy"
-	actionName := extractActionName(a.name)
+	actionName := a.varName
+	if actionName == "" {
+		// Backward-compatible fallback when no explicit name is set.
+		// e.g., "multicluster.#Deploy" -> "deploy"
+		actionName = extractActionName(a.name)
+	}
 
 	sb.WriteString(fmt.Sprintf("%s%s%s: %s & {\n", indent, extraIndent, actionName, a.name))
 	if len(a.params) > 0 {
@@ -457,6 +509,15 @@ func (g *WorkflowStepCUEGenerator) writeBuiltinAction(sb *strings.Builder, a *Bu
 		sb.WriteString(fmt.Sprintf("%s%s\t}\n", indent, extraIndent))
 	}
 	sb.WriteString(fmt.Sprintf("%s%s}\n", indent, extraIndent))
+}
+
+// writeValueAction writes a value assignment action.
+func (g *WorkflowStepCUEGenerator) writeValueAction(sb *strings.Builder, a *ValueAction, extraIndent, indent string, gen *CUEGenerator) {
+	name := a.name
+	if strings.ContainsAny(name, "-./") {
+		name = fmt.Sprintf("%q", name)
+	}
+	sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, extraIndent, name, gen.valueToCUE(a.value)))
 }
 
 // extractActionName extracts a simple action name from a builtin reference.
