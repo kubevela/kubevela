@@ -3,7 +3,7 @@ module github.com/kubevela/vela-go-sdk
 go 1.23.8
 
 require (
-	github.com/oam-dev/kubevela-core-api v1.7.8-0.20250930174210-fb3adce5e9f6
+	github.com/oam-dev/kubevela-core-api v1.7.8-0.20260116042113-3461775e5e3f
 
 	// for main module
 	github.com/pkg/errors v0.9.1
@@ -16,7 +16,7 @@ require (
 // for sub-module
 // require github.com/kubevela/vela-go-sdk v0.0.0-20230309022604-cd431bb25a9a
 
-require github.com/kubevela/workflow v0.6.3-0.20250717221743-56b80cee4121
+require github.com/kubevela/workflow v0.6.3-0.20251125110424-924e73add777
 
 require (
 	cuelang.org/go v0.9.2 // indirect
@@ -58,7 +58,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.17.10 // indirect
-	github.com/kubevela/pkg v1.9.3-0.20250625225831-a2894a62a307 // indirect
+	github.com/kubevela/pkg v1.9.3-0.20251028181209-ef6824214171 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
