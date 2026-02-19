@@ -614,7 +614,7 @@ func (p *Provider) renderChart(_ context.Context, ch *chart.Chart, releaseName, 
 		}
 
 		// Skip empty resources
-		if resource.Object == nil {
+		if resource == nil || resource.Object == nil || len(resource.Object) == 0 {
 			continue
 		}
 
