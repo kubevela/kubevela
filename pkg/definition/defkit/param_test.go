@@ -61,6 +61,19 @@ var _ = Describe("Parameters", func() {
 			Expect(p.GetDefault()).To(Equal("nginx:latest"))
 			Expect(p.GetDescription()).To(Equal("Container image"))
 		})
+
+		It("should support ForceOptional to stay optional even with a default", func() {
+			p := defkit.String("policy").Default("Honor").ForceOptional().Enum("Honor", "Ignore")
+			Expect(p.HasDefault()).To(BeTrue())
+			Expect(p.GetDefault()).To(Equal("Honor"))
+			Expect(p.IsForceOptional()).To(BeTrue())
+			Expect(p.IsRequired()).To(BeFalse())
+		})
+
+		It("should not be force-optional by default", func() {
+			p := defkit.String("policy").Default("Honor")
+			Expect(p.IsForceOptional()).To(BeFalse())
+		})
 	})
 
 	Context("IntParam", func() {

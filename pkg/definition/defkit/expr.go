@@ -445,6 +445,22 @@ func (p *PatchKeyOp) Key() string { return p.key }
 // Elements returns the array elements to patch.
 func (p *PatchKeyOp) Elements() []Value { return p.elements }
 
+// SpreadAllOp represents a patch operation that constrains all array elements.
+// This generates: path: [...{element}]
+// Used for applying the same patch to every element in an array (e.g., all containers).
+type SpreadAllOp struct {
+	path     string
+	elements []Value
+}
+
+func (s *SpreadAllOp) resourceOp() {}
+
+// Path returns the path being patched.
+func (s *SpreadAllOp) Path() string { return s.path }
+
+// Elements returns the array elements to constrain.
+func (s *SpreadAllOp) Elements() []Value { return s.elements }
+
 // --- Context Path Exists Check ---
 
 // PathExistsCondition checks if a path exists in CUE (path != _|_).

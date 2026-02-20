@@ -85,7 +85,7 @@ var (
 	DefinitionKindToStatement = map[string]*j.Statement{
 		v1beta1.ComponentDefinitionKind:    j.Qual("common", "ApplicationComponent"),
 		v1beta1.TraitDefinitionKind:        j.Qual("common", "ApplicationTrait"),
-		v1beta1.WorkflowStepDefinitionKind: j.Qual("github.com/kubevela/workflow/api/v1alpha1", "WorkflowStep"),
+		v1beta1.WorkflowStepDefinitionKind: j.Qual("github.com/kubevela/pkg/apis/oam/v1alpha1", "WorkflowStep"),
 		v1beta1.PolicyDefinitionKind:       j.Qual("v1beta1", "AppPolicy"),
 	}
 )
@@ -447,7 +447,7 @@ func (m *GoDefModifier) genCommonFunc() []*j.Statement {
 			j.Id("Timeout"):    j.Id(m.defFuncReceiver).Dot("Base").Dot("Timeout"),
 			j.Id("Meta"):       j.Id(m.defFuncReceiver).Dot("Base").Dot("Meta"),
 		}
-		builderDict[j.Id("WorkflowStepBase")] = j.Qual("github.com/kubevela/workflow/api/v1alpha1", "WorkflowStepBase").Values(workflowStepBaseDict)
+		builderDict[j.Id("WorkflowStepBase")] = j.Qual("github.com/kubevela/pkg/apis/oam/v1alpha1", "WorkflowStepBase").Values(workflowStepBaseDict)
 		builderDict[j.Id("SubSteps")] = j.Id("subSteps")
 	} else {
 		builderDict[j.Id("Type")] = j.Add(typeName)
@@ -479,7 +479,7 @@ func (m *GoDefModifier) genCommonFunc() []*j.Statement {
 			g.Add(j.For(j.List(j.Id("_"), j.Id("subStep")).Op(":=").Range().Id(m.defFuncReceiver).Dot("Base").Dot("SubSteps")).Block(
 				j.Id("_subSteps").Op("=").Append(j.Id("_subSteps"), j.Id("subStep").Dot("Build").Call()),
 			))
-			g.Add(j.Id("subSteps").Op(":=").Make(j.Index().Qual("github.com/kubevela/workflow/api/v1alpha1", "WorkflowStepBase"), j.Lit(0)))
+			g.Add(j.Id("subSteps").Op(":=").Make(j.Index().Qual("github.com/kubevela/pkg/apis/oam/v1alpha1", "WorkflowStepBase"), j.Lit(0)))
 			g.Add(j.For(j.List(j.Id("_"), j.Id("_s").Op(":=").Range().Id("_subSteps"))).Block(
 				j.Id("subSteps").Op("=").Append(j.Id("subSteps"), j.Id("_s").Dot("WorkflowStepBase")),
 			))
@@ -533,7 +533,7 @@ func (m *GoDefModifier) genFromFunc() []*j.Statement {
 		params := DefinitionKindToStatement[kind]
 		if sub {
 			funcName = "FromWorkflowSubStep"
-			params = j.Qual("github.com/kubevela/workflow/api/v1alpha1", "WorkflowStepBase")
+			params = j.Qual("github.com/kubevela/pkg/apis/oam/v1alpha1", "WorkflowStepBase")
 		}
 		return j.Func().
 			Params(j.Id(m.defFuncReceiver).Add(m.defStructPointer)).
@@ -581,7 +581,7 @@ func (m *GoDefModifier) genFromFunc() []*j.Statement {
 			j.Return(j.Id(m.defFuncReceiver).Dot("From"+DefinitionKindToPascal[kind]).Call(j.Id("from"))),
 		)
 	fromSubFunc := j.Func().Id("FromWorkflowSubStep").
-		Params(j.Id("from").Qual("github.com/kubevela/workflow/api/v1alpha1", "WorkflowStepBase")).Params(j.Qual("apis", DefinitionKindToPascal[kind]), j.Error()).
+		Params(j.Id("from").Qual("github.com/kubevela/pkg/apis/oam/v1alpha1", "WorkflowStepBase")).Params(j.Qual("apis", DefinitionKindToPascal[kind]), j.Error()).
 		Block(
 			j.Id(m.defFuncReceiver).Op(":=").Op("&").Id(m.defStructName).Values(j.Dict{}),
 			j.Return(j.Id(m.defFuncReceiver).Dot("FromWorkflowSubStep").Call(j.Id("from"))),
@@ -677,8 +677,8 @@ func (m *GoDefModifier) genBaseSetterFunc() []*j.Statement {
 	}{
 		v1beta1.ComponentDefinitionKind: {
 			{funcName: "DependsOn", argName: "dependsOn", argType: j.Index().String()},
-			{funcName: "Inputs", argName: "input", argType: j.Qual("github.com/kubevela/workflow/api/v1alpha1", "StepInputs")},
-			{funcName: "Outputs", argName: "output", argType: j.Qual("github.com/kubevela/workflow/api/v1alpha1", "StepOutputs")},
+			{funcName: "Inputs", argName: "input", argType: j.Qual("github.com/kubevela/pkg/apis/oam/v1alpha1", "StepInputs")},
+			{funcName: "Outputs", argName: "output", argType: j.Qual("github.com/kubevela/pkg/apis/oam/v1alpha1", "StepOutputs")},
 			{funcName: "AddDependsOn", argName: "dependsOn", argType: j.String(), isAppend: true, dst: j.Dot("DependsOn")},
 		},
 		v1beta1.WorkflowStepDefinitionKind: {
@@ -686,8 +686,8 @@ func (m *GoDefModifier) genBaseSetterFunc() []*j.Statement {
 			{funcName: "Alias", argName: "alias", argType: j.String(), dst: j.Dot("Meta").Dot("Alias")},
 			{funcName: "Timeout", argName: "timeout", argType: j.String()},
 			{funcName: "DependsOn", argName: "dependsOn", argType: j.Index().String()},
-			{funcName: "Inputs", argName: "input", argType: j.Qual("github.com/kubevela/workflow/api/v1alpha1", "StepInputs")},
-			{funcName: "Outputs", argName: "output", argType: j.Qual("github.com/kubevela/workflow/api/v1alpha1", "StepOutputs")},
+			{funcName: "Inputs", argName: "input", argType: j.Qual("github.com/kubevela/pkg/apis/oam/v1alpha1", "StepInputs")},
+			{funcName: "Outputs", argName: "output", argType: j.Qual("github.com/kubevela/pkg/apis/oam/v1alpha1", "StepOutputs")},
 		},
 	}
 	baseFuncs := make([]*j.Statement, 0)

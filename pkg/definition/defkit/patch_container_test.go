@@ -17,6 +17,8 @@ limitations under the License.
 package defkit_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -24,6 +26,359 @@ import (
 )
 
 var _ = Describe("PatchContainer", func() {
+
+	Context("PatchFieldBuilder", func() {
+		It("should set ParamName and default TargetField to the same name", func() {
+			f := defkit.PatchField("exec").Build()
+			Expect(f.ParamName).To(Equal("exec"))
+			Expect(f.TargetField).To(Equal("exec"))
+			Expect(f.Condition).To(BeEmpty())
+			Expect(f.ParamType).To(BeEmpty())
+			Expect(f.ParamDefault).To(BeEmpty())
+			Expect(f.PatchStrategy).To(BeEmpty())
+			Expect(f.Description).To(BeEmpty())
+		})
+
+		It("should override TargetField with Target()", func() {
+			f := defkit.PatchField("addCapabilities").Target("add").Build()
+			Expect(f.ParamName).To(Equal("addCapabilities"))
+			Expect(f.TargetField).To(Equal("add"))
+		})
+
+		It("should set Condition via IsSet()", func() {
+			f := defkit.PatchField("exec").IsSet().Build()
+			Expect(f.Condition).To(Equal("!= _|_"))
+		})
+
+		It("should set ParamDefault via Default()", func() {
+			f := defkit.PatchField("initialDelaySeconds").Default("0").Build()
+			Expect(f.ParamDefault).To(Equal("0"))
+		})
+
+		It("should set ParamType via Int(), Bool(), Str(), StringArray()", func() {
+			Expect(defkit.PatchField("x").Int().Build().ParamType).To(Equal("int"))
+			Expect(defkit.PatchField("x").Bool().Build().ParamType).To(Equal("bool"))
+			Expect(defkit.PatchField("x").Str().Build().ParamType).To(Equal("string"))
+			Expect(defkit.PatchField("x").StringArray().Build().ParamType).To(Equal("[...string]"))
+		})
+
+		It("should set PatchStrategy via Strategy()", func() {
+			f := defkit.PatchField("image").Strategy("retainKeys").Build()
+			Expect(f.PatchStrategy).To(Equal("retainKeys"))
+		})
+
+		It("should set Condition via NotEmpty()", func() {
+			f := defkit.PatchField("imagePullPolicy").NotEmpty().Build()
+			Expect(f.Condition).To(Equal(`!= ""`))
+		})
+
+		It("should set Condition via comparison methods", func() {
+			Expect(defkit.PatchField("x").Gt("0").Build().Condition).To(Equal("> 0"))
+			Expect(defkit.PatchField("x").Gte("1").Build().Condition).To(Equal(">= 1"))
+			Expect(defkit.PatchField("x").Lt("100").Build().Condition).To(Equal("< 100"))
+			Expect(defkit.PatchField("x").Lte("99").Build().Condition).To(Equal("<= 99"))
+			Expect(defkit.PatchField("x").Eq("42").Build().Condition).To(Equal("== 42"))
+			Expect(defkit.PatchField("x").Ne("0").Build().Condition).To(Equal("!= 0"))
+		})
+
+		It("should set Condition via RawCondition escape hatch", func() {
+			f := defkit.PatchField("x").RawCondition(`!= "custom"`).Build()
+			Expect(f.Condition).To(Equal(`!= "custom"`))
+		})
+
+		It("should set Description via Description()", func() {
+			f := defkit.PatchField("image").Description("Specify the image").Build()
+			Expect(f.Description).To(Equal("Specify the image"))
+		})
+
+		It("should chain all methods together", func() {
+			f := defkit.PatchField("initialDelaySeconds").
+				Int().
+				IsSet().
+				Default("0").
+				Description("Seconds before probe starts").
+				Build()
+			Expect(f.ParamName).To(Equal("initialDelaySeconds"))
+			Expect(f.TargetField).To(Equal("initialDelaySeconds"))
+			Expect(f.ParamType).To(Equal("int"))
+			Expect(f.Condition).To(Equal("!= _|_"))
+			Expect(f.ParamDefault).To(Equal("0"))
+			Expect(f.Description).To(Equal("Seconds before probe starts"))
+		})
+
+		It("should produce struct equivalent to manual construction", func() {
+			builder := defkit.PatchField("addCapabilities").
+				Target("add").
+				StringArray().
+				IsSet().
+				Description("Specify the addCapabilities of the container").
+				Build()
+
+			manual := defkit.PatchContainerField{
+				ParamName:   "addCapabilities",
+				TargetField: "add",
+				ParamType:   "[...string]",
+				Condition:   "!= _|_",
+				Description: "Specify the addCapabilities of the container",
+			}
+
+			Expect(builder).To(Equal(manual))
+		})
+
+		It("PatchFields should batch-build without .Build()", func() {
+			fields := defkit.PatchFields(
+				defkit.PatchField("exec").IsSet(),
+				defkit.PatchField("delay").Int().IsSet().Default("0"),
+			)
+			Expect(fields).To(HaveLen(2))
+			Expect(fields[0].ParamName).To(Equal("exec"))
+			Expect(fields[0].Condition).To(Equal("!= _|_"))
+			Expect(fields[1].ParamName).To(Equal("delay"))
+			Expect(fields[1].ParamType).To(Equal("int"))
+			Expect(fields[1].ParamDefault).To(Equal("0"))
+		})
+
+		It("PatchFields should return empty slice for zero builders", func() {
+			fields := defkit.PatchFields()
+			Expect(fields).To(HaveLen(0))
+			Expect(fields).NotTo(BeNil())
+		})
+
+		It("should set ParamType via Type() for custom CUE types", func() {
+			f := defkit.PatchField("metadata").Type("{...}").Build()
+			Expect(f.ParamType).To(Equal("{...}"))
+		})
+
+		It("last condition method call should win", func() {
+			f := defkit.PatchField("x").IsSet().NotEmpty().Build()
+			Expect(f.Condition).To(Equal(`!= ""`))
+
+			f2 := defkit.PatchField("x").NotEmpty().IsSet().Build()
+			Expect(f2.Condition).To(Equal("!= _|_"))
+		})
+	})
+
+	Context("CUE generation with PatchFieldBuilder", func() {
+		It("should produce identical CUE from builder and manual struct construction", func() {
+			// Build the same trait using builder API
+			builderTrait := defkit.NewTrait("builder-cue-test").
+				Description("Test builder produces same CUE as manual").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						Groups: []defkit.PatchContainerGroup{
+							{
+								TargetField: "securityContext",
+								Fields: defkit.PatchFields(
+									defkit.PatchField("privileged").Bool().Default("false"),
+									defkit.PatchField("runAsUser").Int().IsSet(),
+								),
+								SubGroups: []defkit.PatchContainerGroup{
+									{
+										TargetField: "capabilities",
+										Fields: defkit.PatchFields(
+											defkit.PatchField("addCapabilities").Target("add").StringArray().IsSet(),
+										),
+									},
+								},
+							},
+						},
+					})
+				})
+
+			// Build the same trait using manual struct construction
+			manualTrait := defkit.NewTrait("builder-cue-test").
+				Description("Test builder produces same CUE as manual").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						Groups: []defkit.PatchContainerGroup{
+							{
+								TargetField: "securityContext",
+								Fields: []defkit.PatchContainerField{
+									{ParamName: "privileged", TargetField: "privileged", ParamType: "bool", ParamDefault: "false"},
+									{ParamName: "runAsUser", TargetField: "runAsUser", ParamType: "int", Condition: "!= _|_"},
+								},
+								SubGroups: []defkit.PatchContainerGroup{
+									{
+										TargetField: "capabilities",
+										Fields: []defkit.PatchContainerField{
+											{ParamName: "addCapabilities", TargetField: "add", ParamType: "[...string]", Condition: "!= _|_"},
+										},
+									},
+								},
+							},
+						},
+					})
+				})
+
+			Expect(builderTrait.ToCue()).To(Equal(manualTrait.ToCue()))
+		})
+
+		It("should generate correct CUE for PatchFields with Strategy and NotEmpty", func() {
+			trait := defkit.NewTrait("builder-strategy-test").
+				Description("Test Strategy and NotEmpty via builder").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						PatchFields: defkit.PatchFields(
+							defkit.PatchField("image").Strategy("retainKeys"),
+							defkit.PatchField("imagePullPolicy").Strategy("retainKeys").NotEmpty(),
+						),
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Strategy should produce patchStrategy comments
+			Expect(cue).To(ContainSubstring(`// +patchStrategy=retainKeys`))
+			// NotEmpty() should produce conditional block in PatchContainer body
+			Expect(cue).To(ContainSubstring(`if _params.imagePullPolicy != ""`))
+			// Unconditional field should be assigned directly
+			Expect(cue).To(ContainSubstring(`image: _params.image`))
+		})
+
+		It("should generate correct CUE for IsSet fields in groups", func() {
+			trait := defkit.NewTrait("builder-isset-group-test").
+				Description("Test IsSet in groups via builder").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						Groups: []defkit.PatchContainerGroup{
+							{
+								TargetField: "startupProbe",
+								Fields: defkit.PatchFields(
+									defkit.PatchField("exec").Str().IsSet(),
+									defkit.PatchField("initialDelaySeconds").Int().IsSet().Default("0"),
+									defkit.PatchField("terminationGracePeriodSeconds").Int().IsSet(),
+								),
+							},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Str().IsSet() → optional string param and conditional in PatchContainer body
+			Expect(cue).To(ContainSubstring(`exec?: string`))
+			Expect(cue).To(ContainSubstring(`if _params.exec != _|_`))
+
+			// Int().IsSet() → optional int in param schema and conditional in body
+			Expect(cue).To(ContainSubstring(`terminationGracePeriodSeconds?: int`))
+			Expect(cue).To(ContainSubstring(`if _params.terminationGracePeriodSeconds != _|_`))
+
+			// Int().IsSet().Default("0") → default in param schema but still conditional in body
+			Expect(cue).To(ContainSubstring(`initialDelaySeconds: *0 | int`))
+			Expect(cue).To(ContainSubstring(`if _params.initialDelaySeconds != _|_`))
+
+			// startupProbe group wrapper
+			Expect(cue).To(ContainSubstring(`startupProbe: {`))
+		})
+
+		It("should generate correct CUE for Default without IsSet (unconditional)", func() {
+			trait := defkit.NewTrait("builder-default-only-test").
+				Description("Test Default without IsSet via builder").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						Groups: []defkit.PatchContainerGroup{
+							{
+								TargetField: "securityContext",
+								Fields: defkit.PatchFields(
+									defkit.PatchField("privileged").Bool().Default("false"),
+									defkit.PatchField("runAsUser").Int().IsSet(),
+								),
+							},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Bool().Default("false") → default in param, unconditional in PatchContainer body
+			Expect(cue).To(ContainSubstring(`privileged: *false | bool`))
+			Expect(cue).To(ContainSubstring(`privileged: _params.privileged`))
+			Expect(cue).NotTo(ContainSubstring(`if _params.privileged`))
+
+			// Int().IsSet() → optional param, conditional in PatchContainer body
+			Expect(cue).To(ContainSubstring(`runAsUser?: int`))
+			Expect(cue).To(ContainSubstring(`if _params.runAsUser != _|_`))
+		})
+
+		It("should generate correct CUE for Target remapping in subgroups", func() {
+			trait := defkit.NewTrait("builder-target-test").
+				Description("Test Target remapping via builder").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						Groups: []defkit.PatchContainerGroup{
+							{
+								TargetField: "securityContext",
+								Fields: defkit.PatchFields(
+									defkit.PatchField("privileged").Bool().Default("false"),
+								),
+								SubGroups: []defkit.PatchContainerGroup{
+									{
+										TargetField: "capabilities",
+										Fields: defkit.PatchFields(
+											defkit.PatchField("addCapabilities").Target("add").StringArray().IsSet(),
+											defkit.PatchField("dropCapabilities").Target("drop").StringArray().IsSet(),
+										),
+									},
+								},
+							},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Target("add") remaps param name to different container field
+			Expect(cue).To(ContainSubstring(`addCapabilities?: [...string]`))
+			Expect(cue).To(ContainSubstring(`add: _params.addCapabilities`))
+
+			// Target("drop") remaps param name to different container field
+			Expect(cue).To(ContainSubstring(`dropCapabilities?: [...string]`))
+			Expect(cue).To(ContainSubstring(`drop: _params.dropCapabilities`))
+
+			// Nested group structure
+			Expect(cue).To(ContainSubstring(`securityContext: {`))
+			Expect(cue).To(ContainSubstring(`capabilities: {`))
+		})
+
+		It("should generate correct CUE for Description on builder fields", func() {
+			trait := defkit.NewTrait("builder-desc-test").
+				Description("Test Description via builder").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						PatchFields: defkit.PatchFields(
+							defkit.PatchField("image").Strategy("retainKeys").Description("Specify the image of the container"),
+							defkit.PatchField("imagePullPolicy").Strategy("retainKeys").NotEmpty().Description("Specify the image pull policy"),
+						),
+					})
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("// +usage=Specify the image of the container"))
+			Expect(cue).To(ContainSubstring("// +usage=Specify the image pull policy"))
+		})
+	})
 
 	Context("Trait with PatchContainer CUE Generation", func() {
 		It("should generate complete PatchContainer trait CUE structure", func() {
@@ -90,10 +445,186 @@ var _ = Describe("PatchContainer", func() {
 			// Verify error collection
 			Expect(cue).To(ContainSubstring(`errs: [for c in patch.spec.template.spec.containers if c.err != _|_ {c.err}]`))
 
-			// Verify parameter block with optional fields
-			Expect(cue).To(ContainSubstring(`parameter: {`))
-			Expect(cue).To(ContainSubstring(`command?: [...string]`))
-			Expect(cue).To(ContainSubstring(`args?: [...string]`))
+			// Verify parameter block comes from PatchContainer (no duplicate from regular params)
+			Expect(cue).To(ContainSubstring(`parameter: #PatchParams`))
+			// The extra parameter: {} from regular params should NOT appear
+			Expect(strings.Count(cue, "parameter:")).To(Equal(1))
+		})
+
+		It("should use optional field syntax for non-string conditions like != _|_", func() {
+			trait := defkit.NewTrait("optional-field-test").
+				Description("Test optional fields for non-string conditions").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						Groups: []defkit.PatchContainerGroup{
+							{
+								TargetField: "securityContext",
+								Fields: []defkit.PatchContainerField{
+									{ParamName: "privileged", TargetField: "privileged", ParamType: "bool", ParamDefault: "false"},
+									{ParamName: "runAsUser", TargetField: "runAsUser", ParamType: "int", Condition: "!= _|_"},
+									{ParamName: "runAsGroup", TargetField: "runAsGroup", ParamType: "int", Condition: "!= _|_"},
+								},
+								SubGroups: []defkit.PatchContainerGroup{
+									{
+										TargetField: "capabilities",
+										Fields: []defkit.PatchContainerField{
+											{ParamName: "addCapabilities", TargetField: "add", ParamType: "[...string]", Condition: "!= _|_"},
+											{ParamName: "dropCapabilities", TargetField: "drop", ParamType: "[...string]", Condition: "!= _|_"},
+										},
+									},
+								},
+							},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Fields with != _|_ condition should use optional syntax (field?: type), not *null | type
+			Expect(cue).To(ContainSubstring(`runAsUser?: int`))
+			Expect(cue).To(ContainSubstring(`runAsGroup?: int`))
+			Expect(cue).To(ContainSubstring(`addCapabilities?: [...string]`))
+			Expect(cue).To(ContainSubstring(`dropCapabilities?: [...string]`))
+
+			// Must NOT have *null | type for these fields
+			Expect(cue).NotTo(ContainSubstring(`runAsUser: *null | int`))
+			Expect(cue).NotTo(ContainSubstring(`runAsGroup: *null | int`))
+			Expect(cue).NotTo(ContainSubstring(`addCapabilities: *null | [...string]`))
+			Expect(cue).NotTo(ContainSubstring(`dropCapabilities: *null | [...string]`))
+
+			// Fields with explicit defaults should still use default syntax
+			Expect(cue).To(ContainSubstring(`privileged: *false | bool`))
+
+			// The PatchContainer body should still have conditional blocks for these fields
+			Expect(cue).To(ContainSubstring(`if _params.runAsUser != _|_`))
+			Expect(cue).To(ContainSubstring(`if _params.runAsGroup != _|_`))
+			Expect(cue).To(ContainSubstring(`if _params.addCapabilities != _|_`))
+			Expect(cue).To(ContainSubstring(`if _params.dropCapabilities != _|_`))
+		})
+
+		It("should use *empty-string default for string-equality conditions", func() {
+			trait := defkit.NewTrait("image-test").
+				Description("Test string-equality condition default").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						PatchFields: []defkit.PatchContainerField{
+							{ParamName: "image", TargetField: "image", PatchStrategy: "retainKeys"},
+							{ParamName: "imagePullPolicy", TargetField: "imagePullPolicy", PatchStrategy: "retainKeys", Condition: `!= ""`},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// String-equality condition should default to empty string, not null
+			Expect(cue).To(ContainSubstring(`imagePullPolicy: *"" |`))
+			Expect(cue).NotTo(ContainSubstring(`imagePullPolicy: *null |`))
+		})
+
+		It("should map params unconditionally in single-container _params block", func() {
+			trait := defkit.NewTrait("unconditional-test").
+				Description("Test unconditional param mapping").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						AllowMultiple:        true,
+						ContainersParam:      "containers",
+						PatchFields: []defkit.PatchContainerField{
+							{ParamName: "image", TargetField: "image"},
+							{ParamName: "imagePullPolicy", TargetField: "imagePullPolicy", Condition: `!= ""`},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// In the single-container _params block, all fields should be mapped unconditionally
+			Expect(cue).To(ContainSubstring("image:           parameter.image"))
+			Expect(cue).To(ContainSubstring("imagePullPolicy: parameter.imagePullPolicy"))
+			// The conditional should NOT wrap the param mapping in the _params block
+			Expect(cue).NotTo(MatchRegexp(`if parameter\.imagePullPolicy != ""[^}]*\n[^}]*imagePullPolicy: parameter\.imagePullPolicy`))
+			// But the PatchContainer body should still have the condition
+			Expect(cue).To(ContainSubstring(`if _params.imagePullPolicy != ""`))
+		})
+
+		It("should emit *#PatchParams with star default marker in multi-container parameter block", func() {
+			trait := defkit.NewTrait("star-test").
+				Description("Test star in parameter").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						AllowMultiple:        true,
+						ContainersParam:      "containers",
+						PatchFields: []defkit.PatchContainerField{
+							{ParamName: "image", TargetField: "image"},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Should be *#PatchParams with star (marks single-container as default branch)
+			Expect(cue).To(ContainSubstring("parameter: *#PatchParams | close({"))
+		})
+
+		It("should use custom Description and ContainersDescription", func() {
+			trait := defkit.NewTrait("desc-test").
+				Description("Test custom descriptions").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:    "containerName",
+						DefaultToContextName:  true,
+						AllowMultiple:         true,
+						ContainersParam:       "containers",
+						ContainersDescription: "Specify the container image for multiple containers",
+						PatchFields: []defkit.PatchContainerField{
+							{ParamName: "image", TargetField: "image", Description: "Specify the image of the container"},
+							{ParamName: "imagePullPolicy", TargetField: "imagePullPolicy", Condition: `!= ""`, Description: "Specify the image pull policy of the container"},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Custom field descriptions
+			Expect(cue).To(ContainSubstring("// +usage=Specify the image of the container"))
+			Expect(cue).To(ContainSubstring("// +usage=Specify the image pull policy of the container"))
+			// Custom containers description
+			Expect(cue).To(ContainSubstring("// +usage=Specify the container image for multiple containers"))
+		})
+
+		It("should not emit duplicate parameter: {} when using PatchContainer", func() {
+			trait := defkit.NewTrait("no-dup-param-test").
+				Description("Test no duplicate parameter block").
+				AppliesTo("deployments.apps").
+				Params(defkit.String("image").Required()).
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						PatchFields: []defkit.PatchContainerField{
+							{ParamName: "image", TargetField: "image"},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Only one parameter: line should appear (from PatchContainer)
+			Expect(strings.Count(cue, "parameter:")).To(Equal(1))
+			// Should not have parameter: {}
+			Expect(cue).NotTo(ContainSubstring("parameter: {}"))
 		})
 	})
 

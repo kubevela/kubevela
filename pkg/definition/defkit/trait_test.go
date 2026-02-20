@@ -17,6 +17,8 @@ limitations under the License.
 package defkit_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -185,8 +187,8 @@ parameter: #PatchParams
 			Expect(cue).To(ContainSubstring(`scaler: {`))
 			Expect(cue).To(ContainSubstring(`type: "trait"`))
 			Expect(cue).To(ContainSubstring(`description: "Scale workloads"`))
-			Expect(cue).To(ContainSubstring(`attributes: {`))
-			Expect(cue).To(ContainSubstring(`podDisruptive: false`))
+			// podDisruptive: false is not emitted (it's the default)
+			Expect(cue).NotTo(ContainSubstring(`podDisruptive: false`))
 			Expect(cue).To(ContainSubstring(`appliesToWorkloads: ["deployments.apps"]`))
 		})
 
@@ -554,6 +556,823 @@ template: {
 			cue := trait.ToCue()
 
 			Expect(cue).To(ContainSubstring("patch:"))
+		})
+
+		It("should generate Optional field guards in Map comprehension", func() {
+			items := defkit.Array("items").WithFields(
+				defkit.String("name").Required(),
+				defkit.String("label"),
+				defkit.Int("priority"),
+			)
+			trait := defkit.NewTrait("optional-test").
+				Description("Test optional fields").
+				AppliesTo("deployments.apps").
+				Params(items).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						SetIf(items.IsSet(), "spec.template.spec.items",
+							defkit.From(items).Map(defkit.FieldMap{
+								"name":     defkit.F("name"),
+								"label":    defkit.Optional("label"),
+								"priority": defkit.Optional("priority"),
+							}))
+				})
+
+			cue := trait.ToCue()
+
+			// Required field should use direct access
+			Expect(cue).To(ContainSubstring("name: v.name"))
+			// Optional fields should have if guards
+			Expect(cue).To(ContainSubstring("if v.label != _|_"))
+			Expect(cue).To(ContainSubstring("label: v.label"))
+			Expect(cue).To(ContainSubstring("if v.priority != _|_"))
+			Expect(cue).To(ContainSubstring("priority: v.priority"))
+			// Should NOT contain top-level underscore for optional fields
+			Expect(cue).NotTo(ContainSubstring("label: _"))
+			Expect(cue).NotTo(ContainSubstring("priority: _"))
+		})
+
+		It("should generate If/EndIf with SetIf using sub-field conditions", func() {
+			parent := defkit.Map("parent").WithFields(
+				defkit.Array("required").WithFields(
+					defkit.String("key").Required(),
+				),
+				defkit.Array("preferred").WithFields(
+					defkit.Int("weight").Required(),
+				),
+			)
+			trait := defkit.NewTrait("if-subfield-test").
+				Description("Test If/EndIf with sub-field conditions").
+				AppliesTo("deployments.apps").
+				Params(parent).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						If(parent.IsSet()).
+						SetIf(parent.Field("required").IsSet(),
+							"spec.requiredItems",
+							defkit.From(defkit.ParamPath("parent.required")).Map(defkit.FieldMap{
+								"key": defkit.F("key"),
+							})).
+						SetIf(parent.Field("preferred").IsSet(),
+							"spec.preferredItems",
+							defkit.From(defkit.ParamPath("parent.preferred")).Map(defkit.FieldMap{
+								"weight": defkit.F("weight"),
+							})).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// Both conditions should appear (AND-combined by the field tree)
+			Expect(cue).To(ContainSubstring(`parameter["parent"] != _|_`))
+			Expect(cue).To(ContainSubstring("parameter.parent.required != _|_"))
+			Expect(cue).To(ContainSubstring("parameter.parent.preferred != _|_"))
+			// Verify the For comprehension sources
+			Expect(cue).To(ContainSubstring("for v in parameter.parent.required"))
+			Expect(cue).To(ContainSubstring("for v in parameter.parent.preferred"))
+			Expect(cue).To(ContainSubstring("key: v.key"))
+			Expect(cue).To(ContainSubstring("weight: v.weight"))
+		})
+	})
+
+	Context("Let Bindings with ForEachMap", func() {
+		It("should generate let binding with ForEachMap and LetVariable references", func() {
+			trait := defkit.NewTrait("let-foreach-test").
+				Description("Test let binding with ForEachMap").
+				AppliesTo("*").
+				PodDisruptive(true).
+				Param(defkit.DynamicMap().ValueTypeUnion("string | null")).
+				Template(func(tpl *defkit.Template) {
+					tpl.PatchStrategy("jsonMergePatch")
+					tpl.AddLetBinding("content", defkit.ForEachMap())
+					tpl.Patch().
+						Set("metadata.annotations", defkit.LetVariable("content"))
+					tpl.Patch().
+						If(defkit.And(
+							defkit.ContextOutput().HasPath("spec"),
+							defkit.ContextOutput().HasPath("spec.template"),
+						)).
+						Set("spec.template.metadata.annotations", defkit.LetVariable("content")).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// Let binding should appear before the patch block
+			Expect(cue).To(ContainSubstring("let content ="))
+			// ForEachMap should render as a struct comprehension
+			Expect(cue).To(ContainSubstring("for k, v in parameter"))
+			Expect(cue).To(ContainSubstring("(k): v"))
+			// Let variable references should appear in the patch
+			Expect(cue).To(ContainSubstring("metadata: annotations: content"))
+			// Conditional block should reference the let variable
+			Expect(cue).To(ContainSubstring("annotations: content"))
+			Expect(cue).To(ContainSubstring("context.output.spec != _|_"))
+			Expect(cue).To(ContainSubstring("context.output.spec.template != _|_"))
+			// The for-each comprehension should NOT be inlined at each usage site
+			// It should only appear once in the let binding
+			Expect(strings.Count(cue, "for k, v in parameter")).To(Equal(1))
+			// Patch strategy should be present
+			Expect(cue).To(ContainSubstring("// +patchStrategy=jsonMergePatch"))
+		})
+
+		It("should render ForEachMap with custom source and vars via valueToCUE", func() {
+			trait := defkit.NewTrait("custom-foreach-test").
+				Description("Test custom ForEachMap rendering").
+				AppliesTo("deployments.apps").
+				Param(defkit.DynamicMap().ValueTypeUnion("string | null")).
+				Template(func(tpl *defkit.Template) {
+					tpl.AddLetBinding("labelContent",
+						defkit.ForEachMap().Over("parameter.labels").WithVars("key", "val"))
+					tpl.Patch().
+						Set("metadata.labels", defkit.LetVariable("labelContent"))
+				})
+
+			cue := trait.ToCue()
+
+			// Custom variable names and source
+			Expect(cue).To(ContainSubstring("let labelContent ="))
+			Expect(cue).To(ContainSubstring("for key, val in parameter.labels"))
+			Expect(cue).To(ContainSubstring("(key): val"))
+			Expect(cue).To(ContainSubstring("metadata: labels: labelContent"))
+		})
+	})
+
+	Context("PatchKey with ArrayParam (no array wrapping)", func() {
+		It("should emit direct assignment when single element is an ArrayParam", func() {
+			items := defkit.Array("items").WithFields(
+				defkit.String("name").Required(),
+				defkit.String("value").Required(),
+			).Required()
+
+			trait := defkit.NewTrait("patchkey-array-test").
+				Description("Test PatchKey with ArrayParam").
+				AppliesTo("deployments.apps").
+				Params(items).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						PatchKey("spec.template.spec.items", "name", items)
+				})
+
+			cue := trait.ToCue()
+
+			// Should emit patchKey annotation
+			Expect(cue).To(ContainSubstring("// +patchKey=name"))
+			// Should assign parameter directly, NOT wrapped in [...]
+			Expect(cue).To(ContainSubstring("items: parameter.items"))
+			// Should NOT have array wrapping around the parameter
+			Expect(cue).NotTo(ContainSubstring("[parameter.items]"))
+		})
+
+		It("should still wrap individual ArrayElements in array brackets", func() {
+			elem := defkit.NewArrayElement().
+				Set("name", defkit.Lit("test")).
+				Set("value", defkit.Lit("foo"))
+
+			trait := defkit.NewTrait("patchkey-elem-test").
+				Description("Test PatchKey with ArrayElement").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						PatchKey("spec.items", "name", elem)
+				})
+
+			cue := trait.ToCue()
+
+			// ArrayElement should still be wrapped in [...]
+			Expect(cue).To(ContainSubstring("// +patchKey=name"))
+			Expect(cue).To(ContainSubstring("items: [{"))
+		})
+	})
+
+	Context("IsSet bracket notation for optional field checks", func() {
+		It("should generate bracket notation for IsSet conditions", func() {
+			optParam := defkit.Array("env").Of(defkit.ParamTypeString).Optional()
+
+			trait := defkit.NewTrait("isset-bracket-test").
+				Description("Test bracket notation for IsSet").
+				AppliesTo("deployments.apps").
+				Params(optParam).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						SetIf(optParam.IsSet(), "spec.env", optParam)
+				})
+
+			cue := trait.ToCue()
+
+			// Should use bracket notation: parameter["env"] != _|_
+			Expect(cue).To(ContainSubstring(`parameter["env"] != _|_`))
+			// Should NOT use dot notation for the condition
+			Expect(cue).NotTo(ContainSubstring("parameter.env != _|_"))
+		})
+
+		It("should generate bracket notation for NotSet (negated IsSet) conditions", func() {
+			optParam := defkit.String("debug").Optional()
+
+			trait := defkit.NewTrait("notset-bracket-test").
+				Description("Test bracket notation for NotSet").
+				AppliesTo("deployments.apps").
+				Params(optParam).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						SetIf(optParam.NotSet(), "spec.debug", defkit.Lit(false))
+				})
+
+			cue := trait.ToCue()
+
+			// Should use bracket notation: parameter["debug"] == _|_
+			Expect(cue).To(ContainSubstring(`parameter["debug"] == _|_`))
+			// Should NOT use dot notation
+			Expect(cue).NotTo(ContainSubstring("parameter.debug == _|_"))
+		})
+
+		It("should use bracket notation in compound conditions", func() {
+			cpu := defkit.String("cpu").Optional()
+			memory := defkit.String("memory").Optional()
+
+			trait := defkit.NewTrait("compound-bracket-test").
+				Description("Test bracket notation in compound conditions").
+				AppliesTo("deployments.apps").
+				Params(cpu, memory).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						SetIf(defkit.And(cpu.IsSet(), memory.IsSet()),
+							"spec.resources", defkit.Lit("configured"))
+				})
+
+			cue := trait.ToCue()
+
+			// Both parts of the compound condition should use bracket notation
+			Expect(cue).To(ContainSubstring(`parameter["cpu"] != _|_`))
+			Expect(cue).To(ContainSubstring(`parameter["memory"] != _|_`))
+		})
+	})
+
+	Context("PatchStrategyAnnotation", func() {
+		It("should record PatchStrategyAnnotation ops on PatchResource", func() {
+			p := defkit.NewPatchResource()
+			p.PatchStrategyAnnotation("spec.strategy", "retainKeys")
+
+			ops := p.Ops()
+			Expect(ops).To(HaveLen(1))
+			ann, ok := ops[0].(*defkit.PatchStrategyAnnotationOp)
+			Expect(ok).To(BeTrue())
+			Expect(ann.Path()).To(Equal("spec.strategy"))
+			Expect(ann.Strategy()).To(Equal("retainKeys"))
+		})
+
+		It("should record PatchStrategyAnnotation inside If block", func() {
+			p := defkit.NewPatchResource()
+			cond := defkit.Eq(defkit.ParameterField("kind"), defkit.Lit("Deployment"))
+			p.If(cond).
+				PatchStrategyAnnotation("spec.strategy", "retainKeys").
+				Set("spec.strategy.type", defkit.ParameterField("strategyType")).
+				EndIf()
+
+			ops := p.Ops()
+			Expect(ops).To(HaveLen(1))
+			ifBlock, ok := ops[0].(*defkit.IfBlock)
+			Expect(ok).To(BeTrue())
+			Expect(ifBlock.Ops()).To(HaveLen(2)) // PatchStrategyAnnotation + Set
+		})
+
+		It("should emit patchStrategy annotation in CUE output for unconditional field", func() {
+			strategy := defkit.Struct("strategy").Required().Fields(
+				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate"),
+			)
+
+			trait := defkit.NewTrait("annotation-test").
+				Description("Test patchStrategy annotation").
+				AppliesTo("deployments.apps").
+				Params(strategy).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						PatchStrategyAnnotation("spec.strategy", "retainKeys").
+						Set("spec.strategy.type", defkit.ParameterField("strategy.type"))
+				})
+
+			cue := trait.ToCue()
+
+			// Should contain the annotation comment
+			Expect(cue).To(ContainSubstring("// +patchStrategy=retainKeys"))
+			// Annotation should appear before the field
+			Expect(cue).To(ContainSubstring("strategy: type: parameter.strategy.type"))
+		})
+
+		It("should emit patchStrategy annotation inside conditional block", func() {
+			kind := defkit.String("kind").Default("Deployment").Enum("Deployment", "StatefulSet")
+			strategy := defkit.Struct("strategy").Required().Fields(
+				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate"),
+			)
+
+			trait := defkit.NewTrait("cond-annotation-test").
+				Description("Test patchStrategy in conditional block").
+				AppliesTo("deployments.apps").
+				Params(kind, strategy).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						If(defkit.Eq(kind, defkit.Lit("Deployment"))).
+						PatchStrategyAnnotation("spec.strategy", "retainKeys").
+						Set("spec.strategy.type", defkit.ParameterField("strategy.type")).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// Should contain the annotation inside the if block
+			Expect(cue).To(ContainSubstring("// +patchStrategy=retainKeys"))
+			Expect(cue).To(ContainSubstring(`parameter.kind == "Deployment"`))
+		})
+	})
+
+	Context("Condition hoisting", func() {
+		It("should hoist matching conditions from children to parent", func() {
+			enabled := defkit.Bool("enabled")
+			replicas := defkit.Int("replicas")
+			image := defkit.String("image")
+
+			trait := defkit.NewTrait("hoist-test").
+				Description("Test condition hoisting").
+				AppliesTo("deployments.apps").
+				Params(enabled, replicas, image).
+				Template(func(tpl *defkit.Template) {
+					cond := defkit.Eq(enabled, defkit.Lit(true))
+					tpl.Patch().
+						If(cond).
+						Set("spec.replicas", replicas).
+						Set("spec.template.spec.image", image).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// The If condition should appear
+			Expect(cue).To(ContainSubstring(`parameter.enabled == true`))
+			// Both fields should be set inside the condition
+			Expect(cue).To(ContainSubstring("replicas: parameter.replicas"))
+			Expect(cue).To(ContainSubstring("image: parameter.image"))
+		})
+
+		It("should hoist common condition from AND combinations", func() {
+			kind := defkit.String("kind").Default("Deployment")
+			replicas := defkit.Int("replicas")
+			image := defkit.String("image")
+
+			trait := defkit.NewTrait("hoist-and-test").
+				Description("Test AND condition hoisting").
+				AppliesTo("deployments.apps").
+				Params(kind, replicas, image).
+				Template(func(tpl *defkit.Template) {
+					isDeployment := defkit.Eq(kind, defkit.Lit("Deployment"))
+					replicasSet := replicas.IsSet()
+					imageSet := image.IsSet()
+					tpl.Patch().
+						If(isDeployment).
+						SetIf(replicasSet, "spec.replicas", replicas).
+						SetIf(imageSet, "spec.template.spec.image", image).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// The outer condition should appear at the parent level
+			Expect(cue).To(ContainSubstring(`parameter.kind == "Deployment"`))
+			// The inner conditions should remain on the children
+			Expect(cue).To(ContainSubstring(`parameter["replicas"] != _|_`))
+			Expect(cue).To(ContainSubstring(`parameter["image"] != _|_`))
+		})
+	})
+
+	Context("Multiple IfBlocks with overlapping paths", func() {
+		It("should render multiple IfBlocks as separate conditional blocks", func() {
+			kind := defkit.String("kind").Default("Deployment").Enum("Deployment", "StatefulSet", "DaemonSet")
+			strategyType := defkit.String("strategyType").Default("RollingUpdate")
+			maxSurge := defkit.String("maxSurge").Default("25%")
+			partition := defkit.Int("partition").Default(0)
+
+			trait := defkit.NewTrait("multi-ifblock-test").
+				Description("Test multiple IfBlocks").
+				AppliesTo("deployments.apps", "statefulsets.apps", "daemonsets.apps").
+				Params(kind, strategyType, maxSurge, partition).
+				Template(func(tpl *defkit.Template) {
+					isDeployment := defkit.Eq(kind, defkit.Lit("Deployment"))
+					isStatefulSet := defkit.Eq(kind, defkit.Lit("StatefulSet"))
+
+					tpl.Patch().
+						If(isDeployment).
+						PatchStrategyAnnotation("spec.strategy", "retainKeys").
+						Set("spec.strategy.type", strategyType).
+						Set("spec.strategy.rollingUpdate.maxSurge", maxSurge).
+						EndIf().
+						If(isStatefulSet).
+						PatchStrategyAnnotation("spec.updateStrategy", "retainKeys").
+						Set("spec.updateStrategy.type", strategyType).
+						Set("spec.updateStrategy.rollingUpdate.partition", partition).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// Should have two separate if blocks (not merged)
+			Expect(cue).To(ContainSubstring(`parameter.kind == "Deployment"`))
+			Expect(cue).To(ContainSubstring(`parameter.kind == "StatefulSet"`))
+			// Each should have its own patchStrategy annotation
+			Expect(strings.Count(cue, "// +patchStrategy=retainKeys")).To(Equal(2))
+			// Deployment uses "strategy", StatefulSet uses "updateStrategy"
+			Expect(cue).To(ContainSubstring("strategy: {"))
+			Expect(cue).To(ContainSubstring("updateStrategy: {"))
+			// Fields should be present
+			Expect(cue).To(ContainSubstring("maxSurge: parameter.maxSurge"))
+			Expect(cue).To(ContainSubstring("partition: parameter.partition"))
+		})
+
+		It("should produce correct k8s-update-strategy-like pattern", func() {
+			targetKind := defkit.String("targetKind").Default("Deployment").Enum("Deployment", "StatefulSet", "DaemonSet")
+			strategy := defkit.Struct("strategy").Required().Fields(
+				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate").Enum("RollingUpdate", "Recreate", "OnDelete"),
+				defkit.Field("rollingStrategy", defkit.ParamTypeStruct).
+					Nested(defkit.Struct("rollingStrategy").Fields(
+						defkit.Field("maxSurge", defkit.ParamTypeString).Default("25%"),
+						defkit.Field("maxUnavailable", defkit.ParamTypeString).Default("25%"),
+						defkit.Field("partition", defkit.ParamTypeInt).Default(0),
+					)),
+			)
+
+			trait := defkit.NewTrait("k8s-update-strategy-test").
+				Description("Test k8s-update-strategy pattern").
+				AppliesTo("deployments.apps", "statefulsets.apps", "daemonsets.apps").
+				PodDisruptive(false).
+				Params(targetKind, strategy).
+				Template(func(tpl *defkit.Template) {
+					strategyType := defkit.ParameterField("strategy.type")
+					maxSurge := defkit.ParameterField("strategy.rollingStrategy.maxSurge")
+					maxUnavailable := defkit.ParameterField("strategy.rollingStrategy.maxUnavailable")
+					partition := defkit.ParameterField("strategy.rollingStrategy.partition")
+
+					isDeployment := defkit.Eq(defkit.ParameterField("targetKind"), defkit.Lit("Deployment"))
+					isStatefulSet := defkit.Eq(defkit.ParameterField("targetKind"), defkit.Lit("StatefulSet"))
+					isDaemonSet := defkit.Eq(defkit.ParameterField("targetKind"), defkit.Lit("DaemonSet"))
+					isNotOnDelete := defkit.Ne(strategyType, defkit.Lit("OnDelete"))
+					isNotRecreate := defkit.Ne(strategyType, defkit.Lit("Recreate"))
+					isRollingUpdate := defkit.Eq(strategyType, defkit.Lit("RollingUpdate"))
+
+					tpl.Patch().
+						If(defkit.And(isDeployment, isNotOnDelete)).
+						PatchStrategyAnnotation("spec.strategy", "retainKeys").
+						Set("spec.strategy.type", strategyType).
+						SetIf(isRollingUpdate, "spec.strategy.rollingUpdate.maxSurge", maxSurge).
+						SetIf(isRollingUpdate, "spec.strategy.rollingUpdate.maxUnavailable", maxUnavailable).
+						EndIf().
+						If(defkit.And(isStatefulSet, isNotRecreate)).
+						PatchStrategyAnnotation("spec.updateStrategy", "retainKeys").
+						Set("spec.updateStrategy.type", strategyType).
+						SetIf(isRollingUpdate, "spec.updateStrategy.rollingUpdate.partition", partition).
+						EndIf().
+						If(defkit.And(isDaemonSet, isNotRecreate)).
+						PatchStrategyAnnotation("spec.updateStrategy", "retainKeys").
+						Set("spec.updateStrategy.type", strategyType).
+						SetIf(isRollingUpdate, "spec.updateStrategy.rollingUpdate.maxSurge", maxSurge).
+						SetIf(isRollingUpdate, "spec.updateStrategy.rollingUpdate.maxUnavailable", maxUnavailable).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// Three separate if blocks
+			Expect(cue).To(ContainSubstring(`parameter.targetKind == "Deployment" && parameter.strategy.type != "OnDelete"`))
+			Expect(cue).To(ContainSubstring(`parameter.targetKind == "StatefulSet" && parameter.strategy.type != "Recreate"`))
+			Expect(cue).To(ContainSubstring(`parameter.targetKind == "DaemonSet" && parameter.strategy.type != "Recreate"`))
+			// Three patchStrategy annotations
+			Expect(strings.Count(cue, "// +patchStrategy=retainKeys")).To(Equal(3))
+			// RollingUpdate inner conditions
+			Expect(cue).To(ContainSubstring(`parameter.strategy.type == "RollingUpdate"`))
+			// Deployment uses "strategy", others use "updateStrategy"
+			Expect(cue).To(ContainSubstring("strategy: {"))
+			Expect(cue).To(ContainSubstring("updateStrategy: {"))
+			// Correct field assignments
+			Expect(cue).To(ContainSubstring("maxSurge:       parameter.strategy.rollingStrategy.maxSurge"))
+			Expect(cue).To(ContainSubstring("maxUnavailable: parameter.strategy.rollingStrategy.maxUnavailable"))
+			Expect(cue).To(ContainSubstring("partition: parameter.strategy.rollingStrategy.partition"))
+		})
+	})
+
+	Context("Raw patch block with fluent params and helpers", func() {
+		It("should render raw patch block followed by fluent parameter and helper definitions", func() {
+			postStart := defkit.Map("postStart").WithSchemaRef("Handler")
+			preStop := defkit.Map("preStop").WithSchemaRef("Handler")
+
+			trait := defkit.NewTrait("lifecycle").
+				Description("test").
+				AppliesTo("deployments.apps").
+				PodDisruptive(true).
+				Params(postStart, preStop).
+				Helper("Handler", defkit.Struct("Handler").Fields(
+					defkit.Field("exec", defkit.ParamTypeStruct).
+						Nested(defkit.Struct("exec").Fields(
+							defkit.Field("command", defkit.ParamTypeArray).ArrayOf(defkit.ParamTypeString).Required(),
+						)),
+				)).
+				Template(func(tpl *defkit.Template) {
+					tpl.SetRawPatchBlock(`patch: spec: containers: [...{
+	lifecycle: {
+		if parameter.postStart != _|_ {
+			postStart: parameter.postStart
+		}
+	}
+}]`)
+				})
+
+			cue := trait.ToCue()
+
+			// Raw patch block is rendered
+			Expect(cue).To(ContainSubstring("containers: [...{"))
+			Expect(cue).To(ContainSubstring("lifecycle: {"))
+			Expect(cue).To(ContainSubstring("if parameter.postStart != _|_"))
+
+			// Fluent parameter block is rendered (not skipped)
+			Expect(cue).To(ContainSubstring("parameter: {"))
+			Expect(cue).To(ContainSubstring("postStart?: #Handler"))
+			// CUE formatter may add alignment spaces: preStop?:   #Handler
+			Expect(cue).To(ContainSubstring("preStop?:"))
+			Expect(cue).To(MatchRegexp(`preStop\?:\s+#Handler`))
+
+			// Helper definition is rendered (not skipped)
+			// CUE formatter collapses single-field struct to inline form
+			Expect(cue).To(ContainSubstring("#Handler:"))
+			Expect(cue).To(ContainSubstring("command: [...string]"))
+		})
+
+		It("should still use full raw mode when raw parameter block is set", func() {
+			trait := defkit.NewTrait("raw-all").
+				Description("test").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.SetRawPatchBlock(`patch: spec: replicas: parameter.replicas`)
+					tpl.SetRawParameterBlock(`parameter: {
+	replicas: *1 | int
+}`)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("replicas: parameter.replicas"))
+			Expect(cue).To(ContainSubstring("replicas: *1 | int"))
+			// Should NOT have a duplicate parameter block
+			Expect(strings.Count(cue, "parameter:")).To(Equal(2)) // one in patch ref, one in param block
+		})
+	})
+
+	Context("IntParam helper definition rendering", func() {
+		It("should render constrained int helper with min and max", func() {
+			trait := defkit.NewTrait("int-helper-test").
+				Description("test").
+				AppliesTo("deployments.apps").
+				Helper("Port", defkit.Int("Port").Min(1).Max(65535)).
+				Template(func(tpl *defkit.Template) {
+					tpl.SetRawPatchBlock(`patch: spec: port: parameter.port`)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("#Port: int & >=1 & <=65535"))
+		})
+
+		It("should render int helper with only min constraint", func() {
+			trait := defkit.NewTrait("int-min-test").
+				Description("test").
+				AppliesTo("deployments.apps").
+				Helper("Positive", defkit.Int("Positive").Min(0)).
+				Template(func(tpl *defkit.Template) {
+					tpl.SetRawPatchBlock(`patch: spec: count: parameter.count`)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("#Positive: int & >=0"))
+			Expect(cue).NotTo(ContainSubstring("<="))
+		})
+
+		It("should render int helper without constraints", func() {
+			trait := defkit.NewTrait("int-bare-test").
+				Description("test").
+				AppliesTo("deployments.apps").
+				Helper("Count", defkit.Int("Count")).
+				Template(func(tpl *defkit.Template) {
+					tpl.SetRawPatchBlock(`patch: spec: count: parameter.count`)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("#Count: int"))
+			Expect(cue).NotTo(ContainSubstring(">="))
+			Expect(cue).NotTo(ContainSubstring("<="))
+		})
+	})
+
+	Context("SpreadAll operation", func() {
+		It("should record SpreadAll ops on PatchResource", func() {
+			p := defkit.NewPatchResource()
+			elem := defkit.NewArrayElement().Set("name", defkit.Lit("test"))
+			p.SpreadAll("spec.containers", elem)
+
+			ops := p.Ops()
+			Expect(ops).To(HaveLen(1))
+			sa, ok := ops[0].(*defkit.SpreadAllOp)
+			Expect(ok).To(BeTrue())
+			Expect(sa.Path()).To(Equal("spec.containers"))
+			Expect(sa.Elements()).To(HaveLen(1))
+		})
+
+		It("should record SpreadAll inside If block", func() {
+			p := defkit.NewPatchResource()
+			cond := defkit.Eq(defkit.ParameterField("enabled"), defkit.Lit(true))
+			elem := defkit.NewArrayElement().Set("name", defkit.Lit("test"))
+			p.If(cond).
+				SpreadAll("spec.containers", elem).
+				EndIf()
+
+			ops := p.Ops()
+			Expect(ops).To(HaveLen(1))
+			ifBlock, ok := ops[0].(*defkit.IfBlock)
+			Expect(ok).To(BeTrue())
+			Expect(ifBlock.Ops()).To(HaveLen(1))
+			_, ok = ifBlock.Ops()[0].(*defkit.SpreadAllOp)
+			Expect(ok).To(BeTrue())
+		})
+
+		It("should render unconditional SpreadAll with simple value", func() {
+			image := defkit.String("image").Required()
+
+			trait := defkit.NewTrait("spreadall-simple-test").
+				Description("Test SpreadAll with simple value").
+				AppliesTo("deployments.apps").
+				Params(image).
+				Template(func(tpl *defkit.Template) {
+					elem := defkit.NewArrayElement().
+						Set("image", image)
+					tpl.Patch().SpreadAll("spec.template.spec.containers", elem)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("containers: [...{"))
+			Expect(cue).To(ContainSubstring("image: parameter.image"))
+		})
+
+		It("should render conditional SpreadAll with ArrayElement SetIf", func() {
+			postStart := defkit.String("postStart")
+			preStop := defkit.String("preStop")
+
+			trait := defkit.NewTrait("spreadall-conditional-test").
+				Description("Test SpreadAll with conditional fields").
+				AppliesTo("deployments.apps").
+				Params(postStart, preStop).
+				Template(func(tpl *defkit.Template) {
+					elem := defkit.NewArrayElement().
+						SetIf(postStart.IsSet(), "lifecycle.postStart.exec.command", postStart).
+						SetIf(preStop.IsSet(), "lifecycle.preStop.exec.command", preStop)
+					tpl.Patch().SpreadAll("spec.template.spec.containers", elem)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("containers: [...{"))
+			Expect(cue).To(ContainSubstring(`parameter["postStart"] != _|_`))
+			Expect(cue).To(ContainSubstring(`parameter["preStop"] != _|_`))
+		})
+
+		It("should render SpreadAll inside an IfBlock", func() {
+			enabled := defkit.Bool("enabled").Default(false)
+			image := defkit.String("image").Required()
+
+			trait := defkit.NewTrait("spreadall-ifblock-test").
+				Description("Test SpreadAll inside IfBlock").
+				AppliesTo("deployments.apps").
+				Params(enabled, image).
+				Template(func(tpl *defkit.Template) {
+					elem := defkit.NewArrayElement().
+						Set("image", image)
+					tpl.Patch().
+						If(defkit.Eq(enabled, defkit.Lit(true))).
+						SpreadAll("spec.template.spec.containers", elem).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("parameter.enabled == true"))
+			Expect(cue).To(ContainSubstring("containers: [...{"))
+			Expect(cue).To(ContainSubstring("image: parameter.image"))
+		})
+	})
+
+	Context("Multiple IfBlocks with bare ops", func() {
+		It("should render bare ops before conditional IfBlocks", func() {
+			kind := defkit.String("kind").Default("Deployment").Enum("Deployment", "StatefulSet")
+			replicas := defkit.Int("replicas").Default(1)
+			strategyType := defkit.String("strategyType").Default("RollingUpdate")
+
+			trait := defkit.NewTrait("bare-ops-ifblock-test").
+				Description("Test bare ops with multiple IfBlocks").
+				AppliesTo("deployments.apps", "statefulsets.apps").
+				Params(kind, replicas, strategyType).
+				Template(func(tpl *defkit.Template) {
+					isDeployment := defkit.Eq(kind, defkit.Lit("Deployment"))
+					isStatefulSet := defkit.Eq(kind, defkit.Lit("StatefulSet"))
+
+					tpl.Patch().
+						Set("spec.replicas", replicas).
+						If(isDeployment).
+						Set("spec.strategy.type", strategyType).
+						EndIf().
+						If(isStatefulSet).
+						Set("spec.updateStrategy.type", strategyType).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// Bare op should be present
+			Expect(cue).To(ContainSubstring("replicas: parameter.replicas"))
+			// Both conditional blocks
+			Expect(cue).To(ContainSubstring(`parameter.kind == "Deployment"`))
+			Expect(cue).To(ContainSubstring(`parameter.kind == "StatefulSet"`))
+			Expect(cue).To(ContainSubstring("strategy: type:"))
+			Expect(cue).To(ContainSubstring("updateStrategy: type:"))
+		})
+	})
+
+	Context("findIfBlockCommonPrefix edge cases", func() {
+		It("should handle IfBlocks with no common prefix", func() {
+			kind := defkit.String("kind").Default("a").Enum("a", "b")
+
+			trait := defkit.NewTrait("no-common-prefix-test").
+				Description("Test no common prefix").
+				AppliesTo("deployments.apps").
+				Params(kind).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						If(defkit.Eq(kind, defkit.Lit("a"))).
+						Set("spec.strategy.type", defkit.Lit("RollingUpdate")).
+						EndIf().
+						If(defkit.Eq(kind, defkit.Lit("b"))).
+						Set("metadata.labels.version", defkit.Lit("v2")).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// Both conditions should be rendered
+			Expect(cue).To(ContainSubstring(`parameter.kind == "a"`))
+			Expect(cue).To(ContainSubstring(`parameter.kind == "b"`))
+			Expect(cue).To(ContainSubstring("strategy: type:"))
+			Expect(cue).To(ContainSubstring("labels: version:"))
+		})
+	})
+
+	Context("Nested array struct in helper definitions", func() {
+		It("should render array field with nested struct as [...{fields}]", func() {
+			trait := defkit.NewTrait("nested-array-test").
+				Description("test").
+				AppliesTo("deployments.apps").
+				Helper("Config", defkit.Struct("Config").Fields(
+					defkit.Field("headers", defkit.ParamTypeArray).
+						Nested(defkit.Struct("headers").Fields(
+							defkit.Field("name", defkit.ParamTypeString).Required(),
+							defkit.Field("value", defkit.ParamTypeString).Required(),
+						)),
+				)).
+				Template(func(tpl *defkit.Template) {
+					tpl.SetRawPatchBlock(`patch: spec: config: parameter.config`)
+				})
+
+			cue := trait.ToCue()
+
+			// CUE formatter collapses single-field struct to inline form
+			Expect(cue).To(ContainSubstring("#Config: headers?: [...{"))
+			Expect(cue).To(ContainSubstring("name:  string"))
+			Expect(cue).To(ContainSubstring("value: string"))
+		})
+
+		It("should render schema ref on fields within helper structs", func() {
+			trait := defkit.NewTrait("schema-ref-test").
+				Description("test").
+				AppliesTo("deployments.apps").
+				Helper("Port", defkit.Int("Port").Min(1).Max(65535)).
+				Helper("Endpoint", defkit.Struct("Endpoint").Fields(
+					defkit.Field("port", defkit.ParamTypeInt).WithSchemaRef("Port").Required(),
+					defkit.Field("host", defkit.ParamTypeString),
+				)).
+				Template(func(tpl *defkit.Template) {
+					tpl.SetRawPatchBlock(`patch: spec: endpoint: parameter.endpoint`)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("#Port: int & >=1 & <=65535"))
+			Expect(cue).To(ContainSubstring("#Endpoint: {"))
+			Expect(cue).To(ContainSubstring("port:  #Port"))
+			Expect(cue).To(ContainSubstring("host?: string"))
 		})
 	})
 })

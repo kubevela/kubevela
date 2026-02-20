@@ -417,6 +417,20 @@ func (g *CUEGenerator) writeHelperDefFromParam(sb *strings.Builder, param Param,
 		} else {
 			sb.WriteString("[...]\n")
 		}
+	case *IntParam:
+		// For int types with optional constraints: int & >=1 & <=65535
+		var constraints []string
+		if minVal := p.GetMin(); minVal != nil {
+			constraints = append(constraints, fmt.Sprintf(">=%d", *minVal))
+		}
+		if maxVal := p.GetMax(); maxVal != nil {
+			constraints = append(constraints, fmt.Sprintf("<=%d", *maxVal))
+		}
+		if len(constraints) > 0 {
+			sb.WriteString(fmt.Sprintf("int & %s\n", strings.Join(constraints, " & ")))
+		} else {
+			sb.WriteString("int\n")
+		}
 	default:
 		// Fallback for other types
 		sb.WriteString("_\n")
@@ -459,9 +473,10 @@ func (g *CUEGenerator) writeStructFieldForHelper(sb *strings.Builder, f *StructF
 		return
 	}
 
-	// Check for nested struct
+	// Check for nested struct (or array of structs)
 	if nested := f.GetNested(); nested != nil {
 		if f.FieldType() == ParamTypeArray {
+			// Array of structs: [...{fields}]
 			sb.WriteString(fmt.Sprintf("%s%s%s: [...{\n", indent, name, optional))
 			for _, nestedField := range nested.GetFields() {
 				g.writeStructFieldForHelper(sb, nestedField, depth+1)
@@ -906,15 +921,17 @@ func (g *CUEGenerator) writeResourceOutput(sb *strings.Builder, name string, res
 
 // fieldNode represents a node in the field tree being built.
 type fieldNode struct {
-	value      Value     // Direct value (if leaf)
-	cond       Condition // Condition for this field
-	children   map[string]*fieldNode
-	childOrder []string // Track insertion order
-	isArray    bool
-	arrayIndex int
-	spreads    []spreadEntry // Spread operations at this node level
-	forEach    *ForEachOp    // ForEach operation (for trait patches)
-	patchKey   *PatchKeyOp   // PatchKey operation (for array patches with merge key)
+	value         Value     // Direct value (if leaf)
+	cond          Condition // Condition for this field
+	children      map[string]*fieldNode
+	childOrder    []string // Track insertion order
+	isArray       bool
+	arrayIndex    int
+	spreads       []spreadEntry // Spread operations at this node level
+	forEach       *ForEachOp    // ForEach operation (for trait patches)
+	patchKey      *PatchKeyOp   // PatchKey operation (for array patches with merge key)
+	spreadAll     *SpreadAllOp  // SpreadAll operation (for array constraint patches)
+	patchStrategy string        // e.g. "retainKeys" → generates // +patchStrategy=retainKeys
 }
 
 // spreadEntry represents a conditional spread operation.
@@ -948,6 +965,11 @@ func (g *CUEGenerator) buildFieldTree(ops []ResourceOp) *fieldNode {
 		case *PatchKeyOp:
 			// PatchKeyOp creates an array patch with merge key annotation
 			g.insertPatchKeyIntoTree(root, o, nil)
+		case *SpreadAllOp:
+			// SpreadAllOp constrains all array elements
+			g.insertSpreadAllIntoTree(root, o, nil)
+		case *PatchStrategyAnnotationOp:
+			g.insertAnnotationIntoTree(root, o.Path(), o.Strategy())
 		case *IfBlock:
 			// For if blocks, process inner ops with the block's condition
 			for _, innerOp := range o.Ops() {
@@ -968,12 +990,31 @@ func (g *CUEGenerator) buildFieldTree(ops []ResourceOp) *fieldNode {
 				case *PatchKeyOp:
 					// PatchKey inside an if block - pass the block's condition
 					g.insertPatchKeyIntoTree(root, inner, o.Cond())
+				case *SpreadAllOp:
+					// SpreadAll inside an if block - pass the block's condition
+					g.insertSpreadAllIntoTree(root, inner, o.Cond())
+				case *PatchStrategyAnnotationOp:
+					g.insertAnnotationIntoTree(root, inner.Path(), inner.Strategy())
 				}
 			}
 		}
 	}
 
 	return root
+}
+
+// insertAnnotationIntoTree navigates to a node by path and sets its patchStrategy annotation.
+func (g *CUEGenerator) insertAnnotationIntoTree(root *fieldNode, path string, strategy string) {
+	parts := splitPath(path)
+	current := root
+	for _, part := range parts {
+		if _, exists := current.children[part]; !exists {
+			current.children[part] = newFieldNode()
+			current.childOrder = append(current.childOrder, part)
+		}
+		current = current.children[part]
+	}
+	current.patchStrategy = strategy
 }
 
 // insertIntoTree inserts a value at a path into the field tree.
@@ -1156,6 +1197,47 @@ func (g *CUEGenerator) insertPatchKeyIntoTree(root *fieldNode, op *PatchKeyOp, c
 
 	// Set patchKey on the final node with its condition
 	current.patchKey = op
+	current.cond = cond
+}
+
+// insertSpreadAllIntoTree inserts a SpreadAllOp into the field tree.
+// This navigates to the target path and sets the spreadAll field.
+func (g *CUEGenerator) insertSpreadAllIntoTree(root *fieldNode, op *SpreadAllOp, cond Condition) {
+	parts := splitPath(op.Path())
+	current := root
+
+	for _, part := range parts {
+		name, key, index := parseBracketAccess(part)
+
+		if _, exists := current.children[name]; !exists {
+			current.children[name] = newFieldNode()
+			current.childOrder = append(current.childOrder, name)
+		}
+		node := current.children[name]
+
+		switch {
+		case index >= 0:
+			node.isArray = true
+			idxKey := fmt.Sprintf("[%d]", index)
+			if _, exists := node.children[idxKey]; !exists {
+				node.children[idxKey] = newFieldNode()
+				node.children[idxKey].arrayIndex = index
+				node.childOrder = append(node.childOrder, idxKey)
+			}
+			current = node.children[idxKey]
+		case key != "":
+			keyNode := fmt.Sprintf("[%s]", key)
+			if _, exists := node.children[keyNode]; !exists {
+				node.children[keyNode] = newFieldNode()
+				node.childOrder = append(node.childOrder, keyNode)
+			}
+			current = node.children[keyNode]
+		default:
+			current = node
+		}
+	}
+
+	current.spreadAll = op
 	current.cond = cond
 }
 
@@ -1689,8 +1771,14 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 		for _, op := range ops {
 			if mOp, ok := op.(*mapOp); ok {
 				for fieldName, fieldVal := range mOp.mappings {
-					valStr := g.fieldValueToCUE(fieldVal)
-					sb.WriteString(fmt.Sprintf("\t\t\t\t\t%s: %s\n", fieldName, valStr))
+					if optField, isOptional := fieldVal.(*OptionalField); isOptional {
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\tif v.%s != _|_ {\n", optField.field))
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t%s: v.%s\n", fieldName, optField.field))
+						sb.WriteString("\t\t\t\t\t}\n")
+					} else {
+						valStr := g.fieldValueToCUE(fieldVal)
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\t%s: %s\n", fieldName, valStr))
+					}
 				}
 			}
 		}
@@ -1968,7 +2056,7 @@ func (g *CUEGenerator) concatExprToCUE(ce *ConcatExprValue) string {
 func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	switch c := cond.(type) {
 	case *IsSetCondition:
-		return fmt.Sprintf("parameter.%s != _|_", c.ParamName())
+		return fmt.Sprintf("parameter[%q] != _|_", c.ParamName())
 	case *ParamPathIsSetCondition:
 		// Check if a nested parameter path is set: parameter.path != _|_
 		return fmt.Sprintf("parameter.%s != _|_", c.Path())
@@ -2012,9 +2100,9 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		right := g.conditionToCUE(c.right)
 		return fmt.Sprintf("(%s) || (%s)", left, right)
 	case *NotCondition:
-		// Special case: Not(IsSet("x")) -> parameter.x == _|_ (cleaner than !(parameter.x != _|_))
+		// Special case: Not(IsSet("x")) -> parameter["x"] == _|_ (cleaner than !(parameter["x"] != _|_))
 		if isSet, ok := c.Inner().(*IsSetCondition); ok {
-			return fmt.Sprintf("parameter.%s == _|_", isSet.ParamName())
+			return fmt.Sprintf("parameter[%q] == _|_", isSet.ParamName())
 		}
 		inner := g.conditionToCUE(c.Inner())
 		return fmt.Sprintf("!(%s)", inner)
@@ -2181,8 +2269,13 @@ func (g *CUEGenerator) writeParam(sb *strings.Builder, param Param, depth int) {
 
 	name := param.Name()
 	optional := "?"
-	if param.IsRequired() || param.HasDefault() {
+	forceOptional := false
+	if bp, ok := param.(interface{ IsForceOptional() bool }); ok {
+		forceOptional = bp.IsForceOptional()
+	}
+	if param.IsRequired() || (param.HasDefault() && !forceOptional) {
 		// No ? for required fields or fields with defaults (defaults make them effectively present)
+		// Unless forceOptional is set, which keeps ? even with a default
 		optional = ""
 	}
 
@@ -2437,11 +2530,8 @@ func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, n
 }
 
 // writeStringKeyMapParam writes a string-to-string map parameter.
-func (g *CUEGenerator) writeStringKeyMapParam(sb *strings.Builder, p *StringKeyMapParam, indent, name, optional string) {
-	// Write description as comment if present
-	if desc := p.GetDescription(); desc != "" {
-		sb.WriteString(fmt.Sprintf("%s// +usage=%s\n", indent, desc))
-	}
+// Note: description is already written by writeParam, so we don't write it here.
+func (g *CUEGenerator) writeStringKeyMapParam(sb *strings.Builder, _ *StringKeyMapParam, indent, name, optional string) {
 	sb.WriteString(fmt.Sprintf("%s%s%s: [string]: string\n", indent, name, optional))
 }
 

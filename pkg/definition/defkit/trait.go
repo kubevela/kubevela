@@ -439,8 +439,10 @@ func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
 func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinition, depth int) {
 	indent := strings.Repeat(g.indent, depth)
 
-	// podDisruptive
-	sb.WriteString(fmt.Sprintf("%spodDisruptive: %v\n", indent, t.IsPodDisruptive()))
+	// podDisruptive (only emit when true, false is the default)
+	if t.IsPodDisruptive() {
+		sb.WriteString(fmt.Sprintf("%spodDisruptive: %v\n", indent, t.IsPodDisruptive()))
+	}
 
 	// stage (if set)
 	if t.GetStage() != "" {
@@ -508,12 +510,20 @@ func (g *TraitCUEGenerator) GenerateTemplate(t *TraitDefinition) string {
 	sb.WriteString("template: {\n")
 
 	// Check if using Template API
+	usedPatchContainer := false
 	if t.HasTemplate() {
+		// Check if PatchContainer is configured (it generates its own parameter block)
+		tpl := NewTemplate()
+		t.GetTemplate()(tpl)
+		usedPatchContainer = tpl.GetPatchContainerConfig() != nil
+
 		g.writeUnifiedTemplate(&sb, t, 1)
 	}
 
-	// Generate parameter section
-	sb.WriteString(g.generateParameterBlock(t, 1))
+	// Generate parameter section (skip if PatchContainer already generated it)
+	if !usedPatchContainer {
+		sb.WriteString(g.generateParameterBlock(t, 1))
+	}
 
 	// Generate helper type definitions (like #HealthProbe, #labelSelector)
 	gen := NewCUEGenerator()
@@ -640,11 +650,164 @@ func (g *TraitCUEGenerator) writePatchResourceOps(sb *strings.Builder, gen *CUEG
 		}
 	}
 
-	// Build a tree structure from operations (similar to component resources)
-	tree := gen.buildFieldTree(ops)
-	// Normalize conditional nodes to avoid empty parent structs in patches
-	gen.liftChildConditions(tree)
-	g.writePatchFieldTree(sb, gen, tree, depth)
+	// Separate IfBlocks from other ops
+	var bareOps []ResourceOp
+	var ifBlocks []*IfBlock
+	for _, op := range ops {
+		if ib, ok := op.(*IfBlock); ok {
+			ifBlocks = append(ifBlocks, ib)
+		} else {
+			bareOps = append(bareOps, op)
+		}
+	}
+
+	// If 0 or 1 IfBlock, use existing merged approach (no path conflicts possible)
+	if len(ifBlocks) <= 1 {
+		tree := gen.buildFieldTree(ops)
+		gen.liftChildConditions(tree)
+		g.writePatchFieldTree(sb, gen, tree, depth)
+		return
+	}
+
+	// Multiple IfBlocks: process each separately to avoid path conflicts
+	// when different IfBlocks target the same field paths with different conditions.
+	prefix := g.findIfBlockCommonPrefix(ifBlocks, bareOps)
+	var prefixParts []string
+	if prefix != "" {
+		prefixParts = strings.Split(prefix, ".")
+	}
+
+	// Write the common prefix inline (e.g., "spec: ")
+	for _, p := range prefixParts {
+		sb.WriteString(fmt.Sprintf("%s: ", p))
+	}
+
+	innerDepth := depth + len(prefixParts)
+
+	// Open block for the children
+	sb.WriteString("{\n")
+
+	indent := strings.Repeat(g.indent, innerDepth+1)
+	first := true
+
+	// Render bare ops first (if any)
+	if len(bareOps) > 0 {
+		bareTree := gen.buildFieldTree(bareOps)
+		// Navigate to subtree below common prefix
+		subtree := bareTree
+		for _, p := range prefixParts {
+			if child, ok := subtree.children[p]; ok {
+				subtree = child
+			}
+		}
+		gen.liftChildConditions(subtree)
+		for _, key := range subtree.childOrder {
+			node := subtree.children[key]
+			sb.WriteString(indent)
+			g.writePatchFieldNode(sb, gen, key, node, innerDepth+1)
+			sb.WriteString("\n")
+		}
+		first = false
+	}
+
+	// Render each IfBlock as a separate subtree
+	for _, ib := range ifBlocks {
+		if !first {
+			sb.WriteString("\n")
+		}
+
+		// Build tree from inner ops only (without the outer If condition)
+		innerTree := gen.buildFieldTree(ib.Ops())
+
+		// Navigate to subtree below common prefix
+		subtree := innerTree
+		for _, p := range prefixParts {
+			if child, ok := subtree.children[p]; ok {
+				subtree = child
+			}
+		}
+
+		// Normalize conditional nodes in the subtree
+		gen.liftChildConditions(subtree)
+
+		// Emit: if condition { ... }
+		condStr := gen.conditionToCUE(ib.Cond())
+		sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
+
+		// Render subtree children inside the if block
+		innerBlockIndent := strings.Repeat(g.indent, innerDepth+2)
+		for _, key := range subtree.childOrder {
+			node := subtree.children[key]
+			sb.WriteString(innerBlockIndent)
+			g.writePatchFieldNode(sb, gen, key, node, innerDepth+2)
+			sb.WriteString("\n")
+		}
+
+		sb.WriteString(fmt.Sprintf("%s}", indent))
+		first = false
+	}
+
+	// Close outer block
+	sb.WriteString(fmt.Sprintf("\n%s}", strings.Repeat(g.indent, innerDepth)))
+}
+
+// findIfBlockCommonPrefix finds the longest common path prefix across all IfBlocks and bare ops.
+// For example, if all paths start with "spec.", the prefix is "spec".
+func (g *TraitCUEGenerator) findIfBlockCommonPrefix(ifBlocks []*IfBlock, bareOps []ResourceOp) string {
+	var allPaths []string
+
+	for _, ib := range ifBlocks {
+		for _, op := range ib.Ops() {
+			switch o := op.(type) {
+			case *SetOp:
+				allPaths = append(allPaths, o.Path())
+			case *SetIfOp:
+				allPaths = append(allPaths, o.Path())
+			case *PatchStrategyAnnotationOp:
+				allPaths = append(allPaths, o.Path())
+			}
+		}
+	}
+
+	for _, op := range bareOps {
+		switch o := op.(type) {
+		case *SetOp:
+			allPaths = append(allPaths, o.Path())
+		case *SetIfOp:
+			allPaths = append(allPaths, o.Path())
+		}
+	}
+
+	if len(allPaths) == 0 {
+		return ""
+	}
+
+	firstParts := strings.Split(allPaths[0], ".")
+	commonLen := len(firstParts)
+
+	for _, p := range allPaths[1:] {
+		parts := strings.Split(p, ".")
+		minLen := commonLen
+		if len(parts) < minLen {
+			minLen = len(parts)
+		}
+		matched := 0
+		for i := 0; i < minLen; i++ {
+			if parts[i] != firstParts[i] {
+				break
+			}
+			matched++
+		}
+		commonLen = matched
+	}
+
+	if commonLen == 0 {
+		return ""
+	}
+
+	// Don't include leaf-level parts — only include the common ancestor path
+	// (at least one level must remain below the prefix for each IfBlock)
+	return strings.Join(firstParts[:commonLen], ".")
 }
 
 // writePatchFieldTree writes a field tree as CUE patch syntax.
@@ -684,11 +847,21 @@ func (g *TraitCUEGenerator) writePatchFieldNode(sb *strings.Builder, gen *CUEGen
 		return
 	}
 
+	// Handle SpreadAll operations (array constraint patches)
+	if node.spreadAll != nil {
+		g.writeSpreadAllOp(sb, gen, key, node.spreadAll, node.cond, depth)
+		return
+	}
+
 	// Handle conditional fields
 	if node.cond != nil {
 		condStr := gen.conditionToCUE(node.cond)
 		sb.WriteString(fmt.Sprintf("if %s {\n", condStr))
 		innerIndent := strings.Repeat(g.indent, depth+1)
+		// Emit patchStrategy annotation inside the if block
+		if node.patchStrategy != "" {
+			sb.WriteString(fmt.Sprintf("%s// +patchStrategy=%s\n", innerIndent, node.patchStrategy))
+		}
 		sb.WriteString(fmt.Sprintf("%s%s: ", innerIndent, key))
 		if len(node.children) > 0 {
 			g.writePatchFieldTreeFromChildren(sb, gen, node, depth+1)
@@ -701,6 +874,9 @@ func (g *TraitCUEGenerator) writePatchFieldNode(sb *strings.Builder, gen *CUEGen
 	}
 
 	// Regular field
+	if node.patchStrategy != "" {
+		sb.WriteString(fmt.Sprintf("// +patchStrategy=%s\n%s", node.patchStrategy, strings.Repeat(g.indent, depth)))
+	}
 	sb.WriteString(fmt.Sprintf("%s: ", key))
 	if len(node.children) > 0 {
 		g.writePatchFieldTreeFromChildren(sb, gen, node, depth)
@@ -741,9 +917,9 @@ func (g *TraitCUEGenerator) hasConditionalDescendant(node *fieldNode) bool {
 	if node.cond != nil {
 		return true
 	}
-	// PatchKey and ForEach operations require block format because they need
-	// to write comments or special syntax that can't appear inline
-	if node.patchKey != nil || node.forEach != nil {
+	// PatchKey, ForEach, and patchStrategy annotations require block format
+	// because they need to write comments or special syntax that can't appear inline
+	if node.patchKey != nil || node.forEach != nil || node.patchStrategy != "" {
 		return true
 	}
 	for _, child := range node.children {
@@ -842,6 +1018,57 @@ func (g *TraitCUEGenerator) writePatchKeyOp(sb *strings.Builder, gen *CUEGenerat
 			}
 			sb.WriteString("]")
 		}
+	}
+}
+
+// writeSpreadAllOp writes a SpreadAll operation as CUE.
+// Generates: path: [...{element}]
+// If cond is provided, wraps in: if cond { ... }
+func (g *TraitCUEGenerator) writeSpreadAllOp(sb *strings.Builder, gen *CUEGenerator, key string, op *SpreadAllOp, cond Condition, depth int) {
+	indent := strings.Repeat(g.indent, depth)
+
+	writeElements := func(sb *strings.Builder, elemDepth int) {
+		for i, elem := range op.Elements() {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+			if arrElem, ok := elem.(*ArrayElement); ok {
+				// Build a field tree from the element's ops for proper nesting
+				tree := gen.buildFieldTree(arrElem.Ops())
+				gen.liftChildConditions(tree)
+				// Also add direct field assignments
+				for fk, fv := range arrElem.Fields() {
+					gen.insertIntoTree(tree, fk, fv, nil)
+				}
+				sb.WriteString("...{\n")
+				// Write tree children with explicit indentation
+				// (avoid writePatchFieldTree's single-child inline optimization)
+				innerIndent := strings.Repeat(g.indent, elemDepth+1)
+				for _, tk := range tree.childOrder {
+					tn := tree.children[tk]
+					sb.WriteString(innerIndent)
+					g.writePatchFieldNode(sb, gen, tk, tn, elemDepth+1)
+					sb.WriteString("\n")
+				}
+				sb.WriteString(fmt.Sprintf("%s}", strings.Repeat(g.indent, elemDepth)))
+			} else {
+				sb.WriteString("...")
+				sb.WriteString(gen.valueToCUE(elem))
+			}
+		}
+	}
+
+	if cond != nil {
+		condStr := gen.conditionToCUE(cond)
+		sb.WriteString(fmt.Sprintf("if %s {\n", condStr))
+		sb.WriteString(fmt.Sprintf("%s\t%s: [", indent, key))
+		writeElements(sb, depth+1)
+		sb.WriteString("]\n")
+		sb.WriteString(fmt.Sprintf("%s}", indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%s: [", key))
+		writeElements(sb, depth)
+		sb.WriteString("]")
 	}
 }
 
@@ -1003,6 +1230,9 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	} else {
+		if config.PatchStrategy != "" {
+			sb.WriteString(fmt.Sprintf("%s// +patchStrategy=%s\n", indent, config.PatchStrategy))
+		}
 		sb.WriteString(fmt.Sprintf("%spatch: spec: template: spec: {\n", indent))
 
 		// Determine the multi-container parameter name
@@ -1107,7 +1337,11 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 		}
 	case config.AllowMultiple && multiParam != "":
 		sb.WriteString(fmt.Sprintf("%sparameter: *#PatchParams | close({\n", indent))
-		sb.WriteString(fmt.Sprintf("%s// +usage=Specify the settings for multiple containers\n", innerIndent))
+		containersDesc := config.ContainersDescription
+		if containersDesc == "" {
+			containersDesc = "Specify the settings for multiple containers"
+		}
+		sb.WriteString(fmt.Sprintf("%s// +usage=%s\n", innerIndent, containersDesc))
 		sb.WriteString(fmt.Sprintf("%s%s: [...#PatchParams]\n", innerIndent, multiParam))
 		sb.WriteString(fmt.Sprintf("%s})\n", indent))
 	default:
@@ -1120,7 +1354,11 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 
 // writePatchParamField writes a single field in the #PatchParams schema.
 func (g *TraitCUEGenerator) writePatchParamField(sb *strings.Builder, field PatchContainerField, indent string) {
-	sb.WriteString(fmt.Sprintf("%s// +usage=Specify the %s for the container\n", indent, field.ParamName))
+	desc := field.Description
+	if desc == "" {
+		desc = fmt.Sprintf("Specify the %s of the container", field.ParamName)
+	}
+	sb.WriteString(fmt.Sprintf("%s// +usage=%s\n", indent, desc))
 
 	// Determine the type string
 	typeStr := field.ParamType
@@ -1138,17 +1376,24 @@ func (g *TraitCUEGenerator) writePatchParamField(sb *strings.Builder, field Patc
 		}
 	}
 
-	// Determine default value
+	// Determine default value and optionality
 	defaultVal := field.ParamDefault
+	optional := ""
 	if defaultVal == "" && field.Condition != "" {
-		// Has condition, likely optional - default to null
-		defaultVal = "null"
+		// Has condition, likely optional - choose appropriate default
+		if field.Condition == "!= \"\"" {
+			// String-equality condition: default to empty string
+			defaultVal = "\"\""
+		} else {
+			// Non-string condition (e.g. != _|_): make field optional
+			optional = "?"
+		}
 	}
 
 	if defaultVal != "" {
 		sb.WriteString(fmt.Sprintf("%s%s: *%s | %s\n", indent, field.ParamName, defaultVal, typeStr))
 	} else {
-		sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, field.ParamName, typeStr))
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, field.ParamName, optional, typeStr))
 	}
 }
 
@@ -1207,9 +1452,12 @@ func (g *TraitCUEGenerator) writePatchContainerGroup(sb *strings.Builder, group 
 }
 
 // writePatchParamMapping writes a parameter mapping in the patch block.
+// Fields with a "!= _|_" existence condition and no ParamDefault are truly optional
+// (defined as field?: type in the schema) and need conditional guards to avoid
+// propagating _|_ when the parameter is unset. Fields with defaults or value-based
+// conditions (like '!= ""') always have a value and can be mapped unconditionally.
 func (g *TraitCUEGenerator) writePatchParamMapping(sb *strings.Builder, field PatchContainerField, indent string, prefix string) {
-	if field.Condition != "" {
-		// Optional field - map conditionally
+	if field.Condition == "!= _|_" && field.ParamDefault == "" {
 		sb.WriteString(fmt.Sprintf("%sif %s%s %s {\n", indent, prefix, field.ParamName, field.Condition))
 		sb.WriteString(fmt.Sprintf("%s\t%s: %s%s\n", indent, field.ParamName, prefix, field.ParamName))
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
