@@ -1,0 +1,200 @@
+# Test for statefulset component definition
+# Based on usage-examples/application-with-statefulset.yaml
+
+-- in.cue --
+// Component definition metadata
+statefulset: {
+	type: "component"
+	annotations: {}
+	labels: {}
+	description: "Describes long-running, scalable, containerized services used to manage stateful application, like database."
+	attributes: {
+		workload: {
+			definition: {
+				apiVersion: "apps/v1"
+				kind:       "StatefulSet"
+			}
+			type: "statefulsets.apps"
+		}
+	}
+}
+
+// Template with concrete test values from application-with-statefulset.yaml
+template: {
+	// Runtime context provided by KubeVela
+	context: {
+		name:     "postgres"
+		appName:  "postgres"
+		revision: "v1"
+	}
+
+	// User-provided parameters from the Application spec
+	parameter: {
+		image:      "docker.io/library/postgres:16.4"
+		cpu:        "1"
+		memory:     "2Gi"
+		exposeType: "ClusterIP"
+		ports: [{
+			port:     5432
+			protocol: "TCP"
+			expose:   true
+		}]
+		env: [
+			{name: "POSTGRES_DB", value:       "mydb"},
+			{name: "POSTGRES_USER", value:     "postgres"},
+			{name: "POSTGRES_PASSWORD", value: "kvsecretpwd123"},
+		]
+	}
+
+	// Generate StatefulSet output
+	output: {
+		apiVersion: "apps/v1"
+		kind:       "StatefulSet"
+		spec: {
+			selector: matchLabels: {
+				"app.oam.dev/component": context.name
+			}
+
+			template: {
+				metadata: {
+					labels: {
+						"app.oam.dev/name":      context.appName
+						"app.oam.dev/component": context.name
+					}
+				}
+
+				spec: {
+					containers: [{
+						name:  context.name
+						image: parameter.image
+						ports: [{
+							containerPort: 5432
+							protocol:      "TCP"
+							name:          "port-5432"
+						}]
+						env: parameter.env
+						resources: {
+							limits: {
+								cpu:    parameter.cpu
+								memory: parameter.memory
+							}
+							requests: {
+								cpu:    parameter.cpu
+								memory: parameter.memory
+							}
+						}
+					}]
+				}
+			}
+		}
+	}
+
+	// Generate Service for exposed ports
+	outputs: {
+		statefulsetsExpose: {
+			apiVersion: "v1"
+			kind:       "Service"
+			metadata: name: context.name
+			spec: {
+				selector: "app.oam.dev/component": context.name
+				ports: [{
+					port:       5432
+					targetPort: 5432
+					protocol:   "TCP"
+					name:       "port-5432"
+				}]
+				type: parameter.exposeType
+			}
+		}
+	}
+}
+
+-- out.cue --
+// Expected output structure after template evaluation
+statefulset: {
+	type:        "component"
+	description: "Describes long-running, scalable, containerized services used to manage stateful application, like database."
+}
+
+template: {
+	context: {
+		name:     "postgres"
+		appName:  "postgres"
+		revision: "v1"
+	}
+
+	parameter: {
+		image:      "docker.io/library/postgres:16.4"
+		cpu:        "1"
+		memory:     "2Gi"
+		exposeType: "ClusterIP"
+		ports: [{
+			port:     5432
+			protocol: "TCP"
+			expose:   true
+		}]
+		env: [
+			{name: "POSTGRES_DB", value:       "mydb"},
+			{name: "POSTGRES_USER", value:     "postgres"},
+			{name: "POSTGRES_PASSWORD", value: "kvsecretpwd123"},
+		]
+	}
+
+	// Expected StatefulSet output
+	output: {
+		apiVersion: "apps/v1"
+		kind:       "StatefulSet"
+		spec: {
+			selector: matchLabels: {
+				"app.oam.dev/component": "postgres"
+			}
+			template: {
+				metadata: labels: {
+					"app.oam.dev/name":      "postgres"
+					"app.oam.dev/component": "postgres"
+				}
+				spec: containers: [{
+					name:  "postgres"
+					image: "docker.io/library/postgres:16.4"
+					ports: [{
+						containerPort: 5432
+						protocol:      "TCP"
+						name:          "port-5432"
+					}]
+					env: [
+						{name: "POSTGRES_DB", value:       "mydb"},
+						{name: "POSTGRES_USER", value:     "postgres"},
+						{name: "POSTGRES_PASSWORD", value: "kvsecretpwd123"},
+					]
+					resources: {
+						limits: {
+							cpu:    "1"
+							memory: "2Gi"
+						}
+						requests: {
+							cpu:    "1"
+							memory: "2Gi"
+						}
+					}
+				}]
+			}
+		}
+	}
+
+	// Expected Service output for exposed ports
+	outputs: statefulsetsExpose: {
+		apiVersion: "v1"
+		kind:       "Service"
+		metadata: name: "postgres"
+		spec: {
+			selector: "app.oam.dev/component": "postgres"
+			ports: [{
+				port:       5432
+				targetPort: 5432
+				protocol:   "TCP"
+				name:       "port-5432"
+			}]
+			type: "ClusterIP"
+		}
+	}
+}
