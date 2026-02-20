@@ -439,8 +439,10 @@ func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
 func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinition, depth int) {
 	indent := strings.Repeat(g.indent, depth)
 
-	// podDisruptive
-	sb.WriteString(fmt.Sprintf("%spodDisruptive: %v\n", indent, t.IsPodDisruptive()))
+	// podDisruptive (only emit when true, false is the default)
+	if t.IsPodDisruptive() {
+		sb.WriteString(fmt.Sprintf("%spodDisruptive: %v\n", indent, t.IsPodDisruptive()))
+	}
 
 	// stage (if set)
 	if t.GetStage() != "" {
@@ -1228,6 +1230,9 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	} else {
+		if config.PatchStrategy != "" {
+			sb.WriteString(fmt.Sprintf("%s// +patchStrategy=%s\n", indent, config.PatchStrategy))
+		}
 		sb.WriteString(fmt.Sprintf("%spatch: spec: template: spec: {\n", indent))
 
 		// Determine the multi-container parameter name
@@ -1331,7 +1336,7 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 			}
 		}
 	case config.AllowMultiple && multiParam != "":
-		sb.WriteString(fmt.Sprintf("%sparameter: #PatchParams | close({\n", indent))
+		sb.WriteString(fmt.Sprintf("%sparameter: *#PatchParams | close({\n", indent))
 		containersDesc := config.ContainersDescription
 		if containersDesc == "" {
 			containersDesc = "Specify the settings for multiple containers"

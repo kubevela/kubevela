@@ -60,6 +60,7 @@ type PatchContainerConfig struct {
 	CustomPatchContainerBlock string                // custom CUE block for PatchContainer body (for complex merge logic)
 	CustomPatchBlock          string                // custom CUE block for the patch: spec: template: spec: { ... } body
 	CustomParameterBlock      string                // custom CUE block for the parameter definition
+	PatchStrategy             string                // if set, emitted as // +patchStrategy=<value> before the patch block (e.g., "open")
 }
 
 // --- Let Binding Support ---

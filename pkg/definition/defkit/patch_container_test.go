@@ -202,9 +202,9 @@ var _ = Describe("PatchContainer", func() {
 			Expect(cue).To(ContainSubstring(`if _params.imagePullPolicy != ""`))
 		})
 
-		It("should not emit *#PatchParams with star in multi-container parameter block", func() {
-			trait := defkit.NewTrait("no-star-test").
-				Description("Test no star in parameter").
+		It("should emit *#PatchParams with star default marker in multi-container parameter block", func() {
+			trait := defkit.NewTrait("star-test").
+				Description("Test star in parameter").
 				AppliesTo("deployments.apps").
 				Template(func(tpl *defkit.Template) {
 					tpl.UsePatchContainer(defkit.PatchContainerConfig{
@@ -220,9 +220,8 @@ var _ = Describe("PatchContainer", func() {
 
 			cue := trait.ToCue()
 
-			// Should be #PatchParams without star
-			Expect(cue).To(ContainSubstring("parameter: #PatchParams | close({"))
-			Expect(cue).NotTo(ContainSubstring("parameter: *#PatchParams"))
+			// Should be *#PatchParams with star (marks single-container as default branch)
+			Expect(cue).To(ContainSubstring("parameter: *#PatchParams | close({"))
 		})
 
 		It("should use custom Description and ContainersDescription", func() {

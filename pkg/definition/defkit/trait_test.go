@@ -187,8 +187,8 @@ parameter: #PatchParams
 			Expect(cue).To(ContainSubstring(`scaler: {`))
 			Expect(cue).To(ContainSubstring(`type: "trait"`))
 			Expect(cue).To(ContainSubstring(`description: "Scale workloads"`))
-			Expect(cue).To(ContainSubstring(`attributes: {`))
-			Expect(cue).To(ContainSubstring(`podDisruptive: false`))
+			// podDisruptive: false is not emitted (it's the default)
+			Expect(cue).NotTo(ContainSubstring(`podDisruptive: false`))
 			Expect(cue).To(ContainSubstring(`appliesToWorkloads: ["deployments.apps"]`))
 		})
 
