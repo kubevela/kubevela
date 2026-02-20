@@ -1452,10 +1452,18 @@ func (g *TraitCUEGenerator) writePatchContainerGroup(sb *strings.Builder, group 
 }
 
 // writePatchParamMapping writes a parameter mapping in the patch block.
-// In single-container mode (prefix="parameter."), fields are always mapped
-// unconditionally because PatchContainer itself handles the conditional logic.
+// Fields with a "!= _|_" existence condition and no ParamDefault are truly optional
+// (defined as field?: type in the schema) and need conditional guards to avoid
+// propagating _|_ when the parameter is unset. Fields with defaults or value-based
+// conditions (like '!= ""') always have a value and can be mapped unconditionally.
 func (g *TraitCUEGenerator) writePatchParamMapping(sb *strings.Builder, field PatchContainerField, indent string, prefix string) {
-	sb.WriteString(fmt.Sprintf("%s%s: %s%s\n", indent, field.ParamName, prefix, field.ParamName))
+	if field.Condition == "!= _|_" && field.ParamDefault == "" {
+		sb.WriteString(fmt.Sprintf("%sif %s%s %s {\n", indent, prefix, field.ParamName, field.Condition))
+		sb.WriteString(fmt.Sprintf("%s\t%s: %s%s\n", indent, field.ParamName, prefix, field.ParamName))
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%s%s: %s%s\n", indent, field.ParamName, prefix, field.ParamName))
+	}
 }
 
 // writePatchGroupMapping writes a group parameter mapping in the patch block.

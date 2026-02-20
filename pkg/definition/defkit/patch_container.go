@@ -22,6 +22,172 @@ package defkit
 // - ListComprehension: for CUE list comprehensions with conditional fields
 // - ParamIsSet/ParamNotSet: convenience constructors for parameter existence conditions
 
+// PatchFieldBuilder provides a fluent API for constructing PatchContainerField values.
+// Use PatchField() to start building.
+//
+// Example:
+//
+//	defkit.PatchField("exec").IsSet().Build()
+//	defkit.PatchField("initialDelaySeconds").Int().IsSet().Default("0").Build()
+//	defkit.PatchField("image").Strategy("retainKeys").Description("Specify the image").Build()
+type PatchFieldBuilder struct {
+	paramName     string
+	targetField   string
+	patchStrategy string
+	condition     string
+	paramType     string
+	paramDefault  string
+	description   string
+}
+
+// PatchField starts building a PatchContainerField with the given parameter name.
+// The TargetField defaults to the same as the parameter name.
+func PatchField(name string) *PatchFieldBuilder {
+	return &PatchFieldBuilder{
+		paramName:   name,
+		targetField: name,
+	}
+}
+
+// Target sets the container field to patch, if different from the parameter name.
+func (b *PatchFieldBuilder) Target(t string) *PatchFieldBuilder {
+	b.targetField = t
+	return b
+}
+
+// Default sets an explicit default value for the parameter.
+func (b *PatchFieldBuilder) Default(val string) *PatchFieldBuilder {
+	b.paramDefault = val
+	return b
+}
+
+// Type sets an explicit CUE type string (e.g., "string", "[...string]", "{...}").
+func (b *PatchFieldBuilder) Type(t string) *PatchFieldBuilder {
+	b.paramType = t
+	return b
+}
+
+// Int is shorthand for Type("int").
+func (b *PatchFieldBuilder) Int() *PatchFieldBuilder {
+	return b.Type("int")
+}
+
+// Bool is shorthand for Type("bool").
+func (b *PatchFieldBuilder) Bool() *PatchFieldBuilder {
+	return b.Type("bool")
+}
+
+// Str is shorthand for Type("string").
+func (b *PatchFieldBuilder) Str() *PatchFieldBuilder {
+	return b.Type("string")
+}
+
+// StringArray is shorthand for Type("[...string]").
+func (b *PatchFieldBuilder) StringArray() *PatchFieldBuilder {
+	return b.Type("[...string]")
+}
+
+// Strategy sets the patch strategy (e.g., "replace", "retainKeys").
+func (b *PatchFieldBuilder) Strategy(s string) *PatchFieldBuilder {
+	b.patchStrategy = s
+	return b
+}
+
+// --- Condition methods (following param.go / health_expr.go patterns) ---
+
+// IsSet guards the field with an existence check (CUE: != _|_).
+// Use this for optional fields that should only be patched when provided.
+func (b *PatchFieldBuilder) IsSet() *PatchFieldBuilder {
+	b.condition = "!= _|_"
+	return b
+}
+
+// NotEmpty guards the field with a non-empty string check (CUE: != "").
+// Use this for string fields that should only be patched when non-empty.
+func (b *PatchFieldBuilder) NotEmpty() *PatchFieldBuilder {
+	b.condition = `!= ""`
+	return b
+}
+
+// Eq sets a condition that checks the field equals the given value.
+func (b *PatchFieldBuilder) Eq(val string) *PatchFieldBuilder {
+	b.condition = "== " + val
+	return b
+}
+
+// Ne sets a condition that checks the field is not equal to the given value.
+func (b *PatchFieldBuilder) Ne(val string) *PatchFieldBuilder {
+	b.condition = "!= " + val
+	return b
+}
+
+// Gt sets a condition that checks the field is greater than the given value.
+func (b *PatchFieldBuilder) Gt(val string) *PatchFieldBuilder {
+	b.condition = "> " + val
+	return b
+}
+
+// Gte sets a condition that checks the field is greater than or equal to the given value.
+func (b *PatchFieldBuilder) Gte(val string) *PatchFieldBuilder {
+	b.condition = ">= " + val
+	return b
+}
+
+// Lt sets a condition that checks the field is less than the given value.
+func (b *PatchFieldBuilder) Lt(val string) *PatchFieldBuilder {
+	b.condition = "< " + val
+	return b
+}
+
+// Lte sets a condition that checks the field is less than or equal to the given value.
+func (b *PatchFieldBuilder) Lte(val string) *PatchFieldBuilder {
+	b.condition = "<= " + val
+	return b
+}
+
+// RawCondition sets a raw CUE condition string.
+// Use this as an escape hatch for non-standard conditions not covered by the typed API.
+func (b *PatchFieldBuilder) RawCondition(c string) *PatchFieldBuilder {
+	b.condition = c
+	return b
+}
+
+// Description sets the +usage description for this field.
+func (b *PatchFieldBuilder) Description(d string) *PatchFieldBuilder {
+	b.description = d
+	return b
+}
+
+// Build returns the constructed PatchContainerField.
+func (b *PatchFieldBuilder) Build() PatchContainerField {
+	return PatchContainerField{
+		ParamName:     b.paramName,
+		TargetField:   b.targetField,
+		PatchStrategy: b.patchStrategy,
+		Condition:     b.condition,
+		ParamType:     b.paramType,
+		ParamDefault:  b.paramDefault,
+		Description:   b.description,
+	}
+}
+
+// PatchFields builds a slice of PatchContainerField from builders.
+// This eliminates the need to call .Build() on each field individually.
+//
+// Example:
+//
+//	Fields: defkit.PatchFields(
+//	    defkit.PatchField("exec").IsSet(),
+//	    defkit.PatchField("initialDelaySeconds").Int().IsSet().Default("0"),
+//	)
+func PatchFields(builders ...*PatchFieldBuilder) []PatchContainerField {
+	fields := make([]PatchContainerField, len(builders))
+	for i, b := range builders {
+		fields[i] = b.Build()
+	}
+	return fields
+}
+
 // PatchContainerField defines a field to be patched in the container.
 type PatchContainerField struct {
 	ParamName     string // the parameter name (e.g., "command", "args")
