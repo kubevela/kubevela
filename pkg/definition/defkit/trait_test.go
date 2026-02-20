@@ -1169,6 +1169,167 @@ template: {
 		})
 	})
 
+	Context("SpreadAll operation", func() {
+		It("should record SpreadAll ops on PatchResource", func() {
+			p := defkit.NewPatchResource()
+			elem := defkit.NewArrayElement().Set("name", defkit.Lit("test"))
+			p.SpreadAll("spec.containers", elem)
+
+			ops := p.Ops()
+			Expect(ops).To(HaveLen(1))
+			sa, ok := ops[0].(*defkit.SpreadAllOp)
+			Expect(ok).To(BeTrue())
+			Expect(sa.Path()).To(Equal("spec.containers"))
+			Expect(sa.Elements()).To(HaveLen(1))
+		})
+
+		It("should record SpreadAll inside If block", func() {
+			p := defkit.NewPatchResource()
+			cond := defkit.Eq(defkit.ParameterField("enabled"), defkit.Lit(true))
+			elem := defkit.NewArrayElement().Set("name", defkit.Lit("test"))
+			p.If(cond).
+				SpreadAll("spec.containers", elem).
+				EndIf()
+
+			ops := p.Ops()
+			Expect(ops).To(HaveLen(1))
+			ifBlock, ok := ops[0].(*defkit.IfBlock)
+			Expect(ok).To(BeTrue())
+			Expect(ifBlock.Ops()).To(HaveLen(1))
+			_, ok = ifBlock.Ops()[0].(*defkit.SpreadAllOp)
+			Expect(ok).To(BeTrue())
+		})
+
+		It("should render unconditional SpreadAll with simple value", func() {
+			image := defkit.String("image").Required()
+
+			trait := defkit.NewTrait("spreadall-simple-test").
+				Description("Test SpreadAll with simple value").
+				AppliesTo("deployments.apps").
+				Params(image).
+				Template(func(tpl *defkit.Template) {
+					elem := defkit.NewArrayElement().
+						Set("image", image)
+					tpl.Patch().SpreadAll("spec.template.spec.containers", elem)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("containers: [...{"))
+			Expect(cue).To(ContainSubstring("image: parameter.image"))
+		})
+
+		It("should render conditional SpreadAll with ArrayElement SetIf", func() {
+			postStart := defkit.String("postStart")
+			preStop := defkit.String("preStop")
+
+			trait := defkit.NewTrait("spreadall-conditional-test").
+				Description("Test SpreadAll with conditional fields").
+				AppliesTo("deployments.apps").
+				Params(postStart, preStop).
+				Template(func(tpl *defkit.Template) {
+					elem := defkit.NewArrayElement().
+						SetIf(postStart.IsSet(), "lifecycle.postStart.exec.command", postStart).
+						SetIf(preStop.IsSet(), "lifecycle.preStop.exec.command", preStop)
+					tpl.Patch().SpreadAll("spec.template.spec.containers", elem)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("containers: [...{"))
+			Expect(cue).To(ContainSubstring(`parameter["postStart"] != _|_`))
+			Expect(cue).To(ContainSubstring(`parameter["preStop"] != _|_`))
+		})
+
+		It("should render SpreadAll inside an IfBlock", func() {
+			enabled := defkit.Bool("enabled").Default(false)
+			image := defkit.String("image").Required()
+
+			trait := defkit.NewTrait("spreadall-ifblock-test").
+				Description("Test SpreadAll inside IfBlock").
+				AppliesTo("deployments.apps").
+				Params(enabled, image).
+				Template(func(tpl *defkit.Template) {
+					elem := defkit.NewArrayElement().
+						Set("image", image)
+					tpl.Patch().
+						If(defkit.Eq(enabled, defkit.Lit(true))).
+						SpreadAll("spec.template.spec.containers", elem).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("parameter.enabled == true"))
+			Expect(cue).To(ContainSubstring("containers: [...{"))
+			Expect(cue).To(ContainSubstring("image: parameter.image"))
+		})
+	})
+
+	Context("Multiple IfBlocks with bare ops", func() {
+		It("should render bare ops before conditional IfBlocks", func() {
+			kind := defkit.String("kind").Default("Deployment").Enum("Deployment", "StatefulSet")
+			replicas := defkit.Int("replicas").Default(1)
+			strategyType := defkit.String("strategyType").Default("RollingUpdate")
+
+			trait := defkit.NewTrait("bare-ops-ifblock-test").
+				Description("Test bare ops with multiple IfBlocks").
+				AppliesTo("deployments.apps", "statefulsets.apps").
+				Params(kind, replicas, strategyType).
+				Template(func(tpl *defkit.Template) {
+					isDeployment := defkit.Eq(kind, defkit.Lit("Deployment"))
+					isStatefulSet := defkit.Eq(kind, defkit.Lit("StatefulSet"))
+
+					tpl.Patch().
+						Set("spec.replicas", replicas).
+						If(isDeployment).
+						Set("spec.strategy.type", strategyType).
+						EndIf().
+						If(isStatefulSet).
+						Set("spec.updateStrategy.type", strategyType).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// Bare op should be present
+			Expect(cue).To(ContainSubstring("replicas: parameter.replicas"))
+			// Both conditional blocks
+			Expect(cue).To(ContainSubstring(`parameter.kind == "Deployment"`))
+			Expect(cue).To(ContainSubstring(`parameter.kind == "StatefulSet"`))
+			Expect(cue).To(ContainSubstring("strategy: type:"))
+			Expect(cue).To(ContainSubstring("updateStrategy: type:"))
+		})
+	})
+
+	Context("findIfBlockCommonPrefix edge cases", func() {
+		It("should handle IfBlocks with no common prefix", func() {
+			kind := defkit.String("kind").Default("a").Enum("a", "b")
+
+			trait := defkit.NewTrait("no-common-prefix-test").
+				Description("Test no common prefix").
+				AppliesTo("deployments.apps").
+				Params(kind).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().
+						If(defkit.Eq(kind, defkit.Lit("a"))).
+						Set("spec.strategy.type", defkit.Lit("RollingUpdate")).
+						EndIf().
+						If(defkit.Eq(kind, defkit.Lit("b"))).
+						Set("metadata.labels.version", defkit.Lit("v2")).
+						EndIf()
+				})
+
+			cue := trait.ToCue()
+
+			// Both conditions should be rendered
+			Expect(cue).To(ContainSubstring(`parameter.kind == "a"`))
+			Expect(cue).To(ContainSubstring(`parameter.kind == "b"`))
+			Expect(cue).To(ContainSubstring("strategy: type:"))
+			Expect(cue).To(ContainSubstring("labels: version:"))
+		})
+	})
+
 	Context("Nested array struct in helper definitions", func() {
 		It("should render array field with nested struct as [...{fields}]", func() {
 			trait := defkit.NewTrait("nested-array-test").
