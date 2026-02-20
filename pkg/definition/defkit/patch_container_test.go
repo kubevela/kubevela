@@ -98,6 +98,60 @@ var _ = Describe("PatchContainer", func() {
 			Expect(strings.Count(cue, "parameter:")).To(Equal(1))
 		})
 
+		It("should use optional field syntax for non-string conditions like != _|_", func() {
+			trait := defkit.NewTrait("optional-field-test").
+				Description("Test optional fields for non-string conditions").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						Groups: []defkit.PatchContainerGroup{
+							{
+								TargetField: "securityContext",
+								Fields: []defkit.PatchContainerField{
+									{ParamName: "privileged", TargetField: "privileged", ParamType: "bool", ParamDefault: "false"},
+									{ParamName: "runAsUser", TargetField: "runAsUser", ParamType: "int", Condition: "!= _|_"},
+									{ParamName: "runAsGroup", TargetField: "runAsGroup", ParamType: "int", Condition: "!= _|_"},
+								},
+								SubGroups: []defkit.PatchContainerGroup{
+									{
+										TargetField: "capabilities",
+										Fields: []defkit.PatchContainerField{
+											{ParamName: "addCapabilities", TargetField: "add", ParamType: "[...string]", Condition: "!= _|_"},
+											{ParamName: "dropCapabilities", TargetField: "drop", ParamType: "[...string]", Condition: "!= _|_"},
+										},
+									},
+								},
+							},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Fields with != _|_ condition should use optional syntax (field?: type), not *null | type
+			Expect(cue).To(ContainSubstring(`runAsUser?: int`))
+			Expect(cue).To(ContainSubstring(`runAsGroup?: int`))
+			Expect(cue).To(ContainSubstring(`addCapabilities?: [...string]`))
+			Expect(cue).To(ContainSubstring(`dropCapabilities?: [...string]`))
+
+			// Must NOT have *null | type for these fields
+			Expect(cue).NotTo(ContainSubstring(`runAsUser: *null | int`))
+			Expect(cue).NotTo(ContainSubstring(`runAsGroup: *null | int`))
+			Expect(cue).NotTo(ContainSubstring(`addCapabilities: *null | [...string]`))
+			Expect(cue).NotTo(ContainSubstring(`dropCapabilities: *null | [...string]`))
+
+			// Fields with explicit defaults should still use default syntax
+			Expect(cue).To(ContainSubstring(`privileged: *false | bool`))
+
+			// The PatchContainer body should still have conditional blocks for these fields
+			Expect(cue).To(ContainSubstring(`if _params.runAsUser != _|_`))
+			Expect(cue).To(ContainSubstring(`if _params.runAsGroup != _|_`))
+			Expect(cue).To(ContainSubstring(`if _params.addCapabilities != _|_`))
+			Expect(cue).To(ContainSubstring(`if _params.dropCapabilities != _|_`))
+		})
+
 		It("should use *empty-string default for string-equality conditions", func() {
 			trait := defkit.NewTrait("image-test").
 				Description("Test string-equality condition default").

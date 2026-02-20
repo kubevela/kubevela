@@ -1371,22 +1371,24 @@ func (g *TraitCUEGenerator) writePatchParamField(sb *strings.Builder, field Patc
 		}
 	}
 
-	// Determine default value
+	// Determine default value and optionality
 	defaultVal := field.ParamDefault
+	optional := ""
 	if defaultVal == "" && field.Condition != "" {
 		// Has condition, likely optional - choose appropriate default
 		if field.Condition == "!= \"\"" {
 			// String-equality condition: default to empty string
 			defaultVal = "\"\""
 		} else {
-			defaultVal = "null"
+			// Non-string condition (e.g. != _|_): make field optional
+			optional = "?"
 		}
 	}
 
 	if defaultVal != "" {
 		sb.WriteString(fmt.Sprintf("%s%s: *%s | %s\n", indent, field.ParamName, defaultVal, typeStr))
 	} else {
-		sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, field.ParamName, typeStr))
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, field.ParamName, optional, typeStr))
 	}
 }
 
