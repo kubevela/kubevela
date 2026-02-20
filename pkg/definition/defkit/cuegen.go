@@ -2269,8 +2269,13 @@ func (g *CUEGenerator) writeParam(sb *strings.Builder, param Param, depth int) {
 
 	name := param.Name()
 	optional := "?"
-	if param.IsRequired() || param.HasDefault() {
+	forceOptional := false
+	if bp, ok := param.(interface{ IsForceOptional() bool }); ok {
+		forceOptional = bp.IsForceOptional()
+	}
+	if param.IsRequired() || (param.HasDefault() && !forceOptional) {
 		// No ? for required fields or fields with defaults (defaults make them effectively present)
+		// Unless forceOptional is set, which keeps ? even with a default
 		optional = ""
 	}
 

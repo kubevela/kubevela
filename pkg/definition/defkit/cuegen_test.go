@@ -120,6 +120,23 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring("required: string"))
 			Expect(cue).To(ContainSubstring("optional?: string"))
 		})
+
+		It("should keep ? for ForceOptional parameters even with defaults", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.String("normalDefault").Default("Honor").Enum("Honor", "Ignore"),
+					defkit.String("optionalDefault").Default("Honor").ForceOptional().Enum("Honor", "Ignore"),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			// Normal default: no ? (field is always present)
+			Expect(cue).To(ContainSubstring(`normalDefault: *"Honor" | "Ignore"`))
+			Expect(cue).NotTo(ContainSubstring(`normalDefault?:`))
+
+			// ForceOptional with default: has ? (field can be absent, defaults when present)
+			Expect(cue).To(ContainSubstring(`optionalDefault?: *"Honor" | "Ignore"`))
+		})
 	})
 
 	Describe("GenerateParameterSchema with complex types", func() {

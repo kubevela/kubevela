@@ -18,11 +18,12 @@ package defkit
 
 // baseParam provides common parameter functionality.
 type baseParam struct {
-	name         string
-	paramType    ParamType
-	required     bool
-	defaultValue any
-	description  string
+	name          string
+	paramType     ParamType
+	required      bool
+	defaultValue  any
+	description   string
+	forceOptional bool // when true, field stays optional even with a default value
 }
 
 func (p *baseParam) expr()      {}
@@ -35,6 +36,7 @@ func (p *baseParam) IsOptional() bool       { return !p.required }
 func (p *baseParam) HasDefault() bool       { return p.defaultValue != nil }
 func (p *baseParam) GetDefault() any        { return p.defaultValue }
 func (p *baseParam) GetDescription() string { return p.description }
+func (p *baseParam) IsForceOptional() bool  { return p.forceOptional }
 
 // IsSet returns a condition that checks if the parameter has a value.
 // This is used with SetIf for conditional field assignment.
@@ -129,6 +131,14 @@ func (p *StringParam) Required() *StringParam {
 // Optional marks the parameter as optional (default behavior).
 func (p *StringParam) Optional() *StringParam {
 	p.required = false
+	return p
+}
+
+// ForceOptional makes the field optional even when it has a default value.
+// Normally, fields with defaults are treated as always-present (no ? in CUE).
+// This generates field?: *default | type instead of field: *default | type.
+func (p *StringParam) ForceOptional() *StringParam {
+	p.forceOptional = true
 	return p
 }
 
