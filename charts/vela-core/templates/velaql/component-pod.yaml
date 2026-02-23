@@ -53,6 +53,10 @@ data:
             }
             status: {
               phase: pod.object.status.phase
+              if pod.additionalInfo != _|_ {
+              // similar to the STATUS shown in the `kubectl get pod`
+              podStatus: pod.additionalInfo.Status
+              }
               // refer to https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
               if phase != "Pending" && phase != "Unknown" {
                 if pod.object.status.podIP != _|_ {
