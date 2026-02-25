@@ -47,14 +47,16 @@ template: {
 
 			# Convert duration to seconds
 			SECONDS=0
-			if [[ "$DURATION" =~ ^([0-9]+)m$ ]]; then
+			if [[ "$DURATION" =~ ^([0-9]+)s$ ]]; then
+				SECONDS=${BASH_REMATCH[1]}
+			elif [[ "$DURATION" =~ ^([0-9]+)m$ ]]; then
 				SECONDS=$((${BASH_REMATCH[1]} * 60))
 			elif [[ "$DURATION" =~ ^([0-9]+)h$ ]]; then
 				SECONDS=$((${BASH_REMATCH[1]} * 3600))
 			elif [[ "$DURATION" =~ ^([0-9]+)d$ ]]; then
 				SECONDS=$((${BASH_REMATCH[1]} * 86400))
 			else
-				echo "ERROR: Invalid duration format: $DURATION (expected format: 5m, 1h, or 2d)"
+				echo "ERROR: Invalid duration format: $DURATION (expected format: 30s, 5m, 1h, or 2d)"
 				exit 1
 			fi
 
@@ -111,8 +113,8 @@ template: {
 		// +usage=Schedule restart at a specific RFC3339 timestamp (e.g., "2025-01-15T14:30:00Z")
 		at?: string & =~"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
 		// +usage=Schedule restart after a relative duration from now (e.g., "5m", "1h", "2d")
-		after?: string & =~"^[0-9]+(m|h|d)$"
+		after?: string & =~"^[0-9]+(s|m|h|d)$"
 		// +usage=Schedule recurring restarts every specified duration (e.g., "5m", "1h", "24h")
-		every?: string & =~"^[0-9]+(m|h|d)$"
+		every?: string & =~"^[0-9]+(s|m|h|d)$"
 	}
 }

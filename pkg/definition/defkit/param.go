@@ -110,10 +110,11 @@ func (c *ParamCompareCondition) CompareValue() any { return c.value }
 // StringParam represents a string parameter.
 type StringParam struct {
 	baseParam
-	enumValues []string // allowed enum values
-	pattern    string   // regex pattern constraint
-	minLen     *int     // minimum length constraint
-	maxLen     *int     // maximum length constraint
+	enumValues      []string // allowed enum values
+	enumAllowString bool     // when true, appends | string to enum disjunction
+	pattern         string   // regex pattern constraint
+	minLen          *int     // minimum length constraint
+	maxLen          *int     // maximum length constraint
 }
 
 // String creates a new string parameter with the given name.
@@ -181,6 +182,18 @@ func (p *StringParam) Enum(values ...string) *StringParam {
 // GetEnumValues returns the allowed enum values.
 func (p *StringParam) GetEnumValues() []string {
 	return p.enumValues
+}
+
+// AllowString appends | string to the enum disjunction, allowing any string
+// in addition to the enum values. This generates CUE like: "value1" | string
+func (p *StringParam) AllowString() *StringParam {
+	p.enumAllowString = true
+	return p
+}
+
+// IsEnumAllowString returns whether the enum allows arbitrary strings.
+func (p *StringParam) IsEnumAllowString() bool {
+	return p.enumAllowString
 }
 
 // Pattern sets a regex pattern constraint for the parameter.

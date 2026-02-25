@@ -18,6 +18,7 @@ package defkit
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"sigs.k8s.io/yaml"
@@ -29,12 +30,14 @@ import (
 // Workflow steps define operations in an application's deployment workflow,
 // such as deploy, suspend, notification, approval, etc.
 type WorkflowStepDefinition struct {
-	baseDefinition                                 // embedded common fields and methods
-	category       string                          // e.g., "Application Delivery", "Notification"
-	scope          string                          // e.g., "Application", "Workflow"
-	alias          string                          // optional alias for definition metadata annotation
-	hasAlias       bool                            // tracks whether alias was explicitly set (including empty string)
-	stepTemplate   func(tpl *WorkflowStepTemplate) // template function for step logic (type-specific)
+	baseDefinition                                  // embedded common fields and methods
+	category        string                          // e.g., "Application Delivery", "Notification"
+	scope           string                          // e.g., "Application", "Workflow"
+	labels          map[string]string               // arbitrary metadata labels beyond scope
+	alias           string                          // optional alias for definition metadata annotation
+	hasAlias        bool                            // tracks whether alias was explicitly set (including empty string)
+	stepTemplate    func(tpl *WorkflowStepTemplate) // template function for step logic (type-specific)
+	rawTemplateBody string                          // raw CUE embedded inside template: {} before the parameter block
 }
 
 // WorkflowStepTemplate provides the building context for workflow step templates.
@@ -103,6 +106,16 @@ func (w *WorkflowStepDefinition) Scope(scope string) *WorkflowStepDefinition {
 	w.scope = scope
 	return w
 }
+
+// Labels sets arbitrary metadata labels for the workflow step definition.
+// These labels appear in the definition's labels block alongside scope.
+func (w *WorkflowStepDefinition) Labels(labels map[string]string) *WorkflowStepDefinition {
+	w.labels = labels
+	return w
+}
+
+// GetLabels returns the workflow step's metadata labels.
+func (w *WorkflowStepDefinition) GetLabels() map[string]string { return w.labels }
 
 // Alias sets an optional alias for the workflow step definition.
 // This maps to metadata annotation `definition.oam.dev/alias` in generated YAML.
@@ -417,8 +430,18 @@ func (g *WorkflowStepCUEGenerator) GenerateFullDefinition(w *WorkflowStepDefinit
 	}
 	sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 
-	// Write labels (scope)
+	// Write labels (scope + custom labels)
 	sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
+	if labels := w.GetLabels(); len(labels) > 0 {
+		keys := make([]string, 0, len(labels))
+		for k := range labels {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, labels[k]))
+		}
+	}
 	if w.GetScope() != "" {
 		sb.WriteString(fmt.Sprintf("%s\t\"scope\": %q\n", g.indent, w.GetScope()))
 	}
