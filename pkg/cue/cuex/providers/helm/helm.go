@@ -774,6 +774,45 @@ func orderResources(resources []map[string]interface{}) []map[string]interface{}
 	return result
 }
 
+func (p *Provider) createChartRelease(_ context.Context, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]any) error {
+	// Configure action
+	actionConfig := &action.Configuration{}
+	if err := actionConfig.Init(
+        p.helmClient.RESTClientGetter(),
+        releaseNamespace,
+        "secrets",
+        klog.Infof,
+    ); err != nil {
+        return errors.Wrap(err, "failed to initialize helm action config")
+    }
+
+	historyClient := action.NewHistory(actionConfig)
+    historyClient.Max = 1
+    _, err := historyClient.Run(releaseName)
+
+	if err != nil {
+		install := action.NewInstall(actionConfig)
+        install.ReleaseName = releaseName
+        install.Namespace = releaseNamespace
+        install.CreateNamespace = true
+
+        if _, err := install.Run(ch, values); err != nil {
+            return errors.Wrapf(err, "failed to install release %s", releaseName)
+        }
+        klog.Infof("Installed release %s in namespace %s", releaseName, releaseNamespace)
+	} else {
+		upgrade := action.NewUpgrade(actionConfig)
+        upgrade.Namespace = releaseNamespace
+
+        if _, err := upgrade.Run(releaseName, ch, values); err != nil {
+            return errors.Wrapf(err, "failed to upgrade release %s", releaseName)
+        }
+        klog.Infof("Upgraded release %s in namespace %s", releaseName, releaseNamespace)
+	}
+	
+	return nil
+}
+
 // Render is the main provider function for rendering Helm charts
 func Render(ctx context.Context, params *providers.Params[RenderParams]) (*providers.Returns[RenderReturns], error) {
 	p := NewProvider()
@@ -818,6 +857,11 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	}
 
 	klog.Infof("Helm provider: Rendered %d resources for chart %s", len(resources), renderParams.Chart.Source)
+
+	err = p.createChartRelease(ctx, chart, releaseName, releaseNamespace, values)
+	if err != nil {
+		return nil, err
+	}
 
 	// Log first resource for debugging
 	if len(resources) > 0 {
