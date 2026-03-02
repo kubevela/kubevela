@@ -358,5 +358,5 @@ func TestStringStatusFromCueString(t *testing.T) {
 
 	statusField, ok := ast.GetFieldByPath(f, fmt.Sprintf("%s.attributes.status.details", def.GetName()))
 	require.True(t, ok, "status field not found in CUE definition")
-	require.IsType(t, &ast2.StructLit{}, statusField.Value, "expected status field to be of type StructLit")
+	require.IsType(t, &ast2.StructLit{}, statusField.Value, "expected status field to be of type StructLit ")
 }
