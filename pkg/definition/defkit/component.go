@@ -29,6 +29,7 @@ import (
 type ComponentDefinition struct {
 	baseDefinition // embedded common fields (name, description, params, template, etc.)
 	workload       WorkloadType
+	labels         map[string]string // metadata labels for the component definition
 }
 
 // WorkloadType represents the workload type for a component.
@@ -139,6 +140,16 @@ func (c *ComponentDefinition) Helper(name string, param Param) *ComponentDefinit
 	c.addHelper(name, param)
 	return c
 }
+
+// Labels sets metadata labels on the component definition.
+// Usage: component.Labels(map[string]string{"ui-hidden": "true"})
+func (c *ComponentDefinition) Labels(labels map[string]string) *ComponentDefinition {
+	c.labels = labels
+	return c
+}
+
+// GetLabels returns the component's metadata labels.
+func (c *ComponentDefinition) GetLabels() map[string]string { return c.labels }
 
 // RawCUE sets raw CUE for complex component definitions that don't fit the builder pattern.
 // When set, this bypasses all other template settings and outputs the raw CUE directly.

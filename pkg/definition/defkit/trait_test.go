@@ -187,8 +187,8 @@ parameter: #PatchParams
 			Expect(cue).To(ContainSubstring(`scaler: {`))
 			Expect(cue).To(ContainSubstring(`type: "trait"`))
 			Expect(cue).To(ContainSubstring(`description: "Scale workloads"`))
-			// podDisruptive: false is not emitted (it's the default)
-			Expect(cue).NotTo(ContainSubstring(`podDisruptive: false`))
+			// podDisruptive is always emitted
+			Expect(cue).To(ContainSubstring(`podDisruptive: false`))
 			Expect(cue).To(ContainSubstring(`appliesToWorkloads: ["deployments.apps"]`))
 		})
 
@@ -1373,6 +1373,249 @@ template: {
 			Expect(cue).To(ContainSubstring("#Endpoint: {"))
 			Expect(cue).To(ContainSubstring("port:  #Port"))
 			Expect(cue).To(ContainSubstring("host?: string"))
+		})
+	})
+
+	Context("podDisruptive always emitted", func() {
+		It("should emit podDisruptive: true when set to true", func() {
+			trait := defkit.NewTrait("disruptive").
+				Description("Disruptive trait").
+				AppliesTo("deployments.apps").
+				PodDisruptive(true)
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring("podDisruptive: true"))
+		})
+
+		It("should emit podDisruptive: false when set to false", func() {
+			trait := defkit.NewTrait("nondisruptive").
+				Description("Non-disruptive trait").
+				AppliesTo("deployments.apps").
+				PodDisruptive(false)
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring("podDisruptive: false"))
+		})
+
+		It("should emit podDisruptive: false when not explicitly set", func() {
+			trait := defkit.NewTrait("default-disruptive").
+				Description("Default trait").
+				AppliesTo("deployments.apps")
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring("podDisruptive: false"))
+		})
+	})
+
+	Context("ConflictsWith empty list emission", func() {
+		It("should emit conflictsWith with values when set", func() {
+			trait := defkit.NewTrait("conflicts-with-values").
+				Description("Trait with conflicts").
+				AppliesTo("deployments.apps").
+				ConflictsWith("scaler", "hpa")
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring(`conflictsWith: ["scaler", "hpa"]`))
+		})
+
+		It("should emit conflictsWith: [] when explicitly set with no values", func() {
+			trait := defkit.NewTrait("conflicts-empty").
+				Description("Trait with empty conflicts").
+				AppliesTo("deployments.apps").
+				ConflictsWith()
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring("conflictsWith: []"))
+		})
+
+		It("should not emit conflictsWith when never called", func() {
+			trait := defkit.NewTrait("no-conflicts").
+				Description("Trait without conflicts").
+				AppliesTo("deployments.apps")
+
+			cue := trait.ToCue()
+			Expect(cue).NotTo(ContainSubstring("conflictsWith"))
+		})
+	})
+
+	Context("Labels nil vs empty emission", func() {
+		It("should emit labels with values when set", func() {
+			trait := defkit.NewTrait("labels-values").
+				Description("Trait with labels").
+				AppliesTo("deployments.apps").
+				Labels(map[string]string{"ui-hidden": "true"})
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring("labels:"))
+			Expect(cue).To(ContainSubstring(`"ui-hidden": "true"`))
+		})
+
+		It("should emit labels: {} when explicitly set to empty map", func() {
+			trait := defkit.NewTrait("labels-empty").
+				Description("Trait with empty labels").
+				AppliesTo("deployments.apps").
+				Labels(map[string]string{})
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring("labels: {}"))
+		})
+
+		It("should not emit labels when never called", func() {
+			trait := defkit.NewTrait("no-labels").
+				Description("Trait without labels").
+				AppliesTo("deployments.apps")
+
+			cue := trait.ToCue()
+			Expect(cue).NotTo(ContainSubstring("labels:"))
+		})
+	})
+
+	Context("WorkloadRefPath attribute", func() {
+		It("should emit workloadRefPath when set to empty string", func() {
+			trait := defkit.NewTrait("wlref-empty").
+				Description("Trait with empty workloadRefPath").
+				AppliesTo("deployments.apps").
+				WorkloadRefPath("")
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring(`workloadRefPath: ""`))
+		})
+
+		It("should emit workloadRefPath when set to a path", func() {
+			trait := defkit.NewTrait("wlref-path").
+				Description("Trait with workloadRefPath").
+				AppliesTo("deployments.apps").
+				WorkloadRefPath("spec.workloadRef")
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring(`workloadRefPath: "spec.workloadRef"`))
+		})
+
+		It("should not emit workloadRefPath when never called", func() {
+			trait := defkit.NewTrait("no-wlref").
+				Description("Trait without wlref path").
+				AppliesTo("deployments.apps")
+
+			cue := trait.ToCue()
+			Expect(cue).NotTo(ContainSubstring("workloadRefPath"))
+		})
+	})
+
+	Context("PatchContainer ParamsTypeName", func() {
+		It("should use default PatchParams when ParamsTypeName is empty", func() {
+			trait := defkit.NewTrait("default-params-name").
+				Description("Test default params type name").
+				AppliesTo("deployments.apps").
+				PodDisruptive(true).
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						PatchFields: defkit.PatchFields(
+							defkit.PatchField("image").Strategy("retainKeys"),
+						),
+					})
+				})
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring("#PatchParams: {"))
+			Expect(cue).To(ContainSubstring("_params:         #PatchParams"))
+			Expect(cue).NotTo(ContainSubstring("#StartupProbeParams"))
+		})
+
+		It("should use custom ParamsTypeName when set", func() {
+			trait := defkit.NewTrait("custom-params-name").
+				Description("Test custom params type name").
+				AppliesTo("deployments.apps").
+				PodDisruptive(true).
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						AllowMultiple:        true,
+						MultiContainerParam:  "probes",
+						ParamsTypeName:       "StartupProbeParams",
+						CustomParamsBlock:    "initialDelaySeconds: *0 | int",
+						PatchFields: defkit.PatchFields(
+							defkit.PatchField("initialDelaySeconds").Int().IsSet().Default("0"),
+						),
+					})
+				})
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring("#StartupProbeParams: {"))
+			Expect(cue).To(ContainSubstring("_params:         #StartupProbeParams"))
+			Expect(cue).To(ContainSubstring("parameter: *#StartupProbeParams | close({"))
+			Expect(cue).To(ContainSubstring("probes: [...#StartupProbeParams]"))
+			Expect(cue).NotTo(ContainSubstring("#PatchParams"))
+		})
+	})
+
+	Context("PatchContainer NoDefaultDisjunction", func() {
+		It("should include * default marker by default", func() {
+			trait := defkit.NewTrait("default-disjunction").
+				Description("Test default disjunction").
+				AppliesTo("deployments.apps").
+				PodDisruptive(true).
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						AllowMultiple:        true,
+						ContainersParam:      "containers",
+						PatchFields: defkit.PatchFields(
+							defkit.PatchField("image").Strategy("retainKeys"),
+						),
+					})
+				})
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring("parameter: *#PatchParams | close({"))
+		})
+
+		It("should omit * default marker when NoDefaultDisjunction is true", func() {
+			trait := defkit.NewTrait("no-default-disjunction").
+				Description("Test no default disjunction").
+				AppliesTo("deployments.apps").
+				PodDisruptive(true).
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						AllowMultiple:        true,
+						ContainersParam:      "containers",
+						NoDefaultDisjunction: true,
+						PatchFields: defkit.PatchFields(
+							defkit.PatchField("image").Strategy("retainKeys"),
+						),
+					})
+				})
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring("parameter: #PatchParams | close({"))
+			Expect(cue).NotTo(ContainSubstring("parameter: *#PatchParams"))
+		})
+	})
+
+	Context("PatchContainer no _baseContainer singular", func() {
+		It("should use _baseContainers (plural) not _baseContainer (singular)", func() {
+			trait := defkit.NewTrait("base-containers-test").
+				Description("Test base containers plural").
+				AppliesTo("deployments.apps").
+				PodDisruptive(true).
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						PatchFields: defkit.PatchFields(
+							defkit.PatchField("image"),
+						),
+					})
+				})
+
+			cue := trait.ToCue()
+			Expect(cue).To(ContainSubstring("_baseContainers: context.output.spec.template.spec.containers"))
+			Expect(cue).NotTo(ContainSubstring("_baseContainer:"))
 		})
 	})
 })

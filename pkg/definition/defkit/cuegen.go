@@ -18,8 +18,12 @@ package defkit
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
+
+// cueOpenStruct is the CUE literal for an open struct type.
+const cueOpenStruct = "{...}"
 
 // cueLabel quotes a CUE field label if it contains characters that are not
 // valid in a CUE identifier (letters, digits, underscore, $).
@@ -172,6 +176,16 @@ func (g *CUEGenerator) collectImportsFromValue(v interface{}) {
 				g.collectImportsFromFieldValue(fv)
 			}
 		}
+	case *ArrayBuilder:
+		for _, entry := range val.Entries() {
+			if entry.itemBuilder != nil {
+				g.collectImportsFromItemOps(entry.itemBuilder.Ops())
+			}
+		}
+	case *PlusExpr:
+		for _, part := range val.Parts() {
+			g.collectImportsFromValue(part)
+		}
 	}
 }
 
@@ -192,9 +206,27 @@ func (g *CUEGenerator) collectImportsFromFieldValue(fv FieldValue) {
 	switch val := fv.(type) {
 	case *OrFieldRef:
 		g.collectImportsFromFieldValue(val.fallback)
+	case *ConditionalOrFieldRef:
+		g.collectImportsFromFieldValue(val.fallback)
 	case *NestedField:
 		for _, nested := range val.mapping {
 			g.collectImportsFromFieldValue(nested)
+		}
+	}
+}
+
+// collectImportsFromItemOps recursively scans ItemBuilder operations for import requirements.
+func (g *CUEGenerator) collectImportsFromItemOps(ops []itemOp) {
+	for _, op := range ops {
+		switch o := op.(type) {
+		case setOp:
+			g.collectImportsFromValue(o.value)
+		case letOp:
+			g.collectImportsFromValue(o.value)
+		case setDefaultOp:
+			g.collectImportsFromValue(o.defValue)
+		case ifBlockOp:
+			g.collectImportsFromItemOps(o.body)
 		}
 	}
 }
@@ -260,7 +292,15 @@ func (g *CUEGenerator) GenerateFullDefinition(c *ComponentDefinition) string {
 	sb.WriteString(fmt.Sprintf("%s: {\n", cueLabel(c.GetName())))
 	sb.WriteString(fmt.Sprintf("%stype: \"component\"\n", g.indent))
 	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
-	sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
+	if len(c.GetLabels()) > 0 {
+		sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
+		for k, v := range c.GetLabels() {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
+	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, c.GetDescription()))
 
 	// Write attributes
@@ -674,6 +714,8 @@ func (g *CUEGenerator) writeHelper(sb *strings.Builder, helper *HelperVar, depth
 		g.writeMultiSourceHelper(sb, col, depth)
 	case *CollectionOp:
 		g.writeCollectionOpHelper(sb, col, depth, guard)
+	case *ArrayBuilder:
+		sb.WriteString(g.arrayBuilderToCUE(col, depth))
 	default:
 		sb.WriteString("[]")
 	}
@@ -787,8 +829,29 @@ func (g *CUEGenerator) writeCollectionOpHelper(sb *strings.Builder, col *Collect
 			}
 
 			for fieldName, fieldVal := range mOp.mappings {
-				valStr := g.fieldValueToCUE(fieldVal)
-				sb.WriteString(fmt.Sprintf("%s%s: %s\n", fieldIndent, fieldName, valStr))
+				if condRef, isConditional := fieldVal.(*ConditionalOrFieldRef); isConditional {
+					// Emit if/else pattern for conditional field reference
+					primaryField := string(condRef.primary)
+					fallbackStr := g.fieldValueToCUE(condRef.fallback)
+					sb.WriteString(fmt.Sprintf("%sif v.%s != _|_ {\n", fieldIndent, primaryField))
+					sb.WriteString(fmt.Sprintf("%s\t%s: v.%s\n", fieldIndent, fieldName, primaryField))
+					sb.WriteString(fmt.Sprintf("%s}\n", fieldIndent))
+					sb.WriteString(fmt.Sprintf("%sif v.%s == _|_ {\n", fieldIndent, primaryField))
+					sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", fieldIndent, fieldName, fallbackStr))
+					sb.WriteString(fmt.Sprintf("%s}\n", fieldIndent))
+				} else if optField, isOptional := fieldVal.(*OptionalField); isOptional {
+					sb.WriteString(fmt.Sprintf("%sif v.%s != _|_ {\n", fieldIndent, optField.field))
+					sb.WriteString(fmt.Sprintf("%s\t%s: v.%s\n", fieldIndent, fieldName, optField.field))
+					sb.WriteString(fmt.Sprintf("%s}\n", fieldIndent))
+				} else if compOpt, isCompound := fieldVal.(*CompoundOptionalField); isCompound {
+					condStr := g.conditionToCUE(compOpt.additionalCond)
+					sb.WriteString(fmt.Sprintf("%sif v.%s != _|_ if %s {\n", fieldIndent, compOpt.field, condStr))
+					sb.WriteString(fmt.Sprintf("%s\t%s: v.%s\n", fieldIndent, fieldName, compOpt.field))
+					sb.WriteString(fmt.Sprintf("%s}\n", fieldIndent))
+				} else {
+					valStr := g.fieldValueToCUE(fieldVal)
+					sb.WriteString(fmt.Sprintf("%s%s: %s\n", fieldIndent, fieldName, valStr))
+				}
 			}
 
 			sb.WriteString(fmt.Sprintf("%s},\n%s]", innerIndent, strings.Repeat(g.indent, depth)))
@@ -836,6 +899,11 @@ func (g *CUEGenerator) writeFieldMapAsHelper(sb *strings.Builder, mapping FieldM
 			if _, isOptional := fieldVal.(*OptionalField); isOptional {
 				sb.WriteString(fmt.Sprintf("%sif v.%s != _|_ {\n", indent, fieldVal.(*OptionalField).field))
 				sb.WriteString(fmt.Sprintf("%s\t%s: v.%s\n", indent, fieldName, fieldVal.(*OptionalField).field))
+				sb.WriteString(fmt.Sprintf("%s}\n", indent))
+			} else if compOpt, isCompound := fieldVal.(*CompoundOptionalField); isCompound {
+				condStr := g.conditionToCUE(compOpt.additionalCond)
+				sb.WriteString(fmt.Sprintf("%sif v.%s != _|_ if %s {\n", indent, compOpt.field, condStr))
+				sb.WriteString(fmt.Sprintf("%s\t%s: v.%s\n", indent, fieldName, compOpt.field))
 				sb.WriteString(fmt.Sprintf("%s}\n", indent))
 			} else {
 				sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, fieldName, valStr))
@@ -919,6 +987,15 @@ func (g *CUEGenerator) writeResourceOutput(sb *strings.Builder, name string, res
 	}
 }
 
+// condValueEntry represents an additional conditional value at a field node.
+// When the same path is written with multiple different conditions (e.g.,
+// volumeMounts set under both "volumeMounts is set" and "volumes is set"),
+// the first write uses value/cond and additional writes append here.
+type condValueEntry struct {
+	value Value
+	cond  Condition
+}
+
 // fieldNode represents a node in the field tree being built.
 type fieldNode struct {
 	value         Value     // Direct value (if leaf)
@@ -927,11 +1004,13 @@ type fieldNode struct {
 	childOrder    []string // Track insertion order
 	isArray       bool
 	arrayIndex    int
-	spreads       []spreadEntry // Spread operations at this node level
-	forEach       *ForEachOp    // ForEach operation (for trait patches)
-	patchKey      *PatchKeyOp   // PatchKey operation (for array patches with merge key)
-	spreadAll     *SpreadAllOp  // SpreadAll operation (for array constraint patches)
-	patchStrategy string        // e.g. "retainKeys" → generates // +patchStrategy=retainKeys
+	spreads       []spreadEntry    // Spread operations at this node level
+	forEach       *ForEachOp       // ForEach operation (for trait patches)
+	patchKey      *PatchKeyOp      // PatchKey operation (for array patches with merge key)
+	spreadAll     *SpreadAllOp     // SpreadAll operation (for array constraint patches)
+	patchStrategy string           // e.g. "retainKeys" → generates // +patchStrategy=retainKeys
+	directives    []string         // e.g. ["patchKey=ip"] → generates // +patchKey=ip
+	condValues    []condValueEntry // additional conditional values at same path
 }
 
 // spreadEntry represents a conditional spread operation.
@@ -970,6 +1049,8 @@ func (g *CUEGenerator) buildFieldTree(ops []ResourceOp) *fieldNode {
 			g.insertSpreadAllIntoTree(root, o, nil)
 		case *PatchStrategyAnnotationOp:
 			g.insertAnnotationIntoTree(root, o.Path(), o.Strategy())
+		case *DirectiveOp:
+			g.insertDirectiveIntoTree(root, o.Path(), o.GetDirective())
 		case *IfBlock:
 			// For if blocks, process inner ops with the block's condition
 			for _, innerOp := range o.Ops() {
@@ -995,12 +1076,28 @@ func (g *CUEGenerator) buildFieldTree(ops []ResourceOp) *fieldNode {
 					g.insertSpreadAllIntoTree(root, inner, o.Cond())
 				case *PatchStrategyAnnotationOp:
 					g.insertAnnotationIntoTree(root, inner.Path(), inner.Strategy())
+				case *DirectiveOp:
+					g.insertDirectiveIntoTree(root, inner.Path(), inner.GetDirective())
 				}
 			}
 		}
 	}
 
 	return root
+}
+
+// insertDirectiveIntoTree navigates to a node by path and adds a directive annotation.
+func (g *CUEGenerator) insertDirectiveIntoTree(root *fieldNode, path string, directive string) {
+	parts := splitPath(path)
+	current := root
+	for _, part := range parts {
+		if _, exists := current.children[part]; !exists {
+			current.children[part] = newFieldNode()
+			current.childOrder = append(current.childOrder, part)
+		}
+		current = current.children[part]
+	}
+	current.directives = append(current.directives, directive)
 }
 
 // insertAnnotationIntoTree navigates to a node by path and sets its patchStrategy annotation.
@@ -1058,8 +1155,25 @@ func (g *CUEGenerator) insertIntoTree(root *fieldNode, path string, value Value,
 
 		// If this is the last part, set the value
 		if i == len(parts)-1 {
-			current.value = value
-			current.cond = cond
+			if current.value != nil && cond != nil {
+				// This path already has a value. If the existing value also
+				// has a condition, append this as an additional conditional
+				// value instead of overwriting.
+				if current.cond != nil {
+					current.condValues = append(current.condValues, condValueEntry{
+						value: value,
+						cond:  cond,
+					})
+				} else {
+					// Existing value is unconditional; the new conditional
+					// value takes precedence (shouldn't normally happen).
+					current.value = value
+					current.cond = cond
+				}
+			} else {
+				current.value = value
+				current.cond = cond
+			}
 		}
 	}
 }
@@ -1267,10 +1381,15 @@ func (g *CUEGenerator) writeFieldTree(sb *strings.Builder, node *fieldNode, dept
 
 	for _, name := range node.childOrder {
 		child := node.children[name]
-		if child.cond != nil {
+		switch {
+		case len(child.condValues) > 0:
+			// Multi-conditional nodes render their own if blocks internally,
+			// so they must be treated as unconditional at the parent level.
+			unconditional = append(unconditional, name)
+		case child.cond != nil:
 			condStr := g.conditionToCUE(child.cond)
 			conditional[condStr] = append(conditional[condStr], name)
-		} else {
+		default:
 			unconditional = append(unconditional, name)
 		}
 	}
@@ -1325,6 +1444,12 @@ func (g *CUEGenerator) liftChildConditions(node *fieldNode) {
 				canLift = false
 				break
 			}
+			// Don't lift if any grandchild has multiple conditional values,
+			// since those nodes manage their own condition rendering.
+			if len(grand.condValues) > 0 {
+				canLift = false
+				break
+			}
 			condStr := g.conditionToCUE(grand.cond)
 			if sharedCondStr == "" {
 				sharedCondStr = condStr
@@ -1344,6 +1469,78 @@ func (g *CUEGenerator) liftChildConditions(node *fieldNode) {
 			}
 		}
 	}
+}
+
+// tryDecomposeOrLift attempts to decompose a struct node into per-condition
+// blocks or lift a shared child condition to the parent. Returns true if the
+// node was handled, false if normal rendering should proceed.
+func (g *CUEGenerator) tryDecomposeOrLift(sb *strings.Builder, name string, node *fieldNode, indent string, depth int) bool {
+	if node.value != nil || len(node.children) == 0 || len(node.spreads) > 0 || node.forEach != nil || node.patchKey != nil {
+		return false
+	}
+
+	// Decompose a struct node into per-condition blocks when every child
+	// subtree shares the same uniform set of leaf conditions.
+	condGroups := g.canDecomposeByCondition(node)
+	if condGroups != nil {
+		condStrs := make([]string, 0, len(condGroups))
+		for cs := range condGroups {
+			condStrs = append(condStrs, cs)
+		}
+		sort.Strings(condStrs)
+
+		for _, condStr := range condStrs {
+			sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
+			sb.WriteString(fmt.Sprintf("%s\t%s: {\n", indent, name))
+			for _, childName := range node.childOrder {
+				child := node.children[childName]
+				filteredChild := g.filterNodeByCondition(child, condStr)
+				if filteredChild != nil {
+					g.writeFieldNode(sb, childName, filteredChild, depth+2)
+				}
+			}
+			sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
+			sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		}
+		return true
+	}
+
+	// If all children share the same condition, lift it to avoid empty parent structs.
+	condStr := ""
+	canLift := true
+	for _, childName := range node.childOrder {
+		child := node.children[childName]
+		if child.cond == nil {
+			canLift = false
+			break
+		}
+		childCondStr := g.conditionToCUE(child.cond)
+		if condStr == "" {
+			condStr = childCondStr
+		} else if condStr != childCondStr {
+			canLift = false
+			break
+		}
+	}
+	if canLift && condStr != "" {
+		clone := &fieldNode{
+			children:   make(map[string]*fieldNode, len(node.children)),
+			childOrder: append([]string(nil), node.childOrder...),
+		}
+		for childName, child := range node.children {
+			childCopy := *child
+			childCopy.cond = nil
+			clone.children[childName] = &childCopy
+		}
+		sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
+		sb.WriteString(fmt.Sprintf("%s\t%s: {\n", indent, name))
+		g.writeFieldTree(sb, clone, depth+2)
+		sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		return true
+	}
+
+	return false
 }
 
 // writeFieldNode writes a single field node as CUE.
@@ -1376,47 +1573,40 @@ func (g *CUEGenerator) writeFieldNode(sb *strings.Builder, name string, node *fi
 		return
 	}
 
-	// If all children share the same condition and there are no unconditional parts,
-	// lift the condition to avoid emitting empty parent structs.
-	if node.value == nil && len(node.children) > 0 && len(node.spreads) == 0 && node.forEach == nil && node.patchKey == nil {
-		condStr := ""
-		canLift := true
-		for _, childName := range node.childOrder {
-			child := node.children[childName]
-			if child.cond == nil {
-				canLift = false
-				break
-			}
-			childCondStr := g.conditionToCUE(child.cond)
-			if condStr == "" {
-				condStr = childCondStr
-			} else if condStr != childCondStr {
-				canLift = false
-				break
-			}
-		}
-		if canLift && condStr != "" {
-			// Clone node with cleared child conditions for rendering.
-			clone := &fieldNode{
-				children:   make(map[string]*fieldNode, len(node.children)),
-				childOrder: append([]string(nil), node.childOrder...),
-			}
-			for childName, child := range node.children {
-				childCopy := *child
-				childCopy.cond = nil
-				clone.children[childName] = &childCopy
-			}
-			sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
-			sb.WriteString(fmt.Sprintf("%s\t%s: {\n", indent, name))
-			g.writeFieldTree(sb, clone, depth+2)
-			sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
-			sb.WriteString(fmt.Sprintf("%s}\n", indent))
-			return
-		}
+	// Try to decompose or lift conditions for cleaner CUE output.
+	if g.tryDecomposeOrLift(sb, name, node, indent, depth) {
+		return
+	}
+
+	// Emit directive annotations before the field
+	for _, directive := range node.directives {
+		sb.WriteString(fmt.Sprintf("%s// +%s\n", indent, directive))
 	}
 
 	// Regular field
 	if node.value != nil && len(node.children) == 0 {
+		if len(node.condValues) > 0 {
+			// Multiple conditional values at the same path — render each
+			// inside its own if block.
+			if node.cond != nil {
+				condStr := g.conditionToCUE(node.cond)
+				valStr := g.valueToCUE(node.value)
+				sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, name, valStr))
+				sb.WriteString(fmt.Sprintf("%s}\n", indent))
+			} else {
+				valStr := g.valueToCUE(node.value)
+				sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, name, valStr))
+			}
+			for _, cv := range node.condValues {
+				condStr := g.conditionToCUE(cv.cond)
+				valStr := g.valueToCUE(cv.value)
+				sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, name, valStr))
+				sb.WriteString(fmt.Sprintf("%s}\n", indent))
+			}
+			return
+		}
 		// Leaf node with value
 		valStr := g.valueToCUE(node.value)
 		sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, name, valStr))
@@ -1426,6 +1616,134 @@ func (g *CUEGenerator) writeFieldNode(sb *strings.Builder, name string, node *fi
 		g.writeFieldTree(sb, node, depth+1)
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	}
+}
+
+// canDecomposeByCondition checks if a struct node's children can be split into
+// separate conditional blocks. This is possible when every child subtree has
+// the same uniform set of leaf conditions (e.g., every leaf is guarded by either
+// condition A or condition B). Returns a map of conditionString -> childNames,
+// or nil if decomposition is not possible.
+func (g *CUEGenerator) canDecomposeByCondition(node *fieldNode) map[string][]string {
+	if node.value != nil || len(node.spreads) > 0 || node.forEach != nil || node.patchKey != nil {
+		return nil
+	}
+	if len(node.children) == 0 {
+		return nil
+	}
+
+	// Collect the set of leaf conditions from each child subtree
+	childCondSets := make(map[string]map[string]bool)
+	for _, childName := range node.childOrder {
+		child := node.children[childName]
+		condSet := make(map[string]bool)
+		g.collectLeafConditions(child, condSet)
+		if len(condSet) == 0 {
+			return nil
+		}
+		// If any leaf is unconditional (empty string), can't decompose
+		if condSet[""] {
+			return nil
+		}
+		childCondSets[childName] = condSet
+	}
+
+	// All children must have the same condition set
+	var referenceSet map[string]bool
+	for _, condSet := range childCondSets {
+		if referenceSet == nil {
+			referenceSet = condSet
+		} else {
+			if len(condSet) != len(referenceSet) {
+				return nil
+			}
+			for k := range referenceSet {
+				if !condSet[k] {
+					return nil
+				}
+			}
+		}
+	}
+
+	// Need at least 2 different conditions to warrant decomposition
+	if len(referenceSet) < 2 {
+		return nil
+	}
+
+	result := make(map[string][]string)
+	for condStr := range referenceSet {
+		result[condStr] = append(result[condStr], node.childOrder...)
+	}
+	return result
+}
+
+// collectLeafConditions traverses a subtree and collects the CUE string
+// representations of all leaf conditions. An unconditional leaf adds "".
+func (g *CUEGenerator) collectLeafConditions(node *fieldNode, condSet map[string]bool) {
+	if node.cond != nil && node.value != nil {
+		condSet[g.conditionToCUE(node.cond)] = true
+		// Also collect conditions from condValues (additional conditional
+		// values at the same path).
+		for _, cv := range node.condValues {
+			condSet[g.conditionToCUE(cv.cond)] = true
+		}
+		return
+	}
+	if node.cond != nil && len(node.children) > 0 {
+		// Intermediate node with a condition (already lifted)
+		condSet[g.conditionToCUE(node.cond)] = true
+		return
+	}
+	if node.value != nil && node.cond == nil {
+		condSet[""] = true
+		return
+	}
+	for _, childName := range node.childOrder {
+		child := node.children[childName]
+		g.collectLeafConditions(child, condSet)
+	}
+}
+
+// filterNodeByCondition returns a copy of the subtree containing only leaves
+// that match the given condition string. Intermediate nodes have their
+// conditions cleared since the caller wraps the result in the condition block.
+func (g *CUEGenerator) filterNodeByCondition(node *fieldNode, condStr string) *fieldNode {
+	if node.cond != nil {
+		if g.conditionToCUE(node.cond) == condStr {
+			nodeCopy := *node
+			nodeCopy.cond = nil
+			nodeCopy.condValues = nil // Strip condValues; other conditions handled by their own block
+			return &nodeCopy
+		}
+		// Check if the target condition is in condValues instead of the primary
+		for _, cv := range node.condValues {
+			if g.conditionToCUE(cv.cond) == condStr {
+				nodeCopy := *node
+				nodeCopy.value = cv.value
+				nodeCopy.cond = nil
+				nodeCopy.condValues = nil
+				return &nodeCopy
+			}
+		}
+		return nil
+	}
+
+	filtered := &fieldNode{
+		children:   make(map[string]*fieldNode),
+		childOrder: make([]string, 0),
+		value:      node.value,
+	}
+	for _, childName := range node.childOrder {
+		child := node.children[childName]
+		filteredChild := g.filterNodeByCondition(child, condStr)
+		if filteredChild != nil {
+			filtered.children[childName] = filteredChild
+			filtered.childOrder = append(filtered.childOrder, childName)
+		}
+	}
+	if len(filtered.children) == 0 && filtered.value == nil {
+		return nil
+	}
+	return filtered
 }
 
 // valueToCUE converts a Value to CUE syntax.
@@ -1442,7 +1760,7 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 	case *HelperVar:
 		// Return reference to the helper by name
 		return val.Name()
-	case *StringParam, *IntParam, *BoolParam, *FloatParam, *ArrayParam, *MapParam, *StringKeyMapParam, *EnumParam:
+	case *StringParam, *IntParam, *BoolParam, *FloatParam, *ArrayParam, *MapParam, *StringKeyMapParam, *EnumParam, *OneOfParam:
 		return "parameter." + v.(Param).Name()
 	case *DynamicMapParam:
 		// Dynamic map parameters reference just "parameter"
@@ -1454,6 +1772,8 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 		return g.collectionOpToCUE(val)
 	case *MultiSource:
 		return g.multiSourceToCUE(val)
+	case *InlineArrayValue:
+		return g.inlineArrayToCUE(val)
 	case *ConcatExprValue:
 		return g.concatExprToCUE(val)
 	case *CUEFunc:
@@ -1679,7 +1999,15 @@ func (g *CUEGenerator) arrayBuilderToCUE(ab *ArrayBuilder, depth int) string {
 
 		case entryForEachWith:
 			sourceStr := g.valueToCUE(entry.source)
-			sb.WriteString(fmt.Sprintf("%sfor %s in %s {\n", innerIndent, entry.itemBuilder.VarName(), sourceStr))
+			guardPrefix := ""
+			if entry.guard != nil {
+				guardPrefix = "if " + g.conditionToCUE(entry.guard) + " "
+			}
+			filterSuffix := ""
+			if entry.filter != nil {
+				filterSuffix = " if " + g.predicateToCUE(entry.filter)
+			}
+			sb.WriteString(fmt.Sprintf("%s%sfor %s in %s%s {\n", innerIndent, guardPrefix, entry.itemBuilder.VarName(), sourceStr, filterSuffix))
 			g.writeItemBuilderOps(&sb, entry.itemBuilder.Ops(), depth+2)
 			sb.WriteString(fmt.Sprintf("%s},\n", innerIndent))
 		}
@@ -1736,12 +2064,15 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 		}
 	}
 
-	// Check if there's a Map operation
+	// Check if there's a Map or MapVariant operation
 	hasMap := false
+	hasVariant := false
 	for _, op := range ops {
 		if _, ok := op.(*mapOp); ok {
 			hasMap = true
-			break
+		}
+		if _, ok := op.(*mapVariantOp); ok {
+			hasVariant = true
 		}
 	}
 
@@ -1764,7 +2095,7 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 		sb.WriteString(filterCondition)
 	}
 
-	if hasMap {
+	if hasMap || hasVariant {
 		// Map operations: render mapped fields in a struct
 		sb.WriteString(" {\n")
 		sb.WriteString("\t\t\t\t{\n")
@@ -1775,11 +2106,43 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 						sb.WriteString(fmt.Sprintf("\t\t\t\t\tif v.%s != _|_ {\n", optField.field))
 						sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t%s: v.%s\n", fieldName, optField.field))
 						sb.WriteString("\t\t\t\t\t}\n")
+					} else if compOpt, isCompound := fieldVal.(*CompoundOptionalField); isCompound {
+						condStr := g.conditionToCUE(compOpt.additionalCond)
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\tif v.%s != _|_ if %s {\n", compOpt.field, condStr))
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t%s: v.%s\n", fieldName, compOpt.field))
+						sb.WriteString("\t\t\t\t\t}\n")
+					} else if condRef, isConditional := fieldVal.(*ConditionalOrFieldRef); isConditional {
+						// Emit if/else pattern for conditional field reference
+						primaryField := string(condRef.primary)
+						fallbackStr := g.fieldValueToCUE(condRef.fallback)
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\tif v.%s != _|_ {\n", primaryField))
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t%s: v.%s\n", fieldName, primaryField))
+						sb.WriteString("\t\t\t\t\t}\n")
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\tif v.%s == _|_ {\n", primaryField))
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t%s: %s\n", fieldName, fallbackStr))
+						sb.WriteString("\t\t\t\t\t}\n")
 					} else {
 						valStr := g.fieldValueToCUE(fieldVal)
 						sb.WriteString(fmt.Sprintf("\t\t\t\t\t%s: %s\n", fieldName, valStr))
 					}
 				}
+			}
+		}
+		// MapVariant operations: render conditional field blocks
+		for _, op := range ops {
+			if mvOp, ok := op.(*mapVariantOp); ok {
+				sb.WriteString(fmt.Sprintf("\t\t\t\t\tif v.%s == %q {\n", mvOp.discriminator, mvOp.variantName))
+				for fieldName, fieldVal := range mvOp.mappings {
+					if optField, isOptional := fieldVal.(*OptionalField); isOptional {
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\t\tif v.%s != _|_ {\n", optField.field))
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t\t%s: v.%s\n", fieldName, optField.field))
+						sb.WriteString("\t\t\t\t\t\t}\n")
+					} else {
+						valStr := g.fieldValueToCUE(fieldVal)
+						sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t%s: %s\n", fieldName, valStr))
+					}
+				}
+				sb.WriteString("\t\t\t\t\t}\n")
 			}
 		}
 		sb.WriteString("\t\t\t\t}\n")
@@ -2052,6 +2415,19 @@ func (g *CUEGenerator) concatExprToCUE(ce *ConcatExprValue) string {
 	return strings.Join(parts, " + ")
 }
 
+// inlineArrayToCUE converts an InlineArrayValue to CUE syntax.
+// Generates: [{field1: value1, field2: value2}]
+func (g *CUEGenerator) inlineArrayToCUE(arr *InlineArrayValue) string {
+	var sb strings.Builder
+	sb.WriteString("[{\n")
+	for fieldName, fieldVal := range arr.Fields() {
+		valStr := g.valueToCUE(fieldVal)
+		sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t\t%s: %s\n", fieldName, valStr))
+	}
+	sb.WriteString("\t\t\t\t\t\t}]")
+	return sb.String()
+}
+
 // conditionToCUE converts a Condition to CUE syntax.
 func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	switch c := cond.(type) {
@@ -2262,9 +2638,19 @@ func (g *CUEGenerator) writeStatus(sb *strings.Builder, c *ComponentDefinition, 
 func (g *CUEGenerator) writeParam(sb *strings.Builder, param Param, depth int) {
 	indent := strings.Repeat(g.indent, depth)
 
+	// Write // +ignore directive if set (before +usage)
+	if ip, ok := param.(interface{ IsIgnore() bool }); ok && ip.IsIgnore() {
+		sb.WriteString(fmt.Sprintf("%s// +ignore\n", indent))
+	}
+
 	// Write description as comment if present
 	if desc := param.GetDescription(); desc != "" {
 		sb.WriteString(fmt.Sprintf("%s// +usage=%s\n", indent, desc))
+	}
+
+	// Write // +short=X directive if set (after +usage)
+	if sp, ok := param.(interface{ GetShort() string }); ok && sp.GetShort() != "" {
+		sb.WriteString(fmt.Sprintf("%s// +short=%s\n", indent, sp.GetShort()))
 	}
 
 	name := param.Name()
@@ -2299,6 +2685,8 @@ func (g *CUEGenerator) writeParam(sb *strings.Builder, param Param, depth int) {
 		g.writeStructParam(sb, p, indent, name, optional, depth)
 	case *EnumParam:
 		g.writeEnumParam(sb, p, indent, name, optional)
+	case *OneOfParam:
+		g.writeOneOfParam(sb, p, indent, name, optional, depth)
 	default:
 		// Generic fallback
 		sb.WriteString(fmt.Sprintf("%s%s%s: _\n", indent, name, optional))
@@ -2356,9 +2744,9 @@ func (g *CUEGenerator) writeStringParam(sb *strings.Builder, p *StringParam, ind
 
 		if p.HasDefault() {
 			if len(constraints) > 0 {
-				sb.WriteString(fmt.Sprintf("%s%s: *%q | string & %s\n", indent, name, p.GetDefault(), strings.Join(constraints, " & ")))
+				sb.WriteString(fmt.Sprintf("%s%s%s: *%q | string & %s\n", indent, name, optional, p.GetDefault(), strings.Join(constraints, " & ")))
 			} else {
-				sb.WriteString(fmt.Sprintf("%s%s: *%q | string\n", indent, name, p.GetDefault()))
+				sb.WriteString(fmt.Sprintf("%s%s%s: *%q | string\n", indent, name, optional, p.GetDefault()))
 			}
 		} else {
 			if len(constraints) > 0 {
@@ -2521,11 +2909,11 @@ func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, n
 		if cueType != "" {
 			sb.WriteString(fmt.Sprintf("%s%s%s: [string]: %s\n", indent, name, optional, cueType))
 		} else {
-			sb.WriteString(fmt.Sprintf("%s%s%s: {...}\n", indent, name, optional))
+			sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, cueOpenStruct))
 		}
 	} else {
 		// Generic object
-		sb.WriteString(fmt.Sprintf("%s%s%s: {...}\n", indent, name, optional))
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, cueOpenStruct))
 	}
 }
 
@@ -2635,8 +3023,50 @@ func (g *CUEGenerator) writeEnumParam(sb *strings.Builder, p *EnumParam, indent,
 	}
 }
 
-// cueTypeForParamType converts a ParamType to its CUE type string.
-func (g *CUEGenerator) cueTypeForParamType(pt ParamType) string {
+// writeOneOfParam writes a discriminated union parameter.
+// The param name is used as the discriminator field name (e.g., OneOf("type")).
+// Generates:
+//
+//	type: *"default" | "variant1" | "variant2"
+//	if type == "variant1" { field1: string }
+//	if type == "variant2" { field2: int }
+func (g *CUEGenerator) writeOneOfParam(sb *strings.Builder, p *OneOfParam, indent, name, optional string, depth int) {
+	variants := p.GetVariants()
+
+	// Build discriminator field: type: *"default" | "variant1" | "variant2"
+	var enumParts []string
+	if p.HasDefault() {
+		defaultStr := fmt.Sprintf("%v", p.GetDefault())
+		enumParts = append(enumParts, fmt.Sprintf("*%s", formatCUEValue(p.GetDefault())))
+		for _, v := range variants {
+			if v.Name() != defaultStr {
+				enumParts = append(enumParts, fmt.Sprintf("%q", v.Name()))
+			}
+		}
+	} else {
+		for _, v := range variants {
+			enumParts = append(enumParts, fmt.Sprintf("%q", v.Name()))
+		}
+	}
+
+	sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, strings.Join(enumParts, " | ")))
+
+	// Write conditional blocks for each variant
+	for _, variant := range variants {
+		fields := variant.GetFields()
+		if len(fields) == 0 {
+			continue
+		}
+		sb.WriteString(fmt.Sprintf("%sif %s == %q {\n", indent, name, variant.Name()))
+		for _, field := range fields {
+			g.writeStructField(sb, field, depth+1)
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
+}
+
+// cueTypeStr converts a ParamType to its CUE type string.
+func cueTypeStr(pt ParamType) string {
 	switch pt {
 	case ParamTypeString:
 		return string(ParamTypeString)
@@ -2648,13 +3078,16 @@ func (g *CUEGenerator) cueTypeForParamType(pt ParamType) string {
 		return "float"
 	case ParamTypeArray:
 		return "[...]"
-	case ParamTypeMap:
-		return "{...}"
-	case ParamTypeStruct:
-		return "{...}"
+	case ParamTypeMap, ParamTypeStruct, ParamTypeOneOf:
+		return cueOpenStruct
 	default:
 		return "_"
 	}
+}
+
+// cueTypeForParamType converts a ParamType to its CUE type string.
+func (g *CUEGenerator) cueTypeForParamType(pt ParamType) string {
+	return cueTypeStr(pt)
 }
 
 // formatCUEValue formats a Go value as a CUE literal.

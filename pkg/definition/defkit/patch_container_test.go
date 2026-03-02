@@ -628,6 +628,202 @@ var _ = Describe("PatchContainer", func() {
 		})
 	})
 
+	Context("MultiContainerCheckField and MultiContainerErrMsg", func() {
+		It("should use default check field 'containerName' and default error message with camelCase", func() {
+			trait := defkit.NewTrait("default-multi-err-test").
+				Description("Test default multi-container error").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						AllowMultiple:        true,
+						ContainersParam:      "containers",
+						PatchFields: []defkit.PatchContainerField{
+							{ParamName: "image", TargetField: "image"},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Default check field is "containerName"
+			Expect(cue).To(ContainSubstring(`if c.containerName == ""`))
+			Expect(cue).To(ContainSubstring(`if c.containerName != ""`))
+			// Default error message uses "containerName" (camelCase, matching the field name)
+			Expect(cue).To(ContainSubstring(`err: "containerName must be set for containers"`))
+		})
+
+		It("should use custom MultiContainerCheckField when set", func() {
+			trait := defkit.NewTrait("custom-check-field-test").
+				Description("Test custom check field").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:       "containerName",
+						DefaultToContextName:     true,
+						AllowMultiple:            true,
+						MultiContainerParam:      "probes",
+						MultiContainerCheckField: "name",
+						PatchFields: []defkit.PatchContainerField{
+							{ParamName: "image", TargetField: "image"},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Custom check field "name" instead of default "containerName"
+			Expect(cue).To(ContainSubstring(`if c.name == ""`))
+			Expect(cue).To(ContainSubstring(`if c.name != ""`))
+			Expect(cue).NotTo(ContainSubstring(`c.containerName == ""`))
+		})
+
+		It("should use custom MultiContainerErrMsg when set", func() {
+			trait := defkit.NewTrait("custom-err-msg-test").
+				Description("Test custom error message").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:       "containerName",
+						DefaultToContextName:     true,
+						AllowMultiple:            true,
+						MultiContainerParam:      "probes",
+						MultiContainerCheckField: "name",
+						MultiContainerErrMsg:     "containerName must be set when specifying startup probe for multiple containers",
+						PatchFields: []defkit.PatchContainerField{
+							{ParamName: "image", TargetField: "image"},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Custom error message overrides the default
+			Expect(cue).To(ContainSubstring(`err: "containerName must be set when specifying startup probe for multiple containers"`))
+			// Default error message should NOT appear
+			Expect(cue).NotTo(ContainSubstring(`err: "containerName must be set for probes"`))
+		})
+
+		It("should use default error with MultiContainerParam name", func() {
+			trait := defkit.NewTrait("multi-param-err-test").
+				Description("Test error message includes multi param name").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						AllowMultiple:        true,
+						MultiContainerParam:  "probes",
+						PatchFields: []defkit.PatchContainerField{
+							{ParamName: "image", TargetField: "image"},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Default error message should include the multi-container param name
+			Expect(cue).To(ContainSubstring(`err: "containerName must be set for probes"`))
+		})
+	})
+
+	Context("writePatchParamMapping typed scalar fields", func() {
+		It("should map typed scalar fields unconditionally in _params block even with IsSet and no default", func() {
+			trait := defkit.NewTrait("typed-scalar-unconditional-test").
+				Description("Test typed scalar fields pass through unconditionally").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						AllowMultiple:        true,
+						ContainersParam:      "containers",
+						Groups: []defkit.PatchContainerGroup{
+							{
+								TargetField: "startupProbe",
+								Fields: defkit.PatchFields(
+									defkit.PatchField("terminationGracePeriodSeconds").Int().IsSet(),
+									defkit.PatchField("exec").IsSet(),
+								),
+							},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Int().IsSet() with no default: typed scalar should be unconditional in _params block
+			Expect(cue).To(ContainSubstring("terminationGracePeriodSeconds: parameter.terminationGracePeriodSeconds"))
+			// But untyped IsSet() with no default (e.g., exec) should remain conditional in _params block
+			Expect(cue).To(MatchRegexp(`if parameter\.exec != _\|_\s*\{[^}]*exec:\s*parameter\.exec`))
+
+			// Both should still be conditional in the PatchContainer body
+			Expect(cue).To(ContainSubstring("if _params.terminationGracePeriodSeconds != _|_"))
+			Expect(cue).To(ContainSubstring("if _params.exec != _|_"))
+		})
+
+		It("should keep untyped IsSet fields conditional in _params block", func() {
+			trait := defkit.NewTrait("untyped-conditional-test").
+				Description("Test untyped fields remain conditional").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						AllowMultiple:        true,
+						ContainersParam:      "containers",
+						Groups: []defkit.PatchContainerGroup{
+							{
+								TargetField: "startupProbe",
+								Fields: defkit.PatchFields(
+									defkit.PatchField("exec").IsSet(),
+									defkit.PatchField("httpGet").IsSet(),
+								),
+							},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Untyped IsSet() fields should still be conditional in _params block
+			Expect(cue).To(MatchRegexp(`if parameter\.exec != _\|_\s*\{[^}]*exec:\s*parameter\.exec`))
+			Expect(cue).To(MatchRegexp(`if parameter\.httpGet != _\|_\s*\{[^}]*httpGet:\s*parameter\.httpGet`))
+		})
+
+		It("should map typed scalar fields with default unconditionally regardless of IsSet", func() {
+			trait := defkit.NewTrait("typed-with-default-test").
+				Description("Test typed fields with default are unconditional").
+				AppliesTo("deployments.apps").
+				Template(func(tpl *defkit.Template) {
+					tpl.UsePatchContainer(defkit.PatchContainerConfig{
+						ContainerNameParam:   "containerName",
+						DefaultToContextName: true,
+						AllowMultiple:        true,
+						ContainersParam:      "containers",
+						Groups: []defkit.PatchContainerGroup{
+							{
+								TargetField: "startupProbe",
+								Fields: defkit.PatchFields(
+									defkit.PatchField("initialDelaySeconds").Int().IsSet().Default("0"),
+									defkit.PatchField("periodSeconds").Int().IsSet().Default("10"),
+								),
+							},
+						},
+					})
+				})
+
+			cue := trait.ToCue()
+
+			// Typed fields with defaults are always unconditional in _params block
+			Expect(cue).To(ContainSubstring("initialDelaySeconds: parameter.initialDelaySeconds"))
+			Expect(cue).To(ContainSubstring("periodSeconds:       parameter.periodSeconds"))
+			// Should NOT be wrapped in conditionals in _params block
+			Expect(cue).NotTo(MatchRegexp(`if parameter\.initialDelaySeconds[^{]*\{[^}]*initialDelaySeconds:\s*parameter\.initialDelaySeconds`))
+		})
+	})
+
 	Context("Template Let Bindings", func() {
 		It("should accumulate bindings in order for CUE generation", func() {
 			tpl := defkit.NewTemplate()

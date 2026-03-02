@@ -355,6 +355,14 @@ type CUEFunc struct {
 func (c *CUEFunc) expr()  {}
 func (c *CUEFunc) value() {}
 
+// RequiredImports returns the CUE imports required by this function call.
+func (c *CUEFunc) RequiredImports() []string {
+	if c.pkg != "" {
+		return []string{c.pkg}
+	}
+	return nil
+}
+
 // Package returns the CUE package name.
 func (c *CUEFunc) Package() string { return c.pkg }
 
@@ -798,3 +806,23 @@ func (c *IterFieldExistsCondition) FieldName() string { return c.field }
 
 // IsNegated returns true if this is a "not exists" check.
 func (c *IterFieldExistsCondition) IsNegated() bool { return c.negate }
+
+// InlineArrayValue represents an inline array literal containing struct elements.
+// This generates CUE like: [{field1: value1, field2: value2}]
+// Used for deprecated parameter fallbacks that create a single-element array.
+type InlineArrayValue struct {
+	fields map[string]Value
+}
+
+func (a *InlineArrayValue) expr()  {}
+func (a *InlineArrayValue) value() {}
+
+// Fields returns the field mappings.
+func (a *InlineArrayValue) Fields() map[string]Value { return a.fields }
+
+// InlineArray creates an inline array value with a single struct element.
+// Example: InlineArray(map[string]Value{"containerPort": port})
+// Generates: [{containerPort: parameter.port}]
+func InlineArray(fields map[string]Value) *InlineArrayValue {
+	return &InlineArrayValue{fields: fields}
+}

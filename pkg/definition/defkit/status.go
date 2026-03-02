@@ -98,9 +98,7 @@ func (s *StatusBuilder) Build() string {
 
 	var parts []string
 
-	for _, f := range s.fields {
-		parts = append(parts, s.buildField(f))
-	}
+	parts = append(parts, s.buildGroupedFields()...)
 
 	if s.message != "" {
 		// Use simple quotes around message - don't use %q which escapes backslashes,
@@ -109,6 +107,79 @@ func (s *StatusBuilder) Build() string {
 	}
 
 	return strings.Join(parts, "\n")
+}
+
+// buildGroupedFields groups fields by parent prefix and generates consolidated CUE blocks.
+// Fields with the same parent (e.g., "status.active", "status.failed") are consolidated
+// into a single block with column-aligned defaults.
+func (s *StatusBuilder) buildGroupedFields() []string {
+	type fieldGroup struct {
+		parent string
+		fields []*StatusField
+	}
+
+	groups := make([]fieldGroup, 0)
+	groupIndex := make(map[string]int)
+	var simpleFields []*StatusField
+
+	for _, f := range s.fields {
+		parts := strings.Split(f.name, ".")
+		if len(parts) == 2 {
+			parent := parts[0]
+			if idx, ok := groupIndex[parent]; ok {
+				groups[idx].fields = append(groups[idx].fields, f)
+			} else {
+				groupIndex[parent] = len(groups)
+				groups = append(groups, fieldGroup{parent: parent, fields: []*StatusField{f}})
+			}
+		} else {
+			simpleFields = append(simpleFields, f)
+		}
+	}
+
+	var result []string
+
+	for _, g := range groups {
+		result = append(result, s.buildConsolidatedGroup(g.parent, g.fields))
+	}
+
+	for _, f := range simpleFields {
+		result = append(result, s.buildField(f))
+	}
+
+	return result
+}
+
+// buildConsolidatedGroup generates a single CUE block for fields sharing a parent prefix.
+// Field values are column-aligned within the block.
+func (s *StatusBuilder) buildConsolidatedGroup(parent string, fields []*StatusField) string {
+	var defaults []string
+	var conditionals []string
+
+	// Calculate max child field name length for column alignment
+	maxLen := 0
+	for _, f := range fields {
+		parts := strings.Split(f.name, ".")
+		childName := parts[1]
+		if len(childName) > maxLen {
+			maxLen = len(childName)
+		}
+	}
+
+	for _, f := range fields {
+		parts := strings.Split(f.name, ".")
+		childName := parts[1]
+		padding := strings.Repeat(" ", maxLen-len(childName))
+
+		defaults = append(defaults, fmt.Sprintf("\t%s:%s %s", childName, padding, f.defaultExpr()))
+		conditionals = append(conditionals, fmt.Sprintf("\tif context.output.%s != _|_ {\n\t\t%s: context.output.%s\n\t}", f.sourcePath, childName, f.sourcePath))
+	}
+
+	if len(conditionals) == 0 {
+		return fmt.Sprintf("%s: {\n%s\n}", parent, strings.Join(defaults, "\n"))
+	}
+
+	return fmt.Sprintf("%s: {\n%s\n} & {\n%s\n}", parent, strings.Join(defaults, "\n"), strings.Join(conditionals, "\n"))
 }
 
 // RawCUE sets raw CUE for complex status expressions that don't fit the builder pattern.
@@ -236,7 +307,18 @@ func (h *HealthBuilder) Build() string {
 	parts = append(parts, h.buildGroupedFields()...)
 
 	if len(h.conditions) > 0 {
-		healthExpr := strings.Join(h.conditions, " && ")
+		// When multiple conditions are joined with &&, auto-parenthesize each
+		// for correct precedence and readability. Skip already-parenthesized
+		// conditions (e.g. from StatusOr). Single conditions are left as-is.
+		conditions := h.conditions
+		if len(conditions) > 1 {
+			wrapped := make([]string, len(conditions))
+			for i, c := range conditions {
+				wrapped[i] = parenthesizeCondition(c)
+			}
+			conditions = wrapped
+		}
+		healthExpr := strings.Join(conditions, " && ")
 		if h.useDefault {
 			parts = append(parts, fmt.Sprintf("_isHealth: %s", healthExpr), "isHealth: *_isHealth | bool")
 		} else {
@@ -249,6 +331,39 @@ func (h *HealthBuilder) Build() string {
 	}
 
 	return strings.Join(parts, "\n")
+}
+
+// parenthesizeCondition wraps a condition string in parentheses if it isn't already
+// fully enclosed in a matching pair. This prevents double-wrapping conditions that
+// are already parenthesized (e.g. from StatusOr).
+func parenthesizeCondition(s string) string {
+	s = strings.TrimSpace(s)
+	if isFullyParenthesized(s) {
+		return s
+	}
+	return "(" + s + ")"
+}
+
+// isFullyParenthesized checks whether the string is enclosed by a single matching
+// pair of parentheses. For example "(a == b)" and "(a || b)" return true, but
+// "(a) && (b)" returns false because the first closing paren appears before the end.
+func isFullyParenthesized(s string) bool {
+	if len(s) < 2 || s[0] != '(' || s[len(s)-1] != ')' {
+		return false
+	}
+	depth := 0
+	for i, ch := range s {
+		if ch == '(' {
+			depth++
+		} else if ch == ')' {
+			depth--
+		}
+		// If depth reaches 0 before the last character, the outer parens don't enclose everything
+		if depth == 0 && i < len(s)-1 {
+			return false
+		}
+	}
+	return depth == 0
 }
 
 // buildGroupedFields groups fields by parent prefix and generates consolidated CUE blocks.
@@ -402,9 +517,9 @@ func DeploymentHealth() *HealthBuilder {
 		IntField("ready.replicas", "status.replicas", 0).
 		IntField("ready.observedGeneration", "status.observedGeneration", 0).
 		HealthyWhen(
-			"("+StatusEq("context.output.spec.replicas", "ready.readyReplicas")+")",
-			"("+StatusEq("context.output.spec.replicas", "ready.updatedReplicas")+")",
-			"("+StatusEq("context.output.spec.replicas", "ready.replicas")+")",
+			StatusEq("context.output.spec.replicas", "ready.readyReplicas"),
+			StatusEq("context.output.spec.replicas", "ready.updatedReplicas"),
+			StatusEq("context.output.spec.replicas", "ready.replicas"),
 			StatusOr(StatusEq("ready.observedGeneration", "context.output.metadata.generation"), "ready.observedGeneration > context.output.metadata.generation"),
 		).
 		WithDefault().

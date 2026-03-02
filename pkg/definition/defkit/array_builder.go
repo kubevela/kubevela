@@ -32,6 +32,7 @@ type arrayEntry struct {
 	cond        Condition     // for conditional entries
 	source      Value         // for forEach entries (iteration source)
 	guard       Condition     // for forEach entries (optional guard: if source != _|_)
+	filter      Predicate     // for forEach entries (optional filter: if v.field == value)
 	itemBuilder *ItemBuilder  // for forEachWith entries (complex per-item logic)
 }
 
@@ -124,6 +125,27 @@ func (a *ArrayBuilder) ForEachWithVar(varName string, source Value, fn func(item
 	a.entries = append(a.entries, arrayEntry{
 		kind:        entryForEachWith,
 		source:      source,
+		itemBuilder: ib,
+	})
+	return a
+}
+
+// ForEachWithGuardedFiltered adds a guarded and filtered complex iterated item to the array.
+// The guard condition wraps the for loop, and the filter predicate filters iteration items.
+// Generates: if guard for v in source if filter { ... }
+func (a *ArrayBuilder) ForEachWithGuardedFiltered(guard Condition, filter Predicate, source Value, fn func(item *ItemBuilder)) *ArrayBuilder {
+	return a.ForEachWithGuardedFilteredVar("v", guard, filter, source, fn)
+}
+
+// ForEachWithGuardedFilteredVar is like ForEachWithGuardedFiltered but allows specifying the iteration variable name.
+func (a *ArrayBuilder) ForEachWithGuardedFilteredVar(varName string, guard Condition, filter Predicate, source Value, fn func(item *ItemBuilder)) *ArrayBuilder {
+	ib := &ItemBuilder{varName: varName, ops: make([]itemOp, 0)}
+	fn(ib)
+	a.entries = append(a.entries, arrayEntry{
+		kind:        entryForEachWith,
+		source:      source,
+		guard:       guard,
+		filter:      filter,
 		itemBuilder: ib,
 	})
 	return a

@@ -226,3 +226,30 @@ func (r *Resource) EndIf() *Resource {
 	}
 	return r
 }
+
+// Directive records a CUE directive annotation on a field path.
+// The directive string should be like "patchKey=ip" and will be rendered as // +patchKey=ip.
+func (r *Resource) Directive(path string, directive string) *Resource {
+	op := &DirectiveOp{path: path, directive: directive}
+	if r.currentIf != nil {
+		r.currentIf.ops = append(r.currentIf.ops, op)
+	} else {
+		r.ops = append(r.ops, op)
+	}
+	return r
+}
+
+// DirectiveOp records a CUE directive annotation on a field path.
+// The directive string (e.g. "patchKey=ip") is rendered as // +patchKey=ip.
+type DirectiveOp struct {
+	path      string
+	directive string
+}
+
+func (d *DirectiveOp) resourceOp() {}
+
+// Path returns the field path.
+func (d *DirectiveOp) Path() string { return d.path }
+
+// GetDirective returns the directive string.
+func (d *DirectiveOp) GetDirective() string { return d.directive }

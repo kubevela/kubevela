@@ -252,6 +252,14 @@ func (hb *HelperBuilder) FromFields(source Value, fields ...string) *HelperBuild
 	return hb
 }
 
+// FromArray uses a pre-built ArrayBuilder as the helper source.
+// This enables complex iteration patterns (ForEachWithGuardedFiltered)
+// that can't be expressed through the standard From/Filter/Map pipeline.
+func (hb *HelperBuilder) FromArray(ab *ArrayBuilder) *HelperBuilder {
+	hb.source = &arrayBuilderSource{builder: ab}
+	return hb
+}
+
 // FromHelper references another helper as the source.
 // This enables helper chaining for patterns like deduplication.
 //
@@ -272,6 +280,13 @@ type helperRefSource struct {
 }
 
 func (h *helperRefSource) isHelperSource() {}
+
+// arrayBuilderSource wraps an ArrayBuilder as a helper source.
+type arrayBuilderSource struct {
+	builder *ArrayBuilder
+}
+
+func (a *arrayBuilderSource) isHelperSource() {}
 
 // Each applies a transformation function to each element.
 // The function receives a Value representing the current item and returns
@@ -473,6 +488,9 @@ func (hb *HelperBuilder) buildCollection() Value {
 		col := Each(src.helper)
 		hb.applyOpsToCollection(col)
 		return col
+
+	case *arrayBuilderSource:
+		return src.builder
 
 	default:
 		// Default: empty collection

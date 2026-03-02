@@ -42,10 +42,12 @@ type TraitDefinition struct {
 	baseDefinition                       // embedded common fields (name, description, params, template, etc.)
 	appliesToWorkloads []string          // e.g., ["deployments.apps", "statefulsets.apps"]
 	conflictsWith      []string          // traits that conflict with this one
+	conflictsWithSet   bool              // true when ConflictsWith() was explicitly called
 	podDisruptive      bool              // whether applying this trait causes pod restart
 	stage              string            // "PreDispatch" or "PostDispatch" (default: "")
 	templateBlock      string            // raw CUE for template: block only (uses fluent API for header)
 	labels             map[string]string // metadata labels for the trait definition
+	workloadRefPath    *string           // workloadRefPath attribute (nil = omit, pointer to distinguish from empty)
 }
 
 // NewTrait creates a new TraitDefinition builder.
@@ -75,6 +77,7 @@ func (t *TraitDefinition) AppliesTo(workloads ...string) *TraitDefinition {
 
 // ConflictsWith specifies traits that cannot be used together with this trait.
 func (t *TraitDefinition) ConflictsWith(traits ...string) *TraitDefinition {
+	t.conflictsWithSet = true
 	t.conflictsWith = append(t.conflictsWith, traits...)
 	return t
 }
@@ -82,6 +85,12 @@ func (t *TraitDefinition) ConflictsWith(traits ...string) *TraitDefinition {
 // PodDisruptive marks whether applying this trait causes pod restarts.
 func (t *TraitDefinition) PodDisruptive(disruptive bool) *TraitDefinition {
 	t.podDisruptive = disruptive
+	return t
+}
+
+// WorkloadRefPath sets the workloadRefPath attribute for the trait.
+func (t *TraitDefinition) WorkloadRefPath(path string) *TraitDefinition {
+	t.workloadRefPath = &path
 	return t
 }
 
@@ -412,13 +421,17 @@ func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
 	sb.WriteString(fmt.Sprintf("%stype: \"trait\"\n", g.indent))
 	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
 
-	// Write labels block only if there are labels (omit empty labels to match original CUE format)
-	if len(t.GetLabels()) > 0 {
-		sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
-		for k, v := range t.GetLabels() {
-			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
+	// Write labels block when Labels() was explicitly called (nil check distinguishes unset from empty)
+	if t.labels != nil {
+		if len(t.labels) > 0 {
+			sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
+			for k, v := range t.labels {
+				sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
+			}
+			sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+		} else {
+			sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
 		}
-		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, t.GetDescription()))
 
@@ -439,10 +452,8 @@ func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
 func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinition, depth int) {
 	indent := strings.Repeat(g.indent, depth)
 
-	// podDisruptive (only emit when true, false is the default)
-	if t.IsPodDisruptive() {
-		sb.WriteString(fmt.Sprintf("%spodDisruptive: %v\n", indent, t.IsPodDisruptive()))
-	}
+	// podDisruptive (always emit — vela CUE always includes this attribute)
+	sb.WriteString(fmt.Sprintf("%spodDisruptive: %v\n", indent, t.IsPodDisruptive()))
 
 	// stage (if set)
 	if t.GetStage() != "" {
@@ -458,13 +469,17 @@ func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinit
 		sb.WriteString(fmt.Sprintf("%sappliesToWorkloads: [%s]\n", indent, strings.Join(workloads, ", ")))
 	}
 
-	// conflictsWith (if set)
-	if len(t.GetConflictsWith()) > 0 {
-		conflicts := make([]string, len(t.GetConflictsWith()))
-		for i, c := range t.GetConflictsWith() {
-			conflicts[i] = fmt.Sprintf("%q", c)
+	// conflictsWith (emit when explicitly set, even if empty)
+	if t.conflictsWithSet {
+		if len(t.GetConflictsWith()) > 0 {
+			conflicts := make([]string, len(t.GetConflictsWith()))
+			for i, c := range t.GetConflictsWith() {
+				conflicts[i] = fmt.Sprintf("%q", c)
+			}
+			sb.WriteString(fmt.Sprintf("%sconflictsWith: [%s]\n", indent, strings.Join(conflicts, ", ")))
+		} else {
+			sb.WriteString(fmt.Sprintf("%sconflictsWith: []\n", indent))
 		}
-		sb.WriteString(fmt.Sprintf("%sconflictsWith: [%s]\n", indent, strings.Join(conflicts, ", ")))
 	}
 
 	// status (customStatus and healthPolicy)
@@ -489,6 +504,11 @@ func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinit
 		}
 
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
+
+	// workloadRefPath (if explicitly set)
+	if t.workloadRefPath != nil {
+		sb.WriteString(fmt.Sprintf("%sworkloadRefPath: %q\n", indent, *t.workloadRefPath))
 	}
 }
 
@@ -1098,7 +1118,7 @@ func (g *TraitCUEGenerator) generateParameterBlock(t *TraitDefinition, depth int
 			if dynMap.GetValueTypeUnion() != "" {
 				typeStr = dynMap.GetValueTypeUnion()
 			} else {
-				typeStr = cueTypeForParamType(dynMap.GetValueType())
+				typeStr = cueTypeStr(dynMap.GetValueType())
 			}
 			sb.WriteString(fmt.Sprintf("%sparameter: [string]: %s\n", indent, typeStr))
 			return sb.String()
@@ -1123,28 +1143,6 @@ func (g *TraitCUEGenerator) generateParameterBlock(t *TraitDefinition, depth int
 	return sb.String()
 }
 
-// cueTypeForParamType converts a ParamType to its CUE type string (standalone function).
-func cueTypeForParamType(pt ParamType) string {
-	switch pt {
-	case ParamTypeString:
-		return string(ParamTypeString)
-	case ParamTypeInt:
-		return "int"
-	case ParamTypeBool:
-		return "bool"
-	case ParamTypeFloat:
-		return "float"
-	case ParamTypeArray:
-		return "[...]"
-	case ParamTypeMap:
-		return "{...}"
-	case ParamTypeStruct:
-		return "{...}"
-	default:
-		return "_"
-	}
-}
-
 // writePatchContainerPattern generates the complete PatchContainer pattern in CUE.
 // This generates the #PatchParams helper, PatchContainer definition, patch block,
 // parameter schema, and errs aggregation.
@@ -1153,10 +1151,16 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 	innerIndent := strings.Repeat(g.indent, depth+1)
 	deepIndent := strings.Repeat(g.indent, depth+2)
 
-	// Generate #PatchParams helper definition
+	// Determine the helper type name (default: "PatchParams")
+	paramsTypeName := config.ParamsTypeName
+	if paramsTypeName == "" {
+		paramsTypeName = "PatchParams"
+	}
+
+	// Generate helper definition
 	if config.CustomParamsBlock != "" {
 		// Use custom params block (for complex schemas like startup-probe)
-		sb.WriteString(fmt.Sprintf("%s#PatchParams: {\n", indent))
+		sb.WriteString(fmt.Sprintf("%s#%s: {\n", indent, paramsTypeName))
 		sb.WriteString(fmt.Sprintf("%s// +usage=Specify the name of the target container, if not set, use the component name\n", innerIndent))
 		sb.WriteString(fmt.Sprintf("%scontainerName: *\"\" | string\n", innerIndent))
 		// Write each line of custom params block with proper indentation
@@ -1165,7 +1169,7 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	} else {
-		sb.WriteString(fmt.Sprintf("%s#PatchParams: {\n", indent))
+		sb.WriteString(fmt.Sprintf("%s#%s: {\n", indent, paramsTypeName))
 		sb.WriteString(fmt.Sprintf("%s// +usage=Specify the name of the target container, if not set, use the component name\n", innerIndent))
 		sb.WriteString(fmt.Sprintf("%scontainerName: *\"\" | string\n", innerIndent))
 
@@ -1192,11 +1196,10 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	} else {
 		sb.WriteString(fmt.Sprintf("%sPatchContainer: {\n", indent))
-		sb.WriteString(fmt.Sprintf("%s_params:         #PatchParams\n", innerIndent))
+		sb.WriteString(fmt.Sprintf("%s_params:         #%s\n", innerIndent, paramsTypeName))
 		sb.WriteString(fmt.Sprintf("%sname:            _params.containerName\n", innerIndent))
 		sb.WriteString(fmt.Sprintf("%s_baseContainers: context.output.spec.template.spec.containers\n", innerIndent))
 		sb.WriteString(fmt.Sprintf("%s_matchContainers_: [for _container_ in _baseContainers if _container_.name == name {_container_}]\n", innerIndent))
-		sb.WriteString(fmt.Sprintf("%s_baseContainer: *_|_ | {...}\n", innerIndent))
 
 		// Container not found error
 		sb.WriteString(fmt.Sprintf("%sif len(_matchContainers_) == 0 {\n", innerIndent))
@@ -1276,10 +1279,18 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 			sb.WriteString(fmt.Sprintf("%sif parameter.%s != _|_ {\n", innerIndent, multiParam))
 			sb.WriteString(fmt.Sprintf("%s\t// +patchKey=name\n", innerIndent))
 			sb.WriteString(fmt.Sprintf("%s\tcontainers: [for c in parameter.%s {\n", innerIndent, multiParam))
-			sb.WriteString(fmt.Sprintf("%s\t\tif c.containerName == \"\" {\n", innerIndent))
-			sb.WriteString(fmt.Sprintf("%s\t\t\terr: \"containerName must be set for %s\"\n", innerIndent, multiParam))
+			checkField := "containerName"
+			if config.MultiContainerCheckField != "" {
+				checkField = config.MultiContainerCheckField
+			}
+			errMsg := fmt.Sprintf("containerName must be set for %s", multiParam)
+			if config.MultiContainerErrMsg != "" {
+				errMsg = config.MultiContainerErrMsg
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\tif c.%s == \"\" {\n", innerIndent, checkField))
+			sb.WriteString(fmt.Sprintf("%s\t\t\terr: \"%s\"\n", innerIndent, errMsg))
 			sb.WriteString(fmt.Sprintf("%s\t\t}\n", innerIndent))
-			sb.WriteString(fmt.Sprintf("%s\t\tif c.containerName != \"\" {\n", innerIndent))
+			sb.WriteString(fmt.Sprintf("%s\t\tif c.%s != \"\" {\n", innerIndent, checkField))
 			sb.WriteString(fmt.Sprintf("%s\t\t\tPatchContainer & {_params: c}\n", innerIndent))
 			sb.WriteString(fmt.Sprintf("%s\t\t}\n", innerIndent))
 			sb.WriteString(fmt.Sprintf("%s\t}]\n", innerIndent))
@@ -1336,16 +1347,20 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 			}
 		}
 	case config.AllowMultiple && multiParam != "":
-		sb.WriteString(fmt.Sprintf("%sparameter: *#PatchParams | close({\n", indent))
+		defaultMarker := "*"
+		if config.NoDefaultDisjunction {
+			defaultMarker = ""
+		}
+		sb.WriteString(fmt.Sprintf("%sparameter: %s#%s | close({\n", indent, defaultMarker, paramsTypeName))
 		containersDesc := config.ContainersDescription
 		if containersDesc == "" {
 			containersDesc = "Specify the settings for multiple containers"
 		}
 		sb.WriteString(fmt.Sprintf("%s// +usage=%s\n", innerIndent, containersDesc))
-		sb.WriteString(fmt.Sprintf("%s%s: [...#PatchParams]\n", innerIndent, multiParam))
+		sb.WriteString(fmt.Sprintf("%s%s: [...#%s]\n", innerIndent, multiParam, paramsTypeName))
 		sb.WriteString(fmt.Sprintf("%s})\n", indent))
 	default:
-		sb.WriteString(fmt.Sprintf("%sparameter: #PatchParams\n", indent))
+		sb.WriteString(fmt.Sprintf("%sparameter: #%s\n", indent, paramsTypeName))
 	}
 
 	// Generate errs aggregation
@@ -1457,7 +1472,7 @@ func (g *TraitCUEGenerator) writePatchContainerGroup(sb *strings.Builder, group 
 // propagating _|_ when the parameter is unset. Fields with defaults or value-based
 // conditions (like '!= ""') always have a value and can be mapped unconditionally.
 func (g *TraitCUEGenerator) writePatchParamMapping(sb *strings.Builder, field PatchContainerField, indent string, prefix string) {
-	if field.Condition == "!= _|_" && field.ParamDefault == "" {
+	if field.Condition == "!= _|_" && field.ParamDefault == "" && field.ParamType == "" {
 		sb.WriteString(fmt.Sprintf("%sif %s%s %s {\n", indent, prefix, field.ParamName, field.Condition))
 		sb.WriteString(fmt.Sprintf("%s\t%s: %s%s\n", indent, field.ParamName, prefix, field.ParamName))
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
@@ -1497,13 +1512,17 @@ func (g *TraitCUEGenerator) GenerateDefinitionWithRawTemplate(t *TraitDefinition
 	sb.WriteString(fmt.Sprintf("%stype: \"trait\"\n", g.indent))
 	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
 
-	// Write labels block only if there are labels (omit empty labels to match original CUE format)
-	if len(t.GetLabels()) > 0 {
-		sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
-		for k, v := range t.GetLabels() {
-			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
+	// Write labels block when Labels() was explicitly called (nil check distinguishes unset from empty)
+	if t.labels != nil {
+		if len(t.labels) > 0 {
+			sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
+			for k, v := range t.labels {
+				sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
+			}
+			sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+		} else {
+			sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
 		}
-		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, t.GetDescription()))
 

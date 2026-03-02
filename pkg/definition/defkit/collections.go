@@ -90,6 +90,19 @@ func (c *CollectionOp) Map(mappings FieldMap) *CollectionOp {
 	return c
 }
 
+// MapVariant adds a conditional field mapping that only applies when the iteration
+// variable's discriminator field equals the given variant name.
+// Generates: if v.discriminator == "variantName" { ...mappings... }
+// Usage: .MapVariant("type", "pvc", FieldMap{"persistentVolumeClaim.claimName": FieldRef("claimName")})
+func (c *CollectionOp) MapVariant(discriminator, variantName string, mappings FieldMap) *CollectionOp {
+	c.ops = append(c.ops, &mapVariantOp{
+		discriminator: discriminator,
+		variantName:   variantName,
+		mappings:      mappings,
+	})
+	return c
+}
+
 // Pick selects only the specified fields from each item.
 // Usage: .Pick("name", "mountPath")
 func (c *CollectionOp) Pick(fields ...string) *CollectionOp {
@@ -236,8 +249,34 @@ func (f FieldRef) resolve(item map[string]any) any {
 }
 
 // Or provides a fallback if the field is nil or empty.
+// Generates CUE like: *v.field | fallback
 func (f FieldRef) Or(fallback FieldValue) *OrFieldRef {
 	return &OrFieldRef{primary: f, fallback: fallback}
+}
+
+// OrConditional provides a fallback using if/else blocks instead of default syntax.
+// Generates CUE like:
+//
+//	if v.field != _|_ { name: v.field }
+//	if v.field == _|_ { name: fallbackExpr }
+func (f FieldRef) OrConditional(fallback FieldValue) *ConditionalOrFieldRef {
+	return &ConditionalOrFieldRef{primary: f, fallback: fallback}
+}
+
+// ConditionalOrFieldRef represents a field reference with a conditional fallback.
+// Instead of generating CUE default syntax (*v.field | fallback), it generates
+// two if/else blocks for the field.
+type ConditionalOrFieldRef struct {
+	primary  FieldRef
+	fallback FieldValue
+}
+
+func (c *ConditionalOrFieldRef) resolve(item map[string]any) any {
+	val := item[string(c.primary)]
+	if val == nil || val == "" {
+		return c.fallback.resolve(item)
+	}
+	return val
 }
 
 // OrFieldRef represents a field reference with a fallback value.
@@ -368,10 +407,62 @@ func (m *mapOp) apply(items []any) []any {
 		if itemMap, ok := item.(map[string]any); ok {
 			newItem := make(map[string]any)
 			for newKey, fieldVal := range m.mappings {
-				newItem[newKey] = fieldVal.resolve(itemMap)
+				resolved := fieldVal.resolve(itemMap)
+				// Skip nil values from optional field types — they should be
+				// omitted from the output entirely, not included as nil.
+				if resolved == nil {
+					if _, isOpt := fieldVal.(*OptionalField); isOpt {
+						continue
+					}
+					if _, isCompOpt := fieldVal.(*CompoundOptionalField); isCompOpt {
+						continue
+					}
+				}
+				newItem[newKey] = resolved
 			}
 			result = append(result, newItem)
 		}
+	}
+	return result
+}
+
+// mapVariantOp represents a conditional map operation based on a discriminator field value.
+// When the iteration variable's discriminator field equals the variant name,
+// the variant's field mappings are included.
+// Generates: if v.discriminator == "variantName" { ...mappings... }
+type mapVariantOp struct {
+	discriminator string
+	variantName   string
+	mappings      FieldMap
+}
+
+func (m *mapVariantOp) apply(items []any) []any {
+	// Runtime apply: merge variant mappings into matching items, pass others through.
+	// This mirrors CUE semantics where each variant condition is evaluated for every
+	// item in the loop body — non-matching items are kept so later MapVariant ops
+	// can process them.
+	result := make([]any, 0, len(items))
+	for _, item := range items {
+		itemMap, ok := item.(map[string]any)
+		if !ok {
+			result = append(result, item)
+			continue
+		}
+		disc, exists := itemMap[m.discriminator]
+		if !exists || fmt.Sprintf("%v", disc) != m.variantName {
+			// Non-matching: pass through unchanged
+			result = append(result, item)
+			continue
+		}
+		// Matching: copy existing fields and merge variant mappings
+		newItem := make(map[string]any, len(itemMap)+len(m.mappings))
+		for k, v := range itemMap {
+			newItem[k] = v
+		}
+		for newKey, fieldVal := range m.mappings {
+			newItem[newKey] = fieldVal.resolve(itemMap)
+		}
+		result = append(result, newItem)
 	}
 	return result
 }
@@ -696,6 +787,28 @@ func Optional(field string) *OptionalField {
 // Usage: defkit.OptionalFieldRef("subPath")
 func OptionalFieldRef(field string) *OptionalField {
 	return &OptionalField{field: field}
+}
+
+// CompoundOptionalField includes a field value only if the field exists AND an additional condition is met.
+// Generates CUE: if v.field != _|_ if additionalCond { fieldName: v.field }
+type CompoundOptionalField struct {
+	field          string
+	additionalCond Condition
+}
+
+func (o *CompoundOptionalField) resolve(item map[string]any) any {
+	val, exists := item[o.field]
+	if !exists || val == nil {
+		return nil
+	}
+	return val
+}
+
+// OptionalFieldWithCond creates a field reference that includes the field only when
+// both the field exists and the additional condition is satisfied.
+// Generates CUE: if v.field != _|_ if cond { fieldName: v.field }
+func OptionalFieldWithCond(field string, cond Condition) *CompoundOptionalField {
+	return &CompoundOptionalField{field: field, additionalCond: cond}
 }
 
 // NestedFieldMap creates a nested object from field mappings.

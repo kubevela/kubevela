@@ -202,4 +202,43 @@ var _ = Describe("Resource", func() {
 			Expect(isSpreadIf).To(BeTrue())
 		})
 	})
+
+	Context("Directive", func() {
+		It("should record a Directive operation", func() {
+			r := defkit.NewResource("apps/v1", "DaemonSet").
+				Directive("spec.template.spec.hostAliases", "patchKey=ip")
+			Expect(r.Ops()).To(HaveLen(1))
+			dirOp, ok := r.Ops()[0].(*defkit.DirectiveOp)
+			Expect(ok).To(BeTrue())
+			Expect(dirOp.Path()).To(Equal("spec.template.spec.hostAliases"))
+			Expect(dirOp.GetDirective()).To(Equal("patchKey=ip"))
+		})
+
+		It("should record Directive within If block", func() {
+			hostAliases := defkit.Object("hostAliases")
+			r := defkit.NewResource("apps/v1", "DaemonSet").
+				If(hostAliases.IsSet()).
+				Set("spec.template.spec.hostAliases", hostAliases).
+				Directive("spec.template.spec.hostAliases", "patchKey=ip").
+				EndIf()
+			Expect(r.Ops()).To(HaveLen(1))
+			ifBlock, ok := r.Ops()[0].(*defkit.IfBlock)
+			Expect(ok).To(BeTrue())
+			Expect(ifBlock.Ops()).To(HaveLen(2))
+			_, isDirOp := ifBlock.Ops()[1].(*defkit.DirectiveOp)
+			Expect(isDirOp).To(BeTrue())
+		})
+
+		It("should combine with Set operations", func() {
+			hostAliases := defkit.Object("hostAliases")
+			r := defkit.NewResource("apps/v1", "DaemonSet").
+				SetIf(hostAliases.IsSet(), "spec.template.spec.hostAliases", hostAliases).
+				Directive("spec.template.spec.hostAliases", "patchKey=ip")
+			Expect(r.Ops()).To(HaveLen(2))
+			_, isSetIf := r.Ops()[0].(*defkit.SetIfOp)
+			_, isDirOp := r.Ops()[1].(*defkit.DirectiveOp)
+			Expect(isSetIf).To(BeTrue())
+			Expect(isDirOp).To(BeTrue())
+		})
+	})
 })

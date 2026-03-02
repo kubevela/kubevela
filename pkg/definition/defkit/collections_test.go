@@ -81,6 +81,19 @@ var _ = Describe("Collections", func() {
 			Expect(col.Operations()).To(HaveLen(1))
 		})
 
+		It("should chain MapVariant operation", func() {
+			volumes := defkit.List("volumes")
+			col := defkit.Each(volumes).
+				Map(defkit.FieldMap{"name": defkit.FieldRef("name")}).
+				MapVariant("type", "pvc", defkit.FieldMap{
+					"persistentVolumeClaim.claimName": defkit.FieldRef("claimName"),
+				}).
+				MapVariant("type", "emptyDir", defkit.FieldMap{
+					"emptyDir.medium": defkit.FieldRef("medium"),
+				})
+			Expect(col.Operations()).To(HaveLen(3))
+		})
+
 		It("should chain Rename operation", func() {
 			ports := defkit.List("ports")
 			col := defkit.Each(ports).Rename("port", "containerPort")
@@ -101,42 +114,85 @@ var _ = Describe("Collections", func() {
 	})
 
 	Context("FieldRef", func() {
-		It("should resolve field from item", func() {
+		It("should store field name and resolve correctly from item", func() {
 			ref := defkit.FieldRef("port")
-			Expect(ref).NotTo(BeNil())
+			Expect(string(ref)).To(Equal("port"))
+
+			// Verify it resolves correctly through a collection
+			ports := defkit.List("ports")
+			col := defkit.Each(ports).Map(defkit.FieldMap{"p": ref})
+			items := []any{map[string]any{"port": 8080}}
+			results := col.Collect(items)
+			Expect(results).To(HaveLen(1))
+			Expect(results[0]["p"]).To(Equal(8080))
 		})
 
-		It("should support Or fallback", func() {
-			ref := defkit.FieldRef("name").Or(defkit.Format("port-%v", defkit.FieldRef("port")))
-			Expect(ref).NotTo(BeNil())
+		It("should support Or fallback and use fallback when primary is nil", func() {
+			ports := defkit.List("ports")
+			col := defkit.Each(ports).Map(defkit.FieldMap{
+				"display": defkit.FieldRef("name").Or(defkit.Format("port-%v", defkit.FieldRef("port"))),
+			})
+			// Primary field present — should use primary
+			items := []any{map[string]any{"port": 80, "name": "http"}}
+			results := col.Collect(items)
+			Expect(results[0]["display"]).To(Equal("http"))
+
+			// Primary field missing — should use fallback
+			items = []any{map[string]any{"port": 443}}
+			results = col.Collect(items)
+			Expect(results[0]["display"]).To(Equal("port-443"))
 		})
 	})
 
 	Context("FieldEquals", func() {
-		It("should create equality predicate", func() {
+		It("should filter items matching the field equality predicate", func() {
 			pred := defkit.FieldEquals("expose", true)
-			Expect(pred).NotTo(BeNil())
+			ports := defkit.List("ports")
+			col := defkit.Each(ports).Filter(pred)
+			items := []any{
+				map[string]any{"port": 80, "expose": true},
+				map[string]any{"port": 443, "expose": false},
+			}
+			results := col.Collect(items)
+			Expect(results).To(HaveLen(1))
+			Expect(results[0]["port"]).To(Equal(80))
 		})
 	})
 
 	Context("FieldExists", func() {
-		It("should create existence predicate", func() {
+		It("should filter items where field is present", func() {
 			pred := defkit.FieldExists("items")
-			Expect(pred).NotTo(BeNil())
+			ports := defkit.List("data")
+			col := defkit.Each(ports).Filter(pred)
+			items := []any{
+				map[string]any{"name": "a", "items": []string{"x"}},
+				map[string]any{"name": "b"},
+			}
+			results := col.Collect(items)
+			Expect(results).To(HaveLen(1))
+			Expect(results[0]["name"]).To(Equal("a"))
 		})
 	})
 
 	Context("Format", func() {
-		It("should create format field value", func() {
+		It("should create format field value with required imports", func() {
 			f := defkit.Format("port-%v", defkit.FieldRef("port"))
 			Expect(f).NotTo(BeNil())
+			Expect(f.RequiredImports()).To(ContainElement("strconv"))
 		})
 	})
 
 	Context("LitField", func() {
-		It("should create literal field value", func() {
+		It("should resolve literal field value from item", func() {
 			lit := defkit.LitField("TCP")
 			Expect(lit).NotTo(BeNil())
+			// LitField should resolve to the literal value regardless of item content
+			ports := defkit.List("ports")
+			col := defkit.Each(ports).Map(defkit.FieldMap{"protocol": lit})
+			items := []any{map[string]any{"port": 80}}
+			results := col.Collect(items)
+			Expect(results).To(HaveLen(1))
+			Expect(results[0]["protocol"]).To(Equal("TCP"))
 		})
 	})
 
@@ -181,32 +237,98 @@ var _ = Describe("Collections", func() {
 	})
 
 	Context("Nested", func() {
-		It("should create nested field mapping", func() {
+		It("should resolve nested field mapping from item", func() {
 			nested := defkit.Nested(defkit.FieldMap{
 				"claimName": defkit.FieldRef("claimName"),
 			})
 			Expect(nested).NotTo(BeNil())
+			// Verify nested resolves correctly through a collection
+			vols := defkit.List("volumes")
+			col := defkit.Each(vols).Map(defkit.FieldMap{
+				"pvc": nested,
+			})
+			items := []any{map[string]any{"claimName": "my-pvc"}}
+			results := col.Collect(items)
+			Expect(results).To(HaveLen(1))
+			Expect(results[0]["pvc"]).To(Equal(map[string]any{"claimName": "my-pvc"}))
 		})
 	})
 
 	Context("Optional and OptionalFieldRef", func() {
-		It("should create optional field reference", func() {
-			opt := defkit.Optional("items")
-			Expect(opt).NotTo(BeNil())
+		It("should include optional field when present and omit when absent", func() {
+			vols := defkit.List("volumes")
+			col := defkit.Each(vols).Map(defkit.FieldMap{
+				"name":  defkit.FieldRef("name"),
+				"items": defkit.Optional("items"),
+			})
+			items := []any{
+				map[string]any{"name": "vol1", "items": []string{"a"}},
+				map[string]any{"name": "vol2"},
+			}
+			results := col.Collect(items)
+			Expect(results).To(HaveLen(2))
+			Expect(results[0]).To(HaveKey("items"))
+			Expect(results[1]).NotTo(HaveKey("items"))
 		})
 
 		It("should create optional field reference via OptionalFieldRef alias", func() {
-			opt := defkit.OptionalFieldRef("subPath")
-			Expect(opt).NotTo(BeNil())
+			vols := defkit.List("volumes")
+			col := defkit.Each(vols).Map(defkit.FieldMap{
+				"name":    defkit.FieldRef("name"),
+				"subPath": defkit.OptionalFieldRef("subPath"),
+			})
+			items := []any{
+				map[string]any{"name": "vol1", "subPath": "/data"},
+				map[string]any{"name": "vol2"},
+			}
+			results := col.Collect(items)
+			Expect(results).To(HaveLen(2))
+			Expect(results[0]["subPath"]).To(Equal("/data"))
+			Expect(results[1]).NotTo(HaveKey("subPath"))
+		})
+	})
+
+	Context("CompoundOptionalField", func() {
+		It("should create compound optional field with OptionalFieldWithCond", func() {
+			cond := defkit.Eq(defkit.String("exposeType"), defkit.Lit("NodePort"))
+			compOpt := defkit.OptionalFieldWithCond("nodePort", cond)
+			Expect(compOpt).NotTo(BeNil())
+			// Verify it can be used in a FieldMap and the CUE generation picks it up
+			ports := defkit.List("ports").WithFields(
+				defkit.Int("port").Required(),
+				defkit.Int("nodePort"),
+			)
+			col := defkit.Each(ports).Map(defkit.FieldMap{
+				"port":     defkit.FieldRef("port"),
+				"nodePort": compOpt,
+			})
+			Expect(col.Operations()).To(HaveLen(1))
+		})
+
+		It("should be usable as a FieldValue in FieldMap alongside regular fields", func() {
+			cond := defkit.Eq(defkit.String("exposeType"), defkit.Lit("NodePort"))
+			fm := defkit.FieldMap{
+				"port":     defkit.FieldRef("port"),
+				"nodePort": defkit.OptionalFieldWithCond("nodePort", cond),
+			}
+			Expect(fm).To(HaveLen(2))
+			Expect(fm).To(HaveKey("port"))
+			Expect(fm).To(HaveKey("nodePort"))
 		})
 	})
 
 	Context("NestedFieldMap", func() {
-		It("should create nested field mapping (alias for Nested)", func() {
+		It("should resolve nested field mapping identically to Nested", func() {
 			nested := defkit.NestedFieldMap(defkit.FieldMap{
 				"claimName": defkit.FieldRef("claimName"),
 			})
 			Expect(nested).NotTo(BeNil())
+			vols := defkit.List("volumes")
+			col := defkit.Each(vols).Map(defkit.FieldMap{"pvc": nested})
+			items := []any{map[string]any{"claimName": "my-pvc"}}
+			results := col.Collect(items)
+			Expect(results).To(HaveLen(1))
+			Expect(results[0]["pvc"]).To(Equal(map[string]any{"claimName": "my-pvc"}))
 		})
 	})
 
@@ -817,6 +939,65 @@ var _ = Describe("Collections", func() {
 			})
 		})
 
+		Context("MapVariant chained operation behavior", func() {
+			It("should apply chained variant mappings to matching items and pass others through", func() {
+				volumes := defkit.List("volumes")
+				col := defkit.Each(volumes).
+					MapVariant("type", "pvc", defkit.FieldMap{
+						"pvcClaim": defkit.FieldRef("claimName"),
+					}).
+					MapVariant("type", "configMap", defkit.FieldMap{
+						"cmRef": defkit.FieldRef("cmName"),
+					}).
+					MapVariant("type", "emptyDir", defkit.FieldMap{
+						"medium": defkit.FieldRef("medium"),
+					})
+
+				items := []any{
+					map[string]any{"name": "data", "type": "pvc", "claimName": "data-pvc"},
+					map[string]any{"name": "config", "type": "configMap", "cmName": "app-config"},
+					map[string]any{"name": "cache", "type": "emptyDir", "medium": "Memory"},
+				}
+
+				results := col.Collect(items)
+				Expect(results).To(HaveLen(3))
+
+				// PVC item should have variant field merged, original fields preserved
+				Expect(results[0]["name"]).To(Equal("data"))
+				Expect(results[0]["pvcClaim"]).To(Equal("data-pvc"))
+				Expect(results[0]).NotTo(HaveKey("cmRef"))
+
+				// ConfigMap item should have variant field merged
+				Expect(results[1]["name"]).To(Equal("config"))
+				Expect(results[1]["cmRef"]).To(Equal("app-config"))
+				Expect(results[1]).NotTo(HaveKey("pvcClaim"))
+
+				// EmptyDir item should have variant field merged
+				Expect(results[2]["name"]).To(Equal("cache"))
+				Expect(results[2]["medium"]).To(Equal("Memory"))
+			})
+
+			It("should preserve items with no matching variant", func() {
+				volumes := defkit.List("volumes")
+				col := defkit.Each(volumes).
+					MapVariant("type", "pvc", defkit.FieldMap{
+						"pvcClaim": defkit.FieldRef("claimName"),
+					})
+
+				items := []any{
+					map[string]any{"name": "data", "type": "pvc", "claimName": "data-pvc"},
+					map[string]any{"name": "config", "type": "configMap", "cmName": "app-config"},
+				}
+
+				results := col.Collect(items)
+				Expect(results).To(HaveLen(2))
+				Expect(results[0]["pvcClaim"]).To(Equal("data-pvc"))
+				// Non-matching item passes through unchanged
+				Expect(results[1]["name"]).To(Equal("config"))
+				Expect(results[1]["type"]).To(Equal("configMap"))
+			})
+		})
+
 		Context("Flatten operation behavior", func() {
 			It("should flatten nested arrays", func() {
 				volumes := defkit.List("volumes")
@@ -874,6 +1055,51 @@ var _ = Describe("Collections", func() {
 				Expect(results[0]["displayName"]).To(Equal("http"))
 				Expect(results[1]["displayName"]).To(Equal("port-443"))
 				Expect(results[2]["displayName"]).To(Equal("port-8080"))
+			})
+		})
+
+		Context("OrConditional (ConditionalOrFieldRef)", func() {
+			It("should create ConditionalOrFieldRef that resolves primary field", func() {
+				ref := defkit.FieldRef("name").OrConditional(defkit.Format("port-%v", defkit.FieldRef("port")))
+				col := defkit.Each(defkit.List("items")).Map(defkit.FieldMap{"result": ref})
+				results := col.Collect([]any{map[string]any{"name": "web", "port": 80}})
+				Expect(results).To(HaveLen(1))
+				Expect(results[0]["result"]).To(Equal("web"))
+			})
+
+			It("should resolve primary vs fallback across multiple items with full structure", func() {
+				ports := defkit.List("ports")
+				col := defkit.Each(ports).Map(defkit.FieldMap{
+					"displayName": defkit.FieldRef("name").OrConditional(defkit.Format("port-%v", defkit.FieldRef("port"))),
+					"portNumber":  defkit.FieldRef("port"),
+					"protocol":    defkit.FieldRef("proto").OrConditional(defkit.LitField("TCP")),
+				})
+
+				items := []any{
+					map[string]any{"port": 80, "name": "http", "proto": "HTTP"}, // all primary fields present
+					map[string]any{"port": 443},                                 // name and proto nil → fallback
+					map[string]any{"port": 8080, "name": "", "proto": ""},       // name and proto empty → fallback
+					map[string]any{"port": 9090, "name": "grpc"},                // name present, proto nil → mixed
+				}
+
+				results := col.Collect(items)
+				Expect(results).To(HaveLen(4))
+
+				Expect(results[0]["displayName"]).To(Equal("http"))
+				Expect(results[0]["portNumber"]).To(Equal(80))
+				Expect(results[0]["protocol"]).To(Equal("HTTP"))
+
+				Expect(results[1]["displayName"]).To(Equal("port-443"))
+				Expect(results[1]["portNumber"]).To(Equal(443))
+				Expect(results[1]["protocol"]).To(Equal("TCP"))
+
+				Expect(results[2]["displayName"]).To(Equal("port-8080"))
+				Expect(results[2]["portNumber"]).To(Equal(8080))
+				Expect(results[2]["protocol"]).To(Equal("TCP"))
+
+				Expect(results[3]["displayName"]).To(Equal("grpc"))
+				Expect(results[3]["portNumber"]).To(Equal(9090))
+				Expect(results[3]["protocol"]).To(Equal("TCP"))
 			})
 		})
 

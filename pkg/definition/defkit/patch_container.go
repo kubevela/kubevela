@@ -223,10 +223,14 @@ type PatchContainerConfig struct {
 	ContainersDescription     string                // +usage description for the containers param (auto-generated if empty)
 	CustomParamsBlock         string                // custom CUE block for #PatchParams (for complex types)
 	MultiContainerParam       string                // alternate name for multi-container param (default: "probes" for probes, "containers" for others)
+	MultiContainerCheckField  string                // field name for multi-container error check (default: "containerName")
+	MultiContainerErrMsg      string                // custom error message for multi-container mode (default: "container name must be set for %s")
 	CustomPatchContainerBlock string                // custom CUE block for PatchContainer body (for complex merge logic)
 	CustomPatchBlock          string                // custom CUE block for the patch: spec: template: spec: { ... } body
 	CustomParameterBlock      string                // custom CUE block for the parameter definition
 	PatchStrategy             string                // if set, emitted as // +patchStrategy=<value> before the patch block (e.g., "open")
+	ParamsTypeName            string                // custom name for the #PatchParams helper (default: "PatchParams")
+	NoDefaultDisjunction      bool                  // if true, omit the * default marker on parameter disjunction
 }
 
 // --- Let Binding Support ---

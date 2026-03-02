@@ -194,59 +194,63 @@ var _ = Describe("Expressions", func() {
 	})
 
 	Context("CueFunc expressions", func() {
-		It("should create StrconvFormatInt function", func() {
+		It("should create StrconvFormatInt function with correct args", func() {
 			num := defkit.Int("port")
 			fn := defkit.StrconvFormatInt(num, 10)
-			Expect(fn).NotTo(BeNil())
 			Expect(fn.Package()).To(Equal("strconv"))
 			Expect(fn.Function()).To(Equal("FormatInt"))
 			Expect(fn.Args()).To(HaveLen(2))
+			Expect(fn.Args()[0]).To(Equal(num))
+			Expect(fn.Args()[1]).To(Equal(defkit.Lit(10)))
 		})
 
-		It("should create StringsToLower function", func() {
+		It("should create StringsToLower function with correct arg", func() {
 			str := defkit.String("name")
 			fn := defkit.StringsToLower(str)
-			Expect(fn).NotTo(BeNil())
 			Expect(fn.Package()).To(Equal("strings"))
 			Expect(fn.Function()).To(Equal("ToLower"))
 			Expect(fn.Args()).To(HaveLen(1))
+			Expect(fn.Args()[0]).To(Equal(str))
 		})
 
-		It("should create StringsToUpper function", func() {
+		It("should create StringsToUpper function with correct arg", func() {
 			str := defkit.String("name")
 			fn := defkit.StringsToUpper(str)
-			Expect(fn).NotTo(BeNil())
 			Expect(fn.Package()).To(Equal("strings"))
 			Expect(fn.Function()).To(Equal("ToUpper"))
 			Expect(fn.Args()).To(HaveLen(1))
+			Expect(fn.Args()[0]).To(Equal(str))
 		})
 
-		It("should create StringsHasPrefix function", func() {
+		It("should create StringsHasPrefix function with correct args", func() {
 			str := defkit.String("path")
 			fn := defkit.StringsHasPrefix(str, "/api")
-			Expect(fn).NotTo(BeNil())
 			Expect(fn.Package()).To(Equal("strings"))
 			Expect(fn.Function()).To(Equal("HasPrefix"))
 			Expect(fn.Args()).To(HaveLen(2))
+			Expect(fn.Args()[0]).To(Equal(str))
+			Expect(fn.Args()[1]).To(Equal(defkit.Lit("/api")))
 		})
 
-		It("should create StringsHasSuffix function", func() {
+		It("should create StringsHasSuffix function with correct args", func() {
 			str := defkit.String("file")
 			fn := defkit.StringsHasSuffix(str, ".yaml")
-			Expect(fn).NotTo(BeNil())
 			Expect(fn.Package()).To(Equal("strings"))
 			Expect(fn.Function()).To(Equal("HasSuffix"))
 			Expect(fn.Args()).To(HaveLen(2))
+			Expect(fn.Args()[0]).To(Equal(str))
+			Expect(fn.Args()[1]).To(Equal(defkit.Lit(".yaml")))
 		})
 
-		It("should create ListConcat function", func() {
+		It("should create ListConcat function with correct args", func() {
 			list1 := defkit.List("list1")
 			list2 := defkit.List("list2")
 			fn := defkit.ListConcat(list1, list2)
-			Expect(fn).NotTo(BeNil())
 			Expect(fn.Package()).To(Equal("list"))
 			Expect(fn.Function()).To(Equal("Concat"))
 			Expect(fn.Args()).To(HaveLen(2))
+			Expect(fn.Args()[0]).To(Equal(list1))
+			Expect(fn.Args()[1]).To(Equal(list2))
 		})
 	})
 
@@ -259,12 +263,14 @@ var _ = Describe("Expressions", func() {
 		})
 
 		It("should set fields on array element", func() {
+			nameLit := defkit.Lit("test")
+			portLit := defkit.Lit(8080)
 			elem := defkit.NewArrayElement().
-				Set("name", defkit.Lit("test")).
-				Set("port", defkit.Lit(8080))
+				Set("name", nameLit).
+				Set("port", portLit)
 			Expect(elem.Fields()).To(HaveLen(2))
-			Expect(elem.Fields()["name"]).NotTo(BeNil())
-			Expect(elem.Fields()["port"]).NotTo(BeNil())
+			Expect(elem.Fields()["name"]).To(Equal(nameLit))
+			Expect(elem.Fields()["port"]).To(Equal(portLit))
 		})
 
 		It("should set conditional fields on array element", func() {
@@ -286,6 +292,11 @@ var _ = Describe("Expressions", func() {
 		It("should create ForEachMap expression", func() {
 			forEach := defkit.ForEachMap()
 			Expect(forEach).NotTo(BeNil())
+			Expect(forEach.Source()).To(Equal("parameter"))
+			Expect(forEach.KeyVar()).To(Equal("k"))
+			Expect(forEach.ValVar()).To(Equal("v"))
+			Expect(forEach.KeyExpr()).To(BeEmpty())
+			Expect(forEach.ValExpr()).To(BeEmpty())
 		})
 
 		It("should set source and variable names", func() {
@@ -316,11 +327,47 @@ var _ = Describe("Expressions", func() {
 		It("should create parameter reference", func() {
 			ref := defkit.ParamRef("image")
 			Expect(ref).NotTo(BeNil())
+			Expect(ref.Path()).To(Equal("parameter.image"))
 		})
 
 		It("should reference nested parameter", func() {
 			ref := defkit.ParamRef("config.port")
 			Expect(ref).NotTo(BeNil())
+			Expect(ref.Path()).To(Equal("parameter.config.port"))
+		})
+	})
+
+	Context("InlineArrayValue", func() {
+		It("should create inline array with fields and store correct values", func() {
+			port := defkit.Int("port")
+			arr := defkit.InlineArray(map[string]defkit.Value{
+				"containerPort": port,
+			})
+			Expect(arr.Fields()).To(HaveLen(1))
+			Expect(arr.Fields()).To(HaveKey("containerPort"))
+			Expect(arr.Fields()["containerPort"]).To(Equal(port))
+		})
+
+		It("should create inline array with multiple fields and store correct values", func() {
+			port := defkit.Int("port")
+			protocol := defkit.Lit("TCP")
+			arr := defkit.InlineArray(map[string]defkit.Value{
+				"containerPort": port,
+				"protocol":      protocol,
+			})
+			Expect(arr.Fields()).To(HaveLen(2))
+			Expect(arr.Fields()["containerPort"]).To(Equal(port))
+			Expect(arr.Fields()["protocol"]).To(Equal(protocol))
+		})
+
+		It("should implement Value interface", func() {
+			port := defkit.Int("port")
+			arr := defkit.InlineArray(map[string]defkit.Value{
+				"containerPort": port,
+			})
+			var v defkit.Value = arr // compile-time check
+			Expect(v).NotTo(BeNil())
+			Expect(arr.Fields()["containerPort"]).To(Equal(port))
 		})
 	})
 })
