@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -168,6 +169,57 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 		err = h.StateKeep(context.Background())
 		Expect(err).ShouldNot(Succeed())
 		Expect(err.Error()).Should(ContainSubstring("failed to re-apply"))
+	})
+
+	It("Test StateKeep apply-once does not re-create externally deleted resource", func() {
+		cli := testClient
+
+		// Resource tracked in the resource tracker but not present in the cluster,
+		// simulating a resource that was externally deleted (e.g. Job garbage-collected by TTL)
+		// With an apply-once policy matching this resource, state-keep should skip it
+		cm := createConfigMap("cm-apply-once-gc", "value")
+		cm.SetLabels(map[string]string{
+			oam.LabelAppName:      "app-apply-once-gc",
+			oam.LabelAppNamespace: "default",
+			oam.LabelAppComponent: "my-task",
+		})
+		cmRaw, err := json.Marshal(cm)
+		Expect(err).Should(Succeed())
+
+		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app-apply-once-gc", Namespace: "default"}}
+		h := &resourceKeeper{
+			Client:     cli,
+			app:        app,
+			applicator: apply.NewAPIApplicator(cli),
+			cache:      newResourceCache(cli, app),
+			applyOncePolicy: &v1alpha1.ApplyOncePolicySpec{
+				Enable: true,
+				Rules: []v1alpha1.ApplyOncePolicyRule{{
+					Selector: v1alpha1.ResourcePolicyRuleSelector{
+						CompNames: []string{"my-task"},
+					},
+					Strategy: &v1alpha1.ApplyOnceStrategy{Path: []string{"*"}},
+				}},
+			},
+		}
+		h._currentRT = &v1beta1.ResourceTracker{
+			Spec: v1beta1.ResourceTrackerSpec{
+				ManagedResources: []v1beta1.ManagedResource{{
+					ClusterObjectReference: createConfigMapClusterObjectReference("cm-apply-once-gc"),
+					OAMObjectReference:     common.NewOAMObjectReferenceFromObject(cm),
+					Data:                   &runtime.RawExtension{Raw: cmRaw},
+				}},
+			},
+		}
+
+		Expect(h.StateKeep(context.Background())).Should(Succeed())
+
+		// Verify the resource was not re-created
+		got := &unstructured.Unstructured{}
+		got.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
+		err = cli.Get(context.Background(), client.ObjectKeyFromObject(cm), got)
+		Expect(err).Should(HaveOccurred())
+		Expect(kerrors.IsNotFound(err)).Should(BeTrue())
 	})
 
 	It("Test StateKeep for shared resources", func() {

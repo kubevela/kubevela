@@ -80,6 +80,9 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 			if err != nil {
 				return errors.Wrapf(err, "failed to apply once resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
 			}
+			if manifest == nil {
+				return nil
+			}
 			ao := []apply.ApplyOption{apply.MustBeControlledByApp(h.app)}
 			if h.isShared(manifest) {
 				ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
@@ -117,6 +120,9 @@ func ApplyStrategies(ctx context.Context, h *resourceKeeper, manifest *unstructu
 			err := h.Get(ctx, types.NamespacedName{Name: manifest.GetName(), Namespace: manifest.GetNamespace()}, un)
 			if err != nil {
 				if kerrors.IsNotFound(err) {
+					if matchedAffectStage == v1alpha1.ApplyOnceStrategyOnAppStateKeep {
+						return nil, nil
+					}
 					return manifest, nil
 				}
 				return nil, err
