@@ -30,14 +30,13 @@ import (
 // Workflow steps define operations in an application's deployment workflow,
 // such as deploy, suspend, notification, approval, etc.
 type WorkflowStepDefinition struct {
-	baseDefinition                                  // embedded common fields and methods
-	category        string                          // e.g., "Application Delivery", "Notification"
-	scope           string                          // e.g., "Application", "Workflow"
-	labels          map[string]string               // arbitrary metadata labels beyond scope
-	alias           string                          // optional alias for definition metadata annotation
-	hasAlias        bool                            // tracks whether alias was explicitly set (including empty string)
-	stepTemplate    func(tpl *WorkflowStepTemplate) // template function for step logic (type-specific)
-	rawTemplateBody string                          // raw CUE embedded inside template: {} before the parameter block
+	baseDefinition                                 // embedded common fields and methods
+	category       string                          // e.g., "Application Delivery", "Notification"
+	scope          string                          // e.g., "Application", "Workflow"
+	labels         map[string]string               // arbitrary metadata labels beyond scope
+	alias          string                          // optional alias for definition metadata annotation
+	hasAlias       bool                            // tracks whether alias was explicitly set (including empty string)
+	stepTemplate   func(tpl *WorkflowStepTemplate) // template function for step logic (type-specific)
 }
 
 // WorkflowStepTemplate provides the building context for workflow step templates.
