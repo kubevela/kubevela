@@ -110,11 +110,11 @@ func (c *ParamCompareCondition) CompareValue() any { return c.value }
 // StringParam represents a string parameter.
 type StringParam struct {
 	baseParam
-	enumValues      []string // allowed enum values
-	openEnum bool // when true, appends | string to enum disjunction (open enum)
-	pattern         string   // regex pattern constraint
-	minLen          *int     // minimum length constraint
-	maxLen          *int     // maximum length constraint
+	enumValues []string // allowed enum values
+	openEnum   bool     // when true, appends | string to enum disjunction (open enum)
+	pattern    string   // regex pattern constraint
+	minLen     *int     // minimum length constraint
+	maxLen     *int     // maximum length constraint
 }
 
 // String creates a new string parameter with the given name.
