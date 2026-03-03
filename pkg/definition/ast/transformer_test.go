@@ -17,6 +17,7 @@ limitations under the License.
 package ast
 
 import (
+	"strings"
 	"testing"
 
 	"cuelang.org/go/cue/ast"
@@ -76,6 +77,19 @@ func TestMarshalAndUnmarshalMetadata(t *testing.T) {
 				}
 			`,
 			expectContains: "selector",
+		},
+		{
+			name: "unary expression value is valid",
+			input: `
+				attributes: {
+					status: {
+						details: {
+							notFailing: !context.output.status.failing
+						}
+					}
+				}
+			`,
+			expectContains: "notFailing",
 		},
 		{
 			name: "struct value is invalid",
@@ -255,6 +269,484 @@ func TestMarshalAndUnmarshalMetadata(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
+			if tt.expectContains != "" {
+				statusField, ok := GetFieldByPath(rootField, "attributes.status.details")
+				require.True(t, ok)
+
+				switch v := statusField.Value.(type) {
+				case *ast.BasicLit:
+					require.Contains(t, v.Value, tt.expectContains)
+				case *ast.StructLit:
+					out, err := format.Node(v)
+					require.NoError(t, err)
+					require.Contains(t, string(out), tt.expectContains)
+				default:
+					t.Fatalf("unexpected status value type: %T", v)
+				}
+			}
+		})
+	}
+}
+
+func TestHasDisableValidation(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{
+			name:     "field with @disableValidation()",
+			input:    `details: { foo: "bar" } @disableValidation()`,
+			expected: true,
+		},
+		{
+			name:     "field without any attributes",
+			input:    `details: { foo: "bar" }`,
+			expected: false,
+		},
+		{
+			name:     "field with a different attribute",
+			input:    `details: { foo: "bar" } @someOtherAttr()`,
+			expected: false,
+		},
+		{
+			name:     "field with multiple attributes including @disableValidation()",
+			input:    `details: { foo: "bar" } @someOtherAttr() @disableValidation()`,
+			expected: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			file, err := parser.ParseFile("-", tc.input)
+			require.NoError(t, err)
+
+			var field *ast.Field
+			for _, decl := range file.Decls {
+				if f, ok := decl.(*ast.Field); ok {
+					field = f
+					break
+				}
+			}
+			require.NotNil(t, field)
+			assert.Equal(t, tc.expected, hasDisableValidation(field))
+		})
+	}
+}
+
+func TestDisableValidationAttribute(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		expectContains string
+	}{
+		{
+			name: "details with @disableValidation() bypasses validation and is stringified",
+			input: `
+				attributes: {
+					status: {
+						details: {
+							{for _, rule in context.outputs.ingress.spec.rules {
+								"host.\(rule.host)": rule.host
+							}}
+						} @disableValidation()
+					}
+				}
+			`,
+			expectContains: "host.",
+		},
+		{
+			name: "healthPolicy with @disableValidation() bypasses validation and is stringified",
+			input: `
+				attributes: {
+					status: {
+						healthPolicy: {
+							someComplexField: [for c in context.output.status.conditions { c.status }][0] == "True"
+							isHealth: someComplexField
+						} @disableValidation()
+					}
+				}
+			`,
+			expectContains: "isHealth",
+		},
+		{
+			name: "details stringified format with @disableValidation() bypasses validation on encode and decode",
+			input: `
+				attributes: {
+					status: {
+						details: #"""
+							import "strings"
+							{for _, rule in context.outputs.ingress.spec.rules {
+								"host.\(rule.host)": rule.host
+							}}
+						"""# @disableValidation()
+					}
+				}
+			`,
+			expectContains: "import",
+		},
+		{
+			name: "customStatus with @disableValidation() bypasses validation and is stringified",
+			input: `
+				attributes: {
+					status: {
+						customStatus: {
+							message: [for c in context.output.status.conditions { c.message }][0]
+						} @disableValidation()
+					}
+				}
+			`,
+			expectContains: "message",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			file, err := parser.ParseFile("-", tt.input)
+			require.NoError(t, err)
+
+			var rootField *ast.Field
+			for _, decl := range file.Decls {
+				if f, ok := decl.(*ast.Field); ok {
+					rootField = f
+					break
+				}
+			}
+			require.NotNil(t, rootField)
+
+			err = EncodeMetadata(rootField)
+			require.NoError(t, err)
+
+			// After encoding, the field value should be a string literal
+			// containing the original content.
+			var fieldPath string
+			switch {
+			case strings.Contains(tt.input, "details:"):
+				fieldPath = "attributes.status.details"
+			case strings.Contains(tt.input, "healthPolicy:"):
+				fieldPath = "attributes.status.healthPolicy"
+			case strings.Contains(tt.input, "customStatus:"):
+				fieldPath = "attributes.status.customStatus"
+			}
+
+			statusField, ok := GetFieldByPath(rootField, fieldPath)
+			require.True(t, ok)
+			basicLit, ok := statusField.Value.(*ast.BasicLit)
+			require.True(t, ok, "expected field to be stringified to *ast.BasicLit after encoding, got %T", statusField.Value)
+			require.Contains(t, basicLit.Value, tt.expectContains)
+		})
+	}
+}
+
+func TestDisableValidationDecodeRoundTrip(t *testing.T) {
+	// Verifies that @disableValidation() skips validation on DecodeMetadata too,
+	// so a stringified field with otherwise-invalid content survives a round trip.
+	input := `
+		attributes: {
+			status: {
+				details: #"""
+					data: { nested: "structure" }
+				"""# @disableValidation()
+			}
+		}
+	`
+	file, err := parser.ParseFile("-", input)
+	require.NoError(t, err)
+
+	var rootField *ast.Field
+	for _, decl := range file.Decls {
+		if f, ok := decl.(*ast.Field); ok {
+			rootField = f
+			break
+		}
+	}
+	require.NotNil(t, rootField)
+
+	// Encode: should pass despite nested struct (validation disabled)
+	require.NoError(t, EncodeMetadata(rootField))
+
+	require.NoError(t, DecodeMetadata(rootField))
+}
+
+func TestDisableValidationYAMLRoundTrip(t *testing.T) {
+	// Simulates the full YAML storage round-trip: encode strips field attributes
+	// (as YAML/gocodec does), but the cue-attr sentinel in the string value means
+	// decode still skips validation correctly.
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name: "details with struct value and @disableValidation()",
+			input: `
+				attributes: {
+					status: {
+						details: {
+							data: { nested: "structure" }
+						} @disableValidation()
+					}
+				}
+			`,
+		},
+		{
+			name: "details with stringified value and @disableValidation()",
+			input: `
+				attributes: {
+					status: {
+						details: #"""
+							data: { nested: "structure" }
+						"""# @disableValidation()
+					}
+				}
+			`,
+		},
+		{
+			name: "healthPolicy with @disableValidation()",
+			input: `
+				attributes: {
+					status: {
+						healthPolicy: {
+							isHealth: [for c in context.output.status.conditions { c.status }][0] == "True"
+						} @disableValidation()
+					}
+				}
+			`,
+		},
+		{
+			name: "customStatus with @disableValidation()",
+			input: `
+				attributes: {
+					status: {
+						customStatus: {
+							message: [for c in context.output.status.conditions { c.message }][0]
+						} @disableValidation()
+					}
+				}
+			`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			file, err := parser.ParseFile("-", tt.input)
+			require.NoError(t, err)
+
+			var rootField *ast.Field
+			for _, decl := range file.Decls {
+				if f, ok := decl.(*ast.Field); ok {
+					rootField = f
+					break
+				}
+			}
+			require.NotNil(t, rootField)
+
+			require.NoError(t, EncodeMetadata(rootField))
+
+			// Simulate YAML storage stripping field attributes from all status sub-fields.
+			for _, path := range []string{
+				"attributes.status.details",
+				"attributes.status.healthPolicy",
+				"attributes.status.customStatus",
+			} {
+				if f, ok := GetFieldByPath(rootField, path); ok {
+					f.Attrs = nil
+				}
+			}
+
+			// Decode must still succeed — the cue-attr sentinel in the string carries
+			// the @disableValidation() intent across the storage boundary.
+			require.NoError(t, DecodeMetadata(rootField))
+		})
+	}
+}
+
+func TestInjectAttrsMultipleAndIdempotent(t *testing.T) {
+	t.Run("multiple attributes are all persisted and restored", func(t *testing.T) {
+		// Use two attributes on the same field; both should survive the YAML round-trip.
+		input := `
+			attributes: {
+				status: {
+					details: {
+						data: { nested: "structure" }
+					} @disableValidation() @someOtherAttr(value)
+				}
+			}
+		`
+		file, err := parser.ParseFile("-", input)
+		require.NoError(t, err)
+
+		var rootField *ast.Field
+		for _, decl := range file.Decls {
+			if f, ok := decl.(*ast.Field); ok {
+				rootField = f
+				break
+			}
+		}
+		require.NotNil(t, rootField)
+
+		require.NoError(t, EncodeMetadata(rootField))
+
+		// Verify both cue-attr lines are present in the stored string.
+		f, ok := GetFieldByPath(rootField, "attributes.status.details")
+		require.True(t, ok)
+		bl, ok := f.Value.(*ast.BasicLit)
+		require.True(t, ok)
+		require.Contains(t, bl.Value, "// cue-attr:@disableValidation()")
+		require.Contains(t, bl.Value, "// cue-attr:@someOtherAttr(value)")
+
+		// Strip field attributes to simulate YAML storage.
+		f.Attrs = nil
+
+		// Decode must restore both attributes and succeed.
+		require.NoError(t, DecodeMetadata(rootField))
+		require.Len(t, f.Attrs, 2)
+	})
+
+	t.Run("encoding an already-stringified field with cue-attr does not double-inject", func(t *testing.T) {
+		// Simulates a second EncodeMetadata call on an already-encoded field.
+		input := `
+			attributes: {
+				status: {
+					details: #"""
+						// cue-attr:@disableValidation()
+						data: { nested: "structure" }
+					"""# @disableValidation()
+				}
+			}
+		`
+		file, err := parser.ParseFile("-", input)
+		require.NoError(t, err)
+
+		var rootField *ast.Field
+		for _, decl := range file.Decls {
+			if f, ok := decl.(*ast.Field); ok {
+				rootField = f
+				break
+			}
+		}
+		require.NotNil(t, rootField)
+
+		require.NoError(t, EncodeMetadata(rootField))
+
+		f, ok := GetFieldByPath(rootField, "attributes.status.details")
+		require.True(t, ok)
+		bl, ok := f.Value.(*ast.BasicLit)
+		require.True(t, ok)
+
+		// Should appear exactly once, not twice.
+		count := strings.Count(bl.Value, "// cue-attr:@disableValidation()")
+		require.Equal(t, 1, count, "cue-attr sentinel should not be duplicated on re-encode")
+	})
+}
+
+func TestComprehensionDynamicKeyErrorMessage(t *testing.T) {
+	// Verifies that a comprehension with an invalid value type reports a
+	// meaningful error rather than an empty label.
+	input := `
+		attributes: {
+			status: {
+				details: {
+					{for _, rule in context.outputs.ingress.spec.rules {
+						"host.\(rule.host)": { nested: "invalid" }
+					}}
+				}
+			}
+		}
+	`
+	file, err := parser.ParseFile("-", input)
+	require.NoError(t, err)
+
+	var rootField *ast.Field
+	for _, decl := range file.Decls {
+		if f, ok := decl.(*ast.Field); ok {
+			rootField = f
+			break
+		}
+	}
+	require.NotNil(t, rootField)
+
+	err = EncodeMetadata(rootField)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "<dynamic>")
+}
+
+func TestStatusDetailsWithDynamicKeys(t *testing.T) {
+	tests := []struct {
+		name             string
+		input            string
+		expectMarshalErr string
+		expectContains   string
+	}{
+		{
+			name: "root comprehension generates dynamic keys from list",
+			input: `
+				attributes: {
+					status: {
+						details: {
+							{for _, rule in context.outputs.ingress.spec.rules {
+								"host.\(rule.host)": rule.host
+							}}
+						}
+					}
+				}
+			`,
+			expectContains: "host.",
+		},
+		{
+			name: "call expression value with list comprehension arg",
+			input: `
+				attributes: {
+					status: {
+						details: {
+							hosts: strings.Join([for rule in context.outputs.ingress.spec.rules { rule.host }], ",")
+						}
+					}
+				}
+			`,
+			expectContains: "hosts",
+		},
+		{
+			name: "local field embedded at root of details",
+			input: `
+				attributes: {
+					status: {
+						details: {
+							$local: { key: "value" }
+							$local
+						}
+					}
+				}
+			`,
+			expectContains: "key",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			file, err := parser.ParseFile("-", tt.input)
+			require.NoError(t, err)
+
+			var rootField *ast.Field
+			for _, decl := range file.Decls {
+				if f, ok := decl.(*ast.Field); ok {
+					rootField = f
+					break
+				}
+			}
+			require.NotNil(t, rootField)
+
+			err = EncodeMetadata(rootField)
+			if tt.expectMarshalErr != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.expectMarshalErr)
+				return
+			}
+			require.NoError(t, err)
+
+			err = DecodeMetadata(rootField)
+			require.NoError(t, err)
 
 			if tt.expectContains != "" {
 				statusField, ok := GetFieldByPath(rootField, "attributes.status.details")
