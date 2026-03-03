@@ -261,7 +261,7 @@ template: {
 			Expect(cue).NotTo(ContainSubstring(`conditionalwait: builtin.#ConditionalWait & {`))
 		})
 
-		It("should merge consecutive SetIf fields into one if block", func() {
+		It("should generate separate if blocks for each SetIf operation", func() {
 			data := defkit.Object("data")
 			noData := defkit.Eq(defkit.ParamRef("data"), defkit.Reference("_|_"))
 			hasData := defkit.PathExists("parameter.data")
@@ -366,6 +366,18 @@ template: {
 			cue := step.ToCue()
 			Expect(cue).To(ContainSubstring("suspend: builtin.#Suspend & {"))
 			Expect(cue).To(ContainSubstring("$params: parameter"))
+		})
+
+		It("should panic when both WithFullParameter and WithParams are used", func() {
+			tpl := defkit.NewWorkflowStepTemplate()
+			Expect(func() {
+				tpl.Builtin("suspend", "builtin.#Suspend").
+					WithFullParameter().
+					WithParams(map[string]defkit.Value{
+						"message": defkit.Reference("parameter.message"),
+					}).
+					Build()
+			}).To(Panic())
 		})
 	})
 
