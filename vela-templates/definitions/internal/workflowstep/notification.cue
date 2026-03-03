@@ -189,9 +189,7 @@ template: {
 			multiline?:          bool
 			min_length?:         int
 			max_length?:         int
-			dispatch_action_config?: {
-				trigger_actions_on?: [...string]
-			}
+			dispatch_action_config?: trigger_actions_on?: [...string]
 			initial_time?: string
 		}]
 	}
@@ -214,7 +212,7 @@ template: {
 	ding: {
 		if parameter.dingding != _|_ {
 			if parameter.dingding.url.value != _|_ {
-				ding1: http.#Do & {
+				ding1: http.#HTTPDo & {
 					$params: {
 						method: "POST"
 						url:    parameter.dingding.url.value
@@ -240,7 +238,7 @@ template: {
 				}
 
 				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.dingding.url.secretRef.key])}
-				ding2: http.#Do & {
+				ding2: http.#HTTPDo & {
 					$params: {
 						method: "POST"
 						url:    stringValue.$returns.str
@@ -257,10 +255,10 @@ template: {
 	lark: {
 		if parameter.lark != _|_ {
 			if parameter.lark.url.value != _|_ {
-				lark1: http.#Do & {
+				lark1: http.#HTTPDo & {
 					$params: {
 						method: "POST"
-						url:    parameter.lark.message
+						url:    parameter.lark.url.value
 						request: {
 							body: json.Marshal(parameter.lark.message)
 							header: "Content-Type": "application/json"
@@ -283,7 +281,7 @@ template: {
 				}
 
 				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.lark.url.secretRef.key])}
-				lark2: http.#Do & {
+				lark2: http.#HTTPDo & {
 					$params: {
 						method: "POST"
 						url:    stringValue.$returns.str
@@ -301,7 +299,7 @@ template: {
 	slack: {
 		if parameter.slack != _|_ {
 			if parameter.slack.url.value != _|_ {
-				slack1: http.#Do & {
+				slack1: http.#HTTPDo & {
 					$params: {
 						method: "POST"
 						url:    parameter.slack.url.value
@@ -327,7 +325,7 @@ template: {
 				}
 
 				stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.slack.url.secretRef.key])}
-				slack2: http.#Do & {
+				slack2: http.#HTTPDo & {
 					$params: {
 						method: "POST"
 						url:    stringValue.$returns.str

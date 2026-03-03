@@ -74,6 +74,17 @@ var _ = Describe("Parameters", func() {
 			p := defkit.String("policy").Default("Honor")
 			Expect(p.IsForceOptional()).To(BeFalse())
 		})
+
+		It("should support OpenEnum on enum", func() {
+			p := defkit.String("verbosity").Enum("info", "debug").OpenEnum()
+			Expect(p.IsOpenEnum()).To(BeTrue())
+			Expect(p.GetEnumValues()).To(ConsistOf("info", "debug"))
+		})
+
+		It("should not allow string by default on enum", func() {
+			p := defkit.String("verbosity").Enum("info", "debug")
+			Expect(p.IsOpenEnum()).To(BeFalse())
+		})
 	})
 
 	Context("IntParam", func() {
@@ -121,6 +132,17 @@ var _ = Describe("Parameters", func() {
 			Expect(p.Name()).To(Equal("debug"))
 			Expect(p.IsOptional()).To(BeTrue())
 			Expect(p.GetDefault()).To(Equal(false))
+		})
+
+		It("should support ForceOptional", func() {
+			p := defkit.Bool("auto").Default(true).ForceOptional()
+			Expect(p.IsForceOptional()).To(BeTrue())
+			Expect(p.HasDefault()).To(BeTrue())
+		})
+
+		It("should not be force-optional by default", func() {
+			p := defkit.Bool("auto").Default(true)
+			Expect(p.IsForceOptional()).To(BeFalse())
 		})
 	})
 

@@ -18,6 +18,7 @@ package defkit
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"sigs.k8s.io/yaml"
@@ -29,12 +30,14 @@ import (
 // Workflow steps define operations in an application's deployment workflow,
 // such as deploy, suspend, notification, approval, etc.
 type WorkflowStepDefinition struct {
-	baseDefinition                                 // embedded common fields and methods
-	category       string                          // e.g., "Application Delivery", "Notification"
-	scope          string                          // e.g., "Application", "Workflow"
-	alias          string                          // optional alias for definition metadata annotation
-	hasAlias       bool                            // tracks whether alias was explicitly set (including empty string)
-	stepTemplate   func(tpl *WorkflowStepTemplate) // template function for step logic (type-specific)
+	baseDefinition                                  // embedded common fields and methods
+	category        string                          // e.g., "Application Delivery", "Notification"
+	scope           string                          // e.g., "Application", "Workflow"
+	labels          map[string]string               // arbitrary metadata labels beyond scope
+	alias           string                          // optional alias for definition metadata annotation
+	hasAlias        bool                            // tracks whether alias was explicitly set (including empty string)
+	stepTemplate    func(tpl *WorkflowStepTemplate) // template function for step logic (type-specific)
+	rawTemplateBody string                          // raw CUE embedded inside template: {} before the parameter block
 }
 
 // WorkflowStepTemplate provides the building context for workflow step templates.
@@ -51,9 +54,10 @@ type WorkflowAction interface {
 
 // BuiltinAction represents a call to a vela builtin.
 type BuiltinAction struct {
-	varName string           // explicit action variable name in template (e.g., "deploy", "wait")
-	name    string           // e.g., "multicluster.#Deploy", "builtin.#Suspend"
-	params  map[string]Value // parameters to pass
+	varName      string           // explicit action variable name in template (e.g., "deploy", "wait")
+	name         string           // e.g., "multicluster.#Deploy", "builtin.#Suspend"
+	params       map[string]Value // parameters to pass
+	useFullParam bool             // if true, generates $params: parameter instead of $params: { key: value }
 }
 
 func (b *BuiltinAction) isWorkflowAction() {}
@@ -104,6 +108,16 @@ func (w *WorkflowStepDefinition) Scope(scope string) *WorkflowStepDefinition {
 	return w
 }
 
+// Labels sets arbitrary metadata labels for the workflow step definition.
+// These labels appear in the definition's labels block alongside scope.
+func (w *WorkflowStepDefinition) Labels(labels map[string]string) *WorkflowStepDefinition {
+	w.labels = labels
+	return w
+}
+
+// GetLabels returns the workflow step's metadata labels.
+func (w *WorkflowStepDefinition) GetLabels() map[string]string { return w.labels }
+
 // Alias sets an optional alias for the workflow step definition.
 // This maps to metadata annotation `definition.oam.dev/alias` in generated YAML.
 func (w *WorkflowStepDefinition) Alias(alias string) *WorkflowStepDefinition {
@@ -136,6 +150,23 @@ func (w *WorkflowStepDefinition) RawCUE(cue string) *WorkflowStepDefinition {
 	w.setRawCUE(cue)
 	return w
 }
+
+// TemplateBody sets raw CUE that is embedded inside the template: { ... } block,
+// between any builder-generated actions and the parameter block.
+// This allows complex workflow logic (array comprehensions, context variables, etc.)
+// while still using the builder API for metadata (description, category, scope, imports)
+// and parameter schema definitions.
+// The body should be provided at zero indentation; one tab indent is added per line when embedded.
+func (w *WorkflowStepDefinition) TemplateBody(body string) *WorkflowStepDefinition {
+	w.rawTemplateBody = body
+	return w
+}
+
+// GetRawTemplateBody returns the raw CUE template body.
+func (w *WorkflowStepDefinition) GetRawTemplateBody() string { return w.rawTemplateBody }
+
+// HasRawTemplateBody returns true if a raw template body is set.
+func (w *WorkflowStepDefinition) HasRawTemplateBody() bool { return w.rawTemplateBody != "" }
 
 // Helper adds a helper type definition using fluent API.
 // The param defines the schema for the helper type.
@@ -350,6 +381,14 @@ func (b *BuiltinActionBuilder) WithParams(params map[string]Value) *BuiltinActio
 	return b
 }
 
+// WithFullParameter passes the entire parameter object as $params.
+// This generates: $params: parameter
+// Useful for builtins (e.g., builtin.#Suspend) that accept all step parameters directly.
+func (b *BuiltinActionBuilder) WithFullParameter() *BuiltinActionBuilder {
+	b.action.useFullParam = true
+	return b
+}
+
 // Build finalizes the action and adds it to the template.
 func (b *BuiltinActionBuilder) Build() *WorkflowStepTemplate {
 	b.template.actions = append(b.template.actions, b.action)
@@ -417,8 +456,18 @@ func (g *WorkflowStepCUEGenerator) GenerateFullDefinition(w *WorkflowStepDefinit
 	}
 	sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 
-	// Write labels (scope)
+	// Write labels (scope + custom labels)
 	sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
+	if labels := w.GetLabels(); len(labels) > 0 {
+		keys := make([]string, 0, len(labels))
+		for k := range labels {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, labels[k]))
+		}
+	}
 	if w.GetScope() != "" {
 		sb.WriteString(fmt.Sprintf("%s\t\"scope\": %q\n", g.indent, w.GetScope()))
 	}
@@ -457,6 +506,21 @@ func (g *WorkflowStepCUEGenerator) GenerateTemplate(w *WorkflowStepDefinition) s
 
 		// Write actions
 		g.writeActions(&sb, wt, 1)
+	}
+
+	// Embed raw template body if set (for complex logic not expressible via builder API).
+	// Each line of the body is prefixed with one tab to sit inside the template: {} block.
+	if w.HasRawTemplateBody() {
+		body := strings.TrimRight(w.rawTemplateBody, "\n")
+		lines := strings.Split(body, "\n")
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "" {
+				sb.WriteString("\n")
+			} else {
+				sb.WriteString(fmt.Sprintf("%s%s\n", g.indent, line))
+			}
+		}
+		sb.WriteString("\n")
 	}
 
 	// Generate parameter section
@@ -501,7 +565,10 @@ func (g *WorkflowStepCUEGenerator) writeBuiltinAction(sb *strings.Builder, a *Bu
 	}
 
 	sb.WriteString(fmt.Sprintf("%s%s%s: %s & {\n", indent, extraIndent, actionName, a.name))
-	if len(a.params) > 0 {
+	if a.useFullParam {
+		// Pass the entire parameter object as $params (e.g., builtin.#Suspend)
+		sb.WriteString(fmt.Sprintf("%s%s\t$params: parameter\n", indent, extraIndent))
+	} else if len(a.params) > 0 {
 		sb.WriteString(fmt.Sprintf("%s%s\t$params: {\n", indent, extraIndent))
 		for paramName, paramVal := range a.params {
 			sb.WriteString(fmt.Sprintf("%s%s\t\t%s: %s\n", indent, extraIndent, paramName, gen.valueToCUE(paramVal)))

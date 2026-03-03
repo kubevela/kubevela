@@ -111,6 +111,7 @@ func (c *ParamCompareCondition) CompareValue() any { return c.value }
 type StringParam struct {
 	baseParam
 	enumValues []string // allowed enum values
+	openEnum   bool     // when true, appends | string to enum disjunction (open enum)
 	pattern    string   // regex pattern constraint
 	minLen     *int     // minimum length constraint
 	maxLen     *int     // maximum length constraint
@@ -181,6 +182,18 @@ func (p *StringParam) Enum(values ...string) *StringParam {
 // GetEnumValues returns the allowed enum values.
 func (p *StringParam) GetEnumValues() []string {
 	return p.enumValues
+}
+
+// OpenEnum marks the enum as open, allowing any string in addition to the
+// enumerated values. This generates CUE like: "value1" | "value2" | string
+func (p *StringParam) OpenEnum() *StringParam {
+	p.openEnum = true
+	return p
+}
+
+// IsOpenEnum returns whether the enum allows arbitrary strings beyond the listed values.
+func (p *StringParam) IsOpenEnum() bool {
+	return p.openEnum
 }
 
 // Pattern sets a regex pattern constraint for the parameter.
@@ -434,6 +447,14 @@ func (p *BoolParam) Required() *BoolParam {
 // Optional marks the parameter as optional (default behavior).
 func (p *BoolParam) Optional() *BoolParam {
 	p.required = false
+	return p
+}
+
+// ForceOptional makes the field optional even when it has a default value.
+// Normally, fields with defaults are treated as always-present (no ? in CUE).
+// This generates field?: *default | type instead of field: *default | type.
+func (p *BoolParam) ForceOptional() *BoolParam {
+	p.forceOptional = true
 	return p
 }
 

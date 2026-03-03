@@ -138,6 +138,12 @@ func (c *CollectionOp) Flatten() *CollectionOp {
 	return c
 }
 
+// Dedupe removes duplicate items by a key field, keeping the first occurrence.
+func (c *CollectionOp) Dedupe(keyField string) *CollectionOp {
+	c.ops = append(c.ops, &dedupeOp{keyField: keyField})
+	return c
+}
+
 // Source returns the source value.
 func (c *CollectionOp) Source() Value { return c.source }
 

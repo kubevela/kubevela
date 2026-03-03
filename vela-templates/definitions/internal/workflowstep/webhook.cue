@@ -37,9 +37,10 @@ template: {
 	}
 	webhook: {
 		if parameter.url.value != _|_ {
-			req: http.#HTTPPost & {
+			req: http.#HTTPDo & {
 				$params: {
-					url: parameter.url.value
+					method: "POST"
+					url:    parameter.url.value
 					request: {
 						body: data.value
 						header: "Content-Type": "application/json"
@@ -62,9 +63,10 @@ template: {
 			}
 
 			stringValue: util.#ConvertString & {$params: bt: base64.Decode(null, read.$returns.value.data[parameter.url.secretRef.key])}
-			req: http.#HTTPPost & {
+			req: http.#HTTPDo & {
 				$params: {
-					url: stringValue.$returns.str
+					method: "POST"
+					url:    stringValue.$returns.str
 					request: {
 						body: data.value
 						header: "Content-Type": "application/json"

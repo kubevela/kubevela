@@ -111,6 +111,12 @@ var _ = Describe("Collections", func() {
 			col := defkit.Each(ports).DefaultField("name", defkit.Format("port-%v", defkit.FieldRef("port")))
 			Expect(col.Operations()).To(HaveLen(1))
 		})
+
+		It("should chain Dedupe operation on CollectionOp", func() {
+			ports := defkit.List("ports")
+			col := defkit.Each(ports).Dedupe("name")
+			Expect(col.Operations()).To(HaveLen(1))
+		})
 	})
 
 	Context("FieldRef", func() {
