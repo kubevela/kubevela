@@ -368,16 +368,22 @@ template: {
 			Expect(cue).To(ContainSubstring("$params: parameter"))
 		})
 
-		It("should panic when both WithFullParameter and WithParams are used", func() {
-			tpl := defkit.NewWorkflowStepTemplate()
-			Expect(func() {
-				tpl.Builtin("suspend", "builtin.#Suspend").
-					WithFullParameter().
-					WithParams(map[string]defkit.Value{
-						"message": defkit.Reference("parameter.message"),
-					}).
-					Build()
-			}).To(Panic())
+		It("should use WithFullParameter over WithParams when both are set", func() {
+			step := defkit.NewWorkflowStep("suspend").
+				Description("Suspend workflow").
+				Params(defkit.String("message").Optional()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Builtin("suspend", "builtin.#Suspend").
+						WithFullParameter().
+						WithParams(map[string]defkit.Value{
+							"message": defkit.Reference("parameter.message"),
+						}).
+						Build()
+				})
+
+			cue := step.ToCue()
+			Expect(cue).To(ContainSubstring("$params: parameter"))
+			Expect(cue).NotTo(ContainSubstring("$params: {"))
 		})
 	})
 

@@ -75,15 +75,15 @@ var _ = Describe("Parameters", func() {
 			Expect(p.IsForceOptional()).To(BeFalse())
 		})
 
-		It("should support AllowString on enum", func() {
-			p := defkit.String("verbosity").Enum("info", "debug").AllowString()
-			Expect(p.IsEnumAllowString()).To(BeTrue())
+		It("should support OpenEnum on enum", func() {
+			p := defkit.String("verbosity").Enum("info", "debug").OpenEnum()
+			Expect(p.IsOpenEnum()).To(BeTrue())
 			Expect(p.GetEnumValues()).To(ConsistOf("info", "debug"))
 		})
 
 		It("should not allow string by default on enum", func() {
 			p := defkit.String("verbosity").Enum("info", "debug")
-			Expect(p.IsEnumAllowString()).To(BeFalse())
+			Expect(p.IsOpenEnum()).To(BeFalse())
 		})
 	})
 

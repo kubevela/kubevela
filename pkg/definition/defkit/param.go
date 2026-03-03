@@ -111,7 +111,7 @@ func (c *ParamCompareCondition) CompareValue() any { return c.value }
 type StringParam struct {
 	baseParam
 	enumValues      []string // allowed enum values
-	enumAllowString bool     // when true, appends | string to enum disjunction
+	openEnum bool // when true, appends | string to enum disjunction (open enum)
 	pattern         string   // regex pattern constraint
 	minLen          *int     // minimum length constraint
 	maxLen          *int     // maximum length constraint
@@ -184,16 +184,16 @@ func (p *StringParam) GetEnumValues() []string {
 	return p.enumValues
 }
 
-// AllowString appends | string to the enum disjunction, allowing any string
-// in addition to the enum values. This generates CUE like: "value1" | string
-func (p *StringParam) AllowString() *StringParam {
-	p.enumAllowString = true
+// OpenEnum marks the enum as open, allowing any string in addition to the
+// enumerated values. This generates CUE like: "value1" | "value2" | string
+func (p *StringParam) OpenEnum() *StringParam {
+	p.openEnum = true
 	return p
 }
 
-// IsEnumAllowString returns whether the enum allows arbitrary strings.
-func (p *StringParam) IsEnumAllowString() bool {
-	return p.enumAllowString
+// IsOpenEnum returns whether the enum allows arbitrary strings beyond the listed values.
+func (p *StringParam) IsOpenEnum() bool {
+	return p.openEnum
 }
 
 // Pattern sets a regex pattern constraint for the parameter.

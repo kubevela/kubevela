@@ -140,10 +140,10 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring(`optionalDefault?: *"Honor" | "Ignore"`))
 		})
 
-		It("should append string to enum when AllowString is set", func() {
+		It("should append string to enum when OpenEnum is set", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.String("verbosity").Default("info").Enum("info", "debug", "warn").AllowString(),
+					defkit.String("verbosity").Default("info").Enum("info", "debug", "warn").OpenEnum(),
 				)
 
 			cue := gen.GenerateParameterSchema(comp)

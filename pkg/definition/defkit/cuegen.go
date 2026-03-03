@@ -2722,7 +2722,7 @@ func (g *CUEGenerator) writeStringParam(sb *strings.Builder, p *StringParam, ind
 				enumParts = append(enumParts, fmt.Sprintf("%q", v))
 			}
 		}
-		if p.IsEnumAllowString() {
+		if p.IsOpenEnum() {
 			enumParts = append(enumParts, "string")
 		}
 		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, strings.Join(enumParts, " | ")))
