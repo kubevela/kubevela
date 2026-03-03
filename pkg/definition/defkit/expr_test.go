@@ -286,6 +286,23 @@ var _ = Describe("Expressions", func() {
 			fields := elem.Fields()
 			Expect(fields).To(HaveLen(1))
 		})
+
+		It("should track field insertion order", func() {
+			elem := defkit.NewArrayElement().
+				Set("charlie", defkit.Lit(3)).
+				Set("alpha", defkit.Lit(1)).
+				Set("bravo", defkit.Lit(2))
+			Expect(elem.FieldOrder()).To(Equal([]string{"charlie", "alpha", "bravo"}))
+		})
+
+		It("should not duplicate field order on overwrite", func() {
+			elem := defkit.NewArrayElement().
+				Set("name", defkit.Lit("old")).
+				Set("port", defkit.Lit(80)).
+				Set("name", defkit.Lit("new"))
+			Expect(elem.FieldOrder()).To(Equal([]string{"name", "port"}))
+			Expect(elem.Fields()["name"]).To(Equal(defkit.Lit("new")))
+		})
 	})
 
 	Context("ForEachMap", func() {

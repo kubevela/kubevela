@@ -284,6 +284,91 @@ template: {
 		})
 	})
 
+	Context("Labels", func() {
+		It("should set and get labels", func() {
+			step := defkit.NewWorkflowStep("check-metrics").
+				Labels(map[string]string{"catalog": "Delivery"})
+			Expect(step.GetLabels()).To(HaveKeyWithValue("catalog", "Delivery"))
+		})
+
+		It("should render labels in CUE output", func() {
+			step := defkit.NewWorkflowStep("check-metrics").
+				Description("Verify metrics").
+				Category("Application Delivery").
+				Labels(map[string]string{"catalog": "Delivery"})
+
+			cue := step.ToCue()
+			Expect(cue).To(ContainSubstring(`"catalog": "Delivery"`))
+		})
+
+		It("should render multiple labels sorted alphabetically", func() {
+			step := defkit.NewWorkflowStep("test").
+				Description("Test").
+				Labels(map[string]string{"z-label": "last", "a-label": "first"})
+
+			cue := step.ToCue()
+			aIdx := strings.Index(cue, `"a-label"`)
+			zIdx := strings.Index(cue, `"z-label"`)
+			Expect(aIdx).To(BeNumerically("<", zIdx))
+		})
+	})
+
+	Context("TemplateBody", func() {
+		It("should set and get raw template body", func() {
+			step := defkit.NewWorkflowStep("test").
+				TemplateBody(`check: metrics.#PromCheck & {}`)
+			Expect(step.HasRawTemplateBody()).To(BeTrue())
+			Expect(step.GetRawTemplateBody()).To(Equal(`check: metrics.#PromCheck & {}`))
+		})
+
+		It("should return false when no template body set", func() {
+			step := defkit.NewWorkflowStep("test")
+			Expect(step.HasRawTemplateBody()).To(BeFalse())
+			Expect(step.GetRawTemplateBody()).To(BeEmpty())
+		})
+
+		It("should embed raw template body in generated CUE", func() {
+			step := defkit.NewWorkflowStep("check-metrics").
+				Description("Verify metrics").
+				WithImports("vela/metrics").
+				Params(defkit.String("query").Required()).
+				TemplateBody("check: metrics.#PromCheck & {\n\t$params: query: parameter.query\n}")
+
+			cue := step.ToCue()
+			Expect(cue).To(ContainSubstring("check: metrics.#PromCheck & {"))
+			Expect(cue).To(ContainSubstring("$params: query: parameter.query"))
+			Expect(cue).To(ContainSubstring("parameter:"))
+			Expect(cue).To(ContainSubstring("query: string"))
+		})
+
+		It("should handle empty lines in template body", func() {
+			step := defkit.NewWorkflowStep("test").
+				Description("Test").
+				TemplateBody("line1: true\n\nline2: false")
+
+			cue := step.ToCue()
+			Expect(cue).To(ContainSubstring("line1: true"))
+			Expect(cue).To(ContainSubstring("line2: false"))
+		})
+	})
+
+	Context("WithFullParameter", func() {
+		It("should generate $params: parameter for builtin", func() {
+			step := defkit.NewWorkflowStep("suspend").
+				Description("Suspend workflow").
+				Params(defkit.String("message").Optional()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Builtin("suspend", "builtin.#Suspend").
+						WithFullParameter().
+						Build()
+				})
+
+			cue := step.ToCue()
+			Expect(cue).To(ContainSubstring("suspend: builtin.#Suspend & {"))
+			Expect(cue).To(ContainSubstring("$params: parameter"))
+		})
+	})
+
 	Context("Registry", func() {
 		BeforeEach(func() {
 			defkit.Clear()
