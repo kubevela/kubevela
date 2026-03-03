@@ -501,6 +501,7 @@ type patchKeyField struct {
 // Used for building array values with struct elements.
 type ArrayElement struct {
 	fields         map[string]Value
+	fieldOrder     []string
 	ops            []ResourceOp    // nested operations for complex structs
 	patchKeyFields []patchKeyField // nested patchKey-annotated array fields
 }
@@ -511,13 +512,17 @@ func (a *ArrayElement) value() {}
 // NewArrayElement creates a new array element builder.
 func NewArrayElement() *ArrayElement {
 	return &ArrayElement{
-		fields: make(map[string]Value),
-		ops:    make([]ResourceOp, 0),
+		fields:     make(map[string]Value),
+		fieldOrder: make([]string, 0),
+		ops:        make([]ResourceOp, 0),
 	}
 }
 
 // Set sets a field on the array element.
 func (a *ArrayElement) Set(key string, value Value) *ArrayElement {
+	if _, exists := a.fields[key]; !exists {
+		a.fieldOrder = append(a.fieldOrder, key)
+	}
 	a.fields[key] = value
 	return a
 }
@@ -543,6 +548,9 @@ func (a *ArrayElement) PatchKeyField(field string, key string, value Value) *Arr
 
 // Fields returns all fields set on this element.
 func (a *ArrayElement) Fields() map[string]Value { return a.fields }
+
+// FieldOrder returns field names in insertion order.
+func (a *ArrayElement) FieldOrder() []string { return a.fieldOrder }
 
 // Ops returns any conditional operations.
 func (a *ArrayElement) Ops() []ResourceOp { return a.ops }

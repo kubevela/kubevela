@@ -17,6 +17,8 @@ limitations under the License.
 package defkit_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -257,6 +259,28 @@ template: {
 			Expect(cue).To(ContainSubstring(`wait: builtin.#ConditionalWait & {`))
 			Expect(cue).NotTo(ContainSubstring(`apply: kube.#Apply & {`))
 			Expect(cue).NotTo(ContainSubstring(`conditionalwait: builtin.#ConditionalWait & {`))
+		})
+
+		It("should merge consecutive SetIf fields into one if block", func() {
+			data := defkit.Object("data")
+			noData := defkit.Eq(defkit.ParamRef("data"), defkit.Reference("_|_"))
+			hasData := defkit.PathExists("parameter.data")
+
+			step := defkit.NewWorkflowStep("webhook").
+				WithImports("vela/kube", "encoding/json").
+				Params(data).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					dataValue := defkit.NewArrayElement().
+						SetIf(noData, "read", defkit.Reference("kube.#Read & {}")).
+						SetIf(noData, "value", defkit.Reference("json.Marshal(read.$returns.value)")).
+						SetIf(hasData, "value", defkit.Reference("json.Marshal(parameter.data)"))
+					tpl.Set("data", dataValue)
+				})
+
+			cue := step.ToCue()
+			Expect(strings.Count(cue, "if parameter.data == _|_ {")).To(Equal(1))
+			Expect(cue).To(ContainSubstring("read: kube.#Read & {}"))
+			Expect(cue).To(ContainSubstring("value: json.Marshal(read.$returns.value)"))
 		})
 	})
 

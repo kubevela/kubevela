@@ -450,6 +450,14 @@ func (p *BoolParam) Optional() *BoolParam {
 	return p
 }
 
+// ForceOptional makes the field optional even when it has a default value.
+// Normally, fields with defaults are treated as always-present (no ? in CUE).
+// This generates field?: *default | type instead of field: *default | type.
+func (p *BoolParam) ForceOptional() *BoolParam {
+	p.forceOptional = true
+	return p
+}
+
 // Default sets a default value for the parameter.
 func (p *BoolParam) Default(value bool) *BoolParam {
 	p.defaultValue = value
