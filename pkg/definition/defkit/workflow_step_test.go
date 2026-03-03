@@ -278,7 +278,7 @@ template: {
 				})
 
 			cue := step.ToCue()
-			Expect(strings.Count(cue, "if parameter.data == _|_ {")).To(Equal(1))
+			Expect(strings.Count(cue, "if parameter.data == _|_ {")).To(Equal(2))
 			Expect(cue).To(ContainSubstring("read: kube.#Read & {}"))
 			Expect(cue).To(ContainSubstring("value: json.Marshal(read.$returns.value)"))
 		})
