@@ -23,6 +23,7 @@ import (
 	"net/http"
 
 	"github.com/kubevela/pkg/controller/sharding"
+	"github.com/kubevela/pkg/util/k8s"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -37,6 +38,11 @@ import (
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
+)
+
+const (
+	RescheduleLabelKey = "controller.core.oam.dev/reschedule"
+	RescheduleLabelVal = "true"
 )
 
 // MutatingHandler adding user info to application annotations
@@ -85,17 +91,31 @@ func (h *MutatingHandler) handleWorkflow(_ context.Context, _ admission.Request,
 }
 
 func (h *MutatingHandler) handleSharding(_ context.Context, _ admission.Request, oldApp *v1beta1.Application, newApp *v1beta1.Application) (bool, error) {
-	if sharding.EnableSharding && !utilfeature.DefaultMutableFeatureGate.Enabled(features.DisableWebhookAutoSchedule) {
+	if sharding.EnableSharding {
 		oid, scheduled := sharding.GetScheduledShardID(oldApp)
-		_, newScheduled := sharding.GetScheduledShardID(newApp)
-		if scheduled && !newScheduled {
-			klog.Infof("inherit old shard-id %s for app %s/%s", oid, newApp.Namespace, newApp.Name)
-			sharding.SetScheduledShardID(newApp, oid)
-			return true, nil
+		nid, newScheduled := sharding.GetScheduledShardID(newApp)
+		if !utilfeature.DefaultMutableFeatureGate.Enabled(features.DisableWebhookAutoSchedule) {
+			if scheduled && !newScheduled {
+				klog.Infof("inherit old shard-id %s for app %s/%s", oid, newApp.Namespace, newApp.Name)
+				sharding.SetScheduledShardID(newApp, oid)
+				return true, nil
+			}
+			needReschedule := sharding.DefaultScheduler.Get().Schedule(newApp)
+			return h.markReschedule(needReschedule, newApp)
 		}
-		return sharding.DefaultScheduler.Get().Schedule(newApp), nil
+		needReschedule := newScheduled && oid != nid
+		return h.markReschedule(needReschedule, newApp)
 	}
 	return false, nil
+}
+
+func (h *MutatingHandler) markReschedule(needReschedule bool, app *v1beta1.Application) (bool, error) {
+	if needReschedule {
+		if err := k8s.AddLabel(app, RescheduleLabelKey, RescheduleLabelVal); err != nil {
+			return false, err
+		}
+	}
+	return needReschedule, nil
 }
 
 // Handle mutate application
