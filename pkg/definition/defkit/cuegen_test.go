@@ -1046,4 +1046,110 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring(`protocol: "TCP"`))
 		})
 	})
+
+	Describe("Struct field enum generation in helper definitions", func() {
+		It("should generate enum with default on a helper struct field", func() {
+			rule := defkit.Struct("rule").Fields(
+				defkit.Field("strategy", defkit.ParamTypeString).
+					Default("onAppUpdate").
+					Enum("onAppUpdate", "onAppDelete", "never"),
+			)
+
+			p := defkit.NewPolicy("test-enum-default").
+				Description("Test").
+				Helper("Rule", rule)
+
+			cue := p.ToCue()
+
+			Expect(cue).To(ContainSubstring(`strategy: *"onAppUpdate" | "onAppDelete" | "never"`))
+			Expect(cue).NotTo(ContainSubstring(`strategy: *"onAppUpdate" | string`))
+		})
+
+		It("should generate enum without default on a helper struct field", func() {
+			rule := defkit.Struct("rule").Fields(
+				defkit.Field("propagation", defkit.ParamTypeString).
+					Enum("orphan", "cascading").
+					Optional(),
+			)
+
+			p := defkit.NewPolicy("test-enum-no-default").
+				Description("Test").
+				Helper("Rule", rule)
+
+			cue := p.ToCue()
+
+			Expect(cue).To(ContainSubstring(`propagation?: "orphan" | "cascading"`))
+			Expect(cue).NotTo(ContainSubstring("propagation?: string"))
+		})
+
+		It("should generate required enum without default on a helper struct field", func() {
+			rule := defkit.Struct("rule").Fields(
+				defkit.Field("mode", defkit.ParamTypeString).
+					Enum("strict", "permissive").
+					Required(),
+			)
+
+			p := defkit.NewPolicy("test-enum-required").
+				Description("Test").
+				Helper("Rule", rule)
+
+			cue := p.ToCue()
+
+			Expect(cue).To(ContainSubstring(`mode: "strict" | "permissive"`))
+			Expect(cue).NotTo(ContainSubstring("mode?: "))
+			Expect(cue).NotTo(ContainSubstring("mode: string"))
+		})
+
+		It("should generate enum without default on a parameter struct field", func() {
+			comp := defkit.NewComponent("test-param-enum").
+				Workload("v1", "Pod").
+				Params(
+					defkit.Struct("config").Fields(
+						defkit.Field("level", defkit.ParamTypeString).
+							Enum("low", "medium", "high").
+							Optional(),
+						defkit.Field("mode", defkit.ParamTypeString).
+							Enum("fast", "safe").
+							Required(),
+					),
+				).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "Pod"))
+				})
+
+			cue := defkit.NewCUEGenerator().GenerateFullDefinition(comp)
+
+			Expect(cue).To(ContainSubstring(`level?: "low" | "medium" | "high"`))
+			Expect(cue).To(ContainSubstring(`mode: "fast" | "safe"`))
+			Expect(cue).NotTo(ContainSubstring("level?: string"))
+			Expect(cue).NotTo(ContainSubstring("mode: string"))
+			Expect(cue).NotTo(ContainSubstring("mode?: "))
+		})
+
+		It("should handle mixed enum fields: with default, without default, and plain string", func() {
+			rule := defkit.Struct("rule").Fields(
+				defkit.Field("strategy", defkit.ParamTypeString).
+					Default("always").
+					Enum("always", "never", "on-failure"),
+				defkit.Field("propagation", defkit.ParamTypeString).
+					Enum("orphan", "cascading").
+					Optional(),
+				defkit.Field("name", defkit.ParamTypeString).
+					Optional(),
+			)
+
+			p := defkit.NewPolicy("test-mixed").
+				Description("Test").
+				Helper("Rule", rule)
+
+			cue := p.ToCue()
+
+			// Enum with default
+			Expect(cue).To(ContainSubstring(`strategy: *"always" | "never" | "on-failure"`))
+			// Enum without default (optional)
+			Expect(cue).To(ContainSubstring(`propagation?: "orphan" | "cascading"`))
+			// Plain string (optional)
+			Expect(cue).To(ContainSubstring("name?: string"))
+		})
+	})
 })
