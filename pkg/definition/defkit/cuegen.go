@@ -559,6 +559,13 @@ func (g *CUEGenerator) writeStructFieldForHelper(sb *strings.Builder, f *StructF
 	case f.FieldType() == ParamTypeArray && f.GetElementType() != "":
 		elemCUE := g.cueTypeForParamType(f.GetElementType())
 		sb.WriteString(fmt.Sprintf("%s%s%s: [...%s]\n", indent, name, optional, elemCUE))
+	case len(f.GetEnumValues()) > 0:
+		// Enum without default: "value1" | "value2"
+		var enumParts []string
+		for _, v := range f.GetEnumValues() {
+			enumParts = append(enumParts, fmt.Sprintf("%q", v))
+		}
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, strings.Join(enumParts, " | ")))
 	default:
 		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, fieldType))
 	}
@@ -2991,6 +2998,13 @@ func (g *CUEGenerator) writeStructField(sb *strings.Builder, f *StructField, dep
 	case f.FieldType() == ParamTypeArray && f.GetElementType() != "":
 		elemCUE := g.cueTypeForParamType(f.GetElementType())
 		sb.WriteString(fmt.Sprintf("%s%s%s: [...%s]\n", indent, name, optional, elemCUE))
+	case len(f.GetEnumValues()) > 0:
+		// Enum without default: "value1" | "value2"
+		var enumParts []string
+		for _, v := range f.GetEnumValues() {
+			enumParts = append(enumParts, fmt.Sprintf("%q", v))
+		}
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, strings.Join(enumParts, " | ")))
 	default:
 		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, fieldType))
 	}
