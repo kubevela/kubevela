@@ -50,12 +50,12 @@
 
 **Requirements:** C1, C2, C3, C4, C5, C6, C7
 
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
-- [ ] 03-01-PLAN.md — Version() on all 4 definition types (CUE render + ToYAML spec.version)
-- [ ] 03-02-PLAN.md — TraitDefinition booleans (ManageWorkload, ControlPlaneOnly, RevisionEnabled) + PolicyDefinition ManageHealthCheck
-- [ ] 03-03-PLAN.md — ComponentDefinition ChildResourceKind accumulator + PodSpecPath
+- [x] 03-01-PLAN.md — Version() on all 4 definition types (CUE render + ToYAML spec.version)
+- [x] 03-02-PLAN.md — TraitDefinition booleans (ManageWorkload, ControlPlaneOnly, RevisionEnabled) + PolicyDefinition ManageHealthCheck
+- [x] 03-03-PLAN.md — ComponentDefinition ChildResourceKind accumulator + PodSpecPath
 
 **Files to modify:**
 - `pkg/definition/defkit/base.go` — `Version()` + `GetVersion()` on `baseDefinition`
@@ -118,6 +118,6 @@ Plans:
 |-------|-------------|------|----------------|
 | 1 | B3, B2, B5 | Complete    | 2026-03-06 |
 | 2 | 3/3 | Complete   | 2026-03-06 |
-| 3 | C1–C7 | Low | CRD spec correctness |
+| 3 | 2/3 | In Progress|  |
 | 4 | A1, A3, A5 | Medium | Internal callers only |
 | 5 | A4, A2 | Highest | vela-go-definitions must build |
