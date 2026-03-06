@@ -739,6 +739,38 @@ var _ = Describe("ComponentDefinition", func() {
 		})
 	})
 
+	Context("PodSpecPath", func() {
+		It("should return empty string by default", func() {
+			c := defkit.NewComponent("c")
+			Expect(c.GetPodSpecPath()).To(Equal(""))
+		})
+
+		It("should set and return pod spec path", func() {
+			c := defkit.NewComponent("c").PodSpecPath("spec.template.spec")
+			Expect(c.GetPodSpecPath()).To(Equal("spec.template.spec"))
+		})
+
+		It("should emit podSpecPath in ToYAML when set", func() {
+			c := defkit.NewComponent("c").PodSpecPath("spec.template.spec")
+			yamlBytes, err := c.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).To(ContainSubstring("podSpecPath: spec.template.spec"))
+		})
+
+		It("should omit podSpecPath in ToYAML when not set", func() {
+			c := defkit.NewComponent("c")
+			yamlBytes, err := c.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).NotTo(ContainSubstring("podSpecPath"))
+		})
+
+		It("should return *ComponentDefinition for chaining", func() {
+			c := defkit.NewComponent("c")
+			result := c.PodSpecPath("spec.template.spec")
+			Expect(result).To(Equal(c))
+		})
+	})
+
 	Context("Annotations", func() {
 		It("should store and return annotations", func() {
 			c := defkit.NewComponent("webservice").
