@@ -213,6 +213,12 @@ func (w *WorkflowStepDefinition) StatusDetails(details string) *WorkflowStepDefi
 	return w
 }
 
+// Annotations sets metadata annotations on the workflow step definition.
+func (w *WorkflowStepDefinition) Annotations(annotations map[string]string) *WorkflowStepDefinition {
+	w.setAnnotations(annotations)
+	return w
+}
+
 // RunOn adds placement conditions specifying which clusters this workflow step should run on.
 // Use the placement package's fluent API to build conditions.
 //
@@ -531,6 +537,34 @@ func (g *WorkflowStepCUEGenerator) GenerateTemplate(w *WorkflowStepDefinition) s
 
 	// Generate parameter section
 	sb.WriteString(g.generateParameterBlock(w, 1))
+
+	if w.GetCustomStatus() != "" || w.GetHealthPolicy() != "" || w.GetStatusDetails() != "" {
+		indent := g.indent
+		innerIndent := g.indent + g.indent
+		sb.WriteString(fmt.Sprintf("%sstatus: {\n", indent))
+		if w.GetCustomStatus() != "" {
+			sb.WriteString(fmt.Sprintf("%scustomStatus: #\"\"\"\n", innerIndent))
+			for _, line := range strings.Split(w.GetCustomStatus(), "\n") {
+				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
+		}
+		if w.GetHealthPolicy() != "" {
+			sb.WriteString(fmt.Sprintf("%shealthPolicy: #\"\"\"\n", innerIndent))
+			for _, line := range strings.Split(w.GetHealthPolicy(), "\n") {
+				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
+		}
+		if w.GetStatusDetails() != "" {
+			sb.WriteString(fmt.Sprintf("%sstatusDetails: #\"\"\"\n", innerIndent))
+			for _, line := range strings.Split(w.GetStatusDetails(), "\n") {
+				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
 
 	sb.WriteString("}\n")
 	return sb.String()

@@ -330,6 +330,34 @@ func (g *PolicyCUEGenerator) GenerateTemplate(p *PolicyDefinition) string {
 	// Generate parameter section
 	sb.WriteString(g.generateParameterBlock(p, 1))
 
+	if p.GetCustomStatus() != "" || p.GetHealthPolicy() != "" || p.GetStatusDetails() != "" {
+		indent := g.indent
+		innerIndent := g.indent + g.indent
+		sb.WriteString(fmt.Sprintf("%sstatus: {\n", indent))
+		if p.GetCustomStatus() != "" {
+			sb.WriteString(fmt.Sprintf("%scustomStatus: #\"\"\"\n", innerIndent))
+			for _, line := range strings.Split(p.GetCustomStatus(), "\n") {
+				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
+		}
+		if p.GetHealthPolicy() != "" {
+			sb.WriteString(fmt.Sprintf("%shealthPolicy: #\"\"\"\n", innerIndent))
+			for _, line := range strings.Split(p.GetHealthPolicy(), "\n") {
+				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
+		}
+		if p.GetStatusDetails() != "" {
+			sb.WriteString(fmt.Sprintf("%sstatusDetails: #\"\"\"\n", innerIndent))
+			for _, line := range strings.Split(p.GetStatusDetails(), "\n") {
+				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
+
 	sb.WriteString("}\n")
 	return sb.String()
 }
