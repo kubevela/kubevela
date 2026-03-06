@@ -177,6 +177,12 @@ func (t *TraitDefinition) StatusDetails(details string) *TraitDefinition {
 	return t
 }
 
+// Annotations sets metadata annotations on the trait definition.
+func (t *TraitDefinition) Annotations(annotations map[string]string) *TraitDefinition {
+	t.setAnnotations(annotations)
+	return t
+}
+
 // RawCUE sets raw CUE for complex trait definitions that don't fit the builder pattern.
 // When set, this bypasses all other template settings and outputs the raw CUE directly.
 func (t *TraitDefinition) RawCUE(cue string) *TraitDefinition {

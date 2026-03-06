@@ -128,6 +128,12 @@ func (p *PolicyDefinition) StatusDetails(details string) *PolicyDefinition {
 	return p
 }
 
+// Annotations sets metadata annotations on the policy definition.
+func (p *PolicyDefinition) Annotations(annotations map[string]string) *PolicyDefinition {
+	p.setAnnotations(annotations)
+	return p
+}
+
 // Labels sets metadata labels for the policy definition.
 func (p *PolicyDefinition) Labels(labels map[string]string) *PolicyDefinition {
 	p.labels = labels

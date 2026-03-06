@@ -128,6 +128,12 @@ func (c *ComponentDefinition) StatusDetails(details string) *ComponentDefinition
 	return c
 }
 
+// Annotations sets metadata annotations on the component definition.
+func (c *ComponentDefinition) Annotations(annotations map[string]string) *ComponentDefinition {
+	c.setAnnotations(annotations)
+	return c
+}
+
 // DefName implements Definition.DefName - returns the definition name.
 func (c *ComponentDefinition) DefName() string { return c.name }
 
