@@ -994,8 +994,8 @@ func (f *StructField) Enum(values ...string) *StructField {
 // GetEnumValues returns the allowed enum values.
 func (f *StructField) GetEnumValues() []string { return f.enumValues }
 
-// ArrayOf sets the element type for array fields (e.g., ParamTypeString for [...string]).
-func (f *StructField) ArrayOf(elemType ParamType) *StructField {
+// Of sets the element type for array fields (e.g., ParamTypeString for [...string]).
+func (f *StructField) Of(elemType ParamType) *StructField {
 	f.elementType = elemType
 	return f
 }

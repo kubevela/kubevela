@@ -7,11 +7,11 @@
 
 ### Part A — Naming Inconsistencies
 
-- [ ] **A1**: `PolicyTemplate.SetField()` renamed to `Set()` — align with Resource, PatchResource, WorkflowStepTemplate, ItemBuilder, ArrayElement
+- [x] **A1**: `PolicyTemplate.SetField()` renamed to `Set()` — align with Resource, PatchResource, WorkflowStepTemplate, ItemBuilder, ArrayElement
 - [ ] **A2**: `StructParam.Fields()` and `OneOfVariant.Fields()` renamed to `WithFields()` — align with ArrayParam and MapParam
-- [ ] **A3**: `StructField.ArrayOf()` renamed to `Of()` — align with ArrayParam.Of(); `Array` prefix is redundant
+- [x] **A3**: `StructField.ArrayOf()` renamed to `Of()` — align with ArrayParam.Of(); `Array` prefix is redundant
 - [ ] **A4**: `EnumParam.Values()` renamed to `Enum()` — align with StringParam.Enum() and StructField.Enum()
-- [ ] **A5**: `HelperBuilder.FilterPred(Predicate)` → `Filter(Predicate)`; `HelperBuilder.Filter(Condition)` → `FilterCond(Condition)` — align with CollectionOp.Filter(); update internal caller at `helper.go:535` and 3 test callers in `collections_test.go`
+- [x] **A5**: `HelperBuilder.FilterPred(Predicate)` → `Filter(Predicate)`; `HelperBuilder.Filter(Condition)` → `FilterCond(Condition)` — align with CollectionOp.Filter(); update internal caller at `helper.go:535` and 3 test callers in `collections_test.go`
 
 ### Part B — Missing Methods
 
@@ -62,9 +62,9 @@
 | C5 | Phase 3 — Missing CRD Spec Fields | Pending |
 | C6 | Phase 3 — Missing CRD Spec Fields | Pending |
 | C7 | Phase 3 — Missing CRD Spec Fields | Complete |
-| A1 | Phase 4 — Low-Risk Renames | Pending |
-| A3 | Phase 4 — Low-Risk Renames | Pending |
-| A5 | Phase 4 — Low-Risk Renames | Pending |
+| A1 | Phase 4 — Low-Risk Renames | Complete |
+| A3 | Phase 4 — Low-Risk Renames | Complete |
+| A5 | Phase 4 — Low-Risk Renames | Complete |
 | A4 | Phase 5 — High-Impact Renames + Downstream | Pending |
 | A2 | Phase 5 — High-Impact Renames + Downstream | Pending |
 

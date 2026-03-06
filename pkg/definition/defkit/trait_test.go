@@ -1069,7 +1069,7 @@ template: {
 				Helper("Handler", defkit.Struct("Handler").Fields(
 					defkit.Field("exec", defkit.ParamTypeStruct).
 						Nested(defkit.Struct("exec").Fields(
-							defkit.Field("command", defkit.ParamTypeArray).ArrayOf(defkit.ParamTypeString).Required(),
+							defkit.Field("command", defkit.ParamTypeArray).Of(defkit.ParamTypeString).Required(),
 						)),
 				)).
 				Template(func(tpl *defkit.Template) {

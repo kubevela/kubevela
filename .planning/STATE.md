@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-06T10:28:39.149Z"
+last_updated: "2026-03-06T11:19:06.077Z"
 progress:
   total_phases: 5
-  completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
+  completed_phases: 4
+  total_plans: 12
+  completed_plans: 12
 ---
 
 # Project State
@@ -17,13 +17,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-06)
 
 **Core value:** A consistent, complete fluent API where every CRD spec field has a fluent setter and naming follows a single convention
-**Current focus:** Phase 4 — Low-Risk Renames
+**Current focus:** Phase 5 — High-Impact Renames + Downstream
 
 ## Current Phase
-Phase 3 of 5 — complete (03-01, 03-02, 03-03 all done)
+Phase 4 of 5 — complete (04-01, 04-02, 04-03 done)
 
-**In scope this phase:** C1, C2, C3, C4, C5, C6, C7
-**Files:** `pkg/definition/defkit/trait.go`, `pkg/definition/defkit/policy.go`, `pkg/definition/defkit/component.go`
+**In scope this phase:** A1, A3, A5
+**Files:** `pkg/definition/defkit/helper.go`, `pkg/definition/defkit/helper_test.go`
 **Blocking next phase:** none
 
 ## Phases At a Glance
@@ -33,7 +33,7 @@ Phase 3 of 5 — complete (03-01, 03-02, 03-03 all done)
 | 1 — Param Method Completeness | B3, B2, B5 | Complete |
 | 2 — Definition-Level Additions with CUE Changes | B1, B4 | Complete |
 | 3 — Missing CRD Spec Fields | C1, C2, C3, C4, C5, C6, C7 | Complete |
-| 4 — Low-Risk Renames | A1, A3, A5 | Not started |
+| 4 — Low-Risk Renames | A1, A3, A5 | Complete |
 | 5 — High-Impact Renames + Downstream | A4, A2 | Not started |
 
 ## Key Decisions
@@ -44,6 +44,10 @@ Phase 3 of 5 — complete (03-01, 03-02, 03-03 all done)
 - Trait formatCUE(Simplify()) strips quotes from valid CUE identifiers; test assertions must use value positions not quoted key strings
 - Boolean CRD spec fields use conditional emit (omit when false); zero-arg setters; Is* getter naming following IsPodDisruptive precedent (03-02)
 - Trait formatCUE(Simplify()) aligns version field with extra spaces; test assertions for version on traits must use MatchRegexp not ContainSubstring (03-01)
+- PolicyTemplate.SetField() → Set(): short verb name consistent with other template types (04-01)
+- StructField.ArrayOf() → Of(): consistent with ArrayParam.Of() already in defkit (04-01)
+- Atomic rename strategy required for FilterPred/Filter swap — package won't compile mid-rename; both renames applied in one pass (04-02)
+- col.Filter(o.pred) at helper.go:535 is CollectionOp.Filter, not HelperBuilder.Filter — different receiver type, intentionally unchanged (04-02)
 
 ## Session Log
 - 2026-03-06: Project initialized, roadmap created (5 phases, 17 requirements)
@@ -56,3 +60,6 @@ Phase 3 of 5 — complete (03-01, 03-02, 03-03 all done)
 - 2026-03-06: Plan 03-02 complete — manageWorkload/controlPlaneOnly/revisionEnabled on TraitDefinition + manageHealthCheck on PolicyDefinition; C2,C3,C4,C7 satisfied (commits 4344a34, 0bffad5)
 - 2026-03-06: Plan 03-03 complete — ChildResourceKind accumulator + PodSpecPath on ComponentDefinition; C5, C6 satisfied (commits 20e2ebb25, 2824d2ce7)
 - 2026-03-06: Plan 03-01 complete — Version() on all 4 definition types via baseDefinition; conditional CUE render + spec.version in ToYAML; C1 satisfied (commits c39e7d2e5, 48a1d5cef)
+- 2026-03-06: Plan 04-01 complete — PolicyTemplate.SetField()→Set(), StructField.ArrayOf()→Of(); A1, A3 satisfied
+- 2026-03-06: Plan 04-02 complete — FilterPred->Filter and Filter(Condition)->FilterCond atomic swap on HelperBuilder; A5 satisfied; phase 04 complete
+- 2026-03-06: Plan 04-03 complete — 17 ArrayOf→Of and 1 FilterPred→Filter downstream call sites updated in vela-go-definitions; go build passes clean; gap closure complete

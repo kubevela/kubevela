@@ -259,8 +259,8 @@ func NewPolicyTemplate() *PolicyTemplate {
 	}
 }
 
-// SetField sets a computed field value.
-func (pt *PolicyTemplate) SetField(name string, value Value) *PolicyTemplate {
+// Set sets a computed field value.
+func (pt *PolicyTemplate) Set(name string, value Value) *PolicyTemplate {
 	pt.computedFields[name] = value
 	return pt
 }

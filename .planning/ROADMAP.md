@@ -77,7 +77,7 @@ Plans:
 
 **Requirements:** A1, A3, A5
 
-**Plans:** 3 plans (2 complete + 1 gap closure)
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 04-01-PLAN.md — SetField→Set (A1) + ArrayOf→Of (A3): rename method definitions + all call sites
@@ -131,5 +131,5 @@ Plans:
 | 1 | B3, B2, B5 | Complete    | 2026-03-06 |
 | 2 | 3/3 | Complete   | 2026-03-06 |
 | 3 | 3/3 | Complete | 2026-03-06 |
-| 4 | 2/2 + gap closure | In progress   | 2026-03-06 |
+| 4 | 3/3 | Complete   | 2026-03-06 |
 | 5 | A4, A2 | Highest | vela-go-definitions must build |

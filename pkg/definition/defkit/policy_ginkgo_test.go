@@ -70,7 +70,7 @@ var _ = Describe("PolicyDefinition", func() {
 		It("should set template function", func() {
 			p := defkit.NewPolicy("custom").
 				Template(func(tpl *defkit.PolicyTemplate) {
-					tpl.SetField("clusters", defkit.ParamRef("clusters"))
+					tpl.Set("clusters", defkit.ParamRef("clusters"))
 				})
 			Expect(p).NotTo(BeNil())
 		})
@@ -240,15 +240,15 @@ template: {
 
 		It("should set field on template", func() {
 			tpl := defkit.NewPolicyTemplate()
-			tpl.SetField("clusters", defkit.ParamRef("clusters"))
+			tpl.Set("clusters", defkit.ParamRef("clusters"))
 			fields := tpl.GetComputedFields()
 			Expect(fields).To(HaveKey("clusters"))
 		})
 
 		It("should set multiple fields", func() {
 			tpl := defkit.NewPolicyTemplate()
-			tpl.SetField("clusters", defkit.ParamRef("clusters"))
-			tpl.SetField("namespace", defkit.ParamRef("namespace"))
+			tpl.Set("clusters", defkit.ParamRef("clusters"))
+			tpl.Set("namespace", defkit.ParamRef("namespace"))
 			fields := tpl.GetComputedFields()
 			Expect(fields).To(HaveLen(2))
 		})
