@@ -49,6 +49,9 @@ type TraitDefinition struct {
 	templateBlock      string            // raw CUE for template: block only (uses fluent API for header)
 	labels             map[string]string // metadata labels for the trait definition
 	workloadRefPath    *string           // workloadRefPath attribute (nil = omit, pointer to distinguish from empty)
+	manageWorkload     bool
+	controlPlaneOnly   bool
+	revisionEnabled    bool
 }
 
 // NewTrait creates a new TraitDefinition builder.
@@ -92,6 +95,24 @@ func (t *TraitDefinition) PodDisruptive(disruptive bool) *TraitDefinition {
 // WorkloadRefPath sets the workloadRefPath attribute for the trait.
 func (t *TraitDefinition) WorkloadRefPath(path string) *TraitDefinition {
 	t.workloadRefPath = &path
+	return t
+}
+
+// ManageWorkload marks this trait as managing the workload.
+func (t *TraitDefinition) ManageWorkload() *TraitDefinition {
+	t.manageWorkload = true
+	return t
+}
+
+// ControlPlaneOnly marks this trait as running on the control plane only.
+func (t *TraitDefinition) ControlPlaneOnly() *TraitDefinition {
+	t.controlPlaneOnly = true
+	return t
+}
+
+// RevisionEnabled marks this trait as revision-enabled.
+func (t *TraitDefinition) RevisionEnabled() *TraitDefinition {
+	t.revisionEnabled = true
 	return t
 }
 
@@ -181,6 +202,12 @@ func (t *TraitDefinition) StatusDetails(details string) *TraitDefinition {
 // Annotations sets metadata annotations on the trait definition.
 func (t *TraitDefinition) Annotations(annotations map[string]string) *TraitDefinition {
 	t.setAnnotations(annotations)
+	return t
+}
+
+// Version sets the version string for the trait definition.
+func (t *TraitDefinition) Version(v string) *TraitDefinition {
+	t.setVersion(v)
 	return t
 }
 
@@ -294,6 +321,15 @@ func (t *TraitDefinition) GetConflictsWith() []string { return t.conflictsWith }
 // IsPodDisruptive returns whether this trait is pod-disruptive.
 func (t *TraitDefinition) IsPodDisruptive() bool { return t.podDisruptive }
 
+// IsManageWorkload returns whether this trait manages the workload.
+func (t *TraitDefinition) IsManageWorkload() bool { return t.manageWorkload }
+
+// IsControlPlaneOnly returns whether this trait runs on the control plane only.
+func (t *TraitDefinition) IsControlPlaneOnly() bool { return t.controlPlaneOnly }
+
+// IsRevisionEnabled returns whether this trait has revision enabled.
+func (t *TraitDefinition) IsRevisionEnabled() bool { return t.revisionEnabled }
+
 // GetStage returns the trait stage.
 func (t *TraitDefinition) GetStage() string { return t.stage }
 
@@ -394,6 +430,16 @@ func (t *TraitDefinition) ToYAML() ([]byte, error) {
 	// Add stage if present
 	if t.stage != "" {
 		cr["spec"].(map[string]any)["stage"] = t.stage
+	}
+
+	if t.manageWorkload {
+		cr["spec"].(map[string]any)["manageWorkload"] = true
+	}
+	if t.controlPlaneOnly {
+		cr["spec"].(map[string]any)["controlPlaneOnly"] = true
+	}
+	if t.revisionEnabled {
+		cr["spec"].(map[string]any)["revisionEnabled"] = true
 	}
 
 	return yaml.Marshal(cr)

@@ -219,6 +219,12 @@ func (w *WorkflowStepDefinition) Annotations(annotations map[string]string) *Wor
 	return w
 }
 
+// Version sets the version string for the workflow step definition.
+func (w *WorkflowStepDefinition) Version(v string) *WorkflowStepDefinition {
+	w.setVersion(v)
+	return w
+}
+
 // RunOn adds placement conditions specifying which clusters this workflow step should run on.
 // Use the placement package's fluent API to build conditions.
 //

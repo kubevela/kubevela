@@ -19,6 +19,7 @@ package defkit
 import (
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
 )
 
@@ -28,8 +29,10 @@ import (
 // with TraitDefinition and other definition types.
 type ComponentDefinition struct {
 	baseDefinition // embedded common fields (name, description, params, template, etc.)
-	workload       WorkloadType
-	labels         map[string]string // metadata labels for the component definition
+	workload            WorkloadType
+	labels              map[string]string // metadata labels for the component definition
+	childResourceKinds  []common.ChildResourceKind
+	podSpecPath         string
 }
 
 // WorkloadType represents the workload type for a component.
@@ -134,6 +137,12 @@ func (c *ComponentDefinition) Annotations(annotations map[string]string) *Compon
 	return c
 }
 
+// Version sets the version string for the component definition.
+func (c *ComponentDefinition) Version(v string) *ComponentDefinition {
+	c.setVersion(v)
+	return c
+}
+
 // DefName implements Definition.DefName - returns the definition name.
 func (c *ComponentDefinition) DefName() string { return c.name }
 
@@ -162,6 +171,31 @@ func (c *ComponentDefinition) Labels(labels map[string]string) *ComponentDefinit
 
 // GetLabels returns the component's metadata labels.
 func (c *ComponentDefinition) GetLabels() map[string]string { return c.labels }
+
+// ChildResourceKind adds a child resource kind entry to the component definition.
+// Multiple calls accumulate entries.
+func (c *ComponentDefinition) ChildResourceKind(apiVersion, kind string, selector map[string]string) *ComponentDefinition {
+	c.childResourceKinds = append(c.childResourceKinds, common.ChildResourceKind{
+		APIVersion: apiVersion,
+		Kind:       kind,
+		Selector:   selector,
+	})
+	return c
+}
+
+// GetChildResourceKinds returns all accumulated child resource kind entries.
+func (c *ComponentDefinition) GetChildResourceKinds() []common.ChildResourceKind {
+	return c.childResourceKinds
+}
+
+// PodSpecPath sets the pod spec path for the component definition.
+func (c *ComponentDefinition) PodSpecPath(path string) *ComponentDefinition {
+	c.podSpecPath = path
+	return c
+}
+
+// GetPodSpecPath returns the pod spec path.
+func (c *ComponentDefinition) GetPodSpecPath() string { return c.podSpecPath }
 
 // RawCUE sets raw CUE for complex component definitions that don't fit the builder pattern.
 // When set, this bypasses all other template settings and outputs the raw CUE directly.
@@ -276,6 +310,14 @@ func (c *ComponentDefinition) ToYAML() ([]byte, error) {
 		cr["spec"].(map[string]any)["workload"] = map[string]any{
 			"type": "autodetects.core.oam.dev",
 		}
+	}
+
+	if len(c.childResourceKinds) > 0 {
+		cr["spec"].(map[string]any)["childResourceKinds"] = c.childResourceKinds
+	}
+
+	if c.podSpecPath != "" {
+		cr["spec"].(map[string]any)["podSpecPath"] = c.podSpecPath
 	}
 
 	return yaml.Marshal(cr)

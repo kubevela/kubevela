@@ -134,6 +134,12 @@ func (p *PolicyDefinition) Annotations(annotations map[string]string) *PolicyDef
 	return p
 }
 
+// Version sets the version string for the policy definition.
+func (p *PolicyDefinition) Version(v string) *PolicyDefinition {
+	p.setVersion(v)
+	return p
+}
+
 // Labels sets metadata labels for the policy definition.
 func (p *PolicyDefinition) Labels(labels map[string]string) *PolicyDefinition {
 	p.labels = labels
