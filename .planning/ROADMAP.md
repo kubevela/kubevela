@@ -110,7 +110,7 @@
 | Phase | Requirements | Risk | Key constraint |
 |-------|-------------|------|----------------|
 | 1 | B3, B2, B5 | Complete    | 2026-03-06 |
-| 2 | 2/3 | In Progress|  |
+| 2 | 3/3 | Complete   | 2026-03-06 |
 | 3 | C1–C7 | Low | CRD spec correctness |
 | 4 | A1, A3, A5 | Medium | Internal callers only |
 | 5 | A4, A2 | Highest | vela-go-definitions must build |
