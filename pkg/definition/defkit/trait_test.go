@@ -159,7 +159,7 @@ parameter: #PatchParams
 
 	Context("Helper Methods", func() {
 		It("should add helper definitions", func() {
-			probeSchema := defkit.Struct("probe").Fields(
+			probeSchema := defkit.Struct("probe").WithFields(
 				defkit.Field("path", defkit.ParamTypeString).Default("/health"),
 				defkit.Field("port", defkit.ParamTypeInt).Default(8080),
 			)
@@ -837,7 +837,7 @@ template: {
 		})
 
 		It("should emit patchStrategy annotation in CUE output for unconditional field", func() {
-			strategy := defkit.Struct("strategy").Required().Fields(
+			strategy := defkit.Struct("strategy").Required().WithFields(
 				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate"),
 			)
 
@@ -861,7 +861,7 @@ template: {
 
 		It("should emit patchStrategy annotation inside conditional block", func() {
 			kind := defkit.String("kind").Default("Deployment").Enum("Deployment", "StatefulSet")
-			strategy := defkit.Struct("strategy").Required().Fields(
+			strategy := defkit.Struct("strategy").Required().WithFields(
 				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate"),
 			)
 
@@ -988,10 +988,10 @@ template: {
 
 		It("should produce correct k8s-update-strategy-like pattern", func() {
 			targetKind := defkit.String("targetKind").Default("Deployment").Enum("Deployment", "StatefulSet", "DaemonSet")
-			strategy := defkit.Struct("strategy").Required().Fields(
+			strategy := defkit.Struct("strategy").Required().WithFields(
 				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate").Enum("RollingUpdate", "Recreate", "OnDelete"),
 				defkit.Field("rollingStrategy", defkit.ParamTypeStruct).
-					Nested(defkit.Struct("rollingStrategy").Fields(
+					Nested(defkit.Struct("rollingStrategy").WithFields(
 						defkit.Field("maxSurge", defkit.ParamTypeString).Default("25%"),
 						defkit.Field("maxUnavailable", defkit.ParamTypeString).Default("25%"),
 						defkit.Field("partition", defkit.ParamTypeInt).Default(0),
@@ -1066,9 +1066,9 @@ template: {
 				AppliesTo("deployments.apps").
 				PodDisruptive(true).
 				Params(postStart, preStop).
-				Helper("Handler", defkit.Struct("Handler").Fields(
+				Helper("Handler", defkit.Struct("Handler").WithFields(
 					defkit.Field("exec", defkit.ParamTypeStruct).
-						Nested(defkit.Struct("exec").Fields(
+						Nested(defkit.Struct("exec").WithFields(
 							defkit.Field("command", defkit.ParamTypeArray).Of(defkit.ParamTypeString).Required(),
 						)),
 				)).
@@ -1335,9 +1335,9 @@ template: {
 			trait := defkit.NewTrait("nested-array-test").
 				Description("test").
 				AppliesTo("deployments.apps").
-				Helper("Config", defkit.Struct("Config").Fields(
+				Helper("Config", defkit.Struct("Config").WithFields(
 					defkit.Field("headers", defkit.ParamTypeArray).
-						Nested(defkit.Struct("headers").Fields(
+						Nested(defkit.Struct("headers").WithFields(
 							defkit.Field("name", defkit.ParamTypeString).Required(),
 							defkit.Field("value", defkit.ParamTypeString).Required(),
 						)),
@@ -1359,7 +1359,7 @@ template: {
 				Description("test").
 				AppliesTo("deployments.apps").
 				Helper("Port", defkit.Int("Port").Min(1).Max(65535)).
-				Helper("Endpoint", defkit.Struct("Endpoint").Fields(
+				Helper("Endpoint", defkit.Struct("Endpoint").WithFields(
 					defkit.Field("port", defkit.ParamTypeInt).WithSchemaRef("Port").Required(),
 					defkit.Field("host", defkit.ParamTypeString),
 				)).

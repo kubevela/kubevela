@@ -82,7 +82,7 @@ Plans:
 Plans:
 - [x] 04-01-PLAN.md — SetField→Set (A1) + ArrayOf→Of (A3): rename method definitions + all call sites
 - [x] 04-02-PLAN.md — FilterPred→Filter + Filter→FilterCond (A5): atomic swap of both HelperBuilder method names + helper_test.go callers
-- [ ] 04-03-PLAN.md — Gap closure (A3, A5): update 17 ArrayOf + 1 FilterPred call sites in vela-go-definitions
+- [x] 04-03-PLAN.md — Gap closure (A3, A5): update 17 ArrayOf + 1 FilterPred call sites in vela-go-definitions
 
 **Files to modify:**
 - `pkg/definition/defkit/policy.go` — `SetField()` → `Set()` (A1)
@@ -112,7 +112,7 @@ Plans:
 **Plans:** 1 plan
 
 Plans:
-- [ ] 05-01-PLAN.md — Rename EnumParam.Values()→Enum() (A4) + StructParam/OneOfVariant.Fields()→WithFields() (A2) in defkit + all 102 downstream call sites in vela-go-definitions
+- [x] 05-01-PLAN.md — Rename EnumParam.Values()→Enum() (A4) + StructParam/OneOfVariant.Fields()→WithFields() (A2) in defkit + all 102 downstream call sites in vela-go-definitions
 
 **Files to modify (defkit):**
 - `pkg/definition/defkit/param.go` — `EnumParam.Values()` → `Enum()` (A4)
@@ -137,4 +137,4 @@ Plans:
 | 2 | 3/3 | Complete   | 2026-03-06 |
 | 3 | 3/3 | Complete | 2026-03-06 |
 | 4 | 3/3 | Complete   | 2026-03-06 |
-| 5 | A4, A2 | Highest | vela-go-definitions must build |
+| 5 | A4, A2 | Complete | 2026-03-06 |

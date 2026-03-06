@@ -1021,8 +1021,8 @@ func Struct(name string) *StructParam {
 	}
 }
 
-// Fields adds field definitions to the struct.
-func (p *StructParam) Fields(fields ...*StructField) *StructParam {
+// WithFields adds field definitions to the struct.
+func (p *StructParam) WithFields(fields ...*StructField) *StructParam {
 	p.fields = append(p.fields, fields...)
 	return p
 }
@@ -1072,7 +1072,7 @@ func (p *StructParam) GetSchemaRef() string { return p.schemaRef }
 
 // Field returns a reference to a nested field within this struct parameter.
 // This allows struct parameters to be used as variables with field access.
-// Example: config := Struct("config").Fields(...); config.Field("port") => parameter.config.port
+// Example: config := Struct("config").WithFields(...); config.Field("port") => parameter.config.port
 func (p *StructParam) Field(fieldPath string) *ParamFieldRef {
 	return &ParamFieldRef{paramName: p.name, fieldPath: fieldPath}
 }
@@ -1094,8 +1094,8 @@ func Enum(name string) *EnumParam {
 	}
 }
 
-// Values sets the allowed enum values.
-func (p *EnumParam) Values(values ...string) *EnumParam {
+// Enum sets the allowed enum values.
+func (p *EnumParam) Enum(values ...string) *EnumParam {
 	p.values = values
 	return p
 }
@@ -1162,8 +1162,8 @@ func Variant(name string) *OneOfVariant {
 	}
 }
 
-// Fields adds field definitions to the variant.
-func (v *OneOfVariant) Fields(fields ...*StructField) *OneOfVariant {
+// WithFields adds field definitions to the variant.
+func (v *OneOfVariant) WithFields(fields ...*StructField) *OneOfVariant {
 	v.fields = append(v.fields, fields...)
 	return v
 }

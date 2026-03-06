@@ -461,7 +461,7 @@ var _ = Describe("ComponentDefinition", func() {
 
 	Context("Component Helper method", func() {
 		It("should add a helper definition with a param", func() {
-			probeParam := defkit.Struct("probe").Fields(
+			probeParam := defkit.Struct("probe").WithFields(
 				defkit.Field("path", defkit.ParamTypeString),
 				defkit.Field("port", defkit.ParamTypeInt).Default(8080),
 			)

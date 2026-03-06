@@ -70,7 +70,7 @@ var _ = Describe("WorkflowStepDefinition", func() {
 
 	Context("Helper Method", func() {
 		It("should add helper definition with param", func() {
-			helperParam := defkit.Struct("placement").Fields(
+			helperParam := defkit.Struct("placement").WithFields(
 				defkit.Field("clusterName", defkit.ParamTypeString),
 			)
 			step := defkit.NewWorkflowStep("deploy").

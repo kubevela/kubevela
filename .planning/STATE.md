@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-06T11:19:06.077Z"
+last_updated: "2026-03-06T11:22:20.798Z"
 progress:
   total_phases: 5
   completed_phases: 4
@@ -20,10 +20,10 @@ See: .planning/PROJECT.md (updated 2026-03-06)
 **Current focus:** Phase 5 — High-Impact Renames + Downstream
 
 ## Current Phase
-Phase 4 of 5 — complete (04-01, 04-02, 04-03 done)
+Phase 5 of 5 — in progress (05-01 done)
 
-**In scope this phase:** A1, A3, A5
-**Files:** `pkg/definition/defkit/helper.go`, `pkg/definition/defkit/helper_test.go`
+**In scope this phase:** A4, A2
+**Files:** `pkg/definition/defkit/param.go`, `pkg/definition/defkit/cuegen.go`, defkit test files, vela-go-definitions
 **Blocking next phase:** none
 
 ## Phases At a Glance
@@ -34,7 +34,7 @@ Phase 4 of 5 — complete (04-01, 04-02, 04-03 done)
 | 2 — Definition-Level Additions with CUE Changes | B1, B4 | Complete |
 | 3 — Missing CRD Spec Fields | C1, C2, C3, C4, C5, C6, C7 | Complete |
 | 4 — Low-Risk Renames | A1, A3, A5 | Complete |
-| 5 — High-Impact Renames + Downstream | A4, A2 | Not started |
+| 5 — High-Impact Renames + Downstream | A4, A2 | In progress (1/1 complete) |
 
 ## Key Decisions
 - Sorted keys for labels CUE output in policy.go (deterministic; unlike trait.go which uses range)
@@ -48,6 +48,8 @@ Phase 4 of 5 — complete (04-01, 04-02, 04-03 done)
 - StructField.ArrayOf() → Of(): consistent with ArrayParam.Of() already in defkit (04-01)
 - Atomic rename strategy required for FilterPred/Filter swap — package won't compile mid-rename; both renames applied in one pass (04-02)
 - col.Filter(o.pred) at helper.go:535 is CollectionOp.Filter, not HelperBuilder.Filter — different receiver type, intentionally unchanged (04-02)
+- ConcatHelperBuilder.Fields() in vela-go-definitions/crontask.go is NOT renamed — different receiver type from StructParam.Fields() (05-01)
+- cuegen.go c.Values() at lines 2564-2565 is InCondition.Values(), not EnumParam.Values() — left unchanged (05-01)
 
 ## Session Log
 - 2026-03-06: Project initialized, roadmap created (5 phases, 17 requirements)
@@ -63,3 +65,4 @@ Phase 4 of 5 — complete (04-01, 04-02, 04-03 done)
 - 2026-03-06: Plan 04-01 complete — PolicyTemplate.SetField()→Set(), StructField.ArrayOf()→Of(); A1, A3 satisfied
 - 2026-03-06: Plan 04-02 complete — FilterPred->Filter and Filter(Condition)->FilterCond atomic swap on HelperBuilder; A5 satisfied; phase 04 complete
 - 2026-03-06: Plan 04-03 complete — 17 ArrayOf→Of and 1 FilterPred→Filter downstream call sites updated in vela-go-definitions; go build passes clean; gap closure complete
+- 2026-03-06: Plan 05-01 complete — EnumParam.Values()→Enum(), StructParam.Fields()→WithFields(), OneOfVariant.Fields()→WithFields(); 35 files updated (9 kubevela + 26 vela-go-definitions); A4, A2 satisfied

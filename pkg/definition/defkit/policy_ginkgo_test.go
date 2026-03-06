@@ -78,7 +78,7 @@ var _ = Describe("PolicyDefinition", func() {
 
 	Context("Helper method", func() {
 		It("should add helper definition with param", func() {
-			selectorParam := defkit.Struct("selector").Fields(
+			selectorParam := defkit.Struct("selector").WithFields(
 				defkit.Field("name", defkit.ParamTypeString),
 				defkit.Field("namespace", defkit.ParamTypeString),
 			)
