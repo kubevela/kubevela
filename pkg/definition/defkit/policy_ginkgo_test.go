@@ -17,6 +17,8 @@ limitations under the License.
 package defkit_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -101,6 +103,38 @@ var _ = Describe("PolicyDefinition", func() {
 			p := defkit.NewPolicy("topology").
 				CustomStatus("message: \"Policy applied\"")
 			Expect(p.GetCustomStatus()).To(Equal("message: \"Policy applied\""))
+		})
+	})
+
+	Context("Labels method", func() {
+		It("should store and return labels", func() {
+			p := defkit.NewPolicy("topology").
+				Labels(map[string]string{"k": "v"})
+			Expect(p.GetLabels()).To(Equal(map[string]string{"k": "v"}))
+		})
+
+		It("should render label keys sorted in CUE when labels set", func() {
+			p := defkit.NewPolicy("topology").
+				Labels(map[string]string{"b": "2", "a": "1"})
+			cue := p.ToCue()
+			Expect(cue).To(ContainSubstring(`"a": "1"`))
+			Expect(cue).To(ContainSubstring(`"b": "2"`))
+			aIdx := strings.Index(cue, `"a":`)
+			bIdx := strings.Index(cue, `"b":`)
+			Expect(aIdx).To(BeNumerically("<", bIdx))
+		})
+
+		It("should omit labels block in CUE when Labels never called", func() {
+			p := defkit.NewPolicy("topology")
+			cue := p.ToCue()
+			Expect(cue).NotTo(ContainSubstring("labels:"))
+		})
+
+		It("should render empty labels block when Labels called with empty map", func() {
+			p := defkit.NewPolicy("topology").
+				Labels(map[string]string{})
+			cue := p.ToCue()
+			Expect(cue).To(ContainSubstring("labels: {}"))
 		})
 	})
 
