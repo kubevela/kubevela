@@ -1618,4 +1618,53 @@ template: {
 			Expect(cue).NotTo(ContainSubstring("_baseContainer:"))
 		})
 	})
+
+	Context("Annotations", func() {
+		It("should store and return annotations", func() {
+			t := defkit.NewTrait("scaler").
+				Annotations(map[string]string{"owner": "team-a", "env": "prod"})
+			Expect(t.GetAnnotations()).To(HaveKeyWithValue("owner", "team-a"))
+			Expect(t.GetAnnotations()).To(HaveKeyWithValue("env", "prod"))
+		})
+
+		It("should render sorted annotation keys in CUE", func() {
+			cue := defkit.NewTrait("scaler").
+				Annotations(map[string]string{"b": "2", "a": "1"}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`annotations: {`))
+			aIdx := strings.Index(cue, `"1"`)
+			bIdx := strings.Index(cue, `"2"`)
+			Expect(aIdx).To(BeNumerically("<", bIdx))
+		})
+
+		It("should keep annotations: {} in CUE when not set", func() {
+			cue := defkit.NewTrait("scaler").ToCue()
+			Expect(cue).To(ContainSubstring("annotations: {}"))
+		})
+
+		It("should merge user annotations in ToYAML without overriding description", func() {
+			t := defkit.NewTrait("scaler").
+				Description("My Trait").
+				Annotations(map[string]string{
+					"owner": "team-a",
+				})
+			yamlBytes, err := t.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("owner: team-a"))
+			Expect(yaml).To(ContainSubstring("My Trait"))
+		})
+
+		It("should not allow user annotation to override description in ToYAML", func() {
+			t := defkit.NewTrait("scaler").
+				Description("Actual Description").
+				Annotations(map[string]string{
+					"definition.oam.dev/description": "Not This",
+				})
+			yamlBytes, err := t.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("Actual Description"))
+		})
+	})
 })

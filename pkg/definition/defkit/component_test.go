@@ -17,6 +17,8 @@ limitations under the License.
 package defkit_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -686,6 +688,55 @@ var _ = Describe("ComponentDefinition", func() {
 				r := defkit.NewResource("v1", "ConfigMap")
 				r.Set("data.items[", defkit.Lit("value"))
 			}).NotTo(Panic())
+		})
+	})
+
+	Context("Annotations", func() {
+		It("should store and return annotations", func() {
+			c := defkit.NewComponent("webservice").
+				Annotations(map[string]string{"owner": "team-a", "env": "prod"})
+			Expect(c.GetAnnotations()).To(HaveKeyWithValue("owner", "team-a"))
+			Expect(c.GetAnnotations()).To(HaveKeyWithValue("env", "prod"))
+		})
+
+		It("should render sorted annotation keys in CUE", func() {
+			cue := defkit.NewComponent("webservice").
+				Annotations(map[string]string{"b": "2", "a": "1"}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`annotations: {`))
+			aIdx := strings.Index(cue, `"a": "1"`)
+			bIdx := strings.Index(cue, `"b": "2"`)
+			Expect(aIdx).To(BeNumerically("<", bIdx))
+		})
+
+		It("should keep annotations: {} in CUE when not set", func() {
+			cue := defkit.NewComponent("webservice").ToCue()
+			Expect(cue).To(ContainSubstring("annotations: {}"))
+		})
+
+		It("should merge user annotations in ToYAML without overriding description", func() {
+			c := defkit.NewComponent("webservice").
+				Description("My Component").
+				Annotations(map[string]string{
+					"owner": "team-a",
+				})
+			yamlBytes, err := c.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("owner: team-a"))
+			Expect(yaml).To(ContainSubstring("My Component"))
+		})
+
+		It("should not allow user annotation to override description in ToYAML", func() {
+			c := defkit.NewComponent("webservice").
+				Description("Actual Description").
+				Annotations(map[string]string{
+					"definition.oam.dev/description": "Not This",
+				})
+			yamlBytes, err := c.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("Actual Description"))
 		})
 	})
 })

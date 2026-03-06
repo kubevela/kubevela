@@ -446,4 +446,62 @@ template: {
 			Expect(cue).To(ContainSubstring("statusDetails:"))
 		})
 	})
+
+	Context("Annotations", func() {
+		It("should store and return annotations", func() {
+			step := defkit.NewWorkflowStep("deploy").
+				Annotations(map[string]string{"owner": "team-a", "env": "prod"})
+			Expect(step.GetAnnotations()).To(HaveKeyWithValue("owner", "team-a"))
+			Expect(step.GetAnnotations()).To(HaveKeyWithValue("env", "prod"))
+		})
+
+		It("should render sorted annotation keys in CUE", func() {
+			cue := defkit.NewWorkflowStep("deploy").
+				Annotations(map[string]string{"b": "2", "a": "1"}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`annotations: {`))
+			aIdx := strings.Index(cue, `"a": "1"`)
+			bIdx := strings.Index(cue, `"b": "2"`)
+			Expect(aIdx).To(BeNumerically("<", bIdx))
+		})
+
+		It("should render empty annotations block in CUE when not set", func() {
+			cue := defkit.NewWorkflowStep("deploy").ToCue()
+			Expect(cue).To(ContainSubstring("annotations: {"))
+		})
+
+		It("should render user annotations alongside category", func() {
+			cue := defkit.NewWorkflowStep("deploy").
+				Annotations(map[string]string{"z": "1"}).
+				Category("Delivery").
+				ToCue()
+			Expect(cue).To(ContainSubstring(`"z": "1"`))
+			Expect(cue).To(ContainSubstring(`"category": "Delivery"`))
+		})
+
+		It("should merge user annotations in ToYAML without overriding description", func() {
+			step := defkit.NewWorkflowStep("deploy").
+				Description("My Step").
+				Annotations(map[string]string{
+					"owner": "team-a",
+				})
+			yamlBytes, err := step.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("owner: team-a"))
+			Expect(yaml).To(ContainSubstring("My Step"))
+		})
+
+		It("should not allow user annotation to override description in ToYAML", func() {
+			step := defkit.NewWorkflowStep("deploy").
+				Description("Actual Description").
+				Annotations(map[string]string{
+					"definition.oam.dev/description": "Not This",
+				})
+			yamlBytes, err := step.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("Actual Description"))
+		})
+	})
 })
