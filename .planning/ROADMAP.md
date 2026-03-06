@@ -77,17 +77,29 @@ Plans:
 
 **Requirements:** A1, A3, A5
 
+**Plans:** 3 plans (2 complete + 1 gap closure)
+
+Plans:
+- [x] 04-01-PLAN.md — SetField→Set (A1) + ArrayOf→Of (A3): rename method definitions + all call sites
+- [x] 04-02-PLAN.md — FilterPred→Filter + Filter→FilterCond (A5): atomic swap of both HelperBuilder method names + helper_test.go callers
+- [ ] 04-03-PLAN.md — Gap closure (A3, A5): update 17 ArrayOf + 1 FilterPred call sites in vela-go-definitions
+
 **Files to modify:**
-- `pkg/definition/defkit/policy_template.go` — `SetField()` → `Set()` (A1)
+- `pkg/definition/defkit/policy.go` — `SetField()` → `Set()` (A1)
+- `pkg/definition/defkit/policy_ginkgo_test.go` — 4 call sites updated (A1)
 - `pkg/definition/defkit/param.go` — `StructField.ArrayOf()` → `Of()` (A3)
-- `pkg/definition/defkit/helper.go` — `FilterPred()` → `Filter()`; `Filter()` → `FilterCond()` at all definition sites including `helper.go:535` (A5)
-- `pkg/definition/defkit/collections_test.go` — update 3 test callers for A5
+- `pkg/definition/defkit/trait_test.go`, `helper_definition_test.go` — 3 call sites updated (A3)
+- `pkg/definition/defkit/helper.go` — `FilterPred()` → `Filter()`; `Filter(Condition)` → `FilterCond()` (A5)
+- `pkg/definition/defkit/helper_test.go` — 2 call sites + 1 comment updated (A5)
+- `vela-go-definitions/traits/sidecar.go`, `affinity.go`, `lifecycle.go`, `service_account.go` — ArrayOf→Of (gap closure)
+- `vela-go-definitions/policies/apply_once.go`, `common.go`, `resource_update.go` — ArrayOf→Of (gap closure)
+- `vela-go-definitions/components/daemon.go` — FilterPred→Filter (gap closure)
 
 **Success criteria:**
 1. `go build ./pkg/definition/defkit/...` succeeds with no reference to `SetField`, `ArrayOf`, `FilterPred`, or the old `Filter(Condition)` signature
 2. `go test ./pkg/definition/defkit/...` passes — no test references the old names
 3. `grep -r "SetField\|ArrayOf\|FilterPred" pkg/definition/defkit/` returns zero matches
-4. No changes required in `vela-go-definitions` for this phase
+4. `go build ./...` in `vela-go-definitions` passes with zero errors
 
 ---
 
@@ -119,5 +131,5 @@ Plans:
 | 1 | B3, B2, B5 | Complete    | 2026-03-06 |
 | 2 | 3/3 | Complete   | 2026-03-06 |
 | 3 | 3/3 | Complete | 2026-03-06 |
-| 4 | A1, A3, A5 | Medium | Internal callers only |
+| 4 | 2/2 + gap closure | In progress   | 2026-03-06 |
 | 5 | A4, A2 | Highest | vela-go-definitions must build |
