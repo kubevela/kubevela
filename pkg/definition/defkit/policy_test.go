@@ -154,3 +154,34 @@ func TestPolicyDefinition_Registry(t *testing.T) {
 
 	Clear() // Clean up
 }
+
+func TestPolicyDefinition_ManageHealthCheck(t *testing.T) {
+	if NewPolicy("p").IsManageHealthCheck() {
+		t.Error("expected IsManageHealthCheck to be false by default")
+	}
+
+	if !NewPolicy("p").ManageHealthCheck().IsManageHealthCheck() {
+		t.Error("expected IsManageHealthCheck to be true after calling ManageHealthCheck()")
+	}
+
+	yamlBytes, err := NewPolicy("p").ManageHealthCheck().ToYAML()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(string(yamlBytes), "manageHealthCheck: true") {
+		t.Errorf("expected manageHealthCheck: true in YAML, got: %s", string(yamlBytes))
+	}
+
+	yamlBytesDefault, err := NewPolicy("p").ToYAML()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(string(yamlBytesDefault), "manageHealthCheck") {
+		t.Errorf("expected no manageHealthCheck in YAML when not set, got: %s", string(yamlBytesDefault))
+	}
+
+	var result *PolicyDefinition = NewPolicy("p").ManageHealthCheck()
+	if result == nil {
+		t.Error("expected ManageHealthCheck to return *PolicyDefinition")
+	}
+}

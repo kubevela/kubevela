@@ -32,7 +32,8 @@ import (
 type PolicyDefinition struct {
 	baseDefinition                           // embedded common fields and methods
 	policyTemplate func(tpl *PolicyTemplate) // template function for policy logic (type-specific)
-	labels         map[string]string
+	labels            map[string]string
+	manageHealthCheck bool
 }
 
 // PolicyTemplate provides the building context for policy templates.
@@ -149,6 +150,15 @@ func (p *PolicyDefinition) Labels(labels map[string]string) *PolicyDefinition {
 // GetLabels returns the policy's metadata labels.
 func (p *PolicyDefinition) GetLabels() map[string]string { return p.labels }
 
+// ManageHealthCheck marks this policy as managing health checks.
+func (p *PolicyDefinition) ManageHealthCheck() *PolicyDefinition {
+	p.manageHealthCheck = true
+	return p
+}
+
+// IsManageHealthCheck returns whether this policy manages health checks.
+func (p *PolicyDefinition) IsManageHealthCheck() bool { return p.manageHealthCheck }
+
 // RunOn adds placement conditions specifying which clusters this policy should run on.
 // Use the placement package's fluent API to build conditions.
 //
@@ -227,6 +237,14 @@ func (p *PolicyDefinition) ToYAML() ([]byte, error) {
 				},
 			},
 		},
+	}
+
+	if p.manageHealthCheck {
+		cr["spec"].(map[string]any)["manageHealthCheck"] = true
+	}
+
+	if p.GetVersion() != "" {
+		cr["spec"].(map[string]any)["version"] = p.GetVersion()
 	}
 
 	return yaml.Marshal(cr)
@@ -308,6 +326,9 @@ func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string 
 		sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, p.GetDescription()))
+	if p.GetVersion() != "" {
+		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, p.GetVersion()))
+	}
 	if p.labels != nil {
 		if len(p.labels) > 0 {
 			keys := make([]string, 0, len(p.labels))
