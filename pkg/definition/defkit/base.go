@@ -42,6 +42,7 @@ type baseDefinition struct {
 	customStatus      string
 	healthPolicy      string
 	statusDetails     string
+	annotations       map[string]string
 	helperDefinitions []HelperDefinition
 	rawCUE            string
 	imports           []string
@@ -85,6 +86,11 @@ func (b *baseDefinition) setHealthPolicyExpr(expr HealthExpression) {
 // setStatusDetails sets the status details CUE expression.
 func (b *baseDefinition) setStatusDetails(details string) {
 	b.statusDetails = details
+}
+
+// setAnnotations sets the annotations map.
+func (b *baseDefinition) setAnnotations(annotations map[string]string) {
+	b.annotations = annotations
 }
 
 // addHelper adds a helper type definition using fluent API.
@@ -147,6 +153,11 @@ func (b *baseDefinition) GetHealthPolicy() string {
 // GetStatusDetails returns the status details CUE expression.
 func (b *baseDefinition) GetStatusDetails() string {
 	return b.statusDetails
+}
+
+// GetAnnotations returns the annotations map.
+func (b *baseDefinition) GetAnnotations() map[string]string {
+	return b.annotations
 }
 
 // GetHelperDefinitions returns all helper type definitions.
