@@ -18,7 +18,7 @@
 - [x] **B1**: `Labels(map[string]string)` + `GetLabels()` added to PolicyDefinition struct; CUE render updated to replace hardcoded `labels: {}` with conditional label output
 - [x] **B2**: `ForceOptional()` added to IntParam, FloatParam, EnumParam (baseParam already has field; only fluent method missing)
 - [x] **B3**: `Short(string)` + `Ignore()` added to FloatParam (baseParam already has fields; only fluent methods missing)
-- [ ] **B4**: `Annotations(map[string]string)` + `GetAnnotations()` added to all 4 definition types; CUE render outputs sorted annotation keys; `ToYAML()` merges user annotations into `metadata.annotations` without overriding `definition.oam.dev/description`
+- [x] **B4**: `Annotations(map[string]string)` + `GetAnnotations()` added to all 4 definition types; CUE render outputs sorted annotation keys; `ToYAML()` merges user annotations into `metadata.annotations` without overriding `definition.oam.dev/description`
 - [x] **B5**: `StatusDetails(string)` added to all 4 definition types via `baseDefinition`; renders alongside `customStatus` and `healthPolicy` in the `status:` CUE block
 
 ### Part C — Missing CRD Spec Fields
@@ -54,7 +54,7 @@
 | B2 | Phase 1 — Param Method Completeness | Complete |
 | B5 | Phase 1 — Param Method Completeness | Complete |
 | B1 | Phase 2 — Definition-Level Additions with CUE Changes | Complete |
-| B4 | Phase 2 — Definition-Level Additions with CUE Changes | Pending |
+| B4 | Phase 2 — Definition-Level Additions with CUE Changes | Complete |
 | C1 | Phase 3 — Missing CRD Spec Fields | Pending |
 | C2 | Phase 3 — Missing CRD Spec Fields | Pending |
 | C3 | Phase 3 — Missing CRD Spec Fields | Pending |
