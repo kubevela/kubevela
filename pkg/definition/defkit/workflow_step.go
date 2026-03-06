@@ -293,9 +293,14 @@ func (w *WorkflowStepDefinition) ToYAML() ([]byte, error) {
 		"kind":       "WorkflowStepDefinition",
 		"metadata": map[string]any{
 			"name": w.GetName(),
-			"annotations": map[string]any{
-				"definition.oam.dev/description": w.GetDescription(),
-			},
+			"annotations": func() map[string]any {
+				a := map[string]any{}
+				for k, v := range w.GetAnnotations() {
+					a[k] = v
+				}
+				a["definition.oam.dev/description"] = w.GetDescription()
+				return a
+			}(),
 		},
 		"spec": map[string]any{
 			"schematic": map[string]any{
