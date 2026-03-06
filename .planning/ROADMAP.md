@@ -50,6 +50,13 @@
 
 **Requirements:** C1, C2, C3, C4, C5, C6, C7
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Version() on all 4 definition types (CUE render + ToYAML spec.version)
+- [ ] 03-02-PLAN.md — TraitDefinition booleans (ManageWorkload, ControlPlaneOnly, RevisionEnabled) + PolicyDefinition ManageHealthCheck
+- [ ] 03-03-PLAN.md — ComponentDefinition ChildResourceKind accumulator + PodSpecPath
+
 **Files to modify:**
 - `pkg/definition/defkit/base.go` — `Version()` + `GetVersion()` on `baseDefinition`
 - `pkg/definition/defkit/trait.go` — `ManageWorkload()`, `ControlPlaneOnly()`, `RevisionEnabled()` + boolean getters
