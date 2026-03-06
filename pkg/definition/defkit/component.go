@@ -122,6 +122,12 @@ func (c *ComponentDefinition) HealthPolicyExpr(expr HealthExpression) *Component
 	return c
 }
 
+// StatusDetails sets the status details CUE expression for the component.
+func (c *ComponentDefinition) StatusDetails(details string) *ComponentDefinition {
+	c.setStatusDetails(details)
+	return c
+}
+
 // DefName implements Definition.DefName - returns the definition name.
 func (c *ComponentDefinition) DefName() string { return c.name }
 

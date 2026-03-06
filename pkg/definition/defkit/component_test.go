@@ -610,6 +610,34 @@ var _ = Describe("ComponentDefinition", func() {
 			Expect(cue).To(ContainSubstring(`customStatus:`))
 			Expect(cue).To(ContainSubstring(`healthPolicy:`))
 		})
+
+		It("should generate CUE with statusDetails alone", func() {
+			c := defkit.NewComponent("foo").
+				Workload("apps/v1", "Deployment").
+				StatusDetails("message: context.output.status.phase")
+
+			cue := c.ToCue()
+
+			Expect(cue).To(ContainSubstring(`status:`))
+			Expect(cue).To(ContainSubstring(`statusDetails:`))
+			Expect(cue).NotTo(ContainSubstring(`customStatus:`))
+			Expect(cue).NotTo(ContainSubstring(`healthPolicy:`))
+		})
+
+		It("should generate CUE with all three status fields", func() {
+			c := defkit.NewComponent("full-status").
+				Workload("apps/v1", "Deployment").
+				CustomStatus("message: \"Running\"").
+				HealthPolicy("isHealth: true").
+				StatusDetails("message: context.output.status.phase")
+
+			cue := c.ToCue()
+
+			Expect(cue).To(ContainSubstring(`status:`))
+			Expect(cue).To(ContainSubstring(`customStatus:`))
+			Expect(cue).To(ContainSubstring(`healthPolicy:`))
+			Expect(cue).To(ContainSubstring(`statusDetails:`))
+		})
 	})
 
 	Context("Full Component Example", func() {

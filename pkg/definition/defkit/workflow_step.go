@@ -207,6 +207,12 @@ func (w *WorkflowStepDefinition) HealthPolicyExpr(expr HealthExpression) *Workfl
 	return w
 }
 
+// StatusDetails sets the status details CUE expression for the workflow step.
+func (w *WorkflowStepDefinition) StatusDetails(details string) *WorkflowStepDefinition {
+	w.setStatusDetails(details)
+	return w
+}
+
 // RunOn adds placement conditions specifying which clusters this workflow step should run on.
 // Use the placement package's fluent API to build conditions.
 //

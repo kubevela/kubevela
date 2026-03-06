@@ -2615,8 +2615,9 @@ func (g *CUEGenerator) writeStatus(sb *strings.Builder, c *ComponentDefinition, 
 
 	customStatus := c.GetCustomStatus()
 	healthPolicy := c.GetHealthPolicy()
+	statusDetails := c.GetStatusDetails()
 
-	if customStatus == "" && healthPolicy == "" {
+	if customStatus == "" && healthPolicy == "" && statusDetails == "" {
 		return
 	}
 
@@ -2633,6 +2634,14 @@ func (g *CUEGenerator) writeStatus(sb *strings.Builder, c *ComponentDefinition, 
 	if healthPolicy != "" {
 		sb.WriteString(fmt.Sprintf("%s%shealthPolicy: #\"\"\"\n", indent, g.indent))
 		for _, line := range strings.Split(healthPolicy, "\n") {
+			sb.WriteString(fmt.Sprintf("%s%s%s%s\n", indent, g.indent, g.indent, line))
+		}
+		sb.WriteString(fmt.Sprintf("%s%s%s\"\"\"#\n", indent, g.indent, g.indent))
+	}
+
+	if statusDetails != "" {
+		sb.WriteString(fmt.Sprintf("%s%sstatusDetails: #\"\"\"\n", indent, g.indent))
+		for _, line := range strings.Split(statusDetails, "\n") {
 			sb.WriteString(fmt.Sprintf("%s%s%s%s\n", indent, g.indent, g.indent, line))
 		}
 		sb.WriteString(fmt.Sprintf("%s%s%s\"\"\"#\n", indent, g.indent, g.indent))

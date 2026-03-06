@@ -171,6 +171,12 @@ func (t *TraitDefinition) HealthPolicyExpr(expr HealthExpression) *TraitDefiniti
 	return t
 }
 
+// StatusDetails sets the status details CUE expression for the trait.
+func (t *TraitDefinition) StatusDetails(details string) *TraitDefinition {
+	t.setStatusDetails(details)
+	return t
+}
+
 // RawCUE sets raw CUE for complex trait definitions that don't fit the builder pattern.
 // When set, this bypasses all other template settings and outputs the raw CUE directly.
 func (t *TraitDefinition) RawCUE(cue string) *TraitDefinition {
@@ -482,8 +488,8 @@ func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinit
 		}
 	}
 
-	// status (customStatus and healthPolicy)
-	if t.GetCustomStatus() != "" || t.GetHealthPolicy() != "" {
+	// status (customStatus, healthPolicy, and statusDetails)
+	if t.GetCustomStatus() != "" || t.GetHealthPolicy() != "" || t.GetStatusDetails() != "" {
 		sb.WriteString(fmt.Sprintf("%sstatus: {\n", indent))
 		innerIndent := strings.Repeat(g.indent, depth+1)
 
@@ -498,6 +504,14 @@ func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinit
 		if t.GetHealthPolicy() != "" {
 			sb.WriteString(fmt.Sprintf("%shealthPolicy: #\"\"\"\n", innerIndent))
 			for _, line := range strings.Split(t.GetHealthPolicy(), "\n") {
+				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
+		}
+
+		if t.GetStatusDetails() != "" {
+			sb.WriteString(fmt.Sprintf("%sstatusDetails: #\"\"\"\n", innerIndent))
+			for _, line := range strings.Split(t.GetStatusDetails(), "\n") {
 				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
 			}
 			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))

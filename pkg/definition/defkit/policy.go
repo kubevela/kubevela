@@ -120,6 +120,12 @@ func (p *PolicyDefinition) HealthPolicyExpr(expr HealthExpression) *PolicyDefini
 	return p
 }
 
+// StatusDetails sets the status details CUE expression for the policy.
+func (p *PolicyDefinition) StatusDetails(details string) *PolicyDefinition {
+	p.setStatusDetails(details)
+	return p
+}
+
 // RunOn adds placement conditions specifying which clusters this policy should run on.
 // Use the placement package's fluent API to build conditions.
 //
