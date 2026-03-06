@@ -339,6 +339,11 @@ func (p *IntParam) Optional() *IntParam {
 	return p
 }
 
+func (p *IntParam) ForceOptional() *IntParam {
+	p.forceOptional = true
+	return p
+}
+
 // Default sets a default value for the parameter.
 func (p *IntParam) Default(value int) *IntParam {
 	p.defaultValue = value
@@ -522,6 +527,11 @@ func (p *FloatParam) Required() *FloatParam {
 // Optional marks the parameter as optional (default behavior).
 func (p *FloatParam) Optional() *FloatParam {
 	p.required = false
+	return p
+}
+
+func (p *FloatParam) ForceOptional() *FloatParam {
+	p.forceOptional = true
 	return p
 }
 
@@ -1099,6 +1109,11 @@ func (p *EnumParam) Required() *EnumParam {
 // Optional marks the parameter as optional (default behavior).
 func (p *EnumParam) Optional() *EnumParam {
 	p.required = false
+	return p
+}
+
+func (p *EnumParam) ForceOptional() *EnumParam {
+	p.forceOptional = true
 	return p
 }
 

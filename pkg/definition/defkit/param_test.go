@@ -109,6 +109,17 @@ var _ = Describe("Parameters", func() {
 			Expect(p.IsRequired()).To(BeTrue())
 			Expect(p.GetDefault()).To(Equal(8080))
 		})
+
+		It("should support ForceOptional", func() {
+			p := defkit.Int("port").Default(8080).ForceOptional()
+			Expect(p.IsForceOptional()).To(BeTrue())
+			Expect(p.HasDefault()).To(BeTrue())
+		})
+
+		It("should not be force-optional by default", func() {
+			p := defkit.Int("port").Default(8080)
+			Expect(p.IsForceOptional()).To(BeFalse())
+		})
 	})
 
 	Context("BoolParam", func() {
@@ -167,6 +178,17 @@ var _ = Describe("Parameters", func() {
 			Expect(p.Name()).To(Equal("ratio"))
 			Expect(p.IsRequired()).To(BeTrue())
 			Expect(p.GetDefault()).To(Equal(1.0))
+		})
+
+		It("should support ForceOptional", func() {
+			p := defkit.Float("ratio").Default(1.0).ForceOptional()
+			Expect(p.IsForceOptional()).To(BeTrue())
+			Expect(p.HasDefault()).To(BeTrue())
+		})
+
+		It("should not be force-optional by default", func() {
+			p := defkit.Float("ratio").Default(1.0)
+			Expect(p.IsForceOptional()).To(BeFalse())
 		})
 	})
 
@@ -324,6 +346,17 @@ var _ = Describe("Parameters", func() {
 			Expect(p.Name()).To(Equal("restartPolicy"))
 			Expect(p.IsRequired()).To(BeTrue())
 			Expect(p.GetValues()).To(HaveLen(3))
+		})
+
+		It("should support ForceOptional", func() {
+			p := defkit.Enum("mode").Values("a", "b").Default("a").ForceOptional()
+			Expect(p.IsForceOptional()).To(BeTrue())
+			Expect(p.HasDefault()).To(BeTrue())
+		})
+
+		It("should not be force-optional by default", func() {
+			p := defkit.Enum("mode").Values("a", "b").Default("a")
+			Expect(p.IsForceOptional()).To(BeFalse())
 		})
 	})
 
