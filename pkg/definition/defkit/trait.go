@@ -366,9 +366,14 @@ func (t *TraitDefinition) ToYAML() ([]byte, error) {
 		"kind":       "TraitDefinition",
 		"metadata": map[string]any{
 			"name": t.name,
-			"annotations": map[string]any{
-				"definition.oam.dev/description": t.description,
-			},
+			"annotations": func() map[string]any {
+				a := map[string]any{}
+				for k, v := range t.GetAnnotations() {
+					a[k] = v
+				}
+				a["definition.oam.dev/description"] = t.description
+				return a
+			}(),
 		},
 		"spec": map[string]any{
 			"appliesToWorkloads": t.appliesToWorkloads,

@@ -205,9 +205,14 @@ func (p *PolicyDefinition) ToYAML() ([]byte, error) {
 		"kind":       "PolicyDefinition",
 		"metadata": map[string]any{
 			"name": p.GetName(),
-			"annotations": map[string]any{
-				"definition.oam.dev/description": p.GetDescription(),
-			},
+			"annotations": func() map[string]any {
+				a := map[string]any{}
+				for k, v := range p.GetAnnotations() {
+					a[k] = v
+				}
+				a["definition.oam.dev/description"] = p.GetDescription()
+				return a
+			}(),
 		},
 		"spec": map[string]any{
 			"schematic": map[string]any{

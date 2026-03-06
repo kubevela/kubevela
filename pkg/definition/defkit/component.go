@@ -247,9 +247,14 @@ func (c *ComponentDefinition) ToYAML() ([]byte, error) {
 		"kind":       "ComponentDefinition",
 		"metadata": map[string]any{
 			"name": c.GetName(),
-			"annotations": map[string]any{
-				"definition.oam.dev/description": c.GetDescription(),
-			},
+			"annotations": func() map[string]any {
+				a := map[string]any{}
+				for k, v := range c.GetAnnotations() {
+					a[k] = v
+				}
+				a["definition.oam.dev/description"] = c.GetDescription()
+				return a
+			}(),
 		},
 		"spec": map[string]any{
 			"workload": map[string]any{
