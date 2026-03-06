@@ -24,7 +24,9 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -191,6 +193,120 @@ func TestConvertOpenAPISchema2SwaggerObject(t *testing.T) {
 				assert.NoError(t, err)
 				if tc.checkFunc != nil {
 					tc.checkFunc(t, schema)
+				}
+			}
+		})
+	}
+}
+
+func TestExtractMarkerFromDescription(t *testing.T) {
+	cases := []struct {
+		name            string
+		description     string
+		marker          string
+		wantDescription string
+		wantFound       bool
+	}{
+		{
+			name:            "marker on its own line",
+			description:     "some usage\n+immutable\nmore text",
+			marker:          appfile.ImmutableTag,
+			wantDescription: "some usage\nmore text",
+			wantFound:       true,
+		},
+		{
+			name:            "marker not present",
+			description:     "some usage\nmore text",
+			marker:          appfile.ImmutableTag,
+			wantDescription: "some usage\nmore text",
+			wantFound:       false,
+		},
+		{
+			name:            "marker with leading whitespace",
+			description:     "some usage\n   +immutable\nmore text",
+			marker:          appfile.ImmutableTag,
+			wantDescription: "some usage\nmore text",
+			wantFound:       true,
+		},
+		{
+			name:            "marker is only content",
+			description:     "+immutable",
+			marker:          appfile.ImmutableTag,
+			wantDescription: "",
+			wantFound:       true,
+		},
+		{
+			name:            "multiple marker lines",
+			description:     "+immutable\nusage text\n+immutable",
+			marker:          appfile.ImmutableTag,
+			wantDescription: "usage text",
+			wantFound:       true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, found := extractMarkerFromDescription(tc.description, tc.marker)
+			assert.Equal(t, tc.wantFound, found)
+			assert.Equal(t, tc.wantDescription, got)
+		})
+	}
+}
+
+func TestFixOpenAPISchemaImmutable(t *testing.T) {
+	cases := []struct {
+		name          string
+		description   string
+		wantImmutable bool
+		wantDesc      string
+	}{
+		{
+			name:          "immutable marker sets extension and cleans description",
+			description:   "+usage=The image to use\n+immutable",
+			wantImmutable: true,
+			wantDesc:      "The image to use",
+		},
+		{
+			name:          "no immutable marker leaves schema unchanged",
+			description:   "+usage=The image to use",
+			wantImmutable: false,
+			wantDesc:      "The image to use",
+		},
+		{
+			name:          "immutable alongside short tag",
+			description:   "+usage=The image to use\n+short=i\n+immutable",
+			wantImmutable: true,
+			wantDesc:      "The image to use",
+		},
+		{
+			name:          "immutable before short tag",
+			description:   "+immutable\n+usage=The image to use\n+short=i",
+			wantImmutable: true,
+			wantDesc:      "The image to use",
+		},
+		{
+			name:          "immutable with no usage tag",
+			description:   "+immutable",
+			wantImmutable: true,
+			wantDesc:      "",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			schema := &openapi3.Schema{Description: tc.description}
+			FixOpenAPISchema("field", schema)
+
+			assert.Equal(t, tc.wantDesc, schema.Description)
+			if tc.wantImmutable {
+				require.NotNil(t, schema.Extensions)
+				val, ok := schema.Extensions[ExtensionImmutable]
+				require.True(t, ok, "expected x-immutable extension to be set")
+				assert.Equal(t, true, val)
+			} else {
+				if schema.Extensions != nil {
+					_, ok := schema.Extensions[ExtensionImmutable]
+					assert.False(t, ok, "expected x-immutable extension to not be set")
 				}
 			}
 		})
