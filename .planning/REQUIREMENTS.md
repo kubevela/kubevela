@@ -24,12 +24,12 @@
 ### Part C — Missing CRD Spec Fields
 
 - [ ] **C1**: `Version(string)` + `GetVersion()` added to all 4 definition types; renders as `version: "..."` in CUE output (omit if empty); maps to `spec.version`
-- [ ] **C2**: `ManageWorkload()` + `IsManageWorkload()` added to TraitDefinition; maps to `spec.manageWorkload`
-- [ ] **C3**: `ControlPlaneOnly()` + `IsControlPlaneOnly()` added to TraitDefinition; maps to `spec.controlPlaneOnly`
-- [ ] **C4**: `RevisionEnabled()` + `IsRevisionEnabled()` added to TraitDefinition; maps to `spec.revisionEnabled`
+- [x] **C2**: `ManageWorkload()` + `IsManageWorkload()` added to TraitDefinition; maps to `spec.manageWorkload`
+- [x] **C3**: `ControlPlaneOnly()` + `IsControlPlaneOnly()` added to TraitDefinition; maps to `spec.controlPlaneOnly`
+- [x] **C4**: `RevisionEnabled()` + `IsRevisionEnabled()` added to TraitDefinition; maps to `spec.revisionEnabled`
 - [ ] **C5**: `ChildResourceKind(apiVersion, kind string, selector map[string]string)` + `GetChildResourceKinds()` added to ComponentDefinition; reuses `common.ChildResourceKind` if available; maps to `spec.childResourceKinds`
 - [ ] **C6**: `PodSpecPath(string)` + `GetPodSpecPath()` added to ComponentDefinition; maps to `spec.podSpecPath`
-- [ ] **C7**: `ManageHealthCheck()` + `IsManageHealthCheck()` added to PolicyDefinition; maps to `spec.manageHealthCheck`
+- [x] **C7**: `ManageHealthCheck()` + `IsManageHealthCheck()` added to PolicyDefinition; maps to `spec.manageHealthCheck`
 
 ## v2 Requirements
 
@@ -56,12 +56,12 @@
 | B1 | Phase 2 — Definition-Level Additions with CUE Changes | Complete |
 | B4 | Phase 2 — Definition-Level Additions with CUE Changes | Complete |
 | C1 | Phase 3 — Missing CRD Spec Fields | Pending |
-| C2 | Phase 3 — Missing CRD Spec Fields | Pending |
-| C3 | Phase 3 — Missing CRD Spec Fields | Pending |
-| C4 | Phase 3 — Missing CRD Spec Fields | Pending |
+| C2 | Phase 3 — Missing CRD Spec Fields | Complete |
+| C3 | Phase 3 — Missing CRD Spec Fields | Complete |
+| C4 | Phase 3 — Missing CRD Spec Fields | Complete |
 | C5 | Phase 3 — Missing CRD Spec Fields | Pending |
 | C6 | Phase 3 — Missing CRD Spec Fields | Pending |
-| C7 | Phase 3 — Missing CRD Spec Fields | Pending |
+| C7 | Phase 3 — Missing CRD Spec Fields | Complete |
 | A1 | Phase 4 — Low-Risk Renames | Pending |
 | A3 | Phase 4 — Low-Risk Renames | Pending |
 | A5 | Phase 4 — Low-Risk Renames | Pending |
