@@ -28,11 +28,11 @@ import (
 // ComponentDefinition embeds baseDefinition for common fields and methods shared
 // with TraitDefinition and other definition types.
 type ComponentDefinition struct {
-	baseDefinition // embedded common fields (name, description, params, template, etc.)
-	workload            WorkloadType
-	labels              map[string]string // metadata labels for the component definition
-	childResourceKinds  []common.ChildResourceKind
-	podSpecPath         string
+	baseDefinition     // embedded common fields (name, description, params, template, etc.)
+	workload           WorkloadType
+	labels             map[string]string // metadata labels for the component definition
+	childResourceKinds []common.ChildResourceKind
+	podSpecPath        string
 }
 
 // WorkloadType represents the workload type for a component.

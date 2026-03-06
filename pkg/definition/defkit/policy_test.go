@@ -180,7 +180,7 @@ func TestPolicyDefinition_ManageHealthCheck(t *testing.T) {
 		t.Errorf("expected no manageHealthCheck in YAML when not set, got: %s", string(yamlBytesDefault))
 	}
 
-	var result *PolicyDefinition = NewPolicy("p").ManageHealthCheck()
+	var result = NewPolicy("p").ManageHealthCheck()
 	if result == nil {
 		t.Error("expected ManageHealthCheck to return *PolicyDefinition")
 	}
