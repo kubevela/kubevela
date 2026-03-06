@@ -18,6 +18,7 @@ package defkit
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"sigs.k8s.io/yaml"
@@ -31,6 +32,7 @@ import (
 type PolicyDefinition struct {
 	baseDefinition                           // embedded common fields and methods
 	policyTemplate func(tpl *PolicyTemplate) // template function for policy logic (type-specific)
+	labels         map[string]string
 }
 
 // PolicyTemplate provides the building context for policy templates.
@@ -125,6 +127,15 @@ func (p *PolicyDefinition) StatusDetails(details string) *PolicyDefinition {
 	p.setStatusDetails(details)
 	return p
 }
+
+// Labels sets metadata labels for the policy definition.
+func (p *PolicyDefinition) Labels(labels map[string]string) *PolicyDefinition {
+	p.labels = labels
+	return p
+}
+
+// GetLabels returns the policy's metadata labels.
+func (p *PolicyDefinition) GetLabels() map[string]string { return p.labels }
 
 // RunOn adds placement conditions specifying which clusters this policy should run on.
 // Use the placement package's fluent API to build conditions.
@@ -267,7 +278,22 @@ func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string 
 	sb.WriteString(fmt.Sprintf("%s: {\n", name))
 	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, p.GetDescription()))
-	sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
+	if p.labels != nil {
+		if len(p.labels) > 0 {
+			keys := make([]string, 0, len(p.labels))
+			for k := range p.labels {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
+			for _, k := range keys {
+				sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, p.labels[k]))
+			}
+			sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+		} else {
+			sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
+		}
+	}
 	sb.WriteString(fmt.Sprintf("%sattributes: {}\n", g.indent))
 	sb.WriteString(fmt.Sprintf("%stype: \"policy\"\n", g.indent))
 	sb.WriteString("}\n\n")
