@@ -109,6 +109,11 @@ Plans:
 
 **Requirements:** A4, A2
 
+**Plans:** 1 plan
+
+Plans:
+- [ ] 05-01-PLAN.md — Rename EnumParam.Values()→Enum() (A4) + StructParam/OneOfVariant.Fields()→WithFields() (A2) in defkit + all 102 downstream call sites in vela-go-definitions
+
 **Files to modify (defkit):**
 - `pkg/definition/defkit/param.go` — `EnumParam.Values()` → `Enum()` (A4)
 - `pkg/definition/defkit/param.go` — `StructParam.Fields()` → `WithFields()`; `OneOfVariant.Fields()` → `WithFields()` (A2)
