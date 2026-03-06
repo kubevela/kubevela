@@ -691,6 +691,54 @@ var _ = Describe("ComponentDefinition", func() {
 		})
 	})
 
+	Context("ChildResourceKind accumulator", func() {
+		It("should return nil when not called", func() {
+			c := defkit.NewComponent("c")
+			Expect(c.GetChildResourceKinds()).To(BeNil())
+		})
+
+		It("should accumulate one entry", func() {
+			c := defkit.NewComponent("c").ChildResourceKind("apps/v1", "Deployment", nil)
+			kinds := c.GetChildResourceKinds()
+			Expect(kinds).To(HaveLen(1))
+			Expect(kinds[0].APIVersion).To(Equal("apps/v1"))
+			Expect(kinds[0].Kind).To(Equal("Deployment"))
+		})
+
+		It("should accumulate two entries with multiple calls", func() {
+			c := defkit.NewComponent("c").
+				ChildResourceKind("apps/v1", "Deployment", nil).
+				ChildResourceKind("v1", "Pod", nil)
+			Expect(c.GetChildResourceKinds()).To(HaveLen(2))
+		})
+
+		It("should preserve selector fields", func() {
+			sel := map[string]string{"app": "myapp"}
+			c := defkit.NewComponent("c").ChildResourceKind("v1", "Pod", sel)
+			Expect(c.GetChildResourceKinds()[0].Selector).To(HaveKeyWithValue("app", "myapp"))
+		})
+
+		It("should emit childResourceKinds in ToYAML when set", func() {
+			c := defkit.NewComponent("c").ChildResourceKind("apps/v1", "Deployment", nil)
+			yamlBytes, err := c.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).To(ContainSubstring("childResourceKinds"))
+		})
+
+		It("should omit childResourceKinds in ToYAML when not set", func() {
+			c := defkit.NewComponent("c")
+			yamlBytes, err := c.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).NotTo(ContainSubstring("childResourceKinds"))
+		})
+
+		It("should return *ComponentDefinition for chaining", func() {
+			c := defkit.NewComponent("c")
+			result := c.ChildResourceKind("apps/v1", "Deployment", nil)
+			Expect(result).To(Equal(c))
+		})
+	})
+
 	Context("Annotations", func() {
 		It("should store and return annotations", func() {
 			c := defkit.NewComponent("webservice").
