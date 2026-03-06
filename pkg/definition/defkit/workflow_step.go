@@ -461,8 +461,18 @@ func (g *WorkflowStepCUEGenerator) GenerateFullDefinition(w *WorkflowStepDefinit
 	sb.WriteString(fmt.Sprintf("%s: {\n", name))
 	sb.WriteString(fmt.Sprintf("%stype: \"workflow-step\"\n", g.indent))
 
-	// Write annotations (category)
+	// Write annotations (user annotations + category)
 	sb.WriteString(fmt.Sprintf("%sannotations: {\n", g.indent))
+	if annots := w.GetAnnotations(); len(annots) > 0 {
+		keys := make([]string, 0, len(annots))
+		for k := range annots {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, annots[k]))
+		}
+	}
 	if w.GetCategory() != "" {
 		sb.WriteString(fmt.Sprintf("%s\t\"category\": %q\n", g.indent, w.GetCategory()))
 	}
