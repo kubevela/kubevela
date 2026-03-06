@@ -537,6 +537,20 @@ func (p *FloatParam) Description(desc string) *FloatParam {
 	return p
 }
 
+// Short sets a short flag alias for the parameter.
+// This generates a // +short=X directive in the CUE output.
+func (p *FloatParam) Short(s string) *FloatParam {
+	p.short = s
+	return p
+}
+
+// Ignore marks the parameter as ignored by the UI.
+// This generates a // +ignore directive in the CUE output.
+func (p *FloatParam) Ignore() *FloatParam {
+	p.ignore = true
+	return p
+}
+
 // Min sets the minimum value constraint for the parameter.
 // This generates CUE like: number & >=n
 func (p *FloatParam) Min(n float64) *FloatParam {

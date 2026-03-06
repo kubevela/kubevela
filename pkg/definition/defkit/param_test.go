@@ -909,6 +909,10 @@ var _ = Describe("Parameters", func() {
 			p := defkit.Bool("debug").Short("d")
 			Expect(p.GetShort()).To(Equal("d"))
 		})
+		It("should set short flag on FloatParam", func() {
+			p := defkit.Float("ratio").Short("r")
+			Expect(p.GetShort()).To(Equal("r"))
+		})
 		It("should set short flag on EnumParam", func() {
 			p := defkit.Enum("protocol").Values("TCP", "UDP").Short("p")
 			Expect(p.GetShort()).To(Equal("p"))
@@ -937,6 +941,10 @@ var _ = Describe("Parameters", func() {
 		})
 		It("should mark BoolParam as ignored", func() {
 			p := defkit.Bool("debug").Ignore()
+			Expect(p.IsIgnore()).To(BeTrue())
+		})
+		It("should mark FloatParam as ignored", func() {
+			p := defkit.Float("ratio").Ignore()
 			Expect(p.IsIgnore()).To(BeTrue())
 		})
 		It("should mark EnumParam as ignored", func() {
