@@ -63,7 +63,7 @@ var _ = Describe("Version field on all definition types", func() {
 	Context("Task 2: CUE render — version field conditional", func() {
 		It("NewTrait with Version produces version in ToCue", func() {
 			cue := defkit.NewTrait("t").Version("1.0").ToCue()
-			Expect(cue).To(ContainSubstring(`version: "1.0"`))
+			Expect(cue).To(MatchRegexp(`version:\s+"1\.0"`))
 		})
 
 		It("NewTrait without Version omits version in ToCue", func() {

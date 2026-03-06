@@ -317,6 +317,10 @@ func (w *WorkflowStepDefinition) ToYAML() ([]byte, error) {
 		},
 	}
 
+	if w.GetVersion() != "" {
+		cr["spec"].(map[string]any)["version"] = w.GetVersion()
+	}
+
 	return yaml.Marshal(cr)
 }
 
@@ -512,6 +516,9 @@ func (g *WorkflowStepCUEGenerator) GenerateFullDefinition(w *WorkflowStepDefinit
 	}
 
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, w.GetDescription()))
+	if w.GetVersion() != "" {
+		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, w.GetVersion()))
+	}
 	sb.WriteString("}\n")
 
 	// Write template section

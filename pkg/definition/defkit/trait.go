@@ -432,6 +432,10 @@ func (t *TraitDefinition) ToYAML() ([]byte, error) {
 		cr["spec"].(map[string]any)["stage"] = t.stage
 	}
 
+	if t.GetVersion() != "" {
+		cr["spec"].(map[string]any)["version"] = t.GetVersion()
+	}
+
 	if t.manageWorkload {
 		cr["spec"].(map[string]any)["manageWorkload"] = true
 	}

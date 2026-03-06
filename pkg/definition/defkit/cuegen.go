@@ -315,6 +315,9 @@ func (g *CUEGenerator) GenerateFullDefinition(c *ComponentDefinition) string {
 		sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, c.GetDescription()))
+	if c.GetVersion() != "" {
+		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, c.GetVersion()))
+	}
 
 	// Write attributes
 	sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))

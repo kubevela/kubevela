@@ -320,6 +320,10 @@ func (c *ComponentDefinition) ToYAML() ([]byte, error) {
 		cr["spec"].(map[string]any)["podSpecPath"] = c.podSpecPath
 	}
 
+	if c.GetVersion() != "" {
+		cr["spec"].(map[string]any)["version"] = c.GetVersion()
+	}
+
 	return yaml.Marshal(cr)
 }
 
