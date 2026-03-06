@@ -291,7 +291,20 @@ func (g *CUEGenerator) GenerateFullDefinition(c *ComponentDefinition) string {
 	// Write component header
 	sb.WriteString(fmt.Sprintf("%s: {\n", cueLabel(c.GetName())))
 	sb.WriteString(fmt.Sprintf("%stype: \"component\"\n", g.indent))
-	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
+	if c.GetAnnotations() != nil && len(c.GetAnnotations()) > 0 {
+		keys := make([]string, 0, len(c.GetAnnotations()))
+		for k := range c.GetAnnotations() {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		sb.WriteString(fmt.Sprintf("%sannotations: {\n", g.indent))
+		for _, k := range keys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, c.GetAnnotations()[k]))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
+	}
 	if len(c.GetLabels()) > 0 {
 		sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
 		for k, v := range c.GetLabels() {
@@ -302,6 +315,9 @@ func (g *CUEGenerator) GenerateFullDefinition(c *ComponentDefinition) string {
 		sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, c.GetDescription()))
+	if c.GetVersion() != "" {
+		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, c.GetVersion()))
+	}
 
 	// Write attributes
 	sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
@@ -2615,8 +2631,9 @@ func (g *CUEGenerator) writeStatus(sb *strings.Builder, c *ComponentDefinition, 
 
 	customStatus := c.GetCustomStatus()
 	healthPolicy := c.GetHealthPolicy()
+	statusDetails := c.GetStatusDetails()
 
-	if customStatus == "" && healthPolicy == "" {
+	if customStatus == "" && healthPolicy == "" && statusDetails == "" {
 		return
 	}
 
@@ -2633,6 +2650,14 @@ func (g *CUEGenerator) writeStatus(sb *strings.Builder, c *ComponentDefinition, 
 	if healthPolicy != "" {
 		sb.WriteString(fmt.Sprintf("%s%shealthPolicy: #\"\"\"\n", indent, g.indent))
 		for _, line := range strings.Split(healthPolicy, "\n") {
+			sb.WriteString(fmt.Sprintf("%s%s%s%s\n", indent, g.indent, g.indent, line))
+		}
+		sb.WriteString(fmt.Sprintf("%s%s%s\"\"\"#\n", indent, g.indent, g.indent))
+	}
+
+	if statusDetails != "" {
+		sb.WriteString(fmt.Sprintf("%s%sstatusDetails: #\"\"\"\n", indent, g.indent))
+		for _, line := range strings.Split(statusDetails, "\n") {
 			sb.WriteString(fmt.Sprintf("%s%s%s%s\n", indent, g.indent, g.indent, line))
 		}
 		sb.WriteString(fmt.Sprintf("%s%s%s\"\"\"#\n", indent, g.indent, g.indent))

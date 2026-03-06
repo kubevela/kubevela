@@ -207,6 +207,24 @@ func (w *WorkflowStepDefinition) HealthPolicyExpr(expr HealthExpression) *Workfl
 	return w
 }
 
+// StatusDetails sets the status details CUE expression for the workflow step.
+func (w *WorkflowStepDefinition) StatusDetails(details string) *WorkflowStepDefinition {
+	w.setStatusDetails(details)
+	return w
+}
+
+// Annotations sets metadata annotations on the workflow step definition.
+func (w *WorkflowStepDefinition) Annotations(annotations map[string]string) *WorkflowStepDefinition {
+	w.setAnnotations(annotations)
+	return w
+}
+
+// Version sets the version string for the workflow step definition.
+func (w *WorkflowStepDefinition) Version(v string) *WorkflowStepDefinition {
+	w.setVersion(v)
+	return w
+}
+
 // RunOn adds placement conditions specifying which clusters this workflow step should run on.
 // Use the placement package's fluent API to build conditions.
 //
@@ -281,9 +299,14 @@ func (w *WorkflowStepDefinition) ToYAML() ([]byte, error) {
 		"kind":       "WorkflowStepDefinition",
 		"metadata": map[string]any{
 			"name": w.GetName(),
-			"annotations": map[string]any{
-				"definition.oam.dev/description": w.GetDescription(),
-			},
+			"annotations": func() map[string]any {
+				a := map[string]any{}
+				for k, v := range w.GetAnnotations() {
+					a[k] = v
+				}
+				a["definition.oam.dev/description"] = w.GetDescription()
+				return a
+			}(),
 		},
 		"spec": map[string]any{
 			"schematic": map[string]any{
@@ -292,6 +315,10 @@ func (w *WorkflowStepDefinition) ToYAML() ([]byte, error) {
 				},
 			},
 		},
+	}
+
+	if w.GetVersion() != "" {
+		cr["spec"].(map[string]any)["version"] = w.GetVersion()
 	}
 
 	return yaml.Marshal(cr)
@@ -449,8 +476,18 @@ func (g *WorkflowStepCUEGenerator) GenerateFullDefinition(w *WorkflowStepDefinit
 	sb.WriteString(fmt.Sprintf("%s: {\n", name))
 	sb.WriteString(fmt.Sprintf("%stype: \"workflow-step\"\n", g.indent))
 
-	// Write annotations (category)
+	// Write annotations (user annotations + category)
 	sb.WriteString(fmt.Sprintf("%sannotations: {\n", g.indent))
+	if annots := w.GetAnnotations(); len(annots) > 0 {
+		keys := make([]string, 0, len(annots))
+		for k := range annots {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, annots[k]))
+		}
+	}
 	if w.GetCategory() != "" {
 		sb.WriteString(fmt.Sprintf("%s\t\"category\": %q\n", g.indent, w.GetCategory()))
 	}
@@ -479,6 +516,9 @@ func (g *WorkflowStepCUEGenerator) GenerateFullDefinition(w *WorkflowStepDefinit
 	}
 
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, w.GetDescription()))
+	if w.GetVersion() != "" {
+		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, w.GetVersion()))
+	}
 	sb.WriteString("}\n")
 
 	// Write template section
@@ -525,6 +565,34 @@ func (g *WorkflowStepCUEGenerator) GenerateTemplate(w *WorkflowStepDefinition) s
 
 	// Generate parameter section
 	sb.WriteString(g.generateParameterBlock(w, 1))
+
+	if w.GetCustomStatus() != "" || w.GetHealthPolicy() != "" || w.GetStatusDetails() != "" {
+		indent := g.indent
+		innerIndent := g.indent + g.indent
+		sb.WriteString(fmt.Sprintf("%sstatus: {\n", indent))
+		if w.GetCustomStatus() != "" {
+			sb.WriteString(fmt.Sprintf("%scustomStatus: #\"\"\"\n", innerIndent))
+			for _, line := range strings.Split(w.GetCustomStatus(), "\n") {
+				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
+		}
+		if w.GetHealthPolicy() != "" {
+			sb.WriteString(fmt.Sprintf("%shealthPolicy: #\"\"\"\n", innerIndent))
+			for _, line := range strings.Split(w.GetHealthPolicy(), "\n") {
+				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
+		}
+		if w.GetStatusDetails() != "" {
+			sb.WriteString(fmt.Sprintf("%sstatusDetails: #\"\"\"\n", innerIndent))
+			for _, line := range strings.Split(w.GetStatusDetails(), "\n") {
+				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
 
 	sb.WriteString("}\n")
 	return sb.String()

@@ -217,7 +217,7 @@ func (t *Template) Helper(name string) *HelperBuilder {
 //	exposePorts := tpl.Helper("exposePorts").
 //	    From(ports).
 //	    Guard(ports.IsSet()). // generates: if parameter.ports != _|_ for v in ...
-//	    FilterPred(FieldEquals("expose", true)).
+//	    Filter(FieldEquals("expose", true)).
 //	    Build()
 func (hb *HelperBuilder) Guard(cond Condition) *HelperBuilder {
 	hb.guard = cond
@@ -359,21 +359,21 @@ func (hb *HelperBuilder) Map(mappings FieldMap) *HelperBuilder {
 	return hb
 }
 
-// Filter keeps only items matching the condition.
+// FilterCond keeps only items matching the condition.
 //
 // Example:
 //
 //	exposedPorts := tpl.Helper("exposedPorts").
 //	    From(Param("ports")).
-//	    Filter(Eq(Field("expose"), true)).
+//	    FilterCond(Eq(Field("expose"), true)).
 //	    Build()
-func (hb *HelperBuilder) Filter(cond Condition) *HelperBuilder {
+func (hb *HelperBuilder) FilterCond(cond Condition) *HelperBuilder {
 	hb.ops = append(hb.ops, &filterCondOp{cond: cond})
 	return hb
 }
 
-// FilterPred keeps only items matching the predicate.
-func (hb *HelperBuilder) FilterPred(pred Predicate) *HelperBuilder {
+// Filter keeps only items matching the predicate.
+func (hb *HelperBuilder) Filter(pred Predicate) *HelperBuilder {
 	hb.ops = append(hb.ops, &helperFilterOp{pred: pred})
 	return hb
 }
@@ -438,7 +438,7 @@ func (hb *HelperBuilder) Rename(from, to string) *HelperBuilder {
 //
 //	exposePorts := tpl.Helper("exposePorts").
 //	    From(ports).
-//	    FilterPred(FieldEquals("expose", true)).
+//	    Filter(FieldEquals("expose", true)).
 //	    Map(...).
 //	    AfterOutput().  // Place after output:
 //	    Build()

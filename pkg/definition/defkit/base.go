@@ -41,6 +41,9 @@ type baseDefinition struct {
 	template          func(tpl *Template)
 	customStatus      string
 	healthPolicy      string
+	statusDetails     string
+	annotations       map[string]string
+	version           string
 	helperDefinitions []HelperDefinition
 	rawCUE            string
 	imports           []string
@@ -79,6 +82,21 @@ func (b *baseDefinition) setHealthPolicy(expr string) {
 // setHealthPolicyExpr sets the health policy using a composable HealthExpression.
 func (b *baseDefinition) setHealthPolicyExpr(expr HealthExpression) {
 	b.healthPolicy = HealthPolicy(expr)
+}
+
+// setStatusDetails sets the status details CUE expression.
+func (b *baseDefinition) setStatusDetails(details string) {
+	b.statusDetails = details
+}
+
+// setAnnotations sets the annotations map.
+func (b *baseDefinition) setAnnotations(annotations map[string]string) {
+	b.annotations = annotations
+}
+
+// setVersion sets the version string.
+func (b *baseDefinition) setVersion(v string) {
+	b.version = v
 }
 
 // addHelper adds a helper type definition using fluent API.
@@ -136,6 +154,21 @@ func (b *baseDefinition) GetCustomStatus() string {
 // GetHealthPolicy returns the health policy CUE expression.
 func (b *baseDefinition) GetHealthPolicy() string {
 	return b.healthPolicy
+}
+
+// GetStatusDetails returns the status details CUE expression.
+func (b *baseDefinition) GetStatusDetails() string {
+	return b.statusDetails
+}
+
+// GetAnnotations returns the annotations map.
+func (b *baseDefinition) GetAnnotations() map[string]string {
+	return b.annotations
+}
+
+// GetVersion returns the version string.
+func (b *baseDefinition) GetVersion() string {
+	return b.version
 }
 
 // GetHelperDefinitions returns all helper type definitions.

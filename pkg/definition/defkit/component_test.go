@@ -17,6 +17,8 @@ limitations under the License.
 package defkit_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -459,7 +461,7 @@ var _ = Describe("ComponentDefinition", func() {
 
 	Context("Component Helper method", func() {
 		It("should add a helper definition with a param", func() {
-			probeParam := defkit.Struct("probe").Fields(
+			probeParam := defkit.Struct("probe").WithFields(
 				defkit.Field("path", defkit.ParamTypeString),
 				defkit.Field("port", defkit.ParamTypeInt).Default(8080),
 			)
@@ -610,6 +612,34 @@ var _ = Describe("ComponentDefinition", func() {
 			Expect(cue).To(ContainSubstring(`customStatus:`))
 			Expect(cue).To(ContainSubstring(`healthPolicy:`))
 		})
+
+		It("should generate CUE with statusDetails alone", func() {
+			c := defkit.NewComponent("foo").
+				Workload("apps/v1", "Deployment").
+				StatusDetails("message: context.output.status.phase")
+
+			cue := c.ToCue()
+
+			Expect(cue).To(ContainSubstring(`status:`))
+			Expect(cue).To(ContainSubstring(`statusDetails:`))
+			Expect(cue).NotTo(ContainSubstring(`customStatus:`))
+			Expect(cue).NotTo(ContainSubstring(`healthPolicy:`))
+		})
+
+		It("should generate CUE with all three status fields", func() {
+			c := defkit.NewComponent("full-status").
+				Workload("apps/v1", "Deployment").
+				CustomStatus("message: \"Running\"").
+				HealthPolicy("isHealth: true").
+				StatusDetails("message: context.output.status.phase")
+
+			cue := c.ToCue()
+
+			Expect(cue).To(ContainSubstring(`status:`))
+			Expect(cue).To(ContainSubstring(`customStatus:`))
+			Expect(cue).To(ContainSubstring(`healthPolicy:`))
+			Expect(cue).To(ContainSubstring(`statusDetails:`))
+		})
 	})
 
 	Context("Full Component Example", func() {
@@ -658,6 +688,135 @@ var _ = Describe("ComponentDefinition", func() {
 				r := defkit.NewResource("v1", "ConfigMap")
 				r.Set("data.items[", defkit.Lit("value"))
 			}).NotTo(Panic())
+		})
+	})
+
+	Context("ChildResourceKind accumulator", func() {
+		It("should return nil when not called", func() {
+			c := defkit.NewComponent("c")
+			Expect(c.GetChildResourceKinds()).To(BeNil())
+		})
+
+		It("should accumulate one entry", func() {
+			c := defkit.NewComponent("c").ChildResourceKind("apps/v1", "Deployment", nil)
+			kinds := c.GetChildResourceKinds()
+			Expect(kinds).To(HaveLen(1))
+			Expect(kinds[0].APIVersion).To(Equal("apps/v1"))
+			Expect(kinds[0].Kind).To(Equal("Deployment"))
+		})
+
+		It("should accumulate two entries with multiple calls", func() {
+			c := defkit.NewComponent("c").
+				ChildResourceKind("apps/v1", "Deployment", nil).
+				ChildResourceKind("v1", "Pod", nil)
+			Expect(c.GetChildResourceKinds()).To(HaveLen(2))
+		})
+
+		It("should preserve selector fields", func() {
+			sel := map[string]string{"app": "myapp"}
+			c := defkit.NewComponent("c").ChildResourceKind("v1", "Pod", sel)
+			Expect(c.GetChildResourceKinds()[0].Selector).To(HaveKeyWithValue("app", "myapp"))
+		})
+
+		It("should emit childResourceKinds in ToYAML when set", func() {
+			c := defkit.NewComponent("c").ChildResourceKind("apps/v1", "Deployment", nil)
+			yamlBytes, err := c.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).To(ContainSubstring("childResourceKinds"))
+		})
+
+		It("should omit childResourceKinds in ToYAML when not set", func() {
+			c := defkit.NewComponent("c")
+			yamlBytes, err := c.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).NotTo(ContainSubstring("childResourceKinds"))
+		})
+
+		It("should return *ComponentDefinition for chaining", func() {
+			c := defkit.NewComponent("c")
+			result := c.ChildResourceKind("apps/v1", "Deployment", nil)
+			Expect(result).To(Equal(c))
+		})
+	})
+
+	Context("PodSpecPath", func() {
+		It("should return empty string by default", func() {
+			c := defkit.NewComponent("c")
+			Expect(c.GetPodSpecPath()).To(Equal(""))
+		})
+
+		It("should set and return pod spec path", func() {
+			c := defkit.NewComponent("c").PodSpecPath("spec.template.spec")
+			Expect(c.GetPodSpecPath()).To(Equal("spec.template.spec"))
+		})
+
+		It("should emit podSpecPath in ToYAML when set", func() {
+			c := defkit.NewComponent("c").PodSpecPath("spec.template.spec")
+			yamlBytes, err := c.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).To(ContainSubstring("podSpecPath: spec.template.spec"))
+		})
+
+		It("should omit podSpecPath in ToYAML when not set", func() {
+			c := defkit.NewComponent("c")
+			yamlBytes, err := c.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).NotTo(ContainSubstring("podSpecPath"))
+		})
+
+		It("should return *ComponentDefinition for chaining", func() {
+			c := defkit.NewComponent("c")
+			result := c.PodSpecPath("spec.template.spec")
+			Expect(result).To(Equal(c))
+		})
+	})
+
+	Context("Annotations", func() {
+		It("should store and return annotations", func() {
+			c := defkit.NewComponent("webservice").
+				Annotations(map[string]string{"owner": "team-a", "env": "prod"})
+			Expect(c.GetAnnotations()).To(HaveKeyWithValue("owner", "team-a"))
+			Expect(c.GetAnnotations()).To(HaveKeyWithValue("env", "prod"))
+		})
+
+		It("should render sorted annotation keys in CUE", func() {
+			cue := defkit.NewComponent("webservice").
+				Annotations(map[string]string{"b": "2", "a": "1"}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`annotations: {`))
+			aIdx := strings.Index(cue, `"a": "1"`)
+			bIdx := strings.Index(cue, `"b": "2"`)
+			Expect(aIdx).To(BeNumerically("<", bIdx))
+		})
+
+		It("should keep annotations: {} in CUE when not set", func() {
+			cue := defkit.NewComponent("webservice").ToCue()
+			Expect(cue).To(ContainSubstring("annotations: {}"))
+		})
+
+		It("should merge user annotations in ToYAML without overriding description", func() {
+			c := defkit.NewComponent("webservice").
+				Description("My Component").
+				Annotations(map[string]string{
+					"owner": "team-a",
+				})
+			yamlBytes, err := c.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("owner: team-a"))
+			Expect(yaml).To(ContainSubstring("My Component"))
+		})
+
+		It("should not allow user annotation to override description in ToYAML", func() {
+			c := defkit.NewComponent("webservice").
+				Description("Actual Description").
+				Annotations(map[string]string{
+					"definition.oam.dev/description": "Not This",
+				})
+			yamlBytes, err := c.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("Actual Description"))
 		})
 	})
 })
