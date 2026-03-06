@@ -1667,4 +1667,61 @@ template: {
 			Expect(yaml).To(ContainSubstring("Actual Description"))
 		})
 	})
+
+	Context("Boolean CRD Spec Fields", func() {
+		It("should default ManageWorkload to false", func() {
+			Expect(defkit.NewTrait("t").IsManageWorkload()).To(BeFalse())
+		})
+
+		It("should set ManageWorkload to true after calling ManageWorkload()", func() {
+			Expect(defkit.NewTrait("t").ManageWorkload().IsManageWorkload()).To(BeTrue())
+		})
+
+		It("should default ControlPlaneOnly to false", func() {
+			Expect(defkit.NewTrait("t").IsControlPlaneOnly()).To(BeFalse())
+		})
+
+		It("should set ControlPlaneOnly to true after calling ControlPlaneOnly()", func() {
+			Expect(defkit.NewTrait("t").ControlPlaneOnly().IsControlPlaneOnly()).To(BeTrue())
+		})
+
+		It("should default RevisionEnabled to false", func() {
+			Expect(defkit.NewTrait("t").IsRevisionEnabled()).To(BeFalse())
+		})
+
+		It("should set RevisionEnabled to true after calling RevisionEnabled()", func() {
+			Expect(defkit.NewTrait("t").RevisionEnabled().IsRevisionEnabled()).To(BeTrue())
+		})
+
+		It("should emit manageWorkload: true in ToYAML when set", func() {
+			yamlBytes, err := defkit.NewTrait("t").ManageWorkload().ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).To(ContainSubstring("manageWorkload: true"))
+		})
+
+		It("should NOT emit manageWorkload in ToYAML when not set", func() {
+			yamlBytes, err := defkit.NewTrait("t").ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).NotTo(ContainSubstring("manageWorkload"))
+		})
+
+		It("should emit controlPlaneOnly: true in ToYAML when set", func() {
+			yamlBytes, err := defkit.NewTrait("t").ControlPlaneOnly().ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).To(ContainSubstring("controlPlaneOnly: true"))
+		})
+
+		It("should emit revisionEnabled: true in ToYAML when set", func() {
+			yamlBytes, err := defkit.NewTrait("t").RevisionEnabled().ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).To(ContainSubstring("revisionEnabled: true"))
+		})
+
+		It("should support chaining and return *TraitDefinition", func() {
+			trait := defkit.NewTrait("t").ManageWorkload().ControlPlaneOnly().RevisionEnabled()
+			Expect(trait.IsManageWorkload()).To(BeTrue())
+			Expect(trait.IsControlPlaneOnly()).To(BeTrue())
+			Expect(trait.IsRevisionEnabled()).To(BeTrue())
+		})
+	})
 })

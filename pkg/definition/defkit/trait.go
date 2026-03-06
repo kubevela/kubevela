@@ -511,6 +511,9 @@ func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
 		}
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, t.GetDescription()))
+	if t.GetVersion() != "" {
+		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, t.GetVersion()))
+	}
 
 	// Write attributes
 	sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
