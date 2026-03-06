@@ -282,7 +282,20 @@ func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string 
 		name = fmt.Sprintf("%q", name)
 	}
 	sb.WriteString(fmt.Sprintf("%s: {\n", name))
-	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
+	if p.GetAnnotations() != nil && len(p.GetAnnotations()) > 0 {
+		annKeys := make([]string, 0, len(p.GetAnnotations()))
+		for k := range p.GetAnnotations() {
+			annKeys = append(annKeys, k)
+		}
+		sort.Strings(annKeys)
+		sb.WriteString(fmt.Sprintf("%sannotations: {\n", g.indent))
+		for _, k := range annKeys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, p.GetAnnotations()[k]))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
+	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, p.GetDescription()))
 	if p.labels != nil {
 		if len(p.labels) > 0 {

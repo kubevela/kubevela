@@ -19,6 +19,7 @@ package defkit
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"cuelang.org/go/cue/format"
@@ -431,7 +432,20 @@ func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
 	// Write trait header
 	sb.WriteString(fmt.Sprintf("%s: {\n", cueLabel(t.GetName())))
 	sb.WriteString(fmt.Sprintf("%stype: \"trait\"\n", g.indent))
-	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
+	if t.GetAnnotations() != nil && len(t.GetAnnotations()) > 0 {
+		annKeys := make([]string, 0, len(t.GetAnnotations()))
+		for k := range t.GetAnnotations() {
+			annKeys = append(annKeys, k)
+		}
+		sort.Strings(annKeys)
+		sb.WriteString(fmt.Sprintf("%sannotations: {\n", g.indent))
+		for _, k := range annKeys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, t.GetAnnotations()[k]))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
+	}
 
 	// Write labels block when Labels() was explicitly called (nil check distinguishes unset from empty)
 	if t.labels != nil {
@@ -1530,7 +1544,20 @@ func (g *TraitCUEGenerator) GenerateDefinitionWithRawTemplate(t *TraitDefinition
 	// Write trait header
 	sb.WriteString(fmt.Sprintf("%s: {\n", cueLabel(t.GetName())))
 	sb.WriteString(fmt.Sprintf("%stype: \"trait\"\n", g.indent))
-	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
+	if t.GetAnnotations() != nil && len(t.GetAnnotations()) > 0 {
+		annKeys := make([]string, 0, len(t.GetAnnotations()))
+		for k := range t.GetAnnotations() {
+			annKeys = append(annKeys, k)
+		}
+		sort.Strings(annKeys)
+		sb.WriteString(fmt.Sprintf("%sannotations: {\n", g.indent))
+		for _, k := range annKeys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, t.GetAnnotations()[k]))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
+	}
 
 	// Write labels block when Labels() was explicitly called (nil check distinguishes unset from empty)
 	if t.labels != nil {
