@@ -409,4 +409,41 @@ template: {
 			Expect(defkit.WorkflowSteps()).To(HaveLen(2))
 		})
 	})
+
+	Context("Status Block CUE Render", func() {
+		It("should render statusDetails in CUE template block", func() {
+			cue := defkit.NewWorkflowStep("x").StatusDetails("foo").ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("statusDetails:"))
+		})
+
+		It("should render customStatus in CUE template block", func() {
+			cue := defkit.NewWorkflowStep("x").CustomStatus("message: \"ok\"").ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("customStatus:"))
+		})
+
+		It("should render healthPolicy in CUE template block", func() {
+			cue := defkit.NewWorkflowStep("x").HealthPolicy("isHealth: true").ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("healthPolicy:"))
+		})
+
+		It("should omit status block when none set", func() {
+			cue := defkit.NewWorkflowStep("x").ToCue()
+			Expect(cue).NotTo(ContainSubstring("status:"))
+		})
+
+		It("should render all three status fields together", func() {
+			cue := defkit.NewWorkflowStep("x").
+				CustomStatus("message: \"ok\"").
+				HealthPolicy("isHealth: true").
+				StatusDetails("phase: \"running\"").
+				ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("customStatus:"))
+			Expect(cue).To(ContainSubstring("healthPolicy:"))
+			Expect(cue).To(ContainSubstring("statusDetails:"))
+		})
+	})
 })
