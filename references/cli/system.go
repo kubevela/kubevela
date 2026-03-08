@@ -348,7 +348,7 @@ func NewSystemDiagnoseCommand(c common.Args) *cobra.Command {
 				if clusterName == multicluster.ClusterLocalName {
 					continue
 				}
-				content, err := versioned.NewForConfigOrDie(config).ClusterV1alpha1().ClusterGateways().RESTClient(clusterName).Get().AbsPath("proxy/healthz").DoRaw(context.TODO())
+				content, err := versioned.NewForConfigOrDie(config).ClusterV1alpha1().ClusterGateways().RESTClient(clusterName).Get().AbsPath("/proxy/healthz").DoRaw(context.TODO())
 				if err != nil {
 					return errors.Wrapf(err, "failed connect cluster %s", clusterName)
 				}
