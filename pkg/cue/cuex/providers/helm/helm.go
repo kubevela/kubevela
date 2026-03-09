@@ -850,7 +850,9 @@ func (p *Provider) createChartRelease(_ context.Context, ch *chart.Chart, releas
 	install.Namespace = releaseNamespace
 	install.Replace = true
 
-	// Set the real cluster version so kubeVersion checks pass
+	// ClientOnly=true defaults Kubernetes version to v1.20.0, which causes charts
+	// with a kubeVersion constraint (e.g. ">=1.23.0-0") to fail validation.
+	// Override with the real cluster version so kubeVersion checks pass.
 	clusterVersion := types.ControlPlaneClusterVersion
 	if clusterVersion.Major != "" && clusterVersion.Minor != "" {
 		versionString := fmt.Sprintf("v%s.%s", clusterVersion.Major, clusterVersion.Minor)
