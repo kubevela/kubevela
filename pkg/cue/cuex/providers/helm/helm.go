@@ -35,9 +35,14 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/registry"
+	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
+	"helm.sh/helm/v3/pkg/storage"
+	helmdriver "helm.sh/helm/v3/pkg/storage/driver"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/yaml"
 
@@ -167,9 +172,11 @@ func DefaultCacheTTLConfig() *CacheTTLConfig {
 
 // Provider is the Helm chart provider
 type Provider struct {
-	cache      *utils.MemoryCacheStore
-	helmClient *cli.EnvSettings
-	cacheTTL   *CacheTTLConfig
+	cache           *utils.MemoryCacheStore
+	helmClient      *cli.EnvSettings
+	cacheTTL        *CacheTTLConfig
+	releaseMu       sync.Mutex            // serializes createChartRelease calls
+	releaseTracking map[string]string      // in-memory: releaseName -> "chartVersion|valuesHash"
 }
 
 var (
@@ -183,9 +190,10 @@ var (
 func NewProvider() *Provider {
 	providerOnce.Do(func() {
 		globalProvider = &Provider{
-			cache:      utils.NewMemoryCacheStore(context.Background()),
-			helmClient: cli.New(),
-			cacheTTL:   DefaultCacheTTLConfig(),
+			cache:           utils.NewMemoryCacheStore(context.Background()),
+			helmClient:      cli.New(),
+			cacheTTL:        DefaultCacheTTLConfig(),
+			releaseTracking: make(map[string]string),
 		}
 	})
 	return globalProvider
@@ -774,42 +782,128 @@ func orderResources(resources []map[string]interface{}) []map[string]interface{}
 	return result
 }
 
+// getReleaseStore creates a Helm secrets storage backed by a real Kubernetes clientset.
+func (p *Provider) getReleaseStore(releaseNamespace string) (*storage.Storage, error) {
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
+	restConfig, err := kubeConfig.ClientConfig()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get kubernetes config for helm release")
+	}
+	clientset, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create kubernetes client for helm release")
+	}
+	d := helmdriver.NewSecrets(clientset.CoreV1().Secrets(releaseNamespace))
+	d.Log = klog.Infof
+	return storage.Init(d), nil
+}
+
+// releaseTrackingKey builds a fingerprint from chart version + values for dedup.
+func releaseTrackingKey(ch *chart.Chart, values map[string]any) string {
+	version := ""
+	if ch.Metadata != nil {
+		version = ch.Metadata.Version
+	}
+	valuesJSON, _ := json.Marshal(values)
+	return version + "|" + string(valuesJSON)
+}
+
+// createChartRelease creates a Helm release record without deploying resources.
+// This makes the release visible to `helm list` while KubeVela manages the actual resources.
+// It is idempotent: repeated calls with the same chart version and values are no-ops.
 func (p *Provider) createChartRelease(_ context.Context, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]any) error {
-	// Configure action
+	// Serialize all release record operations
+	p.releaseMu.Lock()
+	defer p.releaseMu.Unlock()
+
+	// Fast in-memory dedup — avoids API calls on repeated reconciles
+	trackingKey := releaseTrackingKey(ch, values)
+	if existing, ok := p.releaseTracking[releaseName]; ok && existing == trackingKey {
+		klog.V(4).Infof("Helm release record for %s unchanged, skipping", releaseName)
+		return nil
+	}
+
+	store, err := p.getReleaseStore(releaseNamespace)
+	if err != nil {
+		return err
+	}
+
+	// Check for existing release in cluster
+	existingReleases, histErr := store.History(releaseName)
+
+	// Build a release object via dry-run (no resources deployed)
 	actionConfig := &action.Configuration{}
 	if err := actionConfig.Init(
-        p.helmClient.RESTClientGetter(),
-        releaseNamespace,
-        "secrets",
-        klog.Infof,
-    ); err != nil {
-        return errors.Wrap(err, "failed to initialize helm action config")
-    }
-
-	historyClient := action.NewHistory(actionConfig)
-    historyClient.Max = 1
-    _, err := historyClient.Run(releaseName)
-
-	if err != nil {
-		install := action.NewInstall(actionConfig)
-        install.ReleaseName = releaseName
-        install.Namespace = releaseNamespace
-        install.CreateNamespace = true
-
-        if _, err := install.Run(ch, values); err != nil {
-            return errors.Wrapf(err, "failed to install release %s", releaseName)
-        }
-        klog.Infof("Installed release %s in namespace %s", releaseName, releaseNamespace)
-	} else {
-		upgrade := action.NewUpgrade(actionConfig)
-        upgrade.Namespace = releaseNamespace
-
-        if _, err := upgrade.Run(releaseName, ch, values); err != nil {
-            return errors.Wrapf(err, "failed to upgrade release %s", releaseName)
-        }
-        klog.Infof("Upgraded release %s in namespace %s", releaseName, releaseNamespace)
+		p.helmClient.RESTClientGetter(),
+		releaseNamespace,
+		"memory",
+		klog.Infof,
+	); err != nil {
+		return errors.Wrap(err, "failed to initialize helm action config")
 	}
-	
+
+	install := action.NewInstall(actionConfig)
+	install.DryRun = true
+	install.ClientOnly = true
+	install.ReleaseName = releaseName
+	install.Namespace = releaseNamespace
+	install.Replace = true
+
+	// Set the real cluster version so kubeVersion checks pass
+	clusterVersion := types.ControlPlaneClusterVersion
+	if clusterVersion.Major != "" && clusterVersion.Minor != "" {
+		versionString := fmt.Sprintf("v%s.%s", clusterVersion.Major, clusterVersion.Minor)
+		if clusterVersion.GitVersion != "" {
+			versionString = clusterVersion.GitVersion
+		}
+		install.KubeVersion = &chartutil.KubeVersion{
+			Version: versionString,
+			Major:   clusterVersion.Major,
+			Minor:   clusterVersion.Minor,
+		}
+	}
+
+	rel, err := install.Run(ch, values)
+	if err != nil {
+		return errors.Wrapf(err, "failed to build release record for %s", releaseName)
+	}
+
+	// Mark as deployed — KubeVela handles actual resource deployment
+	rel.Info.Status = release.StatusDeployed
+	rel.Info.Description = "Managed by KubeVela"
+
+	if histErr != nil || len(existingReleases) == 0 {
+		// No existing release — create v1
+		if err := store.Create(rel); err != nil {
+			if strings.Contains(err.Error(), "already exists") {
+				p.releaseTracking[releaseName] = trackingKey
+				return nil
+			}
+			return errors.Wrapf(err, "failed to store release record for %s", releaseName)
+		}
+		klog.Infof("Created helm release record for %s in namespace %s", releaseName, releaseNamespace)
+	} else {
+		// Chart version or values changed — supersede old, create new
+		lastRelease := existingReleases[len(existingReleases)-1]
+		lastRelease.Info.Status = release.StatusSuperseded
+		if err := store.Update(lastRelease); err != nil {
+			klog.Warningf("Failed to mark previous release as superseded: %v", err)
+		}
+
+		rel.Version = lastRelease.Version + 1
+		if err := store.Create(rel); err != nil {
+			if strings.Contains(err.Error(), "already exists") {
+				p.releaseTracking[releaseName] = trackingKey
+				return nil
+			}
+			return errors.Wrapf(err, "failed to store updated release record for %s", releaseName)
+		}
+		klog.Infof("Updated helm release record (v%d) for %s in namespace %s", rel.Version, releaseName, releaseNamespace)
+	}
+
+	// Track this release so future calls with same inputs skip entirely
+	p.releaseTracking[releaseName] = trackingKey
 	return nil
 }
 
@@ -858,9 +952,9 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 
 	klog.Infof("Helm provider: Rendered %d resources for chart %s", len(resources), renderParams.Chart.Source)
 
-	err = p.createChartRelease(ctx, chart, releaseName, releaseNamespace, values)
-	if err != nil {
-		return nil, err
+	// Create helm release record (for helm list visibility) without deploying resources
+	if err := p.createChartRelease(ctx, chart, releaseName, releaseNamespace, values); err != nil {
+		klog.Warningf("Failed to create helm release record: %v", err)
 	}
 
 	// Log first resource for debugging
