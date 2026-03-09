@@ -816,6 +816,8 @@ func (g *CUEGenerator) writeCollectionOpHelper(sb *strings.Builder, col *Collect
 	for _, op := range ops {
 		if fOp, ok := op.(*filterOp); ok {
 			filterCondition = g.predicateToCUE(fOp.pred)
+		} else if fOp, ok := op.(*filterCondCollectionOp); ok {
+			filterCondition = g.conditionToCUE(fOp.Cond())
 		}
 	}
 
@@ -2084,6 +2086,8 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 	for _, op := range ops {
 		if fOp, ok := op.(*filterOp); ok {
 			filterCondition = g.predicateToCUE(fOp.pred)
+		} else if fOp, ok := op.(*filterCondCollectionOp); ok {
+			filterCondition = g.conditionToCUE(fOp.Cond())
 		}
 	}
 

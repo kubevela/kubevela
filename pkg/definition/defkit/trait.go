@@ -539,6 +539,16 @@ func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinit
 	// podDisruptive (always emit — vela CUE always includes this attribute)
 	sb.WriteString(fmt.Sprintf("%spodDisruptive: %v\n", indent, t.IsPodDisruptive()))
 
+	if t.IsManageWorkload() {
+		sb.WriteString(fmt.Sprintf("%smanageWorkload: true\n", indent))
+	}
+	if t.IsControlPlaneOnly() {
+		sb.WriteString(fmt.Sprintf("%scontrolPlaneOnly: true\n", indent))
+	}
+	if t.IsRevisionEnabled() {
+		sb.WriteString(fmt.Sprintf("%srevisionEnabled: true\n", indent))
+	}
+
 	// stage (if set)
 	if t.GetStage() != "" {
 		sb.WriteString(fmt.Sprintf("%sstage: %q\n", indent, t.GetStage()))

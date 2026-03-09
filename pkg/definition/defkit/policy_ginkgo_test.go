@@ -292,6 +292,8 @@ template: {
 			Expect(cue).To(ContainSubstring(`annotations: {`))
 			aIdx := strings.Index(cue, `"a": "1"`)
 			bIdx := strings.Index(cue, `"b": "2"`)
+			Expect(aIdx).To(BeNumerically(">=", 0))
+			Expect(bIdx).To(BeNumerically(">=", 0))
 			Expect(aIdx).To(BeNumerically("<", bIdx))
 		})
 

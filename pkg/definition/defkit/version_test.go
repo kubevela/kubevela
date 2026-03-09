@@ -95,6 +95,11 @@ var _ = Describe("Version field on all definition types", func() {
 			cue := defkit.NewWorkflowStep("w").ToCue()
 			Expect(cue).NotTo(ContainSubstring("version:"))
 		})
+
+		It("NewPolicy without Version omits version in ToCue", func() {
+			cue := defkit.NewPolicy("p").ToCue()
+			Expect(cue).NotTo(ContainSubstring("version:"))
+		})
 	})
 
 	Context("Task 2: ToYAML spec.version conditional", func() {
@@ -141,6 +146,33 @@ var _ = Describe("Version field on all definition types", func() {
 			Expect(yaml.Unmarshal(yamlBytes, &obj)).To(Succeed())
 			spec := obj["spec"].(map[string]any)
 			Expect(spec["version"]).To(Equal("1.0"))
+		})
+
+		It("ComponentDefinition without Version omits spec.version in ToYAML", func() {
+			yamlBytes, err := defkit.NewComponent("c").ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			var obj map[string]any
+			Expect(yaml.Unmarshal(yamlBytes, &obj)).To(Succeed())
+			spec := obj["spec"].(map[string]any)
+			Expect(spec).NotTo(HaveKey("version"))
+		})
+
+		It("PolicyDefinition without Version omits spec.version in ToYAML", func() {
+			yamlBytes, err := defkit.NewPolicy("p").ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			var obj map[string]any
+			Expect(yaml.Unmarshal(yamlBytes, &obj)).To(Succeed())
+			spec := obj["spec"].(map[string]any)
+			Expect(spec).NotTo(HaveKey("version"))
+		})
+
+		It("WorkflowStepDefinition without Version omits spec.version in ToYAML", func() {
+			yamlBytes, err := defkit.NewWorkflowStep("w").ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			var obj map[string]any
+			Expect(yaml.Unmarshal(yamlBytes, &obj)).To(Succeed())
+			spec := obj["spec"].(map[string]any)
+			Expect(spec).NotTo(HaveKey("version"))
 		})
 	})
 })

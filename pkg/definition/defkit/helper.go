@@ -508,6 +508,10 @@ func (hb *HelperBuilder) applyOpsToMultiSource(ms *MultiSource) {
 			ms.Dedupe(o.keyField)
 		case *mapBySourceOp:
 			ms.MapBySource(o.mappings)
+		case *helperFilterOp:
+			ms.Filter(o.pred)
+		case *filterCondOp:
+			ms.FilterCond(o.cond)
 		case *helperPickIfOp:
 			// pickIf is handled specially in CUE generation
 			ms.ops = append(ms.ops, &pickIfCollectionOp{cond: o.cond, field: o.field})
@@ -533,6 +537,8 @@ func (hb *HelperBuilder) applyOpsToCollection(col *CollectionOp) {
 			col.Rename(o.from, o.to)
 		case *helperFilterOp:
 			col.Filter(o.pred)
+		case *filterCondOp:
+			col.FilterCond(o.cond)
 		case *helperPickIfOp:
 			// pickIf is handled specially in CUE generation
 			col.ops = append(col.ops, &pickIfCollectionOp{cond: o.cond, field: o.field})

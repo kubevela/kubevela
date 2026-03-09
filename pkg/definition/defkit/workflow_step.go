@@ -485,6 +485,9 @@ func (g *WorkflowStepCUEGenerator) GenerateFullDefinition(w *WorkflowStepDefinit
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
+			if k == "category" && w.GetCategory() != "" {
+				continue
+			}
 			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, annots[k]))
 		}
 	}
