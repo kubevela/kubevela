@@ -18,6 +18,7 @@ package resourcekeeper
 
 import (
 	"context"
+	"sync"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/kubevela/pkg/util/maps"
@@ -53,6 +54,8 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 			}
 		}
 	}
+	var stalesMu sync.Mutex
+	var staleEntries []staleEntry
 	errs := slices.ParMap(maps.Values(mrs), func(mr v1beta1.ManagedResource) error {
 		rt := belongs[mr.ResourceKey()]
 		entry := h.cache.get(ctx, mr)
@@ -81,6 +84,9 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 				return errors.Wrapf(err, "failed to apply once resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
 			}
 			if manifest == nil {
+				stalesMu.Lock()
+				staleEntries = append(staleEntries, staleEntry{mr: mr, rt: rt})
+				stalesMu.Unlock()
 				return nil
 			}
 			ao := []apply.ApplyOption{apply.MustBeControlledByApp(h.app)}
@@ -102,6 +108,45 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 		}
 		return nil
 	}, slices.Parallelism(MaxDispatchConcurrent))
+	if err := h.cleanupStaleEntries(ctx, staleEntries); err != nil {
+		errs = append(errs, err)
+	}
+	return velaerrors.AggregateErrors(errs)
+}
+
+// staleEntry records a managed resource whose backing object no longer exists
+// and should be removed from its ResourceTracker.
+type staleEntry struct {
+	mr v1beta1.ManagedResource
+	rt *v1beta1.ResourceTracker
+}
+
+// cleanupStaleEntries removes managed resources from their ResourceTrackers
+// when the underlying resource no longer exists (e.g. externally deleted
+// apply-once resources). This avoids unnecessary API server GETs on future
+// StateKeep cycles.
+func (h *resourceKeeper) cleanupStaleEntries(ctx context.Context, entries []staleEntry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	// Group by ResourceTracker to batch updates
+	rtUpdates := make(map[string]*v1beta1.ResourceTracker)
+	rtRemovals := make(map[string][]v1beta1.ManagedResource)
+	for _, e := range entries {
+		key := string(e.rt.UID)
+		rtUpdates[key] = e.rt
+		rtRemovals[key] = append(rtRemovals[key], e.mr)
+	}
+	var errs []error
+	for key, rt := range rtUpdates {
+		for _, mr := range rtRemovals[key] {
+			obj := mr.ToUnstructured()
+			rt.DeleteManagedResource(obj, true)
+		}
+		if err := h.Client.Update(multicluster.ContextInLocalCluster(ctx), rt); err != nil {
+			errs = append(errs, errors.Wrapf(err, "failed to remove stale entries from resourcetracker %s", rt.Name))
+		}
+	}
 	return velaerrors.AggregateErrors(errs)
 }
 
