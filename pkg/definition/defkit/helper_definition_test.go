@@ -103,7 +103,7 @@ var _ = Describe("HelperDefinition", func() {
 				defkit.StringKeyMap("matchLabels").Description("A map of {key,value} pairs"),
 				defkit.Array("matchExpressions").Description("Label selector requirements").WithFields(
 					defkit.String("key").Required(),
-					defkit.String("operator").Default("In").Enum("In", "NotIn", "Exists", "DoesNotExist"),
+					defkit.String("operator").Default("In").Values("In", "NotIn", "Exists", "DoesNotExist"),
 					defkit.Array("values").Of(defkit.ParamTypeString),
 				),
 			)
@@ -134,7 +134,7 @@ var _ = Describe("HelperDefinition", func() {
 		It("should render Of(ParamTypeString) in Struct-based helper fields", func() {
 			helper := defkit.Struct("nodeSelector").WithFields(
 				defkit.Field("key", defkit.ParamTypeString).Required(),
-				defkit.Field("operator", defkit.ParamTypeString).Default("In").Enum("In", "NotIn"),
+				defkit.Field("operator", defkit.ParamTypeString).Default("In").Values("In", "NotIn"),
 				defkit.Field("values", defkit.ParamTypeArray).Of(defkit.ParamTypeString),
 			)
 

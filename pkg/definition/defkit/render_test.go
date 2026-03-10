@@ -190,7 +190,7 @@ var _ = Describe("Render", func() {
 		})
 
 		It("should resolve enum params", func() {
-			env := defkit.Enum("environment").Enum("dev", "staging", "prod").Default("dev")
+			env := defkit.Enum("environment").Values("dev", "staging", "prod").Default("dev")
 
 			comp := defkit.NewComponent("test").
 				Workload("v1", "ConfigMap").

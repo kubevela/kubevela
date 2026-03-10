@@ -860,7 +860,7 @@ template: {
 		})
 
 		It("should emit patchStrategy annotation inside conditional block", func() {
-			kind := defkit.String("kind").Default("Deployment").Enum("Deployment", "StatefulSet")
+			kind := defkit.String("kind").Default("Deployment").Values("Deployment", "StatefulSet")
 			strategy := defkit.Struct("strategy").Required().WithFields(
 				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate"),
 			)
@@ -945,7 +945,7 @@ template: {
 
 	Context("Multiple IfBlocks with overlapping paths", func() {
 		It("should render multiple IfBlocks as separate conditional blocks", func() {
-			kind := defkit.String("kind").Default("Deployment").Enum("Deployment", "StatefulSet", "DaemonSet")
+			kind := defkit.String("kind").Default("Deployment").Values("Deployment", "StatefulSet", "DaemonSet")
 			strategyType := defkit.String("strategyType").Default("RollingUpdate")
 			maxSurge := defkit.String("maxSurge").Default("25%")
 			partition := defkit.Int("partition").Default(0)
@@ -987,9 +987,9 @@ template: {
 		})
 
 		It("should produce correct k8s-update-strategy-like pattern", func() {
-			targetKind := defkit.String("targetKind").Default("Deployment").Enum("Deployment", "StatefulSet", "DaemonSet")
+			targetKind := defkit.String("targetKind").Default("Deployment").Values("Deployment", "StatefulSet", "DaemonSet")
 			strategy := defkit.Struct("strategy").Required().WithFields(
-				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate").Enum("RollingUpdate", "Recreate", "OnDelete"),
+				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate").Values("RollingUpdate", "Recreate", "OnDelete"),
 				defkit.Field("rollingStrategy", defkit.ParamTypeStruct).
 					Nested(defkit.Struct("rollingStrategy").WithFields(
 						defkit.Field("maxSurge", defkit.ParamTypeString).Default("25%"),
@@ -1268,7 +1268,7 @@ template: {
 
 	Context("Multiple IfBlocks with bare ops", func() {
 		It("should render bare ops before conditional IfBlocks", func() {
-			kind := defkit.String("kind").Default("Deployment").Enum("Deployment", "StatefulSet")
+			kind := defkit.String("kind").Default("Deployment").Values("Deployment", "StatefulSet")
 			replicas := defkit.Int("replicas").Default(1)
 			strategyType := defkit.String("strategyType").Default("RollingUpdate")
 
@@ -1304,7 +1304,7 @@ template: {
 
 	Context("findIfBlockCommonPrefix edge cases", func() {
 		It("should handle IfBlocks with no common prefix", func() {
-			kind := defkit.String("kind").Default("a").Enum("a", "b")
+			kind := defkit.String("kind").Default("a").Values("a", "b")
 
 			trait := defkit.NewTrait("no-common-prefix-test").
 				Description("Test no common prefix").

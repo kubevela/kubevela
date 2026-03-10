@@ -126,8 +126,8 @@ var _ = Describe("CUEGenerator", func() {
 		It("should keep ? for ForceOptional parameters even with defaults", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.String("normalDefault").Default("Honor").Enum("Honor", "Ignore"),
-					defkit.String("optionalDefault").Default("Honor").ForceOptional().Enum("Honor", "Ignore"),
+					defkit.String("normalDefault").Default("Honor").Values("Honor", "Ignore"),
+					defkit.String("optionalDefault").Default("Honor").ForceOptional().Values("Honor", "Ignore"),
 				)
 
 			cue := gen.GenerateParameterSchema(comp)
@@ -143,7 +143,7 @@ var _ = Describe("CUEGenerator", func() {
 		It("should append string to enum when OpenEnum is set", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.String("verbosity").Default("info").Enum("info", "debug", "warn").OpenEnum(),
+					defkit.String("verbosity").Default("info").Values("info", "debug", "warn").OpenEnum(),
 				)
 
 			cue := gen.GenerateParameterSchema(comp)
@@ -155,7 +155,7 @@ var _ = Describe("CUEGenerator", func() {
 			comp := defkit.NewComponent("test").
 				Params(
 					defkit.String("visible").Description("A visible field"),
-					defkit.Enum("hidden").Enum("A", "B").Default("A").Ignore().Description("An ignored field"),
+					defkit.Enum("hidden").Values("A", "B").Default("A").Ignore().Description("An ignored field"),
 				)
 
 			cue := gen.GenerateParameterSchema(comp)
@@ -215,7 +215,7 @@ var _ = Describe("CUEGenerator", func() {
 		It("should generate CUE for enum parameters", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.Enum("protocol").Enum("TCP", "UDP", "SCTP").Default("TCP"),
+					defkit.Enum("protocol").Values("TCP", "UDP", "SCTP").Default("TCP"),
 				)
 
 			cue := gen.GenerateParameterSchema(comp)
@@ -243,7 +243,7 @@ var _ = Describe("CUEGenerator", func() {
 					defkit.List("ports").WithFields(
 						defkit.Int("port").Required(),
 						defkit.String("name"),
-						defkit.Enum("protocol").Enum("TCP", "UDP").Default("TCP"),
+						defkit.Enum("protocol").Values("TCP", "UDP").Default("TCP"),
 					),
 				)
 
@@ -287,7 +287,7 @@ var _ = Describe("CUEGenerator", func() {
 								defkit.Field("claimName", defkit.ParamTypeString).Required(),
 							),
 							defkit.Variant("emptyDir").WithFields(
-								defkit.Field("medium", defkit.ParamTypeString).Default("").Enum("", "Memory"),
+								defkit.Field("medium", defkit.ParamTypeString).Default("").Values("", "Memory"),
 							),
 						),
 				)
@@ -927,7 +927,7 @@ var _ = Describe("CUEGenerator", func() {
 			gen := defkit.NewCUEGenerator()
 
 			exposeType := defkit.Enum("exposeType").
-				Enum("ClusterIP", "NodePort", "LoadBalancer").
+				Values("ClusterIP", "NodePort", "LoadBalancer").
 				Default("ClusterIP")
 			ports := defkit.List("ports").WithFields(
 				defkit.Int("port").Required(),
@@ -963,7 +963,7 @@ var _ = Describe("CUEGenerator", func() {
 			gen := defkit.NewCUEGenerator()
 
 			exposeType := defkit.Enum("exposeType").
-				Enum("ClusterIP", "NodePort", "LoadBalancer").
+				Values("ClusterIP", "NodePort", "LoadBalancer").
 				Default("ClusterIP")
 			ports := defkit.List("ports").WithFields(
 				defkit.Int("port").Required(),
@@ -1052,7 +1052,7 @@ var _ = Describe("CUEGenerator", func() {
 			rule := defkit.Struct("rule").WithFields(
 				defkit.Field("strategy", defkit.ParamTypeString).
 					Default("onAppUpdate").
-					Enum("onAppUpdate", "onAppDelete", "never"),
+					Values("onAppUpdate", "onAppDelete", "never"),
 			)
 
 			p := defkit.NewPolicy("test-enum-default").
@@ -1068,7 +1068,7 @@ var _ = Describe("CUEGenerator", func() {
 		It("should generate enum without default on a helper struct field", func() {
 			rule := defkit.Struct("rule").WithFields(
 				defkit.Field("propagation", defkit.ParamTypeString).
-					Enum("orphan", "cascading").
+					Values("orphan", "cascading").
 					Optional(),
 			)
 
@@ -1085,7 +1085,7 @@ var _ = Describe("CUEGenerator", func() {
 		It("should generate required enum without default on a helper struct field", func() {
 			rule := defkit.Struct("rule").WithFields(
 				defkit.Field("mode", defkit.ParamTypeString).
-					Enum("strict", "permissive").
+					Values("strict", "permissive").
 					Required(),
 			)
 
@@ -1106,10 +1106,10 @@ var _ = Describe("CUEGenerator", func() {
 				Params(
 					defkit.Struct("config").WithFields(
 						defkit.Field("level", defkit.ParamTypeString).
-							Enum("low", "medium", "high").
+							Values("low", "medium", "high").
 							Optional(),
 						defkit.Field("mode", defkit.ParamTypeString).
-							Enum("fast", "safe").
+							Values("fast", "safe").
 							Required(),
 					),
 				).
@@ -1130,9 +1130,9 @@ var _ = Describe("CUEGenerator", func() {
 			rule := defkit.Struct("rule").WithFields(
 				defkit.Field("strategy", defkit.ParamTypeString).
 					Default("always").
-					Enum("always", "never", "on-failure"),
+					Values("always", "never", "on-failure"),
 				defkit.Field("propagation", defkit.ParamTypeString).
-					Enum("orphan", "cascading").
+					Values("orphan", "cascading").
 					Optional(),
 				defkit.Field("name", defkit.ParamTypeString).
 					Optional(),

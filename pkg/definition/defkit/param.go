@@ -173,8 +173,8 @@ func (p *StringParam) Description(desc string) *StringParam {
 	return p
 }
 
-// Enum restricts the parameter to specific allowed values.
-func (p *StringParam) Enum(values ...string) *StringParam {
+// Values restricts the parameter to specific allowed values.
+func (p *StringParam) Values(values ...string) *StringParam {
 	p.enumValues = values
 	return p
 }
@@ -984,9 +984,9 @@ func (f *StructField) WithSchemaRef(ref string) *StructField {
 // GetSchemaRef returns the schema reference for this field.
 func (f *StructField) GetSchemaRef() string { return f.schemaRef }
 
-// Enum restricts the field to specific allowed values.
+// Values restricts the field to specific allowed values.
 // This is only meaningful for string fields.
-func (f *StructField) Enum(values ...string) *StructField {
+func (f *StructField) Values(values ...string) *StructField {
 	f.enumValues = values
 	return f
 }
@@ -1094,8 +1094,8 @@ func Enum(name string) *EnumParam {
 	}
 }
 
-// Enum sets the allowed enum values.
-func (p *EnumParam) Enum(values ...string) *EnumParam {
+// Values sets the allowed enum values.
+func (p *EnumParam) Values(values ...string) *EnumParam {
 	p.values = values
 	return p
 }

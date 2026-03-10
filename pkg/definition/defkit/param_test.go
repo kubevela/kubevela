@@ -63,7 +63,7 @@ var _ = Describe("Parameters", func() {
 		})
 
 		It("should support ForceOptional to stay optional even with a default", func() {
-			p := defkit.String("policy").Default("Honor").ForceOptional().Enum("Honor", "Ignore")
+			p := defkit.String("policy").Default("Honor").ForceOptional().Values("Honor", "Ignore")
 			Expect(p.HasDefault()).To(BeTrue())
 			Expect(p.GetDefault()).To(Equal("Honor"))
 			Expect(p.IsForceOptional()).To(BeTrue())
@@ -76,13 +76,13 @@ var _ = Describe("Parameters", func() {
 		})
 
 		It("should support OpenEnum on enum", func() {
-			p := defkit.String("verbosity").Enum("info", "debug").OpenEnum()
+			p := defkit.String("verbosity").Values("info", "debug").OpenEnum()
 			Expect(p.IsOpenEnum()).To(BeTrue())
 			Expect(p.GetEnumValues()).To(ConsistOf("info", "debug"))
 		})
 
 		It("should not allow string by default on enum", func() {
-			p := defkit.String("verbosity").Enum("info", "debug")
+			p := defkit.String("verbosity").Values("info", "debug")
 			Expect(p.IsOpenEnum()).To(BeFalse())
 		})
 	})
@@ -325,13 +325,13 @@ var _ = Describe("Parameters", func() {
 		})
 
 		It("should support enum values", func() {
-			p := defkit.Enum("protocol").Enum("TCP", "UDP", "SCTP")
+			p := defkit.Enum("protocol").Values("TCP", "UDP", "SCTP")
 			Expect(p.GetValues()).To(Equal([]string{"TCP", "UDP", "SCTP"}))
 		})
 
 		It("should support default value", func() {
 			p := defkit.Enum("protocol").
-				Enum("TCP", "UDP").
+				Values("TCP", "UDP").
 				Default("TCP")
 			Expect(p.HasDefault()).To(BeTrue())
 			Expect(p.GetDefault()).To(Equal("TCP"))
@@ -339,7 +339,7 @@ var _ = Describe("Parameters", func() {
 
 		It("should support fluent chaining", func() {
 			p := defkit.Enum("restartPolicy").
-				Enum("Always", "OnFailure", "Never").
+				Values("Always", "OnFailure", "Never").
 				Required().
 				Default("Always").
 				Description("Pod restart policy")
@@ -349,13 +349,13 @@ var _ = Describe("Parameters", func() {
 		})
 
 		It("should support ForceOptional", func() {
-			p := defkit.Enum("mode").Enum("a", "b").Default("a").ForceOptional()
+			p := defkit.Enum("mode").Values("a", "b").Default("a").ForceOptional()
 			Expect(p.IsForceOptional()).To(BeTrue())
 			Expect(p.HasDefault()).To(BeTrue())
 		})
 
 		It("should not be force-optional by default", func() {
-			p := defkit.Enum("mode").Enum("a", "b").Default("a")
+			p := defkit.Enum("mode").Values("a", "b").Default("a")
 			Expect(p.IsForceOptional()).To(BeFalse())
 		})
 	})
@@ -688,7 +688,7 @@ var _ = Describe("Parameters", func() {
 	Context("EnumParam Optional method", func() {
 		It("should set enum as optional", func() {
 			p := defkit.Enum("protocol").
-				Enum("TCP", "UDP").
+				Values("TCP", "UDP").
 				Optional()
 			Expect(p.IsOptional()).To(BeTrue())
 		})
@@ -741,7 +741,7 @@ var _ = Describe("Parameters", func() {
 
 	Context("StringParam Enum method", func() {
 		It("should set enum values on string param", func() {
-			p := defkit.String("protocol").Enum("TCP", "UDP", "SCTP")
+			p := defkit.String("protocol").Values("TCP", "UDP", "SCTP")
 			Expect(p.GetEnumValues()).To(ConsistOf("TCP", "UDP", "SCTP"))
 		})
 	})
@@ -947,7 +947,7 @@ var _ = Describe("Parameters", func() {
 			Expect(p.GetShort()).To(Equal("r"))
 		})
 		It("should set short flag on EnumParam", func() {
-			p := defkit.Enum("protocol").Enum("TCP", "UDP").Short("p")
+			p := defkit.Enum("protocol").Values("TCP", "UDP").Short("p")
 			Expect(p.GetShort()).To(Equal("p"))
 		})
 		It("should return empty string when not set", func() {
@@ -981,7 +981,7 @@ var _ = Describe("Parameters", func() {
 			Expect(p.IsIgnore()).To(BeTrue())
 		})
 		It("should mark EnumParam as ignored", func() {
-			p := defkit.Enum("type").Enum("A", "B").Ignore()
+			p := defkit.Enum("type").Values("A", "B").Ignore()
 			Expect(p.IsIgnore()).To(BeTrue())
 		})
 		It("should not be ignored by default", func() {
