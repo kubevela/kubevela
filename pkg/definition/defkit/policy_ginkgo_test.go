@@ -17,6 +17,8 @@ limitations under the License.
 package defkit_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -68,7 +70,7 @@ var _ = Describe("PolicyDefinition", func() {
 		It("should set template function", func() {
 			p := defkit.NewPolicy("custom").
 				Template(func(tpl *defkit.PolicyTemplate) {
-					tpl.SetField("clusters", defkit.ParamRef("clusters"))
+					tpl.Set("clusters", defkit.ParamRef("clusters"))
 				})
 			Expect(p).NotTo(BeNil())
 		})
@@ -76,7 +78,7 @@ var _ = Describe("PolicyDefinition", func() {
 
 	Context("Helper method", func() {
 		It("should add helper definition with param", func() {
-			selectorParam := defkit.Struct("selector").Fields(
+			selectorParam := defkit.Struct("selector").WithFields(
 				defkit.Field("name", defkit.ParamTypeString),
 				defkit.Field("namespace", defkit.ParamTypeString),
 			)
@@ -101,6 +103,38 @@ var _ = Describe("PolicyDefinition", func() {
 			p := defkit.NewPolicy("topology").
 				CustomStatus("message: \"Policy applied\"")
 			Expect(p.GetCustomStatus()).To(Equal("message: \"Policy applied\""))
+		})
+	})
+
+	Context("Labels method", func() {
+		It("should store and return labels", func() {
+			p := defkit.NewPolicy("topology").
+				Labels(map[string]string{"k": "v"})
+			Expect(p.GetLabels()).To(Equal(map[string]string{"k": "v"}))
+		})
+
+		It("should render label keys sorted in CUE when labels set", func() {
+			p := defkit.NewPolicy("topology").
+				Labels(map[string]string{"b": "2", "a": "1"})
+			cue := p.ToCue()
+			Expect(cue).To(ContainSubstring(`"a": "1"`))
+			Expect(cue).To(ContainSubstring(`"b": "2"`))
+			aIdx := strings.Index(cue, `"a":`)
+			bIdx := strings.Index(cue, `"b":`)
+			Expect(aIdx).To(BeNumerically("<", bIdx))
+		})
+
+		It("should emit empty labels block in CUE when Labels never called", func() {
+			p := defkit.NewPolicy("topology")
+			cue := p.ToCue()
+			Expect(cue).To(ContainSubstring("labels: {}"))
+		})
+
+		It("should render empty labels block when Labels called with empty map", func() {
+			p := defkit.NewPolicy("topology").
+				Labels(map[string]string{})
+			cue := p.ToCue()
+			Expect(cue).To(ContainSubstring("labels: {}"))
 		})
 	})
 
@@ -206,15 +240,15 @@ template: {
 
 		It("should set field on template", func() {
 			tpl := defkit.NewPolicyTemplate()
-			tpl.SetField("clusters", defkit.ParamRef("clusters"))
+			tpl.Set("clusters", defkit.ParamRef("clusters"))
 			fields := tpl.GetComputedFields()
 			Expect(fields).To(HaveKey("clusters"))
 		})
 
 		It("should set multiple fields", func() {
 			tpl := defkit.NewPolicyTemplate()
-			tpl.SetField("clusters", defkit.ParamRef("clusters"))
-			tpl.SetField("namespace", defkit.ParamRef("namespace"))
+			tpl.Set("clusters", defkit.ParamRef("clusters"))
+			tpl.Set("namespace", defkit.ParamRef("namespace"))
 			fields := tpl.GetComputedFields()
 			Expect(fields).To(HaveLen(2))
 		})
@@ -240,6 +274,94 @@ template: {
 
 			Expect(defkit.Count()).To(Equal(3))
 			Expect(defkit.Policies()).To(HaveLen(2))
+		})
+	})
+
+	Context("Annotations", func() {
+		It("should store and return annotations", func() {
+			p := defkit.NewPolicy("topology").
+				Annotations(map[string]string{"owner": "team-a", "env": "prod"})
+			Expect(p.GetAnnotations()).To(HaveKeyWithValue("owner", "team-a"))
+			Expect(p.GetAnnotations()).To(HaveKeyWithValue("env", "prod"))
+		})
+
+		It("should render sorted annotation keys in CUE", func() {
+			cue := defkit.NewPolicy("topology").
+				Annotations(map[string]string{"b": "2", "a": "1"}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`annotations: {`))
+			aIdx := strings.Index(cue, `"a": "1"`)
+			bIdx := strings.Index(cue, `"b": "2"`)
+			Expect(aIdx).To(BeNumerically(">=", 0))
+			Expect(bIdx).To(BeNumerically(">=", 0))
+			Expect(aIdx).To(BeNumerically("<", bIdx))
+		})
+
+		It("should keep annotations: {} in CUE when not set", func() {
+			cue := defkit.NewPolicy("topology").ToCue()
+			Expect(cue).To(ContainSubstring("annotations: {}"))
+		})
+
+		It("should merge user annotations in ToYAML without overriding description", func() {
+			p := defkit.NewPolicy("topology").
+				Description("My Policy").
+				Annotations(map[string]string{
+					"owner": "team-a",
+				})
+			yamlBytes, err := p.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("owner: team-a"))
+			Expect(yaml).To(ContainSubstring("My Policy"))
+		})
+
+		It("should not allow user annotation to override description in ToYAML", func() {
+			p := defkit.NewPolicy("topology").
+				Description("Actual Description").
+				Annotations(map[string]string{
+					"definition.oam.dev/description": "Not This",
+				})
+			yamlBytes, err := p.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("Actual Description"))
+		})
+	})
+
+	Context("Status Block CUE Render", func() {
+		It("should render statusDetails in CUE template block", func() {
+			cue := defkit.NewPolicy("x").StatusDetails("bar").ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("statusDetails:"))
+		})
+
+		It("should render customStatus in CUE template block", func() {
+			cue := defkit.NewPolicy("x").CustomStatus("message: \"ok\"").ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("customStatus:"))
+		})
+
+		It("should render healthPolicy in CUE template block", func() {
+			cue := defkit.NewPolicy("x").HealthPolicy("isHealth: true").ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("healthPolicy:"))
+		})
+
+		It("should omit status block when none set", func() {
+			cue := defkit.NewPolicy("x").ToCue()
+			Expect(cue).NotTo(ContainSubstring("status:"))
+		})
+
+		It("should render all three status fields together", func() {
+			cue := defkit.NewPolicy("x").
+				CustomStatus("message: \"ok\"").
+				HealthPolicy("isHealth: true").
+				StatusDetails("phase: \"active\"").
+				ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("customStatus:"))
+			Expect(cue).To(ContainSubstring("healthPolicy:"))
+			Expect(cue).To(ContainSubstring("statusDetails:"))
 		})
 	})
 })

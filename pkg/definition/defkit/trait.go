@@ -19,6 +19,7 @@ package defkit
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"cuelang.org/go/cue/format"
@@ -48,6 +49,9 @@ type TraitDefinition struct {
 	templateBlock      string            // raw CUE for template: block only (uses fluent API for header)
 	labels             map[string]string // metadata labels for the trait definition
 	workloadRefPath    *string           // workloadRefPath attribute (nil = omit, pointer to distinguish from empty)
+	manageWorkload     bool
+	controlPlaneOnly   bool
+	revisionEnabled    bool
 }
 
 // NewTrait creates a new TraitDefinition builder.
@@ -91,6 +95,24 @@ func (t *TraitDefinition) PodDisruptive(disruptive bool) *TraitDefinition {
 // WorkloadRefPath sets the workloadRefPath attribute for the trait.
 func (t *TraitDefinition) WorkloadRefPath(path string) *TraitDefinition {
 	t.workloadRefPath = &path
+	return t
+}
+
+// ManageWorkload marks this trait as managing the workload.
+func (t *TraitDefinition) ManageWorkload() *TraitDefinition {
+	t.manageWorkload = true
+	return t
+}
+
+// ControlPlaneOnly marks this trait as running on the control plane only.
+func (t *TraitDefinition) ControlPlaneOnly() *TraitDefinition {
+	t.controlPlaneOnly = true
+	return t
+}
+
+// RevisionEnabled marks this trait as revision-enabled.
+func (t *TraitDefinition) RevisionEnabled() *TraitDefinition {
+	t.revisionEnabled = true
 	return t
 }
 
@@ -168,6 +190,24 @@ func (t *TraitDefinition) HealthPolicy(expr string) *TraitDefinition {
 // HealthPolicyExpr sets the health policy using a composable HealthExpression.
 func (t *TraitDefinition) HealthPolicyExpr(expr HealthExpression) *TraitDefinition {
 	t.setHealthPolicyExpr(expr)
+	return t
+}
+
+// StatusDetails sets the status details CUE expression for the trait.
+func (t *TraitDefinition) StatusDetails(details string) *TraitDefinition {
+	t.setStatusDetails(details)
+	return t
+}
+
+// Annotations sets metadata annotations on the trait definition.
+func (t *TraitDefinition) Annotations(annotations map[string]string) *TraitDefinition {
+	t.setAnnotations(annotations)
+	return t
+}
+
+// Version sets the version string for the trait definition.
+func (t *TraitDefinition) Version(v string) *TraitDefinition {
+	t.setVersion(v)
 	return t
 }
 
@@ -281,6 +321,15 @@ func (t *TraitDefinition) GetConflictsWith() []string { return t.conflictsWith }
 // IsPodDisruptive returns whether this trait is pod-disruptive.
 func (t *TraitDefinition) IsPodDisruptive() bool { return t.podDisruptive }
 
+// IsManageWorkload returns whether this trait manages the workload.
+func (t *TraitDefinition) IsManageWorkload() bool { return t.manageWorkload }
+
+// IsControlPlaneOnly returns whether this trait runs on the control plane only.
+func (t *TraitDefinition) IsControlPlaneOnly() bool { return t.controlPlaneOnly }
+
+// IsRevisionEnabled returns whether this trait has revision enabled.
+func (t *TraitDefinition) IsRevisionEnabled() bool { return t.revisionEnabled }
+
 // GetStage returns the trait stage.
 func (t *TraitDefinition) GetStage() string { return t.stage }
 
@@ -353,9 +402,14 @@ func (t *TraitDefinition) ToYAML() ([]byte, error) {
 		"kind":       "TraitDefinition",
 		"metadata": map[string]any{
 			"name": t.name,
-			"annotations": map[string]any{
-				"definition.oam.dev/description": t.description,
-			},
+			"annotations": func() map[string]any {
+				a := map[string]any{}
+				for k, v := range t.GetAnnotations() {
+					a[k] = v
+				}
+				a["definition.oam.dev/description"] = t.description
+				return a
+			}(),
 		},
 		"spec": map[string]any{
 			"appliesToWorkloads": t.appliesToWorkloads,
@@ -376,6 +430,20 @@ func (t *TraitDefinition) ToYAML() ([]byte, error) {
 	// Add stage if present
 	if t.stage != "" {
 		cr["spec"].(map[string]any)["stage"] = t.stage
+	}
+
+	if t.GetVersion() != "" {
+		cr["spec"].(map[string]any)["version"] = t.GetVersion()
+	}
+
+	if t.manageWorkload {
+		cr["spec"].(map[string]any)["manageWorkload"] = true
+	}
+	if t.controlPlaneOnly {
+		cr["spec"].(map[string]any)["controlPlaneOnly"] = true
+	}
+	if t.revisionEnabled {
+		cr["spec"].(map[string]any)["revisionEnabled"] = true
 	}
 
 	return yaml.Marshal(cr)
@@ -419,21 +487,34 @@ func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
 	// Write trait header
 	sb.WriteString(fmt.Sprintf("%s: {\n", cueLabel(t.GetName())))
 	sb.WriteString(fmt.Sprintf("%stype: \"trait\"\n", g.indent))
-	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
-
-	// Write labels block when Labels() was explicitly called (nil check distinguishes unset from empty)
-	if t.labels != nil {
-		if len(t.labels) > 0 {
-			sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
-			for k, v := range t.labels {
-				sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
-			}
-			sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
-		} else {
-			sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
+	if t.GetAnnotations() != nil && len(t.GetAnnotations()) > 0 {
+		annKeys := make([]string, 0, len(t.GetAnnotations()))
+		for k := range t.GetAnnotations() {
+			annKeys = append(annKeys, k)
 		}
+		sort.Strings(annKeys)
+		sb.WriteString(fmt.Sprintf("%sannotations: {\n", g.indent))
+		for _, k := range annKeys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, t.GetAnnotations()[k]))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
+	}
+
+	if len(t.labels) > 0 {
+		sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
+		for k, v := range t.labels {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, t.GetDescription()))
+	if t.GetVersion() != "" {
+		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, t.GetVersion()))
+	}
 
 	// Write attributes
 	sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
@@ -454,6 +535,16 @@ func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinit
 
 	// podDisruptive (always emit — vela CUE always includes this attribute)
 	sb.WriteString(fmt.Sprintf("%spodDisruptive: %v\n", indent, t.IsPodDisruptive()))
+
+	if t.IsManageWorkload() {
+		sb.WriteString(fmt.Sprintf("%smanageWorkload: true\n", indent))
+	}
+	if t.IsControlPlaneOnly() {
+		sb.WriteString(fmt.Sprintf("%scontrolPlaneOnly: true\n", indent))
+	}
+	if t.IsRevisionEnabled() {
+		sb.WriteString(fmt.Sprintf("%srevisionEnabled: true\n", indent))
+	}
 
 	// stage (if set)
 	if t.GetStage() != "" {
@@ -482,8 +573,8 @@ func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinit
 		}
 	}
 
-	// status (customStatus and healthPolicy)
-	if t.GetCustomStatus() != "" || t.GetHealthPolicy() != "" {
+	// status (customStatus, healthPolicy, and statusDetails)
+	if t.GetCustomStatus() != "" || t.GetHealthPolicy() != "" || t.GetStatusDetails() != "" {
 		sb.WriteString(fmt.Sprintf("%sstatus: {\n", indent))
 		innerIndent := strings.Repeat(g.indent, depth+1)
 
@@ -498,6 +589,14 @@ func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinit
 		if t.GetHealthPolicy() != "" {
 			sb.WriteString(fmt.Sprintf("%shealthPolicy: #\"\"\"\n", innerIndent))
 			for _, line := range strings.Split(t.GetHealthPolicy(), "\n") {
+				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
+		}
+
+		if t.GetStatusDetails() != "" {
+			sb.WriteString(fmt.Sprintf("%sstatusDetails: #\"\"\"\n", innerIndent))
+			for _, line := range strings.Split(t.GetStatusDetails(), "\n") {
 				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
 			}
 			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
@@ -1510,19 +1609,29 @@ func (g *TraitCUEGenerator) GenerateDefinitionWithRawTemplate(t *TraitDefinition
 	// Write trait header
 	sb.WriteString(fmt.Sprintf("%s: {\n", cueLabel(t.GetName())))
 	sb.WriteString(fmt.Sprintf("%stype: \"trait\"\n", g.indent))
-	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
-
-	// Write labels block when Labels() was explicitly called (nil check distinguishes unset from empty)
-	if t.labels != nil {
-		if len(t.labels) > 0 {
-			sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
-			for k, v := range t.labels {
-				sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
-			}
-			sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
-		} else {
-			sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
+	if t.GetAnnotations() != nil && len(t.GetAnnotations()) > 0 {
+		annKeys := make([]string, 0, len(t.GetAnnotations()))
+		for k := range t.GetAnnotations() {
+			annKeys = append(annKeys, k)
 		}
+		sort.Strings(annKeys)
+		sb.WriteString(fmt.Sprintf("%sannotations: {\n", g.indent))
+		for _, k := range annKeys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, t.GetAnnotations()[k]))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
+	}
+
+	if len(t.labels) > 0 {
+		sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
+		for k, v := range t.labels {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, t.GetDescription()))
 

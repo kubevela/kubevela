@@ -63,7 +63,7 @@ var _ = Describe("Parameters", func() {
 		})
 
 		It("should support ForceOptional to stay optional even with a default", func() {
-			p := defkit.String("policy").Default("Honor").ForceOptional().Enum("Honor", "Ignore")
+			p := defkit.String("policy").Default("Honor").ForceOptional().Values("Honor", "Ignore")
 			Expect(p.HasDefault()).To(BeTrue())
 			Expect(p.GetDefault()).To(Equal("Honor"))
 			Expect(p.IsForceOptional()).To(BeTrue())
@@ -76,13 +76,13 @@ var _ = Describe("Parameters", func() {
 		})
 
 		It("should support OpenEnum on enum", func() {
-			p := defkit.String("verbosity").Enum("info", "debug").OpenEnum()
+			p := defkit.String("verbosity").Values("info", "debug").OpenEnum()
 			Expect(p.IsOpenEnum()).To(BeTrue())
 			Expect(p.GetEnumValues()).To(ConsistOf("info", "debug"))
 		})
 
 		It("should not allow string by default on enum", func() {
-			p := defkit.String("verbosity").Enum("info", "debug")
+			p := defkit.String("verbosity").Values("info", "debug")
 			Expect(p.IsOpenEnum()).To(BeFalse())
 		})
 	})
@@ -108,6 +108,17 @@ var _ = Describe("Parameters", func() {
 			Expect(p.Name()).To(Equal("port"))
 			Expect(p.IsRequired()).To(BeTrue())
 			Expect(p.GetDefault()).To(Equal(8080))
+		})
+
+		It("should support ForceOptional", func() {
+			p := defkit.Int("port").Default(8080).ForceOptional()
+			Expect(p.IsForceOptional()).To(BeTrue())
+			Expect(p.HasDefault()).To(BeTrue())
+		})
+
+		It("should not be force-optional by default", func() {
+			p := defkit.Int("port").Default(8080)
+			Expect(p.IsForceOptional()).To(BeFalse())
 		})
 	})
 
@@ -167,6 +178,17 @@ var _ = Describe("Parameters", func() {
 			Expect(p.Name()).To(Equal("ratio"))
 			Expect(p.IsRequired()).To(BeTrue())
 			Expect(p.GetDefault()).To(Equal(1.0))
+		})
+
+		It("should support ForceOptional", func() {
+			p := defkit.Float("ratio").Default(1.0).ForceOptional()
+			Expect(p.IsForceOptional()).To(BeTrue())
+			Expect(p.HasDefault()).To(BeTrue())
+		})
+
+		It("should not be force-optional by default", func() {
+			p := defkit.Float("ratio").Default(1.0)
+			Expect(p.IsForceOptional()).To(BeFalse())
 		})
 	})
 
@@ -236,7 +258,7 @@ var _ = Describe("Parameters", func() {
 		})
 
 		It("should support field definitions", func() {
-			p := defkit.Struct("resources").Fields(
+			p := defkit.Struct("resources").WithFields(
 				defkit.Field("cpu", defkit.ParamTypeString),
 				defkit.Field("memory", defkit.ParamTypeString),
 			)
@@ -246,7 +268,7 @@ var _ = Describe("Parameters", func() {
 		})
 
 		It("should return nil for non-existent field", func() {
-			p := defkit.Struct("resources").Fields(
+			p := defkit.Struct("resources").WithFields(
 				defkit.Field("cpu", defkit.ParamTypeString),
 			)
 			Expect(p.GetField("nonexistent")).To(BeNil())
@@ -266,11 +288,11 @@ var _ = Describe("Parameters", func() {
 		})
 
 		It("should support nested structs", func() {
-			requests := defkit.Struct("requests").Fields(
+			requests := defkit.Struct("requests").WithFields(
 				defkit.Field("cpu", defkit.ParamTypeString),
 				defkit.Field("memory", defkit.ParamTypeString),
 			)
-			p := defkit.Struct("resources").Fields(
+			p := defkit.Struct("resources").WithFields(
 				defkit.Field("requests", defkit.ParamTypeStruct).Nested(requests),
 			)
 			reqField := p.GetField("requests")
@@ -281,7 +303,7 @@ var _ = Describe("Parameters", func() {
 
 		It("should support fluent chaining", func() {
 			p := defkit.Struct("container").
-				Fields(
+				WithFields(
 					defkit.Field("name", defkit.ParamTypeString).Required(),
 					defkit.Field("image", defkit.ParamTypeString).Required(),
 					defkit.Field("port", defkit.ParamTypeInt).Default(80),
@@ -325,6 +347,17 @@ var _ = Describe("Parameters", func() {
 			Expect(p.IsRequired()).To(BeTrue())
 			Expect(p.GetValues()).To(HaveLen(3))
 		})
+
+		It("should support ForceOptional", func() {
+			p := defkit.Enum("mode").Values("a", "b").Default("a").ForceOptional()
+			Expect(p.IsForceOptional()).To(BeTrue())
+			Expect(p.HasDefault()).To(BeTrue())
+		})
+
+		It("should not be force-optional by default", func() {
+			p := defkit.Enum("mode").Values("a", "b").Default("a")
+			Expect(p.IsForceOptional()).To(BeFalse())
+		})
 	})
 
 	Context("OneOfParam", func() {
@@ -341,11 +374,11 @@ var _ = Describe("Parameters", func() {
 
 		It("should support variant definitions", func() {
 			p := defkit.OneOf("probe").Variants(
-				defkit.Variant("http").Fields(
+				defkit.Variant("http").WithFields(
 					defkit.Field("path", defkit.ParamTypeString).Required(),
 					defkit.Field("port", defkit.ParamTypeInt).Required(),
 				),
-				defkit.Variant("tcp").Fields(
+				defkit.Variant("tcp").WithFields(
 					defkit.Field("port", defkit.ParamTypeInt).Required(),
 				),
 			)
@@ -493,7 +526,7 @@ var _ = Describe("Parameters", func() {
 		Context("Struct field access", func() {
 			It("should create field reference from StructParam", func() {
 				config := defkit.Struct("config").
-					Fields(
+					WithFields(
 						defkit.Field("host", defkit.ParamTypeString),
 						defkit.Field("port", defkit.ParamTypeInt),
 					)
@@ -680,7 +713,7 @@ var _ = Describe("Parameters", func() {
 				Default("emptyDir").
 				Description("Volume type").
 				Variants(
-					defkit.Variant("pvc").Fields(
+					defkit.Variant("pvc").WithFields(
 						defkit.Field("claimName", defkit.ParamTypeString).Required(),
 					),
 					defkit.Variant("emptyDir"),
@@ -708,7 +741,7 @@ var _ = Describe("Parameters", func() {
 
 	Context("StringParam Enum method", func() {
 		It("should set enum values on string param", func() {
-			p := defkit.String("protocol").Enum("TCP", "UDP", "SCTP")
+			p := defkit.String("protocol").Values("TCP", "UDP", "SCTP")
 			Expect(p.GetEnumValues()).To(ConsistOf("TCP", "UDP", "SCTP"))
 		})
 	})
@@ -909,6 +942,10 @@ var _ = Describe("Parameters", func() {
 			p := defkit.Bool("debug").Short("d")
 			Expect(p.GetShort()).To(Equal("d"))
 		})
+		It("should set short flag on FloatParam", func() {
+			p := defkit.Float("ratio").Short("r")
+			Expect(p.GetShort()).To(Equal("r"))
+		})
 		It("should set short flag on EnumParam", func() {
 			p := defkit.Enum("protocol").Values("TCP", "UDP").Short("p")
 			Expect(p.GetShort()).To(Equal("p"))
@@ -937,6 +974,10 @@ var _ = Describe("Parameters", func() {
 		})
 		It("should mark BoolParam as ignored", func() {
 			p := defkit.Bool("debug").Ignore()
+			Expect(p.IsIgnore()).To(BeTrue())
+		})
+		It("should mark FloatParam as ignored", func() {
+			p := defkit.Float("ratio").Ignore()
 			Expect(p.IsIgnore()).To(BeTrue())
 		})
 		It("should mark EnumParam as ignored", func() {

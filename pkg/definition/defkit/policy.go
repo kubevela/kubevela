@@ -18,6 +18,7 @@ package defkit
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"sigs.k8s.io/yaml"
@@ -29,8 +30,10 @@ import (
 // Policies define application-level behaviors such as topology (where to deploy),
 // override (how to customize components), and health (how to check application health).
 type PolicyDefinition struct {
-	baseDefinition                           // embedded common fields and methods
-	policyTemplate func(tpl *PolicyTemplate) // template function for policy logic (type-specific)
+	baseDefinition                              // embedded common fields and methods
+	policyTemplate    func(tpl *PolicyTemplate) // template function for policy logic (type-specific)
+	labels            map[string]string
+	manageHealthCheck bool
 }
 
 // PolicyTemplate provides the building context for policy templates.
@@ -120,6 +123,42 @@ func (p *PolicyDefinition) HealthPolicyExpr(expr HealthExpression) *PolicyDefini
 	return p
 }
 
+// StatusDetails sets the status details CUE expression for the policy.
+func (p *PolicyDefinition) StatusDetails(details string) *PolicyDefinition {
+	p.setStatusDetails(details)
+	return p
+}
+
+// Annotations sets metadata annotations on the policy definition.
+func (p *PolicyDefinition) Annotations(annotations map[string]string) *PolicyDefinition {
+	p.setAnnotations(annotations)
+	return p
+}
+
+// Version sets the version string for the policy definition.
+func (p *PolicyDefinition) Version(v string) *PolicyDefinition {
+	p.setVersion(v)
+	return p
+}
+
+// Labels sets metadata labels for the policy definition.
+func (p *PolicyDefinition) Labels(labels map[string]string) *PolicyDefinition {
+	p.labels = labels
+	return p
+}
+
+// GetLabels returns the policy's metadata labels.
+func (p *PolicyDefinition) GetLabels() map[string]string { return p.labels }
+
+// ManageHealthCheck marks this policy as managing health checks.
+func (p *PolicyDefinition) ManageHealthCheck() *PolicyDefinition {
+	p.manageHealthCheck = true
+	return p
+}
+
+// IsManageHealthCheck returns whether this policy manages health checks.
+func (p *PolicyDefinition) IsManageHealthCheck() bool { return p.manageHealthCheck }
+
 // RunOn adds placement conditions specifying which clusters this policy should run on.
 // Use the placement package's fluent API to build conditions.
 //
@@ -182,9 +221,14 @@ func (p *PolicyDefinition) ToYAML() ([]byte, error) {
 		"kind":       "PolicyDefinition",
 		"metadata": map[string]any{
 			"name": p.GetName(),
-			"annotations": map[string]any{
-				"definition.oam.dev/description": p.GetDescription(),
-			},
+			"annotations": func() map[string]any {
+				a := map[string]any{}
+				for k, v := range p.GetAnnotations() {
+					a[k] = v
+				}
+				a["definition.oam.dev/description"] = p.GetDescription()
+				return a
+			}(),
 		},
 		"spec": map[string]any{
 			"schematic": map[string]any{
@@ -193,6 +237,14 @@ func (p *PolicyDefinition) ToYAML() ([]byte, error) {
 				},
 			},
 		},
+	}
+
+	if p.manageHealthCheck {
+		cr["spec"].(map[string]any)["manageHealthCheck"] = true
+	}
+
+	if p.GetVersion() != "" {
+		cr["spec"].(map[string]any)["version"] = p.GetVersion()
 	}
 
 	return yaml.Marshal(cr)
@@ -207,8 +259,8 @@ func NewPolicyTemplate() *PolicyTemplate {
 	}
 }
 
-// SetField sets a computed field value.
-func (pt *PolicyTemplate) SetField(name string, value Value) *PolicyTemplate {
+// Set sets a computed field value.
+func (pt *PolicyTemplate) Set(name string, value Value) *PolicyTemplate {
 	pt.computedFields[name] = value
 	return pt
 }
@@ -259,9 +311,38 @@ func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string 
 		name = fmt.Sprintf("%q", name)
 	}
 	sb.WriteString(fmt.Sprintf("%s: {\n", name))
-	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
+	if p.GetAnnotations() != nil && len(p.GetAnnotations()) > 0 {
+		annKeys := make([]string, 0, len(p.GetAnnotations()))
+		for k := range p.GetAnnotations() {
+			annKeys = append(annKeys, k)
+		}
+		sort.Strings(annKeys)
+		sb.WriteString(fmt.Sprintf("%sannotations: {\n", g.indent))
+		for _, k := range annKeys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, p.GetAnnotations()[k]))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
+	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, p.GetDescription()))
-	sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
+	if p.GetVersion() != "" {
+		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, p.GetVersion()))
+	}
+	if len(p.labels) > 0 {
+		keys := make([]string, 0, len(p.labels))
+		for k := range p.labels {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
+		for _, k := range keys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, p.labels[k]))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
+	}
 	sb.WriteString(fmt.Sprintf("%sattributes: {}\n", g.indent))
 	sb.WriteString(fmt.Sprintf("%stype: \"policy\"\n", g.indent))
 	sb.WriteString("}\n\n")
@@ -297,6 +378,34 @@ func (g *PolicyCUEGenerator) GenerateTemplate(p *PolicyDefinition) string {
 
 	// Generate parameter section
 	sb.WriteString(g.generateParameterBlock(p, 1))
+
+	if p.GetCustomStatus() != "" || p.GetHealthPolicy() != "" || p.GetStatusDetails() != "" {
+		indent := g.indent
+		innerIndent := g.indent + g.indent
+		sb.WriteString(fmt.Sprintf("%sstatus: {\n", indent))
+		if p.GetCustomStatus() != "" {
+			sb.WriteString(fmt.Sprintf("%scustomStatus: #\"\"\"\n", innerIndent))
+			for _, line := range strings.Split(p.GetCustomStatus(), "\n") {
+				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
+		}
+		if p.GetHealthPolicy() != "" {
+			sb.WriteString(fmt.Sprintf("%shealthPolicy: #\"\"\"\n", innerIndent))
+			for _, line := range strings.Split(p.GetHealthPolicy(), "\n") {
+				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
+		}
+		if p.GetStatusDetails() != "" {
+			sb.WriteString(fmt.Sprintf("%sstatusDetails: #\"\"\"\n", innerIndent))
+			for _, line := range strings.Split(p.GetStatusDetails(), "\n") {
+				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
+			}
+			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
 
 	sb.WriteString("}\n")
 	return sb.String()

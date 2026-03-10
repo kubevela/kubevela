@@ -27,7 +27,7 @@ var _ = Describe("HelperDefinition", func() {
 
 	Context("Param-based helper definition", func() {
 		It("should report HasParam true and return the param", func() {
-			probeParam := defkit.Struct("probe").Fields(
+			probeParam := defkit.Struct("probe").WithFields(
 				defkit.Field("path", defkit.ParamTypeString).Default("/health"),
 				defkit.Field("port", defkit.ParamTypeInt).Default(8080),
 			)
@@ -48,10 +48,10 @@ var _ = Describe("HelperDefinition", func() {
 
 	Context("Multiple helper definitions", func() {
 		It("should support multiple helpers on the same component", func() {
-			probe := defkit.Struct("probe").Fields(
+			probe := defkit.Struct("probe").WithFields(
 				defkit.Field("path", defkit.ParamTypeString),
 			)
-			resource := defkit.Struct("resource").Fields(
+			resource := defkit.Struct("resource").WithFields(
 				defkit.Field("cpu", defkit.ParamTypeString),
 				defkit.Field("memory", defkit.ParamTypeString),
 			)
@@ -69,7 +69,7 @@ var _ = Describe("HelperDefinition", func() {
 
 	Context("HelperDefinition on TraitDefinition", func() {
 		It("should support helper definitions on traits", func() {
-			probeParam := defkit.Struct("probe").Fields(
+			probeParam := defkit.Struct("probe").WithFields(
 				defkit.Field("path", defkit.ParamTypeString),
 			)
 
@@ -103,7 +103,7 @@ var _ = Describe("HelperDefinition", func() {
 				defkit.StringKeyMap("matchLabels").Description("A map of {key,value} pairs"),
 				defkit.Array("matchExpressions").Description("Label selector requirements").WithFields(
 					defkit.String("key").Required(),
-					defkit.String("operator").Default("In").Enum("In", "NotIn", "Exists", "DoesNotExist"),
+					defkit.String("operator").Default("In").Values("In", "NotIn", "Exists", "DoesNotExist"),
 					defkit.Array("values").Of(defkit.ParamTypeString),
 				),
 			)
@@ -131,11 +131,11 @@ var _ = Describe("HelperDefinition", func() {
 			Expect(cue).To(ContainSubstring(`*"In"`))
 		})
 
-		It("should render ArrayOf(ParamTypeString) in Struct-based helper fields", func() {
-			helper := defkit.Struct("nodeSelector").Fields(
+		It("should render Of(ParamTypeString) in Struct-based helper fields", func() {
+			helper := defkit.Struct("nodeSelector").WithFields(
 				defkit.Field("key", defkit.ParamTypeString).Required(),
-				defkit.Field("operator", defkit.ParamTypeString).Default("In").Enum("In", "NotIn"),
-				defkit.Field("values", defkit.ParamTypeArray).ArrayOf(defkit.ParamTypeString),
+				defkit.Field("operator", defkit.ParamTypeString).Default("In").Values("In", "NotIn"),
+				defkit.Field("values", defkit.ParamTypeArray).Of(defkit.ParamTypeString),
 			)
 
 			trait := defkit.NewTrait("typed-array-test").
@@ -156,15 +156,15 @@ var _ = Describe("HelperDefinition", func() {
 			Expect(cue).NotTo(MatchRegexp(`values\?\: \[\.\.\.\]\s*\n`))
 		})
 
-		It("should render schemaRef with ArrayOf correctly in Struct helper", func() {
-			selectorHelper := defkit.Struct("nodeSelectorTerm").Fields(
+		It("should render schemaRef with Of correctly in Struct helper", func() {
+			selectorHelper := defkit.Struct("nodeSelectorTerm").WithFields(
 				defkit.Field("matchExpressions", defkit.ParamTypeArray).WithSchemaRef("nodeSelector"),
 				defkit.Field("matchFields", defkit.ParamTypeArray).WithSchemaRef("nodeSelector"),
 			)
 
-			affinityHelper := defkit.Struct("podAffinityTerm").Fields(
+			affinityHelper := defkit.Struct("podAffinityTerm").WithFields(
 				defkit.Field("labelSelector", defkit.ParamTypeStruct).WithSchemaRef("labelSelector"),
-				defkit.Field("namespaces", defkit.ParamTypeArray).ArrayOf(defkit.ParamTypeString),
+				defkit.Field("namespaces", defkit.ParamTypeArray).Of(defkit.ParamTypeString),
 				defkit.Field("topologyKey", defkit.ParamTypeString).Required(),
 			)
 
@@ -184,7 +184,7 @@ var _ = Describe("HelperDefinition", func() {
 			Expect(cue).To(ContainSubstring("matchFields?: [...#nodeSelector]"))
 			// SchemaRef on struct field renders as #name
 			Expect(cue).To(ContainSubstring("labelSelector?: #labelSelector"))
-			// ArrayOf(ParamTypeString) renders as [...string]
+			// Of(ParamTypeString) renders as [...string]
 			Expect(cue).To(ContainSubstring("namespaces?: [...string]"))
 			// Required field has no ?
 			Expect(cue).To(ContainSubstring("topologyKey: string"))

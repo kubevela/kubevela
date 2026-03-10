@@ -83,6 +83,14 @@ func (c *CollectionOp) Filter(pred Predicate) *CollectionOp {
 	return c
 }
 
+// FilterCond keeps only items matching a Condition expression.
+// The condition is used for CUE generation (generates an `if condition` guard);
+// runtime apply is a passthrough since Condition is a CUE-level concept.
+func (c *CollectionOp) FilterCond(cond Condition) *CollectionOp {
+	c.ops = append(c.ops, &filterCondCollectionOp{cond: cond})
+	return c
+}
+
 // Map transforms each item using the given field mappings.
 // Usage: .Map(Fields{"containerPort": Field("port"), "name": Field("name")})
 func (c *CollectionOp) Map(mappings FieldMap) *CollectionOp {
@@ -403,6 +411,19 @@ func (f *filterOp) apply(items []any) []any {
 	return result
 }
 
+// filterCondCollectionOp filters items by a Condition (CUE-level expression).
+// apply is a runtime passthrough: Condition is a CUE AST concept with no Go runtime
+// evaluation semantics. Filtering only takes effect in generated CUE output.
+// Callers must not rely on Collect/Count/First to reflect condition-based filters.
+type filterCondCollectionOp struct {
+	cond Condition
+}
+
+func (f *filterCondCollectionOp) apply(items []any) []any { return items }
+
+// Cond returns the condition used for CUE generation.
+func (f *filterCondCollectionOp) Cond() Condition { return f.cond }
+
 type mapOp struct {
 	mappings FieldMap
 }
@@ -596,6 +617,19 @@ func (m *MultiSource) Pick(fields ...string) *MultiSource {
 // Dedupe removes duplicate items by a key field.
 func (m *MultiSource) Dedupe(keyField string) *MultiSource {
 	m.ops = append(m.ops, &dedupeOp{keyField: keyField})
+	return m
+}
+
+// Filter keeps only items matching the predicate.
+func (m *MultiSource) Filter(pred Predicate) *MultiSource {
+	m.ops = append(m.ops, &filterOp{pred: pred})
+	return m
+}
+
+// FilterCond keeps only items matching a Condition expression.
+// The condition is used for CUE generation; runtime apply is a passthrough.
+func (m *MultiSource) FilterCond(cond Condition) *MultiSource {
+	m.ops = append(m.ops, &filterCondCollectionOp{cond: cond})
 	return m
 }
 

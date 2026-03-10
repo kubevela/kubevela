@@ -291,7 +291,20 @@ func (g *CUEGenerator) GenerateFullDefinition(c *ComponentDefinition) string {
 	// Write component header
 	sb.WriteString(fmt.Sprintf("%s: {\n", cueLabel(c.GetName())))
 	sb.WriteString(fmt.Sprintf("%stype: \"component\"\n", g.indent))
-	sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
+	if c.GetAnnotations() != nil && len(c.GetAnnotations()) > 0 {
+		keys := make([]string, 0, len(c.GetAnnotations()))
+		for k := range c.GetAnnotations() {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		sb.WriteString(fmt.Sprintf("%sannotations: {\n", g.indent))
+		for _, k := range keys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, c.GetAnnotations()[k]))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
+	}
 	if len(c.GetLabels()) > 0 {
 		sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
 		for k, v := range c.GetLabels() {
@@ -302,6 +315,9 @@ func (g *CUEGenerator) GenerateFullDefinition(c *ComponentDefinition) string {
 		sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, c.GetDescription()))
+	if c.GetVersion() != "" {
+		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, c.GetVersion()))
+	}
 
 	// Write attributes
 	sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
@@ -737,15 +753,29 @@ func (g *CUEGenerator) writeMultiSourceHelper(sb *strings.Builder, ms *MultiSour
 	mapBySource := ms.MapBySourceMappings()
 	ops := ms.Operations()
 
-	// Check for pickIf operations
+	// Check for pickIf operations and filter conditions
 	var pickIfOps []*pickIfCollectionOp
 	var pickFields []string
+	filterCondition := ""
 	for _, op := range ops {
 		if pOp, ok := op.(*pickOp); ok {
 			pickFields = pOp.fields
 		}
 		if piOp, ok := op.(*pickIfCollectionOp); ok {
 			pickIfOps = append(pickIfOps, piOp)
+		}
+		var cond string
+		if fOp, ok := op.(*filterOp); ok {
+			cond = g.predicateToCUE(fOp.pred)
+		} else if fOp, ok := op.(*filterCondCollectionOp); ok {
+			cond = g.conditionToCUE(fOp.Cond())
+		}
+		if cond != "" {
+			if filterCondition == "" {
+				filterCondition = cond
+			} else {
+				filterCondition = filterCondition + " && " + cond
+			}
 		}
 	}
 
@@ -758,8 +788,13 @@ func (g *CUEGenerator) writeMultiSourceHelper(sb *strings.Builder, ms *MultiSour
 
 		innerIndent := strings.Repeat(g.indent, depth+1)
 		fieldIndent := strings.Repeat(g.indent, depth+2)
-		sb.WriteString(fmt.Sprintf("%sif %s != _|_ && %s.%s != _|_ for v in %s.%s {\n",
-			innerIndent, sourceStr, sourceStr, source, sourceStr, source))
+		if filterCondition != "" {
+			sb.WriteString(fmt.Sprintf("%sif %s != _|_ && %s.%s != _|_ for v in %s.%s if %s {\n",
+				innerIndent, sourceStr, sourceStr, source, sourceStr, source, filterCondition))
+		} else {
+			sb.WriteString(fmt.Sprintf("%sif %s != _|_ && %s.%s != _|_ for v in %s.%s {\n",
+				innerIndent, sourceStr, sourceStr, source, sourceStr, source))
+		}
 		sb.WriteString(fmt.Sprintf("%s{\n", innerIndent))
 
 		// Check if we have MapBySource mappings for this source
@@ -795,11 +830,21 @@ func (g *CUEGenerator) writeCollectionOpHelper(sb *strings.Builder, col *Collect
 	sourceStr := g.valueToCUE(col.Source())
 	ops := col.Operations()
 
-	// Extract filter condition if present
+	// Extract filter condition if present; AND-compose multiple filters
 	var filterCondition string
 	for _, op := range ops {
+		var cond string
 		if fOp, ok := op.(*filterOp); ok {
-			filterCondition = g.predicateToCUE(fOp.pred)
+			cond = g.predicateToCUE(fOp.pred)
+		} else if fOp, ok := op.(*filterCondCollectionOp); ok {
+			cond = g.conditionToCUE(fOp.Cond())
+		}
+		if cond != "" {
+			if filterCondition == "" {
+				filterCondition = cond
+			} else {
+				filterCondition = filterCondition + " && " + cond
+			}
 		}
 	}
 
@@ -2063,11 +2108,21 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 		}
 	}
 
-	// Build filter condition if present
+	// Build filter condition if present; AND-compose multiple filters
 	filterCondition := ""
 	for _, op := range ops {
+		var cond string
 		if fOp, ok := op.(*filterOp); ok {
-			filterCondition = g.predicateToCUE(fOp.pred)
+			cond = g.predicateToCUE(fOp.pred)
+		} else if fOp, ok := op.(*filterCondCollectionOp); ok {
+			cond = g.conditionToCUE(fOp.Cond())
+		}
+		if cond != "" {
+			if filterCondition == "" {
+				filterCondition = cond
+			} else {
+				filterCondition = filterCondition + " && " + cond
+			}
 		}
 	}
 
@@ -2250,11 +2305,30 @@ func (g *CUEGenerator) multiSourceToCUE(ms *MultiSource) string {
 	sources := ms.Sources()
 	mapBySource := ms.MapBySourceMappings()
 
-	// Check if we have Pick operations (for volumeMounts -> container mounts)
+	// Extract filter condition (AND-compose multiple filters)
+	filterCondition := ""
+	var pickFields []string
 	for _, op := range ms.Operations() {
-		if pOp, ok := op.(*pickOp); ok {
-			return g.generatePickMultiSource(sourceStr, sources, pOp.fields)
+		var cond string
+		if fOp, ok := op.(*filterOp); ok {
+			cond = g.predicateToCUE(fOp.pred)
+		} else if fOp, ok := op.(*filterCondCollectionOp); ok {
+			cond = g.conditionToCUE(fOp.Cond())
+		} else if pOp, ok := op.(*pickOp); ok {
+			pickFields = pOp.fields
 		}
+		if cond != "" {
+			if filterCondition == "" {
+				filterCondition = cond
+			} else {
+				filterCondition = filterCondition + " && " + cond
+			}
+		}
+	}
+
+	// Check if we have Pick operations (for volumeMounts -> container mounts)
+	if len(pickFields) > 0 {
+		return g.generatePickMultiSource(sourceStr, sources, pickFields, filterCondition)
 	}
 
 	// Check if we have MapBySource (for volumeMounts -> pod volumes)
@@ -2269,14 +2343,18 @@ func (g *CUEGenerator) multiSourceToCUE(ms *MultiSource) string {
 		if i > 0 {
 			sb.WriteString(",\n")
 		}
-		sb.WriteString(fmt.Sprintf("\t\t\t\t\tif %s.%s != _|_ for v in %s.%s { v }", sourceStr, source, sourceStr, source))
+		if filterCondition != "" {
+			sb.WriteString(fmt.Sprintf("\t\t\t\t\tif %s.%s != _|_ for v in %s.%s if %s { v }", sourceStr, source, sourceStr, source, filterCondition))
+		} else {
+			sb.WriteString(fmt.Sprintf("\t\t\t\t\tif %s.%s != _|_ for v in %s.%s { v }", sourceStr, source, sourceStr, source))
+		}
 	}
 	sb.WriteString("\n\t\t\t\t]")
 	return sb.String()
 }
 
 // generatePickMultiSource generates CUE for picking fields from multiple sources.
-func (g *CUEGenerator) generatePickMultiSource(sourceStr string, sources []string, fields []string) string {
+func (g *CUEGenerator) generatePickMultiSource(sourceStr string, sources []string, fields []string, filterCondition string) string {
 	var sb strings.Builder
 	sb.WriteString("[\n")
 
@@ -2284,8 +2362,13 @@ func (g *CUEGenerator) generatePickMultiSource(sourceStr string, sources []strin
 		if i > 0 {
 			sb.WriteString(",\n")
 		}
-		sb.WriteString(fmt.Sprintf("\t\t\t\t\tif %s != _|_ && %s.%s != _|_ for v in %s.%s {\n",
-			sourceStr, sourceStr, source, sourceStr, source))
+		if filterCondition != "" {
+			sb.WriteString(fmt.Sprintf("\t\t\t\t\tif %s != _|_ && %s.%s != _|_ for v in %s.%s if %s {\n",
+				sourceStr, sourceStr, source, sourceStr, source, filterCondition))
+		} else {
+			sb.WriteString(fmt.Sprintf("\t\t\t\t\tif %s != _|_ && %s.%s != _|_ for v in %s.%s {\n",
+				sourceStr, sourceStr, source, sourceStr, source))
+		}
 		sb.WriteString("\t\t\t\t\t\t{\n")
 
 		for _, field := range fields {
@@ -2615,8 +2698,9 @@ func (g *CUEGenerator) writeStatus(sb *strings.Builder, c *ComponentDefinition, 
 
 	customStatus := c.GetCustomStatus()
 	healthPolicy := c.GetHealthPolicy()
+	statusDetails := c.GetStatusDetails()
 
-	if customStatus == "" && healthPolicy == "" {
+	if customStatus == "" && healthPolicy == "" && statusDetails == "" {
 		return
 	}
 
@@ -2633,6 +2717,14 @@ func (g *CUEGenerator) writeStatus(sb *strings.Builder, c *ComponentDefinition, 
 	if healthPolicy != "" {
 		sb.WriteString(fmt.Sprintf("%s%shealthPolicy: #\"\"\"\n", indent, g.indent))
 		for _, line := range strings.Split(healthPolicy, "\n") {
+			sb.WriteString(fmt.Sprintf("%s%s%s%s\n", indent, g.indent, g.indent, line))
+		}
+		sb.WriteString(fmt.Sprintf("%s%s%s\"\"\"#\n", indent, g.indent, g.indent))
+	}
+
+	if statusDetails != "" {
+		sb.WriteString(fmt.Sprintf("%s%sstatusDetails: #\"\"\"\n", indent, g.indent))
+		for _, line := range strings.Split(statusDetails, "\n") {
 			sb.WriteString(fmt.Sprintf("%s%s%s%s\n", indent, g.indent, g.indent, line))
 		}
 		sb.WriteString(fmt.Sprintf("%s%s%s\"\"\"#\n", indent, g.indent, g.indent))

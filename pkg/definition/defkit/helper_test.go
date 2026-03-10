@@ -57,7 +57,7 @@ var _ = Describe("Helper", func() {
 			helper := tpl.Helper("exposePorts").
 				From(ports).
 				Guard(guardCond).
-				FilterPred(defkit.FieldEquals("expose", true)).
+				Filter(defkit.FieldEquals("expose", true)).
 				Pick("name", "port").
 				AfterOutput().
 				Build()
@@ -72,7 +72,7 @@ var _ = Describe("Helper", func() {
 			col, ok := helper.Collection().(*defkit.CollectionOp)
 			Expect(ok).To(BeTrue())
 			Expect(col.Source()).To(Equal(ports))
-			Expect(col.Operations()).To(HaveLen(2)) // FilterPred + Pick
+			Expect(col.Operations()).To(HaveLen(2)) // Filter + Pick
 		})
 
 		It("should create LenNotZeroCondition with helper as source via NotEmpty()", func() {
@@ -107,7 +107,7 @@ var _ = Describe("Helper", func() {
 			ports := defkit.List("ports")
 			helper := tpl.Helper("portsArray").
 				From(ports).
-				FilterPred(defkit.FieldEquals("expose", true)).
+				Filter(defkit.FieldEquals("expose", true)).
 				Pick("name", "port").
 				Rename("port", "containerPort").
 				DefaultField("protocol", defkit.LitField("TCP")).

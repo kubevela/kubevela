@@ -159,7 +159,7 @@ parameter: #PatchParams
 
 	Context("Helper Methods", func() {
 		It("should add helper definitions", func() {
-			probeSchema := defkit.Struct("probe").Fields(
+			probeSchema := defkit.Struct("probe").WithFields(
 				defkit.Field("path", defkit.ParamTypeString).Default("/health"),
 				defkit.Field("port", defkit.ParamTypeInt).Default(8080),
 			)
@@ -837,7 +837,7 @@ template: {
 		})
 
 		It("should emit patchStrategy annotation in CUE output for unconditional field", func() {
-			strategy := defkit.Struct("strategy").Required().Fields(
+			strategy := defkit.Struct("strategy").Required().WithFields(
 				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate"),
 			)
 
@@ -860,8 +860,8 @@ template: {
 		})
 
 		It("should emit patchStrategy annotation inside conditional block", func() {
-			kind := defkit.String("kind").Default("Deployment").Enum("Deployment", "StatefulSet")
-			strategy := defkit.Struct("strategy").Required().Fields(
+			kind := defkit.String("kind").Default("Deployment").Values("Deployment", "StatefulSet")
+			strategy := defkit.Struct("strategy").Required().WithFields(
 				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate"),
 			)
 
@@ -945,7 +945,7 @@ template: {
 
 	Context("Multiple IfBlocks with overlapping paths", func() {
 		It("should render multiple IfBlocks as separate conditional blocks", func() {
-			kind := defkit.String("kind").Default("Deployment").Enum("Deployment", "StatefulSet", "DaemonSet")
+			kind := defkit.String("kind").Default("Deployment").Values("Deployment", "StatefulSet", "DaemonSet")
 			strategyType := defkit.String("strategyType").Default("RollingUpdate")
 			maxSurge := defkit.String("maxSurge").Default("25%")
 			partition := defkit.Int("partition").Default(0)
@@ -987,11 +987,11 @@ template: {
 		})
 
 		It("should produce correct k8s-update-strategy-like pattern", func() {
-			targetKind := defkit.String("targetKind").Default("Deployment").Enum("Deployment", "StatefulSet", "DaemonSet")
-			strategy := defkit.Struct("strategy").Required().Fields(
-				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate").Enum("RollingUpdate", "Recreate", "OnDelete"),
+			targetKind := defkit.String("targetKind").Default("Deployment").Values("Deployment", "StatefulSet", "DaemonSet")
+			strategy := defkit.Struct("strategy").Required().WithFields(
+				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate").Values("RollingUpdate", "Recreate", "OnDelete"),
 				defkit.Field("rollingStrategy", defkit.ParamTypeStruct).
-					Nested(defkit.Struct("rollingStrategy").Fields(
+					Nested(defkit.Struct("rollingStrategy").WithFields(
 						defkit.Field("maxSurge", defkit.ParamTypeString).Default("25%"),
 						defkit.Field("maxUnavailable", defkit.ParamTypeString).Default("25%"),
 						defkit.Field("partition", defkit.ParamTypeInt).Default(0),
@@ -1066,10 +1066,10 @@ template: {
 				AppliesTo("deployments.apps").
 				PodDisruptive(true).
 				Params(postStart, preStop).
-				Helper("Handler", defkit.Struct("Handler").Fields(
+				Helper("Handler", defkit.Struct("Handler").WithFields(
 					defkit.Field("exec", defkit.ParamTypeStruct).
-						Nested(defkit.Struct("exec").Fields(
-							defkit.Field("command", defkit.ParamTypeArray).ArrayOf(defkit.ParamTypeString).Required(),
+						Nested(defkit.Struct("exec").WithFields(
+							defkit.Field("command", defkit.ParamTypeArray).Of(defkit.ParamTypeString).Required(),
 						)),
 				)).
 				Template(func(tpl *defkit.Template) {
@@ -1268,7 +1268,7 @@ template: {
 
 	Context("Multiple IfBlocks with bare ops", func() {
 		It("should render bare ops before conditional IfBlocks", func() {
-			kind := defkit.String("kind").Default("Deployment").Enum("Deployment", "StatefulSet")
+			kind := defkit.String("kind").Default("Deployment").Values("Deployment", "StatefulSet")
 			replicas := defkit.Int("replicas").Default(1)
 			strategyType := defkit.String("strategyType").Default("RollingUpdate")
 
@@ -1304,7 +1304,7 @@ template: {
 
 	Context("findIfBlockCommonPrefix edge cases", func() {
 		It("should handle IfBlocks with no common prefix", func() {
-			kind := defkit.String("kind").Default("a").Enum("a", "b")
+			kind := defkit.String("kind").Default("a").Values("a", "b")
 
 			trait := defkit.NewTrait("no-common-prefix-test").
 				Description("Test no common prefix").
@@ -1335,9 +1335,9 @@ template: {
 			trait := defkit.NewTrait("nested-array-test").
 				Description("test").
 				AppliesTo("deployments.apps").
-				Helper("Config", defkit.Struct("Config").Fields(
+				Helper("Config", defkit.Struct("Config").WithFields(
 					defkit.Field("headers", defkit.ParamTypeArray).
-						Nested(defkit.Struct("headers").Fields(
+						Nested(defkit.Struct("headers").WithFields(
 							defkit.Field("name", defkit.ParamTypeString).Required(),
 							defkit.Field("value", defkit.ParamTypeString).Required(),
 						)),
@@ -1359,7 +1359,7 @@ template: {
 				Description("test").
 				AppliesTo("deployments.apps").
 				Helper("Port", defkit.Int("Port").Min(1).Max(65535)).
-				Helper("Endpoint", defkit.Struct("Endpoint").Fields(
+				Helper("Endpoint", defkit.Struct("Endpoint").WithFields(
 					defkit.Field("port", defkit.ParamTypeInt).WithSchemaRef("Port").Required(),
 					defkit.Field("host", defkit.ParamTypeString),
 				)).
@@ -1460,13 +1460,13 @@ template: {
 			Expect(cue).To(ContainSubstring("labels: {}"))
 		})
 
-		It("should not emit labels when never called", func() {
+		It("should emit empty labels block when Labels never called", func() {
 			trait := defkit.NewTrait("no-labels").
 				Description("Trait without labels").
 				AppliesTo("deployments.apps")
 
 			cue := trait.ToCue()
-			Expect(cue).NotTo(ContainSubstring("labels:"))
+			Expect(cue).To(ContainSubstring("labels: {}"))
 		})
 	})
 
@@ -1616,6 +1616,112 @@ template: {
 			cue := trait.ToCue()
 			Expect(cue).To(ContainSubstring("_baseContainers: context.output.spec.template.spec.containers"))
 			Expect(cue).NotTo(ContainSubstring("_baseContainer:"))
+		})
+	})
+
+	Context("Annotations", func() {
+		It("should store and return annotations", func() {
+			t := defkit.NewTrait("scaler").
+				Annotations(map[string]string{"owner": "team-a", "env": "prod"})
+			Expect(t.GetAnnotations()).To(HaveKeyWithValue("owner", "team-a"))
+			Expect(t.GetAnnotations()).To(HaveKeyWithValue("env", "prod"))
+		})
+
+		It("should render sorted annotation keys in CUE", func() {
+			cue := defkit.NewTrait("scaler").
+				Annotations(map[string]string{"b": "2", "a": "1"}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`annotations: {`))
+			aIdx := strings.Index(cue, `"1"`)
+			bIdx := strings.Index(cue, `"2"`)
+			Expect(aIdx).To(BeNumerically("<", bIdx))
+		})
+
+		It("should keep annotations: {} in CUE when not set", func() {
+			cue := defkit.NewTrait("scaler").ToCue()
+			Expect(cue).To(ContainSubstring("annotations: {}"))
+		})
+
+		It("should merge user annotations in ToYAML without overriding description", func() {
+			t := defkit.NewTrait("scaler").
+				Description("My Trait").
+				Annotations(map[string]string{
+					"owner": "team-a",
+				})
+			yamlBytes, err := t.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("owner: team-a"))
+			Expect(yaml).To(ContainSubstring("My Trait"))
+		})
+
+		It("should not allow user annotation to override description in ToYAML", func() {
+			t := defkit.NewTrait("scaler").
+				Description("Actual Description").
+				Annotations(map[string]string{
+					"definition.oam.dev/description": "Not This",
+				})
+			yamlBytes, err := t.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("Actual Description"))
+		})
+	})
+
+	Context("Boolean CRD Spec Fields", func() {
+		It("should default ManageWorkload to false", func() {
+			Expect(defkit.NewTrait("t").IsManageWorkload()).To(BeFalse())
+		})
+
+		It("should set ManageWorkload to true after calling ManageWorkload()", func() {
+			Expect(defkit.NewTrait("t").ManageWorkload().IsManageWorkload()).To(BeTrue())
+		})
+
+		It("should default ControlPlaneOnly to false", func() {
+			Expect(defkit.NewTrait("t").IsControlPlaneOnly()).To(BeFalse())
+		})
+
+		It("should set ControlPlaneOnly to true after calling ControlPlaneOnly()", func() {
+			Expect(defkit.NewTrait("t").ControlPlaneOnly().IsControlPlaneOnly()).To(BeTrue())
+		})
+
+		It("should default RevisionEnabled to false", func() {
+			Expect(defkit.NewTrait("t").IsRevisionEnabled()).To(BeFalse())
+		})
+
+		It("should set RevisionEnabled to true after calling RevisionEnabled()", func() {
+			Expect(defkit.NewTrait("t").RevisionEnabled().IsRevisionEnabled()).To(BeTrue())
+		})
+
+		It("should emit manageWorkload: true in ToYAML when set", func() {
+			yamlBytes, err := defkit.NewTrait("t").ManageWorkload().ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).To(ContainSubstring("manageWorkload: true"))
+		})
+
+		It("should NOT emit manageWorkload in ToYAML when not set", func() {
+			yamlBytes, err := defkit.NewTrait("t").ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).NotTo(ContainSubstring("manageWorkload"))
+		})
+
+		It("should emit controlPlaneOnly: true in ToYAML when set", func() {
+			yamlBytes, err := defkit.NewTrait("t").ControlPlaneOnly().ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).To(ContainSubstring("controlPlaneOnly: true"))
+		})
+
+		It("should emit revisionEnabled: true in ToYAML when set", func() {
+			yamlBytes, err := defkit.NewTrait("t").RevisionEnabled().ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).To(ContainSubstring("revisionEnabled: true"))
+		})
+
+		It("should support chaining and return *TraitDefinition", func() {
+			trait := defkit.NewTrait("t").ManageWorkload().ControlPlaneOnly().RevisionEnabled()
+			Expect(trait.IsManageWorkload()).To(BeTrue())
+			Expect(trait.IsControlPlaneOnly()).To(BeTrue())
+			Expect(trait.IsRevisionEnabled()).To(BeTrue())
 		})
 	})
 })
