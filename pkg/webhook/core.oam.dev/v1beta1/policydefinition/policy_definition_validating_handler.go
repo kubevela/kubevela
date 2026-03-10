@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	applicationcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
@@ -112,7 +113,18 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			logger.WithStep("validate-version-conflict").WithError(err).Error(err, "PolicyDefinition has conflicting version specifications - cannot have both spec.version and revision annotation", "specVersion", obj.Spec.Version, "revisionName", revisionName)
 			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
+
+		// Validate Application-scoped policy constraints (global=true rules, scope consistency)
+		validationResult := applicationcontroller.ValidatePolicyDefinition(obj)
+		if !validationResult.IsValid() {
+			logger.WithStep("validate-policy-definition").Error(nil, "PolicyDefinition failed Application-scoped policy validation", "errors", validationResult.Errors)
+			return admission.Denied(fmt.Sprintf("invalid PolicyDefinition: %v (requestUID=%s)", validationResult.Errors, req.UID))
+		}
+
 		logger.WithStep("complete").WithSuccess(true, startTime).Info("PolicyDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
+		if len(validationResult.Warnings) > 0 {
+			return admission.ValidationResponse(true, "").WithWarnings(validationResult.Warnings...)
+		}
 	} else {
 		logger.WithStep("skip-validation").Info("Skipping PolicyDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
 	}

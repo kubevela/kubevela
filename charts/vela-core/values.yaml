@@ -126,6 +126,8 @@ optimize:
 ##@param featureGates.enableCueValidation enable the strict cue validation for cue required parameter fields
 ##@param featureGates.enableApplicationStatusMetrics enable application status metrics and structured logging
 ##@param featureGates.validateResourcesExist enable webhook validation to check if resource types referenced in definition templates exist in the cluster
+##@param featureGates.enableApplicationScopedPolicies enable Application-scoped PolicyDefinitions that transform Application CR before rendering (Alpha)
+##@param featureGates.enableGlobalPolicies enable automatic discovery and application of global PolicyDefinitions to all Applications (Alpha)
 ##@param
 featureGates:
   gzipResourceTracker: false
@@ -144,6 +146,8 @@ featureGates:
   enableCueValidation: false
   enableApplicationStatusMetrics: false
   validateResourcesExist: false
+  enableApplicationScopedPolicies: false
+  enableGlobalPolicies: false
 
 ## @section MultiCluster parameters
 

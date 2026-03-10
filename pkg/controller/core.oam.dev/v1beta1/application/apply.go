@@ -60,6 +60,13 @@ type AppHandler struct {
 	appliedResources []common.ClusterObjectReference
 	deletedResources []common.ClusterObjectReference
 
+	// Application-scoped PolicyDefinitions that were resolved and applied
+	// These need to be stored in the ApplicationRevision for version pinning
+	applicationScopedPolicyDefs map[string]*v1beta1.PolicyDefinition
+
+	// policyVersions stores version metadata for each policy (parallel to applicationScopedPolicyDefs)
+	policyVersions map[string]v1beta1.PolicyVersionMetadata
+
 	mu sync.Mutex
 }
 
@@ -76,9 +83,10 @@ func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application)
 		return nil, errors.Wrapf(err, "failed to create resourceKeeper")
 	}
 	return &AppHandler{
-		Client:         r.Client,
-		app:            app,
-		resourceKeeper: resourceHandler,
+		Client:                      r.Client,
+		app:                         app,
+		resourceKeeper:              resourceHandler,
+		applicationScopedPolicyDefs: make(map[string]*v1beta1.PolicyDefinition),
 	}, nil
 }
 
@@ -401,7 +409,7 @@ func (h *AppHandler) ApplyPolicies(ctx context.Context, af *appfile.Appfile) err
 		}))
 		defer subCtx.Commit("finish apply policies")
 	}
-	policyManifests, err := af.GeneratePolicyManifests(ctx)
+	policyManifests, err := af.GeneratePolicyManifests(ctx, h.Client)
 	if err != nil {
 		return errors.Wrapf(err, "failed to render policy manifests")
 	}

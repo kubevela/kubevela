@@ -1744,7 +1744,7 @@ func TestGeneratePolicyManifests(t *testing.T) {
 		},
 	}
 
-	manifests, err := af.GeneratePolicyManifests(context.Background())
+	manifests, err := af.GeneratePolicyManifests(context.Background(), nil)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(manifests))
 

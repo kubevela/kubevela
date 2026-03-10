@@ -372,6 +372,66 @@ spec:
                   status:
                     description: AppStatus defines the observed state of Application
                     properties:
+                      applicationPoliciesConfigMap:
+                        description: |-
+                          ApplicationPoliciesConfigMap references the ConfigMap containing rendered policy outputs
+                          Format: "application-policies-{namespace}-{name}"
+                        type: string
+                      appliedApplicationPolicies:
+                        description: |-
+                          AppliedApplicationPolicies lists Application-scoped policies (both global and explicit)
+                          that were discovered and applied (or skipped) during reconciliation.
+                        items:
+                          description: |-
+                            AppliedApplicationPolicy records minimal status information about an Application-scoped policy.
+                            This covers both global (auto-discovered) and explicit (spec-referenced) policies.
+                            Full details (transforms, labels, annotations, etc.) are stored in the ConfigMap referenced
+                            by ApplicationPoliciesConfigMap for persistent storage and observability.
+                          properties:
+                            annotationsCount:
+                              type: integer
+                            applied:
+                              type: boolean
+                            definitionRevisionName:
+                              description: |-
+                                Version tracking
+                                DefinitionRevisionName is the DefinitionRevision resource name if a versioned policy was used (e.g., "my-policy-v3")
+                                Empty if the policy wasn't versioned (used latest PolicyDefinition)
+                              type: string
+                            error:
+                              type: boolean
+                            hasContext:
+                              type: boolean
+                            labelsCount:
+                              type: integer
+                            message:
+                              type: string
+                            name:
+                              type: string
+                            namespace:
+                              type: string
+                            revision:
+                              description: Revision is the revision number from the
+                                DefinitionRevision (e.g. 3)
+                              format: int64
+                              type: integer
+                            revisionHash:
+                              description: |-
+                                RevisionHash is the hash of the PolicyDefinition template from the DefinitionRevision
+                                This is the definitive proof of exactly what template was used
+                              type: string
+                            source:
+                              type: string
+                            specModified:
+                              type: boolean
+                            type:
+                              type: string
+                          required:
+                          - applied
+                          - name
+                          - namespace
+                          type: object
+                        type: array
                       appliedResources:
                         description: AppliedResources record the resources that the  workflow
                           step apply.
@@ -1225,11 +1285,28 @@ spec:
                           required:
                           - name
                           type: object
+                        global:
+                          description: |-
+                            Global indicates this policy should automatically apply to all Applications
+                            in this namespace (or all namespaces if in vela-system).
+                            Global policies cannot be explicitly referenced in Application specs.
+                            Requires EnableGlobalPolicies feature gate for discovery and
+                            EnableApplicationScopedPolicies feature gate for execution.
+                          type: boolean
                         manageHealthCheck:
                           description: |-
                             ManageHealthCheck means the policy will handle health checking and skip application controller
                             built-in health checking.
                           type: boolean
+                        priority:
+                          description: |-
+                            Priority defines the order in which global policies are applied.
+                            Lower values run first (e.g. 0 runs before 100), following the same
+                            convention as Kubernetes admission webhooks. Policies with the same
+                            priority are applied in alphabetical order by name.
+                            If not specified, defaults to 0.
+                          format: int32
+                          type: integer
                         schematic:
                           description: |-
                             Schematic defines the data format and template of the encapsulation of the policy definition.
@@ -1326,6 +1403,14 @@ spec:
                               - configuration
                               type: object
                           type: object
+                        scope:
+                          description: |-
+                            Scope defines the scope at which this policy operates.
+                            - DefaultScope (empty/omitted): Standard output-based or builtin policies (topology, override, etc.)
+                              These can generate Kubernetes resources from CUE templates with an 'output' field or apply Go-logic in the controller
+                            - ApplicationScope: Transform-based policies that modify the Application CR before parsing.
+                              Requires EnableApplicationScopedPolicies feature gate.
+                          type: string
                         version:
                           type: string
                       type: object
@@ -1392,6 +1477,32 @@ spec:
                   type: object
                 description: PolicyDefinitions records the snapshot of the PolicyDefinitions
                   related with the created/modified Application
+                type: object
+              policyVersions:
+                additionalProperties:
+                  description: |-
+                    PolicyVersionMetadata records version information for a PolicyDefinition used in an ApplicationRevision
+                    This helps users identify which DefinitionRevision was selected when the ApplicationRevision was created
+                  properties:
+                    definitionRevisionName:
+                      description: |-
+                        DefinitionRevisionName is the DefinitionRevision resource name if versioned (e.g. "my-policy-v3")
+                        Empty if the policy used latest PolicyDefinition (no @version specified)
+                      type: string
+                    revision:
+                      description: Revision is the revision number from the DefinitionRevision
+                        (e.g. 3)
+                      format: int64
+                      type: integer
+                    revisionHash:
+                      description: |-
+                        RevisionHash is the hash of the PolicyDefinition template
+                        This is the definitive proof of exactly what template was used
+                      type: string
+                  type: object
+                description: |-
+                  PolicyVersions records version metadata for each policy (which DefinitionRevision was used)
+                  Key is the policy name (same as PolicyDefinitions keys)
                 type: object
               referredObjects:
                 description: ReferredObjects records the referred objects used in

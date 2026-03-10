@@ -87,6 +87,64 @@ var componentStatus = common.AppStatus{
 	Phase: common.ApplicationRunning,
 }
 
+func TestBuildApplicationListTableUsesRevisionSpec(t *testing.T) {
+	ctx := context.TODO()
+	r := require.New(t)
+
+	scheme := common2.Scheme
+
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "policy-app",
+			Namespace: "rev-test",
+			UID:       "uid-1",
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{{
+				Name: "original-comp",
+				Type: "webservice",
+			}},
+		},
+		Status: common.AppStatus{
+			Phase: common.ApplicationRunning,
+			LatestRevision: &common.Revision{
+				Name: "policy-app-v1",
+			},
+		},
+	}
+
+	appRev := &v1beta1.ApplicationRevision{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "policy-app-v1",
+			Namespace: "rev-test",
+		},
+		Spec: v1beta1.ApplicationRevisionSpec{
+			ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+				Application: v1beta1.Application{
+					Spec: v1beta1.ApplicationSpec{
+						Components: []common.ApplicationComponent{{
+							Name: "transformed-comp",
+							Type: "ocm-spoke-application",
+						}},
+					},
+				},
+			},
+		},
+	}
+
+	cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(app, appRev).Build()
+
+	LabelSelector = ""
+	FieldSelector = ""
+	tb, err := buildApplicationListTable(ctx, cli, "rev-test")
+	r.NoError(err)
+
+	// Row 0 is the header; row 1 is the component row
+	r.Len(tb.Rows, 2)
+	r.Equal("transformed-comp", fmt.Sprintf("%s", tb.Rows[1].Cells[1].Data))
+	r.Equal("ocm-spoke-application", fmt.Sprintf("%s", tb.Rows[1].Cells[2].Data))
+}
+
 func TestBuildApplicationListTable(t *testing.T) {
 	ctx := context.TODO()
 	testCases := map[string]struct {
