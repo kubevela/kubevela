@@ -35,6 +35,8 @@ import (
 	"github.com/oam-dev/kubevela/references/appfile"
 )
 
+const defaultLogOutputFormat = "default"
+
 var re = regexp.MustCompile(`"((?:[^"\\]|\\.)*)"`)
 
 // NewLogsCommand creates `logs` command to tail logs of application
@@ -74,7 +76,7 @@ func NewLogsCommand(c common.Args, order string, ioStreams util.IOStreams) *cobr
 		},
 	}
 
-	cmd.Flags().StringVarP(&largs.Output, "output", "o", "default", "output format for logs, support: [default, raw, json]")
+	cmd.Flags().StringVarP(&largs.Output, "output", "o", defaultLogOutputFormat, "output format for logs, support: [default, raw, json]")
 	cmd.Flags().StringVarP(&largs.ComponentName, "component", "c", "", "filter the pod by the component name")
 	cmd.Flags().StringVarP(&largs.ClusterName, "cluster", "", "", "filter the pod by the cluster name")
 	cmd.Flags().StringVarP(&largs.PodName, "pod", "p", "", "specify the pod name")
@@ -107,7 +109,7 @@ func (l *Args) printPodLogs(ctx context.Context, ioStreams util.IOStreams, selec
 
 	var t string
 	switch l.Output {
-	case "default":
+	case defaultLogOutputFormat:
 		if color.NoColor {
 			t = "{{.ContainerName}} {{.Message}}"
 		} else {
