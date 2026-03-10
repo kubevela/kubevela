@@ -412,7 +412,9 @@ func (f *filterOp) apply(items []any) []any {
 }
 
 // filterCondCollectionOp filters items by a Condition (CUE-level expression).
-// The apply method is a passthrough since Condition evaluation is done during CUE generation.
+// apply is a runtime passthrough: Condition is a CUE AST concept with no Go runtime
+// evaluation semantics. Filtering only takes effect in generated CUE output.
+// Callers must not rely on Collect/Count/First to reflect condition-based filters.
 type filterCondCollectionOp struct {
 	cond Condition
 }
