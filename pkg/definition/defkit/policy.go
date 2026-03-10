@@ -329,21 +329,19 @@ func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string 
 	if p.GetVersion() != "" {
 		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, p.GetVersion()))
 	}
-	if p.labels != nil {
-		if len(p.labels) > 0 {
-			keys := make([]string, 0, len(p.labels))
-			for k := range p.labels {
-				keys = append(keys, k)
-			}
-			sort.Strings(keys)
-			sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
-			for _, k := range keys {
-				sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, p.labels[k]))
-			}
-			sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
-		} else {
-			sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
+	if len(p.labels) > 0 {
+		keys := make([]string, 0, len(p.labels))
+		for k := range p.labels {
+			keys = append(keys, k)
 		}
+		sort.Strings(keys)
+		sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
+		for _, k := range keys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, p.labels[k]))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sattributes: {}\n", g.indent))
 	sb.WriteString(fmt.Sprintf("%stype: \"policy\"\n", g.indent))

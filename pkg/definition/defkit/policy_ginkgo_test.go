@@ -124,10 +124,10 @@ var _ = Describe("PolicyDefinition", func() {
 			Expect(aIdx).To(BeNumerically("<", bIdx))
 		})
 
-		It("should omit labels block in CUE when Labels never called", func() {
+		It("should emit empty labels block in CUE when Labels never called", func() {
 			p := defkit.NewPolicy("topology")
 			cue := p.ToCue()
-			Expect(cue).NotTo(ContainSubstring("labels:"))
+			Expect(cue).To(ContainSubstring("labels: {}"))
 		})
 
 		It("should render empty labels block when Labels called with empty map", func() {

@@ -502,17 +502,14 @@ func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
 		sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
 	}
 
-	// Write labels block when Labels() was explicitly called (nil check distinguishes unset from empty)
-	if t.labels != nil {
-		if len(t.labels) > 0 {
-			sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
-			for k, v := range t.labels {
-				sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
-			}
-			sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
-		} else {
-			sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
+	if len(t.labels) > 0 {
+		sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
+		for k, v := range t.labels {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
 		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, t.GetDescription()))
 	if t.GetVersion() != "" {
@@ -1627,17 +1624,14 @@ func (g *TraitCUEGenerator) GenerateDefinitionWithRawTemplate(t *TraitDefinition
 		sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
 	}
 
-	// Write labels block when Labels() was explicitly called (nil check distinguishes unset from empty)
-	if t.labels != nil {
-		if len(t.labels) > 0 {
-			sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
-			for k, v := range t.labels {
-				sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
-			}
-			sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
-		} else {
-			sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
+	if len(t.labels) > 0 {
+		sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
+		for k, v := range t.labels {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
 		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	} else {
+		sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, t.GetDescription()))
 

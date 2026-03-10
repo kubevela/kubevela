@@ -1460,13 +1460,13 @@ template: {
 			Expect(cue).To(ContainSubstring("labels: {}"))
 		})
 
-		It("should not emit labels when never called", func() {
+		It("should emit empty labels block when Labels never called", func() {
 			trait := defkit.NewTrait("no-labels").
 				Description("Trait without labels").
 				AppliesTo("deployments.apps")
 
 			cue := trait.ToCue()
-			Expect(cue).NotTo(ContainSubstring("labels:"))
+			Expect(cue).To(ContainSubstring("labels: {}"))
 		})
 	})
 
