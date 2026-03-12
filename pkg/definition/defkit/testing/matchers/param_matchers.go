@@ -24,14 +24,39 @@ import (
 	"github.com/oam-dev/kubevela/pkg/definition/defkit"
 )
 
-// paramAccessor provides common access to parameter properties.
-type paramAccessor interface {
+// named is the minimal interface for extracting a parameter name (used in failure messages).
+type named interface {
 	Name() string
+}
+
+// requiredParam is satisfied by any parameter that can report required status.
+type requiredParam interface {
+	named
 	IsRequired() bool
+}
+
+// optionalParam is satisfied by any parameter that can report optional status.
+type optionalParam interface {
+	named
 	IsOptional() bool
+}
+
+// mandatoryParam is satisfied by any parameter that can report mandatory status.
+type mandatoryParam interface {
+	named
 	IsMandatory() bool
+}
+
+// defaultParam is satisfied by any parameter that can report its default value.
+type defaultParam interface {
+	named
 	HasDefault() bool
 	GetDefault() any
+}
+
+// describedParam is satisfied by any parameter that can report its description.
+type describedParam interface {
+	named
 	GetDescription() string
 }
 
@@ -43,7 +68,7 @@ func BeRequired() types.GomegaMatcher {
 type requiredMatcher struct{}
 
 func (m *requiredMatcher) Match(actual interface{}) (bool, error) {
-	param, ok := actual.(paramAccessor)
+	param, ok := actual.(requiredParam)
 	if !ok {
 		return false, fmt.Errorf("BeRequired expects a parameter type, got %T", actual)
 	}
@@ -51,12 +76,12 @@ func (m *requiredMatcher) Match(actual interface{}) (bool, error) {
 }
 
 func (m *requiredMatcher) FailureMessage(actual interface{}) string {
-	param := actual.(paramAccessor)
+	param := actual.(requiredParam)
 	return fmt.Sprintf("Expected parameter %q to be required", param.Name())
 }
 
 func (m *requiredMatcher) NegatedFailureMessage(actual interface{}) string {
-	param := actual.(paramAccessor)
+	param := actual.(requiredParam)
 	return fmt.Sprintf("Expected parameter %q not to be required", param.Name())
 }
 
@@ -68,7 +93,7 @@ func BeOptional() types.GomegaMatcher {
 type optionalMatcher struct{}
 
 func (m *optionalMatcher) Match(actual interface{}) (bool, error) {
-	param, ok := actual.(paramAccessor)
+	param, ok := actual.(optionalParam)
 	if !ok {
 		return false, fmt.Errorf("BeOptional expects a parameter type, got %T", actual)
 	}
@@ -76,12 +101,12 @@ func (m *optionalMatcher) Match(actual interface{}) (bool, error) {
 }
 
 func (m *optionalMatcher) FailureMessage(actual interface{}) string {
-	param := actual.(paramAccessor)
+	param := actual.(optionalParam)
 	return fmt.Sprintf("Expected parameter %q to be optional", param.Name())
 }
 
 func (m *optionalMatcher) NegatedFailureMessage(actual interface{}) string {
-	param := actual.(paramAccessor)
+	param := actual.(optionalParam)
 	return fmt.Sprintf("Expected parameter %q not to be optional", param.Name())
 }
 
@@ -93,7 +118,7 @@ func BeMandatory() types.GomegaMatcher {
 type mandatoryMatcher struct{}
 
 func (m *mandatoryMatcher) Match(actual interface{}) (bool, error) {
-	param, ok := actual.(paramAccessor)
+	param, ok := actual.(mandatoryParam)
 	if !ok {
 		return false, fmt.Errorf("BeMandatory expects a parameter type, got %T", actual)
 	}
@@ -101,12 +126,12 @@ func (m *mandatoryMatcher) Match(actual interface{}) (bool, error) {
 }
 
 func (m *mandatoryMatcher) FailureMessage(actual interface{}) string {
-	param := actual.(paramAccessor)
+	param := actual.(mandatoryParam)
 	return fmt.Sprintf("Expected parameter %q to be mandatory", param.Name())
 }
 
 func (m *mandatoryMatcher) NegatedFailureMessage(actual interface{}) string {
-	param := actual.(paramAccessor)
+	param := actual.(mandatoryParam)
 	return fmt.Sprintf("Expected parameter %q not to be mandatory", param.Name())
 }
 
@@ -120,7 +145,7 @@ type defaultValueMatcher struct {
 }
 
 func (m *defaultValueMatcher) Match(actual interface{}) (bool, error) {
-	param, ok := actual.(paramAccessor)
+	param, ok := actual.(defaultParam)
 	if !ok {
 		return false, fmt.Errorf("HaveDefaultValue expects a parameter type, got %T", actual)
 	}
@@ -131,7 +156,7 @@ func (m *defaultValueMatcher) Match(actual interface{}) (bool, error) {
 }
 
 func (m *defaultValueMatcher) FailureMessage(actual interface{}) string {
-	param := actual.(paramAccessor)
+	param := actual.(defaultParam)
 	if !param.HasDefault() {
 		return fmt.Sprintf("Expected parameter %q to have default value %v, but it has no default", param.Name(), m.expectedValue)
 	}
@@ -139,7 +164,7 @@ func (m *defaultValueMatcher) FailureMessage(actual interface{}) string {
 }
 
 func (m *defaultValueMatcher) NegatedFailureMessage(actual interface{}) string {
-	param := actual.(paramAccessor)
+	param := actual.(defaultParam)
 	return fmt.Sprintf("Expected parameter %q not to have default value %v", param.Name(), m.expectedValue)
 }
 
@@ -153,7 +178,7 @@ type descriptionMatcher struct {
 }
 
 func (m *descriptionMatcher) Match(actual interface{}) (bool, error) {
-	param, ok := actual.(paramAccessor)
+	param, ok := actual.(describedParam)
 	if !ok {
 		return false, fmt.Errorf("HaveDescription expects a parameter type, got %T", actual)
 	}
@@ -161,12 +186,12 @@ func (m *descriptionMatcher) Match(actual interface{}) (bool, error) {
 }
 
 func (m *descriptionMatcher) FailureMessage(actual interface{}) string {
-	param := actual.(paramAccessor)
+	param := actual.(describedParam)
 	return fmt.Sprintf("Expected parameter %q to have description %q, but got %q", param.Name(), m.expectedDesc, param.GetDescription())
 }
 
 func (m *descriptionMatcher) NegatedFailureMessage(actual interface{}) string {
-	param := actual.(paramAccessor)
+	param := actual.(describedParam)
 	return fmt.Sprintf("Expected parameter %q not to have description %q", param.Name(), m.expectedDesc)
 }
 

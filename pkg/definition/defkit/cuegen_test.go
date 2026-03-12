@@ -157,6 +157,23 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring(`accessKey!: *"key123" | string`))
 		})
 
+		It("should emit ! for required non-string parameters with defaults", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.Int("port").Required().Default(8080),
+					defkit.Bool("enabled").Required().Default(true),
+					defkit.Float("ratio").Required().Default(0.5),
+					defkit.Enum("mode").Required().Default("fast").Values("fast", "slow"),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring(`port!: *8080 | int`))
+			Expect(cue).To(ContainSubstring(`enabled!: *true | bool`))
+			Expect(cue).To(ContainSubstring(`ratio!: *0.5 | float`))
+			Expect(cue).To(ContainSubstring(`mode!: *"fast" | "slow"`))
+		})
+
 		It("should keep ? for ForceOptional parameters even with defaults", func() {
 			comp := defkit.NewComponent("test").
 				Params(

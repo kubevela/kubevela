@@ -133,6 +133,11 @@ var _ = Describe("Parameter Matchers", func() {
 			p := defkit.String("image")
 			Expect(p).NotTo(BeRequired())
 		})
+
+		It("should not match a mandatory parameter", func() {
+			p := defkit.String("image").Mandatory()
+			Expect(p).NotTo(BeRequired())
+		})
 	})
 
 	Describe("BeOptional", func() {

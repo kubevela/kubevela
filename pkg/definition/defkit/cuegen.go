@@ -2894,9 +2894,9 @@ func (g *CUEGenerator) writeIntParam(sb *strings.Builder, p *IntParam, indent, n
 
 	if p.HasDefault() {
 		if len(constraints) > 0 {
-			sb.WriteString(fmt.Sprintf("%s%s: *%v | int & %s\n", indent, name, p.GetDefault(), strings.Join(constraints, " & ")))
+			sb.WriteString(fmt.Sprintf("%s%s%s: *%v | int & %s\n", indent, name, optional, p.GetDefault(), strings.Join(constraints, " & ")))
 		} else {
-			sb.WriteString(fmt.Sprintf("%s%s: *%v | int\n", indent, name, p.GetDefault()))
+			sb.WriteString(fmt.Sprintf("%s%s%s: *%v | int\n", indent, name, optional, p.GetDefault()))
 		}
 	} else {
 		if len(constraints) > 0 {
@@ -2910,7 +2910,7 @@ func (g *CUEGenerator) writeIntParam(sb *strings.Builder, p *IntParam, indent, n
 // writeBoolParam writes a boolean parameter.
 func (g *CUEGenerator) writeBoolParam(sb *strings.Builder, p *BoolParam, indent, name, optional string) {
 	if p.HasDefault() {
-		sb.WriteString(fmt.Sprintf("%s%s: *%v | bool\n", indent, name, p.GetDefault()))
+		sb.WriteString(fmt.Sprintf("%s%s%s: *%v | bool\n", indent, name, optional, p.GetDefault()))
 	} else {
 		sb.WriteString(fmt.Sprintf("%s%s%s: bool\n", indent, name, optional))
 	}
@@ -2933,9 +2933,9 @@ func (g *CUEGenerator) writeFloatParam(sb *strings.Builder, p *FloatParam, inden
 
 	if p.HasDefault() {
 		if len(constraints) > 0 {
-			sb.WriteString(fmt.Sprintf("%s%s: *%v | number & %s\n", indent, name, p.GetDefault(), strings.Join(constraints, " & ")))
+			sb.WriteString(fmt.Sprintf("%s%s%s: *%v | number & %s\n", indent, name, optional, p.GetDefault(), strings.Join(constraints, " & ")))
 		} else {
-			sb.WriteString(fmt.Sprintf("%s%s: *%v | float\n", indent, name, p.GetDefault()))
+			sb.WriteString(fmt.Sprintf("%s%s%s: *%v | float\n", indent, name, optional, p.GetDefault()))
 		}
 	} else {
 		if len(constraints) > 0 {
@@ -3140,7 +3140,7 @@ func (g *CUEGenerator) writeEnumParam(sb *strings.Builder, p *EnumParam, indent,
 				enumParts = append(enumParts, fmt.Sprintf("%q", v))
 			}
 		}
-		sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, name, strings.Join(enumParts, " | ")))
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, strings.Join(enumParts, " | ")))
 	} else {
 		// Build enum type without default: "value1" | "value2" | ...
 		var enumParts []string
