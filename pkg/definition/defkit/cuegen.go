@@ -473,6 +473,25 @@ func (g *CUEGenerator) writeHelperDefFromParam(sb *strings.Builder, param Param,
 		} else {
 			sb.WriteString("[...]\n")
 		}
+	case *ClosedUnionParam:
+		// For closed unions, write as: close({...}) | close({...})
+		options := p.GetOptions()
+		if len(options) == 0 {
+			sb.WriteString("_\n")
+		} else {
+			indent := strings.Repeat(g.indent, depth)
+			for i, opt := range options {
+				if i > 0 {
+					sb.WriteString(" | ")
+				}
+				sb.WriteString("close({\n")
+				for _, field := range opt.GetFields() {
+					g.writeStructFieldForHelper(sb, field, depth+1)
+				}
+				sb.WriteString(fmt.Sprintf("%s})", indent))
+			}
+			sb.WriteString("\n")
+		}
 	case *IntParam:
 		// For int types with optional constraints: int & >=1 & <=65535
 		var constraints []string
@@ -1807,6 +1826,10 @@ func (g *CUEGenerator) filterNodeByCondition(node *fieldNode, condStr string) *f
 // valueToCUE converts a Value to CUE syntax.
 func (g *CUEGenerator) valueToCUE(v Value) string {
 	// Check if the value can render itself (used by fluent builders).
+	// Prefer CUEConditionRenderer when available, as it also passes condition rendering.
+	if ccr, ok := v.(CUEConditionRenderer); ok {
+		return ccr.RenderCUEWithCondition(g.valueToCUE, g.conditionToCUE)
+	}
 	if cr, ok := v.(CUERenderer); ok {
 		return cr.RenderCUE(g.valueToCUE)
 	}
@@ -3262,7 +3285,7 @@ func cueTypeStr(pt ParamType) string {
 		return "float"
 	case ParamTypeArray:
 		return "[...]"
-	case ParamTypeMap, ParamTypeStruct, ParamTypeOneOf:
+	case ParamTypeMap, ParamTypeStruct, ParamTypeOneOf, ParamTypeClosedUnion:
 		return cueOpenStruct
 	default:
 		return "_"

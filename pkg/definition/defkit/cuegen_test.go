@@ -1261,6 +1261,31 @@ var _ = Describe("CUEGenerator", func() {
 			// Empty options should produce fallback
 			Expect(cue).To(ContainSubstring("empty: _"))
 		})
+
+		It("should generate ClosedUnion in helper definition", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.String("name").Required(),
+				).
+				Helper("URLConfig", defkit.ClosedUnion("urlConfig").
+					Options(
+						defkit.ClosedStruct().WithFields(
+							defkit.Field("value", defkit.ParamTypeString).Required(),
+						),
+						defkit.ClosedStruct().WithFields(
+							defkit.Field("secretRef", defkit.ParamTypeString).Required(),
+						),
+					),
+				)
+
+			cue := comp.ToCue()
+
+			Expect(cue).To(ContainSubstring("#URLConfig:"))
+			Expect(cue).To(ContainSubstring("close({"))
+			Expect(cue).To(ContainSubstring("value: string"))
+			Expect(cue).To(ContainSubstring("}) | close({"))
+			Expect(cue).To(ContainSubstring("secretRef: string"))
+		})
 	})
 
 	Describe("ForEachGuarded inner braces", func() {

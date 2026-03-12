@@ -92,6 +92,39 @@ var _ = Describe("Operation Builders", func() {
 			Expect(cue).To(ContainSubstring(`kind:       "Application"`))
 		})
 
+		It("should render NamespaceIf with condition through CUE generator", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Params(defkit.String("name").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Set("read", defkit.KubeRead("v1", "Secret").
+						Name(defkit.Reference("parameter.name")).
+						NamespaceIf(
+							defkit.PathExists("parameter.namespace"),
+							defkit.Reference("parameter.namespace"),
+						),
+					)
+				})
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("if parameter.namespace != _|_ {"))
+			Expect(cue).To(ContainSubstring("namespace: parameter.namespace"))
+		})
+
+		It("should render NamespaceIf without condition renderer as unconditional", func() {
+			b := defkit.KubeRead("v1", "Secret").
+				Name(defkit.Reference("parameter.name")).
+				NamespaceIf(
+					defkit.PathExists("parameter.namespace"),
+					defkit.Reference("parameter.namespace"),
+				)
+
+			// RenderCUE without condition renderer falls back to unconditional
+			cue := b.RenderCUE(simpleRenderValue)
+
+			Expect(cue).To(ContainSubstring("namespace: parameter.namespace"))
+		})
+
 		It("should implement Value interface", func() {
 			var v defkit.Value = defkit.KubeRead("v1", "Pod").
 				Name(defkit.Reference("name"))
@@ -230,6 +263,24 @@ var _ = Describe("Operation Builders", func() {
 			cue := b.RenderCUE(simpleRenderValue)
 
 			Expect(cue).To(ContainSubstring("if apply.$returns.value.status != _|_ if apply.$returns.value.status.apply != _|_"))
+		})
+
+		It("should render MessageIf with condition through CUE generator", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Params(defkit.String("name").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Set("wait", defkit.WaitUntil(
+						defkit.Reference("job.$returns.value.status.succeeded > 0"),
+					).MessageIf(
+						defkit.PathExists("job.$returns.value.status.conditions"),
+						defkit.Reference("job.$returns.value.status.conditions[0].message"),
+					))
+				})
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("if job.$returns.value.status.conditions != _|_ {"))
+			Expect(cue).To(ContainSubstring("$params: message: job.$returns.value.status.conditions[0].message"))
 		})
 
 		It("should implement Value interface", func() {
