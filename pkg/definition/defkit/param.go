@@ -354,6 +354,7 @@ func (p *IntParam) Mandatory() *IntParam {
 // Optional marks the parameter as optional (default behavior).
 func (p *IntParam) Optional() *IntParam {
 	p.mandatory = false
+	p.required = false
 	return p
 }
 
@@ -476,6 +477,7 @@ func (p *BoolParam) Mandatory() *BoolParam {
 // Optional marks the parameter as optional (default behavior).
 func (p *BoolParam) Optional() *BoolParam {
 	p.mandatory = false
+	p.required = false
 	return p
 }
 
@@ -557,6 +559,7 @@ func (p *FloatParam) Mandatory() *FloatParam {
 // Optional marks the parameter as optional (default behavior).
 func (p *FloatParam) Optional() *FloatParam {
 	p.mandatory = false
+	p.required = false
 	return p
 }
 
@@ -667,6 +670,7 @@ func (p *ArrayParam) Mandatory() *ArrayParam {
 // Optional marks the parameter as optional (default behavior).
 func (p *ArrayParam) Optional() *ArrayParam {
 	p.mandatory = false
+	p.required = false
 	return p
 }
 
@@ -839,6 +843,7 @@ func (p *MapParam) Mandatory() *MapParam {
 // Optional marks the parameter as optional (default behavior).
 func (p *MapParam) Optional() *MapParam {
 	p.mandatory = false
+	p.required = false
 	return p
 }
 
@@ -972,6 +977,7 @@ func (f *StructField) Mandatory() *StructField {
 // Optional marks the field as optional (default behavior).
 func (f *StructField) Optional() *StructField {
 	f.mandatory = false
+	f.required = false
 	return f
 }
 
@@ -1095,6 +1101,7 @@ func (p *StructParam) Mandatory() *StructParam {
 // Optional marks the parameter as optional (default behavior).
 func (p *StructParam) Optional() *StructParam {
 	p.mandatory = false
+	p.required = false
 	return p
 }
 
@@ -1174,6 +1181,7 @@ func (p *EnumParam) Mandatory() *EnumParam {
 // Optional marks the parameter as optional (default behavior).
 func (p *EnumParam) Optional() *EnumParam {
 	p.mandatory = false
+	p.required = false
 	return p
 }
 
@@ -1291,6 +1299,7 @@ func (p *OneOfParam) Mandatory() *OneOfParam {
 // Optional marks the parameter as optional (default behavior).
 func (p *OneOfParam) Optional() *OneOfParam {
 	p.mandatory = false
+	p.required = false
 	return p
 }
 
@@ -1375,6 +1384,7 @@ func (p *StringKeyMapParam) Mandatory() *StringKeyMapParam {
 // Optional marks the parameter as optional (default behavior).
 func (p *StringKeyMapParam) Optional() *StringKeyMapParam {
 	p.mandatory = false
+	p.required = false
 	return p
 }
 
