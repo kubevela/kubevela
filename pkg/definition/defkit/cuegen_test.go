@@ -1245,6 +1245,8 @@ var _ = Describe("CUEGenerator", func() {
 			// Verify ordering: first option before second
 			valueIdx := strings.Index(cue, "value: string")
 			secretIdx := strings.Index(cue, "secretRef:")
+			Expect(valueIdx).To(BeNumerically(">=", 0), "expected 'value: string' to be present")
+			Expect(secretIdx).To(BeNumerically(">=", 0), "expected 'secretRef:' to be present")
 			Expect(valueIdx).To(BeNumerically("<", secretIdx))
 		})
 
