@@ -27,6 +27,13 @@ type CUERenderer interface {
 	RenderCUE(renderValue func(Value) string) string
 }
 
+// CUEConditionRenderer extends CUERenderer with condition rendering support.
+// Builders that need to render Condition values should implement this interface.
+// The CUE generator will prefer this over CUERenderer when available.
+type CUEConditionRenderer interface {
+	RenderCUEWithCondition(renderValue func(Value) string, renderCondition func(Condition) string) string
+}
+
 // ---------------------------------------------------------------------------
 // KubeRead builder
 // ---------------------------------------------------------------------------
@@ -80,6 +87,11 @@ func (b *KubeReadBuilder) Cluster(v Value) *KubeReadBuilder {
 
 // RenderCUE renders the builder to a CUE string.
 func (b *KubeReadBuilder) RenderCUE(rv func(Value) string) string {
+	return b.RenderCUEWithCondition(rv, nil)
+}
+
+// RenderCUEWithCondition renders the builder to a CUE string with condition support.
+func (b *KubeReadBuilder) RenderCUEWithCondition(rv func(Value) string, rc func(Condition) string) string {
 	var sb strings.Builder
 	sb.WriteString("kube.#Read & {\n")
 
@@ -88,12 +100,12 @@ func (b *KubeReadBuilder) RenderCUE(rv func(Value) string) string {
 		sb.WriteString("\t$params: {\n")
 		sb.WriteString(fmt.Sprintf("\t\tcluster: %s\n", rv(b.cluster)))
 		sb.WriteString("\t\tvalue: {\n")
-		b.writeValueBody(&sb, rv, "\t\t\t")
+		b.writeValueBody(&sb, rv, rc, "\t\t\t")
 		sb.WriteString("\t\t}\n")
 		sb.WriteString("\t}\n")
 	} else {
 		sb.WriteString("\t$params: value: {\n")
-		b.writeValueBody(&sb, rv, "\t\t")
+		b.writeValueBody(&sb, rv, rc, "\t\t")
 		sb.WriteString("\t}\n")
 	}
 
@@ -101,7 +113,7 @@ func (b *KubeReadBuilder) RenderCUE(rv func(Value) string) string {
 	return sb.String()
 }
 
-func (b *KubeReadBuilder) writeValueBody(sb *strings.Builder, rv func(Value) string, indent string) {
+func (b *KubeReadBuilder) writeValueBody(sb *strings.Builder, rv func(Value) string, rc func(Condition) string, indent string) {
 	sb.WriteString(fmt.Sprintf("%sapiVersion: %q\n", indent, b.apiVersion))
 	sb.WriteString(fmt.Sprintf("%skind:       %q\n", indent, b.kind))
 	sb.WriteString(fmt.Sprintf("%smetadata: {\n", indent))
@@ -109,7 +121,14 @@ func (b *KubeReadBuilder) writeValueBody(sb *strings.Builder, rv func(Value) str
 		sb.WriteString(fmt.Sprintf("%s\tname:      %s\n", indent, rv(b.name)))
 	}
 	if b.namespace != nil {
-		sb.WriteString(fmt.Sprintf("%s\tnamespace: %s\n", indent, rv(b.namespace)))
+		if b.nsCond != nil && rc != nil {
+			condStr := rc(b.nsCond)
+			sb.WriteString(fmt.Sprintf("%s\tif %s {\n", indent, condStr))
+			sb.WriteString(fmt.Sprintf("%s\t\tnamespace: %s\n", indent, rv(b.namespace)))
+			sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s\tnamespace: %s\n", indent, rv(b.namespace)))
+		}
 	}
 	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 }
@@ -268,6 +287,11 @@ func (b *WaitUntilBuilder) MessageIf(cond Condition, val Value) *WaitUntilBuilde
 
 // RenderCUE renders the builder to a CUE string.
 func (b *WaitUntilBuilder) RenderCUE(rv func(Value) string) string {
+	return b.RenderCUEWithCondition(rv, nil)
+}
+
+// RenderCUEWithCondition renders the builder to a CUE string with condition support.
+func (b *WaitUntilBuilder) RenderCUEWithCondition(rv func(Value) string, rc func(Condition) string) string {
 	var sb strings.Builder
 	sb.WriteString("builtin.#ConditionalWait & {\n")
 
@@ -285,9 +309,13 @@ func (b *WaitUntilBuilder) RenderCUE(rv func(Value) string) string {
 	}
 
 	if b.messageCond != nil && b.messageVal != nil {
-		// messageCond rendering needs conditionToCUE, but we only have renderValue.
-		// Use the message value path with a != _|_ guard as the common pattern.
-		sb.WriteString(fmt.Sprintf("\tif %s != _|_ {\n", rv(b.messageVal)))
+		if rc != nil {
+			condStr := rc(b.messageCond)
+			sb.WriteString(fmt.Sprintf("\tif %s {\n", condStr))
+		} else {
+			// Fallback when condition renderer is not available
+			sb.WriteString(fmt.Sprintf("\tif %s != _|_ {\n", rv(b.messageVal)))
+		}
 		sb.WriteString(fmt.Sprintf("\t\t$params: message: %s\n", rv(b.messageVal)))
 		sb.WriteString("\t}\n")
 	}
