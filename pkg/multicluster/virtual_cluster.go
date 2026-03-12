@@ -409,7 +409,7 @@ func RequestRawK8sAPIForCluster(ctx context.Context, path, clusterName string, c
 		}
 		return restClient.Get().AbsPath(path).DoRaw(ctx)
 	}
-	return versioned.NewForConfigOrDie(cfg).ClusterV1alpha1().ClusterGateways().RESTClient(clusterName).Get().AbsPath(path).DoRaw(ctx)
+	return versioned.NewForConfigOrDie(cfg).ClusterV1alpha1().ClusterGateways().RESTClient(clusterName).Get().AbsPath("/proxy/" + path).DoRaw(ctx)
 }
 
 // NewClusterClient create virtual cluster client
