@@ -55,6 +55,18 @@ package helm
 			optional?: bool
 		}]
 		
+		// +usage=KubeVela ownership context — injected as labels on every deployed resource
+		context?: {
+			// +usage=Application name
+			appName: string
+			// +usage=Application namespace
+			appNamespace: string
+			// +usage=Component name
+			name: string
+			// +usage=Component namespace
+			namespace: string
+		}
+
 		// +usage=Rendering options
 		options?: {
 			// +usage=Install CRDs from chart

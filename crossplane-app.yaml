@@ -1,0 +1,33 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: crossplane
+  namespace: vela-system
+spec:
+  components:
+    - name: crossplane
+      type: helmchart
+      properties:
+        chart:
+          source: crossplane
+          repoURL: https://charts.crossplane.io/stable
+          version: "1.19.0"
+        release:
+          name: crossplane
+          namespace: crossplane-system
+        values:
+          replicas: 1
+        options:
+          includeCRDs: true
+          createNamespace: true
+        healthStatus:
+          - resource:
+              kind: Deployment
+              name: crossplane
+            condition:
+              type: Available
+          - resource:
+              kind: Deployment
+              name: crossplane-rbac-manager
+            condition:
+              type: Available
