@@ -19,7 +19,9 @@ package helm
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -35,6 +37,7 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/registry"
+	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -175,9 +178,13 @@ func DefaultCacheTTLConfig() *CacheTTLConfig {
 
 // Provider is the Helm chart provider
 type Provider struct {
-	cache      *utils.MemoryCacheStore
-	helmClient *cli.EnvSettings
-	cacheTTL   *CacheTTLConfig
+	cache               *utils.MemoryCacheStore
+	helmClient          *cli.EnvSettings
+	cacheTTL            *CacheTTLConfig
+	releaseMu           sync.Mutex        // serializes install/upgrade/uninstall calls
+	releaseFingerprints map[string]string // releaseName → fingerprint (chartVersion|valuesHash)
+	releaseManifests    map[string]string // releaseName → last successful manifest
+	releaseVersions     map[string]int    // releaseName → current release version number
 }
 
 var (
@@ -191,9 +198,12 @@ var (
 func NewProvider() *Provider {
 	providerOnce.Do(func() {
 		globalProvider = &Provider{
-			cache:      utils.NewMemoryCacheStore(context.Background()),
-			helmClient: cli.New(),
-			cacheTTL:   DefaultCacheTTLConfig(),
+			cache:               utils.NewMemoryCacheStore(context.Background()),
+			helmClient:          cli.New(),
+			cacheTTL:            DefaultCacheTTLConfig(),
+			releaseFingerprints: make(map[string]string),
+			releaseManifests:    make(map[string]string),
+			releaseVersions:     make(map[string]int),
 		}
 	})
 	return globalProvider
@@ -205,9 +215,12 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 		ttlConfig = DefaultCacheTTLConfig()
 	}
 	return &Provider{
-		cache:      utils.NewMemoryCacheStore(context.Background()),
-		helmClient: cli.New(),
-		cacheTTL:   ttlConfig,
+		cache:               utils.NewMemoryCacheStore(context.Background()),
+		helmClient:          cli.New(),
+		cacheTTL:            ttlConfig,
+		releaseFingerprints: make(map[string]string),
+		releaseManifests:    make(map[string]string),
+		releaseVersions:     make(map[string]int),
 	}
 }
 
@@ -626,103 +639,177 @@ func (r *velaLabelPostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buf
 	return out, nil
 }
 
+// velaOwnerLabels returns KubeVela ownership labels suitable for embedding in Helm
+// action Labels (which are written onto the Kubernetes release Secret). Returns nil
+// when velaCtx is nil so callers can skip the label map safely.
+func velaOwnerLabels(velaCtx *ContextParams) map[string]string {
+	if velaCtx == nil {
+		return nil
+	}
+	return map[string]string{
+		"app.oam.dev/name":      velaCtx.AppName,
+		"app.oam.dev/namespace": velaCtx.AppNamespace,
+		"app.oam.dev/component": velaCtx.Name,
+	}
+}
+
+// computeReleaseFingerprint builds a deterministic string from chart version and a
+// SHA-256 hash of the values so repeated reconciles with no real changes can be
+// detected cheaply without calling the Kubernetes API.
+func computeReleaseFingerprint(ch *chart.Chart, values map[string]interface{}) string {
+	version := ""
+	if ch != nil && ch.Metadata != nil {
+		version = ch.Metadata.Version
+	}
+	valuesJSON, _ := json.Marshal(values)
+	h := sha256.Sum256(valuesJSON)
+	return version + "|" + hex.EncodeToString(h[:])
+}
+
 // installOrUpgradeChart performs a real Helm install or upgrade against the cluster.
 // It uses a post-renderer to inject KubeVela ownership labels so the deployed
 // resources are immediately owned by the application.
-// Returns the release manifest string, notes, and any error.
-func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, velaCtx *ContextParams) (string, string, error) {
+//
+// Dedup: a SHA-256 fingerprint of (chartVersion, values) is checked against an
+// in-memory cache and the live release in the cluster. If the release is already
+// deployed with an identical fingerprint the call is a no-op and the cached
+// manifest is returned, preventing spurious revision bumps on every reconcile.
+//
+// KubeVela labels are also set on the Helm action (install.Labels / upgrade.Labels)
+// so they are embedded in the Kubernetes release Secret by the Helm SDK. This allows
+// KubeVela to track the release Secret in its ResourceTracker and delete it when the
+// Application is deleted — which removes the release from `helm list`.
+//
+// Returns the release manifest string, notes, release version, and any error.
+func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, velaCtx *ContextParams) (string, string, int, error) {
+	fingerprint := computeReleaseFingerprint(ch, values)
+
+	p.releaseMu.Lock()
+	defer p.releaseMu.Unlock()
+
+	// Fast path: in-memory cache hit — no API call needed
+	if cached, ok := p.releaseFingerprints[releaseName]; ok && cached == fingerprint {
+		if manifest, ok := p.releaseManifests[releaseName]; ok {
+			klog.V(4).Infof("Helm provider: Release %s unchanged (in-memory fingerprint match), skipping", releaseName)
+			return manifest, "", p.releaseVersions[releaseName], nil
+		}
+	}
+
 	actionConfig, err := p.getActionConfig(releaseNamespace)
 	if err != nil {
-		return "", "", err
+		return "", "", 0, err
 	}
 
 	postRenderer := &velaLabelPostRenderer{context: velaCtx}
 
-	// Check if release already exists
+	// Build labels to embed in the release Secret so KubeVela can track and
+	// delete it via the ResourceTracker when the Application is deleted.
+	releaseLabels := velaOwnerLabels(velaCtx)
+
+	// Check if release already exists in the cluster
 	getAction := action.NewGet(actionConfig)
 	existingRelease, getErr := getAction.Run(releaseName)
 
-	if getErr != nil || existingRelease == nil {
-		// No existing release — perform a fresh install
-		install := action.NewInstall(actionConfig)
-		install.ReleaseName = releaseName
-		install.Namespace = releaseNamespace
-		install.DryRun = false
-		install.ClientOnly = false
-		install.PostRenderer = postRenderer
+	if getErr == nil && existingRelease != nil {
+		// Release exists — check if it is already deployed with the same fingerprint
+		if existingRelease.Info.Status == release.StatusDeployed {
+			clusterFingerprint := computeReleaseFingerprint(existingRelease.Chart, existingRelease.Config)
+			if clusterFingerprint == fingerprint {
+				klog.V(3).Infof("Helm provider: Release %s already deployed and unchanged (cluster fingerprint match), skipping upgrade", releaseName)
+				p.releaseFingerprints[releaseName] = fingerprint
+				p.releaseManifests[releaseName] = existingRelease.Manifest
+				p.releaseVersions[releaseName] = existingRelease.Version
+				return existingRelease.Manifest, existingRelease.Info.Notes, existingRelease.Version, nil
+			}
+		}
 
-		// Apply options
-		install.CreateNamespace = true
+		// Fingerprint differs or release is not in a clean deployed state — upgrade
+		upgrade := action.NewUpgrade(actionConfig)
+		upgrade.Namespace = releaseNamespace
+		upgrade.PostRenderer = postRenderer
+		upgrade.Labels = releaseLabels
+
 		if options != nil {
 			if options.Atomic {
-				install.Atomic = true
+				upgrade.Atomic = true
 			}
 			if options.Wait || options.Atomic {
-				install.Wait = true
+				upgrade.Wait = true
 			}
 			if options.Timeout != "" {
 				if d, err := time.ParseDuration(options.Timeout); err == nil {
-					install.Timeout = d
+					upgrade.Timeout = d
 				}
 			}
-			if options.CreateNamespace != nil {
-				install.CreateNamespace = *options.CreateNamespace
+			if options.Force {
+				upgrade.Force = true
+			}
+			if options.CleanupOnFail {
+				upgrade.CleanupOnFail = true
+			}
+			if options.RecreatePods {
+				upgrade.Recreate = true
+			}
+			if options.MaxHistory > 0 {
+				upgrade.MaxHistory = options.MaxHistory
 			}
 			if options.SkipHooks != nil {
-				install.DisableHooks = *options.SkipHooks
+				upgrade.DisableHooks = *options.SkipHooks
 			}
 		}
 
-		klog.Infof("Helm provider: Installing release %s in namespace %s", releaseName, releaseNamespace)
-		rel, err := install.RunWithContext(ctx, ch, values)
+		klog.Infof("Helm provider: Upgrading release %s in namespace %s", releaseName, releaseNamespace)
+		rel, err := upgrade.RunWithContext(ctx, releaseName, ch, values)
 		if err != nil {
-			return "", "", errors.Wrapf(err, "failed to install helm release %s", releaseName)
+			return "", "", 0, errors.Wrapf(err, "failed to upgrade helm release %s", releaseName)
 		}
-		klog.Infof("Helm provider: Successfully installed release %s", releaseName)
-		return rel.Manifest, rel.Info.Notes, nil
+		klog.Infof("Helm provider: Successfully upgraded release %s", releaseName)
+		p.releaseFingerprints[releaseName] = fingerprint
+		p.releaseManifests[releaseName] = rel.Manifest
+		p.releaseVersions[releaseName] = rel.Version
+		return rel.Manifest, rel.Info.Notes, rel.Version, nil
 	}
 
-	// Existing release — perform an upgrade
-	upgrade := action.NewUpgrade(actionConfig)
-	upgrade.Namespace = releaseNamespace
-	upgrade.PostRenderer = postRenderer
+	// No existing release — perform a fresh install
+	install := action.NewInstall(actionConfig)
+	install.ReleaseName = releaseName
+	install.Namespace = releaseNamespace
+	install.DryRun = false
+	install.ClientOnly = false
+	install.PostRenderer = postRenderer
+	install.CreateNamespace = true
+	install.Labels = releaseLabels
 
 	if options != nil {
 		if options.Atomic {
-			upgrade.Atomic = true
+			install.Atomic = true
 		}
 		if options.Wait || options.Atomic {
-			upgrade.Wait = true
+			install.Wait = true
 		}
 		if options.Timeout != "" {
 			if d, err := time.ParseDuration(options.Timeout); err == nil {
-				upgrade.Timeout = d
+				install.Timeout = d
 			}
 		}
-		if options.Force {
-			upgrade.Force = true
-		}
-		if options.CleanupOnFail {
-			upgrade.CleanupOnFail = true
-		}
-		if options.RecreatePods {
-			upgrade.Recreate = true
-		}
-		if options.MaxHistory > 0 {
-			upgrade.MaxHistory = options.MaxHistory
+		if options.CreateNamespace != nil {
+			install.CreateNamespace = *options.CreateNamespace
 		}
 		if options.SkipHooks != nil {
-			upgrade.DisableHooks = *options.SkipHooks
+			install.DisableHooks = *options.SkipHooks
 		}
 	}
 
-	klog.Infof("Helm provider: Upgrading release %s in namespace %s", releaseName, releaseNamespace)
-	rel, err := upgrade.RunWithContext(ctx, releaseName, ch, values)
+	klog.Infof("Helm provider: Installing release %s in namespace %s", releaseName, releaseNamespace)
+	rel, err := install.RunWithContext(ctx, ch, values)
 	if err != nil {
-		return "", "", errors.Wrapf(err, "failed to upgrade helm release %s", releaseName)
+		return "", "", 0, errors.Wrapf(err, "failed to install helm release %s", releaseName)
 	}
-	klog.Infof("Helm provider: Successfully upgraded release %s", releaseName)
-	return rel.Manifest, rel.Info.Notes, nil
+	klog.Infof("Helm provider: Successfully installed release %s", releaseName)
+	p.releaseFingerprints[releaseName] = fingerprint
+	p.releaseManifests[releaseName] = rel.Manifest
+	p.releaseVersions[releaseName] = rel.Version
+	return rel.Manifest, rel.Info.Notes, rel.Version, nil
 }
 
 // parseManifestResources parses a Helm release manifest string into a slice of
@@ -874,7 +961,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	klog.V(3).Infof("Helm provider: Merged values: %v", values)
 
 	// Install or upgrade the chart via the Helm SDK
-	manifest, notes, err := p.installOrUpgradeChart(ctx, ch, releaseName, releaseNamespace, values, renderParams.Options, renderParams.Context)
+	manifest, notes, releaseVersion, err := p.installOrUpgradeChart(ctx, ch, releaseName, releaseNamespace, values, renderParams.Options, renderParams.Context)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to install/upgrade chart")
 	}
@@ -883,6 +970,28 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	resources, err := p.parseManifestResources(manifest, renderParams.Options)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse release manifest")
+	}
+
+	// Include the Helm release Secret as a tracked resource so KubeVela's
+	// ResourceTracker records it and deletes it when the Application is deleted.
+	// This ensures `helm list` no longer shows the release after Application deletion.
+	//
+	// The release Secret already has KubeVela ownership labels because we set
+	// install.Labels / upgrade.Labels in installOrUpgradeChart, so KubeVela's
+	// MustBeControlledByApp ownership check passes on apply.
+	if renderParams.Context != nil && releaseVersion > 0 {
+		releaseSecretName := fmt.Sprintf("sh.helm.release.v1.%s.v%d", releaseName, releaseVersion)
+		releaseSecret := map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Secret",
+			"metadata": map[string]interface{}{
+				"name":      releaseSecretName,
+				"namespace": releaseNamespace,
+			},
+			"type": "helm.sh/release.v1",
+		}
+		resources = append(resources, releaseSecret)
+		klog.V(3).Infof("Helm provider: Tracking release secret %s for GC", releaseSecretName)
 	}
 
 	klog.Infof("Helm provider: Deployed %d resources for chart %s", len(resources), renderParams.Chart.Source)
@@ -921,6 +1030,63 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	return result, nil
 }
 
+// UninstallParams are the parameters for uninstalling a Helm release
+type UninstallParams struct {
+	Release     ReleaseParams `json:"release"`
+	KeepHistory bool          `json:"keepHistory,omitempty"`
+}
+
+// UninstallReturns are the return values from uninstalling a Helm release
+type UninstallReturns struct {
+	Success bool   `json:"success"`
+	Message string `json:"message,omitempty"`
+}
+
+// Uninstall runs `helm uninstall` for the named release and clears the provider's
+// in-memory fingerprint cache so a subsequent Render triggers a fresh install.
+func Uninstall(ctx context.Context, params *providers.Params[UninstallParams]) (*providers.Returns[UninstallReturns], error) {
+	p := NewProvider()
+	up := params.Params
+
+	releaseName := up.Release.Name
+	releaseNamespace := up.Release.Namespace
+
+	klog.Infof("Helm provider: Uninstalling release %s in namespace %s", releaseName, releaseNamespace)
+
+	actionConfig, err := p.getActionConfig(releaseNamespace)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to initialize helm action config for uninstall")
+	}
+
+	uninstallAction := action.NewUninstall(actionConfig)
+	uninstallAction.KeepHistory = up.KeepHistory
+
+	_, err = uninstallAction.Run(releaseName)
+	if err != nil {
+		// Treat "not found" as a success — the release is already gone
+		if strings.Contains(err.Error(), "not found") {
+			klog.Infof("Helm provider: Release %s not found, treating as already uninstalled", releaseName)
+		} else {
+			return &providers.Returns[UninstallReturns]{
+				Returns: UninstallReturns{Success: false, Message: err.Error()},
+			}, err
+		}
+	} else {
+		klog.Infof("Helm provider: Successfully uninstalled release %s", releaseName)
+	}
+
+	// Clear in-memory state so the next Render performs a fresh install
+	p.releaseMu.Lock()
+	delete(p.releaseFingerprints, releaseName)
+	delete(p.releaseManifests, releaseName)
+	delete(p.releaseVersions, releaseName)
+	p.releaseMu.Unlock()
+
+	return &providers.Returns[UninstallReturns]{
+		Returns: UninstallReturns{Success: true},
+	}, nil
+}
+
 // ProviderName is the name of this provider
 const ProviderName = "helm"
 
@@ -932,5 +1098,6 @@ var Template = template
 
 // Package exports the provider package for registration
 var Package = runtime.Must(cuexruntime.NewInternalPackage(ProviderName, template, map[string]cuexruntime.ProviderFn{
-	"render": cuexruntime.GenericProviderFn[providers.Params[RenderParams], providers.Returns[RenderReturns]](Render),
+	"render":    cuexruntime.GenericProviderFn[providers.Params[RenderParams], providers.Returns[RenderReturns]](Render),
+	"uninstall": cuexruntime.GenericProviderFn[providers.Params[UninstallParams], providers.Returns[UninstallReturns]](Uninstall),
 }))

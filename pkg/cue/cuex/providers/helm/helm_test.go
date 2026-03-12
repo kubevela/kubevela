@@ -24,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"helm.sh/helm/v3/pkg/chart"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -383,4 +384,92 @@ func TestGetActionConfig(t *testing.T) {
 	// An error is expected in unit-test environments without a kubeconfig.
 	// The important thing is that it doesn't panic.
 	_ = err
+}
+
+func TestComputeReleaseFingerprint(t *testing.T) {
+	ch := &chart.Chart{
+		Metadata: &chart.Metadata{Version: "1.2.3"},
+	}
+	values1 := map[string]interface{}{"replicas": 2}
+	values2 := map[string]interface{}{"replicas": 3}
+
+	fp1 := computeReleaseFingerprint(ch, values1)
+	fp2 := computeReleaseFingerprint(ch, values2)
+	fp1Again := computeReleaseFingerprint(ch, values1)
+
+	// Same inputs → same fingerprint
+	assert.Equal(t, fp1, fp1Again, "fingerprint must be deterministic")
+	// Different values → different fingerprint
+	assert.NotEqual(t, fp1, fp2, "different values must produce different fingerprints")
+	// Fingerprint encodes the chart version
+	assert.Contains(t, fp1, "1.2.3")
+
+	// Nil chart metadata
+	fpNil := computeReleaseFingerprint(nil, values1)
+	assert.NotEmpty(t, fpNil)
+}
+
+func TestComputeReleaseFingerprintVersionChange(t *testing.T) {
+	ch1 := &chart.Chart{Metadata: &chart.Metadata{Version: "1.0.0"}}
+	ch2 := &chart.Chart{Metadata: &chart.Metadata{Version: "2.0.0"}}
+	values := map[string]interface{}{"key": "val"}
+
+	fp1 := computeReleaseFingerprint(ch1, values)
+	fp2 := computeReleaseFingerprint(ch2, values)
+	assert.NotEqual(t, fp1, fp2, "different chart versions must produce different fingerprints")
+}
+
+func TestInMemoryFingerprintDedup(t *testing.T) {
+	// Use a fresh provider (not the singleton) so tests don't interfere
+	p := NewProviderWithConfig(nil)
+
+	ch := &chart.Chart{Metadata: &chart.Metadata{Version: "1.0.0"}}
+	values := map[string]interface{}{"replicas": 1}
+	fp := computeReleaseFingerprint(ch, values)
+
+	// Pre-seed the in-memory cache as if a prior install succeeded
+	p.releaseMu.Lock()
+	p.releaseFingerprints["my-release"] = fp
+	p.releaseManifests["my-release"] = "---\napiVersion: v1\nkind: Service\n"
+	p.releaseVersions["my-release"] = 3
+	p.releaseMu.Unlock()
+
+	// installOrUpgradeChart should return the cached manifest without hitting the cluster
+	// (it will fail at getActionConfig because there's no cluster, but the fast-path
+	// returns before that call when fingerprints match)
+	manifest, notes, version, err := p.installOrUpgradeChart(
+		context.Background(), ch, "my-release", "default", values, nil, nil,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "---\napiVersion: v1\nkind: Service\n", manifest)
+	assert.Empty(t, notes)
+	assert.Equal(t, 3, version)
+}
+
+func TestVelaOwnerLabels(t *testing.T) {
+	velaCtx := &ContextParams{
+		AppName:      "my-app",
+		AppNamespace: "my-ns",
+		Name:         "my-component",
+	}
+	labels := velaOwnerLabels(velaCtx)
+	assert.Equal(t, "my-app", labels["app.oam.dev/name"])
+	assert.Equal(t, "my-ns", labels["app.oam.dev/namespace"])
+	assert.Equal(t, "my-component", labels["app.oam.dev/component"])
+
+	// nil context should return nil (safe to pass to install.Labels)
+	assert.Nil(t, velaOwnerLabels(nil))
+}
+
+func TestUninstallParamsStructure(t *testing.T) {
+	params := &UninstallParams{
+		Release: ReleaseParams{
+			Name:      "my-release",
+			Namespace: "my-ns",
+		},
+		KeepHistory: true,
+	}
+	assert.Equal(t, "my-release", params.Release.Name)
+	assert.Equal(t, "my-ns", params.Release.Namespace)
+	assert.True(t, params.KeepHistory)
 }
