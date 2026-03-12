@@ -575,7 +575,8 @@ func (g *WorkflowStepCUEGenerator) GenerateTemplate(w *WorkflowStepDefinition) s
 		sb.WriteString("\n")
 	}
 
-	// Generate parameter section (skip if no params and raw body is set)
+	// Generate parameter section (skip if no params and raw body is set,
+	// e.g. step-group which uses TemplateBody with no parameter references)
 	if len(w.GetParams()) > 0 || !w.HasRawTemplateBody() {
 		sb.WriteString(g.generateParameterBlock(w, 1))
 	}

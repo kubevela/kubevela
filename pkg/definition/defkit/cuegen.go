@@ -2133,21 +2133,11 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 	}
 
 	// Check for deduplication
+	var dedupeKeyField string
 	for _, op := range ops {
 		if dedup, ok := op.(*dedupeOp); ok {
-			keyField := dedup.keyField
-			return fmt.Sprintf(`[
-		for val in [
-			for i, vi in %s {
-				for j, vj in %s if j < i && vi.%s == vj.%s {
-					_ignore: true
-				}
-				vi
-			},
-		] if val._ignore == _|_ {
-			val
-		},
-	]`, sourceStr, sourceStr, keyField, keyField)
+			dedupeKeyField = dedup.keyField
+			break
 		}
 	}
 
@@ -2179,6 +2169,30 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 		if _, ok := op.(*mapVariantOp); ok {
 			hasVariant = true
 		}
+	}
+
+	// Dedupe: render the nested-comprehension pattern.
+	// This is placed after all op detection so that guard/filter/map are not bypassed.
+	if dedupeKeyField != "" {
+		var sb strings.Builder
+		// Apply guard if present
+		if guard := col.GetGuard(); guard != nil {
+			guardStr := g.conditionToCUE(guard)
+			sb.WriteString(fmt.Sprintf("if %s ", guardStr))
+		}
+		sb.WriteString(fmt.Sprintf(`[
+		for val in [
+			for i, vi in %s {
+				for j, vj in %s if j < i && vi.%s == vj.%s {
+					_ignore: true
+				}
+				vi
+			},
+		] if val._ignore == _|_ {
+			val
+		},
+	]`, sourceStr, sourceStr, dedupeKeyField, dedupeKeyField))
+		return sb.String()
 	}
 
 	// Build the list comprehension
