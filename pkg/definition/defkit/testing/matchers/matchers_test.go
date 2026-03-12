@@ -133,6 +133,11 @@ var _ = Describe("Parameter Matchers", func() {
 			p := defkit.String("image")
 			Expect(p).NotTo(BeRequired())
 		})
+
+		It("should not match a mandatory parameter", func() {
+			p := defkit.String("image").Mandatory()
+			Expect(p).NotTo(BeRequired())
+		})
 	})
 
 	Describe("BeOptional", func() {
@@ -144,6 +149,28 @@ var _ = Describe("Parameter Matchers", func() {
 		It("should not match a required parameter", func() {
 			p := defkit.Int("replicas").Required()
 			Expect(p).NotTo(BeOptional())
+		})
+
+		It("should not match a mandatory parameter", func() {
+			p := defkit.String("image").Mandatory()
+			Expect(p).NotTo(BeOptional())
+		})
+	})
+
+	Describe("BeMandatory", func() {
+		It("should match a mandatory parameter", func() {
+			p := defkit.String("image").Mandatory()
+			Expect(p).To(BeMandatory())
+		})
+
+		It("should not match an optional parameter", func() {
+			p := defkit.String("image")
+			Expect(p).NotTo(BeMandatory())
+		})
+
+		It("should not match a required parameter", func() {
+			p := defkit.String("image").Required()
+			Expect(p).NotTo(BeMandatory())
 		})
 	})
 
@@ -190,7 +217,7 @@ var _ = Describe("Parameter Matchers", func() {
 		It("should match when component has parameter", func() {
 			c := defkit.NewComponent("webservice").
 				Params(
-					defkit.String("image").Required(),
+					defkit.String("image").Mandatory(),
 					defkit.Int("replicas").Default(1),
 				)
 			Expect(c).To(HaveParamNamed("image"))

@@ -331,7 +331,7 @@ template: {
 			step := defkit.NewWorkflowStep("check-metrics").
 				Description("Verify metrics").
 				WithImports("vela/metrics").
-				Params(defkit.String("query").Required()).
+				Params(defkit.String("query").Mandatory()).
 				TemplateBody("check: metrics.#PromCheck & {\n\t$params: query: parameter.query\n}")
 
 			cue := step.ToCue()

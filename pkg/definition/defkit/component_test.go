@@ -50,7 +50,7 @@ var _ = Describe("ComponentDefinition", func() {
 		})
 
 		It("should add parameters", func() {
-			image := defkit.String("image").Required()
+			image := defkit.String("image").Mandatory()
 			replicas := defkit.Int("replicas").Default(1)
 			c := defkit.NewComponent("webservice").
 				Params(image, replicas)
@@ -519,7 +519,7 @@ var _ = Describe("ComponentDefinition", func() {
 			c := defkit.NewComponent("webservice").
 				Description("Web service component").
 				Workload("apps/v1", "Deployment").
-				Params(defkit.String("image").Required())
+				Params(defkit.String("image").Mandatory())
 
 			yamlBytes, err := c.ToYAML()
 			Expect(err).NotTo(HaveOccurred())
@@ -547,7 +547,7 @@ var _ = Describe("ComponentDefinition", func() {
 		It("should generate parameter schema CUE", func() {
 			c := defkit.NewComponent("test").
 				Params(
-					defkit.String("image").Required(),
+					defkit.String("image").Mandatory(),
 					defkit.Int("replicas").Default(1),
 				)
 
@@ -563,7 +563,7 @@ var _ = Describe("ComponentDefinition", func() {
 				Description("Web service component").
 				Workload("apps/v1", "Deployment").
 				Params(
-					defkit.String("image").Required().Description("Container image"),
+					defkit.String("image").Mandatory().Description("Container image"),
 					defkit.Int("replicas").Default(1),
 				)
 
@@ -644,7 +644,7 @@ var _ = Describe("ComponentDefinition", func() {
 
 	Context("Full Component Example", func() {
 		It("should build a complete webservice component", func() {
-			image := defkit.String("image").Required().Description("Container image")
+			image := defkit.String("image").Mandatory().Description("Container image")
 			replicas := defkit.Int("replicas").Default(1)
 			port := defkit.Int("port").Default(80)
 
