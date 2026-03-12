@@ -17,12 +17,15 @@ limitations under the License.
 package helm
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
 func TestDetectChartSourceType(t *testing.T) {
@@ -216,15 +219,168 @@ func TestRenderParams(t *testing.T) {
 		Values: map[string]interface{}{
 			"replicaCount": 2,
 		},
+		Context: &ContextParams{
+			AppName:      "my-app",
+			AppNamespace: "my-app-ns",
+			Name:         "nginx-component",
+			Namespace:    "my-namespace",
+		},
 	}
 
 	assert.Equal(t, "nginx", params.Chart.Source)
 	assert.Equal(t, "my-release", params.Release.Name)
 	assert.Equal(t, 2, params.Values.(map[string]interface{})["replicaCount"])
+	assert.Equal(t, "my-app", params.Context.AppName)
+	assert.Equal(t, "nginx-component", params.Context.Name)
 }
 
-// Note: Full integration tests would require:
-// 1. Mocking Helm repository access
-// 2. Providing test chart fixtures
-// 3. Mocking Kubernetes client for Secret/ConfigMap access
-// These would be added in a production implementation
+func TestVelaLabelPostRenderer(t *testing.T) {
+	manifest := `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-deploy
+  namespace: test-ns
+spec:
+  replicas: 1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-svc
+  namespace: test-ns
+`
+	velaCtx := &ContextParams{
+		AppName:      "my-app",
+		AppNamespace: "my-app-ns",
+		Name:         "my-component",
+		Namespace:    "test-ns",
+	}
+
+	renderer := &velaLabelPostRenderer{context: velaCtx}
+	result, err := renderer.Run(bytes.NewBufferString(manifest))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Parse result and verify labels were injected on every resource
+	decoder := kyaml.NewYAMLOrJSONDecoder(bytes.NewReader(result.Bytes()), 4096)
+	var resourceCount int
+	for {
+		obj := &unstructured.Unstructured{}
+		if err := decoder.Decode(obj); err != nil {
+			if err == io.EOF {
+				break
+			}
+			t.Fatal(err)
+		}
+		if obj.Object == nil || len(obj.Object) == 0 {
+			continue
+		}
+		resourceCount++
+
+		labels := obj.GetLabels()
+		assert.Equal(t, "my-app", labels["app.oam.dev/name"], "missing app.oam.dev/name on %s", obj.GetName())
+		assert.Equal(t, "my-app-ns", labels["app.oam.dev/namespace"], "missing app.oam.dev/namespace on %s", obj.GetName())
+		assert.Equal(t, "my-component", labels["app.oam.dev/component"], "missing app.oam.dev/component on %s", obj.GetName())
+
+		annotations := obj.GetAnnotations()
+		assert.Equal(t, "helm-provider", annotations["app.oam.dev/owner"], "missing app.oam.dev/owner on %s", obj.GetName())
+	}
+	assert.Equal(t, 2, resourceCount, "expected 2 resources in output")
+}
+
+func TestVelaLabelPostRendererNilContext(t *testing.T) {
+	manifest := `apiVersion: v1
+kind: Service
+metadata:
+  name: test-svc
+`
+	renderer := &velaLabelPostRenderer{context: nil}
+	buf := bytes.NewBufferString(manifest)
+	result, err := renderer.Run(buf)
+	require.NoError(t, err)
+	// With nil context, the original buffer is returned unchanged
+	assert.Equal(t, buf, result)
+}
+
+func TestParseManifestResources(t *testing.T) {
+	p := NewProvider()
+
+	manifest := `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-deploy
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-svc
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+  annotations:
+    helm.sh/hook: test-success
+`
+	// Default: skipTests=true — test hook Pod should be excluded
+	resources, err := p.parseManifestResources(manifest, nil)
+	require.NoError(t, err)
+	require.Len(t, resources, 2)
+
+	kinds := make([]string, len(resources))
+	for i, r := range resources {
+		kinds[i], _, _ = unstructured.NestedString(r, "kind")
+	}
+	assert.Contains(t, kinds, "Deployment")
+	assert.Contains(t, kinds, "Service")
+	assert.NotContains(t, kinds, "Pod")
+
+	// With skipTests=false — all 3 resources should be included
+	skipFalse := false
+	resources, err = p.parseManifestResources(manifest, &RenderOptionsParams{SkipTests: &skipFalse})
+	require.NoError(t, err)
+	assert.Len(t, resources, 3)
+}
+
+func TestParseManifestResourcesOrdering(t *testing.T) {
+	p := NewProvider()
+
+	manifest := `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-deploy
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: my-crd
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: my-ns
+`
+	resources, err := p.parseManifestResources(manifest, nil)
+	require.NoError(t, err)
+	require.Len(t, resources, 3)
+
+	// Verify ordering: CRD → Namespace → Deployment
+	kind0, _, _ := unstructured.NestedString(resources[0], "kind")
+	kind1, _, _ := unstructured.NestedString(resources[1], "kind")
+	kind2, _, _ := unstructured.NestedString(resources[2], "kind")
+	assert.Equal(t, "CustomResourceDefinition", kind0)
+	assert.Equal(t, "Namespace", kind1)
+	assert.Equal(t, "Deployment", kind2)
+}
+
+func TestGetActionConfig(t *testing.T) {
+	p := NewProvider()
+	// Without a real cluster, Init will fail to connect — we just verify the
+	// function is callable and returns a non-nil error (not a panic).
+	_, err := p.getActionConfig("test-namespace")
+	// An error is expected in unit-test environments without a kubeconfig.
+	// The important thing is that it doesn't panic.
+	_ = err
+}

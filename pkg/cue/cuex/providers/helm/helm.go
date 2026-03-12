@@ -35,14 +35,9 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/registry"
-	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
-	"helm.sh/helm/v3/pkg/storage"
-	helmdriver "helm.sh/helm/v3/pkg/storage/driver"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/yaml"
 
@@ -50,7 +45,6 @@ import (
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/runtime"
 
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -139,6 +133,14 @@ type ExecParams struct {
 	Env     []string `json:"env,omitempty"`
 }
 
+// ContextParams holds KubeVela ownership information to be injected as labels
+type ContextParams struct {
+	AppName      string `json:"appName"`
+	AppNamespace string `json:"appNamespace"`
+	Name         string `json:"name"`      // component name
+	Namespace    string `json:"namespace"` // component namespace
+}
+
 // RenderParams represents the parameters for rendering a Helm chart
 type RenderParams struct {
 	Chart      ChartSourceParams    `json:"chart"`
@@ -146,6 +148,7 @@ type RenderParams struct {
 	Values     interface{}          `json:"values,omitempty"`
 	ValuesFrom []ValuesFromParams   `json:"valuesFrom,omitempty"`
 	Options    *RenderOptionsParams `json:"options,omitempty"`
+	Context    *ContextParams       `json:"context,omitempty"` // KubeVela ownership context
 }
 
 // RenderReturns represents the return value from rendering
@@ -172,11 +175,9 @@ func DefaultCacheTTLConfig() *CacheTTLConfig {
 
 // Provider is the Helm chart provider
 type Provider struct {
-	cache           *utils.MemoryCacheStore
-	helmClient      *cli.EnvSettings
-	cacheTTL        *CacheTTLConfig
-	releaseMu       sync.Mutex            // serializes createChartRelease calls
-	releaseTracking map[string]string      // in-memory: releaseName -> "chartVersion|valuesHash"
+	cache      *utils.MemoryCacheStore
+	helmClient *cli.EnvSettings
+	cacheTTL   *CacheTTLConfig
 }
 
 var (
@@ -190,10 +191,9 @@ var (
 func NewProvider() *Provider {
 	providerOnce.Do(func() {
 		globalProvider = &Provider{
-			cache:           utils.NewMemoryCacheStore(context.Background()),
-			helmClient:      cli.New(),
-			cacheTTL:        DefaultCacheTTLConfig(),
-			releaseTracking: make(map[string]string),
+			cache:      utils.NewMemoryCacheStore(context.Background()),
+			helmClient: cli.New(),
+			cacheTTL:   DefaultCacheTTLConfig(),
 		}
 	})
 	return globalProvider
@@ -549,68 +549,192 @@ func (p *Provider) loadValuesFromSource(ctx context.Context, source ValuesFromPa
 	}
 }
 
-// renderChart renders a Helm chart to Kubernetes resources
-func (p *Provider) renderChart(_ context.Context, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams) ([]map[string]interface{}, string, error) {
-	// Set default options
-	if options == nil {
-		options = &RenderOptionsParams{}
+// getActionConfig initializes a Helm action.Configuration with a real Kubernetes
+// REST client and a secrets-based storage driver so that releases persist in-cluster.
+func (p *Provider) getActionConfig(namespace string) (*action.Configuration, error) {
+	actionConfig := &action.Configuration{}
+	if err := actionConfig.Init(
+		p.helmClient.RESTClientGetter(),
+		namespace,
+		"secret",
+		klog.Infof,
+	); err != nil {
+		return nil, errors.Wrap(err, "failed to initialize helm action configuration")
+	}
+	return actionConfig, nil
+}
+
+// velaLabelPostRenderer implements postrender.PostRenderer.
+// It injects KubeVela ownership labels and annotations into every resource
+// before Helm deploys them, enabling KubeVela to adopt the resources.
+type velaLabelPostRenderer struct {
+	context *ContextParams
+}
+
+// Run implements postrender.PostRenderer. It parses each YAML document in the
+// rendered manifests, injects KubeVela ownership labels/annotations, and returns
+// the modified manifests.
+func (r *velaLabelPostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buffer, error) {
+	if r.context == nil {
+		return renderedManifests, nil
 	}
 
-	// Set defaults
-	includeCRDs := true
-	if options.IncludeCRDs != nil {
-		includeCRDs = *options.IncludeCRDs
+	out := &bytes.Buffer{}
+	decoder := kyaml.NewYAMLOrJSONDecoder(bytes.NewReader(renderedManifests.Bytes()), 4096)
+
+	for {
+		obj := &unstructured.Unstructured{}
+		if err := decoder.Decode(obj); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, errors.Wrap(err, "post-renderer: failed to decode manifest")
+		}
+
+		if obj.Object == nil || len(obj.Object) == 0 {
+			continue
+		}
+
+		// Inject KubeVela ownership labels
+		labels := obj.GetLabels()
+		if labels == nil {
+			labels = make(map[string]string)
+		}
+		labels["app.oam.dev/name"] = r.context.AppName
+		labels["app.oam.dev/namespace"] = r.context.AppNamespace
+		labels["app.oam.dev/component"] = r.context.Name
+		obj.SetLabels(labels)
+
+		// Inject ownership annotation
+		annotations := obj.GetAnnotations()
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+		annotations["app.oam.dev/owner"] = "helm-provider"
+		obj.SetAnnotations(annotations)
+
+		// Serialize back to YAML
+		data, err := yaml.Marshal(obj.Object)
+		if err != nil {
+			return nil, errors.Wrap(err, "post-renderer: failed to marshal resource")
+		}
+
+		out.WriteString("---\n")
+		out.Write(data)
 	}
 
+	return out, nil
+}
+
+// installOrUpgradeChart performs a real Helm install or upgrade against the cluster.
+// It uses a post-renderer to inject KubeVela ownership labels so the deployed
+// resources are immediately owned by the application.
+// Returns the release manifest string, notes, and any error.
+func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, velaCtx *ContextParams) (string, string, error) {
+	actionConfig, err := p.getActionConfig(releaseNamespace)
+	if err != nil {
+		return "", "", err
+	}
+
+	postRenderer := &velaLabelPostRenderer{context: velaCtx}
+
+	// Check if release already exists
+	getAction := action.NewGet(actionConfig)
+	existingRelease, getErr := getAction.Run(releaseName)
+
+	if getErr != nil || existingRelease == nil {
+		// No existing release — perform a fresh install
+		install := action.NewInstall(actionConfig)
+		install.ReleaseName = releaseName
+		install.Namespace = releaseNamespace
+		install.DryRun = false
+		install.ClientOnly = false
+		install.PostRenderer = postRenderer
+
+		// Apply options
+		install.CreateNamespace = true
+		if options != nil {
+			if options.Atomic {
+				install.Atomic = true
+			}
+			if options.Wait || options.Atomic {
+				install.Wait = true
+			}
+			if options.Timeout != "" {
+				if d, err := time.ParseDuration(options.Timeout); err == nil {
+					install.Timeout = d
+				}
+			}
+			if options.CreateNamespace != nil {
+				install.CreateNamespace = *options.CreateNamespace
+			}
+			if options.SkipHooks != nil {
+				install.DisableHooks = *options.SkipHooks
+			}
+		}
+
+		klog.Infof("Helm provider: Installing release %s in namespace %s", releaseName, releaseNamespace)
+		rel, err := install.RunWithContext(ctx, ch, values)
+		if err != nil {
+			return "", "", errors.Wrapf(err, "failed to install helm release %s", releaseName)
+		}
+		klog.Infof("Helm provider: Successfully installed release %s", releaseName)
+		return rel.Manifest, rel.Info.Notes, nil
+	}
+
+	// Existing release — perform an upgrade
+	upgrade := action.NewUpgrade(actionConfig)
+	upgrade.Namespace = releaseNamespace
+	upgrade.PostRenderer = postRenderer
+
+	if options != nil {
+		if options.Atomic {
+			upgrade.Atomic = true
+		}
+		if options.Wait || options.Atomic {
+			upgrade.Wait = true
+		}
+		if options.Timeout != "" {
+			if d, err := time.ParseDuration(options.Timeout); err == nil {
+				upgrade.Timeout = d
+			}
+		}
+		if options.Force {
+			upgrade.Force = true
+		}
+		if options.CleanupOnFail {
+			upgrade.CleanupOnFail = true
+		}
+		if options.RecreatePods {
+			upgrade.Recreate = true
+		}
+		if options.MaxHistory > 0 {
+			upgrade.MaxHistory = options.MaxHistory
+		}
+		if options.SkipHooks != nil {
+			upgrade.DisableHooks = *options.SkipHooks
+		}
+	}
+
+	klog.Infof("Helm provider: Upgrading release %s in namespace %s", releaseName, releaseNamespace)
+	rel, err := upgrade.RunWithContext(ctx, releaseName, ch, values)
+	if err != nil {
+		return "", "", errors.Wrapf(err, "failed to upgrade helm release %s", releaseName)
+	}
+	klog.Infof("Helm provider: Successfully upgraded release %s", releaseName)
+	return rel.Manifest, rel.Info.Notes, nil
+}
+
+// parseManifestResources parses a Helm release manifest string into a slice of
+// resource maps, skipping test hooks when requested and ordering CRDs first.
+func (p *Provider) parseManifestResources(manifestStr string, options *RenderOptionsParams) ([]map[string]interface{}, error) {
 	skipTests := true
-	if options.SkipTests != nil {
+	if options != nil && options.SkipTests != nil {
 		skipTests = *options.SkipTests
 	}
 
-	// Configure action
-	actionConfig := &action.Configuration{}
-
-	// Create install action for rendering
-	install := action.NewInstall(actionConfig)
-	install.DryRun = true
-	install.ReleaseName = releaseName
-	install.Namespace = releaseNamespace
-	install.IncludeCRDs = includeCRDs
-	install.ClientOnly = true
-	if options.SkipHooks != nil {
-		install.DisableHooks = *options.SkipHooks
-	} else {
-		install.DisableHooks = false
-	}
-
-	// Use the actual cluster version from the control plane
-	clusterVersion := types.ControlPlaneClusterVersion
-	if clusterVersion.Major != "" && clusterVersion.Minor != "" {
-		// Build version string from cluster info
-		versionString := fmt.Sprintf("v%s.%s", clusterVersion.Major, clusterVersion.Minor)
-		if clusterVersion.GitVersion != "" {
-			versionString = clusterVersion.GitVersion
-		}
-
-		install.KubeVersion = &chartutil.KubeVersion{
-			Version: versionString,
-			Major:   clusterVersion.Major,
-			Minor:   clusterVersion.Minor,
-		}
-		klog.V(2).Infof("Helm provider: Using Kubernetes version %s for chart compatibility", versionString)
-	} else {
-		klog.Warning("Helm provider: Cluster version not available, chart version requirements may not be evaluated correctly")
-	}
-
-	// Render the chart
-	release, err := install.Run(ch, values)
-	if err != nil {
-		return nil, "", errors.Wrap(err, "failed to render chart")
-	}
-
-	// Parse manifests into unstructured objects
 	resources := []map[string]interface{}{}
-	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(release.Manifest), 4096)
+	decoder := kyaml.NewYAMLOrJSONDecoder(strings.NewReader(manifestStr), 4096)
 
 	for {
 		resource := &unstructured.Unstructured{}
@@ -618,7 +742,7 @@ func (p *Provider) renderChart(_ context.Context, ch *chart.Chart, releaseName, 
 			if err == io.EOF {
 				break
 			}
-			return nil, "", errors.Wrap(err, "failed to decode manifest")
+			return nil, errors.Wrap(err, "failed to decode manifest")
 		}
 
 		// Skip empty resources
@@ -631,83 +755,12 @@ func (p *Provider) renderChart(_ context.Context, ch *chart.Chart, releaseName, 
 			continue
 		}
 
-		// Clean and add the resource
 		cleanedResource := cleanResource(resource.Object)
 		resources = append(resources, cleanedResource)
 	}
 
 	// Order resources: CRDs first, then namespaces, then other resources
-	resources = orderResources(resources)
-
-	klog.Infof("Helm provider: Checking namespace creation for release namespace: %s", releaseNamespace)
-
-	// Check if we need to create the namespace
-	// Default to creating namespace if resources need it and it's not "default"
-	createNamespace := true
-	if options != nil && options.CreateNamespace != nil {
-		createNamespace = *options.CreateNamespace
-	}
-
-	klog.Infof("Helm provider: createNamespace option is %v", createNamespace)
-
-	if createNamespace && releaseNamespace != "" && releaseNamespace != "default" {
-		// Check if namespace already exists in resources
-		namespaceExists := false
-		for _, res := range resources {
-			if kind, _, _ := unstructured.NestedString(res, "kind"); kind == "Namespace" {
-				if name, _, _ := unstructured.NestedString(res, "metadata", "name"); name == releaseNamespace {
-					namespaceExists = true
-					break
-				}
-			}
-		}
-
-		// If namespace doesn't exist, add it
-		if !namespaceExists {
-			klog.Infof("Helm provider: Namespace %s not found in resources, checking if needed", releaseNamespace)
-
-			// Check if any resource needs this namespace
-			needsNamespace := false
-			resourceCount := 0
-			for _, res := range resources {
-				if ns, _, _ := unstructured.NestedString(res, "metadata", "namespace"); ns == releaseNamespace {
-					needsNamespace = true
-					resourceCount++
-				}
-			}
-
-			if needsNamespace {
-				klog.Infof("Helm provider: Creating namespace %s as %d resources need it", releaseNamespace, resourceCount)
-				// Create namespace resource
-				namespaceResource := map[string]interface{}{
-					"apiVersion": "v1",
-					"kind":       "Namespace",
-					"metadata": map[string]interface{}{
-						"name": releaseNamespace,
-						"labels": map[string]interface{}{
-							"app.kubernetes.io/managed-by": "Helm",
-							"app.kubernetes.io/instance":   releaseName,
-							"app.oam.dev/created-by":       "kubevela-helm-provider",
-							"app.oam.dev/render-type":      "helm",
-							"helm.sh/release-name":         releaseName,
-							"helm.sh/release-namespace":    releaseNamespace,
-						},
-						"annotations": map[string]interface{}{
-							"meta.helm.sh/release-name":      releaseName,
-							"meta.helm.sh/release-namespace": releaseNamespace,
-							"app.oam.dev/kubevela-version":   "latest", // Could be injected from build
-						},
-					},
-				}
-				// Prepend namespace to resources (it will be ordered properly later)
-				resources = append([]map[string]interface{}{namespaceResource}, resources...)
-				// Re-order to ensure namespace is in the right place
-				resources = orderResources(resources)
-			}
-		}
-	}
-
-	return resources, release.Info.Notes, nil
+	return orderResources(resources), nil
 }
 
 // isTestResource checks if a resource is a test resource
@@ -782,134 +835,8 @@ func orderResources(resources []map[string]interface{}) []map[string]interface{}
 	return result
 }
 
-// getReleaseStore creates a Helm secrets storage backed by a real Kubernetes clientset.
-func (p *Provider) getReleaseStore(releaseNamespace string) (*storage.Storage, error) {
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, &clientcmd.ConfigOverrides{})
-	restConfig, err := kubeConfig.ClientConfig()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get kubernetes config for helm release")
-	}
-	clientset, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create kubernetes client for helm release")
-	}
-	d := helmdriver.NewSecrets(clientset.CoreV1().Secrets(releaseNamespace))
-	d.Log = klog.Infof
-	return storage.Init(d), nil
-}
-
-// releaseTrackingKey builds a fingerprint from chart version + values for dedup.
-func releaseTrackingKey(ch *chart.Chart, values map[string]any) string {
-	version := ""
-	if ch.Metadata != nil {
-		version = ch.Metadata.Version
-	}
-	valuesJSON, _ := json.Marshal(values)
-	return version + "|" + string(valuesJSON)
-}
-
-// createChartRelease creates a Helm release record without deploying resources.
-// This makes the release visible to `helm list` while KubeVela manages the actual resources.
-// It is idempotent: repeated calls with the same chart version and values are no-ops.
-func (p *Provider) createChartRelease(_ context.Context, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]any) error {
-	// Serialize all release record operations
-	p.releaseMu.Lock()
-	defer p.releaseMu.Unlock()
-
-	// Fast in-memory dedup — avoids API calls on repeated reconciles
-	trackingKey := releaseTrackingKey(ch, values)
-	if existing, ok := p.releaseTracking[releaseName]; ok && existing == trackingKey {
-		klog.V(4).Infof("Helm release record for %s unchanged, skipping", releaseName)
-		return nil
-	}
-
-	store, err := p.getReleaseStore(releaseNamespace)
-	if err != nil {
-		return err
-	}
-
-	// Check for existing release in cluster
-	existingReleases, histErr := store.History(releaseName)
-
-	// Build a release object via dry-run (no resources deployed)
-	actionConfig := &action.Configuration{}
-	if err := actionConfig.Init(
-		p.helmClient.RESTClientGetter(),
-		releaseNamespace,
-		"memory",
-		klog.Infof,
-	); err != nil {
-		return errors.Wrap(err, "failed to initialize helm action config")
-	}
-
-	install := action.NewInstall(actionConfig)
-	install.DryRun = true
-	install.ClientOnly = true
-	install.ReleaseName = releaseName
-	install.Namespace = releaseNamespace
-	install.Replace = true
-
-	// ClientOnly=true defaults Kubernetes version to v1.20.0, which causes charts
-	// with a kubeVersion constraint (e.g. ">=1.23.0-0") to fail validation.
-	// Override with the real cluster version so kubeVersion checks pass.
-	clusterVersion := types.ControlPlaneClusterVersion
-	if clusterVersion.Major != "" && clusterVersion.Minor != "" {
-		versionString := fmt.Sprintf("v%s.%s", clusterVersion.Major, clusterVersion.Minor)
-		if clusterVersion.GitVersion != "" {
-			versionString = clusterVersion.GitVersion
-		}
-		install.KubeVersion = &chartutil.KubeVersion{
-			Version: versionString,
-			Major:   clusterVersion.Major,
-			Minor:   clusterVersion.Minor,
-		}
-	}
-
-	rel, err := install.Run(ch, values)
-	if err != nil {
-		return errors.Wrapf(err, "failed to build release record for %s", releaseName)
-	}
-
-	// Mark as deployed — KubeVela handles actual resource deployment
-	rel.Info.Status = release.StatusDeployed
-	rel.Info.Description = "Managed by KubeVela"
-
-	if histErr != nil || len(existingReleases) == 0 {
-		// No existing release — create v1
-		if err := store.Create(rel); err != nil {
-			if strings.Contains(err.Error(), "already exists") {
-				p.releaseTracking[releaseName] = trackingKey
-				return nil
-			}
-			return errors.Wrapf(err, "failed to store release record for %s", releaseName)
-		}
-		klog.Infof("Created helm release record for %s in namespace %s", releaseName, releaseNamespace)
-	} else {
-		// Chart version or values changed — supersede old, create new
-		lastRelease := existingReleases[len(existingReleases)-1]
-		lastRelease.Info.Status = release.StatusSuperseded
-		if err := store.Update(lastRelease); err != nil {
-			klog.Warningf("Failed to mark previous release as superseded: %v", err)
-		}
-
-		rel.Version = lastRelease.Version + 1
-		if err := store.Create(rel); err != nil {
-			if strings.Contains(err.Error(), "already exists") {
-				p.releaseTracking[releaseName] = trackingKey
-				return nil
-			}
-			return errors.Wrapf(err, "failed to store updated release record for %s", releaseName)
-		}
-		klog.Infof("Updated helm release record (v%d) for %s in namespace %s", rel.Version, releaseName, releaseNamespace)
-	}
-
-	// Track this release so future calls with same inputs skip entirely
-	p.releaseTracking[releaseName] = trackingKey
-	return nil
-}
-
-// Render is the main provider function for rendering Helm charts
+// Render is the main provider function: it performs a real Helm install/upgrade
+// against the cluster and returns the deployed resources for KubeVela to adopt.
 func Render(ctx context.Context, params *providers.Params[RenderParams]) (*providers.Returns[RenderReturns], error) {
 	p := NewProvider()
 
@@ -933,11 +860,11 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	klog.V(3).Infof("Helm provider: Release name=%s, namespace=%s", releaseName, releaseNamespace)
 
 	// Fetch the chart
-	chart, err := p.fetchChart(ctx, &renderParams.Chart, renderParams.Options)
+	ch, err := p.fetchChart(ctx, &renderParams.Chart, renderParams.Options)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch chart")
 	}
-	klog.V(2).Infof("Helm provider: Successfully fetched chart %s", chart.Name())
+	klog.V(2).Infof("Helm provider: Successfully fetched chart %s", ch.Name())
 
 	// Merge values from all sources
 	values, err := p.mergeValues(ctx, renderParams.Values, renderParams.ValuesFrom)
@@ -946,20 +873,21 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	}
 	klog.V(3).Infof("Helm provider: Merged values: %v", values)
 
-	// Render the chart
-	resources, notes, err := p.renderChart(ctx, chart, releaseName, releaseNamespace, values, renderParams.Options)
+	// Install or upgrade the chart via the Helm SDK
+	manifest, notes, err := p.installOrUpgradeChart(ctx, ch, releaseName, releaseNamespace, values, renderParams.Options, renderParams.Context)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to render chart")
+		return nil, errors.Wrap(err, "failed to install/upgrade chart")
 	}
 
-	klog.Infof("Helm provider: Rendered %d resources for chart %s", len(resources), renderParams.Chart.Source)
-
-	// Create helm release record (for helm list visibility) without deploying resources
-	if err := p.createChartRelease(ctx, chart, releaseName, releaseNamespace, values); err != nil {
-		klog.Warningf("Failed to create helm release record: %v", err)
+	// Parse the release manifest into KubeVela resource maps
+	resources, err := p.parseManifestResources(manifest, renderParams.Options)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse release manifest")
 	}
 
-	// Log first resource for debugging
+	klog.Infof("Helm provider: Deployed %d resources for chart %s", len(resources), renderParams.Chart.Source)
+
+	// Log resource summary for debugging
 	if len(resources) > 0 {
 		if kind, found, _ := unstructured.NestedString(resources[0], "kind"); found {
 			if name, found, _ := unstructured.NestedString(resources[0], "metadata", "name"); found {
@@ -967,31 +895,15 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 			}
 		}
 
-		// Log raw JSON of first resource for debugging
 		if jsonBytes, err := json.MarshalIndent(resources[0], "", "  "); err == nil {
-			klog.Infof("Helm provider: First resource JSON:\n%s", string(jsonBytes))
-
-			// Check for any nil values in metadata
-			if metadata, found, _ := unstructured.NestedMap(resources[0], "metadata"); found {
-				if annotations, found, _ := unstructured.NestedMap(metadata, "annotations"); found {
-					klog.Infof("Helm provider: First resource has %d annotations", len(annotations))
-					for key, val := range annotations {
-						if val == nil {
-							klog.Warningf("Helm provider: Annotation %s has nil value", key)
-						}
-					}
-				}
-			}
-		} else {
-			klog.Warningf("Helm provider: Failed to marshal first resource to JSON: %v", err)
+			klog.V(4).Infof("Helm provider: First resource JSON:\n%s", string(jsonBytes))
 		}
 
-		// Also log a summary of all resources
-		klog.Infof("Helm provider: All resources summary:")
+		klog.V(3).Infof("Helm provider: All resources summary:")
 		for i, res := range resources {
 			if kind, found, _ := unstructured.NestedString(res, "kind"); found {
 				if name, found, _ := unstructured.NestedString(res, "metadata", "name"); found {
-					klog.Infof("  [%d] %s/%s", i, kind, name)
+					klog.V(3).Infof("  [%d] %s/%s", i, kind, name)
 				}
 			}
 		}

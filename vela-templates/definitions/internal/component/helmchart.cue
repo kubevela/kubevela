@@ -214,6 +214,17 @@ template: {
 		}
 	}
 
+	// Capture KubeVela runtime context BEFORE the $params block to avoid
+	// CUE scoping collision: naming a field "context" inside $params would
+	// cause inner "context.xxx" references to resolve to the field itself
+	// (self-reference) instead of KubeVela's runtime context object.
+	_velaContext: {
+		appName:      context.appName
+		appNamespace: context.namespace
+		name:         context.name
+		namespace:    context.namespace
+	}
+
 	// Render the Helm chart using the provider
 	_rendered: helm.#Render & {
 		$params: {
@@ -228,6 +239,9 @@ template: {
 			// 	valuesFrom: parameter.valuesFrom
 			// }
 			options: _options
+
+			// Pass KubeVela ownership context so the provider can inject labels
+			"context": _velaContext
 		}
 	}
 
