@@ -1351,4 +1351,40 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring("for i, vi in items"))
 		})
 	})
+
+	Describe("TemplateBody with no params", func() {
+		It("should skip parameter block when TemplateBody is set and no params exist", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Description("test step").
+				TemplateBody("nop: {}")
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("nop: {}"))
+			Expect(cue).NotTo(ContainSubstring("parameter:"))
+		})
+
+		It("should still emit parameter block when TemplateBody is set but params exist", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Description("test step").
+				Params(defkit.String("name").Required()).
+				TemplateBody("nop: {}")
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("nop: {}"))
+			Expect(cue).To(ContainSubstring("parameter:"))
+			Expect(cue).To(ContainSubstring("name: string"))
+		})
+
+		It("should emit parameter block when no TemplateBody and no params", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Description("test step")
+
+			cue := ws.ToCue()
+
+			// Default behavior: empty parameter block is emitted
+			Expect(cue).To(ContainSubstring("parameter:"))
+		})
+	})
 })
