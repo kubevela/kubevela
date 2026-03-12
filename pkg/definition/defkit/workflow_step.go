@@ -58,6 +58,7 @@ type BuiltinAction struct {
 	name         string           // e.g., "multicluster.#Deploy", "builtin.#Suspend"
 	params       map[string]Value // parameters to pass
 	useFullParam bool             // if true, generates $params: parameter instead of $params: { key: value }
+	directFields bool             // if true, renders fields directly without $params wrapper (for op.# operations)
 }
 
 func (b *BuiltinAction) isWorkflowAction() {}
@@ -416,6 +417,14 @@ func (b *BuiltinActionBuilder) WithFullParameter() *BuiltinActionBuilder {
 	return b
 }
 
+// WithDirectFields renders fields directly on the struct without the $params wrapper.
+// This is used for op.# operations (e.g., op.#ShareCloudResource, op.#DeployCloudResource)
+// that take fields as direct struct members rather than inside $params.
+func (b *BuiltinActionBuilder) WithDirectFields() *BuiltinActionBuilder {
+	b.action.directFields = true
+	return b
+}
+
 // Build finalizes the action and adds it to the template.
 func (b *BuiltinActionBuilder) Build() *WorkflowStepTemplate {
 	b.template.actions = append(b.template.actions, b.action)
@@ -566,8 +575,11 @@ func (g *WorkflowStepCUEGenerator) GenerateTemplate(w *WorkflowStepDefinition) s
 		sb.WriteString("\n")
 	}
 
-	// Generate parameter section
-	sb.WriteString(g.generateParameterBlock(w, 1))
+	// Generate parameter section (skip if no params and raw body is set,
+	// e.g. step-group which uses TemplateBody with no parameter references)
+	if len(w.GetParams()) > 0 || !w.HasRawTemplateBody() {
+		sb.WriteString(g.generateParameterBlock(w, 1))
+	}
 
 	if w.GetCustomStatus() != "" || w.GetHealthPolicy() != "" || w.GetStatusDetails() != "" {
 		indent := g.indent
@@ -636,10 +648,16 @@ func (g *WorkflowStepCUEGenerator) writeBuiltinAction(sb *strings.Builder, a *Bu
 	}
 
 	sb.WriteString(fmt.Sprintf("%s%s%s: %s & {\n", indent, extraIndent, actionName, a.name))
-	if a.useFullParam {
+	switch {
+	case a.useFullParam:
 		// Pass the entire parameter object as $params (e.g., builtin.#Suspend)
 		sb.WriteString(fmt.Sprintf("%s%s\t$params: parameter\n", indent, extraIndent))
-	} else if len(a.params) > 0 {
+	case a.directFields && len(a.params) > 0:
+		// Render fields directly without $params wrapper (for op.# operations)
+		for paramName, paramVal := range a.params {
+			sb.WriteString(fmt.Sprintf("%s%s\t%s: %s\n", indent, extraIndent, paramName, gen.valueToCUE(paramVal)))
+		}
+	case len(a.params) > 0:
 		sb.WriteString(fmt.Sprintf("%s%s\t$params: {\n", indent, extraIndent))
 		for paramName, paramVal := range a.params {
 			sb.WriteString(fmt.Sprintf("%s%s\t\t%s: %s\n", indent, extraIndent, paramName, gen.valueToCUE(paramVal)))

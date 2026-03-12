@@ -473,6 +473,25 @@ func (g *CUEGenerator) writeHelperDefFromParam(sb *strings.Builder, param Param,
 		} else {
 			sb.WriteString("[...]\n")
 		}
+	case *ClosedUnionParam:
+		// For closed unions, write as: close({...}) | close({...})
+		options := p.GetOptions()
+		if len(options) == 0 {
+			sb.WriteString("_\n")
+		} else {
+			indent := strings.Repeat(g.indent, depth)
+			for i, opt := range options {
+				if i > 0 {
+					sb.WriteString(" | ")
+				}
+				sb.WriteString("close({\n")
+				for _, field := range opt.GetFields() {
+					g.writeStructFieldForHelper(sb, field, depth+1)
+				}
+				sb.WriteString(fmt.Sprintf("%s})", indent))
+			}
+			sb.WriteString("\n")
+		}
 	case *IntParam:
 		// For int types with optional constraints: int & >=1 & <=65535
 		var constraints []string
@@ -916,7 +935,13 @@ func (g *CUEGenerator) writeCollectionOpHelper(sb *strings.Builder, col *Collect
 		if dedup, ok := op.(*dedupeOp); ok {
 			// For dedupe, use the elegant CUE pattern with _ignore marker
 			// This pattern checks if any earlier item has the same key
+			var sourceName string
 			if helperRef, ok := col.Source().(*HelperVar); ok {
+				sourceName = helperRef.Name()
+			} else if ref, ok := col.Source().(*Ref); ok {
+				sourceName = ref.Path()
+			}
+			if sourceName != "" {
 				keyField := dedup.keyField
 				sb.WriteString(fmt.Sprintf(`[
 		for val in [
@@ -929,7 +954,7 @@ func (g *CUEGenerator) writeCollectionOpHelper(sb *strings.Builder, col *Collect
 		] if val._ignore == _|_ {
 			val
 		},
-	]`, helperRef.Name(), helperRef.Name(), keyField, keyField))
+	]`, sourceName, sourceName, keyField, keyField))
 				return
 			}
 		}
@@ -1800,6 +1825,15 @@ func (g *CUEGenerator) filterNodeByCondition(node *fieldNode, condStr string) *f
 
 // valueToCUE converts a Value to CUE syntax.
 func (g *CUEGenerator) valueToCUE(v Value) string {
+	// Check if the value can render itself (used by fluent builders).
+	// Prefer CUEConditionRenderer when available, as it also passes condition rendering.
+	if ccr, ok := v.(CUEConditionRenderer); ok {
+		return ccr.RenderCUEWithCondition(g.valueToCUE, g.conditionToCUE)
+	}
+	if cr, ok := v.(CUERenderer); ok {
+		return cr.RenderCUE(g.valueToCUE)
+	}
+
 	switch val := v.(type) {
 	case *Literal:
 		return formatCUEValue(val.Val())
@@ -2031,10 +2065,13 @@ func (g *CUEGenerator) arrayBuilderToCUE(ab *ArrayBuilder, depth int) string {
 			} else {
 				sb.WriteString(fmt.Sprintf("%sfor m in %s {\n", innerIndent, sourceStr))
 			}
+			// Wrap each element in inner braces for explicit struct boundary
+			extraIndent := deepIndent + "\t"
+			sb.WriteString(fmt.Sprintf("%s{\n", deepIndent))
 			// Write each field from the element template
 			for key, val := range entry.element.Fields() {
 				valStr := g.valueToCUE(val)
-				sb.WriteString(fmt.Sprintf("%s%s: %s\n", deepIndent, key, valStr))
+				sb.WriteString(fmt.Sprintf("%s%s: %s\n", extraIndent, key, valStr))
 			}
 			// Write conditional operations
 			for _, op := range entry.element.Ops() {
@@ -2042,11 +2079,12 @@ func (g *CUEGenerator) arrayBuilderToCUE(ab *ArrayBuilder, depth int) string {
 					condStr := g.conditionToCUE(setIf.Cond())
 					valStr := g.valueToCUE(setIf.Value())
 					cuePath := strings.ReplaceAll(setIf.Path(), ".", ": ")
-					sb.WriteString(fmt.Sprintf("%sif %s {\n", deepIndent, condStr))
-					sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", deepIndent, cuePath, valStr))
-					sb.WriteString(fmt.Sprintf("%s}\n", deepIndent))
+					sb.WriteString(fmt.Sprintf("%sif %s {\n", extraIndent, condStr))
+					sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", extraIndent, cuePath, valStr))
+					sb.WriteString(fmt.Sprintf("%s}\n", extraIndent))
 				}
 			}
+			sb.WriteString(fmt.Sprintf("%s}\n", deepIndent))
 			sb.WriteString(fmt.Sprintf("%s},\n", innerIndent))
 
 		case entryForEachWith:
@@ -2108,6 +2146,15 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 		}
 	}
 
+	// Check for deduplication
+	var dedupeKeyField string
+	for _, op := range ops {
+		if dedup, ok := op.(*dedupeOp); ok {
+			dedupeKeyField = dedup.keyField
+			break
+		}
+	}
+
 	// Build filter condition if present; AND-compose multiple filters
 	filterCondition := ""
 	for _, op := range ops {
@@ -2136,6 +2183,30 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 		if _, ok := op.(*mapVariantOp); ok {
 			hasVariant = true
 		}
+	}
+
+	// Dedupe: render the nested-comprehension pattern.
+	// This is placed after all op detection so that guard/filter/map are not bypassed.
+	if dedupeKeyField != "" {
+		var sb strings.Builder
+		// Apply guard if present
+		if guard := col.GetGuard(); guard != nil {
+			guardStr := g.conditionToCUE(guard)
+			sb.WriteString(fmt.Sprintf("if %s ", guardStr))
+		}
+		sb.WriteString(fmt.Sprintf(`[
+		for val in [
+			for i, vi in %s {
+				for j, vj in %s if j < i && vi.%s == vj.%s {
+					_ignore: true
+				}
+				vi
+			},
+		] if val._ignore == _|_ {
+			val
+		},
+	]`, sourceStr, sourceStr, dedupeKeyField, dedupeKeyField))
+		return sb.String()
 	}
 
 	// Build the list comprehension
@@ -2786,6 +2857,8 @@ func (g *CUEGenerator) writeParam(sb *strings.Builder, param Param, depth int) {
 		g.writeEnumParam(sb, p, indent, name, optional)
 	case *OneOfParam:
 		g.writeOneOfParam(sb, p, indent, name, optional, depth)
+	case *ClosedUnionParam:
+		g.writeClosedUnionParam(sb, p, indent, name, optional, depth)
 	default:
 		// Generic fallback
 		sb.WriteString(fmt.Sprintf("%s%s%s: _\n", indent, name, optional))
@@ -3174,6 +3247,31 @@ func (g *CUEGenerator) writeOneOfParam(sb *strings.Builder, p *OneOfParam, inden
 	}
 }
 
+// writeClosedUnionParam writes a closed struct disjunction parameter.
+// It generates CUE of the form: name: close({...}) | close({...})
+func (g *CUEGenerator) writeClosedUnionParam(sb *strings.Builder, p *ClosedUnionParam, indent, name, optional string, depth int) {
+	options := p.GetOptions()
+	if len(options) == 0 {
+		sb.WriteString(fmt.Sprintf("%s%s%s: _\n", indent, name, optional))
+		return
+	}
+
+	// Open the field assignment
+	sb.WriteString(fmt.Sprintf("%s%s%s: ", indent, name, optional))
+
+	for i, opt := range options {
+		if i > 0 {
+			sb.WriteString(" | ")
+		}
+		sb.WriteString("close({\n")
+		for _, field := range opt.GetFields() {
+			g.writeStructField(sb, field, depth+1)
+		}
+		sb.WriteString(fmt.Sprintf("%s})", indent))
+	}
+	sb.WriteString("\n")
+}
+
 // cueTypeStr converts a ParamType to its CUE type string.
 func cueTypeStr(pt ParamType) string {
 	switch pt {
@@ -3187,7 +3285,7 @@ func cueTypeStr(pt ParamType) string {
 		return "float"
 	case ParamTypeArray:
 		return "[...]"
-	case ParamTypeMap, ParamTypeStruct, ParamTypeOneOf:
+	case ParamTypeMap, ParamTypeStruct, ParamTypeOneOf, ParamTypeClosedUnion:
 		return cueOpenStruct
 	default:
 		return "_"
