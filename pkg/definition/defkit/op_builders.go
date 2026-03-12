@@ -85,16 +85,16 @@ func (b *KubeReadBuilder) RenderCUE(rv func(Value) string) string {
 
 	// cluster param sits alongside value in $params
 	if b.cluster != nil {
-		sb.WriteString(fmt.Sprintf("\t$params: {\n"))
+		sb.WriteString("\t$params: {\n")
 		sb.WriteString(fmt.Sprintf("\t\tcluster: %s\n", rv(b.cluster)))
-		sb.WriteString(fmt.Sprintf("\t\tvalue: {\n"))
+		sb.WriteString("\t\tvalue: {\n")
 		b.writeValueBody(&sb, rv, "\t\t\t")
-		sb.WriteString(fmt.Sprintf("\t\t}\n"))
-		sb.WriteString(fmt.Sprintf("\t}\n"))
+		sb.WriteString("\t\t}\n")
+		sb.WriteString("\t}\n")
 	} else {
-		sb.WriteString(fmt.Sprintf("\t$params: value: {\n"))
+		sb.WriteString("\t$params: value: {\n")
 		b.writeValueBody(&sb, rv, "\t\t")
-		sb.WriteString(fmt.Sprintf("\t}\n"))
+		sb.WriteString("\t}\n")
 	}
 
 	sb.WriteString("}")
