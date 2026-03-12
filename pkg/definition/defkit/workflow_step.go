@@ -58,6 +58,7 @@ type BuiltinAction struct {
 	name         string           // e.g., "multicluster.#Deploy", "builtin.#Suspend"
 	params       map[string]Value // parameters to pass
 	useFullParam bool             // if true, generates $params: parameter instead of $params: { key: value }
+	directFields bool             // if true, renders fields directly without $params wrapper (for op.# operations)
 }
 
 func (b *BuiltinAction) isWorkflowAction() {}
@@ -416,6 +417,14 @@ func (b *BuiltinActionBuilder) WithFullParameter() *BuiltinActionBuilder {
 	return b
 }
 
+// WithDirectFields renders fields directly on the struct without the $params wrapper.
+// This is used for op.# operations (e.g., op.#ShareCloudResource, op.#DeployCloudResource)
+// that take fields as direct struct members rather than inside $params.
+func (b *BuiltinActionBuilder) WithDirectFields() *BuiltinActionBuilder {
+	b.action.directFields = true
+	return b
+}
+
 // Build finalizes the action and adds it to the template.
 func (b *BuiltinActionBuilder) Build() *WorkflowStepTemplate {
 	b.template.actions = append(b.template.actions, b.action)
@@ -641,6 +650,11 @@ func (g *WorkflowStepCUEGenerator) writeBuiltinAction(sb *strings.Builder, a *Bu
 	if a.useFullParam {
 		// Pass the entire parameter object as $params (e.g., builtin.#Suspend)
 		sb.WriteString(fmt.Sprintf("%s%s\t$params: parameter\n", indent, extraIndent))
+	} else if a.directFields && len(a.params) > 0 {
+		// Render fields directly without $params wrapper (for op.# operations)
+		for paramName, paramVal := range a.params {
+			sb.WriteString(fmt.Sprintf("%s%s\t%s: %s\n", indent, extraIndent, paramName, gen.valueToCUE(paramVal)))
+		}
 	} else if len(a.params) > 0 {
 		sb.WriteString(fmt.Sprintf("%s%s\t$params: {\n", indent, extraIndent))
 		for paramName, paramVal := range a.params {

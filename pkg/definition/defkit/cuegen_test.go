@@ -1387,4 +1387,44 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring("parameter:"))
 		})
 	})
+
+	Describe("Builtin WithDirectFields", func() {
+		It("should render fields directly without $params wrapper", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Params(defkit.String("env").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Builtin("app", "op.#ShareCloudResource").
+						WithDirectFields().
+						WithParams(map[string]defkit.Value{
+							"env":       defkit.Reference("parameter.env"),
+							"namespace": defkit.Reference("context.namespace"),
+						}).
+						Build()
+				})
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("app: op.#ShareCloudResource & {"))
+			Expect(cue).To(ContainSubstring("env: parameter.env"))
+			Expect(cue).To(ContainSubstring("namespace: context.namespace"))
+			Expect(cue).NotTo(ContainSubstring("$params:"))
+		})
+
+		It("should still use $params when WithDirectFields is not called", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Params(defkit.String("name").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Builtin("deploy", "kube.#Apply").
+						WithParams(map[string]defkit.Value{
+							"value": defkit.Reference("object"),
+						}).
+						Build()
+				})
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("deploy: kube.#Apply & {"))
+			Expect(cue).To(ContainSubstring("$params:"))
+		})
+	})
 })
