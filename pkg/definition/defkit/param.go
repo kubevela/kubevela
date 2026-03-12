@@ -1245,6 +1245,77 @@ func (p *OneOfParam) GetVariant(name string) *OneOfVariant {
 	return nil
 }
 
+// ClosedStructOption represents one option in a closed struct disjunction.
+// It holds a set of struct fields that will be wrapped in close({...}).
+type ClosedStructOption struct {
+	fields []*StructField
+}
+
+// ClosedStruct creates a new closed struct option for use in ClosedUnion.
+func ClosedStruct() *ClosedStructOption {
+	return &ClosedStructOption{
+		fields: make([]*StructField, 0),
+	}
+}
+
+// WithFields adds fields to the closed struct option.
+func (c *ClosedStructOption) WithFields(fields ...*StructField) *ClosedStructOption {
+	c.fields = append(c.fields, fields...)
+	return c
+}
+
+// GetFields returns the fields of this closed struct option.
+func (c *ClosedStructOption) GetFields() []*StructField {
+	return c.fields
+}
+
+// ClosedUnionParam represents a closed struct disjunction parameter.
+// It generates CUE of the form: close({...}) | close({...})
+type ClosedUnionParam struct {
+	baseParam
+	options []*ClosedStructOption
+}
+
+// ClosedUnion creates a new closed struct disjunction parameter.
+func ClosedUnion(name string) *ClosedUnionParam {
+	return &ClosedUnionParam{
+		baseParam: baseParam{
+			name:      name,
+			paramType: ParamTypeClosedUnion,
+		},
+		options: make([]*ClosedStructOption, 0),
+	}
+}
+
+// Options sets the closed struct alternatives for the disjunction.
+func (p *ClosedUnionParam) Options(options ...*ClosedStructOption) *ClosedUnionParam {
+	p.options = append(p.options, options...)
+	return p
+}
+
+// Required marks the parameter as required.
+func (p *ClosedUnionParam) Required() *ClosedUnionParam {
+	p.required = true
+	return p
+}
+
+// Optional marks the parameter as optional.
+func (p *ClosedUnionParam) Optional() *ClosedUnionParam {
+	p.required = false
+	return p
+}
+
+// Description sets the parameter description.
+func (p *ClosedUnionParam) Description(desc string) *ClosedUnionParam {
+	p.description = desc
+	return p
+}
+
+// GetOptions returns the closed struct options.
+func (p *ClosedUnionParam) GetOptions() []*ClosedStructOption {
+	return p.options
+}
+
 // Convenience functions for common parameter patterns
 
 // StringList creates a string array parameter.
