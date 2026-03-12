@@ -1800,6 +1800,11 @@ func (g *CUEGenerator) filterNodeByCondition(node *fieldNode, condStr string) *f
 
 // valueToCUE converts a Value to CUE syntax.
 func (g *CUEGenerator) valueToCUE(v Value) string {
+	// Check if the value can render itself (used by fluent builders).
+	if cr, ok := v.(CUERenderer); ok {
+		return cr.RenderCUE(g.valueToCUE)
+	}
+
 	switch val := v.(type) {
 	case *Literal:
 		return formatCUEValue(val.Val())
@@ -2786,6 +2791,8 @@ func (g *CUEGenerator) writeParam(sb *strings.Builder, param Param, depth int) {
 		g.writeEnumParam(sb, p, indent, name, optional)
 	case *OneOfParam:
 		g.writeOneOfParam(sb, p, indent, name, optional, depth)
+	case *ClosedUnionParam:
+		g.writeClosedUnionParam(sb, p, indent, name, optional, depth)
 	default:
 		// Generic fallback
 		sb.WriteString(fmt.Sprintf("%s%s%s: _\n", indent, name, optional))
@@ -3172,6 +3179,31 @@ func (g *CUEGenerator) writeOneOfParam(sb *strings.Builder, p *OneOfParam, inden
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	}
+}
+
+// writeClosedUnionParam writes a closed struct disjunction parameter.
+// It generates CUE of the form: name: close({...}) | close({...})
+func (g *CUEGenerator) writeClosedUnionParam(sb *strings.Builder, p *ClosedUnionParam, indent, name, optional string, depth int) {
+	options := p.GetOptions()
+	if len(options) == 0 {
+		sb.WriteString(fmt.Sprintf("%s%s%s: _\n", indent, name, optional))
+		return
+	}
+
+	// Open the field assignment
+	sb.WriteString(fmt.Sprintf("%s%s%s: ", indent, name, optional))
+
+	for i, opt := range options {
+		if i > 0 {
+			sb.WriteString(fmt.Sprintf(" | "))
+		}
+		sb.WriteString("close({\n")
+		for _, field := range opt.GetFields() {
+			g.writeStructField(sb, field, depth+1)
+		}
+		sb.WriteString(fmt.Sprintf("%s})", indent))
+	}
+	sb.WriteString("\n")
 }
 
 // cueTypeStr converts a ParamType to its CUE type string.

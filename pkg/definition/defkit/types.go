@@ -91,4 +91,6 @@ const (
 	ParamTypeEnum ParamType = "enum"
 	// ParamTypeOneOf represents a discriminated union parameter
 	ParamTypeOneOf ParamType = "oneof"
+	// ParamTypeClosedUnion represents a closed struct disjunction parameter
+	ParamTypeClosedUnion ParamType = "closedunion"
 )

@@ -1152,4 +1152,112 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring("name?: string"))
 		})
 	})
+
+	Describe("GenerateParameterSchema with ClosedUnion parameters", func() {
+		It("should generate close() disjunction with simple fields", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.ClosedUnion("url").
+						Required().
+						Description("Specify the url").
+						Options(
+							defkit.ClosedStruct().WithFields(
+								defkit.Field("value", defkit.ParamTypeString).Required(),
+							),
+							defkit.ClosedStruct().WithFields(
+								defkit.Field("ref", defkit.ParamTypeString).Required(),
+							),
+						),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("// +usage=Specify the url"))
+			Expect(cue).To(ContainSubstring("url: close({"))
+			Expect(cue).To(ContainSubstring("value: string"))
+			Expect(cue).To(ContainSubstring("}) | close({"))
+			Expect(cue).To(ContainSubstring("ref: string"))
+		})
+
+		It("should generate close() disjunction with nested structs", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.ClosedUnion("url").
+						Required().
+						Options(
+							defkit.ClosedStruct().WithFields(
+								defkit.Field("value", defkit.ParamTypeString).Required(),
+							),
+							defkit.ClosedStruct().WithFields(
+								defkit.Field("secretRef", defkit.ParamTypeStruct).Required().Nested(
+									defkit.Struct("secretRef").WithFields(
+										defkit.Field("name", defkit.ParamTypeString).Required().Description("name of the secret"),
+										defkit.Field("key", defkit.ParamTypeString).Required().Description("key in the secret"),
+									),
+								),
+							),
+						),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("url: close({"))
+			Expect(cue).To(ContainSubstring("value: string"))
+			Expect(cue).To(ContainSubstring("}) | close({"))
+			Expect(cue).To(ContainSubstring("secretRef: {"))
+			Expect(cue).To(ContainSubstring("// +usage=name of the secret"))
+			Expect(cue).To(ContainSubstring("name: string"))
+			Expect(cue).To(ContainSubstring("// +usage=key in the secret"))
+			Expect(cue).To(ContainSubstring("key: string"))
+		})
+
+		It("should generate optional closed union with ?", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.ClosedUnion("source").
+						Options(
+							defkit.ClosedStruct().WithFields(
+								defkit.Field("hcl", defkit.ParamTypeString).Required(),
+							),
+						),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("source?:"))
+		})
+
+		It("should handle close() disjunction field ordering", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.ClosedUnion("url").Required().Options(
+						defkit.ClosedStruct().WithFields(
+							defkit.Field("value", defkit.ParamTypeString).Required(),
+						),
+						defkit.ClosedStruct().WithFields(
+							defkit.Field("secretRef", defkit.ParamTypeStruct).Required(),
+						),
+					),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			// Verify ordering: first option before second
+			valueIdx := strings.Index(cue, "value: string")
+			secretIdx := strings.Index(cue, "secretRef:")
+			Expect(valueIdx).To(BeNumerically("<", secretIdx))
+		})
+
+		It("should handle empty options gracefully", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.ClosedUnion("empty").Required(),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			// Empty options should produce fallback
+			Expect(cue).To(ContainSubstring("empty: _"))
+		})
+	})
 })
