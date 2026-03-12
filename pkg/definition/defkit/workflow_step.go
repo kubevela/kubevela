@@ -566,8 +566,10 @@ func (g *WorkflowStepCUEGenerator) GenerateTemplate(w *WorkflowStepDefinition) s
 		sb.WriteString("\n")
 	}
 
-	// Generate parameter section
-	sb.WriteString(g.generateParameterBlock(w, 1))
+	// Generate parameter section (skip if no params and raw body is set)
+	if len(w.GetParams()) > 0 || !w.HasRawTemplateBody() {
+		sb.WriteString(g.generateParameterBlock(w, 1))
+	}
 
 	if w.GetCustomStatus() != "" || w.GetHealthPolicy() != "" || w.GetStatusDetails() != "" {
 		indent := g.indent
