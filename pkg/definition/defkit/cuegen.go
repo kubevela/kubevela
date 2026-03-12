@@ -27,9 +27,9 @@ const cueOpenStruct = "{...}"
 
 // CUE field marker constants express the three field presence semantics.
 const (
-	fieldMarkerOptional = "?"  // field?: type  — field may be absent from input
-	fieldMarkerNone     = ""   // field: type   — field must have a value; defaults/merging can satisfy
-	fieldMarkerRequired = "!"  // field!: type  — field must be explicitly provided in user input
+	fieldMarkerOptional = "?" // field?: type  — field may be absent from input
+	fieldMarkerNone     = ""  // field: type   — field must have a value; defaults/merging can satisfy
+	fieldMarkerRequired = "!" // field!: type  — field must be explicitly provided in user input
 )
 
 // cueLabel quotes a CUE field label if it contains characters that are not

@@ -126,10 +126,10 @@ var _ = Describe("CUEGenerator", func() {
 		It("should handle all three field presence markers", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.String("accessKey").Required(),  // ! — user must explicitly provide
-					defkit.Int("port").Mandatory(),          // no marker — must have value, defaults can satisfy
-					defkit.Bool("enabled").Mandatory(),      // no marker
-					defkit.String("tag"),                    // ? — fully optional
+					defkit.String("accessKey").Required(), // ! — user must explicitly provide
+					defkit.Int("port").Mandatory(),        // no marker — must have value, defaults can satisfy
+					defkit.Bool("enabled").Mandatory(),    // no marker
+					defkit.String("tag"),                  // ? — fully optional
 				)
 
 			cue := gen.GenerateParameterSchema(comp)
