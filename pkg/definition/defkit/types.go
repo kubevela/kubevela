@@ -57,10 +57,12 @@ type Param interface {
 	Value
 	// Name returns the parameter name
 	Name() string
-	// IsRequired returns true if the parameter is required
+	// IsRequired returns true if the parameter is required (emits no "?" marker)
 	IsRequired() bool
 	// IsOptional returns true if the parameter is optional
 	IsOptional() bool
+	// IsMandatory returns true if the parameter must be explicitly provided in input (emits "!" marker)
+	IsMandatory() bool
 	// HasDefault returns true if the parameter has a default value
 	HasDefault() bool
 	// GetDefault returns the default value, or nil if none

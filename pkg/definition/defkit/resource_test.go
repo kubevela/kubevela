@@ -36,7 +36,7 @@ var _ = Describe("Resource", func() {
 
 	Context("Set", func() {
 		It("should record a Set operation", func() {
-			image := defkit.String("image").Required()
+			image := defkit.String("image").Mandatory()
 			r := defkit.NewResource("apps/v1", "Deployment").
 				Set("spec.template.spec.containers[0].image", image)
 			Expect(r.Ops()).To(HaveLen(1))

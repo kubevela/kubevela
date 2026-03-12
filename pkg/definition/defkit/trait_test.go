@@ -180,7 +180,7 @@ parameter: #PatchParams
 			trait := defkit.NewTrait("scaler").
 				Description("Scale workloads").
 				AppliesTo("deployments.apps").
-				Params(defkit.Int("replicas").Default(1).Required().Description("Number of replicas"))
+				Params(defkit.Int("replicas").Default(1).Mandatory().Description("Number of replicas"))
 
 			cue := trait.ToCue()
 
@@ -402,7 +402,7 @@ template: {
 				AppliesTo("deployments.apps").
 				Params(
 					defkit.Int("replicas").Default(1).Description("Number of replicas"),
-					defkit.String("image").Required().Description("Container image"),
+					defkit.String("image").Mandatory().Description("Container image"),
 				)
 
 			cue := trait.ToCue()
@@ -560,7 +560,7 @@ template: {
 
 		It("should generate Optional field guards in Map comprehension", func() {
 			items := defkit.Array("items").WithFields(
-				defkit.String("name").Required(),
+				defkit.String("name").Mandatory(),
 				defkit.String("label"),
 				defkit.Int("priority"),
 			)
@@ -595,10 +595,10 @@ template: {
 		It("should generate If/EndIf with SetIf using sub-field conditions", func() {
 			parent := defkit.Map("parent").WithFields(
 				defkit.Array("required").WithFields(
-					defkit.String("key").Required(),
+					defkit.String("key").Mandatory(),
 				),
 				defkit.Array("preferred").WithFields(
-					defkit.Int("weight").Required(),
+					defkit.Int("weight").Mandatory(),
 				),
 			)
 			trait := defkit.NewTrait("if-subfield-test").
@@ -701,9 +701,9 @@ template: {
 	Context("PatchKey with ArrayParam (no array wrapping)", func() {
 		It("should emit direct assignment when single element is an ArrayParam", func() {
 			items := defkit.Array("items").WithFields(
-				defkit.String("name").Required(),
-				defkit.String("value").Required(),
-			).Required()
+				defkit.String("name").Mandatory(),
+				defkit.String("value").Mandatory(),
+			).Mandatory()
 
 			trait := defkit.NewTrait("patchkey-array-test").
 				Description("Test PatchKey with ArrayParam").
@@ -837,7 +837,7 @@ template: {
 		})
 
 		It("should emit patchStrategy annotation in CUE output for unconditional field", func() {
-			strategy := defkit.Struct("strategy").Required().WithFields(
+			strategy := defkit.Struct("strategy").Mandatory().WithFields(
 				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate"),
 			)
 
@@ -861,7 +861,7 @@ template: {
 
 		It("should emit patchStrategy annotation inside conditional block", func() {
 			kind := defkit.String("kind").Default("Deployment").Values("Deployment", "StatefulSet")
-			strategy := defkit.Struct("strategy").Required().WithFields(
+			strategy := defkit.Struct("strategy").Mandatory().WithFields(
 				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate"),
 			)
 
@@ -988,7 +988,7 @@ template: {
 
 		It("should produce correct k8s-update-strategy-like pattern", func() {
 			targetKind := defkit.String("targetKind").Default("Deployment").Values("Deployment", "StatefulSet", "DaemonSet")
-			strategy := defkit.Struct("strategy").Required().WithFields(
+			strategy := defkit.Struct("strategy").Mandatory().WithFields(
 				defkit.Field("type", defkit.ParamTypeString).Default("RollingUpdate").Values("RollingUpdate", "Recreate", "OnDelete"),
 				defkit.Field("rollingStrategy", defkit.ParamTypeStruct).
 					Nested(defkit.Struct("rollingStrategy").WithFields(
@@ -1069,7 +1069,7 @@ template: {
 				Helper("Handler", defkit.Struct("Handler").WithFields(
 					defkit.Field("exec", defkit.ParamTypeStruct).
 						Nested(defkit.Struct("exec").WithFields(
-							defkit.Field("command", defkit.ParamTypeArray).Of(defkit.ParamTypeString).Required(),
+							defkit.Field("command", defkit.ParamTypeArray).Of(defkit.ParamTypeString).Mandatory(),
 						)),
 				)).
 				Template(func(tpl *defkit.Template) {
@@ -1201,7 +1201,7 @@ template: {
 		})
 
 		It("should render unconditional SpreadAll with simple value", func() {
-			image := defkit.String("image").Required()
+			image := defkit.String("image").Mandatory()
 
 			trait := defkit.NewTrait("spreadall-simple-test").
 				Description("Test SpreadAll with simple value").
@@ -1243,7 +1243,7 @@ template: {
 
 		It("should render SpreadAll inside an IfBlock", func() {
 			enabled := defkit.Bool("enabled").Default(false)
-			image := defkit.String("image").Required()
+			image := defkit.String("image").Mandatory()
 
 			trait := defkit.NewTrait("spreadall-ifblock-test").
 				Description("Test SpreadAll inside IfBlock").
@@ -1338,8 +1338,8 @@ template: {
 				Helper("Config", defkit.Struct("Config").WithFields(
 					defkit.Field("headers", defkit.ParamTypeArray).
 						Nested(defkit.Struct("headers").WithFields(
-							defkit.Field("name", defkit.ParamTypeString).Required(),
-							defkit.Field("value", defkit.ParamTypeString).Required(),
+							defkit.Field("name", defkit.ParamTypeString).Mandatory(),
+							defkit.Field("value", defkit.ParamTypeString).Mandatory(),
 						)),
 				)).
 				Template(func(tpl *defkit.Template) {
@@ -1360,7 +1360,7 @@ template: {
 				AppliesTo("deployments.apps").
 				Helper("Port", defkit.Int("Port").Min(1).Max(65535)).
 				Helper("Endpoint", defkit.Struct("Endpoint").WithFields(
-					defkit.Field("port", defkit.ParamTypeInt).WithSchemaRef("Port").Required(),
+					defkit.Field("port", defkit.ParamTypeInt).WithSchemaRef("Port").Mandatory(),
 					defkit.Field("host", defkit.ParamTypeString),
 				)).
 				Template(func(tpl *defkit.Template) {
@@ -1371,7 +1371,7 @@ template: {
 
 			Expect(cue).To(ContainSubstring("#Port: int & >=1 & <=65535"))
 			Expect(cue).To(ContainSubstring("#Endpoint: {"))
-			Expect(cue).To(ContainSubstring("port:  #Port"))
+			Expect(cue).To(MatchRegexp(`port:\s+#Port`))
 			Expect(cue).To(ContainSubstring("host?: string"))
 		})
 	})

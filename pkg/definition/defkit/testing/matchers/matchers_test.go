@@ -190,7 +190,7 @@ var _ = Describe("Parameter Matchers", func() {
 		It("should match when component has parameter", func() {
 			c := defkit.NewComponent("webservice").
 				Params(
-					defkit.String("image").Required(),
+					defkit.String("image").Mandatory(),
 					defkit.Int("replicas").Default(1),
 				)
 			Expect(c).To(HaveParamNamed("image"))

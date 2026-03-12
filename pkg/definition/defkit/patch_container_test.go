@@ -608,7 +608,7 @@ var _ = Describe("PatchContainer", func() {
 			trait := defkit.NewTrait("no-dup-param-test").
 				Description("Test no duplicate parameter block").
 				AppliesTo("deployments.apps").
-				Params(defkit.String("image").Required()).
+				Params(defkit.String("image").Mandatory()).
 				Template(func(tpl *defkit.Template) {
 					tpl.UsePatchContainer(defkit.PatchContainerConfig{
 						ContainerNameParam:   "containerName",

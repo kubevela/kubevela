@@ -163,7 +163,7 @@ func TestFromTyped_ChainAdditionalOperations(t *testing.T) {
 	}
 
 	// Chain additional operations
-	image := defkit.String("image").Required()
+	image := defkit.String("image").Mandatory()
 	r.Set("spec.template.spec.containers[0].image", image)
 
 	ops := r.Ops()

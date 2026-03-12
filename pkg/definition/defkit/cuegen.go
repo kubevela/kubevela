@@ -25,6 +25,13 @@ import (
 // cueOpenStruct is the CUE literal for an open struct type.
 const cueOpenStruct = "{...}"
 
+// CUE field marker constants express the three field presence semantics.
+const (
+	fieldMarkerOptional = "?"  // field?: type  — field may be absent from input
+	fieldMarkerNone     = ""   // field: type   — field must have a value; defaults/merging can satisfy
+	fieldMarkerRequired = "!"  // field!: type  — field must be explicitly provided in user input
+)
+
 // cueLabel quotes a CUE field label if it contains characters that are not
 // valid in a CUE identifier (letters, digits, underscore, $).
 func cueLabel(name string) string {
@@ -504,9 +511,11 @@ func (g *CUEGenerator) writeStructFieldForHelper(sb *strings.Builder, f *StructF
 	}
 
 	name := f.Name()
-	optional := "?"
+	marker := fieldMarkerOptional
 	if f.IsRequired() {
-		optional = ""
+		marker = fieldMarkerRequired
+	} else if f.IsMandatory() {
+		marker = fieldMarkerNone
 	}
 
 	// Check if this field references another helper type
@@ -517,13 +526,13 @@ func (g *CUEGenerator) writeStructFieldForHelper(sb *strings.Builder, f *StructF
 			if f.HasDefault() {
 				sb.WriteString(fmt.Sprintf("%s%s: *%v | [...#%s]\n", indent, name, formatCUEValue(f.GetDefault()), schemaRef))
 			} else {
-				sb.WriteString(fmt.Sprintf("%s%s%s: [...#%s]\n", indent, name, optional, schemaRef))
+				sb.WriteString(fmt.Sprintf("%s%s%s: [...#%s]\n", indent, name, marker, schemaRef))
 			}
 		} else {
 			if f.HasDefault() {
 				sb.WriteString(fmt.Sprintf("%s%s: *%v | #%s\n", indent, name, formatCUEValue(f.GetDefault()), schemaRef))
 			} else {
-				sb.WriteString(fmt.Sprintf("%s%s%s: #%s\n", indent, name, optional, schemaRef))
+				sb.WriteString(fmt.Sprintf("%s%s%s: #%s\n", indent, name, marker, schemaRef))
 			}
 		}
 		return
@@ -533,13 +542,13 @@ func (g *CUEGenerator) writeStructFieldForHelper(sb *strings.Builder, f *StructF
 	if nested := f.GetNested(); nested != nil {
 		if f.FieldType() == ParamTypeArray {
 			// Array of structs: [...{fields}]
-			sb.WriteString(fmt.Sprintf("%s%s%s: [...{\n", indent, name, optional))
+			sb.WriteString(fmt.Sprintf("%s%s%s: [...{\n", indent, name, marker))
 			for _, nestedField := range nested.GetFields() {
 				g.writeStructFieldForHelper(sb, nestedField, depth+1)
 			}
 			sb.WriteString(fmt.Sprintf("%s}]\n", indent))
 		} else {
-			sb.WriteString(fmt.Sprintf("%s%s%s: {\n", indent, name, optional))
+			sb.WriteString(fmt.Sprintf("%s%s%s: {\n", indent, name, marker))
 			for _, nestedField := range nested.GetFields() {
 				g.writeStructFieldForHelper(sb, nestedField, depth+1)
 			}
@@ -574,16 +583,16 @@ func (g *CUEGenerator) writeStructFieldForHelper(sb *strings.Builder, f *StructF
 		}
 	case f.FieldType() == ParamTypeArray && f.GetElementType() != "":
 		elemCUE := g.cueTypeForParamType(f.GetElementType())
-		sb.WriteString(fmt.Sprintf("%s%s%s: [...%s]\n", indent, name, optional, elemCUE))
+		sb.WriteString(fmt.Sprintf("%s%s%s: [...%s]\n", indent, name, marker, elemCUE))
 	case len(f.GetEnumValues()) > 0:
 		// Enum without default: "value1" | "value2"
 		var enumParts []string
 		for _, v := range f.GetEnumValues() {
 			enumParts = append(enumParts, fmt.Sprintf("%q", v))
 		}
-		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, strings.Join(enumParts, " | ")))
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, marker, strings.Join(enumParts, " | ")))
 	default:
-		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, fieldType))
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, marker, fieldType))
 	}
 }
 
@@ -2753,42 +2762,50 @@ func (g *CUEGenerator) writeParam(sb *strings.Builder, param Param, depth int) {
 	}
 
 	name := param.Name()
-	optional := "?"
+	marker := fieldMarkerOptional
 	forceOptional := false
 	if bp, ok := param.(interface{ IsForceOptional() bool }); ok {
 		forceOptional = bp.IsForceOptional()
 	}
-	if param.IsRequired() || (param.HasDefault() && !forceOptional) {
-		// No ? for required fields or fields with defaults (defaults make them effectively present)
-		// Unless forceOptional is set, which keeps ? even with a default
-		optional = ""
+	if param.IsRequired() {
+		// "!" marker: user must explicitly provide this field in input
+		marker = fieldMarkerRequired
+	} else {
+		isMandatory := false
+		if bm, ok := param.(interface{ IsMandatory() bool }); ok {
+			isMandatory = bm.IsMandatory()
+		}
+		if isMandatory || (param.HasDefault() && !forceOptional) {
+			// No marker: field must have a value, but defaults/merging can satisfy it
+			marker = fieldMarkerNone
+		}
 	}
 
 	// Handle different parameter types
 	switch p := param.(type) {
 	case *StringParam:
-		g.writeStringParam(sb, p, indent, name, optional)
+		g.writeStringParam(sb, p, indent, name, marker)
 	case *IntParam:
-		g.writeIntParam(sb, p, indent, name, optional)
+		g.writeIntParam(sb, p, indent, name, marker)
 	case *BoolParam:
-		g.writeBoolParam(sb, p, indent, name, optional)
+		g.writeBoolParam(sb, p, indent, name, marker)
 	case *FloatParam:
-		g.writeFloatParam(sb, p, indent, name, optional)
+		g.writeFloatParam(sb, p, indent, name, marker)
 	case *ArrayParam:
-		g.writeArrayParam(sb, p, indent, name, optional, depth)
+		g.writeArrayParam(sb, p, indent, name, marker, depth)
 	case *MapParam:
-		g.writeMapParam(sb, p, indent, name, optional, depth)
+		g.writeMapParam(sb, p, indent, name, marker, depth)
 	case *StringKeyMapParam:
-		g.writeStringKeyMapParam(sb, p, indent, name, optional)
+		g.writeStringKeyMapParam(sb, p, indent, name, marker)
 	case *StructParam:
-		g.writeStructParam(sb, p, indent, name, optional, depth)
+		g.writeStructParam(sb, p, indent, name, marker, depth)
 	case *EnumParam:
-		g.writeEnumParam(sb, p, indent, name, optional)
+		g.writeEnumParam(sb, p, indent, name, marker)
 	case *OneOfParam:
-		g.writeOneOfParam(sb, p, indent, name, optional, depth)
+		g.writeOneOfParam(sb, p, indent, name, marker, depth)
 	default:
 		// Generic fallback
-		sb.WriteString(fmt.Sprintf("%s%s%s: _\n", indent, name, optional))
+		sb.WriteString(fmt.Sprintf("%s%s%s: _\n", indent, name, marker))
 	}
 }
 
@@ -3044,9 +3061,11 @@ func (g *CUEGenerator) writeStructField(sb *strings.Builder, f *StructField, dep
 	}
 
 	name := f.Name()
-	optional := "?"
+	marker := fieldMarkerOptional
 	if f.IsRequired() {
-		optional = ""
+		marker = fieldMarkerRequired
+	} else if f.IsMandatory() {
+		marker = fieldMarkerNone
 	}
 
 	fieldType := g.cueTypeForParamType(f.FieldType())
@@ -3055,13 +3074,13 @@ func (g *CUEGenerator) writeStructField(sb *strings.Builder, f *StructField, dep
 	switch {
 	case nested != nil:
 		if f.FieldType() == ParamTypeArray {
-			sb.WriteString(fmt.Sprintf("%s%s%s: [...{\n", indent, name, optional))
+			sb.WriteString(fmt.Sprintf("%s%s%s: [...{\n", indent, name, marker))
 			for _, nestedField := range nested.GetFields() {
 				g.writeStructField(sb, nestedField, depth+1)
 			}
 			sb.WriteString(fmt.Sprintf("%s}]\n", indent))
 		} else {
-			sb.WriteString(fmt.Sprintf("%s%s%s: {\n", indent, name, optional))
+			sb.WriteString(fmt.Sprintf("%s%s%s: {\n", indent, name, marker))
 			for _, nestedField := range nested.GetFields() {
 				g.writeStructField(sb, nestedField, depth+1)
 			}
@@ -3089,16 +3108,16 @@ func (g *CUEGenerator) writeStructField(sb *strings.Builder, f *StructField, dep
 		}
 	case f.FieldType() == ParamTypeArray && f.GetElementType() != "":
 		elemCUE := g.cueTypeForParamType(f.GetElementType())
-		sb.WriteString(fmt.Sprintf("%s%s%s: [...%s]\n", indent, name, optional, elemCUE))
+		sb.WriteString(fmt.Sprintf("%s%s%s: [...%s]\n", indent, name, marker, elemCUE))
 	case len(f.GetEnumValues()) > 0:
 		// Enum without default: "value1" | "value2"
 		var enumParts []string
 		for _, v := range f.GetEnumValues() {
 			enumParts = append(enumParts, fmt.Sprintf("%q", v))
 		}
-		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, strings.Join(enumParts, " | ")))
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, marker, strings.Join(enumParts, " | ")))
 	default:
-		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, fieldType))
+		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, marker, fieldType))
 	}
 }
 

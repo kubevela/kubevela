@@ -21,6 +21,7 @@ type baseParam struct {
 	name          string
 	paramType     ParamType
 	required      bool
+	mandatory     bool   // when true, emits "!" marker — user must explicitly provide this field in input
 	defaultValue  any
 	description   string
 	forceOptional bool   // when true, field stays optional even with a default value
@@ -34,7 +35,8 @@ func (p *baseParam) condition() {}
 
 func (p *baseParam) Name() string           { return p.name }
 func (p *baseParam) IsRequired() bool       { return p.required }
-func (p *baseParam) IsOptional() bool       { return !p.required }
+func (p *baseParam) IsOptional() bool       { return !p.required && !p.mandatory }
+func (p *baseParam) IsMandatory() bool      { return p.mandatory }
 func (p *baseParam) HasDefault() bool       { return p.defaultValue != nil }
 func (p *baseParam) GetDefault() any        { return p.defaultValue }
 func (p *baseParam) GetDescription() string { return p.description }
@@ -133,9 +135,17 @@ func (p *StringParam) Required() *StringParam {
 	return p
 }
 
+// Mandatory marks the parameter as mandatory in input, emitting the "!" CUE marker.
+// Unlike Required(), which marks a field as non-optional, Mandatory() forces the user
+// to explicitly provide the field in their input — even if a default value exists.
+func (p *StringParam) Mandatory() *StringParam {
+	p.mandatory = true
+	return p
+}
+
 // Optional marks the parameter as optional (default behavior).
 func (p *StringParam) Optional() *StringParam {
-	p.required = false
+	p.mandatory = false
 	return p
 }
 
@@ -333,9 +343,15 @@ func (p *IntParam) Required() *IntParam {
 	return p
 }
 
+// Mandatory marks the parameter as mandatory in input, emitting the "!" CUE marker.
+func (p *IntParam) Mandatory() *IntParam {
+	p.mandatory = true
+	return p
+}
+
 // Optional marks the parameter as optional (default behavior).
 func (p *IntParam) Optional() *IntParam {
-	p.required = false
+	p.mandatory = false
 	return p
 }
 
@@ -449,9 +465,15 @@ func (p *BoolParam) Required() *BoolParam {
 	return p
 }
 
+// Mandatory marks the parameter as mandatory in input, emitting the "!" CUE marker.
+func (p *BoolParam) Mandatory() *BoolParam {
+	p.mandatory = true
+	return p
+}
+
 // Optional marks the parameter as optional (default behavior).
 func (p *BoolParam) Optional() *BoolParam {
-	p.required = false
+	p.mandatory = false
 	return p
 }
 
@@ -524,9 +546,15 @@ func (p *FloatParam) Required() *FloatParam {
 	return p
 }
 
+// Mandatory marks the parameter as mandatory in input, emitting the "!" CUE marker.
+func (p *FloatParam) Mandatory() *FloatParam {
+	p.mandatory = true
+	return p
+}
+
 // Optional marks the parameter as optional (default behavior).
 func (p *FloatParam) Optional() *FloatParam {
-	p.required = false
+	p.mandatory = false
 	return p
 }
 
@@ -628,9 +656,15 @@ func (p *ArrayParam) Required() *ArrayParam {
 	return p
 }
 
+// Mandatory marks the parameter as mandatory in input, emitting the "!" CUE marker.
+func (p *ArrayParam) Mandatory() *ArrayParam {
+	p.mandatory = true
+	return p
+}
+
 // Optional marks the parameter as optional (default behavior).
 func (p *ArrayParam) Optional() *ArrayParam {
-	p.required = false
+	p.mandatory = false
 	return p
 }
 
@@ -794,9 +828,15 @@ func (p *MapParam) Required() *MapParam {
 	return p
 }
 
+// Mandatory marks the parameter as mandatory in input, emitting the "!" CUE marker.
+func (p *MapParam) Mandatory() *MapParam {
+	p.mandatory = true
+	return p
+}
+
 // Optional marks the parameter as optional (default behavior).
 func (p *MapParam) Optional() *MapParam {
-	p.required = false
+	p.mandatory = false
 	return p
 }
 
@@ -897,6 +937,7 @@ type StructField struct {
 	name         string
 	fieldType    ParamType
 	required     bool
+	mandatory    bool         // when true, emits "!" marker — user must explicitly provide this field in input
 	defaultValue any
 	description  string
 	nested       *StructParam // for nested structs
@@ -919,9 +960,15 @@ func (f *StructField) Required() *StructField {
 	return f
 }
 
+// Mandatory marks the field as mandatory in input, emitting the "!" CUE marker.
+func (f *StructField) Mandatory() *StructField {
+	f.mandatory = true
+	return f
+}
+
 // Optional marks the field as optional (default behavior).
 func (f *StructField) Optional() *StructField {
-	f.required = false
+	f.mandatory = false
 	return f
 }
 
@@ -961,6 +1008,9 @@ func (f *StructField) FieldType() ParamType { return f.fieldType }
 
 // IsRequired returns true if the field is required.
 func (f *StructField) IsRequired() bool { return f.required }
+
+// IsMandatory returns true if the field must be explicitly provided in input (emits "!" marker).
+func (f *StructField) IsMandatory() bool { return f.mandatory }
 
 // HasDefault returns true if the field has a default value.
 func (f *StructField) HasDefault() bool { return f.defaultValue != nil }
@@ -1033,9 +1083,15 @@ func (p *StructParam) Required() *StructParam {
 	return p
 }
 
+// Mandatory marks the parameter as mandatory in input, emitting the "!" CUE marker.
+func (p *StructParam) Mandatory() *StructParam {
+	p.mandatory = true
+	return p
+}
+
 // Optional marks the parameter as optional (default behavior).
 func (p *StructParam) Optional() *StructParam {
-	p.required = false
+	p.mandatory = false
 	return p
 }
 
@@ -1106,9 +1162,15 @@ func (p *EnumParam) Required() *EnumParam {
 	return p
 }
 
+// Mandatory marks the parameter as mandatory in input, emitting the "!" CUE marker.
+func (p *EnumParam) Mandatory() *EnumParam {
+	p.mandatory = true
+	return p
+}
+
 // Optional marks the parameter as optional (default behavior).
 func (p *EnumParam) Optional() *EnumParam {
-	p.required = false
+	p.mandatory = false
 	return p
 }
 
@@ -1217,9 +1279,15 @@ func (p *OneOfParam) Required() *OneOfParam {
 	return p
 }
 
+// Mandatory marks the parameter as mandatory in input, emitting the "!" CUE marker.
+func (p *OneOfParam) Mandatory() *OneOfParam {
+	p.mandatory = true
+	return p
+}
+
 // Optional marks the parameter as optional (default behavior).
 func (p *OneOfParam) Optional() *OneOfParam {
-	p.required = false
+	p.mandatory = false
 	return p
 }
 
@@ -1295,9 +1363,15 @@ func (p *StringKeyMapParam) Required() *StringKeyMapParam {
 	return p
 }
 
+// Mandatory marks the parameter as mandatory in input, emitting the "!" CUE marker.
+func (p *StringKeyMapParam) Mandatory() *StringKeyMapParam {
+	p.mandatory = true
+	return p
+}
+
 // Optional marks the parameter as optional (default behavior).
 func (p *StringKeyMapParam) Optional() *StringKeyMapParam {
-	p.required = false
+	p.mandatory = false
 	return p
 }
 

@@ -102,7 +102,7 @@ var _ = Describe("HelperDefinition", func() {
 			helper := defkit.Map("labelSelector").WithFields(
 				defkit.StringKeyMap("matchLabels").Description("A map of {key,value} pairs"),
 				defkit.Array("matchExpressions").Description("Label selector requirements").WithFields(
-					defkit.String("key").Required(),
+					defkit.String("key").Mandatory(),
 					defkit.String("operator").Default("In").Values("In", "NotIn", "Exists", "DoesNotExist"),
 					defkit.Array("values").Of(defkit.ParamTypeString),
 				),
@@ -133,7 +133,7 @@ var _ = Describe("HelperDefinition", func() {
 
 		It("should render Of(ParamTypeString) in Struct-based helper fields", func() {
 			helper := defkit.Struct("nodeSelector").WithFields(
-				defkit.Field("key", defkit.ParamTypeString).Required(),
+				defkit.Field("key", defkit.ParamTypeString).Mandatory(),
 				defkit.Field("operator", defkit.ParamTypeString).Default("In").Values("In", "NotIn"),
 				defkit.Field("values", defkit.ParamTypeArray).Of(defkit.ParamTypeString),
 			)
@@ -165,7 +165,7 @@ var _ = Describe("HelperDefinition", func() {
 			affinityHelper := defkit.Struct("podAffinityTerm").WithFields(
 				defkit.Field("labelSelector", defkit.ParamTypeStruct).WithSchemaRef("labelSelector"),
 				defkit.Field("namespaces", defkit.ParamTypeArray).Of(defkit.ParamTypeString),
-				defkit.Field("topologyKey", defkit.ParamTypeString).Required(),
+				defkit.Field("topologyKey", defkit.ParamTypeString).Mandatory(),
 			)
 
 			trait := defkit.NewTrait("schemaref-test").
