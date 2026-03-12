@@ -140,3 +140,30 @@ package helm
 	}
 	...
 }
+
+#Uninstall: {
+	#do:       "uninstall"
+	#provider: "helm"
+
+	// +usage=The params for uninstalling a Helm release
+	$params: {
+		// +usage=Release to uninstall
+		release: {
+			// +usage=Release name
+			name: string
+			// +usage=Release namespace
+			namespace: string
+		}
+		// +usage=Retain release history after uninstall
+		keepHistory?: bool
+	}
+
+	// +usage=The returns of uninstalling a Helm release
+	$returns?: {
+		// +usage=Whether the uninstall succeeded
+		success: bool
+		// +usage=Additional message (e.g. error detail)
+		message?: string
+	}
+	...
+}
