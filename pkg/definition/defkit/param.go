@@ -147,6 +147,7 @@ func (p *StringParam) Mandatory() *StringParam {
 // Optional marks the parameter as optional (default behavior).
 func (p *StringParam) Optional() *StringParam {
 	p.mandatory = false
+	p.required = false
 	return p
 }
 
