@@ -925,7 +925,13 @@ func (g *CUEGenerator) writeCollectionOpHelper(sb *strings.Builder, col *Collect
 		if dedup, ok := op.(*dedupeOp); ok {
 			// For dedupe, use the elegant CUE pattern with _ignore marker
 			// This pattern checks if any earlier item has the same key
+			var sourceName string
 			if helperRef, ok := col.Source().(*HelperVar); ok {
+				sourceName = helperRef.Name()
+			} else if ref, ok := col.Source().(*Ref); ok {
+				sourceName = ref.Path()
+			}
+			if sourceName != "" {
 				keyField := dedup.keyField
 				sb.WriteString(fmt.Sprintf(`[
 		for val in [
@@ -938,7 +944,7 @@ func (g *CUEGenerator) writeCollectionOpHelper(sb *strings.Builder, col *Collect
 		] if val._ignore == _|_ {
 			val
 		},
-	]`, helperRef.Name(), helperRef.Name(), keyField, keyField))
+	]`, sourceName, sourceName, keyField, keyField))
 				return
 			}
 		}
@@ -2045,10 +2051,13 @@ func (g *CUEGenerator) arrayBuilderToCUE(ab *ArrayBuilder, depth int) string {
 			} else {
 				sb.WriteString(fmt.Sprintf("%sfor m in %s {\n", innerIndent, sourceStr))
 			}
+			// Wrap each element in inner braces for explicit struct boundary
+			extraIndent := deepIndent + "\t"
+			sb.WriteString(fmt.Sprintf("%s{\n", deepIndent))
 			// Write each field from the element template
 			for key, val := range entry.element.Fields() {
 				valStr := g.valueToCUE(val)
-				sb.WriteString(fmt.Sprintf("%s%s: %s\n", deepIndent, key, valStr))
+				sb.WriteString(fmt.Sprintf("%s%s: %s\n", extraIndent, key, valStr))
 			}
 			// Write conditional operations
 			for _, op := range entry.element.Ops() {
@@ -2056,11 +2065,12 @@ func (g *CUEGenerator) arrayBuilderToCUE(ab *ArrayBuilder, depth int) string {
 					condStr := g.conditionToCUE(setIf.Cond())
 					valStr := g.valueToCUE(setIf.Value())
 					cuePath := strings.ReplaceAll(setIf.Path(), ".", ": ")
-					sb.WriteString(fmt.Sprintf("%sif %s {\n", deepIndent, condStr))
-					sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", deepIndent, cuePath, valStr))
-					sb.WriteString(fmt.Sprintf("%s}\n", deepIndent))
+					sb.WriteString(fmt.Sprintf("%sif %s {\n", extraIndent, condStr))
+					sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", extraIndent, cuePath, valStr))
+					sb.WriteString(fmt.Sprintf("%s}\n", extraIndent))
 				}
 			}
+			sb.WriteString(fmt.Sprintf("%s}\n", deepIndent))
 			sb.WriteString(fmt.Sprintf("%s},\n", innerIndent))
 
 		case entryForEachWith:
@@ -2119,6 +2129,25 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 	for _, op := range ops {
 		if wOp, ok := op.(*wrapOp); ok {
 			return fmt.Sprintf("[for v in %s { %s: v }]", sourceStr, wOp.key)
+		}
+	}
+
+	// Check for deduplication
+	for _, op := range ops {
+		if dedup, ok := op.(*dedupeOp); ok {
+			keyField := dedup.keyField
+			return fmt.Sprintf(`[
+		for val in [
+			for i, vi in %s {
+				for j, vj in %s if j < i && vi.%s == vj.%s {
+					_ignore: true
+				}
+				vi
+			},
+		] if val._ignore == _|_ {
+			val
+		},
+	]`, sourceStr, sourceStr, keyField, keyField)
 		}
 	}
 

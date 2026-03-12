@@ -313,5 +313,55 @@ var _ = Describe("Operation Builders", func() {
 			Expect(cue).To(ContainSubstring("util.#ConvertString & {"))
 			Expect(cue).To(ContainSubstring("$params: bt: base64.Decode(null, data)"))
 		})
+
+		It("should render WaitUntil with Guard through CUE generator", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Params(defkit.String("name").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Set("wait", defkit.WaitUntil(
+						defkit.Reference("job.$returns.value.status.succeeded > 0"),
+					).Guard(
+						defkit.Reference("job.$returns.value.status"),
+						defkit.Reference("job.$returns.value.status.succeeded"),
+					))
+				})
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("builtin.#ConditionalWait & {"))
+			Expect(cue).To(ContainSubstring("if job.$returns.value.status != _|_ if job.$returns.value.status.succeeded != _|_"))
+			Expect(cue).To(ContainSubstring("$params: continue: job.$returns.value.status.succeeded > 0"))
+		})
+
+		It("should render WaitUntil without Guard through CUE generator", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Params(defkit.String("name").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Set("wait", defkit.WaitUntil(
+						defkit.Reference("output.$returns.value.status.ready == true"),
+					))
+				})
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("builtin.#ConditionalWait & {"))
+			Expect(cue).To(ContainSubstring("$params: continue: output.$returns.value.status.ready == true"))
+			Expect(cue).NotTo(ContainSubstring("if "))
+		})
+
+		It("should render Fail through CUE generator", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Params(defkit.String("name").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Set("error", defkit.Fail(
+						defkit.Reference(`"operation failed"`),
+					))
+				})
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("builtin.#Fail & {"))
+			Expect(cue).To(ContainSubstring(`$params: message: "operation failed"`))
+		})
 	})
 })

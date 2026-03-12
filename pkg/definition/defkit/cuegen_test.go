@@ -1309,4 +1309,95 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring("empty: _"))
 		})
 	})
+
+	Describe("ForEachGuarded inner braces", func() {
+		It("should wrap each element in inner braces", func() {
+			hasStorage := defkit.PathExists("parameter.storage")
+			ws := defkit.NewWorkflowStep("test").
+				Params(
+					defkit.Array("storage").WithFields(
+						defkit.String("name").Required(),
+						defkit.String("path").Required(),
+					),
+				).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					arr := defkit.NewArray().
+						ForEachGuarded(
+							hasStorage,
+							defkit.ParamRef("storage"),
+							defkit.NewArrayElement().
+								Set("name", defkit.Reference("m.name")).
+								Set("path", defkit.Reference("m.path")),
+						)
+					tpl.Set("items", arr)
+				})
+
+			cue := ws.ToCue()
+
+			// Should have inner braces around each element
+			Expect(cue).To(ContainSubstring("for m in"))
+			Expect(cue).To(MatchRegexp(`for m in .+ \{\n[^\n]*\{`))
+		})
+
+		It("should wrap elements with conditional fields in inner braces", func() {
+			hasStorage := defkit.PathExists("parameter.storage")
+			ws := defkit.NewWorkflowStep("test").
+				Params(
+					defkit.Array("storage").WithFields(
+						defkit.String("name").Required(),
+						defkit.String("subPath"),
+					),
+				).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					arr := defkit.NewArray().
+						ForEachGuarded(
+							hasStorage,
+							defkit.ParamRef("storage"),
+							defkit.NewArrayElement().
+								Set("name", defkit.Reference("m.name")).
+								SetIf(defkit.PathExists("m.subPath"), "subPath", defkit.Reference("m.subPath")),
+						)
+					tpl.Set("mounts", arr)
+				})
+
+			cue := ws.ToCue()
+
+			// Inner braces should contain both the field and the conditional
+			Expect(cue).To(ContainSubstring("name: m.name"))
+			Expect(cue).To(ContainSubstring("if m.subPath != _|_"))
+		})
+	})
+
+	Describe("Dedupe from Reference source", func() {
+		It("should generate dedup pattern when source is a Reference", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Params(defkit.String("name").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Set("deduped", defkit.From(defkit.Reference("volumesList")).Dedupe("name"))
+				})
+
+			cue := ws.ToCue()
+
+			// Should generate the full dedup pattern, not simple [for v in ...]
+			Expect(cue).To(ContainSubstring("for val in ["))
+			Expect(cue).To(ContainSubstring("for i, vi in volumesList"))
+			Expect(cue).To(ContainSubstring("for j, vj in volumesList if j < i && vi.name == vj.name"))
+			Expect(cue).To(ContainSubstring("_ignore: true"))
+			Expect(cue).To(ContainSubstring("if val._ignore == _|_"))
+			Expect(cue).NotTo(ContainSubstring("[for v in volumesList { v }]"))
+		})
+
+		It("should generate dedup pattern with different key field", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Params(defkit.String("name").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Set("unique", defkit.From(defkit.Reference("items")).Dedupe("id"))
+				})
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("vi.id == vj.id"))
+			Expect(cue).To(ContainSubstring("for i, vi in items"))
+		})
+	})
 })
