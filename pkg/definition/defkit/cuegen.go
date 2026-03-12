@@ -3224,7 +3224,7 @@ func (g *CUEGenerator) writeClosedUnionParam(sb *strings.Builder, p *ClosedUnion
 
 	for i, opt := range options {
 		if i > 0 {
-			sb.WriteString(fmt.Sprintf(" | "))
+			sb.WriteString(" | ")
 		}
 		sb.WriteString("close({\n")
 		for _, field := range opt.GetFields() {
