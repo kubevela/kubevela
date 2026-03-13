@@ -51,6 +51,7 @@ import (
 // AppHandler handles application reconcile
 type AppHandler struct {
 	client.Client
+	RescheduleClient client.Client
 
 	app            *v1beta1.Application
 	currentAppRev  *v1beta1.ApplicationRevision
@@ -80,9 +81,10 @@ func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application)
 		return nil, errors.Wrapf(err, "failed to create resourceKeeper")
 	}
 	return &AppHandler{
-		Client:         r.Client,
-		app:            app,
-		resourceKeeper: resourceHandler,
+		Client:           r.Client,
+		RescheduleClient: r.NonCachedClient,
+		app:              app,
+		resourceKeeper:   resourceHandler,
 	}, nil
 }
 
