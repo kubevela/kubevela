@@ -3137,6 +3137,16 @@ func (g *CUEGenerator) writeStructField(sb *strings.Builder, f *StructField, dep
 
 	fieldType := g.cueTypeForParamType(f.FieldType())
 
+	// Check schemaRef first — references a helper definition like #HealthProbe
+	if schemaRef := f.GetSchemaRef(); schemaRef != "" {
+		if f.FieldType() == ParamTypeArray {
+			sb.WriteString(fmt.Sprintf("%s%s%s: [...#%s]\n", indent, name, optional, schemaRef))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s%s: #%s\n", indent, name, optional, schemaRef))
+		}
+		return
+	}
+
 	nested := f.GetNested()
 	switch {
 	case nested != nil:
