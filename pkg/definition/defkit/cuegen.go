@@ -1823,15 +1823,23 @@ func (g *CUEGenerator) filterNodeByCondition(node *fieldNode, condStr string) *f
 	return filtered
 }
 
-// valueToCUE converts a Value to CUE syntax.
-func (g *CUEGenerator) valueToCUE(v Value) string {
-	// Check if the value can render itself (used by fluent builders).
-	// Prefer CUEConditionRenderer when available, as it also passes condition rendering.
+// tryRenderBuilder checks if a Value implements CUERenderer or CUEConditionRenderer
+// and renders it. Returns empty string if the value is not a builder.
+func (g *CUEGenerator) tryRenderBuilder(v Value) string {
 	if ccr, ok := v.(CUEConditionRenderer); ok {
 		return ccr.RenderCUEWithCondition(g.valueToCUE, g.conditionToCUE)
 	}
 	if cr, ok := v.(CUERenderer); ok {
 		return cr.RenderCUE(g.valueToCUE)
+	}
+	return ""
+}
+
+// valueToCUE converts a Value to CUE syntax.
+func (g *CUEGenerator) valueToCUE(v Value) string {
+	// Check if the value can render itself (used by fluent builders).
+	if s := g.tryRenderBuilder(v); s != "" {
+		return s
 	}
 
 	switch val := v.(type) {
