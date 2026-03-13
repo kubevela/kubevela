@@ -159,6 +159,9 @@ const (
 	// AnnotationAutoUpdate is annotation that let application auto update when it finds definition changes
 	AnnotationAutoUpdate = "app.oam.dev/autoUpdate"
 
+	// AnnotationForceParamMutations bypasses all immutable parameter field validation when set to "true".
+	AnnotationForceParamMutations = "app.oam.dev/force-param-mutations"
+
 	// AnnotationWorkflowName specifies the workflow name for execution.
 	AnnotationWorkflowName = "app.oam.dev/workflowName"
 
