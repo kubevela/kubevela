@@ -48,6 +48,7 @@ import (
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/runtime"
 
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -987,6 +988,9 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 			"metadata": map[string]interface{}{
 				"name":      releaseSecretName,
 				"namespace": releaseNamespace,
+				"annotations": map[string]interface{}{
+					oam.AnnotationTrackOnly: "true",
+				},
 			},
 			"type": "helm.sh/release.v1",
 		}

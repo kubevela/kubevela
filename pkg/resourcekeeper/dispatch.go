@@ -99,8 +99,17 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 	if err = h.record(ctx, manifests, options...); err != nil {
 		return err
 	}
-	// 3. apply manifests
-	return h.dispatch(ctx, manifests, opts)
+	// 3. apply manifests (skip track-only resources — they must not be applied to the cluster)
+	applyManifests := manifests
+	if hasTrackOnlyAnnotation(manifests) {
+		applyManifests = make([]*unstructured.Unstructured, 0, len(manifests))
+		for _, m := range manifests {
+			if m == nil || m.GetAnnotations()[oam.AnnotationTrackOnly] != "true" {
+				applyManifests = append(applyManifests, m)
+			}
+		}
+	}
+	return h.dispatch(ctx, applyManifests, opts)
 }
 
 func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.Unstructured, options ...DispatchOption) error {
@@ -109,9 +118,15 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 	var skipGCManifests []*unstructured.Unstructured
 	var rootManifests []*unstructured.Unstructured
 	var versionManifests []*unstructured.Unstructured
+	var trackOnlyManifests []*unstructured.Unstructured
 
 	for _, manifest := range manifests {
 		if manifest != nil {
+			// Track-only resources: record with metaOnly=true, skip apply entirely.
+			if manifest.GetAnnotations()[oam.AnnotationTrackOnly] == "true" {
+				trackOnlyManifests = append(trackOnlyManifests, manifest)
+				continue
+			}
 			_options := options
 			if h.garbageCollectPolicy != nil {
 				if strategy := h.garbageCollectPolicy.FindStrategy(manifest); strategy != nil {
@@ -152,7 +167,27 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 	if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, versionManifests, cfg.metaOnly, false, cfg.creator); err != nil {
 		return errors.Wrapf(err, "failed to record resources in resourcetracker %s", rt.Name)
 	}
+	// Track-only resources: always recorded metaOnly=true in current RT so GC can clean them up,
+	// but they are never applied to the cluster (preserves Helm-managed data).
+	if len(trackOnlyManifests) > 0 {
+		if err = resourcetracker.RecordManifestsInResourceTracker(
+			multicluster.ContextInLocalCluster(ctx), h.Client, rt,
+			trackOnlyManifests, true /*metaOnly*/, false /*skipGC*/, cfg.creator,
+		); err != nil {
+			return errors.Wrapf(err, "failed to record track-only resources in resourcetracker %s", rt.Name)
+		}
+	}
 	return nil
+}
+
+// hasTrackOnlyAnnotation reports whether any manifest carries the track-only annotation.
+func hasTrackOnlyAnnotation(manifests []*unstructured.Unstructured) bool {
+	for _, m := range manifests {
+		if m != nil && m.GetAnnotations()[oam.AnnotationTrackOnly] == "true" {
+			return true
+		}
+	}
+	return false
 }
 
 // applyManifest applies a single manifest with all necessary options and context setup
