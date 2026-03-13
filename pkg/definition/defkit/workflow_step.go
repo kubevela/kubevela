@@ -79,6 +79,17 @@ type ConditionalAction struct {
 
 func (c *ConditionalAction) isWorkflowAction() {}
 
+// GuardedBlockAction represents a field that always exists with a guard condition inside.
+// Generates: name: { if cond { ...contents... } }
+// Unlike ConditionalAction which generates: if cond { name: { ...contents... } }
+type GuardedBlockAction struct {
+	cond  Condition
+	name  string
+	value Value
+}
+
+func (g *GuardedBlockAction) isWorkflowAction() {}
+
 // NewWorkflowStep creates a new WorkflowStepDefinition builder.
 func NewWorkflowStep(name string) *WorkflowStepDefinition {
 	return &WorkflowStepDefinition{
@@ -366,6 +377,19 @@ func (wt *WorkflowStepTemplate) SetIf(cond Condition, name string, value Value) 
 	return wt
 }
 
+// SetGuardedBlock assigns a value to a field with the guard condition placed inside
+// the field block, so the field always exists (possibly empty).
+// Generates: name: { if cond { ...contents... } }
+// Unlike SetIf which generates: if cond { name: { ...contents... } }
+func (wt *WorkflowStepTemplate) SetGuardedBlock(cond Condition, name string, value Value) *WorkflowStepTemplate {
+	wt.actions = append(wt.actions, &GuardedBlockAction{
+		cond:  cond,
+		name:  name,
+		value: value,
+	})
+	return wt
+}
+
 // Suspend adds a suspend action.
 // Example: tpl.Suspend("Waiting for approval")
 func (wt *WorkflowStepTemplate) Suspend(message string) *WorkflowStepTemplate {
@@ -634,6 +658,8 @@ func (g *WorkflowStepCUEGenerator) writeActions(sb *strings.Builder, wt *Workflo
 				g.writeValueAction(sb, value, "\t", indent, gen)
 			}
 			sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		case *GuardedBlockAction:
+			g.writeGuardedBlockAction(sb, a, indent, gen)
 		}
 	}
 }
@@ -674,6 +700,42 @@ func (g *WorkflowStepCUEGenerator) writeValueAction(sb *strings.Builder, a *Valu
 		name = fmt.Sprintf("%q", name)
 	}
 	sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, extraIndent, name, gen.valueToCUE(a.value)))
+}
+
+// writeGuardedBlockAction writes a field that always exists with a guard condition inside.
+// Output: name: { if cond { ...value contents... } }
+func (g *WorkflowStepCUEGenerator) writeGuardedBlockAction(sb *strings.Builder, a *GuardedBlockAction, indent string, gen *CUEGenerator) {
+	name := a.name
+	if strings.ContainsAny(name, "-./") {
+		name = fmt.Sprintf("%q", name)
+	}
+	innerIndent := indent + g.indent
+	condStr := gen.conditionToCUE(a.cond)
+	valStr := gen.valueToCUE(a.value)
+
+	sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, name))
+	sb.WriteString(fmt.Sprintf("%sif %s {\n", innerIndent, condStr))
+
+	// If the value is a block (starts with { and ends with }), strip the outer braces
+	// and indent the inner content. Otherwise emit the value as-is.
+	trimmed := strings.TrimSpace(valStr)
+	if strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}") {
+		// Strip outer braces and re-indent inner lines
+		inner := trimmed[1 : len(trimmed)-1]
+		lines := strings.Split(inner, "\n")
+		for _, line := range lines {
+			stripped := strings.TrimSpace(line)
+			if stripped == "" {
+				continue
+			}
+			sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, stripped))
+		}
+	} else {
+		sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, trimmed))
+	}
+
+	sb.WriteString(fmt.Sprintf("%s}\n", innerIndent))
+	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 }
 
 // extractActionName extracts a simple action name from a builtin reference.
