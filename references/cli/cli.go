@@ -104,6 +104,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewExecCommand(commandArgs, "5", ioStream),
 		RevisionCommandGroup(commandArgs, "6"),
 		NewDebugCommand(commandArgs, "7", ioStream),
+		PolicyCommandGroup(commandArgs, "8", ioStream),
 
 		// Continuous Delivery
 		NewWorkflowCommand(commandArgs, "1", ioStream),

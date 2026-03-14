@@ -58,11 +58,28 @@ spec:
                 required:
                 - name
                 type: object
+              global:
+                description: |-
+                  Global indicates this policy should automatically apply to all Applications
+                  in this namespace (or all namespaces if in vela-system).
+                  Global policies cannot be explicitly referenced in Application specs.
+                  Requires EnableGlobalPolicies feature gate for discovery and
+                  EnableApplicationScopedPolicies feature gate for execution.
+                type: boolean
               manageHealthCheck:
                 description: |-
                   ManageHealthCheck means the policy will handle health checking and skip application controller
                   built-in health checking.
                 type: boolean
+              priority:
+                description: |-
+                  Priority defines the order in which global policies are applied.
+                  Lower values run first (e.g. 0 runs before 100), following the same
+                  convention as Kubernetes admission webhooks. Policies with the same
+                  priority are applied in alphabetical order by name.
+                  If not specified, defaults to 0.
+                format: int32
+                type: integer
               schematic:
                 description: |-
                   Schematic defines the data format and template of the encapsulation of the policy definition.
@@ -156,6 +173,14 @@ spec:
                     - configuration
                     type: object
                 type: object
+              scope:
+                description: |-
+                  Scope defines the scope at which this policy operates.
+                  - DefaultScope (empty/omitted): Standard output-based or builtin policies (topology, override, etc.)
+                    These can generate Kubernetes resources from CUE templates with an 'output' field or apply Go-logic in the controller
+                  - ApplicationScope: Transform-based policies that modify the Application CR before parsing.
+                    Requires EnableApplicationScopedPolicies feature gate.
+                type: string
               version:
                 type: string
             type: object

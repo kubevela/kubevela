@@ -25,6 +25,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -53,8 +54,25 @@ type ContextData struct {
 	Output         interface{}
 }
 
+// policyAdditionalContextKey is the shared Go context key for policy output.ctx data
+const policyAdditionalContextKey = oam.PolicyAdditionalContextKey
+
 // NewContext creates a new process context
 func NewContext(data ContextData) process.Context {
+	// Extract policy additionalContextif it exists
+	// This allows Application-scoped policies to inject data into component/trait rendering
+	var customData map[string]interface{}
+	if data.Ctx != nil {
+		if val := data.Ctx.Value(policyAdditionalContextKey); val != nil {
+			if contextMap, ok := val.(map[string]interface{}); ok {
+				// Wrap additionalContext under "custom" key so it's accessible as context.custom
+				customData = map[string]interface{}{
+					"custom": contextMap,
+				}
+			}
+		}
+	}
+
 	ctx := process.NewContext(process.ContextData{
 		Namespace:      data.Namespace,
 		Name:           data.CompName,
@@ -64,13 +82,22 @@ func NewContext(data ContextData) process.Context {
 		Ctx:            data.Ctx,
 		BaseHooks:      data.BaseHooks,
 		AuxiliaryHooks: data.AuxiliaryHooks,
+		CustomData:     customData,
 	})
 	ctx.PushData(ContextAppName, data.AppName)
 	ctx.PushData(ContextAppRevision, data.AppRevisionName)
 	ctx.PushData(ContextCompRevisionName, data.CompRevision)
 	ctx.PushData(ContextComponents, data.Components)
-	ctx.PushData(ContextAppLabels, data.AppLabels)
-	ctx.PushData(ContextAppAnnotations, data.AppAnnotations)
+	appLabels := data.AppLabels
+	if appLabels == nil {
+		appLabels = map[string]string{}
+	}
+	appAnnotations := data.AppAnnotations
+	if appAnnotations == nil {
+		appAnnotations = map[string]string{}
+	}
+	ctx.PushData(ContextAppLabels, appLabels)
+	ctx.PushData(ContextAppAnnotations, appAnnotations)
 	ctx.PushData(ContextReplicaKey, data.ReplicaKey)
 	revNum, _ := util.ExtractRevisionNum(data.AppRevisionName, "-")
 	ctx.PushData(ContextAppRevisionNum, revNum)

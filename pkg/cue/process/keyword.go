@@ -35,6 +35,12 @@ const (
 	ContextAppLabels = "appLabels"
 	// ContextAppAnnotations is the annotations of app of context
 	ContextAppAnnotations = "appAnnotations"
+	// ContextAppComponents is the components array of the app
+	ContextAppComponents = "appComponents"
+	// ContextAppWorkflow is the workflow object of the app
+	ContextAppWorkflow = "appWorkflow"
+	// ContextAppPolicies is the policies array of the app
+	ContextAppPolicies = "appPolicies"
 	// ContextNamespace is the namespace of the app
 	ContextNamespace = "namespace"
 	// ContextCluster is the cluster currently focusing on
@@ -57,4 +63,14 @@ const (
 	ContextDataArtifacts = "artifacts"
 	// ContextReplicaKey is the key of replication in context
 	ContextReplicaKey = "replicaKey"
+	// ContextPolicyName is the instance name of the currently executing policy (from spec.policies[].name)
+	ContextPolicyName = "policyName"
+	// ContextPolicyType is the definition type of the currently executing policy (from spec.policies[].type)
+	ContextPolicyType = "policyType"
+	// ContextPolicyRevisionName is the DefinitionRevision name if versioned
+	ContextPolicyRevisionName = "policyRevisionName"
+	// ContextPolicyRevision is the revision number
+	ContextPolicyRevision = "policyRevision"
+	// ContextPolicyRevisionHash is the template content hash
+	ContextPolicyRevisionHash = "policyRevisionHash"
 )

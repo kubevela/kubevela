@@ -43,6 +43,8 @@ import (
 	"github.com/oam-dev/kubevela/references/docgen"
 )
 
+const defaultNamespace = "default"
+
 type appInitOptions struct {
 	client client.Client
 	cmdutil.IOStreams
@@ -151,7 +153,7 @@ func (o *appInitOptions) Naming() error {
 // CheckEnv checks environment, e.g., domain and email.
 func (o *appInitOptions) CheckEnv() error {
 	if o.Namespace == "" {
-		o.Namespace = "default"
+		o.Namespace = defaultNamespace
 	}
 	var ns v1.Namespace
 	ctx := context.Background()

@@ -56,6 +56,11 @@ type ApplicationRevisionCompressibleFields struct {
 	// PolicyDefinitions records the snapshot of the PolicyDefinitions related with the created/modified Application
 	PolicyDefinitions map[string]PolicyDefinition `json:"policyDefinitions,omitempty"`
 
+	// PolicyVersions records version metadata for each policy (which DefinitionRevision was used)
+	// Key is the policy name (same as PolicyDefinitions keys)
+	// +optional
+	PolicyVersions map[string]PolicyVersionMetadata `json:"policyVersions,omitempty"`
+
 	// WorkflowStepDefinitions records the snapshot of the WorkflowStepDefinitions related with the created/modified Application
 	WorkflowStepDefinitions map[string]*WorkflowStepDefinition `json:"workflowStepDefinitions,omitempty"`
 
@@ -160,4 +165,22 @@ type ApplicationRevisionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ApplicationRevision `json:"items"`
+}
+
+// PolicyVersionMetadata records version information for a PolicyDefinition used in an ApplicationRevision
+// This helps users identify which DefinitionRevision was selected when the ApplicationRevision was created
+type PolicyVersionMetadata struct {
+	// DefinitionRevisionName is the DefinitionRevision resource name if versioned (e.g. "my-policy-v3")
+	// Empty if the policy used latest PolicyDefinition (no @version specified)
+	// +optional
+	DefinitionRevisionName string `json:"definitionRevisionName,omitempty"`
+
+	// Revision is the revision number from the DefinitionRevision (e.g. 3)
+	// +optional
+	Revision int64 `json:"revision,omitempty"`
+
+	// RevisionHash is the hash of the PolicyDefinition template
+	// This is the definitive proof of exactly what template was used
+	// +optional
+	RevisionHash string `json:"revisionHash,omitempty"`
 }
