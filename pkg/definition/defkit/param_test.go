@@ -30,7 +30,7 @@ var _ = Describe("Parameters", func() {
 			p := defkit.String("image")
 			Expect(p.Name()).To(Equal("image"))
 			Expect(p.IsRequired()).To(BeFalse())
-			Expect(p.IsOptional()).To(BeTrue())
+			Expect(p.IsOptional()).To(BeFalse())
 			Expect(p.HasDefault()).To(BeFalse())
 		})
 
@@ -62,17 +62,19 @@ var _ = Describe("Parameters", func() {
 			Expect(p.GetDescription()).To(Equal("Container image"))
 		})
 
-		It("should support ForceOptional to stay optional even with a default", func() {
-			p := defkit.String("policy").Default("Honor").ForceOptional().Values("Honor", "Ignore")
+		It("should not be optional by default even with a default value", func() {
+			p := defkit.String("policy").Default("Honor")
 			Expect(p.HasDefault()).To(BeTrue())
-			Expect(p.GetDefault()).To(Equal("Honor"))
-			Expect(p.IsForceOptional()).To(BeTrue())
+			Expect(p.IsOptional()).To(BeFalse())
 			Expect(p.IsRequired()).To(BeFalse())
 		})
 
-		It("should not be force-optional by default", func() {
-			p := defkit.String("policy").Default("Honor")
-			Expect(p.IsForceOptional()).To(BeFalse())
+		It("should support Optional with a default", func() {
+			p := defkit.String("policy").Default("Honor").Optional().Values("Honor", "Ignore")
+			Expect(p.HasDefault()).To(BeTrue())
+			Expect(p.GetDefault()).To(Equal("Honor"))
+			Expect(p.IsOptional()).To(BeTrue())
+			Expect(p.IsRequired()).To(BeFalse())
 		})
 
 		It("should support OpenEnum on enum", func() {
@@ -110,15 +112,16 @@ var _ = Describe("Parameters", func() {
 			Expect(p.GetDefault()).To(Equal(8080))
 		})
 
-		It("should support ForceOptional", func() {
-			p := defkit.Int("port").Default(8080).ForceOptional()
-			Expect(p.IsForceOptional()).To(BeTrue())
+		It("should not be optional by default even with a default value", func() {
+			p := defkit.Int("port").Default(8080)
+			Expect(p.IsOptional()).To(BeFalse())
 			Expect(p.HasDefault()).To(BeTrue())
 		})
 
-		It("should not be force-optional by default", func() {
-			p := defkit.Int("port").Default(8080)
-			Expect(p.IsForceOptional()).To(BeFalse())
+		It("should support Optional with default", func() {
+			p := defkit.Int("port").Default(8080).Optional()
+			Expect(p.IsOptional()).To(BeTrue())
+			Expect(p.HasDefault()).To(BeTrue())
 		})
 	})
 
@@ -145,15 +148,16 @@ var _ = Describe("Parameters", func() {
 			Expect(p.GetDefault()).To(Equal(false))
 		})
 
-		It("should support ForceOptional", func() {
-			p := defkit.Bool("auto").Default(true).ForceOptional()
-			Expect(p.IsForceOptional()).To(BeTrue())
+		It("should not be optional by default even with a default value", func() {
+			p := defkit.Bool("auto").Default(true)
+			Expect(p.IsOptional()).To(BeFalse())
 			Expect(p.HasDefault()).To(BeTrue())
 		})
 
-		It("should not be force-optional by default", func() {
-			p := defkit.Bool("auto").Default(true)
-			Expect(p.IsForceOptional()).To(BeFalse())
+		It("should support Optional with default", func() {
+			p := defkit.Bool("auto").Default(true).Optional()
+			Expect(p.IsOptional()).To(BeTrue())
+			Expect(p.HasDefault()).To(BeTrue())
 		})
 	})
 
@@ -180,15 +184,16 @@ var _ = Describe("Parameters", func() {
 			Expect(p.GetDefault()).To(Equal(1.0))
 		})
 
-		It("should support ForceOptional", func() {
-			p := defkit.Float("ratio").Default(1.0).ForceOptional()
-			Expect(p.IsForceOptional()).To(BeTrue())
+		It("should not be optional by default even with a default value", func() {
+			p := defkit.Float("ratio").Default(1.0)
+			Expect(p.IsOptional()).To(BeFalse())
 			Expect(p.HasDefault()).To(BeTrue())
 		})
 
-		It("should not be force-optional by default", func() {
-			p := defkit.Float("ratio").Default(1.0)
-			Expect(p.IsForceOptional()).To(BeFalse())
+		It("should support Optional with default", func() {
+			p := defkit.Float("ratio").Default(1.0).Optional()
+			Expect(p.IsOptional()).To(BeTrue())
+			Expect(p.HasDefault()).To(BeTrue())
 		})
 	})
 
@@ -348,15 +353,16 @@ var _ = Describe("Parameters", func() {
 			Expect(p.GetValues()).To(HaveLen(3))
 		})
 
-		It("should support ForceOptional", func() {
-			p := defkit.Enum("mode").Values("a", "b").Default("a").ForceOptional()
-			Expect(p.IsForceOptional()).To(BeTrue())
+		It("should not be optional by default even with a default value", func() {
+			p := defkit.Enum("mode").Values("a", "b").Default("a")
+			Expect(p.IsOptional()).To(BeFalse())
 			Expect(p.HasDefault()).To(BeTrue())
 		})
 
-		It("should not be force-optional by default", func() {
-			p := defkit.Enum("mode").Values("a", "b").Default("a")
-			Expect(p.IsForceOptional()).To(BeFalse())
+		It("should support Optional with default", func() {
+			p := defkit.Enum("mode").Values("a", "b").Default("a").Optional()
+			Expect(p.IsOptional()).To(BeTrue())
+			Expect(p.HasDefault()).To(BeTrue())
 		})
 	})
 
