@@ -256,7 +256,7 @@ var _ = Describe("TestContext", func() {
 		)
 
 		BeforeEach(func() {
-			image = defkit.String("image").Mandatory()
+			image = defkit.String("image")
 			replicas = defkit.Int("replicas").Default(1)
 			port = defkit.Int("port").Default(80)
 

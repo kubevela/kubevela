@@ -100,11 +100,11 @@ var _ = Describe("HelperDefinition", func() {
 	Context("Map-based helper with StringKeyMap and typed arrays", func() {
 		It("should render StringKeyMap as [string]: string in helper definition", func() {
 			helper := defkit.Map("labelSelector").WithFields(
-				defkit.StringKeyMap("matchLabels").Description("A map of {key,value} pairs"),
-				defkit.Array("matchExpressions").Description("Label selector requirements").WithFields(
-					defkit.String("key").Mandatory(),
+				defkit.StringKeyMap("matchLabels").Optional().Description("A map of {key,value} pairs"),
+				defkit.Array("matchExpressions").Optional().Description("Label selector requirements").WithFields(
+					defkit.String("key"),
 					defkit.String("operator").Default("In").Values("In", "NotIn", "Exists", "DoesNotExist"),
-					defkit.Array("values").Of(defkit.ParamTypeString),
+					defkit.Array("values").Optional().Of(defkit.ParamTypeString),
 				),
 			)
 
@@ -133,9 +133,9 @@ var _ = Describe("HelperDefinition", func() {
 
 		It("should render Of(ParamTypeString) in Struct-based helper fields", func() {
 			helper := defkit.Struct("nodeSelector").WithFields(
-				defkit.Field("key", defkit.ParamTypeString).Mandatory(),
+				defkit.Field("key", defkit.ParamTypeString),
 				defkit.Field("operator", defkit.ParamTypeString).Default("In").Values("In", "NotIn"),
-				defkit.Field("values", defkit.ParamTypeArray).Of(defkit.ParamTypeString),
+				defkit.Field("values", defkit.ParamTypeArray).Optional().Of(defkit.ParamTypeString),
 			)
 
 			trait := defkit.NewTrait("typed-array-test").
@@ -149,7 +149,7 @@ var _ = Describe("HelperDefinition", func() {
 			cue := trait.ToCue()
 
 			Expect(cue).To(ContainSubstring("#nodeSelector"))
-			// key is required (no ?) - CUE formatter may add tab alignment
+			// key has no marker (default) - CUE formatter may add tab alignment
 			Expect(cue).To(MatchRegexp(`key:\s+string`))
 			Expect(cue).To(ContainSubstring("values?: [...string]"))
 			// Untyped array should NOT appear
@@ -158,14 +158,14 @@ var _ = Describe("HelperDefinition", func() {
 
 		It("should render schemaRef with Of correctly in Struct helper", func() {
 			selectorHelper := defkit.Struct("nodeSelectorTerm").WithFields(
-				defkit.Field("matchExpressions", defkit.ParamTypeArray).WithSchemaRef("nodeSelector"),
-				defkit.Field("matchFields", defkit.ParamTypeArray).WithSchemaRef("nodeSelector"),
+				defkit.Field("matchExpressions", defkit.ParamTypeArray).Optional().WithSchemaRef("nodeSelector"),
+				defkit.Field("matchFields", defkit.ParamTypeArray).Optional().WithSchemaRef("nodeSelector"),
 			)
 
 			affinityHelper := defkit.Struct("podAffinityTerm").WithFields(
-				defkit.Field("labelSelector", defkit.ParamTypeStruct).WithSchemaRef("labelSelector"),
-				defkit.Field("namespaces", defkit.ParamTypeArray).Of(defkit.ParamTypeString),
-				defkit.Field("topologyKey", defkit.ParamTypeString).Mandatory(),
+				defkit.Field("labelSelector", defkit.ParamTypeStruct).Optional().WithSchemaRef("labelSelector"),
+				defkit.Field("namespaces", defkit.ParamTypeArray).Optional().Of(defkit.ParamTypeString),
+				defkit.Field("topologyKey", defkit.ParamTypeString),
 			)
 
 			trait := defkit.NewTrait("schemaref-test").
@@ -186,7 +186,7 @@ var _ = Describe("HelperDefinition", func() {
 			Expect(cue).To(ContainSubstring("labelSelector?: #labelSelector"))
 			// Of(ParamTypeString) renders as [...string]
 			Expect(cue).To(ContainSubstring("namespaces?: [...string]"))
-			// Required field has no ?
+			// Field with no marker (default)
 			Expect(cue).To(ContainSubstring("topologyKey: string"))
 		})
 	})

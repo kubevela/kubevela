@@ -477,7 +477,7 @@ var _ = Describe("ArrayBuilder CUE Generation", func() {
 
 	It("should generate CUE for ForEachWith with simple field assignments", func() {
 		ports := defkit.List("ports").WithFields(
-			defkit.Int("port").Mandatory(),
+			defkit.Int("port"),
 			defkit.String("name"),
 		)
 		comp := defkit.NewComponent("test").
@@ -504,7 +504,7 @@ var _ = Describe("ArrayBuilder CUE Generation", func() {
 
 	It("should generate CUE for ForEachWith with IfSet/IfNotSet conditionals", func() {
 		ports := defkit.List("ports").WithFields(
-			defkit.Int("port").Mandatory(),
+			defkit.Int("port"),
 			defkit.Int("containerPort"),
 		)
 		comp := defkit.NewComponent("test").
@@ -536,7 +536,7 @@ var _ = Describe("ArrayBuilder CUE Generation", func() {
 
 	It("should generate CUE for ForEachWith with let bindings and defaults", func() {
 		ports := defkit.List("ports").WithFields(
-			defkit.Int("port").Mandatory(),
+			defkit.Int("port"),
 		)
 		comp := defkit.NewComponent("test").
 			Workload("apps/v1", "Deployment").
@@ -562,7 +562,7 @@ var _ = Describe("ArrayBuilder CUE Generation", func() {
 
 	It("should generate CUE for ForEachWithVar with custom variable name", func() {
 		ports := defkit.List("ports").WithFields(
-			defkit.Int("port").Mandatory(),
+			defkit.Int("port"),
 		)
 		comp := defkit.NewComponent("test").
 			Workload("apps/v1", "Deployment").
@@ -586,7 +586,7 @@ var _ = Describe("ArrayBuilder CUE Generation", func() {
 
 	It("should generate CUE for ForEachWithGuardedFiltered with guard and filter", func() {
 		ports := defkit.List("ports").WithFields(
-			defkit.Int("port").Mandatory(),
+			defkit.Int("port"),
 			defkit.Bool("expose").Default(false),
 		)
 		comp := defkit.NewComponent("test").
@@ -620,7 +620,7 @@ var _ = Describe("ArrayBuilder CUE Generation", func() {
 
 	It("should generate CUE for ForEachWith with nested If conditions", func() {
 		ports := defkit.List("ports").WithFields(
-			defkit.Int("port").Mandatory(),
+			defkit.Int("port"),
 			defkit.String("protocol"),
 		)
 		exposeType := defkit.String("exposeType")
@@ -650,7 +650,7 @@ var _ = Describe("ArrayBuilder CUE Generation", func() {
 
 	It("should auto-detect strconv import from ForEachWith ItemBuilder ops", func() {
 		ports := defkit.List("ports").WithFields(
-			defkit.Int("port").Mandatory(),
+			defkit.Int("port"),
 		)
 		comp := defkit.NewComponent("test").
 			Workload("apps/v1", "Deployment").
@@ -674,7 +674,7 @@ var _ = Describe("ArrayBuilder CUE Generation", func() {
 
 	It("should auto-detect strings import from ForEachWith ItemBuilder ops", func() {
 		ports := defkit.List("ports").WithFields(
-			defkit.Int("port").Mandatory(),
+			defkit.Int("port"),
 			defkit.String("protocol"),
 		)
 		comp := defkit.NewComponent("test").
@@ -699,7 +699,7 @@ var _ = Describe("ArrayBuilder CUE Generation", func() {
 
 	It("should generate CUE for helper backed by FromArray with ArrayBuilder", func() {
 		ports := defkit.List("ports").WithFields(
-			defkit.Int("port").Mandatory(),
+			defkit.Int("port"),
 			defkit.Bool("expose").Default(false),
 		)
 		comp := defkit.NewComponent("test").

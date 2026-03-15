@@ -511,11 +511,11 @@ func (g *CUEGenerator) writeStructFieldForHelper(sb *strings.Builder, f *StructF
 	}
 
 	name := f.Name()
-	marker := fieldMarkerOptional
+	marker := fieldMarkerNone
 	if f.IsRequired() {
 		marker = fieldMarkerRequired
-	} else if f.IsMandatory() {
-		marker = fieldMarkerNone
+	} else if f.IsOptional() {
+		marker = fieldMarkerOptional
 	}
 
 	// Check if this field references another helper type
@@ -2762,23 +2762,11 @@ func (g *CUEGenerator) writeParam(sb *strings.Builder, param Param, depth int) {
 	}
 
 	name := param.Name()
-	marker := fieldMarkerOptional
-	forceOptional := false
-	if bp, ok := param.(interface{ IsForceOptional() bool }); ok {
-		forceOptional = bp.IsForceOptional()
-	}
+	marker := fieldMarkerNone
 	if param.IsRequired() {
-		// "!" marker: user must explicitly provide this field in input
 		marker = fieldMarkerRequired
-	} else {
-		isMandatory := false
-		if bm, ok := param.(interface{ IsMandatory() bool }); ok {
-			isMandatory = bm.IsMandatory()
-		}
-		if isMandatory || (param.HasDefault() && !forceOptional) {
-			// No marker: field must have a value, but defaults/merging can satisfy it
-			marker = fieldMarkerNone
-		}
+	} else if param.IsOptional() {
+		marker = fieldMarkerOptional
 	}
 
 	// Handle different parameter types
@@ -3061,11 +3049,11 @@ func (g *CUEGenerator) writeStructField(sb *strings.Builder, f *StructField, dep
 	}
 
 	name := f.Name()
-	marker := fieldMarkerOptional
+	marker := fieldMarkerNone
 	if f.IsRequired() {
 		marker = fieldMarkerRequired
-	} else if f.IsMandatory() {
-		marker = fieldMarkerNone
+	} else if f.IsOptional() {
+		marker = fieldMarkerOptional
 	}
 
 	fieldType := g.cueTypeForParamType(f.FieldType())
