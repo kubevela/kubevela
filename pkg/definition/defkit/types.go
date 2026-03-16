@@ -59,10 +59,8 @@ type Param interface {
 	Name() string
 	// IsRequired returns true if the parameter emits the "!" CUE marker — user must explicitly provide it
 	IsRequired() bool
-	// IsOptional returns true if the parameter is optional (emits "?" marker)
+	// IsOptional returns true if the parameter was explicitly marked optional (emits "?" marker)
 	IsOptional() bool
-	// IsMandatory returns true if the parameter is non-optional (no ? marker) but defaults or CUE merging can satisfy it
-	IsMandatory() bool
 	// HasDefault returns true if the parameter has a default value
 	HasDefault() bool
 	// GetDefault returns the default value, or nil if none

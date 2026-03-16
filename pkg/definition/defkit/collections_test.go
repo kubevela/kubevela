@@ -301,7 +301,7 @@ var _ = Describe("Collections", func() {
 			Expect(compOpt).NotTo(BeNil())
 			// Verify it can be used in a FieldMap and the CUE generation picks it up
 			ports := defkit.List("ports").WithFields(
-				defkit.Int("port").Mandatory(),
+				defkit.Int("port"),
 				defkit.Int("nodePort"),
 			)
 			col := defkit.Each(ports).Map(defkit.FieldMap{

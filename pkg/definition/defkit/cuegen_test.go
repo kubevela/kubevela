@@ -36,7 +36,7 @@ var _ = Describe("CUEGenerator", func() {
 		It("should generate CUE for string parameters", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.String("image").Mandatory().Description("Container image"),
+					defkit.String("image").Description("Container image"),
 					defkit.String("tag").Default("latest").Description("Image tag"),
 				)
 
@@ -52,7 +52,7 @@ var _ = Describe("CUEGenerator", func() {
 			comp := defkit.NewComponent("test").
 				Params(
 					defkit.Int("replicas").Default(1).Description("Number of replicas"),
-					defkit.Int("port").Mandatory(),
+					defkit.Int("port"),
 				)
 
 			cue := gen.GenerateParameterSchema(comp)
@@ -77,8 +77,8 @@ var _ = Describe("CUEGenerator", func() {
 		It("should generate CUE for array parameters", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.StringList("cmd").Description("Commands"),
-					defkit.List("env").Description("Environment variables"),
+					defkit.StringList("cmd").Optional().Description("Commands"),
+					defkit.List("env").Optional().Description("Environment variables"),
 				)
 
 			cue := gen.GenerateParameterSchema(comp)
@@ -91,7 +91,7 @@ var _ = Describe("CUEGenerator", func() {
 		It("should generate CUE for object parameters", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.Object("config").Description("Configuration object"),
+					defkit.Object("config").Optional().Description("Configuration object"),
 				)
 
 			cue := gen.GenerateParameterSchema(comp)
@@ -102,7 +102,7 @@ var _ = Describe("CUEGenerator", func() {
 		It("should generate CUE for string-key map parameters", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.StringKeyMap("labels").Description("Labels"),
+					defkit.StringKeyMap("labels").Optional().Description("Labels"),
 				)
 
 			cue := gen.GenerateParameterSchema(comp)
@@ -114,7 +114,7 @@ var _ = Describe("CUEGenerator", func() {
 			comp := defkit.NewComponent("test").
 				Params(
 					defkit.String("required").Required(),
-					defkit.String("optional"),
+					defkit.String("optional").Optional(),
 				)
 
 			cue := gen.GenerateParameterSchema(comp)
@@ -123,25 +123,25 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring("optional?: string"))
 		})
 
-		It("should handle all three field presence markers", func() {
+		It("should handle two-state field presence markers", func() {
 			comp := defkit.NewComponent("test").
 				Params(
 					defkit.String("accessKey").Required(), // ! — user must explicitly provide
-					defkit.Int("port").Mandatory(),        // no marker — must have value, defaults can satisfy
-					defkit.Bool("enabled").Mandatory(),    // no marker
-					defkit.String("tag"),                  // ? — fully optional
+					defkit.Int("port"),                    // no marker — bare param
+					defkit.Bool("enabled"),                // no marker — bare param
+					defkit.String("tag").Optional(),       // ? — explicitly optional
 				)
 
 			cue := gen.GenerateParameterSchema(comp)
 
 			// Required fields get "!" marker
 			Expect(cue).To(ContainSubstring("accessKey!: string"))
-			// Mandatory fields get no marker (no ? and no !)
+			// Bare params get no marker (no ? and no !)
 			Expect(cue).To(ContainSubstring("port: int"))
 			Expect(cue).NotTo(ContainSubstring("port!:"))
 			Expect(cue).NotTo(ContainSubstring("port?:"))
 			Expect(cue).To(ContainSubstring("enabled: bool"))
-			// Plain optional gets ?
+			// Optional gets ?
 			Expect(cue).To(ContainSubstring("tag?: string"))
 		})
 
@@ -178,7 +178,7 @@ var _ = Describe("CUEGenerator", func() {
 			comp := defkit.NewComponent("test").
 				Params(
 					defkit.String("normalDefault").Default("Honor").Values("Honor", "Ignore"),
-					defkit.String("optionalDefault").Default("Honor").ForceOptional().Values("Honor", "Ignore"),
+					defkit.String("optionalDefault").Default("Honor").Optional().Values("Honor", "Ignore"),
 				)
 
 			cue := gen.GenerateParameterSchema(comp)
@@ -218,7 +218,7 @@ var _ = Describe("CUEGenerator", func() {
 		It("should generate // +short directive for params with short flags", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.String("image").Mandatory().Description("Container image").Short("i"),
+					defkit.String("image").Description("Container image").Short("i"),
 				)
 
 			cue := gen.GenerateParameterSchema(comp)
@@ -249,7 +249,7 @@ var _ = Describe("CUEGenerator", func() {
 		It("should generate CUE for struct parameters with nested fields", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.Struct("resources").WithFields(
+					defkit.Struct("resources").Optional().WithFields(
 						defkit.Field("cpu", defkit.ParamTypeString).Default("100m"),
 						defkit.Field("memory", defkit.ParamTypeString).Default("128Mi"),
 					).Description("Resource limits"),
@@ -291,9 +291,9 @@ var _ = Describe("CUEGenerator", func() {
 		It("should generate CUE for array parameters with fields", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.List("ports").WithFields(
-						defkit.Int("port").Mandatory(),
-						defkit.String("name"),
+					defkit.List("ports").Optional().WithFields(
+						defkit.Int("port"),
+						defkit.String("name").Optional(),
 						defkit.Enum("protocol").Values("TCP", "UDP").Default("TCP"),
 					),
 				)
@@ -310,10 +310,10 @@ var _ = Describe("CUEGenerator", func() {
 			comp := defkit.NewComponent("test").
 				Params(
 					defkit.Struct("selector").WithFields(
-						defkit.Field("matchExpressions", defkit.ParamTypeArray).
+						defkit.Field("matchExpressions", defkit.ParamTypeArray).Optional().
 							Nested(defkit.Struct("matchExpression").WithFields(
-								defkit.Field("key", defkit.ParamTypeString).Mandatory(),
-								defkit.Field("operator", defkit.ParamTypeString),
+								defkit.Field("key", defkit.ParamTypeString),
+								defkit.Field("operator", defkit.ParamTypeString).Optional(),
 							)),
 					),
 				)
@@ -335,7 +335,7 @@ var _ = Describe("CUEGenerator", func() {
 						Description("Volume type").
 						Variants(
 							defkit.Variant("pvc").WithFields(
-								defkit.Field("claimName", defkit.ParamTypeString).Mandatory(),
+								defkit.Field("claimName", defkit.ParamTypeString),
 							),
 							defkit.Variant("emptyDir").WithFields(
 								defkit.Field("medium", defkit.ParamTypeString).Default("").Values("", "Memory"),
@@ -358,11 +358,11 @@ var _ = Describe("CUEGenerator", func() {
 		It("should generate OneOf inside array with shared fields", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.List("volumes").WithFields(
-						defkit.String("name").Mandatory(),
+					defkit.List("volumes").Optional().WithFields(
+						defkit.String("name"),
 						defkit.OneOf("type").Default("emptyDir").Variants(
 							defkit.Variant("pvc").WithFields(
-								defkit.Field("claimName", defkit.ParamTypeString).Mandatory(),
+								defkit.Field("claimName", defkit.ParamTypeString),
 							),
 							defkit.Variant("emptyDir"),
 						),
@@ -386,7 +386,7 @@ var _ = Describe("CUEGenerator", func() {
 						Variants(
 							defkit.Variant("simple"), // no fields
 							defkit.Variant("complex").WithFields(
-								defkit.Field("config", defkit.ParamTypeString).Mandatory(),
+								defkit.Field("config", defkit.ParamTypeString),
 							),
 						),
 				)
@@ -738,7 +738,7 @@ var _ = Describe("CUEGenerator", func() {
 				Description("Web service component").
 				Workload("apps/v1", "Deployment").
 				Params(
-					defkit.String("image").Mandatory(),
+					defkit.String("image"),
 				)
 
 			cue := gen.GenerateFullDefinition(comp)
@@ -803,7 +803,7 @@ var _ = Describe("CUEGenerator", func() {
 		It("should generate CUE for map parameters", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.Map("labels").Description("Labels to apply"),
+					defkit.Map("labels").Optional().Description("Labels to apply"),
 					defkit.Map("annotations").Optional(),
 				)
 
@@ -917,7 +917,7 @@ var _ = Describe("CUEGenerator", func() {
 			gen := defkit.NewCUEGenerator()
 
 			ports := defkit.List("ports").WithFields(
-				defkit.Int("port").Mandatory(),
+				defkit.Int("port"),
 				defkit.String("name"),
 			)
 			comp := defkit.NewComponent("test").
@@ -981,7 +981,7 @@ var _ = Describe("CUEGenerator", func() {
 				Values("ClusterIP", "NodePort", "LoadBalancer").
 				Default("ClusterIP")
 			ports := defkit.List("ports").WithFields(
-				defkit.Int("port").Mandatory(),
+				defkit.Int("port"),
 				defkit.String("name"),
 				defkit.Int("nodePort"),
 				defkit.Bool("expose").Default(false),
@@ -1017,7 +1017,7 @@ var _ = Describe("CUEGenerator", func() {
 				Values("ClusterIP", "NodePort", "LoadBalancer").
 				Default("ClusterIP")
 			ports := defkit.List("ports").WithFields(
-				defkit.Int("port").Mandatory(),
+				defkit.Int("port"),
 				defkit.Int("nodePort"),
 				defkit.String("protocol"),
 				defkit.Bool("expose").Default(false),
@@ -1133,11 +1133,10 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).NotTo(ContainSubstring("propagation?: string"))
 		})
 
-		It("should generate mandatory enum without default on a helper struct field", func() {
+		It("should generate enum without default on a helper struct field", func() {
 			rule := defkit.Struct("rule").WithFields(
 				defkit.Field("mode", defkit.ParamTypeString).
-					Values("strict", "permissive").
-					Mandatory(),
+					Values("strict", "permissive"),
 			)
 
 			p := defkit.NewPolicy("test-enum-mandatory").
@@ -1160,8 +1159,7 @@ var _ = Describe("CUEGenerator", func() {
 							Values("low", "medium", "high").
 							Optional(),
 						defkit.Field("mode", defkit.ParamTypeString).
-							Values("fast", "safe").
-							Mandatory(),
+							Values("fast", "safe"),
 					),
 				).
 				Template(func(tpl *defkit.Template) {
