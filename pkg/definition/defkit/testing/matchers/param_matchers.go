@@ -41,12 +41,6 @@ type optionalParam interface {
 	IsOptional() bool
 }
 
-// mandatoryParam is satisfied by any parameter that can report mandatory status.
-type mandatoryParam interface {
-	named
-	IsMandatory() bool
-}
-
 // defaultParam is satisfied by any parameter that can report its default value.
 type defaultParam interface {
 	named
@@ -108,31 +102,6 @@ func (m *optionalMatcher) FailureMessage(actual interface{}) string {
 func (m *optionalMatcher) NegatedFailureMessage(actual interface{}) string {
 	param := actual.(optionalParam)
 	return fmt.Sprintf("Expected parameter %q not to be optional", param.Name())
-}
-
-// BeMandatory returns a matcher that checks if a parameter is mandatory (non-optional, no ? marker).
-func BeMandatory() types.GomegaMatcher {
-	return &mandatoryMatcher{}
-}
-
-type mandatoryMatcher struct{}
-
-func (m *mandatoryMatcher) Match(actual interface{}) (bool, error) {
-	param, ok := actual.(mandatoryParam)
-	if !ok {
-		return false, fmt.Errorf("BeMandatory expects a parameter type, got %T", actual)
-	}
-	return param.IsMandatory(), nil
-}
-
-func (m *mandatoryMatcher) FailureMessage(actual interface{}) string {
-	param := actual.(mandatoryParam)
-	return fmt.Sprintf("Expected parameter %q to be mandatory", param.Name())
-}
-
-func (m *mandatoryMatcher) NegatedFailureMessage(actual interface{}) string {
-	param := actual.(mandatoryParam)
-	return fmt.Sprintf("Expected parameter %q not to be mandatory", param.Name())
 }
 
 // HaveDefaultValue returns a matcher that checks if a parameter has the expected default value.

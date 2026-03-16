@@ -78,7 +78,7 @@ var _ = Describe("Placement Integration", func() {
 				Description("A component with placement").
 				Workload("apps/v1", "Deployment").
 				RunOn(placement.Label("provider").Eq("aws")).
-				Params(defkit.String("image").Mandatory())
+				Params(defkit.String("image"))
 
 			Expect(c.GetDescription()).To(Equal("A component with placement"))
 			Expect(c.GetWorkload().Kind()).To(Equal("Deployment"))
@@ -139,7 +139,7 @@ var _ = Describe("Placement Integration", func() {
 			p := defkit.NewPolicy("full-policy").
 				Description("A policy with placement").
 				RunOn(placement.Label("provider").In("aws", "gcp")).
-				Params(defkit.String("target").Mandatory())
+				Params(defkit.String("target"))
 
 			Expect(p.GetDescription()).To(Equal("A policy with placement"))
 			Expect(p.HasPlacement()).To(BeTrue())
