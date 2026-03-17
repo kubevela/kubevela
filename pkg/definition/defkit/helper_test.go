@@ -713,4 +713,86 @@ var _ = Describe("Helper", func() {
 			})
 		})
 	})
+
+	Describe("HelperBuilder Filter and FilterCond on MultiSource", func() {
+		var tpl *defkit.Template
+
+		BeforeEach(func() {
+			tpl = defkit.NewTemplate()
+		})
+
+		It("should propagate Filter to MultiSource", func() {
+			volumeMounts := defkit.Object("volumeMounts")
+			helper := tpl.Helper("filteredMounts").
+				FromFields(volumeMounts, "pvc", "configMap").
+				Filter(defkit.FieldEquals("readOnly", false)).
+				Build()
+
+			ms, ok := helper.Collection().(*defkit.MultiSource)
+			Expect(ok).To(BeTrue())
+			Expect(ms.Operations()).To(HaveLen(1))
+		})
+
+		It("should propagate FilterCond to MultiSource", func() {
+			volumeMounts := defkit.Object("volumeMounts")
+			cond := defkit.Eq(defkit.Item().Get("enabled"), defkit.Lit(true))
+			helper := tpl.Helper("filteredMounts").
+				FromFields(volumeMounts, "pvc", "configMap").
+				FilterCond(cond).
+				Build()
+
+			ms, ok := helper.Collection().(*defkit.MultiSource)
+			Expect(ok).To(BeTrue())
+			Expect(ms.Operations()).To(HaveLen(1))
+		})
+
+		It("should propagate FilterCond to CollectionOp via From", func() {
+			ports := defkit.List("ports")
+			cond := defkit.Eq(defkit.Item().Get("enabled"), defkit.Lit(true))
+			helper := tpl.Helper("filteredPorts").
+				From(ports).
+				FilterCond(cond).
+				Build()
+
+			col, ok := helper.Collection().(*defkit.CollectionOp)
+			Expect(ok).To(BeTrue())
+			Expect(col.Operations()).To(HaveLen(1))
+		})
+	})
+
+	Describe("CollectionOp FilterCond", func() {
+		It("should add FilterCond operation to collection", func() {
+			ports := defkit.List("ports")
+			cond := defkit.Eq(defkit.Item().Get("enabled"), defkit.Lit(true))
+			col := defkit.Each(ports).FilterCond(cond)
+			Expect(col.Operations()).To(HaveLen(1))
+		})
+
+		It("should compose with other operations", func() {
+			ports := defkit.List("ports")
+			cond := defkit.Eq(defkit.Item().Get("enabled"), defkit.Lit(true))
+			col := defkit.Each(ports).
+				Filter(defkit.FieldEquals("expose", true)).
+				FilterCond(cond).
+				Pick("name", "port")
+			Expect(col.Operations()).To(HaveLen(3))
+		})
+	})
+
+	Describe("MultiSource Filter and FilterCond", func() {
+		It("should add Filter operation to multi-source", func() {
+			volumeMounts := defkit.Object("volumeMounts")
+			ms := defkit.FromFields(volumeMounts, "pvc", "configMap")
+			ms.Filter(defkit.FieldEquals("readOnly", false))
+			Expect(ms.Operations()).To(HaveLen(1))
+		})
+
+		It("should add FilterCond operation to multi-source", func() {
+			volumeMounts := defkit.Object("volumeMounts")
+			ms := defkit.FromFields(volumeMounts, "pvc", "configMap")
+			cond := defkit.Eq(defkit.Item().Get("enabled"), defkit.Lit(true))
+			ms.FilterCond(cond)
+			Expect(ms.Operations()).To(HaveLen(1))
+		})
+	})
 })

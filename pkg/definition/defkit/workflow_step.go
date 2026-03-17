@@ -58,6 +58,7 @@ type BuiltinAction struct {
 	name         string           // e.g., "multicluster.#Deploy", "builtin.#Suspend"
 	params       map[string]Value // parameters to pass
 	useFullParam bool             // if true, generates $params: parameter instead of $params: { key: value }
+	directFields bool             // if true, renders fields directly without $params wrapper (for op.# operations)
 }
 
 func (b *BuiltinAction) isWorkflowAction() {}
@@ -77,6 +78,17 @@ type ConditionalAction struct {
 }
 
 func (c *ConditionalAction) isWorkflowAction() {}
+
+// GuardedBlockAction represents a field that always exists with a guard condition inside.
+// Generates: name: { if cond { ...contents... } }
+// Unlike ConditionalAction which generates: if cond { name: { ...contents... } }
+type GuardedBlockAction struct {
+	cond  Condition
+	name  string
+	value Value
+}
+
+func (g *GuardedBlockAction) isWorkflowAction() {}
 
 // NewWorkflowStep creates a new WorkflowStepDefinition builder.
 func NewWorkflowStep(name string) *WorkflowStepDefinition {
@@ -365,6 +377,19 @@ func (wt *WorkflowStepTemplate) SetIf(cond Condition, name string, value Value) 
 	return wt
 }
 
+// SetGuardedBlock assigns a value to a field with the guard condition placed inside
+// the field block, so the field always exists (possibly empty).
+// Generates: name: { if cond { ...contents... } }
+// Unlike SetIf which generates: if cond { name: { ...contents... } }
+func (wt *WorkflowStepTemplate) SetGuardedBlock(cond Condition, name string, value Value) *WorkflowStepTemplate {
+	wt.actions = append(wt.actions, &GuardedBlockAction{
+		cond:  cond,
+		name:  name,
+		value: value,
+	})
+	return wt
+}
+
 // Suspend adds a suspend action.
 // Example: tpl.Suspend("Waiting for approval")
 func (wt *WorkflowStepTemplate) Suspend(message string) *WorkflowStepTemplate {
@@ -413,6 +438,14 @@ func (b *BuiltinActionBuilder) WithParams(params map[string]Value) *BuiltinActio
 // Useful for builtins (e.g., builtin.#Suspend) that accept all step parameters directly.
 func (b *BuiltinActionBuilder) WithFullParameter() *BuiltinActionBuilder {
 	b.action.useFullParam = true
+	return b
+}
+
+// WithDirectFields renders fields directly on the struct without the $params wrapper.
+// This is used for op.# operations (e.g., op.#ShareCloudResource, op.#DeployCloudResource)
+// that take fields as direct struct members rather than inside $params.
+func (b *BuiltinActionBuilder) WithDirectFields() *BuiltinActionBuilder {
+	b.action.directFields = true
 	return b
 }
 
@@ -566,8 +599,11 @@ func (g *WorkflowStepCUEGenerator) GenerateTemplate(w *WorkflowStepDefinition) s
 		sb.WriteString("\n")
 	}
 
-	// Generate parameter section
-	sb.WriteString(g.generateParameterBlock(w, 1))
+	// Generate parameter section (skip if no params and raw body is set,
+	// e.g. step-group which uses TemplateBody with no parameter references)
+	if len(w.GetParams()) > 0 || !w.HasRawTemplateBody() {
+		sb.WriteString(g.generateParameterBlock(w, 1))
+	}
 
 	if w.GetCustomStatus() != "" || w.GetHealthPolicy() != "" || w.GetStatusDetails() != "" {
 		indent := g.indent
@@ -622,6 +658,8 @@ func (g *WorkflowStepCUEGenerator) writeActions(sb *strings.Builder, wt *Workflo
 				g.writeValueAction(sb, value, "\t", indent, gen)
 			}
 			sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		case *GuardedBlockAction:
+			g.writeGuardedBlockAction(sb, a, indent, gen)
 		}
 	}
 }
@@ -636,10 +674,16 @@ func (g *WorkflowStepCUEGenerator) writeBuiltinAction(sb *strings.Builder, a *Bu
 	}
 
 	sb.WriteString(fmt.Sprintf("%s%s%s: %s & {\n", indent, extraIndent, actionName, a.name))
-	if a.useFullParam {
+	switch {
+	case a.useFullParam:
 		// Pass the entire parameter object as $params (e.g., builtin.#Suspend)
 		sb.WriteString(fmt.Sprintf("%s%s\t$params: parameter\n", indent, extraIndent))
-	} else if len(a.params) > 0 {
+	case a.directFields && len(a.params) > 0:
+		// Render fields directly without $params wrapper (for op.# operations)
+		for paramName, paramVal := range a.params {
+			sb.WriteString(fmt.Sprintf("%s%s\t%s: %s\n", indent, extraIndent, paramName, gen.valueToCUE(paramVal)))
+		}
+	case len(a.params) > 0:
 		sb.WriteString(fmt.Sprintf("%s%s\t$params: {\n", indent, extraIndent))
 		for paramName, paramVal := range a.params {
 			sb.WriteString(fmt.Sprintf("%s%s\t\t%s: %s\n", indent, extraIndent, paramName, gen.valueToCUE(paramVal)))
@@ -656,6 +700,63 @@ func (g *WorkflowStepCUEGenerator) writeValueAction(sb *strings.Builder, a *Valu
 		name = fmt.Sprintf("%q", name)
 	}
 	sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, extraIndent, name, gen.valueToCUE(a.value)))
+}
+
+// writeGuardedBlockAction writes a field that always exists with a guard condition inside.
+// Output: name: { if cond { ...value contents... } }
+func (g *WorkflowStepCUEGenerator) writeGuardedBlockAction(sb *strings.Builder, a *GuardedBlockAction, indent string, gen *CUEGenerator) {
+	name := a.name
+	if strings.ContainsAny(name, "-./") {
+		name = fmt.Sprintf("%q", name)
+	}
+	innerIndent := indent + g.indent
+	condStr := gen.conditionToCUE(a.cond)
+	valStr := gen.valueToCUE(a.value)
+
+	sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, name))
+	sb.WriteString(fmt.Sprintf("%sif %s {\n", innerIndent, condStr))
+
+	// If the value is a block (starts with { and ends with }), strip the outer braces
+	// and re-indent the inner content, preserving relative indentation.
+	trimmed := strings.TrimSpace(valStr)
+	if strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}") {
+		// Strip outer braces
+		inner := trimmed[1 : len(trimmed)-1]
+		lines := strings.Split(inner, "\n")
+
+		// Find minimum indentation of non-empty lines to dedent by
+		minIndent := -1
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			indent := len(line) - len(strings.TrimLeft(line, " \t"))
+			if minIndent < 0 || indent < minIndent {
+				minIndent = indent
+			}
+		}
+		if minIndent < 0 {
+			minIndent = 0
+		}
+
+		// Re-emit lines with relative indentation preserved
+		targetIndent := innerIndent + "\t"
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			// Strip common leading indent, then prepend target indent
+			if len(line) >= minIndent {
+				line = line[minIndent:]
+			}
+			sb.WriteString(fmt.Sprintf("%s%s\n", targetIndent, line))
+		}
+	} else {
+		sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, trimmed))
+	}
+
+	sb.WriteString(fmt.Sprintf("%s}\n", innerIndent))
+	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 }
 
 // extractActionName extracts a simple action name from a builtin reference.

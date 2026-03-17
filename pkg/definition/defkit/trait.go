@@ -1299,6 +1299,7 @@ func (g *TraitCUEGenerator) writePatchContainerPattern(sb *strings.Builder, conf
 		sb.WriteString(fmt.Sprintf("%sname:            _params.containerName\n", innerIndent))
 		sb.WriteString(fmt.Sprintf("%s_baseContainers: context.output.spec.template.spec.containers\n", innerIndent))
 		sb.WriteString(fmt.Sprintf("%s_matchContainers_: [for _container_ in _baseContainers if _container_.name == name {_container_}]\n", innerIndent))
+		sb.WriteString(fmt.Sprintf("%s_baseContainer: *_|_ | {...}\n", innerIndent))
 
 		// Container not found error
 		sb.WriteString(fmt.Sprintf("%sif len(_matchContainers_) == 0 {\n", innerIndent))

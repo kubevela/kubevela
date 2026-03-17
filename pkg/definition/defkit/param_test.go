@@ -1001,4 +1001,98 @@ var _ = Describe("Parameters", func() {
 			Expect(p.GetDescription()).To(Equal("Deprecated field"))
 		})
 	})
+
+	Context("ClosedUnionParam", func() {
+		It("should create a closed union parameter with name", func() {
+			p := defkit.ClosedUnion("url")
+			Expect(p.Name()).To(Equal("url"))
+			Expect(p.IsRequired()).To(BeFalse())
+			Expect(p.IsOptional()).To(BeFalse())
+			Expect(p.HasDefault()).To(BeFalse())
+			Expect(p.GetOptions()).To(HaveLen(0))
+		})
+
+		It("should support required modifier", func() {
+			p := defkit.ClosedUnion("url").Required()
+			Expect(p.IsRequired()).To(BeTrue())
+			Expect(p.IsOptional()).To(BeFalse())
+		})
+
+		It("should support optional modifier", func() {
+			p := defkit.ClosedUnion("url").Required().Optional()
+			Expect(p.IsRequired()).To(BeFalse())
+		})
+
+		It("should support description", func() {
+			p := defkit.ClosedUnion("url").Description("the url")
+			Expect(p.GetDescription()).To(Equal("the url"))
+		})
+
+		It("should support options with fields", func() {
+			p := defkit.ClosedUnion("url").Options(
+				defkit.ClosedStruct().WithFields(
+					defkit.Field("value", defkit.ParamTypeString).Required(),
+				),
+				defkit.ClosedStruct().WithFields(
+					defkit.Field("secretRef", defkit.ParamTypeStruct).Required(),
+				),
+			)
+			Expect(p.GetOptions()).To(HaveLen(2))
+			Expect(p.GetOptions()[0].GetFields()).To(HaveLen(1))
+			Expect(p.GetOptions()[0].GetFields()[0].Name()).To(Equal("value"))
+			Expect(p.GetOptions()[1].GetFields()).To(HaveLen(1))
+			Expect(p.GetOptions()[1].GetFields()[0].Name()).To(Equal("secretRef"))
+		})
+
+		It("should support fluent chaining", func() {
+			p := defkit.ClosedUnion("source").
+				Required().
+				Description("the source").
+				Options(
+					defkit.ClosedStruct().WithFields(
+						defkit.Field("hcl", defkit.ParamTypeString).Required(),
+					),
+					defkit.ClosedStruct().WithFields(
+						defkit.Field("remote", defkit.ParamTypeString).Required(),
+						defkit.Field("path", defkit.ParamTypeString),
+					),
+				)
+			Expect(p.Name()).To(Equal("source"))
+			Expect(p.IsRequired()).To(BeTrue())
+			Expect(p.GetDescription()).To(Equal("the source"))
+			Expect(p.GetOptions()).To(HaveLen(2))
+			Expect(p.GetOptions()[1].GetFields()).To(HaveLen(2))
+		})
+	})
+
+	Context("ClosedStructOption", func() {
+		It("should create an empty closed struct", func() {
+			cs := defkit.ClosedStruct()
+			Expect(cs.GetFields()).To(HaveLen(0))
+		})
+
+		It("should add fields with WithFields", func() {
+			cs := defkit.ClosedStruct().WithFields(
+				defkit.Field("name", defkit.ParamTypeString).Required(),
+				defkit.Field("key", defkit.ParamTypeString).Required(),
+			)
+			Expect(cs.GetFields()).To(HaveLen(2))
+			Expect(cs.GetFields()[0].Name()).To(Equal("name"))
+			Expect(cs.GetFields()[1].Name()).To(Equal("key"))
+		})
+
+		It("should support nested struct fields", func() {
+			cs := defkit.ClosedStruct().WithFields(
+				defkit.Field("secretRef", defkit.ParamTypeStruct).Nested(
+					defkit.Struct("secretRef").WithFields(
+						defkit.Field("name", defkit.ParamTypeString).Required(),
+						defkit.Field("key", defkit.ParamTypeString).Required(),
+					),
+				),
+			)
+			Expect(cs.GetFields()).To(HaveLen(1))
+			Expect(cs.GetFields()[0].GetNested()).NotTo(BeNil())
+			Expect(cs.GetFields()[0].GetNested().GetFields()).To(HaveLen(2))
+		})
+	})
 })
