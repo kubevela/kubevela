@@ -1597,8 +1597,8 @@ template: {
 		})
 	})
 
-	Context("PatchContainer no _baseContainer singular", func() {
-		It("should use _baseContainers (plural) not _baseContainer (singular)", func() {
+	Context("PatchContainer base container definitions", func() {
+		It("should generate _baseContainers (plural) and _baseContainer (singular) fields", func() {
 			trait := defkit.NewTrait("base-containers-test").
 				Description("Test base containers plural").
 				AppliesTo("deployments.apps").
@@ -1615,7 +1615,7 @@ template: {
 
 			cue := trait.ToCue()
 			Expect(cue).To(ContainSubstring("_baseContainers: context.output.spec.template.spec.containers"))
-			Expect(cue).NotTo(ContainSubstring("_baseContainer:"))
+			Expect(cue).To(ContainSubstring("_baseContainer: *_|_ | {...}"))
 		})
 	})
 
