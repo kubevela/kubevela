@@ -2024,14 +2024,14 @@ func (g *CUEGenerator) arrayElementToCUEWithDepth(elem *ArrayElement, depth int)
 
 	sb.WriteString("{\n")
 	for key, val := range elem.Fields() {
-		valStr := g.valueToCUE(val)
+		valStr := indentMultilineValue(g.valueToCUE(val), innerIndent)
 		sb.WriteString(fmt.Sprintf("%s%s: %s\n", innerIndent, key, valStr))
 	}
 	// Write conditional operations
 	for _, op := range elem.Ops() {
 		if setIf, ok := op.(*SetIfOp); ok {
 			condStr := g.conditionToCUE(setIf.Cond())
-			valStr := g.valueToCUE(setIf.Value())
+			valStr := indentMultilineValue(g.valueToCUE(setIf.Value()), innerIndent+"\t")
 			// Convert dot-separated path to CUE shorthand syntax: "a.b.c" -> "a: b: c"
 			cuePath := strings.ReplaceAll(setIf.Path(), ".", ": ")
 			sb.WriteString(fmt.Sprintf("%sif %s {\n", innerIndent, condStr))
@@ -2042,11 +2042,28 @@ func (g *CUEGenerator) arrayElementToCUEWithDepth(elem *ArrayElement, depth int)
 	// Write patchKey-annotated fields (nested patchKey inside array elements)
 	for _, pkf := range elem.PatchKeyFields() {
 		sb.WriteString(fmt.Sprintf("%s// +patchKey=%s\n", innerIndent, pkf.key))
-		valStr := g.valueToCUEAtDepth(pkf.value, depth+1)
+		valStr := indentMultilineValue(g.valueToCUEAtDepth(pkf.value, depth+1), innerIndent)
 		sb.WriteString(fmt.Sprintf("%s%s: %s\n", innerIndent, pkf.field, valStr))
 	}
 	sb.WriteString(fmt.Sprintf("%s}", indent))
 	return sb.String()
+}
+
+// indentMultilineValue prepends indent to every line of s after the first.
+// This is needed when embedding a multi-line valueToCUE result into an
+// already-indented context: the first line sits on the same line as the
+// key, but subsequent lines need the surrounding indentation added.
+func indentMultilineValue(s, indent string) string {
+	if !strings.Contains(s, "\n") {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	for i := 1; i < len(lines); i++ {
+		if lines[i] != "" {
+			lines[i] = indent + lines[i]
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // arrayBuilderToCUE converts an ArrayBuilder to CUE syntax.

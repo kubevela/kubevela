@@ -717,18 +717,39 @@ func (g *WorkflowStepCUEGenerator) writeGuardedBlockAction(sb *strings.Builder, 
 	sb.WriteString(fmt.Sprintf("%sif %s {\n", innerIndent, condStr))
 
 	// If the value is a block (starts with { and ends with }), strip the outer braces
-	// and indent the inner content. Otherwise emit the value as-is.
+	// and re-indent the inner content, preserving relative indentation.
 	trimmed := strings.TrimSpace(valStr)
 	if strings.HasPrefix(trimmed, "{") && strings.HasSuffix(trimmed, "}") {
-		// Strip outer braces and re-indent inner lines
+		// Strip outer braces
 		inner := trimmed[1 : len(trimmed)-1]
 		lines := strings.Split(inner, "\n")
+
+		// Find minimum indentation of non-empty lines to dedent by
+		minIndent := -1
 		for _, line := range lines {
-			stripped := strings.TrimSpace(line)
-			if stripped == "" {
+			if strings.TrimSpace(line) == "" {
 				continue
 			}
-			sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, stripped))
+			indent := len(line) - len(strings.TrimLeft(line, " \t"))
+			if minIndent < 0 || indent < minIndent {
+				minIndent = indent
+			}
+		}
+		if minIndent < 0 {
+			minIndent = 0
+		}
+
+		// Re-emit lines with relative indentation preserved
+		targetIndent := innerIndent + "\t"
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			// Strip common leading indent, then prepend target indent
+			if len(line) >= minIndent {
+				line = line[minIndent:]
+			}
+			sb.WriteString(fmt.Sprintf("%s%s\n", targetIndent, line))
 		}
 	} else {
 		sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, trimmed))

@@ -506,4 +506,123 @@ template: {
 			Expect(yaml).To(ContainSubstring("Actual Description"))
 		})
 	})
+
+	Context("SetGuardedBlock", func() {
+		It("should preserve nested indentation for multi-line values", func() {
+			step := defkit.NewWorkflowStep("notifier").
+				Description("test").
+				WithImports("vela/http", "vela/kube").
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.SetGuardedBlock(
+						defkit.PathExists("parameter.channel"),
+						"action",
+						defkit.NewArrayElement().
+							SetIf(defkit.PathExists("parameter.channel.url"), "post1",
+								defkit.HTTPPost(defkit.Reference("parameter.channel.url")).
+									Body(defkit.Reference("json.Marshal(parameter.channel.msg)")).
+									Header("Content-Type", "application/json"),
+							).
+							SetIf(defkit.PathExists("parameter.channel.secret"), "read",
+								defkit.KubeRead("v1", "Secret").
+									Name(defkit.Reference("parameter.channel.secret.name")).
+									Namespace(defkit.Reference("context.namespace")),
+							),
+					)
+				})
+
+			cue := step.ToCue()
+
+			// The HTTPDo block should be indented deeper than the if block
+			Expect(cue).To(ContainSubstring("action: {"))
+			Expect(cue).To(ContainSubstring("if parameter.channel != _|_ {"))
+
+			// Verify nested indentation: $params must be indented inside http.#HTTPDo
+			lines := strings.Split(cue, "\n")
+			var httpDoLine, paramsLine, methodLine int
+			for i, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if strings.HasPrefix(trimmed, "post1: http.#HTTPDo") {
+					httpDoLine = i
+				}
+				if strings.HasPrefix(trimmed, "$params: {") && httpDoLine > 0 && paramsLine == 0 {
+					paramsLine = i
+				}
+				if strings.HasPrefix(trimmed, "method: \"POST\"") && paramsLine > 0 && methodLine == 0 {
+					methodLine = i
+				}
+			}
+			Expect(httpDoLine).To(BeNumerically(">", 0), "should find post1: http.#HTTPDo line")
+			Expect(paramsLine).To(BeNumerically(">", httpDoLine), "should find $params after http.#HTTPDo")
+			Expect(methodLine).To(BeNumerically(">", paramsLine), "should find method after $params")
+
+			// Verify each level is indented one more tab than its parent
+			httpDoIndent := len(lines[httpDoLine]) - len(strings.TrimLeft(lines[httpDoLine], "\t"))
+			paramsIndent := len(lines[paramsLine]) - len(strings.TrimLeft(lines[paramsLine], "\t"))
+			methodIndent := len(lines[methodLine]) - len(strings.TrimLeft(lines[methodLine], "\t"))
+			Expect(paramsIndent).To(Equal(httpDoIndent + 1))
+			Expect(methodIndent).To(Equal(paramsIndent + 1))
+		})
+
+		It("should handle simple non-block values", func() {
+			step := defkit.NewWorkflowStep("simple").
+				Description("test").
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.SetGuardedBlock(
+						defkit.PathExists("parameter.x"),
+						"result",
+						defkit.Reference("parameter.x"),
+					)
+				})
+
+			cue := step.ToCue()
+			Expect(cue).To(ContainSubstring("result: {"))
+			Expect(cue).To(ContainSubstring("if parameter.x != _|_ {"))
+			Expect(cue).To(ContainSubstring("parameter.x"))
+		})
+
+		It("should produce correct kube.#Read indentation inside guarded block", func() {
+			step := defkit.NewWorkflowStep("reader").
+				Description("test").
+				WithImports("vela/kube").
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.SetGuardedBlock(
+						defkit.PathExists("parameter.target"),
+						"fetch",
+						defkit.NewArrayElement().
+							Set("read", defkit.KubeRead("v1", "Secret").
+								Name(defkit.Reference("parameter.target.name")).
+								Namespace(defkit.Reference("context.namespace")),
+							),
+					)
+				})
+
+			cue := step.ToCue()
+			lines := strings.Split(cue, "\n")
+
+			// Find the kube.#Read line and metadata line
+			var readLine, metadataLine, nameLine int
+			for i, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if strings.HasPrefix(trimmed, "read: kube.#Read") {
+					readLine = i
+				}
+				if strings.HasPrefix(trimmed, "metadata: {") && readLine > 0 && metadataLine == 0 {
+					metadataLine = i
+				}
+				if strings.HasPrefix(trimmed, "name:") && metadataLine > 0 && nameLine == 0 {
+					nameLine = i
+				}
+			}
+			Expect(readLine).To(BeNumerically(">", 0))
+			Expect(metadataLine).To(BeNumerically(">", readLine))
+			Expect(nameLine).To(BeNumerically(">", metadataLine))
+
+			// Verify progressive indentation
+			readIndent := len(lines[readLine]) - len(strings.TrimLeft(lines[readLine], "\t"))
+			metaIndent := len(lines[metadataLine]) - len(strings.TrimLeft(lines[metadataLine], "\t"))
+			nameIndent := len(lines[nameLine]) - len(strings.TrimLeft(lines[nameLine], "\t"))
+			Expect(metaIndent).To(BeNumerically(">", readIndent))
+			Expect(nameIndent).To(BeNumerically(">", metaIndent))
+		})
+	})
 })
