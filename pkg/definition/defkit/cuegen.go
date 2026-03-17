@@ -2869,7 +2869,7 @@ func (g *CUEGenerator) writeParam(sb *strings.Builder, param Param, depth int) {
 	case *EnumParam:
 		g.writeEnumParam(sb, p, indent, name, marker)
 	case *OneOfParam:
-		g.writeOneOfParam(sb, p, indent, name, optional, depth)
+		g.writeOneOfParam(sb, p, indent, name, marker, depth)
 	default:
 		// Generic fallback
 		sb.WriteString(fmt.Sprintf("%s%s%s: _\n", indent, name, marker))
@@ -3140,9 +3140,9 @@ func (g *CUEGenerator) writeStructField(sb *strings.Builder, f *StructField, dep
 	// Check schemaRef first — references a helper definition like #HealthProbe
 	if schemaRef := f.GetSchemaRef(); schemaRef != "" {
 		if f.FieldType() == ParamTypeArray {
-			sb.WriteString(fmt.Sprintf("%s%s%s: [...#%s]\n", indent, name, optional, schemaRef))
+			sb.WriteString(fmt.Sprintf("%s%s%s: [...#%s]\n", indent, name, marker, schemaRef))
 		} else {
-			sb.WriteString(fmt.Sprintf("%s%s%s: #%s\n", indent, name, optional, schemaRef))
+			sb.WriteString(fmt.Sprintf("%s%s%s: #%s\n", indent, name, marker, schemaRef))
 		}
 		return
 	}
