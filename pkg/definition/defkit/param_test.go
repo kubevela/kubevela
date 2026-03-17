@@ -1007,7 +1007,7 @@ var _ = Describe("Parameters", func() {
 			p := defkit.ClosedUnion("url")
 			Expect(p.Name()).To(Equal("url"))
 			Expect(p.IsRequired()).To(BeFalse())
-			Expect(p.IsOptional()).To(BeTrue())
+			Expect(p.IsOptional()).To(BeFalse())
 			Expect(p.HasDefault()).To(BeFalse())
 			Expect(p.GetOptions()).To(HaveLen(0))
 		})

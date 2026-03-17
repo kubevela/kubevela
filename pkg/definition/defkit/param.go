@@ -1301,6 +1301,7 @@ func (p *ClosedUnionParam) Required() *ClosedUnionParam {
 
 // Optional marks the parameter as optional.
 func (p *ClosedUnionParam) Optional() *ClosedUnionParam {
+	p.optional = true
 	p.required = false
 	return p
 }

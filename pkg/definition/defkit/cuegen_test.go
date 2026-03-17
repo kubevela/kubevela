@@ -1207,14 +1207,13 @@ var _ = Describe("CUEGenerator", func() {
 			comp := defkit.NewComponent("test").
 				Params(
 					defkit.ClosedUnion("url").
-						Required().
 						Description("Specify the url").
 						Options(
 							defkit.ClosedStruct().WithFields(
-								defkit.Field("value", defkit.ParamTypeString).Required(),
+								defkit.Field("value", defkit.ParamTypeString),
 							),
 							defkit.ClosedStruct().WithFields(
-								defkit.Field("ref", defkit.ParamTypeString).Required(),
+								defkit.Field("ref", defkit.ParamTypeString),
 							),
 						),
 				)
@@ -1232,16 +1231,15 @@ var _ = Describe("CUEGenerator", func() {
 			comp := defkit.NewComponent("test").
 				Params(
 					defkit.ClosedUnion("url").
-						Required().
 						Options(
 							defkit.ClosedStruct().WithFields(
-								defkit.Field("value", defkit.ParamTypeString).Required(),
+								defkit.Field("value", defkit.ParamTypeString),
 							),
 							defkit.ClosedStruct().WithFields(
-								defkit.Field("secretRef", defkit.ParamTypeStruct).Required().Nested(
+								defkit.Field("secretRef", defkit.ParamTypeStruct).Nested(
 									defkit.Struct("secretRef").WithFields(
-										defkit.Field("name", defkit.ParamTypeString).Required().Description("name of the secret"),
-										defkit.Field("key", defkit.ParamTypeString).Required().Description("key in the secret"),
+										defkit.Field("name", defkit.ParamTypeString).Description("name of the secret"),
+										defkit.Field("key", defkit.ParamTypeString).Description("key in the secret"),
 									),
 								),
 							),
@@ -1264,9 +1262,10 @@ var _ = Describe("CUEGenerator", func() {
 			comp := defkit.NewComponent("test").
 				Params(
 					defkit.ClosedUnion("source").
+						Optional().
 						Options(
 							defkit.ClosedStruct().WithFields(
-								defkit.Field("hcl", defkit.ParamTypeString).Required(),
+								defkit.Field("hcl", defkit.ParamTypeString),
 							),
 						),
 				)
@@ -1279,12 +1278,12 @@ var _ = Describe("CUEGenerator", func() {
 		It("should handle close() disjunction field ordering", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.ClosedUnion("url").Required().Options(
+					defkit.ClosedUnion("url").Options(
 						defkit.ClosedStruct().WithFields(
-							defkit.Field("value", defkit.ParamTypeString).Required(),
+							defkit.Field("value", defkit.ParamTypeString),
 						),
 						defkit.ClosedStruct().WithFields(
-							defkit.Field("secretRef", defkit.ParamTypeStruct).Required(),
+							defkit.Field("secretRef", defkit.ParamTypeStruct),
 						),
 					),
 				)
@@ -1302,7 +1301,7 @@ var _ = Describe("CUEGenerator", func() {
 		It("should handle empty options gracefully", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.ClosedUnion("empty").Required(),
+					defkit.ClosedUnion("empty"),
 				)
 
 			cue := gen.GenerateParameterSchema(comp)
@@ -1314,15 +1313,15 @@ var _ = Describe("CUEGenerator", func() {
 		It("should generate ClosedUnion in helper definition", func() {
 			comp := defkit.NewComponent("test").
 				Params(
-					defkit.String("name").Required(),
+					defkit.String("name"),
 				).
 				Helper("URLConfig", defkit.ClosedUnion("urlConfig").
 					Options(
 						defkit.ClosedStruct().WithFields(
-							defkit.Field("value", defkit.ParamTypeString).Required(),
+							defkit.Field("value", defkit.ParamTypeString),
 						),
 						defkit.ClosedStruct().WithFields(
-							defkit.Field("secretRef", defkit.ParamTypeString).Required(),
+							defkit.Field("secretRef", defkit.ParamTypeString),
 						),
 					),
 				)
@@ -1443,7 +1442,7 @@ var _ = Describe("CUEGenerator", func() {
 		It("should still emit parameter block when TemplateBody is set but params exist", func() {
 			ws := defkit.NewWorkflowStep("test").
 				Description("test step").
-				Params(defkit.String("name").Required()).
+				Params(defkit.String("name")).
 				TemplateBody("nop: {}")
 
 			cue := ws.ToCue()

@@ -2870,6 +2870,8 @@ func (g *CUEGenerator) writeParam(sb *strings.Builder, param Param, depth int) {
 		g.writeEnumParam(sb, p, indent, name, marker)
 	case *OneOfParam:
 		g.writeOneOfParam(sb, p, indent, name, marker, depth)
+	case *ClosedUnionParam:
+		g.writeClosedUnionParam(sb, p, indent, name, marker, depth)
 	default:
 		// Generic fallback
 		sb.WriteString(fmt.Sprintf("%s%s%s: _\n", indent, name, marker))
