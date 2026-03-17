@@ -802,7 +802,7 @@ require github.com/oam-dev/kubevela v1.10.0
 //	func myComponent() *defkit.ComponentDefinition {
 //	    return defkit.NewComponent("my-component").
 //	        Description("My component description").
-//	        WithParameter("image", defkit.String().Required()).
+//	        WithParameter("image", defkit.String()).
 //	        Template(func(tpl *defkit.Template) {
 //	            // Generate Kubernetes resources
 //	        })
@@ -823,7 +823,7 @@ package components
 //	    return defkit.NewTrait("my-trait").
 //	        Description("My trait description").
 //	        AppliesToWorkloads("deployments.apps").
-//	        WithParameter("replicas", defkit.Int().Required()).
+//	        WithParameter("replicas", defkit.Int()).
 //	        PatchTemplate(func(tpl *defkit.PatchTemplate) {
 //	            // Patch the component output
 //	        })
@@ -843,7 +843,7 @@ package traits
 //	func myPolicy() *defkit.PolicyDefinition {
 //	    return defkit.NewPolicy("my-policy").
 //	        Description("My policy description").
-//	        WithParameter("clusters", defkit.StringArray().Required())
+//	        WithParameter("clusters", defkit.StringArray())
 //	}
 package policies
 `
@@ -860,7 +860,7 @@ package policies
 //	func myStep() *defkit.WorkflowStepDefinition {
 //	    return defkit.NewWorkflowStep("my-step").
 //	        Description("My workflow step description").
-//	        WithParameter("message", defkit.String().Required())
+//	        WithParameter("message", defkit.String())
 //	}
 package workflowsteps
 `

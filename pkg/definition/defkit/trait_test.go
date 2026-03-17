@@ -1597,8 +1597,8 @@ template: {
 		})
 	})
 
-	Context("PatchContainer no _baseContainer singular", func() {
-		It("should use _baseContainers (plural) not _baseContainer (singular)", func() {
+	Context("PatchContainer base container definitions", func() {
+		It("should generate _baseContainers (plural) and _baseContainer (singular) fields", func() {
 			trait := defkit.NewTrait("base-containers-test").
 				Description("Test base containers plural").
 				AppliesTo("deployments.apps").
@@ -1615,7 +1615,7 @@ template: {
 
 			cue := trait.ToCue()
 			Expect(cue).To(ContainSubstring("_baseContainers: context.output.spec.template.spec.containers"))
-			Expect(cue).NotTo(ContainSubstring("_baseContainer:"))
+			Expect(cue).To(ContainSubstring("_baseContainer: *_|_ | {...}"))
 		})
 	})
 
@@ -1722,6 +1722,86 @@ template: {
 			Expect(trait.IsManageWorkload()).To(BeTrue())
 			Expect(trait.IsControlPlaneOnly()).To(BeTrue())
 			Expect(trait.IsRevisionEnabled()).To(BeTrue())
+		})
+
+		It("should NOT emit controlPlaneOnly in ToYAML when not set", func() {
+			yamlBytes, err := defkit.NewTrait("t").ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).NotTo(ContainSubstring("controlPlaneOnly"))
+		})
+
+		It("should NOT emit revisionEnabled in ToYAML when not set", func() {
+			yamlBytes, err := defkit.NewTrait("t").ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(yamlBytes)).NotTo(ContainSubstring("revisionEnabled"))
+		})
+
+		It("should emit manageWorkload: true in CUE attributes when set", func() {
+			cue := defkit.NewTrait("t").ManageWorkload().ToCue()
+			Expect(cue).To(ContainSubstring("manageWorkload: true"))
+		})
+
+		It("should NOT emit manageWorkload in CUE attributes when not set", func() {
+			cue := defkit.NewTrait("t").ToCue()
+			Expect(cue).NotTo(ContainSubstring("manageWorkload"))
+		})
+
+		It("should emit controlPlaneOnly: true in CUE attributes when set", func() {
+			cue := defkit.NewTrait("t").ControlPlaneOnly().ToCue()
+			Expect(cue).To(ContainSubstring("controlPlaneOnly: true"))
+		})
+
+		It("should NOT emit controlPlaneOnly in CUE attributes when not set", func() {
+			cue := defkit.NewTrait("t").ToCue()
+			Expect(cue).NotTo(ContainSubstring("controlPlaneOnly"))
+		})
+
+		It("should emit revisionEnabled: true in CUE attributes when set", func() {
+			cue := defkit.NewTrait("t").RevisionEnabled().ToCue()
+			Expect(cue).To(ContainSubstring("revisionEnabled: true"))
+		})
+
+		It("should NOT emit revisionEnabled in CUE attributes when not set", func() {
+			cue := defkit.NewTrait("t").ToCue()
+			Expect(cue).NotTo(ContainSubstring("revisionEnabled"))
+		})
+	})
+
+	Context("Status Block CUE Render", func() {
+		It("should render statusDetails in trait CUE", func() {
+			cue := defkit.NewTrait("t").StatusDetails("phase: context.output.status.phase").ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("statusDetails:"))
+			Expect(cue).To(ContainSubstring("phase: context.output.status.phase"))
+		})
+
+		It("should render customStatus in trait CUE", func() {
+			cue := defkit.NewTrait("t").CustomStatus("message: \"Running\"").ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("customStatus:"))
+		})
+
+		It("should render healthPolicy in trait CUE", func() {
+			cue := defkit.NewTrait("t").HealthPolicy("isHealth: true").ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("healthPolicy:"))
+		})
+
+		It("should omit status block when none set", func() {
+			cue := defkit.NewTrait("t").ToCue()
+			Expect(cue).NotTo(ContainSubstring("status:"))
+		})
+
+		It("should render all three status fields together", func() {
+			cue := defkit.NewTrait("t").
+				CustomStatus("message: \"Running\"").
+				HealthPolicy("isHealth: true").
+				StatusDetails("phase: context.output.status.phase").
+				ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("customStatus:"))
+			Expect(cue).To(ContainSubstring("healthPolicy:"))
+			Expect(cue).To(ContainSubstring("statusDetails:"))
 		})
 	})
 })

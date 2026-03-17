@@ -1201,4 +1201,305 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring("name?: string"))
 		})
 	})
+
+	Describe("GenerateParameterSchema with ClosedUnion parameters", func() {
+		It("should generate close() disjunction with simple fields", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.ClosedUnion("url").
+						Description("Specify the url").
+						Options(
+							defkit.ClosedStruct().WithFields(
+								defkit.Field("value", defkit.ParamTypeString),
+							),
+							defkit.ClosedStruct().WithFields(
+								defkit.Field("ref", defkit.ParamTypeString),
+							),
+						),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("// +usage=Specify the url"))
+			Expect(cue).To(ContainSubstring("url: close({"))
+			Expect(cue).To(ContainSubstring("value: string"))
+			Expect(cue).To(ContainSubstring("}) | close({"))
+			Expect(cue).To(ContainSubstring("ref: string"))
+		})
+
+		It("should generate close() disjunction with nested structs", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.ClosedUnion("url").
+						Options(
+							defkit.ClosedStruct().WithFields(
+								defkit.Field("value", defkit.ParamTypeString),
+							),
+							defkit.ClosedStruct().WithFields(
+								defkit.Field("secretRef", defkit.ParamTypeStruct).Nested(
+									defkit.Struct("secretRef").WithFields(
+										defkit.Field("name", defkit.ParamTypeString).Description("name of the secret"),
+										defkit.Field("key", defkit.ParamTypeString).Description("key in the secret"),
+									),
+								),
+							),
+						),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("url: close({"))
+			Expect(cue).To(ContainSubstring("value: string"))
+			Expect(cue).To(ContainSubstring("}) | close({"))
+			Expect(cue).To(ContainSubstring("secretRef: {"))
+			Expect(cue).To(ContainSubstring("// +usage=name of the secret"))
+			Expect(cue).To(ContainSubstring("name: string"))
+			Expect(cue).To(ContainSubstring("// +usage=key in the secret"))
+			Expect(cue).To(ContainSubstring("key: string"))
+		})
+
+		It("should generate optional closed union with ?", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.ClosedUnion("source").
+						Optional().
+						Options(
+							defkit.ClosedStruct().WithFields(
+								defkit.Field("hcl", defkit.ParamTypeString),
+							),
+						),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("source?:"))
+		})
+
+		It("should handle close() disjunction field ordering", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.ClosedUnion("url").Options(
+						defkit.ClosedStruct().WithFields(
+							defkit.Field("value", defkit.ParamTypeString),
+						),
+						defkit.ClosedStruct().WithFields(
+							defkit.Field("secretRef", defkit.ParamTypeStruct),
+						),
+					),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			// Verify ordering: first option before second
+			valueIdx := strings.Index(cue, "value: string")
+			secretIdx := strings.Index(cue, "secretRef:")
+			Expect(valueIdx).To(BeNumerically(">=", 0), "expected 'value: string' to be present")
+			Expect(secretIdx).To(BeNumerically(">=", 0), "expected 'secretRef:' to be present")
+			Expect(valueIdx).To(BeNumerically("<", secretIdx))
+		})
+
+		It("should handle empty options gracefully", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.ClosedUnion("empty"),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			// Empty options should produce fallback
+			Expect(cue).To(ContainSubstring("empty: _"))
+		})
+
+		It("should generate ClosedUnion in helper definition", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.String("name"),
+				).
+				Helper("URLConfig", defkit.ClosedUnion("urlConfig").
+					Options(
+						defkit.ClosedStruct().WithFields(
+							defkit.Field("value", defkit.ParamTypeString),
+						),
+						defkit.ClosedStruct().WithFields(
+							defkit.Field("secretRef", defkit.ParamTypeString),
+						),
+					),
+				)
+
+			cue := comp.ToCue()
+
+			Expect(cue).To(ContainSubstring("#URLConfig:"))
+			Expect(cue).To(ContainSubstring("close({"))
+			Expect(cue).To(ContainSubstring("value: string"))
+			Expect(cue).To(ContainSubstring("}) | close({"))
+			Expect(cue).To(ContainSubstring("secretRef: string"))
+		})
+	})
+
+	Describe("ForEachGuarded inner braces", func() {
+		It("should wrap each element in inner braces", func() {
+			hasStorage := defkit.PathExists("parameter.storage")
+			ws := defkit.NewWorkflowStep("test").
+				Params(
+					defkit.Array("storage").WithFields(
+						defkit.String("name").Required(),
+						defkit.String("path").Required(),
+					),
+				).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					arr := defkit.NewArray().
+						ForEachGuarded(
+							hasStorage,
+							defkit.ParamRef("storage"),
+							defkit.NewArrayElement().
+								Set("name", defkit.Reference("m.name")).
+								Set("path", defkit.Reference("m.path")),
+						)
+					tpl.Set("items", arr)
+				})
+
+			cue := ws.ToCue()
+
+			// Should have inner braces around each element
+			Expect(cue).To(ContainSubstring("for m in"))
+			Expect(cue).To(MatchRegexp(`for m in .+ \{\n[^\n]*\{`))
+		})
+
+		It("should wrap elements with conditional fields in inner braces", func() {
+			hasStorage := defkit.PathExists("parameter.storage")
+			ws := defkit.NewWorkflowStep("test").
+				Params(
+					defkit.Array("storage").WithFields(
+						defkit.String("name").Required(),
+						defkit.String("subPath"),
+					),
+				).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					arr := defkit.NewArray().
+						ForEachGuarded(
+							hasStorage,
+							defkit.ParamRef("storage"),
+							defkit.NewArrayElement().
+								Set("name", defkit.Reference("m.name")).
+								SetIf(defkit.PathExists("m.subPath"), "subPath", defkit.Reference("m.subPath")),
+						)
+					tpl.Set("mounts", arr)
+				})
+
+			cue := ws.ToCue()
+
+			// Inner braces should contain both the field and the conditional
+			Expect(cue).To(ContainSubstring("name: m.name"))
+			Expect(cue).To(ContainSubstring("if m.subPath != _|_"))
+		})
+	})
+
+	Describe("Dedupe from Reference source", func() {
+		It("should generate dedup pattern when source is a Reference", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Params(defkit.String("name").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Set("deduped", defkit.From(defkit.Reference("volumesList")).Dedupe("name"))
+				})
+
+			cue := ws.ToCue()
+
+			// Should generate the full dedup pattern, not simple [for v in ...]
+			Expect(cue).To(ContainSubstring("for val in ["))
+			Expect(cue).To(ContainSubstring("for i, vi in volumesList"))
+			Expect(cue).To(ContainSubstring("for j, vj in volumesList if j < i && vi.name == vj.name"))
+			Expect(cue).To(ContainSubstring("_ignore: true"))
+			Expect(cue).To(ContainSubstring("if val._ignore == _|_"))
+			Expect(cue).NotTo(ContainSubstring("[for v in volumesList { v }]"))
+		})
+
+		It("should generate dedup pattern with different key field", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Params(defkit.String("name").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Set("unique", defkit.From(defkit.Reference("items")).Dedupe("id"))
+				})
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("vi.id == vj.id"))
+			Expect(cue).To(ContainSubstring("for i, vi in items"))
+		})
+	})
+
+	Describe("TemplateBody with no params", func() {
+		It("should skip parameter block when TemplateBody is set and no params exist", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Description("test step").
+				TemplateBody("nop: {}")
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("nop: {}"))
+			Expect(cue).NotTo(ContainSubstring("parameter:"))
+		})
+
+		It("should still emit parameter block when TemplateBody is set but params exist", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Description("test step").
+				Params(defkit.String("name")).
+				TemplateBody("nop: {}")
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("nop: {}"))
+			Expect(cue).To(ContainSubstring("parameter:"))
+			Expect(cue).To(ContainSubstring("name: string"))
+		})
+
+		It("should emit parameter block when no TemplateBody and no params", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Description("test step")
+
+			cue := ws.ToCue()
+
+			// Default behavior: empty parameter block is emitted
+			Expect(cue).To(ContainSubstring("parameter:"))
+		})
+	})
+
+	Describe("Builtin WithDirectFields", func() {
+		It("should render fields directly without $params wrapper", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Params(defkit.String("env").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Builtin("app", "op.#ShareCloudResource").
+						WithDirectFields().
+						WithParams(map[string]defkit.Value{
+							"env":       defkit.Reference("parameter.env"),
+							"namespace": defkit.Reference("context.namespace"),
+						}).
+						Build()
+				})
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("app: op.#ShareCloudResource & {"))
+			Expect(cue).To(ContainSubstring("env: parameter.env"))
+			Expect(cue).To(ContainSubstring("namespace: context.namespace"))
+			Expect(cue).NotTo(ContainSubstring("$params:"))
+		})
+
+		It("should still use $params when WithDirectFields is not called", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Params(defkit.String("name").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Builtin("deploy", "kube.#Apply").
+						WithParams(map[string]defkit.Value{
+							"value": defkit.Reference("object"),
+						}).
+						Build()
+				})
+
+			cue := ws.ToCue()
+
+			Expect(cue).To(ContainSubstring("deploy: kube.#Apply & {"))
+			Expect(cue).To(ContainSubstring("$params:"))
+		})
+	})
 })
