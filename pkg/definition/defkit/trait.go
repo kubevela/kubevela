@@ -503,9 +503,10 @@ func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
 	}
 
 	if len(t.labels) > 0 {
+		labelKeys := sortedKeys(t.labels)
 		sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
-		for k, v := range t.labels {
-			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
+		for _, k := range labelKeys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, t.labels[k]))
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 	} else {
@@ -701,15 +702,18 @@ func (g *TraitCUEGenerator) writeUnifiedTemplate(sb *strings.Builder, t *TraitDe
 
 	// Generate outputs block if present
 	if outputs := tpl.GetOutputs(); len(outputs) > 0 {
+		outputNames := sortedKeys(outputs)
 		sb.WriteString(fmt.Sprintf("%soutputs: {\n", indent))
-		for name, res := range outputs {
+		for _, name := range outputNames {
+			res := outputs[name]
 			g.writeTraitResourceOutput(sb, gen, name, res, depth+1)
 		}
 		// Render output groups (multiple outputs under one condition)
 		for _, group := range tpl.GetOutputGroups() {
 			condStr := gen.conditionToCUE(group.cond)
 			sb.WriteString(fmt.Sprintf("%s\tif %s {\n", indent, condStr))
-			for gName, gRes := range group.outputs {
+			for _, gName := range sortedKeys(group.outputs) {
+				gRes := group.outputs[gName]
 				g.writeTraitResourceOutput(sb, gen, gName, gRes, depth+2)
 			}
 			sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
@@ -1156,7 +1160,8 @@ func (g *TraitCUEGenerator) writeSpreadAllOp(sb *strings.Builder, gen *CUEGenera
 				tree := gen.buildFieldTree(arrElem.Ops())
 				gen.liftChildConditions(tree)
 				// Also add direct field assignments
-				for fk, fv := range arrElem.Fields() {
+				for _, fk := range sortedKeys(arrElem.Fields()) {
+					fv := arrElem.Fields()[fk]
 					gen.insertIntoTree(tree, fk, fv, nil)
 				}
 				sb.WriteString("...{\n")
@@ -1626,9 +1631,10 @@ func (g *TraitCUEGenerator) GenerateDefinitionWithRawTemplate(t *TraitDefinition
 	}
 
 	if len(t.labels) > 0 {
+		labelKeys := sortedKeys(t.labels)
 		sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
-		for k, v := range t.labels {
-			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
+		for _, k := range labelKeys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, t.labels[k]))
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 	} else {

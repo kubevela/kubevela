@@ -218,8 +218,8 @@ func (b *HTTPPostBuilder) RenderCUE(rv func(Value) string) string {
 	if b.body != nil {
 		sb.WriteString(fmt.Sprintf("\t\t\tbody: %s\n", rv(b.body)))
 	}
-	for k, v := range b.headers {
-		sb.WriteString(fmt.Sprintf("\t\t\theader: %q: %q\n", k, v))
+	for _, k := range sortedKeys(b.headers) {
+		sb.WriteString(fmt.Sprintf("\t\t\theader: %q: %q\n", k, b.headers[k]))
 	}
 	sb.WriteString("\t\t}\n")
 	sb.WriteString("\t}\n")
