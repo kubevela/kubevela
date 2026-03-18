@@ -1822,6 +1822,49 @@ template: {
 		})
 	})
 
+	Context("Output groups ordering", func() {
+		It("should render grouped output names sorted alphabetically in CUE", func() {
+			trait := defkit.NewTrait("expose").
+				Description("Expose ports").
+				Params(defkit.Int("port").Default(80)).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().Set("spec.replicas", defkit.Lit(1))
+					tpl.Outputs("base-svc", defkit.NewResource("v1", "Service").
+						Set("metadata.name", defkit.VelaCtx().Name()))
+					tpl.OutputsGroupIf(defkit.PathExists("parameter.port"), func(g *defkit.OutputGroup) {
+						g.Add("z-ingress", defkit.NewResource("networking.k8s.io/v1", "Ingress").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+						g.Add("a-svc", defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := trait.ToCue()
+
+			aIdx := strings.Index(cue, "a-svc")
+			zIdx := strings.Index(cue, "z-ingress")
+			Expect(aIdx).To(BeNumerically(">=", 0))
+			Expect(zIdx).To(BeNumerically(">=", 0))
+			Expect(aIdx).To(BeNumerically("<", zIdx))
+		})
+	})
+
+	Context("TemplateBlock with labels", func() {
+		It("should render sorted labels when using TemplateBlock", func() {
+			result := defkit.NewTrait("scaler").
+				Labels(map[string]string{"z-team": "infra", "a-env": "prod"}).
+				Params(defkit.Int("replicas").Default(1)).
+				TemplateBlock("patch: spec: replicas: parameter.replicas").
+				ToCue()
+
+			aIdx := strings.Index(result, `"a-env"`)
+			zIdx := strings.Index(result, `"z-team"`)
+			Expect(aIdx).To(BeNumerically(">=", 0))
+			Expect(zIdx).To(BeNumerically(">=", 0))
+			Expect(aIdx).To(BeNumerically("<", zIdx))
+		})
+	})
+
 	Context("Outputs ordering", func() {
 		It("should render output names sorted alphabetically in CUE", func() {
 			trait := defkit.NewTrait("expose").
