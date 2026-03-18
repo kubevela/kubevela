@@ -625,4 +625,80 @@ template: {
 			Expect(nameIndent).To(BeNumerically(">", metaIndent))
 		})
 	})
+
+	Context("Builtin action params ordering", func() {
+		It("should render direct params sorted alphabetically in CUE", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Description("test step").
+				Params(defkit.String("name").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Builtin("app", "op.#ShareCloudResource").
+						WithDirectFields().
+						WithParams(map[string]defkit.Value{
+							"zeta":  defkit.Reference("parameter.name"),
+							"alpha": defkit.Reference("context.namespace"),
+							"mid":   defkit.Reference("context.name"),
+						}).
+						Build()
+				})
+
+			cue := ws.ToCue()
+
+			alphaIdx := strings.Index(cue, "alpha:")
+			midIdx := strings.Index(cue, "mid:")
+			zetaIdx := strings.Index(cue, "zeta:")
+			Expect(alphaIdx).To(BeNumerically(">=", 0))
+			Expect(midIdx).To(BeNumerically(">=", 0))
+			Expect(zetaIdx).To(BeNumerically(">=", 0))
+			Expect(alphaIdx).To(BeNumerically("<", midIdx))
+			Expect(midIdx).To(BeNumerically("<", zetaIdx))
+		})
+
+		It("should render $params wrapper params sorted alphabetically in CUE", func() {
+			ws := defkit.NewWorkflowStep("test").
+				Description("test step").
+				Params(defkit.String("name").Required()).
+				Template(func(tpl *defkit.WorkflowStepTemplate) {
+					tpl.Builtin("deploy", "kube.#Apply").
+						WithParams(map[string]defkit.Value{
+							"zValue": defkit.Reference("parameter.name"),
+							"aValue": defkit.Reference("context.namespace"),
+						}).
+						Build()
+				})
+
+			cue := ws.ToCue()
+
+			aIdx := strings.Index(cue, "aValue:")
+			zIdx := strings.Index(cue, "zValue:")
+			Expect(aIdx).To(BeNumerically(">=", 0))
+			Expect(zIdx).To(BeNumerically(">=", 0))
+			Expect(aIdx).To(BeNumerically("<", zIdx))
+		})
+
+		It("should produce identical CUE across 20 runs", func() {
+			build := func() string {
+				return defkit.NewWorkflowStep("deploy").
+					Description("deploy step").
+					Labels(map[string]string{"z": "3", "a": "1", "m": "2"}).
+					Params(defkit.String("name").Required()).
+					Template(func(tpl *defkit.WorkflowStepTemplate) {
+						tpl.Builtin("app", "op.#ShareCloudResource").
+							WithDirectFields().
+							WithParams(map[string]defkit.Value{
+								"zeta":  defkit.Reference("parameter.name"),
+								"alpha": defkit.Reference("context.namespace"),
+								"mid":   defkit.Reference("context.name"),
+							}).
+							Build()
+					}).
+					ToCue()
+			}
+
+			first := build()
+			for i := 0; i < 20; i++ {
+				Expect(build()).To(Equal(first), "CUE output differed on iteration %d", i)
+			}
+		})
+	})
 })

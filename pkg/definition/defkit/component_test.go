@@ -819,4 +819,75 @@ var _ = Describe("ComponentDefinition", func() {
 			Expect(yaml).To(ContainSubstring("Actual Description"))
 		})
 	})
+
+	Context("Labels", func() {
+		It("should render label keys sorted alphabetically in CUE", func() {
+			cue := defkit.NewComponent("webservice").
+				Labels(map[string]string{"z-team": "infra", "a-env": "prod", "m-region": "us"}).
+				ToCue()
+
+			aIdx := strings.Index(cue, `"a-env"`)
+			mIdx := strings.Index(cue, `"m-region"`)
+			zIdx := strings.Index(cue, `"z-team"`)
+			Expect(aIdx).To(BeNumerically(">=", 0))
+			Expect(mIdx).To(BeNumerically(">=", 0))
+			Expect(zIdx).To(BeNumerically(">=", 0))
+			Expect(aIdx).To(BeNumerically("<", mIdx))
+			Expect(mIdx).To(BeNumerically("<", zIdx))
+		})
+	})
+
+	Context("Outputs ordering", func() {
+		It("should render output names sorted alphabetically in CUE", func() {
+			comp := defkit.NewComponent("webservice").
+				Workload("apps/v1", "Deployment").
+				Params(defkit.String("image").Required()).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						Set("metadata.name", defkit.VelaCtx().Name()))
+					tpl.Outputs("zebra-svc", defkit.NewResource("v1", "Service").
+						Set("metadata.name", defkit.VelaCtx().Name()))
+					tpl.Outputs("alpha-cm", defkit.NewResource("v1", "ConfigMap").
+						Set("metadata.name", defkit.VelaCtx().Name()))
+					tpl.Outputs("mid-secret", defkit.NewResource("v1", "Secret").
+						Set("metadata.name", defkit.VelaCtx().Name()))
+				})
+
+			cue := comp.ToCue()
+
+			alphaIdx := strings.Index(cue, "alpha-cm")
+			midIdx := strings.Index(cue, "mid-secret")
+			zebraIdx := strings.Index(cue, "zebra-svc")
+			Expect(alphaIdx).To(BeNumerically(">=", 0))
+			Expect(midIdx).To(BeNumerically(">=", 0))
+			Expect(zebraIdx).To(BeNumerically(">=", 0))
+			Expect(alphaIdx).To(BeNumerically("<", midIdx))
+			Expect(midIdx).To(BeNumerically("<", zebraIdx))
+		})
+	})
+
+	Context("Repeated generation stability", func() {
+		It("should produce identical CUE across 20 runs", func() {
+			build := func() string {
+				return defkit.NewComponent("webservice").
+					Labels(map[string]string{"z": "3", "a": "1", "m": "2"}).
+					Workload("apps/v1", "Deployment").
+					Params(defkit.String("image").Required()).
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+						tpl.Outputs("z-svc", defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+						tpl.Outputs("a-cm", defkit.NewResource("v1", "ConfigMap").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					}).
+					ToCue()
+			}
+
+			first := build()
+			for i := 0; i < 20; i++ {
+				Expect(build()).To(Equal(first), "CUE output differed on iteration %d", i)
+			}
+		})
+	})
 })

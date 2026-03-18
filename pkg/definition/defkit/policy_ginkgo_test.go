@@ -328,6 +328,23 @@ template: {
 		})
 	})
 
+	Context("Repeated generation stability", func() {
+		It("should produce identical CUE across 20 runs", func() {
+			build := func() string {
+				return defkit.NewPolicy("topology").
+					Labels(map[string]string{"z": "3", "a": "1", "m": "2"}).
+					Description("topology policy").
+					Params(defkit.String("cluster").Required()).
+					ToCue()
+			}
+
+			first := build()
+			for i := 0; i < 20; i++ {
+				Expect(build()).To(Equal(first), "CUE output differed on iteration %d", i)
+			}
+		})
+	})
+
 	Context("Status Block CUE Render", func() {
 		It("should render statusDetails in CUE template block", func() {
 			cue := defkit.NewPolicy("x").StatusDetails("bar").ToCue()
