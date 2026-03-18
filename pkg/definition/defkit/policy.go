@@ -371,7 +371,8 @@ func (g *PolicyCUEGenerator) GenerateTemplate(p *PolicyDefinition) string {
 		p.policyTemplate(pt)
 
 		// Write computed fields
-		for name, val := range pt.GetComputedFields() {
+		for _, name := range sortedKeys(pt.GetComputedFields()) {
+			val := pt.GetComputedFields()[name]
 			sb.WriteString(fmt.Sprintf("%s%s: %s\n", g.indent, name, gen.valueToCUE(val)))
 		}
 	}

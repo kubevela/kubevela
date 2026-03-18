@@ -17,6 +17,8 @@ limitations under the License.
 package defkit_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -310,6 +312,26 @@ var _ = Describe("Operation Builders", func() {
 		It("should implement Value interface", func() {
 			var v defkit.Value = defkit.Fail(defkit.Reference("msg"))
 			Expect(v).NotTo(BeNil())
+		})
+	})
+
+	Describe("HTTPPost headers ordering", func() {
+		It("should render headers sorted alphabetically in CUE", func() {
+			b := defkit.HTTPPost(defkit.Reference("parameter.url")).
+				Header("Z-Custom", "z-val").
+				Header("Authorization", "Bearer token").
+				Header("Content-Type", "application/json")
+
+			cue := b.RenderCUE(simpleRenderValue)
+
+			authIdx := strings.Index(cue, `"Authorization"`)
+			ctIdx := strings.Index(cue, `"Content-Type"`)
+			zIdx := strings.Index(cue, `"Z-Custom"`)
+			Expect(authIdx).To(BeNumerically(">=", 0))
+			Expect(ctIdx).To(BeNumerically(">=", 0))
+			Expect(zIdx).To(BeNumerically(">=", 0))
+			Expect(authIdx).To(BeNumerically("<", ctIdx))
+			Expect(ctIdx).To(BeNumerically("<", zIdx))
 		})
 	})
 
