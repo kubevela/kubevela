@@ -22,6 +22,16 @@ import (
 	"strings"
 )
 
+// sortedKeys returns the keys of a map[string]V in sorted order.
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 // cueOpenStruct is the CUE literal for an open struct type.
 const cueOpenStruct = "{...}"
 
@@ -313,9 +323,14 @@ func (g *CUEGenerator) GenerateFullDefinition(c *ComponentDefinition) string {
 		sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
 	}
 	if len(c.GetLabels()) > 0 {
+		labelKeys := make([]string, 0, len(c.GetLabels()))
+		for k := range c.GetLabels() {
+			labelKeys = append(labelKeys, k)
+		}
+		sort.Strings(labelKeys)
 		sb.WriteString(fmt.Sprintf("%slabels: {\n", g.indent))
-		for k, v := range c.GetLabels() {
-			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, v))
+		for _, k := range labelKeys {
+			sb.WriteString(fmt.Sprintf("%s\t%q: %q\n", g.indent, k, c.GetLabels()[k]))
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 	} else {
@@ -392,8 +407,14 @@ func (g *CUEGenerator) GenerateTemplate(c *ComponentDefinition) string {
 
 	// Generate outputs block for auxiliary resources
 	if outputs := tpl.GetOutputs(); len(outputs) > 0 {
+		outputNames := make([]string, 0, len(outputs))
+		for name := range outputs {
+			outputNames = append(outputNames, name)
+		}
+		sort.Strings(outputNames)
 		sb.WriteString(fmt.Sprintf("%soutputs: {\n", g.indent))
-		for name, res := range outputs {
+		for _, name := range outputNames {
+			res := outputs[name]
 			g.writeResourceOutput(&sb, name, res, res.outputCondition, 2)
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
@@ -651,7 +672,9 @@ func (g *CUEGenerator) writeStructArrayHelper(sb *strings.Builder, helper *Struc
 
 // writeStructArrayFieldMappings writes the field mappings inside a struct array field.
 func (g *CUEGenerator) writeStructArrayFieldMappings(sb *strings.Builder, mappings FieldMap, indent string) {
-	for fieldName, fieldVal := range mappings {
+	fieldNames := sortedKeys(mappings)
+	for _, fieldName := range fieldNames {
+		fieldVal := mappings[fieldName]
 		// Handle nested objects like persistentVolumeClaim: claimName: v.claimName
 		if strings.Contains(fieldName, ".") {
 			parts := strings.Split(fieldName, ".")
@@ -662,7 +685,8 @@ func (g *CUEGenerator) writeStructArrayFieldMappings(sb *strings.Builder, mappin
 		} else if nf, isNested := fieldVal.(*NestedField); isNested {
 			// Handle NestedField with its own mapping
 			sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, fieldName))
-			for nestedName, nestedVal := range nf.mapping {
+			for _, nestedName := range sortedKeys(nf.mapping) {
+				nestedVal := nf.mapping[nestedName]
 				if optField, isOptional := nestedVal.(*OptionalField); isOptional {
 					sb.WriteString(fmt.Sprintf("%s\tif v.%s != _|_ {\n", indent, optField.field))
 					sb.WriteString(fmt.Sprintf("%s\t\t%s: v.%s\n", indent, nestedName, optField.field))
@@ -908,7 +932,8 @@ func (g *CUEGenerator) writeCollectionOpHelper(sb *strings.Builder, col *Collect
 				sb.WriteString(fmt.Sprintf("[\n%s%sfor v in %s {\n", innerIndent, guardPrefix, sourceStr))
 			}
 
-			for fieldName, fieldVal := range mOp.mappings {
+			for _, fieldName := range sortedKeys(mOp.mappings) {
+				fieldVal := mOp.mappings[fieldName]
 				if condRef, isConditional := fieldVal.(*ConditionalOrFieldRef); isConditional {
 					// Emit if/else pattern for conditional field reference
 					primaryField := string(condRef.primary)
@@ -975,7 +1000,8 @@ func (g *CUEGenerator) writeCollectionOpHelper(sb *strings.Builder, col *Collect
 
 // writeFieldMapAsHelper writes a FieldMap as CUE fields.
 func (g *CUEGenerator) writeFieldMapAsHelper(sb *strings.Builder, mapping FieldMap, indent string) {
-	for fieldName, fieldVal := range mapping {
+	for _, fieldName := range sortedKeys(mapping) {
+		fieldVal := mapping[fieldName]
 		// Handle nested paths like "persistentVolumeClaim.claimName"
 		if strings.Contains(fieldName, ".") {
 			g.writeNestedFieldPath(sb, fieldName, fieldVal, indent)
@@ -1487,7 +1513,8 @@ func (g *CUEGenerator) writeFieldTree(sb *strings.Builder, node *fieldNode, dept
 	}
 
 	// Write conditional fields grouped by condition
-	for condStr, fieldNames := range conditional {
+	for _, condStr := range sortedKeys(conditional) {
+		fieldNames := conditional[condStr]
 		sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
 		for _, name := range fieldNames {
 			child := node.children[name]
@@ -2023,7 +2050,8 @@ func (g *CUEGenerator) arrayElementToCUEWithDepth(elem *ArrayElement, depth int)
 	innerIndent := strings.Repeat(g.indent, depth+1)
 
 	sb.WriteString("{\n")
-	for key, val := range elem.Fields() {
+	for _, key := range sortedKeys(elem.Fields()) {
+		val := elem.Fields()[key]
 		valStr := indentMultilineValue(g.valueToCUE(val), innerIndent)
 		sb.WriteString(fmt.Sprintf("%s%s: %s\n", innerIndent, key, valStr))
 	}
@@ -2103,7 +2131,8 @@ func (g *CUEGenerator) arrayBuilderToCUE(ab *ArrayBuilder, depth int) string {
 			extraIndent := deepIndent + "\t"
 			sb.WriteString(fmt.Sprintf("%s{\n", deepIndent))
 			// Write each field from the element template
-			for key, val := range entry.element.Fields() {
+			for _, key := range sortedKeys(entry.element.Fields()) {
+				val := entry.element.Fields()[key]
 				valStr := g.valueToCUE(val)
 				sb.WriteString(fmt.Sprintf("%s%s: %s\n", extraIndent, key, valStr))
 			}
@@ -2268,7 +2297,8 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 		sb.WriteString("\t\t\t\t{\n")
 		for _, op := range ops {
 			if mOp, ok := op.(*mapOp); ok {
-				for fieldName, fieldVal := range mOp.mappings {
+				for _, fieldName := range sortedKeys(mOp.mappings) {
+					fieldVal := mOp.mappings[fieldName]
 					if optField, isOptional := fieldVal.(*OptionalField); isOptional {
 						sb.WriteString(fmt.Sprintf("\t\t\t\t\tif v.%s != _|_ {\n", optField.field))
 						sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t%s: v.%s\n", fieldName, optField.field))
@@ -2299,7 +2329,8 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 		for _, op := range ops {
 			if mvOp, ok := op.(*mapVariantOp); ok {
 				sb.WriteString(fmt.Sprintf("\t\t\t\t\tif v.%s == %q {\n", mvOp.discriminator, mvOp.variantName))
-				for fieldName, fieldVal := range mvOp.mappings {
+				for _, fieldName := range sortedKeys(mvOp.mappings) {
+					fieldVal := mvOp.mappings[fieldName]
 					if optField, isOptional := fieldVal.(*OptionalField); isOptional {
 						sb.WriteString(fmt.Sprintf("\t\t\t\t\t\tif v.%s != _|_ {\n", optField.field))
 						sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t\t%s: v.%s\n", fieldName, optField.field))
@@ -2350,7 +2381,8 @@ func (g *CUEGenerator) listComprehensionToCUE(lc *ListComprehension) string {
 	sb.WriteString(" {\n")
 
 	// Write direct field mappings
-	for fieldName, fieldVal := range mappings {
+	for _, fieldName := range sortedKeys(mappings) {
+		fieldVal := mappings[fieldName]
 		// Check if this field is conditional
 		isConditional := false
 		for _, cf := range conditionalFields {
@@ -2509,11 +2541,13 @@ func (g *CUEGenerator) generateMapBySourceCUE(sourceStr string, sources []string
 		sb.WriteString("\t\t\t\t\t\t{\n")
 
 		if hasMapping {
-			for fieldName, fieldVal := range mapping {
+			for _, fieldName := range sortedKeys(mapping) {
+				fieldVal := mapping[fieldName]
 				if nf, isNested := fieldVal.(*NestedField); isNested {
 					// Inline nested field expansion with correct indentation
 					sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t\t%s: {\n", fieldName))
-					for nestedName, nestedVal := range nf.mapping {
+					for _, nestedName := range sortedKeys(nf.mapping) {
+						nestedVal := nf.mapping[nestedName]
 						if optField, isOptional := nestedVal.(*OptionalField); isOptional {
 							sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t\t\tif v.%s != _|_ {\n", optField.field))
 							sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t\t\t\t%s: v.%s\n", nestedName, optField.field))
@@ -2576,7 +2610,8 @@ func (g *CUEGenerator) formatFieldToCUE(ff *FormatField) string {
 func (g *CUEGenerator) nestedFieldToCUE(nf *NestedField) string {
 	var sb strings.Builder
 	sb.WriteString("{\n")
-	for fieldName, fieldVal := range nf.mapping {
+	for _, fieldName := range sortedKeys(nf.mapping) {
+		fieldVal := nf.mapping[fieldName]
 		// Handle optional fields specially - generate conditional inclusion
 		if optField, isOptional := fieldVal.(*OptionalField); isOptional {
 			sb.WriteString(fmt.Sprintf("\t\t\t\tif v.%s != _|_ {\n", optField.field))
@@ -2615,7 +2650,8 @@ func (g *CUEGenerator) concatExprToCUE(ce *ConcatExprValue) string {
 func (g *CUEGenerator) inlineArrayToCUE(arr *InlineArrayValue) string {
 	var sb strings.Builder
 	sb.WriteString("[{\n")
-	for fieldName, fieldVal := range arr.Fields() {
+	for _, fieldName := range sortedKeys(arr.Fields()) {
+		fieldVal := arr.Fields()[fieldName]
 		valStr := g.valueToCUE(fieldVal)
 		sb.WriteString(fmt.Sprintf("\t\t\t\t\t\t\t%s: %s\n", fieldName, valStr))
 	}

@@ -1804,4 +1804,109 @@ template: {
 			Expect(cue).To(ContainSubstring("statusDetails:"))
 		})
 	})
+
+	Context("Labels ordering", func() {
+		It("should render label keys sorted alphabetically in CUE", func() {
+			cue := defkit.NewTrait("scaler").
+				Labels(map[string]string{"z-team": "infra", "a-env": "prod", "m-region": "us"}).
+				ToCue()
+
+			aIdx := strings.Index(cue, `"a-env"`)
+			mIdx := strings.Index(cue, `"m-region"`)
+			zIdx := strings.Index(cue, `"z-team"`)
+			Expect(aIdx).To(BeNumerically(">=", 0))
+			Expect(mIdx).To(BeNumerically(">=", 0))
+			Expect(zIdx).To(BeNumerically(">=", 0))
+			Expect(aIdx).To(BeNumerically("<", mIdx))
+			Expect(mIdx).To(BeNumerically("<", zIdx))
+		})
+	})
+
+	Context("Output groups ordering", func() {
+		It("should render grouped output names sorted alphabetically in CUE", func() {
+			trait := defkit.NewTrait("expose").
+				Description("Expose ports").
+				Params(defkit.Int("port").Default(80)).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().Set("spec.replicas", defkit.Lit(1))
+					tpl.Outputs("base-svc", defkit.NewResource("v1", "Service").
+						Set("metadata.name", defkit.VelaCtx().Name()))
+					tpl.OutputsGroupIf(defkit.PathExists("parameter.port"), func(g *defkit.OutputGroup) {
+						g.Add("z-ingress", defkit.NewResource("networking.k8s.io/v1", "Ingress").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+						g.Add("a-svc", defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := trait.ToCue()
+
+			aIdx := strings.Index(cue, "a-svc")
+			zIdx := strings.Index(cue, "z-ingress")
+			Expect(aIdx).To(BeNumerically(">=", 0))
+			Expect(zIdx).To(BeNumerically(">=", 0))
+			Expect(aIdx).To(BeNumerically("<", zIdx))
+		})
+	})
+
+	Context("TemplateBlock with labels", func() {
+		It("should render sorted labels when using TemplateBlock", func() {
+			result := defkit.NewTrait("scaler").
+				Labels(map[string]string{"z-team": "infra", "a-env": "prod"}).
+				Params(defkit.Int("replicas").Default(1)).
+				TemplateBlock("patch: spec: replicas: parameter.replicas").
+				ToCue()
+
+			aIdx := strings.Index(result, `"a-env"`)
+			zIdx := strings.Index(result, `"z-team"`)
+			Expect(aIdx).To(BeNumerically(">=", 0))
+			Expect(zIdx).To(BeNumerically(">=", 0))
+			Expect(aIdx).To(BeNumerically("<", zIdx))
+		})
+	})
+
+	Context("Outputs ordering", func() {
+		It("should render output names sorted alphabetically in CUE", func() {
+			trait := defkit.NewTrait("expose").
+				Description("Expose ports").
+				Params(defkit.Int("port").Default(80)).
+				Template(func(tpl *defkit.Template) {
+					tpl.Outputs("zebra-ingress", defkit.NewResource("networking.k8s.io/v1", "Ingress").
+						Set("metadata.name", defkit.VelaCtx().Name()))
+					tpl.Outputs("alpha-svc", defkit.NewResource("v1", "Service").
+						Set("metadata.name", defkit.VelaCtx().Name()))
+				})
+
+			cue := trait.ToCue()
+
+			alphaIdx := strings.Index(cue, "alpha-svc")
+			zebraIdx := strings.Index(cue, "zebra-ingress")
+			Expect(alphaIdx).To(BeNumerically(">=", 0))
+			Expect(zebraIdx).To(BeNumerically(">=", 0))
+			Expect(alphaIdx).To(BeNumerically("<", zebraIdx))
+		})
+	})
+
+	Context("Repeated generation stability", func() {
+		It("should produce identical CUE across 20 runs", func() {
+			build := func() string {
+				return defkit.NewTrait("scaler").
+					Labels(map[string]string{"z": "3", "a": "1", "m": "2"}).
+					Description("scale pods").
+					Params(defkit.Int("replicas").Default(1)).
+					Template(func(tpl *defkit.Template) {
+						tpl.Outputs("z-hpa", defkit.NewResource("autoscaling/v2", "HorizontalPodAutoscaler").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+						tpl.Outputs("a-pdb", defkit.NewResource("policy/v1", "PodDisruptionBudget").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					}).
+					ToCue()
+			}
+
+			first := build()
+			for i := 0; i < 20; i++ {
+				Expect(build()).To(Equal(first), "CUE output differed on iteration %d", i)
+			}
+		})
+	})
 })

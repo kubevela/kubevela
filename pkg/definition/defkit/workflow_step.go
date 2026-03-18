@@ -680,12 +680,14 @@ func (g *WorkflowStepCUEGenerator) writeBuiltinAction(sb *strings.Builder, a *Bu
 		sb.WriteString(fmt.Sprintf("%s%s\t$params: parameter\n", indent, extraIndent))
 	case a.directFields && len(a.params) > 0:
 		// Render fields directly without $params wrapper (for op.# operations)
-		for paramName, paramVal := range a.params {
+		for _, paramName := range sortedKeys(a.params) {
+			paramVal := a.params[paramName]
 			sb.WriteString(fmt.Sprintf("%s%s\t%s: %s\n", indent, extraIndent, paramName, gen.valueToCUE(paramVal)))
 		}
 	case len(a.params) > 0:
 		sb.WriteString(fmt.Sprintf("%s%s\t$params: {\n", indent, extraIndent))
-		for paramName, paramVal := range a.params {
+		for _, paramName := range sortedKeys(a.params) {
+			paramVal := a.params[paramName]
 			sb.WriteString(fmt.Sprintf("%s%s\t\t%s: %s\n", indent, extraIndent, paramName, gen.valueToCUE(paramVal)))
 		}
 		sb.WriteString(fmt.Sprintf("%s%s\t}\n", indent, extraIndent))
