@@ -677,7 +677,7 @@ func TestCheckUndeclaredParams(t *testing.T) {
 		assert.NoError(t, err)
 		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
 		err = checkUndeclaredParams(schema, map[string]any{
-			"anyKey":    "value1",
+			"anyKey":     "value1",
 			"anotherKey": "value2",
 		})
 		assert.NoError(t, err)
