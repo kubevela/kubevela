@@ -45,6 +45,7 @@ type Reference interface {
 type FromCluster struct {
 	Namespace string `json:"namespace"`
 	Rev       int64  `json:"revision"`
+	Version   string `json:"version"`
 }
 
 // FromLocal is the struct for input Definition Path

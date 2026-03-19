@@ -312,3 +312,84 @@ var _ = Describe("test GetCapabilityFromDefinitionRevision", func() {
 		Expect(err).Should(Succeed())
 	})
 })
+
+var _ = Describe("test GetCapabilityFromDefinitionRevisionByVersion", func() {
+	var (
+		ctx context.Context
+		c   common.Args
+	)
+
+	BeforeEach(func() {
+		c = common.Args{}
+		c.SetClient(k8sClient)
+		ctx = context.Background()
+
+		By("create namespace")
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "rev-test-custom-ns"}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "rev-test-ns"}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		// Load test DefinitionRevisions files into client (includes webservice-v1.0.0)
+		dir := filepath.Join("..", "..", "pkg", "definition", "testdata")
+		testFiles, err := os.ReadDir(dir)
+		Expect(err).Should(Succeed())
+		for _, file := range testFiles {
+			if !strings.HasSuffix(file.Name(), ".yaml") {
+				continue
+			}
+			content, err := os.ReadFile(filepath.Join(dir, file.Name()))
+			Expect(err).Should(Succeed())
+			def := &corev1beta1.DefinitionRevision{}
+			err = yaml.Unmarshal(content, def)
+			Expect(err).Should(Succeed())
+			cli, err := c.GetClient()
+			Expect(err).Should(Succeed())
+			err = cli.Create(context.TODO(), def)
+			Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		}
+	})
+
+	It("successful version match with v prefix", func() {
+		cap, err := GetCapabilityFromDefinitionRevisionByVersion(ctx, c, "rev-test-ns", "webservice", "v1.0.0")
+		Expect(err).Should(Succeed())
+		Expect(cap).ShouldNot(BeNil())
+		Expect(cap.Name).Should(Equal("webservice"))
+	})
+
+	It("successful version match without v prefix", func() {
+		cap, err := GetCapabilityFromDefinitionRevisionByVersion(ctx, c, "rev-test-ns", "webservice", "1.0.0")
+		Expect(err).Should(Succeed())
+		Expect(cap).ShouldNot(BeNil())
+		Expect(cap.Name).Should(Equal("webservice"))
+	})
+
+	It("no match for non-existent version", func() {
+		_, err := GetCapabilityFromDefinitionRevisionByVersion(ctx, c, "rev-test-ns", "webservice", "v9.9.9")
+		Expect(err).Should(HaveOccurred())
+		Expect(err.Error()).Should(ContainSubstring("version v9.9.9"))
+		Expect(err.Error()).Should(ContainSubstring("rev-test-ns"))
+	})
+
+	It("namespace fallback from default to vela-system", func() {
+		By("create vela-system namespace")
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: types.DefaultKubeVelaNS}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		By("create a versioned DefinitionRevision in vela-system")
+		dir := filepath.Join("..", "..", "pkg", "definition", "testdata")
+		content, err := os.ReadFile(filepath.Join(dir, "default-component-webservice-v1.0.0.yaml"))
+		Expect(err).Should(Succeed())
+		def := &corev1beta1.DefinitionRevision{}
+		err = yaml.Unmarshal(content, def)
+		Expect(err).Should(Succeed())
+		def.Namespace = types.DefaultKubeVelaNS
+		def.Spec.ComponentDefinition.Namespace = types.DefaultKubeVelaNS
+		cli, err := c.GetClient()
+		Expect(err).Should(Succeed())
+		err = cli.Create(ctx, def)
+		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		By("search from 'default' namespace should fallback to vela-system")
+		cap, err := GetCapabilityFromDefinitionRevisionByVersion(ctx, c, "default", "webservice", "v1.0.0")
+		Expect(err).Should(Succeed())
+		Expect(cap).ShouldNot(BeNil())
+	})
+})

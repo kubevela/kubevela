@@ -927,7 +927,7 @@ func NewDefinitionDocGenCommand(c common.Args, ioStreams util.IOStreams) *cobra.
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", Namespace)
 			}
-			return ShowReferenceMarkdown(context.Background(), c, ioStreams, args[0], docPath, location, i18nPath, namespace, 0)
+			return ShowReferenceMarkdown(context.Background(), c, ioStreams, args[0], docPath, location, i18nPath, namespace, 0, "")
 
 		},
 	}

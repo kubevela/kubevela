@@ -84,7 +84,7 @@ func getShowCommandOrder(order string) string {
 
 // NewCapabilityShowCommand shows the reference doc for a component type or trait
 func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
-	var revision, path, location, i18nPath string
+	var revision, version, path, location, i18nPath string
 	cmd := &cobra.Command{
 		Use:   "show",
 		Short: "Show the reference doc for a component, trait, policy or workflow.",
@@ -103,9 +103,11 @@ func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOS
 > vela show webservice --location zh --i18n https://kubevela.io/reference-i18n.json
 6. Show doc for a specified revision, it must exist in control plane cluster:
 > vela show webservice --revision v1
-7. Generate docs for all capabilities into folder $HOME/.vela/reference/docs/
+7. Show doc for a specified semantic version of a definition:
+> vela show webservice --version v1.0.0
+8. Generate docs for all capabilities into folder $HOME/.vela/reference/docs/
 > vela show
-8. Generate all docs and start a doc server
+9. Generate all docs and start a doc server
 > vela show --web
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -128,11 +130,14 @@ func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOS
 					return err
 				}
 			}
+			if revision != "" && version != "" {
+				return fmt.Errorf("--revision and --version are mutually exclusive")
+			}
 			var ver int
 			if revision != "" {
 				// v1, 1, both need to work
-				version := strings.TrimPrefix(revision, "v")
-				ver, err = strconv.Atoi(version)
+				revStr := strings.TrimPrefix(revision, "v")
+				ver, err = strconv.Atoi(revStr)
 				if err != nil {
 					return fmt.Errorf("invalid revision: %w", err)
 				}
@@ -141,9 +146,9 @@ func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOS
 				return startReferenceDocsSite(ctx, namespace, c, ioStreams, capabilityName)
 			}
 			if path != "" || showFormat == "md" || showFormat == "markdown" {
-				return ShowReferenceMarkdown(ctx, c, ioStreams, capabilityName, path, location, i18nPath, namespace, int64(ver))
+				return ShowReferenceMarkdown(ctx, c, ioStreams, capabilityName, path, location, i18nPath, namespace, int64(ver), version)
 			}
-			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, namespace, location, i18nPath, int64(ver))
+			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, namespace, location, i18nPath, int64(ver), version)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType:  getShowCommandType(order),
@@ -154,6 +159,7 @@ func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOS
 	cmd.Flags().BoolVarP(&webSite, "web", "", false, "start web doc site")
 	cmd.Flags().StringVarP(&showFormat, "format", "", "", "specify format of output data, by default it's a pretty human readable format, you can specify markdown(md)")
 	cmd.Flags().StringVarP(&revision, "revision", "r", "", "Get the specified revision of a definition. Use def get to list revisions.")
+	cmd.Flags().StringVarP(&version, "version", "", "", "Get the specified semantic version of a definition (e.g., v1.0.0). Mutually exclusive with --revision.")
 	cmd.Flags().StringVarP(&path, "path", "p", "", "Specify the path for of the doc generated from definition.")
 	cmd.Flags().StringVarP(&location, "location", "l", "", "specify the location for of the doc generated from definition, now supported options 'zh', 'en'. ")
 	cmd.Flags().StringVarP(&i18nPath, "i18n", "", "https://kubevela.io/reference-i18n.json", "specify the location for of the doc generated from definition, now supported options 'zh', 'en'. ")
@@ -461,13 +467,13 @@ func getDefinitions(capabilities []types.Capability) ([]string, []string, []stri
 }
 
 // ShowReferenceConsole will show capability reference in console
-func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string, ns, location, i18nPath string, rev int64) error {
+func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string, ns, location, i18nPath string, rev int64, version string) error {
 	cli, err := c.GetClient()
 	if err != nil {
 		return err
 	}
 	ref := &docgen.ConsoleReference{}
-	paserRef, err := genRefParser(capabilityName, ns, location, i18nPath, rev)
+	paserRef, err := genRefParser(capabilityName, ns, location, i18nPath, rev, version)
 	if err != nil {
 		return err
 	}
@@ -477,13 +483,13 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 }
 
 // ShowReferenceMarkdown will show capability in "markdown" format
-func ShowReferenceMarkdown(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityNameOrPath, outputPath, location, i18nPath, ns string, rev int64) error {
+func ShowReferenceMarkdown(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityNameOrPath, outputPath, location, i18nPath, ns string, rev int64, version string) error {
 	cli, err := c.GetClient()
 	if err != nil {
 		return err
 	}
 	ref := &docgen.MarkdownReference{}
-	parseRef, err := genRefParser(capabilityNameOrPath, ns, location, i18nPath, rev)
+	parseRef, err := genRefParser(capabilityNameOrPath, ns, location, i18nPath, rev, version)
 	if err != nil {
 		return err
 	}
@@ -498,7 +504,7 @@ func ShowReferenceMarkdown(ctx context.Context, c common.Args, ioStreams cmdutil
 	return nil
 }
 
-func genRefParser(capabilityNameOrPath, ns, location, i18nPath string, rev int64) (docgen.ParseReference, error) {
+func genRefParser(capabilityNameOrPath, ns, location, i18nPath string, rev int64, version string) (docgen.ParseReference, error) {
 	ref := docgen.ParseReference{}
 	if location != "" {
 		docgen.LoadI18nData(i18nPath)
@@ -511,7 +517,7 @@ func genRefParser(capabilityNameOrPath, ns, location, i18nPath string, rev int64
 		ref.Local = &docgen.FromLocal{Paths: []string{localFilePath}}
 	} else {
 		ref.DefinitionName = capabilityNameOrPath
-		ref.Remote = &docgen.FromCluster{Namespace: ns, Rev: rev}
+		ref.Remote = &docgen.FromCluster{Namespace: ns, Rev: rev, Version: version}
 	}
 	switch strings.ToLower(location) {
 	case "zh", "cn", "chinese":

@@ -41,8 +41,37 @@ var _ = Describe("Test show definition cli", func() {
 			c.SetConfig(cfg)
 			c.SetClient(k8sClient)
 
-			Expect(ShowReferenceMarkdown(ctx, c, ioStreams, "../../vela-templates/definitions/internal/workflowstep/notification.cue", "", "", "", "", 0)).Should(BeNil())
+			Expect(ShowReferenceMarkdown(ctx, c, ioStreams, "../../vela-templates/definitions/internal/workflowstep/notification.cue", "", "", "", "", 0, "")).Should(BeNil())
 
+		})
+	})
+
+	When("test vela show --version flag", func() {
+
+		It("should parse version flag correctly", func() {
+			c := common.Args{}
+			c.SetConfig(cfg)
+			c.SetClient(k8sClient)
+			ioStreams := util.IOStreams{In: os.Stdin, Out: bytes.NewBuffer(nil), ErrOut: bytes.NewBuffer(nil)}
+			cmd := NewCapabilityShowCommand(c, "1", ioStreams)
+			cmd.SetArgs([]string{"webservice", "--version", "v1.0.0"})
+			// The command will fail because there's no matching DefinitionRevision in the test cluster,
+			// but the flag should be parsed without error
+			err := cmd.Execute()
+			Expect(err).ShouldNot(BeNil())
+			Expect(err.Error()).Should(ContainSubstring("version v1.0.0"))
+		})
+
+		It("should reject --version and --revision together", func() {
+			c := common.Args{}
+			c.SetConfig(cfg)
+			c.SetClient(k8sClient)
+			ioStreams := util.IOStreams{In: os.Stdin, Out: bytes.NewBuffer(nil), ErrOut: bytes.NewBuffer(nil)}
+			cmd := NewCapabilityShowCommand(c, "1", ioStreams)
+			cmd.SetArgs([]string{"webservice", "--version", "v1.0.0", "--revision", "v1"})
+			err := cmd.Execute()
+			Expect(err).ShouldNot(BeNil())
+			Expect(err.Error()).Should(Equal("--revision and --version are mutually exclusive"))
 		})
 	})
 })

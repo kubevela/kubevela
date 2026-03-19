@@ -521,6 +521,74 @@ func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, ns,
 	}
 }
 
+// GetCapabilityFromDefinitionRevisionByVersion gets capabilities from DefinitionRevisions by semantic version.
+// The version is matched by DefinitionRevision name, which follows the convention "<defName>-v<version>"
+// as constructed by ConstructDefinitionRevisionName when a Definition has Spec.Version set.
+func GetCapabilityFromDefinitionRevisionByVersion(ctx context.Context, c common.Args, ns, defName, version string) (*types.Capability, error) {
+	k8sClient, err := c.GetClient()
+	if err != nil {
+		return nil, err
+	}
+
+	// Normalize version: strip "v" prefix for consistent matching.
+	// DefinitionRevision names follow the pattern "<defName>-v<semver>", e.g., "webservice-v1.0.0".
+	normalizedVersion := strings.TrimPrefix(version, "v")
+	expectedName := defName + "-v" + normalizedVersion
+
+	// List all revisions for the definition (rev=0 means no revision filter)
+	revs, err := definition.SearchDefinitionRevisions(ctx, k8sClient, ns, defName, "", 0)
+	if err != nil {
+		return nil, err
+	}
+	// Fallback to vela-system namespace when searching from "default",
+	// consistent with GetCapabilityFromDefinitionRevision and GetCapabilityByName.
+	searchedVelaSystem := false
+	if len(revs) == 0 && ns == "default" {
+		revs, err = definition.SearchDefinitionRevisions(ctx, k8sClient, types.DefaultKubeVelaNS, defName, "", 0)
+		if err != nil {
+			return nil, err
+		}
+		searchedVelaSystem = true
+	}
+
+	// Find the revision matching the expected name
+	var matched *v1beta1.DefinitionRevision
+	for i := range revs {
+		if revs[i].Name == expectedName {
+			matched = &revs[i]
+			break
+		}
+	}
+	if matched == nil {
+		if searchedVelaSystem {
+			return nil, fmt.Errorf("no %s with version %s found in namespace %s or %s", defName, version, ns, types.DefaultKubeVelaNS)
+		}
+		return nil, fmt.Errorf("no %s with version %s found in namespace %s", defName, version, ns)
+	}
+
+	switch matched.Spec.DefinitionType {
+	case commontypes.ComponentType:
+		var refName string
+		componentDef := matched.Spec.ComponentDefinition
+		if componentDef.Spec.Workload.Type == types.AutoDetectWorkloadDefinition {
+			refName = types.AutoDetectWorkloadDefinition
+		} else {
+			ref, err := util.ConvertWorkloadGVK2Definition(k8sClient.RESTMapper(), componentDef.Spec.Workload.Definition)
+			if err != nil {
+				return nil, err
+			}
+			refName = ref.Name
+		}
+		return GetCapabilityByComponentDefinitionObject(componentDef, refName)
+	case commontypes.TraitType:
+		return GetCapabilityByTraitDefinitionObject(matched.Spec.TraitDefinition)
+	case commontypes.WorkflowStepType:
+		return GetCapabilityByWorkflowStepDefinitionObject(matched.Spec.WorkflowStepDefinition)
+	default:
+		return nil, fmt.Errorf("unsupported type %s", matched.Spec.DefinitionType)
+	}
+}
+
 // GetCapabilityByComponentDefinitionObject gets capability by ComponentDefinition object
 func GetCapabilityByComponentDefinitionObject(componentDef v1beta1.ComponentDefinition, referenceName string) (*types.Capability, error) {
 	capability, err := HandleDefinition(componentDef.Name, referenceName, componentDef.Annotations, componentDef.Labels,
