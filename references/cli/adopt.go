@@ -401,7 +401,7 @@ func (opt *AdoptOptions) Complete(f velacmd.Factory, cmd *cobra.Command, args []
 	if opt.AppName != "" {
 		app := &v1beta1.Application{}
 		err := f.Client().Get(cmd.Context(), apitypes.NamespacedName{Namespace: opt.AppNamespace, Name: opt.AppName}, app)
-		if err == nil && app != nil {
+		if err == nil {
 			if !opt.Yes && opt.Apply {
 				userInput := NewUserInput()
 				confirm := userInput.AskBool(
