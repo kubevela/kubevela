@@ -329,6 +329,19 @@ func TestGetStatus(t *testing.T) {
 				"sum": "4",
 			},
 		},
+		"test-status-with-import-statement": {
+			tpContext: map[string]interface{}{
+				"output": map[string]interface{}{},
+			},
+			parameter: make(map[string]interface{}),
+			statusCue: strings.TrimSpace(`
+				import "strings"
+				"my.details": strings.Join(["foo", "bar"], ",")
+			`),
+			expStatus: map[string]string{
+				"my.details": "foo,bar",
+			},
+		},
 		"test-key-input-too-large-skipped": {
 			tpContext: map[string]interface{}{
 				"output": map[string]interface{}{
@@ -778,6 +791,48 @@ func TestContextPassing(t *testing.T) {
 			if tc.validateCtx != nil {
 				tc.validateCtx(t, ctx)
 			}
+		})
+	}
+}
+
+func TestGetStatusWithDynamicKeys(t *testing.T) {
+	cases := map[string]struct {
+		tpContext map[string]interface{}
+		parameter interface{}
+		statusCue string
+		expStatus map[string]string
+	}{
+		"root-comprehension-generates-dynamic-keys-from-list": {
+			tpContext: map[string]interface{}{
+				"outputs": map[string]interface{}{
+					"ingress": map[string]interface{}{
+						"spec": map[string]interface{}{
+							"rules": []interface{}{
+								map[string]interface{}{"host": "foo.example.com"},
+								map[string]interface{}{"host": "bar.example.com"},
+							},
+						},
+					},
+				},
+			},
+			parameter: make(map[string]interface{}),
+			statusCue: strings.TrimSpace(`
+				{for _, rule in context.outputs.ingress.spec.rules {
+					"host.\(rule.host)": rule.host
+				}}
+			`),
+			expStatus: map[string]string{
+				"host.foo.example.com": "foo.example.com",
+				"host.bar.example.com": "bar.example.com",
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, status, err := getStatusMap(tc.tpContext, tc.statusCue, tc.parameter)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expStatus, status)
 		})
 	}
 }

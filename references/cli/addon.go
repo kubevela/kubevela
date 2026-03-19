@@ -437,6 +437,12 @@ func NewAddonInitCommand() *cobra.Command {
   Use --no-samples options to skip creating sample files
 	vela addon init my-addon --no-sample
 
+  Create addon with Go-based definition scaffolding (defkit)
+	vela addon init my-addon --godef
+
+  Create addon with specific Go-based definitions
+	vela addon init my-addon --godef --components webservice,worker --traits scaler
+
   You can combine all the options together.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
@@ -459,6 +465,13 @@ func NewAddonInitCommand() *cobra.Command {
 			initCmd.AddonName = addonName
 			initCmd.Path = addonPath
 
+			// Validate that godef-specific flags require --godef
+			hasGoDefFlags := initCmd.GoDefComponents != "" || initCmd.GoDefTraits != "" ||
+				initCmd.GoDefPolicies != "" || initCmd.GoDefWorkflowSteps != ""
+			if hasGoDefFlags && !initCmd.EnableGoDef {
+				return fmt.Errorf("--components, --traits, --policies, and --workflowsteps flags require --godef to be set")
+			}
+
 			return initCmd.CreateScaffold()
 		},
 	}
@@ -471,6 +484,11 @@ func NewAddonInitCommand() *cobra.Command {
 	f.StringArrayVarP(&initCmd.RefObjURLs, "url", "u", []string{}, "add URL resources using ref-object component")
 	f.BoolVarP(&initCmd.NoSamples, "no-samples", "", false, "do not generate sample files")
 	f.BoolVarP(&initCmd.Overwrite, "force", "f", false, "overwrite existing addon files")
+	f.BoolVar(&initCmd.EnableGoDef, "godef", false, "generate Go-based definition scaffolding in godef/ folder")
+	f.StringVar(&initCmd.GoDefComponents, "components", "", "comma-separated list of component names to scaffold (requires --godef)")
+	f.StringVar(&initCmd.GoDefTraits, "traits", "", "comma-separated list of trait names to scaffold (requires --godef)")
+	f.StringVar(&initCmd.GoDefPolicies, "policies", "", "comma-separated list of policy names to scaffold (requires --godef)")
+	f.StringVar(&initCmd.GoDefWorkflowSteps, "workflowsteps", "", "comma-separated list of workflow step names to scaffold (requires --godef)")
 
 	return cmd
 }
@@ -623,7 +641,8 @@ func addonOptions() []pkgaddon.InstallOption {
 // enableAddonByLocal enable addon in local dir and return the addon name
 func enableAddonByLocal(ctx context.Context, name string, dir string, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, args map[string]interface{}) (string, error) {
 	opts := addonOptions()
-	info, err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, args, opts...)
+	// overrideDefs flag also allows Go definitions to override CUE definitions within the same addon
+	info, err := pkgaddon.EnableAddonByLocalDir(ctx, name, dir, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, args, overrideDefs, opts...)
 	if err != nil {
 		return "", err
 	}

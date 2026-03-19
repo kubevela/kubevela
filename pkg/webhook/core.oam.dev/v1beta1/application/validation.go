@@ -464,9 +464,8 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 }
 
 // ValidateUpdate validates the Application on update
-func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, _ *v1beta1.Application, req admission.Request) field.ErrorList {
-	// check if the newApp is valid
+func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
 	errs := h.ValidateCreate(ctx, newApp, req)
-	// TODO: add more validating
+	errs = append(errs, h.ValidateImmutableFields(ctx, newApp, oldApp)...)
 	return errs
 }

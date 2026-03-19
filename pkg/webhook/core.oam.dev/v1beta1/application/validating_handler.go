@@ -56,8 +56,8 @@ func simplifyError(err error) error {
 
 func mergeErrors(errs field.ErrorList) error {
 	s := ""
-	for _, err := range errs {
-		s += fmt.Sprintf("field \"%s\": %s error encountered, %s. ", err.Field, err.Type, err.Detail)
+	for i, err := range errs {
+		s += fmt.Sprintf("\n  %d) %q: %s.", i+1, err.Field, err.Detail)
 	}
 	return errors.New(s)
 }

@@ -616,6 +616,9 @@ func isHealthy(services []common.ApplicationComponentStatus) bool {
 			return false
 		}
 		for _, tr := range service.Traits {
+			if tr.Pending {
+				continue
+			}
 			if !tr.Healthy {
 				return false
 			}

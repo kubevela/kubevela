@@ -123,20 +123,21 @@ template: {
 
 	#podAffinityTerm: {
 		labelSelector?: #labelSelector
+		namespace?:     string
 		namespaces?: [...string]
 		topologyKey:        string
 		namespaceSelector?: #labelSelector
 	}
 
-	#nodeSelecor: {
+	#nodeSelector: {
 		key:      string
 		operator: *"In" | "NotIn" | "Exists" | "DoesNotExist" | "Gt" | "Lt"
 		values?: [...string]
 	}
 
 	#nodeSelectorTerm: {
-		matchExpressions?: [...#nodeSelecor]
-		matchFields?: [...#nodeSelecor]
+		matchExpressions?: [...#nodeSelector]
+		matchFields?: [...#nodeSelector]
 	}
 
 	parameter: {

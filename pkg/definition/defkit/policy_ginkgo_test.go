@@ -1,0 +1,407 @@
+/*
+Copyright 2025 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package defkit_test
+
+import (
+	"strings"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	"github.com/oam-dev/kubevela/pkg/definition/defkit"
+)
+
+var _ = Describe("PolicyDefinition", func() {
+
+	Context("Basic Builder Methods", func() {
+		It("should create policy with name", func() {
+			p := defkit.NewPolicy("topology")
+			Expect(p.DefName()).To(Equal("topology"))
+			Expect(p.DefType()).To(Equal(defkit.DefinitionTypePolicy))
+		})
+
+		It("should set description", func() {
+			p := defkit.NewPolicy("topology").
+				Description("Deployment topology policy")
+			Expect(p.GetDescription()).To(Equal("Deployment topology policy"))
+		})
+
+		It("should add single parameter with Param", func() {
+			p := defkit.NewPolicy("topology").
+				Param(defkit.StringList("clusters"))
+			Expect(p.GetParams()).To(HaveLen(1))
+			Expect(p.GetParams()[0].Name()).To(Equal("clusters"))
+		})
+
+		It("should add multiple parameters with Params", func() {
+			p := defkit.NewPolicy("topology").
+				Params(
+					defkit.StringList("clusters"),
+					defkit.Bool("allowEmpty"),
+					defkit.String("namespace"),
+				)
+			Expect(p.GetParams()).To(HaveLen(3))
+		})
+
+		It("should chain Param calls", func() {
+			p := defkit.NewPolicy("topology").
+				Param(defkit.StringList("clusters")).
+				Param(defkit.Bool("allowEmpty")).
+				Param(defkit.String("namespace"))
+			Expect(p.GetParams()).To(HaveLen(3))
+		})
+	})
+
+	Context("Template method", func() {
+		It("should set template function", func() {
+			p := defkit.NewPolicy("custom").
+				Template(func(tpl *defkit.PolicyTemplate) {
+					tpl.Set("clusters", defkit.ParamRef("clusters"))
+				})
+			Expect(p).NotTo(BeNil())
+		})
+	})
+
+	Context("Helper method", func() {
+		It("should add helper definition with param", func() {
+			selectorParam := defkit.Struct("selector").WithFields(
+				defkit.Field("name", defkit.ParamTypeString),
+				defkit.Field("namespace", defkit.ParamTypeString),
+			)
+			p := defkit.NewPolicy("override").
+				Helper("RuleSelector", selectorParam)
+			helpers := p.GetHelperDefinitions()
+			Expect(helpers).To(HaveLen(1))
+			Expect(helpers[0].GetName()).To(Equal("RuleSelector"))
+			Expect(helpers[0].HasParam()).To(BeTrue())
+		})
+
+		It("should chain multiple Helper calls", func() {
+			p := defkit.NewPolicy("override").
+				Helper("Selector", defkit.Struct("sel")).
+				Helper("Override", defkit.Struct("ovr"))
+			Expect(p.GetHelperDefinitions()).To(HaveLen(2))
+		})
+	})
+
+	Context("CustomStatus method", func() {
+		It("should set custom status expression", func() {
+			p := defkit.NewPolicy("topology").
+				CustomStatus("message: \"Policy applied\"")
+			Expect(p.GetCustomStatus()).To(Equal("message: \"Policy applied\""))
+		})
+	})
+
+	Context("Labels method", func() {
+		It("should store and return labels", func() {
+			p := defkit.NewPolicy("topology").
+				Labels(map[string]string{"k": "v"})
+			Expect(p.GetLabels()).To(Equal(map[string]string{"k": "v"}))
+		})
+
+		It("should render label keys sorted in CUE when labels set", func() {
+			p := defkit.NewPolicy("topology").
+				Labels(map[string]string{"b": "2", "a": "1"})
+			cue := p.ToCue()
+			Expect(cue).To(ContainSubstring(`"a": "1"`))
+			Expect(cue).To(ContainSubstring(`"b": "2"`))
+			aIdx := strings.Index(cue, `"a":`)
+			bIdx := strings.Index(cue, `"b":`)
+			Expect(aIdx).To(BeNumerically("<", bIdx))
+		})
+
+		It("should emit empty labels block in CUE when Labels never called", func() {
+			p := defkit.NewPolicy("topology")
+			cue := p.ToCue()
+			Expect(cue).To(ContainSubstring("labels: {}"))
+		})
+
+		It("should render empty labels block when Labels called with empty map", func() {
+			p := defkit.NewPolicy("topology").
+				Labels(map[string]string{})
+			cue := p.ToCue()
+			Expect(cue).To(ContainSubstring("labels: {}"))
+		})
+	})
+
+	Context("HealthPolicy method", func() {
+		It("should set health policy expression", func() {
+			p := defkit.NewPolicy("topology").
+				HealthPolicy("isHealth: true")
+			Expect(p.GetHealthPolicy()).To(Equal("isHealth: true"))
+		})
+	})
+
+	Context("HealthPolicyExpr method", func() {
+		It("should set health policy from HealthExpression", func() {
+			h := defkit.Health()
+			p := defkit.NewPolicy("topology").
+				HealthPolicyExpr(h.Condition("Ready").IsTrue())
+			Expect(p.GetHealthPolicy()).NotTo(BeEmpty())
+		})
+	})
+
+	Context("WithImports method", func() {
+		It("should add imports to policy", func() {
+			p := defkit.NewPolicy("custom").
+				WithImports("strings", "list")
+			Expect(p.GetImports()).To(ConsistOf("strings", "list"))
+		})
+
+		It("should accumulate imports with multiple calls", func() {
+			p := defkit.NewPolicy("custom").
+				WithImports("strings").
+				WithImports("list", "math")
+			Expect(p.GetImports()).To(HaveLen(3))
+		})
+	})
+
+	Context("RawCUE method", func() {
+		It("should set raw CUE and bypass generation", func() {
+			rawCUE := `"topology": {
+	type: "policy"
+	description: "Raw policy"
+}
+template: {
+	parameter: clusters?: [...string]
+}`
+			p := defkit.NewPolicy("topology").RawCUE(rawCUE)
+			Expect(p.HasRawCUE()).To(BeTrue())
+			Expect(p.ToCue()).To(Equal(rawCUE))
+		})
+	})
+
+	Context("ToCue Generation", func() {
+		It("should generate complete CUE definition", func() {
+			p := defkit.NewPolicy("topology").
+				Description("Deployment topology").
+				Params(
+					defkit.StringList("clusters"),
+					defkit.Bool("allowEmpty").Default(false),
+				)
+
+			cue := p.ToCue()
+
+			Expect(cue).To(ContainSubstring(`type: "policy"`))
+			Expect(cue).To(ContainSubstring(`description: "Deployment topology"`))
+			Expect(cue).To(ContainSubstring("template:"))
+			Expect(cue).To(ContainSubstring("parameter:"))
+			Expect(cue).To(ContainSubstring("clusters"))
+			Expect(cue).To(ContainSubstring("allowEmpty"))
+		})
+
+		It("should include imports in CUE output", func() {
+			p := defkit.NewPolicy("custom").
+				Description("Custom policy").
+				WithImports("strings", "list")
+
+			cue := p.ToCue()
+
+			Expect(cue).To(ContainSubstring(`import (`))
+			Expect(cue).To(ContainSubstring(`"strings"`))
+			Expect(cue).To(ContainSubstring(`"list"`))
+		})
+	})
+
+	Context("ToYAML Generation", func() {
+		It("should generate valid YAML manifest", func() {
+			p := defkit.NewPolicy("topology").
+				Description("Deployment topology").
+				Params(defkit.StringList("clusters"))
+
+			yamlBytes, err := p.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("kind: PolicyDefinition"))
+			Expect(yaml).To(ContainSubstring("name: topology"))
+		})
+	})
+
+	Context("PolicyTemplate", func() {
+		It("should create a new policy template", func() {
+			tpl := defkit.NewPolicyTemplate()
+			Expect(tpl).NotTo(BeNil())
+		})
+
+		It("should set field on template", func() {
+			tpl := defkit.NewPolicyTemplate()
+			tpl.Set("clusters", defkit.ParamRef("clusters"))
+			fields := tpl.GetComputedFields()
+			Expect(fields).To(HaveKey("clusters"))
+		})
+
+		It("should set multiple fields", func() {
+			tpl := defkit.NewPolicyTemplate()
+			tpl.Set("clusters", defkit.ParamRef("clusters"))
+			tpl.Set("namespace", defkit.ParamRef("namespace"))
+			fields := tpl.GetComputedFields()
+			Expect(fields).To(HaveLen(2))
+		})
+	})
+
+	Context("Registry", func() {
+		BeforeEach(func() {
+			defkit.Clear()
+		})
+
+		AfterEach(func() {
+			defkit.Clear()
+		})
+
+		It("should register policies", func() {
+			policy1 := defkit.NewPolicy("topology").Description("Topology")
+			policy2 := defkit.NewPolicy("override").Description("Override")
+			comp := defkit.NewComponent("webservice").Description("Component")
+
+			defkit.Register(policy1)
+			defkit.Register(policy2)
+			defkit.Register(comp)
+
+			Expect(defkit.Count()).To(Equal(3))
+			Expect(defkit.Policies()).To(HaveLen(2))
+		})
+	})
+
+	Context("Annotations", func() {
+		It("should store and return annotations", func() {
+			p := defkit.NewPolicy("topology").
+				Annotations(map[string]string{"owner": "team-a", "env": "prod"})
+			Expect(p.GetAnnotations()).To(HaveKeyWithValue("owner", "team-a"))
+			Expect(p.GetAnnotations()).To(HaveKeyWithValue("env", "prod"))
+		})
+
+		It("should render sorted annotation keys in CUE", func() {
+			cue := defkit.NewPolicy("topology").
+				Annotations(map[string]string{"b": "2", "a": "1"}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`annotations: {`))
+			aIdx := strings.Index(cue, `"a": "1"`)
+			bIdx := strings.Index(cue, `"b": "2"`)
+			Expect(aIdx).To(BeNumerically(">=", 0))
+			Expect(bIdx).To(BeNumerically(">=", 0))
+			Expect(aIdx).To(BeNumerically("<", bIdx))
+		})
+
+		It("should keep annotations: {} in CUE when not set", func() {
+			cue := defkit.NewPolicy("topology").ToCue()
+			Expect(cue).To(ContainSubstring("annotations: {}"))
+		})
+
+		It("should merge user annotations in ToYAML without overriding description", func() {
+			p := defkit.NewPolicy("topology").
+				Description("My Policy").
+				Annotations(map[string]string{
+					"owner": "team-a",
+				})
+			yamlBytes, err := p.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("owner: team-a"))
+			Expect(yaml).To(ContainSubstring("My Policy"))
+		})
+
+		It("should not allow user annotation to override description in ToYAML", func() {
+			p := defkit.NewPolicy("topology").
+				Description("Actual Description").
+				Annotations(map[string]string{
+					"definition.oam.dev/description": "Not This",
+				})
+			yamlBytes, err := p.ToYAML()
+			Expect(err).NotTo(HaveOccurred())
+			yaml := string(yamlBytes)
+			Expect(yaml).To(ContainSubstring("Actual Description"))
+		})
+	})
+
+	Context("Template computed fields ordering", func() {
+		It("should render computed fields sorted alphabetically in CUE", func() {
+			cue := defkit.NewPolicy("topology").
+				Description("topology policy").
+				Params(defkit.String("cluster").Required()).
+				Template(func(tpl *defkit.PolicyTemplate) {
+					tpl.Set("zField", defkit.ParamRef("cluster"))
+					tpl.Set("aField", defkit.Reference("context.namespace"))
+					tpl.Set("mField", defkit.Reference("context.name"))
+				}).
+				ToCue()
+
+			aIdx := strings.Index(cue, "aField:")
+			mIdx := strings.Index(cue, "mField:")
+			zIdx := strings.Index(cue, "zField:")
+			Expect(aIdx).To(BeNumerically(">=", 0))
+			Expect(mIdx).To(BeNumerically(">=", 0))
+			Expect(zIdx).To(BeNumerically(">=", 0))
+			Expect(aIdx).To(BeNumerically("<", mIdx))
+			Expect(mIdx).To(BeNumerically("<", zIdx))
+		})
+	})
+
+	Context("Repeated generation stability", func() {
+		It("should produce identical CUE across 20 runs", func() {
+			build := func() string {
+				return defkit.NewPolicy("topology").
+					Labels(map[string]string{"z": "3", "a": "1", "m": "2"}).
+					Description("topology policy").
+					Params(defkit.String("cluster").Required()).
+					ToCue()
+			}
+
+			first := build()
+			for i := 0; i < 20; i++ {
+				Expect(build()).To(Equal(first), "CUE output differed on iteration %d", i)
+			}
+		})
+	})
+
+	Context("Status Block CUE Render", func() {
+		It("should render statusDetails in CUE template block", func() {
+			cue := defkit.NewPolicy("x").StatusDetails("bar").ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("statusDetails:"))
+		})
+
+		It("should render customStatus in CUE template block", func() {
+			cue := defkit.NewPolicy("x").CustomStatus("message: \"ok\"").ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("customStatus:"))
+		})
+
+		It("should render healthPolicy in CUE template block", func() {
+			cue := defkit.NewPolicy("x").HealthPolicy("isHealth: true").ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("healthPolicy:"))
+		})
+
+		It("should omit status block when none set", func() {
+			cue := defkit.NewPolicy("x").ToCue()
+			Expect(cue).NotTo(ContainSubstring("status:"))
+		})
+
+		It("should render all three status fields together", func() {
+			cue := defkit.NewPolicy("x").
+				CustomStatus("message: \"ok\"").
+				HealthPolicy("isHealth: true").
+				StatusDetails("phase: \"active\"").
+				ToCue()
+			Expect(cue).To(ContainSubstring("status:"))
+			Expect(cue).To(ContainSubstring("customStatus:"))
+			Expect(cue).To(ContainSubstring("healthPolicy:"))
+			Expect(cue).To(ContainSubstring("statusDetails:"))
+		})
+	})
+})

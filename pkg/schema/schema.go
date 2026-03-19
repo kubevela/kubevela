@@ -48,6 +48,9 @@ context: {
 // ErrGenerateOpenAPIV2JSONSchemaForCapability is the error while generating OpenAPI v3 schema
 const ErrGenerateOpenAPIV2JSONSchemaForCapability = "cannot generate OpenAPI v3 JSON schema for capability %s: %v"
 
+// ExtensionImmutable is the OpenAPI extension key that marks a parameter field as immutable
+const ExtensionImmutable = "x-immutable"
+
 // ParsePropertiesToSchema parse the properties in cue script to the openapi schema
 func ParsePropertiesToSchema(ctx context.Context, s string, templateFieldPath ...string) (*openapi3.Schema, error) {
 	t := s + "\n" + BaseTemplate
@@ -110,6 +113,14 @@ func FixOpenAPISchema(name string, schema *openapi3.Schema) {
 	}
 
 	description := schema.Description
+	// Extract +immutable first, before other tags may strip the lines containing it.
+	if cleaned, found := extractMarkerFromDescription(description, appfile.ImmutableTag); found {
+		description = cleaned
+		if schema.Extensions == nil {
+			schema.Extensions = make(map[string]any)
+		}
+		schema.Extensions[ExtensionImmutable] = true
+	}
 	if strings.Contains(description, appfile.UsageTag) {
 		description = strings.Split(description, appfile.UsageTag)[1]
 	}
@@ -118,4 +129,23 @@ func FixOpenAPISchema(name string, schema *openapi3.Schema) {
 		description = strings.TrimSpace(description)
 	}
 	schema.Description = description
+}
+
+// extractMarkerFromDescription removes all lines containing marker from description
+// and reports whether the marker was found. Used to extract flag-style markers
+// like +immutable that have no value component.
+func extractMarkerFromDescription(description, marker string) (string, bool) {
+	found := false
+	var lines []string
+	for _, line := range strings.Split(description, "\n") {
+		if strings.TrimSpace(line) == marker {
+			found = true
+		} else {
+			lines = append(lines, line)
+		}
+	}
+	if !found {
+		return description, false
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n")), true
 }

@@ -19,7 +19,6 @@ template: {
 			query:          parameter.query
 			metricEndpoint: parameter.metricEndpoint
 			condition:      parameter.condition
-			stepID:         context.stepSessionID
 			duration:       parameter.duration
 			failDuration:   parameter.failDuration
 		}

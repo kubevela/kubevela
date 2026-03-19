@@ -148,7 +148,7 @@ func getStatusMap(templateContext map[string]interface{}, statusFields string, p
 		contextLabels = append(contextLabels, util.GetIteratorLabel(*iter))
 	}
 
-	cueBuffer := runtimeContextBuff + "\n" + statusFields
+	cueBuffer := statusFields + "\n" + runtimeContextBuff
 	val := cueCtx.CompileString(cueBuffer)
 	if val.Err() != nil {
 		return templateContext, nil, errors.WithMessage(val.Err(), "compile status fields template")

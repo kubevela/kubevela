@@ -148,6 +148,15 @@ const (
 
 	// TypeLegacy defines legacy commands
 	TypeLegacy = "Legacy Commands"
+
+	// TypeDefManagement defines definition management commands
+	TypeDefManagement = "Definition Management"
+
+	// TypeDefGeneration defines definition generation commands
+	TypeDefGeneration = "Code Generation"
+
+	// TypeDefModule defines Go definition module commands
+	TypeDefModule = "Go Definition Modules"
 )
 
 // LabelArg is the argument `label` of a definition

@@ -392,7 +392,10 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		needPostDispatchOutputs := componentOutputsConsumed(comp, af.Components)
 		for _, svc := range h.services {
 			if svc.Name == comp.Name {
-				serviceHealthy = svc.Healthy
+				serviceHealthy = svc.WorkloadHealthy
+				if !serviceHealthy && svc.Healthy {
+					serviceHealthy = true
+				}
 				break
 			}
 		}

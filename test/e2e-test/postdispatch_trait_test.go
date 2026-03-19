@@ -379,7 +379,7 @@ isHealth: *_isHealth | bool
 							Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.21","port":80,"cpu":"100m","memory":"128Mi"}`)},
 							Traits: []common.ApplicationTrait{
 								{Type: "scaler", Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":3}`)}},
-								{Type: deploymentTraitName, Properties: &runtime.RawExtension{Raw: []byte(`{"name":"trait-deployment","image":"nginx:alpine"}`)}},
+								{Type: deploymentTraitName, Properties: &runtime.RawExtension{Raw: []byte(`{"name":"trait-deployment","image":"nginx:1.21"}`)}},
 								{Type: cmTraitName},
 							},
 						},
@@ -415,6 +415,7 @@ isHealth: *_isHealth | bool
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: app.Name}, checkApp)).Should(Succeed())
 				g.Expect(checkApp.Status.Services).ShouldNot(BeEmpty())
 				svc := checkApp.Status.Services[0]
+				g.Expect(svc.Healthy).Should(BeFalse())
 
 				traitFound := false
 				for _, traitStatus := range svc.Traits {
@@ -572,7 +573,7 @@ isHealth: *_isHealth | bool
 			By("Creating application that uses PostDispatch traits")
 			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
 
-			By("Waiting for trait to remain pending and not show in status while component image fails")
+			By("Waiting for trait to remain pending and show in application detail status while component image fails")
 			Eventually(func(g Gomega) {
 				checkApp := &v1beta1.Application{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: app.Name}, checkApp)).Should(Succeed())
@@ -582,11 +583,14 @@ isHealth: *_isHealth | bool
 
 				traitFound := false
 				for _, traitStatus := range svc.Traits {
-					if traitStatus.Type == deploymentTraitName {
+					if traitStatus.Type == deploymentTraitName || traitStatus.Type == cmTraitName {
 						traitFound = true
+						g.Expect(traitStatus.Healthy).Should(BeFalse())
+						g.Expect(traitStatus.Pending).Should(BeTrue())
+						g.Expect(traitStatus.Message).Should(ContainSubstring("Waiting for component to be healthy"))
 					}
 				}
-				g.Expect(traitFound).Should(BeFalse())
+				g.Expect(traitFound).Should(BeTrue())
 			}, 180*time.Second, 5*time.Second).Should(Succeed())
 		})
 	})
@@ -703,6 +707,10 @@ outputs: statusConfigMap: {
 								{
 									Type: traitDefName,
 								},
+								{
+									Type:       "scaler",
+									Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":3}`)},
+								},
 							},
 						},
 					},
@@ -715,6 +723,10 @@ outputs: statusConfigMap: {
 				checkApp := &v1beta1.Application{}
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-postdispatch-app"}, checkApp)).Should(Succeed())
 				g.Expect(checkApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+
+				dep := &appsv1.Deployment{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-worker"}, dep)).Should(Succeed())
+				g.Expect(*dep.Spec.Replicas).Should(Equal(int32(3)))
 			}, 60*time.Second, 3*time.Second).Should(Succeed())
 
 			By("Verifying component Deployment is created and healthy")
@@ -732,7 +744,7 @@ outputs: statusConfigMap: {
 				g.Expect(status).ShouldNot(BeNil())
 
 				replicas, _, _ := unstructured.NestedInt64(status, "replicas")
-				g.Expect(replicas).Should(Equal(int64(1)))
+				g.Expect(replicas).Should(Equal(int64(3)))
 			}, 30*time.Second, 2*time.Second).Should(Succeed())
 
 			By("Verifying PostDispatch trait ConfigMap was created with status data")
@@ -741,8 +753,8 @@ outputs: statusConfigMap: {
 				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: "test-component-status"}, cm)).Should(Succeed())
 				g.Expect(cm.Data).ShouldNot(BeNil())
 				g.Expect(cm.Data["componentName"]).Should(Equal("test-component"))
-				g.Expect(cm.Data["replicas"]).Should(Equal("1"))
-				g.Expect(cm.Data["readyReplicas"]).Should(Equal("1"))
+				g.Expect(cm.Data["replicas"]).Should(Equal("3"))
+				g.Expect(cm.Data["readyReplicas"]).Should(Equal("3"))
 			}, 300*time.Second, 3*time.Second).Should(Succeed())
 
 			By("Verifying PostDispatch trait appears in application status")
@@ -908,14 +920,15 @@ outputs: marker: {
 				foundPendingTrait := false
 				for _, trait := range svc.Traits {
 					if trait.Type == traitDefName {
-						// Trait should show as pending and not healthy
+						// Trait should be pending and not healthy
 						foundPendingTrait = true
 						break
 					}
 				}
-				// If workflow is running, we will not be able to see the pending trait status yet
 				if checkApp.Status.Phase == common.ApplicationRunningWorkflow {
-					g.Expect(foundPendingTrait).Should(BeFalse())
+					g.Expect(foundPendingTrait).Should(BeTrue())
+					g.Expect(svc.Traits[0].Pending).Should(BeTrue())
+					g.Expect(svc.Traits[0].Message).Should(ContainSubstring("Waiting for component to be healthy"))
 				}
 			}, 20*time.Second, 500*time.Millisecond).Should(Succeed())
 
@@ -943,6 +956,7 @@ outputs: marker: {
 						foundTrait = true
 						// Trait should be healthy, not pending, and not waiting anymore
 						g.Expect(trait.Healthy).Should(BeTrue())
+						g.Expect(trait.Pending).Should(BeFalse())
 						break
 					}
 				}
@@ -1100,6 +1114,556 @@ outputs: statusConfigMap: {
 			Expect(k8sClient.Delete(ctx, app)).Should(Succeed())
 			Expect(k8sClient.Delete(ctx, traitDef)).Should(Succeed())
 			Expect(k8sClient.Delete(ctx, compDef)).Should(Succeed())
+		})
+	})
+
+	Context("Test PostDispatch health status with multiple components", func() {
+		It("Should mark all components and PostDispatch traits healthy", func() {
+			deploymentTraitName := "test-deployment-trait-" + randomNamespaceName("")
+			cmTraitName := "test-cm-trait-" + randomNamespaceName("")
+			appName := "app-postdispatch-multi-healthy-" + randomNamespaceName("")
+
+			By("Creating PostDispatch deployment trait definition")
+			deploymentTrait := &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      deploymentTraitName,
+					Namespace: "vela-system",
+				},
+				Spec: v1beta1.TraitDefinitionSpec{
+					Stage: v1beta1.PostDispatch,
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+outputs: statusPod: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	metadata: {
+		name: parameter.name
+	}
+	spec: {
+		replicas: context.output.status.replicas
+		selector: matchLabels: {
+			app: parameter.name
+		}
+		template: {
+			metadata: labels: {
+				app: parameter.name
+			}
+			spec: containers: [{
+				name: parameter.name
+				image: parameter.image
+			}]
+		}
+	}
+}
+
+parameter: {
+	name: string
+	image: string
+}
+`,
+						},
+					},
+					Status: &common.Status{
+						HealthPolicy: `pod: context.outputs.statusPod
+ready: {
+	updatedReplicas:    *0 | int
+	readyReplicas:      *0 | int
+	replicas:           *0 | int
+	observedGeneration: *0 | int
+} & {
+	if pod.status.updatedReplicas != _|_ {
+		updatedReplicas: pod.status.updatedReplicas
+	}
+	if pod.status.readyReplicas != _|_ {
+		readyReplicas: pod.status.readyReplicas
+	}
+	if pod.status.replicas != _|_ {
+		replicas: pod.status.replicas
+	}
+	if pod.status.observedGeneration != _|_ {
+		observedGeneration: pod.status.observedGeneration
+	}
+}
+_isHealth: (pod.spec.replicas == ready.readyReplicas) && (pod.spec.replicas == ready.updatedReplicas) && (pod.spec.replicas == ready.replicas) && (ready.observedGeneration == pod.metadata.generation || ready.observedGeneration > pod.metadata.generation)
+isHealth: *_isHealth | bool
+if pod.metadata.annotations != _|_ {
+	if pod.metadata.annotations["app.oam.dev/disable-health-check"] != _|_ {
+		isHealth: true
+	}
+}
+`,
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, deploymentTrait)).Should(Succeed())
+
+			By("Creating PostDispatch configmap trait definition")
+			cmTrait := &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      cmTraitName,
+					Namespace: "vela-system",
+				},
+				Spec: v1beta1.TraitDefinitionSpec{
+					Stage: v1beta1.PostDispatch,
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+outputs: statusConfigMap: {
+	apiVersion: "v1"
+	kind: "ConfigMap"
+	metadata: {
+		name: context.name + "-status"
+		namespace: context.namespace
+	}
+	data: {
+		replicas: "\(context.output.status.replicas)"
+		readyReplicas: "\(context.output.status.readyReplicas)"
+		componentName: context.name
+	}
+}
+`,
+						},
+					},
+					Status: &common.Status{
+						HealthPolicy: `cm: context.outputs.statusConfigMap
+_isHealth: cm.data.readyReplicas != "2"
+isHealth: *_isHealth | bool
+`,
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, cmTrait)).Should(Succeed())
+			DeferCleanup(func() {
+				_ = k8sClient.Delete(ctx, deploymentTrait)
+				_ = k8sClient.Delete(ctx, cmTrait)
+			})
+
+			app := &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      appName,
+					Namespace: namespace,
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name:       "test-deployment-a",
+							Type:       "webservice",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.21","port":80,"cpu":"100m","memory":"128Mi"}`)},
+							Traits: []common.ApplicationTrait{
+								{Type: "scaler", Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":3}`)}},
+								{Type: deploymentTraitName, Properties: &runtime.RawExtension{Raw: []byte(`{"name":"trait-deployment-a","image":"nginx:1.21"}`)}},
+								{Type: cmTraitName},
+							},
+						},
+						{
+							Name:       "test-deployment-b",
+							Type:       "webservice",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.21","port":80,"cpu":"100m","memory":"128Mi"}`)},
+							Traits: []common.ApplicationTrait{
+								{Type: "scaler", Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":3}`)}},
+								{Type: deploymentTraitName, Properties: &runtime.RawExtension{Raw: []byte(`{"name":"trait-deployment-b","image":"nginx:1.21"}`)}},
+								{Type: cmTraitName},
+							},
+						},
+					},
+				},
+			}
+			DeferCleanup(func() { _ = k8sClient.Delete(ctx, app) })
+
+			By("Creating application with multiple components")
+			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+			By("Waiting for application, components, and PostDispatch traits to become healthy")
+			Eventually(func(g Gomega) {
+				checkApp := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, checkApp)).Should(Succeed())
+				g.Expect(checkApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+				g.Expect(checkApp.Status.Services).Should(HaveLen(2))
+				for _, svc := range checkApp.Status.Services {
+					g.Expect(svc.Healthy).Should(BeTrue())
+					for _, traitStatus := range svc.Traits {
+						g.Expect(traitStatus.Healthy).Should(BeTrue())
+						g.Expect(traitStatus.Pending).Should(BeFalse())
+					}
+				}
+			}, 180*time.Second, 5*time.Second).Should(Succeed())
+		})
+
+		It("Should show one PostDispatch trait unhealthy while others stay healthy", func() {
+			deploymentTraitName := "test-deployment-trait-" + randomNamespaceName("")
+			cmTraitName := "test-cm-trait-" + randomNamespaceName("")
+			appName := "app-postdispatch-multi-trait-unhealthy-" + randomNamespaceName("")
+
+			By("Creating PostDispatch deployment trait definition")
+			deploymentTrait := &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      deploymentTraitName,
+					Namespace: "vela-system",
+				},
+				Spec: v1beta1.TraitDefinitionSpec{
+					Stage: v1beta1.PostDispatch,
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+outputs: statusPod: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	metadata: {
+		name: parameter.name
+	}
+	spec: {
+		replicas: context.output.status.replicas
+		selector: matchLabels: {
+			app: parameter.name
+		}
+		template: {
+			metadata: labels: {
+				app: parameter.name
+			}
+			spec: containers: [{
+				name: parameter.name
+				image: parameter.image
+			}]
+		}
+	}
+}
+
+parameter: {
+	name: string
+	image: string
+}
+`,
+						},
+					},
+					Status: &common.Status{
+						HealthPolicy: `pod: context.outputs.statusPod
+ready: {
+	updatedReplicas:    *0 | int
+	readyReplicas:      *0 | int
+	replicas:           *0 | int
+	observedGeneration: *0 | int
+} & {
+	if pod.status.updatedReplicas != _|_ {
+		updatedReplicas: pod.status.updatedReplicas
+	}
+	if pod.status.readyReplicas != _|_ {
+		readyReplicas: pod.status.readyReplicas
+	}
+	if pod.status.replicas != _|_ {
+		replicas: pod.status.replicas
+	}
+	if pod.status.observedGeneration != _|_ {
+		observedGeneration: pod.status.observedGeneration
+	}
+}
+_isHealth: (pod.spec.replicas == ready.readyReplicas) && (pod.spec.replicas == ready.updatedReplicas) && (pod.spec.replicas == ready.replicas) && (ready.observedGeneration == pod.metadata.generation || ready.observedGeneration > pod.metadata.generation)
+isHealth: *_isHealth | bool
+if pod.metadata.annotations != _|_ {
+	if pod.metadata.annotations["app.oam.dev/disable-health-check"] != _|_ {
+		isHealth: true
+	}
+}
+`,
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, deploymentTrait)).Should(Succeed())
+
+			By("Creating PostDispatch configmap trait definition")
+			cmTrait := &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      cmTraitName,
+					Namespace: "vela-system",
+				},
+				Spec: v1beta1.TraitDefinitionSpec{
+					Stage: v1beta1.PostDispatch,
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+outputs: statusConfigMap: {
+	apiVersion: "v1"
+	kind: "ConfigMap"
+	metadata: {
+		name: context.name + "-status"
+		namespace: context.namespace
+	}
+	data: {
+		replicas: "\(context.output.status.replicas)"
+		readyReplicas: "\(context.output.status.readyReplicas)"
+		componentName: context.name
+	}
+}
+`,
+						},
+					},
+					Status: &common.Status{
+						HealthPolicy: `cm: context.outputs.statusConfigMap
+_isHealth: cm.data.readyReplicas != "2"
+isHealth: *_isHealth | bool
+`,
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, cmTrait)).Should(Succeed())
+			DeferCleanup(func() {
+				_ = k8sClient.Delete(ctx, deploymentTrait)
+				_ = k8sClient.Delete(ctx, cmTrait)
+			})
+
+			app := &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      appName,
+					Namespace: namespace,
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name:       "test-deployment-a",
+							Type:       "webservice",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.21","port":80,"cpu":"100m","memory":"128Mi"}`)},
+							Traits: []common.ApplicationTrait{
+								{Type: "scaler", Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":2}`)}},
+								{Type: deploymentTraitName, Properties: &runtime.RawExtension{Raw: []byte(`{"name":"trait-deployment-a","image":"nginx:1.21"}`)}},
+								{Type: cmTraitName},
+							},
+						},
+						{
+							Name:       "test-deployment-b",
+							Type:       "webservice",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.21","port":80,"cpu":"100m","memory":"128Mi"}`)},
+							Traits: []common.ApplicationTrait{
+								{Type: "scaler", Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":3}`)}},
+								{Type: deploymentTraitName, Properties: &runtime.RawExtension{Raw: []byte(`{"name":"trait-deployment-b","image":"nginx:1.21"}`)}},
+								{Type: cmTraitName},
+							},
+						},
+					},
+				},
+			}
+			DeferCleanup(func() { _ = k8sClient.Delete(ctx, app) })
+
+			By("Creating application with a faulty PostDispatch trait")
+			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+			By("Waiting for the faulty PostDispatch trait to report unhealthy")
+			Eventually(func(g Gomega) {
+				checkApp := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, checkApp)).Should(Succeed())
+				g.Expect(checkApp.Status.Services).Should(HaveLen(2))
+
+				for _, svc := range checkApp.Status.Services {
+					switch svc.Name {
+					case "test-deployment-a":
+						g.Expect(svc.Healthy).Should(BeFalse())
+						var pdDeployHealthy, pdCMHealthy bool
+						for _, traitStatus := range svc.Traits {
+							if traitStatus.Type == deploymentTraitName {
+								pdDeployHealthy = traitStatus.Healthy
+							}
+							if traitStatus.Type == cmTraitName {
+								pdCMHealthy = traitStatus.Healthy
+							}
+						}
+						g.Expect(pdDeployHealthy).Should(BeTrue())
+						g.Expect(pdCMHealthy).Should(BeFalse())
+					case "test-deployment-b":
+						g.Expect(svc.Healthy).Should(BeTrue())
+						for _, traitStatus := range svc.Traits {
+							g.Expect(traitStatus.Healthy).Should(BeTrue())
+							g.Expect(traitStatus.Pending).Should(BeFalse())
+						}
+					}
+				}
+			}, 240*time.Second, 5*time.Second).Should(Succeed())
+		})
+
+		It("Should keep PostDispatch traits pending for an unhealthy component while other component stays healthy", func() {
+			deploymentTraitName := "test-deployment-trait-" + randomNamespaceName("")
+			cmTraitName := "test-cm-trait-" + randomNamespaceName("")
+			appName := "app-postdispatch-multi-component-unhealthy-" + randomNamespaceName("")
+
+			By("Creating PostDispatch deployment trait definition")
+			deploymentTrait := &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      deploymentTraitName,
+					Namespace: "vela-system",
+				},
+				Spec: v1beta1.TraitDefinitionSpec{
+					Stage: v1beta1.PostDispatch,
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+outputs: statusPod: {
+	apiVersion: "apps/v1"
+	kind: "Deployment"
+	metadata: {
+		name: parameter.name
+	}
+	spec: {
+		replicas: context.output.status.replicas
+		selector: matchLabels: {
+			app: parameter.name
+		}
+		template: {
+			metadata: labels: {
+				app: parameter.name
+			}
+			spec: containers: [{
+				name: parameter.name
+				image: parameter.image
+			}]
+		}
+	}
+}
+
+parameter: {
+	name: string
+	image: string
+}
+`,
+						},
+					},
+					Status: &common.Status{
+						HealthPolicy: `pod: context.outputs.statusPod
+ready: {
+	updatedReplicas:    *0 | int
+	readyReplicas:      *0 | int
+	replicas:           *0 | int
+	observedGeneration: *0 | int
+} & {
+	if pod.status.updatedReplicas != _|_ {
+		updatedReplicas: pod.status.updatedReplicas
+	}
+	if pod.status.readyReplicas != _|_ {
+		readyReplicas: pod.status.readyReplicas
+	}
+	if pod.status.replicas != _|_ {
+		replicas: pod.status.replicas
+	}
+	if pod.status.observedGeneration != _|_ {
+		observedGeneration: pod.status.observedGeneration
+	}
+}
+_isHealth: (pod.spec.replicas == ready.readyReplicas) && (pod.spec.replicas == ready.updatedReplicas) && (pod.spec.replicas == ready.replicas) && (ready.observedGeneration == pod.metadata.generation || ready.observedGeneration > pod.metadata.generation)
+isHealth: *_isHealth | bool
+if pod.metadata.annotations != _|_ {
+	if pod.metadata.annotations["app.oam.dev/disable-health-check"] != _|_ {
+		isHealth: true
+	}
+}
+`,
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, deploymentTrait)).Should(Succeed())
+
+			By("Creating PostDispatch configmap trait definition")
+			cmTrait := &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      cmTraitName,
+					Namespace: "vela-system",
+				},
+				Spec: v1beta1.TraitDefinitionSpec{
+					Stage: v1beta1.PostDispatch,
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `
+outputs: statusConfigMap: {
+	apiVersion: "v1"
+	kind: "ConfigMap"
+	metadata: {
+		name: context.name + "-status"
+		namespace: context.namespace
+	}
+	data: {
+		replicas: "\(context.output.status.replicas)"
+		readyReplicas: "\(context.output.status.readyReplicas)"
+		componentName: context.name
+	}
+}
+`,
+						},
+					},
+					Status: &common.Status{
+						HealthPolicy: `cm: context.outputs.statusConfigMap
+_isHealth: cm.data.readyReplicas != "2"
+isHealth: *_isHealth | bool
+`,
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, cmTrait)).Should(Succeed())
+			DeferCleanup(func() {
+				_ = k8sClient.Delete(ctx, deploymentTrait)
+				_ = k8sClient.Delete(ctx, cmTrait)
+			})
+
+			app := &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      appName,
+					Namespace: namespace,
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name:       "bad-component",
+							Type:       "webservice",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.21abc","port":80,"cpu":"100m","memory":"128Mi"}`)},
+							Traits: []common.ApplicationTrait{
+								{Type: "scaler", Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":1}`)}},
+								{Type: deploymentTraitName, Properties: &runtime.RawExtension{Raw: []byte(`{"name":"trait-deployment-bad","image":"nginx:1.21"}`)}},
+								{Type: cmTraitName},
+							},
+						},
+						{
+							Name:       "good-component",
+							Type:       "webservice",
+							Properties: &runtime.RawExtension{Raw: []byte(`{"image":"nginx:1.21","port":80,"cpu":"100m","memory":"128Mi"}`)},
+							Traits: []common.ApplicationTrait{
+								{Type: "scaler", Properties: &runtime.RawExtension{Raw: []byte(`{"replicas":3}`)}},
+								{Type: deploymentTraitName, Properties: &runtime.RawExtension{Raw: []byte(`{"name":"trait-deployment-good","image":"nginx:1.21"}`)}},
+								{Type: cmTraitName},
+							},
+						},
+					},
+				},
+			}
+			DeferCleanup(func() { _ = k8sClient.Delete(ctx, app) })
+
+			By("Creating application with one unhealthy component")
+			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+			By("Waiting for PostDispatch traits to remain pending for the unhealthy component")
+			Eventually(func(g Gomega) {
+				checkApp := &v1beta1.Application{}
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, checkApp)).Should(Succeed())
+				g.Expect(checkApp.Status.Services).Should(HaveLen(2))
+
+				for _, svc := range checkApp.Status.Services {
+					switch svc.Name {
+					case "bad-component":
+						g.Expect(svc.Healthy).Should(BeFalse())
+						for _, traitStatus := range svc.Traits {
+							if traitStatus.Type == deploymentTraitName || traitStatus.Type == cmTraitName {
+								g.Expect(traitStatus.Healthy).Should(BeFalse())
+								g.Expect(traitStatus.Pending).Should(BeTrue())
+								g.Expect(traitStatus.Message).Should(ContainSubstring("Waiting for component to be healthy"))
+							}
+							if traitStatus.Type == "scaler" {
+								g.Expect(traitStatus.Healthy).Should(BeTrue())
+								g.Expect(traitStatus.Pending).Should(BeFalse())
+							}
+						}
+					case "good-component":
+						g.Expect(svc.Healthy).Should(BeTrue())
+						for _, traitStatus := range svc.Traits {
+							g.Expect(traitStatus.Healthy).Should(BeTrue())
+							g.Expect(traitStatus.Pending).Should(BeFalse())
+						}
+					}
+				}
+			}, 240*time.Second, 5*time.Second).Should(Succeed())
 		})
 	})
 })
