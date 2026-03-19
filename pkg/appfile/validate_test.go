@@ -17,6 +17,7 @@ limitations under the License.
 package appfile
 
 import (
+	"fmt"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -732,15 +733,19 @@ func TestCheckUndeclaredParams(t *testing.T) {
 }
 
 func TestValidateUndeclaredParams_FeatureGate(t *testing.T) {
+	prevCue := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation)
+	prevUndeclared := utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateUndeclaredParameters)
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			fmt.Sprintf("%s=%t,%s=%t",
+				string(features.EnableCueValidation), prevCue,
+				string(features.ValidateUndeclaredParameters), prevUndeclared)))
+	})
+
 	t.Run("gate disabled - undeclared params allowed", func(t *testing.T) {
 		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
 			string(features.EnableCueValidation)+"=true,"+
 				string(features.ValidateUndeclaredParameters)+"=false"))
-		t.Cleanup(func() {
-			assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
-				string(features.EnableCueValidation)+"=false,"+
-					string(features.ValidateUndeclaredParameters)+"=false"))
-		})
 
 		wl := &Component{
 			Name: "my-comp",
@@ -761,11 +766,6 @@ func TestValidateUndeclaredParams_FeatureGate(t *testing.T) {
 		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
 			string(features.EnableCueValidation)+"=true,"+
 				string(features.ValidateUndeclaredParameters)+"=true"))
-		t.Cleanup(func() {
-			assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
-				string(features.EnableCueValidation)+"=false,"+
-					string(features.ValidateUndeclaredParameters)+"=false"))
-		})
 
 		wl := &Component{
 			Name: "my-comp",
@@ -787,9 +787,11 @@ func TestValidateUndeclaredParams_FeatureGate(t *testing.T) {
 
 // TestValidateCUESchematicAppfile_WorkflowSuppliedParams tests validation with workflow-supplied parameters (issue #7022)
 func TestValidateCUESchematicAppfile_WorkflowSuppliedParams(t *testing.T) {
+	prevCue := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation)
 	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=true"))
 	t.Cleanup(func() {
-		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=false"))
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			fmt.Sprintf("%s=%t", string(features.EnableCueValidation), prevCue)))
 	})
 
 	componentTemplate := `

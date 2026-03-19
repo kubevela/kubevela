@@ -157,8 +157,6 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 	// ---------------------------------------------------------------------
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateUndeclaredParameters) {
 		// Compile the template WITHOUT user params to get the pure schema.
-		// The unified value (val) already contains user params, so undeclared
-		// fields would appear as valid fields there.
 		schemaSrc := strings.Join([]string{
 			renderTemplate(wl.FullTemplate.TemplateStr),
 			baseCtx,
@@ -168,8 +166,41 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 			klog.V(4).Infof("component %q: skipping undeclared parameter check: schema compilation failed: %v", wl.Name, schemaErr)
 		} else {
 			paramSchema := schemaRoot.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
-			if err := checkUndeclaredParams(paramSchema, wl.Params); err != nil {
-				return errors.WithMessagef(err, "component %q", wl.Name)
+			undeclared := findUndeclaredFields(paramSchema, wl.Params, "")
+
+			// Second pass: resolve conditional parameter declarations by
+			// re-compiling with only the base-declared params so CUE
+			// conditionals (e.g. if mode == "x" { field?: T }) evaluate.
+			if len(undeclared) > 0 {
+				baseDeclared := getDeclaredFieldNames(paramSchema)
+				if len(baseDeclared) > 0 {
+					filteredParams := make(map[string]any)
+					for k, v := range wl.Params {
+						if baseDeclared[k] {
+							filteredParams[k] = v
+						}
+					}
+					condSnippet, fErr := cueParamBlock(filteredParams)
+					if fErr == nil {
+						condSrc := strings.Join([]string{
+							renderTemplate(wl.FullTemplate.TemplateStr),
+							condSnippet,
+							baseCtx,
+						}, "\n")
+						condRoot, condErr := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), condSrc)
+						if condErr == nil {
+							condSchema := condRoot.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
+							undeclared = findUndeclaredFields(condSchema, wl.Params, "")
+						}
+					}
+				}
+			}
+
+			if len(undeclared) > 0 {
+				sort.Strings(undeclared)
+				return errors.WithMessagef(
+					fmt.Errorf("undeclared parameters: %s", strings.Join(undeclared, ",")),
+					"component %q", wl.Name)
 			}
 		}
 	}
@@ -203,10 +234,13 @@ func findUndeclaredFields(schema cue.Value, params map[string]any, prefix string
 	// Collect declared field names from the schema (required + optional).
 	declared := make(map[string]cue.Value)
 	it, err := schema.Fields(cue.Optional(true), cue.Definitions(false), cue.Hidden(false))
-	if err == nil {
-		for it.Next() {
-			declared[cueutils.GetSelectorLabel(it.Selector())] = it.Value()
-		}
+	if err != nil {
+		// Cannot enumerate schema fields; skip undeclared check at this level
+		// to avoid false positives when field iteration fails.
+		return nil
+	}
+	for it.Next() {
+		declared[cueutils.GetSelectorLabel(it.Selector())] = it.Value()
 	}
 
 	var undeclared []string
@@ -224,8 +258,34 @@ func findUndeclaredFields(schema cue.Value, params map[string]any, prefix string
 		if nested, isMap := val.(map[string]any); isMap && fieldSchema.IncompleteKind() == cue.StructKind {
 			undeclared = append(undeclared, findUndeclaredFields(fieldSchema, nested, path)...)
 		}
+		// Recurse into list elements that contain structs.
+		if items, isList := val.([]any); isList && fieldSchema.IncompleteKind() == cue.ListKind {
+			elemSchema := fieldSchema.LookupPath(cue.MakePath(cue.AnyIndex))
+			if elemSchema.Exists() && elemSchema.IncompleteKind() == cue.StructKind {
+				for i, item := range items {
+					if nested, isMap := item.(map[string]any); isMap {
+						elemPath := fmt.Sprintf("%s[%d]", path, i)
+						undeclared = append(undeclared, findUndeclaredFields(elemSchema, nested, elemPath)...)
+					}
+				}
+			}
+		}
 	}
 	return undeclared
+}
+
+// getDeclaredFieldNames returns the set of top-level field names declared in
+// the CUE schema (including optional fields).
+func getDeclaredFieldNames(schema cue.Value) map[string]bool {
+	declared := make(map[string]bool)
+	it, err := schema.Fields(cue.Optional(true), cue.Definitions(false), cue.Hidden(false))
+	if err != nil {
+		return declared
+	}
+	for it.Next() {
+		declared[cueutils.GetSelectorLabel(it.Selector())] = true
+	}
+	return declared
 }
 
 // cueParamBlock marshals the Params map into a `parameter:` block suitable
