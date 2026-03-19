@@ -209,6 +209,40 @@ type Revision struct {
 	RevisionHash string `json:"revisionHash,omitempty"`
 }
 
+// AppliedApplicationPolicy records minimal status information about an Application-scoped policy.
+// This covers both global (auto-discovered) and explicit (spec-referenced) policies.
+// Full details (transforms, labels, annotations, etc.) are stored in the ConfigMap referenced
+// by ApplicationPoliciesConfigMap for persistent storage and observability.
+type AppliedApplicationPolicy struct {
+	Name      string `json:"name"`
+	Type      string `json:"type,omitempty"`
+	Namespace string `json:"namespace"`
+	Applied   bool   `json:"applied"`
+	Error     bool   `json:"error,omitempty"`
+	Message   string `json:"message,omitempty"`
+	Source    string `json:"source,omitempty"` // "global" or "explicit" - how the policy was applied
+
+	SpecModified     bool `json:"specModified,omitempty"`
+	LabelsCount      int  `json:"labelsCount,omitempty"`
+	AnnotationsCount int  `json:"annotationsCount,omitempty"`
+	HasContext       bool `json:"hasContext,omitempty"`
+
+	// Version tracking
+	// DefinitionRevisionName is the DefinitionRevision resource name if a versioned policy was used (e.g., "my-policy-v3")
+	// Empty if the policy wasn't versioned (used latest PolicyDefinition)
+	// +optional
+	DefinitionRevisionName string `json:"definitionRevisionName,omitempty"`
+
+	// Revision is the revision number from the DefinitionRevision (e.g. 3)
+	// +optional
+	Revision int64 `json:"revision,omitempty"`
+
+	// RevisionHash is the hash of the PolicyDefinition template from the DefinitionRevision
+	// This is the definitive proof of exactly what template was used
+	// +optional
+	RevisionHash string `json:"revisionHash,omitempty"`
+}
+
 // AppStatus defines the observed state of Application
 type AppStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
@@ -242,6 +276,16 @@ type AppStatus struct {
 
 	// AppliedResources record the resources that the  workflow step apply.
 	AppliedResources []ClusterObjectReference `json:"appliedResources,omitempty"`
+
+	// AppliedApplicationPolicies lists Application-scoped policies (both global and explicit)
+	// that were discovered and applied (or skipped) during reconciliation.
+	// +optional
+	AppliedApplicationPolicies []AppliedApplicationPolicy `json:"appliedApplicationPolicies,omitempty"`
+
+	// ApplicationPoliciesConfigMap references the ConfigMap containing rendered policy outputs
+	// Format: "application-policies-{namespace}-{name}"
+	// +optional
+	ApplicationPoliciesConfigMap string `json:"applicationPoliciesConfigMap,omitempty"`
 
 	// PolicyStatus records the status of policy
 	// Deprecated This field is only used by EnvBinding Policy which is deprecated.

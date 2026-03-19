@@ -24,6 +24,19 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
+// PolicyScope defines the scope at which a policy operates
+type PolicyScope string
+
+const (
+	// DefaultScope (empty string) means standard output / builtin policy
+	DefaultScope PolicyScope = ""
+
+	// ApplicationScope means the policy transforms the Application CR before parsing
+	// These policies use the Application transforms pattern
+	// (via output.{labels|annotations|ctx|components|traits|workflow|policies}) and don't generate resources
+	ApplicationScope PolicyScope = "Application"
+)
+
 // PolicyDefinitionSpec defines the desired state of PolicyDefinition
 type PolicyDefinitionSpec struct {
 	// Reference to the CustomResourceDefinition that defines this trait kind.
@@ -40,6 +53,30 @@ type PolicyDefinitionSpec struct {
 
 	//+optional
 	Version string `json:"version,omitempty"`
+
+	// Scope defines the scope at which this policy operates.
+	// - DefaultScope (empty/omitted): Standard output-based or builtin policies (topology, override, etc.)
+	//   These can generate Kubernetes resources from CUE templates with an 'output' field or apply Go-logic in the controller
+	// - ApplicationScope: Transform-based policies that modify the Application CR before parsing.
+	//   Requires EnableApplicationScopedPolicies feature gate.
+	// +optional
+	Scope PolicyScope `json:"scope,omitempty"`
+
+	// Global indicates this policy should automatically apply to all Applications
+	// in this namespace (or all namespaces if in vela-system).
+	// Global policies cannot be explicitly referenced in Application specs.
+	// Requires EnableGlobalPolicies feature gate for discovery and
+	// EnableApplicationScopedPolicies feature gate for execution.
+	// +optional
+	Global bool `json:"global,omitempty"`
+
+	// Priority defines the order in which global policies are applied.
+	// Lower values run first (e.g. 0 runs before 100), following the same
+	// convention as Kubernetes admission webhooks. Policies with the same
+	// priority are applied in alphabetical order by name.
+	// If not specified, defaults to 0.
+	// +optional
+	Priority int32 `json:"priority,omitempty"`
 }
 
 // PolicyDefinitionStatus is the status of PolicyDefinition

@@ -322,6 +322,66 @@ spec:
           status:
             description: AppStatus defines the observed state of Application
             properties:
+              applicationPoliciesConfigMap:
+                description: |-
+                  ApplicationPoliciesConfigMap references the ConfigMap containing rendered policy outputs
+                  Format: "application-policies-{namespace}-{name}"
+                type: string
+              appliedApplicationPolicies:
+                description: |-
+                  AppliedApplicationPolicies lists Application-scoped policies (both global and explicit)
+                  that were discovered and applied (or skipped) during reconciliation.
+                items:
+                  description: |-
+                    AppliedApplicationPolicy records minimal status information about an Application-scoped policy.
+                    This covers both global (auto-discovered) and explicit (spec-referenced) policies.
+                    Full details (transforms, labels, annotations, etc.) are stored in the ConfigMap referenced
+                    by ApplicationPoliciesConfigMap for persistent storage and observability.
+                  properties:
+                    annotationsCount:
+                      type: integer
+                    applied:
+                      type: boolean
+                    definitionRevisionName:
+                      description: |-
+                        Version tracking
+                        DefinitionRevisionName is the DefinitionRevision resource name if a versioned policy was used (e.g., "my-policy-v3")
+                        Empty if the policy wasn't versioned (used latest PolicyDefinition)
+                      type: string
+                    error:
+                      type: boolean
+                    hasContext:
+                      type: boolean
+                    labelsCount:
+                      type: integer
+                    message:
+                      type: string
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                    revision:
+                      description: Revision is the revision number from the DefinitionRevision
+                        (e.g. 3)
+                      format: int64
+                      type: integer
+                    revisionHash:
+                      description: |-
+                        RevisionHash is the hash of the PolicyDefinition template from the DefinitionRevision
+                        This is the definitive proof of exactly what template was used
+                      type: string
+                    source:
+                      type: string
+                    specModified:
+                      type: boolean
+                    type:
+                      type: string
+                  required:
+                  - applied
+                  - name
+                  - namespace
+                  type: object
+                type: array
               appliedResources:
                 description: AppliedResources record the resources that the  workflow
                   step apply.

@@ -261,7 +261,7 @@ func getComponentType(app *v1beta1.Application, name string) string {
 			return c.Type
 		}
 	}
-	return "webservice"
+	return "unknown"
 }
 
 func printWorkflowStatus(c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string, detail bool) error {
@@ -349,6 +349,20 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 	if err != nil {
 		return err
 	}
+
+	// Use the ApplicationRevision spec for component type lookup — it reflects
+	// policy-transformed components that were actually deployed.
+	specApp := remoteApp
+	if remoteApp.Status.LatestRevision != nil && remoteApp.Status.LatestRevision.Name != "" {
+		appRev := &v1beta1.ApplicationRevision{}
+		if err := c.Get(context.Background(), client.ObjectKey{
+			Name:      remoteApp.Status.LatestRevision.Name,
+			Namespace: namespace,
+		}, appRev); err == nil {
+			specApp = appRev.Spec.Application.DeepCopy()
+		}
+	}
+
 	if len(remoteApp.Status.Services) > 0 {
 		ioStreams.Infof("Services:\n\n")
 	}
@@ -366,7 +380,7 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 		if comp.Namespace != "" {
 			ioStreams.Infof("%s", fmt.Sprintf("    Namespace: %s\n", comp.Namespace))
 		}
-		ioStreams.Infof("    Type: %s\n", getComponentType(remoteApp, compName))
+		ioStreams.Infof("    Type: %s\n", getComponentType(specApp, compName))
 
 		var healthEmoji = emojiSucceed
 		if !comp.Healthy {
@@ -383,11 +397,6 @@ func loopCheckStatus(c client.Client, ioStreams cmdutil.IOStreams, appName strin
 			}
 		}
 
-		// load it again after health check
-		remoteApp, err = loadRemoteApplication(c, namespace, appName)
-		if err != nil {
-			return err
-		}
 		// workload Must found
 		if len(comp.Traits) > 0 {
 			ioStreams.Infof("    Traits:\n")

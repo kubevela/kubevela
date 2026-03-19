@@ -101,6 +101,8 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.enableCueValidation`                           | enable the strict cue validation for cue required parameter fields                                                                                                                                                               | `false` |
 | `featureGates.enableApplicationStatusMetrics`                | enable application status metrics and structured logging                                                                                                                                                                         | `false` |
 | `featureGates.validateResourcesExist`                        | enable webhook validation to check if resource types referenced in definition templates exist in the cluster                                                                                                                     | `false` |
+| `featureGates.enableApplicationScopedPolicies`               | enable Application-scoped PolicyDefinitions that transform Application CR before rendering (Alpha)                                                                                                                               | `false` |
+| `featureGates.enableGlobalPolicies`                          | enable automatic discovery and application of global PolicyDefinitions to all Applications (Alpha)                                                                                                                               | `false` |
 
 ### MultiCluster parameters
 

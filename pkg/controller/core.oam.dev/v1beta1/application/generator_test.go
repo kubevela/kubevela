@@ -110,7 +110,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		}
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
-		_, err = af.GeneratePolicyManifests(context.Background())
+		_, err = af.GeneratePolicyManifests(context.Background(), k8sClient)
 		Expect(err).Should(BeNil())
 
 		handler, err := NewAppHandler(ctx, reconciler, app)
@@ -153,7 +153,7 @@ var _ = Describe("Test Application workflow generator", func() {
 		}
 		af, err := appParser.GenerateAppFile(ctx, app)
 		Expect(err).Should(BeNil())
-		_, err = af.GeneratePolicyManifests(context.Background())
+		_, err = af.GeneratePolicyManifests(context.Background(), k8sClient)
 		Expect(err).Should(BeNil())
 
 		handler, err := NewAppHandler(ctx, reconciler, app)
@@ -296,7 +296,7 @@ var _ = Describe("Test Application workflow generator", func() {
 			},
 			Spec: oamcore.ApplicationSpec{Components: []common.ApplicationComponent{}},
 		}
-		ctxData := generateContextDataFromApp(app, "apprev-with-meta")
+		ctxData := generateContextDataFromApp(context.Background(), app, "apprev-with-meta")
 		Expect(ctxData.AppLabels).To(Equal(app.Labels))
 		Expect(ctxData.AppAnnotations).To(Equal(app.Annotations))
 	})
@@ -307,7 +307,7 @@ var _ = Describe("Test Application workflow generator", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "app-without-meta", Namespace: namespaceName},
 			Spec:       oamcore.ApplicationSpec{Components: []common.ApplicationComponent{}},
 		}
-		ctxData := generateContextDataFromApp(app, "apprev-without-meta")
+		ctxData := generateContextDataFromApp(context.Background(), app, "apprev-without-meta")
 		Expect(ctxData.AppLabels).To(BeNil())
 		Expect(ctxData.AppAnnotations).To(BeNil())
 	})

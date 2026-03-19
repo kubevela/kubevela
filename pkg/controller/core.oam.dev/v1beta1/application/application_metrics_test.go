@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -308,6 +309,114 @@ func TestBuildServiceDetails(t *testing.T) {
 	}
 }
 
+func TestBuildAppliedPoliciesLog(t *testing.T) {
+	tests := []struct {
+		name     string
+		policies []common.AppliedApplicationPolicy
+		wantLen  int
+		wantNil  bool
+	}{
+		{
+			name:    "nil policies",
+			wantNil: true,
+		},
+		{
+			name:    "empty policies",
+			wantNil: true,
+		},
+		{
+			name: "applied global policy with changes",
+			policies: []common.AppliedApplicationPolicy{
+				{
+					Name:             "versioned-label-policy",
+					Type:             "versioned-label-policy",
+					Source:           PolicySourceGlobal,
+					Applied:          true,
+					SpecModified:     true,
+					LabelsCount:      3,
+					AnnotationsCount: 1,
+					HasContext:       true,
+				},
+			},
+			wantLen: 1,
+		},
+		{
+			name: "deliberately skipped policy",
+			policies: []common.AppliedApplicationPolicy{
+				{
+					Name:    "env-policy",
+					Type:    "env-binding",
+					Source:  PolicySourceGlobal,
+					Applied: false,
+					Message: "enabled=false",
+				},
+			},
+			wantLen: 1,
+		},
+		{
+			name: "failed global policy render error",
+			policies: []common.AppliedApplicationPolicy{
+				{
+					Name:    "broken-policy",
+					Type:    "broken-policy",
+					Source:  PolicySourceGlobal,
+					Applied: false,
+					Error:   true,
+					Message: "render error: CUE evaluation failed",
+				},
+			},
+			wantLen: 1,
+		},
+		{
+			name: "versioned policy",
+			policies: []common.AppliedApplicationPolicy{
+				{
+					Name:                   "my-policy",
+					Type:                   "my-policy",
+					Source:                 PolicySourceExplicit,
+					Applied:                true,
+					DefinitionRevisionName: "my-policy-v3",
+					Revision:               3,
+				},
+			},
+			wantLen: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildAppliedPoliciesLog(tt.policies)
+			if tt.wantNil {
+				assert.Nil(t, got)
+				return
+			}
+			assert.Len(t, got, tt.wantLen)
+			entry := got[0]
+			assert.Equal(t, tt.policies[0].Name, entry["name"])
+			assert.Equal(t, tt.policies[0].Source, entry["source"])
+			assert.Equal(t, tt.policies[0].Applied, entry["applied"])
+			if tt.policies[0].Error {
+				assert.Equal(t, true, entry["error"])
+			} else {
+				assert.Nil(t, entry["error"])
+			}
+			if tt.policies[0].Message != "" {
+				assert.Equal(t, tt.policies[0].Message, entry["message"])
+			}
+			if tt.policies[0].DefinitionRevisionName != "" {
+				assert.Equal(t, tt.policies[0].DefinitionRevisionName, entry["definition_revision"])
+				assert.Equal(t, tt.policies[0].Revision, entry["revision"])
+			}
+			if tt.policies[0].Applied && (tt.policies[0].SpecModified || tt.policies[0].LabelsCount > 0 || tt.policies[0].AnnotationsCount > 0 || tt.policies[0].HasContext) {
+				assert.Equal(t, tt.policies[0].SpecModified, entry["spec_modified"])
+				assert.Equal(t, tt.policies[0].LabelsCount, entry["labels_count"])
+				assert.Equal(t, tt.policies[0].AnnotationsCount, entry["annotations_count"])
+				assert.Equal(t, tt.policies[0].HasContext, entry["has_context"])
+			}
+		})
+	}
+}
+
 func TestUpdateHealthMetric(t *testing.T) {
 	// Reset the metric before testing
 	metrics.ApplicationHealthStatus.Reset()
@@ -508,7 +617,7 @@ func TestLogApplicationStatus(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.NotPanics(t, func() {
-				logApplicationStatus(tt.app, tt.healthStatus, tt.workflowStatus, tt.serviceDetails)
+				logApplicationStatus(tt.app, tt.healthStatus, tt.workflowStatus, tt.serviceDetails, nil)
 			})
 		})
 	}
@@ -617,4 +726,48 @@ func TestUpdateMetricsAndLogFunction(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	}
+}
+
+func TestUpdateMetricsAndLogUsesRevisionSpec(t *testing.T) {
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: "rev-app", Namespace: "default"},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{{Name: "original", Type: "webservice"}},
+		},
+		Status: common.AppStatus{
+			Phase: common.ApplicationRunning,
+			Services: []common.ApplicationComponentStatus{
+				{Name: "transformed", Healthy: true},
+			},
+			LatestRevision: &common.Revision{Name: "rev-app-v1"},
+		},
+	}
+
+	appRev := &v1beta1.ApplicationRevision{
+		ObjectMeta: metav1.ObjectMeta{Name: "rev-app-v1", Namespace: "default"},
+		Spec: v1beta1.ApplicationRevisionSpec{
+			ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+				Application: v1beta1.Application{
+					Spec: v1beta1.ApplicationSpec{
+						Components: []common.ApplicationComponent{{Name: "transformed", Type: "ocm-spoke-application"}},
+					},
+				},
+			},
+		},
+	}
+
+	s := newTestScheme(t)
+	cli := fake.NewClientBuilder().WithScheme(s).WithObjects(app, appRev).Build()
+	r := &Reconciler{Client: cli}
+
+	// buildServiceDetails with the revision spec should resolve the transformed type
+	specApp := appRev.Spec.Application.DeepCopy()
+	details := buildServiceDetails(specApp, app.Status.Services)
+	assert.Len(t, details, 1)
+	assert.Equal(t, "ocm-spoke-application", details[0]["type"])
+
+	// Full function must not panic with a real client
+	assert.NotPanics(t, func() {
+		r.updateMetricsAndLog(context.Background(), app)
+	})
 }
