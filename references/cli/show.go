@@ -143,6 +143,9 @@ func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOS
 				}
 			}
 			if webSite || generateDocOnly {
+				if version != "" {
+					return fmt.Errorf("--version cannot be used with --web or full-doc generation mode")
+				}
 				return startReferenceDocsSite(ctx, namespace, c, ioStreams, capabilityName)
 			}
 			if path != "" || showFormat == "md" || showFormat == "markdown" {

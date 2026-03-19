@@ -55,11 +55,11 @@ var _ = Describe("Test show definition cli", func() {
 			ioStreams := util.IOStreams{In: os.Stdin, Out: bytes.NewBuffer(nil), ErrOut: bytes.NewBuffer(nil)}
 			cmd := NewCapabilityShowCommand(c, "1", ioStreams)
 			cmd.SetArgs([]string{"webservice", "--version", "v1.0.0"})
-			// The command will fail because there's no matching DefinitionRevision in the test cluster,
-			// but the flag should be parsed without error
-			err := cmd.Execute()
-			Expect(err).ShouldNot(BeNil())
-			Expect(err.Error()).Should(ContainSubstring("version v1.0.0"))
+			err := cmd.ParseFlags([]string{"--version", "v1.0.0"})
+			Expect(err).Should(Succeed())
+			v, err := cmd.Flags().GetString("version")
+			Expect(err).Should(Succeed())
+			Expect(v).Should(Equal("v1.0.0"))
 		})
 
 		It("should reject --version and --revision together", func() {

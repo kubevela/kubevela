@@ -364,6 +364,7 @@ var _ = Describe("test GetCapabilityFromDefinitionRevisionByVersion", func() {
 		Expect(err).Should(Succeed())
 		Expect(cap).ShouldNot(BeNil())
 		Expect(cap.Name).Should(Equal("webservice"))
+		Expect(cap.Description).Should(ContainSubstring("v1.0.0"))
 	})
 
 	It("successful version match without v prefix", func() {
@@ -371,6 +372,7 @@ var _ = Describe("test GetCapabilityFromDefinitionRevisionByVersion", func() {
 		Expect(err).Should(Succeed())
 		Expect(cap).ShouldNot(BeNil())
 		Expect(cap.Name).Should(Equal("webservice"))
+		Expect(cap.Description).Should(ContainSubstring("v1.0.0"))
 	})
 
 	It("no match for non-existent version", func() {
