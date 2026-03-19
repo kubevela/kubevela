@@ -671,6 +671,64 @@ func TestCheckUndeclaredParams(t *testing.T) {
 		})
 		assert.NoError(t, err)
 	})
+
+	t.Run("pattern constraint at top level allows any keys", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: [string]: string`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"anyKey":    "value1",
+			"anotherKey": "value2",
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("nested pattern constraint allows any keys", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string, labels?: [string]: string }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"name": "test",
+			"labels": map[string]any{
+				"app":     "myapp",
+				"version": "v1",
+			},
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("webservice-like schema with labels and annotations", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: {
+			image: string
+			labels?: [string]: string
+			annotations?: [string]: string
+		}`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"image": "nginx",
+			"labels": map[string]any{
+				"app": "myapp",
+			},
+			"annotations": map[string]any{
+				"note": "test",
+			},
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("undeclared fields sorted in error message", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"name":  "test",
+			"zebra": "z",
+			"alpha": "a",
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "alpha,zebra")
+	})
 }
 
 func TestValidateUndeclaredParams_FeatureGate(t *testing.T) {

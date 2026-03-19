@@ -19,6 +19,7 @@ package appfile
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -26,9 +27,11 @@ import (
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
+	cueutils "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/features"
 
 	"github.com/pkg/errors"
@@ -161,7 +164,9 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 			baseCtx,
 		}, "\n")
 		schemaRoot, schemaErr := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), schemaSrc)
-		if schemaErr == nil {
+		if schemaErr != nil {
+			klog.V(4).Infof("component %q: skipping undeclared parameter check: schema compilation failed: %v", wl.Name, schemaErr)
+		} else {
 			paramSchema := schemaRoot.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
 			if err := checkUndeclaredParams(paramSchema, wl.Params); err != nil {
 				return errors.WithMessagef(err, "component %q", wl.Name)
@@ -180,6 +185,7 @@ func checkUndeclaredParams(schema cue.Value, params map[string]any) error {
 	}
 	undeclared := findUndeclaredFields(schema, params, "")
 	if len(undeclared) > 0 {
+		sort.Strings(undeclared)
 		return fmt.Errorf("undeclared parameters: %s", strings.Join(undeclared, ","))
 	}
 	return nil
@@ -188,12 +194,18 @@ func checkUndeclaredParams(schema cue.Value, params map[string]any) error {
 // findUndeclaredFields recursively walks the user-provided params and collects
 // field paths that are not declared in the CUE schema (including optional fields).
 func findUndeclaredFields(schema cue.Value, params map[string]any, prefix string) []string {
+	// If the schema has a pattern constraint ([string]: T), all string-keyed
+	// fields are valid at this level (e.g., labels?: [string]: string).
+	if schema.LookupPath(cue.MakePath(cue.AnyString)).Exists() {
+		return nil
+	}
+
 	// Collect declared field names from the schema (required + optional).
 	declared := make(map[string]cue.Value)
 	it, err := schema.Fields(cue.Optional(true), cue.Definitions(false), cue.Hidden(false))
 	if err == nil {
 		for it.Next() {
-			declared[it.Selector().Unquoted()] = it.Value()
+			declared[cueutils.GetSelectorLabel(it.Selector())] = it.Value()
 		}
 	}
 
