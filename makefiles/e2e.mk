@@ -34,6 +34,8 @@ e2e-setup-core-wo-auth:
 		--set admissionWebhooks.patch.image.repository=ghcr.io/oam-dev/kube-webhook-certgen/kube-webhook-certgen \
 		--set featureGates.enableCueValidation=true \
 		--set featureGates.validateResourcesExist=true \
+		--set featureGates.enableApplicationScopedPolicies=true \
+		--set featureGates.enableGlobalPolicies=true \
 	    --wait kubevela ./charts/vela-core          \
 		--debug
 

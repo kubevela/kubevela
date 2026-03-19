@@ -1,5 +1,4 @@
 /*
- /*
 Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -158,6 +157,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return result, nil
 	}
 
+	// Apply Application-scoped policy transforms
+	logCtx, err = handler.ApplyApplicationScopeTransforms(logCtx, app)
+	if err != nil {
+		logCtx.Error(err, "Failed to apply Application-scoped policy transforms")
+		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationStarting)
+	}
+
+	// Update Application metadata (labels/annotations) if policies modified them
+	// This is safe because metadata changes don't trigger new ApplicationRevisions
+	if err := handler.UpdateApplicationMetadata(logCtx, app); err != nil {
+		logCtx.Error(err, "Failed to update Application metadata from policies")
+		// Non-fatal error - continue with reconciliation
+	}
+
+	r.emitPolicyEvents(app)
+
 	appFile, err := appParser.GenerateAppFile(logCtx, app)
 	if err != nil {
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
@@ -171,11 +186,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Revision", err), common.ApplicationRendering)
 	}
+
 	if err := handler.FinalizeAndApplyAppRevision(logCtx); err != nil {
 		logCtx.Error(err, "Failed to apply app revision")
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRevision, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Revision", err), common.ApplicationRendering)
 	}
+
 	logCtx.Info("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
 		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
 	app.Status.SetConditions(condition.ReadyCondition("Revision"))
@@ -467,6 +484,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 				}
 				meta.RemoveFinalizer(app, oam.FinalizerResourceTracker)
 				meta.RemoveFinalizer(app, oam.FinalizerOrphanResource)
+				applicationPolicyCache.InvalidateApplication(app.Namespace, app.Name)
 				return r.result(errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)).end(true)
 			}
 			if wfContext.EnableInMemoryContext {
@@ -531,6 +549,36 @@ func (r *Reconciler) writeStatusByMethod(ctx context.Context, method method, app
 		r.updateMetricsAndLog(ctx, app)
 	}
 	return nil
+}
+
+func (r *Reconciler) emitPolicyEvents(app *v1beta1.Application) {
+	for _, appliedPolicy := range app.Status.AppliedApplicationPolicies {
+		isGlobal := appliedPolicy.Source == PolicySourceGlobal
+		if appliedPolicy.Applied {
+			if isGlobal {
+				r.Recorder.Event(app, event.Normal("GlobalPolicyApplied",
+					fmt.Sprintf("Applied global policy %s from namespace %s", appliedPolicy.Name, appliedPolicy.Namespace)))
+			} else {
+				r.Recorder.Event(app, event.Normal("PolicyApplied",
+					fmt.Sprintf("Applied policy %s", appliedPolicy.Name)))
+			}
+		} else {
+			switch {
+			case appliedPolicy.Error && isGlobal:
+				r.Recorder.Event(app, event.Warning("GlobalPolicyFailed",
+					errors.Errorf("failed to render global policy %s: %s", appliedPolicy.Name, appliedPolicy.Message)))
+			case appliedPolicy.Error:
+				r.Recorder.Event(app, event.Warning("PolicyFailed",
+					errors.Errorf("failed to render policy %s: %s", appliedPolicy.Name, appliedPolicy.Message)))
+			case isGlobal:
+				r.Recorder.Event(app, event.Normal("GlobalPolicySkipped",
+					fmt.Sprintf("Skipped global policy %s: %s", appliedPolicy.Name, appliedPolicy.Message)))
+			default:
+				r.Recorder.Event(app, event.Normal("PolicySkipped",
+					fmt.Sprintf("Skipped policy %s: %s", appliedPolicy.Name, appliedPolicy.Message)))
+			}
+		}
+	}
 }
 
 func (r *Reconciler) doWorkflowFinish(logCtx monitorContext.Context, app *v1beta1.Application, handler *AppHandler, state workflowv1alpha1.WorkflowRunPhase) {
@@ -643,6 +691,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return true
 			},
 		}).
+		Watches(
+			&v1beta1.PolicyDefinition{},
+			ctrlHandler.EnqueueRequestsFromMapFunc(r.handlePolicyDefinitionChange),
+		).
 		For(&v1beta1.Application{}).
 		Complete(r)
 }
@@ -652,6 +704,12 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 	// Register application status metrics after feature gates are initialized
 	metrics.RegisterApplicationStatusMetrics()
 
+	// Add a runnable to initialize PolicyScopeIndex after manager starts
+	// This ensures the cache is ready before we try to list PolicyDefinitions
+	if err := mgr.Add(&policyScopeIndexInitializer{client: mgr.GetClient()}); err != nil {
+		return err
+	}
+
 	reconciler := Reconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
@@ -659,6 +717,25 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 		options:  parseOptions(args),
 	}
 	return reconciler.SetupWithManager(mgr)
+}
+
+// policyScopeIndexInitializer is a Runnable that initializes the PolicyScopeIndex
+// after the manager's cache has started
+type policyScopeIndexInitializer struct {
+	client client.Client
+}
+
+func (r *policyScopeIndexInitializer) Start(ctx context.Context) error {
+	klog.InfoS("Starting PolicyScopeIndex initialization (waiting for cache sync)")
+
+	// The manager will call this after the cache is synced
+	if err := policyScopeIndex.Initialize(ctx, r.client); err != nil {
+		klog.ErrorS(err, "Failed to initialize PolicyScopeIndex, continuing with empty index")
+		// Non-fatal - index will be populated by watch events
+	}
+
+	// Return nil to indicate successful start (we run once and complete)
+	return nil
 }
 
 func updateObservedGeneration(app *v1beta1.Application) {
@@ -679,6 +756,30 @@ func filterManagedFieldChangesUpdate(e ctrlEvent.UpdateEvent) bool {
 	newTracker.ManagedFields = old.ManagedFields
 	newTracker.ResourceVersion = old.ResourceVersion
 	return !reflect.DeepEqual(newTracker, old)
+}
+
+func (r *Reconciler) handlePolicyDefinitionChange(ctx context.Context, obj client.Object) []reconcile.Request {
+	policy := obj.(*v1beta1.PolicyDefinition)
+
+	// Update the in-memory index so the next reconcile sees the new/updated policy.
+	// Without this, newly created global PolicyDefinitions are invisible until the
+	// controller restarts (the index is only populated once at startup).
+	if policy.GetDeletionTimestamp() != nil {
+		policyScopeIndex.Delete(policy.Name, policy.Namespace)
+	} else {
+		policyScopeIndex.AddOrUpdate(policy)
+	}
+
+	// Invalidate rendered policy cache when global policies change
+	if policy.Namespace == oam.SystemDefinitionNamespace {
+		// vela-system policy affects all namespaces - invalidate entire cache
+		applicationPolicyCache.InvalidateAll()
+	} else {
+		// Namespace-specific policy - invalidate for that namespace
+		applicationPolicyCache.InvalidateForNamespace(policy.Namespace)
+	}
+
+	return []reconcile.Request{}
 }
 
 func findObjectForResourceTracker(_ context.Context, rt client.Object) []reconcile.Request {
@@ -733,6 +834,8 @@ const (
 	ReplicaKeyContextKey
 	// OriginalAppKey is the key in the context that records the in coming original app
 	OriginalAppKey
+	// PolicyAdditionalContextKey is the key in the context that records additional context from Application-scoped policies
+	PolicyAdditionalContextKey
 )
 
 func withOriginalApp(ctx context.Context, app *v1beta1.Application) context.Context {

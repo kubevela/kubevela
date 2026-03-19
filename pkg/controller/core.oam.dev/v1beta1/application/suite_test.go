@@ -49,8 +49,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	_ "github.com/oam-dev/kubevela/pkg/features" // Import to register feature gates
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	// +kubebuilder:scaffold:imports
 )
@@ -77,6 +80,12 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	rand.Seed(time.Now().UnixNano())
+
+	// Enable both Application-scoped policy feature gates for tests
+	Expect(utilfeature.DefaultMutableFeatureGate.Set("EnableGlobalPolicies=true")).ToNot(HaveOccurred())
+	Expect(utilfeature.DefaultMutableFeatureGate.Set("EnableApplicationScopedPolicies=true")).ToNot(HaveOccurred())
+	logf.Log.Info("Enabled Application-scoped policy feature gates for tests")
+
 	By("bootstrapping test environment")
 	var yamlPath string
 	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
