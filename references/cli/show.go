@@ -158,7 +158,7 @@ func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOS
 
 	cmd.Flags().BoolVarP(&webSite, "web", "", false, "start web doc site")
 	cmd.Flags().StringVarP(&showFormat, "format", "", "", "specify format of output data, by default it's a pretty human readable format, you can specify markdown(md)")
-	cmd.Flags().StringVarP(&revision, "revision", "r", "", "Get the specified revision of a definition. Use def get to list revisions.")
+	cmd.Flags().StringVarP(&revision, "revision", "r", "", "Get the specified revision of a definition. Use def get to list revisions. Mutually exclusive with --version.")
 	cmd.Flags().StringVarP(&version, "version", "", "", "Get the specified semantic version of a definition (e.g., v1.0.0). Mutually exclusive with --revision.")
 	cmd.Flags().StringVarP(&path, "path", "p", "", "Specify the path for of the doc generated from definition.")
 	cmd.Flags().StringVarP(&location, "location", "l", "", "specify the location for of the doc generated from definition, now supported options 'zh', 'en'. ")

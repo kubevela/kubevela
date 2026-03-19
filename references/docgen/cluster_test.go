@@ -328,15 +328,15 @@ var _ = Describe("test GetCapabilityFromDefinitionRevisionByVersion", func() {
 		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "rev-test-custom-ns"}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "rev-test-ns"}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		// Load test DefinitionRevisions files into client (includes webservice-v1.0.0)
-		dir := filepath.Join("..", "..", "pkg", "definition", "testdata")
-		testFiles, err := os.ReadDir(dir)
+		// Load base test DefinitionRevisions from pkg/definition/testdata
+		baseDir := filepath.Join("..", "..", "pkg", "definition", "testdata")
+		testFiles, err := os.ReadDir(baseDir)
 		Expect(err).Should(Succeed())
 		for _, file := range testFiles {
 			if !strings.HasSuffix(file.Name(), ".yaml") {
 				continue
 			}
-			content, err := os.ReadFile(filepath.Join(dir, file.Name()))
+			content, err := os.ReadFile(filepath.Join(baseDir, file.Name()))
 			Expect(err).Should(Succeed())
 			def := &corev1beta1.DefinitionRevision{}
 			err = yaml.Unmarshal(content, def)
@@ -346,6 +346,17 @@ var _ = Describe("test GetCapabilityFromDefinitionRevisionByVersion", func() {
 			err = cli.Create(context.TODO(), def)
 			Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		}
+
+		// Load version-specific test data from local testdata
+		content, err := os.ReadFile(filepath.Join(TestDir, "default-component-webservice-v1.0.0.yaml"))
+		Expect(err).Should(Succeed())
+		def := &corev1beta1.DefinitionRevision{}
+		err = yaml.Unmarshal(content, def)
+		Expect(err).Should(Succeed())
+		cli, err := c.GetClient()
+		Expect(err).Should(Succeed())
+		err = cli.Create(context.TODO(), def)
+		Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	})
 
 	It("successful version match with v prefix", func() {
@@ -374,8 +385,7 @@ var _ = Describe("test GetCapabilityFromDefinitionRevisionByVersion", func() {
 		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: types.DefaultKubeVelaNS}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("create a versioned DefinitionRevision in vela-system")
-		dir := filepath.Join("..", "..", "pkg", "definition", "testdata")
-		content, err := os.ReadFile(filepath.Join(dir, "default-component-webservice-v1.0.0.yaml"))
+		content, err := os.ReadFile(filepath.Join(TestDir, "default-component-webservice-v1.0.0.yaml"))
 		Expect(err).Should(Succeed())
 		def := &corev1beta1.DefinitionRevision{}
 		err = yaml.Unmarshal(content, def)
