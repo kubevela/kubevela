@@ -44,6 +44,8 @@ const (
 	UsageTag = "+usage="
 	// ShortTag is the short alias annotation
 	ShortTag = "+short"
+	// ImmutableTag marks a parameter field as immutable
+	ImmutableTag = "+immutable"
 )
 
 // Template is a helper struct for processing capability including
