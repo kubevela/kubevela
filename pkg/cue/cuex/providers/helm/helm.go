@@ -39,8 +39,10 @@ import (
 	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/yaml"
 
@@ -581,8 +583,13 @@ func (p *Provider) getActionConfig(namespace string) (*action.Configuration, err
 // velaLabelPostRenderer implements postrender.PostRenderer.
 // It injects KubeVela ownership labels and annotations into every resource
 // before Helm deploys them, enabling KubeVela to adopt the resources.
+// It also injects Helm ownership annotations (meta.helm.sh/release-name and
+// meta.helm.sh/release-namespace) so that resources re-applied from
+// KubeVela's ResourceTracker can be adopted by a subsequent helm install.
 type velaLabelPostRenderer struct {
-	context *ContextParams
+	context          *ContextParams
+	releaseName      string
+	releaseNamespace string
 }
 
 // Run implements postrender.PostRenderer. It parses each YAML document in the
@@ -619,12 +626,22 @@ func (r *velaLabelPostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buf
 		labels["app.oam.dev/component"] = r.context.Name
 		obj.SetLabels(labels)
 
-		// Inject ownership annotation
+		// Inject ownership annotations (both KubeVela and Helm)
 		annotations := obj.GetAnnotations()
 		if annotations == nil {
 			annotations = make(map[string]string)
 		}
 		annotations["app.oam.dev/owner"] = "helm-provider"
+		// Inject Helm ownership annotations so that resources re-applied from
+		// KubeVela's ResourceTracker retain Helm adoption metadata. Without
+		// these, a subsequent helm install would fail with:
+		//   "cannot be imported into the current release: invalid ownership metadata"
+		if r.releaseName != "" {
+			annotations["meta.helm.sh/release-name"] = r.releaseName
+		}
+		if r.releaseNamespace != "" {
+			annotations["meta.helm.sh/release-namespace"] = r.releaseNamespace
+		}
 		obj.SetAnnotations(annotations)
 
 		// Serialize back to YAML
@@ -652,6 +669,20 @@ func velaOwnerLabels(velaCtx *ContextParams) map[string]string {
 		"app.oam.dev/namespace": velaCtx.AppNamespace,
 		"app.oam.dev/component": velaCtx.Name,
 	}
+}
+
+// isOwnedByVela checks whether a Helm release was installed/managed by KubeVela
+// by looking for the app.oam.dev/name label on the release's metadata (which is
+// stored on the Kubernetes release Secret via install.Labels / upgrade.Labels).
+// An external release (installed via `helm install` on the CLI) won't have this label.
+func isOwnedByVela(rel *release.Release, velaCtx *ContextParams) bool {
+	if rel == nil || velaCtx == nil {
+		return false
+	}
+	if rel.Labels == nil {
+		return false
+	}
+	return rel.Labels["app.oam.dev/name"] != ""
 }
 
 // computeReleaseFingerprint builds a deterministic string from chart version and a
@@ -688,43 +719,64 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 	p.releaseMu.Lock()
 	defer p.releaseMu.Unlock()
 
-	// Fast path: in-memory cache hit — no API call needed
-	if cached, ok := p.releaseFingerprints[releaseName]; ok && cached == fingerprint {
-		if manifest, ok := p.releaseManifests[releaseName]; ok {
-			klog.V(4).Infof("Helm provider: Release %s unchanged (in-memory fingerprint match), skipping", releaseName)
-			return manifest, "", p.releaseVersions[releaseName], nil
-		}
-	}
-
 	actionConfig, err := p.getActionConfig(releaseNamespace)
 	if err != nil {
 		return "", "", 0, err
 	}
 
-	postRenderer := &velaLabelPostRenderer{context: velaCtx}
+	postRenderer := &velaLabelPostRenderer{
+		context:          velaCtx,
+		releaseName:      releaseName,
+		releaseNamespace: releaseNamespace,
+	}
 
 	// Build labels to embed in the release Secret so KubeVela can track and
 	// delete it via the ResourceTracker when the Application is deleted.
 	releaseLabels := velaOwnerLabels(velaCtx)
 
-	// Check if release already exists in the cluster
+	// Always check the live release in the cluster before using cached data.
+	// This prevents stale cache entries from masking externally-deleted releases
+	// (e.g., helm uninstall, deleted secrets, namespace deletion).
 	getAction := action.NewGet(actionConfig)
 	existingRelease, getErr := getAction.Run(releaseName)
 
+	if getErr != nil {
+		// Release not found in cluster — clear any stale cache entry so we
+		// fall through to a fresh install below.
+		if cached, ok := p.releaseFingerprints[releaseName]; ok {
+			klog.Infof("Helm provider: Release %s not found in cluster but cached (fingerprint=%s), clearing stale cache", releaseName, cached[:16])
+			delete(p.releaseFingerprints, releaseName)
+			delete(p.releaseManifests, releaseName)
+			delete(p.releaseVersions, releaseName)
+		}
+	}
+
 	if getErr == nil && existingRelease != nil {
+		// Check if this release was installed by KubeVela (has our ownership labels
+		// on the release Secret). If not, it's an external release that we need to
+		// adopt by forcing an upgrade — even if the fingerprint matches — so the
+		// post-renderer injects KubeVela ownership labels onto every resource.
+		needsAdoption := velaCtx != nil && !isOwnedByVela(existingRelease, velaCtx)
+		if needsAdoption {
+			klog.Infof("Helm provider: Release %s exists but was not installed by KubeVela (missing ownership labels), forcing upgrade to adopt", releaseName)
+		}
+
 		// Release exists — check if it is already deployed with the same fingerprint
-		if existingRelease.Info.Status == release.StatusDeployed {
+		if !needsAdoption && existingRelease.Info.Status == release.StatusDeployed {
 			clusterFingerprint := computeReleaseFingerprint(existingRelease.Chart, existingRelease.Config)
 			if clusterFingerprint == fingerprint {
 				klog.V(3).Infof("Helm provider: Release %s already deployed and unchanged (cluster fingerprint match), skipping upgrade", releaseName)
 				p.releaseFingerprints[releaseName] = fingerprint
 				p.releaseManifests[releaseName] = existingRelease.Manifest
 				p.releaseVersions[releaseName] = existingRelease.Version
+				// Run health validation in the background to detect corrupted
+				// or missing release secrets early, without blocking this call.
+				go p.validateReleaseHealth(releaseName, releaseNamespace)
 				return existingRelease.Manifest, existingRelease.Info.Notes, existingRelease.Version, nil
 			}
 		}
 
-		// Fingerprint differs or release is not in a clean deployed state — upgrade
+		// Fingerprint differs, needs adoption, or release is not in a clean deployed state — upgrade
 		upgrade := action.NewUpgrade(actionConfig)
 		upgrade.Namespace = releaseNamespace
 		upgrade.PostRenderer = postRenderer
@@ -804,13 +856,152 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 	klog.Infof("Helm provider: Installing release %s in namespace %s", releaseName, releaseNamespace)
 	rel, err := install.RunWithContext(ctx, ch, values)
 	if err != nil {
-		return "", "", 0, errors.Wrapf(err, "failed to install helm release %s", releaseName)
+		// If install fails due to corrupted/orphaned release secrets or ownership
+		// conflicts, clean up the broken state and retry once.
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "cannot be imported") ||
+			strings.Contains(errMsg, "invalid ownership metadata") ||
+			strings.Contains(errMsg, "no revision for release") ||
+			strings.Contains(errMsg, "release: already exists") {
+			klog.Warningf("Helm provider: Install failed for %s due to orphaned state (%v), cleaning up and retrying", releaseName, err)
+			if cleanErr := p.cleanOrphanedReleaseSecrets(actionConfig, releaseName, releaseNamespace); cleanErr != nil {
+				klog.Warningf("Helm provider: Failed to clean orphaned secrets for %s: %v", releaseName, cleanErr)
+				return "", "", 0, errors.Wrapf(err, "failed to install helm release %s (cleanup also failed: %v)", releaseName, cleanErr)
+			}
+			// Retry install after cleanup
+			install2 := action.NewInstall(actionConfig)
+			install2.ReleaseName = releaseName
+			install2.Namespace = releaseNamespace
+			install2.DryRun = false
+			install2.ClientOnly = false
+			install2.PostRenderer = postRenderer
+			install2.CreateNamespace = true
+			install2.Labels = releaseLabels
+			klog.Infof("Helm provider: Retrying install for release %s after cleanup", releaseName)
+			rel, err = install2.RunWithContext(ctx, ch, values)
+			if err != nil {
+				return "", "", 0, errors.Wrapf(err, "failed to install helm release %s after cleanup retry", releaseName)
+			}
+		} else {
+			return "", "", 0, errors.Wrapf(err, "failed to install helm release %s", releaseName)
+		}
 	}
 	klog.Infof("Helm provider: Successfully installed release %s", releaseName)
 	p.releaseFingerprints[releaseName] = fingerprint
 	p.releaseManifests[releaseName] = rel.Manifest
 	p.releaseVersions[releaseName] = rel.Version
 	return rel.Manifest, rel.Info.Notes, rel.Version, nil
+}
+
+// validateReleaseHealth checks that the Helm release secret exists and is
+// readable in the cluster. If the release is missing or corrupted, the
+// in-memory cache is invalidated so the next reconciliation performs a fresh
+// install/upgrade instead of returning stale cached data.
+//
+// This method is designed to be called asynchronously (in a goroutine) after
+// a successful cache-hit reconciliation, so it does not block the main render
+// path. It acquires the release mutex only when it needs to clear the cache.
+func (p *Provider) validateReleaseHealth(releaseName, releaseNamespace string) {
+	actionConfig, err := p.getActionConfig(releaseNamespace)
+	if err != nil {
+		klog.Warningf("Helm provider health check: failed to get action config for release %s: %v", releaseName, err)
+		return
+	}
+
+	getAction := action.NewGet(actionConfig)
+	rel, err := getAction.Run(releaseName)
+	if err != nil {
+		// Release not found or unreadable (corrupted secret) — invalidate cache
+		klog.Warningf("Helm provider health check: release %s not found or unreadable in cluster, invalidating cache: %v", releaseName, err)
+		p.releaseMu.Lock()
+		delete(p.releaseFingerprints, releaseName)
+		delete(p.releaseManifests, releaseName)
+		delete(p.releaseVersions, releaseName)
+		p.releaseMu.Unlock()
+		return
+	}
+
+	// Release exists — verify it's in a healthy deployed state
+	if rel.Info == nil || rel.Info.Status != release.StatusDeployed {
+		status := "unknown"
+		if rel.Info != nil {
+			status = string(rel.Info.Status)
+		}
+		klog.Warningf("Helm provider health check: release %s is in state %q (expected deployed), invalidating cache", releaseName, status)
+		p.releaseMu.Lock()
+		delete(p.releaseFingerprints, releaseName)
+		delete(p.releaseManifests, releaseName)
+		delete(p.releaseVersions, releaseName)
+		p.releaseMu.Unlock()
+		return
+	}
+
+	klog.V(4).Infof("Helm provider health check: release %s is healthy (deployed, revision %d)", releaseName, rel.Version)
+}
+
+// cleanOrphanedReleaseSecrets removes corrupted or orphaned Helm release
+// secrets for a release. This is called when helm install fails because it
+// finds existing secrets it cannot parse or adopt.
+//
+// Strategy: always delete the secrets directly via the Kubernetes API first,
+// since corrupted secrets cannot be reliably handled by Helm's own storage
+// driver or uninstall action.
+func (p *Provider) cleanOrphanedReleaseSecrets(actionConfig *action.Configuration, releaseName, releaseNamespace string) error {
+	// Primary approach: delete secrets directly via Kubernetes API.
+	// This is the most reliable method for corrupted secrets.
+	klog.Infof("Helm provider: Cleaning up release secrets for %s in namespace %s via direct deletion", releaseName, releaseNamespace)
+	if err := p.deleteReleaseSecretsDirect(releaseNamespace, releaseName); err != nil {
+		return fmt.Errorf("failed to clean release secrets for %s: %v", releaseName, err)
+	}
+	return nil
+}
+
+// deleteReleaseSecretsDirect uses the Kubernetes API directly to delete Helm
+// release secrets. This is the last-resort cleanup for secrets that are too
+// corrupted for Helm's own storage driver or uninstall action to handle.
+func (p *Provider) deleteReleaseSecretsDirect(namespace, releaseName string) error {
+	restClient := p.helmClient.RESTClientGetter()
+	if restClient == nil {
+		return fmt.Errorf("no REST client available")
+	}
+	cfg, err := restClient.ToRESTConfig()
+	if err != nil {
+		return errors.Wrap(err, "failed to get REST config")
+	}
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return errors.Wrap(err, "failed to create kubernetes client")
+	}
+
+	// List secrets with Helm's labels for this release
+	secretList, err := clientset.CoreV1().Secrets(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("owner=helm,name=%s", releaseName),
+	})
+	if err != nil {
+		return errors.Wrapf(err, "failed to list helm secrets for release %s", releaseName)
+	}
+
+	for _, secret := range secretList.Items {
+		klog.Infof("Helm provider: Directly deleting corrupted release secret %s/%s", namespace, secret.Name)
+		if err := clientset.CoreV1().Secrets(namespace).Delete(context.Background(), secret.Name, metav1.DeleteOptions{}); err != nil {
+			klog.Warningf("Helm provider: Failed to delete secret %s/%s: %v", namespace, secret.Name, err)
+		}
+	}
+
+	klog.Infof("Helm provider: Deleted %d orphaned release secrets for %s in namespace %s", len(secretList.Items), releaseName, namespace)
+	return nil
+}
+
+// InvalidateRelease clears the in-memory cache for a specific release. This
+// can be called by external components (e.g., ResourceTracker GC) when they
+// detect that a Helm release secret has been deleted or is missing.
+func (p *Provider) InvalidateRelease(releaseName string) {
+	p.releaseMu.Lock()
+	defer p.releaseMu.Unlock()
+	delete(p.releaseFingerprints, releaseName)
+	delete(p.releaseManifests, releaseName)
+	delete(p.releaseVersions, releaseName)
+	klog.Infof("Helm provider: Invalidated cache for release %s", releaseName)
 }
 
 // parseManifestResources parses a Helm release manifest string into a slice of
