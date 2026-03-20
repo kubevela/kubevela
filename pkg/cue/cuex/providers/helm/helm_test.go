@@ -257,7 +257,11 @@ metadata:
 		Namespace:    "test-ns",
 	}
 
-	renderer := &velaLabelPostRenderer{context: velaCtx}
+	renderer := &velaLabelPostRenderer{
+		context:          velaCtx,
+		releaseName:      "my-release",
+		releaseNamespace: "test-ns",
+	}
 	result, err := renderer.Run(bytes.NewBufferString(manifest))
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -285,6 +289,8 @@ metadata:
 
 		annotations := obj.GetAnnotations()
 		assert.Equal(t, "helm-provider", annotations["app.oam.dev/owner"], "missing app.oam.dev/owner on %s", obj.GetName())
+		assert.Equal(t, "my-release", annotations["meta.helm.sh/release-name"], "missing meta.helm.sh/release-name on %s", obj.GetName())
+		assert.Equal(t, "test-ns", annotations["meta.helm.sh/release-namespace"], "missing meta.helm.sh/release-namespace on %s", obj.GetName())
 	}
 	assert.Equal(t, 2, resourceCount, "expected 2 resources in output")
 }
@@ -419,7 +425,7 @@ func TestComputeReleaseFingerprintVersionChange(t *testing.T) {
 	assert.NotEqual(t, fp1, fp2, "different chart versions must produce different fingerprints")
 }
 
-func TestInMemoryFingerprintDedup(t *testing.T) {
+func TestCacheInvalidationOnMissingRelease(t *testing.T) {
 	// Use a fresh provider (not the singleton) so tests don't interfere
 	p := NewProviderWithConfig(nil)
 
@@ -434,16 +440,56 @@ func TestInMemoryFingerprintDedup(t *testing.T) {
 	p.releaseVersions["my-release"] = 3
 	p.releaseMu.Unlock()
 
-	// installOrUpgradeChart should return the cached manifest without hitting the cluster
-	// (it will fail at getActionConfig because there's no cluster, but the fast-path
-	// returns before that call when fingerprints match)
-	manifest, notes, version, err := p.installOrUpgradeChart(
+	// installOrUpgradeChart now always checks the cluster before using cache.
+	// When the release doesn't exist in the cluster, the stale cache should be
+	// cleared (not used as a fast-path). The function will either:
+	// - Fail (no cluster) — proving cache was not used
+	// - Succeed with a fresh install (cluster available) — proving cache was cleared
+	// Either way, the old cached manifest "---\napiVersion: v1\nkind: Service\n"
+	// and version 3 must NOT be returned.
+	manifest, _, version, _ := p.installOrUpgradeChart(
 		context.Background(), ch, "my-release", "default", values, nil, nil,
 	)
-	require.NoError(t, err)
-	assert.Equal(t, "---\napiVersion: v1\nkind: Service\n", manifest)
-	assert.Empty(t, notes)
-	assert.Equal(t, 3, version)
+	// The stale cache had version=3 and a specific manifest. If the cache was
+	// bypassed, we should NOT see those values.
+	if manifest == "---\napiVersion: v1\nkind: Service\n" && version == 3 {
+		t.Error("stale cached data was returned — cache invalidation failed")
+	}
+	// Also verify the cache entry was cleared
+	p.releaseMu.Lock()
+	_, hasFP := p.releaseFingerprints["my-release"]
+	p.releaseMu.Unlock()
+	// If install succeeded, a new fingerprint will be set. If it failed, it
+	// should have been deleted. Either way, it should not be the OLD value
+	// pointing to the stale manifest.
+	if hasFP && p.releaseManifests["my-release"] == "---\napiVersion: v1\nkind: Service\n" {
+		t.Error("stale cache entry was not invalidated")
+	}
+}
+
+func TestInvalidateRelease(t *testing.T) {
+	p := NewProviderWithConfig(nil)
+
+	// Seed cache
+	p.releaseMu.Lock()
+	p.releaseFingerprints["test-rel"] = "fp1"
+	p.releaseManifests["test-rel"] = "manifest"
+	p.releaseVersions["test-rel"] = 1
+	p.releaseMu.Unlock()
+
+	// Verify seeded
+	assert.Equal(t, "fp1", p.releaseFingerprints["test-rel"])
+
+	// Invalidate
+	p.InvalidateRelease("test-rel")
+
+	// Verify cleared
+	_, ok := p.releaseFingerprints["test-rel"]
+	assert.False(t, ok, "fingerprint should be cleared")
+	_, ok = p.releaseManifests["test-rel"]
+	assert.False(t, ok, "manifest should be cleared")
+	_, ok = p.releaseVersions["test-rel"]
+	assert.False(t, ok, "version should be cleared")
 }
 
 func TestVelaOwnerLabels(t *testing.T) {
