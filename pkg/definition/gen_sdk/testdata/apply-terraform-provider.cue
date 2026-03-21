@@ -17,7 +17,7 @@ import (
 }
 
 template: {
-	config: config.#CreateConfig & {
+	cfg: config.#CreateConfig & {
 		name:      "\(context.name)-\(context.stepName)"
 		namespace: context.namespace
 		template:  "terraform-\(parameter.type)"
