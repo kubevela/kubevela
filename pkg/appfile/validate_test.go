@@ -17,6 +17,7 @@ limitations under the License.
 package appfile
 
 import (
+	"fmt"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -602,11 +603,195 @@ func TestParser_ValidateCUESchematicAppfile(t *testing.T) {
 	})
 }
 
+func TestCheckUndeclaredParams(t *testing.T) {
+	var r cue.Runtime
+
+	t.Run("undeclared top-level parameter", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"name":            "test",
+			"otherUndeclared": "bad",
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "undeclared parameters")
+		assert.Contains(t, err.Error(), "otherUndeclared")
+	})
+
+	t.Run("undeclared nested parameter", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { data: { key: string } }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"data": map[string]any{
+				"key":   "ok",
+				"extra": "bad",
+			},
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "data.extra")
+	})
+
+	t.Run("all valid parameters", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string, count: int }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"name":  "test",
+			"count": 1,
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("empty parameters", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{})
+		assert.NoError(t, err)
+	})
+
+	t.Run("optional parameters omitted", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string, label?: string }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"name": "test",
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("optional parameter provided is valid", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string, label?: string }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"name":  "test",
+			"label": "ok",
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("pattern constraint at top level allows any keys", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: [string]: string`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"anyKey":     "value1",
+			"anotherKey": "value2",
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("nested pattern constraint allows any keys", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string, labels?: [string]: string }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"name": "test",
+			"labels": map[string]any{
+				"app":     "myapp",
+				"version": "v1",
+			},
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("webservice-like schema with labels and annotations", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: {
+			image: string
+			labels?: [string]: string
+			annotations?: [string]: string
+		}`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"image": "nginx",
+			"labels": map[string]any{
+				"app": "myapp",
+			},
+			"annotations": map[string]any{
+				"note": "test",
+			},
+		})
+		assert.NoError(t, err)
+	})
+
+	t.Run("undeclared fields sorted in error message", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		err = checkUndeclaredParams(schema, map[string]any{
+			"name":  "test",
+			"zebra": "z",
+			"alpha": "a",
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "alpha,zebra")
+	})
+}
+
+func TestValidateUndeclaredParams_FeatureGate(t *testing.T) {
+	prevCue := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation)
+	prevUndeclared := utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateUndeclaredParameters)
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			fmt.Sprintf("%s=%t,%s=%t",
+				string(features.EnableCueValidation), prevCue,
+				string(features.ValidateUndeclaredParameters), prevUndeclared)))
+	})
+
+	t.Run("gate disabled - undeclared params allowed", func(t *testing.T) {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=true,"+
+				string(features.ValidateUndeclaredParameters)+"=false"))
+
+		wl := &Component{
+			Name: "my-comp",
+			Type: "worker",
+			FullTemplate: &Template{TemplateStr: `
+				parameter: { name: string }
+				output: { apiVersion: "v1", kind: "ConfigMap" }
+			`},
+			Params: map[string]any{"name": "test", "extra": "bad"},
+		}
+		app := &Appfile{Name: "myapp", Namespace: "test-ns"}
+		ctxData := GenerateContextDataFromAppFile(app, wl.Name)
+		err := (&Parser{}).ValidateComponentParams(ctxData, wl, app)
+		assert.NoError(t, err, "Should allow undeclared params when gate is disabled")
+	})
+
+	t.Run("gate enabled - undeclared params rejected", func(t *testing.T) {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=true,"+
+				string(features.ValidateUndeclaredParameters)+"=true"))
+
+		wl := &Component{
+			Name: "my-comp",
+			Type: "worker",
+			FullTemplate: &Template{TemplateStr: `
+				parameter: { name: string }
+				output: { apiVersion: "v1", kind: "ConfigMap" }
+			`},
+			Params: map[string]any{"name": "test", "extra": "bad"},
+		}
+		app := &Appfile{Name: "myapp", Namespace: "test-ns"}
+		ctxData := GenerateContextDataFromAppFile(app, wl.Name)
+		err := (&Parser{}).ValidateComponentParams(ctxData, wl, app)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "undeclared parameters")
+		assert.Contains(t, err.Error(), "extra")
+	})
+}
+
 // TestValidateCUESchematicAppfile_WorkflowSuppliedParams tests validation with workflow-supplied parameters (issue #7022)
 func TestValidateCUESchematicAppfile_WorkflowSuppliedParams(t *testing.T) {
+	prevCue := utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation)
 	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=true"))
 	t.Cleanup(func() {
-		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=false"))
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			fmt.Sprintf("%s=%t", string(features.EnableCueValidation), prevCue)))
 	})
 
 	componentTemplate := `

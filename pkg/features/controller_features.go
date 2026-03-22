@@ -133,6 +133,11 @@ const (
 	// This gates the core Application transform functionality. Use EnableGlobalPolicies to
 	// separately control global policy discovery.
 	EnableApplicationScopedPolicies featuregate.Feature = "EnableApplicationScopedPolicies"
+
+	// ValidateUndeclaredParameters enables validation that rejects parameters not declared in the
+	// CUE definition schema. When enabled, any parameter field not present in the template's
+	// parameter stanza will cause a validation error at admission time.
+	ValidateUndeclaredParameters = "ValidateUndeclaredParameters"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -163,6 +168,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	ValidateResourcesExist:                        {Default: false, PreRelease: featuregate.Alpha},
 	EnableGlobalPolicies:                          {Default: false, PreRelease: featuregate.Alpha},
 	EnableApplicationScopedPolicies:               {Default: false, PreRelease: featuregate.Alpha},
+	ValidateUndeclaredParameters:                  {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {
