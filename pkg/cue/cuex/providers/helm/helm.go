@@ -956,6 +956,40 @@ func (p *Provider) cleanOrphanedReleaseSecrets(actionConfig *action.Configuratio
 	return nil
 }
 
+// listReleaseSecretNames returns the names of all Helm release secrets for the
+// given release. Used to track all revision secrets in the ResourceTracker so
+// GC cleans them all up on Application deletion.
+func (p *Provider) listReleaseSecretNames(namespace, releaseName string) []string {
+	restClient := p.helmClient.RESTClientGetter()
+	if restClient == nil {
+		return nil
+	}
+	cfg, err := restClient.ToRESTConfig()
+	if err != nil {
+		klog.V(4).Infof("Helm provider: Failed to get REST config for listing secrets: %v", err)
+		return nil
+	}
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		klog.V(4).Infof("Helm provider: Failed to create clientset for listing secrets: %v", err)
+		return nil
+	}
+
+	secretList, err := clientset.CoreV1().Secrets(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("owner=helm,name=%s", releaseName),
+	})
+	if err != nil {
+		klog.V(4).Infof("Helm provider: Failed to list release secrets for %s: %v", releaseName, err)
+		return nil
+	}
+
+	names := make([]string, 0, len(secretList.Items))
+	for _, s := range secretList.Items {
+		names = append(names, s.Name)
+	}
+	return names
+}
+
 // deleteReleaseSecretsDirect uses the Kubernetes API directly to delete Helm
 // release secrets. This is the last-resort cleanup for secrets that are too
 // corrupted for Helm's own storage driver or uninstall action to handle.
@@ -1153,7 +1187,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	klog.V(3).Infof("Helm provider: Merged values: %v", values)
 
 	// Install or upgrade the chart via the Helm SDK
-	manifest, notes, releaseVersion, err := p.installOrUpgradeChart(ctx, ch, releaseName, releaseNamespace, values, renderParams.Options, renderParams.Context)
+	manifest, notes, _, err := p.installOrUpgradeChart(ctx, ch, releaseName, releaseNamespace, values, renderParams.Options, renderParams.Context)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to install/upgrade chart")
 	}
@@ -1164,29 +1198,33 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 		return nil, errors.Wrap(err, "failed to parse release manifest")
 	}
 
-	// Include the Helm release Secret as a tracked resource so KubeVela's
-	// ResourceTracker records it and deletes it when the Application is deleted.
-	// This ensures `helm list` no longer shows the release after Application deletion.
-	//
-	// The release Secret already has KubeVela ownership labels because we set
-	// install.Labels / upgrade.Labels in installOrUpgradeChart, so KubeVela's
-	// MustBeControlledByApp ownership check passes on apply.
-	if renderParams.Context != nil && releaseVersion > 0 {
-		releaseSecretName := fmt.Sprintf("sh.helm.release.v1.%s.v%d", releaseName, releaseVersion)
-		releaseSecret := map[string]interface{}{
-			"apiVersion": "v1",
-			"kind":       "Secret",
-			"metadata": map[string]interface{}{
-				"name":      releaseSecretName,
-				"namespace": releaseNamespace,
-				"annotations": map[string]interface{}{
-					oam.AnnotationTrackOnly: "true",
+	// Include ALL Helm release Secrets as tracked resources so KubeVela's
+	// ResourceTracker records them and GC deletes them when the Application
+	// is deleted. We query the cluster for every secret belonging to this
+	// release (v1, v2, v3, …) so that:
+	// - On Application deletion: all secrets are cleaned up, no orphans
+	// - During upgrades: all existing secrets remain tracked, preventing
+	//   accidental GC. Helm's own maxHistory handles old revision pruning.
+	if renderParams.Context != nil {
+		releaseSecretNames := p.listReleaseSecretNames(releaseNamespace, releaseName)
+		for _, secName := range releaseSecretNames {
+			releaseSecret := map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "Secret",
+				"metadata": map[string]interface{}{
+					"name":      secName,
+					"namespace": releaseNamespace,
+					"annotations": map[string]interface{}{
+						oam.AnnotationTrackOnly: "true",
+					},
 				},
-			},
-			"type": "helm.sh/release.v1",
+				"type": "helm.sh/release.v1",
+			}
+			resources = append(resources, releaseSecret)
 		}
-		resources = append(resources, releaseSecret)
-		klog.V(3).Infof("Helm provider: Tracking release secret %s for GC", releaseSecretName)
+		if len(releaseSecretNames) > 0 {
+			klog.V(3).Infof("Helm provider: Tracking %d release secrets for %s", len(releaseSecretNames), releaseName)
+		}
 	}
 
 	klog.Infof("Helm provider: Deployed %d resources for chart %s", len(resources), renderParams.Chart.Source)
