@@ -24,7 +24,6 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/auth"
@@ -75,41 +74,18 @@ func (h *resourceKeeper) Dispatch(ctx context.Context, manifests []*unstructured
 		opts = append(opts, applyOpts...)
 	}
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.PreDispatchDryRun) {
-		// Create a tracker for namespaces created during dry-run
-		tracker := &apply.DryRunNamespaceTracker{}
-		dryRunCtx := apply.WithDryRunNamespaceTracker(ctx, tracker)
-
-		if err = h.dispatch(dryRunCtx,
+		if err = h.dispatch(ctx,
 			velaslices.Map(manifests, func(manifest *unstructured.Unstructured) *unstructured.Unstructured { return manifest.DeepCopy() }),
 			append([]apply.ApplyOption{apply.DryRunAll()}, opts...)); err != nil {
-			// Only clean up namespaces if dry-run FAILS
-			// This prevents resources from being created if validation fails
-			if cleanupErr := tracker.CleanupNamespaces(ctx, h.Client); cleanupErr != nil {
-				klog.Warningf("Failed to cleanup dry-run namespaces after failure: %v", cleanupErr)
-			}
 			return fmt.Errorf("pre-dispatch dryrun failed: %w", err)
 		}
-
-		// DO NOT clean up namespaces on successful dry-run
-		// They will be used by the actual deployment immediately after
-		// The namespace will be managed normally by Kubernetes/user after this point
-		klog.V(4).Infof("Dry-run succeeded, keeping %d namespace(s) for actual deployment", len(tracker.GetNamespaces()))
 	}
 	// 2. record manifests in resourcetracker
 	if err = h.record(ctx, manifests, options...); err != nil {
 		return err
 	}
-	// 3. apply manifests (skip track-only resources — they must not be applied to the cluster)
-	applyManifests := manifests
-	if hasTrackOnlyAnnotation(manifests) {
-		applyManifests = make([]*unstructured.Unstructured, 0, len(manifests))
-		for _, m := range manifests {
-			if m == nil || m.GetAnnotations()[oam.AnnotationTrackOnly] != "true" {
-				applyManifests = append(applyManifests, m)
-			}
-		}
-	}
-	return h.dispatch(ctx, applyManifests, opts)
+	// 3. apply manifests
+	return h.dispatch(ctx, manifests, opts)
 }
 
 func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.Unstructured, options ...DispatchOption) error {
@@ -118,15 +94,9 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 	var skipGCManifests []*unstructured.Unstructured
 	var rootManifests []*unstructured.Unstructured
 	var versionManifests []*unstructured.Unstructured
-	var trackOnlyManifests []*unstructured.Unstructured
 
 	for _, manifest := range manifests {
 		if manifest != nil {
-			// Track-only resources: record with metaOnly=true, skip apply entirely.
-			if manifest.GetAnnotations()[oam.AnnotationTrackOnly] == "true" {
-				trackOnlyManifests = append(trackOnlyManifests, manifest)
-				continue
-			}
 			_options := options
 			if h.garbageCollectPolicy != nil {
 				if strategy := h.garbageCollectPolicy.FindStrategy(manifest); strategy != nil {
@@ -167,102 +137,34 @@ func (h *resourceKeeper) record(ctx context.Context, manifests []*unstructured.U
 	if err = resourcetracker.RecordManifestsInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, versionManifests, cfg.metaOnly, false, cfg.creator); err != nil {
 		return errors.Wrapf(err, "failed to record resources in resourcetracker %s", rt.Name)
 	}
-	// Track-only resources: always recorded metaOnly=true in current RT so GC can clean them up,
-	// but they are never applied to the cluster (preserves Helm-managed data).
-	if len(trackOnlyManifests) > 0 {
-		if err = resourcetracker.RecordManifestsInResourceTracker(
-			multicluster.ContextInLocalCluster(ctx), h.Client, rt,
-			trackOnlyManifests, true /*metaOnly*/, false /*skipGC*/, cfg.creator,
-		); err != nil {
-			return errors.Wrapf(err, "failed to record track-only resources in resourcetracker %s", rt.Name)
-		}
-	}
 	return nil
-}
-
-// hasTrackOnlyAnnotation reports whether any manifest carries the track-only annotation.
-func hasTrackOnlyAnnotation(manifests []*unstructured.Unstructured) bool {
-	for _, m := range manifests {
-		if m != nil && m.GetAnnotations()[oam.AnnotationTrackOnly] == "true" {
-			return true
-		}
-	}
-	return false
-}
-
-// applyManifest applies a single manifest with all necessary options and context setup
-func (h *resourceKeeper) applyManifest(ctx context.Context, manifest *unstructured.Unstructured, baseOpts []apply.ApplyOption) error {
-	// Setup context with cluster and auth info
-	applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
-	applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
-
-	// Preserve namespace tracker if present
-	if tracker := apply.GetDryRunNamespaceTracker(ctx); tracker != nil {
-		applyCtx = apply.WithDryRunNamespaceTracker(applyCtx, tracker)
-	}
-
-	// Build apply options based on manifest properties
-	ao := baseOpts
-	if h.isShared(manifest) {
-		ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
-	}
-	if h.isReadOnly(manifest) {
-		ao = append([]apply.ApplyOption{apply.ReadOnly()}, ao...)
-	}
-	if h.canTakeOver(manifest) {
-		ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
-	}
-	if strategy := h.getUpdateStrategy(manifest); strategy != nil {
-		ao = append([]apply.ApplyOption{apply.WithUpdateStrategy(*strategy)}, ao...)
-	}
-
-	// Apply strategies
-	manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppUpdate)
-	if err != nil {
-		return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
-	}
-
-	// Apply the manifest
-	return h.applicator.Apply(applyCtx, manifest, ao...)
 }
 
 func (h *resourceKeeper) dispatch(ctx context.Context, manifests []*unstructured.Unstructured, applyOpts []apply.ApplyOption) error {
-	// Separate resources by dependency priority for staged dispatch
-	var crds, namespaces, others []*unstructured.Unstructured
-	for _, manifest := range manifests {
-		switch manifest.GetKind() {
-		case "CustomResourceDefinition":
-			crds = append(crds, manifest)
-		case "Namespace":
-			namespaces = append(namespaces, manifest)
-		default:
-			others = append(others, manifest)
+	errs := velaslices.ParMap(manifests, func(manifest *unstructured.Unstructured) error {
+		applyCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
+		applyCtx = auth.ContextWithUserInfo(applyCtx, h.app)
+		ao := applyOpts
+		if h.isShared(manifest) {
+			ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
 		}
-	}
-
-	klog.V(2).Infof("Staged dispatch: %d CRDs, %d namespaces, %d others", len(crds), len(namespaces), len(others))
-
-	// Stage 0: Apply CRDs sequentially first (highest priority dependencies)
-	for _, manifest := range crds {
-		if err := h.applyManifest(ctx, manifest, applyOpts); err != nil {
-			return err
+		if h.isReadOnly(manifest) {
+			ao = append([]apply.ApplyOption{apply.ReadOnly()}, ao...)
 		}
-	}
-
-	// Stage 1: Apply namespaces sequentially second
-	for _, manifest := range namespaces {
-		if err := h.applyManifest(ctx, manifest, applyOpts); err != nil {
-			return err
+		if h.canTakeOver(manifest) {
+			ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
 		}
-	}
-
-	// Stage 2: Apply other resources in parallel
-	if len(others) > 0 {
-		errs := velaslices.ParMap(others, func(manifest *unstructured.Unstructured) error {
-			return h.applyManifest(ctx, manifest, applyOpts)
-		}, velaslices.Parallelism(MaxDispatchConcurrent))
-		return velaerrors.AggregateErrors(errs)
-	}
-
-	return nil
+		if strategy := h.getUpdateStrategy(manifest); strategy != nil {
+			ao = append([]apply.ApplyOption{apply.WithUpdateStrategy(*strategy)}, ao...)
+		}
+		manifest, err := ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppUpdate)
+		if err != nil {
+			return errors.Wrapf(err, "failed to apply once policy for application %s,%s", h.app.Name, err.Error())
+		}
+		if manifest == nil {
+			return nil
+		}
+		return h.applicator.Apply(applyCtx, manifest, ao...)
+	}, velaslices.Parallelism(MaxDispatchConcurrent))
+	return velaerrors.AggregateErrors(errs)
 }

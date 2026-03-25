@@ -50,7 +50,6 @@ import (
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/runtime"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -985,7 +984,13 @@ func (p *Provider) listReleaseSecretNames(namespace, releaseName string) []strin
 
 	names := make([]string, 0, len(secretList.Items))
 	for _, s := range secretList.Items {
-		names = append(names, s.Name)
+		// Only include secrets that have KubeVela ownership labels.
+		// Secrets from vanilla helm installs (before KubeVela adoption) won't
+		// have these labels, and including them would fail the MustBeControlledByApp
+		// check during pre-dispatch dryrun.
+		if s.Labels["app.oam.dev/name"] != "" {
+			names = append(names, s.Name)
+		}
 	}
 	return names
 }
@@ -1205,20 +1210,32 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	// - On Application deletion: all secrets are cleaned up, no orphans
 	// - During upgrades: all existing secrets remain tracked, preventing
 	//   accidental GC. Helm's own maxHistory handles old revision pruning.
+	// Include ALL Helm release Secrets as skeleton resources so KubeVela's
+	// ResourceTracker records them and GC deletes them on Application deletion.
+	// The skeleton intentionally omits the data field — KubeVela's merge-patch
+	// strategy preserves unspecified fields, so Helm's data.release blob is
+	// untouched. No special dispatcher changes needed.
 	if renderParams.Context != nil {
 		releaseSecretNames := p.listReleaseSecretNames(releaseNamespace, releaseName)
 		for _, secName := range releaseSecretNames {
+			secretMeta := map[string]interface{}{
+				"name":      secName,
+				"namespace": releaseNamespace,
+			}
+			// Add KubeVela ownership labels so MustBeControlledByApp passes
+			// during pre-dispatch dryrun (especially for adoption of vanilla releases)
+			if renderParams.Context != nil {
+				secretMeta["labels"] = map[string]interface{}{
+					"app.oam.dev/name":      renderParams.Context.AppName,
+					"app.oam.dev/namespace": renderParams.Context.AppNamespace,
+					"app.oam.dev/component": renderParams.Context.Name,
+				}
+			}
 			releaseSecret := map[string]interface{}{
 				"apiVersion": "v1",
 				"kind":       "Secret",
-				"metadata": map[string]interface{}{
-					"name":      secName,
-					"namespace": releaseNamespace,
-					"annotations": map[string]interface{}{
-						oam.AnnotationTrackOnly: "true",
-					},
-				},
-				"type": "helm.sh/release.v1",
+				"metadata":   secretMeta,
+				"type":       "helm.sh/release.v1",
 			}
 			resources = append(resources, releaseSecret)
 		}
