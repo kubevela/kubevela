@@ -758,6 +758,9 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 		needsAdoption := velaCtx != nil && !isOwnedByVela(existingRelease, velaCtx)
 		if needsAdoption {
 			klog.Infof("Helm provider: Release %s exists but was not installed by KubeVela (missing ownership labels), forcing upgrade to adopt", releaseName)
+			// Label all existing release secrets with KubeVela ownership so they
+			// can be tracked by the ResourceTracker and cleaned up on App deletion.
+			p.labelReleaseSecrets(releaseNamespace, releaseName, velaCtx)
 		}
 
 		// Release exists — check if it is already deployed with the same fingerprint
@@ -993,6 +996,51 @@ func (p *Provider) listReleaseSecretNames(namespace, releaseName string) []strin
 		}
 	}
 	return names
+}
+
+// labelReleaseSecrets adds KubeVela ownership labels to all existing Helm
+// release secrets that don't already have them. Called during adoption of
+// external releases so that listReleaseSecretNames picks them up for GC tracking.
+func (p *Provider) labelReleaseSecrets(namespace, releaseName string, velaCtx *ContextParams) {
+	if velaCtx == nil {
+		return
+	}
+	restClient := p.helmClient.RESTClientGetter()
+	if restClient == nil {
+		return
+	}
+	cfg, err := restClient.ToRESTConfig()
+	if err != nil {
+		return
+	}
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return
+	}
+
+	secretList, err := clientset.CoreV1().Secrets(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: fmt.Sprintf("owner=helm,name=%s", releaseName),
+	})
+	if err != nil {
+		return
+	}
+
+	for _, s := range secretList.Items {
+		if s.Labels["app.oam.dev/name"] != "" {
+			continue // already labeled
+		}
+		patch := fmt.Sprintf(`{"metadata":{"labels":{"app.oam.dev/name":%q,"app.oam.dev/namespace":%q,"app.oam.dev/component":%q}}}`,
+			velaCtx.AppName, velaCtx.AppNamespace, velaCtx.Name)
+		_, patchErr := clientset.CoreV1().Secrets(namespace).Patch(
+			context.Background(), s.Name, "application/strategic-merge-patch+json",
+			[]byte(patch), metav1.PatchOptions{},
+		)
+		if patchErr != nil {
+			klog.Warningf("Helm provider: Failed to label release secret %s/%s: %v", namespace, s.Name, patchErr)
+		} else {
+			klog.Infof("Helm provider: Labeled release secret %s/%s for adoption", namespace, s.Name)
+		}
+	}
 }
 
 // deleteReleaseSecretsDirect uses the Kubernetes API directly to delete Helm
