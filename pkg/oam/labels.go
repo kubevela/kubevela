@@ -220,11 +220,6 @@ const (
 
 	// AnnotationSkipResume annotation indicates that the resource does not need to be resumed.
 	AnnotationSkipResume = "controller.core.oam.dev/skip-resume"
-
-	// AnnotationTrackOnly marks a resource to be recorded in the ResourceTracker
-	// for GC purposes only. It will NOT be applied to the cluster (no create/update).
-	// State-keep is also skipped for these resources.
-	AnnotationTrackOnly = "app.oam.dev/track-only"
 )
 
 const (
