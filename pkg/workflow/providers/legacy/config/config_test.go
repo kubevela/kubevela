@@ -76,6 +76,15 @@ var _ = AfterSuite(func() {
 
 var _ = Describe("Test the config provider", func() {
 
+	It("GetProviders returns expected hyphenated keys", func() {
+		providers := GetProviders()
+		Expect(providers).To(HaveKey("create-config"))
+		Expect(providers).To(HaveKey("read-config"))
+		Expect(providers).To(HaveKey("list-config"))
+		Expect(providers).To(HaveKey("delete-config"))
+		Expect(providers).To(HaveLen(4))
+	})
+
 	It("test creating a config", func() {
 		ctx := context.Background()
 		params := &CreateParams{
