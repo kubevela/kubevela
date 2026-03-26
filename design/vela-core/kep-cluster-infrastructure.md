@@ -3,17 +3,23 @@
 **Authors**: Anoop Gopalakrishnan
 **Status**: Draft
 **Created**: 2025-12-24
-**Last Updated**: 2026-01-03
+**Last Updated**: 2026-03-25
 
 ## Table of Contents
 
 - [Introduction](#introduction)
+  - [The Problem](#the-problem)
+  - [The Orchestration Gap](#the-orchestration-gap)
+  - [The Approach](#the-approach)
+  - [CRDs Introduced](#crds-introduced)
 - [Prerequisites and Architecture Overview](#prerequisites-and-architecture-overview)
   - [Prerequisites](#prerequisites)
   - [Architecture Overview](#architecture-overview)
   - [Bootstrap Sequence](#bootstrap-sequence)
   - [What Lives Where](#what-lives-where)
   - [Provisioning Controller Flexibility](#provisioning-controller-flexibility)
+  - [VelaRuntime ClusterPlane](#vela-runtime-clusterplane)
+  - [Definition Distribution to Spoke Clusters](#definition-distribution-to-spoke-clusters)
 - [Background](#background)
   - [The Problem with Application-Centric Only](#the-problem-with-application-centric-only)
   - [What Platform Teams Need](#what-platform-teams-need)
@@ -41,8 +47,15 @@
     - [Mode 1: Provision](#mode-1-provision---create-new-cluster)
     - [Mode 2: Adopt](#mode-2-adopt---take-over-existing-cluster)
     - [Mode 3: Connect](#mode-3-connect---manage-existing-cluster)
+    - [Cluster Lifecycle Phases: preCreate and postCreate](#cluster-lifecycle-phases-precreate-and-postcreate)
     - [ClusterProviderDefinition](#clusterproviderinition)
   - [Definition Types](#definition-types)
+    - [Definition Scope Model](#definition-scope-model)
+    - [Definition Resolution for ClusterPlane](#definition-resolution-for-clusterplane)
+    - [Infrastructure ComponentDefinition](#infrastructure-componentdefinition)
+    - [Infrastructure TraitDefinition](#infrastructure-traitdefinition)
+    - [Infrastructure PolicyDefinition](#infrastructure-policydefinition)
+    - [Infrastructure WorkflowStepDefinition](#infrastructure-workflowstepdefinition)
   - [Workflow and Rollout](#workflow-and-rollout)
   - [Multi-Tenancy and Team Ownership](#multi-tenancy-and-team-ownership)
   - [Health Checking and Observability](#health-checking-and-observability)
@@ -63,46 +76,61 @@
 
 ## Introduction
 
-This KEP proposes a new set of CRDs that bring OAM's abstraction model to **cluster infrastructure** itself. While KubeVela's `Application` CRD excels at deploying workloads, platform teams today lack a unified, declarative way to:
+### The Problem
 
-1. Define and compose cluster-level infrastructure (networking, storage, security, observability)
-2. Version and release infrastructure changes across fleet of clusters
-3. Enable different platform sub-teams to own their domain (networking team owns ingress, security team owns policies)
-4. Roll out infrastructure changes safely with canary, monitoring, and automatic rollback
+KubeVela's `Application` CRD excels at deploying workloads, but it assumes clusters are already provisioned and configured. In practice, platform teams must manage a complex stack of infrastructure _beneath_ the application layer — networking (CNI, ingress, service mesh), security (OPA, cert-manager, network policies), observability (Prometheus, Grafana, logging), and the clusters themselves (VPC, EKS/GKE, node pools). Today, this is stitched together with a mix of Terraform, Helm charts, GitOps tools, and custom scripts, each solving one piece without a unifying model for:
 
-> **🎯 Positioning — Read This First:**
+1. **Composability** — Combining networking + security + observability into a coherent cluster specification
+2. **Team ownership** — Letting the networking team own their layer independently from the security team
+3. **Versioned rollouts** — Rolling out infrastructure changes progressively (canary, wave-based) across a fleet, not all-or-nothing
+4. **Cross-cluster dependencies** — Sharing cloud resources (VPC, IAM) across clusters and wiring outputs between layers
+
+> **Positioning:**
+>
 > 1. KubeVela does **not** provision clusters directly
 > 2. KubeVela orchestrates **composition + ordering + rollout + ownership** across clusters and infrastructure layers
 > 3. Provisioning is delegated to CAPI / Crossplane / Terraform / KRO / cloud-native operators (pluggable)
 
-This KEP addresses the **orchestration gap** between cluster provisioning and fleet-wide infrastructure management:
+### The Orchestration Gap
 
-| Problem | Existing Solutions | This KEP's Role |
-|---------|-------------------|-----------------|
-| **Cluster provisioning** | CAPI, Crossplane, Terraform, KRO | Delegate to these tools |
-| **Cloud resource management** | ACK (AWS), Config Connector (GCP), ASO (Azure) | Delegate to these tools |
-| **Fleet blueprint composition** | Gap (duct-taped together) | **Solve** |
-| **Team-owned infrastructure slices** | Gap (no clear boundaries) | **Solve** |
-| **Rollout orchestration across fleet** | Gap (app-level only via Argo/Flagger) | **Solve** |
-| **Cross-cluster dependencies** | Gap (manual wiring) | **Solve** |
+Cluster provisioning tools exist. Cloud resource management tools exist. What's missing is the orchestration layer that composes them:
 
-**What this means practically:**
+| Problem                                | Existing Solutions                             | This KEP's Role         |
+| -------------------------------------- | ---------------------------------------------- | ----------------------- |
+| **Cluster provisioning**               | CAPI, Crossplane, Terraform, KRO               | Delegate to these tools |
+| **Cloud resource management**          | ACK (AWS), Config Connector (GCP), ASO (Azure) | Delegate to these tools |
+| **Fleet blueprint composition**        | Gap (duct-taped together)                      | **Solve**               |
+| **Team-owned infrastructure slices**   | Gap (no clear boundaries)                      | **Solve**               |
+| **Rollout orchestration across fleet** | Gap (app-level only via Argo/Flagger)          | **Solve**               |
+| **Cross-cluster dependencies**         | Gap (manual wiring)                            | **Solve**               |
 
-ClusterPlane components use types defined via `PlaneComponentDefinition` (similar to how Application uses `ComponentDefinition`). Platform teams create definitions that delegate to underlying controllers:
+KubeVela's job is to sequence components, gate rollouts, enforce ownership boundaries, and aggregate status across the fleet — not to replace the underlying infrastructure controllers:
 
-| Example Definition | Delegates To | KubeVela Does NOT |
-|-------------------|--------------|-------------------|
-| Wraps tf-controller | tf-controller | Run Terraform or manage state |
-| Wraps Crossplane XR | Crossplane | Call cloud APIs directly |
-| Wraps CAPI resources | Cluster API | Provision machines |
-| Wraps KRO instances | KRO | Manage resource graphs |
-| Wraps ACK resources | ACK | Call AWS APIs |
-| Wraps Config Connector | Config Connector | Call GCP APIs |
-| Wraps ASO resources | ASO | Call Azure APIs |
+| Example Definition     | Delegates To     | KubeVela Does NOT             |
+| ---------------------- | ---------------- | ----------------------------- |
+| Wraps tf-controller    | tf-controller    | Run Terraform or manage state |
+| Wraps Crossplane XR    | Crossplane       | Call cloud APIs directly      |
+| Wraps CAPI resources   | Cluster API      | Provision machines            |
+| Wraps KRO instances    | KRO              | Manage resource graphs        |
+| Wraps ACK resources    | ACK              | Call AWS APIs                 |
+| Wraps Config Connector | Config Connector | Call GCP APIs                 |
+| Wraps ASO resources    | ASO              | Call Azure APIs               |
 
-**KubeVela's job:** Sequence components, gate rollouts, enforce ownership boundaries, aggregate status across the fleet.
+### The Approach
 
-We introduce the following CRDs:
+This KEP extends OAM's abstraction model to cluster infrastructure by introducing a layered composition model:
+
+- A **Cluster** represents a managed Kubernetes cluster with its full lifecycle — provisioning, connecting, or adopting existing clusters. Each Cluster goes through optional lifecycle phases: shared cloud infrastructure can be set up before the cluster is created (`preCreate`), the cluster itself is provisioned and configured via a blueprint (`blueprintRef`), and post-creation tasks like deploying validation apps or running smoke tests can be triggered after the cluster is ready (`postCreate`).
+
+- A **ClusterPlane** is a composable infrastructure layer owned by a team — for example, a networking plane (Cilium, CoreDNS, ingress), a security plane (OPA, cert-manager), or an observability plane (Prometheus, Grafana). Each plane has its own components, versioning, health checks, and outputs. Planes can be scoped as `shared` (created once, consumed by many clusters) or `perCluster` (created for each cluster).
+
+- A **ClusterBlueprint** composes multiple ClusterPlanes into a complete cluster specification. It defines which planes a cluster needs, their dependency ordering, and version constraints. Blueprints are immutable once published — changes create new revisions.
+
+- A **ClusterRolloutStrategy** defines how blueprint changes propagate across a fleet of clusters — wave-based progression, maintenance windows, health gates, and automatic rollback on SLO breach.
+
+Infrastructure definitions reuse the existing KubeVela definition CRDs (`ComponentDefinition`, `TraitDefinition`, etc.) with a scope annotation (`definition.oam.dev/scope: cluster`) to distinguish them from application definitions. This means existing tooling, RBAC, and the definition revision system work unchanged.
+
+### CRDs Introduced
 
 **Core CRDs:**
 
@@ -117,16 +145,23 @@ We introduce the following CRDs:
 | **`ClusterRollout`**           | (Optional) Imperative rollout for emergency/manual overrides                               |
 | **`ClusterRolloutCheckpoint`** | Checkpoint state for paused rollouts during maintenance window transitions                 |
 
-**Definition CRDs (Extensibility):**
+**New Definition CRDs (Extensibility):**
 
-| CRD                                   | Description                                                                |
-| ------------------------------------- | -------------------------------------------------------------------------- |
-| **`ClusterProviderDefinition`**       | Defines cloud provider integration for cluster provisioning                |
-| **`PlaneComponentDefinition`**        | Defines component types for ClusterPlanes (similar to ComponentDefinition) |
-| **`PlaneTraitDefinition`**            | Defines trait types for ClusterPlanes (similar to TraitDefinition)         |
-| **`PlanePolicyDefinition`**           | Defines policy types for ClusterPlanes                                     |
-| **`ClusterWorkflowStepDefinition`**   | Defines workflow steps for cluster lifecycle operations                    |
-| **`ObservabilityProviderDefinition`** | Defines observability provider types (Prometheus, Datadog, etc.)           |
+| CRD                                   | Description                                                      |
+| ------------------------------------- | ---------------------------------------------------------------- |
+| **`ClusterProviderDefinition`**       | Defines cloud provider integration for cluster provisioning      |
+| **`ObservabilityProviderDefinition`** | Defines observability provider types (Prometheus, Datadog, etc.) |
+
+**Existing Definition CRDs Extended with Scope Annotation (`definition.oam.dev/scope: cluster`):**
+
+Existing KubeVela definition CRDs are reused with a scope annotation (see [Definition Scope Model](#definition-scope-model)):
+
+| Existing CRD                 | Infrastructure Role (with `scope: cluster`)                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| **`ComponentDefinition`**    | Defines component types for ClusterPlanes (e.g., `helm-release`, `kustomization`, `k8s-objects`) |
+| **`TraitDefinition`**        | Defines trait types for ClusterPlanes (e.g., `resource-quota`, `namespace-labels`)               |
+| **`PolicyDefinition`**       | Defines policy types for ClusterPlanes (e.g., `apply-order`, `health-check`)                     |
+| **`WorkflowStepDefinition`** | Defines workflow steps for cluster lifecycle (e.g., `apply-plane`, `validate-plane`, `suspend`)  |
 
 **Runtime CRDs:**
 
@@ -144,12 +179,12 @@ We introduce the following CRDs:
 
 Before using the CRDs defined in this KEP, the following must be in place:
 
-| Prerequisite | Description | Responsibility |
-|--------------|-------------|----------------|
-| **Hub Cluster** | A Kubernetes cluster that serves as the management/control plane | Platform team bootstraps using Terraform, eksctl, cloud console, CAPI, or any other tool |
-| **KubeVela Installed** | vela-core and cluster-gateway installed on the hub cluster | `vela install` or Helm chart |
-| **Cloud Credentials** | Credentials for cloud providers where spoke clusters will be provisioned or connected | Stored as Secrets in hub cluster |
-| **Network Connectivity** | Hub cluster must be able to reach spoke cluster API servers | VPC peering, transit gateway, or public endpoints |
+| Prerequisite             | Description                                                                           | Responsibility                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Hub Cluster**          | A Kubernetes cluster that serves as the management/control plane                      | Platform team bootstraps using Terraform, eksctl, cloud console, CAPI, or any other tool |
+| **KubeVela Installed**   | vela-core and cluster-gateway installed on the hub cluster                            | `vela install` or Helm chart                                                             |
+| **Cloud Credentials**    | Credentials for cloud providers where spoke clusters will be provisioned or connected | Stored as Secrets in hub cluster                                                         |
+| **Network Connectivity** | Hub cluster must be able to reach spoke cluster API servers                           | VPC peering, transit gateway, or public endpoints                                        |
 
 > **Important**: KubeVela does NOT bootstrap the hub cluster. The hub cluster is created and configured using your existing infrastructure-as-code tooling (Terraform, Pulumi, eksctl, gcloud, az cli, cloud console, etc.). Once the hub exists, KubeVela is installed on it, and then the CRDs in this KEP can be used to manage the fleet.
 
@@ -288,32 +323,162 @@ The following sequence must be followed to set up the hub and begin managing spo
 
 ### What Lives Where
 
-| Resource | Location | Notes |
-|----------|----------|-------|
-| All CRDs from this KEP | Hub cluster only | `Cluster`, `ClusterPlane`, `ClusterBlueprint`, etc. |
-| KubeVela controllers | Hub cluster only | `vela-core`, `cluster-gateway`, new controllers from this KEP |
-| Provisioning controllers | Hub cluster only | Crossplane, CAPI, tf-controller, KRO (optional, user's choice) |
-| Cloud credentials | Hub cluster only | Secrets for provider access |
-| ClusterPlane definitions | Hub cluster only | `PlaneComponentDefinition`, `PlaneTraitDefinition`, etc. |
-| Deployed infrastructure | Spoke clusters | CNI, ingress, cert-manager, security policies, etc. |
-| Workload Applications | Spoke clusters | Your actual applications (managed via KubeVela Application CRD) |
+| Resource                                       | Location                                                              | Notes                                                                                                                                                                                                                                         |
+| ---------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| KubeVela Infrastructure Controllers (this KEP) | Hub cluster only                                                      | All CRDs and controllers from this KEP: `Cluster`, `ClusterPlane`, `ClusterBlueprint`, `ClusterRolloutStrategy`, `ClusterController`, `ClusterPlaneController`, `ClusterBlueprintController`, `ClusterRolloutController`                      |
+| KubeVela Core (`vela-core`)                    | Hub always; spokes if running Application workloads                   | The hub always runs vela-core. Spoke clusters that run KubeVela `Application` workloads also need vela-core and X-Definitions — see [VelaRuntime ClusterPlane](#vela-runtime-clusterplane)                                                    |
+| Provisioning controllers                       | Hub always; spokes if Application workloads provision cloud resources | Crossplane, CAPI, tf-controller, KRO (optional, user's choice). The hub needs these for `preCreate`/`blueprintRef` phases. Spokes also need them if Application components provision cloud resources (e.g., a database via Crossplane or ACK) |
+| Cloud credentials                              | Hub always; spokes if provisioning cloud resources                    | Secrets for provider access. Hub credentials are for cluster provisioning. Spoke credentials are for Application-scoped cloud resources                                                                                                       |
+| ClusterPlane definitions                       | Hub cluster only                                                      | Existing `ComponentDefinition`, `TraitDefinition`, etc. with `definition.oam.dev/scope: cluster` in `vela-system`                                                                                                                             |
+| X-Definitions for Application workloads        | Hub always; spokes if running Application workloads                   | `ComponentDefinition`, `TraitDefinition`, etc. needed wherever `Application` CRDs are processed — see [Definition Distribution](#definition-distribution-to-spoke-clusters)                                                                   |
+| Deployed infrastructure                        | Spoke clusters                                                        | CNI, ingress, cert-manager, security policies, etc.                                                                                                                                                                                           |
+| Workload Applications                          | Spoke clusters                                                        | Your actual applications (managed via KubeVela `Application` CRD)                                                                                                                                                                             |
 
 > **The hub cluster is the single pane of glass** for managing your entire fleet. All declarative state (desired state) lives on the hub; spoke clusters receive the rendered infrastructure components.
+>
+> **Important**: If spoke clusters run KubeVela `Application` workloads (not just raw Kubernetes resources), those spokes need the KubeVela runtime (`vela-core` + X-Definitions) installed. This is handled declaratively via a `vela-runtime` ClusterPlane — see [VelaRuntime ClusterPlane](#vela-runtime-clusterplane).
 
 ### Provisioning Controller Flexibility
 
 This KEP is **agnostic** to which provisioning controller you use. The `Cluster` CRD can delegate cluster creation to any of:
 
-| Controller | Use Case | How It Integrates |
-|------------|----------|-------------------|
-| **Crossplane** | Cloud-native resource management | `ClusterProviderDefinition` wraps Crossplane XRs |
-| **Cluster API (CAPI)** | Kubernetes-native cluster lifecycle | `ClusterProviderDefinition` wraps CAPI resources |
-| **tf-controller** | Terraform modules in Kubernetes | `ClusterProviderDefinition` wraps Terraform resources |
-| **ACK/Config Connector/ASO** | Cloud-specific operators | `ClusterProviderDefinition` wraps cloud CRDs |
-| **KRO** | Kube Resource Orchestrator | `ClusterProviderDefinition` wraps KRO instances |
-| **None (Connect mode)** | Pre-existing clusters | No provisioning; just connect with kubeconfig |
+| Controller                   | Use Case                            | How It Integrates                                     |
+| ---------------------------- | ----------------------------------- | ----------------------------------------------------- |
+| **Crossplane**               | Cloud-native resource management    | `ClusterProviderDefinition` wraps Crossplane XRs      |
+| **Cluster API (CAPI)**       | Kubernetes-native cluster lifecycle | `ClusterProviderDefinition` wraps CAPI resources      |
+| **tf-controller**            | Terraform modules in Kubernetes     | `ClusterProviderDefinition` wraps Terraform resources |
+| **ACK/Config Connector/ASO** | Cloud-specific operators            | `ClusterProviderDefinition` wraps cloud CRDs          |
+| **KRO**                      | Kube Resource Orchestrator          | `ClusterProviderDefinition` wraps KRO instances       |
+| **None (Connect mode)**      | Pre-existing clusters               | No provisioning; just connect with kubeconfig         |
 
 The platform team chooses which provisioning tools to install. KubeVela orchestrates **composition, ordering, rollout, and ownership** - it does NOT replace these tools.
+
+### VelaRuntime ClusterPlane
+
+If spoke clusters need to run KubeVela `Application` workloads (not just raw Kubernetes resources managed from the hub), they require the KubeVela runtime: `vela-core` controller and the relevant X-Definitions (`ComponentDefinition`, `TraitDefinition`, etc.).
+
+Rather than requiring manual installation, this is expressed declaratively as a **ClusterPlane component** using the existing `helm` ComponentDefinition:
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterPlane
+metadata:
+  name: vela-runtime
+  namespace: vela-system
+spec:
+  description: "KubeVela application runtime for spoke clusters"
+  components:
+    - name: vela-core
+      type: helm
+      properties:
+        chart: vela-core
+        repoType: helm
+        url: https://kubevela.github.io/charts
+        version: "1.9.0"
+        targetNamespace: vela-system
+        releaseName: kubevela
+        values:
+          # Spoke-specific configuration: no cluster-gateway needed,
+          # only the Application controller and definition loader
+          multicluster:
+            enabled: false
+          clusterGateway:
+            enabled: false
+```
+
+A blueprint for spoke clusters that run Application workloads includes this plane:
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterBlueprint
+metadata:
+  name: production-standard
+spec:
+  planes:
+    - name: vela-runtime # Install KubeVela runtime first
+      ref:
+        name: vela-runtime
+        version: "1.0.0"
+    - name: vela-definitions # Then push X-Definitions
+      ref:
+        name: vela-definitions
+        version: "1.0.0"
+    - name: networking
+      ref:
+        name: networking
+        version: "2.3.1"
+    # ... other planes
+  workflow:
+    steps:
+      - name: deploy-vela-runtime
+        type: deploy-plane
+        properties:
+          plane: vela-runtime
+      - name: deploy-vela-definitions
+        type: deploy-plane
+        properties:
+          plane: vela-definitions
+        dependsOn:
+          - deploy-vela-runtime # Definitions require vela-core to be running
+      - name: deploy-networking
+        type: deploy-plane
+        properties:
+          plane: networking
+        dependsOn:
+          - deploy-vela-definitions # Infrastructure planes can depend on runtime
+```
+
+> **Note**: Spoke clusters that only receive raw Kubernetes resources (Deployments, Services, ConfigMaps) dispatched from the hub do NOT need `vela-runtime`. The hub's vela-core renders the resources and applies them directly via cluster-gateway. The `vela-runtime` plane is only needed when spokes independently process `Application` CRDs.
+
+### Definition Distribution to Spoke Clusters
+
+When spoke clusters run their own vela-core (via the `vela-runtime` plane), they also need the X-Definitions (`ComponentDefinition`, `TraitDefinition`, etc.) that their Applications reference. There are two approaches:
+
+**Approach 1: Definitions as a ClusterPlane**
+
+Package the definitions as a Helm chart or Kustomize overlay and deploy them as a ClusterPlane component:
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterPlane
+metadata:
+  name: vela-definitions
+  namespace: vela-system
+spec:
+  description: "KubeVela X-Definitions for spoke Application workloads"
+  components:
+    - name: core-definitions
+      type: helm
+      properties:
+        chart: vela-definitions
+        repoType: helm
+        url: https://kubevela.github.io/charts
+        version: "1.9.0"
+        targetNamespace: vela-system
+        releaseName: vela-definitions
+    - name: custom-definitions
+      type: helm
+      properties:
+        chart: my-org-definitions
+        repoType: helm
+        url: https://charts.my-org.com
+        version: "2.1.0"
+        targetNamespace: vela-system
+        releaseName: my-org-definitions
+```
+
+**Approach 2: Definition Module Push**
+
+Use KubeVela's Go-based definition modules (`vela def apply-module`) to push definitions from the hub to spokes as part of a ClusterPlane workflow step:
+
+```yaml
+# A WorkflowStepDefinition (with scope: cluster) that pushes a definition module to the target cluster
+- name: push-definitions
+  type: push-definition-module
+  properties:
+    module: github.com/my-org/vela-definitions@v2.1.0
+    targetNamespace: vela-system
+```
 
 ---
 
@@ -443,7 +608,8 @@ KubeVela currently uses **cluster-gateway** (`github.com/oam-dev/cluster-gateway
 │  │   - patches: cluster-specific overrides                         │   │
 │  │   - inventory: what's deployed                                  │   │
 │  │   - health: aggregated status                                   │   │
-│  │   - lifecycle: provision/adopt/connect/infrastructure mode      │   │
+│  │   - lifecycle: provision/adopt/connect mode                     │   │
+│  │   - preCreate/postCreate: optional lifecycle phases            │   │
 │  │                                                                 │   │
 │  │   CONNECTIVITY (self-managed by ClusterController):             │   │
 │  │   ┌───────────────────────────────────────────────────────────┐ │   │
@@ -563,12 +729,12 @@ Without clear ownership, the following cycle could occur:
 
 #### Migration Path
 
-| Stage                     | Cluster CRD                  | Connectivity                                 | Behavior                                                         |
-| ------------------------- | ---------------------------- | -------------------------------------------- | ---------------------------------------------------------------- |
-| **Stage 0** (current)     | Not used                     | Manual kubeconfig management                 | Current behavior, no change                                      |
-| **Stage 1** (adoption)    | Created with `mode: connect` | Any supported method (inline, secretRef, cloudProvider) | Cluster CRD tracks state                       |
-| **Stage 2** (managed)     | Full spec with blueprint     | ClusterController manages connectivity       | Controller ensures connectivity, applies infrastructure          |
-| **Stage 3** (provisioned) | `mode: provision`            | Auto-created from provisioning outputs       | Cluster CRD provisions cluster AND creates connectivity          |
+| Stage                     | Cluster CRD                  | Connectivity                                            | Behavior                                                |
+| ------------------------- | ---------------------------- | ------------------------------------------------------- | ------------------------------------------------------- |
+| **Stage 0** (current)     | Not used                     | Manual kubeconfig management                            | Current behavior, no change                             |
+| **Stage 1** (adoption)    | Created with `mode: connect` | Any supported method (inline, secretRef, cloudProvider) | Cluster CRD tracks state                                |
+| **Stage 2** (managed)     | Full spec with blueprint     | ClusterController manages connectivity                  | Controller ensures connectivity, applies infrastructure |
+| **Stage 3** (provisioned) | `mode: provision`            | Auto-created from provisioning outputs                  | Cluster CRD provisions cluster AND creates connectivity |
 
 #### Controller Reconciliation
 
@@ -599,12 +765,12 @@ Without clear ownership, the following cycle could occur:
 
 **Critical Design Principle:** ClusterPlane is ONLY reconciled when referenced by a Cluster. Creating a ClusterPlane CRD does NOT create infrastructure resources—the Cluster CRD is the reconciliation trigger.
 
-| Controller | Responsibilities | Does NOT Do |
-|------------|------------------|-------------|
-| **ClusterController** | • Triggers ALL resource reconciliation<br>• Resolves Blueprint → Planes<br>• For shared planes: first Cluster triggers creation, others consume outputs<br>• For perCluster planes: creates instance per cluster<br>• Manages connectivity directly<br>• Aggregates health/inventory | • Never modifies ClusterPlane or ClusterBlueprint specs<br>• Never creates resources without a Cluster trigger |
-| **ClusterPlaneController** | • Creates ClusterPlaneRevision on publishVersion<br>• Validates inputs/outputs schema<br>• Tracks consumers (updates status.consumers)<br>• Computes status based on Cluster reports | • Does NOT create infrastructure resources<br>• Does NOT dispatch to clusters |
-| **ClusterBlueprintController** | • Creates ClusterBlueprintRevision on publishVersion<br>• Validates plane composition<br>• Resolves version constraints | • Does NOT dispatch to clusters (pull model)<br>• Does NOT modify Cluster specs |
-| **ClusterRolloutController** | • Manages wave progression timing<br>• Enforces maintenance windows<br>• Gates blueprint transitions | • Does NOT apply blueprints (only gates timing)<br>• Does NOT modify Cluster specs |
+| Controller                     | Responsibilities                                                                                                                                                                                                                                                                     | Does NOT Do                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| **ClusterController**          | • Triggers ALL resource reconciliation<br>• Resolves Blueprint → Planes<br>• For shared planes: first Cluster triggers creation, others consume outputs<br>• For perCluster planes: creates instance per cluster<br>• Manages connectivity directly<br>• Aggregates health/inventory | • Never modifies ClusterPlane or ClusterBlueprint specs<br>• Never creates resources without a Cluster trigger |
+| **ClusterPlaneController**     | • Creates ClusterPlaneRevision on publishVersion<br>• Validates inputs/outputs schema<br>• Tracks consumers (updates status.consumers)<br>• Computes status based on Cluster reports                                                                                                 | • Does NOT create infrastructure resources<br>• Does NOT dispatch to clusters                                  |
+| **ClusterBlueprintController** | • Creates ClusterBlueprintRevision on publishVersion<br>• Validates plane composition<br>• Resolves version constraints                                                                                                                                                              | • Does NOT dispatch to clusters (pull model)<br>• Does NOT modify Cluster specs                                |
+| **ClusterRolloutController**   | • Manages wave progression timing<br>• Enforces maintenance windows<br>• Gates blueprint transitions                                                                                                                                                                                 | • Does NOT apply blueprints (only gates timing)<br>• Does NOT modify Cluster specs                             |
 
 **Reconciliation Flow:**
 
@@ -942,12 +1108,12 @@ A `ClusterPlane` represents a composable infrastructure layer, typically owned b
 
 **Critical:** A ClusterPlane is a **template**, not a self-reconciling resource. Creating a ClusterPlane CRD does NOT create infrastructure resources.
 
-| Action | What Happens | What Does NOT Happen |
-|--------|--------------|----------------------|
-| Create ClusterPlane | Validates schema, creates ClusterPlaneRevision if publishVersion set | Does NOT create infrastructure |
-| Update ClusterPlane | Re-validates, creates new revision if version bumped | Does NOT update infrastructure |
-| Cluster references Blueprint containing Plane | **NOW infrastructure is created** | — |
-| Delete ClusterPlane | Blocked if consumers exist (scope=shared) | — |
+| Action                                        | What Happens                                                         | What Does NOT Happen           |
+| --------------------------------------------- | -------------------------------------------------------------------- | ------------------------------ |
+| Create ClusterPlane                           | Validates schema, creates ClusterPlaneRevision if publishVersion set | Does NOT create infrastructure |
+| Update ClusterPlane                           | Re-validates, creates new revision if version bumped                 | Does NOT update infrastructure |
+| Cluster references Blueprint containing Plane | **NOW infrastructure is created**                                    | —                              |
+| Delete ClusterPlane                           | Blocked if consumers exist (scope=shared)                            | —                              |
 
 **When is a ClusterPlane reconciled?**
 
@@ -971,6 +1137,7 @@ Cluster created with blueprintRef → ClusterController resolves Blueprint
 ```
 
 This **pull model** ensures:
+
 - ClusterPlanes are reusable templates
 - No orphaned infrastructure (every resource tied to a Cluster)
 - Clear lifecycle (Cluster deletion triggers cleanup)
@@ -1002,12 +1169,12 @@ The Cluster CRD is designed to work seamlessly with GitOps tools. Since reconcil
 
 **Supported GitOps Tools:**
 
-| Tool | Integration Pattern |
-|------|---------------------|
-| **Flux CD** | `Kustomization` or `HelmRelease` syncing Cluster CRDs from Git |
-| **Argo CD** | `Application` tracking Cluster manifests in Git repository |
-| **Rancher Fleet** | `GitRepo` with paths to Cluster definitions |
-| **Jenkins X** | Pipeline-driven `kubectl apply` of Cluster CRDs |
+| Tool              | Integration Pattern                                            |
+| ----------------- | -------------------------------------------------------------- |
+| **Flux CD**       | `Kustomization` or `HelmRelease` syncing Cluster CRDs from Git |
+| **Argo CD**       | `Application` tracking Cluster manifests in Git repository     |
+| **Rancher Fleet** | `GitRepo` with paths to Cluster definitions                    |
+| **Jenkins X**     | Pipeline-driven `kubectl apply` of Cluster CRDs                |
 
 **Example: Flux CD Integration**
 
@@ -1166,13 +1333,13 @@ spec:
         component: external-dns
         fieldPath: status.dnsZone
 
-  # Inputs consumed from other planes (same-cluster shared planes)
-  # Used to consume outputs from shared planes defined in the same blueprint
+  # Inputs consumed from other planes reconciled for the same cluster
+  # (including shared planes from preCreate blueprints)
   inputs:
     - name: vpcId
-      fromPlane: shared-vpc-us-east-1   # Reference to a shared plane
-      output: vpcId                      # Output name from that plane
-      required: true                     # Fail if output not available
+      fromPlane: shared-vpc-us-east-1 # Reference to a shared plane
+      output: vpcId # Output name from that plane
+      required: true # Fail if output not available
 
     - name: privateSubnets
       fromPlane: shared-vpc-us-east-1
@@ -1191,9 +1358,12 @@ spec:
       output: prometheusEndpoint
 
 status:
-  phase: Running # Pending, Provisioning, Running, Failed, Updating
+  # ClusterPlane is a template — its status reflects publishing state, not runtime.
+  # Runtime state (phase, component health, outputs) lives on the Cluster status,
+  # since each Cluster independently reconciles the plane.
+  phase: Published # Draft, Published, Deprecated
 
-  # Current active revision
+  # Current published revision
   currentRevision: networking-v2.3.1
   currentVersion: "2.3.1"
 
@@ -1205,7 +1375,6 @@ status:
       createdBy: "jane@company.com"
       digest: "sha256:abc123..." # Hash of spec for integrity
       changelog: "Updated ingress-nginx to 4.8.3 (security patch)"
-      active: true # Currently deployed
 
     - name: networking-v2.3.0
       version: "2.3.0"
@@ -1213,7 +1382,6 @@ status:
       createdBy: "bob@company.com"
       digest: "sha256:def456..."
       changelog: "Added external-dns component"
-      active: false
 
     - name: networking-v2.2.0
       version: "2.2.0"
@@ -1221,23 +1389,17 @@ status:
       createdBy: "jane@company.com"
       digest: "sha256:ghi789..."
       changelog: "Upgraded Cilium to 1.14.x"
-      active: false
 
   # How many revisions to keep
   revisionHistoryLimit: 10
 
-  components:
-    - name: ingress-nginx
-      healthy: true
-      message: "3/3 replicas ready"
-    - name: cilium
-      healthy: true
-      message: "DaemonSet running on all nodes"
-    - name: external-dns
-      healthy: true
-      message: "1/1 replicas ready"
-  outputs:
-    ingressClass: nginx
+  # Which clusters are using this plane (for shared planes)
+  consumers:
+    count: 3
+    clusters:
+      - name: prod-us-east-1-a
+      - name: prod-us-east-1-b
+      - name: prod-us-east-1-c
     clusterDNS: "cluster.example.com"
   observedGeneration: 3
   lastUpdated: "2024-12-24T10:00:00Z"
@@ -1378,25 +1540,11 @@ spec:
         fieldPath: outputs.cluster_name
 
 status:
-  phase: Running
+  # ClusterPlane is a template — runtime state (component health, outputs)
+  # lives on the Cluster's status.planes[] for each cluster using this plane.
+  phase: Published
   currentRevision: aws-foundation-v1.2.0
-  components:
-    - name: vpc
-      healthy: true
-      message: "VPC created: vpc-0abc123"
-    - name: eks-cluster
-      healthy: true
-      message: "EKS cluster ready: 1.28"
-    - name: node-pool-system
-      healthy: true
-      message: "3/3 nodes ready"
-    - name: node-pool-workload
-      healthy: true
-      message: "3/3 nodes ready"
-  outputs:
-    vpcId: "vpc-0abc123def456"
-    clusterEndpoint: "https://ABC123.gr7.us-east-1.eks.amazonaws.com"
-    clusterName: "production-us-east-1"
+  currentVersion: "1.2.0"
 ```
 
 **Why Cloud Infrastructure as a ClusterPlane?**
@@ -1423,11 +1571,12 @@ ClusterPlane uses semantic versioning with immutable revisions, following the sa
 3. **Continue**: Bump version to "2.4.0" → new revision, previous remains available
 
 **Version Collision Rules:**
-| Scenario | Result |
-|----------|--------|
-| Same version + same content | SUCCESS (idempotent, GitOps-safe) |
-| Same version + different content | REJECTED (must bump version) |
-| Delete revision referenced by blueprint | REJECTED |
+
+| Scenario                                | Result                            |
+| --------------------------------------- | --------------------------------- |
+| Same version + same content             | SUCCESS (idempotent, GitOps-safe) |
+| Same version + different content        | REJECTED (must bump version)      |
+| Delete revision referenced by blueprint | REJECTED                          |
 
 **Admission Webhook for Version Validation:**
 
@@ -1760,9 +1909,9 @@ metadata:
 spec:
   # ... (unchanged)
 status:
-  phase: Running
+  phase: Published # Draft, Published, Deprecated
 
-  # Reference to current active revision (not embedded)
+  # Reference to current published revision (not embedded)
   currentRevision:
     name: networking-v2.3.1
     version: "2.3.1"
@@ -1773,15 +1922,6 @@ status:
 
   # How many revisions to keep (GC deletes oldest beyond this)
   revisionHistoryLimit: 10
-
-  # Quick health summary (details in ClusterPlaneRevision)
-  healthy: true
-  message: "All components running"
-
-  # Outputs (cached from current revision for fast access)
-  outputs:
-    ingressClass: nginx
-    clusterDNS: "cluster.example.com"
 
   observedGeneration: 3
   lastUpdated: "2024-12-24T10:00:00Z"
@@ -1996,111 +2136,111 @@ In enterprise deployments, infrastructure resources like VPCs, NAT Gateways, and
 
 **The Critical Question:** Who "owns" a shared plane's resources? Since ClusterPlanes are only reconciled when referenced by a Cluster, we need clear ownership semantics.
 
-**Ownership Pattern: Infrastructure Preparer Cluster**
+**Ownership Pattern: preCreate Blueprint with Consumer Tracking**
 
-The recommended pattern uses a dedicated **infrastructure mode Cluster** to own shared planes:
+Shared infrastructure is defined in a ClusterBlueprint and referenced via `preCreate.blueprintRef` on each Cluster that needs it. The first Cluster to reference the blueprint triggers creation; subsequent Clusters consume the existing outputs.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    INFRASTRUCTURE PREPARER PATTERN                           │
+│                    SHARED PRECREATE BLUEPRINT PATTERN                        │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  Hub/Management Cluster                                                     │
 │  ┌───────────────────────────────────────────────────────────────────────┐  │
 │  │                                                                       │  │
-│  │  Cluster: us-east-1-infrastructure (mode: infrastructure)             │  │
-│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
-│  │  │ Blueprint: shared-infrastructure-us-east                        │  │  │
-│  │  │   └─ ClusterPlane: shared-vpc (scope: shared)                   │  │  │
-│  │  │   └─ ClusterPlane: shared-transit-gw (scope: shared)            │  │  │
-│  │  │   └─ ClusterPlane: shared-dns (scope: shared)                   │  │  │
-│  │  └─────────────────────────────────────────────────────────────────┘  │  │
-│  │                          │ outputs consumed by                        │  │
+│  │  ClusterBlueprint: shared-infrastructure-us-east                      │  │
+│  │    └─ ClusterPlane: shared-vpc (scope: shared)                        │  │
+│  │    └─ ClusterPlane: shared-transit-gw (scope: shared)                 │  │
+│  │    └─ ClusterPlane: shared-dns (scope: shared)                        │  │
+│  │                          │ referenced as preCreate by                  │  │
 │  │                          ▼                                            │  │
 │  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
 │  │  │ Cluster: prod-us-east-1-a (mode: provision)                     │  │  │
-│  │  │   └─ Blueprint: production-eks                                  │  │  │
-│  │  │        └─ ClusterPlane: shared-vpc (consumes outputs)           │  │  │
-│  │  │        └─ ClusterPlane: eks-cluster (scope: perCluster)         │  │  │
+│  │  │   preCreate: shared-infrastructure-us-east ← first consumer     │  │  │
+│  │  │   blueprintRef: production-eks                                  │  │  │
+│  │  │   postCreate: smoke-tests                                       │  │  │
 │  │  └─────────────────────────────────────────────────────────────────┘  │  │
 │  │                                                                       │  │
 │  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
 │  │  │ Cluster: prod-us-east-1-b (mode: provision)                     │  │  │
-│  │  │   └─ Blueprint: production-eks                                  │  │  │
-│  │  │        └─ ClusterPlane: shared-vpc (consumes outputs)           │  │  │
-│  │  │        └─ ClusterPlane: eks-cluster (scope: perCluster)         │  │  │
+│  │  │   preCreate: shared-infrastructure-us-east ← consumes outputs   │  │  │
+│  │  │   blueprintRef: production-eks                                  │  │  │
+│  │  │   postCreate: smoke-tests                                       │  │  │
 │  │  └─────────────────────────────────────────────────────────────────┘  │  │
 │  │                                                                       │  │
 │  └───────────────────────────────────────────────────────────────────────┘  │
 │                                                                             │
-│  KEY INSIGHT: The infrastructure preparer cluster OWNS the shared planes.   │
-│  Workload clusters CONSUME outputs but don't trigger shared plane creation. │
+│  KEY INSIGHT: The first Cluster's preCreate triggers shared plane           │
+│  creation. Subsequent Clusters consume outputs without re-creation.         │
+│  Shared planes are protected from deletion while any consumer exists.       │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Infrastructure Preparer Cluster:**
+**Example Cluster with preCreate:**
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Cluster
 metadata:
-  name: us-east-1-infrastructure
+  name: prod-us-east-1-a
   namespace: vela-system
   labels:
-    cluster.oam.dev/role: infrastructure-preparer
     region: us-east-1
+    environment: production
 spec:
-  # Infrastructure mode - not a real K8s cluster, just owns shared planes
-  mode: infrastructure
-
-  # No credentials needed - this is a virtual/logical cluster
-  # Resources are created in cloud (AWS/GCP) or hub cluster namespace
-
-  # Where shared plane resources are created
-  infrastructureTarget:
-    type: cloud      # cloud | hub
-    providerRef:
+  mode: provision
+  provider:
+    type: aws
+    credentialRef:
       name: aws-production
-    # OR for hub-local shared resources:
-    # type: hub
-    # namespace: shared-infrastructure
+    region: us-east-1
 
-  # Blueprint containing shared planes
+  # Shared cloud infrastructure — reconciled once, consumed by all clusters
+  preCreate:
+    blueprintRef:
+      name: shared-infrastructure-us-east
+
+  # Cluster provisioning
   blueprintRef:
-    name: shared-infrastructure-us-east
+    name: production-eks
+
+  # Post-creation validation — deploy test apps, run smoke tests
+  postCreate:
+    blueprintRef:
+      name: cluster-validation
 ```
 
 **Why This Pattern?**
 
-| Benefit | Explanation |
-|---------|-------------|
-| **Clear Ownership** | Platform team owns the preparer, shared planes have explicit owner |
-| **Natural Deletion Protection** | Preparer blocked from deletion while consumers exist |
-| **Clean RBAC** | Platform team manages preparer, app teams manage workload clusters |
-| **Independent Lifecycle** | Shared infra lifecycle separate from workload cluster lifecycle |
-| **Label-Based Access** | `sharedWith.clusterSelector` controls which clusters can consume |
+| Benefit                         | Explanation                                                                      |
+| ------------------------------- | -------------------------------------------------------------------------------- |
+| **Implicit Ownership**          | Consumer tracking on shared planes — no separate "owner" resource needed         |
+| **Natural Deletion Protection** | Shared planes blocked from deletion while any Cluster references them            |
+| **No Virtual Clusters**         | Every Cluster CRD represents a real cluster — no dual semantics                  |
+| **Explicit Lifecycle Phases**   | `preCreate` → `blueprintRef` → `postCreate` makes ordering unambiguous           |
+| **Label-Based Access**          | `sharedWith.clusterSelector` on ClusterPlane controls which clusters can consume |
 
 **Lifecycle Semantics:**
 
 ```
-1. Platform team creates us-east-1-infrastructure (mode: infrastructure)
-   → ClusterController reconciles shared planes (VPC, DNS, etc.)
-   → Shared plane status.phase = Running
+1. Platform team creates prod-us-east-1-a with preCreate: shared-infrastructure-us-east
+   → ClusterController reconciles preCreate blueprint
+   → First consumer → creates shared planes (VPC, DNS, etc.)
+   → Shared plane status.phase = Running, status.consumers.count = 1
 
-2. App team creates prod-us-east-1-a with production-eks blueprint
-   → Blueprint references shared-vpc
-   → ClusterController sees shared-vpc already reconciled
+2. Platform team creates prod-us-east-1-b with same preCreate blueprint
+   → ClusterController sees shared planes already reconciled
    → Consumes outputs (vpcId, subnetIds) without re-creating
-   → Updates shared plane status.consumers
+   → Updates shared plane status.consumers.count = 2
 
-3. App team deletes prod-us-east-1-a
-   → ClusterController removes from shared plane consumers
-   → Shared plane resources REMAIN (owned by preparer)
+3. Platform team deletes prod-us-east-1-b
+   → ClusterController decrements shared plane consumers
+   → Shared plane resources REMAIN (still consumed by prod-us-east-1-a)
 
-4. Platform team tries to delete us-east-1-infrastructure
-   → BLOCKED: "2 workload clusters consuming shared planes"
-   → Must remove consumers first (or force delete with warning)
+4. Platform team deletes prod-us-east-1-a (last consumer)
+   → Shared plane consumers = 0 → eligible for cleanup
+   → Cleanup policy determines whether shared resources are deleted or retained
 ```
 
 **Shared Plane Definition:**
@@ -2240,14 +2380,13 @@ The blueprint doesn't need special sharing configuration—the plane's `scope` f
 
 ##### Deletion Semantics Matrix
 
-| Resource | Deletion Behavior | Blocked When |
-|----------|-------------------|--------------|
-| **ClusterPlane (scope=shared)** | BLOCKED if consumers > 0 | Any Cluster/Blueprint consuming outputs |
-| **ClusterPlane (scope=perCluster)** | Allowed | Never blocked (per-cluster instances cleaned up) |
-| **ClusterBlueprint** | BLOCKED if referenced | Any Cluster has `blueprintRef` pointing to it |
-| **ClusterBlueprintRevision** | BLOCKED if active | Any Cluster using this specific revision |
-| **Cluster (mode=infrastructure)** | BLOCKED if consumers | Workload clusters consuming its shared planes |
-| **Cluster (mode=provision/adopt/connect)** | Allowed with cleanup | Never blocked (triggers resource cleanup) |
+| Resource                            | Deletion Behavior        | Blocked When                                                                                               |
+| ----------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| **ClusterPlane (scope=shared)**     | BLOCKED if consumers > 0 | Any Cluster's preCreate/blueprintRef consuming outputs                                                     |
+| **ClusterPlane (scope=perCluster)** | Allowed                  | Never blocked (per-cluster instances cleaned up)                                                           |
+| **ClusterBlueprint**                | BLOCKED if referenced    | Any Cluster has `preCreate`, `blueprintRef`, or `postCreate` pointing to it                                |
+| **ClusterBlueprintRevision**        | BLOCKED if active        | Any Cluster using this specific revision                                                                   |
+| **Cluster**                         | Allowed with cleanup     | Never blocked (triggers phased resource cleanup: postCreate → blueprintRef → preCreate consumer decrement) |
 
 ##### ClusterPlane Deletion
 
@@ -2270,26 +2409,27 @@ Error from server: admission webhook "clusterplane.validation.oam.dev" denied th
 
 ##### Cluster Deletion Cascade
 
-When a Cluster is deleted, the following cleanup occurs:
+When a Cluster is deleted, cleanup follows the reverse of the lifecycle phases:
 
 ```
 Cluster deletion triggered
            │
            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ 1. Remove from shared plane consumers                       │
+│ 1. Clean up postCreate resources                             │
+│    → Removes validation apps and smoke tests from spoke     │
+│    → Deletes postCreate plane instances                     │
+│                                                             │
+│ 2. Clean up blueprintRef resources                           │
+│    → For mode=provision: Destroy cloud infrastructure       │
+│      (triggers Terraform/Crossplane cleanup for EKS, nodes) │
+│    → Removes perCluster plane instances and ResourceTrackers│
+│    → Remove connectivity credentials (if controller-created)│
+│                                                             │
+│ 3. Decrement preCreate shared plane consumers                │
 │    → Decrements status.consumers.count on each shared plane │
-│    → Updates status.consumers.clusters list                 │
-│                                                             │
-│ 2. Clean up perCluster plane instances                      │
-│    → Deletes resources created for this cluster             │
-│    → Removes ResourceTrackers                               │
-│                                                             │
-│ 3. For mode=provision: Destroy cloud infrastructure         │
-│    → Triggers Terraform/Crossplane cleanup                  │
-│    → VPC, EKS, nodes are deleted                            │
-│                                                             │
-│ 4. Remove connectivity credentials (if controller-created)  │
+│    → If consumers = 0: eligible for cleanup (per policy)    │
+│    → If consumers > 0: shared resources remain              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -2318,7 +2458,7 @@ kind: ClusterPlane
 metadata:
   name: shared-vpc-us-east-1
 status:
-  phase: Running
+  phase: Published
   scope: shared
 
   # Clusters currently using this shared plane
@@ -2335,15 +2475,19 @@ status:
         blueprint: production-standard
         since: "2025-01-03T11:00:00Z"
 
-  components:
-    - name: vpc
-      healthy: true
-      message: "VPC created successfully"
-
-  outputs:
-    vpcId: "vpc-0abc123def456"
-    privateSubnets: '["subnet-1a","subnet-1b","subnet-1c"]'
-    publicSubnets: '["subnet-2a","subnet-2b","subnet-2c"]'
+  # For shared planes, outputs are stored on the ClusterPlane itself since
+  # there is only one materialized instance. Per-cluster planes store outputs
+  # on the Cluster's status.planes[] instead.
+  sharedInstance:
+    phase: Running # Pending, Running, Failed
+    outputs:
+      vpcId: "vpc-0abc123def456"
+      privateSubnets: '["subnet-1a","subnet-1b","subnet-1c"]'
+      publicSubnets: '["subnet-2a","subnet-2b","subnet-2c"]'
+    components:
+      - name: vpc
+        healthy: true
+        message: "VPC created successfully"
 ```
 
 **CLI Commands:**
@@ -2352,15 +2496,15 @@ status:
 # List shared planes and their consumers
 vela plane list --scope shared
 
-NAME                    SCOPE    CONSUMERS  STATUS
-shared-vpc-us-east-1    shared   3          Running
-shared-transit-gw       shared   5          Running
+NAME                    SCOPE    CONSUMERS  VERSION
+shared-vpc-us-east-1    shared   3          v2.1.0
+shared-transit-gw       shared   5          v1.3.0
 
 # Show details of a shared plane
 vela plane status shared-vpc-us-east-1
 
 SHARED PLANE: shared-vpc-us-east-1
-STATUS: Running
+VERSION: v2.1.0
 SCOPE: shared (3 consumers)
 
 CONSUMERS:
@@ -2706,33 +2850,27 @@ spec:
         dependsOn: [deploy-observability]
 
 status:
-  phase: Running
+  # ClusterBlueprint is a template — runtime state lives on Cluster's status.
+  phase: Published
 
-  # Current active revision
+  # Current published revision
   currentRevision: production-standard-v2.3.0
   currentVersion: "2.3.0"
 
   # Resolved plane revisions for this blueprint version
-  planes:
+  resolvedPlanes:
     - name: aws-foundation
       revision: aws-foundation-v1.2.0
       version: "1.2.0"
-      status: Running
-      outputs:
-        clusterEndpoint: "https://ABC123.gr7.us-east-1.eks.amazonaws.com"
-        vpcId: "vpc-0abc123"
     - name: networking
       revision: networking-v2.3.1
       version: "2.3.1"
-      status: Running
     - name: security
       revision: security-v1.8.0
       version: "1.8.0"
-      status: Running
     - name: observability
       revision: observability-v3.1.0
       version: "3.1.0"
-      status: Running
 
   # Revision history
   revisions:
@@ -2742,7 +2880,6 @@ status:
       createdBy: "sre-team@company.com"
       digest: "sha256:abc123..."
       changelog: "Updated networking plane, added storage plane"
-      active: true
       planeRevisions: # Snapshot of which plane versions were used
         aws-foundation: aws-foundation-v1.2.0
         networking: networking-v2.3.1
@@ -3166,7 +3303,7 @@ metadata:
 spec:
   # ... (unchanged)
 status:
-  phase: Active
+  phase: Published
 
   # Reference to current active revision
   currentRevision:
@@ -3702,13 +3839,13 @@ At scale, reconciling many clusters simultaneously can overwhelm the hub API ser
 
 #### When Do You Need Scale Controls?
 
-| Fleet Size | Recommendation |
-|------------|----------------|
-| <50 clusters | Single controller instance is sufficient |
-| 50-200 clusters | Add rate limiting to smooth API server load |
-| 200-500 clusters | Shard controllers (2-5 replicas) |
-| 500+ clusters | Sharding + status aggregation + consider multi-hub |
-| 1000+ clusters | Multi-hub architecture (regional GitOps instances) |
+| Fleet Size       | Recommendation                                     |
+| ---------------- | -------------------------------------------------- |
+| <50 clusters     | Single controller instance is sufficient           |
+| 50-200 clusters  | Add rate limiting to smooth API server load        |
+| 200-500 clusters | Shard controllers (2-5 replicas)                   |
+| 500+ clusters    | Sharding + status aggregation + consider multi-hub |
+| 1000+ clusters   | Multi-hub architecture (regional GitOps instances) |
 
 #### Primary Mechanism: Controller Sharding
 
@@ -3721,19 +3858,19 @@ kind: Deployment
 metadata:
   name: cluster-controller
 spec:
-  replicas: 3  # 3 shards
+  replicas: 3 # 3 shards
   template:
     spec:
       containers:
-      - name: controller
-        args:
-        - --shard-id=$(SHARD_ID)
-        - --total-shards=3
-        env:
-        - name: SHARD_ID
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.labels['shard-id']
+        - name: controller
+          args:
+            - --shard-id=$(SHARD_ID)
+            - --total-shards=3
+          env:
+            - name: SHARD_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['shard-id']
 ```
 
 Clusters are assigned to shards via consistent hashing or explicit labels:
@@ -3744,7 +3881,7 @@ kind: Cluster
 metadata:
   name: prod-us-east-1
   labels:
-    cluster.oam.dev/shard: "1"  # Explicit shard assignment
+    cluster.oam.dev/shard: "1" # Explicit shard assignment
 ```
 
 This pattern is proven at scale (ArgoCD uses `--application-controller-shard`).
@@ -3797,12 +3934,12 @@ spec:
 
 These controls leverage **existing Kubernetes primitives**—no custom implementation required:
 
-| Mechanism | Implementation |
-|-----------|----------------|
-| Sharding | Label selectors on controller watch + multiple replicas |
-| Rate limiting | client-go's `workqueue.RateLimiter` (built-in) |
-| Max concurrency | controller-runtime's `MaxConcurrentReconciles` |
-| Jitter | Random delay before requeue (`time.Sleep` + jitter) |
+| Mechanism       | Implementation                                          |
+| --------------- | ------------------------------------------------------- |
+| Sharding        | Label selectors on controller watch + multiple replicas |
+| Rate limiting   | client-go's `workqueue.RateLimiter` (built-in)          |
+| Max concurrency | controller-runtime's `MaxConcurrentReconciles`          |
+| Jitter          | Random delay before requeue (`time.Sleep` + jitter)     |
 
 For fleets >500 clusters, consider **status aggregation** to reduce the volume of status updates written to the hub:
 
@@ -3892,37 +4029,55 @@ A key design goal is supporting the **full cluster lifecycle** - from provisioni
 │           │                                │                                │
 │           ▼                                ▼                                │
 │  ┌─────────────────┐              ┌─────────────────┐                       │
-│  │ VPC Created     │              │ Discovery &     │                       │
-│  │ EKS Provisioned │              │ Inventory Scan  │                       │
-│  │ Nodes Launched  │              │ State Import    │                       │
+│  │ preCreate (opt) │              │ preCreate (opt) │                       │
+│  │ → VPC, IAM, DNS │              │ → IAM, RBAC     │                       │
+│  │ blueprintRef    │              │ Discovery &     │                       │
+│  │ → EKS, Nodes    │              │ State Import    │                       │
+│  │ postCreate (opt)│              │ postCreate (opt)│                       │
+│  │ → Validation    │              │ → Validation    │                       │
 │  └────────┬────────┘              └────────┬────────┘                       │
 │           │                                │                                │
 │           ▼                                ▼                                │
 │  ┌─────────────────┐              ┌─────────────────┐                       │
-│  │ Blueprint       │              │ Blueprint       │                       │
-│  │ Applied         │              │ Reconciled      │                       │
+│  │ Cluster Ready   │              │ Blueprint       │                       │
+│  │ All Phases Done │              │ Reconciled      │                       │
 │  └─────────────────┘              └─────────────────┘                       │
 │                                                                             │
-│  MODE 3: CONNECT                 MODE 4: INFRASTRUCTURE                     │
-│  ───────────────                 ─────────────────────                      │
-│  "Just manage what's in the      "Virtual cluster to own shared            │
-│   cluster, no provisioning"       infrastructure planes"                    │
+│  MODE 3: CONNECT                                                            │
+│  ───────────────                                                            │
+│  "Just manage what's in the                                                 │
+│   cluster, no provisioning"                                                 │
 │                                                                             │
-│  ┌─────────────────┐              ┌─────────────────┐                       │
-│  │ Kubeconfig      │              │ Blueprint with  │                       │
-│  │ + Blueprint     │              │ shared planes   │                       │
-│  │ (optional)      │              │ (no kubeconfig) │                       │
-│  └────────┬────────┘              └────────┬────────┘                       │
-│           │                                │                                │
-│           ▼                                ▼                                │
-│  ┌─────────────────┐              ┌─────────────────┐                       │
-│  │ Inventory Scan  │              │ Shared Planes   │                       │
-│  │ Blueprint Apply │              │ Reconciled      │                       │
-│  └─────────────────┘              │ Outputs Exposed │                       │
-│                                   └─────────────────┘                       │
+│  ┌─────────────────┐                                                        │
+│  │ Kubeconfig      │              All modes support optional preCreate      │
+│  │ + Blueprint     │              and postCreate blueprint phases.          │
+│  │ (optional)      │              Shared preCreate blueprints are           │
+│  └────────┬────────┘              reconciled once and reused across         │
+│           │                       clusters (see Lifecycle Phases).          │
+│           ▼                                                                 │
+│  ┌─────────────────┐                                                        │
+│  │ postCreate (opt)│                                                        │
+│  │ → Validation    │                                                        │
+│  └─────────────────┘                                                        │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+**Component Execution Model**
+
+The Cluster lifecycle phase determines where ClusterPlane component resources are rendered and dispatched. There are three distinct execution contexts, mapped to the `preCreate`, `blueprintRef`, and `postCreate` phases (see [Cluster Lifecycle Phases](#cluster-lifecycle-phases-precreate-and-postcreate)):
+
+| Execution Context                         | Lifecycle Phase            | Rendered On  | Resources Land On              | Examples                                                                                  |
+| ----------------------------------------- | -------------------------- | ------------ | ------------------------------ | ----------------------------------------------------------------------------------------- |
+| **Shared cloud infrastructure**           | `preCreate`                | Hub          | Cloud provider                 | VPC, IAM roles, DNS zones                                                                 |
+| **Cluster provisioning & infrastructure** | `blueprintRef`             | Hub          | Cloud provider + spoke cluster | EKS/GKE creation, node pools, Cilium, cert-manager, ingress controller, monitoring agents |
+| **Post-creation validation**              | `postCreate`               | Hub          | Target spoke cluster           | Validation apps, smoke tests, readiness checks                                            |
+| **Application workloads**                 | N/A — uses Application CRD | Hub or spoke | Spoke cluster                  | Databases, message queues, application services                                           |
+
+- **Shared cloud infrastructure**: The `preCreate` blueprint runs on the hub against cloud APIs. Components use types like `terraform-module` or `crossplane-resource`. The spoke cluster does not yet exist, so no cluster-gateway connectivity is needed. If the same preCreate blueprint is referenced by another Cluster, its outputs are consumed without re-creation (shared plane semantics).
+- **Cluster provisioning & infrastructure**: The `blueprintRef` blueprint handles both cluster creation (against cloud APIs) and all cluster-level infrastructure (networking, security, observability planes). Provisioning outputs (cluster endpoint, CA cert, credentials) are used by the ClusterController to create a credential Secret, which registers the new cluster with cluster-gateway. Once connectivity is established, infrastructure planes (Cilium, cert-manager, ingress, monitoring) are dispatched to the spoke via cluster-gateway. This is the golden path — all cluster infrastructure is defined in the blueprint.
+- **Post-creation validation**: The `postCreate` blueprint runs after the spoke cluster is fully provisioned and all `blueprintRef` planes are healthy. It is used for deploying validation apps, running smoke tests, and performing readiness checks. For `mode: adopt/connect`, connectivity is available from the start, so `postCreate` can begin immediately after the main blueprint is applied.
+- **Application workloads**: Not part of ClusterPlane. Application-scoped infrastructure (databases, caches, queues) is managed through the existing `Application` CRD using standard `ComponentDefinition` and `TraitDefinition` resources (without the `scope: cluster` annotation). These workloads depend on cluster-level infrastructure being in place first.
 
 #### Mode 1: Provision - Create New Cluster
 
@@ -4066,10 +4221,10 @@ Connect to an existing cluster and bring it under management. The ClusterControl
 
 **Connectivity Options:**
 
-| Option | Description | Use Case |
-|--------|-------------|----------|
-| `credential` (inline) | Credentials directly in spec | Simple, self-contained |
-| `credential.secretRef` | Reference to kubeconfig secret | Standard Kubernetes pattern |
+| Option                     | Description                                | Use Case                     |
+| -------------------------- | ------------------------------------------ | ---------------------------- |
+| `credential` (inline)      | Credentials directly in spec               | Simple, self-contained       |
+| `credential.secretRef`     | Reference to kubeconfig secret             | Standard Kubernetes pattern  |
 | `credential.cloudProvider` | Cloud-native auth (IAM, workload identity) | Production cloud deployments |
 
 **Option 1: Inline Credentials:**
@@ -4084,7 +4239,7 @@ spec:
 
   # Inline credential - controller manages connectivity directly
   credential:
-    type: X509  # X509, ServiceAccountToken, Bearer
+    type: X509 # X509, ServiceAccountToken, Bearer
     endpoint: "https://partner.k8s.example.com:6443"
     caData: "LS0tLS1CRUdJTi..."
     certData: "LS0tLS1CRUdJTi..."
@@ -4109,7 +4264,7 @@ spec:
     secretRef:
       name: prod-cluster-kubeconfig
       namespace: vela-system
-      key: kubeconfig  # Optional, defaults to "kubeconfig"
+      key: kubeconfig # Optional, defaults to "kubeconfig"
 
   blueprintRef:
     name: production-standard
@@ -4173,7 +4328,7 @@ spec:
       name: legacy-production-kubeconfig
   adoption:
     existingResources:
-      mode: reconcile  # Now actually reconcile
+      mode: reconcile # Now actually reconcile
   blueprintRef:
     name: production-standard
     reconcileMode: gradual
@@ -4241,95 +4396,110 @@ status:
     managedResources: 47
 ```
 
-#### Mode 4: Infrastructure - Own Shared Planes
+#### Cluster Lifecycle Phases: preCreate and postCreate
 
-A **virtual cluster** that owns shared infrastructure planes. This is NOT a real Kubernetes cluster—it's a logical grouping for shared infrastructure with clear ownership semantics.
-
-**Key Characteristics:**
-- No kubeconfig or credentials needed (not a real K8s cluster)
-- Owns shared planes (VPC, Transit Gateway, shared DNS, etc.)
-- Workload clusters consume outputs from these shared planes
-- Deletion blocked while consumers exist
+The Cluster CRD supports optional `preCreate` and `postCreate` blueprint references. `preCreate` reconciles shared cloud infrastructure (VPC, IAM, DNS) before the cluster is created. `postCreate` runs validation tasks (test apps, smoke tests) after the cluster and all blueprint planes are healthy.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Cluster
 metadata:
-  name: us-east-1-infrastructure
+  name: prod-us-east-1-a
   namespace: vela-system
   labels:
-    cluster.oam.dev/role: infrastructure-preparer
     region: us-east-1
+    environment: production
 spec:
-  # MODE: Infrastructure preparer - owns shared planes
-  mode: infrastructure
-
-  # Where shared plane resources are created
-  infrastructureTarget:
-    # Option 1: Cloud resources (VPC, NAT Gateway, etc.)
-    type: cloud
-    providerRef:
+  mode: provision
+  provider:
+    type: aws
+    credentialRef:
       name: aws-production
+    region: us-east-1
 
-    # Option 2: Hub cluster namespace (for K8s-native shared resources)
-    # type: hub
-    # namespace: shared-infrastructure-us-east
+  # Phase 1: Shared cloud infrastructure (before cluster creation)
+  # If this blueprint is already reconciled by another Cluster, outputs are
+  # consumed without re-creation (same semantics as scope: shared planes).
+  preCreate:
+    blueprintRef:
+      name: shared-infrastructure-us-east # VPC, IAM, DNS
 
-  # Blueprint containing shared planes
+  # Phase 2: Cluster provisioning + infrastructure (the golden path)
   blueprintRef:
-    name: shared-infrastructure-us-east
+    name: production-eks # EKS control plane, node pools, Cilium, cert-manager, monitoring
 
-status:
-  mode: infrastructure
-  phase: Ready
-
-  # Shared plane status
-  planes:
-    - name: shared-vpc
-      scope: shared
-      phase: Running
-      outputs:
-        vpcId: "vpc-0abc123def456"
-        privateSubnets: '["subnet-1a","subnet-1b","subnet-1c"]'
-
-  # Workload clusters consuming these shared planes
-  consumers:
-    count: 3
-    clusters:
-      - name: prod-us-east-1-a
-        consumedPlanes: [shared-vpc]
-      - name: prod-us-east-1-b
-        consumedPlanes: [shared-vpc]
-      - name: prod-us-east-1-c
-        consumedPlanes: [shared-vpc]
+  # Phase 3: Post-creation validation (after cluster is ready)
+  # Dispatched to the spoke cluster via cluster-gateway.
+  postCreate:
+    blueprintRef:
+      name: cluster-validation # Deploy test apps, run smoke tests
 ```
 
-**Why Infrastructure Mode?**
+**Lifecycle Phases:**
 
-| Without Infrastructure Mode | With Infrastructure Mode |
-|-----------------------------|--------------------------|
-| Shared plane ownership unclear | Platform team owns infrastructure cluster |
-| First workload cluster triggers creation | Infrastructure cluster triggers creation |
-| Deletion semantics confusing | Natural deletion protection via consumers |
-| No clear RBAC boundary | Platform team manages infra, app teams manage workloads |
-
-**Deletion Protection:**
-
-```bash
-$ kubectl delete cluster us-east-1-infrastructure
-
-Error from server: admission webhook "cluster.validation.oam.dev" denied the request:
-  Cannot delete infrastructure cluster "us-east-1-infrastructure"
-
-  3 workload clusters are consuming shared planes:
-    - prod-us-east-1-a (consuming: shared-vpc)
-    - prod-us-east-1-b (consuming: shared-vpc)
-    - prod-us-east-1-c (consuming: shared-vpc)
-
-  To delete:
-  1. Remove or migrate consumers first
-  2. Or use --force (DANGER: will orphan shared infrastructure)
 ```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    CLUSTER LIFECYCLE PHASES                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Phase 1: preCreate (optional)                                              │
+│  ─────────────────────────────                                              │
+│  • Reconciles shared cloud infrastructure (VPC, IAM, DNS)                   │
+│  • Runs on the hub against cloud APIs (no spoke exists yet)                 │
+│  • If blueprint already reconciled by another Cluster → no-op,              │
+│    consume existing outputs                                                 │
+│  • Uses existing scope: shared semantics on ClusterPlanes                   │
+│                                                                             │
+│  Phase 2: blueprintRef (cluster provisioning)                               │
+│  ────────────────────────────────────────────                               │
+│  • Provisions the cluster itself (EKS, GKE, node pools)                     │
+│  • Consumes outputs from preCreate (vpcId, subnetIds, etc.)                 │
+│  • On completion, ClusterController creates credential Secret               │
+│    from provisioning outputs → cluster-gateway can now reach spoke          │
+│                                                                             │
+│  Phase 3: postCreate (optional)                                             │
+│  ──────────────────────────────                                             │
+│  • Runs after all blueprintRef planes are healthy                           │
+│  • Dispatched via cluster-gateway (spoke now has connectivity)              │
+│  • Validation apps, smoke tests, readiness checks                           │
+│                                                                             │
+│  For mode: adopt/connect                                                    │
+│  ───────────────────────                                                    │
+│  • preCreate can handle pre-adoption setup (IAM roles, RBAC)                │
+│  • blueprintRef applies the cluster management blueprint                    │
+│  • postCreate runs validation after blueprint is applied                    │
+│  • Connectivity is available from the start (credentials provided)          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Shared preCreate Blueprint Semantics:**
+
+When multiple Clusters reference the same `preCreate.blueprintRef`, the shared plane semantics apply automatically:
+
+```
+cluster-a (preCreate: shared-infrastructure-us-east)
+  → First consumer → reconciles blueprint → creates VPC → stores outputs
+
+cluster-b (preCreate: shared-infrastructure-us-east)
+  → Blueprint already reconciled → consumes outputs → no-op
+
+cluster-b deleted
+  → preCreate blueprint still has consumer (cluster-a) → no-op
+
+cluster-a deleted
+  → preCreate blueprint has no consumers → eligible for cleanup
+```
+
+This is implemented using the same `scope: shared` mechanism on ClusterPlanes within the blueprint. The controller tracks consumers via `status.consumers` on shared planes.
+
+**Deletion Order:**
+
+When a Cluster is deleted, phases are cleaned up in reverse order:
+
+1. **postCreate** resources removed from spoke cluster
+2. **blueprintRef** resources cleaned up (cluster deprovisioned if `mode: provision`)
+3. **preCreate** consumer count decremented — shared resources remain if other consumers exist
 
 #### ClusterProviderDefinition
 
@@ -4659,13 +4829,13 @@ Safe, reversible cluster removal with rollback checkpoints. Decommissioning is a
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-| Phase | Actions | Rollback? | Gate |
-|-------|---------|-----------|------|
-| `Cordoned` | Block new Applications, mark cluster unhealthy for scheduling | ✅ Yes | Automatic or manual approval |
-| `Draining` | Evict workloads respecting PDBs, wait for graceful termination | ✅ Yes | All pods evicted or timeout |
-| `Snapshotted` | Create ClusterBlueprint snapshot, backup etcd/state | ✅ Yes | Snapshot verified |
-| `Deprovisioning` | Trigger infrastructure deletion via provisioning backend | ❌ No | Manual approval required |
-| `Decommissioned` | Remove from fleet inventory, cleanup cross-cluster references | ❌ No | Infrastructure deleted |
+| Phase            | Actions                                                        | Rollback? | Gate                         |
+| ---------------- | -------------------------------------------------------------- | --------- | ---------------------------- |
+| `Cordoned`       | Block new Applications, mark cluster unhealthy for scheduling  | ✅ Yes    | Automatic or manual approval |
+| `Draining`       | Evict workloads respecting PDBs, wait for graceful termination | ✅ Yes    | All pods evicted or timeout  |
+| `Snapshotted`    | Create ClusterBlueprint snapshot, backup etcd/state            | ✅ Yes    | Snapshot verified            |
+| `Deprovisioning` | Trigger infrastructure deletion via provisioning backend       | ❌ No     | Manual approval required     |
+| `Decommissioned` | Remove from fleet inventory, cleanup cross-cluster references  | ❌ No     | Infrastructure deleted       |
 
 **Cluster Decommission Spec:**
 
@@ -4677,12 +4847,12 @@ metadata:
 spec:
   decommission:
     enabled: true
-    strategy: graceful  # graceful | force | drain-only
+    strategy: graceful # graceful | force | drain-only
 
     # Drain configuration
     drainTimeout: 1h
     respectPodDisruptionBudgets: true
-    deleteLocalData: false  # Evict pods with emptyDir
+    deleteLocalData: false # Evict pods with emptyDir
 
     # Snapshot before destruction
     snapshotBefore: true
@@ -4691,7 +4861,7 @@ spec:
 
     # Cross-cluster dependency handling
     crossClusterDependencies:
-      action: block  # block | warn | ignore (default: block)
+      action: block # block | warn | ignore (default: block)
       # block = fail if other clusters have crossClusterInputs referencing this cluster
       # warn  = proceed but emit warning events
       # ignore = proceed without checking
@@ -4741,11 +4911,11 @@ status:
 
 **Decommission Strategies:**
 
-| Strategy | Behavior | Use Case |
-|----------|----------|----------|
-| `graceful` | Full phase progression with gates | Normal planned decommission |
-| `force` | Skip drain/snapshot, proceed directly to deprovisioning | Emergency (security breach, cost) |
-| `drain-only` | Cordon and drain but don't delete infrastructure | Temporary maintenance, cluster replacement |
+| Strategy     | Behavior                                                | Use Case                                   |
+| ------------ | ------------------------------------------------------- | ------------------------------------------ |
+| `graceful`   | Full phase progression with gates                       | Normal planned decommission                |
+| `force`      | Skip drain/snapshot, proceed directly to deprovisioning | Emergency (security breach, cost)          |
+| `drain-only` | Cordon and drain but don't delete infrastructure        | Temporary maintenance, cluster replacement |
 
 **Rollback:**
 
@@ -4753,8 +4923,8 @@ status:
 # To rollback from Draining to Active:
 spec:
   decommission:
-    enabled: false  # Disabling triggers rollback
-    rollbackTo: Active  # Or "Cordoned" to stay cordoned
+    enabled: false # Disabling triggers rollback
+    rollbackTo: Active # Or "Cordoned" to stay cordoned
 ```
 
 **Cross-Cluster Dependency Check:**
@@ -4770,7 +4940,7 @@ metadata:
 spec:
   crossClusterInputs:
     vpcPeering:
-      sourceCluster: prod-us-east-1  # ← Dependency
+      sourceCluster: prod-us-east-1 # ← Dependency
       outputPath: "planes.networking.outputs.vpcId"
 ```
 
@@ -4821,25 +4991,25 @@ metadata:
 spec:
   garbageCollection:
     # Deletion policy
-    policy: cascading  # cascading | orphan | keep-snapshots
+    policy: cascading # cascading | orphan | keep-snapshots
     # cascading      = Delete all planes and components (default)
     # orphan         = Delete Cluster CR but leave planes running
     # keep-snapshots = Delete everything except snapshots/backups
 
     # Plane deletion order
-    planeDeletionOrder: dependency-aware  # dependency-aware | parallel
+    planeDeletionOrder: dependency-aware # dependency-aware | parallel
     # dependency-aware = Delete in reverse order of dependsOn (safe, slower)
     # parallel         = Delete all planes simultaneously (fast, risky)
 
     # Component deletion within planes
-    componentDeletionOrder: dependency-aware  # dependency-aware | parallel
+    componentDeletionOrder: dependency-aware # dependency-aware | parallel
 
     # Timeout for each plane deletion
     planeGracePeriod: 10m
 
     # Cloud resource handling
     orphanedCloudResources:
-      action: delete  # delete | detach | warn-only
+      action: delete # delete | detach | warn-only
       # delete     = Delete cloud resources (LoadBalancers, EBS, etc.)
       # detach     = Remove from KubeVela tracking but leave in cloud
       # warn-only  = Emit events but don't block deletion
@@ -4847,15 +5017,15 @@ spec:
       # Resource-specific exemptions
       exemptions:
         - type: PersistentVolume
-          action: detach  # Keep PVs for data safety
+          action: detach # Keep PVs for data safety
           retentionDays: 30
 
         - type: Snapshot
-          action: keep  # Always keep snapshots
+          action: keep # Always keep snapshots
           retentionDays: 90
 
         - type: LoadBalancer
-          action: delete  # Clean up LBs to avoid cost
+          action: delete # Clean up LBs to avoid cost
 
     # Finalizer behavior
     finalizers:
@@ -4873,7 +5043,7 @@ spec:
 │                                                                             │
 │  1. VALIDATE DELETION                                                       │
 │     ✓ Check cross-cluster dependencies (fail if consumers exist)            │
-│     ✓ Check shared plane consumers (infrastructure-mode clusters)           │
+│     ✓ Check shared plane consumers (preCreate blueprint references)         │
 │                                                                             │
 │  2. DELETE PLANES (reverse dependency order)                                │
 │     ┌──────────────────────────────────────────────────────────────┐        │
@@ -4936,23 +5106,23 @@ status:
 
 **Shared Plane Protection:**
 
-Infrastructure-mode clusters cannot be deleted while workload clusters consume their shared planes:
+Shared ClusterPlanes cannot be deleted while clusters consume their outputs:
 
 ```bash
-$ kubectl delete cluster us-east-1-infrastructure
+$ kubectl delete clusterplane shared-vpc-us-east-1
 
 Error from server (Forbidden): admission webhook denied the request:
-  Cannot delete infrastructure cluster "us-east-1-infrastructure"
+  Cannot delete shared ClusterPlane "shared-vpc-us-east-1"
 
-  3 workload clusters are consuming shared planes:
-    - prod-us-east-1-a (consuming: shared-vpc)
-    - prod-us-east-1-b (consuming: shared-vpc)
-    - prod-us-east-1-c (consuming: shared-vpc)
+  3 clusters are consuming this plane's outputs:
+    - prod-us-east-1-a (via preCreate)
+    - prod-us-east-1-b (via preCreate)
+    - prod-us-east-1-c (via preCreate)
 
   This is protected by finalizer: cluster.oam.dev/shared-plane-consumer-check
 
   To delete:
-    1. Delete or migrate consumers first
+    1. Delete or migrate consumer clusters first
     2. Or use spec.garbageCollection.policy: orphan (unsafe)
 ```
 
@@ -5053,21 +5223,92 @@ spec:
 
 ### Definition Types
 
-We introduce new X-Definition types for cluster infrastructure:
+#### Definition Scope Model
 
-#### PlaneComponentDefinition
+The existing KubeVela definition CRDs are extended with a **scope annotation** to distinguish infrastructure definitions from application definitions. The definition system remains a single, unified type system — the scope annotation partitions it by usage context.
 
-Defines component types available in ClusterPlanes.
+**Label and Annotation:** `definition.oam.dev/scope`
+
+| Value         | Meaning                                                                                   |
+| ------------- | ----------------------------------------------------------------------------------------- |
+| `application` | (Default, implied if absent) Used by the Application controller for app-level composition |
+| `cluster`     | Used by the ClusterPlane controller for infrastructure-level composition                  |
+| `both`        | Available to both Application and ClusterPlane controllers                                |
+
+The value is set as both a **label** (for efficient list/watch filtering via `labelSelector`) and an **annotation** (for human-readable display via `kubectl describe`):
+
+```yaml
+metadata:
+  labels:
+    definition.oam.dev/scope: cluster
+  annotations:
+    definition.oam.dev/scope: cluster
+    definition.oam.dev/description: "Deploy a Helm chart as a ClusterPlane component"
+```
+
+**Why reuse existing definition CRDs:**
+
+1. **Same rendering engine.** Infrastructure definitions use the same `spec.schematic.cue.template` and `spec.workload` fields as application definitions. The CUE evaluator, parameter schema generation, and `defkit` SDK all work unchanged.
+2. **Existing tooling works.** `vela def list`, `vela def get`, `DefinitionRevision` tracking, and the `defkit` Go SDK all work without modification. A new CRD would require duplicating all of this.
+3. **Consistent with existing conventions.** KubeVela already treats definitions in `vela-system` as globally available via the two-level namespace lookup (`GetDefinition()` in `pkg/oam/util/helper.go`). Infrastructure definitions follow this same pattern.
+4. **Naming convention prevents collisions.** Infrastructure definitions use distinct names (e.g., `helm-release` for Flux HelmRelease rendering vs. the app-level `helm` for inline Helm chart rendering). The scope annotation adds a second layer of safety.
+
+**App-specific fields on TraitDefinition:**
+
+`TraitDefinitionSpec` includes fields that are application-specific (`RevisionEnabled`, `WorkloadRefPath`, `PodDisruptive`, `ManageWorkload`, `ControlPlaneOnly`, `Stage`). For `scope: cluster` traits:
+
+- These fields are **ignored** by the ClusterPlane controller.
+- A **validation webhook** rejects `scope: cluster` TraitDefinitions that set `PodDisruptive`, `ManageWorkload`, `ControlPlaneOnly`, or `Stage` to non-zero values, preventing confusion.
+- `AppliesToWorkloads` and `ConflictsWith` remain meaningful and are respected by the ClusterPlane controller.
+
+#### Definition Resolution for ClusterPlane
+
+The existing `GetDefinition()` function resolves definitions with a two-level namespace fallback (application namespace → `vela-system`). This is **unchanged** for the Application controller.
+
+The ClusterPlane controller uses a new helper, `GetInfraDefinition()`, which:
+
+1. Searches **only** in `vela-system` (infrastructure definitions are always global).
+2. Filters by label `definition.oam.dev/scope` matching `cluster` or `both`.
+3. Returns an error if the definition exists but has `scope: application` (explicit rejection, not a silent miss).
+
+```go
+// GetInfraDefinition retrieves a definition scoped for cluster infrastructure.
+// It only looks in vela-system and requires scope=cluster or scope=both.
+func GetInfraDefinition(ctx context.Context, cli client.Reader, definition client.Object, definitionName string) error {
+    if err := cli.Get(ctx, types.NamespacedName{
+        Name:      definitionName,
+        Namespace: oam.SystemDefinitionNamespace,
+    }, definition); err != nil {
+        return err
+    }
+    scope := definition.GetLabels()["definition.oam.dev/scope"]
+    if scope != "cluster" && scope != "both" {
+        return fmt.Errorf("definition %q exists but has scope=%q, not usable for ClusterPlane", definitionName, scope)
+    }
+    return nil
+}
+```
+
+**DefinitionRevision:** The existing `DefinitionRevision` CRD (namespaced, in `vela-system`) is reused without changes. Revisions of `scope: cluster` definitions are tracked identically to application definitions.
+
+The following subsections show the built-in infrastructure definitions that ship with the `cluster-infrastructure` addon:
+
+#### Infrastructure ComponentDefinition
+
+Defines component types available in ClusterPlanes. Uses the existing `ComponentDefinition` CRD with `scope: cluster`.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: PlaneComponentDefinition
+kind: ComponentDefinition
 metadata:
   name: helm-release
   namespace: vela-system
+  labels:
+    definition.oam.dev/scope: cluster
+  annotations:
+    definition.oam.dev/scope: cluster
+    definition.oam.dev/description: "Deploy a Helm chart as a ClusterPlane component"
 spec:
-  description: "Deploy a Helm chart as a plane component"
-
   workload:
     type: autodetect # The Helm chart determines the workload type
 
@@ -5126,19 +5367,22 @@ spec:
         }
 ```
 
-#### PlaneTraitDefinition
+#### Infrastructure TraitDefinition
 
-Defines traits that can be applied to plane components.
+Defines traits that can be applied to ClusterPlane components. Uses the existing `TraitDefinition` CRD with `scope: cluster`.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: PlaneTraitDefinition
+kind: TraitDefinition
 metadata:
   name: resource-quota
   namespace: vela-system
+  labels:
+    definition.oam.dev/scope: cluster
+  annotations:
+    definition.oam.dev/scope: cluster
+    definition.oam.dev/description: "Apply resource quotas to plane component namespace"
 spec:
-  description: "Apply resource quotas to plane component namespace"
-
   appliesToWorkloads:
     - helm-release
     - kustomization
@@ -5179,19 +5423,22 @@ spec:
         }
 ```
 
-#### PlanePolicyDefinition
+#### Infrastructure PolicyDefinition
 
-Defines policies applicable at the plane or blueprint level.
+Defines policies applicable at the plane or blueprint level. Uses the existing `PolicyDefinition` CRD with `scope: cluster`.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: PlanePolicyDefinition
+kind: PolicyDefinition
 metadata:
   name: apply-order
   namespace: vela-system
+  labels:
+    definition.oam.dev/scope: cluster
+  annotations:
+    definition.oam.dev/scope: cluster
+    definition.oam.dev/description: "Define component apply order within a plane"
 spec:
-  description: "Define component apply order within a plane"
-
   schematic:
     cue:
       template: |
@@ -5217,19 +5464,22 @@ spec:
         }
 ```
 
-#### ClusterWorkflowStepDefinition
+#### Infrastructure WorkflowStepDefinition
 
-Defines workflow steps for cluster/plane operations.
+Defines workflow steps for cluster/plane operations. Uses the existing `WorkflowStepDefinition` CRD with `scope: cluster`.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: ClusterWorkflowStepDefinition
+kind: WorkflowStepDefinition
 metadata:
   name: apply-plane
   namespace: vela-system
+  labels:
+    definition.oam.dev/scope: cluster
+  annotations:
+    definition.oam.dev/scope: cluster
+    definition.oam.dev/description: "Apply a ClusterPlane to target clusters"
 spec:
-  description: "Apply a ClusterPlane to target clusters"
-
   schematic:
     cue:
       template: |
@@ -5418,7 +5668,7 @@ rules:
     resources: ["clusterplanes"]
     verbs: ["*"]
   - apiGroups: ["core.oam.dev"]
-    resources: ["planecomponentdefinitions", "planetraitdefinitions"]
+    resources: ["componentdefinitions", "traitdefinitions"] # scope: cluster definitions in vela-system
     verbs: ["get", "list", "watch"]
 
 ---
@@ -6266,6 +6516,51 @@ spec:
 # vela cluster rollout rollback ingress-upgrade-4.9.0 --reason "Critical bug"
 ```
 
+#### Rollback Granularity: Blueprint vs Plane
+
+Rollout and rollback operate at the **blueprint level**, not individual planes. This is deliberate — a `ClusterBlueprintRevision` captures the exact combination of plane revisions that were tested and validated together.
+
+**For rollback to a known-good state**, roll back the entire blueprint to a previous revision. This restores the exact combination of plane versions that was previously healthy:
+
+```bash
+# Rollback the entire blueprint to a known-good revision
+$ vela blueprint rollback production-standard --to-revision production-standard-v2.2.0
+```
+
+**When only one plane is at fault** (e.g., networking team's update is bad but security plane is fine), the recommended approach is to **roll forward** with a new blueprint that pins only the problematic plane to its older revision:
+
+```yaml
+# Create a new blueprint version that reverts only the networking plane
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterBlueprint
+metadata:
+  name: production-standard
+  annotations:
+    core.oam.dev/publishVersion: "2.4.1" # New version, not a rollback
+spec:
+  planes:
+    - name: networking
+      ref:
+        name: networking
+        version: "2.3.0" # Reverted to older version
+    - name: security
+      ref:
+        name: security
+        version: "1.8.0" # Unchanged — keep the good version
+    - name: observability
+      ref:
+        name: observability
+        version: "3.1.0" # Unchanged
+```
+
+This roll-forward approach is preferred because:
+
+1. **Auditability** — every change is a new revision, not a destructive rollback
+2. **Team responsibility** — each team is responsible for the health of their plane and can publish a fixed version independently
+3. **No side effects** — rolling back an entire blueprint might undo good changes from other teams that happened to be in the same revision
+
+Each team owns their plane's revision history and can publish fixes independently. The blueprint owner (typically SRE) composes the known-good versions into new blueprint revisions.
+
 ### Use Case 4: Blue-Green for Major Upgrade
 
 ```yaml
@@ -6505,7 +6800,23 @@ spec:
         fieldPath: outputs.oidc_provider_arn
 ```
 
-**Step 3: Blueprint Composes Both**
+**Step 3: Blueprint for Shared VPC (preCreate)**
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ClusterBlueprint
+metadata:
+  name: shared-vpc-us-east-1-blueprint
+spec:
+  description: "Shared VPC infrastructure for us-east-1 production clusters"
+
+  planes:
+    - name: vpc
+      ref:
+        name: shared-vpc-us-east-1
+```
+
+**Step 4: Blueprint for Cluster Provisioning & Infrastructure**
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -6513,19 +6824,13 @@ kind: ClusterBlueprint
 metadata:
   name: production-eks-standard
 spec:
-  description: "Standard production EKS cluster with shared VPC"
+  description: "Standard production EKS cluster with networking and observability"
 
   planes:
-    # Shared VPC - created once
-    - name: vpc
-      ref:
-        name: shared-vpc-us-east-1
-
     # Per-cluster EKS - created for each cluster
     - name: eks
       ref:
         name: eks-cluster
-      dependsOn: [vpc]
 
     # Per-cluster networking (Cilium, ingress, etc.)
     - name: networking
@@ -6540,7 +6845,7 @@ spec:
       dependsOn: [networking]
 ```
 
-**Step 4: Create Clusters Using Blueprint**
+**Step 5: Create Clusters Using preCreate + Blueprint**
 
 ```yaml
 # Cluster A
@@ -6553,8 +6858,11 @@ metadata:
     environment: production
 spec:
   mode: provision
+  preCreate:
+    blueprintRef:
+      name: shared-vpc-us-east-1-blueprint # Shared VPC, created once
   blueprintRef:
-    name: production-eks-standard
+    name: production-eks-standard # Per-cluster EKS + infrastructure
 ---
 # Cluster B
 apiVersion: core.oam.dev/v1beta1
@@ -6566,6 +6874,9 @@ metadata:
     environment: production
 spec:
   mode: provision
+  preCreate:
+    blueprintRef:
+      name: shared-vpc-us-east-1-blueprint
   blueprintRef:
     name: production-eks-standard
 ---
@@ -6579,6 +6890,9 @@ metadata:
     environment: production
 spec:
   mode: provision
+  preCreate:
+    blueprintRef:
+      name: shared-vpc-us-east-1-blueprint
   blueprintRef:
     name: production-eks-standard
 ```
@@ -6587,36 +6901,29 @@ spec:
 
 When these clusters are created:
 
-1. **shared-vpc-us-east-1** plane **is reconciled once** (by the first Cluster referencing it, or by an infrastructure-mode preparer cluster):
+1. **Phase: preCreate** — The first Cluster to reconcile triggers creation of the `shared-vpc-us-east-1` plane (VPC, subnets, NAT Gateways). Subsequent Clusters find it already reconciled and consume its outputs (no-op).
 
-   - VPC, subnets, NAT Gateways are created
-   - Outputs become available for consumption
-
-2. **eks-cluster** plane **is reconciled three times** (once per Cluster that references it):
-   - Each Cluster triggers its own reconciliation
-   - Each gets unique EKS cluster name from `${context.cluster.name}`
-   - All consume the same VPC outputs via `{{ inputs.vpcId }}`
-   - Each has its own node groups
+2. **Phase: blueprintRef** — Each Cluster gets its own `eks-cluster` plane instance, consuming VPC outputs via `{{ inputs.vpcId }}`. Each gets a unique EKS cluster name from `${context.cluster.name}` with its own node groups. Networking and observability planes are then dispatched to the spoke.
 
 **Status After Provisioning:**
 
 ```bash
 $ vela plane list --scope shared
 
-NAME                    SCOPE    CONSUMERS  STATUS   OUTPUTS
-shared-vpc-us-east-1    shared   3          Running  vpcId=vpc-0abc123
+NAME                    SCOPE    CONSUMERS  VERSION  OUTPUTS
+shared-vpc-us-east-1    shared   3          v1       vpcId=vpc-0abc123
 
 $ vela plane status shared-vpc-us-east-1
 
 SHARED PLANE: shared-vpc-us-east-1
 SCOPE: shared
-STATUS: Running
+CONSUMERS: 3
 
-CONSUMERS (3):
-  CLUSTER                      BLUEPRINT                  SINCE
-  production-us-east-1-a       production-eks-standard    2025-01-03T10:00:00Z
-  production-us-east-1-b       production-eks-standard    2025-01-03T10:15:00Z
-  production-us-east-1-c       production-eks-standard    2025-01-03T10:30:00Z
+CONSUMERS:
+  CLUSTER                      REFERENCED VIA             SINCE
+  production-us-east-1-a       preCreate                  2025-01-03T10:00:00Z
+  production-us-east-1-b       preCreate                  2025-01-03T10:15:00Z
+  production-us-east-1-c       preCreate                  2025-01-03T10:30:00Z
 
 OUTPUTS:
   vpcId: vpc-0abc123def456
@@ -6636,15 +6943,15 @@ Error from server: Cannot delete shared ClusterPlane "shared-vpc-us-east-1"
 
   To delete safely:
   1. Delete or migrate clusters: production-us-east-1-a, production-us-east-1-b, production-us-east-1-c
-  2. Or update their blueprints to not use this plane
+  2. Or update their preCreate references to not use this plane
 
-# Delete a cluster - VPC remains intact
+# Delete a cluster - per-cluster EKS is destroyed, shared VPC remains
 $ kubectl delete cluster production-us-east-1-a
 
 cluster.core.oam.dev "production-us-east-1-a" deleted
 
-# EKS for cluster A is destroyed, but shared VPC remains
-# shared-vpc-us-east-1 now shows 2 consumers
+# Cluster A's EKS, networking, observability planes are cleaned up
+# preCreate consumer count decremented: shared-vpc-us-east-1 now shows 2 consumers
 ```
 
 **Key Benefits of This Approach:**
@@ -6689,51 +6996,52 @@ cluster.core.oam.dev "production-us-east-1-a" deleted
 
 ### Cluster
 
-| Field                                               | Type                | Description                                                   |
-| --------------------------------------------------- | ------------------- | ------------------------------------------------------------- |
-| `spec.mode`                                         | string              | Cluster mode: `provision`, `adopt`, `connect`, or `infrastructure` |
-| `spec.provider.type`                                | string              | Cloud provider: `aws`, `gcp`, `azure`, `kind`, `k3s`          |
-| `spec.provider.credentialRef`                       | SecretRef           | Reference to cloud credentials secret                         |
-| `spec.provider.region`                              | string              | Cloud region for provisioning                                 |
-| `spec.credential.secretRef`                         | SecretRef           | Kubeconfig secret reference (for adopt/connect)               |
-| `spec.clusterSpec`                                  | ClusterSpec         | Kubernetes version, node pools, networking (provision mode)   |
-| `spec.blueprintRef`                                 | BlueprintRef        | Blueprint to apply                                            |
-| `spec.adoption`                                     | AdoptionSpec        | Adoption configuration (adopt mode)                           |
-| `spec.patches`                                      | []PlanePatch        | Cluster-specific blueprint overrides                          |
-| `spec.rolloutStrategyRef`                           | StrategyRef         | Reference to ClusterRolloutStrategy                           |
-| `spec.rolloutStrategyRef.overrides`                 | OverrideSpec        | Cluster-specific rollout overrides                            |
-| `spec.maintenance`                                  | MaintenanceSpec     | Maintenance windows                                           |
-| `spec.maintenance.windows`                          | []MaintenanceWindow | Scheduled maintenance windows                                 |
-| `spec.maintenance.windows[].name`                   | string              | Window identifier                                             |
-| `spec.maintenance.windows[].start`                  | string              | Start time (HH:MM format)                                     |
-| `spec.maintenance.windows[].end`                    | string              | End time (HH:MM format)                                       |
-| `spec.maintenance.windows[].timezone`               | string              | IANA timezone name (e.g., `America/New_York`)                 |
-| `spec.maintenance.windows[].days`                   | []string            | Days of week: `Mon`, `Tue`, `Wed`, `Thu`, `Fri`, `Sat`, `Sun` |
-| `spec.maintenance.windows[].dstPolicy`              | string              | DST handling: `extend` (default), `shrink`, `skip`            |
-| `spec.maintenance.enforceWindow`                    | bool                | Block updates outside maintenance window                      |
-| `spec.maintenance.allowEmergencyUpdates`            | bool                | Allow forced updates with `--force` flag                      |
-| `status.mode`                                       | string              | Active mode                                                   |
-| `status.connectionStatus`                           | string              | Connection status: `Connected`, `Disconnected`                |
-| `status.provisioningStatus`                         | ProvisioningStatus  | Infrastructure provisioning progress                          |
-| `status.adoptionStatus`                             | AdoptionStatus      | Adoption discovery and reconciliation status                  |
-| `status.clusterInfo`                                | ClusterInfo         | Discovered cluster information                                |
-| `status.blueprint`                                  | BlueprintStatus     | Applied blueprint status                                      |
-| `status.planes`                                     | []PlaneInventory    | Full inventory of planes and components                       |
-| `status.health`                                     | HealthStatus        | Aggregated health status                                      |
-| `status.drift`                                      | DriftStatus         | Drift detection results                                       |
-| `status.maintenance`                                | MaintenanceStatus   | Computed maintenance window state                             |
-| `status.maintenance.inWindow`                       | bool                | Currently within a maintenance window                         |
-| `status.maintenance.currentWindow`                  | WindowInfo          | Current active window details (if inWindow)                   |
-| `status.maintenance.currentWindow.name`             | string              | Window name                                                   |
-| `status.maintenance.currentWindow.endsAt`           | Time                | When current window ends (UTC)                                |
-| `status.maintenance.currentWindow.remainingMinutes` | int                 | Minutes remaining in window                                   |
-| `status.maintenance.nextWindow`                     | WindowInfo          | Next scheduled window                                         |
-| `status.maintenance.nextWindow.startsAt`            | Time                | When next window starts (UTC)                                 |
-| `status.maintenance.nextWindow.startsInMinutes`     | int                 | Minutes until next window                                     |
-| `status.maintenance.lastEvaluatedAt`                | Time                | Last window evaluation time                                   |
-| `status.maintenance.timezoneInfo`                   | TimezoneInfo        | Timezone details with DST info                                |
-| `status.resources`                                  | ResourceUsage       | CPU, memory, pod usage                                        |
-| `status.history`                                    | []HistoryEntry      | Blueprint application history                                 |
+| Field                                               | Type                | Description                                                                                                                                                                                                                                               |
+| --------------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `spec.mode`                                         | string              | Cluster mode: `provision`, `adopt`, or `connect`                                                                                                                                                                                                          |
+| `spec.provider.type`                                | string              | Cloud provider: `aws`, `gcp`, `azure`, `kind`, `k3s`                                                                                                                                                                                                      |
+| `spec.provider.credentialRef`                       | SecretRef           | Reference to cloud credentials secret                                                                                                                                                                                                                     |
+| `spec.provider.region`                              | string              | Cloud region for provisioning                                                                                                                                                                                                                             |
+| `spec.credential.secretRef`                         | SecretRef           | Kubeconfig secret reference (for adopt/connect)                                                                                                                                                                                                           |
+| `spec.preCreate.blueprintRef`                       | BlueprintRef        | Blueprint to reconcile before cluster creation (optional). Shared cloud infra (VPC, IAM, DNS) that must exist before the cluster is provisioned. If the blueprint is already reconciled by another Cluster, its outputs are consumed without re-creation. |
+| `spec.blueprintRef`                                 | BlueprintRef        | Blueprint to apply to the cluster                                                                                                                                                                                                                         |
+| `spec.postCreate.blueprintRef`                      | BlueprintRef        | Blueprint to reconcile after all `blueprintRef` planes are healthy (optional). Used for deploying validation apps, running smoke tests, and performing readiness checks on the spoke cluster.                                                             |
+| `spec.adoption`                                     | AdoptionSpec        | Adoption configuration (adopt mode)                                                                                                                                                                                                                       |
+| `spec.patches`                                      | []PlanePatch        | Cluster-specific blueprint overrides                                                                                                                                                                                                                      |
+| `spec.rolloutStrategyRef`                           | StrategyRef         | Reference to ClusterRolloutStrategy                                                                                                                                                                                                                       |
+| `spec.rolloutStrategyRef.overrides`                 | OverrideSpec        | Cluster-specific rollout overrides                                                                                                                                                                                                                        |
+| `spec.maintenance`                                  | MaintenanceSpec     | Maintenance windows                                                                                                                                                                                                                                       |
+| `spec.maintenance.windows`                          | []MaintenanceWindow | Scheduled maintenance windows                                                                                                                                                                                                                             |
+| `spec.maintenance.windows[].name`                   | string              | Window identifier                                                                                                                                                                                                                                         |
+| `spec.maintenance.windows[].start`                  | string              | Start time (HH:MM format)                                                                                                                                                                                                                                 |
+| `spec.maintenance.windows[].end`                    | string              | End time (HH:MM format)                                                                                                                                                                                                                                   |
+| `spec.maintenance.windows[].timezone`               | string              | IANA timezone name (e.g., `America/New_York`)                                                                                                                                                                                                             |
+| `spec.maintenance.windows[].days`                   | []string            | Days of week: `Mon`, `Tue`, `Wed`, `Thu`, `Fri`, `Sat`, `Sun`                                                                                                                                                                                             |
+| `spec.maintenance.windows[].dstPolicy`              | string              | DST handling: `extend` (default), `shrink`, `skip`                                                                                                                                                                                                        |
+| `spec.maintenance.enforceWindow`                    | bool                | Block updates outside maintenance window                                                                                                                                                                                                                  |
+| `spec.maintenance.allowEmergencyUpdates`            | bool                | Allow forced updates with `--force` flag                                                                                                                                                                                                                  |
+| `status.mode`                                       | string              | Active mode                                                                                                                                                                                                                                               |
+| `status.connectionStatus`                           | string              | Connection status: `Connected`, `Disconnected`                                                                                                                                                                                                            |
+| `status.provisioningStatus`                         | ProvisioningStatus  | Infrastructure provisioning progress                                                                                                                                                                                                                      |
+| `status.adoptionStatus`                             | AdoptionStatus      | Adoption discovery and reconciliation status                                                                                                                                                                                                              |
+| `status.clusterInfo`                                | ClusterInfo         | Discovered cluster information                                                                                                                                                                                                                            |
+| `status.blueprint`                                  | BlueprintStatus     | Applied blueprint status                                                                                                                                                                                                                                  |
+| `status.planes`                                     | []PlaneInventory    | Full inventory of planes and components                                                                                                                                                                                                                   |
+| `status.health`                                     | HealthStatus        | Aggregated health status                                                                                                                                                                                                                                  |
+| `status.drift`                                      | DriftStatus         | Drift detection results                                                                                                                                                                                                                                   |
+| `status.maintenance`                                | MaintenanceStatus   | Computed maintenance window state                                                                                                                                                                                                                         |
+| `status.maintenance.inWindow`                       | bool                | Currently within a maintenance window                                                                                                                                                                                                                     |
+| `status.maintenance.currentWindow`                  | WindowInfo          | Current active window details (if inWindow)                                                                                                                                                                                                               |
+| `status.maintenance.currentWindow.name`             | string              | Window name                                                                                                                                                                                                                                               |
+| `status.maintenance.currentWindow.endsAt`           | Time                | When current window ends (UTC)                                                                                                                                                                                                                            |
+| `status.maintenance.currentWindow.remainingMinutes` | int                 | Minutes remaining in window                                                                                                                                                                                                                               |
+| `status.maintenance.nextWindow`                     | WindowInfo          | Next scheduled window                                                                                                                                                                                                                                     |
+| `status.maintenance.nextWindow.startsAt`            | Time                | When next window starts (UTC)                                                                                                                                                                                                                             |
+| `status.maintenance.nextWindow.startsInMinutes`     | int                 | Minutes until next window                                                                                                                                                                                                                                 |
+| `status.maintenance.lastEvaluatedAt`                | Time                | Last window evaluation time                                                                                                                                                                                                                               |
+| `status.maintenance.timezoneInfo`                   | TimezoneInfo        | Timezone details with DST info                                                                                                                                                                                                                            |
+| `status.resources`                                  | ResourceUsage       | CPU, memory, pod usage                                                                                                                                                                                                                                    |
+| `status.history`                                    | []HistoryEntry      | Blueprint application history                                                                                                                                                                                                                             |
 
 ### ClusterPlane
 
@@ -6942,7 +7250,6 @@ Created when `inProgressUpdateStrategy: checkpoint` is used and maintenance wind
 ### Phase 1: Core CRDs and Controllers
 
 1. Define and implement CRD schemas
-
    - Cluster (with mode: provision, adopt, connect)
    - ClusterPlane
    - ClusterBlueprint
@@ -6951,14 +7258,12 @@ Created when `inProgressUpdateStrategy: checkpoint` is used and maintenance wind
    - ClusterProviderDefinition
 
 2. Implement Cluster controller
-
    - Connection management (kubeconfig handling)
    - Inventory discovery
    - Health aggregation
    - Status reconciliation
 
 3. Implement ClusterPlane controller
-
    - Component rendering
    - Trait application
    - Health checking
@@ -6971,20 +7276,17 @@ Created when `inProgressUpdateStrategy: checkpoint` is used and maintenance wind
 ### Phase 2: Cluster Lifecycle
 
 1. Provisioning backend integration
-
    - Crossplane integration for AWS/GCP/Azure
    - Terraform controller integration
    - Native kind/k3s provider
 
 2. Cluster provisioning workflow
-
    - VPC/networking creation
    - Cluster creation
    - Node pool management
    - Kubeconfig generation
 
 3. Cluster adoption workflow
-
    - Component discovery
    - Version detection
    - Mapping to planes
@@ -6997,17 +7299,27 @@ Created when `inProgressUpdateStrategy: checkpoint` is used and maintenance wind
 
 ### Phase 3: Definition System
 
-1. PlaneComponentDefinition
-2. PlaneTraitDefinition
-3. PlanePolicyDefinition
-4. ClusterWorkflowStepDefinition
-5. Built-in definitions (helm-release, kustomization, etc.)
-6. Built-in provider definitions (aws-eks, gcp-gke, azure-aks, kind)
+1. Add `definition.oam.dev/scope` label/annotation convention to existing definition CRDs
+   - Scope values: `application` (default, backward-compatible), `cluster`, `both`
+   - Validation webhook rejects invalid field combinations for `scope: cluster` (e.g., `PodDisruptive`, `ManageWorkload`, `Stage` on TraitDefinition)
+   - Existing definitions without the annotation continue to work unchanged (implicit `scope: application`)
+
+2. Implement scope-aware definition resolution for ClusterPlane controller
+   - `GetInfraDefinition()` helper: searches only in `vela-system`, filters by `scope=cluster` or `scope=both`
+   - Existing `GetDefinition()` for Application controller unchanged
+   - Label-based list/watch filtering in ClusterPlane controller informers
+
+3. Ship built-in infrastructure definitions as existing CRDs with `scope: cluster`
+   - ComponentDefinition: `helm-release`, `kustomization`, `k8s-objects`, `terraform-module`, `crossplane-resource`
+   - TraitDefinition: `resource-quota`, `namespace-labels`, `monitoring-annotations`
+   - PolicyDefinition: `apply-order`, `health-check`
+   - WorkflowStepDefinition: `apply-plane`, `validate-plane`, `wait`, `suspend`, `notification`, `health-check`, `script`, `http`, `webhook`, `step-group`
+
+4. Built-in provider definitions (aws-eks, gcp-gke, azure-aks, kind) as `ClusterProviderDefinition`
 
 ### Phase 4: Rollout Engine
 
 1. ClusterRolloutStrategy controller
-
    - Wave management and progression
    - Cluster-to-wave assignment via labels
    - waitFor dependency resolution
@@ -7015,19 +7327,16 @@ Created when `inProgressUpdateStrategy: checkpoint` is used and maintenance wind
    - Approval gate integration
 
 2. Rollout progression logic
-
    - Blueprint change detection
    - Automatic wave progression
    - Batch processing within waves
    - Health duration tracking
 
 3. ClusterRollout controller (emergency overrides)
-
    - Imperative rollout support
    - Strategy override capability
 
 4. Analysis and metrics integration
-
    - Prometheus integration
    - Kubernetes metrics
    - Per-wave and per-cluster analysis
@@ -7040,26 +7349,22 @@ Created when `inProgressUpdateStrategy: checkpoint` is used and maintenance wind
 ### Phase 5: Health Checking and Observability
 
 1. ObservabilityProviderDefinition and ObservabilityProvider CRDs
-
    - Provider definitions for Prometheus, Datadog, New Relic, CloudWatch
    - Custom webhook provider for extensibility
    - Connection management and authentication
 
 2. Hierarchical health aggregation
-
    - Cluster → Plane → Component → Resource health roll-up
    - Configurable aggregation strategies (all, any, majority, weighted)
    - Health scoring (0-100)
 
 3. Health check types
-
    - Kubernetes resource checks (deployment ready, conditions)
    - Metrics-based checks (any observability provider)
    - HTTP endpoint checks
    - CUE-based custom health policies
 
 4. Health CLI and API
-
    - `vela cluster health` with drill-down capability
    - Fleet-wide health dashboard
    - Health history and trend analysis
@@ -7073,20 +7378,17 @@ Created when `inProgressUpdateStrategy: checkpoint` is used and maintenance wind
 ### Phase 6: Drift Detection and Remediation
 
 1. ClusterDriftReport and ClusterDriftException CRDs
-
    - Drift report generation and persistence
    - Exception management for intentional drift
    - Automatic drift detection scheduling
 
 2. Drift detection engine
-
    - Deep comparison of cluster state vs blueprint
    - Plane-level and component-level diff
    - Resource-level field comparison
    - Integration with Terraform state for adopted clusters
 
 3. What-if blueprint comparison
-
    - Compare cluster against any blueprint (`--blueprint` flag)
    - Fleet-wide upgrade impact analysis (`--all --blueprint`)
    - Estimated rollout wave planning
@@ -7099,7 +7401,6 @@ Created when `inProgressUpdateStrategy: checkpoint` is used and maintenance wind
 ### Phase 7: CLI and Operations
 
 1. CLI commands
-
    - `vela cluster create/adopt/connect` - Cluster lifecycle
    - `vela cluster health` - Health inspection with drill-down
    - `vela cluster drift` - Drift detection with `--blueprint` comparison
@@ -7766,11 +8067,11 @@ For organizations currently using `vela cluster join` and cluster-gateway secret
 
 ### Migration Options
 
-| Current State | Migration Path | Effort |
-|--------------|----------------|--------|
-| Clusters joined via `vela cluster join` | Create Cluster CRD with `clusterGatewayRef` pointing to existing secret | Minimal |
-| cluster-gateway secrets in `vela-system` | Use `clusterGatewayRef`, or migrate to `credential.secretRef` | Optional |
-| Custom cluster-gateway configurations | Reference existing secrets OR migrate to cloud-native auth | Choose based on preference |
+| Current State                            | Migration Path                                                          | Effort                     |
+| ---------------------------------------- | ----------------------------------------------------------------------- | -------------------------- |
+| Clusters joined via `vela cluster join`  | Create Cluster CRD with `clusterGatewayRef` pointing to existing secret | Minimal                    |
+| cluster-gateway secrets in `vela-system` | Use `clusterGatewayRef`, or migrate to `credential.secretRef`           | Optional                   |
+| Custom cluster-gateway configurations    | Reference existing secrets OR migrate to cloud-native auth              | Choose based on preference |
 
 ### Example: Referencing Existing cluster-gateway Secret
 
@@ -7783,7 +8084,7 @@ spec:
   mode: connect
   # Reference existing cluster-gateway secret
   clusterGatewayRef:
-    name: my-existing-cluster  # Same name as vela cluster join created
+    name: my-existing-cluster # Same name as vela cluster join created
     namespace: vela-system
 ```
 
