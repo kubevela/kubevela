@@ -1,26 +1,19 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: podinfo-helm-test
+  name: bad-chart
 spec:
   components:
-    - name: podinfo
+    - name: nonexistent
       type: helmchart
       properties:
         chart:
-          source: podinfo
+          source: this-chart-does-not-exist-anywhere
           repoURL: https://stefanprodan.github.io/podinfo
-          version: "6.11.1"
+          version: "99.99.99"
         release:
-          name: podinfo
+          name: nonexistent
           namespace: placeholder_ns
-        values:
-          replicaCount: 2
-          resources:
-            limits:
-              memory: 256Mi
-              cpu: 100m
         options:
           createNamespace: true
-          includeCRDs: true
           skipTests: true

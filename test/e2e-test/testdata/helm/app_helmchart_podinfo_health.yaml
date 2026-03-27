@@ -1,7 +1,7 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: podinfo-helm-test
+  name: podinfo-health
 spec:
   components:
     - name: podinfo
@@ -20,7 +20,12 @@ spec:
             limits:
               memory: 256Mi
               cpu: 100m
+        healthStatus:
+          - resource:
+              kind: Deployment
+              name: podinfo
+            condition:
+              type: Available
         options:
           createNamespace: true
-          includeCRDs: true
           skipTests: true

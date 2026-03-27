@@ -1,7 +1,7 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: podinfo-helm-test
+  name: podinfo-no-values
 spec:
   components:
     - name: podinfo
@@ -14,13 +14,6 @@ spec:
         release:
           name: podinfo
           namespace: placeholder_ns
-        values:
-          replicaCount: 2
-          resources:
-            limits:
-              memory: 256Mi
-              cpu: 100m
         options:
           createNamespace: true
-          includeCRDs: true
           skipTests: true

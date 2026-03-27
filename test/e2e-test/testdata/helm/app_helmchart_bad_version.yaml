@@ -1,7 +1,7 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: podinfo-helm-test
+  name: bad-version
 spec:
   components:
     - name: podinfo
@@ -10,17 +10,10 @@ spec:
         chart:
           source: podinfo
           repoURL: https://stefanprodan.github.io/podinfo
-          version: "6.11.1"
+          version: "99.99.99"
         release:
           name: podinfo
           namespace: placeholder_ns
-        values:
-          replicaCount: 2
-          resources:
-            limits:
-              memory: 256Mi
-              cpu: 100m
         options:
           createNamespace: true
-          includeCRDs: true
           skipTests: true
