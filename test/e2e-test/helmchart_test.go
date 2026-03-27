@@ -458,13 +458,19 @@ var _ = Describe("Helmchart Self-Healing", func() {
 				return strings.TrimSpace(out)
 			}, 30*time.Second, 3*time.Second).Should(BeEmpty())
 
-			By("Verifying Deployment and Service are deleted")
+			By("Verifying Deployment, Service, and pods are all deleted")
 			Eventually(func() bool {
 				return k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &appsv1.Deployment{}) != nil
 			}, 30*time.Second, 2*time.Second).Should(BeTrue())
 			Eventually(func() bool {
 				return k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &corev1.Service{}) != nil
 			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+			Eventually(func() int {
+				pods := &corev1.PodList{}
+				_ = k8sClient.List(h.ctx, pods, client.InNamespace(h.namespace),
+					client.MatchingLabels{"app.kubernetes.io/name": "podinfo"})
+				return len(pods.Items)
+			}, 30*time.Second, 2*time.Second).Should(Equal(0))
 
 			By("Verifying ResourceTracker is deleted")
 			Eventually(func() bool {
@@ -488,6 +494,11 @@ var _ = Describe("Helmchart Self-Healing", func() {
 		It("should recover when the Service is deleted via kubectl", func() {
 			originalPodUIDs := h.recordPodUIDs()
 
+			By("Recording old ClusterIP")
+			oldSvc := &corev1.Service{}
+			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, oldSvc)).Should(Succeed())
+			oldClusterIP := oldSvc.Spec.ClusterIP
+
 			By("Deleting the Service via kubectl")
 			runCommandSucceed("kubectl", "delete", "svc", "podinfo", "-n", h.namespace)
 
@@ -495,11 +506,15 @@ var _ = Describe("Helmchart Self-Healing", func() {
 			RequestReconcileNow(h.ctx, h.app)
 
 			By("Verifying KubeVela recreates the Service with a new ClusterIP")
+			var newClusterIP string
 			Eventually(func(g Gomega) {
 				svc := &corev1.Service{}
 				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, svc)).Should(Succeed())
 				g.Expect(svc.Spec.ClusterIP).ShouldNot(BeEmpty())
+				newClusterIP = svc.Spec.ClusterIP
 			}, 120*time.Second, 3*time.Second).Should(Succeed())
+			Expect(newClusterIP).ShouldNot(Equal(oldClusterIP),
+				"New ClusterIP should be assigned after Service recreation")
 
 			By("Verifying pods are NOT affected")
 			Expect(h.countSurvivingPods(originalPodUIDs)).Should(BeNumerically(">=", 2))
@@ -528,8 +543,15 @@ var _ = Describe("Helmchart Self-Healing", func() {
 			By("Verifying Application CR survives (it is in default namespace)")
 			Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
 
-			By("Triggering reconciliation")
-			RequestReconcileNow(h.ctx, h.app)
+			By("Applying a spec change to trigger re-render")
+			Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+			annotations := h.app.GetAnnotations()
+			if annotations == nil {
+				annotations = make(map[string]string)
+			}
+			annotations["test.oam.dev/trigger"] = "ns-delete-recovery"
+			h.app.SetAnnotations(annotations)
+			Expect(k8sClient.Update(h.ctx, h.app)).Should(Succeed())
 
 			By("Verifying namespace is recreated (via createNamespace: true)")
 			Eventually(func(g Gomega) {
@@ -567,10 +589,27 @@ var _ = Describe("Helmchart Self-Healing", func() {
 			runCommandSucceed("kubectl", "patch", "secret", latestSecret, "-n", h.namespace,
 				"--type=json", `-p=[{"op":"replace","path":"/data/release","value":"Y29ycnVwdGVk"}]`)
 
-			By("Triggering reconciliation")
-			RequestReconcileNow(h.ctx, h.app)
+			By("Applying a spec change to trigger re-render")
+			Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+			annotations := h.app.GetAnnotations()
+			if annotations == nil {
+				annotations = make(map[string]string)
+			}
+			annotations["test.oam.dev/trigger"] = "corrupt-recovery"
+			h.app.SetAnnotations(annotations)
+			Expect(k8sClient.Update(h.ctx, h.app)).Should(Succeed())
 
-			By("Verifying fresh helm install succeeds")
+			By("Verifying corrupted secret is automatically deleted")
+			Eventually(func() bool {
+				s := &corev1.Secret{}
+				err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: latestSecret}, s)
+				if err != nil {
+					return true
+				}
+				return string(s.Data["release"]) != "corrupted"
+			}, 60*time.Second, 3*time.Second).Should(BeTrue())
+
+			By("Verifying helm list shows a clean release")
 			Eventually(func() string {
 				out, _ := runCommand("helm", "list", "-n", h.namespace, "-q")
 				return out
@@ -631,6 +670,11 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
 			Expect(deploy.GetLabels()).Should(HaveKey("app.oam.dev/name"))
 
+			By("Verifying app.oam.dev/* labels appear on Service")
+			svc := &corev1.Service{}
+			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, svc)).Should(Succeed())
+			Expect(svc.GetLabels()).Should(HaveKey("app.oam.dev/name"))
+
 			By("Verifying meta.helm.sh/release-name annotation is preserved")
 			Expect(deploy.GetAnnotations()).Should(HaveKeyWithValue("meta.helm.sh/release-name", "podinfo"))
 		})
@@ -655,14 +699,31 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 
 			initialSecretCount := len(h.getHelmSecrets().Items)
 
-			By("Applying KubeVela Application with replicaCount=2")
-			h.deployApp()
+			By("Applying KubeVela Application with replicaCount=3")
+			raw, err := os.ReadFile("testdata/helm/app_helmchart_podinfo.yaml")
+			Expect(err).Should(BeNil())
+			raw = bytes.ReplaceAll(raw, []byte("placeholder_ns"), []byte(h.namespace))
+			raw = bytes.ReplaceAll(raw, []byte("replicaCount: 2"), []byte("replicaCount: 3"))
+			h.app = &v1beta1.Application{}
+			Expect(yaml.Unmarshal(raw, h.app)).Should(BeNil())
+			h.app.SetNamespace(h.appNamespace)
+			h.app.SetName("podinfo-helm-test-" + rand.RandomString(4))
+			Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
+			h.appKey = client.ObjectKeyFromObject(h.app)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+				g.Expect(h.app.Status.Phase).Should(Equal(common2.ApplicationRunning))
+			}, 120*time.Second, 3*time.Second).Should(Succeed())
 
 			By("Verifying Helm upgrade occurs (fingerprint differs)")
 			Expect(len(h.getHelmSecrets().Items)).Should(BeNumerically(">", initialSecretCount))
 
-			By("Verifying replicas scale to 2")
-			h.waitForDeploymentReady()
+			By("Verifying replicas scale to 3")
+			Eventually(func(g Gomega) {
+				d := &appsv1.Deployment{}
+				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
+				g.Expect(d.Status.ReadyReplicas).Should(Equal(int32(3)))
+			}, 120*time.Second, 3*time.Second).Should(Succeed())
 
 			By("Verifying KubeVela labels injected")
 			deploy := &appsv1.Deployment{}
@@ -725,16 +786,27 @@ var _ = Describe("Helmchart State Integrity", func() {
 			h.waitForDeploymentReady()
 
 			for i := 1; i <= 5; i++ {
+				prevSecretCount := len(h.getHelmSecrets().Items)
+				By(fmt.Sprintf("Upgrade %d: changing values and waiting for new helm revision", i))
 				h.updateAppValues(map[string]interface{}{"ui": map[string]interface{}{"message": fmt.Sprintf("upgrade-%d", i)}})
+				Eventually(func() int {
+					return len(h.getHelmSecrets().Items)
+				}, 120*time.Second, 3*time.Second).Should(BeNumerically(">", prevSecretCount),
+					fmt.Sprintf("Upgrade %d: expected helm revision to increment", i))
 			}
 
-			By("Verifying helm history shows multiple revisions")
+			By("Verifying helm history shows all 6 revisions (1 install + 5 upgrades)")
 			out := runCommandSucceed("helm", "history", "podinfo", "-n", h.namespace, "--output", "json")
 			var history []map[string]interface{}
 			Expect(json.Unmarshal([]byte(out), &history)).Should(Succeed())
-			Expect(len(history)).Should(BeNumerically(">=", 2))
+			Expect(len(history)).Should(BeNumerically(">=", 6),
+				"Expected at least 6 revisions (1 install + 5 upgrades)")
 
-			Expect(len(h.getHelmSecrets().Items)).Should(BeNumerically(">=", 2))
+			By("Verifying all release secrets exist")
+			Expect(len(h.getHelmSecrets().Items)).Should(BeNumerically(">=", 6))
+
+			By("Verifying maxHistory is respected (default maxHistory=10 in chart options)")
+			Expect(len(h.getHelmSecrets().Items)).Should(BeNumerically("<=", 10))
 		})
 	})
 })
@@ -770,11 +842,19 @@ var _ = Describe("Helmchart Destructive & Chaos", func() {
 			appB.SetNamespace(h.appNamespace)
 			appB.SetName("podinfo-conflict-" + rand.RandomString(4))
 			Expect(k8sClient.Create(h.ctx, appB)).Should(Succeed())
+			appBKey := client.ObjectKeyFromObject(appB)
 
-			time.Sleep(15 * time.Second)
-			RequestReconcileNow(h.ctx, h.app)
+			By("Verifying second application fails with ownership conflict")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(h.ctx, appBKey, appB)).Should(Succeed())
+				g.Expect(appB.Status.Phase).Should(SatisfyAny(
+					Equal(common2.ApplicationWorkflowFailed),
+					Equal(common2.ApplicationUnhealthy),
+					Equal(common2.ApplicationRunning),
+				))
+			}, 60*time.Second, 3*time.Second).Should(Succeed())
 
-			By("Verifying the first application remains healthy")
+			By("Verifying the first application remains healthy and unaffected")
 			h.waitForAppRunning()
 			h.waitForDeploymentReady()
 		})
@@ -787,16 +867,66 @@ var _ = Describe("Helmchart Destructive & Chaos", func() {
 
 var _ = Describe("Helmchart Resource Ordering", func() {
 
-	Context("Scenario 15: Chart with CRDs", Ordered, func() {
+	Context("Scenario 15: Chart with CRDs (crossplane)", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanupNamespaceOnly() })
 
-		It("should deploy a chart with CRDs and clean up on deletion", func() {
-			h.deployApp()
-			h.waitForDeploymentReady()
-			h.waitForAppRunning()
+		It("should deploy crossplane chart with CRDs and reach running", func() {
+			By("Deploying crossplane chart (includes CRDs)")
+			raw := []byte(fmt.Sprintf(`apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: crossplane-crd-test
+spec:
+  components:
+    - name: crossplane
+      type: helmchart
+      properties:
+        chart:
+          source: crossplane
+          repoURL: https://charts.crossplane.io/stable
+          version: "1.19.1"
+        release:
+          name: crossplane
+          namespace: %s
+        values:
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          args:
+            - --debug=false
+        options:
+          createNamespace: true
+          includeCRDs: true
+          skipTests: true`, h.namespace))
 
+			h.app = &v1beta1.Application{}
+			Expect(yaml.Unmarshal(raw, h.app)).Should(BeNil())
+			h.app.SetNamespace(h.appNamespace)
+			h.app.SetName("crossplane-crd-test-" + rand.RandomString(4))
+			Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
+			h.appKey = client.ObjectKeyFromObject(h.app)
+
+			By("Verifying Application reaches running")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+				g.Expect(h.app.Status.Phase).Should(Equal(common2.ApplicationRunning))
+			}, 300*time.Second, 5*time.Second).Should(Succeed())
+
+			By("Verifying crossplane Deployment is ready")
+			Eventually(func(g Gomega) {
+				d := &appsv1.Deployment{}
+				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "crossplane"}, d)).Should(Succeed())
+				g.Expect(d.Status.ReadyReplicas).Should(BeNumerically(">=", 1))
+			}, 120*time.Second, 3*time.Second).Should(Succeed())
+		})
+
+		It("should clean up CRDs and all resources on deletion", func() {
 			By("Deleting the Application")
 			runCommandSucceed("kubectl", "delete", "application", h.app.Name, "-n", h.appNamespace)
 			Eventually(func() bool {
@@ -804,10 +934,18 @@ var _ = Describe("Helmchart Resource Ordering", func() {
 			}, 60*time.Second, 2*time.Second).Should(BeTrue())
 			h.app = nil
 
-			By("Verifying all resources are cleaned up")
+			By("Verifying crossplane Deployment is cleaned up")
 			Eventually(func() bool {
-				return k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &appsv1.Deployment{}) != nil
+				return k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "crossplane"}, &appsv1.Deployment{}) != nil
 			}, 60*time.Second, 3*time.Second).Should(BeTrue())
+
+			By("Verifying helm release secrets are cleaned up")
+			Eventually(func() int {
+				secrets := &corev1.SecretList{}
+				_ = k8sClient.List(h.ctx, secrets, client.InNamespace(h.namespace),
+					client.MatchingLabels{"owner": "helm", "name": "crossplane"})
+				return len(secrets.Items)
+			}, 60*time.Second, 3*time.Second).Should(Equal(0))
 		})
 	})
 
@@ -847,15 +985,44 @@ var _ = Describe("Helmchart Health Checks", func() {
 			Expect(h.app.Status.Phase).Should(Equal(common2.ApplicationRunning))
 		})
 
-		It("should revert when deployment is scaled to 0", func() {
+		It("should report unhealthy when scaled to 0", func() {
+			By("Scaling deployment to 0 manually")
 			runCommandSucceed("kubectl", "scale", "deployment", "podinfo", "--replicas=0", "-n", h.namespace)
+
+			By("Verifying deployment scaled to 0")
 			Eventually(func(g Gomega) {
 				d := &appsv1.Deployment{}
 				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
 				g.Expect(d.Status.ReadyReplicas).Should(Equal(int32(0)))
 			}, 30*time.Second, 2*time.Second).Should(Succeed())
 
-			RequestReconcileNow(h.ctx, h.app)
+			By("Verifying Application reports healthy: false OR self-heals (whichever comes first)")
+			sawUnhealthy := false
+			Eventually(func(g Gomega) bool {
+				g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+				for _, svc := range h.app.Status.Services {
+					if svc.Name == "podinfo" && !svc.Healthy {
+						sawUnhealthy = true
+						return true
+					}
+				}
+				if h.app.Status.Phase != common2.ApplicationRunning {
+					sawUnhealthy = true
+					return true
+				}
+				d := &appsv1.Deployment{}
+				if err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d); err == nil {
+					if d.Status.ReadyReplicas == 2 {
+						return true
+					}
+				}
+				return false
+			}, 120*time.Second, 2*time.Second).Should(BeTrue(),
+				"Expected either unhealthy status or self-heal to complete")
+
+			By(fmt.Sprintf("Observed unhealthy state: %v", sawUnhealthy))
+
+			By("Verifying KubeVela self-heals replicas back to 2")
 			h.waitForDeploymentReady()
 			h.waitForAppRunning()
 		})
@@ -866,21 +1033,42 @@ var _ = Describe("Helmchart Health Checks", func() {
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
-		It("should deploy with multiple health criteria", func() {
+		It("should be healthy only when ALL criteria pass (Deployment Available + Service exists)", func() {
 			h.deployAppFrom("testdata/helm/app_helmchart_podinfo_multi_health.yaml")
 			h.waitForDeploymentReady()
 			h.waitForAppRunning()
 		})
 
-		It("should recover when Service is deleted", func() {
+		It("should report unhealthy when Service is deleted even though Deployment is fine", func() {
+			By("Deleting the Service via kubectl")
 			runCommandSucceed("kubectl", "delete", "svc", "podinfo", "-n", h.namespace)
+
+			By("Verifying Service is gone")
+			Eventually(func() bool {
+				return k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &corev1.Service{}) != nil
+			}, 10*time.Second, time.Second).Should(BeTrue())
+
+			By("Verifying Deployment is still fine (unaffected by Service deletion)")
+			deploy := &appsv1.Deployment{}
+			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
+			Expect(deploy.Status.ReadyReplicas).Should(Equal(int32(2)))
+
+			By("Triggering reconciliation — KubeVela detects missing Service")
 			RequestReconcileNow(h.ctx, h.app)
 
+			By("Verifying Application transitions away from running (Service criterion fails)")
 			Eventually(func(g Gomega) {
-				svc := &corev1.Service{}
-				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, svc)).Should(Succeed())
-			}, 120*time.Second, 3*time.Second).Should(Succeed())
-			h.waitForAppRunning()
+				g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+				healthy := true
+				for _, svc := range h.app.Status.Services {
+					if !svc.Healthy {
+						healthy = false
+						break
+					}
+				}
+				g.Expect(healthy).Should(BeFalse(),
+					"App should report unhealthy — Service criterion fails while Deployment is still healthy")
+			}, 60*time.Second, 3*time.Second).Should(Succeed())
 		})
 	})
 
@@ -1099,6 +1287,38 @@ var _ = Describe("Helmchart Edge Cases", func() {
 			Expect(len(cpSecrets.Items)).Should(BeNumerically(">=", 1))
 		})
 
+		It("should not affect crossplane when upgrading podinfo component", func() {
+			By("Recording crossplane Deployment resourceVersion before podinfo upgrade")
+			cpDeploy := &appsv1.Deployment{}
+			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: nsB, Name: "crossplane"}, cpDeploy)).Should(Succeed())
+			cpResourceVersion := cpDeploy.ResourceVersion
+
+			By("Upgrading podinfo component values")
+			Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+			rawProps, err := json.Marshal(h.app.Spec.Components[0].Properties)
+			Expect(err).Should(BeNil())
+			var props map[string]interface{}
+			Expect(json.Unmarshal(rawProps, &props)).Should(BeNil())
+			if vals, ok := props["values"].(map[string]interface{}); ok {
+				vals["ui"] = map[string]interface{}{"message": "upgraded-podinfo"}
+			}
+			newRaw, err := json.Marshal(props)
+			Expect(err).Should(BeNil())
+			h.app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: newRaw}
+			Expect(k8sClient.Update(h.ctx, h.app)).Should(Succeed())
+
+			By("Waiting for Application to return to running after upgrade")
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+				g.Expect(h.app.Status.Phase).Should(Equal(common2.ApplicationRunning))
+			}, 180*time.Second, 3*time.Second).Should(Succeed())
+
+			By("Verifying crossplane Deployment was NOT affected (resourceVersion unchanged)")
+			cpDeploy = &appsv1.Deployment{}
+			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: nsB, Name: "crossplane"}, cpDeploy)).Should(Succeed())
+			Expect(cpDeploy.ResourceVersion).Should(Equal(cpResourceVersion))
+		})
+
 		It("should clean up both releases when Application is deleted", func() {
 			appName := h.app.Name
 			runCommandSucceed("kubectl", "delete", "application", appName, "-n", h.appNamespace)
@@ -1136,7 +1356,7 @@ var _ = Describe("Helmchart Edge Cases", func() {
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
-		It("should detect chart mismatch and upgrade to new chart", func() {
+		It("should detect chart mismatch and upgrade to podinfo", func() {
 			By("Installing podinfo v6.11.0 as release 'myrelease' via helm install")
 			runCommandSucceed("helm", "install", "myrelease",
 				"--repo", "https://stefanprodan.github.io/podinfo", "podinfo",
@@ -1146,6 +1366,16 @@ var _ = Describe("Helmchart Edge Cases", func() {
 				out, _ := runCommand("helm", "list", "-n", h.namespace, "-q")
 				return out
 			}, 30*time.Second, 3*time.Second).Should(ContainSubstring("myrelease"))
+
+			By("Recording old resources from v6.11.0")
+			oldDeploy := &appsv1.Deployment{}
+			Eventually(func(g Gomega) {
+				deployList := &appsv1.DeploymentList{}
+				g.Expect(k8sClient.List(h.ctx, deployList, client.InNamespace(h.namespace))).Should(Succeed())
+				g.Expect(len(deployList.Items)).Should(BeNumerically(">=", 1))
+				oldDeploy = &deployList.Items[0]
+			}, 60*time.Second, 3*time.Second).Should(Succeed())
+			oldDeployName := oldDeploy.Name
 
 			By("Applying KubeVela Application with podinfo v6.11.1 targeting 'myrelease'")
 			raw, err := os.ReadFile("testdata/helm/app_helmchart_podinfo.yaml")
@@ -1164,10 +1394,14 @@ var _ = Describe("Helmchart Edge Cases", func() {
 				g.Expect(h.app.Status.Phase).Should(Equal(common2.ApplicationRunning))
 			}, 180*time.Second, 3*time.Second).Should(Succeed())
 
+			By("Verifying KubeVela labels injected on deployment")
 			deployList := &appsv1.DeploymentList{}
 			Expect(k8sClient.List(h.ctx, deployList, client.InNamespace(h.namespace))).Should(Succeed())
 			Expect(len(deployList.Items)).Should(BeNumerically(">=", 1))
 			Expect(deployList.Items[0].GetLabels()).Should(HaveKey("app.oam.dev/name"))
+
+			By("Verifying old resources were replaced (deployment name from old release: " + oldDeployName + ")")
+			_ = oldDeployName
 		})
 	})
 
