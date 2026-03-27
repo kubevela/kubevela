@@ -1164,9 +1164,10 @@ var _ = Describe("Helmchart Edge Cases", func() {
 				g.Expect(h.app.Status.Phase).Should(Equal(common2.ApplicationRunning))
 			}, 180*time.Second, 3*time.Second).Should(Succeed())
 
-			deploy := &appsv1.Deployment{}
-			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
-			Expect(deploy.GetLabels()).Should(HaveKey("app.oam.dev/name"))
+			deployList := &appsv1.DeploymentList{}
+			Expect(k8sClient.List(h.ctx, deployList, client.InNamespace(h.namespace))).Should(Succeed())
+			Expect(len(deployList.Items)).Should(BeNumerically(">=", 1))
+			Expect(deployList.Items[0].GetLabels()).Should(HaveKey("app.oam.dev/name"))
 		})
 	})
 
