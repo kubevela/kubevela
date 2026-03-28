@@ -16,6 +16,8 @@ limitations under the License.
 
 package helm
 
+import "strings"
+
 // RepoCredential is the helm repo credential
 type RepoCredential struct {
 	// chart repository username
@@ -30,12 +32,25 @@ type RepoCredential struct {
 	CAFile string `json:"caFile,omitempty"`
 	// skip tls certificate checks for the repository, default is ture
 	InsecureSkipTLSVerify *bool `json:"insecureSkipTLSVerify,omitempty"`
+	// SSH private key for git+ssh authentication (PEM-encoded)
+	SSHPrivateKey string `json:"sshPrivateKey,omitempty"`
+	// known_hosts content for SSH host key verification
+	KnownHosts string `json:"knownHosts,omitempty"`
 }
 
 // Repository is the helm repository
 type Repository struct {
-	URL      string `json:"url"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	CAFile   string `json:"caFile"`
+	URL           string `json:"url"`
+	Username      string `json:"username"`
+	Password      string `json:"password"`
+	CAFile        string `json:"caFile"`
+	SSHPrivateKey string `json:"sshPrivateKey,omitempty"`
+	KnownHosts    string `json:"knownHosts,omitempty"`
+}
+
+// IsSSHURL checks whether the given URL uses an SSH protocol scheme
+func IsSSHURL(u string) bool {
+	return strings.HasPrefix(u, "ssh://") ||
+		strings.HasPrefix(u, "git+ssh://") ||
+		strings.HasPrefix(u, "git@")
 }

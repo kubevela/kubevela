@@ -377,24 +377,32 @@ func (h *Helper) GetValuesFromChart(repoURL string, chartName string, version st
 
 // ValidateRepo will validate the helm repository
 func (h *Helper) ValidateRepo(ctx context.Context, repo *Repository) (bool, error) {
-	parsedURL, err := url.Parse(repo.URL)
-	if err != nil {
-		return false, err
-	}
-	userInfo := parsedURL.User
-	if len(repo.Username) > 0 && len(repo.Password) > 0 {
-		userInfo = url.UserPassword(repo.Username, repo.Password)
-	}
 	var cred = &RepoCredential{}
-	// TODO: support S3Config validation
-	if strings.HasPrefix(repo.URL, "https://") || strings.HasPrefix(repo.URL, "http://") {
-		if userInfo != nil {
-			cred.Username = userInfo.Username()
-			cred.Password, _ = userInfo.Password()
+
+	if IsSSHURL(repo.URL) {
+		// For SSH URLs, use SSH credentials
+		cred.SSHPrivateKey = repo.SSHPrivateKey
+		cred.KnownHosts = repo.KnownHosts
+	} else {
+		// For HTTP(S) URLs, use basic auth / TLS credentials
+		parsedURL, err := url.Parse(repo.URL)
+		if err != nil {
+			return false, err
+		}
+		userInfo := parsedURL.User
+		if len(repo.Username) > 0 && len(repo.Password) > 0 {
+			userInfo = url.UserPassword(repo.Username, repo.Password)
+		}
+		// TODO: support S3Config validation
+		if strings.HasPrefix(repo.URL, "https://") || strings.HasPrefix(repo.URL, "http://") {
+			if userInfo != nil {
+				cred.Username = userInfo.Username()
+				cred.Password, _ = userInfo.Password()
+			}
 		}
 	}
 
-	_, err = LoadRepoIndex(ctx, repo.URL, cred)
+	_, err := LoadRepoIndex(ctx, repo.URL, cred)
 	if err != nil {
 		return false, err
 	}

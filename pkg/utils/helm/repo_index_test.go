@@ -50,3 +50,42 @@ func TestLoadRepo(t *testing.T) {
 	}
 
 }
+
+func TestIsSSHURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		url      string
+		expected bool
+	}{
+		{"ssh scheme", "ssh://git@github.enterprise.com:org/charts.git", true},
+		{"git+ssh scheme", "git+ssh://git@github.enterprise.com:org/charts.git", true},
+		{"scp-like git URL", "git@github.com:org/charts.git", true},
+		{"https URL", "https://charts.example.com", false},
+		{"http URL", "http://charts.example.com", false},
+		{"oci URL", "oci://registry.example.com/charts", false},
+		{"empty string", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsSSHURL(tt.url)
+			if result != tt.expected {
+				t.Errorf("IsSSHURL(%q) = %v, want %v", tt.url, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestLoadDataViaSSH_InvalidKey(t *testing.T) {
+	// Test that loadDataViaSSH returns an error with an invalid SSH key
+	cred := &RepoCredential{
+		SSHPrivateKey: "not-a-valid-key",
+	}
+	_, err := loadDataViaSSH("ssh://git@github.com:org/charts.git/index.yaml", cred)
+	if err == nil {
+		t.Error("expected error with invalid SSH key, got nil")
+	}
+	if !strings.Contains(err.Error(), "failed to create SSH public keys") {
+		t.Errorf("unexpected error message: %s", err.Error())
+	}
+}

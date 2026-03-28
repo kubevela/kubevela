@@ -21,11 +21,16 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"helm.sh/helm/v3/pkg/getter"
 	helmrepo "helm.sh/helm/v3/pkg/repo"
+	gossh "golang.org/x/crypto/ssh"
 	"sigs.k8s.io/yaml"
 )
 
@@ -55,6 +60,11 @@ func LoadRepoIndex(_ context.Context, u string, cred *RepoCredential) (*helmrepo
 }
 
 func loadData(u string, cred *RepoCredential) (*bytes.Buffer, error) {
+	// Handle SSH-based URLs via git clone
+	if IsSSHURL(u) {
+		return loadDataViaSSH(u, cred)
+	}
+
 	parsedURL, err := url.Parse(u)
 	if err != nil {
 		return nil, err
@@ -81,6 +91,81 @@ func loadData(u string, cred *RepoCredential) (*bytes.Buffer, error) {
 	}
 
 	return resp, nil
+}
+
+// loadDataViaSSH clones a git repository using SSH authentication and reads index.yaml
+func loadDataViaSSH(u string, cred *RepoCredential) (*bytes.Buffer, error) {
+	// Strip the trailing /index.yaml if present (it was appended by LoadRepoIndex)
+	repoURL := strings.TrimSuffix(u, "/"+IndexYaml)
+	repoURL = strings.TrimSuffix(repoURL, IndexYaml)
+
+	// Normalize git+ssh:// to ssh://
+	if strings.HasPrefix(repoURL, "git+ssh://") {
+		repoURL = strings.Replace(repoURL, "git+ssh://", "ssh://", 1)
+	}
+
+	cloneOpts := &git.CloneOptions{
+		URL:   repoURL,
+		Depth: 1,
+	}
+
+	if len(cred.SSHPrivateKey) > 0 {
+		publicKeys, err := ssh.NewPublicKeys("git", []byte(cred.SSHPrivateKey), "")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create SSH public keys from private key: %w", err)
+		}
+		if len(cred.KnownHosts) > 0 {
+			hostKeyCallback, err := parseKnownHosts(cred.KnownHosts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse known_hosts: %w", err)
+			}
+			publicKeys.HostKeyCallback = hostKeyCallback
+		} else {
+			// nolint:gosec
+			publicKeys.HostKeyCallback = gossh.InsecureIgnoreHostKey()
+		}
+		cloneOpts.Auth = publicKeys
+	}
+
+	tmpDir, err := os.MkdirTemp("", "helm-ssh-repo-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	_, err = git.PlainClone(tmpDir, false, cloneOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone helm repository via SSH from %s: %w", repoURL, err)
+	}
+
+	indexPath := filepath.Join(tmpDir, IndexYaml)
+	data, err := os.ReadFile(indexPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s from cloned repository: %w", IndexYaml, err)
+	}
+
+	return bytes.NewBuffer(data), nil
+}
+
+// parseKnownHosts parses known_hosts content and returns an ssh.HostKeyCallback
+func parseKnownHosts(knownHostsData string) (gossh.HostKeyCallback, error) {
+	tmpFile, err := os.CreateTemp("", "known_hosts-")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.WriteString(knownHostsData); err != nil {
+		tmpFile.Close()
+		return nil, err
+	}
+	tmpFile.Close()
+
+	callback, err := ssh.NewKnownHostsCallback(tmpFile.Name())
+	if err != nil {
+		return nil, err
+	}
+	return callback, nil
 }
 
 // loadIndex loads an index file and does minimal validity checking.

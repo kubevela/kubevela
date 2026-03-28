@@ -34,10 +34,16 @@ template: {
 			if parameter.caFile != _|_ {
 				caFile: parameter.caFile
 			}
+			if parameter.sshPrivateKey != _|_ {
+				sshPrivateKey: parameter.sshPrivateKey
+			}
+			if parameter.knownHosts != _|_ {
+				knownHosts: parameter.knownHosts
+			}
 		}
 	}
 	parameter: {
-		// +usage=The public url of the helm chart repository.
+		// +usage=The public url of the helm chart repository. Supports http(s) and ssh (ssh://, git+ssh://, git@) URLs.
 		url: string
 		// +usage=The username of basic auth repo.
 		username?: string
@@ -45,5 +51,9 @@ template: {
 		password?: string
 		// +usage=The ca certificate of helm repository. Please encode this data with base64.
 		caFile?: string
+		// +usage=SSH private key (PEM-encoded) for git+ssh authentication to GitHub Enterprise or other SSH-based repos. Please encode this data with base64.
+		sshPrivateKey?: string
+		// +usage=known_hosts file content for SSH host key verification. Please encode this data with base64.
+		knownHosts?: string
 	}
 }

@@ -39,6 +39,8 @@ const (
 	caFileSecKey       = "caFile"
 	keyFileKey         = "keyFile"
 	certFileKey        = "certFile"
+	sshPrivateKeyKey   = "sshPrivateKey"
+	knownHostsKey      = "knownHosts"
 )
 
 var (
@@ -88,6 +90,12 @@ func SetHTTPOption(ctx context.Context, k8sClient client.Client, secretRef types
 	}
 	if len(sec.Data[keyFileKey]) != 0 {
 		opts.KeyFile = string(sec.Data[keyFileKey])
+	}
+	if len(sec.Data[sshPrivateKeyKey]) != 0 {
+		opts.SSHPrivateKey = string(sec.Data[sshPrivateKeyKey])
+	}
+	if len(sec.Data[knownHostsKey]) != 0 {
+		opts.KnownHosts = string(sec.Data[knownHostsKey])
 	}
 	return opts, nil
 }

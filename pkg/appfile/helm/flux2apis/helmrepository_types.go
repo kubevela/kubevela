@@ -47,6 +47,8 @@ type HelmRepositorySpec struct {
 	// password fields.
 	// For TLS the secret must contain a certFile and keyFile, and/or
 	// caCert fields.
+	// For SSH authentication (git+ssh:// or ssh:// URLs), the secret must
+	// contain sshPrivateKey and optionally knownHosts fields.
 	// +optional
 	SecretRef *LocalObjectReference `json:"secretRef,omitempty"`
 

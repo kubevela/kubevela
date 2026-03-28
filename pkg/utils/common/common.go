@@ -106,6 +106,10 @@ type HTTPOption struct {
 	CertFile        string `json:"certFile,omitempty"`
 	KeyFile         string `json:"keyFile,omitempty"`
 	InsecureSkipTLS bool   `json:"insecureSkipTLS,omitempty"`
+	// SSH private key for git+ssh authentication (PEM-encoded)
+	SSHPrivateKey string `json:"sshPrivateKey,omitempty"`
+	// known_hosts content for SSH host key verification
+	KnownHosts string `json:"knownHosts,omitempty"`
 }
 
 // InitBaseRestConfig will return reset config for create controller runtime client
