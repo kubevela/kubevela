@@ -21,11 +21,14 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -96,4 +99,63 @@ func TestNewResourceKeeper(t *testing.T) {
 	r.NoError(err)
 	r.NotNil(currentRT)
 	r.Equal(3, len(rk._historyRTs))
+}
+
+func TestGetAppliedResources(t *testing.T) {
+	ref := func(name, kind, component string, deleted bool) v1beta1.ManagedResource {
+		return v1beta1.ManagedResource{
+			ClusterObjectReference: oamcommon.ClusterObjectReference{
+				Creator: oamcommon.WorkflowResourceCreator,
+				ObjectReference: corev1.ObjectReference{
+					Name:       name,
+					Namespace:  "default",
+					Kind:       kind,
+					APIVersion: "v1",
+				},
+			},
+			OAMObjectReference: oamcommon.OAMObjectReference{Component: component},
+			Deleted:            deleted,
+		}
+	}
+
+	tests := []struct {
+		name          string
+		managedRes    []v1beta1.ManagedResource
+		expectedNames []string
+	}{
+		{
+			name: "returns all resources including pending-delete",
+			managedRes: []v1beta1.ManagedResource{
+				ref("shared-config", "ConfigMap", "my-component", false),
+				ref("old-config", "ConfigMap", "removed-component", true),
+			},
+			expectedNames: []string{"shared-config", "old-config"},
+		},
+		{
+			name:          "returns empty when no current RT",
+			managedRes:    nil,
+			expectedNames: []string{},
+		},
+		{
+			name:          "returns empty when RT has no resources",
+			managedRes:    []v1beta1.ManagedResource{},
+			expectedNames: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rk := &resourceKeeper{}
+			if tt.managedRes != nil {
+				rk._currentRT = &v1beta1.ResourceTracker{
+					Spec: v1beta1.ResourceTrackerSpec{ManagedResources: tt.managedRes},
+				}
+			}
+			result := rk.GetAppliedResources()
+			require.Equal(t, len(tt.expectedNames), len(result))
+			for i, name := range tt.expectedNames {
+				assert.Equal(t, name, result[i].Name)
+			}
+		})
+	}
 }
