@@ -54,6 +54,27 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
+// dryRunContextKey is used to signal the helm provider that it should perform
+// a client-only dry-run (helm template) instead of a real install/upgrade.
+// This is set by the webhook validation path to avoid blocking on real Helm
+// operations during Application admission.
+type contextKey string
+
+const dryRunContextKey contextKey = "helm.dryRun"
+
+// WithDryRun returns a context with the dry-run flag set. When the helm
+// provider receives this context, it renders the chart client-side without
+// creating any resources in the cluster.
+func WithDryRun(ctx context.Context) context.Context {
+	return context.WithValue(ctx, dryRunContextKey, true)
+}
+
+// isDryRun checks if the context has the dry-run flag set.
+func isDryRun(ctx context.Context) bool {
+	v, _ := ctx.Value(dryRunContextKey).(bool)
+	return v
+}
+
 // ChartSourceParams represents the chart source configuration
 type ChartSourceParams struct {
 	Source  string      `json:"source"`
@@ -895,6 +916,72 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 	return rel.Manifest, rel.Info.Notes, rel.Version, nil
 }
 
+// dryRunRender performs a client-only Helm template render without touching the
+// cluster. Used during webhook validation to verify the chart can be fetched,
+// values are valid, and templates render without errors — without blocking on
+// real resource creation, hooks, or waiting.
+func (p *Provider) dryRunRender(ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, velaCtx *ContextParams) (string, string, error) {
+	install := action.NewInstall(&action.Configuration{})
+	install.ReleaseName = releaseName
+	install.Namespace = releaseNamespace
+	install.DryRun = true
+	install.ClientOnly = true
+
+	// Set Kubernetes version capabilities so charts with kubeVersion constraints
+	// don't fail against Helm's default v1.20.0. We query the real cluster version
+	// via the REST config. If unreachable, the kubeVersion check is skipped —
+	// the real install during reconciliation will validate it.
+	if kv := p.getKubeVersion(); kv != nil {
+		install.KubeVersion = kv
+	}
+
+	install.PostRenderer = &velaLabelPostRenderer{
+		context:          velaCtx,
+		releaseName:      releaseName,
+		releaseNamespace: releaseNamespace,
+	}
+
+	if options != nil {
+		if options.SkipHooks != nil {
+			install.DisableHooks = *options.SkipHooks
+		}
+	}
+
+	rel, err := install.Run(ch, values)
+	if err != nil {
+		return "", "", errors.Wrapf(err, "dry-run render failed for chart %s", ch.Name())
+	}
+
+	return rel.Manifest, rel.Info.Notes, nil
+}
+
+// getKubeVersion queries the cluster's Kubernetes version for use in dry-run
+// rendering. Returns nil if the cluster is unreachable — Helm will then skip
+// the kubeVersion constraint check, deferring it to the real install.
+func (p *Provider) getKubeVersion() *chartutil.KubeVersion {
+	restClient := p.helmClient.RESTClientGetter()
+	if restClient == nil {
+		return nil
+	}
+	cfg, err := restClient.ToRESTConfig()
+	if err != nil {
+		return nil
+	}
+	clientset, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil
+	}
+	info, err := clientset.Discovery().ServerVersion()
+	if err != nil {
+		return nil
+	}
+	return &chartutil.KubeVersion{
+		Version: fmt.Sprintf("v%s.%s", info.Major, info.Minor),
+		Major:   info.Major,
+		Minor:   info.Minor,
+	}
+}
+
 // validateReleaseHealth checks that the Helm release secret exists and is
 // readable in the cluster. If the release is missing or corrupted, the
 // in-memory cache is invalidated so the next reconciliation performs a fresh
@@ -1239,10 +1326,23 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	}
 	klog.V(3).Infof("Helm provider: Merged values: %v", values)
 
-	// Install or upgrade the chart via the Helm SDK
-	manifest, notes, _, err := p.installOrUpgradeChart(ctx, ch, releaseName, releaseNamespace, values, renderParams.Options, renderParams.Context)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to install/upgrade chart")
+	// In dry-run mode (webhook validation), render client-side only — no cluster
+	// interaction, no real install, no hooks. This prevents the webhook from
+	// blocking for 30-60s on large charts.
+	var manifest string
+	var notes string
+	if isDryRun(ctx) {
+		klog.V(2).Infof("Helm provider: Dry-run mode — rendering chart %s client-side only", ch.Name())
+		manifest, notes, err = p.dryRunRender(ch, releaseName, releaseNamespace, values, renderParams.Options, renderParams.Context)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to dry-run render chart")
+		}
+	} else {
+		// Install or upgrade the chart via the Helm SDK
+		manifest, notes, _, err = p.installOrUpgradeChart(ctx, ch, releaseName, releaseNamespace, values, renderParams.Options, renderParams.Context)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to install/upgrade chart")
+		}
 	}
 
 	// Parse the release manifest into KubeVela resource maps

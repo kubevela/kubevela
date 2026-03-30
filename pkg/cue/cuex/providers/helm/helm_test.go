@@ -492,6 +492,49 @@ func TestInvalidateRelease(t *testing.T) {
 	assert.False(t, ok, "version should be cleared")
 }
 
+func TestDryRunContext(t *testing.T) {
+	// Verify dry-run context flag works correctly
+	ctx := context.Background()
+	assert.False(t, isDryRun(ctx), "default context should not be dry-run")
+
+	dryCtx := WithDryRun(ctx)
+	assert.True(t, isDryRun(dryCtx), "WithDryRun context should be dry-run")
+
+	// Verify non-dry-run context is not affected
+	assert.False(t, isDryRun(ctx), "original context should still not be dry-run")
+}
+
+func TestDryRunRender(t *testing.T) {
+	p := NewProviderWithConfig(nil)
+
+	// Create a minimal chart for dry-run testing
+	ch := &chart.Chart{
+		Metadata: &chart.Metadata{
+			Name:    "test-chart",
+			Version: "1.0.0",
+		},
+		Templates: []*chart.File{
+			{
+				Name: "templates/deployment.yaml",
+				Data: []byte(`apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+`),
+			},
+		},
+	}
+
+	manifest, _, err := p.dryRunRender(ch, "test-release", "test-ns",
+		map[string]interface{}{"key": "value"}, nil, nil)
+	require.NoError(t, err, "dry-run render should not fail")
+	assert.Contains(t, manifest, "kind: Deployment", "manifest should contain rendered deployment")
+	assert.Contains(t, manifest, "name: test-release", "manifest should contain release name")
+}
+
 func TestVelaOwnerLabels(t *testing.T) {
 	velaCtx := &ContextParams{
 		AppName:      "my-app",
