@@ -23,6 +23,7 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"os"
@@ -420,7 +421,7 @@ func (p *Provider) determineCacheTTL(version string, options *RenderOptionsParam
 }
 
 // fetchOCIChart fetches a chart from an OCI registry
-func (p *Provider) fetchOCIChart(ctx context.Context, params *ChartSourceParams) (*chart.Chart, error) {
+func (p *Provider) fetchOCIChart(_ context.Context, params *ChartSourceParams) (*chart.Chart, error) {
 	registryClient, err := registry.NewClient()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create OCI registry client")
@@ -476,7 +477,7 @@ func (p *Provider) fetchRepoChart(ctx context.Context, params *ChartSourceParams
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create temp directory")
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// First, fetch the repository index to find the chart
 	indexURL := fmt.Sprintf("%s/index.yaml", params.RepoURL)
@@ -569,7 +570,7 @@ func (p *Provider) mergeValues(ctx context.Context, baseValues interface{}, valu
 }
 
 // loadValuesFromSource loads values from a specific source
-func (p *Provider) loadValuesFromSource(ctx context.Context, source ValuesFromParams) (map[string]interface{}, error) {
+func (p *Provider) loadValuesFromSource(_ context.Context, source ValuesFromParams) (map[string]interface{}, error) {
 	switch source.Kind {
 	case "ConfigMap":
 		// TODO: Implement ConfigMap loading
@@ -626,13 +627,13 @@ func (r *velaLabelPostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buf
 	for {
 		obj := &unstructured.Unstructured{}
 		if err := decoder.Decode(obj); err != nil {
-			if err == io.EOF {
+			if stderrors.Is(err, io.EOF) {
 				break
 			}
 			return nil, errors.Wrap(err, "post-renderer: failed to decode manifest")
 		}
 
-		if obj.Object == nil || len(obj.Object) == 0 {
+		if len(obj.Object) == 0 {
 			continue
 		}
 
@@ -847,6 +848,50 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 	}
 
 	// No existing release — perform a fresh install
+	rel, err := p.freshInstall(ctx, actionConfig, ch, releaseName, releaseNamespace, values, options, postRenderer, releaseLabels)
+	if err != nil {
+		return "", "", 0, err
+	}
+	klog.Infof("Helm provider: Successfully installed release %s", releaseName)
+	p.releaseFingerprints[releaseName] = fingerprint
+	p.releaseManifests[releaseName] = rel.Manifest
+	p.releaseVersions[releaseName] = rel.Version
+	return rel.Manifest, rel.Info.Notes, rel.Version, nil
+}
+
+// freshInstall performs a helm install with retry logic for orphaned/corrupted state.
+func (p *Provider) freshInstall(ctx context.Context, actionConfig *action.Configuration, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, postRenderer *velaLabelPostRenderer, releaseLabels map[string]string) (*release.Release, error) {
+	install := p.newInstallAction(actionConfig, releaseName, releaseNamespace, options, postRenderer, releaseLabels)
+
+	klog.Infof("Helm provider: Installing release %s in namespace %s", releaseName, releaseNamespace)
+	rel, err := install.RunWithContext(ctx, ch, values)
+	if err == nil {
+		return rel, nil
+	}
+
+	// If install fails due to corrupted/orphaned release secrets or ownership
+	// conflicts, clean up the broken state and retry once.
+	if !isRetryableInstallError(err) {
+		return nil, errors.Wrapf(err, "failed to install helm release %s", releaseName)
+	}
+
+	klog.Warningf("Helm provider: Install failed for %s due to orphaned state (%v), cleaning up and retrying", releaseName, err)
+	if cleanErr := p.cleanOrphanedReleaseSecrets(actionConfig, releaseName, releaseNamespace); cleanErr != nil {
+		klog.Warningf("Helm provider: Failed to clean orphaned secrets for %s: %v", releaseName, cleanErr)
+		return nil, errors.Wrapf(err, "failed to install helm release %s (cleanup also failed: %v)", releaseName, cleanErr)
+	}
+
+	retry := p.newInstallAction(actionConfig, releaseName, releaseNamespace, options, postRenderer, releaseLabels)
+	klog.Infof("Helm provider: Retrying install for release %s after cleanup", releaseName)
+	rel, err = retry.RunWithContext(ctx, ch, values)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to install helm release %s after cleanup retry", releaseName)
+	}
+	return rel, nil
+}
+
+// newInstallAction creates a configured helm install action.
+func (p *Provider) newInstallAction(actionConfig *action.Configuration, releaseName, releaseNamespace string, options *RenderOptionsParams, postRenderer *velaLabelPostRenderer, releaseLabels map[string]string) *action.Install {
 	install := action.NewInstall(actionConfig)
 	install.ReleaseName = releaseName
 	install.Namespace = releaseNamespace
@@ -855,7 +900,6 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 	install.PostRenderer = postRenderer
 	install.CreateNamespace = true
 	install.Labels = releaseLabels
-
 	if options != nil {
 		if options.Atomic {
 			install.Atomic = true
@@ -875,45 +919,17 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 			install.DisableHooks = *options.SkipHooks
 		}
 	}
+	return install
+}
 
-	klog.Infof("Helm provider: Installing release %s in namespace %s", releaseName, releaseNamespace)
-	rel, err := install.RunWithContext(ctx, ch, values)
-	if err != nil {
-		// If install fails due to corrupted/orphaned release secrets or ownership
-		// conflicts, clean up the broken state and retry once.
-		errMsg := err.Error()
-		if strings.Contains(errMsg, "cannot be imported") ||
-			strings.Contains(errMsg, "invalid ownership metadata") ||
-			strings.Contains(errMsg, "no revision for release") ||
-			strings.Contains(errMsg, "release: already exists") {
-			klog.Warningf("Helm provider: Install failed for %s due to orphaned state (%v), cleaning up and retrying", releaseName, err)
-			if cleanErr := p.cleanOrphanedReleaseSecrets(actionConfig, releaseName, releaseNamespace); cleanErr != nil {
-				klog.Warningf("Helm provider: Failed to clean orphaned secrets for %s: %v", releaseName, cleanErr)
-				return "", "", 0, errors.Wrapf(err, "failed to install helm release %s (cleanup also failed: %v)", releaseName, cleanErr)
-			}
-			// Retry install after cleanup
-			install2 := action.NewInstall(actionConfig)
-			install2.ReleaseName = releaseName
-			install2.Namespace = releaseNamespace
-			install2.DryRun = false
-			install2.ClientOnly = false
-			install2.PostRenderer = postRenderer
-			install2.CreateNamespace = true
-			install2.Labels = releaseLabels
-			klog.Infof("Helm provider: Retrying install for release %s after cleanup", releaseName)
-			rel, err = install2.RunWithContext(ctx, ch, values)
-			if err != nil {
-				return "", "", 0, errors.Wrapf(err, "failed to install helm release %s after cleanup retry", releaseName)
-			}
-		} else {
-			return "", "", 0, errors.Wrapf(err, "failed to install helm release %s", releaseName)
-		}
-	}
-	klog.Infof("Helm provider: Successfully installed release %s", releaseName)
-	p.releaseFingerprints[releaseName] = fingerprint
-	p.releaseManifests[releaseName] = rel.Manifest
-	p.releaseVersions[releaseName] = rel.Version
-	return rel.Manifest, rel.Info.Notes, rel.Version, nil
+// isRetryableInstallError returns true if the error indicates orphaned state
+// that can be fixed by cleaning up and retrying.
+func isRetryableInstallError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "cannot be imported") ||
+		strings.Contains(msg, "invalid ownership metadata") ||
+		strings.Contains(msg, "no revision for release") ||
+		strings.Contains(msg, "release: already exists")
 }
 
 // dryRunRender performs a client-only Helm template render without touching the
@@ -959,11 +975,7 @@ func (p *Provider) dryRunRender(ch *chart.Chart, releaseName, releaseNamespace s
 // rendering. Returns nil if the cluster is unreachable — Helm will then skip
 // the kubeVersion constraint check, deferring it to the real install.
 func (p *Provider) getKubeVersion() *chartutil.KubeVersion {
-	restClient := p.helmClient.RESTClientGetter()
-	if restClient == nil {
-		return nil
-	}
-	cfg, err := restClient.ToRESTConfig()
+	cfg, err := p.helmClient.RESTClientGetter().ToRESTConfig()
 	if err != nil {
 		return nil
 	}
@@ -1035,12 +1047,12 @@ func (p *Provider) validateReleaseHealth(releaseName, releaseNamespace string) {
 // Strategy: always delete the secrets directly via the Kubernetes API first,
 // since corrupted secrets cannot be reliably handled by Helm's own storage
 // driver or uninstall action.
-func (p *Provider) cleanOrphanedReleaseSecrets(actionConfig *action.Configuration, releaseName, releaseNamespace string) error {
+func (p *Provider) cleanOrphanedReleaseSecrets(_ *action.Configuration, releaseName, releaseNamespace string) error {
 	// Primary approach: delete secrets directly via Kubernetes API.
 	// This is the most reliable method for corrupted secrets.
 	klog.Infof("Helm provider: Cleaning up release secrets for %s in namespace %s via direct deletion", releaseName, releaseNamespace)
 	if err := p.deleteReleaseSecretsDirect(releaseNamespace, releaseName); err != nil {
-		return fmt.Errorf("failed to clean release secrets for %s: %v", releaseName, err)
+		return fmt.Errorf("failed to clean release secrets for %s: %w", releaseName, err)
 	}
 	return nil
 }
@@ -1049,11 +1061,7 @@ func (p *Provider) cleanOrphanedReleaseSecrets(actionConfig *action.Configuratio
 // given release. Used to track all revision secrets in the ResourceTracker so
 // GC cleans them all up on Application deletion.
 func (p *Provider) listReleaseSecretNames(namespace, releaseName string) []string {
-	restClient := p.helmClient.RESTClientGetter()
-	if restClient == nil {
-		return nil
-	}
-	cfg, err := restClient.ToRESTConfig()
+	cfg, err := p.helmClient.RESTClientGetter().ToRESTConfig()
 	if err != nil {
 		klog.V(4).Infof("Helm provider: Failed to get REST config for listing secrets: %v", err)
 		return nil
@@ -1092,11 +1100,7 @@ func (p *Provider) labelReleaseSecrets(namespace, releaseName string, velaCtx *C
 	if velaCtx == nil {
 		return
 	}
-	restClient := p.helmClient.RESTClientGetter()
-	if restClient == nil {
-		return
-	}
-	cfg, err := restClient.ToRESTConfig()
+	cfg, err := p.helmClient.RESTClientGetter().ToRESTConfig()
 	if err != nil {
 		return
 	}
@@ -1134,11 +1138,7 @@ func (p *Provider) labelReleaseSecrets(namespace, releaseName string, velaCtx *C
 // release secrets. This is the last-resort cleanup for secrets that are too
 // corrupted for Helm's own storage driver or uninstall action to handle.
 func (p *Provider) deleteReleaseSecretsDirect(namespace, releaseName string) error {
-	restClient := p.helmClient.RESTClientGetter()
-	if restClient == nil {
-		return fmt.Errorf("no REST client available")
-	}
-	cfg, err := restClient.ToRESTConfig()
+	cfg, err := p.helmClient.RESTClientGetter().ToRESTConfig()
 	if err != nil {
 		return errors.Wrap(err, "failed to get REST config")
 	}
@@ -1192,14 +1192,14 @@ func (p *Provider) parseManifestResources(manifestStr string, options *RenderOpt
 	for {
 		resource := &unstructured.Unstructured{}
 		if err := decoder.Decode(&resource); err != nil {
-			if err == io.EOF {
+			if stderrors.Is(err, io.EOF) {
 				break
 			}
 			return nil, errors.Wrap(err, "failed to decode manifest")
 		}
 
 		// Skip empty resources
-		if resource == nil || resource.Object == nil || len(resource.Object) == 0 {
+		if resource == nil || len(resource.Object) == 0 {
 			continue
 		}
 
