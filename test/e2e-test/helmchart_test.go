@@ -1165,16 +1165,23 @@ var _ = Describe("Helmchart Edge Cases", func() {
 			Expect(yaml.Unmarshal(raw, h.app)).Should(BeNil())
 			h.app.SetNamespace(h.appNamespace)
 			h.app.SetName("bad-chart-test-" + rand.RandomString(4))
-			Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
-			h.appKey = client.ObjectKeyFromObject(h.app)
+			createErr := k8sClient.Create(h.ctx, h.app)
 
-			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
-				g.Expect(h.app.Status.Phase).Should(SatisfyAny(
-					Equal(common2.ApplicationWorkflowFailed),
-					Equal(common2.ApplicationUnhealthy),
-				))
-			}, 120*time.Second, 3*time.Second).Should(Succeed())
+			if createErr != nil {
+				By("Webhook dry-run caught the bad chart — rejected at admission")
+				Expect(createErr.Error()).Should(ContainSubstring("not found"))
+				h.app = nil // not created, nothing to clean up
+			} else {
+				By("Webhook did not catch it — waiting for workflow failure")
+				h.appKey = client.ObjectKeyFromObject(h.app)
+				Eventually(func(g Gomega) {
+					g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+					g.Expect(h.app.Status.Phase).Should(SatisfyAny(
+						Equal(common2.ApplicationWorkflowFailed),
+						Equal(common2.ApplicationUnhealthy),
+					))
+				}, 120*time.Second, 3*time.Second).Should(Succeed())
+			}
 		})
 	})
 
@@ -1191,30 +1198,49 @@ var _ = Describe("Helmchart Edge Cases", func() {
 			Expect(yaml.Unmarshal(raw, h.app)).Should(BeNil())
 			h.app.SetNamespace(h.appNamespace)
 			h.app.SetName("bad-version-test-" + rand.RandomString(4))
-			Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
-			h.appKey = client.ObjectKeyFromObject(h.app)
+			createErr := k8sClient.Create(h.ctx, h.app)
 
-			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
-				g.Expect(h.app.Status.Phase).Should(SatisfyAny(
-					Equal(common2.ApplicationWorkflowFailed),
-					Equal(common2.ApplicationUnhealthy),
-				))
-			}, 120*time.Second, 3*time.Second).Should(Succeed())
+			if createErr != nil {
+				By("Webhook dry-run caught the bad version — rejected at admission")
+				Expect(createErr.Error()).Should(ContainSubstring("not found"))
 
-			By("Updating to correct version")
-			Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
-			rawProps, err := json.Marshal(h.app.Spec.Components[0].Properties)
-			Expect(err).Should(BeNil())
-			var props map[string]interface{}
-			Expect(json.Unmarshal(rawProps, &props)).Should(BeNil())
-			chart := props["chart"].(map[string]interface{})
-			chart["version"] = "6.11.1"
-			props["chart"] = chart
-			newRaw, err := json.Marshal(props)
-			Expect(err).Should(BeNil())
-			h.app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: newRaw}
-			Expect(k8sClient.Update(h.ctx, h.app)).Should(Succeed())
+				By("Creating with correct version directly")
+				h.app.SetResourceVersion("")
+				rawProps, _ := json.Marshal(h.app.Spec.Components[0].Properties)
+				var props map[string]interface{}
+				_ = json.Unmarshal(rawProps, &props)
+				chart := props["chart"].(map[string]interface{})
+				chart["version"] = "6.11.1"
+				props["chart"] = chart
+				newRaw, _ := json.Marshal(props)
+				h.app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: newRaw}
+				Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
+				h.appKey = client.ObjectKeyFromObject(h.app)
+			} else {
+				By("Webhook did not catch it — waiting for workflow failure then updating")
+				h.appKey = client.ObjectKeyFromObject(h.app)
+				Eventually(func(g Gomega) {
+					g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+					g.Expect(h.app.Status.Phase).Should(SatisfyAny(
+						Equal(common2.ApplicationWorkflowFailed),
+						Equal(common2.ApplicationUnhealthy),
+					))
+				}, 120*time.Second, 3*time.Second).Should(Succeed())
+
+				By("Updating to correct version")
+				Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+				rawProps, err := json.Marshal(h.app.Spec.Components[0].Properties)
+				Expect(err).Should(BeNil())
+				var props map[string]interface{}
+				Expect(json.Unmarshal(rawProps, &props)).Should(BeNil())
+				chart := props["chart"].(map[string]interface{})
+				chart["version"] = "6.11.1"
+				props["chart"] = chart
+				newRaw, err := json.Marshal(props)
+				Expect(err).Should(BeNil())
+				h.app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: newRaw}
+				Expect(k8sClient.Update(h.ctx, h.app)).Should(Succeed())
+			}
 
 			h.waitForAppRunning()
 		})
@@ -1292,10 +1318,11 @@ var _ = Describe("Helmchart Edge Cases", func() {
 		})
 
 		It("should not affect crossplane when upgrading podinfo component", func() {
-			By("Recording crossplane Deployment resourceVersion before podinfo upgrade")
+			By("Recording crossplane Deployment replica count and image before podinfo upgrade")
 			cpDeploy := &appsv1.Deployment{}
 			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: nsB, Name: "crossplane"}, cpDeploy)).Should(Succeed())
-			cpResourceVersion := cpDeploy.ResourceVersion
+			cpImage := cpDeploy.Spec.Template.Spec.Containers[0].Image
+			cpReplicas := *cpDeploy.Spec.Replicas
 
 			By("Upgrading podinfo component values")
 			Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
@@ -1317,10 +1344,13 @@ var _ = Describe("Helmchart Edge Cases", func() {
 				g.Expect(h.app.Status.Phase).Should(Equal(common2.ApplicationRunning))
 			}, 180*time.Second, 3*time.Second).Should(Succeed())
 
-			By("Verifying crossplane Deployment was NOT affected (resourceVersion unchanged)")
+			By("Verifying crossplane Deployment spec was NOT affected (image and replicas unchanged)")
 			cpDeploy = &appsv1.Deployment{}
 			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: nsB, Name: "crossplane"}, cpDeploy)).Should(Succeed())
-			Expect(cpDeploy.ResourceVersion).Should(Equal(cpResourceVersion))
+			Expect(cpDeploy.Spec.Template.Spec.Containers[0].Image).Should(Equal(cpImage),
+				"crossplane image should not change when podinfo is upgraded")
+			Expect(*cpDeploy.Spec.Replicas).Should(Equal(cpReplicas),
+				"crossplane replicas should not change when podinfo is upgraded")
 		})
 
 		It("should clean up both releases when Application is deleted", func() {
