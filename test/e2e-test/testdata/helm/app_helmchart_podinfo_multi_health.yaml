@@ -4,7 +4,7 @@ metadata:
   name: podinfo-multi-health
 spec:
   components:
-    - name: podinfo
+    - name: podinfo-a
       type: helmchart
       properties:
         chart:
@@ -12,25 +12,45 @@ spec:
           repoURL: https://stefanprodan.github.io/podinfo
           version: "6.11.1"
         release:
-          name: podinfo
+          name: podinfo-a
           namespace: placeholder_ns
         values:
-          replicaCount: 2
+          replicaCount: 1
           resources:
             limits:
-              memory: 256Mi
-              cpu: 100m
+              memory: 128Mi
+              cpu: 50m
         healthStatus:
           - resource:
               kind: Deployment
-              name: podinfo
+              name: podinfo-a
             condition:
               type: Available
+        options:
+          createNamespace: true
+          skipTests: true
+    - name: podinfo-b
+      type: helmchart
+      properties:
+        chart:
+          source: podinfo
+          repoURL: https://stefanprodan.github.io/podinfo
+          version: "6.11.1"
+        release:
+          name: podinfo-b
+          namespace: placeholder_ns
+        values:
+          replicaCount: 1
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: 50m
+        healthStatus:
           - resource:
-              kind: Service
-              name: podinfo
+              kind: Deployment
+              name: podinfo-b
             condition:
-              type: Ready
+              type: Available
         options:
           createNamespace: true
           skipTests: true

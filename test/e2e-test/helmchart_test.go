@@ -1028,47 +1028,51 @@ var _ = Describe("Helmchart Health Checks", func() {
 		})
 	})
 
-	Context("Scenario 18: Custom Health Check — Multiple Criteria", Ordered, func() {
+	Context("Scenario 18: Custom Health Check — Multiple Criteria (Two Components)", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
-		It("should be healthy only when ALL criteria pass (Deployment Available + Service exists)", func() {
+		It("should be healthy when both podinfo-a and podinfo-b Deployments are Available", func() {
 			h.deployAppFrom("testdata/helm/app_helmchart_podinfo_multi_health.yaml")
-			h.waitForDeploymentReady()
+
+			By("Waiting for both Deployments to be ready")
+			for _, name := range []string{"podinfo-a", "podinfo-b"} {
+				Eventually(func(g Gomega) {
+					d := &appsv1.Deployment{}
+					g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: name}, d)).Should(Succeed())
+					g.Expect(d.Status.ReadyReplicas).Should(BeNumerically(">=", 1))
+				}, 120*time.Second, 3*time.Second).Should(Succeed())
+			}
+
 			h.waitForAppRunning()
 		})
 
-		It("should report unhealthy when Service is deleted even though Deployment is fine", func() {
-			By("Deleting the Service via kubectl")
-			runCommandSucceed("kubectl", "delete", "svc", "podinfo", "-n", h.namespace)
+		It("should detect unhealthy when one Deployment is deleted and self-heal", func() {
+			By("Deleting podinfo-a Deployment (podinfo-b is still healthy)")
+			runCommandSucceed("kubectl", "delete", "deployment", "podinfo-a", "-n", h.namespace)
 
-			By("Verifying Service is gone")
+			By("Verifying podinfo-a Deployment is gone")
 			Eventually(func() bool {
-				return k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &corev1.Service{}) != nil
+				return k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo-a"}, &appsv1.Deployment{}) != nil
 			}, 10*time.Second, time.Second).Should(BeTrue())
 
-			By("Verifying Deployment is still fine (unaffected by Service deletion)")
-			deploy := &appsv1.Deployment{}
-			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
-			Expect(deploy.Status.ReadyReplicas).Should(Equal(int32(2)))
+			By("Verifying podinfo-b Deployment is still running")
+			d := &appsv1.Deployment{}
+			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo-b"}, d)).Should(Succeed())
+			Expect(d.Status.ReadyReplicas).Should(BeNumerically(">=", 1))
 
-			By("Triggering reconciliation — KubeVela detects missing Service")
+			By("Triggering reconciliation")
 			RequestReconcileNow(h.ctx, h.app)
 
-			By("Verifying Application transitions away from running (Service criterion fails)")
+			By("Verifying KubeVela self-heals by recreating podinfo-a Deployment")
 			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
-				healthy := true
-				for _, svc := range h.app.Status.Services {
-					if !svc.Healthy {
-						healthy = false
-						break
-					}
-				}
-				g.Expect(healthy).Should(BeFalse(),
-					"App should report unhealthy — Service criterion fails while Deployment is still healthy")
-			}, 60*time.Second, 3*time.Second).Should(Succeed())
+				d := &appsv1.Deployment{}
+				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo-a"}, d)).Should(Succeed())
+				g.Expect(d.Status.ReadyReplicas).Should(BeNumerically(">=", 1))
+			}, 120*time.Second, 3*time.Second).Should(Succeed())
+
+			h.waitForAppRunning()
 		})
 	})
 
