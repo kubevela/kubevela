@@ -1481,5 +1481,6 @@ var _ = Describe("Helmchart Edge Cases", func() {
 })
 
 func init() {
-	_ = fmt.Sprintf("helm chart tests registered")
+	// ensure helmchart test file is compiled and registered
+	_ = "helm chart tests registered"
 }

@@ -277,7 +277,7 @@ metadata:
 			}
 			t.Fatal(err)
 		}
-		if obj.Object == nil || len(obj.Object) == 0 {
+		if len(obj.Object) == 0 {
 			continue
 		}
 		resourceCount++

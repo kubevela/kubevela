@@ -570,6 +570,7 @@ func (p *Provider) mergeValues(ctx context.Context, baseValues interface{}, valu
 }
 
 // loadValuesFromSource loads values from a specific source
+// nolint:unparam // result is always nil until ConfigMap/Secret/OCI loading is implemented
 func (p *Provider) loadValuesFromSource(_ context.Context, source ValuesFromParams) (map[string]interface{}, error) {
 	switch source.Kind {
 	case "ConfigMap":

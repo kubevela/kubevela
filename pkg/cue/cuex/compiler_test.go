@@ -187,9 +187,10 @@ func TestWorkloadCompiler(t *testing.T) {
 		} else {
 			output, _ := ctx.Output()
 			assert.Nil(t, err)
-			assert.NotNil(t, output)
-			outputObj, _ := output.Unstructured()
-			assert.Equal(t, tc.expectedObj, outputObj)
+			if assert.NotNil(t, output, "output should not be nil when no compile error expected") {
+				outputObj, _ := output.Unstructured()
+				assert.Equal(t, tc.expectedObj, outputObj)
+			}
 		}
 	}
 }
