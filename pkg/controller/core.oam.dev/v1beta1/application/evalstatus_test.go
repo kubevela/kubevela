@@ -23,7 +23,6 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/stretchr/testify/assert"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -185,16 +184,14 @@ func Test_applyComponentHealthToServices(t *testing.T) {
 
 func TestFilterRemovedComponentsFromStatus(t *testing.T) {
 	tests := []struct {
-		name              string
-		components        []common.ApplicationComponent
-		statusServices    []common.ApplicationComponentStatus
-		statusResources   []common.ClusterObjectReference
-		expectedServices  []string
-		expectedResources []string
-		componentsRemoved bool
+		name             string
+		components       []common.ApplicationComponent
+		statusServices   []common.ApplicationComponentStatus
+		expectedServices []string
+		servicesRemoved  bool
 	}{
 		{
-			name: "removed components are filtered from status",
+			name: "removed component is filtered from services",
 			components: []common.ApplicationComponent{
 				{Name: "backend", Type: "webservice"},
 			},
@@ -202,55 +199,21 @@ func TestFilterRemovedComponentsFromStatus(t *testing.T) {
 				{Name: "frontend", Namespace: "default"},
 				{Name: "backend", Namespace: "default"},
 			},
-			statusResources: []common.ClusterObjectReference{
-				{
-					ObjectReference: corev1.ObjectReference{
-						Name:      "frontend",
-						Namespace: "default",
-						Kind:      "Deployment",
-					},
-				},
-				{
-					ObjectReference: corev1.ObjectReference{
-						Name:      "backend",
-						Namespace: "default",
-						Kind:      "Deployment",
-					},
-				},
-			},
-			expectedServices:  []string{"backend"},
-			expectedResources: []string{"backend"},
-			componentsRemoved: true,
+			expectedServices: []string{"backend"},
+			servicesRemoved:  true,
 		},
 		{
-			name:       "all components removed results in empty status",
+			name:       "all components removed results in empty services",
 			components: []common.ApplicationComponent{},
 			statusServices: []common.ApplicationComponentStatus{
 				{Name: "frontend", Namespace: "default"},
 				{Name: "backend", Namespace: "default"},
 			},
-			statusResources: []common.ClusterObjectReference{
-				{
-					ObjectReference: corev1.ObjectReference{
-						Name:      "frontend",
-						Namespace: "default",
-						Kind:      "Deployment",
-					},
-				},
-				{
-					ObjectReference: corev1.ObjectReference{
-						Name:      "backend",
-						Namespace: "default",
-						Kind:      "Deployment",
-					},
-				},
-			},
-			expectedServices:  []string{},
-			expectedResources: []string{},
-			componentsRemoved: true,
+			expectedServices: []string{},
+			servicesRemoved:  true,
 		},
 		{
-			name: "no components removed keeps all status entries",
+			name: "no components removed keeps all services",
 			components: []common.ApplicationComponent{
 				{Name: "frontend", Type: "webservice"},
 				{Name: "backend", Type: "webservice"},
@@ -259,51 +222,26 @@ func TestFilterRemovedComponentsFromStatus(t *testing.T) {
 				{Name: "frontend", Namespace: "default"},
 				{Name: "backend", Namespace: "default"},
 			},
-			statusResources: []common.ClusterObjectReference{
-				{
-					ObjectReference: corev1.ObjectReference{
-						Name:      "frontend",
-						Namespace: "default",
-						Kind:      "Deployment",
-					},
-				},
-				{
-					ObjectReference: corev1.ObjectReference{
-						Name:      "backend",
-						Namespace: "default",
-						Kind:      "Deployment",
-					},
-				},
-			},
-			expectedServices:  []string{"frontend", "backend"},
-			expectedResources: []string{"frontend", "backend"},
-			componentsRemoved: false,
+			expectedServices: []string{"frontend", "backend"},
+			servicesRemoved:  false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filteredServices, filteredResources, componentsRemoved := filterRemovedComponentsFromStatus(
+			filteredServices, servicesRemoved := filterRemovedComponentsFromStatus(
 				tt.components,
 				tt.statusServices,
-				tt.statusResources,
 			)
 
-			assert.Equal(t, tt.componentsRemoved, componentsRemoved,
-				"componentsRemoved flag should match expected value")
+			assert.Equal(t, tt.servicesRemoved, servicesRemoved,
+				"servicesRemoved flag should match expected value")
 
 			assert.Equal(t, len(tt.expectedServices), len(filteredServices),
 				"filtered services count should match expected")
 			for i, expectedName := range tt.expectedServices {
 				assert.Equal(t, expectedName, filteredServices[i].Name,
 					fmt.Sprintf("service at index %d should be %s", i, expectedName))
-			}
-
-			assert.Equal(t, len(tt.expectedResources), len(filteredResources),
-				"filtered resources count should match expected")
-			for i, expectedName := range tt.expectedResources {
-				assert.Equal(t, expectedName, filteredResources[i].Name,
-					fmt.Sprintf("resource at index %d should be %s", i, expectedName))
 			}
 		})
 	}

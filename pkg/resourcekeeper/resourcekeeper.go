@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -45,6 +46,9 @@ type ResourceKeeper interface {
 
 	DispatchComponentRevision(context.Context, *appsv1.ControllerRevision) error
 	DeleteComponentRevision(context.Context, *appsv1.ControllerRevision) error
+
+	// GetAppliedResources returns the current applied resources from the ResourceTracker.
+	GetAppliedResources() []common.ClusterObjectReference
 }
 
 type resourceKeeper struct {
@@ -123,6 +127,20 @@ func (h *resourceKeeper) parseApplicationResourcePolicy() (err error) {
 func (h *resourceKeeper) loadResourceTrackers(ctx context.Context) (err error) {
 	h._rootRT, h._currentRT, h._historyRTs, h._crRT, err = resourcetracker.ListApplicationResourceTrackers(multicluster.ContextInLocalCluster(ctx), h.Client, h.app)
 	return err
+}
+
+// GetAppliedResources returns all resources from the current ResourceTracker as ClusterObjectReferences.
+// Resources pending deletion (Deleted=true) are included as they still exist in the cluster.
+// Returns an empty slice if no current ResourceTracker is loaded.
+func (h *resourceKeeper) GetAppliedResources() []common.ClusterObjectReference {
+	if h._currentRT == nil {
+		return []common.ClusterObjectReference{}
+	}
+	refs := make([]common.ClusterObjectReference, 0, len(h._currentRT.Spec.ManagedResources))
+	for _, mr := range h._currentRT.Spec.ManagedResources {
+		refs = append(refs, mr.ClusterObjectReference)
+	}
+	return refs
 }
 
 // NewResourceKeeper create a handler for dispatching and deleting resources
