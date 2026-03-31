@@ -75,6 +75,10 @@ const (
 const (
 	// baseWorkflowBackoffWaitTime is the time to wait gc check
 	baseGCBackoffWaitTime = 3000 * time.Millisecond
+
+	// minPerAppResyncPeriod is the minimum reconciliation interval that can be
+	// set via the per-application annotation to prevent excessive API server load.
+	minPerAppResyncPeriod = 10 * time.Second
 )
 
 var (
@@ -408,7 +412,7 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		cond := condition.Deleting()
 		cond.Message = fmt.Sprintf("error encountered during garbage collection: %s", err.Error())
 		handler.app.Status.SetConditions(cond)
-		return r.result(statusUpdater(logCtx, handler.app, phase)).ret()
+		return r.result(statusUpdater(logCtx, handler.app, phase)).forApp(handler.app).ret()
 	}
 	if !finished {
 		logCtx.Info("GarbageCollecting resourcetrackers unfinished")
@@ -420,16 +424,33 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		return r.result(statusUpdater(logCtx, handler.app, phase)).requeue(baseGCBackoffWaitTime).ret()
 	}
 	logCtx.Info("GarbageCollected resourcetrackers")
-	return r.result(statusUpdater(logCtx, handler.app, phase)).ret()
+	return r.result(statusUpdater(logCtx, handler.app, phase)).forApp(handler.app).ret()
 }
 
 type reconcileResult struct {
 	time.Duration
-	err error
+	err           error
+	defaultResync time.Duration
 }
 
 func (r *reconcileResult) requeue(d time.Duration) *reconcileResult {
 	r.Duration = d
+	return r
+}
+
+// forApp overrides the default resync period with the per-application value
+// parsed from the AnnotationReconcileInterval annotation, if present and valid.
+func (r *reconcileResult) forApp(app *v1beta1.Application) *reconcileResult {
+	if app != nil && app.Annotations != nil {
+		if v, ok := app.Annotations[oam.AnnotationReconcileInterval]; ok {
+			if d, err := time.ParseDuration(v); err == nil && d >= minPerAppResyncPeriod {
+				r.defaultResync = d
+			} else {
+				klog.Warningf("ignoring invalid %s annotation %q on application %s/%s, using global default",
+					oam.AnnotationReconcileInterval, v, app.Namespace, app.Name)
+			}
+		}
+	}
 	return r
 }
 
@@ -439,7 +460,7 @@ func (r *reconcileResult) ret() (ctrl.Result, error) {
 	} else if r.err != nil {
 		return ctrl.Result{}, r.err
 	}
-	return ctrl.Result{RequeueAfter: common2.ApplicationReSyncPeriod}, nil
+	return ctrl.Result{RequeueAfter: r.defaultResync}, nil
 }
 
 func (r *reconcileResult) end(endReconcile bool) (bool, ctrl.Result, error) {
@@ -448,7 +469,7 @@ func (r *reconcileResult) end(endReconcile bool) (bool, ctrl.Result, error) {
 }
 
 func (r *Reconciler) result(err error) *reconcileResult {
-	return &reconcileResult{err: err}
+	return &reconcileResult{err: err, defaultResync: common2.ApplicationReSyncPeriod}
 }
 
 // NOTE Because resource tracker is cluster-scoped resources, we cannot garbage collect them
@@ -501,9 +522,9 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
 	app.SetConditions(condition)
 	if err := r.patchStatus(ctx, app, phase); err != nil {
-		return r.result(errors.WithMessage(err, "cannot update application status")).ret()
+		return r.result(errors.WithMessage(err, "cannot update application status")).forApp(app).ret()
 	}
-	return r.result(fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)).ret()
+	return r.result(fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)).forApp(app).ret()
 }
 
 // Application status can be updated by two methods: patch and update.
