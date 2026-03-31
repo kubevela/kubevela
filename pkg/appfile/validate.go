@@ -25,7 +25,6 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/jeremywohl/flatten/v2"
-	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
@@ -33,6 +32,14 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
 	cueutils "github.com/oam-dev/kubevela/pkg/cue"
+	// Use WorkloadCompiler instead of the upstream cuex.DefaultCompiler.
+	// The upstream DefaultCompiler does not include provider packages like
+	// "vela/helm". Component templates (e.g., helmchart) import these packages,
+	// so CUE compilation fails with "field not found: parameter" when validated
+	// against a compiler that lacks them. WorkloadCompiler includes both upstream
+	// packages (base64, http, kube, cueext) and local provider packages (helm,
+	// config) and is initialized lazily (no init-time kubeconfig dependency).
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
 	"github.com/oam-dev/kubevela/pkg/features"
 
@@ -134,7 +141,7 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 		baseCtx,
 	}, "\n")
 
-	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), cueSrc)
+	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), cueSrc)
 	if err != nil {
 		return errors.WithMessagef(err, "component %q: CUE compile error", wl.Name)
 	}
@@ -163,7 +170,7 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 			renderTemplate(wl.FullTemplate.TemplateStr),
 			baseCtx,
 		}, "\n")
-		schemaRoot, schemaErr := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), schemaSrc)
+		schemaRoot, schemaErr := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), schemaSrc)
 		if schemaErr != nil {
 			klog.V(4).Infof("component %q: skipping undeclared parameter check: schema compilation failed: %v", wl.Name, schemaErr)
 		} else {
@@ -189,7 +196,7 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 							condSnippet,
 							baseCtx,
 						}, "\n")
-						condRoot, condErr := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), condSrc)
+						condRoot, condErr := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), condSrc)
 						if condErr == nil {
 							condSchema := condRoot.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
 							undeclared = findUndeclaredFields(condSchema, wl.Params, "")
@@ -638,7 +645,7 @@ func (p *Parser) augmentComponentParamsForValidation(wl *Component, workflowPara
 		baseCtx,
 	}, "\n")
 
-	val, err := cuex.DefaultCompiler.Get().CompileString(ctx.GetCtx(), cueSrc)
+	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), cueSrc)
 	if err != nil {
 		return false, wl.Params // Can't compile, proceed normally
 	}
