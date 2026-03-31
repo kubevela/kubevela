@@ -220,6 +220,12 @@ const (
 
 	// AnnotationSkipResume annotation indicates that the resource does not need to be resumed.
 	AnnotationSkipResume = "controller.core.oam.dev/skip-resume"
+
+	// AnnotationReconcileInterval overrides the global ApplicationReSyncPeriod on a
+	// per-application basis.  The value must be a valid Go duration string (e.g.
+	// "1m", "15m", "30s").  Values below 10s are ignored and fall back to the
+	// global default.  Invalid values are also silently ignored.
+	AnnotationReconcileInterval = "app.oam.dev/reconcile-interval"
 )
 
 const (
