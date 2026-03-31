@@ -18,7 +18,7 @@
   - [Bootstrap Sequence](#bootstrap-sequence)
   - [What Lives Where](#what-lives-where)
   - [Provisioning Controller Flexibility](#provisioning-controller-flexibility)
-  - [VelaRuntime ClusterPlane](#vela-runtime-clusterplane)
+  - [VelaRuntime ClusterPlane](#velaruntime-clusterplane)
   - [Definition Distribution to Spoke Clusters](#definition-distribution-to-spoke-clusters)
 - [Background](#background)
   - [The Problem with Application-Centric Only](#the-problem-with-application-centric-only)
@@ -45,10 +45,10 @@
     - [Maintenance Window Enforcement](#maintenance-window-enforcement)
   - [Cluster Lifecycle Management](#cluster-lifecycle-management)
     - [Mode 1: Provision](#mode-1-provision---create-new-cluster)
-    - [Mode 2: Adopt](#mode-2-adopt---take-over-existing-cluster)
+    - [Mode 2: Adopt](#mode-2-adopt---connect-to-existing-cluster)
     - [Mode 3: Connect](#mode-3-connect---manage-existing-cluster)
     - [Cluster Lifecycle Phases: preCreate and postCreate](#cluster-lifecycle-phases-precreate-and-postcreate)
-    - [ClusterProviderDefinition](#clusterproviderinition)
+    - [ClusterProviderDefinition](#clusterproviderdefinition)
   - [Definition Types](#definition-types)
     - [Definition Scope Model](#definition-scope-model)
     - [Definition Resolution for ClusterPlane](#definition-resolution-for-clusterplane)
@@ -128,7 +128,7 @@ This KEP extends OAM's abstraction model to cluster infrastructure by introducin
 
 - A **ClusterRolloutStrategy** defines how blueprint changes propagate across a fleet of clusters — wave-based progression, maintenance windows, health gates, and automatic rollback on SLO breach.
 
-Infrastructure definitions reuse the existing KubeVela definition CRDs (`ComponentDefinition`, `TraitDefinition`, etc.) with a scope annotation (`definition.oam.dev/scope: cluster`) to distinguish them from application definitions. This means existing tooling, RBAC, and the definition revision system work unchanged.
+Infrastructure definitions reuse the existing KubeVela definition CRDs (`ComponentDefinition`, `TraitDefinition`, etc.) with a scope annotation (`definition.oam.dev/scope: cluster`) to distinguish them from application definitions. Existing tooling, RBAC, and the definition revision system work unchanged.
 
 ### CRDs Introduced
 
@@ -326,7 +326,7 @@ The following sequence must be followed to set up the hub and begin managing spo
 | Resource                                       | Location                                                              | Notes                                                                                                                                                                                                                                         |
 | ---------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | KubeVela Infrastructure Controllers (this KEP) | Hub cluster only                                                      | All CRDs and controllers from this KEP: `Cluster`, `ClusterPlane`, `ClusterBlueprint`, `ClusterRolloutStrategy`, `ClusterController`, `ClusterPlaneController`, `ClusterBlueprintController`, `ClusterRolloutController`                      |
-| KubeVela Core (`vela-core`)                    | Hub always; spokes if running Application workloads                   | The hub always runs vela-core. Spoke clusters that run KubeVela `Application` workloads also need vela-core and X-Definitions — see [VelaRuntime ClusterPlane](#vela-runtime-clusterplane)                                                    |
+| KubeVela Core (`vela-core`)                    | Hub always; spokes if running Application workloads                   | The hub always runs vela-core. Spoke clusters that run KubeVela `Application` workloads also need vela-core and X-Definitions — see [VelaRuntime ClusterPlane](#velaruntime-clusterplane)                                                    |
 | Provisioning controllers                       | Hub always; spokes if Application workloads provision cloud resources | Crossplane, CAPI, tf-controller, KRO (optional, user's choice). The hub needs these for `preCreate`/`blueprintRef` phases. Spokes also need them if Application components provision cloud resources (e.g., a database via Crossplane or ACK) |
 | Cloud credentials                              | Hub always; spokes if provisioning cloud resources                    | Secrets for provider access. Hub credentials are for cluster provisioning. Spoke credentials are for Application-scoped cloud resources                                                                                                       |
 | ClusterPlane definitions                       | Hub cluster only                                                      | Existing `ComponentDefinition`, `TraitDefinition`, etc. with `definition.oam.dev/scope: cluster` in `vela-system`                                                                                                                             |
@@ -336,7 +336,7 @@ The following sequence must be followed to set up the hub and begin managing spo
 
 > **The hub cluster is the single pane of glass** for managing your entire fleet. All declarative state (desired state) lives on the hub; spoke clusters receive the rendered infrastructure components.
 >
-> **Important**: If spoke clusters run KubeVela `Application` workloads (not just raw Kubernetes resources), those spokes need the KubeVela runtime (`vela-core` + X-Definitions) installed. This is handled declaratively via a `vela-runtime` ClusterPlane — see [VelaRuntime ClusterPlane](#vela-runtime-clusterplane).
+> **Important**: If spoke clusters run KubeVela `Application` workloads (not just raw Kubernetes resources), those spokes need the KubeVela runtime (`vela-core` + X-Definitions) installed. This is handled declaratively via a `vela-runtime` ClusterPlane — see [VelaRuntime ClusterPlane](#velaruntime-clusterplane).
 
 ### Provisioning Controller Flexibility
 
@@ -1407,7 +1407,7 @@ status:
 
 ##### Cloud Infrastructure as a ClusterPlane
 
-A key design principle is that **all cluster infrastructure, including cloud resources like VPC, EKS, and node pools, should be expressed as ClusterPlane components**. This ensures:
+All cluster infrastructure, including cloud resources like VPC, EKS, and node pools, is expressed as ClusterPlane components:
 
 1. **Composability**: Cloud infrastructure uses the same model as application infrastructure
 2. **Versioning**: VPC/cluster changes are versioned and can be rolled back
@@ -3530,7 +3530,7 @@ A `ClusterRolloutStrategy` defines **when and how blueprint updates are rolled o
 | **WHEN** to deploy | `ClusterRolloutController` → gates `ClusterController` | Wave progression, maintenance windows, health checks |
 | **HOW** to deploy  | `ClusterRolloutStrategy.spec`                          | Waves, batching, pauses, approvals                   |
 
-The `ClusterRolloutController` **never modifies** `Cluster.spec.blueprintRef` or `ClusterBlueprint`. It only gates the timing of when `ClusterController` can apply user-requested updates. This prevents circular references—see [Controller Ownership Model](#controller-ownership-model-circular-reference-prevention).
+The `ClusterRolloutController` **never modifies** `Cluster.spec.blueprintRef` or `ClusterBlueprint`. It only gates the timing of when `ClusterController` can apply user-requested updates. See [Controller Ownership Model](#controller-ownership-model-circular-reference-prevention) for why this separation matters.
 
 This design eliminates conflicts between per-cluster update policies and fleet-wide rollouts by having a **single source of truth** for rollout behavior.
 
@@ -4007,7 +4007,7 @@ spec:
 
 ### Cluster Lifecycle Management
 
-A key design goal is supporting the **full cluster lifecycle** - from provisioning brand new clusters to adopting existing ones. The `Cluster` CRD supports three modes of operation.
+The `Cluster` CRD supports the full cluster lifecycle, from provisioning new clusters to adopting existing ones, via three modes of operation.
 
 #### Cluster Modes
 
@@ -6294,7 +6294,7 @@ Status: No Drift Detected ✓
 
 #### What-If Blueprint Comparison
 
-A key feature is the `--blueprint` flag which enables **what-if analysis** - comparing a cluster against any blueprint, not just its assigned one. This is essential for:
+The `--blueprint` flag supports **what-if analysis**, comparing a cluster against any blueprint, not just its assigned one:
 
 - **Upgrade planning**: See what would change if you moved a cluster to a new blueprint version
 - **Standardization analysis**: Compare a non-standard cluster against the standard blueprint
