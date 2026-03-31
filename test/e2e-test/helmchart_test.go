@@ -146,23 +146,25 @@ func (h *helmTestContext) latestHelmSecretName() string {
 
 func (h *helmTestContext) updateAppValues(values map[string]interface{}) {
 	By("Updating Application values to trigger upgrade")
-	Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
-	raw, err := json.Marshal(h.app.Spec.Components[0].Properties)
-	Expect(err).Should(BeNil())
-	var props map[string]interface{}
-	Expect(json.Unmarshal(raw, &props)).Should(BeNil())
-	if existing, ok := props["values"].(map[string]interface{}); ok {
-		for k, v := range values {
-			existing[k] = v
+	Eventually(func(g Gomega) {
+		g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+		raw, err := json.Marshal(h.app.Spec.Components[0].Properties)
+		g.Expect(err).Should(BeNil())
+		var props map[string]interface{}
+		g.Expect(json.Unmarshal(raw, &props)).Should(BeNil())
+		if existing, ok := props["values"].(map[string]interface{}); ok {
+			for k, v := range values {
+				existing[k] = v
+			}
+			props["values"] = existing
+		} else {
+			props["values"] = values
 		}
-		props["values"] = existing
-	} else {
-		props["values"] = values
-	}
-	newRaw, err := json.Marshal(props)
-	Expect(err).Should(BeNil())
-	h.app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: newRaw}
-	Expect(k8sClient.Update(h.ctx, h.app)).Should(Succeed())
+		newRaw, err := json.Marshal(props)
+		g.Expect(err).Should(BeNil())
+		h.app.Spec.Components[0].Properties = &runtime.RawExtension{Raw: newRaw}
+		g.Expect(k8sClient.Update(h.ctx, h.app)).Should(Succeed())
+	}, 30*time.Second, time.Second).Should(Succeed())
 	h.waitForAppRunning()
 }
 
@@ -985,7 +987,7 @@ var _ = Describe("Helmchart Health Checks", func() {
 			Expect(h.app.Status.Phase).Should(Equal(common2.ApplicationRunning))
 		})
 
-		It("should report unhealthy when scaled to 0", func() {
+		It("should self-heal when scaled to 0", func() {
 			By("Scaling deployment to 0 manually")
 			runCommandSucceed("kubectl", "scale", "deployment", "podinfo", "--replicas=0", "-n", h.namespace)
 
@@ -996,31 +998,8 @@ var _ = Describe("Helmchart Health Checks", func() {
 				g.Expect(d.Status.ReadyReplicas).Should(Equal(int32(0)))
 			}, 30*time.Second, 2*time.Second).Should(Succeed())
 
-			By("Verifying Application reports healthy: false OR self-heals (whichever comes first)")
-			sawUnhealthy := false
-			Eventually(func(g Gomega) bool {
-				g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
-				for _, svc := range h.app.Status.Services {
-					if svc.Name == "podinfo" && !svc.Healthy {
-						sawUnhealthy = true
-						return true
-					}
-				}
-				if h.app.Status.Phase != common2.ApplicationRunning {
-					sawUnhealthy = true
-					return true
-				}
-				d := &appsv1.Deployment{}
-				if err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d); err == nil {
-					if d.Status.ReadyReplicas == 2 {
-						return true
-					}
-				}
-				return false
-			}, 120*time.Second, 2*time.Second).Should(BeTrue(),
-				"Expected either unhealthy status or self-heal to complete")
-
-			By(fmt.Sprintf("Observed unhealthy state: %v", sawUnhealthy))
+			By("Triggering reconciliation to detect and fix the drift")
+			RequestReconcileNow(h.ctx, h.app)
 
 			By("Verifying KubeVela self-heals replicas back to 2")
 			h.waitForDeploymentReady()

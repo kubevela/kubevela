@@ -31,6 +31,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
+
 	"github.com/kubevela/pkg/util/singleton"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
@@ -168,7 +170,7 @@ func TestWorkloadCompiler(t *testing.T) {
 
 	for _, tc := range testCases {
 		cuex.EnableExternalPackageForDefaultCompiler = tc.cuexEnabled
-		cuex.DefaultCompiler.Reload()
+		velacuex.WorkloadCompiler.Reload()
 
 		ctx := process.NewContext(process.ContextData{
 			AppName:         "test-app",
