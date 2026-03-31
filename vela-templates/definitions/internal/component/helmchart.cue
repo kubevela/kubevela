@@ -53,7 +53,7 @@ import (
 						_failedCriteria: [ for r in _criteriaResults if r.result == false { r } ]
 						result: len(_failedCriteria) == 0
 					}
-					if parameter.healthStatus == _|_ {
+					if parameter.healthStatus == _|_ || len(_criteria) == 0 {
 						result: true
 					}
 				}
@@ -131,16 +131,18 @@ template: {
 				// Optional: specific resource name (if not specified, checks first of kind)
 				name?: string
 			}
-			// Health condition to verify
+			// Health condition to verify.
+			// The type must match an actual Kubernetes .status.conditions[].type value.
+			// Common condition types by resource kind:
+			//   Deployment:  "Available", "Progressing"
+			//   StatefulSet: "Available"
+			//   Pod:         "Ready", "ContainersReady", "Initialized", "PodScheduled"
+			//   Job:         "Complete", "Failed"
+			//   Node:        "Ready"
+			// Note: resources without .status.conditions (e.g., Service, ConfigMap)
+			// will always evaluate to unhealthy — do not use them as health criteria.
 			condition: {
-				// Condition type to check:
-				// - "Ready": Resource has Ready=True condition
-				// - "Available": Resource has Available=True condition  
-				// - "Progressing": Check if still progressing (use status: "False" to wait for completion)
-				// - "ReplicasReady": All replicas are ready (for Deployment/StatefulSet)
-				// - "PodReady": Pod is Running or Succeeded (for Job/Pod)
-				// - "JobComplete": Job has Complete=True condition
-				type: "Ready" | "Available" | "Progressing" | "ReplicasReady" | "PodReady" | "JobComplete"
+				type: string
 				// Expected status (default: "True", use "False" for conditions like Progressing)
 				status?: "True" | "False"
 			}
