@@ -62,6 +62,13 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 		}
 
 		ctxData := GenerateContextDataFromAppFile(a, wl.Name)
+		// Set dry-run mode so provider functions (e.g., helm.#Render) perform
+		// client-only rendering instead of real cluster installs during validation.
+		if ctxData.Ctx == nil {
+			ctxData.Ctx = context.Background()
+		}
+		ctxData.Ctx = helm.WithDryRun(ctxData.Ctx)
+
 		if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation) {
 			err := p.ValidateComponentParams(ctxData, wl, a)
 			if err != nil {
@@ -473,15 +480,8 @@ func newValidationProcessContext(c *Component, ctxData velaprocess.ContextData) 
 	ctxData.BaseHooks = baseHooks
 	ctxData.AuxiliaryHooks = auxiliaryHooks
 
-	// Set dry-run mode on the Go context so that provider functions (e.g., the
-	// helm provider) perform lightweight validation (client-only template
-	// render) instead of real cluster operations. This prevents the webhook
-	// from blocking for 30-60s on large Helm chart installs.
-	if ctxData.Ctx == nil {
-		ctxData.Ctx = context.Background()
-	}
-	ctxData.Ctx = helm.WithDryRun(ctxData.Ctx)
-
+	// Dry-run mode is already set on ctxData.Ctx by the caller
+	// (ValidateCUESchematicAppfile) so provider functions use client-only rendering.
 	pCtx := velaprocess.NewContext(ctxData)
 	if err := c.EvalContext(pCtx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
