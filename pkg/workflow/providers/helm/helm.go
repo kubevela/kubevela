@@ -17,6 +17,7 @@ limitations under the License.
 package helm
 
 import (
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/pkg/cue/cuex/providers"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 
@@ -28,16 +29,22 @@ const (
 	ProviderName = "helm"
 )
 
+func init() {
+	// Register the helm package into the upstream cuex.DefaultCompiler so that
+	// any code path using it (e.g. the webhook's ValidateCuexTemplate) can
+	// resolve "vela/helm" imports without needing providers.DefaultCompiler.
+	cuex.DefaultCompiler.Get().LoadInternalPackages(helmProvider.Package)
+}
+
 // GetTemplate returns the cue template.
 func GetTemplate() string {
-	// Use the embedded template from helm provider
 	return helmProvider.Template
 }
 
 // GetProviders returns the cue providers.
 func GetProviders() map[string]cuexruntime.ProviderFn {
-	// Re-export the Render function from helm provider
 	return map[string]cuexruntime.ProviderFn{
-		"render": cuexruntime.GenericProviderFn[providers.Params[helmProvider.RenderParams], providers.Returns[helmProvider.RenderReturns]](helmProvider.Render),
+		"render":    cuexruntime.GenericProviderFn[providers.Params[helmProvider.RenderParams], providers.Returns[helmProvider.RenderReturns]](helmProvider.Render),
+		"uninstall": cuexruntime.GenericProviderFn[providers.Params[helmProvider.UninstallParams], providers.Returns[helmProvider.UninstallReturns]](helmProvider.Uninstall),
 	}
 }
