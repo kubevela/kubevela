@@ -19,224 +19,185 @@ package helm
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
-	"testing"
+	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/release"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
 
-func TestDetectChartSourceType(t *testing.T) {
-	tests := []struct {
-		name     string
-		source   string
-		expected string
-	}{
-		{
-			name:     "OCI registry",
-			source:   "oci://ghcr.io/stefanprodan/charts/podinfo",
-			expected: "oci",
-		},
-		{
-			name:     "Direct URL with .tgz",
-			source:   "https://github.com/nginx/nginx-helm/releases/download/nginx-1.1.0/nginx-1.1.0.tgz",
-			expected: "url",
-		},
-		{
-			name:     "Direct URL with .tar.gz",
-			source:   "https://example.com/charts/app-1.0.0.tar.gz",
-			expected: "url",
-		},
-		{
-			name:     "HTTP URL",
-			source:   "http://charts.example.com/app-1.0.0.tgz",
-			expected: "url",
-		},
-		{
-			name:     "Repository chart",
-			source:   "postgresql",
-			expected: "repo",
-		},
-		{
-			name:     "Repository chart with path",
-			source:   "stable/postgresql",
-			expected: "repo",
-		},
-	}
+var _ = Describe("Helm Provider", func() {
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := detectChartSourceType(tt.source)
-			assert.Equal(t, tt.expected, result)
+	Describe("detectChartSourceType", func() {
+		DescribeTable("should detect the correct chart source type",
+			func(source, expected string) {
+				Expect(detectChartSourceType(source)).To(Equal(expected))
+			},
+			Entry("OCI registry", "oci://ghcr.io/stefanprodan/charts/podinfo", "oci"),
+			Entry("Direct URL with .tgz", "https://github.com/nginx/nginx-helm/releases/download/nginx-1.1.0/nginx-1.1.0.tgz", "url"),
+			Entry("Direct URL with .tar.gz", "https://example.com/charts/app-1.0.0.tar.gz", "url"),
+			Entry("HTTP URL", "http://charts.example.com/app-1.0.0.tgz", "url"),
+			Entry("Repository chart", "postgresql", "repo"),
+			Entry("Repository chart with path", "stable/postgresql", "repo"),
+		)
+	})
+
+	Describe("orderResources", func() {
+		It("should order CRDs first, then Namespaces, then others", func() {
+			crd := map[string]interface{}{
+				"apiVersion": "apiextensions.k8s.io/v1",
+				"kind":       "CustomResourceDefinition",
+				"metadata":   map[string]interface{}{"name": "test-crd"},
+			}
+			namespace := map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "Namespace",
+				"metadata":   map[string]interface{}{"name": "test-namespace"},
+			}
+			deployment := map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata":   map[string]interface{}{"name": "test-deployment"},
+			}
+			service := map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "Service",
+				"metadata":   map[string]interface{}{"name": "test-service"},
+			}
+
+			input := []map[string]interface{}{deployment, service, crd, namespace}
+			result := orderResources(input)
+
+			Expect(result).To(HaveLen(4))
+			Expect(result[0]["kind"]).To(Equal("CustomResourceDefinition"))
+			Expect(result[1]["kind"]).To(Equal("Namespace"))
+			Expect(result[2]["kind"]).To(Equal("Deployment"))
+			Expect(result[3]["kind"]).To(Equal("Service"))
 		})
-	}
-}
+	})
 
-func TestOrderResources(t *testing.T) {
-	// Create test resources
-	crd := map[string]interface{}{
-		"apiVersion": "apiextensions.k8s.io/v1",
-		"kind":       "CustomResourceDefinition",
-		"metadata": map[string]interface{}{
-			"name": "test-crd",
-		},
-	}
-
-	namespace := map[string]interface{}{
-		"apiVersion": "v1",
-		"kind":       "Namespace",
-		"metadata": map[string]interface{}{
-			"name": "test-namespace",
-		},
-	}
-
-	deployment := map[string]interface{}{
-		"apiVersion": "apps/v1",
-		"kind":       "Deployment",
-		"metadata": map[string]interface{}{
-			"name": "test-deployment",
-		},
-	}
-
-	service := map[string]interface{}{
-		"apiVersion": "v1",
-		"kind":       "Service",
-		"metadata": map[string]interface{}{
-			"name": "test-service",
-		},
-	}
-
-	// Test ordering
-	input := []map[string]interface{}{deployment, service, crd, namespace}
-	result := orderResources(input)
-
-	// Verify order: CRD, Namespace, Deployment, Service
-	require.Len(t, result, 4)
-	assert.Equal(t, "CustomResourceDefinition", result[0]["kind"])
-	assert.Equal(t, "Namespace", result[1]["kind"])
-	assert.Equal(t, "Deployment", result[2]["kind"])
-	assert.Equal(t, "Service", result[3]["kind"])
-}
-
-func TestIsTestResource(t *testing.T) {
-	tests := []struct {
-		name     string
-		resource *unstructured.Unstructured
-		expected bool
-	}{
-		{
-			name: "Test hook resource",
-			resource: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"apiVersion": "v1",
-					"kind":       "Pod",
-					"metadata": map[string]interface{}{
-						"name": "test-pod",
-						"annotations": map[string]interface{}{
-							"helm.sh/hook": "test-success",
+	Describe("isTestResource", func() {
+		DescribeTable("should identify test hook resources",
+			func(annotations map[string]interface{}, expected bool) {
+				resource := &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1",
+						"kind":       "Pod",
+						"metadata": map[string]interface{}{
+							"name":        "test-pod",
+							"annotations": annotations,
 						},
 					},
-				},
+				}
+				Expect(isTestResource(resource)).To(Equal(expected))
 			},
-			expected: true,
-		},
-		{
-			name: "Non-test hook resource",
-			resource: &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"apiVersion": "v1",
-					"kind":       "Job",
-					"metadata": map[string]interface{}{
-						"name": "pre-install-job",
-						"annotations": map[string]interface{}{
-							"helm.sh/hook": "pre-install",
-						},
-					},
-				},
-			},
-			expected: false,
-		},
-		{
-			name: "Resource without annotations",
-			resource: &unstructured.Unstructured{
+			Entry("test-success hook", map[string]interface{}{"helm.sh/hook": "test-success"}, true),
+			Entry("pre-install hook", map[string]interface{}{"helm.sh/hook": "pre-install"}, false),
+		)
+
+		It("should return false for resources without annotations", func() {
+			resource := &unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"apiVersion": "v1",
 					"kind":       "Service",
-					"metadata": map[string]interface{}{
-						"name": "my-service",
-					},
+					"metadata":   map[string]interface{}{"name": "my-service"},
 				},
-			},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isTestResource(tt.resource)
-			assert.Equal(t, tt.expected, result)
+			}
+			Expect(isTestResource(resource)).To(BeFalse())
 		})
-	}
-}
+	})
 
-func TestMergeValues(t *testing.T) {
-	p := NewProvider()
-	ctx := context.Background()
+	Describe("mergeValues", func() {
+		var (
+			p   *Provider
+			ctx context.Context
+		)
 
-	// Test base values only
-	baseValues := map[string]interface{}{
-		"key1": "value1",
-		"nested": map[string]interface{}{
-			"key2": "value2",
-		},
-	}
+		BeforeEach(func() {
+			p = NewProviderWithConfig(nil)
+			ctx = context.Background()
+		})
 
-	result, err := p.mergeValues(ctx, baseValues, nil)
-	require.NoError(t, err)
-	assert.Equal(t, baseValues, result)
+		It("should return base values when no valuesFrom", func() {
+			baseValues := map[string]interface{}{
+				"key1": "value1",
+				"nested": map[string]interface{}{
+					"key2": "value2",
+				},
+			}
+			result, err := p.mergeValues(ctx, baseValues, nil)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(result).To(Equal(baseValues))
+		})
 
-	// Test with empty base values
-	result, err = p.mergeValues(ctx, nil, nil)
-	require.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Empty(t, result)
-}
+		It("should return empty map for nil base values", func() {
+			result, err := p.mergeValues(ctx, nil, nil)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(result).ToNot(BeNil())
+			Expect(result).To(BeEmpty())
+		})
 
-func TestRenderParams(t *testing.T) {
-	// Test basic render params structure
-	params := &RenderParams{
-		Chart: ChartSourceParams{
-			Source:  "nginx",
-			RepoURL: "https://charts.bitnami.com/bitnami",
-			Version: "1.0.0",
-		},
-		Release: &ReleaseParams{
-			Name:      "my-release",
-			Namespace: "my-namespace",
-		},
-		Values: map[string]interface{}{
-			"replicaCount": 2,
-		},
-		Context: &ContextParams{
-			AppName:      "my-app",
-			AppNamespace: "my-app-ns",
-			Name:         "nginx-component",
-			Namespace:    "my-namespace",
-		},
-	}
+		It("should skip optional source errors", func() {
+			base := map[string]interface{}{"key": "value"}
+			valuesFrom := []ValuesFromParams{
+				{Kind: "ConfigMap", Name: "missing", Optional: true},
+			}
+			result, err := p.mergeValues(ctx, base, valuesFrom)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(result["key"]).To(Equal("value"))
+		})
 
-	assert.Equal(t, "nginx", params.Chart.Source)
-	assert.Equal(t, "my-release", params.Release.Name)
-	assert.Equal(t, 2, params.Values.(map[string]interface{})["replicaCount"])
-	assert.Equal(t, "my-app", params.Context.AppName)
-	assert.Equal(t, "nginx-component", params.Context.Name)
-}
+		It("should propagate required source errors", func() {
+			base := map[string]interface{}{"key": "value"}
+			valuesFrom := []ValuesFromParams{
+				{Kind: "ConfigMap", Name: "missing", Optional: false},
+			}
+			_, err := p.mergeValues(ctx, base, valuesFrom)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to load values"))
+		})
+	})
 
-func TestVelaLabelPostRenderer(t *testing.T) {
-	manifest := `apiVersion: apps/v1
+	Describe("RenderParams structure", func() {
+		It("should hold all fields correctly", func() {
+			params := &RenderParams{
+				Chart: ChartSourceParams{
+					Source:  "nginx",
+					RepoURL: "https://charts.bitnami.com/bitnami",
+					Version: "1.0.0",
+				},
+				Release: &ReleaseParams{
+					Name:      "my-release",
+					Namespace: "my-namespace",
+				},
+				Values: map[string]interface{}{
+					"replicaCount": 2,
+				},
+				Context: &ContextParams{
+					AppName:      "my-app",
+					AppNamespace: "my-app-ns",
+					Name:         "nginx-component",
+					Namespace:    "my-namespace",
+				},
+			}
+
+			Expect(params.Chart.Source).To(Equal("nginx"))
+			Expect(params.Release.Name).To(Equal("my-release"))
+			Expect(params.Values.(map[string]interface{})["replicaCount"]).To(Equal(2))
+			Expect(params.Context.AppName).To(Equal("my-app"))
+			Expect(params.Context.Name).To(Equal("nginx-component"))
+		})
+	})
+
+	Describe("velaLabelPostRenderer", func() {
+		It("should inject KubeVela labels and annotations on all resources", func() {
+			manifest := `apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: test-deploy
@@ -250,69 +211,72 @@ metadata:
   name: test-svc
   namespace: test-ns
 `
-	velaCtx := &ContextParams{
-		AppName:      "my-app",
-		AppNamespace: "my-app-ns",
-		Name:         "my-component",
-		Namespace:    "test-ns",
-	}
-
-	renderer := &velaLabelPostRenderer{
-		context:          velaCtx,
-		releaseName:      "my-release",
-		releaseNamespace: "test-ns",
-	}
-	result, err := renderer.Run(bytes.NewBufferString(manifest))
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	// Parse result and verify labels were injected on every resource
-	decoder := kyaml.NewYAMLOrJSONDecoder(bytes.NewReader(result.Bytes()), 4096)
-	var resourceCount int
-	for {
-		obj := &unstructured.Unstructured{}
-		if err := decoder.Decode(obj); err != nil {
-			if err == io.EOF {
-				break
+			velaCtx := &ContextParams{
+				AppName:      "my-app",
+				AppNamespace: "my-app-ns",
+				Name:         "my-component",
+				Namespace:    "test-ns",
 			}
-			t.Fatal(err)
-		}
-		if len(obj.Object) == 0 {
-			continue
-		}
-		resourceCount++
+			renderer := &velaLabelPostRenderer{
+				context:          velaCtx,
+				releaseName:      "my-release",
+				releaseNamespace: "test-ns",
+			}
+			result, err := renderer.Run(bytes.NewBufferString(manifest))
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(result).ToNot(BeNil())
 
-		labels := obj.GetLabels()
-		assert.Equal(t, "my-app", labels["app.oam.dev/name"], "missing app.oam.dev/name on %s", obj.GetName())
-		assert.Equal(t, "my-app-ns", labels["app.oam.dev/namespace"], "missing app.oam.dev/namespace on %s", obj.GetName())
-		assert.Equal(t, "my-component", labels["app.oam.dev/component"], "missing app.oam.dev/component on %s", obj.GetName())
+			decoder := kyaml.NewYAMLOrJSONDecoder(bytes.NewReader(result.Bytes()), 4096)
+			var resourceCount int
+			for {
+				obj := &unstructured.Unstructured{}
+				if err := decoder.Decode(obj); err != nil {
+					if err == io.EOF {
+						break
+					}
+					Fail(fmt.Sprintf("failed to decode: %v", err))
+				}
+				if len(obj.Object) == 0 {
+					continue
+				}
+				resourceCount++
 
-		annotations := obj.GetAnnotations()
-		assert.Equal(t, "helm-provider", annotations["app.oam.dev/owner"], "missing app.oam.dev/owner on %s", obj.GetName())
-		assert.Equal(t, "my-release", annotations["meta.helm.sh/release-name"], "missing meta.helm.sh/release-name on %s", obj.GetName())
-		assert.Equal(t, "test-ns", annotations["meta.helm.sh/release-namespace"], "missing meta.helm.sh/release-namespace on %s", obj.GetName())
-	}
-	assert.Equal(t, 2, resourceCount, "expected 2 resources in output")
-}
+				labels := obj.GetLabels()
+				Expect(labels["app.oam.dev/name"]).To(Equal("my-app"))
+				Expect(labels["app.oam.dev/namespace"]).To(Equal("my-app-ns"))
+				Expect(labels["app.oam.dev/component"]).To(Equal("my-component"))
 
-func TestVelaLabelPostRendererNilContext(t *testing.T) {
-	manifest := `apiVersion: v1
+				annotations := obj.GetAnnotations()
+				Expect(annotations["app.oam.dev/owner"]).To(Equal("helm-provider"))
+				Expect(annotations["meta.helm.sh/release-name"]).To(Equal("my-release"))
+				Expect(annotations["meta.helm.sh/release-namespace"]).To(Equal("test-ns"))
+			}
+			Expect(resourceCount).To(Equal(2))
+		})
+
+		It("should return original buffer when context is nil", func() {
+			manifest := `apiVersion: v1
 kind: Service
 metadata:
   name: test-svc
 `
-	renderer := &velaLabelPostRenderer{context: nil}
-	buf := bytes.NewBufferString(manifest)
-	result, err := renderer.Run(buf)
-	require.NoError(t, err)
-	// With nil context, the original buffer is returned unchanged
-	assert.Equal(t, buf, result)
-}
+			renderer := &velaLabelPostRenderer{context: nil}
+			buf := bytes.NewBufferString(manifest)
+			result, err := renderer.Run(buf)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(result).To(Equal(buf))
+		})
+	})
 
-func TestParseManifestResources(t *testing.T) {
-	p := NewProvider()
+	Describe("parseManifestResources", func() {
+		var p *Provider
 
-	manifest := `
+		BeforeEach(func() {
+			p = NewProviderWithConfig(nil)
+		})
+
+		It("should skip test hooks by default", func() {
+			manifest := `
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -330,30 +294,41 @@ metadata:
   annotations:
     helm.sh/hook: test-success
 `
-	// Default: skipTests=true — test hook Pod should be excluded
-	resources, err := p.parseManifestResources(manifest, nil)
-	require.NoError(t, err)
-	require.Len(t, resources, 2)
+			resources, err := p.parseManifestResources(manifest, nil)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resources).To(HaveLen(2))
 
-	kinds := make([]string, len(resources))
-	for i, r := range resources {
-		kinds[i], _, _ = unstructured.NestedString(r, "kind")
-	}
-	assert.Contains(t, kinds, "Deployment")
-	assert.Contains(t, kinds, "Service")
-	assert.NotContains(t, kinds, "Pod")
+			kinds := make([]string, len(resources))
+			for i, r := range resources {
+				kinds[i], _, _ = unstructured.NestedString(r, "kind")
+			}
+			Expect(kinds).To(ContainElement("Deployment"))
+			Expect(kinds).To(ContainElement("Service"))
+			Expect(kinds).ToNot(ContainElement("Pod"))
+		})
 
-	// With skipTests=false — all 3 resources should be included
-	skipFalse := false
-	resources, err = p.parseManifestResources(manifest, &RenderOptionsParams{SkipTests: &skipFalse})
-	require.NoError(t, err)
-	assert.Len(t, resources, 3)
-}
+		It("should include test hooks when skipTests=false", func() {
+			manifest := `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-deploy
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+  annotations:
+    helm.sh/hook: test-success
+`
+			skipFalse := false
+			resources, err := p.parseManifestResources(manifest, &RenderOptionsParams{SkipTests: &skipFalse})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resources).To(HaveLen(2))
+		})
 
-func TestParseManifestResourcesOrdering(t *testing.T) {
-	p := NewProvider()
-
-	manifest := `
+		It("should order CRDs before Namespaces before others", func() {
+			manifest := `
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -369,154 +344,153 @@ kind: Namespace
 metadata:
   name: my-ns
 `
-	resources, err := p.parseManifestResources(manifest, nil)
-	require.NoError(t, err)
-	require.Len(t, resources, 3)
+			resources, err := p.parseManifestResources(manifest, nil)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resources).To(HaveLen(3))
 
-	// Verify ordering: CRD → Namespace → Deployment
-	kind0, _, _ := unstructured.NestedString(resources[0], "kind")
-	kind1, _, _ := unstructured.NestedString(resources[1], "kind")
-	kind2, _, _ := unstructured.NestedString(resources[2], "kind")
-	assert.Equal(t, "CustomResourceDefinition", kind0)
-	assert.Equal(t, "Namespace", kind1)
-	assert.Equal(t, "Deployment", kind2)
-}
+			kind0, _, _ := unstructured.NestedString(resources[0], "kind")
+			kind1, _, _ := unstructured.NestedString(resources[1], "kind")
+			kind2, _, _ := unstructured.NestedString(resources[2], "kind")
+			Expect(kind0).To(Equal("CustomResourceDefinition"))
+			Expect(kind1).To(Equal("Namespace"))
+			Expect(kind2).To(Equal("Deployment"))
+		})
+	})
 
-func TestGetActionConfig(t *testing.T) {
-	p := NewProvider()
-	// Without a real cluster, Init will fail to connect — we just verify the
-	// function is callable and returns a non-nil error (not a panic).
-	_, err := p.getActionConfig("test-namespace")
-	// An error is expected in unit-test environments without a kubeconfig.
-	// The important thing is that it doesn't panic.
-	_ = err
-}
+	Describe("getActionConfig", func() {
+		It("should not panic without a real cluster", func() {
+			p := NewProviderWithConfig(nil)
+			// Without a real cluster, Init will fail — we just verify no panic
+			_, err := p.getActionConfig("test-namespace")
+			_ = err // error is expected
+		})
+	})
 
-func TestComputeReleaseFingerprint(t *testing.T) {
-	ch := &chart.Chart{
-		Metadata: &chart.Metadata{Version: "1.2.3"},
-	}
-	values1 := map[string]interface{}{"replicas": 2}
-	values2 := map[string]interface{}{"replicas": 3}
+	Describe("computeReleaseFingerprint", func() {
+		It("should be deterministic for same inputs", func() {
+			ch := &chart.Chart{Metadata: &chart.Metadata{Version: "1.2.3"}}
+			values := map[string]interface{}{"replicas": 2}
 
-	fp1 := computeReleaseFingerprint(ch, values1)
-	fp2 := computeReleaseFingerprint(ch, values2)
-	fp1Again := computeReleaseFingerprint(ch, values1)
+			fp1 := computeReleaseFingerprint(ch, values)
+			fp2 := computeReleaseFingerprint(ch, values)
+			Expect(fp1).To(Equal(fp2))
+		})
 
-	// Same inputs → same fingerprint
-	assert.Equal(t, fp1, fp1Again, "fingerprint must be deterministic")
-	// Different values → different fingerprint
-	assert.NotEqual(t, fp1, fp2, "different values must produce different fingerprints")
-	// Fingerprint encodes the chart version
-	assert.Contains(t, fp1, "1.2.3")
+		It("should differ for different values", func() {
+			ch := &chart.Chart{Metadata: &chart.Metadata{Version: "1.2.3"}}
+			fp1 := computeReleaseFingerprint(ch, map[string]interface{}{"replicas": 2})
+			fp2 := computeReleaseFingerprint(ch, map[string]interface{}{"replicas": 3})
+			Expect(fp1).ToNot(Equal(fp2))
+		})
 
-	// Nil chart metadata
-	fpNil := computeReleaseFingerprint(nil, values1)
-	assert.NotEmpty(t, fpNil)
-}
+		It("should encode the chart version", func() {
+			ch := &chart.Chart{Metadata: &chart.Metadata{Version: "1.2.3"}}
+			fp := computeReleaseFingerprint(ch, map[string]interface{}{"replicas": 2})
+			Expect(fp).To(ContainSubstring("1.2.3"))
+		})
 
-func TestComputeReleaseFingerprintVersionChange(t *testing.T) {
-	ch1 := &chart.Chart{Metadata: &chart.Metadata{Version: "1.0.0"}}
-	ch2 := &chart.Chart{Metadata: &chart.Metadata{Version: "2.0.0"}}
-	values := map[string]interface{}{"key": "val"}
+		It("should differ for different chart versions", func() {
+			ch1 := &chart.Chart{Metadata: &chart.Metadata{Version: "1.0.0"}}
+			ch2 := &chart.Chart{Metadata: &chart.Metadata{Version: "2.0.0"}}
+			values := map[string]interface{}{"key": "val"}
 
-	fp1 := computeReleaseFingerprint(ch1, values)
-	fp2 := computeReleaseFingerprint(ch2, values)
-	assert.NotEqual(t, fp1, fp2, "different chart versions must produce different fingerprints")
-}
+			fp1 := computeReleaseFingerprint(ch1, values)
+			fp2 := computeReleaseFingerprint(ch2, values)
+			Expect(fp1).ToNot(Equal(fp2))
+		})
 
-func TestCacheInvalidationOnMissingRelease(t *testing.T) {
-	// Use a fresh provider (not the singleton) so tests don't interfere
-	p := NewProviderWithConfig(nil)
+		It("should handle nil chart metadata", func() {
+			fp := computeReleaseFingerprint(nil, map[string]interface{}{"replicas": 2})
+			Expect(fp).ToNot(BeEmpty())
+		})
+	})
 
-	ch := &chart.Chart{Metadata: &chart.Metadata{Version: "1.0.0"}}
-	values := map[string]interface{}{"replicas": 1}
-	fp := computeReleaseFingerprint(ch, values)
+	Describe("cache invalidation on missing release", func() {
+		It("should not return stale cached data", func() {
+			p := NewProviderWithConfig(nil)
 
-	// Pre-seed the in-memory cache as if a prior install succeeded
-	p.releaseMu.Lock()
-	p.releaseFingerprints["my-release"] = fp
-	p.releaseManifests["my-release"] = "---\napiVersion: v1\nkind: Service\n"
-	p.releaseVersions["my-release"] = 3
-	p.releaseMu.Unlock()
+			ch := &chart.Chart{Metadata: &chart.Metadata{Version: "1.0.0"}}
+			values := map[string]interface{}{"replicas": 1}
+			fp := computeReleaseFingerprint(ch, values)
 
-	// installOrUpgradeChart now always checks the cluster before using cache.
-	// When the release doesn't exist in the cluster, the stale cache should be
-	// cleared (not used as a fast-path). The function will either:
-	// - Fail (no cluster) — proving cache was not used
-	// - Succeed with a fresh install (cluster available) — proving cache was cleared
-	// Either way, the old cached manifest "---\napiVersion: v1\nkind: Service\n"
-	// and version 3 must NOT be returned.
-	manifest, _, version, _ := p.installOrUpgradeChart(
-		context.Background(), ch, "my-release", "default", values, nil, nil,
-	)
-	// The stale cache had version=3 and a specific manifest. If the cache was
-	// bypassed, we should NOT see those values.
-	if manifest == "---\napiVersion: v1\nkind: Service\n" && version == 3 {
-		t.Error("stale cached data was returned — cache invalidation failed")
-	}
-	// Also verify the cache entry was cleared
-	p.releaseMu.Lock()
-	_, hasFP := p.releaseFingerprints["my-release"]
-	p.releaseMu.Unlock()
-	// If install succeeded, a new fingerprint will be set. If it failed, it
-	// should have been deleted. Either way, it should not be the OLD value
-	// pointing to the stale manifest.
-	if hasFP && p.releaseManifests["my-release"] == "---\napiVersion: v1\nkind: Service\n" {
-		t.Error("stale cache entry was not invalidated")
-	}
-}
+			// Pre-seed the in-memory cache
+			p.releaseMu.Lock()
+			p.releaseFingerprints["my-release"] = fp
+			p.releaseManifests["my-release"] = "---\napiVersion: v1\nkind: Service\n"
+			p.releaseVersions["my-release"] = 3
+			p.releaseMu.Unlock()
 
-func TestInvalidateRelease(t *testing.T) {
-	p := NewProviderWithConfig(nil)
+			manifest, _, version, _ := p.installOrUpgradeChart(
+				context.Background(), ch, "my-release", "default", values, nil, nil,
+			)
+			// Stale cache should NOT be returned
+			if manifest == "---\napiVersion: v1\nkind: Service\n" && version == 3 {
+				Fail("stale cached data was returned — cache invalidation failed")
+			}
 
-	// Seed cache
-	p.releaseMu.Lock()
-	p.releaseFingerprints["test-rel"] = "fp1"
-	p.releaseManifests["test-rel"] = "manifest"
-	p.releaseVersions["test-rel"] = 1
-	p.releaseMu.Unlock()
+			p.releaseMu.Lock()
+			_, hasFP := p.releaseFingerprints["my-release"]
+			p.releaseMu.Unlock()
+			if hasFP && p.releaseManifests["my-release"] == "---\napiVersion: v1\nkind: Service\n" {
+				Fail("stale cache entry was not invalidated")
+			}
+		})
+	})
 
-	// Verify seeded
-	assert.Equal(t, "fp1", p.releaseFingerprints["test-rel"])
+	Describe("InvalidateRelease", func() {
+		It("should clear all cache entries for a release", func() {
+			p := NewProviderWithConfig(nil)
 
-	// Invalidate
-	p.InvalidateRelease("test-rel")
+			p.releaseMu.Lock()
+			p.releaseFingerprints["test-rel"] = "fp1"
+			p.releaseManifests["test-rel"] = "manifest"
+			p.releaseVersions["test-rel"] = 1
+			p.releaseMu.Unlock()
 
-	// Verify cleared
-	_, ok := p.releaseFingerprints["test-rel"]
-	assert.False(t, ok, "fingerprint should be cleared")
-	_, ok = p.releaseManifests["test-rel"]
-	assert.False(t, ok, "manifest should be cleared")
-	_, ok = p.releaseVersions["test-rel"]
-	assert.False(t, ok, "version should be cleared")
-}
+			Expect(p.releaseFingerprints["test-rel"]).To(Equal("fp1"))
 
-func TestDryRunContext(t *testing.T) {
-	// Verify dry-run context flag works correctly
-	ctx := context.Background()
-	assert.False(t, isDryRun(ctx), "default context should not be dry-run")
+			p.InvalidateRelease("test-rel")
 
-	dryCtx := WithDryRun(ctx)
-	assert.True(t, isDryRun(dryCtx), "WithDryRun context should be dry-run")
+			_, ok := p.releaseFingerprints["test-rel"]
+			Expect(ok).To(BeFalse())
+			_, ok = p.releaseManifests["test-rel"]
+			Expect(ok).To(BeFalse())
+			_, ok = p.releaseVersions["test-rel"]
+			Expect(ok).To(BeFalse())
+		})
+	})
 
-	// Verify non-dry-run context is not affected
-	assert.False(t, isDryRun(ctx), "original context should still not be dry-run")
-}
+	Describe("dry-run context", func() {
+		It("should default to false", func() {
+			ctx := context.Background()
+			Expect(isDryRun(ctx)).To(BeFalse())
+		})
 
-func TestDryRunRender(t *testing.T) {
-	p := NewProviderWithConfig(nil)
+		It("should be true after WithDryRun", func() {
+			ctx := context.Background()
+			dryCtx := WithDryRun(ctx)
+			Expect(isDryRun(dryCtx)).To(BeTrue())
+		})
 
-	// Create a minimal chart for dry-run testing
-	ch := &chart.Chart{
-		Metadata: &chart.Metadata{
-			Name:    "test-chart",
-			Version: "1.0.0",
-		},
-		Templates: []*chart.File{
-			{
-				Name: "templates/deployment.yaml",
-				Data: []byte(`apiVersion: apps/v1
+		It("should not affect the original context", func() {
+			ctx := context.Background()
+			_ = WithDryRun(ctx)
+			Expect(isDryRun(ctx)).To(BeFalse())
+		})
+	})
+
+	Describe("dryRunRender", func() {
+		It("should render a chart client-side", func() {
+			p := NewProviderWithConfig(nil)
+			ch := &chart.Chart{
+				Metadata: &chart.Metadata{
+					Name:    "test-chart",
+					Version: "1.0.0",
+				},
+				Templates: []*chart.File{
+					{
+						Name: "templates/deployment.yaml",
+						Data: []byte(`apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Release.Name }}
@@ -524,41 +498,390 @@ metadata:
 spec:
   replicas: 1
 `),
+					},
+				},
+			}
+
+			manifest, _, err := p.dryRunRender(ch, "test-release", "test-ns",
+				map[string]interface{}{"key": "value"}, nil, nil)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(manifest).To(ContainSubstring("kind: Deployment"))
+			Expect(manifest).To(ContainSubstring("name: test-release"))
+		})
+	})
+
+	Describe("velaOwnerLabels", func() {
+		It("should return labels for a valid context", func() {
+			velaCtx := &ContextParams{
+				AppName:      "my-app",
+				AppNamespace: "my-ns",
+				Name:         "my-component",
+			}
+			labels := velaOwnerLabels(velaCtx)
+			Expect(labels["app.oam.dev/name"]).To(Equal("my-app"))
+			Expect(labels["app.oam.dev/namespace"]).To(Equal("my-ns"))
+			Expect(labels["app.oam.dev/component"]).To(Equal("my-component"))
+		})
+
+		It("should return nil for nil context", func() {
+			Expect(velaOwnerLabels(nil)).To(BeNil())
+		})
+	})
+
+	Describe("UninstallParams structure", func() {
+		It("should hold all fields correctly", func() {
+			params := &UninstallParams{
+				Release: ReleaseParams{
+					Name:      "my-release",
+					Namespace: "my-ns",
+				},
+				KeepHistory: true,
+			}
+			Expect(params.Release.Name).To(Equal("my-release"))
+			Expect(params.Release.Namespace).To(Equal("my-ns"))
+			Expect(params.KeepHistory).To(BeTrue())
+		})
+	})
+
+	// -----------------------------------------------------------------------
+	// NEW TESTS for additional coverage
+	// -----------------------------------------------------------------------
+
+	Describe("isMutableVersion", func() {
+		DescribeTable("should classify mutable vs immutable versions",
+			func(version string, expected bool) {
+				Expect(isMutableVersion(version)).To(Equal(expected))
 			},
-		},
-	}
+			// Mutable tags
+			Entry("latest", "latest", true),
+			Entry("dev", "dev", true),
+			Entry("develop", "develop", true),
+			Entry("main", "main", true),
+			Entry("master", "master", true),
+			Entry("edge", "edge", true),
+			Entry("canary", "canary", true),
+			Entry("nightly", "nightly", true),
+			Entry("case insensitive LATEST", "LATEST", true),
+			Entry("SNAPSHOT suffix", "1.0.0-SNAPSHOT", true),
+			Entry("dev suffix", "1.0.0-dev", true),
+			Entry("alpha suffix", "1.0.0-alpha", true),
+			Entry("beta suffix", "1.0.0-beta", true),
+			Entry("rc suffix", "1.0.0-rc", true),
+			Entry("unknown string defaults to mutable", "my-custom-branch", true),
 
-	manifest, _, err := p.dryRunRender(ch, "test-release", "test-ns",
-		map[string]interface{}{"key": "value"}, nil, nil)
-	require.NoError(t, err, "dry-run render should not fail")
-	assert.Contains(t, manifest, "kind: Deployment", "manifest should contain rendered deployment")
-	assert.Contains(t, manifest, "name: test-release", "manifest should contain release name")
-}
+			// Immutable versions
+			Entry("semver 1.2.3", "1.2.3", false),
+			Entry("semver v1.2.3", "v1.2.3", false),
+			Entry("semver short 1.0", "1.0", false),
+		)
+	})
 
-func TestVelaOwnerLabels(t *testing.T) {
-	velaCtx := &ContextParams{
-		AppName:      "my-app",
-		AppNamespace: "my-ns",
-		Name:         "my-component",
-	}
-	labels := velaOwnerLabels(velaCtx)
-	assert.Equal(t, "my-app", labels["app.oam.dev/name"])
-	assert.Equal(t, "my-ns", labels["app.oam.dev/namespace"])
-	assert.Equal(t, "my-component", labels["app.oam.dev/component"])
+	Describe("isRetryableInstallError", func() {
+		DescribeTable("should identify retryable errors",
+			func(errMsg string, expected bool) {
+				Expect(isRetryableInstallError(fmt.Errorf(errMsg))).To(Equal(expected))
+			},
+			Entry("cannot be imported", "cannot be imported into the current release", true),
+			Entry("invalid ownership metadata", "invalid ownership metadata", true),
+			Entry("no revision for release", "no revision for release", true),
+			Entry("release already exists", "release: already exists", true),
+			Entry("generic error", "connection refused", false),
+			Entry("timeout error", "context deadline exceeded", false),
+		)
+	})
 
-	// nil context should return nil (safe to pass to install.Labels)
-	assert.Nil(t, velaOwnerLabels(nil))
-}
+	Describe("isOwnedByVela", func() {
+		It("should return false for nil release", func() {
+			Expect(isOwnedByVela(nil, &ContextParams{AppName: "app"})).To(BeFalse())
+		})
 
-func TestUninstallParamsStructure(t *testing.T) {
-	params := &UninstallParams{
-		Release: ReleaseParams{
-			Name:      "my-release",
-			Namespace: "my-ns",
-		},
-		KeepHistory: true,
-	}
-	assert.Equal(t, "my-release", params.Release.Name)
-	assert.Equal(t, "my-ns", params.Release.Namespace)
-	assert.True(t, params.KeepHistory)
-}
+		It("should return false for nil context", func() {
+			rel := &release.Release{Labels: map[string]string{"app.oam.dev/name": "app"}}
+			Expect(isOwnedByVela(rel, nil)).To(BeFalse())
+		})
+
+		It("should return false for nil labels", func() {
+			rel := &release.Release{}
+			Expect(isOwnedByVela(rel, &ContextParams{AppName: "app"})).To(BeFalse())
+		})
+
+		It("should return false when vela label is missing", func() {
+			rel := &release.Release{Labels: map[string]string{"other": "val"}}
+			Expect(isOwnedByVela(rel, &ContextParams{AppName: "app"})).To(BeFalse())
+		})
+
+		It("should return true when vela label is present", func() {
+			rel := &release.Release{Labels: map[string]string{"app.oam.dev/name": "my-app"}}
+			Expect(isOwnedByVela(rel, &ContextParams{AppName: "my-app"})).To(BeTrue())
+		})
+	})
+
+	Describe("determineCacheTTL", func() {
+		var p *Provider
+
+		BeforeEach(func() {
+			p = NewProviderWithConfig(&CacheTTLConfig{
+				ImmutableVersionTTL: 24 * time.Hour,
+				MutableVersionTTL:   5 * time.Minute,
+			})
+		})
+
+		It("should use default immutable TTL for semver", func() {
+			Expect(p.determineCacheTTL("1.2.3", nil)).To(Equal(24 * time.Hour))
+		})
+
+		It("should use default mutable TTL for latest", func() {
+			Expect(p.determineCacheTTL("latest", nil)).To(Equal(5 * time.Minute))
+		})
+
+		It("should use explicit TTL from options", func() {
+			ttl := p.determineCacheTTL("1.2.3", &RenderOptionsParams{
+				Cache: &CacheParams{TTL: "10m"},
+			})
+			Expect(ttl).To(Equal(10 * time.Minute))
+		})
+
+		It("should use explicit immutable TTL from options", func() {
+			ttl := p.determineCacheTTL("1.2.3", &RenderOptionsParams{
+				Cache: &CacheParams{ImmutableTTL: "48h"},
+			})
+			Expect(ttl).To(Equal(48 * time.Hour))
+		})
+
+		It("should use explicit mutable TTL from options", func() {
+			ttl := p.determineCacheTTL("latest", &RenderOptionsParams{
+				Cache: &CacheParams{MutableTTL: "1m"},
+			})
+			Expect(ttl).To(Equal(1 * time.Minute))
+		})
+
+		It("should fall back to default for invalid TTL string", func() {
+			ttl := p.determineCacheTTL("1.2.3", &RenderOptionsParams{
+				Cache: &CacheParams{TTL: "invalid"},
+			})
+			Expect(ttl).To(Equal(24 * time.Hour))
+		})
+
+		It("should fall back to default when TTL is '0'", func() {
+			// TTL=0 is handled by fetchChart; determineCacheTTL falls through
+			ttl := p.determineCacheTTL("1.2.3", &RenderOptionsParams{
+				Cache: &CacheParams{TTL: "0"},
+			})
+			Expect(ttl).To(Equal(24 * time.Hour))
+		})
+
+		It("should fall back to default for invalid mutable TTL string", func() {
+			ttl := p.determineCacheTTL("latest", &RenderOptionsParams{
+				Cache: &CacheParams{MutableTTL: "bad"},
+			})
+			Expect(ttl).To(Equal(5 * time.Minute))
+		})
+
+		It("should fall back to default for invalid immutable TTL string", func() {
+			ttl := p.determineCacheTTL("1.2.3", &RenderOptionsParams{
+				Cache: &CacheParams{ImmutableTTL: "bad"},
+			})
+			Expect(ttl).To(Equal(24 * time.Hour))
+		})
+	})
+
+	Describe("cleanResource", func() {
+		It("should remove nil values", func() {
+			input := map[string]interface{}{
+				"key1": "value1",
+				"key2": nil,
+				"key3": "value3",
+			}
+			result := cleanResource(input)
+			Expect(result["key1"]).To(Equal("value1"))
+			Expect(result["key3"]).To(Equal("value3"))
+			Expect(result).ToNot(HaveKey("key2"))
+		})
+
+		It("should recursively clean nested maps", func() {
+			input := map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"name":      "test",
+					"namespace": nil,
+				},
+			}
+			result := cleanResource(input)
+			metadata := result["metadata"].(map[string]interface{})
+			Expect(metadata["name"]).To(Equal("test"))
+			Expect(metadata).ToNot(HaveKey("namespace"))
+		})
+
+		It("should clean arrays with nil items", func() {
+			input := map[string]interface{}{
+				"items": []interface{}{"a", nil, "c"},
+			}
+			result := cleanResource(input)
+			Expect(result["items"]).To(Equal([]interface{}{"a", "c"}))
+		})
+
+		It("should clean nested maps inside arrays", func() {
+			input := map[string]interface{}{
+				"containers": []interface{}{
+					map[string]interface{}{
+						"name":  "app",
+						"image": nil,
+					},
+				},
+			}
+			result := cleanResource(input)
+			containers := result["containers"].([]interface{})
+			container := containers[0].(map[string]interface{})
+			Expect(container["name"]).To(Equal("app"))
+			Expect(container).ToNot(HaveKey("image"))
+		})
+
+		It("should remove empty nested maps", func() {
+			input := map[string]interface{}{
+				"status": map[string]interface{}{},
+				"spec":   map[string]interface{}{"replicas": 1},
+			}
+			result := cleanResource(input)
+			Expect(result).ToNot(HaveKey("status"))
+			Expect(result["spec"].(map[string]interface{})["replicas"]).To(Equal(1))
+		})
+
+		It("should remove empty arrays", func() {
+			input := map[string]interface{}{
+				"items":  []interface{}{nil},
+				"labels": map[string]interface{}{"app": "test"},
+			}
+			result := cleanResource(input)
+			// After removing nil, the array is empty and should be dropped
+			Expect(result).ToNot(HaveKey("items"))
+			Expect(result["labels"].(map[string]interface{})["app"]).To(Equal("test"))
+		})
+	})
+
+	Describe("loadValuesFromSource", func() {
+		var p *Provider
+
+		BeforeEach(func() {
+			p = NewProviderWithConfig(nil)
+		})
+
+		DescribeTable("should return errors for unimplemented/unsupported source kinds",
+			func(kind, expectedErr string) {
+				_, err := p.loadValuesFromSource(context.Background(), ValuesFromParams{Kind: kind, Name: "test"})
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(expectedErr))
+			},
+			Entry("ConfigMap", "ConfigMap", "configmap values source not yet implemented"),
+			Entry("Secret", "Secret", "secret values source not yet implemented"),
+			Entry("OCIRepository", "OCIRepository", "ocirepository values source not yet implemented"),
+			Entry("Unknown", "Unknown", "unsupported values source kind: Unknown"),
+		)
+	})
+
+	Describe("fetchChartWithoutCache", func() {
+		var p *Provider
+
+		BeforeEach(func() {
+			p = NewProviderWithConfig(nil)
+		})
+
+		It("should fail for unsupported source type", func() {
+			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "test"}, "unknown")
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("unsupported chart source type"))
+		})
+
+		It("should fail for repo without repoURL", func() {
+			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "nginx"}, "repo")
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("repoURL is required"))
+		})
+	})
+
+	Describe("DefaultCacheTTLConfig", func() {
+		It("should return correct defaults", func() {
+			config := DefaultCacheTTLConfig()
+			Expect(config.ImmutableVersionTTL).To(Equal(24 * time.Hour))
+			Expect(config.MutableVersionTTL).To(Equal(5 * time.Minute))
+		})
+	})
+
+	Describe("NewProviderWithConfig", func() {
+		It("should use defaults when config is nil", func() {
+			p := NewProviderWithConfig(nil)
+			Expect(p.cacheTTL.ImmutableVersionTTL).To(Equal(24 * time.Hour))
+			Expect(p.cacheTTL.MutableVersionTTL).To(Equal(5 * time.Minute))
+			Expect(p.releaseFingerprints).ToNot(BeNil())
+			Expect(p.releaseManifests).ToNot(BeNil())
+			Expect(p.releaseVersions).ToNot(BeNil())
+		})
+
+		It("should use custom config when provided", func() {
+			p := NewProviderWithConfig(&CacheTTLConfig{
+				ImmutableVersionTTL: 1 * time.Hour,
+				MutableVersionTTL:   1 * time.Minute,
+			})
+			Expect(p.cacheTTL.ImmutableVersionTTL).To(Equal(1 * time.Hour))
+			Expect(p.cacheTTL.MutableVersionTTL).To(Equal(1 * time.Minute))
+		})
+	})
+
+	Describe("newInstallAction", func() {
+		var p *Provider
+
+		BeforeEach(func() {
+			p = NewProviderWithConfig(nil)
+		})
+
+		It("should set defaults correctly", func() {
+			install := p.newInstallAction(&action.Configuration{}, "test-release", "test-ns", nil, nil, nil)
+			Expect(install.ReleaseName).To(Equal("test-release"))
+			Expect(install.Namespace).To(Equal("test-ns"))
+			Expect(install.CreateNamespace).To(BeTrue())
+			Expect(install.DryRun).To(BeFalse())
+			Expect(install.ClientOnly).To(BeFalse())
+		})
+
+		It("should apply render options", func() {
+			createNs := false
+			skipHooks := true
+			install := p.newInstallAction(&action.Configuration{}, "test-release", "test-ns", &RenderOptionsParams{
+				Atomic:          true,
+				Timeout:         "5m",
+				CreateNamespace: &createNs,
+				SkipHooks:       &skipHooks,
+			}, nil, map[string]string{"app.oam.dev/name": "my-app"})
+
+			Expect(install.Atomic).To(BeTrue())
+			Expect(install.Wait).To(BeTrue())
+			Expect(install.Timeout).To(Equal(5 * time.Minute))
+			Expect(install.CreateNamespace).To(BeFalse())
+			Expect(install.DisableHooks).To(BeTrue())
+			Expect(install.Labels).To(Equal(map[string]string{"app.oam.dev/name": "my-app"}))
+		})
+
+		It("should set Wait when Atomic is true", func() {
+			install := p.newInstallAction(&action.Configuration{}, "rel", "ns", &RenderOptionsParams{
+				Atomic: true,
+			}, nil, nil)
+			Expect(install.Wait).To(BeTrue())
+		})
+
+		It("should set Wait independently", func() {
+			install := p.newInstallAction(&action.Configuration{}, "rel", "ns", &RenderOptionsParams{
+				Wait: true,
+			}, nil, nil)
+			Expect(install.Wait).To(BeTrue())
+			Expect(install.Atomic).To(BeFalse())
+		})
+	})
+
+	Describe("Template and Package exports", func() {
+		It("should have a non-empty embedded CUE template", func() {
+			Expect(Template).ToNot(BeEmpty())
+		})
+
+		It("should have a non-nil provider package", func() {
+			Expect(Package).ToNot(BeNil())
+		})
+	})
+})
