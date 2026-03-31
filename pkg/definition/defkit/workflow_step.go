@@ -624,7 +624,7 @@ func (g *WorkflowStepCUEGenerator) GenerateTemplate(w *WorkflowStepDefinition) s
 			sb.WriteString(fmt.Sprintf("%s\t\"\"\"#\n", innerIndent))
 		}
 		if w.GetStatusDetails() != "" {
-			sb.WriteString(fmt.Sprintf("%sstatusDetails: #\"\"\"\n", innerIndent))
+			sb.WriteString(fmt.Sprintf("%sdetails: #\"\"\"\n", innerIndent))
 			for _, line := range strings.Split(w.GetStatusDetails(), "\n") {
 				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
 			}

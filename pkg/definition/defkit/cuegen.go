@@ -2864,7 +2864,7 @@ func (g *CUEGenerator) writeStatus(sb *strings.Builder, c *ComponentDefinition, 
 	}
 
 	if statusDetails != "" {
-		sb.WriteString(fmt.Sprintf("%s%sstatusDetails: #\"\"\"\n", indent, g.indent))
+		sb.WriteString(fmt.Sprintf("%s%sdetails: #\"\"\"\n", indent, g.indent))
 		for _, line := range strings.Split(statusDetails, "\n") {
 			sb.WriteString(fmt.Sprintf("%s%s%s%s\n", indent, g.indent, g.indent, line))
 		}

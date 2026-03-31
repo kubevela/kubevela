@@ -1771,7 +1771,7 @@ template: {
 		It("should render statusDetails in trait CUE", func() {
 			cue := defkit.NewTrait("t").StatusDetails("phase: context.output.status.phase").ToCue()
 			Expect(cue).To(ContainSubstring("status:"))
-			Expect(cue).To(ContainSubstring("statusDetails:"))
+			Expect(cue).To(ContainSubstring("details:"))
 			Expect(cue).To(ContainSubstring("phase: context.output.status.phase"))
 		})
 
@@ -1801,7 +1801,7 @@ template: {
 			Expect(cue).To(ContainSubstring("status:"))
 			Expect(cue).To(ContainSubstring("customStatus:"))
 			Expect(cue).To(ContainSubstring("healthPolicy:"))
-			Expect(cue).To(ContainSubstring("statusDetails:"))
+			Expect(cue).To(ContainSubstring("details:"))
 		})
 	})
 

@@ -596,7 +596,7 @@ func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinit
 		}
 
 		if t.GetStatusDetails() != "" {
-			sb.WriteString(fmt.Sprintf("%sstatusDetails: #\"\"\"\n", innerIndent))
+			sb.WriteString(fmt.Sprintf("%sdetails: #\"\"\"\n", innerIndent))
 			for _, line := range strings.Split(t.GetStatusDetails(), "\n") {
 				sb.WriteString(fmt.Sprintf("%s\t%s\n", innerIndent, line))
 			}
