@@ -82,13 +82,13 @@ func getShowCommandOrder(order string) string {
 	return order
 }
 
-// NewCapabilityShowCommand shows the reference doc for a component type or trait
+// NewCapabilityShowCommand shows the reference doc for supported capability types
 func NewCapabilityShowCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var revision, path, location, i18nPath string
 	cmd := &cobra.Command{
 		Use:   "show",
-		Short: "Show the reference doc for a component, trait, policy or workflow.",
-		Long:  "Show the reference doc for component, trait, policy or workflow types. 'vela show' equals with 'vela def show'. ",
+		Short: "Show the reference doc for a component, trait, policy, workflow, or package.",
+		Long:  "Show the reference doc for component, trait, policy, workflow, or package types. 'vela show' equals with 'vela def show'. ",
 		Example: `0. Run 'vela show' directly to start a web server for all reference docs.  
 1. Generate documentation for ComponentDefinition webservice:
 > vela show webservice -n vela-system
@@ -214,7 +214,7 @@ func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStr
 		}
 	}
 	if !capabilityIsValid {
-		return fmt.Errorf("%s is not a valid component, trait, policy or workflow", capabilityName)
+		return fmt.Errorf("%s is not a valid component, trait, policy, workflow, or package", capabilityName)
 	}
 
 	cli, err := c.GetClient()
@@ -289,7 +289,7 @@ func launch(server *http.Server, errChan chan<- error) {
 
 func generateSideBar(capabilities []types.Capability, docsPath string) error {
 	sideBar := filepath.Join(docsPath, SideBar)
-	components, traits, workflowSteps, policies := getDefinitions(capabilities)
+	components, traits, workflowSteps, policies, packages := getDefinitions(capabilities)
 	f, err := os.Create(sideBar) // nolint
 	if err != nil {
 		return err
@@ -325,6 +325,14 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 	}
 	for _, t := range policies {
 		if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", t, types.TypePolicy, t); err != nil {
+			return err
+		}
+	}
+	if _, err := f.WriteString("- Packages\n"); err != nil {
+    	return err
+	}
+	for _, p := range packages {
+		if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", p, types.TypePackage, p); err != nil {
 			return err
 		}
 	}
@@ -399,7 +407,7 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 		return err
 	}
 
-	workloads, traits, workflowSteps, policies := getDefinitions(capabilities)
+	workloads, traits, workflowSteps, policies, packages := getDefinitions(capabilities)
 
 	if _, err := f.WriteString("## Component Types\n"); err != nil {
 		return err
@@ -438,11 +446,20 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 		}
 	}
 
+	if _, err := f.WriteString("## Packages\n"); err != nil {
+		return err
+	}
+	for _, p := range packages {
+		if _, err := fmt.Fprintf(f, "  - [%s](%s/%s.md)\n", p, types.TypePackage, p); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func getDefinitions(capabilities []types.Capability) ([]string, []string, []string, []string) {
-	var components, traits, workflowSteps, policies []string
+func getDefinitions(capabilities []types.Capability) ([]string, []string, []string, []string, []string ) {
+	var components, traits, workflowSteps, policies, packages []string
 	for _, c := range capabilities {
 		switch c.Type {
 		case types.TypeComponentDefinition:
@@ -453,11 +470,14 @@ func getDefinitions(capabilities []types.Capability) ([]string, []string, []stri
 			workflowSteps = append(workflowSteps, c.Name)
 		case types.TypePolicy:
 			policies = append(policies, c.Name)
+		case types.TypePackage:
+			packages = append(packages, c.Name)
 		case types.TypeWorkload:
 		default:
 		}
+		
 	}
-	return components, traits, workflowSteps, policies
+	return components, traits, workflowSteps, policies, packages
 }
 
 // ShowReferenceConsole will show capability reference in console
