@@ -621,7 +621,7 @@ var _ = Describe("ComponentDefinition", func() {
 			cue := c.ToCue()
 
 			Expect(cue).To(ContainSubstring(`status:`))
-			Expect(cue).To(ContainSubstring(`statusDetails:`))
+			Expect(cue).To(ContainSubstring(`details:`))
 			Expect(cue).NotTo(ContainSubstring(`customStatus:`))
 			Expect(cue).NotTo(ContainSubstring(`healthPolicy:`))
 		})
@@ -638,7 +638,7 @@ var _ = Describe("ComponentDefinition", func() {
 			Expect(cue).To(ContainSubstring(`status:`))
 			Expect(cue).To(ContainSubstring(`customStatus:`))
 			Expect(cue).To(ContainSubstring(`healthPolicy:`))
-			Expect(cue).To(ContainSubstring(`statusDetails:`))
+			Expect(cue).To(ContainSubstring(`details:`))
 		})
 	})
 

@@ -414,7 +414,7 @@ template: {
 		It("should render statusDetails in CUE template block", func() {
 			cue := defkit.NewWorkflowStep("x").StatusDetails("foo").ToCue()
 			Expect(cue).To(ContainSubstring("status:"))
-			Expect(cue).To(ContainSubstring("statusDetails:"))
+			Expect(cue).To(ContainSubstring("details:"))
 		})
 
 		It("should render customStatus in CUE template block", func() {
@@ -443,7 +443,7 @@ template: {
 			Expect(cue).To(ContainSubstring("status:"))
 			Expect(cue).To(ContainSubstring("customStatus:"))
 			Expect(cue).To(ContainSubstring("healthPolicy:"))
-			Expect(cue).To(ContainSubstring("statusDetails:"))
+			Expect(cue).To(ContainSubstring("details:"))
 		})
 	})
 
