@@ -136,9 +136,10 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		// aux
 		KubeCommandGroup(f, "1", ioStream),
 		CueXCommandGroup(f, "2"),
-		NewQlCommand(commandArgs, "3", ioStream),
-		NewCompletionCommand("4"),
-		NewHelpCommand("5"),
+		NewPackageCommand(f, "3", ioStream),
+		NewQlCommand(commandArgs, "4", ioStream),
+		NewCompletionCommand("5"),
+		NewHelpCommand("6"),
 
 		// hide (below commands will not be displayed in help command but still
 		// can be used by direct call)
