@@ -357,18 +357,14 @@ var _ = Describe("Expressions", func() {
 	Context("RegexMatch", func() {
 		It("should create a RegexMatchCondition with source and pattern", func() {
 			ref := defkit.LocalField("name")
-			cond := defkit.RegexMatch(ref, "^test-")
-			rm, ok := cond.(*defkit.RegexMatchCondition)
-			Expect(ok).To(BeTrue())
+			rm := defkit.RegexMatch(ref, "^test-")
 			Expect(rm.Pattern()).To(Equal("^test-"))
 			Expect(rm.Source()).To(Equal(ref))
 		})
 
 		It("should work with StringParam as source", func() {
 			p := defkit.String("host")
-			cond := defkit.RegexMatch(p, `^prod-.*$`)
-			rm, ok := cond.(*defkit.RegexMatchCondition)
-			Expect(ok).To(BeTrue())
+			rm := defkit.RegexMatch(p, `^prod-.*$`)
 			Expect(rm.Pattern()).To(Equal(`^prod-.*$`))
 			Expect(rm.Source()).To(Equal(p))
 		})
@@ -404,10 +400,8 @@ var _ = Describe("Expressions", func() {
 		})
 
 		It("should be returned by ParamNotSet", func() {
-			cond := defkit.ParamNotSet("defaults")
-			notExpr, ok := cond.(*defkit.NotExpr)
-			Expect(ok).To(BeTrue())
-			inner, ok := notExpr.Cond().(*defkit.IsSetCondition)
+			ne := defkit.ParamNotSet("defaults")
+			inner, ok := ne.Cond().(*defkit.IsSetCondition)
 			Expect(ok).To(BeTrue())
 			Expect(inner.ParamName()).To(Equal("defaults"))
 		})

@@ -716,6 +716,50 @@ var _ = Describe("Render", func() {
 		})
 	})
 
+	Context("evaluateCondition with NotExpr", func() {
+		It("should negate IsSet via NotExpr (ParamNotSet)", func() {
+			comp := defkit.NewComponent("test").
+				Workload("v1", "ConfigMap").
+				Params(defkit.String("optionalField").Optional()).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("v1", "ConfigMap").
+							SetIf(defkit.ParamNotSet("optionalField"), "data.fallback", defkit.Lit("default")),
+					)
+				})
+
+			// Without the param set, ParamNotSet should evaluate to true
+			rendered := comp.Render(defkit.TestContext())
+			Expect(rendered.Get("data.fallback")).To(Equal("default"))
+
+			// With the param set, ParamNotSet should evaluate to false
+			rendered2 := comp.Render(defkit.TestContext().WithParam("optionalField", "value"))
+			Expect(rendered2.Get("data.fallback")).To(BeNil())
+		})
+
+		It("should negate via Not() wrapper with Comparison", func() {
+			enabled := defkit.Bool("enabled")
+
+			comp := defkit.NewComponent("test").
+				Workload("v1", "ConfigMap").
+				Params(enabled.Default(true)).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("v1", "ConfigMap").
+							SetIf(defkit.Not(defkit.Eq(enabled, defkit.Lit(true))), "data.disabled", defkit.Lit("yes")),
+					)
+				})
+
+			// enabled=true => Not(true==true) => Not(true) => false => field absent
+			rendered := comp.Render(defkit.TestContext().WithParam("enabled", true))
+			Expect(rendered.Get("data.disabled")).To(BeNil())
+
+			// enabled=false => Not(false==true) => Not(false) => true => field present
+			rendered2 := comp.Render(defkit.TestContext().WithParam("enabled", false))
+			Expect(rendered2.Get("data.disabled")).To(Equal("yes"))
+		})
+	})
+
 	Context("evaluateCondition with nil", func() {
 		It("should treat nil condition as true", func() {
 			// This is tested indirectly: a SetIf with no condition should apply
