@@ -2100,6 +2100,9 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 	case *LocalFieldRef:
 		// Local field reference — emits the bare field name (no parameter. prefix)
 		return val.Name()
+	case *TimeParseExpr:
+		// time.Parse(layout, field) call
+		return fmt.Sprintf(`time.Parse(%q, %s)`, val.Layout(), val.FieldName())
 	case *HelperVar:
 		// Return reference to the helper by name
 		return val.Name()
@@ -2905,25 +2908,10 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		left := g.exprToCUE(c.Left())
 		right := g.exprToCUE(c.Right())
 		return fmt.Sprintf("%s %s %s", left, c.Op(), right)
-	case *CompareCondition:
-		left := g.anyToCUE(c.Left())
-		right := g.anyToCUE(c.Right())
-		return fmt.Sprintf("%s %s %s", left, c.Operator(), right)
 	case *AndCondition:
 		left := g.conditionToCUE(c.left)
 		right := g.conditionToCUE(c.right)
 		return fmt.Sprintf("(%s) && (%s)", left, right)
-	case *OrCondition:
-		left := g.conditionToCUE(c.left)
-		right := g.conditionToCUE(c.right)
-		return fmt.Sprintf("(%s) || (%s)", left, right)
-	case *NotCondition:
-		// Special case: Not(IsSet("x")) -> parameter["x"] == _|_ (cleaner than !(parameter["x"] != _|_))
-		if isSet, ok := c.Inner().(*IsSetCondition); ok {
-			return fmt.Sprintf("parameter[%q] == _|_", isSet.ParamName())
-		}
-		inner := g.conditionToCUE(c.Inner())
-		return fmt.Sprintf("!(%s)", inner)
 	case *LogicalExpr:
 		parts := make([]string, len(c.Conditions()))
 		for i, sub := range c.Conditions() {
@@ -2935,7 +2923,11 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		}
 		return strings.Join(parts, op)
 	case *NotExpr:
-		// Special case: Not(PathExists("x")) -> x == _|_ (cleaner than !(x != _|_))
+		// Special case: Not(IsSet("x")) -> parameter["x"] == _|_
+		if isSet, ok := c.Cond().(*IsSetCondition); ok {
+			return fmt.Sprintf("parameter[%q] == _|_", isSet.ParamName())
+		}
+		// Special case: Not(PathExists("x")) -> x == _|_
 		if pe, ok := c.Cond().(*PathExistsCondition); ok {
 			return fmt.Sprintf("%s == _|_", pe.Path())
 		}
@@ -2979,12 +2971,6 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	case *RegexMatchCondition:
 		// General-purpose regex match: <value> =~ "pattern"
 		return fmt.Sprintf(`%s =~ %q`, g.valueToCUE(c.Source()), c.Pattern())
-	case *TimeParseCompareCondition:
-		// time.Parse comparison: time.Parse(layout, fieldA) op time.Parse(layout, fieldB)
-		return fmt.Sprintf(`time.Parse(%q, %s) %s time.Parse(%q, %s)`,
-			c.Left().Layout(), c.Left().FieldName(),
-			c.Op(),
-			c.Right().Layout(), c.Right().FieldName())
 	case *RawCUECondition:
 		// Raw CUE expression — emit verbatim
 		return c.Expr()

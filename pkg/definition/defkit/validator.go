@@ -215,26 +215,10 @@ func (t *TimeParseExpr) Layout() string { return t.layout }
 func (t *TimeParseExpr) FieldName() string { return t.fieldName }
 
 // Gte creates a condition: time.Parse(layout, fieldA) >= time.Parse(layout, fieldB)
+// Reuses upstream Comparison type via Ge().
 func (t *TimeParseExpr) Gte(other *TimeParseExpr) Condition {
-	return &TimeParseCompareCondition{left: t, right: other, op: ">="}
+	return Ge(t, other)
 }
-
-// TimeParseCompareCondition compares two time.Parse expressions.
-type TimeParseCompareCondition struct {
-	baseCondition
-	left  *TimeParseExpr
-	right *TimeParseExpr
-	op    string
-}
-
-// Left returns the left-hand time.Parse expression.
-func (c *TimeParseCompareCondition) Left() *TimeParseExpr { return c.left }
-
-// Right returns the right-hand time.Parse expression.
-func (c *TimeParseCompareCondition) Right() *TimeParseExpr { return c.right }
-
-// Op returns the comparison operator.
-func (c *TimeParseCompareCondition) Op() string { return c.op }
 
 // RawCUECondition wraps a raw CUE expression string as a Condition.
 // Use this for expressions too complex to model with the fluent API.

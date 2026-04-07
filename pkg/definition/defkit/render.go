@@ -238,20 +238,14 @@ func evaluateCondition(cond Condition, ctx *TestRuntimeContext) bool {
 	switch c := cond.(type) {
 	case *IsSetCondition:
 		return ctx.IsParamSet(c.paramName)
-	case *CompareCondition:
-		left := resolveConditionValue(c.left, ctx)
-		right := resolveConditionValue(c.right, ctx)
-		return compareValues(left, right, c.op)
 	case *Comparison:
 		left := resolveConditionValue(c.Left(), ctx)
 		right := resolveConditionValue(c.Right(), ctx)
 		return compareValues(left, right, string(c.Op()))
 	case *AndCondition:
 		return evaluateCondition(c.left, ctx) && evaluateCondition(c.right, ctx)
-	case *OrCondition:
-		return evaluateCondition(c.left, ctx) || evaluateCondition(c.right, ctx)
-	case *NotCondition:
-		return !evaluateCondition(c.inner, ctx)
+	case *NotExpr:
+		return !evaluateCondition(c.Cond(), ctx)
 	case *LogicalExpr:
 		if c.Op() == OpAnd {
 			for _, sub := range c.Conditions() {
@@ -268,8 +262,6 @@ func evaluateCondition(cond Condition, ctx *TestRuntimeContext) bool {
 			}
 			return false
 		}
-	case *NotExpr:
-		return !evaluateCondition(c.Cond(), ctx)
 	case *HasExposedPortsCondition:
 		// Resolve the ports value and check if any have expose=true
 		portsValue := resolveValue(c.ports, ctx)

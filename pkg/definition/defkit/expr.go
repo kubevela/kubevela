@@ -169,23 +169,6 @@ type TruthyCondition struct {
 // ParamName returns the parameter name being checked.
 func (t *TruthyCondition) ParamName() string { return t.paramName }
 
-// CompareCondition represents a comparison between two values.
-type CompareCondition struct {
-	baseCondition
-	left  any
-	right any
-	op    string
-}
-
-// Left returns the left operand.
-func (c *CompareCondition) Left() any { return c.left }
-
-// Right returns the right operand.
-func (c *CompareCondition) Right() any { return c.right }
-
-// Operator returns the comparison operator.
-func (c *CompareCondition) Operator() string { return c.op }
-
 // AndCondition represents a binary logical AND of two conditions.
 // This is an internal IR type used by cuegen to combine conditions during code generation.
 // For the user-facing API, use And() which accepts variadic conditions via LogicalExpr.
@@ -195,24 +178,6 @@ type AndCondition struct {
 	right Condition
 }
 
-// OrCondition represents a binary logical OR of two conditions.
-// This is an internal IR type used by cuegen to combine conditions during code generation.
-// For the user-facing API, use Or() which accepts variadic conditions via LogicalExpr.
-type OrCondition struct {
-	baseCondition
-	left  Condition
-	right Condition
-}
-
-// NotCondition represents a logical NOT of a condition.
-// Used both internally (e.g., by ParamNotSet) and as part of the user-facing Not() API.
-type NotCondition struct {
-	baseCondition
-	inner Condition
-}
-
-// Inner returns the negated condition.
-func (n *NotCondition) Inner() Condition { return n.inner }
 
 // --- Parameter Runtime Condition Types ---
 

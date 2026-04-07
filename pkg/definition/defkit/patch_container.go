@@ -482,15 +482,15 @@ func ParamIsSet(name string) *IsSetCondition {
 // ParamNotSet creates a condition that checks if a parameter is NOT set.
 // This generates CUE: parameter.name == _|_
 //
-// This is a convenience wrapper around NotCondition{inner: IsSetCondition}.
+// This is a convenience wrapper around Not(IsSetCondition).
 //
 // Example:
 //
 //	// Set default only if not explicitly specified
 //	tpl.Patch().
 //	    SetIf(defkit.ParamNotSet("replicas"), "spec.replicas", defkit.Literal(1))
-func ParamNotSet(name string) *NotCondition {
-	return &NotCondition{inner: &IsSetCondition{paramName: name}}
+func ParamNotSet(name string) *NotExpr {
+	return Not(&IsSetCondition{paramName: name})
 }
 
 // --- ContextOutputExists condition ---

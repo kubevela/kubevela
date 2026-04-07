@@ -55,7 +55,7 @@ func (p *baseParam) IsSet() Condition {
 // NotSet returns a condition that checks if the parameter is not set.
 // This generates `if parameter["name"] == _|_` in CUE.
 func (p *baseParam) NotSet() Condition {
-	return &NotCondition{inner: &IsSetCondition{paramName: p.name}}
+	return Not(&IsSetCondition{paramName: p.name})
 }
 
 // Eq creates a condition that compares this parameter to a literal value.
