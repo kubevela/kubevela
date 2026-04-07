@@ -53,6 +53,10 @@ type baseDefinition struct {
 	// rawOutputBlocks holds raw CUE blocks to append inside the output: { ... } section.
 	// Each block is indented and appended after the fluent-generated output tree.
 	rawOutputBlocks []string
+	// validators holds top-level parameter validators
+	validators []*Validator
+	// conditionalParamBlocks holds conditional parameter blocks
+	conditionalParamBlocks []*ConditionalParamBlock
 	// Placement constraints for cluster-aware definition deployment
 	runOn    []placement.Condition
 	notRunOn []placement.Condition
@@ -90,6 +94,26 @@ func (b *baseDefinition) addRawOutputBlock(block string) {
 // GetRawOutputBlocks returns the raw CUE blocks for the output section.
 func (b *baseDefinition) GetRawOutputBlocks() []string {
 	return b.rawOutputBlocks
+}
+
+// addValidators appends validators to the definition.
+func (b *baseDefinition) addValidators(validators ...*Validator) {
+	b.validators = append(b.validators, validators...)
+}
+
+// GetValidators returns the top-level validators.
+func (b *baseDefinition) GetValidators() []*Validator {
+	return b.validators
+}
+
+// addConditionalParamBlock appends a conditional parameter block.
+func (b *baseDefinition) addConditionalParamBlock(block *ConditionalParamBlock) {
+	b.conditionalParamBlocks = append(b.conditionalParamBlocks, block)
+}
+
+// GetConditionalParamBlocks returns the conditional parameter blocks.
+func (b *baseDefinition) GetConditionalParamBlocks() []*ConditionalParamBlock {
+	return b.conditionalParamBlocks
 }
 
 // setTemplate sets the template function.

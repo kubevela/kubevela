@@ -285,6 +285,16 @@ func (g *CUEGenerator) GenerateParameterSchema(c *ComponentDefinition) string {
 		g.writeParam(&sb, param, 1)
 	}
 
+	// Write top-level validators
+	for _, v := range c.GetValidators() {
+		g.writeValidator(&sb, v, 1)
+	}
+
+	// Write conditional parameter blocks
+	for _, block := range c.GetConditionalParamBlocks() {
+		g.writeConditionalParamBlock(&sb, block, 1)
+	}
+
 	// Append raw parameter blocks (escape hatch for complex CUE patterns)
 	for _, block := range c.GetRawParameterBlocks() {
 		for _, line := range strings.Split(strings.TrimSpace(block), "\n") {
@@ -466,6 +476,16 @@ func (g *CUEGenerator) generateParameterBlock(c *ComponentDefinition, depth int)
 		g.writeParam(&sb, param, depth+1)
 	}
 
+	// Write top-level validators
+	for _, v := range c.GetValidators() {
+		g.writeValidator(&sb, v, depth+1)
+	}
+
+	// Write conditional parameter blocks
+	for _, block := range c.GetConditionalParamBlocks() {
+		g.writeConditionalParamBlock(&sb, block, depth+1)
+	}
+
 	// Append raw parameter blocks (escape hatch for complex CUE patterns)
 	for _, block := range c.GetRawParameterBlocks() {
 		for _, line := range strings.Split(strings.TrimSpace(block), "\n") {
@@ -477,6 +497,148 @@ func (g *CUEGenerator) generateParameterBlock(c *ComponentDefinition, depth int)
 
 	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	return sb.String()
+}
+
+// writeValidator writes a CUE _validate* block.
+// Example output:
+//
+//	_validateTenantName: {
+//	    "tenantName must not end with a hyphen": true
+//	    if tenantName =~ ".*-$" {
+//	        "tenantName must not end with a hyphen": false
+//	    }
+//	}
+func (g *CUEGenerator) writeValidator(sb *strings.Builder, v *Validator, depth int) {
+	indent := strings.Repeat(g.indent, depth)
+	inner := strings.Repeat(g.indent, depth+1)
+	inner2 := strings.Repeat(g.indent, depth+2)
+
+	// Determine the CUE variable name
+	name := v.CUEName()
+	if name == "" {
+		// Auto-generate from message — use a simple underscore-prefixed name
+		name = "_validate"
+	}
+
+	if v.GuardCondition() != nil {
+		// Guarded validator: wrap in if guard { ... }
+		guardCUE := g.conditionToCUE(v.GuardCondition())
+		sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, guardCUE))
+		sb.WriteString(fmt.Sprintf("%s%s: {\n", inner, name))
+		sb.WriteString(fmt.Sprintf("%s%q: true\n", inner2, v.Message()))
+		if v.FailCondition() != nil {
+			failCUE := g.conditionToCUE(v.FailCondition())
+			sb.WriteString(fmt.Sprintf("%sif %s {\n", inner2, failCUE))
+			sb.WriteString(fmt.Sprintf("%s\t%q: false\n", inner2, v.Message()))
+			sb.WriteString(fmt.Sprintf("%s}\n", inner2))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", inner))
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	} else {
+		// Unguarded validator
+		sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, name))
+		sb.WriteString(fmt.Sprintf("%s%q: true\n", inner, v.Message()))
+		if v.FailCondition() != nil {
+			failCUE := g.conditionToCUE(v.FailCondition())
+			sb.WriteString(fmt.Sprintf("%sif %s {\n", inner, failCUE))
+			sb.WriteString(fmt.Sprintf("%s\t%q: false\n", inner, v.Message()))
+			sb.WriteString(fmt.Sprintf("%s}\n", inner))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
+}
+
+// writeNonEmptyCheck writes a non-empty array check.
+// Example output: if len(name) == 0 { _|_("message") }
+// Uses local field name (no "parameter." prefix) since the check is emitted
+// inside the array element struct where the field is a local sibling.
+func (g *CUEGenerator) writeNonEmptyCheck(sb *strings.Builder, paramName, message string, depth int) {
+	indent := strings.Repeat(g.indent, depth)
+	inner := strings.Repeat(g.indent, depth+1)
+	sb.WriteString(fmt.Sprintf("%sif len(%s) == 0 {\n", indent, paramName))
+	sb.WriteString(fmt.Sprintf("%s_|_(%q)\n", inner, message))
+	sb.WriteString(fmt.Sprintf("%s}\n", indent))
+}
+
+// writeConditionalParamBlock writes conditional parameter branches.
+// Example output:
+//
+//	if existingResources == false {
+//	    forceDestroy: *false | bool
+//	}
+//	if existingResources == true {
+//	    forceDestroy?: bool
+//	}
+func (g *CUEGenerator) writeConditionalParamBlock(sb *strings.Builder, block *ConditionalParamBlock, depth int) {
+	indent := strings.Repeat(g.indent, depth)
+
+	for _, branch := range block.Branches() {
+		condCUE := g.conditionToCUE(branch.Condition())
+		sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condCUE))
+
+		// Write params inside the conditional block
+		for _, param := range branch.GetParams() {
+			g.writeParam(sb, param, depth+1)
+		}
+
+		// Write validators inside the conditional block
+		for _, v := range branch.GetValidators() {
+			g.writeValidator(sb, v, depth+1)
+		}
+
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
+}
+
+// writeConditionalStructOp writes a conditional struct block in the output.
+// Example output:
+//
+//	if parameter["replicationConfiguration"] != _|_ {
+//	    replicationConfiguration: {
+//	        role: parameter.replicationConfiguration.role
+//	    }
+//	}
+func (g *CUEGenerator) writeConditionalStructOp(sb *strings.Builder, cs *ConditionalStructOp, depth int) {
+	indent := strings.Repeat(g.indent, depth)
+
+	// Build the struct
+	builder := &OutputStructBuilder{}
+	cs.Builder()(builder)
+
+	condCUE := g.conditionToCUE(cs.Cond())
+	sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condCUE))
+
+	// Split the path into segments and open nested structs
+	parts := splitPath(cs.Path())
+	currentIndent := indent + g.indent
+	for _, part := range parts {
+		sb.WriteString(fmt.Sprintf("%s%s: {\n", currentIndent, cueLabel(part)))
+		currentIndent += g.indent
+	}
+
+	// Write builder operations
+	for _, op := range builder.Ops() {
+		switch o := op.(type) {
+		case *structSetOp:
+			valCUE := g.valueToCUE(o.value)
+			sb.WriteString(fmt.Sprintf("%s%s: %s\n", currentIndent, cueLabel(o.field), valCUE))
+		case *structSetIfOp:
+			condStr := g.conditionToCUE(o.cond)
+			sb.WriteString(fmt.Sprintf("%sif %s {\n", currentIndent, condStr))
+			valCUE := g.valueToCUE(o.value)
+			sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", currentIndent, cueLabel(o.field), valCUE))
+			sb.WriteString(fmt.Sprintf("%s}\n", currentIndent))
+		}
+	}
+
+	// Close nested structs
+	for i := len(parts) - 1; i >= 0; i-- {
+		currentIndent = currentIndent[:len(currentIndent)-len(g.indent)]
+		sb.WriteString(fmt.Sprintf("%s}\n", currentIndent))
+	}
+
+	// Close the if block
+	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 }
 
 // WriteHelperDefinition writes a CUE helper type definition like #HealthProbe.
@@ -1116,11 +1278,27 @@ func (g *CUEGenerator) writeResourceOutput(sb *strings.Builder, name string, res
 	// Write kind
 	sb.WriteString(fmt.Sprintf("%skind:       %q\n", innerIndent, res.Kind()))
 
-	// Build a tree structure from the operations
-	tree := g.buildFieldTree(res.Ops())
+	// Separate ConditionalStructOps from regular ops
+	var regularOps []ResourceOp
+	var conditionalStructs []*ConditionalStructOp
+	for _, op := range res.Ops() {
+		if cs, ok := op.(*ConditionalStructOp); ok {
+			conditionalStructs = append(conditionalStructs, cs)
+		} else {
+			regularOps = append(regularOps, op)
+		}
+	}
+
+	// Build a tree structure from the regular operations
+	tree := g.buildFieldTree(regularOps)
 
 	// Write the tree as CUE
 	g.writeFieldTree(sb, tree, depth+1)
+
+	// Write conditional struct blocks
+	for _, cs := range conditionalStructs {
+		g.writeConditionalStructOp(sb, cs, depth+1)
+	}
 
 	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 
@@ -2793,6 +2971,18 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		// For CUE, we generate: cond1 && cond2 && cond3
 		// which will be used in a single if statement
 		return strings.Join(parts, " && ")
+	case *ScopedFieldMatchCondition:
+		// Scoped field regex match: fieldName =~ "pattern"
+		return fmt.Sprintf(`%s =~ %q`, c.FieldName(), c.Pattern())
+	case *ScopedFieldCompareCondition:
+		// Scoped field comparison: fieldName op value
+		return fmt.Sprintf("%s %s %s", c.FieldName(), c.Op(), formatCUEValue(c.CompareValue()))
+	case *ScopedFieldIsSetCondition:
+		// Scoped field is set: fieldName != _|_
+		return fmt.Sprintf("%s != _|_", c.FieldName())
+	case *RawCUECondition:
+		// Raw CUE expression — emit verbatim
+		return c.Expr()
 	default:
 		return cueBoolTrue
 	}
@@ -3137,32 +3327,64 @@ func (g *CUEGenerator) writeArrayParam(sb *strings.Builder, p *ArrayParam, inden
 		// Reference to a helper definition like #HealthProbe
 		// For arrays, output [...#SchemaRef] to indicate an array of the helper type
 		sb.WriteString(fmt.Sprintf("%s%s%s: %s[...#%s]\n", indent, name, optional, constraintPrefix, schemaRef))
-		return
-	}
-
-	if schema := p.GetSchema(); schema != "" {
-		// Raw CUE schema - output directly
-		if constraintPrefix != "" {
-			sb.WriteString(fmt.Sprintf("%s%s%s: %s%s\n", indent, name, optional, constraintPrefix, schema))
+	} else if schema := p.GetSchema(); schema != "" {
+		// Raw CUE schema - output directly, with optional default
+		if p.HasDefault() {
+			defaultJSON := g.formatArrayDefault(p.GetDefault())
+			if constraintPrefix != "" {
+				sb.WriteString(fmt.Sprintf("%s%s%s: %s%s | *%s\n", indent, name, optional, constraintPrefix, schema, defaultJSON))
+			} else {
+				sb.WriteString(fmt.Sprintf("%s%s%s: %s | *%s\n", indent, name, optional, schema, defaultJSON))
+			}
 		} else {
-			sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, schema))
+			if constraintPrefix != "" {
+				sb.WriteString(fmt.Sprintf("%s%s%s: %s%s\n", indent, name, optional, constraintPrefix, schema))
+			} else {
+				sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, schema))
+			}
 		}
-		return
+	} else {
+		elemType := g.cueTypeForParamType(p.ElementType())
+
+		// Check if array has structured fields
+		if fields := p.GetFields(); len(fields) > 0 {
+			sb.WriteString(fmt.Sprintf("%s%s%s: %s[...{\n", indent, name, optional, constraintPrefix))
+			for _, field := range fields {
+				g.writeParam(sb, field, depth+1)
+			}
+			// Write validators inside each array element struct
+			for _, v := range p.GetValidators() {
+				g.writeValidator(sb, v, depth+1)
+			}
+			sb.WriteString(fmt.Sprintf("%s}]\n", indent))
+		} else if elemType != "" {
+			sb.WriteString(fmt.Sprintf("%s%s%s: %s[...%s]\n", indent, name, optional, constraintPrefix, elemType))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s%s: %s[...]\n", indent, name, optional, constraintPrefix))
+		}
 	}
 
-	elemType := g.cueTypeForParamType(p.ElementType())
+	// Write non-empty check after the array declaration
+	if msg := p.GetNonEmptyMessage(); msg != "" {
+		g.writeNonEmptyCheck(sb, name, msg, depth)
+	}
+}
 
-	// Check if array has structured fields
-	if fields := p.GetFields(); len(fields) > 0 {
-		sb.WriteString(fmt.Sprintf("%s%s%s: %s[...{\n", indent, name, optional, constraintPrefix))
-		for _, field := range fields {
-			g.writeParam(sb, field, depth+1)
+// formatArrayDefault formats an array default value as a CUE literal.
+// Converts []any{"*"} to `["*"]`, []any{"Observe"} to `["Observe"]`, etc.
+func (g *CUEGenerator) formatArrayDefault(val any) string {
+	if val == nil {
+		return "[]"
+	}
+	switch v := val.(type) {
+	case []any:
+		parts := make([]string, 0, len(v))
+		for _, elem := range v {
+			parts = append(parts, fmt.Sprintf("%q", elem))
 		}
-		sb.WriteString(fmt.Sprintf("%s}]\n", indent))
-	} else if elemType != "" {
-		sb.WriteString(fmt.Sprintf("%s%s%s: %s[...%s]\n", indent, name, optional, constraintPrefix, elemType))
-	} else {
-		sb.WriteString(fmt.Sprintf("%s%s%s: %s[...]\n", indent, name, optional, constraintPrefix))
+		return "[" + strings.Join(parts, ", ") + "]"
+	default:
+		return fmt.Sprintf("%v", val)
 	}
 }
 
@@ -3181,15 +3403,35 @@ func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, n
 		return
 	}
 
-	// Check if map has structured fields
-	if fields := p.GetFields(); len(fields) > 0 {
+	// Check if map has structured fields, validators, or conditional fields
+	hasFields := len(p.GetFields()) > 0
+	hasValidators := len(p.GetValidators()) > 0
+	hasConditionalFields := len(p.GetConditionalFields()) > 0
+
+	if hasFields || hasValidators || hasConditionalFields {
 		if p.IsClosed() {
 			sb.WriteString(fmt.Sprintf("%s%s%s: close({\n", indent, name, optional))
 		} else {
 			sb.WriteString(fmt.Sprintf("%s%s%s: {\n", indent, name, optional))
 		}
-		for _, field := range fields {
+		for _, field := range p.GetFields() {
 			g.writeParam(sb, field, depth+1)
+		}
+		// Write validators inside the struct
+		for _, v := range p.GetValidators() {
+			g.writeValidator(sb, v, depth+1)
+		}
+		// Write conditional fields inside the struct
+		for _, branch := range p.GetConditionalFields() {
+			condCUE := g.conditionToCUE(branch.Condition())
+			sb.WriteString(fmt.Sprintf("%s\tif %s {\n", indent, condCUE))
+			for _, param := range branch.GetParams() {
+				g.writeParam(sb, param, depth+2)
+			}
+			for _, v := range branch.GetValidators() {
+				g.writeValidator(sb, v, depth+2)
+			}
+			sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
 		}
 		if p.IsClosed() {
 			sb.WriteString(fmt.Sprintf("%s})\n", indent))

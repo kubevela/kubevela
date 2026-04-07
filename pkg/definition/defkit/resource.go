@@ -253,3 +253,131 @@ func (d *DirectiveOp) Path() string { return d.path }
 
 // GetDirective returns the directive string.
 func (d *DirectiveOp) GetDirective() string { return d.directive }
+
+// ConditionalStructOp represents a conditional struct block emitted in the output.
+// When the condition is true, the struct builder function is called to generate
+// CUE fields at the given path.
+//
+// Example:
+//
+//	output.ConditionalStruct(replConfig.IsSet(), "spec.replicationConfiguration", func(b *OutputStructBuilder) {
+//	    b.Set("role", defkit.Ref("parameter.replicationConfiguration.role"))
+//	})
+//
+// Emits:
+//
+//	if parameter["replicationConfiguration"] != _|_ {
+//	    spec: replicationConfiguration: {
+//	        role: parameter.replicationConfiguration.role
+//	    }
+//	}
+type ConditionalStructOp struct {
+	cond    Condition
+	path    string
+	builder func(b *OutputStructBuilder)
+}
+
+func (c *ConditionalStructOp) resourceOp() {}
+
+// Cond returns the condition.
+func (c *ConditionalStructOp) Cond() Condition { return c.cond }
+
+// Path returns the output path.
+func (c *ConditionalStructOp) Path() string { return c.path }
+
+// Builder returns the struct builder function.
+func (c *ConditionalStructOp) Builder() func(b *OutputStructBuilder) { return c.builder }
+
+// ConditionalStruct records a conditional struct block in the output.
+// When the condition is true, the fields built by fn are emitted at the given path.
+func (r *Resource) ConditionalStruct(cond Condition, path string, fn func(b *OutputStructBuilder)) *Resource {
+	op := &ConditionalStructOp{cond: cond, path: path, builder: fn}
+	if r.currentIf != nil {
+		r.currentIf.ops = append(r.currentIf.ops, op)
+	} else {
+		r.ops = append(r.ops, op)
+	}
+	return r
+}
+
+// OutputStructBuilder collects field operations for building a conditional struct.
+type OutputStructBuilder struct {
+	ops []structBuilderOp
+}
+
+type structBuilderOp interface {
+	structBuilderOp()
+}
+
+type structSetOp struct {
+	field string
+	value Value
+}
+
+func (s *structSetOp) structBuilderOp() {}
+
+type structSetIfOp struct {
+	cond  Condition
+	field string
+	value Value
+}
+
+func (s *structSetIfOp) structBuilderOp() {}
+
+// Set adds an unconditional field assignment to the struct.
+func (b *OutputStructBuilder) Set(field string, value Value) {
+	b.ops = append(b.ops, &structSetOp{field: field, value: value})
+}
+
+// SetIf adds a conditional field assignment to the struct.
+func (b *OutputStructBuilder) SetIf(cond Condition, field string, value Value) {
+	b.ops = append(b.ops, &structSetIfOp{cond: cond, field: field, value: value})
+}
+
+// Ops returns all operations recorded in the struct builder.
+func (b *OutputStructBuilder) Ops() []structBuilderOp {
+	return b.ops
+}
+
+// GetSetOps returns the field/value pairs for unconditional set operations.
+func (b *OutputStructBuilder) GetSetOps() []struct {
+	Field string
+	Value Value
+} {
+	var result []struct {
+		Field string
+		Value Value
+	}
+	for _, op := range b.ops {
+		if s, ok := op.(*structSetOp); ok {
+			result = append(result, struct {
+				Field string
+				Value Value
+			}{Field: s.field, Value: s.value})
+		}
+	}
+	return result
+}
+
+// GetSetIfOps returns the conditional field operations.
+func (b *OutputStructBuilder) GetSetIfOps() []struct {
+	Cond  Condition
+	Field string
+	Value Value
+} {
+	var result []struct {
+		Cond  Condition
+		Field string
+		Value Value
+	}
+	for _, op := range b.ops {
+		if s, ok := op.(*structSetIfOp); ok {
+			result = append(result, struct {
+				Cond  Condition
+				Field string
+				Value Value
+			}{Cond: s.cond, Field: s.field, Value: s.value})
+		}
+	}
+	return result
+}

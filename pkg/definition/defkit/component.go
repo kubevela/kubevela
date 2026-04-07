@@ -210,6 +210,20 @@ func (c *ComponentDefinition) PodSpecPath(path string) *ComponentDefinition {
 // GetPodSpecPath returns the pod spec path.
 func (c *ComponentDefinition) GetPodSpecPath() string { return c.podSpecPath }
 
+// Validators adds top-level parameter validators to the component.
+// These validators are emitted inside the parameter: { ... } block as _validate* variables.
+func (c *ComponentDefinition) Validators(validators ...*Validator) *ComponentDefinition {
+	c.addValidators(validators...)
+	return c
+}
+
+// ConditionalParams adds a conditional parameter block to the component.
+// This allows parameters to change shape based on a discriminator value.
+func (c *ComponentDefinition) ConditionalParams(block *ConditionalParamBlock) *ComponentDefinition {
+	c.addConditionalParamBlock(block)
+	return c
+}
+
 // RawCUE sets raw CUE for complex component definitions that don't fit the builder pattern.
 // When set, this bypasses all other template settings and outputs the raw CUE directly.
 func (c *ComponentDefinition) RawCUE(cue string) *ComponentDefinition {

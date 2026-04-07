@@ -612,12 +612,14 @@ func (p *FloatParam) In(values ...float64) Condition {
 // ArrayParam represents an array/list parameter.
 type ArrayParam struct {
 	baseParam
-	elementType ParamType
-	fields      []Param // fields for structured array elements
-	schema      string  // raw CUE schema for the array elements
-	schemaRef   string  // reference to a helper definition (e.g., "HealthProbe")
-	minItems    *int    // minimum number of items
-	maxItems    *int    // maximum number of items
+	elementType     ParamType
+	fields          []Param        // fields for structured array elements
+	schema          string         // raw CUE schema for the array elements
+	schemaRef       string         // reference to a helper definition (e.g., "HealthProbe")
+	minItems        *int           // minimum number of items
+	maxItems        *int           // maximum number of items
+	validators      []*Validator   // validators emitted inside each array element struct
+	nonEmptyMessage string         // when set, emits a non-empty check: if len(x) == 0 { _|_ }
 }
 
 // Array creates a new array parameter with the given name.
@@ -715,6 +717,30 @@ func (p *ArrayParam) OfEnum(values ...string) *ArrayParam {
 	return p
 }
 
+// Validators adds validation rules to this array parameter.
+// Validators are emitted inside each array element struct as _validate* blocks.
+func (p *ArrayParam) Validators(validators ...*Validator) *ArrayParam {
+	p.validators = append(p.validators, validators...)
+	return p
+}
+
+// GetValidators returns the validators for this array parameter.
+func (p *ArrayParam) GetValidators() []*Validator {
+	return p.validators
+}
+
+// NonEmpty adds a non-empty array check that fails with the given message.
+// This generates CUE like: if len(parameter.name) == 0 { _|_("message") }
+func (p *ArrayParam) NonEmpty(message string) *ArrayParam {
+	p.nonEmptyMessage = message
+	return p
+}
+
+// GetNonEmptyMessage returns the non-empty check message, or empty string if not set.
+func (p *ArrayParam) GetNonEmptyMessage() string {
+	return p.nonEmptyMessage
+}
+
 // MinItems sets the minimum number of items constraint for the array.
 // This generates CUE like: list.MinItems(n)
 func (p *ArrayParam) MinItems(n int) *ArrayParam {
@@ -792,12 +818,14 @@ func (p *ArrayParam) IsNotEmpty() Condition {
 // MapParam represents a map/dictionary parameter.
 type MapParam struct {
 	baseParam
-	keyType   ParamType
-	valueType ParamType
-	fields    []Param // fields for structured map values
-	schema    string  // raw CUE schema for the map structure
-	schemaRef string  // reference to a helper definition (e.g., "HealthProbe")
-	closed    bool    // when true, wraps struct output in close({...})
+	keyType           ParamType
+	valueType         ParamType
+	fields            []Param              // fields for structured map values
+	schema            string               // raw CUE schema for the map structure
+	schemaRef         string               // reference to a helper definition (e.g., "HealthProbe")
+	closed            bool                 // when true, wraps struct output in close({...})
+	validators        []*Validator         // validators emitted inside this struct
+	conditionalFields []*ConditionalBranch // conditional field branches inside this struct
 }
 
 // Map creates a new map parameter with the given name.
@@ -894,6 +922,30 @@ func (p *MapParam) Closed() *MapParam {
 // IsClosed returns whether the map is a closed struct.
 func (p *MapParam) IsClosed() bool {
 	return p.closed
+}
+
+// Validators adds validation rules to this map parameter.
+// Validators are emitted inside the struct as _validate* blocks.
+func (p *MapParam) Validators(validators ...*Validator) *MapParam {
+	p.validators = append(p.validators, validators...)
+	return p
+}
+
+// GetValidators returns the validators for this map parameter.
+func (p *MapParam) GetValidators() []*Validator {
+	return p.validators
+}
+
+// ConditionalFields adds conditional field branches inside this struct.
+// Fields within each branch are emitted conditionally based on the guard.
+func (p *MapParam) ConditionalFields(branches ...*ConditionalBranch) *MapParam {
+	p.conditionalFields = append(p.conditionalFields, branches...)
+	return p
+}
+
+// GetConditionalFields returns the conditional field branches.
+func (p *MapParam) GetConditionalFields() []*ConditionalBranch {
+	return p.conditionalFields
 }
 
 // Field returns a reference to a nested field within this map parameter.
