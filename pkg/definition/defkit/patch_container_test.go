@@ -935,7 +935,7 @@ var _ = Describe("PatchContainer", func() {
 		It("ParamNotSet should store param name for CUE == _|_ generation", func() {
 			cond := defkit.ParamNotSet("defaults")
 
-			inner := cond.Inner()
+			inner := cond.Cond()
 			isSet, ok := inner.(*defkit.IsSetCondition)
 			Expect(ok).To(BeTrue())
 			Expect(isSet.ParamName()).To(Equal("defaults"))

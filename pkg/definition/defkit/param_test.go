@@ -617,9 +617,9 @@ var _ = Describe("Parameters", func() {
 		It("should create NotSet condition from param", func() {
 			replicas := defkit.Int("replicas")
 			cond := replicas.NotSet()
-			notCond, ok := cond.(*defkit.NotCondition)
-			Expect(ok).To(BeTrue(), "expected *NotCondition")
-			inner, ok := notCond.Inner().(*defkit.IsSetCondition)
+			notExpr, ok := cond.(*defkit.NotExpr)
+			Expect(ok).To(BeTrue(), "expected *NotExpr")
+			inner, ok := notExpr.Cond().(*defkit.IsSetCondition)
 			Expect(ok).To(BeTrue(), "expected inner *IsSetCondition")
 			Expect(inner.ParamName()).To(Equal("replicas"))
 		})
