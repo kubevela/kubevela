@@ -612,14 +612,15 @@ func (p *FloatParam) In(values ...float64) Condition {
 // ArrayParam represents an array/list parameter.
 type ArrayParam struct {
 	baseParam
-	elementType     ParamType
-	fields          []Param        // fields for structured array elements
-	schema          string         // raw CUE schema for the array elements
-	schemaRef       string         // reference to a helper definition (e.g., "HealthProbe")
-	minItems        *int           // minimum number of items
-	maxItems        *int           // maximum number of items
-	validators      []*Validator   // validators emitted inside each array element struct
-	nonEmptyMessage string         // when set, emits a non-empty check: if len(x) == 0 { _|_ }
+	elementType      ParamType
+	fields           []Param        // fields for structured array elements
+	schema           string         // raw CUE schema for the array elements
+	schemaRef        string         // reference to a helper definition (e.g., "HealthProbe")
+	minItems         *int           // minimum number of items
+	maxItems         *int           // maximum number of items
+	validators       []*Validator   // validators emitted inside each array element struct
+	nonEmptyMessage  string         // when set, emits a non-empty check: if len(x) == 0 { _|_ }
+	notEmptyElements bool           // when true, adds !="" constraint to string elements: [...(string & !="")]
 }
 
 // Array creates a new array parameter with the given name.
@@ -739,6 +740,20 @@ func (p *ArrayParam) NonEmpty(message string) *ArrayParam {
 // GetNonEmptyMessage returns the non-empty check message, or empty string if not set.
 func (p *ArrayParam) GetNonEmptyMessage() string {
 	return p.nonEmptyMessage
+}
+
+// NotEmpty adds a !="" constraint to each element of the array.
+// For string arrays, this changes [...string] to [...(string & !="")].
+// Consistent with StringParam.NotEmpty().
+// Example: StringList("x").NotEmpty() produces [...(string & !="")]
+func (p *ArrayParam) NotEmpty() *ArrayParam {
+	p.notEmptyElements = true
+	return p
+}
+
+// HasNotEmpty returns true if elements must be non-empty.
+func (p *ArrayParam) HasNotEmpty() bool {
+	return p.notEmptyElements
 }
 
 // MinItems sets the minimum number of items constraint for the array.
@@ -1436,6 +1451,7 @@ func StringList(name string) *ArrayParam {
 func IntList(name string) *ArrayParam {
 	return Array(name).Of(ParamTypeInt)
 }
+
 
 // List creates a generic list parameter (array of any).
 func List(name string) *ArrayParam {

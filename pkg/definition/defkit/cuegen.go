@@ -3374,7 +3374,11 @@ func (g *CUEGenerator) writeArrayParam(sb *strings.Builder, p *ArrayParam, inden
 			}
 			sb.WriteString(fmt.Sprintf("%s}]\n", indent))
 		} else if elemType != "" {
-			sb.WriteString(fmt.Sprintf("%s%s%s: %s[...%s]\n", indent, name, optional, constraintPrefix, elemType))
+			if p.HasNotEmpty() {
+				sb.WriteString(fmt.Sprintf("%s%s%s: %s[...(%s & !=\"\")]\n", indent, name, optional, constraintPrefix, elemType))
+			} else {
+				sb.WriteString(fmt.Sprintf("%s%s%s: %s[...%s]\n", indent, name, optional, constraintPrefix, elemType))
+			}
 		} else {
 			sb.WriteString(fmt.Sprintf("%s%s%s: %s[...]\n", indent, name, optional, constraintPrefix))
 		}

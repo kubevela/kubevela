@@ -74,11 +74,12 @@ func (v *Validator) GuardCondition() Condition { return v.guardCond }
 // CUEName returns the CUE variable name for this validator.
 func (v *Validator) CUEName() string { return v.name }
 
-// ScopedField creates a reference to a sibling field within a struct, without the "parameter." prefix.
-// This is used inside validators attached to MapParam or ArrayParam where
-// fields are siblings, not top-level parameters.
+// ScopedField creates a reference to a field in the current CUE scope.
+// Used inside validators for condition-building on sibling fields.
+// The name is emitted verbatim — supports dot-paths ("Principal.AWS")
+// and array indexing ("expiration[0].date").
 //
-// Example: ScopedField("tenantName") generates just "tenantName" in CUE
+// Example: ScopedField("tenantName").Matches(".*-$")
 func ScopedField(name string) *ScopedFieldRef {
 	return &ScopedFieldRef{fieldName: name}
 }
