@@ -404,6 +404,15 @@ func (g *CUEGenerator) GenerateTemplate(c *ComponentDefinition) string {
 		g.writeHelper(&sb, helper, 1)
 	}
 
+	// Emit raw header block (let bindings, helpers like _claimName)
+	if rawHeader := tpl.GetRawHeaderBlock(); rawHeader != "" {
+		for _, line := range strings.Split(strings.TrimSpace(rawHeader), "\n") {
+			sb.WriteString(g.indent)
+			sb.WriteString(line)
+			sb.WriteString("\n")
+		}
+	}
+
 	// Generate output block
 	if output := tpl.GetOutput(); output != nil {
 		g.writeResourceOutput(&sb, "output", output, nil, 1)
