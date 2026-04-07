@@ -2110,17 +2110,32 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 	case *ListComprehension:
 		// Return list comprehension CUE
 		return g.listComprehensionToCUE(val)
+	case *ParamArithExpr, *ParamConcatExpr, *ParamFieldRef, *InterpolatedString, *PlusExpr:
+		return g.exprValueToCUE(v)
+	case *IterVarRef, *IterFieldRef, *IterLetRef:
+		return g.iterRefToCUE(v)
+	case *ForEachMapOp:
+		return g.forEachMapOpToCUE(val)
+	default:
+		// Try to get name from Param interface
+		if p, ok := v.(Param); ok {
+			return "parameter." + p.Name()
+		}
+		return "_"
+	}
+}
+
+// exprValueToCUE handles expression-type values (arithmetic, concatenation, interpolation, plus).
+func (g *CUEGenerator) exprValueToCUE(v Value) string {
+	switch val := v.(type) {
 	case *ParamArithExpr:
-		// Arithmetic expression on a parameter: parameter.name op value
 		return fmt.Sprintf("parameter.%s %s %s", val.ParamName(), val.Op(), formatCUEValue(val.ArithValue()))
 	case *ParamConcatExpr:
-		// String concatenation on a parameter
 		if val.Prefix() != "" {
 			return fmt.Sprintf("%s + parameter.%s", formatCUEValue(val.Prefix()), val.ParamName())
 		}
 		return fmt.Sprintf("parameter.%s + %s", val.ParamName(), formatCUEValue(val.Suffix()))
 	case *ParamFieldRef:
-		// Reference to a field within a struct parameter: parameter.name.field.path
 		return fmt.Sprintf("parameter.%s.%s", val.ParamName(), val.FieldPath())
 	case *InterpolatedString:
 		return g.interpolatedStringToCUE(val)
@@ -2130,19 +2145,21 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 			parts[i] = g.valueToCUE(p)
 		}
 		return strings.Join(parts, " + ")
+	default:
+		return "_"
+	}
+}
+
+// iterRefToCUE handles iterator reference values.
+func (g *CUEGenerator) iterRefToCUE(v Value) string {
+	switch val := v.(type) {
 	case *IterVarRef:
 		return val.VarName()
 	case *IterFieldRef:
 		return fmt.Sprintf("%s.%s", val.VarName(), val.FieldName())
 	case *IterLetRef:
 		return val.RefName()
-	case *ForEachMapOp:
-		return g.forEachMapOpToCUE(val)
 	default:
-		// Try to get name from Param interface
-		if p, ok := v.(Param); ok {
-			return "parameter." + p.Name()
-		}
 		return "_"
 	}
 }
@@ -2962,13 +2979,6 @@ func (g *CUEGenerator) exprToCUE(e Expr) string {
 	return "_"
 }
 
-// anyToCUE converts any value to CUE syntax.
-func (g *CUEGenerator) anyToCUE(v any) string {
-	if val, ok := v.(Value); ok {
-		return g.valueToCUE(val)
-	}
-	return formatCUEValue(v)
-}
 
 // writeWorkload writes the workload definition.
 func (g *CUEGenerator) writeWorkload(sb *strings.Builder, c *ComponentDefinition, depth int) {
