@@ -295,15 +295,6 @@ func (g *CUEGenerator) GenerateParameterSchema(c *ComponentDefinition) string {
 		g.writeConditionalParamBlock(&sb, block, 1)
 	}
 
-	// Append raw parameter blocks (escape hatch for complex CUE patterns)
-	for _, block := range c.GetRawParameterBlocks() {
-		for _, line := range strings.Split(strings.TrimSpace(block), "\n") {
-			sb.WriteString(g.indent)
-			sb.WriteString(line)
-			sb.WriteString("\n")
-		}
-	}
-
 	sb.WriteString("}\n")
 	return sb.String()
 }
@@ -418,19 +409,6 @@ func (g *CUEGenerator) GenerateTemplate(c *ComponentDefinition) string {
 		g.writeResourceOutput(&sb, "output", output, nil, 1)
 	}
 
-	// Append raw output blocks (escape hatch for complex CUE patterns in output)
-	// These emit additional output: { ... } blocks that CUE merges with the fluent output.
-	for _, block := range c.GetRawOutputBlocks() {
-		innerIndent := strings.Repeat(g.indent, 2)
-		sb.WriteString(fmt.Sprintf("%soutput: spec: {\n", g.indent))
-		for _, line := range strings.Split(strings.TrimSpace(block), "\n") {
-			sb.WriteString(innerIndent)
-			sb.WriteString(line)
-			sb.WriteString("\n")
-		}
-		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
-	}
-
 	// Generate helper definitions that appear AFTER output (used by outputs)
 	// This matches KubeVela convention where exposePorts appears between output and outputs
 	for _, helper := range tpl.GetHelpersAfterOutput() {
@@ -468,7 +446,6 @@ func (g *CUEGenerator) GenerateTemplate(c *ComponentDefinition) string {
 func (g *CUEGenerator) generateParameterBlock(c *ComponentDefinition, depth int) string {
 	var sb strings.Builder
 	indent := strings.Repeat(g.indent, depth)
-	innerIndent := strings.Repeat(g.indent, depth+1)
 
 	sb.WriteString(fmt.Sprintf("%sparameter: {\n", indent))
 
@@ -484,15 +461,6 @@ func (g *CUEGenerator) generateParameterBlock(c *ComponentDefinition, depth int)
 	// Write conditional parameter blocks
 	for _, block := range c.GetConditionalParamBlocks() {
 		g.writeConditionalParamBlock(&sb, block, depth+1)
-	}
-
-	// Append raw parameter blocks (escape hatch for complex CUE patterns)
-	for _, block := range c.GetRawParameterBlocks() {
-		for _, line := range strings.Split(strings.TrimSpace(block), "\n") {
-			sb.WriteString(innerIndent)
-			sb.WriteString(line)
-			sb.WriteString("\n")
-		}
 	}
 
 	sb.WriteString(fmt.Sprintf("%s}\n", indent))

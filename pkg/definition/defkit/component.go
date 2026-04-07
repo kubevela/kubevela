@@ -231,24 +231,6 @@ func (c *ComponentDefinition) RawCUE(cue string) *ComponentDefinition {
 	return c
 }
 
-// AppendRawParameterCUE appends a raw CUE block inside the parameter: { ... } section.
-// The block is appended after the fluent-generated parameters, indented appropriately.
-// Use this for complex CUE patterns that cannot be expressed with the fluent API,
-// such as conditional parameter blocks, _validate* blocks, or inline error messages.
-func (c *ComponentDefinition) AppendRawParameterCUE(block string) *ComponentDefinition {
-	c.addRawParameterBlock(block)
-	return c
-}
-
-// AppendRawOutputCUE appends a raw CUE block inside the output: { ... } section.
-// The block is appended after the fluent-generated output tree, indented appropriately.
-// Use this for complex CUE patterns in the output that cannot be expressed with the
-// fluent API, such as conditionally emitting entire struct blocks.
-func (c *ComponentDefinition) AppendRawOutputCUE(block string) *ComponentDefinition {
-	c.addRawOutputBlock(block)
-	return c
-}
-
 // WithImports adds CUE imports to the component definition.
 // Usage: component.WithImports("strconv", "strings", "list")
 func (c *ComponentDefinition) WithImports(imports ...string) *ComponentDefinition {
