@@ -114,12 +114,12 @@ func (c *ParamCompareCondition) CompareValue() any { return c.value }
 // StringParam represents a string parameter.
 type StringParam struct {
 	baseParam
-	enumValues      []string // allowed enum values
-	openEnum        bool     // when true, appends | string to enum disjunction (open enum)
-	pattern         string   // regex pattern constraint
-	notEmpty        bool     // when true, emits !="" constraint
-	minLen          *int     // minimum length constraint
-	maxLen          *int     // maximum length constraint
+	enumValues []string // allowed enum values
+	openEnum   bool     // when true, appends | string to enum disjunction (open enum)
+	pattern    string   // regex pattern constraint
+	notEmpty   bool     // when true, emits !="" constraint
+	minLen     *int     // minimum length constraint
+	maxLen     *int     // maximum length constraint
 }
 
 // String creates a new string parameter with the given name.
@@ -244,7 +244,6 @@ func (p *StringParam) NotEmpty() *StringParam {
 func (p *StringParam) GetNotEmpty() bool {
 	return p.notEmpty
 }
-
 
 // Concat creates a string concatenation expression.
 // Example: name.Concat("-suffix") generates: parameter.name + "-suffix"
@@ -601,13 +600,13 @@ func (p *FloatParam) In(values ...float64) Condition {
 type ArrayParam struct {
 	baseParam
 	elementType      ParamType
-	fields           []Param        // fields for structured array elements
-	schema           string         // raw CUE schema for the array elements
-	schemaRef        string         // reference to a helper definition (e.g., "HealthProbe")
-	minItems         *int           // minimum number of items
-	maxItems         *int           // maximum number of items
-	validators       []*Validator   // validators emitted inside each array element struct
-	notEmptyElements bool           // when true, adds !="" constraint to string elements: [...(string & !="")]
+	fields           []Param      // fields for structured array elements
+	schema           string       // raw CUE schema for the array elements
+	schemaRef        string       // reference to a helper definition (e.g., "HealthProbe")
+	minItems         *int         // minimum number of items
+	maxItems         *int         // maximum number of items
+	validators       []*Validator // validators emitted inside each array element struct
+	notEmptyElements bool         // when true, adds !="" constraint to string elements: [...(string & !="")]
 }
 
 // Array creates a new array parameter with the given name.
@@ -716,7 +715,6 @@ func (p *ArrayParam) Validators(validators ...*Validator) *ArrayParam {
 func (p *ArrayParam) GetValidators() []*Validator {
 	return p.validators
 }
-
 
 // NotEmpty adds a !="" constraint to each element of the array.
 // For string arrays, this changes [...string] to [...(string & !="")].
@@ -1427,7 +1425,6 @@ func StringList(name string) *ArrayParam {
 func IntList(name string) *ArrayParam {
 	return Array(name).Of(ParamTypeInt)
 }
-
 
 // List creates a generic list parameter (array of any).
 func List(name string) *ArrayParam {

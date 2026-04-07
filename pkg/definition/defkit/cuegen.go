@@ -525,7 +525,6 @@ func (g *CUEGenerator) writeValidator(sb *strings.Builder, v *Validator, depth i
 	}
 }
 
-
 // writeConditionalParamBlock writes conditional parameter branches.
 // Example output:
 //

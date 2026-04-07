@@ -338,4 +338,3 @@ func (b *OutputStructBuilder) SetIf(cond Condition, field string, value Value) {
 func (b *OutputStructBuilder) Ops() []structBuilderOp {
 	return b.ops
 }
-

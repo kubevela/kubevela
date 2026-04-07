@@ -178,7 +178,6 @@ type AndCondition struct {
 	right Condition
 }
 
-
 // --- Parameter Runtime Condition Types ---
 
 // FalsyCondition represents a falsy check on a boolean parameter.
