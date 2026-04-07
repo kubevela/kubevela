@@ -2979,7 +2979,6 @@ func (g *CUEGenerator) exprToCUE(e Expr) string {
 	return "_"
 }
 
-
 // writeWorkload writes the workload definition.
 func (g *CUEGenerator) writeWorkload(sb *strings.Builder, c *ComponentDefinition, depth int) {
 	indent := strings.Repeat(g.indent, depth)
