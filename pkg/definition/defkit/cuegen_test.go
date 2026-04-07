@@ -1480,8 +1480,9 @@ var _ = Describe("CUEGenerator", func() {
 							Set("metadata.name", defkit.Lit("test")))
 					})
 
-				cue := gen.GenerateTemplate(comp)
+				cue := comp.ToCue()
 				Expect(cue).To(ContainSubstring(`kind:       "Deployment"`))
+				Expect(cue).To(ContainSubstring("workload:"))
 				Expect(cue).NotTo(MatchRegexp(`type:\s+"deployments\.apps"`))
 			})
 

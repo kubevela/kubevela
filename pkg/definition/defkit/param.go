@@ -716,8 +716,9 @@ func (p *ArrayParam) GetValidators() []*Validator {
 	return p.validators
 }
 
-// NotEmpty adds a !="" constraint to each element of the array.
-// For string arrays, this changes [...string] to [...(string & !="")].
+// NotEmpty adds a !="" constraint to each string element of the array.
+// Changes [...string] to [...(string & !="")].
+// Only applies to string-typed arrays; silently ignored for other element types.
 // Consistent with StringParam.NotEmpty().
 // Example: StringList("x").NotEmpty() produces [...(string & !="")]
 func (p *ArrayParam) NotEmpty() *ArrayParam {
