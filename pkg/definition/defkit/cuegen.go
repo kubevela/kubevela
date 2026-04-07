@@ -551,7 +551,7 @@ func (g *CUEGenerator) writeValidator(sb *strings.Builder, v *Validator, depth i
 // writeNonEmptyCheck writes a non-empty array check.
 // Example output: if len(name) == 0 { _|_("message") }
 // Uses local field name (no "parameter." prefix) since the check is emitted
-// inside the array element struct where the field is a local sibling.
+// inside the parameter block where the field is a local sibling.
 func (g *CUEGenerator) writeNonEmptyCheck(sb *strings.Builder, paramName, message string, depth int) {
 	indent := strings.Repeat(g.indent, depth)
 	inner := strings.Repeat(g.indent, depth+1)
@@ -2980,6 +2980,22 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	case *ScopedFieldIsSetCondition:
 		// Scoped field is set: fieldName != _|_
 		return fmt.Sprintf("%s != _|_", c.FieldName())
+	case *ScopedFieldLenCondition:
+		// Scoped field length check: len(fieldName) op value
+		return fmt.Sprintf("len(%s) %s %d", c.FieldName(), c.Op(), c.LenValue())
+	case *ScopedFieldFieldCompareCondition:
+		// Scoped field-to-field comparison: fieldName op otherField
+		return fmt.Sprintf("%s %s %s", c.FieldName(), c.Op(), c.OtherField())
+	case *LenOfCondition:
+		// Length-of-value comparison: len(expr) op n
+		innerCUE := g.valueToCUE(c.InnerValue())
+		return fmt.Sprintf("len(%s) %s %d", innerCUE, c.Op(), c.CompareValue())
+	case *TimeParseCompareCondition:
+		// time.Parse comparison: time.Parse(layout, fieldA) op time.Parse(layout, fieldB)
+		return fmt.Sprintf(`time.Parse(%q, %s) %s time.Parse(%q, %s)`,
+			c.Left().Layout(), c.Left().FieldName(),
+			c.Op(),
+			c.Right().Layout(), c.Right().FieldName())
 	case *RawCUECondition:
 		// Raw CUE expression — emit verbatim
 		return c.Expr()

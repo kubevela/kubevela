@@ -158,7 +158,7 @@ func TestArrayNonEmpty(t *testing.T) {
 	gen := NewCUEGenerator()
 	cue := gen.GenerateParameterSchema(comp)
 
-	if !strings.Contains(cue, "if len(parameter.allowedMethods) == 0") {
+	if !strings.Contains(cue, "if len(allowedMethods) == 0") {
 		t.Errorf("Expected non-empty check, got:\n%s", cue)
 	}
 	if !strings.Contains(cue, `_|_("allowedMethods cannot be empty - at least one method is required")`) {
