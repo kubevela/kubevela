@@ -281,7 +281,7 @@ func (p *StringParam) Contains(substr string) Condition {
 // Matches creates a condition that checks if this string parameter matches a regex pattern.
 // Example: name.Matches("^prod-") generates: parameter.name =~ "^prod-"
 func (p *StringParam) Matches(pattern string) Condition {
-	return &StringMatchesCondition{paramName: p.name, pattern: pattern}
+	return RegexMatch(p, pattern)
 }
 
 // StartsWith creates a condition that checks if this string parameter starts with a prefix.

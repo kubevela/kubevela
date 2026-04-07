@@ -2097,6 +2097,9 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 		return val.Path()
 	case *Ref:
 		return val.Path()
+	case *LocalFieldRef:
+		// Local field reference — emits the bare field name (no parameter. prefix)
+		return val.Name()
 	case *HelperVar:
 		// Return reference to the helper by name
 		return val.Name()
@@ -2885,8 +2888,6 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		return g.inConditionToCUE(c)
 	case *StringContainsCondition:
 		return fmt.Sprintf(`strings.Contains(parameter.%s, %q)`, c.ParamName(), c.Substr())
-	case *StringMatchesCondition:
-		return fmt.Sprintf(`parameter.%s =~ %q`, c.ParamName(), c.Pattern())
 	case *StringStartsWithCondition:
 		return fmt.Sprintf(`strings.HasPrefix(parameter.%s, %q)`, c.ParamName(), c.Prefix())
 	case *StringEndsWithCondition:
@@ -2934,6 +2935,10 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		}
 		return strings.Join(parts, op)
 	case *NotExpr:
+		// Special case: Not(PathExists("x")) -> x == _|_ (cleaner than !(x != _|_))
+		if pe, ok := c.Cond().(*PathExistsCondition); ok {
+			return fmt.Sprintf("%s == _|_", pe.Path())
+		}
 		return fmt.Sprintf("!(%s)", g.conditionToCUE(c.Cond()))
 	case *HasExposedPortsCondition:
 		// Check if any port has expose=true
@@ -2971,25 +2976,9 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		// For CUE, we generate: cond1 && cond2 && cond3
 		// which will be used in a single if statement
 		return strings.Join(parts, " && ")
-	case *LocalFieldMatchCondition:
-		// Scoped field regex match: fieldName =~ "pattern"
-		return fmt.Sprintf(`%s =~ %q`, c.FieldName(), c.Pattern())
-	case *LocalFieldCompareCondition:
-		// Scoped field comparison: fieldName op value
-		return fmt.Sprintf("%s %s %s", c.FieldName(), c.Op(), formatCUEValue(c.CompareValue()))
-	case *LocalFieldIsSetCondition:
-		// Scoped field is set: fieldName != _|_
-		return fmt.Sprintf("%s != _|_", c.FieldName())
-	case *LocalFieldLenCondition:
-		// Scoped field length check: len(fieldName) op value
-		return fmt.Sprintf("len(%s) %s %d", c.FieldName(), c.Op(), c.LenValue())
-	case *LocalFieldFieldCompareCondition:
-		// Scoped field-to-field comparison: fieldName op otherField
-		return fmt.Sprintf("%s %s %s", c.FieldName(), c.Op(), c.OtherField())
-	case *LenOfCondition:
-		// Length-of-value comparison: len(expr) op n
-		innerCUE := g.valueToCUE(c.InnerValue())
-		return fmt.Sprintf("len(%s) %s %d", innerCUE, c.Op(), c.CompareValue())
+	case *RegexMatchCondition:
+		// General-purpose regex match: <value> =~ "pattern"
+		return fmt.Sprintf(`%s =~ %q`, g.valueToCUE(c.Source()), c.Pattern())
 	case *TimeParseCompareCondition:
 		// time.Parse comparison: time.Parse(layout, fieldA) op time.Parse(layout, fieldB)
 		return fmt.Sprintf(`time.Parse(%q, %s) %s time.Parse(%q, %s)`,

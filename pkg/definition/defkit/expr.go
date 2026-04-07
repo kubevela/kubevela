@@ -254,19 +254,25 @@ func (c *StringContainsCondition) ParamName() string { return c.paramName }
 // Substr returns the substring to check for.
 func (c *StringContainsCondition) Substr() string { return c.substr }
 
-// StringMatchesCondition checks if a string parameter matches a regex pattern.
-// Generates: parameter.name =~ "pattern"
-type StringMatchesCondition struct {
+// RegexMatchCondition checks if any Value matches a regex pattern.
+// Generates: <value> =~ "pattern"
+// Used by both LocalFieldRef.Matches() and StringParam.Matches().
+type RegexMatchCondition struct {
 	baseCondition
-	paramName string
-	pattern   string
+	source  Value
+	pattern string
 }
 
-// ParamName returns the parameter name being checked.
-func (c *StringMatchesCondition) ParamName() string { return c.paramName }
+// Source returns the value being matched.
+func (c *RegexMatchCondition) Source() Value { return c.source }
 
-// Pattern returns the regex pattern to match against.
-func (c *StringMatchesCondition) Pattern() string { return c.pattern }
+// Pattern returns the regex pattern.
+func (c *RegexMatchCondition) Pattern() string { return c.pattern }
+
+// RegexMatch creates a condition that checks if a value matches a regex pattern.
+func RegexMatch(source Value, pattern string) *RegexMatchCondition {
+	return &RegexMatchCondition{source: source, pattern: pattern}
+}
 
 // StringStartsWithCondition checks if a string parameter starts with a prefix.
 // Generates: strings.HasPrefix(parameter.name, "prefix")
