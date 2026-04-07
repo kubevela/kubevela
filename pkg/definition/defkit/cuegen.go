@@ -525,17 +525,6 @@ func (g *CUEGenerator) writeValidator(sb *strings.Builder, v *Validator, depth i
 	}
 }
 
-// writeNonEmptyCheck writes a non-empty array check.
-// Example output: if len(name) == 0 { _|_("message") }
-// Uses local field name (no "parameter." prefix) since the check is emitted
-// inside the parameter block where the field is a local sibling.
-func (g *CUEGenerator) writeNonEmptyCheck(sb *strings.Builder, paramName, message string, depth int) {
-	indent := strings.Repeat(g.indent, depth)
-	inner := strings.Repeat(g.indent, depth+1)
-	sb.WriteString(fmt.Sprintf("%sif len(%s) == 0 {\n", indent, paramName))
-	sb.WriteString(fmt.Sprintf("%s_|_(%q)\n", inner, message))
-	sb.WriteString(fmt.Sprintf("%s}\n", indent))
-}
 
 // writeConditionalParamBlock writes conditional parameter branches.
 // Example output:
@@ -3331,10 +3320,6 @@ func (g *CUEGenerator) writeArrayParam(sb *strings.Builder, p *ArrayParam, inden
 		}
 	}
 
-	// Write non-empty check after the array declaration
-	if msg := p.GetNonEmptyMessage(); msg != "" {
-		g.writeNonEmptyCheck(sb, name, msg, depth)
-	}
 }
 
 // formatArrayDefault formats an array default value as a CUE literal.

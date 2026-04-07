@@ -607,7 +607,6 @@ type ArrayParam struct {
 	minItems         *int           // minimum number of items
 	maxItems         *int           // maximum number of items
 	validators       []*Validator   // validators emitted inside each array element struct
-	nonEmptyMessage  string         // when set, emits a non-empty check: if len(x) == 0 { _|_ }
 	notEmptyElements bool           // when true, adds !="" constraint to string elements: [...(string & !="")]
 }
 
@@ -718,17 +717,6 @@ func (p *ArrayParam) GetValidators() []*Validator {
 	return p.validators
 }
 
-// NonEmpty adds a non-empty array check that fails with the given message.
-// This generates CUE like: if len(parameter.name) == 0 { _|_("message") }
-func (p *ArrayParam) NonEmpty(message string) *ArrayParam {
-	p.nonEmptyMessage = message
-	return p
-}
-
-// GetNonEmptyMessage returns the non-empty check message, or empty string if not set.
-func (p *ArrayParam) GetNonEmptyMessage() string {
-	return p.nonEmptyMessage
-}
 
 // NotEmpty adds a !="" constraint to each element of the array.
 // For string arrays, this changes [...string] to [...(string & !="")].

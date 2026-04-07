@@ -150,19 +150,21 @@ func TestArrayParamValidators(t *testing.T) {
 	}
 }
 
-func TestArrayNonEmpty(t *testing.T) {
-	arr := Array("allowedMethods").OfEnum("GET", "PUT", "HEAD", "POST", "DELETE").
-		NonEmpty("allowedMethods cannot be empty - at least one method is required")
+func TestArrayNonEmptyViaValidator(t *testing.T) {
+	arr := Array("corsRules").Optional().WithFields(
+		Array("allowedMethods").OfEnum("GET", "PUT", "HEAD", "POST", "DELETE"),
+	).Validators(
+		Validate("allowedMethods cannot be empty").
+			WithName("_validateAllowedMethods").
+			FailWhen(LocalField("allowedMethods").IsEmpty()),
+	)
 
 	comp := NewComponent("test").Params(arr)
 	gen := NewCUEGenerator()
 	cue := gen.GenerateParameterSchema(comp)
 
-	if !strings.Contains(cue, "if len(allowedMethods) == 0") {
-		t.Errorf("Expected non-empty check, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, `_|_("allowedMethods cannot be empty - at least one method is required")`) {
-		t.Errorf("Expected error message in non-empty check, got:\n%s", cue)
+	if !strings.Contains(cue, "len(allowedMethods) == 0") {
+		t.Errorf("Expected non-empty validator, got:\n%s", cue)
 	}
 }
 
