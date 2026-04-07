@@ -14,410 +14,614 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package defkit
+package defkit_test
 
 import (
-	"strings"
-	"testing"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	"github.com/oam-dev/kubevela/pkg/definition/defkit"
 )
 
-// Phase 1: Validator + FieldRef tests
+var _ = Describe("Validator", func() {
+	var gen *defkit.CUEGenerator
 
-func TestValidatorBasic(t *testing.T) {
-	// Simple validator: fail when condition is true
-	v := Validate("tenantName must not end with a hyphen").
-		WithName("_validateTenantName").
-		FailWhen(LocalField("tenantName").Matches(".*-$"))
+	BeforeEach(func() {
+		gen = defkit.NewCUEGenerator()
+	})
 
-	comp := NewComponent("test").
-		Params(String("tenantName")).
-		Validators(v)
+	// --- Validator builder and accessors ---
 
-	gen := NewCUEGenerator()
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, "_validateTenantName:") {
-		t.Errorf("Expected _validateTenantName block, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, `"tenantName must not end with a hyphen": true`) {
-		t.Errorf("Expected message set to true, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, `tenantName =~ ".*-$"`) {
-		t.Errorf("Expected scoped field match condition, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, `"tenantName must not end with a hyphen": false`) {
-		t.Errorf("Expected message set to false in fail block, got:\n%s", cue)
-	}
-}
-
-func TestValidatorGuarded(t *testing.T) {
-	// Guarded validator: only active when guard is true
-	replConfig := Object("replicationConfiguration").Optional()
-	objectLock := Object("objectLock").Optional()
-	versioningEnabled := Bool("versioningEnabled").Default(true)
-
-	v := Validate("Require versioningEnabled to be true when replication or object lock is configured").
-		WithName("_validateVersioning").
-		OnlyWhen(Or(replConfig.IsSet(), objectLock.IsSet())).
-		FailWhen(versioningEnabled.Eq(false))
-
-	comp := NewComponent("test").
-		Params(replConfig, objectLock, versioningEnabled).
-		Validators(v)
-
-	gen := NewCUEGenerator()
-	cue := gen.GenerateParameterSchema(comp)
-
-	// Should have the outer guard condition
-	if !strings.Contains(cue, `replicationConfiguration"] != _|_`) || !strings.Contains(cue, `objectLock"] != _|_`) {
-		t.Errorf("Expected guard condition with both IsSet checks, got:\n%s", cue)
-	}
-	// Should have the inner fail condition
-	if !strings.Contains(cue, "parameter.versioningEnabled == false") {
-		t.Errorf("Expected fail condition, got:\n%s", cue)
-	}
-}
-
-func TestValidatorMutualExclusion(t *testing.T) {
-	// Mutual exclusion: two fields cannot both be set
-	v := Validate("Principal and NotPrincipal cannot be used together").
-		WithName("_validatePrincipal").
-		FailWhen(And(LocalField("Principal").IsSet(), LocalField("NotPrincipal").IsSet()))
-
-	comp := NewComponent("test").
-		Params(
-			Object("statement").WithFields(
-				String("Principal").Optional(),
-				String("NotPrincipal").Optional(),
-			).Validators(v),
-		)
-
-	gen := NewCUEGenerator()
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, "_validatePrincipal:") {
-		t.Errorf("Expected _validatePrincipal block, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "Principal != _|_") && !strings.Contains(cue, `Principal != _|_`) {
-		t.Errorf("Expected Principal IsSet condition, got:\n%s", cue)
-	}
-}
-
-func TestMapParamValidators(t *testing.T) {
-	// Validators inside a map param
-	v := Validate("name is required").
-		WithName("_validateName").
-		FailWhen(LocalField("name").Eq(""))
-
-	mp := Object("governance").WithFields(
-		String("name"),
-		String("department"),
-	).Validators(v)
-
-	comp := NewComponent("test").Params(mp)
-	gen := NewCUEGenerator()
-	cue := gen.GenerateParameterSchema(comp)
-
-	// Validator should be inside the governance struct
-	if !strings.Contains(cue, "governance: {") {
-		t.Errorf("Expected governance struct, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "_validateName:") {
-		t.Errorf("Expected _validateName inside governance, got:\n%s", cue)
-	}
-}
-
-func TestArrayParamValidators(t *testing.T) {
-	// Validators inside array element struct
-	v := Validate("action is required").
-		WithName("_validateAction").
-		FailWhen(LocalField("action").Eq(""))
-
-	arr := Array("rules").WithFields(
-		String("action"),
-		String("resource"),
-	).Validators(v)
-
-	comp := NewComponent("test").Params(arr)
-	gen := NewCUEGenerator()
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, "[...{") {
-		t.Errorf("Expected array of structs, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "_validateAction:") {
-		t.Errorf("Expected _validateAction inside array elements, got:\n%s", cue)
-	}
-}
-
-func TestArrayNonEmptyViaValidator(t *testing.T) {
-	arr := Array("corsRules").Optional().WithFields(
-		Array("allowedMethods").OfEnum("GET", "PUT", "HEAD", "POST", "DELETE"),
-	).Validators(
-		Validate("allowedMethods cannot be empty").
-			WithName("_validateAllowedMethods").
-			FailWhen(LocalField("allowedMethods").IsEmpty()),
-	)
-
-	comp := NewComponent("test").Params(arr)
-	gen := NewCUEGenerator()
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, "len(allowedMethods) == 0") {
-		t.Errorf("Expected non-empty validator, got:\n%s", cue)
-	}
-}
-
-// Phase 2: ConditionalParams + ConditionalFields tests
-
-func TestConditionalParamsTopLevel(t *testing.T) {
-	existingResources := Bool("existingResources").Default(false)
-
-	comp := NewComponent("test").
-		Params(existingResources).
-		ConditionalParams(ConditionalParams(
-			WhenParam(existingResources.Eq(false)).Params(
-				Bool("forceDestroy").Default(false),
-				String("sseAlgorithm").Default("AES256").Values("AES256", "aws:kms"),
-			),
-			WhenParam(existingResources.Eq(true)).Params(
-				Bool("forceDestroy").Optional(),
-				String("sseAlgorithm").Optional().Values("AES256", "aws:kms"),
-			),
-		))
-
-	gen := NewCUEGenerator()
-	cue := gen.GenerateParameterSchema(comp)
-
-	// Should have conditional blocks
-	if !strings.Contains(cue, "if parameter.existingResources == false") {
-		t.Errorf("Expected existingResources == false block, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "if parameter.existingResources == true") {
-		t.Errorf("Expected existingResources == true block, got:\n%s", cue)
-	}
-	// Should have different defaults in each branch
-	if !strings.Contains(cue, `forceDestroy: *false | bool`) {
-		t.Errorf("Expected forceDestroy with default false, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "forceDestroy?: bool") {
-		t.Errorf("Expected optional forceDestroy, got:\n%s", cue)
-	}
-}
-
-func TestConditionalParamsWithValidators(t *testing.T) {
-	existingResources := Bool("existingResources").Default(false)
-	kmsMasterKeyId := String("kmsMasterKeyId").Optional()
-
-	comp := NewComponent("test").
-		Params(existingResources, kmsMasterKeyId).
-		ConditionalParams(ConditionalParams(
-			WhenParam(existingResources.Eq(false)).Params(
-				String("sseAlgorithm").Default("AES256").Values("AES256", "aws:kms"),
-			).Validators(
-				Validate("kmsMasterKeyId can only be specified when sseAlgorithm is aws:kms").
-					WithName("_validateKms").
-					FailWhen(And(
-						LocalField("sseAlgorithm").Ne("aws:kms"),
-						kmsMasterKeyId.IsSet(),
-					)),
-			),
-		))
-
-	gen := NewCUEGenerator()
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, "_validateKms:") {
-		t.Errorf("Expected _validateKms inside conditional block, got:\n%s", cue)
-	}
-}
-
-func TestConditionalFieldsInsideMap(t *testing.T) {
-	existingResources := Bool("existingResources").Default(false)
-
-	objectLock := Object("objectLock").Optional().ConditionalFields(
-		WhenParam(existingResources.Eq(false)).Params(
-			Int("retentionDays").Optional().Default(45).Min(1),
-			String("retentionMode").Optional().Default("GOVERNANCE").Values("GOVERNANCE", "COMPLIANCE"),
-		),
-		WhenParam(existingResources.Eq(true)).Params(
-			Int("retentionDays").Min(1),
-			String("retentionMode").Values("GOVERNANCE", "COMPLIANCE"),
-		),
-	)
-
-	comp := NewComponent("test").Params(existingResources, objectLock)
-	gen := NewCUEGenerator()
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, "objectLock?: {") {
-		t.Errorf("Expected optional objectLock struct, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "if parameter.existingResources == false") {
-		t.Errorf("Expected conditional fields for existingResources == false, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, `retentionDays?: *45 | int & >=1`) {
-		t.Errorf("Expected retentionDays with default 45, got:\n%s", cue)
-	}
-}
-
-// Phase 3: CUEExpr tests
-
-func TestCUEExprCondition(t *testing.T) {
-	existingResources := Bool("existingResources").Default(false)
-
-	v := Validate("Combined name must be less than 64 characters").
-		WithName("_validateNameLength").
-		OnlyWhen(existingResources.Eq(false)).
-		FailWhen(CUEExpr(`len("tenant-"+parameter.governance.tenantName+"-"+name) > 63`))
-
-	comp := NewComponent("test").
-		Params(existingResources).
-		Validators(v)
-
-	gen := NewCUEGenerator()
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, `len("tenant-"+parameter.governance.tenantName+"-"+name) > 63`) {
-		t.Errorf("Expected raw CUE expression in validator, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "if parameter.existingResources == false") {
-		t.Errorf("Expected guard condition, got:\n%s", cue)
-	}
-}
-
-func TestCUEExprInAndCondition(t *testing.T) {
-	v := Validate("complex check").
-		WithName("_validateComplex").
-		FailWhen(And(
-			CUEExpr(`len(parameter.name) > 10`),
-			CUEExpr(`parameter.name =~ "^test"`),
-		))
-
-	comp := NewComponent("test").Validators(v)
-	gen := NewCUEGenerator()
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, "len(parameter.name) > 10") {
-		t.Errorf("Expected first raw CUE expr, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, `parameter.name =~ "^test"`) {
-		t.Errorf("Expected second raw CUE expr, got:\n%s", cue)
-	}
-}
-
-// Phase 4: ConditionalStruct on Resource tests
-
-func TestConditionalStructOnResource(t *testing.T) {
-	replConfig := Object("replicationConfiguration").Optional()
-
-	comp := NewComponent("test").
-		Params(replConfig).
-		Workload("apps/v1", "Deployment").
-		Template(func(tpl *Template) {
-			output := tpl.Output(NewResource("v1", "ConfigMap"))
-			output.Set("metadata.name", Lit("test")).
-				ConditionalStruct(replConfig.IsSet(), "spec.replicationConfiguration", func(b *OutputStructBuilder) {
-					b.Set("role", Reference("parameter.replicationConfiguration.role"))
-					b.SetIf(replConfig.IsSet(), "enabled", Lit(true))
-				})
+	Context("Builder and Accessors", func() {
+		It("should create a validator with message", func() {
+			v := defkit.Validate("field is required")
+			Expect(v.Message()).To(Equal("field is required"))
+			Expect(v.CUEName()).To(BeEmpty())
+			Expect(v.GuardCondition()).To(BeNil())
+			Expect(v.FailCondition()).To(BeNil())
 		})
 
-	gen := NewCUEGenerator()
-	cue := gen.GenerateTemplate(comp)
-
-	if !strings.Contains(cue, `if parameter["replicationConfiguration"] != _|_`) {
-		t.Errorf("Expected conditional guard for replication config, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "replicationConfiguration:") {
-		t.Errorf("Expected replicationConfiguration struct, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "role: parameter.replicationConfiguration.role") {
-		t.Errorf("Expected role field, got:\n%s", cue)
-	}
-}
-
-func TestConditionalStructWithSetIf(t *testing.T) {
-	existingResources := Bool("existingResources").Default(false)
-	replConfig := Object("replicationConfiguration").Optional()
-
-	comp := NewComponent("test").
-		Params(existingResources, replConfig).
-		Workload("apps/v1", "Deployment").
-		Template(func(tpl *Template) {
-			output := tpl.Output(NewResource("v1", "ConfigMap"))
-			output.Set("metadata.name", Lit("test")).
-				ConditionalStruct(replConfig.IsSet(), "spec.replication", func(b *OutputStructBuilder) {
-					b.Set("role", Reference("parameter.replicationConfiguration.role"))
-					b.SetIf(existingResources.Eq(false), "destinationBucketName", Lit("replica-bucket"))
-				})
+		It("should set and return WithName", func() {
+			v := defkit.Validate("msg").WithName("_validateFoo")
+			Expect(v.CUEName()).To(Equal("_validateFoo"))
 		})
 
-	gen := NewCUEGenerator()
-	cue := gen.GenerateTemplate(comp)
+		It("should set and return FailWhen condition", func() {
+			cond := defkit.LocalField("x").Eq("")
+			v := defkit.Validate("msg").FailWhen(cond)
+			Expect(v.FailCondition()).To(Equal(cond))
+		})
 
-	if !strings.Contains(cue, "parameter.existingResources == false") {
-		t.Errorf("Expected conditional SetIf inside conditional struct, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "destinationBucketName:") {
-		t.Errorf("Expected destinationBucketName field, got:\n%s", cue)
-	}
-}
+		It("should set and return OnlyWhen guard condition", func() {
+			guard := defkit.Bool("flag").Eq(true)
+			v := defkit.Validate("msg").OnlyWhen(guard)
+			Expect(v.GuardCondition()).To(Equal(guard))
+		})
 
-// Integration: All features combined
+		It("should support full builder chain returning all accessors correctly", func() {
+			guard := defkit.Bool("x").Eq(true)
+			fail := defkit.LocalField("y").Eq("")
+			v := defkit.Validate("y is required").
+				WithName("_validateY").
+				OnlyWhen(guard).
+				FailWhen(fail)
 
-func TestAllFeaturesIntegrated(t *testing.T) {
-	existingResources := Bool("existingResources").Default(false)
-	governance := Object("governance").Closed().WithFields(
-		String("tenantName").NotEmpty(),
-		String("departmentCode").NotEmpty(),
-	).Validators(
-		Validate("tenantName must not end with a hyphen").
-			WithName("_validateTenant").
-			FailWhen(LocalField("tenantName").Matches(".*-$")),
-	)
+			Expect(v.Message()).To(Equal("y is required"))
+			Expect(v.CUEName()).To(Equal("_validateY"))
+			Expect(v.GuardCondition()).To(Equal(guard))
+			Expect(v.FailCondition()).To(Equal(fail))
+		})
+	})
 
-	comp := NewComponent("s3-bucket").
-		Params(existingResources, governance).
-		ConditionalParams(ConditionalParams(
-			WhenParam(existingResources.Eq(false)).Params(
-				Bool("forceDestroy").Default(false),
-			),
-			WhenParam(existingResources.Eq(true)).Params(
-				Bool("forceDestroy").Optional(),
-			),
-		)).
-		Validators(
-			Validate("Combined name check").
+	// --- Validator CUE generation ---
+
+	Context("Unguarded Validator CUE Generation", func() {
+		It("should generate a basic unguarded validator block", func() {
+			v := defkit.Validate("tenantName must not end with a hyphen").
+				WithName("_validateTenantName").
+				FailWhen(defkit.LocalField("tenantName").Matches(".*-$"))
+
+			comp := defkit.NewComponent("test").
+				Params(defkit.String("tenantName")).
+				Validators(v)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("_validateTenantName:"))
+			Expect(cue).To(ContainSubstring(`"tenantName must not end with a hyphen": true`))
+			Expect(cue).To(ContainSubstring(`tenantName =~ ".*-$"`))
+			Expect(cue).To(ContainSubstring(`"tenantName must not end with a hyphen": false`))
+		})
+
+		It("should use fallback _validate name when no name is set", func() {
+			v := defkit.Validate("something is wrong")
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("_validate:"))
+		})
+
+		It("should generate validator with no fail condition", func() {
+			v := defkit.Validate("always passes").WithName("_validateAlways")
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring(`_validateAlways:`))
+			Expect(cue).To(ContainSubstring(`"always passes": true`))
+			Expect(cue).NotTo(ContainSubstring(`"always passes": false`))
+		})
+	})
+
+	Context("Guarded Validator CUE Generation", func() {
+		It("should wrap validator in guard condition", func() {
+			replConfig := defkit.Object("replicationConfiguration").Optional()
+			objectLock := defkit.Object("objectLock").Optional()
+			versioningEnabled := defkit.Bool("versioningEnabled").Default(true)
+
+			v := defkit.Validate("Require versioningEnabled to be true when replication or object lock is configured").
+				WithName("_validateVersioning").
+				OnlyWhen(defkit.Or(replConfig.IsSet(), objectLock.IsSet())).
+				FailWhen(versioningEnabled.Eq(false))
+
+			comp := defkit.NewComponent("test").
+				Params(replConfig, objectLock, versioningEnabled).
+				Validators(v)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring(`replicationConfiguration"] != _|_`))
+			Expect(cue).To(ContainSubstring(`objectLock"] != _|_`))
+			Expect(cue).To(ContainSubstring("parameter.versioningEnabled == false"))
+			Expect(cue).To(ContainSubstring("_validateVersioning:"))
+		})
+	})
+
+	Context("Validator inside MapParam", func() {
+		It("should emit validator inside struct", func() {
+			v := defkit.Validate("name is required").
 				WithName("_validateName").
+				FailWhen(defkit.LocalField("name").Eq(""))
+
+			mp := defkit.Object("governance").WithFields(
+				defkit.String("name"),
+				defkit.String("department"),
+			).Validators(v)
+
+			comp := defkit.NewComponent("test").Params(mp)
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("governance: {"))
+			Expect(cue).To(ContainSubstring("_validateName:"))
+			Expect(cue).To(ContainSubstring(`name == ""`))
+		})
+
+		It("should emit mutual exclusion validator inside struct", func() {
+			v := defkit.Validate("Principal and NotPrincipal cannot be used together").
+				WithName("_validatePrincipal").
+				FailWhen(defkit.And(defkit.LocalField("Principal").IsSet(), defkit.LocalField("NotPrincipal").IsSet()))
+
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.Object("statement").WithFields(
+						defkit.String("Principal").Optional(),
+						defkit.String("NotPrincipal").Optional(),
+					).Validators(v),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("_validatePrincipal:"))
+			Expect(cue).To(ContainSubstring("Principal != _|_"))
+			Expect(cue).To(ContainSubstring("NotPrincipal != _|_"))
+		})
+	})
+
+	Context("Validator inside ArrayParam", func() {
+		It("should emit validator inside array element struct", func() {
+			v := defkit.Validate("action is required").
+				WithName("_validateAction").
+				FailWhen(defkit.LocalField("action").Eq(""))
+
+			arr := defkit.Array("rules").WithFields(
+				defkit.String("action"),
+				defkit.String("resource"),
+			).Validators(v)
+
+			comp := defkit.NewComponent("test").Params(arr)
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("[...{"))
+			Expect(cue).To(ContainSubstring("_validateAction:"))
+		})
+
+		It("should emit non-empty length validator inside array element struct", func() {
+			arr := defkit.Array("corsRules").Optional().WithFields(
+				defkit.Array("allowedMethods").OfEnum("GET", "PUT", "HEAD", "POST", "DELETE"),
+			).Validators(
+				defkit.Validate("allowedMethods cannot be empty").
+					WithName("_validateAllowedMethods").
+					FailWhen(defkit.LocalField("allowedMethods").IsEmpty()),
+			)
+
+			comp := defkit.NewComponent("test").Params(arr)
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("len(allowedMethods) == 0"))
+		})
+	})
+
+	// --- LocalFieldRef ---
+
+	Context("LocalFieldRef", func() {
+		It("should return the field name", func() {
+			ref := defkit.LocalField("tenantName")
+			Expect(ref.Name()).To(Equal("tenantName"))
+		})
+
+		It("should support dot-path names", func() {
+			ref := defkit.LocalField("Principal.AWS")
+			Expect(ref.Name()).To(Equal("Principal.AWS"))
+		})
+
+		It("should support array-indexed names", func() {
+			ref := defkit.LocalField("expiration[0].date")
+			Expect(ref.Name()).To(Equal("expiration[0].date"))
+		})
+
+		It("should implement Value interface", func() {
+			ref := defkit.LocalField("test")
+			var v defkit.Value = ref
+			Expect(v).NotTo(BeNil())
+		})
+
+		It("Matches should generate regex match CUE condition", func() {
+			v := defkit.Validate("bad pattern").
+				WithName("_v").
+				FailWhen(defkit.LocalField("name").Matches(".*-$"))
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+			Expect(cue).To(ContainSubstring(`name =~ ".*-$"`))
+		})
+
+		It("Eq should generate equality CUE condition", func() {
+			v := defkit.Validate("check").
+				WithName("_v").
+				FailWhen(defkit.LocalField("type").Eq("disabled"))
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+			Expect(cue).To(ContainSubstring(`type == "disabled"`))
+		})
+
+		It("Ne should generate inequality CUE condition", func() {
+			v := defkit.Validate("check").
+				WithName("_v").
+				FailWhen(defkit.LocalField("type").Ne("enabled"))
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+			Expect(cue).To(ContainSubstring(`type != "enabled"`))
+		})
+
+		It("IsSet should generate path-exists CUE condition", func() {
+			v := defkit.Validate("check").
+				WithName("_v").
+				FailWhen(defkit.Not(defkit.LocalField("role").IsSet()))
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+			Expect(cue).To(ContainSubstring("role == _|_"))
+		})
+
+		It("NotSet should generate path-not-exists CUE condition", func() {
+			v := defkit.Validate("role must be set").
+				WithName("_v").
+				FailWhen(defkit.LocalField("role").NotSet())
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+			Expect(cue).To(ContainSubstring("role == _|_"))
+		})
+
+		It("LenEq should generate length equality CUE condition", func() {
+			v := defkit.Validate("check").
+				WithName("_v").
+				FailWhen(defkit.LocalField("Principal.AWS").LenEq(0))
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+			Expect(cue).To(ContainSubstring("len(Principal.AWS) == 0"))
+		})
+
+		It("LenGt should generate length greater-than CUE condition", func() {
+			v := defkit.Validate("too many").
+				WithName("_v").
+				FailWhen(defkit.LocalField("items").LenGt(10))
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+			Expect(cue).To(ContainSubstring("len(items) > 10"))
+		})
+
+		It("IsEmpty should generate length == 0 CUE condition", func() {
+			v := defkit.Validate("empty").
+				WithName("_v").
+				FailWhen(defkit.LocalField("list").IsEmpty())
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+			Expect(cue).To(ContainSubstring("len(list) == 0"))
+		})
+
+		It("Gte should generate >= comparison between two local fields", func() {
+			v := defkit.Validate("days must be >= minDays").
+				WithName("_v").
+				FailWhen(defkit.Not(defkit.LocalField("days").Gte(defkit.LocalField("minDays"))))
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+			Expect(cue).To(ContainSubstring("days >= minDays"))
+		})
+	})
+
+	// --- LenOfExpr ---
+
+	Context("LenOfExpr", func() {
+		It("Gt should generate len(value) > n", func() {
+			v := defkit.Validate("too long").
+				WithName("_v").
+				FailWhen(defkit.LenOf(defkit.LocalField("name")).Gt(63))
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+			Expect(cue).To(ContainSubstring("len(name) > 63"))
+		})
+
+		It("Gte should generate len(value) >= n", func() {
+			v := defkit.Validate("too long").
+				WithName("_v").
+				FailWhen(defkit.LenOf(defkit.LocalField("data")).Gte(100))
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+			Expect(cue).To(ContainSubstring("len(data) >= 100"))
+		})
+
+		It("Eq should generate len(value) == n", func() {
+			v := defkit.Validate("wrong length").
+				WithName("_v").
+				FailWhen(defkit.Not(defkit.LenOf(defkit.LocalField("code")).Eq(3)))
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+			Expect(cue).To(ContainSubstring("len(code) == 3"))
+		})
+
+		It("should work with complex expressions like Plus", func() {
+			v := defkit.Validate("combined name too long").
+				WithName("_v").
+				FailWhen(defkit.LenOf(defkit.Plus(
+					defkit.Lit("tenant-"),
+					defkit.Reference("parameter.name"),
+				)).Gt(63))
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+			Expect(cue).To(ContainSubstring(`len("tenant-" + parameter.name) > 63`))
+		})
+	})
+
+	// --- TimeParse ---
+
+	Context("TimeParse", func() {
+		It("should return correct accessors", func() {
+			tp := defkit.TimeParse("2006-01-02T15:04:05Z", defkit.LocalField("startDate"))
+			Expect(tp.Layout()).To(Equal("2006-01-02T15:04:05Z"))
+			Expect(tp.FieldName()).To(Equal("startDate"))
+		})
+
+		It("should generate time.Parse CUE expression in validator", func() {
+			v := defkit.Validate("start must be before end").
+				WithName("_v").
+				FailWhen(defkit.TimeParse("2006-01-02T15:04:05Z", defkit.LocalField("startDate")).
+					Gte(defkit.TimeParse("2006-01-02T15:04:05Z", defkit.LocalField("endDate"))))
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring(`time.Parse("2006-01-02T15:04:05Z", startDate)`))
+			Expect(cue).To(ContainSubstring(`time.Parse("2006-01-02T15:04:05Z", endDate)`))
+			Expect(cue).To(ContainSubstring(">="))
+		})
+
+		It("should use different layout formats", func() {
+			v := defkit.Validate("check").
+				WithName("_v").
+				FailWhen(defkit.TimeParse("2006-01-02", defkit.LocalField("d1")).
+					Gte(defkit.TimeParse("2006-01-02", defkit.LocalField("d2"))))
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring(`time.Parse("2006-01-02", d1)`))
+			Expect(cue).To(ContainSubstring(`time.Parse("2006-01-02", d2)`))
+		})
+	})
+
+	// --- RawCUECondition / CUEExpr ---
+
+	Context("CUEExpr", func() {
+		It("should return raw expression from accessor", func() {
+			c := defkit.CUEExpr(`len(x) > 5`)
+			Expect(c.Expr()).To(Equal(`len(x) > 5`))
+		})
+
+		It("should emit raw expression in guarded validator", func() {
+			existingResources := defkit.Bool("existingResources").Default(false)
+
+			v := defkit.Validate("Combined name must be less than 64 characters").
+				WithName("_validateNameLength").
 				OnlyWhen(existingResources.Eq(false)).
-				FailWhen(CUEExpr(`len(parameter.governance.tenantName) > 63`)),
-		)
+				FailWhen(defkit.CUEExpr(`len("tenant-"+parameter.governance.tenantName+"-"+name) > 63`))
 
-	gen := NewCUEGenerator()
-	cue := gen.GenerateParameterSchema(comp)
+			comp := defkit.NewComponent("test").
+				Params(existingResources).
+				Validators(v)
 
-	// Verify all features present
-	checks := []struct {
-		desc     string
-		expected string
-	}{
-		{"existingResources param", "existingResources: *false | bool"},
-		{"governance struct", "governance: close({"},
-		{"tenantName not empty", `!=""`},
-		{"tenantName negative pattern", `!~".*-$"`},
-		{"validator inside governance", "_validateTenant:"},
-		{"conditional params false branch", "if parameter.existingResources == false"},
-		{"conditional params true branch", "if parameter.existingResources == true"},
-		{"default forceDestroy", "forceDestroy: *false | bool"},
-		{"optional forceDestroy", "forceDestroy?: bool"},
-		{"guarded validator", "_validateName:"},
-		{"raw CUE expr", `len(parameter.governance.tenantName) > 63`},
-	}
+			cue := gen.GenerateParameterSchema(comp)
 
-	for _, check := range checks {
-		if !strings.Contains(cue, check.expected) {
-			t.Errorf("%s: expected %q in output, got:\n%s", check.desc, check.expected, cue)
-		}
-	}
-}
+			Expect(cue).To(ContainSubstring(`len("tenant-"+parameter.governance.tenantName+"-"+name) > 63`))
+			Expect(cue).To(ContainSubstring("if parameter.existingResources == false"))
+		})
+
+		It("should work inside And condition", func() {
+			v := defkit.Validate("complex check").
+				WithName("_validateComplex").
+				FailWhen(defkit.And(
+					defkit.CUEExpr(`len(parameter.name) > 10`),
+					defkit.CUEExpr(`parameter.name =~ "^test"`),
+				))
+
+			comp := defkit.NewComponent("test").Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("len(parameter.name) > 10"))
+			Expect(cue).To(ContainSubstring(`parameter.name =~ "^test"`))
+		})
+	})
+
+	// --- ConditionalParams CUE generation ---
+
+	Context("ConditionalParams CUE Generation", func() {
+		It("should generate conditional parameter blocks", func() {
+			existingResources := defkit.Bool("existingResources").Default(false)
+
+			comp := defkit.NewComponent("test").
+				Params(existingResources).
+				ConditionalParams(defkit.ConditionalParams(
+					defkit.WhenParam(existingResources.Eq(false)).Params(
+						defkit.Bool("forceDestroy").Default(false),
+						defkit.String("sseAlgorithm").Default("AES256").Values("AES256", "aws:kms"),
+					),
+					defkit.WhenParam(existingResources.Eq(true)).Params(
+						defkit.Bool("forceDestroy").Optional(),
+						defkit.String("sseAlgorithm").Optional().Values("AES256", "aws:kms"),
+					),
+				))
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("if parameter.existingResources == false"))
+			Expect(cue).To(ContainSubstring("if parameter.existingResources == true"))
+			Expect(cue).To(ContainSubstring(`forceDestroy: *false | bool`))
+			Expect(cue).To(ContainSubstring("forceDestroy?: bool"))
+		})
+
+		It("should generate validators inside conditional blocks", func() {
+			existingResources := defkit.Bool("existingResources").Default(false)
+			kmsMasterKeyId := defkit.String("kmsMasterKeyId").Optional()
+
+			comp := defkit.NewComponent("test").
+				Params(existingResources, kmsMasterKeyId).
+				ConditionalParams(defkit.ConditionalParams(
+					defkit.WhenParam(existingResources.Eq(false)).Params(
+						defkit.String("sseAlgorithm").Default("AES256").Values("AES256", "aws:kms"),
+					).Validators(
+						defkit.Validate("kmsMasterKeyId can only be specified when sseAlgorithm is aws:kms").
+							WithName("_validateKms").
+							FailWhen(defkit.And(
+								defkit.LocalField("sseAlgorithm").Ne("aws:kms"),
+								kmsMasterKeyId.IsSet(),
+							)),
+					),
+				))
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("_validateKms:"))
+			Expect(cue).To(ContainSubstring(`sseAlgorithm != "aws:kms"`))
+		})
+	})
+
+	Context("ConditionalFields Inside MapParam CUE Generation", func() {
+		It("should generate conditional fields inside struct", func() {
+			existingResources := defkit.Bool("existingResources").Default(false)
+
+			objectLock := defkit.Object("objectLock").Optional().ConditionalFields(
+				defkit.WhenParam(existingResources.Eq(false)).Params(
+					defkit.Int("retentionDays").Optional().Default(45).Min(1),
+					defkit.String("retentionMode").Optional().Default("GOVERNANCE").Values("GOVERNANCE", "COMPLIANCE"),
+				),
+				defkit.WhenParam(existingResources.Eq(true)).Params(
+					defkit.Int("retentionDays").Min(1),
+					defkit.String("retentionMode").Values("GOVERNANCE", "COMPLIANCE"),
+				),
+			)
+
+			comp := defkit.NewComponent("test").Params(existingResources, objectLock)
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("objectLock?: {"))
+			Expect(cue).To(ContainSubstring("if parameter.existingResources == false"))
+			Expect(cue).To(ContainSubstring(`retentionDays?: *45 | int & >=1`))
+		})
+	})
+
+	// --- ConditionalStruct on Resource CUE generation ---
+
+	Context("ConditionalStruct CUE Generation", func() {
+		It("should generate conditional struct block in output", func() {
+			replConfig := defkit.Object("replicationConfiguration").Optional()
+
+			comp := defkit.NewComponent("test").
+				Params(replConfig).
+				Workload("apps/v1", "Deployment").
+				Template(func(tpl *defkit.Template) {
+					output := tpl.Output(defkit.NewResource("v1", "ConfigMap"))
+					output.Set("metadata.name", defkit.Lit("test")).
+						ConditionalStruct(replConfig.IsSet(), "spec.replicationConfiguration", func(b *defkit.OutputStructBuilder) {
+							b.Set("role", defkit.Reference("parameter.replicationConfiguration.role"))
+							b.SetIf(replConfig.IsSet(), "enabled", defkit.Lit(true))
+						})
+				})
+
+			cue := gen.GenerateTemplate(comp)
+
+			Expect(cue).To(ContainSubstring(`if parameter["replicationConfiguration"] != _|_`))
+			Expect(cue).To(ContainSubstring("replicationConfiguration:"))
+			Expect(cue).To(ContainSubstring("role: parameter.replicationConfiguration.role"))
+			Expect(cue).To(ContainSubstring("enabled:"))
+		})
+
+		It("should generate conditional struct with SetIf inside", func() {
+			existingResources := defkit.Bool("existingResources").Default(false)
+			replConfig := defkit.Object("replicationConfiguration").Optional()
+
+			comp := defkit.NewComponent("test").
+				Params(existingResources, replConfig).
+				Workload("apps/v1", "Deployment").
+				Template(func(tpl *defkit.Template) {
+					output := tpl.Output(defkit.NewResource("v1", "ConfigMap"))
+					output.Set("metadata.name", defkit.Lit("test")).
+						ConditionalStruct(replConfig.IsSet(), "spec.replication", func(b *defkit.OutputStructBuilder) {
+							b.Set("role", defkit.Reference("parameter.replicationConfiguration.role"))
+							b.SetIf(existingResources.Eq(false), "destinationBucketName", defkit.Lit("replica-bucket"))
+						})
+				})
+
+			cue := gen.GenerateTemplate(comp)
+
+			Expect(cue).To(ContainSubstring("parameter.existingResources == false"))
+			Expect(cue).To(ContainSubstring("destinationBucketName:"))
+		})
+	})
+
+	// --- Integration: all features combined ---
+
+	Context("All Features Integrated", func() {
+		It("should combine validators, conditional params, closed structs, and CUE expressions", func() {
+			existingResources := defkit.Bool("existingResources").Default(false)
+			governance := defkit.Object("governance").Closed().WithFields(
+				defkit.String("tenantName").NotEmpty(),
+				defkit.String("departmentCode").NotEmpty(),
+			).Validators(
+				defkit.Validate("tenantName must not end with a hyphen").
+					WithName("_validateTenant").
+					FailWhen(defkit.LocalField("tenantName").Matches(".*-$")),
+			)
+
+			comp := defkit.NewComponent("s3-bucket").
+				Params(existingResources, governance).
+				ConditionalParams(defkit.ConditionalParams(
+					defkit.WhenParam(existingResources.Eq(false)).Params(
+						defkit.Bool("forceDestroy").Default(false),
+					),
+					defkit.WhenParam(existingResources.Eq(true)).Params(
+						defkit.Bool("forceDestroy").Optional(),
+					),
+				)).
+				Validators(
+					defkit.Validate("Combined name check").
+						WithName("_validateName").
+						OnlyWhen(existingResources.Eq(false)).
+						FailWhen(defkit.CUEExpr(`len(parameter.governance.tenantName) > 63`)),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("existingResources: *false | bool"))
+			Expect(cue).To(ContainSubstring("governance: close({"))
+			Expect(cue).To(ContainSubstring(`!=""`))
+			// Validator uses Matches which emits =~ (positive match inside fail block)
+			Expect(cue).To(ContainSubstring(`tenantName =~ ".*-$"`))
+			Expect(cue).To(ContainSubstring("_validateTenant:"))
+			Expect(cue).To(ContainSubstring("if parameter.existingResources == false"))
+			Expect(cue).To(ContainSubstring("if parameter.existingResources == true"))
+			Expect(cue).To(ContainSubstring("forceDestroy: *false | bool"))
+			Expect(cue).To(ContainSubstring("forceDestroy?: bool"))
+			Expect(cue).To(ContainSubstring("_validateName:"))
+			Expect(cue).To(ContainSubstring(`len(parameter.governance.tenantName) > 63`))
+		})
+	})
+})

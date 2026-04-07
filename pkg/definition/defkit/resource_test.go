@@ -203,6 +203,109 @@ var _ = Describe("Resource", func() {
 		})
 	})
 
+	Context("ConditionalStruct", func() {
+		It("should record a ConditionalStructOp", func() {
+			cond := defkit.Bool("flag").IsSet()
+			r := defkit.NewResource("v1", "ConfigMap").
+				ConditionalStruct(cond, "spec.config", func(b *defkit.OutputStructBuilder) {
+					b.Set("key", defkit.Lit("value"))
+				})
+			Expect(r.Ops()).To(HaveLen(1))
+			csOp, ok := r.Ops()[0].(*defkit.ConditionalStructOp)
+			Expect(ok).To(BeTrue())
+			Expect(csOp.Path()).To(Equal("spec.config"))
+			Expect(csOp.Cond()).To(Equal(cond))
+			Expect(csOp.Builder()).NotTo(BeNil())
+		})
+
+		It("should record ConditionalStructOp inside If block", func() {
+			flag := defkit.Bool("flag")
+			inner := defkit.Object("config").IsSet()
+			r := defkit.NewResource("v1", "ConfigMap").
+				If(flag.Eq(true)).
+				ConditionalStruct(inner, "spec.nested", func(b *defkit.OutputStructBuilder) {
+					b.Set("x", defkit.Lit(1))
+				}).
+				EndIf()
+
+			Expect(r.Ops()).To(HaveLen(1))
+			ifBlock, ok := r.Ops()[0].(*defkit.IfBlock)
+			Expect(ok).To(BeTrue())
+			Expect(ifBlock.Ops()).To(HaveLen(1))
+			_, isCS := ifBlock.Ops()[0].(*defkit.ConditionalStructOp)
+			Expect(isCS).To(BeTrue())
+		})
+
+		It("should invoke the builder function and record ops", func() {
+			cond := defkit.Bool("flag").IsSet()
+			var builderCalled bool
+			r := defkit.NewResource("v1", "ConfigMap").
+				ConditionalStruct(cond, "spec.data", func(b *defkit.OutputStructBuilder) {
+					builderCalled = true
+					b.Set("name", defkit.Lit("test"))
+					b.SetIf(defkit.Bool("debug").Eq(true), "debug", defkit.Lit(true))
+				})
+
+			// Builder is not called at record time, only at CUE generation time
+			Expect(builderCalled).To(BeFalse())
+
+			// Call builder manually to verify it works
+			csOp := r.Ops()[0].(*defkit.ConditionalStructOp)
+			builder := &defkit.OutputStructBuilder{}
+			csOp.Builder()(builder)
+			Expect(builderCalled).To(BeTrue())
+			Expect(builder.Ops()).To(HaveLen(2))
+		})
+
+		It("should coexist with Set operations", func() {
+			r := defkit.NewResource("v1", "ConfigMap").
+				Set("metadata.name", defkit.Lit("test")).
+				ConditionalStruct(defkit.Bool("x").IsSet(), "spec.x", func(b *defkit.OutputStructBuilder) {
+					b.Set("val", defkit.Lit(1))
+				}).
+				Set("spec.type", defkit.Lit("Opaque"))
+
+			Expect(r.Ops()).To(HaveLen(3))
+			_, isSet1 := r.Ops()[0].(*defkit.SetOp)
+			_, isCS := r.Ops()[1].(*defkit.ConditionalStructOp)
+			_, isSet2 := r.Ops()[2].(*defkit.SetOp)
+			Expect(isSet1).To(BeTrue())
+			Expect(isCS).To(BeTrue())
+			Expect(isSet2).To(BeTrue())
+		})
+	})
+
+	Context("OutputStructBuilder", func() {
+		It("should record Set operations", func() {
+			b := &defkit.OutputStructBuilder{}
+			b.Set("name", defkit.Lit("test"))
+			b.Set("count", defkit.Lit(5))
+
+			Expect(b.Ops()).To(HaveLen(2))
+		})
+
+		It("should record SetIf operations", func() {
+			b := &defkit.OutputStructBuilder{}
+			b.SetIf(defkit.Bool("flag").Eq(true), "enabled", defkit.Lit(true))
+
+			Expect(b.Ops()).To(HaveLen(1))
+		})
+
+		It("should record mixed Set and SetIf operations in order", func() {
+			b := &defkit.OutputStructBuilder{}
+			b.Set("name", defkit.Lit("a"))
+			b.SetIf(defkit.Bool("x").Eq(true), "x", defkit.Lit(1))
+			b.Set("type", defkit.Lit("b"))
+
+			Expect(b.Ops()).To(HaveLen(3))
+		})
+
+		It("should return empty ops when nothing recorded", func() {
+			b := &defkit.OutputStructBuilder{}
+			Expect(b.Ops()).To(BeEmpty())
+		})
+	})
+
 	Context("Directive", func() {
 		It("should record a Directive operation", func() {
 			r := defkit.NewResource("apps/v1", "DaemonSet").

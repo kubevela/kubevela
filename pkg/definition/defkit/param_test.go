@@ -1065,6 +1065,166 @@ var _ = Describe("Parameters", func() {
 		})
 	})
 
+	Context("StringParam NotEmpty", func() {
+		It("should default to false", func() {
+			p := defkit.String("name")
+			Expect(p.GetNotEmpty()).To(BeFalse())
+		})
+
+		It("should set NotEmpty flag", func() {
+			p := defkit.String("name").NotEmpty()
+			Expect(p.GetNotEmpty()).To(BeTrue())
+		})
+
+		It("should chain with other constraints", func() {
+			p := defkit.String("name").NotEmpty().Pattern("^[a-z]+$").MinLen(3)
+			Expect(p.GetNotEmpty()).To(BeTrue())
+			Expect(p.GetPattern()).To(Equal("^[a-z]+$"))
+			Expect(p.GetMinLen()).NotTo(BeNil())
+			Expect(*p.GetMinLen()).To(Equal(3))
+		})
+	})
+
+	Context("ArrayParam NotEmpty elements", func() {
+		It("should default to false", func() {
+			p := defkit.StringList("tags")
+			Expect(p.HasNotEmpty()).To(BeFalse())
+		})
+
+		It("should set NotEmpty flag for elements", func() {
+			p := defkit.StringList("tags").NotEmpty()
+			Expect(p.HasNotEmpty()).To(BeTrue())
+		})
+
+		It("should chain with other methods", func() {
+			p := defkit.StringList("tags").NotEmpty().Optional()
+			Expect(p.HasNotEmpty()).To(BeTrue())
+			Expect(p.IsOptional()).To(BeTrue())
+		})
+	})
+
+	Context("ArrayParam OfEnum", func() {
+		It("should set schema for enum array", func() {
+			p := defkit.Array("methods").OfEnum("GET", "POST", "DELETE")
+			Expect(p.GetSchema()).To(ContainSubstring(`"GET"`))
+			Expect(p.GetSchema()).To(ContainSubstring(`"POST"`))
+			Expect(p.GetSchema()).To(ContainSubstring(`"DELETE"`))
+			Expect(p.GetSchema()).To(ContainSubstring("|"))
+		})
+
+		It("should chain with other methods", func() {
+			p := defkit.Array("methods").OfEnum("GET", "POST").Optional()
+			Expect(p.IsOptional()).To(BeTrue())
+			Expect(p.GetSchema()).To(ContainSubstring(`"GET"`))
+		})
+	})
+
+	Context("ArrayParam Validators", func() {
+		It("should store validators", func() {
+			v := defkit.Validate("check").WithName("_v")
+			p := defkit.Array("items").WithFields(
+				defkit.String("name"),
+			).Validators(v)
+
+			Expect(p.GetValidators()).To(HaveLen(1))
+			Expect(p.GetValidators()[0]).To(Equal(v))
+		})
+
+		It("should accumulate across calls", func() {
+			p := defkit.Array("items").WithFields(defkit.String("name")).
+				Validators(defkit.Validate("a").WithName("_a")).
+				Validators(defkit.Validate("b").WithName("_b"))
+			Expect(p.GetValidators()).To(HaveLen(2))
+		})
+
+		It("should return empty when not set", func() {
+			p := defkit.Array("items")
+			Expect(p.GetValidators()).To(BeEmpty())
+		})
+	})
+
+	Context("MapParam Closed", func() {
+		It("should default to false", func() {
+			p := defkit.Object("config")
+			Expect(p.IsClosed()).To(BeFalse())
+		})
+
+		It("should set closed flag", func() {
+			p := defkit.Object("config").Closed()
+			Expect(p.IsClosed()).To(BeTrue())
+		})
+
+		It("should chain with WithFields", func() {
+			p := defkit.Object("config").Closed().WithFields(
+				defkit.String("name"),
+			)
+			Expect(p.IsClosed()).To(BeTrue())
+			Expect(p.GetFields()).To(HaveLen(1))
+		})
+	})
+
+	Context("MapParam Validators", func() {
+		It("should store validators", func() {
+			v := defkit.Validate("check").WithName("_v")
+			p := defkit.Object("governance").WithFields(
+				defkit.String("name"),
+			).Validators(v)
+
+			Expect(p.GetValidators()).To(HaveLen(1))
+			Expect(p.GetValidators()[0]).To(Equal(v))
+		})
+
+		It("should accumulate across calls", func() {
+			p := defkit.Object("governance").
+				Validators(defkit.Validate("a").WithName("_a")).
+				Validators(defkit.Validate("b").WithName("_b"))
+			Expect(p.GetValidators()).To(HaveLen(2))
+		})
+
+		It("should return empty when not set", func() {
+			p := defkit.Object("config")
+			Expect(p.GetValidators()).To(BeEmpty())
+		})
+	})
+
+	Context("MapParam ConditionalFields", func() {
+		It("should store conditional field branches", func() {
+			branch := defkit.WhenParam(defkit.Bool("x").Eq(true)).
+				Params(defkit.String("secret").Required())
+
+			p := defkit.Object("config").ConditionalFields(branch)
+			Expect(p.GetConditionalFields()).To(HaveLen(1))
+			Expect(p.GetConditionalFields()[0]).To(Equal(branch))
+		})
+
+		It("should accumulate branches across calls", func() {
+			b1 := defkit.WhenParam(defkit.Bool("x").Eq(true)).Params(defkit.String("a"))
+			b2 := defkit.WhenParam(defkit.Bool("x").Eq(false)).Params(defkit.String("b"))
+
+			p := defkit.Object("config").
+				ConditionalFields(b1).
+				ConditionalFields(b2)
+			Expect(p.GetConditionalFields()).To(HaveLen(2))
+		})
+
+		It("should return empty when not set", func() {
+			p := defkit.Object("config")
+			Expect(p.GetConditionalFields()).To(BeEmpty())
+		})
+
+		It("should chain with other methods", func() {
+			p := defkit.Object("config").Optional().
+				WithFields(defkit.String("base")).
+				ConditionalFields(
+					defkit.WhenParam(defkit.Bool("x").Eq(true)).Params(defkit.String("extra")),
+				)
+
+			Expect(p.IsOptional()).To(BeTrue())
+			Expect(p.GetFields()).To(HaveLen(1))
+			Expect(p.GetConditionalFields()).To(HaveLen(1))
+		})
+	})
+
 	Context("ClosedStructOption", func() {
 		It("should create an empty closed struct", func() {
 			cs := defkit.ClosedStruct()
