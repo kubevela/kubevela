@@ -2971,19 +2971,19 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		// For CUE, we generate: cond1 && cond2 && cond3
 		// which will be used in a single if statement
 		return strings.Join(parts, " && ")
-	case *ScopedFieldMatchCondition:
+	case *LocalFieldMatchCondition:
 		// Scoped field regex match: fieldName =~ "pattern"
 		return fmt.Sprintf(`%s =~ %q`, c.FieldName(), c.Pattern())
-	case *ScopedFieldCompareCondition:
+	case *LocalFieldCompareCondition:
 		// Scoped field comparison: fieldName op value
 		return fmt.Sprintf("%s %s %s", c.FieldName(), c.Op(), formatCUEValue(c.CompareValue()))
-	case *ScopedFieldIsSetCondition:
+	case *LocalFieldIsSetCondition:
 		// Scoped field is set: fieldName != _|_
 		return fmt.Sprintf("%s != _|_", c.FieldName())
-	case *ScopedFieldLenCondition:
+	case *LocalFieldLenCondition:
 		// Scoped field length check: len(fieldName) op value
 		return fmt.Sprintf("len(%s) %s %d", c.FieldName(), c.Op(), c.LenValue())
-	case *ScopedFieldFieldCompareCondition:
+	case *LocalFieldFieldCompareCondition:
 		// Scoped field-to-field comparison: fieldName op otherField
 		return fmt.Sprintf("%s %s %s", c.FieldName(), c.Op(), c.OtherField())
 	case *LenOfCondition:

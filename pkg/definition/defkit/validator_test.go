@@ -27,7 +27,7 @@ func TestValidatorBasic(t *testing.T) {
 	// Simple validator: fail when condition is true
 	v := Validate("tenantName must not end with a hyphen").
 		WithName("_validateTenantName").
-		FailWhen(ScopedField("tenantName").Matches(".*-$"))
+		FailWhen(LocalField("tenantName").Matches(".*-$"))
 
 	comp := NewComponent("test").
 		Params(String("tenantName")).
@@ -82,7 +82,7 @@ func TestValidatorMutualExclusion(t *testing.T) {
 	// Mutual exclusion: two fields cannot both be set
 	v := Validate("Principal and NotPrincipal cannot be used together").
 		WithName("_validatePrincipal").
-		FailWhen(And(ScopedField("Principal").IsSet(), ScopedField("NotPrincipal").IsSet()))
+		FailWhen(And(LocalField("Principal").IsSet(), LocalField("NotPrincipal").IsSet()))
 
 	comp := NewComponent("test").
 		Params(
@@ -107,7 +107,7 @@ func TestMapParamValidators(t *testing.T) {
 	// Validators inside a map param
 	v := Validate("name is required").
 		WithName("_validateName").
-		FailWhen(ScopedField("name").Eq(""))
+		FailWhen(LocalField("name").Eq(""))
 
 	mp := Object("governance").WithFields(
 		String("name"),
@@ -131,7 +131,7 @@ func TestArrayParamValidators(t *testing.T) {
 	// Validators inside array element struct
 	v := Validate("action is required").
 		WithName("_validateAction").
-		FailWhen(ScopedField("action").Eq(""))
+		FailWhen(LocalField("action").Eq(""))
 
 	arr := Array("rules").WithFields(
 		String("action"),
@@ -216,7 +216,7 @@ func TestConditionalParamsWithValidators(t *testing.T) {
 				Validate("kmsMasterKeyId can only be specified when sseAlgorithm is aws:kms").
 					WithName("_validateKms").
 					FailWhen(And(
-						ScopedField("sseAlgorithm").Ne("aws:kms"),
+						LocalField("sseAlgorithm").Ne("aws:kms"),
 						kmsMasterKeyId.IsSet(),
 					)),
 			),
@@ -372,7 +372,7 @@ func TestAllFeaturesIntegrated(t *testing.T) {
 	).Validators(
 		Validate("tenantName must not end with a hyphen").
 			WithName("_validateTenant").
-			FailWhen(ScopedField("tenantName").Matches(".*-$")),
+			FailWhen(LocalField("tenantName").Matches(".*-$")),
 	)
 
 	comp := NewComponent("s3-bucket").
