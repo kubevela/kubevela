@@ -161,7 +161,7 @@ func (s *LocalFieldRef) Gte(other *LocalFieldRef) Condition {
 	return Ge(s, other)
 }
 
-// LenOf wraps a Value expression and provides comparison methods that produce Conditions.
+// LenOfExpr wraps a Value expression and provides comparison methods that produce Conditions.
 // It emits len(<value>) in CUE. Reuses upstream LenValueCondition.
 //
 // Example: LenOf(Plus(Lit("tenant-"), Reference("parameter.governance.tenantName"), Lit("-"), name)).Gt(63)
