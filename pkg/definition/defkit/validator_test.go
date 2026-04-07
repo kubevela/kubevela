@@ -367,7 +367,7 @@ func TestConditionalStructWithSetIf(t *testing.T) {
 func TestAllFeaturesIntegrated(t *testing.T) {
 	existingResources := Bool("existingResources").Default(false)
 	governance := Object("governance").Closed().WithFields(
-		String("tenantName").NotEmpty().NegativePattern(`.*-$`),
+		String("tenantName").NotEmpty(),
 		String("departmentCode").NotEmpty(),
 	).Validators(
 		Validate("tenantName must not end with a hyphen").

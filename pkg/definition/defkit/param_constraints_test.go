@@ -639,37 +639,6 @@ func TestStringParamNotEmptyWithPattern(t *testing.T) {
 	}
 }
 
-func TestStringParamNegativePattern(t *testing.T) {
-	p := String("region").NegativePattern(`.*-$`)
-
-	if p.GetNegativePattern() != `.*-$` {
-		t.Errorf("GetNegativePattern() = %q, want %q", p.GetNegativePattern(), `.*-$`)
-	}
-
-	gen := NewCUEGenerator()
-	comp := NewComponent("test").Params(p)
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, `!~".*-$"`) {
-		t.Errorf("Generated CUE should contain negative pattern constraint, got:\n%s", cue)
-	}
-}
-
-func TestStringParamNotEmptyAndNegativePattern(t *testing.T) {
-	p := String("region").NotEmpty().NegativePattern(`.*-$`)
-
-	gen := NewCUEGenerator()
-	comp := NewComponent("test").Params(p)
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, `!=""`) {
-		t.Errorf("Generated CUE should contain !=\"\", got:\n%s", cue)
-	}
-	if !strings.Contains(cue, `!~".*-$"`) {
-		t.Errorf("Generated CUE should contain !~, got:\n%s", cue)
-	}
-}
-
 func TestMapParamClosed(t *testing.T) {
 	p := Object("governance").Closed().WithFields(
 		String("tenantName"),

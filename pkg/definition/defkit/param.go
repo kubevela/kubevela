@@ -117,7 +117,6 @@ type StringParam struct {
 	enumValues      []string // allowed enum values
 	openEnum        bool     // when true, appends | string to enum disjunction (open enum)
 	pattern         string   // regex pattern constraint
-	negativePattern string   // negative regex pattern constraint (!~"pattern")
 	notEmpty        bool     // when true, emits !="" constraint
 	minLen          *int     // minimum length constraint
 	maxLen          *int     // maximum length constraint
@@ -246,17 +245,6 @@ func (p *StringParam) GetNotEmpty() bool {
 	return p.notEmpty
 }
 
-// NegativePattern sets a negative regex pattern constraint for the parameter.
-// This generates CUE like: string & !~"pattern"
-func (p *StringParam) NegativePattern(regex string) *StringParam {
-	p.negativePattern = regex
-	return p
-}
-
-// GetNegativePattern returns the negative regex pattern constraint.
-func (p *StringParam) GetNegativePattern() string {
-	return p.negativePattern
-}
 
 // Concat creates a string concatenation expression.
 // Example: name.Concat("-suffix") generates: parameter.name + "-suffix"

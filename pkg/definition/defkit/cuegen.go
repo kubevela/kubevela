@@ -3161,11 +3161,6 @@ func (g *CUEGenerator) writeStringParam(sb *strings.Builder, p *StringParam, ind
 			constraints = append(constraints, fmt.Sprintf(`=~%q`, pattern))
 		}
 
-		// NegativePattern constraint: !~"pattern"
-		if negPattern := p.GetNegativePattern(); negPattern != "" {
-			constraints = append(constraints, fmt.Sprintf(`!~%q`, negPattern))
-		}
-
 		// MinLen constraint: strings.MinRunes(n)
 		if minLen := p.GetMinLen(); minLen != nil {
 			constraints = append(constraints, fmt.Sprintf("strings.MinRunes(%d)", *minLen))
