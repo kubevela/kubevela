@@ -606,3 +606,101 @@ func TestSpecialCharactersInPattern(t *testing.T) {
 		t.Errorf("Pattern with special chars should be escaped, got:\n%s", cue)
 	}
 }
+
+func TestStringParamNotEmpty(t *testing.T) {
+	p := String("name").NotEmpty()
+
+	if !p.GetNotEmpty() {
+		t.Error("GetNotEmpty() should be true")
+	}
+
+	gen := NewCUEGenerator()
+	comp := NewComponent("test").Params(p)
+	cue := gen.GenerateParameterSchema(comp)
+
+	if !strings.Contains(cue, `!=""`) {
+		t.Errorf("Generated CUE should contain !=\"\" constraint, got:\n%s", cue)
+	}
+}
+
+func TestStringParamNotEmptyWithPattern(t *testing.T) {
+	p := String("name").NotEmpty().Pattern(`^[a-z0-9.-]{3,63}$`)
+
+	gen := NewCUEGenerator()
+	comp := NewComponent("test").Params(p)
+	cue := gen.GenerateParameterSchema(comp)
+
+	// Should contain both constraints joined with &
+	if !strings.Contains(cue, `!=""`) {
+		t.Errorf("Generated CUE should contain !=\"\", got:\n%s", cue)
+	}
+	if !strings.Contains(cue, `=~"^[a-z0-9.-]{3,63}$"`) {
+		t.Errorf("Generated CUE should contain pattern, got:\n%s", cue)
+	}
+}
+
+func TestStringParamNegativePattern(t *testing.T) {
+	p := String("region").NegativePattern(`.*-$`)
+
+	if p.GetNegativePattern() != `.*-$` {
+		t.Errorf("GetNegativePattern() = %q, want %q", p.GetNegativePattern(), `.*-$`)
+	}
+
+	gen := NewCUEGenerator()
+	comp := NewComponent("test").Params(p)
+	cue := gen.GenerateParameterSchema(comp)
+
+	if !strings.Contains(cue, `!~".*-$"`) {
+		t.Errorf("Generated CUE should contain negative pattern constraint, got:\n%s", cue)
+	}
+}
+
+func TestStringParamNotEmptyAndNegativePattern(t *testing.T) {
+	p := String("region").NotEmpty().NegativePattern(`.*-$`)
+
+	gen := NewCUEGenerator()
+	comp := NewComponent("test").Params(p)
+	cue := gen.GenerateParameterSchema(comp)
+
+	if !strings.Contains(cue, `!=""`) {
+		t.Errorf("Generated CUE should contain !=\"\", got:\n%s", cue)
+	}
+	if !strings.Contains(cue, `!~".*-$"`) {
+		t.Errorf("Generated CUE should contain !~, got:\n%s", cue)
+	}
+}
+
+func TestMapParamClosed(t *testing.T) {
+	p := Object("governance").Closed().WithFields(
+		String("tenantName"),
+		String("departmentCode"),
+	)
+
+	if !p.IsClosed() {
+		t.Error("IsClosed() should be true")
+	}
+
+	gen := NewCUEGenerator()
+	comp := NewComponent("test").Params(p)
+	cue := gen.GenerateParameterSchema(comp)
+
+	if !strings.Contains(cue, "close({") {
+		t.Errorf("Generated CUE should contain close({, got:\n%s", cue)
+	}
+	if !strings.Contains(cue, "})") {
+		t.Errorf("Generated CUE should contain }), got:\n%s", cue)
+	}
+}
+
+func TestArrayParamOfEnum(t *testing.T) {
+	p := Array("allowedMethods").OfEnum("GET", "PUT", "HEAD", "POST", "DELETE")
+
+	gen := NewCUEGenerator()
+	comp := NewComponent("test").Params(p)
+	cue := gen.GenerateParameterSchema(comp)
+
+	expected := `[...("GET" | "PUT" | "HEAD" | "POST" | "DELETE")]`
+	if !strings.Contains(cue, expected) {
+		t.Errorf("Generated CUE should contain %s, got:\n%s", expected, cue)
+	}
+}

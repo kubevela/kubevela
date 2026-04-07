@@ -285,6 +285,15 @@ func (g *CUEGenerator) GenerateParameterSchema(c *ComponentDefinition) string {
 		g.writeParam(&sb, param, 1)
 	}
 
+	// Append raw parameter blocks (escape hatch for complex CUE patterns)
+	for _, block := range c.GetRawParameterBlocks() {
+		for _, line := range strings.Split(strings.TrimSpace(block), "\n") {
+			sb.WriteString(g.indent)
+			sb.WriteString(line)
+			sb.WriteString("\n")
+		}
+	}
+
 	sb.WriteString("}\n")
 	return sb.String()
 }
@@ -399,6 +408,19 @@ func (g *CUEGenerator) GenerateTemplate(c *ComponentDefinition) string {
 		g.writeResourceOutput(&sb, "output", output, nil, 1)
 	}
 
+	// Append raw output blocks (escape hatch for complex CUE patterns in output)
+	// These emit additional output: { ... } blocks that CUE merges with the fluent output.
+	for _, block := range c.GetRawOutputBlocks() {
+		innerIndent := strings.Repeat(g.indent, 2)
+		sb.WriteString(fmt.Sprintf("%soutput: spec: {\n", g.indent))
+		for _, line := range strings.Split(strings.TrimSpace(block), "\n") {
+			sb.WriteString(innerIndent)
+			sb.WriteString(line)
+			sb.WriteString("\n")
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
+	}
+
 	// Generate helper definitions that appear AFTER output (used by outputs)
 	// This matches KubeVela convention where exposePorts appears between output and outputs
 	for _, helper := range tpl.GetHelpersAfterOutput() {
@@ -436,11 +458,21 @@ func (g *CUEGenerator) GenerateTemplate(c *ComponentDefinition) string {
 func (g *CUEGenerator) generateParameterBlock(c *ComponentDefinition, depth int) string {
 	var sb strings.Builder
 	indent := strings.Repeat(g.indent, depth)
+	innerIndent := strings.Repeat(g.indent, depth+1)
 
 	sb.WriteString(fmt.Sprintf("%sparameter: {\n", indent))
 
 	for _, param := range c.GetParams() {
 		g.writeParam(&sb, param, depth+1)
+	}
+
+	// Append raw parameter blocks (escape hatch for complex CUE patterns)
+	for _, block := range c.GetRawParameterBlocks() {
+		for _, line := range strings.Split(strings.TrimSpace(block), "\n") {
+			sb.WriteString(innerIndent)
+			sb.WriteString(line)
+			sb.WriteString("\n")
+		}
 	}
 
 	sb.WriteString(fmt.Sprintf("%s}\n", indent))
@@ -2809,9 +2841,11 @@ func (g *CUEGenerator) writeWorkload(sb *strings.Builder, c *ComponentDefinition
 	sb.WriteString(fmt.Sprintf("%s%s%skind:       %q\n", indent, g.indent, g.indent, workload.Kind()))
 	sb.WriteString(fmt.Sprintf("%s%s}\n", indent, g.indent))
 
-	// Write workload type
-	workloadType := g.inferWorkloadType(workload)
-	sb.WriteString(fmt.Sprintf("%s%stype: %q\n", indent, g.indent, workloadType))
+	// Write workload type (unless suppressed)
+	if !c.IsOmitWorkloadType() {
+		workloadType := g.inferWorkloadType(workload)
+		sb.WriteString(fmt.Sprintf("%s%stype: %q\n", indent, g.indent, workloadType))
+	}
 	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 }
 
@@ -2968,9 +3002,19 @@ func (g *CUEGenerator) writeStringParam(sb *strings.Builder, p *StringParam, ind
 		// Build constraint parts
 		var constraints []string
 
+		// NotEmpty constraint: !=""
+		if p.GetNotEmpty() {
+			constraints = append(constraints, `!=""`)
+		}
+
 		// Pattern constraint: =~"pattern"
 		if pattern := p.GetPattern(); pattern != "" {
 			constraints = append(constraints, fmt.Sprintf(`=~%q`, pattern))
+		}
+
+		// NegativePattern constraint: !~"pattern"
+		if negPattern := p.GetNegativePattern(); negPattern != "" {
+			constraints = append(constraints, fmt.Sprintf(`!~%q`, negPattern))
 		}
 
 		// MinLen constraint: strings.MinRunes(n)
@@ -3139,11 +3183,19 @@ func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, n
 
 	// Check if map has structured fields
 	if fields := p.GetFields(); len(fields) > 0 {
-		sb.WriteString(fmt.Sprintf("%s%s%s: {\n", indent, name, optional))
+		if p.IsClosed() {
+			sb.WriteString(fmt.Sprintf("%s%s%s: close({\n", indent, name, optional))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s%s: {\n", indent, name, optional))
+		}
 		for _, field := range fields {
 			g.writeParam(sb, field, depth+1)
 		}
-		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		if p.IsClosed() {
+			sb.WriteString(fmt.Sprintf("%s})\n", indent))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		}
 	} else if valType := p.ValueType(); valType != "" {
 		// Typed map: [string]: type
 		cueType := g.cueTypeForParamType(valType)

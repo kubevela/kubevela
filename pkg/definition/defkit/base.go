@@ -47,6 +47,12 @@ type baseDefinition struct {
 	helperDefinitions []HelperDefinition
 	rawCUE            string
 	imports           []string
+	// rawParameterBlocks holds raw CUE blocks to append inside the parameter: { ... } section.
+	// Each block is indented and appended after the fluent-generated parameters.
+	rawParameterBlocks []string
+	// rawOutputBlocks holds raw CUE blocks to append inside the output: { ... } section.
+	// Each block is indented and appended after the fluent-generated output tree.
+	rawOutputBlocks []string
 	// Placement constraints for cluster-aware definition deployment
 	runOn    []placement.Condition
 	notRunOn []placement.Condition
@@ -62,6 +68,28 @@ func (b *baseDefinition) setDescription(desc string) {
 // addParams adds parameter definitions.
 func (b *baseDefinition) addParams(params ...Param) {
 	b.params = append(b.params, params...)
+}
+
+// addRawParameterBlock appends a raw CUE block to be included inside the parameter: { ... } section.
+// The block is appended after the fluent-generated parameters.
+func (b *baseDefinition) addRawParameterBlock(block string) {
+	b.rawParameterBlocks = append(b.rawParameterBlocks, block)
+}
+
+// GetRawParameterBlocks returns the raw CUE blocks for the parameter section.
+func (b *baseDefinition) GetRawParameterBlocks() []string {
+	return b.rawParameterBlocks
+}
+
+// addRawOutputBlock appends a raw CUE block to be included inside the output: { ... } section.
+// The block is appended after the fluent-generated output tree.
+func (b *baseDefinition) addRawOutputBlock(block string) {
+	b.rawOutputBlocks = append(b.rawOutputBlocks, block)
+}
+
+// GetRawOutputBlocks returns the raw CUE blocks for the output section.
+func (b *baseDefinition) GetRawOutputBlocks() []string {
+	return b.rawOutputBlocks
 }
 
 // setTemplate sets the template function.

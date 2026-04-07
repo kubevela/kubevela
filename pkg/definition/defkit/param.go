@@ -16,6 +16,11 @@ limitations under the License.
 
 package defkit
 
+import (
+	"fmt"
+	"strings"
+)
+
 // baseParam provides common parameter functionality.
 type baseParam struct {
 	name         string
@@ -109,11 +114,13 @@ func (c *ParamCompareCondition) CompareValue() any { return c.value }
 // StringParam represents a string parameter.
 type StringParam struct {
 	baseParam
-	enumValues []string // allowed enum values
-	openEnum   bool     // when true, appends | string to enum disjunction (open enum)
-	pattern    string   // regex pattern constraint
-	minLen     *int     // minimum length constraint
-	maxLen     *int     // maximum length constraint
+	enumValues      []string // allowed enum values
+	openEnum        bool     // when true, appends | string to enum disjunction (open enum)
+	pattern         string   // regex pattern constraint
+	negativePattern string   // negative regex pattern constraint (!~"pattern")
+	notEmpty        bool     // when true, emits !="" constraint
+	minLen          *int     // minimum length constraint
+	maxLen          *int     // maximum length constraint
 }
 
 // String creates a new string parameter with the given name.
@@ -225,6 +232,30 @@ func (p *StringParam) MaxLen(n int) *StringParam {
 // GetMaxLen returns the maximum length constraint, or nil if not set.
 func (p *StringParam) GetMaxLen() *int {
 	return p.maxLen
+}
+
+// NotEmpty adds a non-empty string constraint.
+// This generates CUE like: string & !=""
+func (p *StringParam) NotEmpty() *StringParam {
+	p.notEmpty = true
+	return p
+}
+
+// GetNotEmpty returns whether the non-empty constraint is set.
+func (p *StringParam) GetNotEmpty() bool {
+	return p.notEmpty
+}
+
+// NegativePattern sets a negative regex pattern constraint for the parameter.
+// This generates CUE like: string & !~"pattern"
+func (p *StringParam) NegativePattern(regex string) *StringParam {
+	p.negativePattern = regex
+	return p
+}
+
+// GetNegativePattern returns the negative regex pattern constraint.
+func (p *StringParam) GetNegativePattern() string {
+	return p.negativePattern
 }
 
 // Concat creates a string concatenation expression.
@@ -672,6 +703,18 @@ func (p *ArrayParam) GetSchemaRef() string {
 	return p.schemaRef
 }
 
+// OfEnum is a convenience method for arrays of enum values.
+// It sets the schema to [...("val1" | "val2" | ...)].
+// Example: Array("methods").OfEnum("GET", "POST") emits: [...("GET" | "POST")]
+func (p *ArrayParam) OfEnum(values ...string) *ArrayParam {
+	quoted := make([]string, len(values))
+	for i, v := range values {
+		quoted[i] = fmt.Sprintf("%q", v)
+	}
+	p.schema = "[...(" + strings.Join(quoted, " | ") + ")]"
+	return p
+}
+
 // MinItems sets the minimum number of items constraint for the array.
 // This generates CUE like: list.MinItems(n)
 func (p *ArrayParam) MinItems(n int) *ArrayParam {
@@ -754,6 +797,7 @@ type MapParam struct {
 	fields    []Param // fields for structured map values
 	schema    string  // raw CUE schema for the map structure
 	schemaRef string  // reference to a helper definition (e.g., "HealthProbe")
+	closed    bool    // when true, wraps struct output in close({...})
 }
 
 // Map creates a new map parameter with the given name.
@@ -838,6 +882,18 @@ func (p *MapParam) WithSchemaRef(ref string) *MapParam {
 // GetSchemaRef returns the schema reference for this parameter.
 func (p *MapParam) GetSchemaRef() string {
 	return p.schemaRef
+}
+
+// Closed marks the map as a closed struct, preventing extra fields.
+// This generates CUE like: close({...})
+func (p *MapParam) Closed() *MapParam {
+	p.closed = true
+	return p
+}
+
+// IsClosed returns whether the map is a closed struct.
+func (p *MapParam) IsClosed() bool {
+	return p.closed
 }
 
 // Field returns a reference to a nested field within this map parameter.

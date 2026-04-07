@@ -28,11 +28,12 @@ import (
 // ComponentDefinition embeds baseDefinition for common fields and methods shared
 // with TraitDefinition and other definition types.
 type ComponentDefinition struct {
-	baseDefinition     // embedded common fields (name, description, params, template, etc.)
-	workload           WorkloadType
-	labels             map[string]string // metadata labels for the component definition
-	childResourceKinds []common.ChildResourceKind
-	podSpecPath        string
+	baseDefinition      // embedded common fields (name, description, params, template, etc.)
+	workload            WorkloadType
+	omitWorkloadType    bool              // when true, suppresses the auto-generated workload.type field in CUE
+	labels              map[string]string  // metadata labels for the component definition
+	childResourceKinds  []common.ChildResourceKind
+	podSpecPath         string
 }
 
 // WorkloadType represents the workload type for a component.
@@ -62,6 +63,18 @@ func (c *ComponentDefinition) Description(desc string) *ComponentDefinition {
 func (c *ComponentDefinition) Workload(apiVersion, kind string) *ComponentDefinition {
 	c.workload = WorkloadType{apiVersion: apiVersion, kind: kind}
 	return c
+}
+
+// OmitWorkloadType suppresses the auto-generated workload.type field in the CUE output.
+// Use this when the vela source CUE does not include a workload type field.
+func (c *ComponentDefinition) OmitWorkloadType() *ComponentDefinition {
+	c.omitWorkloadType = true
+	return c
+}
+
+// IsOmitWorkloadType returns whether workload type should be suppressed in CUE output.
+func (c *ComponentDefinition) IsOmitWorkloadType() bool {
+	return c.omitWorkloadType
 }
 
 // AutodetectWorkload sets the workload type to "autodetects.core.oam.dev".
@@ -201,6 +214,24 @@ func (c *ComponentDefinition) GetPodSpecPath() string { return c.podSpecPath }
 // When set, this bypasses all other template settings and outputs the raw CUE directly.
 func (c *ComponentDefinition) RawCUE(cue string) *ComponentDefinition {
 	c.setRawCUE(cue)
+	return c
+}
+
+// AppendRawParameterCUE appends a raw CUE block inside the parameter: { ... } section.
+// The block is appended after the fluent-generated parameters, indented appropriately.
+// Use this for complex CUE patterns that cannot be expressed with the fluent API,
+// such as conditional parameter blocks, _validate* blocks, or inline error messages.
+func (c *ComponentDefinition) AppendRawParameterCUE(block string) *ComponentDefinition {
+	c.addRawParameterBlock(block)
+	return c
+}
+
+// AppendRawOutputCUE appends a raw CUE block inside the output: { ... } section.
+// The block is appended after the fluent-generated output tree, indented appropriately.
+// Use this for complex CUE patterns in the output that cannot be expressed with the
+// fluent API, such as conditionally emitting entire struct blocks.
+func (c *ComponentDefinition) AppendRawOutputCUE(block string) *ComponentDefinition {
+	c.addRawOutputBlock(block)
 	return c
 }
 
