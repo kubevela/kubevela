@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The KubeVela Authors.
+revertCopyright 2026 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -168,6 +167,21 @@ type ContextParams struct {
 	Namespace    string `json:"namespace"` // component namespace
 }
 
+// velaContextStr returns a human-readable prefix like "app=myapp/default component=web"
+// for use in log messages. Returns empty string when velaCtx is nil.
+func velaContextStr(velaCtx *ContextParams) string {
+	if velaCtx == nil {
+		return ""
+	}
+	return fmt.Sprintf("app=%s/%s component=%s", velaCtx.AppName, velaCtx.AppNamespace, velaCtx.Name)
+}
+
+// releaseCacheKey returns a namespace-scoped cache key to avoid collisions
+// when different namespaces have releases with the same name.
+func releaseCacheKey(namespace, name string) string {
+	return namespace + "/" + name
+}
+
 // RenderParams represents the parameters for rendering a Helm chart
 type RenderParams struct {
 	Chart      ChartSourceParams    `json:"chart"`
@@ -206,9 +220,9 @@ type Provider struct {
 	helmClient          *cli.EnvSettings
 	cacheTTL            *CacheTTLConfig
 	releaseMu           sync.Mutex        // serializes install/upgrade/uninstall calls
-	releaseFingerprints map[string]string // releaseName → fingerprint (chartVersion|valuesHash)
-	releaseManifests    map[string]string // releaseName → last successful manifest
-	releaseVersions     map[string]int    // releaseName → current release version number
+	releaseFingerprints map[string]string // namespace/releaseName → fingerprint (chartVersion|valuesHash)
+	releaseManifests    map[string]string // namespace/releaseName → last successful manifest
+	releaseVersions     map[string]int    // namespace/releaseName → current release version number
 }
 
 var (
@@ -472,13 +486,6 @@ func (p *Provider) fetchRepoChart(ctx context.Context, params *ChartSourceParams
 		return nil, fmt.Errorf("repoURL is required for repository-based charts")
 	}
 
-	// Create temporary directory for operations
-	tmpDir, err := os.MkdirTemp("", "helm-chart-*")
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create temp directory")
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
 	// First, fetch the repository index to find the chart
 	indexURL := fmt.Sprintf("%s/index.yaml", params.RepoURL)
 
@@ -737,6 +744,7 @@ func computeReleaseFingerprint(ch *chart.Chart, values map[string]interface{}) s
 // Returns the release manifest string, notes, release version, and any error.
 func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, velaCtx *ContextParams) (string, string, int, error) {
 	fingerprint := computeReleaseFingerprint(ch, values)
+	cacheKey := releaseCacheKey(releaseNamespace, releaseName)
 
 	p.releaseMu.Lock()
 	defer p.releaseMu.Unlock()
@@ -765,11 +773,11 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 	if getErr != nil {
 		// Release not found in cluster — clear any stale cache entry so we
 		// fall through to a fresh install below.
-		if cached, ok := p.releaseFingerprints[releaseName]; ok {
-			klog.Infof("Helm provider: Release %s not found in cluster but cached (fingerprint=%s), clearing stale cache", releaseName, cached[:16])
-			delete(p.releaseFingerprints, releaseName)
-			delete(p.releaseManifests, releaseName)
-			delete(p.releaseVersions, releaseName)
+		if cached, ok := p.releaseFingerprints[cacheKey]; ok {
+			klog.Infof("Helm provider [%s]: Release %s not found in cluster but cached (fingerprint=%s), clearing stale cache", velaContextStr(velaCtx), releaseName, cached[:16])
+			delete(p.releaseFingerprints, cacheKey)
+			delete(p.releaseManifests, cacheKey)
+			delete(p.releaseVersions, cacheKey)
 		}
 	}
 
@@ -780,7 +788,7 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 		// post-renderer injects KubeVela ownership labels onto every resource.
 		needsAdoption := velaCtx != nil && !isOwnedByVela(existingRelease, velaCtx)
 		if needsAdoption {
-			klog.Infof("Helm provider: Release %s exists but was not installed by KubeVela (missing ownership labels), forcing upgrade to adopt", releaseName)
+			klog.Infof("Helm provider [%s]: Release %s exists but was not installed by KubeVela (missing ownership labels), forcing upgrade to adopt", velaContextStr(velaCtx), releaseName)
 			// Label all existing release secrets with KubeVela ownership so they
 			// can be tracked by the ResourceTracker and cleaned up on App deletion.
 			p.labelReleaseSecrets(releaseNamespace, releaseName, velaCtx)
@@ -790,10 +798,10 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 		if !needsAdoption && existingRelease.Info.Status == release.StatusDeployed {
 			clusterFingerprint := computeReleaseFingerprint(existingRelease.Chart, existingRelease.Config)
 			if clusterFingerprint == fingerprint {
-				klog.V(3).Infof("Helm provider: Release %s already deployed and unchanged (cluster fingerprint match), skipping upgrade", releaseName)
-				p.releaseFingerprints[releaseName] = fingerprint
-				p.releaseManifests[releaseName] = existingRelease.Manifest
-				p.releaseVersions[releaseName] = existingRelease.Version
+				klog.V(3).Infof("Helm provider [%s]: Release %s already deployed and unchanged (cluster fingerprint match), skipping upgrade", velaContextStr(velaCtx), releaseName)
+				p.releaseFingerprints[cacheKey] = fingerprint
+				p.releaseManifests[cacheKey] = existingRelease.Manifest
+				p.releaseVersions[cacheKey] = existingRelease.Version
 				// Run health validation in the background to detect corrupted
 				// or missing release secrets early, without blocking this call.
 				go p.validateReleaseHealth(releaseName, releaseNamespace)
@@ -836,35 +844,35 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 			}
 		}
 
-		klog.Infof("Helm provider: Upgrading release %s in namespace %s", releaseName, releaseNamespace)
+		klog.Infof("Helm provider [%s]: Upgrading release %s in namespace %s", velaContextStr(velaCtx), releaseName, releaseNamespace)
 		rel, err := upgrade.RunWithContext(ctx, releaseName, ch, values)
 		if err != nil {
 			return "", "", 0, errors.Wrapf(err, "failed to upgrade helm release %s", releaseName)
 		}
-		klog.Infof("Helm provider: Successfully upgraded release %s", releaseName)
-		p.releaseFingerprints[releaseName] = fingerprint
-		p.releaseManifests[releaseName] = rel.Manifest
-		p.releaseVersions[releaseName] = rel.Version
+		klog.Infof("Helm provider [%s]: Successfully upgraded release %s", velaContextStr(velaCtx), releaseName)
+		p.releaseFingerprints[cacheKey] = fingerprint
+		p.releaseManifests[cacheKey] = rel.Manifest
+		p.releaseVersions[cacheKey] = rel.Version
 		return rel.Manifest, rel.Info.Notes, rel.Version, nil
 	}
 
 	// No existing release — perform a fresh install
-	rel, err := p.freshInstall(ctx, actionConfig, ch, releaseName, releaseNamespace, values, options, postRenderer, releaseLabels)
+	rel, err := p.freshInstall(ctx, actionConfig, ch, releaseName, releaseNamespace, values, options, postRenderer, releaseLabels, velaCtx)
 	if err != nil {
 		return "", "", 0, err
 	}
-	klog.Infof("Helm provider: Successfully installed release %s", releaseName)
-	p.releaseFingerprints[releaseName] = fingerprint
-	p.releaseManifests[releaseName] = rel.Manifest
-	p.releaseVersions[releaseName] = rel.Version
+	klog.Infof("Helm provider [%s]: Successfully installed release %s", velaContextStr(velaCtx), releaseName)
+	p.releaseFingerprints[cacheKey] = fingerprint
+	p.releaseManifests[cacheKey] = rel.Manifest
+	p.releaseVersions[cacheKey] = rel.Version
 	return rel.Manifest, rel.Info.Notes, rel.Version, nil
 }
 
 // freshInstall performs a helm install with retry logic for orphaned/corrupted state.
-func (p *Provider) freshInstall(ctx context.Context, actionConfig *action.Configuration, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, postRenderer *velaLabelPostRenderer, releaseLabels map[string]string) (*release.Release, error) {
+func (p *Provider) freshInstall(ctx context.Context, actionConfig *action.Configuration, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, postRenderer *velaLabelPostRenderer, releaseLabels map[string]string, velaCtx *ContextParams) (*release.Release, error) {
 	install := p.newInstallAction(actionConfig, releaseName, releaseNamespace, options, postRenderer, releaseLabels)
 
-	klog.Infof("Helm provider: Installing release %s in namespace %s", releaseName, releaseNamespace)
+	klog.Infof("Helm provider [%s]: Installing release %s in namespace %s", velaContextStr(velaCtx), releaseName, releaseNamespace)
 	rel, err := install.RunWithContext(ctx, ch, values)
 	if err == nil {
 		return rel, nil
@@ -876,14 +884,14 @@ func (p *Provider) freshInstall(ctx context.Context, actionConfig *action.Config
 		return nil, errors.Wrapf(err, "failed to install helm release %s", releaseName)
 	}
 
-	klog.Warningf("Helm provider: Install failed for %s due to orphaned state (%v), cleaning up and retrying", releaseName, err)
-	if cleanErr := p.cleanOrphanedReleaseSecrets(actionConfig, releaseName, releaseNamespace); cleanErr != nil {
-		klog.Warningf("Helm provider: Failed to clean orphaned secrets for %s: %v", releaseName, cleanErr)
+	klog.Warningf("Helm provider [%s]: Install failed for %s due to orphaned state (%v), cleaning up and retrying", velaContextStr(velaCtx), releaseName, err)
+	if cleanErr := p.cleanOrphanedReleaseSecrets(actionConfig, releaseName, releaseNamespace, velaCtx); cleanErr != nil {
+		klog.Warningf("Helm provider [%s]: Failed to clean orphaned secrets for %s: %v", velaContextStr(velaCtx), releaseName, cleanErr)
 		return nil, errors.Wrapf(err, "failed to install helm release %s (cleanup also failed: %v)", releaseName, cleanErr)
 	}
 
 	retry := p.newInstallAction(actionConfig, releaseName, releaseNamespace, options, postRenderer, releaseLabels)
-	klog.Infof("Helm provider: Retrying install for release %s after cleanup", releaseName)
+	klog.Infof("Helm provider [%s]: Retrying install for release %s after cleanup", velaContextStr(velaCtx), releaseName)
 	rel, err = retry.RunWithContext(ctx, ch, values)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to install helm release %s after cleanup retry", releaseName)
@@ -1004,6 +1012,7 @@ func (p *Provider) getKubeVersion() *chartutil.KubeVersion {
 // a successful cache-hit reconciliation, so it does not block the main render
 // path. It acquires the release mutex only when it needs to clear the cache.
 func (p *Provider) validateReleaseHealth(releaseName, releaseNamespace string) {
+	cacheKey := releaseCacheKey(releaseNamespace, releaseName)
 	actionConfig, err := p.getActionConfig(releaseNamespace)
 	if err != nil {
 		klog.Warningf("Helm provider health check: failed to get action config for release %s: %v", releaseName, err)
@@ -1016,9 +1025,9 @@ func (p *Provider) validateReleaseHealth(releaseName, releaseNamespace string) {
 		// Release not found or unreadable (corrupted secret) — invalidate cache
 		klog.Warningf("Helm provider health check: release %s not found or unreadable in cluster, invalidating cache: %v", releaseName, err)
 		p.releaseMu.Lock()
-		delete(p.releaseFingerprints, releaseName)
-		delete(p.releaseManifests, releaseName)
-		delete(p.releaseVersions, releaseName)
+		delete(p.releaseFingerprints, cacheKey)
+		delete(p.releaseManifests, cacheKey)
+		delete(p.releaseVersions, cacheKey)
 		p.releaseMu.Unlock()
 		return
 	}
@@ -1031,9 +1040,9 @@ func (p *Provider) validateReleaseHealth(releaseName, releaseNamespace string) {
 		}
 		klog.Warningf("Helm provider health check: release %s is in state %q (expected deployed), invalidating cache", releaseName, status)
 		p.releaseMu.Lock()
-		delete(p.releaseFingerprints, releaseName)
-		delete(p.releaseManifests, releaseName)
-		delete(p.releaseVersions, releaseName)
+		delete(p.releaseFingerprints, cacheKey)
+		delete(p.releaseManifests, cacheKey)
+		delete(p.releaseVersions, cacheKey)
 		p.releaseMu.Unlock()
 		return
 	}
@@ -1048,11 +1057,11 @@ func (p *Provider) validateReleaseHealth(releaseName, releaseNamespace string) {
 // Strategy: always delete the secrets directly via the Kubernetes API first,
 // since corrupted secrets cannot be reliably handled by Helm's own storage
 // driver or uninstall action.
-func (p *Provider) cleanOrphanedReleaseSecrets(_ *action.Configuration, releaseName, releaseNamespace string) error {
+func (p *Provider) cleanOrphanedReleaseSecrets(_ *action.Configuration, releaseName, releaseNamespace string, velaCtx *ContextParams) error {
 	// Primary approach: delete secrets directly via Kubernetes API.
 	// This is the most reliable method for corrupted secrets.
-	klog.Infof("Helm provider: Cleaning up release secrets for %s in namespace %s via direct deletion", releaseName, releaseNamespace)
-	if err := p.deleteReleaseSecretsDirect(releaseNamespace, releaseName); err != nil {
+	klog.Infof("Helm provider [%s]: Cleaning up release secrets for %s in namespace %s via direct deletion", velaContextStr(velaCtx), releaseName, releaseNamespace)
+	if err := p.deleteReleaseSecretsDirect(releaseNamespace, releaseName, velaCtx); err != nil {
 		return fmt.Errorf("failed to clean release secrets for %s: %w", releaseName, err)
 	}
 	return nil
@@ -1128,9 +1137,9 @@ func (p *Provider) labelReleaseSecrets(namespace, releaseName string, velaCtx *C
 			[]byte(patch), metav1.PatchOptions{},
 		)
 		if patchErr != nil {
-			klog.Warningf("Helm provider: Failed to label release secret %s/%s: %v", namespace, s.Name, patchErr)
+			klog.Warningf("Helm provider [%s]: Failed to label release secret %s/%s: %v", velaContextStr(velaCtx), namespace, s.Name, patchErr)
 		} else {
-			klog.Infof("Helm provider: Labeled release secret %s/%s for adoption", namespace, s.Name)
+			klog.Infof("Helm provider [%s]: Labeled release secret %s/%s for adoption", velaContextStr(velaCtx), namespace, s.Name)
 		}
 	}
 }
@@ -1138,7 +1147,7 @@ func (p *Provider) labelReleaseSecrets(namespace, releaseName string, velaCtx *C
 // deleteReleaseSecretsDirect uses the Kubernetes API directly to delete Helm
 // release secrets. This is the last-resort cleanup for secrets that are too
 // corrupted for Helm's own storage driver or uninstall action to handle.
-func (p *Provider) deleteReleaseSecretsDirect(namespace, releaseName string) error {
+func (p *Provider) deleteReleaseSecretsDirect(namespace, releaseName string, velaCtx *ContextParams) error {
 	cfg, err := p.helmClient.RESTClientGetter().ToRESTConfig()
 	if err != nil {
 		return errors.Wrap(err, "failed to get REST config")
@@ -1157,26 +1166,27 @@ func (p *Provider) deleteReleaseSecretsDirect(namespace, releaseName string) err
 	}
 
 	for _, secret := range secretList.Items {
-		klog.Infof("Helm provider: Directly deleting corrupted release secret %s/%s", namespace, secret.Name)
+		klog.Infof("Helm provider [%s]: Directly deleting corrupted release secret %s/%s", velaContextStr(velaCtx), namespace, secret.Name)
 		if err := clientset.CoreV1().Secrets(namespace).Delete(context.Background(), secret.Name, metav1.DeleteOptions{}); err != nil {
 			klog.Warningf("Helm provider: Failed to delete secret %s/%s: %v", namespace, secret.Name, err)
 		}
 	}
 
-	klog.Infof("Helm provider: Deleted %d orphaned release secrets for %s in namespace %s", len(secretList.Items), releaseName, namespace)
+	klog.Infof("Helm provider [%s]: Deleted %d orphaned release secrets for %s in namespace %s", velaContextStr(velaCtx), len(secretList.Items), releaseName, namespace)
 	return nil
 }
 
 // InvalidateRelease clears the in-memory cache for a specific release. This
 // can be called by external components (e.g., ResourceTracker GC) when they
 // detect that a Helm release secret has been deleted or is missing.
-func (p *Provider) InvalidateRelease(releaseName string) {
+func (p *Provider) InvalidateRelease(releaseName, releaseNamespace string) {
+	cacheKey := releaseCacheKey(releaseNamespace, releaseName)
 	p.releaseMu.Lock()
 	defer p.releaseMu.Unlock()
-	delete(p.releaseFingerprints, releaseName)
-	delete(p.releaseManifests, releaseName)
-	delete(p.releaseVersions, releaseName)
-	klog.Infof("Helm provider: Invalidated cache for release %s", releaseName)
+	delete(p.releaseFingerprints, cacheKey)
+	delete(p.releaseManifests, cacheKey)
+	delete(p.releaseVersions, cacheKey)
+	klog.Infof("Helm provider: Invalidated cache for release %s/%s", releaseNamespace, releaseName)
 }
 
 // parseManifestResources parses a Helm release manifest string into a slice of
@@ -1296,7 +1306,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 
 	renderParams := params.Params
 
-	klog.V(2).Infof("Helm provider: Starting render for chart %s from %s", renderParams.Chart.Source, renderParams.Chart.RepoURL)
+	klog.V(2).Infof("Helm provider [%s]: Starting render for chart %s from %s", velaContextStr(renderParams.Context), renderParams.Chart.Source, renderParams.Chart.RepoURL)
 
 	// Set default release name and namespace
 	releaseName := "release"
@@ -1393,13 +1403,13 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 		}
 	}
 
-	klog.Infof("Helm provider: Deployed %d resources for chart %s", len(resources), renderParams.Chart.Source)
+	klog.Infof("Helm provider [%s]: Deployed %d resources for chart %s", velaContextStr(renderParams.Context), len(resources), renderParams.Chart.Source)
 
 	// Log resource summary for debugging
 	if len(resources) > 0 {
 		if kind, found, _ := unstructured.NestedString(resources[0], "kind"); found {
 			if name, found, _ := unstructured.NestedString(resources[0], "metadata", "name"); found {
-				klog.Infof("Helm provider: First resource is %s/%s", kind, name)
+				klog.Infof("Helm provider [%s]: First resource is %s/%s", velaContextStr(renderParams.Context), kind, name)
 			}
 		}
 
@@ -1475,10 +1485,11 @@ func Uninstall(ctx context.Context, params *providers.Params[UninstallParams]) (
 	}
 
 	// Clear in-memory state so the next Render performs a fresh install
+	cacheKey := releaseCacheKey(releaseNamespace, releaseName)
 	p.releaseMu.Lock()
-	delete(p.releaseFingerprints, releaseName)
-	delete(p.releaseManifests, releaseName)
-	delete(p.releaseVersions, releaseName)
+	delete(p.releaseFingerprints, cacheKey)
+	delete(p.releaseManifests, cacheKey)
+	delete(p.releaseVersions, cacheKey)
 	p.releaseMu.Unlock()
 
 	return &providers.Returns[UninstallReturns]{

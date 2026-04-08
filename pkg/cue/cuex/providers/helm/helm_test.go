@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The KubeVela Authors.
+Copyright 2026 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -414,11 +414,12 @@ metadata:
 			values := map[string]interface{}{"replicas": 1}
 			fp := computeReleaseFingerprint(ch, values)
 
+			cacheKey := "default/my-release"
 			// Pre-seed the in-memory cache
 			p.releaseMu.Lock()
-			p.releaseFingerprints["my-release"] = fp
-			p.releaseManifests["my-release"] = "---\napiVersion: v1\nkind: Service\n"
-			p.releaseVersions["my-release"] = 3
+			p.releaseFingerprints[cacheKey] = fp
+			p.releaseManifests[cacheKey] = "---\napiVersion: v1\nkind: Service\n"
+			p.releaseVersions[cacheKey] = 3
 			p.releaseMu.Unlock()
 
 			manifest, _, version, _ := p.installOrUpgradeChart(
@@ -430,9 +431,9 @@ metadata:
 			}
 
 			p.releaseMu.Lock()
-			_, hasFP := p.releaseFingerprints["my-release"]
+			_, hasFP := p.releaseFingerprints[cacheKey]
 			p.releaseMu.Unlock()
-			if hasFP && p.releaseManifests["my-release"] == "---\napiVersion: v1\nkind: Service\n" {
+			if hasFP && p.releaseManifests[cacheKey] == "---\napiVersion: v1\nkind: Service\n" {
 				Fail("stale cache entry was not invalidated")
 			}
 		})
@@ -442,21 +443,22 @@ metadata:
 		It("should clear all cache entries for a release", func() {
 			p := NewProviderWithConfig(nil)
 
+			cacheKey := "default/test-rel"
 			p.releaseMu.Lock()
-			p.releaseFingerprints["test-rel"] = "fp1"
-			p.releaseManifests["test-rel"] = "manifest"
-			p.releaseVersions["test-rel"] = 1
+			p.releaseFingerprints[cacheKey] = "fp1"
+			p.releaseManifests[cacheKey] = "manifest"
+			p.releaseVersions[cacheKey] = 1
 			p.releaseMu.Unlock()
 
-			Expect(p.releaseFingerprints["test-rel"]).To(Equal("fp1"))
+			Expect(p.releaseFingerprints[cacheKey]).To(Equal("fp1"))
 
-			p.InvalidateRelease("test-rel")
+			p.InvalidateRelease("test-rel", "default")
 
-			_, ok := p.releaseFingerprints["test-rel"]
+			_, ok := p.releaseFingerprints[cacheKey]
 			Expect(ok).To(BeFalse())
-			_, ok = p.releaseManifests["test-rel"]
+			_, ok = p.releaseManifests[cacheKey]
 			Expect(ok).To(BeFalse())
-			_, ok = p.releaseVersions["test-rel"]
+			_, ok = p.releaseVersions[cacheKey]
 			Expect(ok).To(BeFalse())
 		})
 	})
@@ -1196,13 +1198,13 @@ spec:
 
 		It("cleanOrphanedReleaseSecrets should not panic", func() {
 			Expect(func() {
-				_ = p.cleanOrphanedReleaseSecrets(nil, "test-release", "default")
+				_ = p.cleanOrphanedReleaseSecrets(nil, "test-release", "default", nil)
 			}).ToNot(Panic())
 		})
 
 		It("deleteReleaseSecretsDirect should not panic", func() {
 			Expect(func() {
-				_ = p.deleteReleaseSecretsDirect("default", "test-release")
+				_ = p.deleteReleaseSecretsDirect("default", "test-release", nil)
 			}).ToNot(Panic())
 		})
 
