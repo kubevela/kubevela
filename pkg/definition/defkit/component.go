@@ -30,6 +30,7 @@ import (
 type ComponentDefinition struct {
 	baseDefinition     // embedded common fields (name, description, params, template, etc.)
 	workload           WorkloadType
+	omitWorkloadType   bool              // when true, suppresses the auto-generated workload.type field in CUE
 	labels             map[string]string // metadata labels for the component definition
 	childResourceKinds []common.ChildResourceKind
 	podSpecPath        string
@@ -62,6 +63,18 @@ func (c *ComponentDefinition) Description(desc string) *ComponentDefinition {
 func (c *ComponentDefinition) Workload(apiVersion, kind string) *ComponentDefinition {
 	c.workload = WorkloadType{apiVersion: apiVersion, kind: kind}
 	return c
+}
+
+// OmitWorkloadType suppresses the auto-generated workload.type field in the CUE output.
+// Use this when the vela source CUE does not include a workload type field.
+func (c *ComponentDefinition) OmitWorkloadType() *ComponentDefinition {
+	c.omitWorkloadType = true
+	return c
+}
+
+// IsOmitWorkloadType returns whether workload type should be suppressed in CUE output.
+func (c *ComponentDefinition) IsOmitWorkloadType() bool {
+	return c.omitWorkloadType
 }
 
 // AutodetectWorkload sets the workload type to "autodetects.core.oam.dev".
@@ -196,6 +209,20 @@ func (c *ComponentDefinition) PodSpecPath(path string) *ComponentDefinition {
 
 // GetPodSpecPath returns the pod spec path.
 func (c *ComponentDefinition) GetPodSpecPath() string { return c.podSpecPath }
+
+// Validators adds top-level parameter validators to the component.
+// These validators are emitted inside the parameter: { ... } block as _validate* variables.
+func (c *ComponentDefinition) Validators(validators ...*Validator) *ComponentDefinition {
+	c.addValidators(validators...)
+	return c
+}
+
+// ConditionalParams adds a conditional parameter block to the component.
+// This allows parameters to change shape based on a discriminator value.
+func (c *ComponentDefinition) ConditionalParams(block *ConditionalParamBlock) *ComponentDefinition {
+	c.addConditionalParamBlock(block)
+	return c
+}
 
 // RawCUE sets raw CUE for complex component definitions that don't fit the builder pattern.
 // When set, this bypasses all other template settings and outputs the raw CUE directly.

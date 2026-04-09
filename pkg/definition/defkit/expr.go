@@ -169,23 +169,6 @@ type TruthyCondition struct {
 // ParamName returns the parameter name being checked.
 func (t *TruthyCondition) ParamName() string { return t.paramName }
 
-// CompareCondition represents a comparison between two values.
-type CompareCondition struct {
-	baseCondition
-	left  any
-	right any
-	op    string
-}
-
-// Left returns the left operand.
-func (c *CompareCondition) Left() any { return c.left }
-
-// Right returns the right operand.
-func (c *CompareCondition) Right() any { return c.right }
-
-// Operator returns the comparison operator.
-func (c *CompareCondition) Operator() string { return c.op }
-
 // AndCondition represents a binary logical AND of two conditions.
 // This is an internal IR type used by cuegen to combine conditions during code generation.
 // For the user-facing API, use And() which accepts variadic conditions via LogicalExpr.
@@ -194,25 +177,6 @@ type AndCondition struct {
 	left  Condition
 	right Condition
 }
-
-// OrCondition represents a binary logical OR of two conditions.
-// This is an internal IR type used by cuegen to combine conditions during code generation.
-// For the user-facing API, use Or() which accepts variadic conditions via LogicalExpr.
-type OrCondition struct {
-	baseCondition
-	left  Condition
-	right Condition
-}
-
-// NotCondition represents a logical NOT of a condition.
-// Used both internally (e.g., by ParamNotSet) and as part of the user-facing Not() API.
-type NotCondition struct {
-	baseCondition
-	inner Condition
-}
-
-// Inner returns the negated condition.
-func (n *NotCondition) Inner() Condition { return n.inner }
 
 // --- Parameter Runtime Condition Types ---
 
@@ -254,19 +218,25 @@ func (c *StringContainsCondition) ParamName() string { return c.paramName }
 // Substr returns the substring to check for.
 func (c *StringContainsCondition) Substr() string { return c.substr }
 
-// StringMatchesCondition checks if a string parameter matches a regex pattern.
-// Generates: parameter.name =~ "pattern"
-type StringMatchesCondition struct {
+// RegexMatchCondition checks if any Value matches a regex pattern.
+// Generates: <value> =~ "pattern"
+// Used by both LocalFieldRef.Matches() and StringParam.Matches().
+type RegexMatchCondition struct {
 	baseCondition
-	paramName string
-	pattern   string
+	source  Value
+	pattern string
 }
 
-// ParamName returns the parameter name being checked.
-func (c *StringMatchesCondition) ParamName() string { return c.paramName }
+// Source returns the value being matched.
+func (c *RegexMatchCondition) Source() Value { return c.source }
 
-// Pattern returns the regex pattern to match against.
-func (c *StringMatchesCondition) Pattern() string { return c.pattern }
+// Pattern returns the regex pattern.
+func (c *RegexMatchCondition) Pattern() string { return c.pattern }
+
+// RegexMatch creates a condition that checks if a value matches a regex pattern.
+func RegexMatch(source Value, pattern string) *RegexMatchCondition {
+	return &RegexMatchCondition{source: source, pattern: pattern}
+}
 
 // StringStartsWithCondition checks if a string parameter starts with a prefix.
 // Generates: strings.HasPrefix(parameter.name, "prefix")

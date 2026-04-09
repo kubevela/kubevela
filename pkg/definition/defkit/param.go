@@ -16,6 +16,11 @@ limitations under the License.
 
 package defkit
 
+import (
+	"fmt"
+	"strings"
+)
+
 // baseParam provides common parameter functionality.
 type baseParam struct {
 	name         string
@@ -50,7 +55,7 @@ func (p *baseParam) IsSet() Condition {
 // NotSet returns a condition that checks if the parameter is not set.
 // This generates `if parameter["name"] == _|_` in CUE.
 func (p *baseParam) NotSet() Condition {
-	return &NotCondition{inner: &IsSetCondition{paramName: p.name}}
+	return Not(&IsSetCondition{paramName: p.name})
 }
 
 // Eq creates a condition that compares this parameter to a literal value.
@@ -112,6 +117,7 @@ type StringParam struct {
 	enumValues []string // allowed enum values
 	openEnum   bool     // when true, appends | string to enum disjunction (open enum)
 	pattern    string   // regex pattern constraint
+	notEmpty   bool     // when true, emits !="" constraint
 	minLen     *int     // minimum length constraint
 	maxLen     *int     // maximum length constraint
 }
@@ -227,6 +233,18 @@ func (p *StringParam) GetMaxLen() *int {
 	return p.maxLen
 }
 
+// NotEmpty adds a non-empty string constraint.
+// This generates CUE like: string & !=""
+func (p *StringParam) NotEmpty() *StringParam {
+	p.notEmpty = true
+	return p
+}
+
+// GetNotEmpty returns whether the non-empty constraint is set.
+func (p *StringParam) GetNotEmpty() bool {
+	return p.notEmpty
+}
+
 // Concat creates a string concatenation expression.
 // Example: name.Concat("-suffix") generates: parameter.name + "-suffix"
 func (p *StringParam) Concat(suffix string) Value {
@@ -250,7 +268,7 @@ func (p *StringParam) Contains(substr string) Condition {
 // Matches creates a condition that checks if this string parameter matches a regex pattern.
 // Example: name.Matches("^prod-") generates: parameter.name =~ "^prod-"
 func (p *StringParam) Matches(pattern string) Condition {
-	return &StringMatchesCondition{paramName: p.name, pattern: pattern}
+	return RegexMatch(p, pattern)
 }
 
 // StartsWith creates a condition that checks if this string parameter starts with a prefix.
@@ -581,12 +599,14 @@ func (p *FloatParam) In(values ...float64) Condition {
 // ArrayParam represents an array/list parameter.
 type ArrayParam struct {
 	baseParam
-	elementType ParamType
-	fields      []Param // fields for structured array elements
-	schema      string  // raw CUE schema for the array elements
-	schemaRef   string  // reference to a helper definition (e.g., "HealthProbe")
-	minItems    *int    // minimum number of items
-	maxItems    *int    // maximum number of items
+	elementType      ParamType
+	fields           []Param      // fields for structured array elements
+	schema           string       // raw CUE schema for the array elements
+	schemaRef        string       // reference to a helper definition (e.g., "HealthProbe")
+	minItems         *int         // minimum number of items
+	maxItems         *int         // maximum number of items
+	validators       []*Validator // validators emitted inside each array element struct
+	notEmptyElements bool         // when true, adds !="" constraint to string elements: [...(string & !="")]
 }
 
 // Array creates a new array parameter with the given name.
@@ -672,6 +692,45 @@ func (p *ArrayParam) GetSchemaRef() string {
 	return p.schemaRef
 }
 
+// OfEnum is a convenience method for arrays of enum values.
+// It sets the schema to [...("val1" | "val2" | ...)].
+// Example: Array("methods").OfEnum("GET", "POST") emits: [...("GET" | "POST")]
+func (p *ArrayParam) OfEnum(values ...string) *ArrayParam {
+	quoted := make([]string, len(values))
+	for i, v := range values {
+		quoted[i] = fmt.Sprintf("%q", v)
+	}
+	p.schema = "[...(" + strings.Join(quoted, " | ") + ")]"
+	return p
+}
+
+// Validators adds validation rules to this array parameter.
+// Validators are emitted inside each array element struct as _validate* blocks.
+func (p *ArrayParam) Validators(validators ...*Validator) *ArrayParam {
+	p.validators = append(p.validators, validators...)
+	return p
+}
+
+// GetValidators returns the validators for this array parameter.
+func (p *ArrayParam) GetValidators() []*Validator {
+	return p.validators
+}
+
+// NotEmpty adds a !="" constraint to each string element of the array.
+// Changes [...string] to [...(string & !="")].
+// Only applies to string-typed arrays; silently ignored for other element types.
+// Consistent with StringParam.NotEmpty().
+// Example: StringList("x").NotEmpty() produces [...(string & !="")]
+func (p *ArrayParam) NotEmpty() *ArrayParam {
+	p.notEmptyElements = true
+	return p
+}
+
+// HasNotEmpty returns true if elements must be non-empty.
+func (p *ArrayParam) HasNotEmpty() bool {
+	return p.notEmptyElements
+}
+
 // MinItems sets the minimum number of items constraint for the array.
 // This generates CUE like: list.MinItems(n)
 func (p *ArrayParam) MinItems(n int) *ArrayParam {
@@ -749,11 +808,14 @@ func (p *ArrayParam) IsNotEmpty() Condition {
 // MapParam represents a map/dictionary parameter.
 type MapParam struct {
 	baseParam
-	keyType   ParamType
-	valueType ParamType
-	fields    []Param // fields for structured map values
-	schema    string  // raw CUE schema for the map structure
-	schemaRef string  // reference to a helper definition (e.g., "HealthProbe")
+	keyType           ParamType
+	valueType         ParamType
+	fields            []Param              // fields for structured map values
+	schema            string               // raw CUE schema for the map structure
+	schemaRef         string               // reference to a helper definition (e.g., "HealthProbe")
+	closed            bool                 // when true, wraps struct output in close({...})
+	validators        []*Validator         // validators emitted inside this struct
+	conditionalFields []*ConditionalBranch // conditional field branches inside this struct
 }
 
 // Map creates a new map parameter with the given name.
@@ -838,6 +900,42 @@ func (p *MapParam) WithSchemaRef(ref string) *MapParam {
 // GetSchemaRef returns the schema reference for this parameter.
 func (p *MapParam) GetSchemaRef() string {
 	return p.schemaRef
+}
+
+// Closed marks the map as a closed struct, preventing extra fields.
+// This generates CUE like: close({...})
+func (p *MapParam) Closed() *MapParam {
+	p.closed = true
+	return p
+}
+
+// IsClosed returns whether the map is a closed struct.
+func (p *MapParam) IsClosed() bool {
+	return p.closed
+}
+
+// Validators adds validation rules to this map parameter.
+// Validators are emitted inside the struct as _validate* blocks.
+func (p *MapParam) Validators(validators ...*Validator) *MapParam {
+	p.validators = append(p.validators, validators...)
+	return p
+}
+
+// GetValidators returns the validators for this map parameter.
+func (p *MapParam) GetValidators() []*Validator {
+	return p.validators
+}
+
+// ConditionalFields adds conditional field branches inside this struct.
+// Fields within each branch are emitted conditionally based on the guard.
+func (p *MapParam) ConditionalFields(branches ...*ConditionalBranch) *MapParam {
+	p.conditionalFields = append(p.conditionalFields, branches...)
+	return p
+}
+
+// GetConditionalFields returns the conditional field branches.
+func (p *MapParam) GetConditionalFields() []*ConditionalBranch {
+	return p.conditionalFields
 }
 
 // Field returns a reference to a nested field within this map parameter.

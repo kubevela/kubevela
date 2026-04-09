@@ -866,6 +866,100 @@ var _ = Describe("ComponentDefinition", func() {
 		})
 	})
 
+	Context("OmitWorkloadType", func() {
+		It("should default to false", func() {
+			c := defkit.NewComponent("test").Workload("apps/v1", "Deployment")
+			Expect(c.IsOmitWorkloadType()).To(BeFalse())
+		})
+
+		It("should set omit workload type flag", func() {
+			c := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				OmitWorkloadType()
+			Expect(c.IsOmitWorkloadType()).To(BeTrue())
+		})
+
+		It("should suppress workload type in CUE output", func() {
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				OmitWorkloadType().
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						Set("metadata.name", defkit.Lit("test")))
+				})
+
+			cue := comp.ToCue()
+			Expect(cue).To(ContainSubstring(`kind:       "Deployment"`))
+			Expect(cue).NotTo(ContainSubstring(`type: "deployments.apps"`))
+			Expect(cue).NotTo(ContainSubstring(`type: "autodetects.core.oam.dev"`))
+		})
+
+		It("should include workload type when not omitted", func() {
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						Set("metadata.name", defkit.Lit("test")))
+				})
+
+			cue := comp.ToCue()
+			Expect(cue).To(ContainSubstring(`type: "deployments.apps"`))
+		})
+	})
+
+	Context("Validators on Component", func() {
+		It("should store validators via Validators method", func() {
+			v1 := defkit.Validate("a").WithName("_a")
+			v2 := defkit.Validate("b").WithName("_b")
+
+			c := defkit.NewComponent("test").Validators(v1, v2)
+			Expect(c.GetValidators()).To(HaveLen(2))
+			Expect(c.GetValidators()[0]).To(Equal(v1))
+			Expect(c.GetValidators()[1]).To(Equal(v2))
+		})
+
+		It("should accumulate validators across multiple calls", func() {
+			c := defkit.NewComponent("test").
+				Validators(defkit.Validate("a").WithName("_a")).
+				Validators(defkit.Validate("b").WithName("_b"))
+			Expect(c.GetValidators()).To(HaveLen(2))
+		})
+
+		It("should return empty when no validators set", func() {
+			c := defkit.NewComponent("test")
+			Expect(c.GetValidators()).To(BeEmpty())
+		})
+	})
+
+	Context("ConditionalParams on Component", func() {
+		It("should store conditional param blocks", func() {
+			block := defkit.ConditionalParams(
+				defkit.WhenParam(defkit.Bool("x").Eq(true)).Params(defkit.String("a")),
+			)
+			c := defkit.NewComponent("test").ConditionalParams(block)
+			Expect(c.GetConditionalParamBlocks()).To(HaveLen(1))
+			Expect(c.GetConditionalParamBlocks()[0]).To(Equal(block))
+		})
+
+		It("should accumulate blocks across multiple calls", func() {
+			b1 := defkit.ConditionalParams(
+				defkit.WhenParam(defkit.Bool("x").Eq(true)).Params(defkit.String("a")),
+			)
+			b2 := defkit.ConditionalParams(
+				defkit.WhenParam(defkit.Bool("y").Eq(true)).Params(defkit.String("b")),
+			)
+			c := defkit.NewComponent("test").
+				ConditionalParams(b1).
+				ConditionalParams(b2)
+			Expect(c.GetConditionalParamBlocks()).To(HaveLen(2))
+		})
+
+		It("should return empty when no blocks set", func() {
+			c := defkit.NewComponent("test")
+			Expect(c.GetConditionalParamBlocks()).To(BeEmpty())
+		})
+	})
+
 	Context("Repeated generation stability", func() {
 		It("should produce identical CUE across 20 runs", func() {
 			build := func() string {

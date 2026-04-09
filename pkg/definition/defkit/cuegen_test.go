@@ -1463,6 +1463,392 @@ var _ = Describe("CUEGenerator", func() {
 		})
 	})
 
+	Describe("Fluent Builder API Validator Patterns CUE Generation", func() {
+		var gen *defkit.CUEGenerator
+
+		BeforeEach(func() {
+			gen = defkit.NewCUEGenerator()
+		})
+
+		Context("OmitWorkloadType CUE Generation", func() {
+			It("should suppress workload type field when omitted", func() {
+				comp := defkit.NewComponent("test").
+					Workload("apps/v1", "Deployment").
+					OmitWorkloadType().
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", defkit.Lit("test")))
+					})
+
+				cue := comp.ToCue()
+				Expect(cue).To(ContainSubstring(`kind:       "Deployment"`))
+				Expect(cue).To(ContainSubstring("workload:"))
+				Expect(cue).NotTo(MatchRegexp(`type:\s+"deployments\.apps"`))
+			})
+
+			It("should include workload type when not omitted", func() {
+				comp := defkit.NewComponent("test").
+					Workload("apps/v1", "Deployment").
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", defkit.Lit("test")))
+					})
+
+				cue := comp.ToCue()
+				Expect(cue).To(ContainSubstring(`type: "deployments.apps"`))
+			})
+		})
+
+		Context("RawHeaderBlock in Component Template", func() {
+			It("should emit raw header block before output", func() {
+				comp := defkit.NewComponent("test").
+					Workload("v1", "PersistentVolumeClaim").
+					Template(func(tpl *defkit.Template) {
+						tpl.SetRawHeaderBlock(`let _claimName = parameter.claimName + "-pvc"`)
+						tpl.Output(defkit.NewResource("v1", "PersistentVolumeClaim").
+							Set("metadata.name", defkit.Reference("_claimName")))
+					})
+
+				cue := gen.GenerateTemplate(comp)
+				Expect(cue).To(ContainSubstring(`let _claimName = parameter.claimName + "-pvc"`))
+				Expect(cue).To(ContainSubstring("_claimName"))
+			})
+
+			It("should emit multiline raw header block", func() {
+				comp := defkit.NewComponent("test").
+					Workload("v1", "ConfigMap").
+					Template(func(tpl *defkit.Template) {
+						tpl.SetRawHeaderBlock("let _a = parameter.a\nlet _b = parameter.b")
+						tpl.Output(defkit.NewResource("v1", "ConfigMap").
+							Set("metadata.name", defkit.Lit("test")))
+					})
+
+				cue := gen.GenerateTemplate(comp)
+				Expect(cue).To(ContainSubstring("let _a = parameter.a"))
+				Expect(cue).To(ContainSubstring("let _b = parameter.b"))
+			})
+
+			It("should not emit header block when empty", func() {
+				comp := defkit.NewComponent("test").
+					Workload("v1", "ConfigMap").
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("v1", "ConfigMap").
+							Set("metadata.name", defkit.Lit("test")))
+					})
+
+				cue := gen.GenerateTemplate(comp)
+				Expect(cue).NotTo(ContainSubstring("let _"))
+			})
+		})
+
+		Context("ArrayParam NotEmpty Elements CUE Generation", func() {
+			It("should generate [...(string & !=\"\")] for NotEmpty string arrays", func() {
+				p := defkit.StringList("tags").NotEmpty()
+				comp := defkit.NewComponent("test").Params(p)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring(`[...(string & !="")]`))
+			})
+
+			It("should generate normal [...string] without NotEmpty", func() {
+				p := defkit.StringList("tags")
+				comp := defkit.NewComponent("test").Params(p)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring(`[...string]`))
+				Expect(cue).NotTo(ContainSubstring(`!=""`))
+			})
+		})
+
+		Context("ArrayParam with Schema and Default CUE Generation", func() {
+			It("should generate array with OfEnum and default value", func() {
+				p := defkit.Array("methods").
+					OfEnum("GET", "POST", "DELETE").
+					Default([]any{"GET"})
+
+				comp := defkit.NewComponent("test").Params(p)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring(`["GET"]`))
+				Expect(cue).To(ContainSubstring(`"GET" | "POST" | "DELETE"`))
+			})
+
+			It("should generate array with OfEnum and nil default as empty array", func() {
+				p := defkit.Array("methods").
+					OfEnum("GET", "POST").
+					Default(nil)
+
+				comp := defkit.NewComponent("test").Params(p)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring("*[]"))
+			})
+
+			It("should generate array with OfEnum and multi-value default", func() {
+				p := defkit.Array("methods").
+					OfEnum("GET", "POST", "DELETE").
+					Default([]any{"GET", "POST"})
+
+				comp := defkit.NewComponent("test").Params(p)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring(`["GET", "POST"]`))
+			})
+		})
+
+		Context("MapParam Closed CUE Generation", func() {
+			It("should emit close({...}) for closed struct", func() {
+				p := defkit.Object("governance").Closed().WithFields(
+					defkit.String("tenantName"),
+					defkit.String("departmentCode"),
+				)
+				comp := defkit.NewComponent("test").Params(p)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring("close({"))
+				Expect(cue).To(ContainSubstring("})"))
+				Expect(cue).To(ContainSubstring("tenantName: string"))
+			})
+
+			It("should not emit close({}) for non-closed struct", func() {
+				p := defkit.Object("config").WithFields(
+					defkit.String("name"),
+				)
+				comp := defkit.NewComponent("test").Params(p)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).NotTo(ContainSubstring("close({"))
+				Expect(cue).To(ContainSubstring("config: {"))
+			})
+		})
+
+		Context("MapParam with Validators CUE Generation", func() {
+			It("should emit validators inside struct", func() {
+				v := defkit.Validate("name required").
+					WithName("_validateName").
+					FailWhen(defkit.LocalField("name").Eq(""))
+
+				p := defkit.Object("governance").WithFields(
+					defkit.String("name"),
+				).Validators(v)
+
+				comp := defkit.NewComponent("test").Params(p)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring("governance: {"))
+				Expect(cue).To(ContainSubstring("_validateName:"))
+				Expect(cue).To(ContainSubstring(`"name required": true`))
+			})
+		})
+
+		Context("MapParam with ConditionalFields CUE Generation", func() {
+			It("should emit conditional fields inside struct", func() {
+				flag := defkit.Bool("flag").Default(false)
+				p := defkit.Object("config").Optional().ConditionalFields(
+					defkit.WhenParam(flag.Eq(true)).Params(
+						defkit.String("secret").Required(),
+					),
+					defkit.WhenParam(flag.Eq(false)).Params(
+						defkit.String("secret").Optional(),
+					),
+				)
+
+				comp := defkit.NewComponent("test").Params(flag, p)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring("config?: {"))
+				Expect(cue).To(ContainSubstring("if parameter.flag == true"))
+				Expect(cue).To(ContainSubstring("if parameter.flag == false"))
+			})
+
+			It("should emit validators inside conditional field branches", func() {
+				flag := defkit.Bool("flag").Default(false)
+				v := defkit.Validate("check").WithName("_v").
+					FailWhen(defkit.LocalField("secret").Eq(""))
+
+				p := defkit.Object("config").Optional().ConditionalFields(
+					defkit.WhenParam(flag.Eq(true)).
+						Params(defkit.String("secret").Required()).
+						Validators(v),
+				)
+
+				comp := defkit.NewComponent("test").Params(flag, p)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring("_v:"))
+			})
+		})
+
+		Context("Closed MapParam with Validators and ConditionalFields Combined", func() {
+			It("should combine all features", func() {
+				flag := defkit.Bool("flag").Default(false)
+				v := defkit.Validate("name required").
+					WithName("_validateName").
+					FailWhen(defkit.LocalField("name").Eq(""))
+
+				p := defkit.Object("governance").Closed().
+					WithFields(
+						defkit.String("name").NotEmpty(),
+					).
+					Validators(v).
+					ConditionalFields(
+						defkit.WhenParam(flag.Eq(true)).Params(
+							defkit.String("extra").Required(),
+						),
+					)
+
+				comp := defkit.NewComponent("test").Params(flag, p)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring("close({"))
+				Expect(cue).To(ContainSubstring(`!=""`))
+				Expect(cue).To(ContainSubstring("_validateName:"))
+				Expect(cue).To(ContainSubstring("if parameter.flag == true"))
+				Expect(cue).To(ContainSubstring("})"))
+			})
+		})
+
+		Context("RegexMatch CUE Generation", func() {
+			It("should generate regex match for StringParam.Matches", func() {
+				p := defkit.String("name")
+				comp := defkit.NewComponent("test").
+					Params(p).
+					Workload("v1", "ConfigMap").
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("v1", "ConfigMap").
+							SetIf(p.Matches("^prod-"), "data.env", defkit.Lit("production")))
+					})
+
+				cue := gen.GenerateTemplate(comp)
+				Expect(cue).To(ContainSubstring(`parameter.name =~ "^prod-"`))
+			})
+
+			It("should generate regex match for LocalFieldRef.Matches in validator", func() {
+				v := defkit.Validate("bad").
+					WithName("_v").
+					FailWhen(defkit.LocalField("host").Matches(`\.internal$`))
+
+				comp := defkit.NewComponent("test").Validators(v)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring(`host =~ "\\.internal$"`))
+			})
+		})
+
+		Context("LocalFieldRef NotSet CUE Generation", func() {
+			It("should generate == _|_ for LocalFieldRef.NotSet", func() {
+				v := defkit.Validate("role required").
+					WithName("_v").
+					FailWhen(defkit.LocalField("role").NotSet())
+
+				comp := defkit.NewComponent("test").Validators(v)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring("role == _|_"))
+			})
+		})
+
+		Context("LocalFieldRef LenGt CUE Generation", func() {
+			It("should generate len(field) > n", func() {
+				v := defkit.Validate("too many").
+					WithName("_v").
+					FailWhen(defkit.LocalField("items").LenGt(10))
+
+				comp := defkit.NewComponent("test").Validators(v)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring("len(items) > 10"))
+			})
+		})
+
+		Context("LenOfExpr CUE Generation", func() {
+			It("should generate len(expr) > n for Gt", func() {
+				v := defkit.Validate("name too long").
+					WithName("_v").
+					FailWhen(defkit.LenOf(defkit.LocalField("name")).Gt(63))
+
+				comp := defkit.NewComponent("test").Validators(v)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring("len(name) > 63"))
+			})
+
+			It("should generate len(expr) >= n for Gte", func() {
+				v := defkit.Validate("check").
+					WithName("_v").
+					FailWhen(defkit.LenOf(defkit.LocalField("data")).Gte(100))
+
+				comp := defkit.NewComponent("test").Validators(v)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring("len(data) >= 100"))
+			})
+
+			It("should generate len(expr) == n for Eq", func() {
+				v := defkit.Validate("check").
+					WithName("_v").
+					FailWhen(defkit.LenOf(defkit.LocalField("code")).Eq(3))
+
+				comp := defkit.NewComponent("test").Validators(v)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring("len(code) == 3"))
+			})
+		})
+
+		Context("TimeParse CUE Generation", func() {
+			It("should generate time.Parse expressions", func() {
+				v := defkit.Validate("start before end").
+					WithName("_v").
+					FailWhen(defkit.TimeParse("2006-01-02T15:04:05Z", defkit.LocalField("start")).
+						Gte(defkit.TimeParse("2006-01-02T15:04:05Z", defkit.LocalField("end"))))
+
+				comp := defkit.NewComponent("test").Validators(v)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring(`time.Parse("2006-01-02T15:04:05Z", start)`))
+				Expect(cue).To(ContainSubstring(`time.Parse("2006-01-02T15:04:05Z", end)`))
+			})
+		})
+
+		Context("RawCUECondition CUE Generation", func() {
+			It("should emit raw expression verbatim", func() {
+				v := defkit.Validate("check").
+					WithName("_v").
+					FailWhen(defkit.CUEExpr(`len("prefix-"+parameter.name) > 63`))
+
+				comp := defkit.NewComponent("test").Validators(v)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring(`len("prefix-"+parameter.name) > 63`))
+			})
+		})
+
+		Context("ConditionalStructOp CUE Generation", func() {
+			It("should generate conditional struct in template output", func() {
+				replConfig := defkit.Object("replicationConfiguration").Optional()
+
+				comp := defkit.NewComponent("test").
+					Params(replConfig).
+					Workload("apps/v1", "Deployment").
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("v1", "ConfigMap").
+							Set("metadata.name", defkit.Lit("test")).
+							ConditionalStruct(replConfig.IsSet(), "spec.replication", func(b *defkit.OutputStructBuilder) {
+								b.Set("role", defkit.Reference("parameter.replicationConfiguration.role"))
+								b.SetIf(replConfig.IsSet(), "enabled", defkit.Lit(true))
+							}))
+					})
+
+				cue := gen.GenerateTemplate(comp)
+				Expect(cue).To(ContainSubstring(`if parameter["replicationConfiguration"] != _|_`))
+				Expect(cue).To(ContainSubstring("replication:"))
+				Expect(cue).To(ContainSubstring("role: parameter.replicationConfiguration.role"))
+			})
+
+			It("should generate nested path correctly", func() {
+				config := defkit.Object("config").Optional()
+
+				comp := defkit.NewComponent("test").
+					Params(config).
+					Workload("v1", "ConfigMap").
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("v1", "ConfigMap").
+							Set("metadata.name", defkit.Lit("test")).
+							ConditionalStruct(config.IsSet(), "spec.deep.nested.path", func(b *defkit.OutputStructBuilder) {
+								b.Set("key", defkit.Reference("parameter.config.key"))
+							}))
+					})
+
+				cue := gen.GenerateTemplate(comp)
+				Expect(cue).To(ContainSubstring("deep:"))
+				Expect(cue).To(ContainSubstring("nested:"))
+				Expect(cue).To(ContainSubstring("path:"))
+			})
+		})
+	})
+
 	Describe("Builtin WithDirectFields", func() {
 		It("should render fields directly without $params wrapper", func() {
 			ws := defkit.NewWorkflowStep("test").

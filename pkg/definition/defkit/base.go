@@ -47,6 +47,10 @@ type baseDefinition struct {
 	helperDefinitions []HelperDefinition
 	rawCUE            string
 	imports           []string
+	// validators holds top-level parameter validators
+	validators []*Validator
+	// conditionalParamBlocks holds conditional parameter blocks
+	conditionalParamBlocks []*ConditionalParamBlock
 	// Placement constraints for cluster-aware definition deployment
 	runOn    []placement.Condition
 	notRunOn []placement.Condition
@@ -62,6 +66,26 @@ func (b *baseDefinition) setDescription(desc string) {
 // addParams adds parameter definitions.
 func (b *baseDefinition) addParams(params ...Param) {
 	b.params = append(b.params, params...)
+}
+
+// addValidators appends validators to the definition.
+func (b *baseDefinition) addValidators(validators ...*Validator) {
+	b.validators = append(b.validators, validators...)
+}
+
+// GetValidators returns the top-level validators.
+func (b *baseDefinition) GetValidators() []*Validator {
+	return b.validators
+}
+
+// addConditionalParamBlock appends a conditional parameter block.
+func (b *baseDefinition) addConditionalParamBlock(block *ConditionalParamBlock) {
+	b.conditionalParamBlocks = append(b.conditionalParamBlocks, block)
+}
+
+// GetConditionalParamBlocks returns the conditional parameter blocks.
+func (b *baseDefinition) GetConditionalParamBlocks() []*ConditionalParamBlock {
+	return b.conditionalParamBlocks
 }
 
 // setTemplate sets the template function.

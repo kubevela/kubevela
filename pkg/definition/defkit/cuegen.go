@@ -285,6 +285,16 @@ func (g *CUEGenerator) GenerateParameterSchema(c *ComponentDefinition) string {
 		g.writeParam(&sb, param, 1)
 	}
 
+	// Write top-level validators
+	for _, v := range c.GetValidators() {
+		g.writeValidator(&sb, v, 1)
+	}
+
+	// Write conditional parameter blocks
+	for _, block := range c.GetConditionalParamBlocks() {
+		g.writeConditionalParamBlock(&sb, block, 1)
+	}
+
 	sb.WriteString("}\n")
 	return sb.String()
 }
@@ -394,6 +404,15 @@ func (g *CUEGenerator) GenerateTemplate(c *ComponentDefinition) string {
 		g.writeHelper(&sb, helper, 1)
 	}
 
+	// Emit raw header block (let bindings, helpers like _claimName)
+	if rawHeader := tpl.GetRawHeaderBlock(); rawHeader != "" {
+		for _, line := range strings.Split(strings.TrimSpace(rawHeader), "\n") {
+			sb.WriteString(g.indent)
+			sb.WriteString(line)
+			sb.WriteString("\n")
+		}
+	}
+
 	// Generate output block
 	if output := tpl.GetOutput(); output != nil {
 		g.writeResourceOutput(&sb, "output", output, nil, 1)
@@ -443,8 +462,148 @@ func (g *CUEGenerator) generateParameterBlock(c *ComponentDefinition, depth int)
 		g.writeParam(&sb, param, depth+1)
 	}
 
+	// Write top-level validators
+	for _, v := range c.GetValidators() {
+		g.writeValidator(&sb, v, depth+1)
+	}
+
+	// Write conditional parameter blocks
+	for _, block := range c.GetConditionalParamBlocks() {
+		g.writeConditionalParamBlock(&sb, block, depth+1)
+	}
+
 	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	return sb.String()
+}
+
+// writeValidator writes a CUE _validate* block.
+// Example output:
+//
+//	_validateTenantName: {
+//	    "tenantName must not end with a hyphen": true
+//	    if tenantName =~ ".*-$" {
+//	        "tenantName must not end with a hyphen": false
+//	    }
+//	}
+func (g *CUEGenerator) writeValidator(sb *strings.Builder, v *Validator, depth int) {
+	indent := strings.Repeat(g.indent, depth)
+	inner := strings.Repeat(g.indent, depth+1)
+	inner2 := strings.Repeat(g.indent, depth+2)
+
+	// Determine the CUE variable name
+	name := v.CUEName()
+	if name == "" {
+		// Auto-generate from message — use a simple underscore-prefixed name
+		name = "_validate"
+	}
+
+	if v.GuardCondition() != nil {
+		// Guarded validator: wrap in if guard { ... }
+		guardCUE := g.conditionToCUE(v.GuardCondition())
+		sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, guardCUE))
+		sb.WriteString(fmt.Sprintf("%s%s: {\n", inner, name))
+		sb.WriteString(fmt.Sprintf("%s%q: true\n", inner2, v.Message()))
+		if v.FailCondition() != nil {
+			failCUE := g.conditionToCUE(v.FailCondition())
+			sb.WriteString(fmt.Sprintf("%sif %s {\n", inner2, failCUE))
+			sb.WriteString(fmt.Sprintf("%s\t%q: false\n", inner2, v.Message()))
+			sb.WriteString(fmt.Sprintf("%s}\n", inner2))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", inner))
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	} else {
+		// Unguarded validator
+		sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, name))
+		sb.WriteString(fmt.Sprintf("%s%q: true\n", inner, v.Message()))
+		if v.FailCondition() != nil {
+			failCUE := g.conditionToCUE(v.FailCondition())
+			sb.WriteString(fmt.Sprintf("%sif %s {\n", inner, failCUE))
+			sb.WriteString(fmt.Sprintf("%s\t%q: false\n", inner, v.Message()))
+			sb.WriteString(fmt.Sprintf("%s}\n", inner))
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
+}
+
+// writeConditionalParamBlock writes conditional parameter branches.
+// Example output:
+//
+//	if existingResources == false {
+//	    forceDestroy: *false | bool
+//	}
+//	if existingResources == true {
+//	    forceDestroy?: bool
+//	}
+func (g *CUEGenerator) writeConditionalParamBlock(sb *strings.Builder, block *ConditionalParamBlock, depth int) {
+	indent := strings.Repeat(g.indent, depth)
+
+	for _, branch := range block.Branches() {
+		condCUE := g.conditionToCUE(branch.Condition())
+		sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condCUE))
+
+		// Write params inside the conditional block
+		for _, param := range branch.GetParams() {
+			g.writeParam(sb, param, depth+1)
+		}
+
+		// Write validators inside the conditional block
+		for _, v := range branch.GetValidators() {
+			g.writeValidator(sb, v, depth+1)
+		}
+
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
+}
+
+// writeConditionalStructOp writes a conditional struct block in the output.
+// Example output:
+//
+//	if parameter["replicationConfiguration"] != _|_ {
+//	    replicationConfiguration: {
+//	        role: parameter.replicationConfiguration.role
+//	    }
+//	}
+func (g *CUEGenerator) writeConditionalStructOp(sb *strings.Builder, cs *ConditionalStructOp, depth int) {
+	indent := strings.Repeat(g.indent, depth)
+
+	// Build the struct
+	builder := &OutputStructBuilder{}
+	cs.Builder()(builder)
+
+	condCUE := g.conditionToCUE(cs.Cond())
+	sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condCUE))
+
+	// Split the path into segments and open nested structs
+	parts := splitPath(cs.Path())
+	currentIndent := indent + g.indent
+	for _, part := range parts {
+		sb.WriteString(fmt.Sprintf("%s%s: {\n", currentIndent, cueLabel(part)))
+		currentIndent += g.indent
+	}
+
+	// Write builder operations
+	for _, op := range builder.Ops() {
+		switch o := op.(type) {
+		case *structSetOp:
+			valCUE := g.valueToCUE(o.value)
+			sb.WriteString(fmt.Sprintf("%s%s: %s\n", currentIndent, cueLabel(o.field), valCUE))
+		case *structSetIfOp:
+			condStr := g.conditionToCUE(o.cond)
+			sb.WriteString(fmt.Sprintf("%sif %s {\n", currentIndent, condStr))
+			valCUE := g.valueToCUE(o.value)
+			sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", currentIndent, cueLabel(o.field), valCUE))
+			sb.WriteString(fmt.Sprintf("%s}\n", currentIndent))
+		}
+	}
+
+	// Close nested structs
+	for i := len(parts) - 1; i >= 0; i-- {
+		currentIndent = currentIndent[:len(currentIndent)-len(g.indent)]
+		sb.WriteString(fmt.Sprintf("%s}\n", currentIndent))
+	}
+
+	// Close the if block
+	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 }
 
 // WriteHelperDefinition writes a CUE helper type definition like #HealthProbe.
@@ -1084,11 +1243,27 @@ func (g *CUEGenerator) writeResourceOutput(sb *strings.Builder, name string, res
 	// Write kind
 	sb.WriteString(fmt.Sprintf("%skind:       %q\n", innerIndent, res.Kind()))
 
-	// Build a tree structure from the operations
-	tree := g.buildFieldTree(res.Ops())
+	// Separate ConditionalStructOps from regular ops
+	var regularOps []ResourceOp
+	var conditionalStructs []*ConditionalStructOp
+	for _, op := range res.Ops() {
+		if cs, ok := op.(*ConditionalStructOp); ok {
+			conditionalStructs = append(conditionalStructs, cs)
+		} else {
+			regularOps = append(regularOps, op)
+		}
+	}
+
+	// Build a tree structure from the regular operations
+	tree := g.buildFieldTree(regularOps)
 
 	// Write the tree as CUE
 	g.writeFieldTree(sb, tree, depth+1)
+
+	// Write conditional struct blocks
+	for _, cs := range conditionalStructs {
+		g.writeConditionalStructOp(sb, cs, depth+1)
+	}
 
 	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 
@@ -1887,6 +2062,12 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 		return val.Path()
 	case *Ref:
 		return val.Path()
+	case *LocalFieldRef:
+		// Local field reference — emits the bare field name (no parameter. prefix)
+		return val.Name()
+	case *TimeParseExpr:
+		// time.Parse(layout, field) call
+		return fmt.Sprintf(`time.Parse(%q, %s)`, val.Layout(), val.FieldName())
 	case *HelperVar:
 		// Return reference to the helper by name
 		return val.Name()
@@ -1929,17 +2110,32 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 	case *ListComprehension:
 		// Return list comprehension CUE
 		return g.listComprehensionToCUE(val)
+	case *ParamArithExpr, *ParamConcatExpr, *ParamFieldRef, *InterpolatedString, *PlusExpr:
+		return g.exprValueToCUE(v)
+	case *IterVarRef, *IterFieldRef, *IterLetRef:
+		return g.iterRefToCUE(v)
+	case *ForEachMapOp:
+		return g.forEachMapOpToCUE(val)
+	default:
+		// Try to get name from Param interface
+		if p, ok := v.(Param); ok {
+			return "parameter." + p.Name()
+		}
+		return "_"
+	}
+}
+
+// exprValueToCUE handles expression-type values (arithmetic, concatenation, interpolation, plus).
+func (g *CUEGenerator) exprValueToCUE(v Value) string {
+	switch val := v.(type) {
 	case *ParamArithExpr:
-		// Arithmetic expression on a parameter: parameter.name op value
 		return fmt.Sprintf("parameter.%s %s %s", val.ParamName(), val.Op(), formatCUEValue(val.ArithValue()))
 	case *ParamConcatExpr:
-		// String concatenation on a parameter
 		if val.Prefix() != "" {
 			return fmt.Sprintf("%s + parameter.%s", formatCUEValue(val.Prefix()), val.ParamName())
 		}
 		return fmt.Sprintf("parameter.%s + %s", val.ParamName(), formatCUEValue(val.Suffix()))
 	case *ParamFieldRef:
-		// Reference to a field within a struct parameter: parameter.name.field.path
 		return fmt.Sprintf("parameter.%s.%s", val.ParamName(), val.FieldPath())
 	case *InterpolatedString:
 		return g.interpolatedStringToCUE(val)
@@ -1949,19 +2145,21 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 			parts[i] = g.valueToCUE(p)
 		}
 		return strings.Join(parts, " + ")
+	default:
+		return "_"
+	}
+}
+
+// iterRefToCUE handles iterator reference values.
+func (g *CUEGenerator) iterRefToCUE(v Value) string {
+	switch val := v.(type) {
 	case *IterVarRef:
 		return val.VarName()
 	case *IterFieldRef:
 		return fmt.Sprintf("%s.%s", val.VarName(), val.FieldName())
 	case *IterLetRef:
 		return val.RefName()
-	case *ForEachMapOp:
-		return g.forEachMapOpToCUE(val)
 	default:
-		// Try to get name from Param interface
-		if p, ok := v.(Param); ok {
-			return "parameter." + p.Name()
-		}
 		return "_"
 	}
 }
@@ -2675,8 +2873,6 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		return g.inConditionToCUE(c)
 	case *StringContainsCondition:
 		return fmt.Sprintf(`strings.Contains(parameter.%s, %q)`, c.ParamName(), c.Substr())
-	case *StringMatchesCondition:
-		return fmt.Sprintf(`parameter.%s =~ %q`, c.ParamName(), c.Pattern())
 	case *StringStartsWithCondition:
 		return fmt.Sprintf(`strings.HasPrefix(parameter.%s, %q)`, c.ParamName(), c.Prefix())
 	case *StringEndsWithCondition:
@@ -2694,25 +2890,10 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		left := g.exprToCUE(c.Left())
 		right := g.exprToCUE(c.Right())
 		return fmt.Sprintf("%s %s %s", left, c.Op(), right)
-	case *CompareCondition:
-		left := g.anyToCUE(c.Left())
-		right := g.anyToCUE(c.Right())
-		return fmt.Sprintf("%s %s %s", left, c.Operator(), right)
 	case *AndCondition:
 		left := g.conditionToCUE(c.left)
 		right := g.conditionToCUE(c.right)
 		return fmt.Sprintf("(%s) && (%s)", left, right)
-	case *OrCondition:
-		left := g.conditionToCUE(c.left)
-		right := g.conditionToCUE(c.right)
-		return fmt.Sprintf("(%s) || (%s)", left, right)
-	case *NotCondition:
-		// Special case: Not(IsSet("x")) -> parameter["x"] == _|_ (cleaner than !(parameter["x"] != _|_))
-		if isSet, ok := c.Inner().(*IsSetCondition); ok {
-			return fmt.Sprintf("parameter[%q] == _|_", isSet.ParamName())
-		}
-		inner := g.conditionToCUE(c.Inner())
-		return fmt.Sprintf("!(%s)", inner)
 	case *LogicalExpr:
 		parts := make([]string, len(c.Conditions()))
 		for i, sub := range c.Conditions() {
@@ -2724,6 +2905,14 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		}
 		return strings.Join(parts, op)
 	case *NotExpr:
+		// Special case: Not(IsSet("x")) -> parameter["x"] == _|_
+		if isSet, ok := c.Cond().(*IsSetCondition); ok {
+			return fmt.Sprintf("parameter[%q] == _|_", isSet.ParamName())
+		}
+		// Special case: Not(PathExists("x")) -> x == _|_
+		if pe, ok := c.Cond().(*PathExistsCondition); ok {
+			return fmt.Sprintf("%s == _|_", pe.Path())
+		}
 		return fmt.Sprintf("!(%s)", g.conditionToCUE(c.Cond()))
 	case *HasExposedPortsCondition:
 		// Check if any port has expose=true
@@ -2761,6 +2950,12 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		// For CUE, we generate: cond1 && cond2 && cond3
 		// which will be used in a single if statement
 		return strings.Join(parts, " && ")
+	case *RegexMatchCondition:
+		// General-purpose regex match: <value> =~ "pattern"
+		return fmt.Sprintf(`%s =~ %q`, g.valueToCUE(c.Source()), c.Pattern())
+	case *RawCUECondition:
+		// Raw CUE expression — emit verbatim
+		return c.Expr()
 	default:
 		return cueBoolTrue
 	}
@@ -2784,14 +2979,6 @@ func (g *CUEGenerator) exprToCUE(e Expr) string {
 	return "_"
 }
 
-// anyToCUE converts any value to CUE syntax.
-func (g *CUEGenerator) anyToCUE(v any) string {
-	if val, ok := v.(Value); ok {
-		return g.valueToCUE(val)
-	}
-	return formatCUEValue(v)
-}
-
 // writeWorkload writes the workload definition.
 func (g *CUEGenerator) writeWorkload(sb *strings.Builder, c *ComponentDefinition, depth int) {
 	indent := strings.Repeat(g.indent, depth)
@@ -2809,9 +2996,11 @@ func (g *CUEGenerator) writeWorkload(sb *strings.Builder, c *ComponentDefinition
 	sb.WriteString(fmt.Sprintf("%s%s%skind:       %q\n", indent, g.indent, g.indent, workload.Kind()))
 	sb.WriteString(fmt.Sprintf("%s%s}\n", indent, g.indent))
 
-	// Write workload type
-	workloadType := g.inferWorkloadType(workload)
-	sb.WriteString(fmt.Sprintf("%s%stype: %q\n", indent, g.indent, workloadType))
+	// Write workload type (unless suppressed)
+	if !c.IsOmitWorkloadType() {
+		workloadType := g.inferWorkloadType(workload)
+		sb.WriteString(fmt.Sprintf("%s%stype: %q\n", indent, g.indent, workloadType))
+	}
 	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 }
 
@@ -2968,6 +3157,11 @@ func (g *CUEGenerator) writeStringParam(sb *strings.Builder, p *StringParam, ind
 		// Build constraint parts
 		var constraints []string
 
+		// NotEmpty constraint: !=""
+		if p.GetNotEmpty() {
+			constraints = append(constraints, `!=""`)
+		}
+
 		// Pattern constraint: =~"pattern"
 		if pattern := p.GetPattern(); pattern != "" {
 			constraints = append(constraints, fmt.Sprintf(`=~%q`, pattern))
@@ -3093,32 +3287,64 @@ func (g *CUEGenerator) writeArrayParam(sb *strings.Builder, p *ArrayParam, inden
 		// Reference to a helper definition like #HealthProbe
 		// For arrays, output [...#SchemaRef] to indicate an array of the helper type
 		sb.WriteString(fmt.Sprintf("%s%s%s: %s[...#%s]\n", indent, name, optional, constraintPrefix, schemaRef))
-		return
-	}
-
-	if schema := p.GetSchema(); schema != "" {
-		// Raw CUE schema - output directly
-		if constraintPrefix != "" {
-			sb.WriteString(fmt.Sprintf("%s%s%s: %s%s\n", indent, name, optional, constraintPrefix, schema))
+	} else if schema := p.GetSchema(); schema != "" {
+		// Raw CUE schema - output directly, with optional default
+		if p.HasDefault() {
+			defaultJSON := g.formatArrayDefault(p.GetDefault())
+			if constraintPrefix != "" {
+				sb.WriteString(fmt.Sprintf("%s%s%s: %s%s | *%s\n", indent, name, optional, constraintPrefix, schema, defaultJSON))
+			} else {
+				sb.WriteString(fmt.Sprintf("%s%s%s: %s | *%s\n", indent, name, optional, schema, defaultJSON))
+			}
 		} else {
-			sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, schema))
+			if constraintPrefix != "" {
+				sb.WriteString(fmt.Sprintf("%s%s%s: %s%s\n", indent, name, optional, constraintPrefix, schema))
+			} else {
+				sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, schema))
+			}
 		}
-		return
+	} else {
+		elemType := g.cueTypeForParamType(p.ElementType())
+
+		// Check if array has structured fields
+		if fields := p.GetFields(); len(fields) > 0 {
+			sb.WriteString(fmt.Sprintf("%s%s%s: %s[...{\n", indent, name, optional, constraintPrefix))
+			for _, field := range fields {
+				g.writeParam(sb, field, depth+1)
+			}
+			// Write validators inside each array element struct
+			for _, v := range p.GetValidators() {
+				g.writeValidator(sb, v, depth+1)
+			}
+			sb.WriteString(fmt.Sprintf("%s}]\n", indent))
+		} else if elemType != "" {
+			if p.HasNotEmpty() && elemType == "string" {
+				sb.WriteString(fmt.Sprintf("%s%s%s: %s[...(%s & !=\"\")]\n", indent, name, optional, constraintPrefix, elemType))
+			} else {
+				sb.WriteString(fmt.Sprintf("%s%s%s: %s[...%s]\n", indent, name, optional, constraintPrefix, elemType))
+			}
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s%s: %s[...]\n", indent, name, optional, constraintPrefix))
+		}
 	}
 
-	elemType := g.cueTypeForParamType(p.ElementType())
+}
 
-	// Check if array has structured fields
-	if fields := p.GetFields(); len(fields) > 0 {
-		sb.WriteString(fmt.Sprintf("%s%s%s: %s[...{\n", indent, name, optional, constraintPrefix))
-		for _, field := range fields {
-			g.writeParam(sb, field, depth+1)
+// formatArrayDefault formats an array default value as a CUE literal.
+// Converts []any{"*"} to `["*"]`, []any{"Observe"} to `["Observe"]`, etc.
+func (g *CUEGenerator) formatArrayDefault(val any) string {
+	if val == nil {
+		return "[]"
+	}
+	switch v := val.(type) {
+	case []any:
+		parts := make([]string, 0, len(v))
+		for _, elem := range v {
+			parts = append(parts, fmt.Sprintf("%q", elem))
 		}
-		sb.WriteString(fmt.Sprintf("%s}]\n", indent))
-	} else if elemType != "" {
-		sb.WriteString(fmt.Sprintf("%s%s%s: %s[...%s]\n", indent, name, optional, constraintPrefix, elemType))
-	} else {
-		sb.WriteString(fmt.Sprintf("%s%s%s: %s[...]\n", indent, name, optional, constraintPrefix))
+		return "[" + strings.Join(parts, ", ") + "]"
+	default:
+		return fmt.Sprintf("%v", val)
 	}
 }
 
@@ -3137,13 +3363,41 @@ func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, n
 		return
 	}
 
-	// Check if map has structured fields
-	if fields := p.GetFields(); len(fields) > 0 {
-		sb.WriteString(fmt.Sprintf("%s%s%s: {\n", indent, name, optional))
-		for _, field := range fields {
+	// Check if map has structured fields, validators, or conditional fields
+	hasFields := len(p.GetFields()) > 0
+	hasValidators := len(p.GetValidators()) > 0
+	hasConditionalFields := len(p.GetConditionalFields()) > 0
+
+	if hasFields || hasValidators || hasConditionalFields {
+		if p.IsClosed() {
+			sb.WriteString(fmt.Sprintf("%s%s%s: close({\n", indent, name, optional))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s%s: {\n", indent, name, optional))
+		}
+		for _, field := range p.GetFields() {
 			g.writeParam(sb, field, depth+1)
 		}
-		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		// Write validators inside the struct
+		for _, v := range p.GetValidators() {
+			g.writeValidator(sb, v, depth+1)
+		}
+		// Write conditional fields inside the struct
+		for _, branch := range p.GetConditionalFields() {
+			condCUE := g.conditionToCUE(branch.Condition())
+			sb.WriteString(fmt.Sprintf("%s\tif %s {\n", indent, condCUE))
+			for _, param := range branch.GetParams() {
+				g.writeParam(sb, param, depth+2)
+			}
+			for _, v := range branch.GetValidators() {
+				g.writeValidator(sb, v, depth+2)
+			}
+			sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
+		}
+		if p.IsClosed() {
+			sb.WriteString(fmt.Sprintf("%s})\n", indent))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		}
 	} else if valType := p.ValueType(); valType != "" {
 		// Typed map: [string]: type
 		cueType := g.cueTypeForParamType(valType)

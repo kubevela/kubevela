@@ -17,592 +17,369 @@ limitations under the License.
 package defkit
 
 import (
-	"strings"
-	"testing"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 )
 
-// --- Schema Constraint Tests ---
-
-func TestStringParamPattern(t *testing.T) {
-	p := String("name").Pattern("^[a-z][a-z0-9-]*$")
-
-	if p.GetPattern() != "^[a-z][a-z0-9-]*$" {
-		t.Errorf("GetPattern() = %q, want %q", p.GetPattern(), "^[a-z][a-z0-9-]*$")
-	}
-
-	// Test CUE generation
-	gen := NewCUEGenerator()
-	comp := NewComponent("test").Params(p)
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, `=~"^[a-z][a-z0-9-]*$"`) {
-		t.Errorf("Generated CUE should contain pattern constraint, got:\n%s", cue)
-	}
-}
-
-func TestStringParamMinMaxLen(t *testing.T) {
-	p := String("name").MinLen(3).MaxLen(63)
-
-	minLen := p.GetMinLen()
-	maxLen := p.GetMaxLen()
-
-	if minLen == nil || *minLen != 3 {
-		t.Errorf("GetMinLen() = %v, want 3", minLen)
-	}
-	if maxLen == nil || *maxLen != 63 {
-		t.Errorf("GetMaxLen() = %v, want 63", maxLen)
-	}
-
-	// Test CUE generation
-	gen := NewCUEGenerator()
-	comp := NewComponent("test").Params(p)
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, "strings.MinRunes(3)") {
-		t.Errorf("Generated CUE should contain MinRunes, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "strings.MaxRunes(63)") {
-		t.Errorf("Generated CUE should contain MaxRunes, got:\n%s", cue)
-	}
-}
-
-func TestIntParamMinMax(t *testing.T) {
-	p := Int("replicas").Min(1).Max(100)
-
-	minVal := p.GetMin()
-	maxVal := p.GetMax()
-
-	if minVal == nil || *minVal != 1 {
-		t.Errorf("GetMin() = %v, want 1", minVal)
-	}
-	if maxVal == nil || *maxVal != 100 {
-		t.Errorf("GetMax() = %v, want 100", maxVal)
-	}
-
-	// Test CUE generation
-	gen := NewCUEGenerator()
-	comp := NewComponent("test").Params(p)
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, ">=1") {
-		t.Errorf("Generated CUE should contain >=1, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "<=100") {
-		t.Errorf("Generated CUE should contain <=100, got:\n%s", cue)
-	}
-}
-
-func TestFloatParamMinMax(t *testing.T) {
-	p := Float("ratio").Min(0.0).Max(1.0)
-
-	minVal := p.GetMin()
-	maxVal := p.GetMax()
-
-	if minVal == nil || *minVal != 0.0 {
-		t.Errorf("GetMin() = %v, want 0.0", minVal)
-	}
-	if maxVal == nil || *maxVal != 1.0 {
-		t.Errorf("GetMax() = %v, want 1.0", maxVal)
-	}
-
-	// Test CUE generation
-	gen := NewCUEGenerator()
-	comp := NewComponent("test").Params(p)
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, ">=0") {
-		t.Errorf("Generated CUE should contain >=0, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "<=1") {
-		t.Errorf("Generated CUE should contain <=1, got:\n%s", cue)
-	}
-}
-
-func TestArrayParamMinMaxItems(t *testing.T) {
-	p := Array("tags").Of(ParamTypeString).MinItems(1).MaxItems(10)
-
-	minItems := p.GetMinItems()
-	maxItems := p.GetMaxItems()
-
-	if minItems == nil || *minItems != 1 {
-		t.Errorf("GetMinItems() = %v, want 1", minItems)
-	}
-	if maxItems == nil || *maxItems != 10 {
-		t.Errorf("GetMaxItems() = %v, want 10", maxItems)
-	}
-
-	// Test CUE generation
-	gen := NewCUEGenerator()
-	comp := NewComponent("test").Params(p)
-	cue := gen.GenerateParameterSchema(comp)
-
-	if !strings.Contains(cue, "list.MinItems(1)") {
-		t.Errorf("Generated CUE should contain MinItems, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "list.MaxItems(10)") {
-		t.Errorf("Generated CUE should contain MaxItems, got:\n%s", cue)
-	}
-}
-
-// --- Runtime Condition Tests ---
-
-func TestStringParamContains(t *testing.T) {
-	p := String("name")
-	cond := p.Contains("prod")
-
-	gen := NewCUEGenerator()
-	cueStr := gen.conditionToCUE(cond)
-
-	expected := `strings.Contains(parameter.name, "prod")`
-	if cueStr != expected {
-		t.Errorf("conditionToCUE() = %q, want %q", cueStr, expected)
-	}
-}
-
-func TestStringParamMatches(t *testing.T) {
-	p := String("name")
-	cond := p.Matches("^prod-")
-
-	gen := NewCUEGenerator()
-	cueStr := gen.conditionToCUE(cond)
-
-	expected := `parameter.name =~ "^prod-"`
-	if cueStr != expected {
-		t.Errorf("conditionToCUE() = %q, want %q", cueStr, expected)
-	}
-}
-
-func TestStringParamStartsWith(t *testing.T) {
-	p := String("name")
-	cond := p.StartsWith("prod-")
-
-	gen := NewCUEGenerator()
-	cueStr := gen.conditionToCUE(cond)
-
-	expected := `strings.HasPrefix(parameter.name, "prod-")`
-	if cueStr != expected {
-		t.Errorf("conditionToCUE() = %q, want %q", cueStr, expected)
-	}
-}
-
-func TestStringParamEndsWith(t *testing.T) {
-	p := String("name")
-	cond := p.EndsWith("-prod")
-
-	gen := NewCUEGenerator()
-	cueStr := gen.conditionToCUE(cond)
-
-	expected := `strings.HasSuffix(parameter.name, "-prod")`
-	if cueStr != expected {
-		t.Errorf("conditionToCUE() = %q, want %q", cueStr, expected)
-	}
-}
-
-func TestStringParamIn(t *testing.T) {
-	p := String("name")
-	cond := p.In("api", "web", "worker")
-
-	gen := NewCUEGenerator()
-	cueStr := gen.conditionToCUE(cond)
-
-	// Should contain all values
-	if !strings.Contains(cueStr, `parameter.name == "api"`) {
-		t.Errorf("conditionToCUE() should contain 'api', got: %s", cueStr)
-	}
-	if !strings.Contains(cueStr, `parameter.name == "web"`) {
-		t.Errorf("conditionToCUE() should contain 'web', got: %s", cueStr)
-	}
-	if !strings.Contains(cueStr, " || ") {
-		t.Errorf("conditionToCUE() should contain '||', got: %s", cueStr)
-	}
-}
-
-func TestIntParamIn(t *testing.T) {
-	p := Int("port")
-	cond := p.In(80, 443, 8080)
-
-	gen := NewCUEGenerator()
-	cueStr := gen.conditionToCUE(cond)
-
-	if !strings.Contains(cueStr, "parameter.port == 80") {
-		t.Errorf("conditionToCUE() should contain '80', got: %s", cueStr)
-	}
-	if !strings.Contains(cueStr, "parameter.port == 443") {
-		t.Errorf("conditionToCUE() should contain '443', got: %s", cueStr)
-	}
-}
-
-func TestStringParamLenConditions(t *testing.T) {
-	p := String("name")
-
-	tests := []struct {
-		name     string
-		cond     Condition
-		expected string
-	}{
-		{"LenEq", p.LenEq(5), "len(parameter.name) == 5"},
-		{"LenGt", p.LenGt(5), "len(parameter.name) > 5"},
-		{"LenGte", p.LenGte(5), "len(parameter.name) >= 5"},
-		{"LenLt", p.LenLt(5), "len(parameter.name) < 5"},
-		{"LenLte", p.LenLte(5), "len(parameter.name) <= 5"},
-	}
-
-	gen := NewCUEGenerator()
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cueStr := gen.conditionToCUE(tt.cond)
-			if cueStr != tt.expected {
-				t.Errorf("conditionToCUE() = %q, want %q", cueStr, tt.expected)
-			}
-		})
-	}
-}
-
-func TestArrayParamConditions(t *testing.T) {
-	p := Array("tags").Of(ParamTypeString)
-
-	tests := []struct {
-		name     string
-		cond     Condition
-		expected string
-	}{
-		{"LenEq", p.LenEq(5), "len(parameter.tags) == 5"},
-		{"LenGt", p.LenGt(0), "len(parameter.tags) > 0"},
-		{"IsEmpty", p.IsEmpty(), "len(parameter.tags) == 0"},
-		{"IsNotEmpty", p.IsNotEmpty(), "len(parameter.tags) > 0"},
-		{"Contains", p.Contains("gpu"), `list.Contains(parameter.tags, "gpu")`},
-	}
-
-	gen := NewCUEGenerator()
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cueStr := gen.conditionToCUE(tt.cond)
-			if cueStr != tt.expected {
-				t.Errorf("conditionToCUE() = %q, want %q", cueStr, tt.expected)
-			}
-		})
-	}
-}
-
-func TestMapParamConditions(t *testing.T) {
-	p := Map("config")
-
-	tests := []struct {
-		name     string
-		cond     Condition
-		expected string
-	}{
-		{"HasKey", p.HasKey("debug"), "parameter.config.debug != _|_"},
-		{"LenEq", p.LenEq(5), "len(parameter.config) == 5"},
-		{"LenGt", p.LenGt(0), "len(parameter.config) > 0"},
-		{"IsEmpty", p.IsEmpty(), "len(parameter.config) == 0"},
-		{"IsNotEmpty", p.IsNotEmpty(), "len(parameter.config) > 0"},
-	}
-
-	gen := NewCUEGenerator()
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cueStr := gen.conditionToCUE(tt.cond)
-			if cueStr != tt.expected {
-				t.Errorf("conditionToCUE() = %q, want %q", cueStr, tt.expected)
-			}
-		})
-	}
-}
-
-func TestBoolParamIsFalse(t *testing.T) {
-	p := Bool("enabled")
-	cond := p.IsFalse()
-
-	gen := NewCUEGenerator()
-	cueStr := gen.conditionToCUE(cond)
-
-	expected := "!parameter.enabled"
-	if cueStr != expected {
-		t.Errorf("conditionToCUE() = %q, want %q", cueStr, expected)
-	}
-}
-
-// --- Chaining Tests ---
-
-func TestSchemaConstraintChaining(t *testing.T) {
-	// Test that schema constraint methods can be chained
-	strP := String("name").
-		Pattern("^[a-z]+$").
-		MinLen(3).
-		MaxLen(63).
-		Description("The name")
-
-	if strP.GetPattern() != "^[a-z]+$" {
-		t.Error("Pattern not set correctly after chaining")
-	}
-	if strP.GetMinLen() == nil || *strP.GetMinLen() != 3 {
-		t.Error("MinLen not set correctly after chaining")
-	}
-	if strP.GetMaxLen() == nil || *strP.GetMaxLen() != 63 {
-		t.Error("MaxLen not set correctly after chaining")
-	}
-	if strP.GetDescription() != "The name" {
-		t.Error("Description not set correctly after chaining")
-	}
-
-	intP := Int("replicas").
-		Min(1).
-		Max(100).
-		Default(3)
-
-	if intP.GetMin() == nil || *intP.GetMin() != 1 {
-		t.Error("Min not set correctly after chaining")
-	}
-	if intP.GetMax() == nil || *intP.GetMax() != 100 {
-		t.Error("Max not set correctly after chaining")
-	}
-	if !intP.HasDefault() || intP.GetDefault() != 3 {
-		t.Error("Default not set correctly after chaining")
-	}
-}
-
-// --- Combined Schema + Runtime Test ---
-
-func TestCombinedSchemaAndRuntimeConditions(t *testing.T) {
-	// Schema constraints define WHAT values are valid
-	replicas := Int("replicas").Min(1).Max(100).Default(3)
-
-	// Runtime conditions control WHAT resources are generated
-	cond := replicas.Gt(5)
-
-	gen := NewCUEGenerator()
-	comp := NewComponent("test").Params(replicas)
-
-	// Check schema generation
-	schema := gen.GenerateParameterSchema(comp)
-	if !strings.Contains(schema, ">=1") {
-		t.Errorf("Schema should contain >=1, got:\n%s", schema)
-	}
-	if !strings.Contains(schema, "<=100") {
-		t.Errorf("Schema should contain <=100, got:\n%s", schema)
-	}
-	if !strings.Contains(schema, "*3") {
-		t.Errorf("Schema should contain default *3, got:\n%s", schema)
-	}
-
-	// Check runtime condition
-	condStr := gen.conditionToCUE(cond)
-	expected := "parameter.replicas > 5"
-	if condStr != expected {
-		t.Errorf("Runtime condition = %q, want %q", condStr, expected)
-	}
-}
-
-// --- Integration Tests with SetIf ---
-
-func TestSetIfWithNewConditions(t *testing.T) {
-	name := String("name")
-	replicas := Int("replicas").Min(1).Max(100)
-	tags := Array("tags").Of(ParamTypeString)
-
-	comp := NewComponent("test-app").
-		Params(name, replicas, tags).
-		Template(func(t *Template) {
-			deployment := NewResource("apps/v1", "Deployment").
-				Set("metadata.name", name).
-				Set("spec.replicas", replicas).
-				// Test various conditions with SetIf
-				SetIf(name.StartsWith("prod-"), "metadata.labels.env", Lit("production")).
-				SetIf(name.Contains("canary"), "metadata.labels.deployment", Lit("canary")).
-				SetIf(replicas.Gt(5), "spec.strategy.type", Lit("RollingUpdate")).
-				SetIf(tags.IsNotEmpty(), "metadata.annotations.has-tags", Lit("true")).
-				SetIf(tags.Contains("gpu"), "spec.template.spec.nodeSelector.accelerator", Lit("nvidia"))
-
-			t.Output(deployment)
+var _ = ginkgo.Describe("Parameter Constraints", func() {
+	var gen *CUEGenerator
+
+	ginkgo.BeforeEach(func() {
+		gen = NewCUEGenerator()
+	})
+
+	// --- Schema Constraint Tests ---
+
+	ginkgo.Context("Schema Constraints", func() {
+		ginkgo.It("should set and generate string pattern constraint", func() {
+			p := String("name").Pattern("^[a-z][a-z0-9-]*$")
+			gomega.Expect(p.GetPattern()).To(gomega.Equal("^[a-z][a-z0-9-]*$"))
+
+			comp := NewComponent("test").Params(p)
+			cue := gen.GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring(`=~"^[a-z][a-z0-9-]*$"`))
 		})
 
-	cue := comp.ToCue()
+		ginkgo.It("should set and generate string min/max length constraints", func() {
+			p := String("name").MinLen(3).MaxLen(63)
+			gomega.Expect(p.GetMinLen()).ToNot(gomega.BeNil())
+			gomega.Expect(*p.GetMinLen()).To(gomega.Equal(3))
+			gomega.Expect(p.GetMaxLen()).ToNot(gomega.BeNil())
+			gomega.Expect(*p.GetMaxLen()).To(gomega.Equal(63))
 
-	// Verify conditions are in the output
-	expectedConditions := []string{
-		`strings.HasPrefix(parameter.name, "prod-")`,
-		`strings.Contains(parameter.name, "canary")`,
-		`parameter.replicas > 5`,
-		`len(parameter.tags) > 0`,
-		`list.Contains(parameter.tags, "gpu")`,
-	}
+			comp := NewComponent("test").Params(p)
+			cue := gen.GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring("strings.MinRunes(3)"))
+			gomega.Expect(cue).To(gomega.ContainSubstring("strings.MaxRunes(63)"))
+		})
 
-	for _, expected := range expectedConditions {
-		if !strings.Contains(cue, expected) {
-			t.Errorf("Generated CUE should contain %q, got:\n%s", expected, cue)
-		}
-	}
-}
+		ginkgo.It("should set and generate int min/max constraints", func() {
+			p := Int("replicas").Min(1).Max(100)
+			gomega.Expect(p.GetMin()).ToNot(gomega.BeNil())
+			gomega.Expect(*p.GetMin()).To(gomega.Equal(1))
+			gomega.Expect(p.GetMax()).ToNot(gomega.BeNil())
+			gomega.Expect(*p.GetMax()).To(gomega.Equal(100))
 
-// --- Additional Edge Case Tests ---
+			comp := NewComponent("test").Params(p)
+			cue := gen.GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring(">=1"))
+			gomega.Expect(cue).To(gomega.ContainSubstring("<=100"))
+		})
 
-func TestFloatParamIn(t *testing.T) {
-	p := Float("ratio")
-	cond := p.In(0.5, 1.0, 2.0)
+		ginkgo.It("should set and generate float min/max constraints", func() {
+			p := Float("ratio").Min(0.0).Max(1.0)
+			gomega.Expect(p.GetMin()).ToNot(gomega.BeNil())
+			gomega.Expect(*p.GetMin()).To(gomega.Equal(0.0))
+			gomega.Expect(p.GetMax()).ToNot(gomega.BeNil())
+			gomega.Expect(*p.GetMax()).To(gomega.Equal(1.0))
 
-	gen := NewCUEGenerator()
-	cueStr := gen.conditionToCUE(cond)
+			comp := NewComponent("test").Params(p)
+			cue := gen.GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring(">=0"))
+			gomega.Expect(cue).To(gomega.ContainSubstring("<=1"))
+		})
 
-	if !strings.Contains(cueStr, "parameter.ratio == 0.5") {
-		t.Errorf("conditionToCUE() should contain '0.5', got: %s", cueStr)
-	}
-	if !strings.Contains(cueStr, "parameter.ratio == 1") {
-		t.Errorf("conditionToCUE() should contain '1', got: %s", cueStr)
-	}
-	if !strings.Contains(cueStr, " || ") {
-		t.Errorf("conditionToCUE() should contain '||', got: %s", cueStr)
-	}
-}
+		ginkgo.It("should set and generate array min/max items constraints", func() {
+			p := Array("tags").Of(ParamTypeString).MinItems(1).MaxItems(10)
+			gomega.Expect(p.GetMinItems()).ToNot(gomega.BeNil())
+			gomega.Expect(*p.GetMinItems()).To(gomega.Equal(1))
+			gomega.Expect(p.GetMaxItems()).ToNot(gomega.BeNil())
+			gomega.Expect(*p.GetMaxItems()).To(gomega.Equal(10))
 
-func TestArrayContainsWithDifferentTypes(t *testing.T) {
-	gen := NewCUEGenerator()
+			comp := NewComponent("test").Params(p)
+			cue := gen.GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring("list.MinItems(1)"))
+			gomega.Expect(cue).To(gomega.ContainSubstring("list.MaxItems(10)"))
+		})
 
-	// String array with string value
-	strArray := Array("tags").Of(ParamTypeString)
-	strCond := strArray.Contains("value")
-	strResult := gen.conditionToCUE(strCond)
-	if strResult != `list.Contains(parameter.tags, "value")` {
-		t.Errorf("String contains = %q", strResult)
-	}
+		ginkgo.It("should generate string NotEmpty constraint", func() {
+			p := String("name").NotEmpty()
+			gomega.Expect(p.GetNotEmpty()).To(gomega.BeTrue())
 
-	// Int array with int value
-	intArray := Array("ports").Of(ParamTypeInt)
-	intCond := intArray.Contains(8080)
-	intResult := gen.conditionToCUE(intCond)
-	if intResult != `list.Contains(parameter.ports, 8080)` {
-		t.Errorf("Int contains = %q", intResult)
-	}
+			comp := NewComponent("test").Params(p)
+			cue := gen.GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring(`!=""`))
+		})
 
-	// Bool value
-	boolArray := Array("flags").Of(ParamTypeBool)
-	boolCond := boolArray.Contains(true)
-	boolResult := gen.conditionToCUE(boolCond)
-	if boolResult != `list.Contains(parameter.flags, true)` {
-		t.Errorf("Bool contains = %q", boolResult)
-	}
-}
+		ginkgo.It("should generate string NotEmpty with pattern combined", func() {
+			p := String("name").NotEmpty().Pattern(`^[a-z0-9.-]{3,63}$`)
 
-func TestCombinedStringConstraints(t *testing.T) {
-	// Test all string constraints together
-	p := String("hostname").
-		Pattern("^[a-z][a-z0-9-]*$").
-		MinLen(3).
-		MaxLen(63)
+			comp := NewComponent("test").Params(p)
+			cue := gen.GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring(`!=""`))
+			gomega.Expect(cue).To(gomega.ContainSubstring(`=~"^[a-z0-9.-]{3,63}$"`))
+		})
 
-	gen := NewCUEGenerator()
-	comp := NewComponent("test").Params(p)
-	cue := gen.GenerateParameterSchema(comp)
+		ginkgo.It("should generate MapParam closed struct", func() {
+			p := Object("governance").Closed().WithFields(
+				String("tenantName"),
+				String("departmentCode"),
+			)
+			gomega.Expect(p.IsClosed()).To(gomega.BeTrue())
 
-	// All constraints should be present
-	if !strings.Contains(cue, `=~"^[a-z][a-z0-9-]*$"`) {
-		t.Errorf("Should contain pattern, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "strings.MinRunes(3)") {
-		t.Errorf("Should contain MinRunes, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "strings.MaxRunes(63)") {
-		t.Errorf("Should contain MaxRunes, got:\n%s", cue)
-	}
-	// They should be combined with &
-	if !strings.Contains(cue, " & ") {
-		t.Errorf("Constraints should be combined with &, got:\n%s", cue)
-	}
-}
+			comp := NewComponent("test").Params(p)
+			cue := gen.GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring("close({"))
+			gomega.Expect(cue).To(gomega.ContainSubstring("})"))
+		})
 
-func TestStringConstraintsWithDefault(t *testing.T) {
-	p := String("env").
-		Pattern("^(dev|staging|prod)$").
-		Default("dev")
+		ginkgo.It("should generate ArrayParam OfEnum schema", func() {
+			p := Array("allowedMethods").OfEnum("GET", "PUT", "HEAD", "POST", "DELETE")
 
-	gen := NewCUEGenerator()
-	comp := NewComponent("test").Params(p)
-	cue := gen.GenerateParameterSchema(comp)
+			comp := NewComponent("test").Params(p)
+			cue := gen.GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring(`[...("GET" | "PUT" | "HEAD" | "POST" | "DELETE")]`))
+		})
+	})
 
-	// Should have both default and pattern
-	if !strings.Contains(cue, `*"dev"`) {
-		t.Errorf("Should contain default, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, `=~"^(dev|staging|prod)$"`) {
-		t.Errorf("Should contain pattern, got:\n%s", cue)
-	}
-}
+	// --- Runtime Condition Tests ---
 
-func TestIntConstraintsWithDefault(t *testing.T) {
-	p := Int("port").
-		Min(1).
-		Max(65535).
-		Default(8080)
+	ginkgo.Context("Runtime Conditions", func() {
+		ginkgo.It("should generate string Contains condition", func() {
+			p := String("name")
+			cueStr := gen.conditionToCUE(p.Contains("prod"))
+			gomega.Expect(cueStr).To(gomega.Equal(`strings.Contains(parameter.name, "prod")`))
+		})
 
-	gen := NewCUEGenerator()
-	comp := NewComponent("test").Params(p)
-	cue := gen.GenerateParameterSchema(comp)
+		ginkgo.It("should generate string Matches condition", func() {
+			p := String("name")
+			cueStr := gen.conditionToCUE(p.Matches("^prod-"))
+			gomega.Expect(cueStr).To(gomega.Equal(`parameter.name =~ "^prod-"`))
+		})
 
-	if !strings.Contains(cue, "*8080") {
-		t.Errorf("Should contain default, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, ">=1") {
-		t.Errorf("Should contain min, got:\n%s", cue)
-	}
-	if !strings.Contains(cue, "<=65535") {
-		t.Errorf("Should contain max, got:\n%s", cue)
-	}
-}
+		ginkgo.It("should generate string StartsWith condition", func() {
+			p := String("name")
+			cueStr := gen.conditionToCUE(p.StartsWith("prod-"))
+			gomega.Expect(cueStr).To(gomega.Equal(`strings.HasPrefix(parameter.name, "prod-")`))
+		})
 
-func TestEdgeCaseZeroValues(t *testing.T) {
-	// Min of 0 should still be generated
-	p := Int("count").Min(0).Max(10)
+		ginkgo.It("should generate string EndsWith condition", func() {
+			p := String("name")
+			cueStr := gen.conditionToCUE(p.EndsWith("-prod"))
+			gomega.Expect(cueStr).To(gomega.Equal(`strings.HasSuffix(parameter.name, "-prod")`))
+		})
 
-	gen := NewCUEGenerator()
-	comp := NewComponent("test").Params(p)
-	cue := gen.GenerateParameterSchema(comp)
+		ginkgo.It("should generate string In condition", func() {
+			p := String("name")
+			cueStr := gen.conditionToCUE(p.In("api", "web", "worker"))
+			gomega.Expect(cueStr).To(gomega.ContainSubstring(`parameter.name == "api"`))
+			gomega.Expect(cueStr).To(gomega.ContainSubstring(`parameter.name == "web"`))
+			gomega.Expect(cueStr).To(gomega.ContainSubstring(" || "))
+		})
 
-	if !strings.Contains(cue, ">=0") {
-		t.Errorf("Should contain >=0, got:\n%s", cue)
-	}
-}
+		ginkgo.It("should generate int In condition", func() {
+			p := Int("port")
+			cueStr := gen.conditionToCUE(p.In(80, 443, 8080))
+			gomega.Expect(cueStr).To(gomega.ContainSubstring("parameter.port == 80"))
+			gomega.Expect(cueStr).To(gomega.ContainSubstring("parameter.port == 443"))
+		})
 
-func TestEdgeCaseEmptyStringConditions(t *testing.T) {
-	gen := NewCUEGenerator()
-	p := String("name")
+		ginkgo.It("should generate bool IsFalse condition", func() {
+			p := Bool("enabled")
+			cueStr := gen.conditionToCUE(p.IsFalse())
+			gomega.Expect(cueStr).To(gomega.Equal("!parameter.enabled"))
+		})
 
-	// Empty string checks should work
-	containsEmpty := p.Contains("")
-	result := gen.conditionToCUE(containsEmpty)
-	if result != `strings.Contains(parameter.name, "")` {
-		t.Errorf("Empty contains = %q", result)
-	}
+		ginkgo.It("should generate float In condition", func() {
+			p := Float("ratio")
+			cueStr := gen.conditionToCUE(p.In(0.5, 1.0, 2.0))
+			gomega.Expect(cueStr).To(gomega.ContainSubstring("parameter.ratio == 0.5"))
+			gomega.Expect(cueStr).To(gomega.ContainSubstring("parameter.ratio == 1"))
+			gomega.Expect(cueStr).To(gomega.ContainSubstring(" || "))
+		})
+	})
 
-	startsEmpty := p.StartsWith("")
-	result2 := gen.conditionToCUE(startsEmpty)
-	if result2 != `strings.HasPrefix(parameter.name, "")` {
-		t.Errorf("Empty startsWith = %q", result2)
-	}
-}
+	ginkgo.Context("String Length Conditions", func() {
+		ginkgo.DescribeTable("should generate correct CUE for length conditions",
+			func(condFn func(*StringParam) Condition, expected string) {
+				p := String("name")
+				cueStr := gen.conditionToCUE(condFn(p))
+				gomega.Expect(cueStr).To(gomega.Equal(expected))
+			},
+			ginkgo.Entry("LenEq", func(p *StringParam) Condition { return p.LenEq(5) }, "len(parameter.name) == 5"),
+			ginkgo.Entry("LenGt", func(p *StringParam) Condition { return p.LenGt(5) }, "len(parameter.name) > 5"),
+			ginkgo.Entry("LenGte", func(p *StringParam) Condition { return p.LenGte(5) }, "len(parameter.name) >= 5"),
+			ginkgo.Entry("LenLt", func(p *StringParam) Condition { return p.LenLt(5) }, "len(parameter.name) < 5"),
+			ginkgo.Entry("LenLte", func(p *StringParam) Condition { return p.LenLte(5) }, "len(parameter.name) <= 5"),
+		)
+	})
 
-func TestSingleValueIn(t *testing.T) {
-	gen := NewCUEGenerator()
-	p := String("status")
+	ginkgo.Context("Array Conditions", func() {
+		ginkgo.DescribeTable("should generate correct CUE for array conditions",
+			func(condFn func(*ArrayParam) Condition, expected string) {
+				p := Array("tags").Of(ParamTypeString)
+				cueStr := gen.conditionToCUE(condFn(p))
+				gomega.Expect(cueStr).To(gomega.Equal(expected))
+			},
+			ginkgo.Entry("LenEq", func(p *ArrayParam) Condition { return p.LenEq(5) }, "len(parameter.tags) == 5"),
+			ginkgo.Entry("LenGt", func(p *ArrayParam) Condition { return p.LenGt(0) }, "len(parameter.tags) > 0"),
+			ginkgo.Entry("IsEmpty", func(p *ArrayParam) Condition { return p.IsEmpty() }, "len(parameter.tags) == 0"),
+			ginkgo.Entry("IsNotEmpty", func(p *ArrayParam) Condition { return p.IsNotEmpty() }, "len(parameter.tags) > 0"),
+			ginkgo.Entry("Contains", func(p *ArrayParam) Condition { return p.Contains("gpu") }, `list.Contains(parameter.tags, "gpu")`),
+		)
 
-	// Single value In should work (even if it's equivalent to Eq)
-	cond := p.In("active")
-	result := gen.conditionToCUE(cond)
+		ginkgo.It("should generate array Contains with different element types", func() {
+			intArray := Array("ports").Of(ParamTypeInt)
+			gomega.Expect(gen.conditionToCUE(intArray.Contains(8080))).To(gomega.Equal(`list.Contains(parameter.ports, 8080)`))
 
-	if result != `parameter.status == "active"` {
-		t.Errorf("Single value In = %q, want parameter.status == \"active\"", result)
-	}
-}
+			boolArray := Array("flags").Of(ParamTypeBool)
+			gomega.Expect(gen.conditionToCUE(boolArray.Contains(true))).To(gomega.Equal(`list.Contains(parameter.flags, true)`))
+		})
+	})
 
-func TestSpecialCharactersInPattern(t *testing.T) {
-	// Patterns with special regex characters
-	p := String("email").Pattern(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	ginkgo.Context("Map Conditions", func() {
+		ginkgo.DescribeTable("should generate correct CUE for map conditions",
+			func(condFn func(*MapParam) Condition, expected string) {
+				p := Map("config")
+				cueStr := gen.conditionToCUE(condFn(p))
+				gomega.Expect(cueStr).To(gomega.Equal(expected))
+			},
+			ginkgo.Entry("HasKey", func(p *MapParam) Condition { return p.HasKey("debug") }, "parameter.config.debug != _|_"),
+			ginkgo.Entry("LenEq", func(p *MapParam) Condition { return p.LenEq(5) }, "len(parameter.config) == 5"),
+			ginkgo.Entry("LenGt", func(p *MapParam) Condition { return p.LenGt(0) }, "len(parameter.config) > 0"),
+			ginkgo.Entry("IsEmpty", func(p *MapParam) Condition { return p.IsEmpty() }, "len(parameter.config) == 0"),
+			ginkgo.Entry("IsNotEmpty", func(p *MapParam) Condition { return p.IsNotEmpty() }, "len(parameter.config) > 0"),
+		)
+	})
 
-	gen := NewCUEGenerator()
-	comp := NewComponent("test").Params(p)
-	cue := gen.GenerateParameterSchema(comp)
+	// --- Chaining Tests ---
 
-	// Pattern should be properly quoted
-	if !strings.Contains(cue, `=~"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"`) {
-		t.Errorf("Pattern with special chars should be escaped, got:\n%s", cue)
-	}
-}
+	ginkgo.Context("Constraint Chaining", func() {
+		ginkgo.It("should preserve all chained string constraints", func() {
+			p := String("name").
+				Pattern("^[a-z]+$").
+				MinLen(3).
+				MaxLen(63).
+				Description("The name")
+
+			gomega.Expect(p.GetPattern()).To(gomega.Equal("^[a-z]+$"))
+			gomega.Expect(*p.GetMinLen()).To(gomega.Equal(3))
+			gomega.Expect(*p.GetMaxLen()).To(gomega.Equal(63))
+			gomega.Expect(p.GetDescription()).To(gomega.Equal("The name"))
+		})
+
+		ginkgo.It("should preserve all chained int constraints", func() {
+			p := Int("replicas").Min(1).Max(100).Default(3)
+
+			gomega.Expect(*p.GetMin()).To(gomega.Equal(1))
+			gomega.Expect(*p.GetMax()).To(gomega.Equal(100))
+			gomega.Expect(p.HasDefault()).To(gomega.BeTrue())
+			gomega.Expect(p.GetDefault()).To(gomega.Equal(3))
+		})
+	})
+
+	// --- Combined Schema + Runtime ---
+
+	ginkgo.Context("Combined Schema and Runtime", func() {
+		ginkgo.It("should generate both schema constraints and runtime conditions", func() {
+			replicas := Int("replicas").Min(1).Max(100).Default(3)
+
+			comp := NewComponent("test").Params(replicas)
+			schema := gen.GenerateParameterSchema(comp)
+			gomega.Expect(schema).To(gomega.ContainSubstring(">=1"))
+			gomega.Expect(schema).To(gomega.ContainSubstring("<=100"))
+			gomega.Expect(schema).To(gomega.ContainSubstring("*3"))
+
+			condStr := gen.conditionToCUE(replicas.Gt(5))
+			gomega.Expect(condStr).To(gomega.Equal("parameter.replicas > 5"))
+		})
+
+		ginkgo.It("should generate combined string constraints", func() {
+			p := String("hostname").
+				Pattern("^[a-z][a-z0-9-]*$").
+				MinLen(3).
+				MaxLen(63)
+
+			comp := NewComponent("test").Params(p)
+			cue := gen.GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring(`=~"^[a-z][a-z0-9-]*$"`))
+			gomega.Expect(cue).To(gomega.ContainSubstring("strings.MinRunes(3)"))
+			gomega.Expect(cue).To(gomega.ContainSubstring("strings.MaxRunes(63)"))
+			gomega.Expect(cue).To(gomega.ContainSubstring(" & "))
+		})
+
+		ginkgo.It("should generate string constraints with default", func() {
+			p := String("env").
+				Pattern("^(dev|staging|prod)$").
+				Default("dev")
+
+			comp := NewComponent("test").Params(p)
+			cue := gen.GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring(`*"dev"`))
+			gomega.Expect(cue).To(gomega.ContainSubstring(`=~"^(dev|staging|prod)$"`))
+		})
+
+		ginkgo.It("should generate int constraints with default", func() {
+			p := Int("port").Min(1).Max(65535).Default(8080)
+
+			comp := NewComponent("test").Params(p)
+			cue := gen.GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring("*8080"))
+			gomega.Expect(cue).To(gomega.ContainSubstring(">=1"))
+			gomega.Expect(cue).To(gomega.ContainSubstring("<=65535"))
+		})
+	})
+
+	// --- Integration with SetIf ---
+
+	ginkgo.Context("SetIf Integration", func() {
+		ginkgo.It("should generate CUE with various SetIf conditions", func() {
+			name := String("name")
+			replicas := Int("replicas").Min(1).Max(100)
+			tags := Array("tags").Of(ParamTypeString)
+
+			comp := NewComponent("test-app").
+				Params(name, replicas, tags).
+				Template(func(t *Template) {
+					deployment := NewResource("apps/v1", "Deployment").
+						Set("metadata.name", name).
+						Set("spec.replicas", replicas).
+						SetIf(name.StartsWith("prod-"), "metadata.labels.env", Lit("production")).
+						SetIf(name.Contains("canary"), "metadata.labels.deployment", Lit("canary")).
+						SetIf(replicas.Gt(5), "spec.strategy.type", Lit("RollingUpdate")).
+						SetIf(tags.IsNotEmpty(), "metadata.annotations.has-tags", Lit("true")).
+						SetIf(tags.Contains("gpu"), "spec.template.spec.nodeSelector.accelerator", Lit("nvidia"))
+					t.Output(deployment)
+				})
+
+			cue := comp.ToCue()
+			gomega.Expect(cue).To(gomega.ContainSubstring(`strings.HasPrefix(parameter.name, "prod-")`))
+			gomega.Expect(cue).To(gomega.ContainSubstring(`strings.Contains(parameter.name, "canary")`))
+			gomega.Expect(cue).To(gomega.ContainSubstring(`parameter.replicas > 5`))
+			gomega.Expect(cue).To(gomega.ContainSubstring(`len(parameter.tags) > 0`))
+			gomega.Expect(cue).To(gomega.ContainSubstring(`list.Contains(parameter.tags, "gpu")`))
+		})
+	})
+
+	// --- Edge Cases ---
+
+	ginkgo.Context("Edge Cases", func() {
+		ginkgo.It("should handle zero as min value", func() {
+			p := Int("count").Min(0).Max(10)
+
+			comp := NewComponent("test").Params(p)
+			cue := gen.GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring(">=0"))
+		})
+
+		ginkgo.It("should handle empty string conditions", func() {
+			p := String("name")
+			gomega.Expect(gen.conditionToCUE(p.Contains(""))).To(gomega.Equal(`strings.Contains(parameter.name, "")`))
+			gomega.Expect(gen.conditionToCUE(p.StartsWith(""))).To(gomega.Equal(`strings.HasPrefix(parameter.name, "")`))
+		})
+
+		ginkgo.It("should handle single value In condition", func() {
+			p := String("status")
+			cueStr := gen.conditionToCUE(p.In("active"))
+			gomega.Expect(cueStr).To(gomega.Equal(`parameter.status == "active"`))
+		})
+
+		ginkgo.It("should escape special regex characters in pattern", func() {
+			p := String("email").Pattern(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+
+			comp := NewComponent("test").Params(p)
+			cue := gen.GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring(`=~"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"`))
+		})
+	})
+})

@@ -354,6 +354,67 @@ var _ = Describe("Expressions", func() {
 		})
 	})
 
+	Context("RegexMatch", func() {
+		It("should create a RegexMatchCondition with source and pattern", func() {
+			ref := defkit.LocalField("name")
+			rm := defkit.RegexMatch(ref, "^test-")
+			Expect(rm.Pattern()).To(Equal("^test-"))
+			Expect(rm.Source()).To(Equal(ref))
+		})
+
+		It("should work with StringParam as source", func() {
+			p := defkit.String("host")
+			rm := defkit.RegexMatch(p, `^prod-.*$`)
+			Expect(rm.Pattern()).To(Equal(`^prod-.*$`))
+			Expect(rm.Source()).To(Equal(p))
+		})
+
+		It("should be produced by StringParam.Matches", func() {
+			p := defkit.String("name")
+			cond := p.Matches("^prod-")
+			rm, ok := cond.(*defkit.RegexMatchCondition)
+			Expect(ok).To(BeTrue())
+			Expect(rm.Pattern()).To(Equal("^prod-"))
+			Expect(rm.Source()).To(Equal(p))
+		})
+
+		It("should be produced by LocalFieldRef.Matches", func() {
+			ref := defkit.LocalField("tenantName")
+			cond := ref.Matches(".*-$")
+			rm, ok := cond.(*defkit.RegexMatchCondition)
+			Expect(ok).To(BeTrue())
+			Expect(rm.Pattern()).To(Equal(".*-$"))
+			Expect(rm.Source()).To(Equal(ref))
+		})
+	})
+
+	Context("NotExpr replaces NotCondition", func() {
+		It("should be returned by baseParam.NotSet", func() {
+			p := defkit.Int("replicas")
+			cond := p.NotSet()
+			notExpr, ok := cond.(*defkit.NotExpr)
+			Expect(ok).To(BeTrue(), "expected *NotExpr, got %T", cond)
+			inner, ok := notExpr.Cond().(*defkit.IsSetCondition)
+			Expect(ok).To(BeTrue())
+			Expect(inner.ParamName()).To(Equal("replicas"))
+		})
+
+		It("should be returned by ParamNotSet", func() {
+			ne := defkit.ParamNotSet("defaults")
+			inner, ok := ne.Cond().(*defkit.IsSetCondition)
+			Expect(ok).To(BeTrue())
+			Expect(inner.ParamName()).To(Equal("defaults"))
+		})
+
+		It("should be returned by LocalFieldRef.NotSet", func() {
+			cond := defkit.LocalField("role").NotSet()
+			notExpr, ok := cond.(*defkit.NotExpr)
+			Expect(ok).To(BeTrue())
+			_, ok = notExpr.Cond().(*defkit.PathExistsCondition)
+			Expect(ok).To(BeTrue())
+		})
+	})
+
 	Context("InlineArrayValue", func() {
 		It("should create inline array with fields and store correct values", func() {
 			port := defkit.Int("port")
