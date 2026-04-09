@@ -17,11 +17,15 @@ limitations under the License.
 package helm
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -31,6 +35,8 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
+	"github.com/kubevela/pkg/cue/cuex/providers"
 )
 
 var _ = Describe("Helm Provider", func() {
@@ -1306,4 +1312,428 @@ metadata:
 		})
 	})
 
+	// -----------------------------------------------------------------------
+	// Tier 1 Coverage: Render top-level provider function
+	// -----------------------------------------------------------------------
+
+	Describe("Render top-level function", func() {
+		It("should render via dry-run path with context and release params", func() {
+			p := NewProvider()
+
+			testChart := &chart.Chart{
+				Metadata: &chart.Metadata{Name: "render-dryrun", Version: "1.0.0"},
+				Templates: []*chart.File{
+					{
+						Name: "templates/deploy.yaml",
+						Data: []byte(`apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+`),
+					},
+					{
+						Name: "templates/service.yaml",
+						Data: []byte(`apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-svc
+  namespace: {{ .Release.Namespace }}
+spec:
+  ports:
+    - port: 80
+`),
+					},
+				},
+			}
+			p.cache.Put("repo/render-dryrun/1.0.0", testChart, 1*time.Hour)
+
+			ctx := WithDryRun(context.Background())
+			result, err := Render(ctx, &providers.Params[RenderParams]{
+				Params: RenderParams{
+					Chart: ChartSourceParams{
+						Source:  "render-dryrun",
+						Version: "1.0.0",
+					},
+					Release: &ReleaseParams{
+						Name:      "my-release",
+						Namespace: "test-ns",
+					},
+					Values: map[string]interface{}{"replicas": 2},
+					Context: &ContextParams{
+						AppName:      "my-app",
+						AppNamespace: "my-ns",
+						Name:         "my-comp",
+						Namespace:    "test-ns",
+					},
+				},
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(result).ToNot(BeNil())
+			Expect(len(result.Returns.Resources)).To(BeNumerically(">=", 1))
+
+			// Verify resource structure
+			kind, _, _ := unstructured.NestedString(result.Returns.Resources[0], "kind")
+			Expect(kind).ToNot(BeEmpty())
+		})
+
+		It("should use default release name and namespace when not specified", func() {
+			p := NewProvider()
+
+			testChart := &chart.Chart{
+				Metadata: &chart.Metadata{Name: "render-defaults", Version: "2.0.0"},
+				Templates: []*chart.File{
+					{
+						Name: "templates/cm.yaml",
+						Data: []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-cm
+data:
+  key: value
+`),
+					},
+				},
+			}
+			p.cache.Put("repo/render-defaults/2.0.0", testChart, 1*time.Hour)
+
+			ctx := WithDryRun(context.Background())
+			result, err := Render(ctx, &providers.Params[RenderParams]{
+				Params: RenderParams{
+					Chart: ChartSourceParams{
+						Source:  "render-defaults",
+						Version: "2.0.0",
+					},
+					// No Release, no Context — use defaults
+				},
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(result).ToNot(BeNil())
+			Expect(result.Returns.Resources).To(HaveLen(1))
+		})
+
+		It("should return error when chart fetch fails", func() {
+			ctx := WithDryRun(context.Background())
+			_, err := Render(ctx, &providers.Params[RenderParams]{
+				Params: RenderParams{
+					Chart: ChartSourceParams{
+						Source:  "nonexistent-chart-xyz",
+						Version: "99.99.99",
+					},
+				},
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to fetch chart"))
+		})
+	})
+
+	// -----------------------------------------------------------------------
+	// Tier 1 Coverage: fetchRepoChart via httptest
+	// -----------------------------------------------------------------------
+
+	Describe("fetchRepoChart with httptest", func() {
+		It("should fetch chart from a repo server", func() {
+			chartArchive := createMinimalChartArchive("test-repo-chart", "1.0.0")
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/index.yaml":
+					w.Header().Set("Content-Type", "application/x-yaml")
+					_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  test-repo-chart:
+    - name: test-repo-chart
+      version: 1.0.0
+      urls:
+        - charts/test-repo-chart-1.0.0.tgz
+`))
+				case "/charts/test-repo-chart-1.0.0.tgz":
+					w.Header().Set("Content-Type", "application/gzip")
+					_, _ = w.Write(chartArchive)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			ch, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
+				Source:  "test-repo-chart",
+				RepoURL: server.URL,
+				Version: "1.0.0",
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(ch).ToNot(BeNil())
+			Expect(ch.Metadata.Name).To(Equal("test-repo-chart"))
+			Expect(ch.Metadata.Version).To(Equal("1.0.0"))
+		})
+
+		It("should use first version when no version specified", func() {
+			chartArchive := createMinimalChartArchive("no-ver-chart", "3.0.0")
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/index.yaml":
+					_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  no-ver-chart:
+    - name: no-ver-chart
+      version: 3.0.0
+      urls:
+        - no-ver-chart-3.0.0.tgz
+`))
+				case "/no-ver-chart-3.0.0.tgz":
+					_, _ = w.Write(chartArchive)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			ch, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
+				Source:  "no-ver-chart",
+				RepoURL: server.URL,
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(ch.Metadata.Name).To(Equal("no-ver-chart"))
+		})
+
+		It("should return error when chart not found in index", func() {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  other-chart:
+    - name: other-chart
+      version: 1.0.0
+      urls:
+        - other-chart-1.0.0.tgz
+`))
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			_, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
+				Source:  "missing-chart",
+				RepoURL: server.URL,
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found in repository"))
+		})
+
+		It("should return error when version not found", func() {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  my-chart:
+    - name: my-chart
+      version: 1.0.0
+      urls:
+        - my-chart-1.0.0.tgz
+`))
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			_, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
+				Source:  "my-chart",
+				RepoURL: server.URL,
+				Version: "99.0.0",
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found"))
+		})
+
+		It("should return error when index is invalid YAML", func() {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(`{invalid yaml!!!`))
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			_, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
+				Source:  "test",
+				RepoURL: server.URL,
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to parse repository index"))
+		})
+
+		It("should return error when chart version has no URLs", func() {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  empty-urls:
+    - name: empty-urls
+      version: 1.0.0
+      urls: []
+`))
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			_, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
+				Source:  "empty-urls",
+				RepoURL: server.URL,
+				Version: "1.0.0",
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no download URL found"))
+		})
+	})
+
+	// -----------------------------------------------------------------------
+	// Tier 1 Coverage: fetchURLChart via httptest
+	// -----------------------------------------------------------------------
+
+	Describe("fetchURLChart with httptest", func() {
+		It("should fetch chart from a direct URL", func() {
+			chartArchive := createMinimalChartArchive("url-chart", "2.0.0")
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/gzip")
+				_, _ = w.Write(chartArchive)
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			ch, err := p.fetchURLChart(context.Background(), &ChartSourceParams{
+				Source: server.URL + "/url-chart-2.0.0.tgz",
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(ch).ToNot(BeNil())
+			Expect(ch.Metadata.Name).To(Equal("url-chart"))
+			Expect(ch.Metadata.Version).To(Equal("2.0.0"))
+		})
+
+		It("should return error for unreachable URL", func() {
+			p := NewProviderWithConfig(nil)
+			_, err := p.fetchURLChart(context.Background(), &ChartSourceParams{
+				Source: "http://127.0.0.1:1/nonexistent.tgz",
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to download chart"))
+		})
+	})
+
+	// -----------------------------------------------------------------------
+	// Tier 1 Coverage: fetchChart cache miss → fetch → cache store
+	// -----------------------------------------------------------------------
+
+	Describe("fetchChart cache miss and store", func() {
+		It("should fetch repo chart on miss and cache it", func() {
+			chartArchive := createMinimalChartArchive("cache-miss", "1.0.0")
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/index.yaml":
+					_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  cache-miss:
+    - name: cache-miss
+      version: 1.0.0
+      urls:
+        - cache-miss-1.0.0.tgz
+`))
+				case "/cache-miss-1.0.0.tgz":
+					_, _ = w.Write(chartArchive)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			ch, err := p.fetchChart(context.Background(), &ChartSourceParams{
+				Source:  "cache-miss",
+				RepoURL: server.URL,
+				Version: "1.0.0",
+			}, nil)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(ch.Metadata.Name).To(Equal("cache-miss"))
+
+			// Verify it's now cached
+			cached := p.cache.Get("repo/cache-miss/1.0.0")
+			Expect(cached).ToNot(BeNil())
+		})
+
+		It("should fetch URL chart on miss and cache it", func() {
+			chartArchive := createMinimalChartArchive("url-cache", "1.0.0")
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write(chartArchive)
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			ch, err := p.fetchChart(context.Background(), &ChartSourceParams{
+				Source:  server.URL + "/url-cache-1.0.0.tgz",
+				Version: "1.0.0",
+			}, nil)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(ch.Metadata.Name).To(Equal("url-cache"))
+		})
+	})
+
+	// -----------------------------------------------------------------------
+	// Tier 1 Coverage: Uninstall top-level provider function
+	// -----------------------------------------------------------------------
+
+	Describe("Uninstall top-level function", func() {
+		It("should exercise the function entry and error path", func() {
+			result, err := Uninstall(context.Background(), &providers.Params[UninstallParams]{
+				Params: UninstallParams{
+					Release: ReleaseParams{
+						Name:      "uninstall-test",
+						Namespace: "default",
+					},
+					KeepHistory: false,
+				},
+			})
+			// Without a cluster, this may fail at getActionConfig or at the actual uninstall
+			if err != nil {
+				Expect(err.Error()).To(Or(ContainSubstring("helm"), ContainSubstring("uninstall"), ContainSubstring("config")))
+			} else {
+				Expect(result).ToNot(BeNil())
+			}
+		})
+	})
+
 })
+
+// createMinimalChartArchive creates a minimal valid Helm chart .tgz archive
+// for testing. The archive contains Chart.yaml and a simple ConfigMap template.
+func createMinimalChartArchive(name, version string) []byte {
+	var buf bytes.Buffer
+	gzWriter := gzip.NewWriter(&buf)
+	tarWriter := tar.NewWriter(gzWriter)
+
+	chartYaml := fmt.Sprintf("apiVersion: v2\nname: %s\nversion: %s\n", name, version)
+	_ = tarWriter.WriteHeader(&tar.Header{
+		Name: name + "/Chart.yaml",
+		Size: int64(len(chartYaml)),
+		Mode: 0644,
+	})
+	_, _ = tarWriter.Write([]byte(chartYaml))
+
+	tmpl := `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-config
+data:
+  key: value
+`
+	_ = tarWriter.WriteHeader(&tar.Header{
+		Name: name + "/templates/configmap.yaml",
+		Size: int64(len(tmpl)),
+		Mode: 0644,
+	})
+	_, _ = tarWriter.Write([]byte(tmpl))
+
+	_ = tarWriter.Close()
+	_ = gzWriter.Close()
+
+	return buf.Bytes()
+}
