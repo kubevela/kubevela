@@ -501,23 +501,14 @@ func (p *Provider) fetchRepoChart(ctx context.Context, params *ChartSourceParams
 		return nil, errors.Wrap(err, "failed to parse repository index")
 	}
 
-	// Find the chart in the index
-	chartVersions, ok := index.Entries[params.Source]
-	if !ok {
-		return nil, fmt.Errorf("chart %s not found in repository %s", params.Source, params.RepoURL)
-	}
+	// Sort entries so that Get() returns the highest matching version
+	index.SortEntries()
 
-	// Find the requested version
-	var chartVersion *repo.ChartVersion
-	for _, cv := range chartVersions {
-		if params.Version == "" || cv.Version == params.Version {
-			chartVersion = cv
-			break
-		}
-	}
-
-	if chartVersion == nil {
-		return nil, fmt.Errorf("version %s of chart %s not found", params.Version, params.Source)
+	// Find the requested chart version. Get() supports exact versions (e.g., "1.2.3"),
+	// semver constraints (e.g., "^1.2.0", ">=1.0.0 <2.0.0"), and empty string (latest stable).
+	chartVersion, err := index.Get(params.Source, params.Version)
+	if err != nil {
+		return nil, fmt.Errorf("version %q of chart %s not found in repository %s: %w", params.Version, params.Source, params.RepoURL, err)
 	}
 
 	// Get the download URL
