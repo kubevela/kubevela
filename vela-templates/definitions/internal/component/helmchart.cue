@@ -247,17 +247,41 @@ template: {
 		}
 	}
 
-	// Set outputs from rendered resources
+	// Primary output: an audit ConfigMap that records release metadata.
+	// This gives KubeVela a stable, predictable primary resource regardless
+	// of what the Helm chart contains (chart rendering order is not guaranteed).
+	output: {
+		apiVersion: "v1"
+		kind:       "ConfigMap"
+		metadata: {
+			name:      "\(_release.name)-helm-release"
+			namespace: _release.namespace
+			labels: {
+				"app.oam.dev/name":      context.appName
+				"app.oam.dev/namespace": context.namespace
+				"app.oam.dev/component": context.name
+				"helm.oam.dev/chart":    parameter.chart.source
+			}
+		}
+		data: {
+			chartSource:     parameter.chart.source
+			releaseName:     _release.name
+			releaseNamespace: _release.namespace
+			if parameter.chart.repoURL != _|_ {
+				repoURL: parameter.chart.repoURL
+			}
+			if parameter.chart.version != _|_ {
+				chartVersion: parameter.chart.version
+			}
+			resourceCount: "\(len(_rendered.$returns.resources))"
+		}
+	}
+
+	// All rendered Helm resources go into outputs with stable keys
 	if _rendered.$returns.resources != _|_ {
 		if len(_rendered.$returns.resources) > 0 {
-			// Take first resource as primary output
-			output: _rendered.$returns.resources[0]
-		}
-
-		// Put remaining resources in outputs
-		if len(_rendered.$returns.resources) > 1 {
 			outputs: {
-				for i, res in _rendered.$returns.resources if i > 0 {
+				for i, res in _rendered.$returns.resources {
 					"helm-resource-\(i)": res
 				}
 			}
