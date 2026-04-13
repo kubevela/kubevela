@@ -264,8 +264,8 @@ template: {
 			}
 		}
 		data: {
-			chartSource:     parameter.chart.source
-			releaseName:     _release.name
+			chartSource:      parameter.chart.source
+			releaseName:      _release.name
 			releaseNamespace: _release.namespace
 			if parameter.chart.repoURL != _|_ {
 				repoURL: parameter.chart.repoURL
