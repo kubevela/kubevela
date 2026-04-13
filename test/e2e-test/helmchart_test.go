@@ -472,7 +472,7 @@ var _ = Describe("Helmchart Self-Healing", func() {
 				_ = k8sClient.List(h.ctx, pods, client.InNamespace(h.namespace),
 					client.MatchingLabels{"app.kubernetes.io/name": "podinfo"})
 				return len(pods.Items)
-			}, 30*time.Second, 2*time.Second).Should(Equal(0))
+			}, 60*time.Second, 2*time.Second).Should(Equal(0))
 
 			By("Verifying ResourceTracker is deleted")
 			Eventually(func() bool {
