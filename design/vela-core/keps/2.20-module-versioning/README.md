@@ -5,7 +5,7 @@
 **Depends on:** [KEP-2.13](../2.13-addons/README.md)
 
 This KEP covers the module identity model, API line naming convention, type reference resolution, and API line deprecation lifecycle. It is an **advanced feature** for platform teams managing versioned capability APIs across large numbers of consumers — teams that need to introduce breaking changes without immediately disrupting consumers, run `v1` and `v2` API lines simultaneously, and give consumers a migration window before old lines are removed.
-
+I
 The versioning model is implemented at the **X-Definition level** — `spec.module` and `spec.apiVersion` are fields on the definitions themselves, not on the addon. Addons are the delivery mechanism; the `modules/` directory structure is opt-in. Addons using only `definitions/` continue to work and receive the full benefit of KEP-2.13 (continuous reconciliation, drift correction, stale cleanup) without adopting this model. The declarative addon lifecycle (Addon CR, reconciliation, drift correction) is covered in [KEP-2.13](../2.13-addons/README.md).
 
 ## Problem
@@ -1795,6 +1795,20 @@ The controller records the gate source (`imports`, `module`, or `line`) and the 
 - Supporting arbitrary directory names for module source trees — `modules/` is the required convention; files outside it are not detected
 
 ## Alternatives Considered
+
+### Lock storage: separate `definitionLocks` field vs. normalise into ApplicationRevision
+
+Two approaches to sticky Form 2 resolution are worth comparing during implementation:
+
+**Option A (current design):** Store the resolved canonical triple in a dedicated `ApplicationRevision.spec.definitionLocks` field. The live `Application.spec.components[i].type` is never mutated — it stays as the user wrote it. On subsequent admissions the webhook reads the lock field directly.
+
+**Option B:** Rather than a separate field, the webhook normalises the `type` string to its Form 3 equivalent (`aws-s3/v1/bucket`) and writes the normalised value into the ApplicationRevision's snapshot of the Application spec. The live Application object is not mutated. On subsequent admissions, the webhook compares the incoming type string against the ApplicationRevision's normalised type to decide whether re-resolution is needed.
+
+Option B eliminates the `ComponentDefinitionLock` data structure entirely — the ApplicationRevision snapshot already exists and already records component state. The key question for the implementer is whether webhook-written derived data belongs in `ApplicationRevision.spec.components` alongside the user-authored spec, and whether the comparison logic ("same type as before, now normalised" vs. "user changed the type") is straightforward to implement correctly.
+
+A third variant — mutating the live `Application.spec.components[i].type` in place — creates GitOps drift: Flux and Argo CD would see a perpetual diff between the normalised type on the cluster and the shorthand in Git, re-syncing on every cycle.
+
+**Recommendation for implementers:** Prototype both Option A and Option B and compare on simplicity, operator ergonomics (what does a confused operator see when inspecting an ApplicationRevision?), and edge-case handling (lock staleness, module uninstall, rollback).
 
 ### Group / Module / Component Directory Layering
 
