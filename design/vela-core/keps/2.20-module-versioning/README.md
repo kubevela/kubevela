@@ -118,12 +118,25 @@ are treated as non-module definitions and resolved by exact name match only. The
 triple is the authoritative reference used by the admission webhook, the deprecation check,
 and the Application status record.
 
+**Two independent models.** A definition is either *legacy* — no `spec.module`, no `spec.apiVersion`, resolved by exact name only — or *versioned* — both fields present, participates in the module system and canonical triple resolution. There is no partial participation: a definition missing either field is treated as legacy and is outside the module versioning system entirely. The two models do not intersect at resolution time.
+
 > **Canonical identity:** `{module}/{apiVersion}/{name}` is the stable, fully-qualified
-> identity of a definition. It is the only form that is a stable contract. All other
-> reference forms (Forms 1 and 3) are convenience syntax that the admission webhook
-> normalises to this triple before any deprecation check, lock write, or status record.
-> Platform teams and tooling SHOULD use the canonical triple as their reference; shorthand
-> forms MUST NOT be treated as stable contracts.
+> identity of a definition. It is the only form that is a stable contract. Form 2
+> (`apiVersion/name`) is resolved to this triple once at first admission and the result
+> is stored in the definition lock; all subsequent admissions use the stored triple
+> directly — the shorthand form is not re-evaluated. Form 3 encodes the triple directly
+> in the type string and derives it on every admission without a lock.
+>
+> Within a given component reference, only the `apiVersion` component of the canonical
+> triple may change between ApplicationRevisions (an explicit API line migration). The
+> `module` and `name` components are fixed for the lifetime of that reference — changing
+> either would alter the underlying contract entirely and requires a new component
+> definition in the Application, or a deliberate migration. The admission webhook
+> enforces this: a `type` change that would mutate the stored `module` or `name` is
+> rejected.
+>
+> Platform teams and tooling SHOULD use Form 3 (which encodes the triple directly) for
+> any durable reference.
 
 ## Definition Naming Convention
 
@@ -188,44 +201,42 @@ annotations:
 
 ## Type Reference Syntax
 
+> **Design principle:** The API version is the stability contract. Any reference form that
+> guesses or discovers the version undermines that contract — and anyone using the module
+> versioning system has already opted in to caring about it. Module discovery is permitted
+> (Form 2) because the module is a delivery namespace, not a contract boundary. The version
+> must always be explicit.
+
 Applications reference definitions using an extended type syntax. For a summary of which
 form to use in each context, see [Recommended Usage](#recommended-usage) below.
 
 > **Quick reference — which form to use:**
 > | Goal | Form | Example |
 > |---|---|---|
-> | Production, GitOps, version control | Form 4 | `type: aws-s3/v1/bucket` |
-> | Local dev, quick test | Form 3 | `type: aws-s3/bucket` |
+> | Production, GitOps, version control | Form 3 | `type: aws-s3/v1/bucket` |
+> | Version known, module not pinned | Form 2 | `type: v1/bucket` |
 > | Legacy hand-authored definitions | Form 1 | `type: bucket` |
 >
 > The rest of this section explains the parsing rules and trade-offs for each form.
 
 ```yaml
 components:
-  # Form 4: Fully qualified — recommended for production, GitOps, and automated pipelines.
+  # Form 3: Fully qualified — recommended for production, GitOps, and automated pipelines.
   # Module and API version are both explicit; resolution is fully deterministic.
   - name: my-bucket
     type: aws-s3/v1/bucket
 
-  # Form 3: Module scoped — convenience syntax for interactive use or rapid prototyping.
-  # At first admission (no stored lock), the webhook selects the highest-ranked API line
-  # currently installed in the cluster (Kubernetes stability ordering: stable vN > beta
-  # vNbetaM > alpha vNalphaM — a v2beta1 line loses to a v1 stable line; "highest-ranked"
-  # does not mean "newest number"). That result is cluster-state-dependent:two clusters with different API
-  # lines installed may resolve Form 3 to different versions. After first admission the
-  # resolved version is frozen in the module lock and re-applies are deterministic.
-  # Do not use Form 3 in GitOps manifests or shared Application templates — use Form 4.
+  # Form 2: Version-scoped. API version is explicit; module is discovered from cluster state
+  # at first admission and stored in the lock. Use when the API version is known but
+  # the module does not need to be pinned. For full determinism, use Form 3.
   - name: my-bucket
-    type: aws-s3/bucket
+    type: v1/bucket
 
-  # Form 1: Unqualified name only.
-  # ⚠️  For NEW module-backed definitions this is the LEAST SAFE form — prefer Form 3 or Form 4.
-  # Two distinct behaviours depending on what is installed:
-  #   • Non-module definition (no spec.module): exact-name match, pre-module semantics.
-  #     Fully supported for legacy/hand-authored definitions; no dynamic resolution.
-  #   • Module-backed definition: module and API version are both discovered from cluster state.
-  #     Dynamic at first admission; not portable across clusters; do not use in any
-  #     version-controlled, shared, or multi-cluster manifest.
+  # Form 1: Unqualified name only — legacy path for hand-authored definitions.
+  # Supported ONLY for non-module definitions (spec.module absent): exact-name match,
+  # no lock, no module system involvement.
+  # ⚠️  If the matched definition has spec.module set, admission is rejected:
+  #     versioned definitions must use Form 2 or Form 3.
   - name: my-bucket
     type: bucket
 ```
@@ -235,237 +246,163 @@ The `type` field is parsed by segment count:
 | Segments | First segment | Form | Pattern | Nickname |
 |---|---|---|---|---|
 | 1 | — | Form 1 | `{definition-name}` | Unqualified |
-| 2 | does not match `^v\d+` | Form 3 | `{module}/{definition-name}` | Module-scoped |
-| 2 | matches `^v\d+` | ❌ Form 2 (rejected — see open question) | — | — |
-| 3 | — | Form 4 | `{module}/{apiVersion}/{definition-name}` | Fully qualified |
+| 2 | matches `^v\d+` | Form 2 | `{apiVersion}/{definition-name}` | Version-scoped |
+| 3 | — | Form 3 | `{module}/{apiVersion}/{definition-name}` | Fully qualified |
 
-> Form 2 (`v1/bucket`) is reserved but currently rejected — hence the gap in numbering.
-
-A two-segment type whose first segment matches `^v\d+` (e.g. `v1/bucket`) is currently
-rejected at admission. The rationale is that an API version without a module is ambiguous
-— the same version label (`v1`) may exist in multiple modules, so the version alone is not
-sufficient to identify the definition uniquely.
-
-> **Open question:** Should `v1/bucket` be supported as a "version-scoped unqualified" form
-> (Form 2) — analogous to Form 1 but with the API version pinned and the module still
-> discovered from cluster state? This would allow authors who know they want `v1` but do
-> not want to pin the module to express that precisely, without upgrading to the fully
-> qualified Form 4. Arguments for: reduces the step size between Form 1 and Form 4; gives
-> a natural intermediate for clusters where only one module provides a given definition
-> name. Arguments against: module ambiguity at a specific version is no less problematic
-> than at the highest-ranked version — if two modules both publish a `v1/bucket`, the form is still
-> unresolvable; and the module lock mechanism already provides version stability for Form 3
-> once the module is known. Resolution: **deferred — currently rejected; revisit if a
-> concrete use case emerges that Forms 3 and 4 cannot serve.**
+**Form 2** (`{apiVersion}/{definition-name}`, e.g. `v1/bucket`): the API version is
+explicit, but the module is discovered from cluster state at first admission. The webhook
+performs a global label selector (`definition.oam.dev/api-version={apiVersion},
+definition.oam.dev/name={name}`) across all installed modules. If exactly one result is
+found, its module is stored in the lock and the reference is accepted. If more than one
+result is found — that is, two or more modules both provide the same definition name at
+the same API version — the reference is rejected with an ambiguity error; the author must
+use Form 3 to specify the module explicitly. Once locked, the stored canonical triple is
+used for all subsequent admissions — no lookup of any kind occurs. Use Form 2 when the
+API version is known but the module does not need to be pinned. Use Form 3 when both must
+be fully deterministic from the moment the manifest is written.
 
 The order mirrors both the installed name convention (`{module}-{apiVersion}-{definition-name}`)
 and the Kubernetes API URL structure (`/apis/{group}/{version}/{resource}`). There is no
 separate `module` field on the component — module scoping is expressed entirely within `type`.
 
-**Form 4 is the canonical reference form.** Forms 1 and 3 are convenience aliases that
-resolve to the canonical triple `{module}/{apiVersion}/{name}` at admission time. The
-module component of that triple is sticky after first successful admission via the
-**definition lock** (see Resolution Stability Summary below). Form 4 is the required form for any manifest that will be stored in
-version control, shared across clusters, or applied by an automated pipeline. Forms 1 and
-3 are development-time conveniences — not production defaults.
+**Form 3 is the canonical reference form.** Forms 1 and 2 are resolved to the canonical
+triple `{module}/{apiVersion}/{name}` once at first admission. The resolved triple is
+stored in the **definition lock**; all subsequent admissions use the stored triple
+directly via a deterministic GET — the shorthand form is not re-evaluated. Form 3 is
+the required form for any manifest that will be stored in version control, shared across
+clusters, or applied by an automated pipeline, because it encodes the canonical triple
+directly without a resolution step.
 
 **Choosing a form:**
 
 | Scenario | Recommended form |
 |---|---|
-| Production manifest, GitOps repo, automated pipeline | **Form 4** (`module/apiVersion/name`) |
-| Interactive `kubectl apply`, local development, rapid prototyping | Form 3 (`module/name`) |
+| Production manifest, GitOps repo, automated pipeline | **Form 3** (`module/apiVersion/name`) |
+| API version known, module not pinned | Form 2 (`apiVersion/name`) — module discovered but version explicit |
 | Legacy un-versioned (hand-authored) definition | Form 1 (`name`) — exact-name match, no dynamic resolution (non-module path only) |
-| New module-backed definition without module preference | Form 3 or Form 4 — Form 1 performs cluster-state-dependent global resolution for module definitions |
-| New module-backed definition, single-module cluster | Form 3 preferred over Form 1 to make the module explicit |
+| New module-backed definition | Form 2 or Form 3 — Form 1 is rejected for module-backed definitions |
 
-Forms 1 and 3 are convenience input syntax — they reduce verbosity at the cost of
-deferring part of the resolution to cluster state at first admission. They are valid
-reference syntax, but they are **not stable contracts**: the canonical triple they resolve
-to depends on which module and API line are installed at the moment of first admission.
-Cluster changes (a new API line published, a module replaced) can cause two identical
-Form 1 or Form 3 strings to resolve to different canonical triples on different clusters
-or at different times. Only Form 4 — which encodes the canonical triple directly — is a
-stable contract that resolves identically wherever the definition is installed.
+**Form 2 defers module discovery only — the version is explicit and is the contract.**
+On first admission, the module is discovered from cluster state and locked. After that,
+the stored canonical triple is used directly; nothing is re-evaluated. Form 2 is not
+portable across fresh clusters until a lock exists — use Form 3 for GitOps.
+
+**Form 1 is for non-module definitions only.** No version is involved; resolution is a
+direct name lookup. If the matched definition has `spec.module` set, admission is rejected.
+
+Only Form 3 — which encodes the full canonical triple in the type string — requires no
+cluster state at any point and is safe from the moment it is written.
 
 ### Resolution Rules
 
-All resolution is performed at admission time. Resolution is normalisation: regardless of
-which form the author writes, the admission webhook normalises the type reference to the
-canonical triple `{module}/{apiVersion}/{name}` before any downstream operation. That
-triple is used for the deprecation check, the Application status record, and — for
-Forms 1 and 3 — the lock write. For non-module definitions (no `spec.module`), only exact-name matching applies
-and no canonical triple is produced — those definitions are outside the module versioning
-system entirely.
+All resolution is performed at admission time. Resolution is normalisation: the admission
+webhook resolves the type reference to the canonical triple `{module}/{apiVersion}/{name}`
+before any downstream operation. For Form 2, the resolved triple is written to the
+`ApplicationRevision` lock — the status record is derived from that. For Form 3, the
+triple is derived directly from the type string with no lookup. For non-module definitions
+(no `spec.module`), only exact-name matching applies and no canonical triple is produced —
+those definitions are outside the module versioning system entirely.
+
+The three rules that govern all versioned resolution:
+
+1. **Version is always explicit.** There is no version inference or fallback. A type string without an explicit `apiVersion` segment is not a versioned reference.
+2. **Module is required when ambiguous.** If a global selector on `(apiVersion, name)` returns more than one result, the reference is rejected. The author must supply the module (Form 3).
+3. **Ambiguity is always a hard failure.** There is no "pick the best" fallback, no stability ranking used for selection, and no implicit default. Exactly one candidate must exist.
+
+> **Ambiguity invariant:** see rules 1–3 above. The short version: version always explicit,
+> module required when ambiguous, ambiguity always fails hard.
 
 Form selection is determined solely by parsing the `type` string — segment count and
-first-segment pattern. There is no fallback between forms: a type string that parses as
-Form 3 is resolved as Form 3 or rejected; it does not silently fall back to Form 1
-resolution if the module query returns no results.
+first-segment pattern. There is no fallback between forms: a type string is resolved as
+its parsed form or rejected; it does not silently fall back to another form's resolution.
 
 **Resolution priority order:**
 
 Each form follows a strict priority sequence. Steps are evaluated in order; once a step
 succeeds or definitively fails, no later step is reached.
 
-**Form 4** (`{module}/{apiVersion}/{definition-name}`):
+**Form 3** (`{module}/{apiVersion}/{definition-name}`):
 1. Derive CR name from naming convention → direct GET → accept or reject.
 
-**Form 3** (`{module}/{definition-name}`):
-1. Stored lock present → direct GET on `(stored-module, stored-apiVersion, name)` → accept or reject. No fallback.
-2. No stored lock → module-scoped selector (`module={module}, name={name}`) → rank by API
-   version stability → tie within module: reject with ambiguity error; one winner: store lock → accept.
+**Form 2** (`{apiVersion}/{definition-name}`):
+1. Stored lock present → direct GET on (stored-module, apiVersion, name) → accept or reject. No fallback.
+2. No stored lock → global selector (`definition.oam.dev/api-version={apiVersion}, definition.oam.dev/name={name}`)
+   → if more than one result: reject with ambiguity error (use Form 3); exactly one: store lock → accept.
 
 **Form 1** (`{definition-name}`):
-1. Stored lock present → direct GET on `(stored-module, stored-apiVersion, name)` → accept or reject. No fallback.
-2. Exact-name GET (`metadata.name = name`):
-   - Found, `spec.module` absent → legacy path: accept immediately, no lock written.
-   - Found, `spec.module` present → store lock using the CR's own `spec.module` and `spec.apiVersion` → accept.
-   - Not found → proceed to step 3.
-3. Global label selector (`definition.oam.dev/name={name}`, all modules): rank all results by
-   API version stability across modules (flat ranking, not per-module then between modules). Tie
-   at the top rank: reject with ambiguity error. One winner: store lock → accept.
+1. Exact-name GET (`metadata.name = name`):
+   - Found, `spec.module` absent → legacy path: accept, no lock written.
+   - Found, `spec.module` present → **reject**: this is a versioned definition; use Form 2 or Form 3.
+   - Not found → reject: definition not found.
 
-No fallback exists between forms. A type string parsed as Form 3 is resolved as Form 3 or
-rejected; it does not fall back to Form 1 resolution. Within Form 1, the cascade from
-exact-name GET to global selector is the only permitted fallback.
+Form 1 never writes a definition lock. It operates entirely outside the module versioning system.
 
-**Form 4 — fully qualified** (`{module}/{apiVersion}/{definition-name}`):
+No fallback exists between forms.
+
+**Form 3 — fully qualified** (`{module}/{apiVersion}/{definition-name}`):
 The controller derives the exact CR name using the naming convention
 (`{module}-{apiVersion}-{definition-name}`, with truncation+hash if needed) and performs a
 direct `GET`. No selector query. Ambiguity is impossible — the name is deterministic. If
 the computed CR does not exist, admission is rejected.
 
-**Form 3 — module scoped** (`{module}/{definition-name}`):
-> **Form 3 — what happens in practice:**
-> 1. **First `kubectl apply`** (no lock stored): the webhook runs the module-scoped
->    selector, picks the highest-ranked installed API line, and stores the resolved
->    `{module, apiVersion}` in `.status.services[i].resolvedDefinition`.
-> 2. **All subsequent applies** (same `type` string): the webhook reads the stored lock
->    and performs a direct GET — identical to Form 4. The selector never runs again.
-> 3. **Result:** Form 3 is cluster-state-dependent once, then deterministically frozen.
+**Form 1 — legacy path** (`{definition-name}`):
+Performs a direct exact-name GET (`metadata.name = {name}`). No selector. No lock.
+- Found, `spec.module` **absent**: the definition is outside the module system — accept,
+  no lock written.
+- Found, `spec.module` **present**: the definition is versioned; Form 1 cannot address it.
+  Reject: use Form 2 (`apiVersion/name`) or Form 3 (`module/apiVersion/name`).
+- Not found: reject — definition not found.
 
-If a resolved definition is already stored in `.status.services[i].resolvedDefinition` for
-this component, the controller performs a direct GET using the stored module, stored
-apiVersion, and name (identical to Form 4). If the definition is not found — for example
-because the module was uninstalled — admission is rejected. The controller does **not** fall
-back to a fresh selector query; the stored lock is treated as authoritative. To force
-re-resolution, a platform operator must clear `.status.services[i].resolvedDefinition`.
-Otherwise (no stored lock): selector
-`definition.oam.dev/module={module}, definition.oam.dev/name={name}`. Among matching
-definitions, select the one with the highest API version using the Kubernetes stability
-ordering (`vN > vNbetaM > vNalphaM`, N and M descending). On success, store the resolved
-module and apiVersion in `.status.services[i].resolvedDefinition`.
-
-> If two definitions within the same module share the same highest stability class and
-> version number (degenerate case: duplicate API lines from conflicting imports), resolution
-> fails with an ambiguity error — use Form 4 to disambiguate.
-
-> **Why tie-break conditions differ between forms:** Form 3's selector is module-scoped
-> (it includes `module={module}` in the label query), so a tie can only occur between two
-> definitions *within the same module* that share a version label — a degenerate
-> misconfiguration. Form 1's selector is global, so a tie can occur between definitions
-> from *different modules* that happen to share the same top-ranked API version string.
-> Both conditions result in an ambiguity error; the fix is different: for Form 3 ties,
-> the module publisher must deduplicate their API line labels; for Form 1 ties, the
-> Application author must use Form 3 or Form 4 to specify the module explicitly.
-
-> **First-admission selection is cluster-state-dependent.** When no stored lock exists,
-> the webhook selects the highest-ranked API line present in the cluster *at that moment*.
-> Two clusters with different API lines installed may resolve the same Form 3 string to
-> different versions — this is a source of drift in GitOps environments where a manifest
-> is applied to multiple clusters. After first admission the resolved version is stored in
-> the module lock and subsequent re-applies are fully deterministic (the selector does not
-> re-run). If `v2` is published after first admission, the Application remains on `v1`
-> indefinitely until the author explicitly changes `type` to `aws-s3/v2/bucket` (Form 4).
-> **Use Form 4 to eliminate first-admission variability entirely.**
-
-**Form 1 — unqualified** (`{definition-name}`):
-Resolution proceeds in two stages:
-
-1. **Exact-name GET** — attempt `GET` of a definition CR with `metadata.name={name}`.
-   - If found and `spec.module` is **absent**: use it directly. This is the legacy path —
-     no lock is applied, pre-module exact-name semantics are preserved. The label selector
-     is not run.
-   - If found and `spec.module` is **present**: the definition was installed with a short
-     name (unusual; the naming convention normally produces `{module}-{apiVersion}-{name}`).
-     Treat as module-backed: store the module and apiVersion read from the CR's own
-     `spec.module` and `spec.apiVersion` fields into `.status.services[i].resolvedDefinition`
-     and proceed.
-2. **Global label selector** (only if exact-name GET finds nothing) — selector
-   `definition.oam.dev/name={name}` across all modules. All matching definitions from all
-   installed modules are collected into a single flat candidate set. The winner is the
-   candidate with the highest API version using the Kubernetes stability ordering applied
-   across the entire set — not per-module then between modules. If the winner has
-   `spec.module` set, store the resolved module and apiVersion in
-   `.status.services[i].resolvedDefinition` — subsequent applies use the stored lock
-   directly (same behaviour as Form 3).
-
-> **Form 1 module resolution is the least deterministic form.** The global selector
-> queries all installed modules simultaneously and picks the highest-ranked API line
-> across all of them. The result depends on which modules are installed at first
-> admission and may differ between clusters. For module-backed definitions, prefer
-> Form 3 (which at least pins the module) or Form 4 (fully deterministic). Reserve
-> Form 1 for legacy non-module definitions where exact-name semantics apply.
+Form 1 is the unchanged pre-module resolution path. It has no knowledge of modules,
+API lines, or the canonical triple, and does not interact with the definition lock.
 
 > **Legacy priority is unconditional.** Because legacy authors have no syntax available to
 > disambiguate — `type: bucket` is already maximally specific for a non-module definition —
-> the exact-name GET must resolve before the selector runs. Installing a module definition
+> the exact-name GET must resolve before any other check. Installing a module definition
 > with label `definition.oam.dev/name=bucket` does **not** shadow an existing non-module
-> definition named `bucket`; the label selector is only reached when no exact-name match
-> exists. Platform teams introducing module definitions for a name that was previously
-> served by a legacy definition must be aware that the legacy definition continues to win
-> for Form 1 references until it is removed.
+> definition named `bucket`. Platform teams introducing module definitions for a name that
+> was previously served by a legacy definition must be aware that the legacy definition
+> continues to win for Form 1 references until it is removed.
 
-> If two module definitions from different modules share the highest stability class and
-> version number (selector stage only), admission is rejected with an ambiguity error —
-> use Form 3 (`{module}/{name}`) or Form 4.
-
-**API version ordering:** Stability class takes absolute precedence over version number.
-The full ranking, highest first:
+**API version stability ordering:** Stability class takes absolute precedence over version
+number. This ordering is relevant for the deprecation lifecycle — it is not used to
+implicitly select among multiple candidates (the ambiguity invariant means any resolver
+that encounters more than one candidate rejects rather than ranks). The ordering, highest first:
 
 1. `vN` — stable, N descending (`v2` > `v1`)
 2. `vNbetaM` — beta, N descending, M descending (`v2beta1` > `v1beta2` > `v1beta1`)
 3. `vNalphaM` — alpha, N descending, M descending (`v2alpha1` > `v1alpha2`)
 
 This means `v1` (stable) always ranks above `v2beta1` (beta), which always ranks above
-`v3alpha1` (alpha), regardless of the version number. Installing a `v2alpha1` line
-alongside a `v1` stable line does **not** cause highest-ranked resolution to select
-`v2alpha1` — the stable line wins unconditionally. This follows the
+`v3alpha1` (alpha), regardless of the version number. A `v2alpha1` line installed alongside
+a `v1` stable line does **not** shadow the stable line — they are distinct API lines and
+an author must explicitly choose which one to reference. This follows the
 [Kubernetes API versioning convention](https://kubernetes.io/docs/reference/using-api/#api-versioning), not semver.
 
 ```mermaid
 flowchart TD
     A([Application CREATE / UPDATE]) --> B["Parse type field"]
 
-    B --> F4["Form 4: {module}/{apiVersion}/{name}<br />Derived name → direct GET"]
-    B --> F3["Form 3: {module}/{name}"]
-    B --> F1["Form 1: {name}<br />Exact GET → legacy path; selector if not found"]
-    B --> FX["Two segments, first matches v\\d+<br />❌ Currently rejected (open question)"]
+    B --> F3["Form 3: {module}/{apiVersion}/{name}<br />Derived name → direct GET"]
+    B --> F2["Form 2: {apiVersion}/{name}"]
+    B --> F1["Form 1 (legacy): {name}<br />Exact GET only — no lock"]
 
-    F4 -->|CR found| DepCheck
-    F4 -->|CR not found| E0([Reject: definition not found])
+    F3 -->|CR found| DepCheck
+    F3 -->|CR not found| E0([Reject: definition not found])
 
-    F3 --> LockCheck3{"Stored module+apiVersion<br />in .status.services[]?"}
-    LockCheck3 -->|Yes| DirectGet3["Direct GET using<br />stored module + apiVersion + name"]
-    LockCheck3 -->|No| Selector3["Selector: module + name<br />Rank by API version"]
-    Selector3 -->|Tie at equal version| E2([Reject: ambiguous — use Form 4])
-    Selector3 -->|One winner| StoreLock3["Store module + apiVersion<br />in .status.services[]"]
-    DirectGet3 -->|Found| DepCheck
-    DirectGet3 -->|Not found| E1([Reject: stored definition not found])
-    StoreLock3 --> DepCheck
+    F2 --> LockCheck2{"Lock entry exists<br />for this component?"}
+    LockCheck2 -->|Yes| DirectGet2["Direct GET using<br />stored module + apiVersion + name"]
+    LockCheck2 -->|No| Selector2["Global selector: apiVersion + name"]
+    Selector2 -->|More than one result| E2([Reject: ambiguous — use Form 3])
+    Selector2 -->|Exactly one result| StoreLock2["Write ComponentDefinitionLock<br />to ApplicationRevision"]
+    DirectGet2 -->|Found| DepCheck
+    DirectGet2 -->|Not found| E1([Reject: stored definition not found])
+    StoreLock2 --> DepCheck
 
-    F1 --> LockCheck1{"Stored module+apiVersion<br />in .status.services[]?"}
-    LockCheck1 -->|Yes| DirectGet1["Direct GET using<br />stored module + apiVersion + name<br />(same as Form 3)"]
-    LockCheck1 -->|No| ExactGet1["Exact GET: metadata.name={name}"]
+    F1 --> ExactGet1["Exact GET: metadata.name={name}"]
     ExactGet1 -->|Found, no spec.module| DepCheck
-    ExactGet1 -->|Found, has spec.module| StoreLock1["Store module + apiVersion<br />in .status.services[]"]
-    ExactGet1 -->|Not found| Selector1["Selector: definition.oam.dev/name={name}<br />Rank by API version"]
-    Selector1 -->|Multiple modules at equal version| E2
-    Selector1 -->|One winner| StoreLock1
-    DirectGet1 -->|Found| DepCheck
-    DirectGet1 -->|Not found| E1
-    StoreLock1 --> DepCheck
+    ExactGet1 -->|Found, has spec.module| E_ModuleBackedForm1([Reject: versioned definition — use Form 2 or Form 3])
+    ExactGet1 -->|Not found| E0
 
     DepCheck{Deprecated?}
     DepCheck -->|No| Allow([Allow])
@@ -477,93 +414,108 @@ flowchart TD
 
 | Form | Module | API version | Production use |
 |------|---|---|---|
-| **4** `aws-s3/v1/bucket` | Explicit + pinned | Explicit + pinned | ✅ Recommended — fully deterministic from first admission |
-| **3** `aws-s3/bucket` | Explicit; sticky after first admission | Dynamic at first admission; frozen after lock | ⚠️ Convenience only — cluster-state-dependent at first admission; do not use in GitOps manifests or shared templates. Deterministic on re-apply once locked. |
-| **1** `bucket` (module) | Discovered; sticky after first admission | Dynamic at first admission; frozen after lock | ⚠️ Least deterministic form — cluster-state-dependent at first admission across all modules; do not use for module-backed definitions in any shared or version-controlled manifest. |
-| **1** `bucket` (non-module) | None | None (exact name match) | ✅ Legacy path — exact-name match, pre-module semantics; fully supported for hand-authored definitions |
-| `v1/bucket` | — | — | ❌ Currently rejected — see open question on Form 2 support |
+| **3** `aws-s3/v1/bucket` | Explicit + pinned | Explicit + pinned | ✅ Recommended — fully deterministic from first admission |
+| **2** `v1/bucket` | Discovered; sticky after first admission | Explicit + pinned | ⚠️ Version pinned, module discovered — use Form 3 for full determinism |
+| **1** `bucket` | None | None — outside module system | ✅ Legacy path — exact-name match for non-module definitions only |
 
-**Definition lock** is the mechanism that makes Forms 1 and 3 **deterministic on re-apply**
-after first admission. It does not make them safe for GitOps environments: a manifest
-applied to a fresh cluster (no pre-existing lock) still performs cluster-state-dependent
-resolution at first admission. Only Form 4 is safe for GitOps from the moment the manifest
-is written. On first admission, the selector runs once and the resolved module and apiVersion
-are stored together in `.status.services[i].resolvedDefinition`. Once locked, re-applies
-of the same manifest perform a direct GET using the stored module, apiVersion, and name —
-identical to Form 4. Publishing a new API line to the module does not affect any Application
-that already has a stored lock.
+> **Note:** If the matched definition has `spec.module` set, admission is rejected — Form 1 cannot address versioned definitions. This is not a Form 1 failure mode; it is a model mismatch.
+
+**Definition lock** is the one-time resolution record for shorthand forms. The lifecycle
+is: **input → resolve once → store canonical triple → reuse directly**. At first
+admission of a Form 2 reference, the webhook runs the selector, resolves the module, and
+stores the canonical triple `{module}/{apiVersion}/{name}` as a `ComponentDefinitionLock`
+entry in `ApplicationRevision` — the authoritative source of truth.
+`.status.services[i].resolvedDefinition` is a read-only projection for human readability.
+On every subsequent admission, the webhook reads the stored triple and performs a direct
+GET — the shorthand form is ignored. The selector never runs again for that component.
+Publishing a new API line does not affect any Application with a stored lock.
+
+Form 2 is therefore **not safe for fresh-cluster GitOps**: a manifest applied to a cluster
+with no pre-existing lock depends on cluster state at first admission to resolve the
+module. Form 3 requires no resolution step and is safe from the moment it is written.
 
 **To upgrade to a new API line**, the Application author must explicitly update `type` to
-Form 4 with the new version (e.g. `type: aws-s3/v2/bucket`). This clears the previous
-lock and stores the new resolved module and apiVersion. There is no implicit upgrade path —
-any spec change that does not also change the `type` string continues to resolve using the
-stored lock.
+Form 3 with the new version (e.g. `type: aws-s3/v2/bucket`). The webhook detects the
+changed `type` string and resolves the new canonical triple directly from the Form 3 name
+(no selector, no lock). Any stale lock entry from a prior Form 2 admission is superseded —
+Form 3 derives the triple on every admission and does not consult or write a lock. There
+is no implicit upgrade path — any spec change that does not also change the `type` string
+continues to resolve using the stored lock (for Form 2) or the type string itself (for
+Form 3).
 
 **To clear the definition lock** (force re-resolution from current cluster state), a
-platform operator may remove `.status.services[i].resolvedDefinition`. The next apply will
-re-run the selector and store a new lock. If a new highest-ranked API line has been
-published since the original lock was set, the Application will resolve to it.
+platform operator may remove the relevant `ComponentDefinitionLock` entry from the
+`ApplicationRevision`. The `.status.services[i].resolvedDefinition` projection will
+reflect the cleared state on the next status sync. The next apply will re-run the selector
+and store a new lock. If a new matching API line has been published since the original lock
+was set, the Application will resolve to it (subject to the ambiguity invariant).
 
 **Lock staleness — failure mode and recovery:** If the module that owns a stored lock is
 uninstalled, re-applying the Application will fail at the direct-GET step ("stored
 definition not found") — even if a definition with the same name exists under a different
-module or as a legacy definition. The lock takes priority over all other lookup strategies;
-no fallback occurs. This is intentional: silent re-resolution after a module uninstall
-would be a silent version change, which the module system is designed to prevent.
+module or as a legacy definition. The stored canonical triple is treated as authoritative; no fallback or re-resolution
+occurs. This is intentional: silent re-resolution after a module uninstall would be a
+silent contract change, which the module system is designed to prevent.
 
 The admission error in this case is:
 
 ```
 Error: component "my-bucket" has a stored definition lock for "aws-s3-v1-bucket"
-but that definition no longer exists. Update `type` to Form 4 with the replacement
-definition, or clear .status.services[i].resolvedDefinition to force re-resolution.
+but that definition no longer exists. Update `type` to Form 3 with the replacement
+definition, or remove the ComponentDefinitionLock entry from the ApplicationRevision
+to force re-resolution.
 ```
 
 Recovery — two options:
 
-- **Update `type` to Form 4** (`{module}/{apiVersion}/{name}` of the replacement
-  definition): the webhook detects the changed type string, clears the stale stored lock,
-  and admits the Application using the deterministic CR name derived from Form 4. No manual
-  status editing required. Use this when you know exactly which definition should replace
-  the stale one.
+- **Update `type` to Form 3** (`{module}/{apiVersion}/{name}` of the replacement
+  definition): the webhook detects the changed type string and resolves directly from the
+  Form 3 name — no lock consulted, no lock written. Any stale Form 2 lock entry for the
+  component is superseded and should be removed from the `ApplicationRevision` to keep
+  the record clean, but it does not block admission. No manual status editing required.
+  Use this when you know exactly which definition should replace the stale one.
 
-- **Clear the lock manually**: remove `.status.services[i].resolvedDefinition` for the
-  affected component. The `i` index corresponds to the component's position in
-  `.status.services[]`.
+- **Clear the lock manually**: remove the `ComponentDefinitionLock` entry for the affected
+  component from the `ApplicationRevision`. Identify the revision name from
+  `Application.status.latestRevision`, then remove the matching entry by component name.
 
   ```bash
-  kubectl patch application <app-name> --type=json \
-    -p='[{"op":"remove","path":"/status/services/<i>/resolvedDefinition"}]'
+  # Find the current ApplicationRevision name
+  kubectl get application <app-name> -o jsonpath='{.status.latestRevision.name}'
+
+  # Remove the lock entry for the affected component
+  kubectl patch applicationrevision <revision-name> --type=json \
+    -p='[{"op":"remove","path":"/spec/definitionLocks/<i>"}]'
   ```
 
-  On the next apply, resolution restarts from the form's initial lookup step (exact-name
-  GET for Form 1, fresh selector for Form 3) and stores a new lock based on current cluster
-  state. Use this when you want re-resolution to pick the best available definition
-  automatically (e.g. after installing a replacement module).
+  On the next apply, resolution restarts from the form's initial lookup step (fresh selector
+  for Form 2) and stores a new lock based on current cluster state. Use this when you want
+  re-resolution to pick the available definition automatically (e.g. after installing a
+  replacement module).
 
 **Adding a new API line (v1 → v2 coexistence):** When a `v2` API line is added to an
 existing module, both `aws-s3-v1-bucket` and `aws-s3-v2-bucket` are installed
 simultaneously. Applications with a stored lock continue to resolve to `v1` indefinitely —
 neither the addon upgrade nor any unrelated spec change causes re-resolution. To migrate
-to `v2`, the author must change `type` to `aws-s3/v2/bucket` (Form 4). The `v1` line
+to `v2`, the author must change `type` to `aws-s3/v2/bucket` (Form 3). The `v1` line
 remains active until explicitly deprecated and removed.
 
 ## Recommended Usage
 
 The guidance below summarises the most important usage rules for consumers and module
-authors. The single most impactful rule: **use Form 4 (`module/apiVersion/name`) for any
+authors. The single most impactful rule: **use Form 3 (`module/apiVersion/name`) for any
 manifest that will be stored in version control, applied by a GitOps agent, or shared
-across clusters.** Shorthand forms (Form 3: `module/name`; Form 1: `name`) are
-convenience syntax for interactive and exploratory use — they resolve against cluster state
-at first admission and are not reproducible across environments until a lock is stored. Within a given API line,
+across clusters.** Form 2 (`apiVersion/name`) is a convenience for interactive and
+exploratory use — it resolves against cluster state at first admission and is not
+reproducible across environments until a lock is stored. Within a given API line,
 treat the parameter contract as stable: do not make breaking changes in place; introduce a
 new API line instead. The subsections below expand on each rule.
 
-### Use Form 4 for production and GitOps
+### Use Form 3 for production and GitOps
 
 `type: aws-s3/v1/bucket` is the only form that is fully deterministic from the moment the
 manifest is written. The CR name is derived without any cluster state lookup — the same
-manifest resolves identically on any cluster where the definition is installed. Use Form 4
+manifest resolves identically on any cluster where the definition is installed. Use Form 3
 for:
 
 - Applications managed by Flux, Argo CD, or any GitOps agent
@@ -571,23 +523,22 @@ for:
 - Automated pipelines and CI/CD-generated Applications
 - Any context where an unexpected version change would be a production incident
 
-### Use Form 3 for convenience, not stability
-
-`type: aws-s3/bucket` is appropriate for interactive use, local development, and
-exploratory work where the exact API version is not yet known or not important. It is
-**not a stable contract**: the canonical triple it resolves to depends on which API lines
-are installed at first admission, and may differ between clusters. It pins the module on
-first admission and freezes the resolved version thereafter — but that first-admission
-resolution is cluster-state-dependent. Do not treat Form 3 strings as stable references in
-version control, shared manifests, or documentation. Use Form 4 when the resolved version
-must be reproducible.
-
 ### Use Form 1 for legacy definitions only
 
-`type: bucket` with no module qualifier is the correct form for un-versioned hand-authored
-definitions. For new module-backed definitions, prefer Form 3 at minimum — it makes the
-module explicit and eliminates cross-module ambiguity. Avoid Form 1 for module-backed
-definitions in any environment with more than one module installed.
+Form 1 (`type: bucket`) is the legacy resolution path. It is the correct form for
+hand-authored definitions that do not participate in the module system — those with no
+`spec.module` field.
+
+The choice between Form 1 and Forms 2/3 is not a syntax preference — it is determined by
+the definition itself. If a definition has `spec.module` set, it is a versioned definition
+and Form 1 cannot address it; the webhook rejects the reference and the author must use
+Form 2 or Form 3. If a definition has no `spec.module`, it is a legacy definition and
+Form 1 is the only applicable path — Forms 2 and 3 do not apply to it.
+
+These two models do not overlap. Migrating a hand-authored definition into the module
+system requires setting `spec.module` and `spec.apiVersion` on the definition and updating
+all Application references to Form 2 or Form 3. That is a deliberate migration, not a
+transparent upgrade.
 
 ### Treat API lines as stable contracts
 
@@ -598,39 +549,39 @@ The admission webhook can detect obvious parameter schema violations when
 `--api-line-contract-policy=warn` or `reject` is set, but template body changes, output
 schema changes, and auxiliary resource changes are outside the scope of static schema
 comparison and are the module author's responsibility to manage safely. Consumers who have
-pinned to `v1` via Form 4 are isolated from `v2` until they explicitly migrate.
+pinned to `v1` via Form 3 are isolated from `v2` until they explicitly migrate.
 
 ### Do not rely on implicit re-resolution
 
-The definition lock (`resolvedDefinition` in `.status.services[]`) freezes the resolved
-module and API version after first admission. Nothing changes it implicitly — not a new
-API line being published, not an unrelated spec change. To change the resolved version,
-the `type` field must be explicitly updated to Form 4 with the new version. This is
-intentional: implicit version changes are the problem the module system is designed to
-prevent.
+The definition lock (stored in `ApplicationRevision.spec.definitionLocks`, projected
+read-only to `.status.services[i].resolvedDefinition`) binds the component to the
+resolved canonical triple after first admission. Nothing changes it implicitly — not a
+new API line being published, not an unrelated spec change. To change the resolved
+version, the `type` field must be explicitly updated to Form 3 with the new version.
+The `module` and `name` components of the stored triple cannot be changed in place —
+doing so would alter the underlying contract of the reference, not merely migrate it.
+This is intentional: implicit contract changes are the problem the module system is
+designed to prevent.
 
 ### Migrating between API lines
 
 Perform the migration in two explicit steps:
 
 ```yaml
-# Step 1: Convert Form 3 → Form 4 at the currently locked version.
-#         This is a semantic no-op — the canonical triple is identical — but the
-#         type string is now fully deterministic and safe for version control.
-#         Commit and apply this change first; verify before proceeding.
+# Step 1: Ensure you are on Form 3 at the current version.
+#         If you were using Form 2 (type: v1/bucket), this makes the module explicit in
+#         the type string. The component now resolves directly from the Form 3 name — no
+#         selector. Lock updated to canonical triple {aws-s3, v1, bucket}.
 type: aws-s3/v1/bucket
 
 # Step 2: Migrate to the new API line — explicit, reviewable in a pull request.
+#         The webhook resolves directly to aws-s3-v2-bucket (no selector). Lock updated
+#         to the new canonical triple {aws-s3, v2, bucket}. The v1 line is unchanged.
 type: aws-s3/v2/bucket
 ```
 
-Separating the form conversion from the version bump makes each change independently
-reviewable. The old `v1` line remains available for any consumers that have not yet
-migrated.
-
-> **Note:** Separate the form conversion (Form 3 → Form 4) from the API line migration
-> into two distinct commits. The first commit is semantically a no-op and easy to review;
-> the second is the actual migration.
+Separating the steps makes each change independently reviewable. The old `v1` line remains
+available for any consumers that have not yet migrated.
 
 ## Module Structure in Addon Source Tree
 
@@ -1390,7 +1341,7 @@ Consumers migrate at their own pace by updating their Application `type` field:
 | Before | After | Notes |
 |---|---|---|
 | `type: bucket` | `type: aws-s3/v1/bucket` | **Recommended.** Fully qualified; deterministic from first apply; no lock stored |
-| `type: bucket` | `type: aws-s3/bucket` | ⚠️ Development only. Module-scoped; locks to `aws-s3` + highest-ranked apiVersion at first admission. Do not use in GitOps manifests or shared templates — use Form 4 instead. |
+| `type: bucket` | `type: v1/bucket` | Version-scoped; module discovered at first admission and stored in lock. Use Form 3 for full determinism. |
 
 After updating `type`, `.status.services[i].resolvedDefinition` is populated with the
 resolved module and apiVersion on the next admission. The Application now resolves via the
@@ -1484,44 +1435,83 @@ See "Definition Identity" section above. `spec.module` and `spec.apiVersion` are
 
 The `type` field on `ApplicationComponent` is extended to accept 1-, 2-, or 3-segment slash-separated values. No new fields are added to the struct — module scoping is expressed entirely within `type`. The parser determines the form from segment count and whether the first segment matches `^v\d+(alpha\d+|beta\d+)?$`.
 
-### New Fields on Application Component Status
+### New Fields on ApplicationRevision (authoritative lock)
 
-Two fields are added to the per-component entry in `.status.services[]`:
+The definition lock is stored in `ApplicationRevision.spec.definitionLocks`. This is the
+authoritative source of truth for resolution binding. The admission webhook reads and writes
+this field; nothing else does. `Application.status` is a derived, read-only projection
+computed from this field and carries no binding authority — clearing status has no effect
+on resolution.
+
+```go
+// ComponentDefinitionLock holds the resolved canonical identity for one component.
+// Added as []ComponentDefinitionLock to ApplicationRevisionSpec.
+// Written by the admission webhook at first admission of a Form 2 shorthand reference only.
+// Form 3 derives the canonical triple from the type string on every admission and does not
+// write a lock entry. Never written at reconcile time.
+// The webhook reads this field on every subsequent admission to perform a direct GET —
+// the original type string is not re-parsed for resolution once a lock is present.
+type ComponentDefinitionLock struct {
+    // ComponentName is the Application component this lock applies to.
+    ComponentName string `json:"componentName"`
+    // ResolvedDefinition is the canonical identity locked at admission.
+    // Absent for legacy non-module components (Form 1 exact-name match).
+    // Once set, Module and Type are immutable for the lifetime of this reference.
+    // Only APIVersion may change, via an explicit type string update (API line migration).
+    ResolvedDefinition *ResolvedDefinitionRef `json:"resolvedDefinition,omitempty"`
+}
+
+// ResolvedDefinitionRef is the canonical triple {module}/{apiVersion}/{type}.
+// This is the only representation used for binding decisions — it is not derived
+// from runtime state after first admission.
+type ResolvedDefinitionRef struct {
+    // Module is the module identifier. e.g. "aws-s3"
+    // Immutable once set — changing the module means a different contract.
+    Module string `json:"module"`
+    // APIVersion is the API line. e.g. "v1"
+    // The only field that may change, via an explicit type string update.
+    APIVersion string `json:"apiVersion"`
+    // Type is the bare definition name. e.g. "bucket"
+    // Immutable once set — changing the type name means a different contract.
+    Type string `json:"type"`
+    // FullyQualifiedName is the derived CR name, for human readability only.
+    // e.g. "aws-s3-v1-bucket"
+    // Derive programmatically from Module+APIVersion+Type; do not parse this field.
+    FullyQualifiedName string `json:"fullyQualifiedName,omitempty"`
+}
+```
+
+### New Fields on Application Component Status (read-only projection)
+
+Two fields are added to the per-component entry in `.status.services[]`. These are
+populated by the controller as a convenience projection from the `ApplicationRevision`
+lock — they have no binding authority and must not be used for resolution decisions.
+To force re-resolution, remove the `ComponentDefinitionLock` entry from the
+`ApplicationRevision`; clearing these status fields alone has no effect.
 
 ```go
 // Added to the existing ApplicationComponentStatus struct.
 
-// ResolvedType is the bare definition name used for this component, set for all
-// resolution paths including legacy. Allows operators to see what definition name
-// was resolved without inspecting the full type string.
-// e.g. "bucket" (from any of: type: bucket, type: aws-s3/bucket, type: aws-s3/v1/bucket)
+// ResolvedType is the bare definition name resolved for this component.
+// Set for all resolution paths including legacy.
+// e.g. "bucket" (from any of: type: bucket, type: v1/bucket, type: aws-s3/v1/bucket)
+// Read-only projection — do not use for binding decisions.
 ResolvedType string `json:"resolvedType,omitempty"`
 
-// ResolvedDefinition is the canonical module identity locked at first admission.
-// Set only for module-backed components resolved via Form 1 (unqualified) or Form 3.
-// Absent for Form 4 (CR name is fully deterministic from the type string; no lock needed)
-// and for legacy non-module definitions (exact-name match; no module system involved).
-// Clear this field to force re-resolution on the next admission.
-ResolvedDefinition *ResolvedDefinition `json:"resolvedDefinition,omitempty"`
-
-// ResolvedDefinition holds the canonical triple resolved at first admission.
-type ResolvedDefinition struct {
-    // Module is the module identifier resolved at first admission. e.g. "aws-s3"
-    Module string `json:"module"`
-    // APIVersion is the API line resolved at first admission. e.g. "v1"
-    APIVersion string `json:"apiVersion"`
-    // DefinitionName is the full installed CR name derived from the triple.
-    // e.g. "aws-s3-v1-bucket"
-    DefinitionName string `json:"definitionName"`
-}
+// ResolvedDefinition is a read-only projection of the canonical triple from the
+// ApplicationRevision lock. Present for all module-backed components; absent for
+// legacy non-module definitions. Mutations to this field are ignored — update the
+// ApplicationRevision lock entry to change resolution binding.
+ResolvedDefinition *ResolvedDefinitionRef `json:"resolvedDefinition,omitempty"`
 ```
 
 | Form | `resolvedType` | `resolvedDefinition` | Notes |
 |---|---|---|---|
-| Form 4 `aws-s3/v1/bucket` | `"bucket"` | absent | CR name deterministic from `type`; no lock needed |
-| Form 3 `aws-s3/bucket` | `"bucket"` | `{module, apiVersion, definitionName}` | Set at first admission; frozen until cleared |
-| Form 1 `bucket` — module-backed | `"bucket"` | `{module, apiVersion, definitionName}` | Same as Form 3 after selector stage |
-| Form 1 `bucket` — legacy non-module | `"bucket"` | absent | Exact-name match; no module system involved |
+| Form 3 `aws-s3/v1/bucket` | `"bucket"` | `{module, apiVersion, type, fullyQualifiedName}` | Populated directly from type string; no selector |
+| Form 2 `v1/bucket` | `"bucket"` | `{module, apiVersion, type, fullyQualifiedName}` | Resolved at first admission; module discovered; frozen in ApplicationRevision lock |
+| Form 1 `bucket` | `"bucket"` | absent | Legacy exact-name match; outside module system |
+
+> **Note:** If the matched definition has `spec.module` set, admission is rejected — this is a model mismatch, not a Form 1 behaviour. Form 1 is only valid for non-module definitions.
 
 ### Label and Annotation Constants
 
@@ -1801,7 +1791,7 @@ The controller records the gate source (`imports`, `module`, or `line`) and the 
 
 - Introducing a new CRD or controller outside the addon system
 - Auto-upgrading addons without operator involvement
-- Trait binding to module API lines (future work)
+- Trait scoping to module API lines (see FE-2)
 - Supporting arbitrary directory names for module source trees — `modules/` is the required convention; files outside it are not detected
 
 ## Alternatives Considered
@@ -1828,43 +1818,31 @@ The naming convention (`{module}-{apiVersion}-{definition-name}`) already encode
 
 ### OQ-1: How much resolution flexibility is worth the complexity cost?
 
-The current design supports three author-facing resolution forms for module-backed definitions, plus the unchanged legacy path:
+**Resolved: adopted (Option B variant — Form 1 legacy-only + Form 3 fully-qualified required).**
+
+The design supports three author-facing forms:
 
 | Form | Syntax | Resolution mechanism | Lock written? |
 |------|--------|----------------------|---------------|
-| Legacy | `type: bucket` (no `spec.module`) | Exact-name GET; non-module definition only | No |
-| Form 1 (module branch) | `type: bucket` (definition has `spec.module`) | Global label selector + cross-module ranking | Yes |
-| Form 3 | `type: aws-s3/bucket` | Module-scoped selector; version pinned at first admission | Yes |
-| Form 4 | `type: aws-s3/v1/bucket` | Fully deterministic; no cluster state dependency | No |
+| Legacy (Form 1) | `type: bucket` (no `spec.module`) | Exact-name GET; non-module definition only | No |
+| Form 2 | `type: v1/bucket` | Global selector; version explicit, module discovered; exactly one result required | Yes |
+| Form 3 | `type: aws-s3/v1/bucket` | Fully deterministic; no cluster state dependency | No — triple derived from type string on every admission |
 
-Two simplification options have been identified. They are not mutually exclusive — Option B is strictly more aggressive than Option A.
+Form 1 with `spec.module` present is rejected outright. The old Form 3 (`aws-s3/bucket`, module-scoped without version) has been removed — API versions are always mandatory for versioned references.
 
-**Option A: Make Form 1 legacy-only (drop the module-resolution branch).**
-The global label selector branch of Form 1 is removed. Form 1 serves only non-module-backed definitions via exact-name GET, unchanged from today. Any component referencing a module-backed definition must use at least Form 3. This eliminates the two-stage lookup, cross-module ranking, Form 1 lock write, and the Form 1 ambiguity error. Form 3 and Form 4 are retained as the supported paths for module-backed definitions.
+**Option A (previously considered): Make Form 1 legacy-only (drop the module-resolution branch).**
+Removed the global label selector branch of Form 1. Form 1 now serves only non-module-backed definitions via exact-name GET. Any component referencing a module-backed definition must use Form 2 or Form 3.
 
-*Cost:* Users who write `type: bucket` against a module-backed definition receive a hard rejection and must upgrade to `type: aws-s3/bucket` (Form 3) or `type: aws-s3/v1/bucket` (Form 4).
+**Option B (previously considered): Legacy + fully-qualified only (drop Forms 1 module resolution and old Form 3 entirely).**
+All dynamic resolution without an explicit API version is removed. The only supported forms are the legacy exact-name path (non-module definitions, no lock) and Form 3 (fully qualified `{module}/{apiVersion}/{definition}`, no selector). Form 2 (`v1/bucket`, version-scoped) is retained as a middle ground.
 
-**Option B: Legacy + Form 4 only (drop Forms 1 module resolution and Form 3 entirely).**
-All dynamic resolution for module-backed definitions is removed. The only supported forms are the legacy exact-name path (non-module definitions, no lock) and Form 4 (fully qualified `{module}/{apiVersion}/{definition}`, no selector, no lock). The definition lock mechanism is eliminated entirely — there is nothing left to lock, since Form 4 is fully deterministic and the legacy path never writes lock state.
+**Decision: adopted.** Form 1 is legacy-only (exact-name match, `spec.module` absent). Old Form 3 (`aws-s3/bucket`) is removed — no form accepts a module-backed reference without an explicit API version. Form 2 retains version-scoped discovery. Form 3 (fully qualified) is required for GitOps and production use.
 
-*Cost:* Users must know the API version upfront. The "pin on first admission" convenience of Form 3 is gone. This is a harder requirement than Option A: even `type: aws-s3/bucket` (Form 3) is rejected; users must write `type: aws-s3/v1/bucket`.
+### OQ-2: Should `v1/bucket` be supported as Form 2?
 
-**Arguments for keeping all forms (status quo):**
-- Form 1 module resolution provides a smoother migration path: a definition can be promoted from a standalone to a module-backed install without changing the Application spec.
-- Form 3 reduces friction for users who know the module name but prefer not to pin a version; the lock then provides stability without requiring explicit Form 4 syntax.
-- Consistent with the existing resolution mental model: bare name → best available match.
+**Resolved: adopted as Form 2.**
 
-**Arguments for Option A:**
-- Removes the most complex resolution path (two-stage lookup, global selector, cross-module ranking, lock write) while retaining the Form 3 convenience of not specifying a version.
-- Form 3 already provides a low-friction alternative to Form 1 module discovery with explicit module scoping and no cross-module ambiguity.
-
-**Arguments for Option B:**
-- Eliminates the definition lock entirely — no webhook state writes, no lock staleness failure modes, no operator recovery procedures.
-- The resolution logic becomes trivially simple: exact-name GET (legacy) or direct object fetch by `{module}/{apiVersion}/{definition}` (Form 4). No selectors, no ranking, no `.status` writes.
-- Form 4 is already the recommended form for GitOps and production use; requiring it for all module-backed definitions aligns the operational model with best practice from the start.
-- Users who genuinely want "latest version" semantics can express that in their deployment tooling (e.g. a Helm value or a policy) rather than relying on webhook-time resolution.
-
-**Current resolution: deferred.** Keep all forms as specified. Both simplification options remain viable and can be adopted in a backward-compatible way — Option A or B would only affect Applications relying on implicit module discovery or version pinning, which can be detected at admission and surfaced as migration warnings before any hard removal. Revisit if operational evidence from early adopters shows the global selector or lock mechanism causes problems in practice.
+`v1/bucket` (two segments, first segment matches `^v\d+`) is supported as Form 2 — a version-scoped reference where the API version is explicit and the module is discovered from cluster state. A global selector on `(apiVersion, name)` is used at first admission; if exactly one result is found the module is stored in the lock; if more than one result is found the reference is rejected with an ambiguity error requiring Form 3. See the [Resolution Rules](#resolution-rules) section for the full priority sequence.
 
 ## Future Enhancements
 
