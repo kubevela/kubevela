@@ -10,11 +10,11 @@
 | Definition | `SourceDefinition` | Platform engineer | Declares the output schema, cache key, and resolution logic |
 | Binding | `spec.sources[]` | Application author | Names a `SourceDefinition`, scopes it to this Application, supplies instance properties |
 | Resolution | `Config` object | Controller | Evaluates the cache key, serves a cached value or executes `template:`, writes result |
-| Consumption | `fromSource` directive | Application author | Substitutes a resolved field value into a component or trait property at render time |
+| Consumption | `fromSource` directive | Application author | Declares which resolved field goes into which property; substitution occurs before the component's CUE template runs |
 
-Today, retrieving external data requires workflow steps and manual data passing — exposing orchestration concerns to application authors for what should be a static, declarative lookup. `SourceDefinition` eliminates that exposure: the application author declares *what* data they need and *where* it goes; the platform controls *how* it is fetched and *when* it is cached.
+Today, retrieving external data requires workflow steps and manual data passing (exposing orchestration concerns to application authors for what should be a static, declarative lookup). `SourceDefinition` eliminates that exposure: the application author declares *what* data they need and *where* it goes; the platform controls *how* it is fetched and *when* it is cached.
 
-**Trust boundary:** The platform engineer and the application author operate at different trust levels. A `SourceDefinition` carries arbitrary CueX logic — it can make HTTP calls, read cluster resources, and write resolved values into the controller's cache. Authoring and publishing a `SourceDefinition` is therefore a high-trust operation, equivalent in scope to writing a `ComponentDefinition`. The application author's trust is deliberately narrower: they can bind a named `SourceDefinition` and supply properties, but they cannot alter its resolution logic, access fields outside its declared `schema:`, or read raw resolution state. This separation is load-bearing — the feature's security properties depend on it.
+**Trust boundary:** The platform engineer and the application author operate at different trust levels. A `SourceDefinition` carries arbitrary CueX logic (it can make HTTP calls, read cluster resources, and write resolved values into the controller's cache). Authoring and publishing a `SourceDefinition` is therefore a high-trust operation, equivalent in scope to writing a `ComponentDefinition`. The application author's trust is deliberately narrower: they can bind a named `SourceDefinition` and supply properties, but they cannot alter its resolution logic, access fields outside its declared `schema:`, or read raw resolution state. This separation is load-bearing; the feature's security properties depend on it.
 
 ```mermaid
 graph LR
@@ -38,21 +38,56 @@ graph LR
     AR -->|snapshots| SD
 ```
 
+## Mental Model
+
+**`SourceDefinition`: reusable source provider (platform engineer)**
+
+A `SourceDefinition` declares how to fetch a piece of external data. Its `template:` block is CueX logic (it can make HTTP calls, read cluster resources, or do any I/O the platform engineer specifies). The controller executes this logic when it needs a fresh value. Application authors never see or modify it.
+
+**`spec.sources[]`: application binding (application author)**
+
+Binds a named `SourceDefinition` to this Application, gives it a local alias, and supplies instance-specific properties. The admission webhook validates the binding at apply time; the `SourceDefinition` must exist, the properties must conform to its schema, and all `fromSource` paths referencing this source must be valid. No data is fetched at this point.
+
+**`fromSource`: consumption (application author)**
+
+Substitutes a resolved field value into a component or trait property, just before that component's rendering template runs. The rendering template (in the `ComponentDefinition`) receives a concrete value; it does not perform resolution itself.
+
+**How it fits together**
+
+When the controller processes a component that uses `fromSource`, it resolves the required sources before the component's CUE template runs (checking the cache, and executing the `SourceDefinition`'s `template:` only on a cache miss or expiry). Once the resolved values are substituted into the component's properties, the rendering template runs against those concrete inputs. I/O is bounded by the cache: on a cache hit, no external calls occur at all.
+
+```
+spec.sources declares:  "use SourceDefinition X with these properties"
+fromSource declares:    "put field Y from source X into this property"
+
+At reconcile time, before the CUE template runs:
+  controller checks cache for X
+    → stale or missing: executes SourceDefinition template: (I/O) → writes cache
+    → fresh: uses cached value
+  substitutes resolved field Y into the property
+  component CUE template runs with concrete inputs
+```
+
+**What this means in practice**
+
+- All I/O is in the `SourceDefinition`'s `template:` block, executed by the controller on cache miss or expiry. Application authors declare what they need; the platform controls how and when it is fetched.
+- Admission validates every `fromSource` path against the `SourceDefinition`'s declared schema at `kubectl apply` time. Invalid paths are rejected before any resolution occurs.
+
 ## KubeVela Config and ConfigTemplate
 
-`SourceDefinition` builds on two existing KubeVela platform primitives. Both are live features — managed by `pkg/config/factory.go` and surfaced through the `vela config` and `vela config-template` CLI commands.
+`SourceDefinition` builds on two existing KubeVela platform primitives. Both are live features, managed by `pkg/config/factory.go` and surfaced through the `vela config` and `vela config-template` CLI commands.
 
-**ConfigTemplate** — an existing schema registry entry. Each ConfigTemplate is a Kubernetes ConfigMap in `vela-system`, named `config-template-<name>`, labelled `config.oam.dev/catalog: velacore-config`. Its `data.schema` field holds an OpenAPI3 schema describing the shape of a valid Config; its `data.template` field holds the CUE rendering logic used to produce one. `SourceDefinition` registers its `schema:` block as a ConfigTemplate on install (hash-versioned to avoid duplicates on schema-identical upgrades).
+**ConfigTemplate:** an existing schema registry entry. Each ConfigTemplate is a Kubernetes ConfigMap in `vela-system`, named `config-template-<name>`, labelled `config.oam.dev/catalog: velacore-config`. Its `data.schema` field holds an OpenAPI3 schema describing the shape of a valid Config; its `data.template` field holds the CUE rendering logic used to produce one. `SourceDefinition` registers its `schema:` block as a ConfigTemplate on install (hash-versioned to avoid duplicates on schema-identical upgrades).
 
-**Config** — an existing resolved-value store. Each Config is a Kubernetes Secret in `vela-system`, labelled `config.oam.dev/catalog: velacore-config` and `config.oam.dev/type: <template-name>`. Its `data.input-properties` field holds the YAML-serialised resolved output, validated against the referenced ConfigTemplate's schema. `SourceDefinition` uses Config objects as its cache: one Config per unique `storage:` key, written on first resolution and refreshed on TTL expiry. This KEP introduces the annotation `config.oam.dev/last-sync-at` on these Secrets to record when the entry was last successfully written — the controller uses this to evaluate freshness against `storageTTL`.
+**Config:** an existing resolved-value store. Each Config is a Kubernetes Secret in `vela-system`, labelled `config.oam.dev/catalog: velacore-config` and `config.oam.dev/type: <template-name>`. Its `data.input-properties` field holds the YAML-serialised resolved output, validated against the referenced ConfigTemplate's schema. `SourceDefinition` uses Config objects as its cache: one Config per unique `storage:` key, written on first resolution and refreshed on TTL expiry. This KEP introduces the annotation `config.oam.dev/last-sync-at` on these Secrets to record when the entry was last successfully written; the controller uses this to evaluate freshness against `storageTTL`.
 
-Both are identified by the `config.oam.dev/catalog: velacore-config` label, not by Kubernetes object type. They are not arbitrary ConfigMaps or Secrets. Operators interact with them through `vela config list`, `vela config delete`, `vela config-template list`, and `vela config-template show` — the same tooling used for provider credentials and other platform-managed configuration today.
+Both are identified by the `config.oam.dev/catalog: velacore-config` label, not by Kubernetes object type. They are not arbitrary ConfigMaps or Secrets. Operators interact with them through `vela config list`, `vela config delete`, `vela config-template list`, and `vela config-template show` (the same tooling used for provider credentials and other platform-managed configuration today).
 
-> **KEP-2.18** proposes graduating ConfigTemplate and Config from labelled ConfigMaps/Secrets into first-class CRDs (or Aggregated API resources), giving them proper status subresources, server-side validation, and watch semantics. This KEP is delivered against the existing v1 backing store and is transparent to that migration — the `SourceDefinition` caching layer will work unchanged once KEP-2.18 lands, with no schema or key format changes required.
+> **KEP-2.18** proposes graduating ConfigTemplate and Config from labelled ConfigMaps/Secrets into first-class CRDs (or Aggregated API resources), giving them proper status subresources, server-side validation, and watch semantics. This KEP is delivered against the existing v1 backing store and is transparent to that migration; the `SourceDefinition` caching layer will work unchanged once KEP-2.18 lands, with no schema or key format changes required.
 
 ## SourceDefinition Authoring Model
 
-A `SourceDefinition` is a single `.cue` file following the standard KubeVela Definition format — a named root block followed by top-level blocks:
+A `SourceDefinition` is a single `.cue` file following the standard KubeVela Definition format (a named root block followed by top-level blocks):
 
 ```
 cluster-config-reader.cue
@@ -83,17 +118,17 @@ sequenceDiagram
     AW-->>PE: Accepted
 
     U->>AW: kubectl apply Application
-    AW->>CA: Consult ConfigTemplate — validate fromSource paths & types
+    AW->>CA: Consult ConfigTemplate - validate fromSource paths & types
     AW-->>U: Accepted
 
-    Ctrl->>Ctrl: Reconcile — storage: key evaluated
+    Ctrl->>Ctrl: Reconcile - storage: key evaluated
     Ctrl->>CA: Read Config by key
     CA-->>Ctrl: Hit (within storageTTL) → return value
     CA-->>Ctrl: Miss / expired → execute template: (CueX)
     Ctrl->>CA: Write Config (lastSyncAt = now)
 ```
 
-The controller always does the cheapest thing first — `storage:` is evaluated to get the cache key, the backing Config is checked, and `template:` is only executed if the Config is missing or expired. `schema:` is parsed statically and requires no runtime context; its two uses (admission path validation and post-execution concreteness check) are described in the note above.
+The controller always does the cheapest thing first; `storage:` is evaluated to get the cache key, the backing Config is checked, and `template:` is only executed if the Config is missing or expired. `schema:` is parsed statically and requires no runtime context; its two uses (admission path validation and post-execution concreteness check) are described in the note above.
 
 ### Admission vs. Runtime Responsibilities
 
@@ -116,7 +151,7 @@ The admission webhook and the reconcile controller operate on different informat
 
 ### Custom Error Messages (`errs:`)
 
-The `template:` block supports the `errs:` field — a `[]string` — consistent with components (since v1.11) and traits. This allows definition authors to surface human-readable failure messages when resolution fails a logic check rather than a CUE evaluation error:
+The `template:` block supports the `errs:` field (a `[]string`), consistent with components (since v1.11) and traits. This allows definition authors to surface human-readable failure messages when resolution fails a logic check rather than a CUE evaluation error:
 
 ```cue
 template: {
@@ -139,33 +174,33 @@ If any entry in `errs` is non-empty, the `template:` execution is treated as fai
 
 ### Concreteness Enforcement
 
-As a new Definition type, `SourceDefinition` enforces that the entire `template:` block is fully concrete after CueX execution — not just `output:`. Unlike older Definition types where incomplete renders could pass silently, the controller rejects any execution that leaves abstract or unresolved CUE values anywhere in the block.
+As a new Definition type, `SourceDefinition` enforces that the entire `template:` block is fully concrete after CueX execution (not just `output:`). Unlike older Definition types where incomplete renders could pass silently, the controller rejects any execution that leaves abstract or unresolved CUE values anywhere in the block.
 
 The `schema:` block serves as the contract between the definition author and the application author:
 
 - **For the definition author:** `schema:` declares which fields the `output:` must populate. The controller verifies this after every CueX execution.
-- **For the application author:** `schema:` is the complete set of fields reachable via `fromSource`. The admission webhook validates every `fromSource` path against it at apply time — unknown paths are rejected before any resolution occurs.
+- **For the application author:** `schema:` is the complete set of fields reachable via `fromSource`. The admission webhook validates every `fromSource` path against it at apply time; unknown paths are rejected before any resolution occurs.
 
 Whether a field is optional or required in `schema:` has downstream consequences for application authors consuming it. Definition authors must declare this accurately:
 
 | `schema:` declaration | Meaning | Consequence for consumers |
 |---|---|---|
-| `field: string` | Required — must be concrete after execution | `fromSource: src.field` always resolves; no `default:` needed |
-| `field!: string` | Explicitly required — same as above, more explicit | Same |
-| `field?: string` | Optional — may be absent from the resolved output | `fromSource: src.field` may yield nothing; consumer must supply `default:` if the target parameter is required |
+| `field: string` | Required (must be concrete after execution) | `fromSource: src.field` always resolves; no `default:` needed |
+| `field!: string` | Explicitly required (same as above, more explicit) | Same |
+| `field?: string` | Optional (may be absent from the resolved output) | `fromSource: src.field` may yield nothing; consumer must supply `default:` if the target parameter is required |
 
 ```cue
 schema: {
-  region:      string   // required — always present in output
-  environment: string   // required — always present in output
-  vpcId?:      string   // optional — may be absent (e.g. non-VPC deployments)
-  accountId!:  string   // explicitly required — same effect as region/environment
+  region:      string   // required - always present in output
+  environment: string   // required - always present in output
+  vpcId?:      string   // optional - may be absent (e.g. non-VPC deployments)
+  accountId!:  string   // explicitly required - same effect as region/environment
 }
 ```
 
 Concreteness is checked after CueX execution, not at admission. The admission webhook validates structural correctness of the `schema:` block; whether the resolved `output:` is fully concrete can only be verified once CueX has run with real data.
 
-**Fail-fast parameter validation:** The `parameter:` block within `template:` is an exception — its values come entirely from `spec.sources[].properties`, which are concrete before CueX execution begins. The controller validates that all required (non-optional) `parameter` fields are concrete *before* invoking CueX. This avoids expensive I/O (HTTP calls, Kubernetes API reads) for an execution that would fail due to a missing input. Definitions should declare optional parameters with `field?:` and required ones without, so the pre-execution check can distinguish them.
+**Fail-fast parameter validation:** The `parameter:` block within `template:` is an exception; its values come entirely from `spec.sources[].properties`, which are concrete before CueX execution begins. The controller validates that all required (non-optional) `parameter` fields are concrete *before* invoking CueX. This avoids expensive I/O (HTTP calls, Kubernetes API reads) for an execution that would fail due to a missing input. Definitions should declare optional parameters with `field?:` and required ones without, so the pre-execution check can distinguish them.
 
 ## Source Chaining
 
@@ -173,13 +208,13 @@ Concreteness is checked after CueX execution, not at admission. The admission we
 
 `spec.sources[]` entries are processed **in declaration order**. Before the controller evaluates a source's `storage:` key or executes its `template:`, it first resolves any `fromSource` references in that source's `properties` using the already-resolved outputs of earlier sources. This guarantees that all `parameter.*` values are concrete before `storage:` is interpolated, and before CueX execution begins.
 
-The rule is strict: **a source may only reference sources declared earlier in `spec.sources[]`**. The admission webhook enforces this — any `fromSource` in `spec.sources[N].properties` that names a source at position N or later is rejected. This constraint exists because `storage:` key computation and CueX execution both require concrete inputs. A forward reference would mean the depended-on source hasn't been processed yet; a cycle would mean no source could ever be processed first. Forward-only ordering makes the resolution sequence a predictable linear walk, not a graph traversal.
+The rule is strict: **a source may only reference sources declared earlier in `spec.sources[]`**. The admission webhook enforces this; any `fromSource` in `spec.sources[N].properties` that names a source at position N or later is rejected. This constraint exists because `storage:` key computation and CueX execution both require concrete inputs. A forward reference would mean the depended-on source hasn't been processed yet; a cycle would mean no source could ever be processed first. Forward-only ordering makes the resolution sequence a predictable linear walk, not a graph traversal.
 
 ### Laziness and transitive resolution
 
-Resolution is lazy and per-component: a source is only processed when a component or trait being rendered has a `fromSource` reference to it (directly or through a chain). Sources declared in `spec.sources[]` but not referenced in the current render are never evaluated — their `storage:` key is not computed and their `template:` is not executed.
+Resolution is lazy and per-component: a source is only processed when a component or trait being rendered has a `fromSource` reference to it (directly or through a chain). Sources declared in `spec.sources[]` but not referenced in the current render are never evaluated; their `storage:` key is not computed and their `template:` is not executed.
 
-Chaining makes laziness transitive. If component `api` has `fromSource: app-config.dbEndpoint`, and `app-config`'s `properties` contain `fromSource: cluster-info.region`, then rendering `api` will process `cluster-info` first, then `app-config`, then substitute into `api` — even though `api` has no direct reference to `cluster-info`. The controller follows the dependency chain to whatever depth is needed, always in declaration order.
+Chaining makes laziness transitive. If component `api` has `fromSource: app-config.dbEndpoint`, and `app-config`'s `properties` contain `fromSource: cluster-info.region`, then rendering `api` will process `cluster-info` first, then `app-config`, then substitute into `api` (even though `api` has no direct reference to `cluster-info`). The controller follows the dependency chain to whatever depth is needed, always in declaration order.
 
 A source that is not referenced directly or transitively by any component in the current reconcile is never evaluated and will not appear in `status.services[].sources`.
 
@@ -205,11 +240,11 @@ flowchart LR
 ```yaml
 spec:
   sources:
-    # Resolved first — fetches cluster metadata
+    # Resolved first - fetches cluster metadata
     - name: cluster-info
       type: cluster-config-reader
 
-    # Resolved second — uses cluster-info output as input
+    # Resolved second - uses cluster-info output as input
     - name: app-config
       definition: app-config-reader
       properties:
@@ -240,9 +275,11 @@ The cache is a first-class subsystem, not an implementation convenience. Its pur
 
 ### Freshness and Staleness
 
-A cache entry is **fresh** if the backing `Config` object exists and `now - status.lastSyncAt < storageTTL`. It is **stale** once `storageTTL` has elapsed since `lastSyncAt`, regardless of whether the underlying data has changed.
+A cache entry is **fresh** if the backing `Config` object exists and the time elapsed since its last successful write is less than `storageTTL`. It is **stale** once `storageTTL` has elapsed, regardless of whether the underlying data has changed.
 
-`storageTTL` is declared in the `storage:` block and defaults to `"15m"` when not specified — the `storage:` block schema enforces this default so the field is always concrete by the time the controller evaluates it. It controls how long a successfully resolved value is trusted before a refresh is attempted. Setting a shorter TTL means more frequent re-fetches and fresher data; setting a longer TTL reduces external load at the cost of potentially serving older values.
+> **Implementation note:** In the current v1 backing store (Secrets), last-write time is stored as the annotation `config.oam.dev/last-sync-at`. Once KEP-2.18 graduates Config to a first-class CRD, this becomes `status.lastSyncAt`. The logical behaviour is identical; the controller reads the timestamp, compares it against `storageTTL`, and refreshes if expired.
+
+`storageTTL` is declared in the `storage:` block and defaults to `"15m"` when not specified; the `storage:` block schema enforces this default so the field is always concrete by the time the controller evaluates it. It controls how long a successfully resolved value is trusted before a refresh is attempted. Setting a shorter TTL means more frequent re-fetches and fresher data; setting a longer TTL reduces external load at the cost of potentially serving older values.
 
 **The cache never proactively pushes fresh data.** Refresh is demand-driven: the controller attempts a refresh only when a component render needs the value and the entry is missing or stale. There is no background refresh loop.
 
@@ -250,9 +287,9 @@ A cache entry is **fresh** if the backing `Config` object exists and `now - stat
 
 The cache uses two layers with different scopes and lifetimes:
 
-**Layer 1 — In-memory LRU** (per controller-process): Eliminates API server reads for the same key within a single busy reconcile window. Lost on controller restart. The TTL of this layer is a fixed implementation detail, not configurable by definition authors or application authors. Because it sits in front of the Config check, the worst-case staleness window for a running controller is `storageTTL + in-memory TTL` — operators should account for this when choosing `storageTTL` for time-sensitive sources. The reusable LRU abstraction from the Helm renderer feature is used here.
+**Layer 1: In-memory LRU** (per controller-process): Eliminates API server reads for the same key within a single busy reconcile window. Lost on controller restart. The TTL of this layer is a fixed implementation detail, not configurable by definition authors or application authors. Because it sits in front of the Config check, the worst-case staleness window for a running controller is `storageTTL + in-memory TTL`; operators should account for this when choosing `storageTTL` for time-sensitive sources. The reusable LRU abstraction from the Helm renderer feature is used here.
 
-**Layer 2 — Backing Config object** (persistent, in API server): A `Config` CRD instance (KEP-2.18) named by the resolved `key`. Survives controller restarts. `status.lastSyncAt` is the canonical timestamp of the last successful `template:` execution. This is what operators inspect to determine when data was last fetched. The controller reads it on every in-memory miss and writes it after every successful refresh.
+**Layer 2: Backing Config object** (persistent, in API server): A `Config` CRD instance (KEP-2.18) named by the resolved `key`. Survives controller restarts. `status.lastSyncAt` is the canonical timestamp of the last successful `template:` execution. This is what operators inspect to determine when data was last fetched. The controller reads it on every in-memory miss and writes it after every successful refresh.
 
 ### Resolution Flow
 
@@ -281,7 +318,7 @@ flowchart TD
    - **Failure, no prior Config:** fail the component render; surface error on Application status (`phase: Failed`)
    - **Failure, stale Config exists:** apply `onStaleFailure` policy (see below)
 
-**When does CueX `template:` execute?** Only when both of the following are true: (a) the in-memory LRU cache has no entry for this key, and (b) the backing Config object is absent or its `lastSyncAt` is older than `storageTTL`. Every other path — in-memory hit, fresh Config object — returns the cached value without any I/O. The `storage:` key interpolation always runs (it is cheap string interpolation), but CueX execution is strictly bounded by the cache state.
+**When does CueX `template:` execute?** Only when both of the following are true: (a) the in-memory LRU cache has no entry for this key, and (b) the backing Config object is absent or its `lastSyncAt` is older than `storageTTL`. Every other path (in-memory hit, fresh Config object) returns the cached value without any I/O. The `storage:` key interpolation always runs (it is cheap string interpolation), but CueX execution is strictly bounded by the cache state. The component's CUE rendering template always receives concrete, already-resolved values; source resolution completes before the rendering template runs.
 
 ### Stale-Data Policy (`onStaleFailure`)
 
@@ -295,27 +332,27 @@ storage: {
 }
 ```
 
-**`use-stale` (default)** — serve the last known good value. The component renders with potentially outdated data and the source `phase` is set to `Stale` on the Application status. The reconcile loop is not blocked. On each subsequent reconcile, the controller re-attempts the refresh — if it eventually succeeds, `lastSyncAt` is updated and the `phase` returns to `Resolved`.
+**`use-stale` (default):** serve the last known good value. The component renders with potentially outdated data and the source `phase` is set to `Stale` on the Application status. The reconcile loop is not blocked. On each subsequent reconcile, the controller re-attempts the refresh; if it eventually succeeds, `lastSyncAt` is updated and the `phase` returns to `Resolved`.
 
-**`fail`** — treat a failed refresh identically to a first-load failure: block the component render and surface an error. Use this for sources where serving outdated data is worse than blocking the render — for example, security-sensitive lookups where a stale value could grant or deny access incorrectly.
+**`fail`:** treat a failed refresh identically to a first-load failure: block the component render and surface an error. Use this for sources where serving outdated data is worse than blocking the render (for example, security-sensitive lookups where a stale value could grant or deny access incorrectly).
 
 **Choosing a policy:** Most sources should use `use-stale`. It makes the platform resilient to transient external failures and prevents a flapping data source from cascading into application downtime. Use `fail` only when correctness of the data is more important than availability of the render, and document this choice in the `SourceDefinition` description.
 
-**Stale data is time-bounded only by `storageTTL`.** When `use-stale` is in effect, the controller will keep serving the stale value indefinitely as long as refresh continues to fail. There is no automatic expiry after which a stale entry is evicted and the render is forced to fail. Operators monitoring `phase: Stale` sources should treat a prolonged stale phase as an alert — the underlying data source is consistently unreachable.
+**Stale data is time-bounded only by `storageTTL`.** When `use-stale` is in effect, the controller will keep serving the stale value indefinitely as long as refresh continues to fail. There is no automatic expiry after which a stale entry is evicted and the render is forced to fail. Operators monitoring `phase: Stale` sources should treat a prolonged stale phase as an alert; the underlying data source is consistently unreachable.
 
 ### Cache Key
 
-The `key` field in `storage:` is a CUE expression that resolves to the `Config` object name. It interpolates `context` values and `parameter` values to produce a unique, deterministic name per source binding. The key serves double duty — it is both the Config object name and the in-memory cache lookup key.
+The `key` field in `storage:` is a CUE expression that resolves to the `Config` object name. It interpolates `context` values and `parameter` values to produce a unique, deterministic name per source binding. The key serves double duty; it is both the Config object name and the in-memory cache lookup key.
 
-**Key validity** — the resolved key is validated against `[a-z0-9-]` (lowercase alphanumeric and hyphens only; max 253 characters). Any character outside this set — including dots, colons, slashes, and uppercase letters — causes a fail-fast error surfaced on the Application status at resolution time. The controller does not sanitize automatically. Definition authors must ensure that all interpolated `parameter` and `context` values produce valid keys — if an input value may contain invalid characters (e.g. a Backstage entity reference like `component:default/api`), the `parameter` schema in `template:` should constrain the input format, or the `SourceDefinition` should validate via `errs:` before the key is formed.
+**Key validity:** the resolved key is validated against `[a-z0-9-]` (lowercase alphanumeric and hyphens only; max 253 characters). Any character outside this set (including dots, colons, slashes, and uppercase letters) causes a fail-fast error surfaced on the Application status at resolution time. The controller does not sanitize automatically. Definition authors must ensure that all interpolated `parameter` and `context` values produce valid keys; if an input value may contain invalid characters (e.g. a Backstage entity reference like `component:default/api`), the `parameter` schema in `template:` should constrain the input format, or the `SourceDefinition` should validate via `errs:` before the key is formed.
 
-**Cache key cardinality** — the key discriminator determines sharing behaviour. A key scoped only to `context.cluster` produces one `Config` per cluster, shared across all Applications on that cluster. Including `context.appName` and `context.namespace` produces one `Config` per Application instance. Definition authors should choose the narrowest discriminator that correctly models the data's scope.
+**Cache key cardinality:** the key discriminator determines sharing behaviour. A key scoped only to `context.cluster` produces one `Config` per cluster, shared across all Applications on that cluster. Including `context.appName` and `context.namespace` produces one `Config` per Application instance. Definition authors should choose the narrowest discriminator that correctly models the data's scope.
 
-Cross-application sharing of `Config` cache objects is a natural consequence of key-based caching and is intentional. When two Applications on the same cluster use the same `SourceDefinition` with the same key, they share the backing `Config` object — the second resolution is a cache hit. The key design determines the sharing boundary: a `context.cluster`-scoped key models a cluster-level fact shared by all consumers; a `context.appName`-scoped key models a per-Application fact private to one.
+Cross-application sharing of `Config` cache objects is a natural consequence of key-based caching and is intentional. When two Applications on the same cluster use the same `SourceDefinition` with the same key, they share the backing `Config` object; the second resolution is a cache hit. The key design determines the sharing boundary: a `context.cluster`-scoped key models a cluster-level fact shared by all consumers; a `context.appName`-scoped key models a per-Application fact private to one.
 
 ### Operator Guidance: Inspecting Cache State
 
-Configs (labelled Secrets in `vela-system`) are accessed through the `vela config` CLI — not via `kubectl get secret` or similar direct object commands. Use the following:
+Configs (labelled Secrets in `vela-system`) are accessed through the `vela config` CLI (not via `kubectl get secret` or similar direct object commands). Use the following:
 
 ```bash
 # List all cache entries for a SourceDefinition
@@ -324,24 +361,24 @@ vela config list -t cluster-config-reader-v1
 # Check Application status for per-source phase (Resolved / Stale / Pending / Failed)
 kubectl get application <name> -o jsonpath='{.status.services}'
 
-# Force a refresh: delete the cache entry — the controller will re-execute template: on next reconcile
+# Force a refresh: delete the cache entry - the controller will re-execute template: on next reconcile
 vela config delete cluster-config-reader-us-east-1
 ```
 
-Deleting the cache entry is the supported mechanism for forcing an immediate refresh — the controller treats a missing entry as a cache miss and unconditionally executes `template:` on the next reconcile. If `template:` fails after deletion, there is no stale value to fall back to: the component render will fail until the source becomes reachable again.
+Deleting the cache entry is the supported mechanism for forcing an immediate refresh; the controller treats a missing entry as a cache miss and unconditionally executes `template:` on the next reconcile. If `template:` fails after deletion, there is no stale value to fall back to: the component render will fail until the source becomes reachable again.
 
 ## ConfigTemplate Versioning
 
-The `schema:` block is registered as a `ConfigTemplate` named `{source-definition-name}-v{N}` where `N` is a monotonically incrementing integer — for example `cluster-config-reader-v1`, `cluster-config-reader-v2`. A hash of the `schema:` block is computed and stored as an annotation on the ConfigTemplate (`definition.oam.dev/schema-hash`). This hash drives the install/upgrade decision:
+The `schema:` block is registered as a `ConfigTemplate` named `{source-definition-name}-v{N}` where `N` is a monotonically incrementing integer (for example `cluster-config-reader-v1`, `cluster-config-reader-v2`). A hash of the `schema:` block is computed and stored as an annotation on the ConfigTemplate (`definition.oam.dev/schema-hash`). This hash drives the install/upgrade decision:
 
 1. Compute the hash of the new `schema:` block
 2. Check whether any existing ConfigTemplate for this SourceDefinition carries a matching `definition.oam.dev/schema-hash` annotation
-3. **Match found:** attach the new SourceDefinition revision to the existing ConfigTemplate — `N` is not incremented, no new object is created
+3. **Match found:** attach the new SourceDefinition revision to the existing ConfigTemplate (`N` is not incremented, no new object is created)
 4. **No match:** create `{name}-v{N+1}` with the hash annotation
 
-This means `N` only increments on genuine schema changes, and if a `SourceDefinition` revision reverts to a previously-used schema it will re-attach to the corresponding existing `ConfigTemplate` rather than creating a duplicate. Each `DefinitionRevision` records the name of its attached versioned `ConfigTemplate` — this link is what allows the controller to determine the correct cache schema for any snapshotted revision, including during rollbacks (see [ApplicationRevision Snapshot](#applicationrevision-snapshot)). Garbage collection of old versioned `ConfigTemplate` entries is left to a future enhancement.
+This means `N` only increments on genuine schema changes, and if a `SourceDefinition` revision reverts to a previously-used schema it will re-attach to the corresponding existing `ConfigTemplate` rather than creating a duplicate. Each `DefinitionRevision` records the name of its attached versioned `ConfigTemplate`; this link is what allows the controller to determine the correct cache schema for any snapshotted revision, including during rollbacks (see [ApplicationRevision Snapshot](#applicationrevision-snapshot)). Garbage collection of old versioned `ConfigTemplate` entries is left to a future enhancement.
 
-Resolution is lazy and per-component: `fromSource` references are resolved in the `Complete()` phase of each component or trait, after the component context has been built but before the CUE template is rendered. If multiple components in the same Application reference the same `SourceDefinition`, the cached `Config` entry from the first resolution is reused for subsequent ones.
+If multiple components in the same Application reference the same `SourceDefinition`, the cached `Config` entry from the first resolution is reused for subsequent ones; the second component's reconcile is a cache hit.
 
 ## Full Example: cluster-config-reader
 
@@ -352,7 +389,7 @@ Resolution is lazy and per-component: `fromSource` references are resolved in th
   type:        "source"
   description: "Reads platform metadata from the cluster-config ConfigMap in platform-data namespace"
   attributes: {
-    scope: "spoke"   // explicitly spoke — controller uses cluster gateway to read per-cluster ConfigMap
+    scope: "spoke"   // explicitly spoke - controller uses cluster gateway to read per-cluster ConfigMap
   }
 }
 
@@ -361,7 +398,7 @@ Resolution is lazy and per-component: `fromSource` references are resolved in th
 //   1. Admission: the webhook validates that fromSource path references name fields declared here.
 //   2. Runtime: the controller verifies that the resolved output: is fully concrete against this schema.
 // Registered as a versioned ConfigTemplate on install (hash-deduplicated).
-// No runtime context is available at this stage — evaluated at parse time only.
+// No runtime context is available at this stage - evaluated at parse time only.
 schema: {
   region:      string
   environment: string
@@ -372,9 +409,9 @@ schema: {
 }
 
 // storage declares the cache key, TTL, and stale-data policy.
-// Evaluated with context.cluster and parameter.* only — cheap string interpolation.
+// Evaluated with context.cluster and parameter.* only - cheap string interpolation.
 // May not reference context.output, context.status, or CueX providers.
-// onStaleFailure defaults to "use-stale" — serve prior data if refresh fails.
+// onStaleFailure defaults to "use-stale" - serve prior data if refresh fails.
 storage: {
   key:        "cluster-config-reader-\(context.cluster)"
   storageTTL: parameter.cacheDuration | *"15m"
@@ -410,7 +447,7 @@ template: {
 
 ## Application Usage
 
-Application authors declare source bindings in `spec.sources` and reference them via `fromSource`. Each entry names a `SourceDefinition` (via `definition:`), assigns it a local name (via `name:`), and supplies instance properties that parameterise this particular use. The local name is the namespace for all `fromSource` references within this Application — components and traits read resolved values as `<local-name>.<field-path>`, never referencing the `SourceDefinition` directly.
+Application authors declare source bindings in `spec.sources` and reference them via `fromSource`. Each entry names a `SourceDefinition` (via `definition:`), assigns it a local name (via `name:`), and supplies instance properties that parameterise this particular use. The local name is the namespace for all `fromSource` references within this Application; components and traits read resolved values as `<local-name>.<field-path>`, never referencing the `SourceDefinition` directly.
 
 The shorthand string form is preferred for simple references:
 
@@ -467,7 +504,7 @@ status:
 
 ## Parameterised Example: backstage-component
 
-For comparison, a SourceDefinition with parameters — the `key` includes `parameter.*` values to namespace cache entries per-instance:
+For comparison, a SourceDefinition with parameters (the `key` includes `parameter.*` values to namespace cache entries per-instance):
 
 ```cue
 // backstage-component.cue
@@ -513,11 +550,11 @@ template: {
 
 ## Platform Pattern: Governance Metadata
 
-The previous examples use `parameter.*` (source properties set by the application author) to drive resolution. But `context.appLabels` — the labels on the Application CR — opens a complementary pattern: sources whose resolution is supported by platform labelling conventions, reducing or eliminating the need for author-supplied properties.
+The previous examples use `parameter.*` (source properties set by the application author) to drive resolution. But `context.appLabels` (the labels on the Application CR) opens a complementary pattern: sources whose resolution is supported by platform labelling conventions, reducing or eliminating the need for author-supplied properties.
 
-Platform teams can standardise a set of governance labels on every Application. Configurable Application Policies (introduced in v1.11) are the natural mechanism for enforcing this — a platform-level policy can validate or inject standard labels, ensuring every Application carries the expected metadata before sources are resolved.
+Platform teams can standardise a set of governance labels on every Application. Configurable Application Policies (introduced in v1.11) are the natural mechanism for enforcing this; a platform-level policy can validate or inject standard labels, ensuring every Application carries the expected metadata before sources are resolved.
 
-A `SourceDefinition` can then read those labels to look up extended metadata from a service catalog. Because the source key is derived from `context.appLabels` and `context.cluster`, the source needs no `parameter:` block — the application author never needs to supply resolution inputs beyond following the labelling convention.
+A `SourceDefinition` can then read those labels to look up extended metadata from a service catalog. Because the source key is derived from `context.appLabels` and `context.cluster`, the source needs no `parameter:` block; the application author never needs to supply resolution inputs beyond following the labelling convention.
 
 ```cue
 // governance-metadata.cue
@@ -539,7 +576,7 @@ schema: {
 }
 
 storage: {
-  // Key derived from Application labels and cluster — no author properties needed.
+  // Key derived from Application labels and cluster - no author properties needed.
   // If example.org/service-name is absent, key computation fails with a fail-fast error,
   // enforcing the labelling convention at resolution time.
   key:        "governance-\(context.appLabels["example.org/service-name"])-\(context.cluster)"
@@ -547,7 +584,7 @@ storage: {
 }
 
 template: {
-  parameter: {}   // no source properties — all inputs come from context.appLabels
+  parameter: {}   // no source properties - all inputs come from context.appLabels
 
   _serviceName: context.appLabels["example.org/service-name"]
 
@@ -570,7 +607,7 @@ template: {
 }
 ```
 
-The Application is minimal — just labels and a source reference with no properties:
+The Application is minimal (just labels and a source reference with no properties):
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -585,7 +622,7 @@ spec:
   sources:
     - name: governance
       definition: governance-metadata
-      # no properties — resolution is driven entirely by Application labels
+      # no properties - resolution is driven entirely by Application labels
 
   components:
     - name: api
@@ -599,24 +636,24 @@ spec:
           fromSource: governance.tier
 ```
 
-Because the source has no properties, it can be injected transparently — with platform teams using policies to assure every Application has the governance source attached without requiring application authors to declare it. The only contract the author must honour is the labelling convention.
+Because the source has no properties, it can be injected transparently; platform teams can use policies to assure every Application has the governance source attached without requiring application authors to declare it. The only contract the author must honour is the labelling convention.
 
-If the required label is absent, the `storage:` key interpolation produces an error at resolution time — the missing label surfaces as a fail-fast error on the Application status before any CueX I/O is attempted. This makes the labelling convention self-enforcing: an unlabelled Application cannot successfully render components that consume governance data.
+If the required label is absent, the `storage:` key interpolation produces an error at resolution time; the missing label surfaces as a fail-fast error on the Application status before any CueX I/O is attempted. This makes the labelling convention self-enforcing: an unlabelled Application cannot successfully render components that consume governance data.
 
 ## fromSource Semantics
 
-`fromSource` is the **consumption mechanism**: it substitutes a field from a resolved source output into a component or trait property at render time. Resolution (the cache lookup and optional `template:` execution) always precedes consumption — `fromSource` reads an already-resolved value, not an in-flight one. Resolution is triggered during reconcile: the `fromSource` references in a component's properties determine which sources are resolved and in what order when that component is rendered. `fromSource` does not proactively trigger resolution ahead of render time — it is a declaration of what is needed, evaluated when the component is rendered.
+`fromSource` is the **consumption mechanism**: it declares which field from a resolved source output goes into which component or trait property. Substitution happens in the `Complete()` phase of the component's reconcile (after context is built, before the CUE template runs). Resolution (the cache lookup and, on miss or expiry, `template:` execution) always completes before substitution: `fromSource` reads an already-resolved value, never an in-flight one. The `fromSource` references in a component's properties determine which sources are resolved during that component's reconcile and in what order.
 
 `fromSource` supports two forms:
 
-**Shorthand** — a dot-separated string `<source>.<path>`. The parser splits on the first dot; everything after is the path (which may itself contain dots for nested fields):
+**Shorthand:** a dot-separated string `<source>.<path>`. The parser splits on the first dot; everything after is the path (which may itself contain dots for nested fields):
 
 ```yaml
 fromSource: cluster-info.region
 fromSource: cluster-info.nested.field   # path: nested.field
 ```
 
-**Map form** — required when a `default` is needed:
+**Map form:** required when a `default` is needed:
 
 ```yaml
 fromSource:
@@ -625,7 +662,7 @@ fromSource:
   default: "us-east-1"   # used when the resolved output does not include this field
 ```
 
-`default` bridges the gap between an optional schema field and a required target. If the resolved `Config` does not contain the field (because the definition's `output:` omitted it for this instance), `default` is substituted instead. `default` is **not** a fallback for `template:` execution failures — execution failures are governed by `storage.onStaleFailure`.
+`default` bridges the gap between an optional schema field and a required target. If the resolved `Config` does not contain the field (because the definition's `output:` omitted it for this instance), `default` is substituted instead. `default` is **not** a fallback for `template:` execution failures; execution failures are governed by `storage.onStaleFailure`.
 
 Whether `default:` is required, allowed, or unnecessary depends on two things: whether the schema field is optional, and whether the target parameter is required:
 
@@ -633,7 +670,7 @@ Whether `default:` is required, allowed, or unnecessary depends on two things: w
 |---|---|---|---|
 | Required (`field: string`) | Required | Not needed | Field always present; admission allows omission of `default:` |
 | Required (`field: string`) | Optional | Not needed | Field always present; nothing to default |
-| Optional (`field?: string`) | Required | **Required** | Admission rejects if `default:` absent — field may be absent at runtime, leaving a required parameter unresolvable |
+| Optional (`field?: string`) | Required | **Required** | Admission rejects if `default:` absent (field may be absent at runtime, leaving a required parameter unresolvable) |
 | Optional (`field?: string`) | Optional | Allowed | If field absent and no `default:`, the parameter is simply omitted |
 
 ```yaml
@@ -651,9 +688,9 @@ properties:
     fromSource: cluster-info.region
 ```
 
-The admission webhook enforces the third row: if `path` names an optional schema field and the target parameter is required, the webhook rejects the Application if `default:` is absent. This check happens at apply time — before any resolution occurs — so the failure surfaces immediately rather than at render time.
+The admission webhook enforces the third row: if `path` names an optional schema field and the target parameter is required, the webhook rejects the Application if `default:` is absent. This check happens at apply time (before any resolution occurs), so the failure surfaces immediately rather than at render time.
 
-`fromSource` is detected structurally during render — not by string matching. It is valid at any depth within `properties`, including nested objects and array entries. It is not valid as a map key. The admission webhook validates that every `path` names a field declared in the `schema:` block — unknown paths are rejected at apply time.
+`fromSource` is detected structurally during render (not by string matching). It is valid at any depth within `properties`, including nested objects and array entries. It is not valid as a map key. The admission webhook validates that every `path` names a field declared in the `schema:` block; unknown paths are rejected at apply time.
 
 ### Validation summary
 
@@ -691,25 +728,25 @@ The `ex.#Read` CueX provider executes against the cluster where the controller i
 }
 ```
 
-`scope: hub` — resolution executes on the hub application-controller using the hub's local client. A single `Config` object is shared across all spokes for the same key.
+`scope: hub`: resolution executes on the hub application-controller using the hub's local client. A single `Config` object is shared across all spokes for the same key.
 
-`scope: spoke` — the controller must obtain a spoke-scoped client via the cluster gateway before executing CueX. The implementation checks `attributes.scope` at resolution time and, when `spoke` is set, constructs a client targeting the appropriate spoke cluster (identified by `context.cluster`) through the configured cluster gateway. Each spoke gets its own `Config` object (key should include `context.cluster` to prevent cross-spoke cache collisions).
+`scope: spoke`: the controller must obtain a spoke-scoped client via the cluster gateway before executing CueX. The implementation checks `attributes.scope` at resolution time and, when `spoke` is set, constructs a client targeting the appropriate spoke cluster (identified by `context.cluster`) through the configured cluster gateway. Each spoke gets its own `Config` object (key should include `context.cluster` to prevent cross-spoke cache collisions).
 
 ## ApplicationRevision Snapshot
 
 ### What is snapshotted and why
 
-Without snapshotting, a rollback or re-render could silently use a different version of the `SourceDefinition` than was active when the revision was originally applied — one with different resolution logic, a different cache key structure, or a schema change that alters what `fromSource` paths are valid. The result would be a render that produces different output from the original despite being nominally the same revision. Snapshotting prevents this: every render of a given `ApplicationRevision` uses exactly the resolution logic that was current when that revision was created.
+Without snapshotting, a rollback or re-render could silently use a different version of the `SourceDefinition` than was active when the revision was originally applied (one with different resolution logic, a different cache key structure, or a schema change that alters what `fromSource` paths are valid). The result would be a render that produces different output from the original despite being nominally the same revision. Snapshotting prevents this: every render of a given `ApplicationRevision` uses exactly the resolution logic that was current when that revision was created.
 
-`SourceDefinition` is therefore included in the `ApplicationRevision` definition snapshot alongside `ComponentDefinition`, `TraitDefinition`, `WorkflowStepDefinition`, and `PolicyDefinition`. When an `ApplicationRevision` is created, the hub copies the full body of every `SourceDefinition` revision referenced in `spec.sources` into the revision object. This is a self-contained copy — not a reference to the live cluster version. Subsequent updates or deletion of the live `SourceDefinition` do not affect renders of the snapshotted revision.
+`SourceDefinition` is therefore included in the `ApplicationRevision` definition snapshot alongside `ComponentDefinition`, `TraitDefinition`, `WorkflowStepDefinition`, and `PolicyDefinition`. When an `ApplicationRevision` is created, the hub copies the full body of every `SourceDefinition` revision referenced in `spec.sources` into the revision object. This is a self-contained copy (not a reference to the live cluster version). Subsequent updates or deletion of the live `SourceDefinition` do not affect renders of the snapshotted revision.
 
-All subsequent renders of that revision — including triggered re-renders and explicit rollbacks — use the snapshotted definition body, not the live cluster version.
+All subsequent renders of that revision (including triggered re-renders and explicit rollbacks) use the snapshotted definition body, not the live cluster version.
 
 ### What is not snapshotted: resolved data
 
-The snapshot preserves the **resolution logic** (the `storage:`, `schema:`, and `template:` blocks) but not the **resolved data** (the `Config` cache entry). When a snapshotted revision is re-rendered or a rollback is executed, the controller re-executes the snapshotted `template:` against the external data source as it exists at that moment — it does not restore the data values from the time of the original render.
+The snapshot preserves the **resolution logic** (the `storage:`, `schema:`, and `template:` blocks) but not the **resolved data** (the `Config` cache entry). When a snapshotted revision is re-rendered or a rollback is executed, the controller re-executes the snapshotted `template:` against the external data source as it exists at that moment; it does not restore the data values from the time of the original render.
 
-This is intentional. Snapshotting external data at revision time would be impractical and often counterproductive — a rollback that restores stale cluster metadata or stale Backstage entries would be worse than fetching current values with the original logic. The invariant is: **rollbacks reproduce the resolution behaviour of the original revision, not the resolved values**.
+This is intentional. Snapshotting external data at revision time would be impractical and often counterproductive; a rollback that restores stale cluster metadata or stale Backstage entries would be worse than fetching current values with the original logic. The invariant is: **rollbacks reproduce the resolution behaviour of the original revision, not the resolved values**.
 
 Operators should be aware of this when rolling back in environments where the underlying data source has changed significantly since the original render. In most cases this is desirable; for sources where data stability is critical, the `storageTTL` and `onStaleFailure` controls govern how aggressively the cache is refreshed.
 
@@ -717,13 +754,13 @@ Operators should be aware of this when rolling back in environments where the un
 
 The snapshot guarantees three properties that together make renders deterministic:
 
-1. **Same resolution logic** — the `template:` block used to fetch data is identical across all renders of the same revision.
-2. **Same schema** — the `ConfigTemplate` version used to validate cache entries matches the snapshotted definition's schema. The controller always reads and writes `Config` objects against the `ConfigTemplate` version attached to the snapshotted `SourceDefinition` revision, preventing type mismatches between cached data and the schema the controller expects.
-3. **Same cache key structure** — the `storage:` block used to compute the Config object name is identical, so cache hits and misses behave consistently regardless of when the render occurs.
+1. **Same resolution logic:** the `template:` block used to fetch data is identical across all renders of the same revision.
+2. **Same schema:** the `ConfigTemplate` version used to validate cache entries matches the snapshotted definition's schema. The controller always reads and writes `Config` objects against the `ConfigTemplate` version attached to the snapshotted `SourceDefinition` revision, preventing type mismatches between cached data and the schema the controller expects.
+3. **Same cache key structure:** the `storage:` block used to compute the Config object name is identical, so cache hits and misses behave consistently regardless of when the render occurs.
 
 ## Application Status
 
-Resolved source data is surfaced in `status.services[]` per component, alongside existing health and trait information. Each component entry gains a `sources:` sub-field listing the sources it consumed, the Config object backing the resolution, and the field values that were injected — top-level `// +sensitive` fields redacted, all others shown in full regardless of type.
+Source consumption is reported per component in `status.services[]`, alongside each component's existing health and trait information. This placement is intentional: the status records what each component consumed and from which cache entry, not a global view of all source activity. Each component entry gains a `sources:` sub-field listing the sources it consumed, the Config object backing the resolution, and the field values that were injected (top-level `// +sensitive` fields redacted, all others shown in full regardless of type).
 
 ```yaml
 status:
@@ -736,7 +773,7 @@ status:
         - name: cluster-info              # matches spec.sources[].name
           definition: cluster-config-reader
           phase: Resolved                 # Resolved | Pending | Failed | Stale
-          config: cluster-config-reader-us-east-prod   # backing cache entry — inspect with: vela config list
+          config: cluster-config-reader-us-east-prod   # backing cache entry - inspect with: vela config list
           resolvedFields:
             region:      us-east-1
             environment: production
@@ -757,10 +794,10 @@ status:
 ```
 
 `phase` mirrors the resolution outcome for that source on that cluster:
-- `Resolved` — Config is fresh (`now - lastSyncAt < storageTTL`); value is current
-- `Stale` — TTL has expired; refresh attempt failed; prior value is being served (`onStaleFailure: use-stale`). The data being served was last successfully fetched at `lastSyncAt` on the backing Config object. The controller will re-attempt refresh on every subsequent reconcile until it succeeds or the source binding is removed.
-- `Pending` — first resolution in progress; no value available yet
-- `Failed` — first-load failure or refresh failed with `onStaleFailure: fail`; no prior value available; component render is blocked until the source becomes reachable
+- `Resolved`: Config is fresh (`now - lastSyncAt < storageTTL`); value is current
+- `Stale`: TTL has expired; refresh attempt failed; prior value is being served (`onStaleFailure: use-stale`). The data being served was last successfully fetched at `lastSyncAt` on the backing Config object. The controller will re-attempt refresh on every subsequent reconcile until it succeeds or the source binding is removed.
+- `Pending`: first resolution in progress; no value available yet
+- `Failed`: first-load failure or refresh failed with `onStaleFailure: fail`; no prior value available; component render is blocked until the source becomes reachable
 
 `config` is the name of the backing Config. Operators can inspect it via `vela config list -t <definition>-v<N>` or list all entries with `vela config list | grep <definition>`.
 
@@ -796,15 +833,15 @@ This section describes runtime behavior at each stage of the cache lifecycle and
 
 **What happens:** The controller reads the Config, finds `now - last-sync-at >= storageTTL`, and re-executes `template:`. On success the Config is overwritten with fresh data, `last-sync-at` is reset, and the LRU is repopulated. `phase: Resolved`.
 
-**What to expect:** Normal TTL-driven refresh. The prior Config value is still present until overwritten — if the refresh had failed instead, it would have been available as a fallback under `use-stale`.
+**What to expect:** Normal TTL-driven refresh. The prior Config value is still present until overwritten; if the refresh had failed instead, it would have been available as a fallback under `use-stale`.
 
 ---
 
 ### Scenario: LRU miss, Config stale, refresh fails
 
-**What happens:** The controller reads the Config, finds it stale, and re-executes `template:`. CueX execution fails. The existing Config is kept unchanged. Behavior then depends on `onStaleFailure`: with `use-stale` (default), the prior resolved value is served and `phase: Stale` is set; with `fail`, the component render is blocked and `phase: Failed` is set — identical to a first-load failure. The controller retries on every subsequent reconcile.
+**What happens:** The controller reads the Config, finds it stale, and re-executes `template:`. CueX execution fails. The existing Config is kept unchanged. Behavior then depends on `onStaleFailure`: with `use-stale` (default), the prior resolved value is served and `phase: Stale` is set; with `fail`, the component render is blocked and `phase: Failed` is set (identical to a first-load failure). The controller retries on every subsequent reconcile.
 
-**What to expect:** Components continue to render with the last known good data indefinitely — there is no automatic eviction. `phase: Stale` is the signal that data may be outdated.
+**What to expect:** Components continue to render with the last known good data indefinitely; there is no automatic eviction. `phase: Stale` is the signal that data may be outdated.
 
 **What to check:**
 ```bash
@@ -854,17 +891,19 @@ kubectl describe application <name>                               # events may i
 
 ### Trust Model
 
-`SourceDefinition` resolution executes inside the controller process under the controller's service account. The `template:` block may make arbitrary outbound HTTP calls, read cluster resources, and write resolved values into Configs in `vela-system`. **The controller does not sandbox or audit this execution** — the platform engineer's definition is trusted code, in the same way that a `ComponentDefinition`'s CUE template is trusted code.
+`SourceDefinition` is designed around a deliberate two-tier trust model. The two tiers have different capabilities and different responsibilities:
 
-This means the security posture of `SourceDefinition` rests on two properties:
+**Platform engineer (high trust).** A `SourceDefinition` carries arbitrary CueX logic (it can make outbound HTTP calls, read cluster resources, and write resolved values into Configs in `vela-system`). Executing that logic runs inside the controller process under the controller's service account, with no sandboxing or auditing. This is intentional and mirrors the trust model of `ComponentDefinition`: the platform engineer is a trusted author, and the controller executes their definition faithfully. The security boundary for this tier is RBAC; only platform engineers should be permitted to create or update `SourceDefinition` resources.
 
-1. **Only trusted platform engineers can author and publish `SourceDefinition` resources.** RBAC on `SourceDefinition` creation is the primary control. If an untrusted user can publish a definition, they can cause the controller to exfiltrate data or make arbitrary API calls under the controller's identity.
+**Application author (narrower trust).** The application author binds a named `SourceDefinition` and supplies properties, but cannot alter its resolution logic, access fields outside its declared `schema:`, or read raw resolution state. This constraint is structural and enforced by the controller; it is not a policy the operator needs to configure.
 
-2. **Application authors can only bind and consume, not alter.** The admission webhook enforces that `fromSource` can only reference fields declared in the `schema:` block. Application authors cannot reach raw resolution state, CueX provider responses, or any field not explicitly exported by the definition author.
+The feature's security properties depend on maintaining this separation. The controller enforces the application author's boundary structurally. The platform engineer's boundary is an operational requirement: it must be established via RBAC before `SourceDefinition` is deployed in any environment.
 
-The controller enforces (2) structurally. (1) is an operational requirement — it must be enforced via RBAC before `SourceDefinition` is deployed in any environment.
+**Why this model is tighter than workflow-step data passing.** Before `SourceDefinition`, the pattern for injecting external data into components was workflow steps that made arbitrary calls and passed raw values through Application parameters or context. That model gave application authors (or whoever could author workflow steps) unconstrained access to any data the workflow could reach, with no schema enforcement, no caching boundary, and no structural separation between who fetched the data and who consumed it. `SourceDefinition` replaces that with a capability-based model: the platform engineer declares exactly what can be fetched and exactly what fields are exportable; the application author can only consume declared fields. The execution that performs I/O is platform-controlled code, not application-controlled code. This gives operators a single auditable locus (the `SourceDefinition`) rather than distributed, ad-hoc workflow logic scattered across applications.
 
-### What the Controller Enforces
+### Controller Guarantees
+
+The following properties are enforced by the controller and do not require operator configuration.
 
 | Property | Enforced by |
 |---|---|
@@ -874,41 +913,9 @@ The controller enforces (2) structurally. (1) is an operational requirement — 
 | Sensitive fields are redacted from `status` and logs | Controller (`// +sensitive` marker) |
 | Sensitive values are not stored in the Application CR | Controller (substitution at render time, not at apply time) |
 
-### What the Controller Does Not Enforce
-
-| Property | Required operational control |
-|---|---|
-| Only trusted users can publish `SourceDefinition` resources | RBAC: restrict `create`/`update` on `sourcedefinitions` to platform engineers |
-| CueX providers cannot reach unauthorized endpoints | Network policy and/or CueX provider allowlists on the controller pod |
-| Sensitive values do not appear in spoke resource manifests | Definition author responsibility — return references, not raw values (see below) |
-| `vela-system` Secrets are not accessible to untrusted users | RBAC on `vela-system` namespace — this is a load-bearing security boundary |
-
-### Credentials and Sensitive Values
-
-`SourceDefinition` is not the right mechanism for distributing raw credentials to components. `// +sensitive` prevents values from appearing in `status` output and logs, but it does not prevent the value from being:
-- written to a Config in `vela-system` (the cache entry, a labelled Secret)
-- passed through the CUE renderer
-- written into a rendered resource on the spoke
-
-For credentials, the recommended pattern is to return a **reference** — the name of a Kubernetes Secret, an ESO `ExternalSecret` path, or a Vault reference — rather than the credential value itself. The component consumes the reference and the platform (Kubernetes, ESO, Vault agent) handles injection at the resource level.
-
-This cannot be enforced by the controller. Platform teams should code-review any `SourceDefinition` that handles credentials to verify it follows this pattern, and treat definitions that return raw credential values as requiring heightened scrutiny.
-
-### Threat Model
-
-| Threat | Who mitigates | Mitigation |
-|---|---|---|
-| **SourceDefinition exfiltrates data or makes unauthorized API calls** | Operator | RBAC restricting `SourceDefinition` authorship to platform engineers; network policy on the controller pod; CueX provider allowlists |
-| **Application author references a SourceDefinition they should not access** | Controller | `SubjectAccessReview` at admission — user must have `get` on the `SourceDefinition` in `vela-system` or the Application namespace |
-| **Application author reads fields beyond the declared schema** | Controller | Structural enforcement — `fromSource` paths are validated against `schema:` at admission; raw CueX state is never reachable |
-| **Sensitive values exposed in Application status or logs** | Controller | `// +sensitive` schema markers redact the entire field value in `status.services[].sources[].resolvedFields` and in all controller logs |
-| **Sensitive values stored in hub API server** | Controller | Values are substituted at render time on the controller — they are never written to Application or Component specs; the only API-server copy is the Config in `vela-system` |
-| **Sensitive values accessible via vela-system** | Operator | `vela-system` RBAC must restrict access to platform operators — this namespace holds plaintext resolved values for `scope: spoke` definitions |
-| **Sensitive values appear in spoke resource manifests** | Definition author | Return references rather than raw values; the controller cannot prevent a definition from passing a resolved value through to a rendered resource |
-
 ### Application Admission RBAC
 
-The existing Application admission webhook (`pkg/webhook/core.oam.dev/v1beta1/application/validation.go`) performs `SubjectAccessReview` checks for every definition type referenced in an Application — `ComponentDefinition`, `TraitDefinition`, `PolicyDefinition`, and `WorkflowStepDefinition`. These checks verify that the user submitting the Application has `get` permission on the referenced definition in either `vela-system` or the Application's own namespace.
+The existing Application admission webhook (`pkg/webhook/core.oam.dev/v1beta1/application/validation.go`) performs `SubjectAccessReview` checks for every definition type referenced in an Application (`ComponentDefinition`, `TraitDefinition`, `PolicyDefinition`, and `WorkflowStepDefinition`). These checks verify that the user submitting the Application has `get` permission on the referenced definition in either `vela-system` or the Application's own namespace.
 
 `SourceDefinition` must be added to these checks. The `definitionUsage` struct and `collectDefinitionUsage` function must be extended:
 
@@ -922,27 +929,52 @@ for i, source := range app.Spec.Sources {
 }
 ```
 
-And a corresponding `validateDefinitions` call added to `ValidateDefinitionPermissions` for `SourceDefinition`. Without this, a user could reference a `SourceDefinition` they do not have access to and the Application would be accepted at admission — the permission gap would only surface at reconcile time rather than at apply time.
+And a corresponding `validateDefinitions` call added to `ValidateDefinitionPermissions` for `SourceDefinition`. Without this, a user could reference a `SourceDefinition` they do not have access to and the Application would be accepted at admission; the permission gap would only surface at reconcile time rather than at apply time.
 
-### Operational Guardrails
+### Operator Responsibilities
 
-`SourceDefinition` is safe to deploy when the following controls are in place. These are not enforced by the controller — they are the operator's responsibility.
+The following properties are the operator's responsibility. They are not enforced by the controller; they are the platform controls that give the controller's guarantees their meaning.
 
-| Control | Why it matters |
+| Property | Required operational control |
 |---|---|
-| RBAC: restrict `create`/`update` on `sourcedefinitions` to platform engineers | A `SourceDefinition` runs arbitrary CueX logic under the controller's service account. Unrestricted authorship is equivalent to granting arbitrary cluster API access. |
-| Network policy on the controller pod | Limits the endpoints reachable by `http.#Do` and other CueX outbound providers. Without this, a definition can call any endpoint reachable from the cluster network. |
-| CueX provider allowlist | If the CueX runtime supports provider allowlisting, restrict which providers are available to `SourceDefinition` templates. |
-| RBAC on `vela-system` namespace | Configs (labelled Secrets in `vela-system`) may contain plaintext resolved values. Access must be restricted to platform operators. |
-| Code review of definitions handling credentials | The controller cannot prevent a definition from returning a raw credential value. Platform teams must review any `SourceDefinition` that touches credentials and verify it returns references, not values. |
+| Only trusted users can publish `SourceDefinition` resources | RBAC: restrict `create`/`update` on `sourcedefinitions` to platform engineers |
+| CueX providers cannot reach unauthorized endpoints | Network policy and/or CueX provider allowlists on the controller pod |
+| Sensitive values do not appear in spoke resource manifests | Definition author responsibility; return references, not raw values (see below) |
+| `vela-system` Secrets are not accessible to untrusted users | RBAC on `vela-system` namespace (this is a load-bearing security boundary) |
 
-Environments that cannot enforce all of these controls should treat `SourceDefinition` as a privileged feature and gate its availability accordingly.
+### Credentials and Sensitive Values
+
+`SourceDefinition` is not the right mechanism for distributing raw credential values to components. `// +sensitive` redacts values from `status` output and logs, but a sensitive value can still be written to a Config in `vela-system`, passed through the CUE renderer, and written into a rendered resource on the spoke.
+
+The recommended pattern is to return a **reference** (the name of a Kubernetes Secret, an ESO `ExternalSecret` path, or a Vault reference) rather than the credential value itself. The component consumes the reference and the platform handles injection at the resource level. Platform teams should code-review any `SourceDefinition` that handles credentials to verify it follows this pattern.
+
+### Threat Model
+
+| Threat | Mitigation |
+|---|---|
+| **SourceDefinition exfiltrates data or makes unauthorized API calls** | Operator: RBAC restricting `SourceDefinition` authorship to platform engineers; network policy on the controller pod; CueX provider allowlists |
+| **Application author references a SourceDefinition they should not access** | Controller: `SubjectAccessReview` at admission; user must have `get` on the `SourceDefinition` in `vela-system` or the Application namespace |
+| **Application author reads fields beyond the declared schema** | Controller: Structural enforcement; `fromSource` paths are validated against `schema:` at admission; raw CueX state is never reachable |
+| **Sensitive values exposed in Application status or logs** | Controller: `// +sensitive` schema markers redact the entire field value in `status.services[].sources[].resolvedFields` and in all controller logs |
+| **Sensitive values stored in hub API server** | Controller: Values are substituted at render time on the controller; they are never written to Application or Component specs; the only API-server copy is the Config in `vela-system` |
+| **Sensitive values accessible via vela-system** | Operator: `vela-system` RBAC must restrict access to platform operators; this namespace holds plaintext resolved values for `scope: spoke` definitions |
+| **Sensitive values appear in spoke resource manifests** | Definition author: Return references rather than raw values; the controller cannot prevent a definition from passing a resolved value through to a rendered resource |
+
+### Operational Posture
+
+The controls in the Operator Responsibilities table above collectively define the expected deployment posture for `SourceDefinition`. Environments where one or more of these controls cannot be enforced should restrict `SourceDefinition` availability accordingly. In practice this means one of:
+
+- **Namespace-scoping:** deploy `SourceDefinition` only in namespaces where the operator controls authorship, and deny creation in multi-tenant namespaces.
+- **Feature flag / admission policy:** use an admission webhook or OPA/Kyverno policy to reject `SourceDefinition` creation in environments below a defined compliance baseline.
+- **Privileged-only environments:** reserve `SourceDefinition` for environments where full network policy and RBAC controls are in place (e.g., a dedicated platform-engineer-only cluster or namespace), and disable the feature in developer sandbox environments.
+
+The controller itself does not gate availability; that decision belongs to the operator, implemented through the mechanisms above.
 
 ## Implementation Location
 
-`fromSource` resolution is implemented inside `pkg/cue/definition/template.go`, in the `workloadDef.Complete()` method. Traits support `fromSource` identically — trait context (`context.cluster`, `context.namespace`, `context.componentName`, `parameter.*`) is structurally the same as component context, so the same resolution hook in the trait `Complete()` method applies without modification.
+`fromSource` resolution is implemented inside `pkg/cue/definition/template.go`, in the `workloadDef.Complete()` method. Traits support `fromSource` identically; trait context (`context.cluster`, `context.namespace`, `context.componentName`, `parameter.*`) is structurally the same as component context, so the same resolution hook in the trait `Complete()` method applies without modification.
 
-The hook sits **after** the process context is fully built (`ctx.BaseContextFile()` has returned) but **before** `paramFile` is marshaled and passed to `cuex.DefaultCompiler`. Context fields such as `context.cluster`, `context.namespace`, and `context.componentName` are populated by the standard workflow context pipeline before `Complete()` is called — the same fields components and traits already use. The hook requires them to be available because `storage:` key computation interpolates against them.
+The hook sits **after** the process context is fully built (`ctx.BaseContextFile()` has returned) but **before** `paramFile` is marshaled and passed to `cuex.DefaultCompiler`. Context fields such as `context.cluster`, `context.namespace`, and `context.componentName` are populated by the standard workflow context pipeline before `Complete()` is called (the same fields components and traits already use). The hook requires them to be available because `storage:` key computation interpolates against them.
 
 ```
 ctx.BaseContextFile()           ← standard workflow context already populated
@@ -950,7 +982,7 @@ ctx.BaseContextFile()           ← standard workflow context already populated
 Walk params for fromSource nodes
   → for each fromSource: source.field
       1. Resolve source properties (chaining: earlier sources already processed)
-      2. Interpolate storage.key (string interpolation only — no I/O)
+      2. Interpolate storage.key (string interpolation only - no I/O)
       3. Check LRU cache
       4. On miss: read Config object; if absent/expired → execute CueX template:, write Config
       5. Extract field at path from resolved output
@@ -965,7 +997,7 @@ Source resolution is **lazy and per-component**: only sources actually reference
 
 ## Observability and Compatibility via `vela config` Commands
 
-Because `SourceDefinition` resolution reuses the existing `ConfigTemplate` and `Config` infrastructure, all existing `vela config` commands work against source cache entries without any new CLI surface area. This also preserves full compatibility with existing Config consumers — workflow steps and other platform tooling that reads `Config` objects can observe and interact with source-resolved data through the same interfaces they already use.
+Because `SourceDefinition` resolution reuses the existing `ConfigTemplate` and `Config` infrastructure, all existing `vela config` commands work against source cache entries without any new CLI surface area. This also preserves full compatibility with existing Config consumers; workflow steps and other platform tooling that reads `Config` objects can observe and interact with source-resolved data through the same interfaces they already use.
 
 **Inspect registered schema versions for a SourceDefinition:**
 
@@ -979,7 +1011,7 @@ vela config-template list | grep cluster-config-reader
 vela config-template show cluster-config-reader-v1
 ```
 
-A registered ConfigTemplate is stored as a `ConfigMap` in `vela-system`. The ConfigMap name carries the `config-template-` prefix used by the existing factory loader — the CLI presents the name without it:
+A registered ConfigTemplate is stored as a `ConfigMap` in `vela-system`. The ConfigMap name carries the `config-template-` prefix used by the existing factory loader; the CLI presents the name without it:
 
 ```yaml
 apiVersion: v1
@@ -1033,27 +1065,27 @@ data:
     <YAML-serialised resolved output properties>
 ```
 
-Platform engineers can inspect what data is cached for each source, verify that cache entries are current (via `status.lastSyncAt`), and identify stale entries — all using the same tooling already familiar from managing provider credentials and other platform configs.
+Platform engineers can inspect what data is cached for each source, verify that cache entries are current (via the `config.oam.dev/last-sync-at` annotation on the backing Secret), and identify stale entries, all using the same tooling already familiar from managing provider credentials and other platform configs.
 
 **Reuse in Workflow steps:**
 
-Because resolved source outputs are stored as standard `Config` objects, any workflow step that can read a `Config` can consume them directly — no `fromSource` directive needed. A workflow step that needs the same cluster metadata a `SourceDefinition` already resolved simply reads the `Config` object by its well-known key (`cluster-config-reader-{cluster}`). The data is already there, already validated against the `ConfigTemplate` schema, and already cached. This means `SourceDefinition` resolution and workflow-driven config consumption are not parallel systems — they share the same backing store, and a value resolved by one is immediately visible to the other.
+Because resolved source outputs are stored as standard `Config` objects, any workflow step that can read a `Config` can consume them directly (no `fromSource` directive needed). A workflow step that needs the same cluster metadata a `SourceDefinition` already resolved simply reads the `Config` object by its well-known key (`cluster-config-reader-{cluster}`). The data is already there, already validated against the `ConfigTemplate` schema, and already cached. This means `SourceDefinition` resolution and workflow-driven config consumption are not parallel systems; they share the same backing store, and a value resolved by one is immediately visible to the other.
 
 ## Non-Goals
 
 - Replacing workflow steps for runtime data passing
 - Arbitrary runtime dependency orchestration
-- `fromContext` — OAM context fields needed in properties should be exposed via a `SourceDefinition` authored by the platform engineer, keeping the resolution model consistent
+- `fromContext`: OAM context fields needed in properties should be exposed via a `SourceDefinition` authored by the platform engineer, keeping the resolution model consistent
 
 ## Future Enhancements
 
-- **`fromSource` in workflow steps and policies** — `fromSource` in component and trait properties is the highest priority and the scope of this KEP. The same mechanism can be extended to `workflow: steps[]` and policy properties — both have access to `spec.sources[]` and the declarative type-safety model applies equally. The critical requirement for this extension is that the `fromSource` resolution logic is implemented behind a reusable internal API, callable from any rendering context without duplicating the cache lookup, key computation, or CueX execution paths.
-- **Configurable Config namespace** — allow resolved Config objects that contain no `// +sensitive` fields to be written to a user-accessible namespace (e.g. the Application's namespace) so that end users can inspect resolved source data without access to `vela-system`. Requires a focused design pass on the scope/access model and enforcement that definitions with any `// +sensitive` fields cannot opt into this.
-- **Garbage collection of old ConfigTemplate versions** — remove versioned `ConfigTemplate` entries once no `ApplicationRevision` references that Definition revision.
+- **`fromSource` in workflow steps and policies:** `fromSource` in component and trait properties is the highest priority and the scope of this KEP. The same mechanism can be extended to `workflow: steps[]` and policy properties; both have access to `spec.sources[]` and the declarative type-safety model applies equally. The critical requirement for this extension is that the `fromSource` resolution logic is implemented behind a reusable internal API, callable from any rendering context without duplicating the cache lookup, key computation, or CueX execution paths.
+- **Configurable Config namespace:** allow resolved Config objects that contain no `// +sensitive` fields to be written to a user-accessible namespace (e.g. the Application's namespace) so that end users can inspect resolved source data without access to `vela-system`. Requires a focused design pass on the scope/access model and enforcement that definitions with any `// +sensitive` fields cannot opt into this.
+- **Garbage collection of old ConfigTemplate versions:** remove versioned `ConfigTemplate` entries once no `ApplicationRevision` references that Definition revision.
 
 ## Cross-KEP References
 
 | KEP | Relationship |
 |---|---|
-| **KEP-2.18** (ConfigTemplate & Config CRDs) | Graduates ConfigTemplate and Config from labelled ConfigMap/Secret objects to first-class CRDs. `SourceDefinition` is transparent to this migration — see [KubeVela Config and ConfigTemplate](#kubevela-config-and-configtemplate). |
+| **KEP-2.18** (ConfigTemplate & Config CRDs) | Graduates ConfigTemplate and Config from labelled ConfigMap/Secret objects to first-class CRDs. `SourceDefinition` is transparent to this migration (see [KubeVela Config and ConfigTemplate](#kubevela-config-and-configtemplate)). |
 | **KEP-2.21** (`from*` resolution model) | KEP-2.21 defines the unified resolution model for all `from*` directives. `SourceDefinition` implements the `fromSource` case of that model. |
