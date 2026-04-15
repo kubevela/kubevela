@@ -1,0 +1,31 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: podinfo-health
+spec:
+  components:
+    - name: podinfo
+      type: helmchart
+      properties:
+        chart:
+          source: podinfo
+          repoURL: https://stefanprodan.github.io/podinfo
+          version: "6.11.1"
+        release:
+          name: podinfo
+          namespace: placeholder_ns
+        values:
+          replicaCount: 2
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 100m
+        healthStatus:
+          - resource:
+              kind: Deployment
+              name: podinfo
+            condition:
+              type: Available
+        options:
+          createNamespace: true
+          skipTests: true

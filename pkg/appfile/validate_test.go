@@ -1279,3 +1279,211 @@ func TestValidateCUESchematicAppfile_WorkflowSuppliedParams(t *testing.T) {
 		assert.NoError(t, err, "Should use existing param value, not augment from workflow")
 	})
 }
+
+func TestGetTypeDefault(t *testing.T) {
+	tests := []struct {
+		name     string
+		kind     cue.Kind
+		expected interface{}
+	}{
+		{"string", cue.StringKind, "__workflow_supplied__"},
+		{"float", cue.FloatKind, 0.0},
+		{"int", cue.IntKind, 0},
+		{"number", cue.NumberKind, 0},
+		{"bool", cue.BoolKind, false},
+		{"list", cue.ListKind, []interface{}{}},
+		{"struct", cue.StructKind, map[string]interface{}{}},
+		{"bottom (unknown)", cue.BottomKind, "__workflow_supplied__"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := getTypeDefault(tc.kind)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestGetDefaultForMissingParameter(t *testing.T) {
+	var r cue.Runtime
+
+	t.Run("simple string type should return string default", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string }`)
+		assert.NoError(t, err)
+		val := inst.Value().LookupPath(cue.ParsePath("parameter.name"))
+		canDefault, defaultVal := getDefaultForMissingParameter(val)
+		assert.True(t, canDefault)
+		assert.Equal(t, "__workflow_supplied__", defaultVal)
+	})
+
+	t.Run("simple int type should return 0", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { count: int }`)
+		assert.NoError(t, err)
+		val := inst.Value().LookupPath(cue.ParsePath("parameter.count"))
+		canDefault, defaultVal := getDefaultForMissingParameter(val)
+		assert.True(t, canDefault)
+		assert.Equal(t, 0, defaultVal)
+	})
+
+	t.Run("simple bool type should return false", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { enabled: bool }`)
+		assert.NoError(t, err)
+		val := inst.Value().LookupPath(cue.ParsePath("parameter.enabled"))
+		canDefault, defaultVal := getDefaultForMissingParameter(val)
+		assert.True(t, canDefault)
+		assert.Equal(t, false, defaultVal)
+	})
+
+	t.Run("field with default should use default", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { port: int | *80 }`)
+		assert.NoError(t, err)
+		val := inst.Value().LookupPath(cue.ParsePath("parameter.port"))
+		canDefault, _ := getDefaultForMissingParameter(val)
+		assert.True(t, canDefault)
+	})
+
+	t.Run("concrete value should return true with nil default", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { port: 80 }`)
+		assert.NoError(t, err)
+		val := inst.Value().LookupPath(cue.ParsePath("parameter.port"))
+		canDefault, defaultVal := getDefaultForMissingParameter(val)
+		assert.True(t, canDefault)
+		assert.Nil(t, defaultVal)
+	})
+
+	t.Run("enum disjunction should return first value", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { image: "nginx:latest" | "apache:latest" }`)
+		assert.NoError(t, err)
+		val := inst.Value().LookupPath(cue.ParsePath("parameter.image"))
+		canDefault, defaultVal := getDefaultForMissingParameter(val)
+		assert.True(t, canDefault)
+		assert.Equal(t, "nginx:latest", defaultVal)
+	})
+
+	t.Run("list type should be defaultable", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { tags: [...string] }`)
+		assert.NoError(t, err)
+		val := inst.Value().LookupPath(cue.ParsePath("parameter.tags"))
+		canDefault, _ := getDefaultForMissingParameter(val)
+		assert.True(t, canDefault)
+	})
+}
+
+func TestGetMapKeys(t *testing.T) {
+	t.Run("should return all keys", func(t *testing.T) {
+		m := map[string]interface{}{
+			"a": 1,
+			"b": 2,
+			"c": 3,
+		}
+		keys := getMapKeys(m)
+		assert.Len(t, keys, 3)
+		assert.ElementsMatch(t, []string{"a", "b", "c"}, keys)
+	})
+
+	t.Run("should return empty slice for empty map", func(t *testing.T) {
+		keys := getMapKeys(map[string]interface{}{})
+		assert.Empty(t, keys)
+	})
+}
+
+func TestGetWorkflowAndPolicySuppliedParams(t *testing.T) {
+	t.Run("should collect from workflow step inputs", func(t *testing.T) {
+		app := &Appfile{
+			WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{
+				{
+					WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+						Name: "step1",
+						Type: "apply-component",
+						Inputs: wfTypesv1alpha1.StepInputs{
+							{From: "dynamic", ParameterKey: "image"},
+							{From: "dynamic", ParameterKey: "port"},
+						},
+					},
+				},
+			},
+		}
+		result := getWorkflowAndPolicySuppliedParams(app)
+		assert.True(t, result["image"])
+		assert.True(t, result["port"])
+		assert.False(t, result["other"])
+	})
+
+	t.Run("should collect from override policies", func(t *testing.T) {
+		policyJSON := `{"components": [{"properties": {"image": "nginx:1.20", "replicas": 3}}]}`
+		app := &Appfile{
+			Policies: []v1beta1.AppPolicy{
+				{
+					Name: "override",
+					Type: "override",
+					Properties: &runtime.RawExtension{
+						Raw: []byte(policyJSON),
+					},
+				},
+			},
+		}
+		result := getWorkflowAndPolicySuppliedParams(app)
+		assert.True(t, result["image"])
+		assert.True(t, result["replicas"])
+	})
+
+	t.Run("should skip non-override policies", func(t *testing.T) {
+		app := &Appfile{
+			Policies: []v1beta1.AppPolicy{
+				{
+					Name: "topology",
+					Type: "topology",
+					Properties: &runtime.RawExtension{
+						Raw: []byte(`{"clusters": ["local"]}`),
+					},
+				},
+			},
+		}
+		result := getWorkflowAndPolicySuppliedParams(app)
+		assert.Empty(t, result)
+	})
+
+	t.Run("should return empty for empty appfile", func(t *testing.T) {
+		result := getWorkflowAndPolicySuppliedParams(&Appfile{})
+		assert.Empty(t, result)
+	})
+
+	t.Run("should skip malformed policy JSON gracefully", func(t *testing.T) {
+		app := &Appfile{
+			Policies: []v1beta1.AppPolicy{
+				{
+					Name: "bad-override",
+					Type: "override",
+					Properties: &runtime.RawExtension{
+						Raw: []byte(`{invalid json`),
+					},
+				},
+			},
+		}
+		result := getWorkflowAndPolicySuppliedParams(app)
+		assert.Empty(t, result)
+	})
+}
+
+func TestGetDeclaredFieldNames(t *testing.T) {
+	var r cue.Runtime
+
+	t.Run("should return all declared field names including optional", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: { name: string, label?: string, count: int }`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		declared := getDeclaredFieldNames(schema)
+		assert.True(t, declared["name"])
+		assert.True(t, declared["label"])
+		assert.True(t, declared["count"])
+		assert.False(t, declared["nonexistent"])
+	})
+
+	t.Run("should return empty map for non-struct", func(t *testing.T) {
+		inst, err := r.Compile("", `parameter: string`)
+		assert.NoError(t, err)
+		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
+		declared := getDeclaredFieldNames(schema)
+		assert.Empty(t, declared)
+	})
+}

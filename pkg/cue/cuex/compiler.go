@@ -17,10 +17,18 @@ limitations under the License.
 package cuex
 
 import (
+	"context"
+
 	"github.com/kubevela/pkg/cue/cuex"
+	"github.com/kubevela/pkg/cue/cuex/providers/base64"
+	cueext "github.com/kubevela/pkg/cue/cuex/providers/cue"
+	"github.com/kubevela/pkg/cue/cuex/providers/http"
+	"github.com/kubevela/pkg/cue/cuex/providers/kube"
 	"github.com/kubevela/pkg/util/singleton"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/config"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
 )
 
 // ConfigCompiler ...
@@ -28,5 +36,23 @@ var ConfigCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compile
 	compiler := cuex.NewCompilerWithInternalPackages(
 		config.Package,
 	)
+	return compiler
+})
+
+// WorkloadCompiler is the compiler for workload/component definitions
+var WorkloadCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compiler {
+	compiler := cuex.NewCompilerWithInternalPackages(
+		config.Package,
+		helm.Package,
+		base64.Package,
+		http.Package,
+		kube.Package,
+		cueext.Package,
+	)
+	if cuex.EnableExternalPackageForDefaultCompiler {
+		if err := compiler.LoadExternalPackages(context.Background()); err != nil {
+			klog.Errorf("failed to load external packages for workload compiler: %v", err.Error())
+		}
+	}
 	return compiler
 })

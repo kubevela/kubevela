@@ -1,0 +1,19 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: bad-chart
+spec:
+  components:
+    - name: nonexistent
+      type: helmchart
+      properties:
+        chart:
+          source: this-chart-does-not-exist-anywhere
+          repoURL: https://stefanprodan.github.io/podinfo
+          version: "99.99.99"
+        release:
+          name: nonexistent
+          namespace: placeholder_ns
+        options:
+          createNamespace: true
+          skipTests: true
