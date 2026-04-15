@@ -72,42 +72,52 @@ var _ = Describe("Application required-parameter validation", Ordered, func() {
 	// Scenario 1: missing parameter → expect failure
 	// -------------------------------------------------------------------------
 	It("fails when the required parameter is missing", func() {
-		app := appWithWorkflow.DeepCopy()
-		app.Name = "app-missing-param"
-		app.Namespace = nsName
+		// The webhook uses an informer-cached client. After creating the
+		// ComponentDefinition in BeforeAll the cache may not have synced yet,
+		// so retry until the webhook can actually find the definition and
+		// return the expected "missing parameters" validation error.
+		Eventually(func(g Gomega) {
+			app := appWithWorkflow.DeepCopy()
+			app.Name = "app-missing-param"
+			app.Namespace = nsName
 
-		err := k8sClient.Create(ctx, app)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring(fmt.Sprintf(`component %q: missing parameters: secondkey.value2.value3.value5`, "configmap-component")))
+			err := k8sClient.Create(ctx, app)
+			g.Expect(err).To(HaveOccurred())
+			g.Expect(err.Error()).To(ContainSubstring(fmt.Sprintf(`component %q: missing parameters: secondkey.value2.value3.value5`, "configmap-component")))
+		}, 30*time.Second, 2*time.Second).Should(Succeed())
 	})
 
 	// -------------------------------------------------------------------------
 	// Scenario 2: param provided via workflow → expect success
 	// -------------------------------------------------------------------------
 	It("succeeds when the parameter is provided in the workflow", func() {
-		app := appWithWorkflow.DeepCopy()
-		app.Name = "app-with-param-wf"
-		app.Namespace = nsName
+		Eventually(func() error {
+			app := appWithWorkflow.DeepCopy()
+			app.Name = "app-with-param-wf"
+			app.Namespace = nsName
 
-		// inject missing parameter
-		app.Spec.Workflow.Steps[0].Inputs = append(app.Spec.Workflow.Steps[0].Inputs,
-			wfTypesv1alpha1.InputItem{
-				ParameterKey: "secondkey.value2.value3.value5",
-				From:         "dummy",
-			})
+			// inject missing parameter
+			app.Spec.Workflow.Steps[0].Inputs = append(app.Spec.Workflow.Steps[0].Inputs,
+				wfTypesv1alpha1.InputItem{
+					ParameterKey: "secondkey.value2.value3.value5",
+					From:         "dummy",
+				})
 
-		Expect(k8sClient.Create(ctx, app)).To(Succeed())
+			return k8sClient.Create(ctx, app)
+		}, 30*time.Second, 2*time.Second).Should(Succeed())
 	})
 
 	// -------------------------------------------------------------------------
 	// Scenario 3: param provided via policy → expect success
 	// -------------------------------------------------------------------------
 	It("succeeds when the parameter is provided in a policy", func() {
-		app := appWithPolicy.DeepCopy()
-		app.Name = "app-with-param-policy"
-		app.Namespace = nsName
+		Eventually(func() error {
+			app := appWithPolicy.DeepCopy()
+			app.Name = "app-with-param-policy"
+			app.Namespace = nsName
 
-		Expect(k8sClient.Create(ctx, app)).To(Succeed())
+			return k8sClient.Create(ctx, app)
+		}, 30*time.Second, 2*time.Second).Should(Succeed())
 	})
 })
 

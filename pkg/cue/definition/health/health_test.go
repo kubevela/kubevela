@@ -100,6 +100,36 @@ func TestCheckHealth(t *testing.T) {
 	}
 }
 
+func TestCheckHealthErrors(t *testing.T) {
+	t.Run("empty template should return healthy", func(t *testing.T) {
+		healthy, err := CheckHealth(map[string]interface{}{}, "", nil)
+		assert.NoError(t, err)
+		assert.True(t, healthy)
+	})
+
+	t.Run("CUE compilation error should return false", func(t *testing.T) {
+		tpContext := map[string]interface{}{
+			"output": map[string]interface{}{},
+		}
+		// Invalid CUE syntax
+		healthy, err := CheckHealth(tpContext, "isHealth: {invalid cue", nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "compile health template")
+		assert.False(t, healthy)
+	})
+
+	t.Run("missing isHealth field should return error", func(t *testing.T) {
+		tpContext := map[string]interface{}{
+			"output": map[string]interface{}{},
+		}
+		// Valid CUE but no isHealth field
+		healthy, err := CheckHealth(tpContext, `someOtherField: true`, nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "evaluate health status")
+		assert.False(t, healthy)
+	})
+}
+
 func TestGetStatusMessage(t *testing.T) {
 	cases := map[string]struct {
 		tpContext  map[string]interface{}

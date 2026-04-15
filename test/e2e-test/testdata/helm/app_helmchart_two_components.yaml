@@ -1,0 +1,49 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: two-helm-components
+spec:
+  components:
+    - name: podinfo
+      type: helmchart
+      properties:
+        chart:
+          source: podinfo
+          repoURL: https://stefanprodan.github.io/podinfo
+          version: "6.11.1"
+        release:
+          name: podinfo
+          namespace: placeholder_ns_a
+        values:
+          replicaCount: 1
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 100m
+        options:
+          createNamespace: true
+          skipTests: true
+    - name: crossplane
+      type: helmchart
+      properties:
+        chart:
+          source: crossplane
+          repoURL: https://charts.crossplane.io/stable
+          version: "1.19.1"
+        release:
+          name: crossplane
+          namespace: placeholder_ns_b
+        values:
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          args:
+            - --debug=false
+        options:
+          createNamespace: true
+          includeCRDs: true
+          skipTests: true

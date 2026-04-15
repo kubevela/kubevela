@@ -167,7 +167,7 @@ func RequestReconcileNow(ctx context.Context, o client.Object) {
 		"app.oam.dev/requestreconcile": time.Now().String(),
 	})
 	oMeta.SetResourceVersion("")
-	By(fmt.Sprintf("Requset reconcile %q now", oMeta.GetName()))
+	By(fmt.Sprintf("Request reconcile %q now", oMeta.GetName()))
 	Expect(k8sClient.Patch(ctx, oCopy.(client.Object), client.Merge)).Should(Succeed())
 }
 

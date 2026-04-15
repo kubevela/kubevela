@@ -62,5 +62,7 @@ git-page/
 vela.json
 
 dist/
-.planning/
+
 .claude/
+.devcontainer/
+.mcp.json
