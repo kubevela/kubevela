@@ -55,9 +55,11 @@ func NewQlCommand(c common.Args, order string, ioStreams util.IOStreams) *cobra.
 	cmd := &cobra.Command{
 		Use:   "ql",
 		Short: "Show result of executing velaQL.",
-		Long: `Show result of executing velaQL, use it like:
-		vela ql --query "inner-view-name{param1=value1,param2=value2}"
-		vela ql --file ./ql.cue`,
+		Long: `Show result of executing velaQL, use it like:` +
+			"\n\n```\n" +
+			"vela ql --query \"inner-view-name{param1=value1,param2=value2}\"\n" +
+			"vela ql --file ./ql.cue\n" +
+			"```",
 		Example: `  Users can query with a query statement:
 		vela ql --query "inner-view-name{param1=value1,param2=value2}"
 
