@@ -211,9 +211,15 @@ func GetCUEParameterValue(cueStr string) (cue.Value, error) {
 	return val, nil
 }
 
-// GetCUExParameterValue converts definitions with cuex imports to cue format and extracts parameter field
-func GetCUExParameterValue(ctx context.Context, cueStr string) (cue.Value, error) {
-	template, err := cuex.DefaultCompiler.Get().CompileStringWithOptions(
+// GetCUExParameterValue converts definitions with cuex imports to cue format and extracts parameter field.
+// An optional *cuex.Compiler can be passed to override the default compiler (e.g. to use one that has
+// additional internal packages such as vela/builtin or vela/multicluster registered).
+func GetCUExParameterValue(ctx context.Context, cueStr string, compilers ...*cuex.Compiler) (cue.Value, error) {
+	compiler := cuex.DefaultCompiler.Get()
+	if len(compilers) > 0 && compilers[0] != nil {
+		compiler = compilers[0]
+	}
+	template, err := compiler.CompileStringWithOptions(
 		ctx,
 		cueStr+velacue.BaseTemplate,
 		cuex.DisableResolveProviderFunctions{},

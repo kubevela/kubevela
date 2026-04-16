@@ -68,6 +68,23 @@ func TestGenerateCUETemplateProperties(t *testing.T) {
 			},
 			expectErr: true,
 		},
+		{
+			name: "component definition with immutable parameter",
+			capability: &types.Capability{
+				Name: "test-immutable",
+				CueTemplate: `
+parameter: {
+	// +usage=The image to use
+	// +immutable
+	image: string
+	// +usage=The replica count
+	replicas: *1 | int
+}
+`,
+			},
+			expectedTables: 1,
+			expectErr:      false,
+		},
 	}
 
 	for _, tc := range testCases {
