@@ -72,15 +72,16 @@ const (
 
 // Parameter defines a parameter for cli from capability template
 type Parameter struct {
-	Name     string      `json:"name"`
-	Short    string      `json:"short,omitempty"`
-	Required bool        `json:"required,omitempty"`
-	Default  interface{} `json:"default,omitempty"`
-	Usage    string      `json:"usage,omitempty"`
-	Ignore   bool        `json:"ignore,omitempty"`
-	Type     cue.Kind    `json:"type,omitempty"`
-	Alias    string      `json:"alias,omitempty"`
-	JSONType string      `json:"jsonType,omitempty"`
+	Name      string      `json:"name"`
+	Short     string      `json:"short,omitempty"`
+	Required  bool        `json:"required,omitempty"`
+	Default   interface{} `json:"default,omitempty"`
+	Usage     string      `json:"usage,omitempty"`
+	Ignore    bool        `json:"ignore,omitempty"`
+	Type      cue.Kind    `json:"type,omitempty"`
+	Alias     string      `json:"alias,omitempty"`
+	JSONType  string      `json:"jsonType,omitempty"`
+	Immutable bool        `json:"immutable,omitempty"`
 }
 
 // Capability defines the content of a capability

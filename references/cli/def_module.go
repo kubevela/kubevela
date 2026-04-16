@@ -1963,8 +1963,8 @@ func NewDefinitionGenModuleCommand(_ common.Args, streams util.IOStreams) *cobra
 This command loads a Go definition module, compiles all definitions to CUE,
 and writes the generated CUE files to an output directory organized by type.
 
-Output structure:
-  <output>/
+Output structure:` + "\n\n```\n" +
+			`  <output>/
     components/
       webservice.cue
       worker.cue
@@ -1973,7 +1973,7 @@ Output structure:
     policies/
       topology.cue
     workflowsteps/
-      deploy.cue`,
+      deploy.cue` + "\n```",
 		Example: `# Generate CUE from a local module (output to ./cue-generated)
 > vela def gen-module ./my-definitions
 
