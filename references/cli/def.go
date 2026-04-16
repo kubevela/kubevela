@@ -1156,7 +1156,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 			"> vela def render my-webservice.cue -o my-webservice.yaml\n" +
 			"# Command below will render all CUE and Go definitions in the ./defs/ directory and save the YAML objects in ./defs/yaml/.\n" +
 			"> vela def render ./defs/ -o ./defs/yaml/\n" +
-			"# Command below will render all Go definitions in ./defs/ and save CUE output in ./defs/cue/.\n" +
+			"# Command below will render all CUE and Go definitions in ./defs/ and save CUE output in ./defs/cue/.\n" +
 			"> vela def render ./defs/ -o ./defs/cue/ --format cue",
 		Args: cobra.ExactArgs(1),
 		Annotations: map[string]string{

@@ -108,20 +108,22 @@ func TraitDef(ctx context.Context, c common.Args, opt Options) {
 		// Generate to default path depends on language
 		if opt.Location == "" || opt.Location == "en" {
 			ref.I18N = &docgen.En
-			if err := ref.GenerateReferenceDocs(ctx, c, TraitDefRefPath); err != nil {
+			path := opt.SiteBase() + "/docs/end-user/traits/references.md"
+			if err := ref.GenerateReferenceDocs(ctx, c, path); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			fmt.Printf("trait reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), TraitDefRefPath)
+			fmt.Printf("trait reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), path)
 		}
 		if opt.Location == "" || opt.Location == "zh" {
 			ref.I18N = &docgen.Zh
 			ref.CustomDocHeader = CustomTraitHeaderZH
-			if err := ref.GenerateReferenceDocs(ctx, c, TraitDefRefPathZh); err != nil {
+			path := opt.SiteBase() + "/i18n/zh/docusaurus-plugin-content-docs/current/end-user/traits/references.md"
+			if err := ref.GenerateReferenceDocs(ctx, c, path); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
-			fmt.Printf("trait reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), TraitDefRefPathZh)
+			fmt.Printf("trait reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), path)
 		}
 	}
 }

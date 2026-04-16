@@ -65,7 +65,7 @@ func GetParameters(templateStr string) ([]types.Parameter, error) {
 		if param.Default == nil {
 			param.Default = getDefaultByKind(param.Type)
 		}
-		param.Short, param.Usage, param.Alias, param.Ignore = RetrieveComments(val)
+		param.Short, param.Usage, param.Alias, param.Ignore, param.Immutable = RetrieveComments(val)
 
 		params = append(params, param)
 	}
@@ -110,7 +110,7 @@ func GetParametersWithCuex(ctx context.Context, templateStr string) ([]types.Par
 		if param.Default == nil {
 			param.Default = getDefaultByKind(param.Type)
 		}
-		param.Short, param.Usage, param.Alias, param.Ignore = RetrieveComments(val)
+		param.Short, param.Usage, param.Alias, param.Ignore, param.Immutable = RetrieveComments(val)
 
 		params = append(params, param)
 	}
@@ -172,12 +172,12 @@ const (
 	AliasPrefix = "+alias="
 	// IgnorePrefix defines parameter in system level which we don't want our end user to see for KubeVela CLI
 	IgnorePrefix = "+ignore"
+	// ImmutablePrefix marks a parameter field as immutable after initial set
+	ImmutablePrefix = "+immutable"
 )
 
-// RetrieveComments will retrieve Usage, Short, Alias and Ignore from CUE Value
-func RetrieveComments(value cue.Value) (string, string, string, bool) {
-	var short, usage, alias string
-	var ignore bool
+// RetrieveComments will retrieve Usage, Short, Alias, Ignore and Immutable from CUE Value
+func RetrieveComments(value cue.Value) (short, usage, alias string, ignore, immutable bool) {
 	docs := value.Doc()
 	for _, doc := range docs {
 		lines := strings.Split(doc.Text(), "\n")
@@ -197,9 +197,12 @@ func RetrieveComments(value cue.Value) (string, string, string, bool) {
 			if strings.HasPrefix(line, AliasPrefix) {
 				alias = strings.TrimPrefix(line, AliasPrefix)
 			}
+			if strings.HasPrefix(line, ImmutablePrefix) {
+				immutable = true
+			}
 		}
 	}
-	return short, usage, alias, ignore
+	return short, usage, alias, ignore, immutable
 }
 
 // IsFieldNotExist check whether the error type is the field not found

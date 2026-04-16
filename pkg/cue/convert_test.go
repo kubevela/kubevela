@@ -86,6 +86,31 @@ func TestGetParameter(t *testing.T) {
 	}
 	assert.Equal(t, flag, true)
 
+	// Test cue parameter with "// +immutable" annotation
+	immutableCUE := `
+parameter: {
+	// +usage=The image name
+	// +immutable
+	image: string
+	// +usage=The replica count
+	replicas: *1 | int
+}
+`
+	params, err = GetParameters(immutableCUE)
+	assert.NoError(t, err)
+	immutableFound := false
+	for _, para := range params {
+		if para.Name == "image" {
+			immutableFound = true
+			assert.True(t, para.Immutable, "image field should be marked immutable")
+			assert.Equal(t, "The image name", para.Usage)
+		}
+		if para.Name == "replicas" {
+			assert.False(t, para.Immutable, "replicas field should not be immutable")
+		}
+	}
+	assert.True(t, immutableFound, "Should find the immutable 'image' parameter")
+
 	// Test pattern parameter selectors which would cause panic with Unquoted()
 	data, _ = os.ReadFile("testdata/workloads/pattern-params.cue")
 	params, err = GetParameters(string(data))

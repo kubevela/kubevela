@@ -108,19 +108,21 @@ func ComponentDef(ctx context.Context, c common.Args, opt Options) {
 	}
 	if opt.Location == "" || opt.Location == "en" {
 		ref.I18N = &docgen.En
-		if err := ref.GenerateReferenceDocs(ctx, c, ComponentDefRefPath); err != nil {
+		path := opt.SiteBase() + "/docs/end-user/components/references.md"
+		if err := ref.GenerateReferenceDocs(ctx, c, path); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		fmt.Printf("component reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), ComponentDefRefPath)
+		fmt.Printf("component reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), path)
 	}
 	if opt.Location == "" || opt.Location == "zh" {
 		ref.I18N = &docgen.Zh
 		ref.CustomDocHeader = CustomComponentHeaderZH
-		if err := ref.GenerateReferenceDocs(ctx, c, ComponentDefRefPathZh); err != nil {
+		path := opt.SiteBase() + "/i18n/zh/docusaurus-plugin-content-docs/current/end-user/components/references.md"
+		if err := ref.GenerateReferenceDocs(ctx, c, path); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		fmt.Printf("component reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), ComponentDefRefPathZh)
+		fmt.Printf("component reference docs (%s) successfully generated in %s \n", ref.I18N.Language(), path)
 	}
 }

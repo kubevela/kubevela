@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	ast2 "github.com/oam-dev/kubevela/pkg/definition/ast"
@@ -413,6 +414,7 @@ func ValidDefinitionTypes() []string {
 	for k := range DefinitionTypeToKind {
 		types = append(types, k)
 	}
+	sort.Strings(types)
 	return types
 }
 

@@ -184,6 +184,10 @@ var i18nDoc = map[string]map[Language]string{
 		LangZh: "默认值",
 		LangEn: "Default",
 	},
+	"Immutable": {
+		LangZh: "不可变",
+		LangEn: "Immutable",
+	},
 	"Apply To Component Types": {
 		LangZh: "适用于组件类型",
 		LangEn: "Apply To Component Types",
