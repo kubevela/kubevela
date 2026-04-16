@@ -417,6 +417,26 @@ parameter: {
 	assert.Equal(t, 2, fieldCount, "should have 2 parameter fields: name and config")
 }
 
+func TestGetCUExParameterValueWithCustomCompiler(t *testing.T) {
+	ctx := context.Background()
+
+	var validCueStr = `
+parameter: {
+	name: string
+}
+`
+	// Pass the default compiler explicitly - exercises the custom compiler path
+	compiler := cuex.DefaultCompiler.Get()
+	val, err := GetCUExParameterValue(ctx, validCueStr, compiler)
+	assert.NoError(t, err, "should work with explicit compiler")
+	assert.True(t, val.Exists(), "parameter value should exist")
+
+	// Passing nil compiler falls back to default
+	val, err = GetCUExParameterValue(ctx, validCueStr, nil)
+	assert.NoError(t, err, "nil compiler should fall back to default")
+	assert.True(t, val.Exists(), "parameter value should exist with nil compiler")
+}
+
 func TestGenOpenAPI(t *testing.T) {
 	type want struct {
 		targetSchemaFile string
