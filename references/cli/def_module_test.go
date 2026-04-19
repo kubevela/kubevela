@@ -27,6 +27,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	velaversion "github.com/oam-dev/kubevela/version"
 )
 
 func TestNewDefinitionApplyModuleCommand(t *testing.T) {
@@ -390,7 +391,7 @@ func TestInitModuleGoModContent(t *testing.T) {
 
 	contentStr := string(content)
 	assert.Contains(t, contentStr, "module github.com/myorg/custom-module")
-	assert.Contains(t, contentStr, "require github.com/oam-dev/kubevela")
+	assert.Contains(t, contentStr, "require github.com/oam-dev/kubevela "+velaversion.ModuleRequireVersion())
 }
 
 func TestInitModuleDefaultValues(t *testing.T) {
