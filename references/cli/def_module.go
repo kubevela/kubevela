@@ -1701,14 +1701,16 @@ spec:
 `, opts.name, desc)
 }
 
-// generateGoMod generates the go.mod content
+// generateGoMod generates the go.mod content. The kubevela require version
+// tracks the running binary's build-time version so scaffolded modules pin the
+// SDK matching the tool that generated them.
 func generateGoMod(opts initModuleOptions) string {
 	return fmt.Sprintf(`module %s
 
 go 1.23.8
 
-require github.com/oam-dev/kubevela v1.9.0
-`, opts.goModule)
+require github.com/oam-dev/kubevela %s
+`, opts.goModule, velaversion.ModuleRequireVersion())
 }
 
 // generateModuleReadme generates the README.md content

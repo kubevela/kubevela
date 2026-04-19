@@ -43,6 +43,27 @@ func TestGetVersion(t *testing.T) {
 	assert.Equal(t, "1.2.0", version)
 }
 
+func TestModuleRequireVersion(t *testing.T) {
+	origVersion := VelaVersion
+	t.Cleanup(func() { VelaVersion = origVersion })
+
+	tests := []struct {
+		name string
+		set  string
+		want string
+	}{
+		{"release build", "v1.10.0", "v1.10.0"},
+		{"dev build default", "UNKNOWN", defaultModuleRequireVersion},
+		{"makefile default", "master", defaultModuleRequireVersion},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			VelaVersion = tt.set
+			assert.Equal(t, tt.want, ModuleRequireVersion())
+		})
+	}
+}
+
 func TestShouldUseLegacyHelmRepo(t *testing.T) {
 	tests := []struct {
 		ver  string
