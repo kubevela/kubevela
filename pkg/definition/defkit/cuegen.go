@@ -140,6 +140,15 @@ func (g *CUEGenerator) detectRequiredImports(c *ComponentDefinition) {
 		g.collectImportsFromValue(helper.Collection())
 	}
 
+	// Check parameters for import requirements (e.g. StringParam with MinLen/MaxLen needs "strings")
+	for _, param := range c.GetParams() {
+		if ir, ok := param.(ImportRequirer); ok {
+			for _, imp := range ir.RequiredImports() {
+				g.addImportIfMissing(imp)
+			}
+		}
+	}
+
 	// Check resource operations in output
 	if output := tpl.GetOutput(); output != nil {
 		g.collectImportsFromResource(output)
