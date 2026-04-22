@@ -1085,6 +1085,48 @@ var _ = Describe("Parameters", func() {
 		})
 	})
 
+	Context("StringParam RequiredImports", func() {
+		It("should return nil when neither MinLen nor MaxLen is set", func() {
+			p := defkit.String("name")
+			Expect(p.RequiredImports()).To(BeNil())
+		})
+
+		It("should return [strings] when only MinLen is set", func() {
+			p := defkit.String("name").MinLen(3)
+			Expect(p.RequiredImports()).To(Equal([]string{"strings"}))
+		})
+
+		It("should return [strings] when only MaxLen is set", func() {
+			p := defkit.String("name").MaxLen(63)
+			Expect(p.RequiredImports()).To(Equal([]string{"strings"}))
+		})
+
+		It("should return [strings] when both MinLen and MaxLen are set", func() {
+			p := defkit.String("name").MinLen(1).MaxLen(63)
+			Expect(p.RequiredImports()).To(Equal([]string{"strings"}))
+		})
+
+		It("should return nil when only Pattern is set (no stdlib call)", func() {
+			p := defkit.String("name").Pattern("^[a-z]+$")
+			Expect(p.RequiredImports()).To(BeNil())
+		})
+
+		It("should return nil when only NotEmpty is set (no stdlib call)", func() {
+			p := defkit.String("name").NotEmpty()
+			Expect(p.RequiredImports()).To(BeNil())
+		})
+
+		It("should return nil when only Values is set (no stdlib call)", func() {
+			p := defkit.String("level").Values("info", "debug")
+			Expect(p.RequiredImports()).To(BeNil())
+		})
+
+		It("should still return [strings] when MinLen is combined with other constraints", func() {
+			p := defkit.String("name").NotEmpty().Pattern("^[a-z]+$").MinLen(3)
+			Expect(p.RequiredImports()).To(Equal([]string{"strings"}))
+		})
+	})
+
 	Context("ArrayParam NotEmpty elements", func() {
 		It("should default to false", func() {
 			p := defkit.StringList("tags")

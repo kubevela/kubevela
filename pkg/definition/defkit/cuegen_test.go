@@ -910,6 +910,105 @@ var _ = Describe("CUEGenerator", func() {
 
 			Expect(cue).To(ContainSubstring("strings"))
 		})
+
+		It("should detect strings import from StringParam.MinLen", func() {
+			hostname := defkit.String("hostname").MinLen(1)
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(hostname).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", hostname),
+					)
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).To(ContainSubstring(`import "strings"`))
+			Expect(cue).To(ContainSubstring("strings.MinRunes(1)"))
+		})
+
+		It("should detect strings import from StringParam.MaxLen", func() {
+			hostname := defkit.String("hostname").MaxLen(63)
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(hostname).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", hostname),
+					)
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).To(ContainSubstring(`import "strings"`))
+			Expect(cue).To(ContainSubstring("strings.MaxRunes(63)"))
+		})
+
+		It("should detect strings import when both MinLen and MaxLen are set", func() {
+			hostname := defkit.String("hostname").
+				Pattern("^[a-z0-9-]+$").
+				MinLen(1).
+				MaxLen(63)
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(hostname).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", hostname),
+					)
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).To(ContainSubstring(`import "strings"`))
+			Expect(cue).To(ContainSubstring("strings.MinRunes(1)"))
+			Expect(cue).To(ContainSubstring("strings.MaxRunes(63)"))
+			// Only one import statement, not duplicated
+			Expect(strings.Count(cue, `import "strings"`)).To(Equal(1))
+		})
+
+		It("should not emit strings import when no param uses MinLen/MaxLen", func() {
+			name := defkit.String("name")
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(name).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", name),
+					)
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).NotTo(ContainSubstring(`import "strings"`))
+			Expect(cue).NotTo(ContainSubstring("strings.MinRunes"))
+			Expect(cue).NotTo(ContainSubstring("strings.MaxRunes"))
+		})
+
+		It("should detect strings import even when MinLen param is not referenced in template", func() {
+			// The param is declared but the template doesn't reference it — the
+			// import must still be emitted because the parameter schema uses it.
+			hostname := defkit.String("hostname").MinLen(1).MaxLen(63)
+			name := defkit.String("name")
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(hostname, name).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", name),
+					)
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).To(ContainSubstring(`import "strings"`))
+		})
 	})
 
 	Describe("GenerateFullDefinition with ConditionalOrFieldRef", func() {
