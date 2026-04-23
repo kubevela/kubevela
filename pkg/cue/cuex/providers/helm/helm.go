@@ -1468,6 +1468,16 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 			releaseNamespace = renderParams.Release.Namespace
 		}
 	}
+	// Guarantee a non-empty release namespace. Under the normal KubeVela
+	// code path the controller always sets Context.AppNamespace before
+	// calling Render, but callers that invoke the provider directly (tests,
+	// CLI tooling) may leave both context and Release.Namespace empty.
+	// Falling back to "default" preserves the pre-refactor behavior and
+	// keeps Helm's namespace resolution from depending on the caller's
+	// kubeconfig default.
+	if releaseNamespace == "" {
+		releaseNamespace = "default"
+	}
 	if appNamespace == "" {
 		appNamespace = releaseNamespace
 	}

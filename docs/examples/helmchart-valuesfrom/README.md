@@ -84,16 +84,11 @@ content-hash name and point the Application at it.
 - [`secret-and-inline.yaml`](./secret-and-inline.yaml) — three-layer merge:
   chart defaults → ConfigMap → Secret → inline.
 
-Apply either alongside its ConfigMap/Secret:
+Each file is self-contained (the ConfigMap/Secret is bundled alongside the
+Application). Apply with:
 
 ```bash
 kubectl apply -f configmap-backed.yaml
-```
-
-`secret-and-inline.yaml` expects a `podinfo-creds` Secret in the same
-namespace. Create it first, e.g.:
-
-```bash
-kubectl create secret generic podinfo-creds \
-  --from-literal='values.yaml=replicaCount: 4'
+# or
+kubectl apply -f secret-and-inline.yaml
 ```
