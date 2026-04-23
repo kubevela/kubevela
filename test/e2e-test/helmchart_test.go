@@ -215,7 +215,7 @@ func runCommandSucceed(name string, args ...string) string {
 
 var _ = Describe("Helmchart Self-Healing", func() {
 
-	Context("Scenario 1: Delete a Single Managed Resource (Deployment)", Ordered, func() {
+	Context("Delete a Single Managed Resource (Deployment)", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -257,7 +257,7 @@ var _ = Describe("Helmchart Self-Healing", func() {
 		})
 	})
 
-	Context("Scenario 2: Helm Uninstall the Release", Ordered, func() {
+	Context("Helm Uninstall the Release", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -301,7 +301,7 @@ var _ = Describe("Helmchart Self-Healing", func() {
 		})
 	})
 
-	Context("Scenario 3: Delete ONLY the Helm Release Secret", Ordered, func() {
+	Context("Delete ONLY the Helm Release Secret", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -358,7 +358,7 @@ var _ = Describe("Helmchart Self-Healing", func() {
 		})
 	})
 
-	Context("Scenario 4: Mutate a Managed Resource (Scale Deployment)", Ordered, func() {
+	Context("Mutate a Managed Resource (Scale Deployment)", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -393,7 +393,7 @@ var _ = Describe("Helmchart Self-Healing", func() {
 		})
 	})
 
-	Context("Scenario 5: Add Extra Annotation/Label", Ordered, func() {
+	Context("Add Extra Annotation/Label", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -426,7 +426,7 @@ var _ = Describe("Helmchart Self-Healing", func() {
 		})
 	})
 
-	Context("Scenario 6: Delete the Application CR", Ordered, func() {
+	Context("Delete the Application CR", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanupNamespaceOnly() })
@@ -483,7 +483,7 @@ var _ = Describe("Helmchart Self-Healing", func() {
 		})
 	})
 
-	Context("Scenario 7: Delete a Non-Deployment Resource (Service)", Ordered, func() {
+	Context("Delete a Non-Deployment Resource (Service)", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -523,7 +523,7 @@ var _ = Describe("Helmchart Self-Healing", func() {
 		})
 	})
 
-	Context("Scenario 8: Delete the Namespace", Ordered, func() {
+	Context("Delete the Namespace", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -572,7 +572,7 @@ var _ = Describe("Helmchart Self-Healing", func() {
 		})
 	})
 
-	Context("Scenario 9: Corrupt the Helm Release Secret", Ordered, func() {
+	Context("Corrupt the Helm Release Secret", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -632,7 +632,7 @@ var _ = Describe("Helmchart Self-Healing", func() {
 
 var _ = Describe("Helmchart Adoption & Takeover", func() {
 
-	Context("Scenario 10: Adopt an Existing Vanilla Helm Release", Ordered, func() {
+	Context("Adopt an Existing Vanilla Helm Release", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -682,7 +682,7 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 		})
 	})
 
-	Context("Scenario 11: Adopt Release with Different Values", Ordered, func() {
+	Context("Adopt Release with Different Values", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -734,7 +734,7 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 		})
 	})
 
-	Context("Scenario 12: Re-adopt After Application Deletion", Ordered, func() {
+	Context("Re-adopt After Application Deletion", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanupNamespaceOnly() })
@@ -778,7 +778,7 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 
 var _ = Describe("Helmchart State Integrity", func() {
 
-	Context("Scenario 13: Upgrade History Preserved Across Multiple Changes", Ordered, func() {
+	Context("Upgrade History Preserved Across Multiple Changes", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -819,7 +819,7 @@ var _ = Describe("Helmchart State Integrity", func() {
 
 var _ = Describe("Helmchart Destructive & Chaos", func() {
 
-	Context("Scenario 14: Two Applications Targeting Same Release Name", Ordered, func() {
+	Context("Two Applications Targeting Same Release Name", Ordered, func() {
 		h := newHelmTestContext()
 		var appB *v1beta1.Application
 		BeforeAll(func() { h.createNamespace() })
@@ -869,7 +869,7 @@ var _ = Describe("Helmchart Destructive & Chaos", func() {
 
 var _ = Describe("Helmchart Resource Ordering", func() {
 
-	Context("Scenario 15: Chart with CRDs (crossplane)", Ordered, func() {
+	Context("Chart with CRDs (crossplane)", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanupNamespaceOnly() })
@@ -951,7 +951,7 @@ spec:
 		})
 	})
 
-	Context("Scenario 16: Chart with Namespaces (createNamespace)", Ordered, func() {
+	Context("Chart with Namespaces (createNamespace)", Ordered, func() {
 		h := newHelmTestContext()
 		AfterAll(func() { h.cleanup() })
 
@@ -975,7 +975,7 @@ spec:
 
 var _ = Describe("Helmchart Health Checks", func() {
 
-	Context("Scenario 17: Custom Health Check — Deployment Available", Ordered, func() {
+	Context("Custom Health Check — Deployment Available", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -1007,7 +1007,7 @@ var _ = Describe("Helmchart Health Checks", func() {
 		})
 	})
 
-	Context("Scenario 18: Custom Health Check — Multiple Criteria (Two Components)", Ordered, func() {
+	Context("Custom Health Check — Multiple Criteria (Two Components)", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -1055,7 +1055,7 @@ var _ = Describe("Helmchart Health Checks", func() {
 		})
 	})
 
-	Context("Scenario 19: No Health Check Defined", Ordered, func() {
+	Context("No Health Check Defined", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -1073,7 +1073,7 @@ var _ = Describe("Helmchart Health Checks", func() {
 
 var _ = Describe("Helmchart Edge Cases", func() {
 
-	Context("Scenario 20: Empty Values", Ordered, func() {
+	Context("Empty Values", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -1090,7 +1090,7 @@ var _ = Describe("Helmchart Edge Cases", func() {
 		})
 	})
 
-	Context("Scenario 21: Namespace Does Not Exist and createNamespace=false", Ordered, func() {
+	Context("Namespace Does Not Exist and createNamespace=false", Ordered, func() {
 		h := &helmTestContext{
 			ctx:          context.Background(),
 			namespace:    "nonexistent-ns-" + rand.RandomString(4),
@@ -1126,7 +1126,7 @@ var _ = Describe("Helmchart Edge Cases", func() {
 		})
 	})
 
-	Context("Scenario 22: Chart Not Found in Repository", Ordered, func() {
+	Context("Chart Not Found in Repository", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() {
@@ -1164,7 +1164,7 @@ var _ = Describe("Helmchart Edge Cases", func() {
 		})
 	})
 
-	Context("Scenario 23: Invalid Chart Version", Ordered, func() {
+	Context("Invalid Chart Version", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -1225,7 +1225,7 @@ var _ = Describe("Helmchart Edge Cases", func() {
 		})
 	})
 
-	Context("Scenario 24: Two helmchart Components in Same Application", Ordered, func() {
+	Context("Two helmchart Components in Same Application", Ordered, func() {
 		h := newHelmTestContext()
 		nsA := "helm-multi-a-" + rand.RandomString(4)
 		nsB := "helm-multi-b-" + rand.RandomString(4)
@@ -1364,7 +1364,7 @@ var _ = Describe("Helmchart Edge Cases", func() {
 		})
 	})
 
-	Context("Scenario 25: Helm Release Exists with Different Chart", Ordered, func() {
+	Context("Helm Release Exists with Different Chart", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -1418,7 +1418,7 @@ var _ = Describe("Helmchart Edge Cases", func() {
 		})
 	})
 
-	Context("Scenario 26: Apply Same Application Twice Without Changes", Ordered, func() {
+	Context("Apply Same Application Twice Without Changes", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -1455,6 +1455,590 @@ var _ = Describe("Helmchart Edge Cases", func() {
 			deploy = &appsv1.Deployment{}
 			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
 			Expect(deploy.ResourceVersion).Should(Equal(initialResourceVersion))
+		})
+	})
+})
+
+// ============================================================================
+// valuesFrom Tests Scenarios
+// ============================================================================
+
+var _ = Describe("Helmchart valuesFrom", func() {
+
+	createCM := func(h *helmTestContext, name, key, valuesYAML string) {
+		if key == "" {
+			key = "values.yaml"
+		}
+		cm := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: h.namespace},
+			Data:       map[string]string{key: valuesYAML},
+		}
+		Expect(k8sClient.Create(h.ctx, cm)).Should(Succeed())
+	}
+
+	createCMWithReplicas := func(h *helmTestContext, name string, replicaCount int) {
+		createCM(h, name, "", fmt.Sprintf("replicaCount: %d\n", replicaCount))
+	}
+
+	createCMInNamespace := func(h *helmTestContext, name, ns, valuesYAML string) {
+		cm := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+			Data:       map[string]string{"values.yaml": valuesYAML},
+		}
+		Expect(k8sClient.Create(h.ctx, cm)).Should(Succeed())
+	}
+
+	createSecret := func(h *helmTestContext, name, valuesYAML string) {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: h.namespace},
+			Data:       map[string][]byte{"values.yaml": []byte(valuesYAML)},
+		}
+		Expect(k8sClient.Create(h.ctx, secret)).Should(Succeed())
+	}
+
+	createSecretWithReplicas := func(h *helmTestContext, name string, replicaCount int) {
+		createSecret(h, name, fmt.Sprintf("replicaCount: %d\n", replicaCount))
+	}
+
+	buildPodinfoComponent := func(h *helmTestContext, componentName, releaseName string, props map[string]interface{}) common2.ApplicationComponent {
+		merged := map[string]interface{}{
+			"chart": map[string]interface{}{
+				"source":  "podinfo",
+				"repoURL": "https://stefanprodan.github.io/podinfo",
+				"version": "6.11.1",
+			},
+			"release": map[string]interface{}{
+				"name":      releaseName,
+				"namespace": h.namespace,
+			},
+			"options": map[string]interface{}{
+				"createNamespace": true,
+				"skipTests":       true,
+			},
+		}
+		for k, v := range props {
+			merged[k] = v
+		}
+		raw, err := json.Marshal(merged)
+		Expect(err).ShouldNot(HaveOccurred())
+		return common2.ApplicationComponent{
+			Name:       componentName,
+			Type:       "helmchart",
+			Properties: &runtime.RawExtension{Raw: raw},
+		}
+	}
+
+	deployAppWithComponents := func(h *helmTestContext, appNamePrefix string, comps []common2.ApplicationComponent) {
+		h.app = &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appNamePrefix + "-" + rand.RandomString(4),
+				Namespace: h.appNamespace,
+			},
+			Spec: v1beta1.ApplicationSpec{Components: comps},
+		}
+		Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
+		h.appKey = client.ObjectKeyFromObject(h.app)
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+			g.Expect(h.app.Status.Phase).Should(Equal(common2.ApplicationRunning))
+		}, 120*time.Second, 3*time.Second).Should(Succeed())
+	}
+
+	deployPodinfo := func(h *helmTestContext, appNamePrefix, releaseName string, props map[string]interface{}) {
+		comp := buildPodinfoComponent(h, "podinfo", releaseName, props)
+		deployAppWithComponents(h, appNamePrefix, []common2.ApplicationComponent{comp})
+	}
+
+	deployPodinfoExpectWorkflowFailure := func(h *helmTestContext, appNamePrefix, releaseName string, props map[string]interface{}, errSubstring string) {
+		comp := buildPodinfoComponent(h, "podinfo", releaseName, props)
+		h.app = &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appNamePrefix + "-" + rand.RandomString(4),
+				Namespace: h.appNamespace,
+			},
+			Spec: v1beta1.ApplicationSpec{Components: []common2.ApplicationComponent{comp}},
+		}
+		Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
+		h.appKey = client.ObjectKeyFromObject(h.app)
+
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+			g.Expect(h.app.Status.Workflow).ToNot(BeNil())
+			g.Expect(string(h.app.Status.Workflow.Phase)).To(Equal("failed"))
+			var found bool
+			for _, step := range h.app.Status.Workflow.Steps {
+				if strings.Contains(step.Message, errSubstring) {
+					found = true
+					break
+				}
+			}
+			g.Expect(found).To(BeTrue(),
+				"no workflow step contained %q; status=%+v", errSubstring, h.app.Status.Workflow)
+		}, 180*time.Second, 5*time.Second).Should(Succeed())
+
+		err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &appsv1.Deployment{})
+		Expect(err).To(HaveOccurred(), "no Deployment should exist for a failed workflow")
+	}
+
+	waitForReplicas := func(h *helmTestContext, want int32) {
+		Eventually(func(g Gomega) {
+			deploy := &appsv1.Deployment{}
+			g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
+			g.Expect(deploy.Status.ReadyReplicas).Should(Equal(want))
+		}, 120*time.Second, 3*time.Second).Should(Succeed())
+	}
+
+	waitForNamedReplicas := func(h *helmTestContext, deployName string, want int32) {
+		Eventually(func(g Gomega) {
+			deploy := &appsv1.Deployment{}
+			g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: deployName}, deploy)).Should(Succeed())
+			g.Expect(deploy.Status.ReadyReplicas).Should(Equal(want))
+		}, 120*time.Second, 3*time.Second).Should(Succeed())
+	}
+
+	cmRef := func(name string, opts ...map[string]interface{}) map[string]interface{} {
+		entry := map[string]interface{}{"kind": "ConfigMap", "name": name}
+		for _, o := range opts {
+			for k, v := range o {
+				entry[k] = v
+			}
+		}
+		return entry
+	}
+	secretRef := func(name string, opts ...map[string]interface{}) map[string]interface{} {
+		entry := map[string]interface{}{"kind": "Secret", "name": name}
+		for _, o := range opts {
+			for k, v := range o {
+				entry[k] = v
+			}
+		}
+		return entry
+	}
+
+	Context("Values from ConfigMap", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should merge values from the referenced ConfigMap", func() {
+			createCMWithReplicas(h, "podinfo-values", 3)
+			deployPodinfo(h, "s27", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{cmRef("podinfo-values")},
+			})
+			waitForReplicas(h, 3)
+		})
+	})
+
+	Context("Values from Secret", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should merge values from the referenced Secret", func() {
+			createSecretWithReplicas(h, "podinfo-values", 2)
+			deployPodinfo(h, "s28", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{secretRef("podinfo-values")},
+			})
+			waitForReplicas(h, 2)
+		})
+	})
+
+	Context("Inline values override ConfigMap-supplied values", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should use inline replicaCount when it also appears in the ConfigMap", func() {
+			createCMWithReplicas(h, "podinfo-values", 2)
+			deployPodinfo(h, "s29", "podinfo", map[string]interface{}{
+				"values":     map[string]interface{}{"replicaCount": 4},
+				"valuesFrom": []interface{}{cmRef("podinfo-values")},
+			})
+			waitForReplicas(h, 4)
+		})
+	})
+
+	Context("Optional missing valuesFrom source is skipped", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should deploy successfully even when the optional ConfigMap is missing", func() {
+			deployPodinfo(h, "s30", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{
+					cmRef("never-created", map[string]interface{}{"optional": true}),
+				},
+			})
+			waitForReplicas(h, 1) // chart default
+		})
+	})
+
+	Context("Required missing valuesFrom source fails the workflow with a clear error", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should fail the workflow and surface the missing-CM error", func() {
+			deployPodinfoExpectWorkflowFailure(h, "s31", "podinfo",
+				map[string]interface{}{
+					"valuesFrom": []interface{}{cmRef("never-created")},
+				},
+				`ConfigMap "never-created"`)
+		})
+	})
+
+	Context("Invalid YAML in a source is never swallowed by optional:true", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should surface the parse error even when the source is marked optional", func() {
+			createCM(h, "podinfo-bad-yaml", "", "replicaCount: [unterminated")
+			deployPodinfoExpectWorkflowFailure(h, "s32", "podinfo",
+				map[string]interface{}{
+					"valuesFrom": []interface{}{
+						cmRef("podinfo-bad-yaml", map[string]interface{}{"optional": true}),
+					},
+				},
+				"invalid YAML")
+		})
+	})
+
+	Context("Custom key selects the right values.yaml inside a multi-env ConfigMap", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should use the specified key and ignore other keys in the ConfigMap", func() {
+			cm := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "podinfo-multi-env-values", Namespace: h.namespace},
+				Data: map[string]string{
+					"dev.yaml":  "replicaCount: 1\n",
+					"prod.yaml": "replicaCount: 5\n",
+				},
+			}
+			Expect(k8sClient.Create(h.ctx, cm)).Should(Succeed())
+			deployPodinfo(h, "s33", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{
+					cmRef("podinfo-multi-env-values", map[string]interface{}{"key": "prod.yaml"}),
+				},
+			})
+			waitForReplicas(h, 5)
+		})
+	})
+
+	Context("Cross-namespace valuesFrom references are rejected", Ordered, func() {
+		h := newHelmTestContext()
+		otherNS := "helm-other-tenant-" + rand.RandomString(4)
+		BeforeAll(func() {
+			h.createNamespace()
+			ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: otherNS}}
+			Expect(k8sClient.Create(h.ctx, ns)).Should(Succeed())
+			// Put a real ConfigMap in the other namespace so the failure is
+			// due to the cross-namespace guard, not a NotFound.
+			createCMInNamespace(h, "podinfo-values", otherNS, "replicaCount: 3\n")
+		})
+		AfterAll(func() {
+			h.cleanup()
+			ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: otherNS}}
+			_ = k8sClient.Delete(h.ctx, ns, client.PropagationPolicy(metav1.DeletePropagationForeground))
+		})
+
+		It("should fail the workflow when valuesFrom.namespace != Application namespace", func() {
+			deployPodinfoExpectWorkflowFailure(h, "s34", "podinfo",
+				map[string]interface{}{
+					"valuesFrom": []interface{}{
+						cmRef("podinfo-values", map[string]interface{}{"namespace": otherNS}),
+					},
+				},
+				"cross-namespace valuesFrom")
+		})
+	})
+
+	Context("Two ConfigMaps in valuesFrom — later overrides earlier on conflict", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should resolve replicaCount to the later CM's value", func() {
+			createCMWithReplicas(h, "podinfo-base-values", 2)
+			createCMWithReplicas(h, "podinfo-overlay-values", 4)
+			deployPodinfo(h, "s35", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{
+					cmRef("podinfo-base-values"),
+					cmRef("podinfo-overlay-values"),
+				},
+			})
+			waitForReplicas(h, 4)
+		})
+	})
+
+	Context("Deep merge preserves orthogonal nested keys across sources", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should keep base sibling keys when the overlay touches only one field in a nested map", func() {
+			createCM(h, "podinfo-base-values", "", `resources:
+  limits:
+    cpu: 100m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+replicaCount: 2
+`)
+			createCM(h, "podinfo-overlay-values", "", `resources:
+  limits:
+    memory: 512Mi
+`)
+			deployPodinfo(h, "s36", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{
+					cmRef("podinfo-base-values"),
+					cmRef("podinfo-overlay-values"),
+				},
+			})
+			waitForReplicas(h, 2)
+			deploy := &appsv1.Deployment{}
+			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
+			limits := deploy.Spec.Template.Spec.Containers[0].Resources.Limits
+			requests := deploy.Spec.Template.Spec.Containers[0].Resources.Requests
+			Expect(limits.Memory().String()).To(Equal("512Mi"),
+				"overlay memory should win on direct conflict")
+			Expect(limits.Cpu().String()).To(Equal("100m"),
+				"base cpu should survive because overlay only touched memory")
+			Expect(requests.Cpu().String()).To(Equal("50m"),
+				"untouched requests.cpu from base must survive")
+		})
+	})
+
+	Context("Mixed ConfigMap and Secret in the same valuesFrom list", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should merge values from a ConfigMap followed by a Secret", func() {
+			createCM(h, "podinfo-cm-values", "", "replicaCount: 2\nimage:\n  tag: 6.11.0\n")
+			createSecret(h, "podinfo-secret-values", "replicaCount: 3\n")
+			deployPodinfo(h, "s37", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{
+					cmRef("podinfo-cm-values"),
+					secretRef("podinfo-secret-values"),
+				},
+			})
+			waitForReplicas(h, 3)
+		})
+	})
+
+	Context("Two Secrets in valuesFrom — later overrides earlier", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should resolve conflicts between two Secrets with later-wins", func() {
+			createSecretWithReplicas(h, "podinfo-secret-a", 1)
+			createSecretWithReplicas(h, "podinfo-secret-b", 4)
+			deployPodinfo(h, "s38", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{
+					secretRef("podinfo-secret-a"),
+					secretRef("podinfo-secret-b"),
+				},
+			})
+			waitForReplicas(h, 4)
+		})
+	})
+
+	Context("Application with only valuesFrom and no inline values", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should deploy using values sourced entirely from the ConfigMap", func() {
+			createCMWithReplicas(h, "podinfo-values", 2)
+			deployPodinfo(h, "s39", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{cmRef("podinfo-values")},
+			})
+			waitForReplicas(h, 2)
+		})
+	})
+
+	Context("Empty valuesFrom list behaves like no valuesFrom", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should deploy at chart defaults when valuesFrom is an empty list", func() {
+			deployPodinfo(h, "s40", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{},
+			})
+			waitForReplicas(h, 1) // chart default
+		})
+	})
+
+	Context("Optional missing source is skipped, subsequent required source is still applied", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should skip the missing optional CM and use the following required CM's values", func() {
+			createCMWithReplicas(h, "podinfo-real-values", 3)
+			deployPodinfo(h, "s41", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{
+					cmRef("never-created", map[string]interface{}{"optional": true}),
+					cmRef("podinfo-real-values"),
+				},
+			})
+			waitForReplicas(h, 3)
+		})
+	})
+
+	Context("Non-existent explicit namespace fails required lookup cleanly", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should fail with a not-found error referencing the missing namespace", func() {
+			deployPodinfoExpectWorkflowFailure(h, "s42", "podinfo",
+				map[string]interface{}{
+					"valuesFrom": []interface{}{
+						cmRef("any-cm", map[string]interface{}{"namespace": "does-not-exist-ns"}),
+					},
+				},
+				"does-not-exist-ns")
+		})
+	})
+
+	Context("Array values are replaced wholesale by the later source (Helm semantics)", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should drop base array entries when the overlay sets the same array", func() {
+			createCM(h, "podinfo-extraargs-base", "",
+				"extraArgs:\n  - --level=debug\n  - --timeout=30\n")
+			createCM(h, "podinfo-extraargs-overlay", "",
+				"extraArgs:\n  - --level=info\n")
+			deployPodinfo(h, "s43", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{
+					cmRef("podinfo-extraargs-base"),
+					cmRef("podinfo-extraargs-overlay"),
+				},
+			})
+			waitForReplicas(h, 1)
+
+			deploy := &appsv1.Deployment{}
+			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
+			// podinfo 6.11.1 renders extraArgs into the container's .command
+			// (appended to ["./podinfo", "--port=...", ...]). Check both command
+			// and args to stay robust against chart layout changes.
+			c := deploy.Spec.Template.Spec.Containers[0]
+			joined := strings.Join(c.Command, " ") + " " + strings.Join(c.Args, " ")
+			Expect(joined).To(ContainSubstring("--level=info"),
+				"overlay array value must appear in the container's command/args")
+			Expect(joined).ToNot(ContainSubstring("--level=debug"),
+				"base array value must NOT appear — arrays are replaced not merged")
+			Expect(joined).ToNot(ContainSubstring("--timeout=30"),
+				"base orthogonal array item must NOT appear — arrays are replaced wholesale")
+		})
+	})
+
+	Context("valuesFrom combined with healthStatus criteria", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should reach healthy state using CM-supplied replicaCount", func() {
+			createCMWithReplicas(h, "podinfo-values", 2)
+			deployPodinfo(h, "s44", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{cmRef("podinfo-values")},
+				"healthStatus": []interface{}{
+					map[string]interface{}{
+						"resource":  map[string]interface{}{"kind": "Deployment", "name": "podinfo"},
+						"condition": map[string]interface{}{"type": "Available"},
+					},
+				},
+			})
+			waitForReplicas(h, 2)
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+				g.Expect(h.app.Status.Services).ShouldNot(BeEmpty())
+				g.Expect(h.app.Status.Services[0].Healthy).Should(BeTrue())
+			}, 120*time.Second, 3*time.Second).Should(Succeed())
+		})
+	})
+
+	Context("Two helmchart components, each with its own valuesFrom source", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should render each component independently without cross-contamination", func() {
+			createCMWithReplicas(h, "podinfo-a-values", 2)
+			createSecretWithReplicas(h, "podinfo-b-values", 3)
+			compA := buildPodinfoComponent(h, "podinfo-a", "podinfo-a", map[string]interface{}{
+				"valuesFrom": []interface{}{cmRef("podinfo-a-values")},
+			})
+			compB := buildPodinfoComponent(h, "podinfo-b", "podinfo-b", map[string]interface{}{
+				"valuesFrom": []interface{}{secretRef("podinfo-b-values")},
+			})
+			deployAppWithComponents(h, "s45", []common2.ApplicationComponent{compA, compB})
+			waitForNamedReplicas(h, "podinfo-a", 2)
+			waitForNamedReplicas(h, "podinfo-b", 3)
+		})
+	})
+
+	Context("Self-healing restores a CM-backed Deployment after manual delete", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should initially deploy with CM-sourced replicaCount", func() {
+			createCMWithReplicas(h, "podinfo-values", 3)
+			deployPodinfo(h, "s46", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{cmRef("podinfo-values")},
+			})
+			waitForReplicas(h, 3)
+		})
+
+		It("should recreate the Deployment with the same CM values after it is deleted", func() {
+			runCommandSucceed("kubectl", "delete", "deployment", "podinfo", "-n", h.namespace)
+			Eventually(func() bool {
+				err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &appsv1.Deployment{})
+				return err != nil
+			}, 10*time.Second, time.Second).Should(BeTrue())
+
+			RequestReconcileNow(h.ctx, h.app)
+			waitForReplicas(h, 3)
+		})
+	})
+
+	Context("Adoption of an existing vanilla Helm release with valuesFrom", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("should adopt the pre-existing release and merge CM values on the adoption upgrade", func() {
+			By("Installing podinfo via vanilla helm at replicaCount=1")
+			runCommandSucceed("helm", "install", "podinfo",
+				"--repo", "https://stefanprodan.github.io/podinfo", "podinfo",
+				"--version", "6.11.1", "--set", "replicaCount=1", "-n", h.namespace)
+			Eventually(func(g Gomega) {
+				d := &appsv1.Deployment{}
+				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
+				g.Expect(d.Status.ReadyReplicas).Should(Equal(int32(1)))
+			}, 60*time.Second, 3*time.Second).Should(Succeed())
+
+			By("Creating CM with replicaCount=3 and applying the Application (adoption path)")
+			createCMWithReplicas(h, "podinfo-adopt-values", 3)
+			deployPodinfo(h, "s47", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{cmRef("podinfo-adopt-values")},
+			})
+
+			By("Verifying adoption applied CM values (replicas scaled 1→3) and injected KubeVela labels")
+			waitForReplicas(h, 3)
+			deploy := &appsv1.Deployment{}
+			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
+			Expect(deploy.GetLabels()).To(HaveKey("app.oam.dev/name"),
+				"adoption must inject KubeVela ownership labels on the Deployment")
 		})
 	})
 })

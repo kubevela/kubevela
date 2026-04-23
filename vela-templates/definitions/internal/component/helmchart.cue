@@ -108,19 +108,22 @@ template: {
 			namespace?: string | *context.namespace
 		}
 
-		// Inline values (highest priority)
+		// +usage=Inline values merged with the highest priority; override everything in valuesFrom.
 		values?: {...}
 
-		// Value sources (merged in order) - TODO: Not yet implemented
-		// valuesFrom?: [...{
-		// 	kind: "Secret" | "ConfigMap" | "OCIRepository"
-		// 	name: string
-		// 	namespace?: string
-		// 	key?: string        // Specific key in ConfigMap/Secret
-		// 	url?: string        // For OCIRepository
-		// 	tag?: string        // For OCIRepository
-		// 	optional?: bool | *false // Don't fail if source doesn't exist
-		// }]
+		// +usage=Additional values sources merged in array order. Later entries override earlier ones on conflict, and inline `values` override everything in valuesFrom. Deep-merges map keys; arrays are replaced (not concatenated); null is preserved. Sources are read once per reconcile — editing a referenced ConfigMap/Secret does NOT trigger a new reconcile, so bump the Application spec to roll out new values.
+		valuesFrom?: [...{
+			// +usage=Source kind. Only Secret and ConfigMap are supported; OCIRepository is reserved for a future release.
+			kind: "Secret" | "ConfigMap"
+			// +usage=Name of the Secret or ConfigMap.
+			name: string
+			// +usage=Namespace of the Secret or ConfigMap. Defaults to the Application's own namespace. Cross-namespace references are rejected to prevent cross-tenant reads via the controller's cluster-wide RBAC.
+			namespace?: string
+			// +usage=Key inside .data whose value is parsed as YAML. Defaults to "values.yaml" (FluxCD / Helm convention).
+			key?: string
+			// +usage=If true, a missing Secret/ConfigMap or missing key is skipped silently. Parse errors and permission errors still fail the render.
+			optional?: bool | *false
+		}]
 
 		// Health status criteria - defines when the Helm deployment is considered healthy
 		healthStatus?: [...{
@@ -236,10 +239,9 @@ template: {
 				values: parameter.values
 			}
 
-			// TODO: valuesFrom not yet implemented
-			// if parameter.valuesFrom != _|_ {
-			// 	valuesFrom: parameter.valuesFrom
-			// }
+			if parameter.valuesFrom != _|_ {
+				valuesFrom: parameter.valuesFrom
+			}
 			options: _options
 
 			// Pass KubeVela ownership context so the provider can inject labels
