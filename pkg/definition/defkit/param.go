@@ -233,6 +233,15 @@ func (p *StringParam) GetMaxLen() *int {
 	return p.maxLen
 }
 
+// RequiredImports returns the CUE imports needed by this parameter's constraints.
+// MinLen/MaxLen generate strings.MinRunes()/strings.MaxRunes() which require "strings".
+func (p *StringParam) RequiredImports() []string {
+	if p.minLen != nil || p.maxLen != nil {
+		return []string{"strings"}
+	}
+	return nil
+}
+
 // NotEmpty adds a non-empty string constraint.
 // This generates CUE like: string & !=""
 func (p *StringParam) NotEmpty() *StringParam {
