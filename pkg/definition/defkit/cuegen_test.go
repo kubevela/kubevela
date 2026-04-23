@@ -925,7 +925,7 @@ var _ = Describe("CUEGenerator", func() {
 
 			cue := gen.GenerateFullDefinition(comp)
 
-			Expect(cue).To(ContainSubstring(`import "strings"`))
+			Expect(cue).To(MatchRegexp(`import\s+\(\s+"strings"\s+\)`))
 			Expect(cue).To(ContainSubstring("strings.MinRunes(1)"))
 		})
 
@@ -943,7 +943,7 @@ var _ = Describe("CUEGenerator", func() {
 
 			cue := gen.GenerateFullDefinition(comp)
 
-			Expect(cue).To(ContainSubstring(`import "strings"`))
+			Expect(cue).To(MatchRegexp(`import\s+\(\s+"strings"\s+\)`))
 			Expect(cue).To(ContainSubstring("strings.MaxRunes(63)"))
 		})
 
@@ -964,11 +964,11 @@ var _ = Describe("CUEGenerator", func() {
 
 			cue := gen.GenerateFullDefinition(comp)
 
-			Expect(cue).To(ContainSubstring(`import "strings"`))
+			Expect(cue).To(MatchRegexp(`import\s+\(\s+"strings"\s+\)`))
 			Expect(cue).To(ContainSubstring("strings.MinRunes(1)"))
 			Expect(cue).To(ContainSubstring("strings.MaxRunes(63)"))
-			// Only one import statement, not duplicated
-			Expect(strings.Count(cue, `import "strings"`)).To(Equal(1))
+			// Only one import of "strings", not duplicated
+			Expect(strings.Count(cue, `"strings"`)).To(Equal(1))
 		})
 
 		It("should not emit strings import when no param uses MinLen/MaxLen", func() {
@@ -985,7 +985,7 @@ var _ = Describe("CUEGenerator", func() {
 
 			cue := gen.GenerateFullDefinition(comp)
 
-			Expect(cue).NotTo(ContainSubstring(`import "strings"`))
+			Expect(cue).NotTo(MatchRegexp(`import\s+\(\s+"strings"\s+\)`))
 			Expect(cue).NotTo(ContainSubstring("strings.MinRunes"))
 			Expect(cue).NotTo(ContainSubstring("strings.MaxRunes"))
 		})
@@ -1007,7 +1007,7 @@ var _ = Describe("CUEGenerator", func() {
 
 			cue := gen.GenerateFullDefinition(comp)
 
-			Expect(cue).To(ContainSubstring(`import "strings"`))
+			Expect(cue).To(MatchRegexp(`import\s+\(\s+"strings"\s+\)`))
 		})
 	})
 
