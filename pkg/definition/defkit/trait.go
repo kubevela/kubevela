@@ -700,16 +700,20 @@ func (g *TraitCUEGenerator) writeUnifiedTemplate(sb *strings.Builder, t *TraitDe
 		sb.WriteString("\n")
 	}
 
-	// Generate outputs block if present
-	if outputs := tpl.GetOutputs(); len(outputs) > 0 {
-		outputNames := sortedKeys(outputs)
+	// Generate outputs block if either plain Outputs or grouped OutputsGroupIf
+	// entries exist. Gating solely on len(outputs) > 0 would silently drop a
+	// trait that uses only OutputsGroupIf with no plain Outputs sibling.
+	outputs := tpl.GetOutputs()
+	outputGroups := tpl.GetOutputGroups()
+	if len(outputs) > 0 || len(outputGroups) > 0 {
 		sb.WriteString(fmt.Sprintf("%soutputs: {\n", indent))
-		for _, name := range outputNames {
-			res := outputs[name]
-			g.writeTraitResourceOutput(sb, gen, name, res, depth+1)
+		if len(outputs) > 0 {
+			for _, name := range sortedKeys(outputs) {
+				res := outputs[name]
+				g.writeTraitResourceOutput(sb, gen, name, res, depth+1)
+			}
 		}
-		// Render output groups (multiple outputs under one condition)
-		for _, group := range tpl.GetOutputGroups() {
+		for _, group := range outputGroups {
 			condStr := gen.conditionToCUE(group.cond)
 			sb.WriteString(fmt.Sprintf("%s\tif %s {\n", indent, condStr))
 			for _, gName := range sortedKeys(group.outputs) {

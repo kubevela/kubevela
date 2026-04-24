@@ -876,6 +876,156 @@ var _ = Describe("CUEGenerator", func() {
 		})
 	})
 
+	Describe("GenerateFullDefinition with OutputsGroupIf", func() {
+		It("should render a grouped if block with multiple outputs on a component", func() {
+			enabled := defkit.Bool("enabled")
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(enabled).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", defkit.VelaCtx().Name()),
+					)
+					tpl.OutputsGroupIf(defkit.Eq(enabled, defkit.Lit(true)), func(g *defkit.OutputGroup) {
+						g.Add("service", defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+						g.Add("ingress", defkit.NewResource("networking.k8s.io/v1", "Ingress").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).To(ContainSubstring("outputs: {"))
+			Expect(cue).To(ContainSubstring("if parameter.enabled == true {"))
+			Expect(cue).To(ContainSubstring("service: {"))
+			Expect(cue).To(ContainSubstring("ingress: {"))
+
+			ifIdx := strings.Index(cue, "if parameter.enabled == true {")
+			svcIdx := strings.Index(cue, "service: {")
+			ingIdx := strings.Index(cue, "ingress: {")
+			Expect(ifIdx).To(BeNumerically(">=", 0))
+			Expect(ifIdx).To(BeNumerically("<", ingIdx))
+			Expect(ifIdx).To(BeNumerically("<", svcIdx))
+			Expect(ingIdx).To(BeNumerically("<", svcIdx))
+		})
+
+		It("should render plain Outputs before grouped outputs", func() {
+			enabled := defkit.Bool("enabled")
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(enabled).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", defkit.VelaCtx().Name()),
+					)
+					tpl.Outputs("configmap",
+						defkit.NewResource("v1", "ConfigMap").
+							Set("metadata.name", defkit.VelaCtx().Name()),
+					)
+					tpl.OutputsGroupIf(defkit.Eq(enabled, defkit.Lit(true)), func(g *defkit.OutputGroup) {
+						g.Add("service", defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			cmIdx := strings.Index(cue, "configmap: {")
+			ifIdx := strings.Index(cue, "if parameter.enabled == true {")
+			svcIdx := strings.Index(cue, "service: {")
+			Expect(cmIdx).To(BeNumerically(">=", 0))
+			Expect(ifIdx).To(BeNumerically(">=", 0))
+			Expect(svcIdx).To(BeNumerically(">=", 0))
+			Expect(cmIdx).To(BeNumerically("<", ifIdx))
+			Expect(ifIdx).To(BeNumerically("<", svcIdx))
+		})
+
+		It("should render multiple OutputsGroupIf blocks independently", func() {
+			enabled := defkit.Bool("enabled")
+			debug := defkit.Bool("debug")
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(enabled, debug).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", defkit.VelaCtx().Name()),
+					)
+					tpl.OutputsGroupIf(defkit.Eq(enabled, defkit.Lit(true)), func(g *defkit.OutputGroup) {
+						g.Add("service", defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+					tpl.OutputsGroupIf(defkit.Eq(debug, defkit.Lit(true)), func(g *defkit.OutputGroup) {
+						g.Add("debug-cm", defkit.NewResource("v1", "ConfigMap").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).To(ContainSubstring("if parameter.enabled == true {"))
+			Expect(cue).To(ContainSubstring("if parameter.debug == true {"))
+			Expect(cue).To(ContainSubstring("service: {"))
+			Expect(cue).To(ContainSubstring("debug-cm"))
+		})
+
+		It("should render an outputs block even with only grouped outputs (no plain Outputs)", func() {
+			enabled := defkit.Bool("enabled")
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(enabled).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", defkit.VelaCtx().Name()),
+					)
+					tpl.OutputsGroupIf(defkit.Eq(enabled, defkit.Lit(true)), func(g *defkit.OutputGroup) {
+						g.Add("service", defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+						g.Add("ingress", defkit.NewResource("networking.k8s.io/v1", "Ingress").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).To(ContainSubstring("outputs: {"))
+			Expect(cue).To(ContainSubstring("if parameter.enabled == true {"))
+			Expect(cue).To(ContainSubstring("service: {"))
+			Expect(cue).To(ContainSubstring("ingress: {"))
+		})
+
+		It("should render grouped output names sorted alphabetically", func() {
+			enabled := defkit.Bool("enabled")
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(enabled).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", defkit.VelaCtx().Name()),
+					)
+					tpl.OutputsGroupIf(defkit.Eq(enabled, defkit.Lit(true)), func(g *defkit.OutputGroup) {
+						g.Add("z-ingress", defkit.NewResource("networking.k8s.io/v1", "Ingress").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+						g.Add("a-svc", defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			aIdx := strings.Index(cue, "a-svc")
+			zIdx := strings.Index(cue, "z-ingress")
+			Expect(aIdx).To(BeNumerically(">=", 0))
+			Expect(zIdx).To(BeNumerically(">=", 0))
+			Expect(aIdx).To(BeNumerically("<", zIdx))
+		})
+	})
+
 	Describe("Import detection", func() {
 		It("should detect strconv import from FormatInt", func() {
 			port := defkit.Int("port")
