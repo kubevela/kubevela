@@ -1849,6 +1849,90 @@ template: {
 		})
 	})
 
+	Context("OutputsGroupIf with no plain Outputs sibling", func() {
+		It("should render an outputs block for a trait with only grouped outputs", func() {
+			trait := defkit.NewTrait("tls-companions").
+				Description("Attach TLS companion resources").
+				Params(defkit.Bool("tlsEnabled").Default(false)).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().Set("spec.replicas", defkit.Lit(1))
+					tpl.OutputsGroupIf(defkit.PathExists("parameter.tlsEnabled"), func(g *defkit.OutputGroup) {
+						g.Add("tls-secret", defkit.NewResource("v1", "Secret").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+						g.Add("tls-cm", defkit.NewResource("v1", "ConfigMap").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("outputs: {"))
+			Expect(cue).To(ContainSubstring("if parameter.tlsEnabled != _|_ {"))
+			Expect(cue).To(ContainSubstring("tls-cm"))
+			Expect(cue).To(ContainSubstring("tls-secret"))
+
+			cmIdx := strings.Index(cue, "tls-cm")
+			secIdx := strings.Index(cue, "tls-secret")
+			Expect(cmIdx).To(BeNumerically(">=", 0))
+			Expect(secIdx).To(BeNumerically(">=", 0))
+			Expect(cmIdx).To(BeNumerically("<", secIdx))
+		})
+
+		It("should render multiple independent OutputsGroupIf blocks with no plain outputs", func() {
+			trait := defkit.NewTrait("multi-group").
+				Description("Multiple grouped outputs").
+				Params(
+					defkit.Bool("tlsEnabled").Default(false),
+					defkit.Bool("tracingEnabled").Default(false),
+				).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().Set("spec.replicas", defkit.Lit(1))
+					tpl.OutputsGroupIf(defkit.PathExists("parameter.tlsEnabled"), func(g *defkit.OutputGroup) {
+						g.Add("tls-secret", defkit.NewResource("v1", "Secret").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+					tpl.OutputsGroupIf(defkit.PathExists("parameter.tracingEnabled"), func(g *defkit.OutputGroup) {
+						g.Add("tracing-cm", defkit.NewResource("v1", "ConfigMap").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring("outputs: {"))
+			Expect(cue).To(ContainSubstring("if parameter.tlsEnabled != _|_ {"))
+			Expect(cue).To(ContainSubstring("if parameter.tracingEnabled != _|_ {"))
+			Expect(cue).To(ContainSubstring("tls-secret"))
+			Expect(cue).To(ContainSubstring("tracing-cm"))
+		})
+
+		It("should render plain Outputs before grouped outputs on a trait", func() {
+			trait := defkit.NewTrait("mixed").
+				Description("Mix plain and grouped outputs").
+				Params(defkit.Bool("extras").Default(false)).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().Set("spec.replicas", defkit.Lit(1))
+					tpl.Outputs("always-cm", defkit.NewResource("v1", "ConfigMap").
+						Set("metadata.name", defkit.VelaCtx().Name()))
+					tpl.OutputsGroupIf(defkit.PathExists("parameter.extras"), func(g *defkit.OutputGroup) {
+						g.Add("extra-secret", defkit.NewResource("v1", "Secret").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := trait.ToCue()
+
+			alwaysIdx := strings.Index(cue, "always-cm")
+			ifIdx := strings.Index(cue, "if parameter.extras != _|_ {")
+			extraIdx := strings.Index(cue, "extra-secret")
+			Expect(alwaysIdx).To(BeNumerically(">=", 0))
+			Expect(ifIdx).To(BeNumerically(">=", 0))
+			Expect(extraIdx).To(BeNumerically(">=", 0))
+			Expect(alwaysIdx).To(BeNumerically("<", ifIdx))
+			Expect(ifIdx).To(BeNumerically("<", extraIdx))
+		})
+	})
+
 	Context("TemplateBlock with labels", func() {
 		It("should render sorted labels when using TemplateBlock", func() {
 			result := defkit.NewTrait("scaler").

@@ -433,17 +433,37 @@ func (g *CUEGenerator) GenerateTemplate(c *ComponentDefinition) string {
 		g.writeHelper(&sb, helper, 1)
 	}
 
-	// Generate outputs block for auxiliary resources
-	if outputs := tpl.GetOutputs(); len(outputs) > 0 {
-		outputNames := make([]string, 0, len(outputs))
-		for name := range outputs {
-			outputNames = append(outputNames, name)
-		}
-		sort.Strings(outputNames)
+	// Generate outputs block for auxiliary resources.
+	// Includes plain outputs (Outputs/OutputsIf) and grouped outputs (OutputsGroupIf),
+	// which share a single `if cond { ... }` wrapper inside the outputs block.
+	outputs := tpl.GetOutputs()
+	outputGroups := tpl.GetOutputGroups()
+	if len(outputs) > 0 || len(outputGroups) > 0 {
 		sb.WriteString(fmt.Sprintf("%soutputs: {\n", g.indent))
-		for _, name := range outputNames {
-			res := outputs[name]
-			g.writeResourceOutput(&sb, name, res, res.outputCondition, 2)
+		if len(outputs) > 0 {
+			outputNames := make([]string, 0, len(outputs))
+			for name := range outputs {
+				outputNames = append(outputNames, name)
+			}
+			sort.Strings(outputNames)
+			for _, name := range outputNames {
+				res := outputs[name]
+				g.writeResourceOutput(&sb, name, res, res.outputCondition, 2)
+			}
+		}
+		for _, group := range outputGroups {
+			condStr := g.conditionToCUE(group.cond)
+			sb.WriteString(fmt.Sprintf("%s%sif %s {\n", g.indent, g.indent, condStr))
+			gNames := make([]string, 0, len(group.outputs))
+			for gName := range group.outputs {
+				gNames = append(gNames, gName)
+			}
+			sort.Strings(gNames)
+			for _, gName := range gNames {
+				gRes := group.outputs[gName]
+				g.writeResourceOutput(&sb, gName, gRes, nil, 3)
+			}
+			sb.WriteString(fmt.Sprintf("%s%s}\n", g.indent, g.indent))
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 	}
