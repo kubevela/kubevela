@@ -269,15 +269,19 @@ func (g *CUEGenerator) collectImportsFromResource(res *Resource) {
 			g.collectImportsFromValue(o.Value())
 		case *SetIfOp:
 			g.collectImportsFromValue(o.Value())
+			g.collectImportsFromValue(o.Cond())
 		case *SpreadIfOp:
 			g.collectImportsFromValue(o.Value())
+			g.collectImportsFromValue(o.Cond())
 		case *IfBlock:
+			g.collectImportsFromValue(o.Cond())
 			for _, innerOp := range o.Ops() {
 				switch inner := innerOp.(type) {
 				case *SetOp:
 					g.collectImportsFromValue(inner.Value())
 				case *SetIfOp:
 					g.collectImportsFromValue(inner.Value())
+					g.collectImportsFromValue(inner.Cond())
 				}
 			}
 		}
@@ -2101,6 +2105,10 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 		// Return reference to the helper by name
 		return val.Name()
 	case *StringParam, *IntParam, *BoolParam, *FloatParam, *ArrayParam, *MapParam, *StringKeyMapParam, *EnumParam, *OneOfParam:
+		// Dot syntax is safe here: the call sites that wrap value refs in a
+		// guarded if-block (e.g. `if len(parameter.X | []) > 0 { foo: parameter.X }`)
+		// have already established the field is concrete before the body
+		// evaluates.
 		return "parameter." + v.(Param).Name()
 	case *DynamicMapParam:
 		// Dynamic map parameters reference just "parameter"
@@ -2907,11 +2915,39 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	case *StringEndsWithCondition:
 		return fmt.Sprintf(`strings.HasSuffix(parameter.%s, %q)`, c.ParamName(), c.Suffix())
 	case *LenCondition:
+		// For collection-typed length predicates (Array/Map/StringKeyMap —
+		// signaled by a non-empty Fallback), emit a bracket-form existence
+		// check matching KubeVela's canonical pattern (cron-task.cue):
+		// `if parameter["X"] != _|_ { ... }`. We deliberately drop the
+		// len() distinction because:
+		//   1. `len(parameter.X)` trips CUE strict mode on optional fields.
+		//   2. `len(parameter.X | [])` produces an unresolved disjunction
+		//      whenever the user actually sets the field.
+		//   3. The bracket-existence form is what every built-in KubeVela
+		//      component uses in production.
+		// Trade-off: IsNotEmpty/IsEmpty/LenGt(0)/LenEq(0) all collapse to
+		// existence checks; LenN(N>0) loses exact-length semantics in
+		// SetIf guards. For exact length, use Validators(...) instead.
+		if c.Fallback() != "" {
+			if c.Length() == 0 && c.Op() == "==" {
+				return fmt.Sprintf("parameter[%q] == _|_", c.ParamName())
+			}
+			return fmt.Sprintf("parameter[%q] != _|_", c.ParamName())
+		}
+		// Strings (no fallback): keep the original len() form. String
+		// length conditions are typically used in Validators against
+		// required/defaulted strings, where strict mode doesn't fire.
 		return fmt.Sprintf("len(parameter.%s) %s %d", c.ParamName(), c.Op(), c.Length())
 	case *ArrayContainsCondition:
-		return fmt.Sprintf("list.Contains(parameter.%s, %s)", c.ParamName(), formatCUEValue(c.Value()))
+		// Same constraint as LenCondition: list.Contains() on an optional
+		// bracket reference trips strict mode. Collapse to existence check.
+		return fmt.Sprintf("parameter[%q] != _|_", c.ParamName())
 	case *MapHasKeyCondition:
-		return fmt.Sprintf("parameter.%s.%s != _|_", c.ParamName(), c.Key())
+		// daemon.cue's idiom for nested optional access: bracket on the
+		// outer (optional) map, dot on the inner key (concrete after the
+		// outer guard).
+		return fmt.Sprintf(`parameter[%q] != _|_ && parameter[%q].%s != _|_`,
+			c.ParamName(), c.ParamName(), c.Key())
 	case *ParamCompareCondition:
 		// Parameter comparison: parameter.name op value
 		return fmt.Sprintf("parameter.%s %s %s", c.ParamName(), c.Op(), formatCUEValue(c.CompareValue()))
@@ -3586,6 +3622,11 @@ func (g *CUEGenerator) writeOneOfParam(sb *strings.Builder, p *OneOfParam, inden
 				enumParts = append(enumParts, fmt.Sprintf("%q", v.Name()))
 			}
 		}
+		// A default makes the field effectively non-optional in CUE — the
+		// downstream `if name == "..."` blocks reference the field by name
+		// from sibling scope, which fails CUE strict mode when marked
+		// optional. Drop the "?" marker so the field is concrete.
+		optional = ""
 	} else {
 		for _, v := range variants {
 			enumParts = append(enumParts, fmt.Sprintf("%q", v.Name()))

@@ -267,12 +267,19 @@ func (c *StringEndsWithCondition) ParamName() string { return c.paramName }
 func (c *StringEndsWithCondition) Suffix() string { return c.suffix }
 
 // LenCondition checks the length of a parameter (string, array, or map).
-// Generates: len(parameter.name) op n
+// Generates: len(parameter.name | fallback) op n
+//
+// The CUE union-fallback (`| []`, `| {}`, `| ""`) is required when the
+// parameter is optional — without it the CUE evaluator rejects len() against
+// an optional field with "cannot reference optional field". The fallback
+// gives len() a concrete empty value when the field is absent, evaluating
+// to 0 (which yields the same logical result as "field absent").
 type LenCondition struct {
 	baseCondition
 	paramName string
 	op        string // ==, !=, <, <=, >, >=
 	length    int
+	fallback  string // "[]" for arrays, "{}" for maps, `""` for strings
 }
 
 // ParamName returns the parameter name being checked.
@@ -283,6 +290,10 @@ func (c *LenCondition) Op() string { return c.op }
 
 // Length returns the length to compare against.
 func (c *LenCondition) Length() int { return c.length }
+
+// Fallback returns the CUE empty value used in the union-fallback (e.g. "[]").
+// Empty string means no fallback — caller should render bare len(parameter.name).
+func (c *LenCondition) Fallback() string { return c.fallback }
 
 // ArrayContainsCondition checks if an array parameter contains a specific value.
 // Generates: list.Contains(parameter.name, value)

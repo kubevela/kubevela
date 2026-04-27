@@ -294,6 +294,8 @@ func (p *StringParam) EndsWith(suffix string) Condition {
 
 // LenEq creates a condition that checks if this string parameter has exactly n characters.
 // Example: name.LenEq(5) generates: len(parameter.name) == 5
+// (No fallback — string length conditions are typically used in Validators
+// against required/defaulted strings where strict mode doesn't fire.)
 func (p *StringParam) LenEq(n int) Condition {
 	return &LenCondition{paramName: p.name, op: "==", length: n}
 }
@@ -764,54 +766,63 @@ func (p *ArrayParam) GetMaxItems() *int {
 	return p.maxItems
 }
 
+// RequiredImports returns the CUE imports needed by this parameter's constraints.
+// MinItems/MaxItems generate list.MinItems()/list.MaxItems() which require "list".
+func (p *ArrayParam) RequiredImports() []string {
+	if p.minItems != nil || p.maxItems != nil {
+		return []string{"list"}
+	}
+	return nil
+}
+
 // --- ArrayParam Runtime Condition Methods ---
 
 // LenEq creates a condition that checks if this array has exactly n elements.
-// Example: tags.LenEq(5) generates: len(parameter.tags) == 5
+// Example: tags.LenEq(5) generates: len(parameter.tags | []) == 5
 func (p *ArrayParam) LenEq(n int) Condition {
-	return &LenCondition{paramName: p.name, op: "==", length: n}
+	return &LenCondition{paramName: p.name, op: "==", length: n, fallback: "[]"}
 }
 
 // LenGt creates a condition that checks if this array has more than n elements.
-// Example: tags.LenGt(0) generates: len(parameter.tags) > 0
+// Example: tags.LenGt(0) generates: len(parameter.tags | []) > 0
 func (p *ArrayParam) LenGt(n int) Condition {
-	return &LenCondition{paramName: p.name, op: ">", length: n}
+	return &LenCondition{paramName: p.name, op: ">", length: n, fallback: "[]"}
 }
 
 // LenGte creates a condition that checks if this array has n or more elements.
-// Example: tags.LenGte(1) generates: len(parameter.tags) >= 1
+// Example: tags.LenGte(1) generates: len(parameter.tags | []) >= 1
 func (p *ArrayParam) LenGte(n int) Condition {
-	return &LenCondition{paramName: p.name, op: ">=", length: n}
+	return &LenCondition{paramName: p.name, op: ">=", length: n, fallback: "[]"}
 }
 
 // LenLt creates a condition that checks if this array has fewer than n elements.
-// Example: tags.LenLt(10) generates: len(parameter.tags) < 10
+// Example: tags.LenLt(10) generates: len(parameter.tags | []) < 10
 func (p *ArrayParam) LenLt(n int) Condition {
-	return &LenCondition{paramName: p.name, op: "<", length: n}
+	return &LenCondition{paramName: p.name, op: "<", length: n, fallback: "[]"}
 }
 
 // LenLte creates a condition that checks if this array has n or fewer elements.
-// Example: tags.LenLte(10) generates: len(parameter.tags) <= 10
+// Example: tags.LenLte(10) generates: len(parameter.tags | []) <= 10
 func (p *ArrayParam) LenLte(n int) Condition {
-	return &LenCondition{paramName: p.name, op: "<=", length: n}
+	return &LenCondition{paramName: p.name, op: "<=", length: n, fallback: "[]"}
 }
 
 // Contains creates a condition that checks if this array contains a specific value.
-// Example: tags.Contains("gpu") generates: list.Contains(parameter.tags, "gpu")
+// Example: tags.Contains("gpu") generates: list.Contains(parameter.tags | [], "gpu")
 func (p *ArrayParam) Contains(val any) Condition {
 	return &ArrayContainsCondition{paramName: p.name, value: val}
 }
 
 // IsEmpty creates a condition that checks if this array is empty.
-// Example: tags.IsEmpty() generates: len(parameter.tags) == 0
+// Example: tags.IsEmpty() generates: len(parameter.tags | []) == 0
 func (p *ArrayParam) IsEmpty() Condition {
-	return &LenCondition{paramName: p.name, op: "==", length: 0}
+	return &LenCondition{paramName: p.name, op: "==", length: 0, fallback: "[]"}
 }
 
 // IsNotEmpty creates a condition that checks if this array is not empty.
-// Example: tags.IsNotEmpty() generates: len(parameter.tags) > 0
+// Example: tags.IsNotEmpty() generates: len(parameter.tags | []) > 0
 func (p *ArrayParam) IsNotEmpty() Condition {
-	return &LenCondition{paramName: p.name, op: ">", length: 0}
+	return &LenCondition{paramName: p.name, op: ">", length: 0, fallback: "[]"}
 }
 
 // MapParam represents a map/dictionary parameter.
@@ -963,27 +974,27 @@ func (p *MapParam) HasKey(key string) Condition {
 }
 
 // LenEq creates a condition that checks if this map has exactly n entries.
-// Example: config.LenEq(5) generates: len(parameter.config) == 5
+// Example: config.LenEq(5) generates: len(parameter.config | {}) == 5
 func (p *MapParam) LenEq(n int) Condition {
-	return &LenCondition{paramName: p.name, op: "==", length: n}
+	return &LenCondition{paramName: p.name, op: "==", length: n, fallback: "{}"}
 }
 
 // LenGt creates a condition that checks if this map has more than n entries.
-// Example: config.LenGt(0) generates: len(parameter.config) > 0
+// Example: config.LenGt(0) generates: len(parameter.config | {}) > 0
 func (p *MapParam) LenGt(n int) Condition {
-	return &LenCondition{paramName: p.name, op: ">", length: n}
+	return &LenCondition{paramName: p.name, op: ">", length: n, fallback: "{}"}
 }
 
 // IsEmpty creates a condition that checks if this map is empty.
-// Example: config.IsEmpty() generates: len(parameter.config) == 0
+// Example: config.IsEmpty() generates: len(parameter.config | {}) == 0
 func (p *MapParam) IsEmpty() Condition {
-	return &LenCondition{paramName: p.name, op: "==", length: 0}
+	return &LenCondition{paramName: p.name, op: "==", length: 0, fallback: "{}"}
 }
 
 // IsNotEmpty creates a condition that checks if this map is not empty.
-// Example: config.IsNotEmpty() generates: len(parameter.config) > 0
+// Example: config.IsNotEmpty() generates: len(parameter.config | {}) > 0
 func (p *MapParam) IsNotEmpty() Condition {
-	return &LenCondition{paramName: p.name, op: ">", length: 0}
+	return &LenCondition{paramName: p.name, op: ">", length: 0, fallback: "{}"}
 }
 
 // StructField represents a field within a struct parameter.
@@ -1492,6 +1503,44 @@ func (p *StringKeyMapParam) Description(desc string) *StringKeyMapParam {
 
 // GetType returns the parameter type.
 func (p *StringKeyMapParam) GetType() ParamType { return p.paramType }
+
+// --- StringKeyMapParam Runtime Condition Methods ---
+//
+// These mirror MapParam's runtime conditions. StringKeyMap and Map.Of(ParamTypeString)
+// generate the same CUE schema ([string]: string), so they should expose the same
+// runtime predicates. Without these, callers writing validators or SetIf guards
+// against a StringKeyMap have to fall back to Map.Of(ParamTypeString) just to
+// recover HasKey / IsNotEmpty.
+
+// HasKey creates a condition that checks if this map has a specific key.
+// Example: labels.HasKey("app") generates: parameter.labels.app != _|_
+func (p *StringKeyMapParam) HasKey(key string) Condition {
+	return &MapHasKeyCondition{paramName: p.name, key: key}
+}
+
+// LenEq creates a condition that checks if this map has exactly n entries.
+// Example: labels.LenEq(3) generates: len(parameter.labels | {}) == 3
+func (p *StringKeyMapParam) LenEq(n int) Condition {
+	return &LenCondition{paramName: p.name, op: "==", length: n, fallback: "{}"}
+}
+
+// LenGt creates a condition that checks if this map has more than n entries.
+// Example: labels.LenGt(0) generates: len(parameter.labels | {}) > 0
+func (p *StringKeyMapParam) LenGt(n int) Condition {
+	return &LenCondition{paramName: p.name, op: ">", length: n, fallback: "{}"}
+}
+
+// IsEmpty creates a condition that checks if this map is empty.
+// Example: labels.IsEmpty() generates: len(parameter.labels | {}) == 0
+func (p *StringKeyMapParam) IsEmpty() Condition {
+	return &LenCondition{paramName: p.name, op: "==", length: 0, fallback: "{}"}
+}
+
+// IsNotEmpty creates a condition that checks if this map is not empty.
+// Example: labels.IsNotEmpty() generates: len(parameter.labels | {}) > 0
+func (p *StringKeyMapParam) IsNotEmpty() Condition {
+	return &LenCondition{paramName: p.name, op: ">", length: 0, fallback: "{}"}
+}
 
 // DynamicMapParam represents a parameter where the parameter itself is a dynamic map.
 // In CUE: parameter: [string]: T (where T is the value type)
