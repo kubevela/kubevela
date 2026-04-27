@@ -47,6 +47,19 @@ const helmchartComponentType = "helmchart"
 // changes its default, update this one too.
 const defaultValuesFromKey = "values.yaml"
 
+// Suffix shape for the workflow-revision token that workflow.go appends to
+// desiredRev when the fingerprint helper returns a non-empty digest:
+// "<base><valuesFromSuffixSeparator><valuesFromSuffixHexLen-char hex>".
+//
+// The hex length encodes 128 bits of SHA-256, which is far above any feasible
+// collision-search budget. Both constants are referenced from workflow.go so a
+// future change in length or separator updates both append and prefix-match
+// sites in lock-step.
+const (
+	valuesFromSuffixSeparator = "-vf-"
+	valuesFromSuffixHexLen    = 32
+)
+
 // valuesFromRef captures the subset of the helmchart valuesFrom entry the
 // fingerprint helper needs.
 type valuesFromRef struct {
@@ -91,6 +104,9 @@ func computeValuesFromContentFingerprint(ctx context.Context, app *v1beta1.Appli
 
 	var refs []resolvedRef
 	for _, comp := range app.Spec.Components {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
 		if comp.Type != helmchartComponentType {
 			continue
 		}
@@ -174,6 +190,14 @@ func hashOneSource(ctx context.Context, ref valuesFromRef, appNamespace, release
 		}
 		raw, ok := cm.Data[key]
 		if !ok {
+			// If the key lives in binaryData (kubectl create cm --from-file with
+			// non-UTF-8 content), surface a specific error rather than the
+			// generic "not found" so the operator can diagnose the mismatch.
+			// Helm values files are textual, so binaryData is rejected by design.
+			if _, isBinary := cm.BinaryData[key]; isBinary {
+				return "", fmt.Errorf("configmap %s/%s key %q is in binaryData; valuesFrom requires a textual YAML value in .data",
+					ns, ref.Name, key)
+			}
 			if ref.Optional {
 				return missingLine(ref.Kind, ns, ref.Name, key), nil
 			}

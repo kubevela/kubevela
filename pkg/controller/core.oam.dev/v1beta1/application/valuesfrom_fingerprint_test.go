@@ -19,6 +19,7 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -142,6 +143,24 @@ func newAppWithCMValuesFrom(t *testing.T, appName, ns, cmName, key string) *v1be
 // setupFakeClient installs a fresh fake controller-runtime client into the
 // kubevela singleton.KubeClient slot, seeded with the given runtime objects.
 // Tests that need a different object set call this again to swap the client.
+//
+// Cleanup deliberately re-Sets the singleton to nil rather than capturing a
+// "previous" value with Get() because the singleton's loader chain calls
+// config.GetConfigOrDie(), which os.Exits when run outside an envtest context
+// (i.e. `go test -run TestComputeValuesFrom...` directly, without the package's
+// Ginkgo suite). Calling Get() in setupFakeClient would therefore hard-exit
+// the test binary in standalone runs.
+//
+// Why this is safe in the package binary: Go runs Test* functions in
+// alphabetical order, so `TestAPIs` (the Ginkgo entry point) runs FIRST and
+// has fully completed BeforeSuite/AfterSuite by the time the standalone
+// `TestComputeValuesFromContentFingerprint_*` functions begin. None of the
+// Ginkgo specs in this package use setupFakeClient, and after the standalone
+// Test* functions finish, no further code in the binary calls
+// singleton.KubeClient.Get(). The cleanup leaves the singleton at nil at exit,
+// which is harmless. If a future Ginkgo spec ever needs a fake client at
+// suite-time, it must restore the envtest client itself rather than rely on
+// this helper.
 func setupFakeClient(t *testing.T, objs ...runtime.Object) {
 	t.Helper()
 	scheme := runtime.NewScheme()
@@ -149,12 +168,6 @@ func setupFakeClient(t *testing.T, objs ...runtime.Object) {
 		t.Fatalf("add scheme: %v", err)
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objs...).Build()
-	// Restore the singleton to nil after the test so other tests in the
-	// package binary do not observe a leaked fake client. Resetting to nil
-	// rather than the previous value is intentional: the singleton's loader
-	// hard-exits on Get() before any Set(), so we cannot safely capture a
-	// "previous" value to restore. nil is a sentinel meaning "needs Set()
-	// before next use", which is the correct post-test state.
 	t.Cleanup(func() { singleton.KubeClient.Set(nil) })
 	singleton.KubeClient.Set(c)
 }
@@ -599,5 +612,70 @@ func TestComputeValuesFromContentFingerprint_CustomKey(t *testing.T) {
 	prodFp, _ := computeValuesFromContentFingerprint(context.Background(), prodApp)
 	if devFp == prodFp {
 		t.Fatalf("expected different keys to produce different fingerprints, both = %q", devFp)
+	}
+}
+
+func TestComputeValuesFromContentFingerprint_BinaryDataRejected(t *testing.T) {
+	// kubectl create cm --from-file with non-UTF-8 content writes the key into
+	// .binaryData, not .data. valuesFrom requires textual YAML; the loader must
+	// reject explicitly with a clear message rather than fall through to the
+	// generic "key not found" error.
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "ns1"},
+		BinaryData: map[string][]byte{"values.yaml": {0xff, 0xfe, 0x00}},
+	}
+	setupFakeClient(t, cm)
+	app := newAppWithCMValuesFrom(t, "app1", "ns1", "cfg", "")
+	_, err := computeValuesFromContentFingerprint(context.Background(), app)
+	if err == nil {
+		t.Fatalf("expected an explicit binaryData rejection error, got nil")
+	}
+	if !strings.Contains(err.Error(), "binaryData") {
+		t.Fatalf("error should mention binaryData; got: %v", err)
+	}
+}
+
+func TestComputeValuesFromContentFingerprint_RespectsContextCancellation(t *testing.T) {
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "ns1"},
+		Data:       map[string]string{"values.yaml": "replicas: 3\n"},
+	}
+	setupFakeClient(t, cm)
+	app := newAppWithCMValuesFrom(t, "app1", "ns1", "cfg", "")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := computeValuesFromContentFingerprint(ctx, app)
+	if err == nil {
+		t.Fatalf("expected context.Canceled, got nil")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got: %v", err)
+	}
+}
+
+func TestComputeValuesFromContentFingerprint_NoValuesFromHelmchartIsBackwardsCompat(t *testing.T) {
+	// Backwards-compat regression guard: a helmchart Application that doesn't
+	// declare valuesFrom must produce an empty fingerprint so workflow.go's
+	// gate behaves identically to before this feature.
+	app := &v1beta1.Application{
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{
+				{
+					Name: "x",
+					Type: "helmchart",
+					Properties: &runtime.RawExtension{
+						Raw: []byte(`{"chart":{"source":"foo"},"release":{"namespace":"ns1"},"values":{"replicaCount":3}}`),
+					},
+				},
+			},
+		},
+	}
+	got, err := computeValuesFromContentFingerprint(context.Background(), app)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "" {
+		t.Fatalf("expected empty fingerprint for helmchart without valuesFrom, got %q", got)
 	}
 }

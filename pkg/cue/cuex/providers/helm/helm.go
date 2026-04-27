@@ -1,5 +1,5 @@
 /*
-revertCopyright 2026 The KubeVela Authors.
+Copyright 2026 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -685,6 +685,15 @@ func (p *Provider) loadConfigMapValues(ctx context.Context, source ValuesFromPar
 
 	raw, ok := cm.Data[key]
 	if !ok {
+		// If the key lives in binaryData (kubectl create cm --from-file of
+		// non-UTF-8 content), reject explicitly. Helm values are textual; a
+		// binary blob is unparseable. The clear message saves operators from
+		// chasing a mismatch when `kubectl get cm` shows the key under
+		// binaryData and the loader reports "not found".
+		if _, isBinary := cm.BinaryData[key]; isBinary {
+			return nil, errors.Errorf("ConfigMap %s/%s key %q is in binaryData; valuesFrom requires a textual YAML value in .data",
+				ns, source.Name, key)
+		}
 		return nil, &valueSourceMissingError{
 			kind: "ConfigMap", name: source.Name, namespace: ns, key: key,
 			cause: fmt.Errorf("key not found in .data"),
