@@ -2041,6 +2041,42 @@ replicaCount: 2
 				"adoption must inject KubeVela ownership labels on the Deployment")
 		})
 	})
+
+	Context("Auto-reconcile on ConfigMap content change (without spec edit)", Ordered, func() {
+		h := newHelmTestContext()
+		BeforeAll(func() { h.createNamespace() })
+		AfterAll(func() { h.cleanup() })
+
+		It("rolls out a new Helm revision when only the referenced ConfigMap changes", func() {
+			By("creating the backing ConfigMap with replicaCount=2 and deploying the Application")
+			createCMWithReplicas(h, "vf-autorec-values", 2)
+			deployPodinfo(h, "s48", "podinfo", map[string]interface{}{
+				"valuesFrom": []interface{}{cmRef("vf-autorec-values")},
+			})
+			waitForReplicas(h, 2)
+
+			By("recording the current Helm release secret count for later comparison")
+			initialCount := len(h.getHelmSecrets().Items)
+
+			By("editing the ConfigMap content (replicaCount: 2 -> 4) WITHOUT touching the Application spec")
+			cm := &corev1.ConfigMap{}
+			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Name: "vf-autorec-values", Namespace: h.namespace}, cm)).Should(Succeed())
+			cm.Data["values.yaml"] = "replicaCount: 4\n"
+			Expect(k8sClient.Update(h.ctx, cm)).Should(Succeed())
+
+			By("forcing a reconcile via the requestreconcile annotation (skips the periodic-resync wait)")
+			RequestReconcileNow(h.ctx, h.app)
+
+			By("expecting the Deployment to roll forward to replicaCount=4 driven by the CM edit alone")
+			waitForReplicas(h, 4)
+
+			By("confirming a new Helm revision was created (release secret count grew)")
+			Eventually(func(g Gomega) {
+				secrets := h.getHelmSecrets()
+				g.Expect(len(secrets.Items)).Should(BeNumerically(">", initialCount))
+			}, 60*time.Second, 5*time.Second).Should(Succeed())
+		})
+	})
 })
 
 func init() {

@@ -421,6 +421,19 @@ metadata:
 			fp := computeReleaseFingerprint(nil, map[string]interface{}{"replicas": 2})
 			Expect(fp).ToNot(BeEmpty())
 		})
+
+		It("should treat nil values and empty map as equivalent", func() {
+			// Helm stores release.Config as nil when no values were supplied
+			// at install time, but mergeValues returns an empty map for the
+			// same logical input. Without normalising the two, the dedup
+			// check at the call site would mis-fire on every reconcile and
+			// trigger spurious helm upgrades for releases installed with
+			// empty/optional valuesFrom sources.
+			ch := &chart.Chart{Metadata: &chart.Metadata{Version: "1.2.3"}}
+			fpNil := computeReleaseFingerprint(ch, nil)
+			fpEmpty := computeReleaseFingerprint(ch, map[string]interface{}{})
+			Expect(fpNil).To(Equal(fpEmpty))
+		})
 	})
 
 	Describe("cache invalidation on missing release", func() {

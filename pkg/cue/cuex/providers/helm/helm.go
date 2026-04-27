@@ -859,10 +859,21 @@ func isOwnedByVela(rel *release.Release, velaCtx *ContextParams) bool {
 // computeReleaseFingerprint builds a deterministic string from chart version and a
 // SHA-256 hash of the values so repeated reconciles with no real changes can be
 // detected cheaply without calling the Kubernetes API.
+//
+// Empty-values inputs are normalised to an empty map before hashing. Helm
+// stores release.Config as nil when no values were supplied, but mergeValues
+// returns map[string]interface{}{} for the same logical input — without this
+// guard the two would hash to sha256("null") and sha256("{}") respectively,
+// causing the dedup check below to mis-fire and trigger spurious helm upgrades
+// on every reconcile for any release that was installed with empty/optional
+// values.
 func computeReleaseFingerprint(ch *chart.Chart, values map[string]interface{}) string {
 	version := ""
 	if ch != nil && ch.Metadata != nil {
 		version = ch.Metadata.Version
+	}
+	if values == nil {
+		values = map[string]interface{}{}
 	}
 	valuesJSON, _ := json.Marshal(values)
 	h := sha256.Sum256(valuesJSON)

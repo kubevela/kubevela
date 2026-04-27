@@ -172,6 +172,21 @@ func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1bet
 			currentRev = currentRev[:idx]
 		}
 	}
+	// Append a content fingerprint of any helmchart valuesFrom sources so
+	// external ConfigMap/Secret edits move desiredRev and trigger a workflow
+	// restart on the next reconcile. The suffix only appears for Applications
+	// that declare valuesFrom on a helmchart component; all other Applications
+	// observe identical behaviour to before this change.
+	//
+	// Errors during fingerprint computation (e.g. transient API errors) fall
+	// back to spec-only restart semantics — a missing required source surfaces
+	// later during Render() with a clearer error than what could be produced here.
+	if vfFp, err := computeValuesFromContentFingerprint(ctx, app); err != nil {
+		klog.ErrorS(err, "failed to compute valuesFrom fingerprint; falling back to spec-only workflow gate", "appName", app.Name, "namespace", app.Namespace)
+	} else if vfFp != "" {
+		desiredRev = desiredRev + "-vf-" + vfFp[:16]
+	}
+
 	if currentRev != "" && desiredRev == currentRev {
 		return
 	}
