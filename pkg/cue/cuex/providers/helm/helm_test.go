@@ -40,9 +40,13 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/kubevela/pkg/cue/cuex/providers"
 	"github.com/kubevela/pkg/util/singleton"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 var _ = Describe("Helm Provider", func() {
@@ -1845,6 +1849,161 @@ data:
 			})
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to fetch chart"))
+		})
+	})
+
+	// -----------------------------------------------------------------------
+	// Application publishVersion lookup defense
+	//
+	// Render reads the parent Application's publishVersion annotation so that
+	// installOrUpgradeChart can short-circuit when the deployed release is
+	// already at the user's pin. A non-NotFound error during that lookup
+	// previously left the pin empty, allowing an unintended upgrade to fire
+	// even though the user's pin was still in place. The defense surfaces
+	// that error instead of swallowing it.
+	// -----------------------------------------------------------------------
+
+	Describe("Render Application publishVersion lookup defense", func() {
+		var scheme *runtime.Scheme
+
+		BeforeEach(func() {
+			scheme = runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			Expect(v1beta1.AddToScheme(scheme)).To(Succeed())
+		})
+
+		It("propagates a transient API error from the Application Get rather than bypassing the pin", func() {
+			injected := errors.New("etcdserver: leader changed")
+			c := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithInterceptorFuncs(interceptor.Funcs{
+					Get: func(ctx context.Context, kc client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+						if _, ok := obj.(*v1beta1.Application); ok {
+							return injected
+						}
+						return kc.Get(ctx, key, obj, opts...)
+					},
+				}).
+				Build()
+			singleton.KubeClient.Set(c)
+
+			_, err := Render(context.Background(), &providers.Params[RenderParams]{
+				Params: RenderParams{
+					Chart:   ChartSourceParams{Source: "render-defense-1", Version: "1.0.0"},
+					Release: &ReleaseParams{Name: "rel", Namespace: "tenant-a"},
+					Context: &ContextParams{
+						AppName:      "my-app",
+						AppNamespace: "tenant-a",
+						Name:         "my-comp",
+						Namespace:    "tenant-a",
+					},
+				},
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to read Application tenant-a/my-app for publishVersion lookup"),
+				"defense must surface the wrapped App-lookup error")
+			Expect(err.Error()).To(ContainSubstring("etcdserver: leader changed"),
+				"defense must preserve the underlying cause")
+		})
+
+		It("treats a NotFound on the Application as deletion-in-flight and proceeds past the lookup", func() {
+			// No App registered → NotFound from the typed fake client.
+			// Render must continue past the lookup; we prove it by leaving
+			// the chart un-cached so the next failure is from fetchChart,
+			// not the App lookup.
+			c := fake.NewClientBuilder().WithScheme(scheme).Build()
+			singleton.KubeClient.Set(c)
+
+			_, err := Render(context.Background(), &providers.Params[RenderParams]{
+				Params: RenderParams{
+					Chart:   ChartSourceParams{Source: "render-defense-notfound-xyz", Version: "9.9.9"},
+					Release: &ReleaseParams{Name: "rel", Namespace: "tenant-a"},
+					Context: &ContextParams{
+						AppName:      "deleted-app",
+						AppNamespace: "tenant-a",
+						Name:         "my-comp",
+						Namespace:    "tenant-a",
+					},
+				},
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).ToNot(ContainSubstring("failed to read Application"),
+				"NotFound on App must not be reported as a pin-lookup error")
+			Expect(err.Error()).To(ContainSubstring("failed to fetch chart"),
+				"Render must proceed past the App lookup to the chart fetch step")
+		})
+
+		It("succeeds the App lookup when the Application exists with a publishVersion annotation", func() {
+			app := &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "pinned-app",
+					Namespace:   "tenant-a",
+					Annotations: map[string]string{oam.AnnotationPublishVersion: "v42"},
+				},
+			}
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(app).Build()
+			singleton.KubeClient.Set(c)
+
+			_, err := Render(context.Background(), &providers.Params[RenderParams]{
+				Params: RenderParams{
+					Chart:   ChartSourceParams{Source: "render-defense-pinned-xyz", Version: "9.9.9"},
+					Release: &ReleaseParams{Name: "rel", Namespace: "tenant-a"},
+					Context: &ContextParams{
+						AppName:      "pinned-app",
+						AppNamespace: "tenant-a",
+						Name:         "my-comp",
+						Namespace:    "tenant-a",
+					},
+				},
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).ToNot(ContainSubstring("failed to read Application"),
+				"a present App with a pin must not surface a lookup error")
+			Expect(err.Error()).To(ContainSubstring("failed to fetch chart"),
+				"Render must proceed past the App lookup to the chart fetch step")
+		})
+
+		It("skips the App lookup entirely in dry-run", func() {
+			// Dry-run is the webhook admission path; it must never depend on
+			// cluster state. Inject a Get error: if the lookup ran, Render
+			// would surface it. Instead, dry-run renders client-side.
+			c := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithInterceptorFuncs(interceptor.Funcs{
+					Get: func(ctx context.Context, kc client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+						if _, ok := obj.(*v1beta1.Application); ok {
+							return errors.New("dry-run must not call Get on Application")
+						}
+						return kc.Get(ctx, key, obj, opts...)
+					},
+				}).
+				Build()
+			singleton.KubeClient.Set(c)
+
+			p := NewProvider()
+			p.cache.Put("repo/render-defense-dryrun/1.0.0", &chart.Chart{
+				Metadata: &chart.Metadata{Name: "render-defense-dryrun", Version: "1.0.0"},
+				Templates: []*chart.File{{
+					Name: "templates/cm.yaml",
+					Data: []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: {{ .Release.Name }}-cm\n"),
+				}},
+			}, 1*time.Hour)
+
+			ctx := WithDryRun(context.Background())
+			_, err := Render(ctx, &providers.Params[RenderParams]{
+				Params: RenderParams{
+					Chart:   ChartSourceParams{Source: "render-defense-dryrun", Version: "1.0.0"},
+					Release: &ReleaseParams{Name: "rel", Namespace: "tenant-a"},
+					Context: &ContextParams{
+						AppName:      "any-app",
+						AppNamespace: "tenant-a",
+						Name:         "my-comp",
+						Namespace:    "tenant-a",
+					},
+				},
+			})
+			Expect(err).ShouldNot(HaveOccurred(),
+				"dry-run must not exercise the App lookup path")
 		})
 	})
 
