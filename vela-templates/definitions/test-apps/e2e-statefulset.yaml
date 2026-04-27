@@ -1,0 +1,25 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: e2e-statefulset-test
+  namespace: vela-test
+spec:
+  components:
+    - name: test-db
+      type: statefulset
+      properties:
+        image: postgres:16.4
+        cpu: "0.5"
+        memory: 512Mi
+        exposeType: ClusterIP
+        ports:
+          - port: 5432
+            protocol: TCP
+            expose: true
+        env:
+          - name: POSTGRES_DB
+            value: e2etest
+          - name: POSTGRES_USER
+            value: testuser
+          - name: POSTGRES_PASSWORD
+            value: testpass123
