@@ -124,8 +124,8 @@ spec:
         	branch: *"master" | string
         }
         parameter: {
-        	// +usage=Specify the kaniko executor image, default to oamdev/kaniko-executor:v1.9.1
-        	kanikoExecutor: *"oamdev/kaniko-executor:v1.9.1" | string
+        	// +usage=Specify the kaniko executor image, default to gcr.io/kaniko-project/executor:v1.9.0
+        	kanikoExecutor: *"gcr.io/kaniko-project/executor:v1.9.0" | string
         	// +usage=Specify the context to build image, you can use context with git and branch or directly specify the context, please refer to https://github.com/GoogleContainerTools/kaniko#kaniko-build-contexts
         	context: #git | string
         	// +usage=Specify the dockerfile
