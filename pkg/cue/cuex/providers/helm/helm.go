@@ -1552,12 +1552,27 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	// Skipped in dry-run: admission validation must not depend on cluster
 	// state, and the user-visible behaviour (CUE shape OK / not OK) is
 	// independent of the pin.
+	//
+	// IsNotFound is treated as "App is being deleted" and falls through with
+	// an empty pin — the subsequent uninstall path handles cleanup. Any other
+	// error (RBAC change, transient API failure, network blip) is surfaced
+	// rather than silently swallowed: a swallowed error would leave the pin
+	// empty for this reconcile and bypass the pin short-circuit downstream,
+	// allowing an unintended helm upgrade to fire even though the user's
+	// publishVersion annotation is still in place.
 	if !isDryRun(ctx) && renderParams.Context != nil && renderParams.Context.AppName != "" && appNamespace != "" {
 		var app v1beta1.Application
-		if getErr := singleton.KubeClient.Get().Get(ctx, client.ObjectKey{Name: renderParams.Context.AppName, Namespace: appNamespace}, &app); getErr == nil {
+		switch getErr := singleton.KubeClient.Get().Get(ctx, client.ObjectKey{Name: renderParams.Context.AppName, Namespace: appNamespace}, &app); {
+		case getErr == nil:
 			if pin := app.GetAnnotations()[oam.AnnotationPublishVersion]; pin != "" {
 				renderParams.Context.PublishVersion = pin
 			}
+		case apierrors.IsNotFound(getErr):
+			// App is gone (deletion in flight). Proceed without a pin.
+		default:
+			return nil, errors.Wrapf(getErr,
+				"failed to read Application %s/%s for publishVersion lookup; refusing to proceed without pin context",
+				appNamespace, renderParams.Context.AppName)
 		}
 	}
 
