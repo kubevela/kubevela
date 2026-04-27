@@ -53,16 +53,28 @@ inline `values` > valuesFrom[N] > valuesFrom[N-1] > ... > valuesFrom[0] > chart 
 ### Cross-namespace is disallowed
 
 Because the KubeVela controller has cluster-wide read on ConfigMaps and Secrets,
-allowing a user-supplied `namespace` would let any tenant read arbitrary
-Secrets. If the namespace you specify differs from the Application's own
-namespace, the reconcile fails with:
+allowing an arbitrary user-supplied `namespace` would let any tenant read
+arbitrary Secrets. An explicit `valuesFrom.namespace` is therefore accepted
+only if it matches one of:
+
+- the **chart release namespace** (`release.namespace`, the default), or
+- the **Application's own namespace** (`metadata.namespace` on the
+  `Application` object).
+
+When `release.namespace` is unset it falls back to the Application's namespace,
+so the two are equal in the common single-namespace case. They diverge when a
+user explicitly puts the chart in a different namespace from the App; both
+options remain valid for the source.
+
+Anything else fails with:
 
 ```
 cross-namespace valuesFrom sources are not permitted
 ```
 
-If you need shared config across namespaces, copy the ConfigMap into each
-Application namespace (e.g. via a replicator) rather than referencing across.
+If you need shared config across unrelated namespaces, copy the ConfigMap into
+each Application namespace (e.g. via a replicator) rather than referencing
+across.
 
 ### External CM/Secret edits propagate on the next reconcile
 
