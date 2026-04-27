@@ -54,6 +54,8 @@ import (
 	"github.com/kubevela/pkg/util/runtime"
 	"github.com/kubevela/pkg/util/singleton"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -167,6 +169,12 @@ type ContextParams struct {
 	AppNamespace string `json:"appNamespace"`
 	Name         string `json:"name"`      // component name
 	Namespace    string `json:"namespace"` // component namespace
+	// PublishVersion is the value of the Application's app.oam.dev/publishVersion
+	// annotation, if any. When set, the provider records it as a label on the
+	// helm release so subsequent reconciles can short-circuit when the pin is
+	// stable. Populated by Render() via an Application lookup; not part of the
+	// CUE-passed context shape.
+	PublishVersion string `json:"-"`
 }
 
 // velaContextStr returns a human-readable prefix like "app=myapp/default component=web"
@@ -844,11 +852,18 @@ func velaOwnerLabels(velaCtx *ContextParams) map[string]string {
 	if velaCtx == nil {
 		return nil
 	}
-	return map[string]string{
+	labels := map[string]string{
 		"app.oam.dev/name":      velaCtx.AppName,
 		"app.oam.dev/namespace": velaCtx.AppNamespace,
 		"app.oam.dev/component": velaCtx.Name,
 	}
+	// Embed the publishVersion pin in the release labels so subsequent
+	// reconciles can short-circuit when the App is at a stable pin and the
+	// release was already installed at that pin.
+	if velaCtx.PublishVersion != "" {
+		labels["app.oam.dev/publishVersion"] = velaCtx.PublishVersion
+	}
+	return labels
 }
 
 // isOwnedByVela checks whether a Helm release was installed/managed by KubeVela
@@ -954,6 +969,34 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 			// Label all existing release secrets with KubeVela ownership so they
 			// can be tracked by the ResourceTracker and cleaned up on App deletion.
 			p.labelReleaseSecrets(releaseNamespace, releaseName, velaCtx)
+		}
+
+		// publishVersion pin short-circuit: when the App is at a stable
+		// publishVersion pin AND the deployed release was installed at the
+		// same pin AND the chart version is unchanged, return the deployed
+		// manifest unchanged regardless of any apparent values drift.
+		//
+		// Without this, a render path that bypasses the workflow gate
+		// (state-keep / drift detection / post-dispatch traits / periodic
+		// CUE evaluation) re-merges valuesFrom sources and the cluster-side
+		// fingerprint compare below would mis-fire whenever a referenced
+		// CM/Secret was edited. The user's explicit pin is the contract:
+		// nothing changes until they bump the pin.
+		//
+		// Initial install has no existingRelease so this branch is skipped,
+		// and the initial mergeValues runs normally — picking up the
+		// referenced CM/Secret content and stamping it into the release.
+		if !needsAdoption && velaCtx != nil && velaCtx.PublishVersion != "" &&
+			existingRelease.Info != nil && existingRelease.Info.Status == release.StatusDeployed &&
+			existingRelease.Chart != nil && existingRelease.Chart.Metadata != nil &&
+			existingRelease.Chart.Metadata.Version == ch.Metadata.Version &&
+			existingRelease.Labels["app.oam.dev/publishVersion"] == velaCtx.PublishVersion {
+			klog.V(2).Infof("Helm provider [%s]: Release %s held by publishVersion pin %q, skipping upgrade",
+				velaContextStr(velaCtx), releaseName, velaCtx.PublishVersion)
+			p.releaseFingerprints[cacheKey] = fingerprint
+			p.releaseManifests[cacheKey] = existingRelease.Manifest
+			p.releaseVersions[cacheKey] = existingRelease.Version
+			return existingRelease.Manifest, existingRelease.Info.Notes, existingRelease.Version, nil
 		}
 
 		// Release exists — check if it is already deployed with the same fingerprint
@@ -1500,6 +1543,22 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	}
 	if appNamespace == "" {
 		appNamespace = releaseNamespace
+	}
+
+	// Resolve the App's publishVersion annotation, if any. We pass it through
+	// ContextParams.PublishVersion so installOrUpgradeChart can short-circuit
+	// when the deployed release is already at the current pin and so
+	// velaOwnerLabels can stamp the pin onto the release at install time.
+	// Skipped in dry-run: admission validation must not depend on cluster
+	// state, and the user-visible behaviour (CUE shape OK / not OK) is
+	// independent of the pin.
+	if !isDryRun(ctx) && renderParams.Context != nil && renderParams.Context.AppName != "" && appNamespace != "" {
+		var app v1beta1.Application
+		if getErr := singleton.KubeClient.Get().Get(ctx, client.ObjectKey{Name: renderParams.Context.AppName, Namespace: appNamespace}, &app); getErr == nil {
+			if pin := app.GetAnnotations()[oam.AnnotationPublishVersion]; pin != "" {
+				renderParams.Context.PublishVersion = pin
+			}
+		}
 	}
 
 	klog.V(3).Infof("Helm provider: Release name=%s, namespace=%s", releaseName, releaseNamespace)
