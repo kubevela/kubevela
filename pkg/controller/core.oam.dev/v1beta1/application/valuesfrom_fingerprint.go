@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/kubevela/pkg/util/singleton"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
@@ -167,7 +168,7 @@ func hashOneSource(ctx context.Context, ref valuesFromRef, appNamespace, release
 				if ref.Optional {
 					return missingLine(ref.Kind, ns, ref.Name, key), nil
 				}
-				return "", fmt.Errorf("ConfigMap %s/%s not found", ns, ref.Name)
+				return "", fmt.Errorf("configmap %s/%s not found", ns, ref.Name)
 			}
 			return "", fmt.Errorf("failed to read ConfigMap %s/%s: %w", ns, ref.Name, err)
 		}
@@ -176,7 +177,7 @@ func hashOneSource(ctx context.Context, ref valuesFromRef, appNamespace, release
 			if ref.Optional {
 				return missingLine(ref.Kind, ns, ref.Name, key), nil
 			}
-			return "", fmt.Errorf("ConfigMap %s/%s key %q not found", ns, ref.Name, key)
+			return "", fmt.Errorf("configmap %s/%s key %q not found", ns, ref.Name, key)
 		}
 		return canonicalLine(ref.Kind, ns, ref.Name, key, []byte(raw))
 	case "Secret":
@@ -186,7 +187,7 @@ func hashOneSource(ctx context.Context, ref valuesFromRef, appNamespace, release
 				if ref.Optional {
 					return missingLine(ref.Kind, ns, ref.Name, key), nil
 				}
-				return "", fmt.Errorf("Secret %s/%s not found", ns, ref.Name)
+				return "", fmt.Errorf("secret %s/%s not found", ns, ref.Name)
 			}
 			return "", fmt.Errorf("failed to read Secret %s/%s: %w", ns, ref.Name, err)
 		}
@@ -195,7 +196,7 @@ func hashOneSource(ctx context.Context, ref valuesFromRef, appNamespace, release
 			if ref.Optional {
 				return missingLine(ref.Kind, ns, ref.Name, key), nil
 			}
-			return "", fmt.Errorf("Secret %s/%s key %q not found", ns, ref.Name, key)
+			return "", fmt.Errorf("secret %s/%s key %q not found", ns, ref.Name, key)
 		}
 		// Kubernetes already base64-decodes Secret.Data on read, so the bytes
 		// are consumed as-is. Error messages intentionally never include raw

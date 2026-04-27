@@ -178,11 +178,17 @@ func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1bet
 	// that declare valuesFrom on a helmchart component; all other Applications
 	// observe identical behaviour to before this change.
 	//
-	// Errors during fingerprint computation (e.g. transient API errors) fall
-	// back to spec-only restart semantics — a missing required source surfaces
-	// later during Render() with a clearer error than what could be produced here.
+	// On a transient fingerprint computation error (e.g. API hiccup), if the
+	// previous reconcile already persisted a "<base>-vf-..." revision in
+	// status.workflow.appRevision, reuse it so the gate still matches and the
+	// workflow does not flap. If no prior suffixed revision exists, fall back
+	// to spec-only restart semantics — a missing required source then surfaces
+	// during Render() with a clearer error than what could be produced here.
 	if vfFp, err := computeValuesFromContentFingerprint(ctx, app); err != nil {
 		klog.ErrorS(err, "failed to compute valuesFrom fingerprint; falling back to spec-only workflow gate", "appName", app.Name, "namespace", app.Namespace)
+		if currentRev != "" && strings.HasPrefix(currentRev, desiredRev+"-vf-") {
+			desiredRev = currentRev
+		}
 	} else if vfFp != "" {
 		desiredRev = desiredRev + "-vf-" + vfFp[:16]
 	}

@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/kubevela/pkg/util/singleton"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
@@ -437,7 +438,7 @@ func TestComputeValuesFromContentFingerprint_RequiredMissingErrors(t *testing.T)
 	if err == nil {
 		t.Fatalf("expected error for required missing ConfigMap, got nil")
 	}
-	if !strings.Contains(err.Error(), "ConfigMap ns1/ghost not found") {
+	if !strings.Contains(err.Error(), "configmap ns1/ghost not found") {
 		t.Fatalf("error wording missing source identity: %v", err)
 	}
 }
