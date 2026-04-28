@@ -217,15 +217,15 @@ var _ = ginkgo.Describe("Parameter Constraints", func() {
 			ginkgo.Entry("LenGt", func(p *ArrayParam) Condition { return p.LenGt(0) }, `parameter["tags"] != _|_`),
 			ginkgo.Entry("IsEmpty", func(p *ArrayParam) Condition { return p.IsEmpty() }, `parameter["tags"] == _|_`),
 			ginkgo.Entry("IsNotEmpty", func(p *ArrayParam) Condition { return p.IsNotEmpty() }, `parameter["tags"] != _|_`),
-			ginkgo.Entry("Contains", func(p *ArrayParam) Condition { return p.Contains("gpu") }, `parameter["tags"] != _|_`),
+			ginkgo.Entry("Contains", func(p *ArrayParam) Condition { return p.Contains("gpu") }, `parameter["tags"] != _|_ && list.Contains(parameter["tags"], "gpu")`),
 		)
 
 		ginkgo.It("should generate array Contains with different element types", func() {
 			intArray := Array("ports").Of(ParamTypeInt)
-			gomega.Expect(gen.conditionToCUE(intArray.Contains(8080))).To(gomega.Equal(`parameter["ports"] != _|_`))
+			gomega.Expect(gen.conditionToCUE(intArray.Contains(8080))).To(gomega.Equal(`parameter["ports"] != _|_ && list.Contains(parameter["ports"], 8080)`))
 
 			boolArray := Array("flags").Of(ParamTypeBool)
-			gomega.Expect(gen.conditionToCUE(boolArray.Contains(true))).To(gomega.Equal(`parameter["flags"] != _|_`))
+			gomega.Expect(gen.conditionToCUE(boolArray.Contains(true))).To(gomega.Equal(`parameter["flags"] != _|_ && list.Contains(parameter["flags"], true)`))
 		})
 	})
 
@@ -349,6 +349,7 @@ var _ = ginkgo.Describe("Parameter Constraints", func() {
 			gomega.Expect(cue).To(gomega.ContainSubstring(`strings.Contains(parameter.name, "canary")`))
 			gomega.Expect(cue).To(gomega.ContainSubstring(`parameter.replicas > 5`))
 			gomega.Expect(cue).To(gomega.ContainSubstring(`parameter["tags"] != _|_`))
+			gomega.Expect(cue).To(gomega.ContainSubstring(`list.Contains(parameter["tags"], "gpu")`))
 		})
 	})
 

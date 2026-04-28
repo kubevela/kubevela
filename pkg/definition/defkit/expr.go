@@ -309,6 +309,12 @@ func (c *ArrayContainsCondition) ParamName() string { return c.paramName }
 // Value returns the value to check for.
 func (c *ArrayContainsCondition) Value() any { return c.value }
 
+// RequiredImports returns the CUE imports required by ArrayContainsCondition.
+// list.Contains requires the "list" package.
+func (c *ArrayContainsCondition) RequiredImports() []string {
+	return []string{"list"}
+}
+
 // MapHasKeyCondition checks if a map parameter has a specific key.
 // Generates: parameter.name.key != _|_
 type MapHasKeyCondition struct {

@@ -2917,9 +2917,10 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	case *LenCondition:
 		return g.lenConditionToCUE(c)
 	case *ArrayContainsCondition:
-		// Same constraint as LenCondition: list.Contains() on an optional
-		// bracket reference trips strict mode. Collapse to existence check.
-		return fmt.Sprintf("parameter[%q] != _|_", c.ParamName())
+		// Guard with bracket-existence for CUE strict mode, then use
+		// list.Contains with bracket reference (concrete after the guard).
+		return fmt.Sprintf(`parameter[%q] != _|_ && list.Contains(parameter[%q], %s)`,
+			c.ParamName(), c.ParamName(), formatCUEValue(c.Value()))
 	case *MapHasKeyCondition:
 		// daemon.cue's idiom for nested optional access: bracket on the
 		// outer (optional) map, dot on the inner key (concrete after the

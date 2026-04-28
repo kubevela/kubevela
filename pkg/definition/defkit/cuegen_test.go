@@ -2219,7 +2219,7 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(strings.Count(cue, `"list"`)).To(Equal(1))
 		})
 
-		It("should NOT add the list import when only Array.Contains() is used (no list.Contains in output)", func() {
+		It("should add the list import when Array.Contains() is used", func() {
 			tags := defkit.StringList("tags").Optional()
 			cue := defkit.NewComponent("c").
 				Workload("v1", "ConfigMap").
@@ -2229,8 +2229,8 @@ var _ = Describe("CUEGenerator", func() {
 						SetIf(tags.Contains("gpu"), "data.gpu", defkit.Lit("true")))
 				}).
 				ToCue()
-			Expect(cue).NotTo(ContainSubstring(`"list"`))
-			Expect(cue).NotTo(ContainSubstring(`list.Contains`))
+			Expect(cue).To(ContainSubstring(`"list"`))
+			Expect(cue).To(ContainSubstring(`list.Contains`))
 		})
 	})
 
