@@ -1,5 +1,5 @@
 /*
-revertCopyright 2026 The KubeVela Authors.
+Copyright 2026 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,17 +39,23 @@ import (
 	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	"github.com/kubevela/pkg/cue/cuex/providers"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/runtime"
+	"github.com/kubevela/pkg/util/singleton"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -100,14 +106,12 @@ type ReleaseParams struct {
 	Namespace string `json:"namespace,omitempty"`
 }
 
-// ValuesFromParams represents a values source
+// ValuesFromParams represents a values source.
 type ValuesFromParams struct {
 	Kind      string `json:"kind"`
 	Name      string `json:"name"`
 	Namespace string `json:"namespace,omitempty"`
 	Key       string `json:"key,omitempty"`
-	URL       string `json:"url,omitempty"`
-	Tag       string `json:"tag,omitempty"`
 	Optional  bool   `json:"optional,omitempty"`
 }
 
@@ -165,6 +169,12 @@ type ContextParams struct {
 	AppNamespace string `json:"appNamespace"`
 	Name         string `json:"name"`      // component name
 	Namespace    string `json:"namespace"` // component namespace
+	// PublishVersion is the value of the Application's app.oam.dev/publishVersion
+	// annotation, if any. When set, the provider records it as a label on the
+	// helm release so subsequent reconciles can short-circuit when the pin is
+	// stable. Populated by Render() via an Application lookup; not part of the
+	// CUE-passed context shape.
+	PublishVersion string `json:"-"`
 }
 
 // velaContextStr returns a human-readable prefix like "app=myapp/default component=web"
@@ -538,51 +548,209 @@ func (p *Provider) fetchRepoChart(ctx context.Context, params *ChartSourceParams
 	return ch, nil
 }
 
-// mergeValues merges values from multiple sources
-func (p *Provider) mergeValues(ctx context.Context, baseValues interface{}, valuesFrom []ValuesFromParams) (map[string]interface{}, error) {
-	// Start with base values
-	result := make(map[string]interface{})
+// defaultValuesKey is the key looked up in a ConfigMap/Secret when the user
+// does not specify one explicitly. Matches the FluxCD and Helm CLI convention.
+const defaultValuesKey = "values.yaml"
 
-	if baseValues != nil {
-		if m, ok := baseValues.(map[string]interface{}); ok {
-			result = m
-		}
-	}
-
-	// Merge values from each source
-	for _, source := range valuesFrom {
-		values, err := p.loadValuesFromSource(ctx, source)
-		if err != nil {
-			if source.Optional {
-				klog.V(4).Infof("Skipping optional values source %s/%s: %v", source.Kind, source.Name, err)
-				continue
-			}
-			return nil, errors.Wrapf(err, "failed to load values from %s/%s", source.Kind, source.Name)
-		}
-
-		// Merge values
-		result = chartutil.CoalesceTables(result, values)
-	}
-
-	return result, nil
+// valueSourceMissingError is returned by loaders when a ConfigMap/Secret or the
+// requested key inside it does not exist. mergeValues uses this sentinel type to
+// decide whether source.Optional allows the source to be skipped. Parse errors
+// and other failures produce different error types, so Optional never swallows
+// them — a common source of silent misconfiguration bugs.
+type valueSourceMissingError struct {
+	kind, name, namespace, key string
+	cause                      error
 }
 
-// loadValuesFromSource loads values from a specific source
-// nolint:unparam // result is always nil until ConfigMap/Secret/OCI loading is implemented
-func (p *Provider) loadValuesFromSource(_ context.Context, source ValuesFromParams) (map[string]interface{}, error) {
+func (e *valueSourceMissingError) Error() string {
+	if e.key != "" {
+		return fmt.Sprintf("%s %s/%s key %q not found: %v", e.kind, e.namespace, e.name, e.key, e.cause)
+	}
+	return fmt.Sprintf("%s %s/%s not found: %v", e.kind, e.namespace, e.name, e.cause)
+}
+
+func (e *valueSourceMissingError) Unwrap() error { return e.cause }
+
+func isValueSourceMissing(err error) bool {
+	var target *valueSourceMissingError
+	return stderrors.As(err, &target)
+}
+
+// errCrossNamespaceValuesFrom is returned when a valuesFrom source references a
+// namespace other than the Application's own namespace. The controller has
+// cluster-scoped read on ConfigMaps/Secrets, so without this guard a tenant could
+// read Secrets from any namespace by submitting a crafted Application.
+var errCrossNamespaceValuesFrom = stderrors.New("cross-namespace valuesFrom sources are not permitted")
+
+// mergeValues merges inline `values` and any `valuesFrom` sources into a single
+// map. Priority (highest wins): inline > valuesFrom[N] > valuesFrom[N-1] > ... >
+// valuesFrom[0]. Later entries override earlier ones. The merge is a deep-merge
+// of map keys via chartutil.CoalesceTables; arrays are replaced wholesale (not
+// concatenated), and `null` values are preserved (not treated as delete), so
+// semantics diverge slightly from `helm CLI --values a.yaml --values b.yaml`
+// which uses chartutil.CoalesceValues.
+//
+// A valuesFrom entry that omits `namespace` resolves to releaseNamespace (the
+// natural co-location with the chart's deployed resources). An entry that sets
+// an explicit Namespace is only allowed if it matches either releaseNamespace
+// or appNamespace; any other namespace is rejected to block cross-tenant reads
+// via the controller's cluster-wide RBAC.
+func (p *Provider) mergeValues(ctx context.Context, baseValues interface{}, valuesFrom []ValuesFromParams, appNamespace, releaseNamespace string) (map[string]interface{}, error) {
+	accumulated := map[string]interface{}{}
+
+	for _, source := range valuesFrom {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		values, err := p.loadValuesFromSource(ctx, source, appNamespace, releaseNamespace)
+		if err != nil {
+			if source.Optional && isValueSourceMissing(err) {
+				klog.V(2).Infof("Helm provider: skipping optional values source %s %q: %v", source.Kind, source.Name, err)
+				continue
+			}
+			return nil, errors.Wrapf(err, "failed to load values from %s %q", source.Kind, source.Name)
+		}
+		// CoalesceTables(dst, src) treats dst as authoritative. `values` is the
+		// newer source, so it's passed as dst to override `accumulated` (older).
+		accumulated = chartutil.CoalesceTables(values, accumulated)
+	}
+
+	// Inline values override everything from valuesFrom. Clone before merging
+	// because CoalesceTables mutates dst in place, and dst here is the caller's
+	// map (renderParams.Values).
+	if inline, ok := baseValues.(map[string]interface{}); ok {
+		clone := make(map[string]interface{}, len(inline))
+		for k, v := range inline {
+			clone[k] = v
+		}
+		accumulated = chartutil.CoalesceTables(clone, accumulated)
+	}
+
+	return accumulated, nil
+}
+
+// loadValuesFromSource dispatches to the appropriate loader based on source.Kind.
+func (p *Provider) loadValuesFromSource(ctx context.Context, source ValuesFromParams, appNamespace, releaseNamespace string) (map[string]interface{}, error) {
 	switch source.Kind {
 	case "ConfigMap":
-		// TODO: Implement ConfigMap loading
-		return nil, fmt.Errorf("configmap values source not yet implemented")
+		return p.loadConfigMapValues(ctx, source, appNamespace, releaseNamespace)
 	case "Secret":
-		// TODO: Implement Secret loading
-		return nil, fmt.Errorf("secret values source not yet implemented")
-	case "OCIRepository":
-		// TODO: Implement OCI repository loading
-		return nil, fmt.Errorf("ocirepository values source not yet implemented")
+		return p.loadSecretValues(ctx, source, appNamespace, releaseNamespace)
 	default:
 		return nil, fmt.Errorf("unsupported values source kind: %s", source.Kind)
 	}
+}
+
+// resolveValuesFromNamespace returns the effective namespace for a valuesFrom
+// entry. The default (empty) resolves to releaseNamespace — the natural place
+// to co-locate chart values with the chart's resources. An explicit namespace
+// is accepted only if it matches releaseNamespace or appNamespace; any other
+// value is rejected so a tenant cannot coerce the controller's cluster-wide
+// RBAC into reading Secrets from unrelated namespaces.
+func resolveValuesFromNamespace(source ValuesFromParams, appNamespace, releaseNamespace string) (string, error) {
+	if source.Namespace == "" {
+		return releaseNamespace, nil
+	}
+	if source.Namespace == releaseNamespace || source.Namespace == appNamespace {
+		return source.Namespace, nil
+	}
+	return "", fmt.Errorf("%w: %s %q requested namespace %q but Application is in %q and release is in %q",
+		errCrossNamespaceValuesFrom, source.Kind, source.Name, source.Namespace, appNamespace, releaseNamespace)
+}
+
+// loadConfigMapValues reads a ConfigMap in the Application namespace and parses
+// the requested key as YAML. When source.Key is empty it falls back to
+// "values.yaml" (Helm/FluxCD convention). Not-found errors (missing ConfigMap
+// or missing key) are returned as valueSourceMissingError so optional sources
+// can skip them; parse errors are surfaced as-is and are never swallowed by
+// optional.
+//
+// singleton.KubeClient.Get() here is the kubevela-pkg default client built via
+// controller-runtime's client.New — this is an UNCACHED client that reads
+// directly from the API server. Do NOT switch this to manager.GetClient() or
+// a cached reader: that would register a cluster-wide ConfigMap/Secret
+// informer on first use and load every CM/Secret cluster-wide into the
+// controller's memory. Direct API reads per valuesFrom entry are the intended
+// trade-off.
+func (p *Provider) loadConfigMapValues(ctx context.Context, source ValuesFromParams, appNamespace, releaseNamespace string) (map[string]interface{}, error) {
+	ns, err := resolveValuesFromNamespace(source, appNamespace, releaseNamespace)
+	if err != nil {
+		return nil, err
+	}
+	key := source.Key
+	if key == "" {
+		key = defaultValuesKey
+	}
+
+	k8s := singleton.KubeClient.Get()
+	cm := &corev1.ConfigMap{}
+	if err := k8s.Get(ctx, client.ObjectKey{Name: source.Name, Namespace: ns}, cm); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, &valueSourceMissingError{kind: "ConfigMap", name: source.Name, namespace: ns, cause: err}
+		}
+		return nil, errors.Wrapf(err, "failed to read ConfigMap %s/%s", ns, source.Name)
+	}
+
+	raw, ok := cm.Data[key]
+	if !ok {
+		// If the key lives in binaryData (kubectl create cm --from-file of
+		// non-UTF-8 content), reject explicitly. Helm values are textual; a
+		// binary blob is unparseable. The clear message saves operators from
+		// chasing a mismatch when `kubectl get cm` shows the key under
+		// binaryData and the loader reports "not found".
+		if _, isBinary := cm.BinaryData[key]; isBinary {
+			return nil, errors.Errorf("ConfigMap %s/%s key %q is in binaryData; valuesFrom requires a textual YAML value in .data",
+				ns, source.Name, key)
+		}
+		return nil, &valueSourceMissingError{
+			kind: "ConfigMap", name: source.Name, namespace: ns, key: key,
+			cause: fmt.Errorf("key not found in .data"),
+		}
+	}
+
+	var values map[string]interface{}
+	if err := yaml.Unmarshal([]byte(raw), &values); err != nil {
+		return nil, errors.Wrapf(err, "ConfigMap %s/%s key %q: invalid YAML", ns, source.Name, key)
+	}
+	return values, nil
+}
+
+// loadSecretValues reads a Secret in the Application namespace and parses the
+// requested key as YAML. Kubernetes already base64-decodes Secret.Data on read,
+// so the bytes are consumed as-is. Error messages intentionally never include
+// raw secret bytes.
+func (p *Provider) loadSecretValues(ctx context.Context, source ValuesFromParams, appNamespace, releaseNamespace string) (map[string]interface{}, error) {
+	ns, err := resolveValuesFromNamespace(source, appNamespace, releaseNamespace)
+	if err != nil {
+		return nil, err
+	}
+	key := source.Key
+	if key == "" {
+		key = defaultValuesKey
+	}
+
+	k8s := singleton.KubeClient.Get()
+	secret := &corev1.Secret{}
+	if err := k8s.Get(ctx, client.ObjectKey{Name: source.Name, Namespace: ns}, secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, &valueSourceMissingError{kind: "Secret", name: source.Name, namespace: ns, cause: err}
+		}
+		return nil, errors.Wrapf(err, "failed to read Secret %s/%s", ns, source.Name)
+	}
+
+	raw, ok := secret.Data[key]
+	if !ok {
+		return nil, &valueSourceMissingError{
+			kind: "Secret", name: source.Name, namespace: ns, key: key,
+			cause: fmt.Errorf("key not found in .data"),
+		}
+	}
+
+	var values map[string]interface{}
+	if err := yaml.Unmarshal(raw, &values); err != nil {
+		return nil, errors.Wrapf(err, "Secret %s/%s key %q: invalid YAML", ns, source.Name, key)
+	}
+	return values, nil
 }
 
 // getActionConfig initializes a Helm action.Configuration with a real Kubernetes
@@ -684,11 +852,18 @@ func velaOwnerLabels(velaCtx *ContextParams) map[string]string {
 	if velaCtx == nil {
 		return nil
 	}
-	return map[string]string{
+	labels := map[string]string{
 		"app.oam.dev/name":      velaCtx.AppName,
 		"app.oam.dev/namespace": velaCtx.AppNamespace,
 		"app.oam.dev/component": velaCtx.Name,
 	}
+	// Embed the publishVersion pin in the release labels so subsequent
+	// reconciles can short-circuit when the App is at a stable pin and the
+	// release was already installed at that pin.
+	if velaCtx.PublishVersion != "" {
+		labels["app.oam.dev/publishVersion"] = velaCtx.PublishVersion
+	}
+	return labels
 }
 
 // isOwnedByVela checks whether a Helm release was installed/managed by KubeVela
@@ -708,10 +883,21 @@ func isOwnedByVela(rel *release.Release, velaCtx *ContextParams) bool {
 // computeReleaseFingerprint builds a deterministic string from chart version and a
 // SHA-256 hash of the values so repeated reconciles with no real changes can be
 // detected cheaply without calling the Kubernetes API.
+//
+// Empty-values inputs are normalised to an empty map before hashing. Helm
+// stores release.Config as nil when no values were supplied, but mergeValues
+// returns map[string]interface{}{} for the same logical input — without this
+// guard the two would hash to sha256("null") and sha256("{}") respectively,
+// causing the dedup check below to mis-fire and trigger spurious helm upgrades
+// on every reconcile for any release that was installed with empty/optional
+// values.
 func computeReleaseFingerprint(ch *chart.Chart, values map[string]interface{}) string {
 	version := ""
 	if ch != nil && ch.Metadata != nil {
 		version = ch.Metadata.Version
+	}
+	if values == nil {
+		values = map[string]interface{}{}
 	}
 	valuesJSON, _ := json.Marshal(values)
 	h := sha256.Sum256(valuesJSON)
@@ -783,6 +969,34 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 			// Label all existing release secrets with KubeVela ownership so they
 			// can be tracked by the ResourceTracker and cleaned up on App deletion.
 			p.labelReleaseSecrets(releaseNamespace, releaseName, velaCtx)
+		}
+
+		// publishVersion pin short-circuit: when the App is at a stable
+		// publishVersion pin AND the deployed release was installed at the
+		// same pin AND the chart version is unchanged, return the deployed
+		// manifest unchanged regardless of any apparent values drift.
+		//
+		// Without this, a render path that bypasses the workflow gate
+		// (state-keep / drift detection / post-dispatch traits / periodic
+		// CUE evaluation) re-merges valuesFrom sources and the cluster-side
+		// fingerprint compare below would mis-fire whenever a referenced
+		// CM/Secret was edited. The user's explicit pin is the contract:
+		// nothing changes until they bump the pin.
+		//
+		// Initial install has no existingRelease so this branch is skipped,
+		// and the initial mergeValues runs normally — picking up the
+		// referenced CM/Secret content and stamping it into the release.
+		if !needsAdoption && velaCtx != nil && velaCtx.PublishVersion != "" &&
+			existingRelease.Info != nil && existingRelease.Info.Status == release.StatusDeployed &&
+			existingRelease.Chart != nil && existingRelease.Chart.Metadata != nil &&
+			existingRelease.Chart.Metadata.Version == ch.Metadata.Version &&
+			existingRelease.Labels["app.oam.dev/publishVersion"] == velaCtx.PublishVersion {
+			klog.V(2).Infof("Helm provider [%s]: Release %s held by publishVersion pin %q, skipping upgrade",
+				velaContextStr(velaCtx), releaseName, velaCtx.PublishVersion)
+			p.releaseFingerprints[cacheKey] = fingerprint
+			p.releaseManifests[cacheKey] = existingRelease.Manifest
+			p.releaseVersions[cacheKey] = existingRelease.Version
+			return existingRelease.Manifest, existingRelease.Info.Notes, existingRelease.Version, nil
 		}
 
 		// Release exists — check if it is already deployed with the same fingerprint
@@ -1299,16 +1513,66 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 
 	klog.V(2).Infof("Helm provider [%s]: Starting render for chart %s from %s", velaContextStr(renderParams.Context), renderParams.Chart.Source, renderParams.Chart.RepoURL)
 
-	// Set default release name and namespace
-	releaseName := "release"
-	releaseNamespace := "default"
+	// Application namespace is the tenant boundary. When the Application has no
+	// explicit context, fall back to the release namespace below so the same
+	// Application can be rendered outside a ComponentDefinition path.
+	appNamespace := ""
+	if renderParams.Context != nil {
+		appNamespace = renderParams.Context.AppNamespace
+	}
 
+	releaseName := "release"
+	releaseNamespace := appNamespace
 	if renderParams.Release != nil {
 		if renderParams.Release.Name != "" {
 			releaseName = renderParams.Release.Name
 		}
 		if renderParams.Release.Namespace != "" {
 			releaseNamespace = renderParams.Release.Namespace
+		}
+	}
+	// Guarantee a non-empty release namespace. Under the normal KubeVela
+	// code path the controller always sets Context.AppNamespace before
+	// calling Render, but callers that invoke the provider directly (tests,
+	// CLI tooling) may leave both context and Release.Namespace empty.
+	// Falling back to "default" preserves the pre-refactor behavior and
+	// keeps Helm's namespace resolution from depending on the caller's
+	// kubeconfig default.
+	if releaseNamespace == "" {
+		releaseNamespace = "default"
+	}
+	if appNamespace == "" {
+		appNamespace = releaseNamespace
+	}
+
+	// Resolve the App's publishVersion annotation, if any. We pass it through
+	// ContextParams.PublishVersion so installOrUpgradeChart can short-circuit
+	// when the deployed release is already at the current pin and so
+	// velaOwnerLabels can stamp the pin onto the release at install time.
+	// Skipped in dry-run: admission validation must not depend on cluster
+	// state, and the user-visible behaviour (CUE shape OK / not OK) is
+	// independent of the pin.
+	//
+	// IsNotFound is treated as "App is being deleted" and falls through with
+	// an empty pin — the subsequent uninstall path handles cleanup. Any other
+	// error (RBAC change, transient API failure, network blip) is surfaced
+	// rather than silently swallowed: a swallowed error would leave the pin
+	// empty for this reconcile and bypass the pin short-circuit downstream,
+	// allowing an unintended helm upgrade to fire even though the user's
+	// publishVersion annotation is still in place.
+	if !isDryRun(ctx) && renderParams.Context != nil && renderParams.Context.AppName != "" && appNamespace != "" {
+		var app v1beta1.Application
+		switch getErr := singleton.KubeClient.Get().Get(ctx, client.ObjectKey{Name: renderParams.Context.AppName, Namespace: appNamespace}, &app); {
+		case getErr == nil:
+			if pin := app.GetAnnotations()[oam.AnnotationPublishVersion]; pin != "" {
+				renderParams.Context.PublishVersion = pin
+			}
+		case apierrors.IsNotFound(getErr):
+			// App is gone (deletion in flight). Proceed without a pin.
+		default:
+			return nil, errors.Wrapf(getErr,
+				"failed to read Application %s/%s for publishVersion lookup; refusing to proceed without pin context",
+				appNamespace, renderParams.Context.AppName)
 		}
 	}
 
@@ -1321,12 +1585,24 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	}
 	klog.V(2).Infof("Helm provider: Successfully fetched chart %s", ch.Name())
 
-	// Merge values from all sources
-	values, err := p.mergeValues(ctx, renderParams.Values, renderParams.ValuesFrom)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to merge values")
+	// Skip valuesFrom resolution in dry-run (webhook admission): the webhook
+	// validates CUE shape and renders the chart, not the final merged values,
+	// and running loadValuesFromSource during admission adds N cluster reads
+	// per Application create/update plus ordering hazards when the referenced
+	// CM/Secret is applied in the same kubectl batch.
+	var values map[string]interface{}
+	if isDryRun(ctx) {
+		if inline, ok := renderParams.Values.(map[string]interface{}); ok {
+			values = inline
+		} else {
+			values = map[string]interface{}{}
+		}
+	} else {
+		values, err = p.mergeValues(ctx, renderParams.Values, renderParams.ValuesFrom, appNamespace, releaseNamespace)
+		if err != nil {
+			return nil, errors.Wrapf(err, "%s: failed to merge values", velaContextStr(renderParams.Context))
+		}
 	}
-	klog.V(3).Infof("Helm provider: Merged values: %v", values)
 
 	// In dry-run mode (webhook validation), render client-side only — no cluster
 	// interaction, no real install, no hooks. This prevents the webhook from
