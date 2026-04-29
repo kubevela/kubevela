@@ -163,7 +163,8 @@ func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1bet
 	if app.Status.Workflow != nil {
 		currentRev = app.Status.Workflow.AppRevision
 	}
-	if metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationPublishVersion) {
+	publishVersionPinned := metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationPublishVersion)
+	if publishVersionPinned {
 		desiredRev = app.GetAnnotations()[oam.AnnotationPublishVersion]
 	} else { // nolint
 		// backward compatibility
@@ -172,6 +173,36 @@ func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1bet
 			currentRev = currentRev[:idx]
 		}
 	}
+	// Append a content fingerprint of any helmchart valuesFrom sources so
+	// external ConfigMap/Secret edits move desiredRev and trigger a workflow
+	// restart on the next reconcile. The suffix only appears for Applications
+	// that declare valuesFrom on a helmchart component; all other Applications
+	// observe identical behaviour to before this change.
+	//
+	// Suppressed when publishVersion is set: an explicit pin from the user is
+	// hard, so a CM/Secret edit must not move the revision until the user bumps
+	// the pin. This preserves GitOps semantics for users who rely on the
+	// publishVersion annotation as a stable rollout token.
+	//
+	// On a transient fingerprint computation error (e.g. API hiccup), if the
+	// previous reconcile already persisted a "<base>-vf-..." revision in
+	// status.workflow.appRevision, reuse it so the gate still matches and the
+	// workflow does not flap. The error is logged at V(2) rather than Error so
+	// a persistent failure (e.g. RBAC change deleting CM read) does not produce
+	// alert-storms across the fleet — the persistent failure surfaces during
+	// the next Render() with a clearer error than could be produced here.
+	if !publishVersionPinned {
+		if vfFp, err := computeValuesFromContentFingerprint(ctx, app); err != nil {
+			klog.V(2).InfoS("failed to compute valuesFrom fingerprint; falling back to spec-only workflow gate",
+				"err", err, "appName", app.Name, "namespace", app.Namespace)
+			if currentRev != "" && strings.HasPrefix(currentRev, desiredRev+valuesFromSuffixSeparator) {
+				desiredRev = currentRev
+			}
+		} else if vfFp != "" {
+			desiredRev = desiredRev + valuesFromSuffixSeparator + vfFp[:valuesFromSuffixHexLen]
+		}
+	}
+
 	if currentRev != "" && desiredRev == currentRev {
 		return
 	}
