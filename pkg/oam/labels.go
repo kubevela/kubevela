@@ -224,7 +224,7 @@ const (
 	// AnnotationReconcileInterval overrides the global ApplicationReSyncPeriod on a
 	// per-application basis.  The value must be a valid Go duration string (e.g.
 	// "1m", "15m", "30s").  Values below 10s are ignored and fall back to the
-	// global default.  Invalid values are also silently ignored.
+	// global default.  Invalid values are also ignored.
 	AnnotationReconcileInterval = "app.oam.dev/reconcile-interval"
 )
 

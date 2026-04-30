@@ -443,11 +443,15 @@ func (r *reconcileResult) requeue(d time.Duration) *reconcileResult {
 func (r *reconcileResult) forApp(app *v1beta1.Application) *reconcileResult {
 	if app != nil && app.Annotations != nil {
 		if v, ok := app.Annotations[oam.AnnotationReconcileInterval]; ok {
-			if d, err := time.ParseDuration(v); err == nil && d >= minPerAppResyncPeriod {
-				r.defaultResync = d
-			} else {
+			d, err := time.ParseDuration(v)
+			if err != nil {
 				klog.Warningf("ignoring invalid %s annotation %q on application %s/%s, using global default",
 					oam.AnnotationReconcileInterval, v, app.Namespace, app.Name)
+			} else if d < minPerAppResyncPeriod {
+				klog.Warningf("ignoring %s annotation %q below minimum %s on application %s/%s, using global default",
+					oam.AnnotationReconcileInterval, v, minPerAppResyncPeriod, app.Namespace, app.Name)
+			} else {
+				r.defaultResync = d
 			}
 		}
 	}
@@ -522,9 +526,9 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
 	app.SetConditions(condition)
 	if err := r.patchStatus(ctx, app, phase); err != nil {
-		return r.result(errors.WithMessage(err, "cannot update application status")).forApp(app).ret()
+		return r.result(errors.WithMessage(err, "cannot update application status")).ret()
 	}
-	return r.result(fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)).forApp(app).ret()
+	return r.result(fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)).ret()
 }
 
 // Application status can be updated by two methods: patch and update.
