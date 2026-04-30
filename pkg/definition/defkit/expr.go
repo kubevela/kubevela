@@ -267,19 +267,18 @@ func (c *StringEndsWithCondition) ParamName() string { return c.paramName }
 func (c *StringEndsWithCondition) Suffix() string { return c.suffix }
 
 // LenCondition checks the length of a parameter (string, array, or map).
-// Generates: len(parameter.name | fallback) op n
+// Generates: parameter["name"] != _|_ if len(parameter["name"]) op n
 //
-// The CUE union-fallback (`| []`, `| {}`, `| ""`) is required when the
-// parameter is optional — without it the CUE evaluator rejects len() against
-// an optional field with "cannot reference optional field". The fallback
-// gives len() a concrete empty value when the field is absent, evaluating
-// to 0 (which yields the same logical result as "field absent").
+// CUE chained-if guard form. The bracket-existence guard handles strict
+// mode on optional fields (dot syntax `parameter.X` errors on `_|_`). The
+// second `if` only evaluates when the first passes, so `len()` never
+// references an absent (`_|_`) value. For required fields the outer guard
+// always passes.
 type LenCondition struct {
 	baseCondition
 	paramName string
 	op        string // ==, !=, <, <=, >, >=
 	length    int
-	fallback  string // "[]" for arrays, "{}" for maps, `""` for strings
 }
 
 // ParamName returns the parameter name being checked.
@@ -291,9 +290,34 @@ func (c *LenCondition) Op() string { return c.op }
 // Length returns the length to compare against.
 func (c *LenCondition) Length() int { return c.length }
 
-// Fallback returns the CUE empty value used in the union-fallback (e.g. "[]").
-// Empty string means no fallback — caller should render bare len(parameter.name).
-func (c *LenCondition) Fallback() string { return c.fallback }
+// AbsentOrEmptyCondition fires when a collection parameter is either absent
+// (parameter["X"] == _|_) or set and empty (len(parameter["X"]) == 0).
+//
+// CUE cannot express "absent OR empty" as a single boolean expression: `||`
+// is strict in both operands, and `len(_|_)` propagates bottom. The condition
+// is therefore expanded at render time into two separate if blocks, each
+// emitting the same body — CUE unifies same-path/same-value writes.
+type AbsentOrEmptyCondition struct {
+	baseCondition
+	paramName string
+}
+
+// ParamName returns the parameter name being checked.
+func (c *AbsentOrEmptyCondition) ParamName() string { return c.paramName }
+
+// Branches returns the two simpler conditions equivalent to this OR:
+//  1. field absent (Not(IsSet))
+//  2. field set and empty (LenCondition == 0)
+//
+// Render paths that handle compound emission expand into both branches; paths
+// that don't (e.g. unknown contexts) fall back to conditionToCUE which renders
+// only the "set and empty" branch.
+func (c *AbsentOrEmptyCondition) Branches() []Condition {
+	return []Condition{
+		&NotExpr{cond: &IsSetCondition{paramName: c.paramName}},
+		&LenCondition{paramName: c.paramName, op: "==", length: 0},
+	}
+}
 
 // ArrayContainsCondition checks if an array parameter contains a specific value.
 // Generates: list.Contains(parameter.name, value)

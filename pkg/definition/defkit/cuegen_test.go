@@ -2242,8 +2242,49 @@ var _ = Describe("CUEGenerator", func() {
 	// rendering must use the bracket-existence pattern `parameter["X"] != _|_`
 	// — the same form every built-in KubeVela component (cron-task.cue,
 	// daemon.cue, helmchart.cue) uses.
+	// --- Bracket-access conditional rendering --------------------------------
+	//
+	// Regression: when SetIf targets a bracket-access path (e.g.
+	// `data[args-empty]`), the bracket-leaf rendering previously dropped the
+	// node's condition and condValues, emitting the field unconditionally.
+	// Both single conditions and AbsentOrEmpty's two-branch expansion must
+	// produce wrapping if blocks for keys with hyphens / dots / etc.
+	Context("Bracket-access conditional rendering", func() {
+		It("should wrap a bracket-access SetIf in an if block (single condition)", func() {
+			args := defkit.StringList("args").Optional()
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(args.IsNotEmpty(), "data[has-args]", defkit.Lit("yes")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`if parameter["args"] != _|_ if len(parameter["args"]) > 0`))
+			// The bracket key must be quoted (CUE requires quoting for
+			// non-identifier field names) and live inside the if block.
+			Expect(cue).To(ContainSubstring(`"has-args": "yes"`))
+		})
+
+		It("should wrap a bracket-access SetIf with AbsentOrEmpty in TWO if blocks", func() {
+			args := defkit.StringList("args").Optional()
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(args.IsEmpty(), "data[args-empty]", defkit.Lit("yes")))
+				}).
+				ToCue()
+			// Two branches: absent + set-and-empty, both wrapping the same key.
+			Expect(cue).To(ContainSubstring(`if parameter["args"] == _|_`))
+			Expect(cue).To(ContainSubstring(`if parameter["args"] != _|_ if len(parameter["args"]) == 0`))
+			Expect(strings.Count(cue, `"args-empty": "yes"`)).To(Equal(2))
+		})
+	})
+
 	Context("Optional collection rendering", func() {
-		It("should render IsNotEmpty() on optional Array as bracket existence (no len, no union)", func() {
+		It("should render IsNotEmpty() on optional Array as chained-if guard with len() > 0", func() {
 			args := defkit.StringList("args").Optional()
 			cue := defkit.NewComponent("c").
 				Workload("v1", "ConfigMap").
@@ -2254,11 +2295,12 @@ var _ = Describe("CUEGenerator", func() {
 				}).
 				ToCue()
 			Expect(cue).To(ContainSubstring(`if parameter["args"] != _|_`))
+			Expect(cue).To(ContainSubstring(`len(parameter["args"]) > 0`))
 			Expect(cue).NotTo(ContainSubstring(`len(parameter.args)`))
 			Expect(cue).NotTo(ContainSubstring(`parameter.args | []`))
 		})
 
-		It("should render IsEmpty() on optional Array as bracket-existence inverse", func() {
+		It("should render IsEmpty() on optional Array as two if blocks (absent OR set-and-empty)", func() {
 			args := defkit.StringList("args").Optional()
 			cue := defkit.NewComponent("c").
 				Workload("v1", "ConfigMap").
@@ -2268,7 +2310,10 @@ var _ = Describe("CUEGenerator", func() {
 						SetIf(args.IsEmpty(), "data.empty", defkit.Lit("yes")))
 				}).
 				ToCue()
+			// Branch 1: field absent
 			Expect(cue).To(ContainSubstring(`if parameter["args"] == _|_`))
+			// Branch 2: field set and empty
+			Expect(cue).To(ContainSubstring(`if parameter["args"] != _|_ if len(parameter["args"]) == 0`))
 		})
 
 		It("should render Map.HasKey() with the daemon.cue two-clause guard", func() {

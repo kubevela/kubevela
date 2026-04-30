@@ -17,6 +17,8 @@ limitations under the License.
 package defkit_test
 
 import (
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -133,6 +135,49 @@ var _ = Describe("Validator", func() {
 			Expect(cue).To(ContainSubstring(`objectLock"] != _|_`))
 			Expect(cue).To(ContainSubstring("parameter.versioningEnabled == false"))
 			Expect(cue).To(ContainSubstring("_validateVersioning:"))
+		})
+	})
+
+	Context("FailWhen / OnlyWhen with collection IsEmpty()", func() {
+		// Regression: ParamRef.IsEmpty() returns *AbsentOrEmptyCondition.
+		// In CUE, "absent OR empty" cannot be expressed as a single boolean
+		// (`||` is strict, len(_|_) propagates bottom). The renderer must
+		// duplicate the body into two if blocks — one per branch — so the
+		// validator fires on both unset and empty-collection inputs.
+
+		It("FailWhen(args.IsEmpty()) emits two false-clauses (absent + set-and-empty)", func() {
+			args := defkit.StringList("args").Optional()
+			v := defkit.Validate("args must be non-empty").
+				WithName("_v").
+				FailWhen(args.IsEmpty())
+
+			comp := defkit.NewComponent("test").Params(args).Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring(`if parameter["args"] == _|_`))
+			Expect(cue).To(ContainSubstring(`if parameter["args"] != _|_ if len(parameter["args"]) == 0`))
+			// Both branches set the message to false (tripping validation).
+			falseCount := strings.Count(cue, `"args must be non-empty": false`)
+			Expect(falseCount).To(Equal(2))
+		})
+
+		It("OnlyWhen(labels.IsEmpty()) wraps the validator in two guard blocks", func() {
+			labels := defkit.StringKeyMap("labels").Optional()
+			args := defkit.StringList("args").Optional()
+			v := defkit.Validate("at least one arg required when no labels").
+				WithName("_v").
+				OnlyWhen(labels.IsEmpty()).
+				FailWhen(args.IsEmpty())
+
+			comp := defkit.NewComponent("test").Params(labels, args).Validators(v)
+			cue := gen.GenerateParameterSchema(comp)
+
+			// Two outer guards: labels-absent + labels-set-and-empty.
+			Expect(cue).To(ContainSubstring(`if parameter["labels"] == _|_`))
+			Expect(cue).To(ContainSubstring(`if parameter["labels"] != _|_ if len(parameter["labels"]) == 0`))
+			// Validator definition is duplicated under each guard.
+			validatorCount := strings.Count(cue, `_v: {`)
+			Expect(validatorCount).To(Equal(2))
 		})
 	})
 

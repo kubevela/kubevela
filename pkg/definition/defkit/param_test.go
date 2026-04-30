@@ -663,13 +663,6 @@ var _ = Describe("Parameters", func() {
 			Expect(lenCond.Length()).To(Equal(1))
 		})
 
-		It("should mark length conditions with the [] CUE fallback so cuegen knows it's a collection", func() {
-			lenCond := defkit.Array("tags").Of(defkit.ParamTypeString).LenEq(5).(*defkit.LenCondition)
-			Expect(lenCond.Fallback()).To(Equal("[]"))
-			emptyCond := defkit.Array("tags").IsEmpty().(*defkit.LenCondition)
-			Expect(emptyCond.Fallback()).To(Equal("[]"))
-		})
-
 		It("should require the list import only when MinItems or MaxItems is set", func() {
 			plain := defkit.StringList("tags")
 			Expect(plain.RequiredImports()).To(BeNil())
@@ -690,15 +683,6 @@ var _ = Describe("Parameters", func() {
 				defkit.String("name"),
 			)
 			Expect(p.GetFields()).To(HaveLen(2))
-		})
-	})
-
-	Context("MapParam length conditions", func() {
-		It("should mark length conditions with the {} CUE fallback so cuegen knows it's a map", func() {
-			lenCond := defkit.Map("config").Of(defkit.ParamTypeString).LenEq(3).(*defkit.LenCondition)
-			Expect(lenCond.Fallback()).To(Equal("{}"))
-			emptyCond := defkit.Map("config").IsNotEmpty().(*defkit.LenCondition)
-			Expect(emptyCond.Fallback()).To(Equal("{}"))
 		})
 	})
 
@@ -723,18 +707,6 @@ var _ = Describe("Parameters", func() {
 			Expect(labels.IsNotEmpty()).NotTo(BeNil())
 			Expect(labels.LenEq(3)).NotTo(BeNil())
 			Expect(labels.LenGt(0)).NotTo(BeNil())
-		})
-
-		It("should mark length conditions with the {} CUE fallback (parity with MapParam)", func() {
-			lenCond := defkit.StringKeyMap("labels").IsEmpty().(*defkit.LenCondition)
-			Expect(lenCond.Fallback()).To(Equal("{}"))
-		})
-	})
-
-	Context("StringParam length conditions", func() {
-		It("should not set a CUE fallback (string conditions render as raw len())", func() {
-			lenCond := defkit.String("name").LenEq(5).(*defkit.LenCondition)
-			Expect(lenCond.Fallback()).To(Equal(""))
 		})
 	})
 

@@ -530,32 +530,46 @@ func (g *CUEGenerator) writeValidator(sb *strings.Builder, v *Validator, depth i
 		name = "_validate"
 	}
 
+	writeBody := func(bodyIndent, innerBodyIndent string) {
+		sb.WriteString(fmt.Sprintf("%s%s: {\n", bodyIndent, name))
+		sb.WriteString(fmt.Sprintf("%s%q: true\n", innerBodyIndent, v.Message()))
+		if v.FailCondition() != nil {
+			g.writeIfBlocksForCond(sb, v.FailCondition(), innerBodyIndent, func() {
+				sb.WriteString(fmt.Sprintf("%s\t%q: false\n", innerBodyIndent, v.Message()))
+			})
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", bodyIndent))
+	}
+
 	if v.GuardCondition() != nil {
 		// Guarded validator: wrap in if guard { ... }
-		guardCUE := g.conditionToCUE(v.GuardCondition())
-		sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, guardCUE))
-		sb.WriteString(fmt.Sprintf("%s%s: {\n", inner, name))
-		sb.WriteString(fmt.Sprintf("%s%q: true\n", inner2, v.Message()))
-		if v.FailCondition() != nil {
-			failCUE := g.conditionToCUE(v.FailCondition())
-			sb.WriteString(fmt.Sprintf("%sif %s {\n", inner2, failCUE))
-			sb.WriteString(fmt.Sprintf("%s\t%q: false\n", inner2, v.Message()))
-			sb.WriteString(fmt.Sprintf("%s}\n", inner2))
-		}
-		sb.WriteString(fmt.Sprintf("%s}\n", inner))
-		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		g.writeIfBlocksForCond(sb, v.GuardCondition(), indent, func() {
+			writeBody(inner, inner2)
+		})
 	} else {
-		// Unguarded validator
-		sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, name))
-		sb.WriteString(fmt.Sprintf("%s%q: true\n", inner, v.Message()))
-		if v.FailCondition() != nil {
-			failCUE := g.conditionToCUE(v.FailCondition())
-			sb.WriteString(fmt.Sprintf("%sif %s {\n", inner, failCUE))
-			sb.WriteString(fmt.Sprintf("%s\t%q: false\n", inner, v.Message()))
-			sb.WriteString(fmt.Sprintf("%s}\n", inner))
-		}
-		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		writeBody(indent, inner)
 	}
+}
+
+// writeIfBlocksForCond writes one or more `if cond { body }` blocks. For
+// AbsentOrEmptyCondition the body is duplicated into two blocks (one for
+// each branch) — CUE's `||` cannot express "absent OR empty" safely on
+// optional fields, so the structural duplication is required. For all other
+// conditions a single if block is emitted.
+func (g *CUEGenerator) writeIfBlocksForCond(sb *strings.Builder, cond Condition, indent string, writeBody func()) {
+	if aoe, ok := cond.(*AbsentOrEmptyCondition); ok {
+		for _, branch := range aoe.Branches() {
+			condCUE := g.conditionToCUE(branch)
+			sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condCUE))
+			writeBody()
+			sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		}
+		return
+	}
+	condCUE := g.conditionToCUE(cond)
+	sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condCUE))
+	writeBody()
+	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 }
 
 // writeConditionalParamBlock writes conditional parameter branches.
@@ -1354,10 +1368,25 @@ func (g *CUEGenerator) buildFieldTree(ops []ResourceOp) *fieldNode {
 		case *SetOp:
 			g.insertIntoTree(root, o.Path(), o.Value(), nil)
 		case *SetIfOp:
-			g.insertIntoTree(root, o.Path(), o.Value(), o.Cond())
+			// Expand AbsentOrEmptyCondition into branches: each branch
+			// produces its own conditional value at the same path. The tree
+			// renderer emits one if block per condValue.
+			if aoe, ok := o.Cond().(*AbsentOrEmptyCondition); ok {
+				for _, branch := range aoe.Branches() {
+					g.insertIntoTree(root, o.Path(), o.Value(), branch)
+				}
+			} else {
+				g.insertIntoTree(root, o.Path(), o.Value(), o.Cond())
+			}
 		case *SpreadIfOp:
 			// SpreadIfOp adds a spread entry to the target node
-			g.insertSpreadIntoTree(root, o.Path(), o.Value(), o.Cond())
+			if aoe, ok := o.Cond().(*AbsentOrEmptyCondition); ok {
+				for _, branch := range aoe.Branches() {
+					g.insertSpreadIntoTree(root, o.Path(), o.Value(), branch)
+				}
+			} else {
+				g.insertSpreadIntoTree(root, o.Path(), o.Value(), o.Cond())
+			}
 		case *ForEachOp:
 			// ForEachOp creates a for-each iteration at the target path
 			g.insertForEachIntoTree(root, o, nil)
@@ -1378,13 +1407,28 @@ func (g *CUEGenerator) buildFieldTree(ops []ResourceOp) *fieldNode {
 				case *SetOp:
 					g.insertIntoTree(root, inner.Path(), inner.Value(), o.Cond())
 				case *SetIfOp:
-					// Combine conditions
-					combinedCond := &AndCondition{left: o.Cond(), right: inner.Cond()}
-					g.insertIntoTree(root, inner.Path(), inner.Value(), combinedCond)
+					// Combine conditions. If inner is AbsentOrEmpty, expand
+					// each branch and combine the outer block's cond with each.
+					if aoe, ok := inner.Cond().(*AbsentOrEmptyCondition); ok {
+						for _, branch := range aoe.Branches() {
+							combined := &AndCondition{left: o.Cond(), right: branch}
+							g.insertIntoTree(root, inner.Path(), inner.Value(), combined)
+						}
+					} else {
+						combinedCond := &AndCondition{left: o.Cond(), right: inner.Cond()}
+						g.insertIntoTree(root, inner.Path(), inner.Value(), combinedCond)
+					}
 				case *SpreadIfOp:
 					// Combine conditions for spread
-					combinedCond := &AndCondition{left: o.Cond(), right: inner.Cond()}
-					g.insertSpreadIntoTree(root, inner.Path(), inner.Value(), combinedCond)
+					if aoe, ok := inner.Cond().(*AbsentOrEmptyCondition); ok {
+						for _, branch := range aoe.Branches() {
+							combined := &AndCondition{left: o.Cond(), right: branch}
+							g.insertSpreadIntoTree(root, inner.Path(), inner.Value(), combined)
+						}
+					} else {
+						combinedCond := &AndCondition{left: o.Cond(), right: inner.Cond()}
+						g.insertSpreadIntoTree(root, inner.Path(), inner.Value(), combinedCond)
+					}
 				case *ForEachOp:
 					// ForEach inside an if block - pass the block's condition
 					g.insertForEachIntoTree(root, inner, o.Cond())
@@ -1872,11 +1916,38 @@ func (g *CUEGenerator) writeFieldNode(sb *strings.Builder, name string, node *fi
 	if strings.HasPrefix(name, "[") && !strings.HasPrefix(name, "[0]") {
 		// This is a map key access - extract the key
 		key := strings.Trim(name, "[]")
+		quoted := fmt.Sprintf("%q", key)
 		if node.value != nil {
 			valStr := g.valueToCUE(node.value)
-			sb.WriteString(fmt.Sprintf("%s%q: %s\n", indent, key, valStr))
+			// Multiple conditional values at the same bracket-access path —
+			// render each inside its own if block (matches the regular-field
+			// path at `node.value != nil && len(node.children) == 0` below).
+			if len(node.condValues) > 0 {
+				if node.cond != nil {
+					condStr := g.conditionToCUE(node.cond)
+					sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
+					sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, quoted, valStr))
+					sb.WriteString(fmt.Sprintf("%s}\n", indent))
+				} else {
+					sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, quoted, valStr))
+				}
+				for _, cv := range node.condValues {
+					condStr := g.conditionToCUE(cv.cond)
+					cvValStr := g.valueToCUE(cv.value)
+					sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
+					sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, quoted, cvValStr))
+					sb.WriteString(fmt.Sprintf("%s}\n", indent))
+				}
+			} else if node.cond != nil {
+				condStr := g.conditionToCUE(node.cond)
+				sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, quoted, valStr))
+				sb.WriteString(fmt.Sprintf("%s}\n", indent))
+			} else {
+				sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, quoted, valStr))
+			}
 		} else if len(node.children) > 0 {
-			sb.WriteString(fmt.Sprintf("%s%q: {\n", indent, key))
+			sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, quoted))
 			g.writeFieldTree(sb, node, depth+1)
 			sb.WriteString(fmt.Sprintf("%s}\n", indent))
 		}
@@ -2916,10 +2987,20 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		return fmt.Sprintf(`strings.HasSuffix(parameter.%s, %q)`, c.ParamName(), c.Suffix())
 	case *LenCondition:
 		return g.lenConditionToCUE(c)
+	case *AbsentOrEmptyCondition:
+		// Fallback for paths that haven't been updated to expand branches
+		// into separate if blocks. Renders only the "set and empty" branch
+		// (the "absent" branch is lost). Top-level SetIfOp / SpreadIfOp in
+		// buildFieldTree DO expand and render both branches correctly.
+		return fmt.Sprintf(`parameter[%q] != _|_ if len(parameter[%q]) == 0`,
+			c.ParamName(), c.ParamName())
 	case *ArrayContainsCondition:
 		// Guard with bracket-existence for CUE strict mode, then use
 		// list.Contains with bracket reference (concrete after the guard).
-		return fmt.Sprintf(`parameter[%q] != _|_ && list.Contains(parameter[%q], %s)`,
+		// Uses CUE chained-if syntax (`if guard if inner { ... }`) so
+		// list.Contains is never evaluated when the field is absent —
+		// CUE does not short-circuit &&.
+		return fmt.Sprintf(`parameter[%q] != _|_ if list.Contains(parameter[%q], %s)`,
 			c.ParamName(), c.ParamName(), formatCUEValue(c.Value()))
 	case *MapHasKeyCondition:
 		// daemon.cue's idiom for nested optional access: bracket on the
@@ -2937,17 +3018,29 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	case *AndCondition:
 		left := g.conditionToCUE(c.left)
 		right := g.conditionToCUE(c.right)
+		// If either operand uses chained-if guard syntax (e.g.
+		// ArrayContainsCondition), join with ` if ` instead of ` && `
+		// because chained-if expressions are invalid inside (&&).
+		if usesChainedGuard(c.left) || usesChainedGuard(c.right) {
+			return fmt.Sprintf("%s if %s", left, right)
+		}
 		return fmt.Sprintf("(%s) && (%s)", left, right)
 	case *LogicalExpr:
 		parts := make([]string, len(c.Conditions()))
+		anyChained := false
 		for i, sub := range c.Conditions() {
 			parts[i] = g.conditionToCUE(sub)
+			if usesChainedGuard(sub) {
+				anyChained = true
+			}
 		}
-		op := " && "
 		if c.Op() == OpOr {
-			op = " || "
+			return strings.Join(parts, " || ")
 		}
-		return strings.Join(parts, op)
+		if anyChained {
+			return strings.Join(parts, " if ")
+		}
+		return strings.Join(parts, " && ")
 	case *NotExpr:
 		// Special case: Not(IsSet("x")) -> parameter["x"] == _|_
 		if isSet, ok := c.Cond().(*IsSetCondition); ok {
@@ -2988,11 +3081,16 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	case *AllConditionsCondition:
 		// Generate compound condition: if cond1 if cond2 ...
 		var parts []string
+		anyChained := false
 		for _, cond := range c.Conditions() {
 			parts = append(parts, g.conditionToCUE(cond))
+			if usesChainedGuard(cond) {
+				anyChained = true
+			}
 		}
-		// For CUE, we generate: cond1 && cond2 && cond3
-		// which will be used in a single if statement
+		if anyChained {
+			return strings.Join(parts, " if ")
+		}
 		return strings.Join(parts, " && ")
 	case *RegexMatchCondition:
 		// General-purpose regex match: <value> =~ "pattern"
@@ -3005,35 +3103,31 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	}
 }
 
-// lenConditionToCUE renders a LenCondition. Split out from conditionToCUE so
-// the dispatcher stays under gocyclo's 35-branch cap.
-//
-// For collection-typed length predicates (Array/Map/StringKeyMap — signaled
-// by a non-empty Fallback), emit a bracket-form existence check matching
-// KubeVela's canonical pattern (cron-task.cue): `parameter["X"] != _|_`
-// (or `== _|_` for IsEmpty). We deliberately drop the len() distinction
-// because:
-//  1. `len(parameter.X)` trips CUE strict mode on optional fields.
-//  2. `len(parameter.X | [])` produces an unresolved disjunction whenever
-//     the user actually sets the field.
-//  3. The bracket-existence form is what every built-in KubeVela component
-//     uses in production.
-//
-// Trade-off: IsNotEmpty/IsEmpty/LenGt(0)/LenEq(0) all collapse to existence
-// checks; LenN(N>0) loses exact-length semantics in SetIf guards. For exact
-// length, use Validators(...) instead.
-//
-// For Strings (no fallback), the original `len(parameter.X) op N` form is
-// kept — string length conditions are typically used in Validators against
-// required/defaulted strings, where strict mode doesn't fire.
-func (g *CUEGenerator) lenConditionToCUE(c *LenCondition) string {
-	if c.Fallback() != "" {
-		if c.Length() == 0 && c.Op() == "==" {
-			return fmt.Sprintf("parameter[%q] == _|_", c.ParamName())
-		}
-		return fmt.Sprintf("parameter[%q] != _|_", c.ParamName())
+// usesChainedGuard returns true for condition types whose conditionToCUE output
+// uses CUE chained-if syntax (e.g. `guard if inner`). These conditions cannot
+// be placed inside `(…) && (…)` — compound conditions must join with ` if `
+// instead of ` && ` when any operand uses chained guards.
+func usesChainedGuard(c Condition) bool {
+	switch c.(type) {
+	case *ArrayContainsCondition, *LenCondition:
+		return true
 	}
-	return fmt.Sprintf("len(parameter.%s) %s %d", c.ParamName(), c.Op(), c.Length())
+	return false
+}
+
+// lenConditionToCUE renders a LenCondition using CUE's chained-if guard
+// pattern: `parameter["X"] != _|_ if len(parameter["X"]) op N`.
+//
+// The bracket-existence guard handles CUE strict mode on optional fields
+// (dot syntax `parameter.X` errors on `_|_`). The second `if` only evaluates
+// when the first passes, so `len()` never references an absent value.
+// For required fields the outer guard always passes — a few characters
+// longer than `len(parameter.X) op N` but correctness is uniform across
+// required and optional fields. Pattern matches the chained-if form already
+// used at cuegen.go:1145 for compound optional access.
+func (g *CUEGenerator) lenConditionToCUE(c *LenCondition) string {
+	return fmt.Sprintf(`parameter[%q] != _|_ if len(parameter[%q]) %s %d`,
+		c.ParamName(), c.ParamName(), c.Op(), c.Length())
 }
 
 // inConditionToCUE converts an InCondition to CUE syntax.
