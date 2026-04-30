@@ -250,6 +250,29 @@ var _ = ginkgo.Describe("Parameter Constraints", func() {
 		)
 	})
 
+	// --- AllConditions Rendering ---
+	//
+	// AllConditions(...) builds an AllConditionsCondition over N sub-conditions.
+	// Joiner switches between ` && ` (default) and ` if ` (when any sub uses
+	// chained-guard syntax — e.g. ArrayContainsCondition / LenCondition with
+	// non-empty Fallback).
+	ginkgo.Context("AllConditions rendering", func() {
+		ginkgo.It("joins non-chained conditions with ` && `", func() {
+			flag := Bool("flag").Default(false)
+			replicas := Int("replicas").Default(1)
+			cond := AllConditions(flag.IsTrue(), replicas.Gt(0))
+			gomega.Expect(gen.conditionToCUE(cond)).To(gomega.Equal(`parameter.flag && parameter.replicas > 0`))
+		})
+
+		ginkgo.It("joins with ` if ` when any sub-condition is chained-guard", func() {
+			tags := StringList("tags").Optional()
+			flag := Bool("flag").Default(false)
+			out := gen.conditionToCUE(AllConditions(flag.IsTrue(), tags.Contains("gpu")))
+			gomega.Expect(out).To(gomega.ContainSubstring(` if `))
+			gomega.Expect(out).To(gomega.ContainSubstring(`list.Contains(parameter["tags"], "gpu")`))
+		})
+	})
+
 	// --- Chaining Tests ---
 
 	ginkgo.Context("Constraint Chaining", func() {

@@ -2281,6 +2281,127 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring(`if parameter["args"] != _|_ if len(parameter["args"]) == 0`))
 			Expect(strings.Count(cue, `"args-empty": "yes"`)).To(Equal(2))
 		})
+
+		It("should render an unconditional bracket-key Set without an if block", func() {
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data[my-key]", defkit.Lit("v")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`"my-key": "v"`))
+			Expect(cue).NotTo(ContainSubstring(`if `))
+		})
+
+		It("should render a bracket-key parent with a nested child as a struct", func() {
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("metadata.annotations[my-key].nested", defkit.Lit("v")))
+				}).
+				ToCue()
+			// Bracket key with a child renders as `"my-key": { nested: ... }`.
+			Expect(cue).To(ContainSubstring(`"my-key": {`))
+			Expect(cue).To(ContainSubstring(`nested: "v"`))
+		})
+
+		It("should keep per-bracket-key conditions when sibling keys have different conds", func() {
+			args := defkit.StringList("args").Optional()
+			tags := defkit.StringList("tags").Optional()
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args, tags).
+				Template(func(tpl *defkit.Template) {
+					// Two bracket keys with DIFFERENT conditions — liftChildConditions
+					// can't merge them, so each bracket leaf keeps its own cond and
+					// writeBracketKeyNode hits the per-leaf if-block emission path.
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(args.IsNotEmpty(), "data[has-args]", defkit.Lit("yes")).
+						SetIf(tags.IsNotEmpty(), "data[has-tags]", defkit.Lit("yes")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`"has-args": "yes"`))
+			Expect(cue).To(ContainSubstring(`"has-tags": "yes"`))
+			Expect(cue).To(ContainSubstring(`len(parameter["args"]) > 0`))
+			Expect(cue).To(ContainSubstring(`len(parameter["tags"]) > 0`))
+		})
+
+		It("should keep per-bracket-key condValues when AbsentOrEmpty mixes with other conds", func() {
+			args := defkit.StringList("args").Optional()
+			tags := defkit.StringList("tags").Optional()
+			// Mix AbsentOrEmpty (two condValues) with another condition on a
+			// sibling bracket key — prevents liftChildConditions from sharing,
+			// so the bracket leaf keeps its condValues and writeBracketKeyNode
+			// hits `case len(node.condValues) > 0`.
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args, tags).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(args.IsEmpty(), "data[args-empty]", defkit.Lit("yes")).
+						SetIf(tags.IsNotEmpty(), "data[has-tags]", defkit.Lit("yes")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`"args-empty": "yes"`))
+			Expect(cue).To(ContainSubstring(`"has-tags": "yes"`))
+		})
+	})
+
+	// --- Compound condition rendering ---------------------------------------
+	//
+	// Conditions that use CUE chained-if syntax (LenCondition, ArrayContains)
+	// cannot live inside `(...) && (...)` — compound joiners must use ` if `
+	// instead. Cover the chained-guard branches of And / LogicalExpr and the
+	// LogicalExpr OR pass-through.
+	Context("Compound condition rendering", func() {
+		It("should join AND with chained-guard LenCondition operand using ` if `", func() {
+			args := defkit.StringList("args").Optional()
+			flag := defkit.Bool("flag").Default(false)
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args, flag).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(defkit.And(args.LenGt(0), flag.IsTrue()),
+							"data[both]", defkit.Lit("y")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`len(parameter["args"]) > 0`))
+			// The parenthesized && form must NOT wrap a chained-guard operand.
+			Expect(cue).NotTo(MatchRegexp(`\([^)]*len\(parameter\["args"\]\)[^)]*\) && `))
+		})
+
+		It("should join AND with chained-guard ArrayContains operands using ` if `", func() {
+			tags := defkit.StringList("tags").Optional()
+			flag := defkit.Bool("flag").Default(false)
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(tags, flag).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(defkit.And(tags.Contains("gpu"), flag.IsTrue(), tags.LenGt(0)),
+							"data[ok]", defkit.Lit("y")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`list.Contains(parameter["tags"], "gpu")`))
+			Expect(cue).To(ContainSubstring(`len(parameter["tags"]) > 0`))
+		})
+
+		It("should join LogicalExpr OR with ` || ` regardless of chained guards", func() {
+			flag := defkit.Bool("flag").Default(false)
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(flag).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(defkit.Or(flag.IsTrue(), flag.IsFalse()),
+							"data[either]", defkit.Lit("y")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(` || `))
+		})
 	})
 
 	Context("Optional collection rendering", func() {
@@ -2314,6 +2435,45 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring(`if parameter["args"] == _|_`))
 			// Branch 2: field set and empty
 			Expect(cue).To(ContainSubstring(`if parameter["args"] != _|_ if len(parameter["args"]) == 0`))
+		})
+
+		It("should expand AbsentOrEmpty in SpreadIf into two spread blocks", func() {
+			extra := defkit.Map("extra").Of(defkit.ParamTypeString).Optional()
+			// SpreadIf renders only when its target node also has at least one
+			// regular child (otherwise the leaf-with-only-spreads case is a
+			// pre-existing no-op in writeFieldNode). Add a sibling Set under
+			// metadata.labels so the spread is exercised.
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(extra).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("metadata.labels.fixed", defkit.Lit("y")).
+						SpreadIf(extra.IsEmpty(), "metadata.labels", defkit.Reference("parameter.extra")))
+				}).
+				ToCue()
+			// Both AbsentOrEmpty branches must wrap the spread.
+			Expect(cue).To(ContainSubstring(`if parameter["extra"] == _|_`))
+			Expect(cue).To(ContainSubstring(`if parameter["extra"] != _|_ if len(parameter["extra"]) == 0`))
+		})
+
+		It("should expand AbsentOrEmpty SetIf inside an IfBlock with combined guards", func() {
+			args := defkit.StringList("args").Optional()
+			flag := defkit.Bool("flag").Default(false)
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args, flag).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						If(flag.IsTrue()).
+						SetIf(args.IsEmpty(), "data[when-flag]", defkit.Lit("y")).
+						EndIf())
+				}).
+				ToCue()
+			// Outer flag guard combined with each inner AbsentOrEmpty branch.
+			Expect(cue).To(ContainSubstring(`parameter["args"] == _|_`))
+			Expect(cue).To(ContainSubstring(`len(parameter["args"]) == 0`))
+			Expect(cue).To(ContainSubstring(`parameter.flag`))
 		})
 
 		It("should render Map.HasKey() with the daemon.cue two-clause guard", func() {
