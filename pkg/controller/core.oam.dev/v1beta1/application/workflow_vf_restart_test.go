@@ -183,6 +183,9 @@ func TestCheckWorkflowRestart_ScheduledRestart_NoVF_NoSuffix(t *testing.T) {
 	logCtx := monitorContext.NewTraceContext(context.Background(), "")
 	r.checkWorkflowRestart(logCtx, app, handler)
 
+	if app.Status.WorkflowRestartScheduledAt != nil {
+		t.Fatal("expected WorkflowRestartScheduledAt to be cleared after scheduled restart fires")
+	}
 	got := app.Status.Workflow.AppRevision
 	if strings.Contains(got, valuesFromSuffixSeparator) {
 		t.Fatalf("non-helmchart app should have no fingerprint suffix in AppRevision, got %q", got)
