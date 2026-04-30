@@ -1914,43 +1914,7 @@ func (g *CUEGenerator) writeFieldNode(sb *strings.Builder, name string, node *fi
 
 	// Handle bracket notation in name (like [app.oam.dev/name])
 	if strings.HasPrefix(name, "[") && !strings.HasPrefix(name, "[0]") {
-		// This is a map key access - extract the key
-		key := strings.Trim(name, "[]")
-		quoted := fmt.Sprintf("%q", key)
-		if node.value != nil {
-			valStr := g.valueToCUE(node.value)
-			// Multiple conditional values at the same bracket-access path —
-			// render each inside its own if block (matches the regular-field
-			// path at `node.value != nil && len(node.children) == 0` below).
-			if len(node.condValues) > 0 {
-				if node.cond != nil {
-					condStr := g.conditionToCUE(node.cond)
-					sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
-					sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, quoted, valStr))
-					sb.WriteString(fmt.Sprintf("%s}\n", indent))
-				} else {
-					sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, quoted, valStr))
-				}
-				for _, cv := range node.condValues {
-					condStr := g.conditionToCUE(cv.cond)
-					cvValStr := g.valueToCUE(cv.value)
-					sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
-					sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, quoted, cvValStr))
-					sb.WriteString(fmt.Sprintf("%s}\n", indent))
-				}
-			} else if node.cond != nil {
-				condStr := g.conditionToCUE(node.cond)
-				sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
-				sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, quoted, valStr))
-				sb.WriteString(fmt.Sprintf("%s}\n", indent))
-			} else {
-				sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, quoted, valStr))
-			}
-		} else if len(node.children) > 0 {
-			sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, quoted))
-			g.writeFieldTree(sb, node, depth+1)
-			sb.WriteString(fmt.Sprintf("%s}\n", indent))
-		}
+		g.writeBracketKeyNode(sb, name, node, indent, depth)
 		return
 	}
 
@@ -2007,6 +1971,51 @@ func (g *CUEGenerator) writeFieldNode(sb *strings.Builder, name string, node *fi
 		sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, name))
 		g.writeFieldTree(sb, node, depth+1)
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
+}
+
+// writeBracketKeyNode renders a map-key access leaf (`[key]`) honoring the
+// node's primary condition and any additional condValues. Split out from
+// writeFieldNode so the dispatcher stays under gocritic's ifElseChain check.
+func (g *CUEGenerator) writeBracketKeyNode(sb *strings.Builder, name string, node *fieldNode, indent string, depth int) {
+	key := strings.Trim(name, "[]")
+	quoted := fmt.Sprintf("%q", key)
+
+	// Subtree: render as a nested struct (no condition handling — children
+	// carry their own conditions).
+	if node.value == nil {
+		if len(node.children) > 0 {
+			sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, quoted))
+			g.writeFieldTree(sb, node, depth+1)
+			sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		}
+		return
+	}
+
+	valStr := g.valueToCUE(node.value)
+	writeGuarded := func(cond Condition, v string) {
+		condStr := g.conditionToCUE(cond)
+		sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
+		sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, quoted, v))
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
+
+	switch {
+	case len(node.condValues) > 0:
+		// Multiple conditional values at the same bracket-access path —
+		// render each inside its own if block.
+		if node.cond != nil {
+			writeGuarded(node.cond, valStr)
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, quoted, valStr))
+		}
+		for _, cv := range node.condValues {
+			writeGuarded(cv.cond, g.valueToCUE(cv.value))
+		}
+	case node.cond != nil:
+		writeGuarded(node.cond, valStr)
+	default:
+		sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, quoted, valStr))
 	}
 }
 
@@ -2988,20 +2997,9 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	case *LenCondition:
 		return g.lenConditionToCUE(c)
 	case *AbsentOrEmptyCondition:
-		// Fallback for paths that haven't been updated to expand branches
-		// into separate if blocks. Renders only the "set and empty" branch
-		// (the "absent" branch is lost). Top-level SetIfOp / SpreadIfOp in
-		// buildFieldTree DO expand and render both branches correctly.
-		return fmt.Sprintf(`parameter[%q] != _|_ if len(parameter[%q]) == 0`,
-			c.ParamName(), c.ParamName())
+		return g.absentOrEmptyConditionToCUE(c)
 	case *ArrayContainsCondition:
-		// Guard with bracket-existence for CUE strict mode, then use
-		// list.Contains with bracket reference (concrete after the guard).
-		// Uses CUE chained-if syntax (`if guard if inner { ... }`) so
-		// list.Contains is never evaluated when the field is absent —
-		// CUE does not short-circuit &&.
-		return fmt.Sprintf(`parameter[%q] != _|_ if list.Contains(parameter[%q], %s)`,
-			c.ParamName(), c.ParamName(), formatCUEValue(c.Value()))
+		return g.arrayContainsConditionToCUE(c)
 	case *MapHasKeyCondition:
 		// daemon.cue's idiom for nested optional access: bracket on the
 		// outer (optional) map, dot on the inner key (concrete after the
@@ -3016,41 +3014,11 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		right := g.exprToCUE(c.Right())
 		return fmt.Sprintf("%s %s %s", left, c.Op(), right)
 	case *AndCondition:
-		left := g.conditionToCUE(c.left)
-		right := g.conditionToCUE(c.right)
-		// If either operand uses chained-if guard syntax (e.g.
-		// ArrayContainsCondition), join with ` if ` instead of ` && `
-		// because chained-if expressions are invalid inside (&&).
-		if usesChainedGuard(c.left) || usesChainedGuard(c.right) {
-			return fmt.Sprintf("%s if %s", left, right)
-		}
-		return fmt.Sprintf("(%s) && (%s)", left, right)
+		return g.andConditionToCUE(c)
 	case *LogicalExpr:
-		parts := make([]string, len(c.Conditions()))
-		anyChained := false
-		for i, sub := range c.Conditions() {
-			parts[i] = g.conditionToCUE(sub)
-			if usesChainedGuard(sub) {
-				anyChained = true
-			}
-		}
-		if c.Op() == OpOr {
-			return strings.Join(parts, " || ")
-		}
-		if anyChained {
-			return strings.Join(parts, " if ")
-		}
-		return strings.Join(parts, " && ")
+		return g.logicalExprToCUE(c)
 	case *NotExpr:
-		// Special case: Not(IsSet("x")) -> parameter["x"] == _|_
-		if isSet, ok := c.Cond().(*IsSetCondition); ok {
-			return fmt.Sprintf("parameter[%q] == _|_", isSet.ParamName())
-		}
-		// Special case: Not(PathExists("x")) -> x == _|_
-		if pe, ok := c.Cond().(*PathExistsCondition); ok {
-			return fmt.Sprintf("%s == _|_", pe.Path())
-		}
-		return fmt.Sprintf("!(%s)", g.conditionToCUE(c.Cond()))
+		return g.notExprToCUE(c)
 	case *HasExposedPortsCondition:
 		// Check if any port has expose=true
 		portsStr := g.valueToCUE(c.Ports())
@@ -3079,19 +3047,7 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		// Check if a context.output path exists
 		return fmt.Sprintf("context.output.%s != _|_", c.Path())
 	case *AllConditionsCondition:
-		// Generate compound condition: if cond1 if cond2 ...
-		var parts []string
-		anyChained := false
-		for _, cond := range c.Conditions() {
-			parts = append(parts, g.conditionToCUE(cond))
-			if usesChainedGuard(cond) {
-				anyChained = true
-			}
-		}
-		if anyChained {
-			return strings.Join(parts, " if ")
-		}
-		return strings.Join(parts, " && ")
+		return g.allConditionsConditionToCUE(c)
 	case *RegexMatchCondition:
 		// General-purpose regex match: <value> =~ "pattern"
 		return fmt.Sprintf(`%s =~ %q`, g.valueToCUE(c.Source()), c.Pattern())
@@ -3128,6 +3084,87 @@ func usesChainedGuard(c Condition) bool {
 func (g *CUEGenerator) lenConditionToCUE(c *LenCondition) string {
 	return fmt.Sprintf(`parameter[%q] != _|_ if len(parameter[%q]) %s %d`,
 		c.ParamName(), c.ParamName(), c.Op(), c.Length())
+}
+
+// absentOrEmptyConditionToCUE is the conditionToCUE fallback for paths that
+// haven't been updated to expand AbsentOrEmpty branches into separate if
+// blocks. It renders only the "set and empty" branch (the "absent" branch is
+// lost). Top-level SetIfOp / SpreadIfOp in buildFieldTree DO expand and
+// render both branches correctly via the field tree's condValues.
+func (g *CUEGenerator) absentOrEmptyConditionToCUE(c *AbsentOrEmptyCondition) string {
+	return fmt.Sprintf(`parameter[%q] != _|_ if len(parameter[%q]) == 0`,
+		c.ParamName(), c.ParamName())
+}
+
+// arrayContainsConditionToCUE renders an ArrayContainsCondition as the
+// chained-if guard `parameter["X"] != _|_ if list.Contains(parameter["X"], val)`.
+// CUE does not short-circuit `&&`, so the inner list.Contains would otherwise
+// be evaluated against `_|_` when the field is absent.
+func (g *CUEGenerator) arrayContainsConditionToCUE(c *ArrayContainsCondition) string {
+	return fmt.Sprintf(`parameter[%q] != _|_ if list.Contains(parameter[%q], %s)`,
+		c.ParamName(), c.ParamName(), formatCUEValue(c.Value()))
+}
+
+// andConditionToCUE renders an AndCondition. If either operand uses chained-if
+// guard syntax (e.g. ArrayContainsCondition), join with ` if ` instead of
+// ` && ` because chained-if expressions are invalid inside `(...) && (...)`.
+func (g *CUEGenerator) andConditionToCUE(c *AndCondition) string {
+	left := g.conditionToCUE(c.left)
+	right := g.conditionToCUE(c.right)
+	if usesChainedGuard(c.left) || usesChainedGuard(c.right) {
+		return fmt.Sprintf("%s if %s", left, right)
+	}
+	return fmt.Sprintf("(%s) && (%s)", left, right)
+}
+
+// logicalExprToCUE renders a LogicalExpr (AND/OR over N conditions). For
+// AND mode with any chained-guard operand, joins with ` if `; otherwise
+// ` && `. OR mode always joins with ` || `.
+func (g *CUEGenerator) logicalExprToCUE(c *LogicalExpr) string {
+	parts := make([]string, len(c.Conditions()))
+	anyChained := false
+	for i, sub := range c.Conditions() {
+		parts[i] = g.conditionToCUE(sub)
+		if usesChainedGuard(sub) {
+			anyChained = true
+		}
+	}
+	if c.Op() == OpOr {
+		return strings.Join(parts, " || ")
+	}
+	if anyChained {
+		return strings.Join(parts, " if ")
+	}
+	return strings.Join(parts, " && ")
+}
+
+// allConditionsConditionToCUE renders an AllConditionsCondition (AND over N
+// conditions). Joins with ` if ` when any operand uses chained-guard syntax.
+func (g *CUEGenerator) allConditionsConditionToCUE(c *AllConditionsCondition) string {
+	parts := make([]string, 0, len(c.Conditions()))
+	anyChained := false
+	for _, cond := range c.Conditions() {
+		parts = append(parts, g.conditionToCUE(cond))
+		if usesChainedGuard(cond) {
+			anyChained = true
+		}
+	}
+	if anyChained {
+		return strings.Join(parts, " if ")
+	}
+	return strings.Join(parts, " && ")
+}
+
+// notExprToCUE renders a NotExpr, special-casing Not(IsSet) and
+// Not(PathExists) to the canonical `X == _|_` form.
+func (g *CUEGenerator) notExprToCUE(c *NotExpr) string {
+	if isSet, ok := c.Cond().(*IsSetCondition); ok {
+		return fmt.Sprintf("parameter[%q] == _|_", isSet.ParamName())
+	}
+	if pe, ok := c.Cond().(*PathExistsCondition); ok {
+		return fmt.Sprintf("%s == _|_", pe.Path())
+	}
+	return fmt.Sprintf("!(%s)", g.conditionToCUE(c.Cond()))
 }
 
 // inConditionToCUE converts an InCondition to CUE syntax.
