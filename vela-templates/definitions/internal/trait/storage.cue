@@ -170,13 +170,23 @@ template: {
 		},
 	]
 
+	_baseContainerEnv: *[] | [...]
+	if context.output.spec.template.spec.containers != _|_ {
+		if context.output.spec.template.spec.containers[0].env != _|_ {
+			_baseContainerEnv: context.output.spec.template.spec.containers[0].env
+		}
+	}
+	_storageEnvNames: {for e in envList {(e.name): true}}
+
 	patch: spec: template: spec: {
 		// +patchKey=name
 		volumes: deDupVolumesArray
 
 		containers: [{
-			// +patchKey=name
-			env: envList
+			if len(envList) > 0 {
+				// +patchStrategy=replace
+				env: [for e in _baseContainerEnv if _storageEnvNames[e.name] == _|_ {e}] + envList
+			}
 			// +patchKey=name
 			volumeDevices: volumeDevicesList
 			// +patchKey=name
