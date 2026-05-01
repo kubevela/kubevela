@@ -109,7 +109,8 @@ template: {
 	envList: [
 		if parameter.configMap != _|_ for v in parameter.configMap if v.mountToEnv != _|_ {
 			{
-				name: v.mountToEnv.envName
+				name:  v.mountToEnv.envName
+				value: ""
 				valueFrom: configMapKeyRef: {
 					name: v.name
 					key:  v.mountToEnv.configMapKey
@@ -118,7 +119,8 @@ template: {
 		},
 		if parameter.configMap != _|_ for v in parameter.configMap if v.mountToEnvs != _|_ for k in v.mountToEnvs {
 			{
-				name: k.envName
+				name:  k.envName
+				value: ""
 				valueFrom: configMapKeyRef: {
 					name: v.name
 					key:  k.configMapKey
@@ -127,7 +129,8 @@ template: {
 		},
 		if parameter.secret != _|_ for v in parameter.secret if v.mountToEnv != _|_ {
 			{
-				name: v.mountToEnv.envName
+				name:  v.mountToEnv.envName
+				value: ""
 				valueFrom: secretKeyRef: {
 					name: v.name
 					key:  v.mountToEnv.secretKey
@@ -136,7 +139,8 @@ template: {
 		},
 		if parameter.secret != _|_ for v in parameter.secret if v.mountToEnvs != _|_ for k in v.mountToEnvs {
 			{
-				name: k.envName
+				name:  k.envName
+				value: ""
 				valueFrom: secretKeyRef: {
 					name: v.name
 					key:  k.secretKey
@@ -170,23 +174,13 @@ template: {
 		},
 	]
 
-	_baseContainerEnv: *[] | [...]
-	if context.output.spec.template.spec.containers != _|_ {
-		if context.output.spec.template.spec.containers[0].env != _|_ {
-			_baseContainerEnv: context.output.spec.template.spec.containers[0].env
-		}
-	}
-	_storageEnvNames: {for e in envList {(e.name): true}}
-
 	patch: spec: template: spec: {
 		// +patchKey=name
 		volumes: deDupVolumesArray
 
 		containers: [{
-			if len(envList) > 0 {
-				// +patchStrategy=replace
-				env: [for e in _baseContainerEnv if _storageEnvNames[e.name] == _|_ {e}] + envList
-			}
+			// +patchKey=name
+			env: envList
 			// +patchKey=name
 			volumeDevices: volumeDevicesList
 			// +patchKey=name
