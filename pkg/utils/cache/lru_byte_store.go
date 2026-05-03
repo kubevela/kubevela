@@ -72,8 +72,6 @@ func (s *LRUByteStore) Put(key string, data []byte, ttl time.Duration) {
 		return
 	}
 
-	s.pruneExpiredLocked()
-
 	size := int64(len(data))
 	if s.maxBytes <= 0 || size > s.maxBytes {
 		s.deleteLocked(key)
@@ -125,7 +123,6 @@ func (s *LRUByteStore) Delete(key string) {
 func (s *LRUByteStore) Bytes() int64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.pruneExpiredLocked()
 	return s.bytes
 }
 
@@ -141,15 +138,6 @@ func (s *LRUByteStore) Close() {
 func (s *LRUByteStore) deleteLocked(key string) {
 	if _, ok := s.cache.Peek(key); ok {
 		s.cache.Remove(key)
-	}
-}
-
-func (s *LRUByteStore) pruneExpiredLocked() {
-	for _, key := range s.cache.Keys() {
-		entry, ok := s.cache.Peek(key)
-		if ok && entry.expired() {
-			s.cache.Remove(key)
-		}
 	}
 }
 
