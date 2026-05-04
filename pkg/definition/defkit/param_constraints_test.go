@@ -196,11 +196,11 @@ var _ = ginkgo.Describe("Parameter Constraints", func() {
 				cueStr := gen.conditionToCUE(condFn(p))
 				gomega.Expect(cueStr).To(gomega.Equal(expected))
 			},
-			ginkgo.Entry("LenEq", func(p *StringParam) Condition { return p.LenEq(5) }, "len(parameter.name) == 5"),
-			ginkgo.Entry("LenGt", func(p *StringParam) Condition { return p.LenGt(5) }, "len(parameter.name) > 5"),
-			ginkgo.Entry("LenGte", func(p *StringParam) Condition { return p.LenGte(5) }, "len(parameter.name) >= 5"),
-			ginkgo.Entry("LenLt", func(p *StringParam) Condition { return p.LenLt(5) }, "len(parameter.name) < 5"),
-			ginkgo.Entry("LenLte", func(p *StringParam) Condition { return p.LenLte(5) }, "len(parameter.name) <= 5"),
+			ginkgo.Entry("LenEq", func(p *StringParam) Condition { return p.LenEq(5) }, `parameter["name"] != _|_ if len(parameter["name"]) == 5`),
+			ginkgo.Entry("LenGt", func(p *StringParam) Condition { return p.LenGt(5) }, `parameter["name"] != _|_ if len(parameter["name"]) > 5`),
+			ginkgo.Entry("LenGte", func(p *StringParam) Condition { return p.LenGte(5) }, `parameter["name"] != _|_ if len(parameter["name"]) >= 5`),
+			ginkgo.Entry("LenLt", func(p *StringParam) Condition { return p.LenLt(5) }, `parameter["name"] != _|_ if len(parameter["name"]) < 5`),
+			ginkgo.Entry("LenLte", func(p *StringParam) Condition { return p.LenLte(5) }, `parameter["name"] != _|_ if len(parameter["name"]) <= 5`),
 		)
 	})
 
@@ -211,19 +211,27 @@ var _ = ginkgo.Describe("Parameter Constraints", func() {
 				cueStr := gen.conditionToCUE(condFn(p))
 				gomega.Expect(cueStr).To(gomega.Equal(expected))
 			},
-			ginkgo.Entry("LenEq", func(p *ArrayParam) Condition { return p.LenEq(5) }, "len(parameter.tags) == 5"),
-			ginkgo.Entry("LenGt", func(p *ArrayParam) Condition { return p.LenGt(0) }, "len(parameter.tags) > 0"),
-			ginkgo.Entry("IsEmpty", func(p *ArrayParam) Condition { return p.IsEmpty() }, "len(parameter.tags) == 0"),
-			ginkgo.Entry("IsNotEmpty", func(p *ArrayParam) Condition { return p.IsNotEmpty() }, "len(parameter.tags) > 0"),
-			ginkgo.Entry("Contains", func(p *ArrayParam) Condition { return p.Contains("gpu") }, `list.Contains(parameter.tags, "gpu")`),
+			// All length predicates use CUE chained-if guard syntax. See
+			// `lenConditionToCUE` in cuegen.go.
+			//
+			// IsEmpty() (and LenEq(0)) returns *AbsentOrEmptyCondition, which
+			// expands into TWO if blocks at SetIf rendering. The string here
+			// is the fallback (set-and-empty branch only) used when the
+			// condition appears in non-expanding contexts.
+			ginkgo.Entry("LenEq", func(p *ArrayParam) Condition { return p.LenEq(5) }, `parameter["tags"] != _|_ if len(parameter["tags"]) == 5`),
+			ginkgo.Entry("LenGt", func(p *ArrayParam) Condition { return p.LenGt(0) }, `parameter["tags"] != _|_ if len(parameter["tags"]) > 0`),
+			ginkgo.Entry("IsEmpty", func(p *ArrayParam) Condition { return p.IsEmpty() }, `parameter["tags"] != _|_ if len(parameter["tags"]) == 0`),
+			ginkgo.Entry("LenEq(0)", func(p *ArrayParam) Condition { return p.LenEq(0) }, `parameter["tags"] != _|_ if len(parameter["tags"]) == 0`),
+			ginkgo.Entry("IsNotEmpty", func(p *ArrayParam) Condition { return p.IsNotEmpty() }, `parameter["tags"] != _|_ if len(parameter["tags"]) > 0`),
+			ginkgo.Entry("Contains", func(p *ArrayParam) Condition { return p.Contains("gpu") }, `parameter["tags"] != _|_ if list.Contains(parameter["tags"], "gpu")`),
 		)
 
 		ginkgo.It("should generate array Contains with different element types", func() {
 			intArray := Array("ports").Of(ParamTypeInt)
-			gomega.Expect(gen.conditionToCUE(intArray.Contains(8080))).To(gomega.Equal(`list.Contains(parameter.ports, 8080)`))
+			gomega.Expect(gen.conditionToCUE(intArray.Contains(8080))).To(gomega.Equal(`parameter["ports"] != _|_ if list.Contains(parameter["ports"], 8080)`))
 
 			boolArray := Array("flags").Of(ParamTypeBool)
-			gomega.Expect(gen.conditionToCUE(boolArray.Contains(true))).To(gomega.Equal(`list.Contains(parameter.flags, true)`))
+			gomega.Expect(gen.conditionToCUE(boolArray.Contains(true))).To(gomega.Equal(`parameter["flags"] != _|_ if list.Contains(parameter["flags"], true)`))
 		})
 	})
 
@@ -234,12 +242,35 @@ var _ = ginkgo.Describe("Parameter Constraints", func() {
 				cueStr := gen.conditionToCUE(condFn(p))
 				gomega.Expect(cueStr).To(gomega.Equal(expected))
 			},
-			ginkgo.Entry("HasKey", func(p *MapParam) Condition { return p.HasKey("debug") }, "parameter.config.debug != _|_"),
-			ginkgo.Entry("LenEq", func(p *MapParam) Condition { return p.LenEq(5) }, "len(parameter.config) == 5"),
-			ginkgo.Entry("LenGt", func(p *MapParam) Condition { return p.LenGt(0) }, "len(parameter.config) > 0"),
-			ginkgo.Entry("IsEmpty", func(p *MapParam) Condition { return p.IsEmpty() }, "len(parameter.config) == 0"),
-			ginkgo.Entry("IsNotEmpty", func(p *MapParam) Condition { return p.IsNotEmpty() }, "len(parameter.config) > 0"),
+			ginkgo.Entry("HasKey", func(p *MapParam) Condition { return p.HasKey("debug") }, `parameter["config"] != _|_ && parameter["config"].debug != _|_`),
+			ginkgo.Entry("LenEq", func(p *MapParam) Condition { return p.LenEq(5) }, `parameter["config"] != _|_ if len(parameter["config"]) == 5`),
+			ginkgo.Entry("LenGt", func(p *MapParam) Condition { return p.LenGt(0) }, `parameter["config"] != _|_ if len(parameter["config"]) > 0`),
+			ginkgo.Entry("IsEmpty", func(p *MapParam) Condition { return p.IsEmpty() }, `parameter["config"] != _|_ if len(parameter["config"]) == 0`),
+			ginkgo.Entry("IsNotEmpty", func(p *MapParam) Condition { return p.IsNotEmpty() }, `parameter["config"] != _|_ if len(parameter["config"]) > 0`),
 		)
+	})
+
+	// --- AllConditions Rendering ---
+	//
+	// AllConditions(...) builds an AllConditionsCondition over N sub-conditions.
+	// Joiner switches between ` && ` (default) and ` if ` (when any sub uses
+	// chained-guard syntax — e.g. ArrayContainsCondition / LenCondition with
+	// non-empty Fallback).
+	ginkgo.Context("AllConditions rendering", func() {
+		ginkgo.It("joins non-chained conditions with ` && `", func() {
+			flag := Bool("flag").Default(false)
+			replicas := Int("replicas").Default(1)
+			cond := AllConditions(flag.IsTrue(), replicas.Gt(0))
+			gomega.Expect(gen.conditionToCUE(cond)).To(gomega.Equal(`parameter.flag && parameter.replicas > 0`))
+		})
+
+		ginkgo.It("joins with ` if ` when any sub-condition is chained-guard", func() {
+			tags := StringList("tags").Optional()
+			flag := Bool("flag").Default(false)
+			out := gen.conditionToCUE(AllConditions(flag.IsTrue(), tags.Contains("gpu")))
+			gomega.Expect(out).To(gomega.ContainSubstring(` if `))
+			gomega.Expect(out).To(gomega.ContainSubstring(`list.Contains(parameter["tags"], "gpu")`))
+		})
 	})
 
 	// --- Chaining Tests ---
@@ -346,8 +377,8 @@ var _ = ginkgo.Describe("Parameter Constraints", func() {
 			gomega.Expect(cue).To(gomega.ContainSubstring(`strings.HasPrefix(parameter.name, "prod-")`))
 			gomega.Expect(cue).To(gomega.ContainSubstring(`strings.Contains(parameter.name, "canary")`))
 			gomega.Expect(cue).To(gomega.ContainSubstring(`parameter.replicas > 5`))
-			gomega.Expect(cue).To(gomega.ContainSubstring(`len(parameter.tags) > 0`))
-			gomega.Expect(cue).To(gomega.ContainSubstring(`list.Contains(parameter.tags, "gpu")`))
+			gomega.Expect(cue).To(gomega.ContainSubstring(`parameter["tags"] != _|_`))
+			gomega.Expect(cue).To(gomega.ContainSubstring(`list.Contains(parameter["tags"], "gpu")`))
 		})
 	})
 
