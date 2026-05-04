@@ -441,19 +441,23 @@ func (r *reconcileResult) requeue(d time.Duration) *reconcileResult {
 // forApp overrides the default resync period with the per-application value
 // parsed from the AnnotationReconcileInterval annotation, if present and valid.
 func (r *reconcileResult) forApp(app *v1beta1.Application) *reconcileResult {
-	if app != nil && app.Annotations != nil {
-		if v, ok := app.Annotations[oam.AnnotationReconcileInterval]; ok {
-			d, err := time.ParseDuration(v)
-			if err != nil {
-				klog.Warningf("ignoring invalid %s annotation %q on application %s/%s, using global default",
-					oam.AnnotationReconcileInterval, v, app.Namespace, app.Name)
-			} else if d < minPerAppResyncPeriod {
-				klog.Warningf("ignoring %s annotation %q below minimum %s on application %s/%s, using global default",
-					oam.AnnotationReconcileInterval, v, minPerAppResyncPeriod, app.Namespace, app.Name)
-			} else {
-				r.defaultResync = d
-			}
-		}
+	if app == nil || app.Annotations == nil {
+		return r
+	}
+	v, ok := app.Annotations[oam.AnnotationReconcileInterval]
+	if !ok {
+		return r
+	}
+	d, err := time.ParseDuration(v)
+	switch {
+	case err != nil:
+		klog.Warningf("ignoring invalid %s annotation %q on application %s/%s, using global default",
+			oam.AnnotationReconcileInterval, v, app.Namespace, app.Name)
+	case d < minPerAppResyncPeriod:
+		klog.Warningf("ignoring %s annotation %q below minimum %s on application %s/%s, using global default",
+			oam.AnnotationReconcileInterval, v, minPerAppResyncPeriod, app.Namespace, app.Name)
+	default:
+		r.defaultResync = d
 	}
 	return r
 }
