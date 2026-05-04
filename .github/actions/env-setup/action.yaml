@@ -5,7 +5,7 @@ inputs:
   go-version:
     description: 'Go version to use for testing'
     required: false
-    default: '1.23.8'
+    default: '1.24.4'
   install-ginkgo:
     description: 'Install Ginkgo testing framework'
     required: false
@@ -112,6 +112,8 @@ runs:
     - name: Install kustomize
       if: ${{ inputs.install-kustomize == 'true' }}
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
         echo "Installing kustomize version ${{ inputs.kustomize-version }}..."
         mkdir -p ./bin
