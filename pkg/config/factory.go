@@ -654,7 +654,7 @@ func (k *kubeConfigFactory) IsExist(ctx context.Context, namespace, name string)
 	var secret v1.Secret
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
 		if apierrors.IsNotFound(err) {
-			return false, nil
+			return false, fmt.Errorf("fail to find the resource %s", name)
 		}
 		return false, err
 	}
