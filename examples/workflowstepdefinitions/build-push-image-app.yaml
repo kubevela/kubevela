@@ -1,0 +1,40 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: build-push-image-app
+  namespace: default
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: oamdev/hello-world
+        ports:
+          - port: 8000
+  workflow:
+    steps:
+      - name: create-docker-secret
+        type: export2secret
+        properties:
+          secretName: image-registry-secret
+          kind: docker-registry
+          dockerRegistry:
+            username: "<docker-username>"
+            password: "<docker-password>"
+            server: "https://index.docker.io/v1/"
+      - name: build-from-public-repo
+        type: build-push-image
+        properties:
+          kanikoExecutor: "gcr.io/kaniko-project/executor:v1.9.0"
+          context:
+            git: "github.com/kelseyhightower/helloworld"
+            branch: "master"
+          image: "<docker-username>/helloworld-kaniko:v1.1.1"
+          dockerfile: "./Dockerfile"
+          credentials:
+            image:
+              name: image-registry-secret
+      - name: complete
+        type: print-message-in-status
+        properties:
+          message: "All images built and pushed successfully"
