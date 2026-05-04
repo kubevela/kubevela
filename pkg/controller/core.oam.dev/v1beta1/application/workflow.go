@@ -152,8 +152,14 @@ func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1bet
 			}
 		}
 		app.Status.Conditions = reservedConditions
+		appRevToken := handler.currentAppRev.Name
+		if !metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationPublishVersion) {
+			if vfFp, err := computeValuesFromContentFingerprint(ctx, app); err == nil && vfFp != "" {
+				appRevToken = appRevToken + valuesFromSuffixSeparator + vfFp[:valuesFromSuffixHexLen]
+			}
+		}
 		app.Status.Workflow = &common.WorkflowStatus{
-			AppRevision: handler.currentAppRev.Name,
+			AppRevision: appRevToken,
 		}
 		return
 	}
