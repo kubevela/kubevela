@@ -560,6 +560,20 @@ func TestNewDefinitionRenderCommand(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpected error when executing render command on valid directory: %v", err)
 	}
+
+	// directory auto-create output path
+	outputDir2 := filepath.Join(os.TempDir(), fmt.Sprintf("vela-def-tests-output-auto-%d", time.Now().UnixNano()))
+	defer removeDir(outputDir2, t)
+	cmd = NewDefinitionRenderCommand(c)
+	initCommand(cmd)
+	cmd.SetArgs([]string{dirname, "-o", outputDir2, "--message", "Author: KubeVela"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("unexpected error when executing render command with auto-created output dir: %v", err)
+	}
+	_, err = os.Stat(filepath.Join(outputDir2, "trait-0.yaml"))
+	if err != nil {
+		t.Fatalf("expected rendered file to exist in auto-created output dir: %v", err)
+	}
 	// directory read/print test
 	require.NoError(t, os.WriteFile(filepath.Join(dirname, "temp.json"), []byte("hello"), 0600)) // ignored
 	badCueFile := filepath.Join(dirname, "temp.cue")
