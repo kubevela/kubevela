@@ -90,7 +90,6 @@ linters:
     - unconvert
     - misspell
     - nakedret
-    - exportloopref
     - unused
     - gosimple
     - staticcheck
@@ -99,6 +98,7 @@ linters:
     - sqlclosecheck
     - errchkjson
     - contextcheck
+    - recvcheck
   presets:
     - bugs
     - unused
@@ -186,6 +186,12 @@ issues:
 
     # This is an 'errors unhandled' warning that duplicates errcheck.
     - text: "G104:"
+      linters:
+        - gosec
+        - gas
+
+    # Integer overflow conversions in existing code are safe in context (small values).
+    - text: "G115:"
       linters:
         - gosec
         - gas

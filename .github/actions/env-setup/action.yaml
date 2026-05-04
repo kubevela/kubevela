@@ -5,7 +5,7 @@ inputs:
   go-version:
     description: 'Go version to use for testing'
     required: false
-    default: '1.23.8'
+    default: '1.24.4'
   install-ginkgo:
     description: 'Install Ginkgo testing framework'
     required: false
@@ -113,8 +113,13 @@ runs:
       if: ${{ inputs.install-kustomize == 'true' }}
       shell: bash
       run: |
-        echo "Installing kustomize version ${{ inputs.kustomize-version }}..."
+        VERSION="${{ inputs.kustomize-version }}"
+        ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')
+        echo "Installing kustomize v${VERSION} for ${ARCH}..."
         mkdir -p ./bin
-        curl -sS https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash -s ${{ inputs.kustomize-version }} $(pwd)/bin
+        curl -sSL --retry 3 --fail \
+          "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${VERSION}/kustomize_v${VERSION}_linux_${ARCH}.tar.gz" \
+          | tar -xz -C ./bin
+        chmod +x ./bin/kustomize
         echo "kustomize installed successfully at ./bin/kustomize"
         ./bin/kustomize version
