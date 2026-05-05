@@ -663,12 +663,50 @@ var _ = Describe("Parameters", func() {
 			Expect(lenCond.Length()).To(Equal(1))
 		})
 
+		It("should require the list import only when MinItems or MaxItems is set", func() {
+			plain := defkit.StringList("tags")
+			Expect(plain.RequiredImports()).To(BeNil())
+
+			withMin := defkit.StringList("tags").MinItems(1)
+			Expect(withMin.RequiredImports()).To(Equal([]string{"list"}))
+
+			withMax := defkit.StringList("tags").MaxItems(10)
+			Expect(withMax.RequiredImports()).To(Equal([]string{"list"}))
+
+			withBoth := defkit.StringList("tags").MinItems(1).MaxItems(10)
+			Expect(withBoth.RequiredImports()).To(Equal([]string{"list"}))
+		})
+
 		It("should set WithFields for array items", func() {
 			p := defkit.List("ports").WithFields(
 				defkit.Int("port").Required(),
 				defkit.String("name"),
 			)
 			Expect(p.GetFields()).To(HaveLen(2))
+		})
+	})
+
+	Context("StringKeyMapParam conditions", func() {
+		// Until this fix, StringKeyMapParam (the convenience constructor for
+		// [string]: string maps) did not expose any of the runtime predicate
+		// helpers that MapParam offered. Callers had to fall back to
+		// Map(...).Of(ParamTypeString) just to get HasKey or IsNotEmpty.
+		It("should support HasKey", func() {
+			labels := defkit.StringKeyMap("labels")
+			cond := labels.HasKey("app")
+			Expect(cond).NotTo(BeNil())
+			hasKey, ok := cond.(*defkit.MapHasKeyCondition)
+			Expect(ok).To(BeTrue(), "expected *MapHasKeyCondition")
+			Expect(hasKey.ParamName()).To(Equal("labels"))
+			Expect(hasKey.Key()).To(Equal("app"))
+		})
+
+		It("should support IsEmpty / IsNotEmpty / LenEq / LenGt", func() {
+			labels := defkit.StringKeyMap("labels")
+			Expect(labels.IsEmpty()).NotTo(BeNil())
+			Expect(labels.IsNotEmpty()).NotTo(BeNil())
+			Expect(labels.LenEq(3)).NotTo(BeNil())
+			Expect(labels.LenGt(0)).NotTo(BeNil())
 		})
 	})
 
