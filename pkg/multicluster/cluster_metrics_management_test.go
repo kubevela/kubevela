@@ -66,9 +66,10 @@ func TestRefresh(t *testing.T) {
 	fakeClient.AddCluster(DisconnectedClusterName, disconnectedCluster)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	mgr, err := NewClusterMetricsMgr(ctx, fakeClient, 10*time.Millisecond)
 	assert.NoError(t, err)
+	time.Sleep(20 * time.Millisecond)
+	cancel()
 	time.Sleep(20 * time.Millisecond)
 
 	_, err = mgr.Refresh()
