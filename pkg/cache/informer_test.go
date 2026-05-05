@@ -45,7 +45,7 @@ func (m *mockInformer) AddEventHandler(handler cache.ResourceEventHandler) (cach
 func TestDefinitionCache_Start(t *testing.T) {
 	in := NewDefinitionCache()
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	go in.Start(ctx, &mockCache{}, 10*time.Millisecond)
 	time.Sleep(20 * time.Millisecond)
 	cancel()
