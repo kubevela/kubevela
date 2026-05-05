@@ -118,6 +118,23 @@ url: "https://127.0.0.1:8443/api/v1/token?val=test-token"`)
 	assert.Equal(t, "{\"token\":\"test-token\"}", body)
 }
 
+func TestHTTPSRunInvalidCA(t *testing.T) {
+	s := newMockHttpsServer()
+	defer s.Close()
+	reqInst := cuecontext.New().CompileString(`method: "GET"
+url: "https://127.0.0.1:8443/api/v1/token?val=test-token"`)
+	reqInst = reqInst.FillPath(value.FieldPath("tls_config", "ca"), "not-a-pem-block")
+	reqInst = reqInst.FillPath(value.FieldPath("tls_config", "client_crt"), decodeCert(testdata.MockCerts.ClientCrt))
+	reqInst = reqInst.FillPath(value.FieldPath("tls_config", "client_key"), decodeCert(testdata.MockCerts.ClientKey))
+
+	runner, _ := newHTTPCmd(cue.Value{})
+	_, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
+	if err == nil {
+		t.Fatal("expected invalid CA to fail")
+	}
+	assert.Contains(t, err.Error(), "parse ca")
+}
+
 // NewMock mock the http server
 func NewMock() *httptest.Server {
 	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
