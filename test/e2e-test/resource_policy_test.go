@@ -37,6 +37,7 @@ import (
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -107,6 +108,38 @@ var _ = Describe("Application Resource-Related Policy Tests", func() {
 		time.Sleep(30 * time.Second)
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 		Expect(deploy.Spec.Replicas).Should(Equal(ptr.To(int32(0))))
+	})
+
+	It("Test per-application reconcile interval override", func() {
+		By("create app with custom reconcile interval")
+		app := &v1beta1.Application{}
+		Expect(common.ReadYamlToObject("testdata/app/app_apply_once.yaml", app)).Should(BeNil())
+		app.SetNamespace(namespace)
+		app.SetAnnotations(map[string]string{oam.AnnotationReconcileInterval: "10s"})
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+		appKey := client.ObjectKeyFromObject(app)
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, appKey, app)).Should(Succeed())
+			g.Expect(app.Status.Phase).Should(Equal(common2.ApplicationRunning))
+		}, 30*time.Second, time.Second*3).Should(Succeed())
+		// Let status-update reconciles from app creation drain before mutating
+		// the workload, so the repair depends on the scheduled interval.
+		time.Sleep(12 * time.Second)
+
+		By("mutate managed workload without forcing application reconciliation")
+		deploy := &v13.Deployment{}
+		deployKey := types.NamespacedName{Namespace: namespace, Name: "hello-world"}
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, deployKey, deploy)).Should(Succeed())
+			deploy.Spec.Replicas = ptr.To(int32(0))
+			g.Expect(k8sClient.Update(ctx, deploy)).Should(Succeed())
+		}, 10*time.Second, time.Second).Should(Succeed())
+
+		By("scheduled reconciliation restores the workload through state keep")
+		Eventually(func(g Gomega) {
+			g.Expect(k8sClient.Get(ctx, deployKey, deploy)).Should(Succeed())
+			g.Expect(deploy.Spec.Replicas).Should(Equal(ptr.To(int32(1))))
+		}, 45*time.Second, time.Second).Should(Succeed())
 	})
 
 	It("Test GarbageCollect Policy", func() {
