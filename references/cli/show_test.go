@@ -147,6 +147,7 @@ func TestGetWorkloadAndTraits(t *testing.T) {
 		workloads []string
 		traits    []string
 		policies  []string
+		packages  []string
 	}
 
 	var (
@@ -191,8 +192,8 @@ func TestGetWorkloadAndTraits(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			gotWorkloads, gotTraits, _, gotPolicies := getDefinitions(tc.capabilities)
-			assert.Equal(t, tc.want, want{workloads: gotWorkloads, traits: gotTraits, policies: gotPolicies})
+			gotWorkloads, gotTraits, _, gotPolicies, gotPackages := getDefinitions(tc.capabilities)
+			assert.Equal(t, tc.want, want{workloads: gotWorkloads, traits: gotTraits, policies: gotPolicies, packages:  gotPackages,})
 		})
 	}
 }
