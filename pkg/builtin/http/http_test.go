@@ -108,6 +108,16 @@ func TestHTTPCmdRunWithTimeout(t *testing.T) {
 		_, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
 		assert.ErrorContains(t, err, "timeout must be positive")
 	})
+
+	t.Run("non-string timeout type returns error", func(t *testing.T) {
+		reqInst := cuecontext.New().CompileString(`{
+  method: "GET"
+  url: "http://127.0.0.1:8090/api/v1/token?val=test-token"
+  timeout: 30
+}`)
+		_, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
+		assert.ErrorContains(t, err, "parse timeout")
+	})
 }
 
 func TestHTTPCmdRun(t *testing.T) {
