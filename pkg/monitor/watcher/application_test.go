@@ -18,6 +18,7 @@ package watcher
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -257,5 +258,22 @@ func TestApplicationMetricsWatcher(t *testing.T) {
 		assert.Equal(t, "test-app", resultApp.Name)
 		assert.Equal(t, "test-ns", resultApp.Namespace)
 		assert.Equal(t, common.ApplicationRunning, resultApp.Status.Phase)
+	})
+
+	t.Run("run and stop watcher loop", func(t *testing.T) {
+		t.Parallel()
+		watcher := &applicationMetricsWatcher{
+			phaseCounter:     map[string]int{},
+			stepPhaseCounter: map[string]int{},
+			phaseDirty:       map[string]struct{}{},
+			stepPhaseDirty:   map[string]struct{}{},
+			stopCh:           make(chan struct{}),
+		}
+		watcher.run()
+		// Wait for at least one tick (1s) to hit the case <-ticker.C:
+		time.Sleep(1200 * time.Millisecond)
+		close(watcher.stopCh)
+		// Wait a bit for the goroutine to exit via case <-watcher.stopCh:
+		time.Sleep(100 * time.Millisecond)
 	})
 }
