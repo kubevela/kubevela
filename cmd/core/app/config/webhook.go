@@ -17,6 +17,8 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
+
 	"github.com/spf13/pflag"
 )
 
@@ -44,4 +46,18 @@ func (c *WebhookConfig) AddFlags(fs *pflag.FlagSet) {
 		"Admission webhook cert/key dir.")
 	fs.IntVar(&c.WebhookPort, "webhook-port", c.WebhookPort,
 		"admission webhook listen address")
+}
+
+// Validate checks if the webhook configuration is valid.
+func (c *WebhookConfig) Validate() error {
+	if c.WebhookPort <= 0 {
+		return fmt.Errorf("webhook-port must be greater than zero")
+	}
+	if c.WebhookPort > 65535 {
+		return fmt.Errorf("webhook-port must be between 1 and 65535 (inclusive)")
+	}
+	if c.UseWebhook && c.CertDir == "" {
+		return fmt.Errorf("webhook-cert-dir must not be empty when use-webhook is true")
+	}
+	return nil
 }
