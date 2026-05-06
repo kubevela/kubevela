@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/spf13/pflag"
@@ -62,4 +63,27 @@ func (c *ServerConfig) AddFlags(fs *pflag.FlagSet) {
 		"The duration that the acting controlplane will retry refreshing leadership before giving up")
 	fs.DurationVar(&c.RetryPeriod, "leader-election-retry-period", c.RetryPeriod,
 		"The duration the LeaderElector clients should wait between tries of actions")
+}
+
+// Validate checks if the server configuration is valid.
+func (c *ServerConfig) Validate() error {
+	if !c.EnableLeaderElection {
+		return nil
+	}
+	if c.LeaseDuration <= 0 {
+		return fmt.Errorf("leader-election-lease-duration must be greater than zero")
+	}
+	if c.RenewDeadline <= 0 {
+		return fmt.Errorf("leader-election-renew-deadline must be greater than zero")
+	}
+	if c.RetryPeriod <= 0 {
+		return fmt.Errorf("leader-election-retry-period must be greater than zero")
+	}
+	if c.LeaseDuration <= c.RenewDeadline {
+		return fmt.Errorf("leader-election-lease-duration must be greater than leader-election-renew-deadline")
+	}
+	if c.RetryPeriod >= c.RenewDeadline-c.RenewDeadline/5 {
+		return fmt.Errorf("leader-election-renew-deadline must be greater than leader-election-retry-period * Jitter (1.2)")
+	}
+	return nil
 }
