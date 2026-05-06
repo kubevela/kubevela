@@ -276,8 +276,12 @@ var _ = Describe("Application Normal tests", func() {
 		}, 5*time.Second).Should(BeNil())
 
 		By("check trait status")
-		Expect(testApp.Status.Services[0].Traits[0].Message).Should(Equal("configMap:app-file-html"))
-		Expect(testApp.Status.Services[0].Traits[1].Message).Should(Equal("secret:app-env-config"))
+		traitMessages := make(map[string]bool)
+		for _, trait := range testApp.Status.Services[0].Traits {
+			traitMessages[trait.Message] = true
+		}
+		Expect(traitMessages).Should(HaveKey("configMap:app-file-html"))
+		Expect(traitMessages).Should(HaveKey("secret:app-env-config"))
 	})
 
 	It("Test app have components with same name", func() {
