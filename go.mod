@@ -33,6 +33,7 @@ require (
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
 	github.com/hashicorp/go-version v1.6.0
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hashicorp/hcl/v2 v2.18.0
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.16
