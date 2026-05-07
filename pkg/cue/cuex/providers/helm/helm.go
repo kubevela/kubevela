@@ -21,11 +21,14 @@ import (
 	"context"
 	"crypto/sha256"
 	_ "embed"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -331,7 +334,7 @@ func isMutableVersion(version string) bool {
 }
 
 // fetchChart fetches a Helm chart from the specified source
-func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, options *RenderOptionsParams) (*chart.Chart, error) {
+func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, options *RenderOptionsParams, releaseNamespace string) (*chart.Chart, error) {
 	sourceType := detectChartSourceType(params.Source)
 
 	// Build cache key: <cache_key_prefix>/<source_type>/<source>/<version>
@@ -354,7 +357,7 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 	// Check if caching is disabled
 	if options != nil && options.Cache != nil && options.Cache.TTL == "0" {
 		klog.V(4).Info("Cache disabled for this chart")
-		return p.fetchChartWithoutCache(ctx, params, sourceType)
+		return p.fetchChartWithoutCache(ctx, params, sourceType, releaseNamespace)
 	}
 
 	// Check if we have a cached chart
@@ -367,7 +370,7 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 
 	klog.V(4).Infof("Cache miss for key: %s, fetching chart", cacheKey)
 
-	ch, err := p.fetchChartWithoutCache(ctx, params, sourceType)
+	ch, err := p.fetchChartWithoutCache(ctx, params, sourceType, releaseNamespace)
 	if err != nil {
 		return nil, err
 	}
@@ -385,10 +388,10 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 }
 
 // fetchChartWithoutCache fetches a chart without using cache
-func (p *Provider) fetchChartWithoutCache(ctx context.Context, params *ChartSourceParams, sourceType string) (*chart.Chart, error) {
+func (p *Provider) fetchChartWithoutCache(ctx context.Context, params *ChartSourceParams, sourceType, releaseNamespace string) (*chart.Chart, error) {
 	switch sourceType {
 	case "oci":
-		return p.fetchOCIChart(ctx, params)
+		return p.fetchOCIChart(ctx, params, releaseNamespace)
 	case "url":
 		return p.fetchURLChart(ctx, params)
 	case "repo":
@@ -444,20 +447,72 @@ func (p *Provider) determineCacheTTL(version string, options *RenderOptionsParam
 	return p.cacheTTL.ImmutableVersionTTL
 }
 
-// fetchOCIChart fetches a chart from an OCI registry
-func (p *Provider) fetchOCIChart(_ context.Context, params *ChartSourceParams) (*chart.Chart, error) {
-	registryClient, err := registry.NewClient()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create OCI registry client")
+// createTempCredentialsFile writes a Docker-style config.json with basic-auth
+// credentials for the given registry host and returns the file path along with
+// a cleanup function that removes the temp directory. Using a per-call temp file
+// (via ClientOptCredentialsFile) avoids writing to the shared Helm credentials
+// file and avoids the live network round-trip that registry.Client.Login() makes.
+func createTempCredentialsFile(host, username, password string) (string, func(), error) {
+	encoded := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+	config := map[string]interface{}{
+		"auths": map[string]interface{}{
+			host: map[string]string{"auth": encoded},
+		},
 	}
+	data, err := json.Marshal(config)
+	if err != nil {
+		return "", func() {}, errors.Wrap(err, "failed to marshal OCI credentials")
+	}
+	dir, err := os.MkdirTemp("", "kubevela-helm-oci-*")
+	if err != nil {
+		return "", func() {}, errors.Wrap(err, "failed to create temp dir for OCI credentials")
+	}
+	cleanup := func() { os.RemoveAll(dir) }
+	path := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		cleanup()
+		return "", func() {}, errors.Wrap(err, "failed to write OCI credentials file")
+	}
+	return path, cleanup, nil
+}
 
-	// Remove oci:// prefix
+// fetchOCIChart fetches a chart from an OCI registry.
+// If params.Auth is set, credentials are resolved from the named Kubernetes Secret
+// and injected into the registry client via a per-call temp credentials file
+// (ClientOptCredentialsFile). This avoids writing to the shared Helm credentials
+// file and avoids the live network round-trip that registry.Client.Login() makes.
+// This is a package-level function (not a Provider method) because it uses no
+// Provider state — only the cluster client via singleton.KubeClient.
+func (p *Provider) fetchOCIChart(ctx context.Context, params *ChartSourceParams, releaseNamespace string) (*chart.Chart, error) {
+	var clientOpts []registry.ClientOption
+
+	// Extract host before appending the version tag so the split is clean even
+	// for bare registries (e.g. "myregistry:5000" with no repository path).
 	ref := strings.TrimPrefix(params.Source, "oci://")
+	host := strings.SplitN(ref, "/", 2)[0]
+
 	if params.Version != "" {
 		ref = fmt.Sprintf("%s:%s", ref, params.Version)
 	}
 
-	// Pull the chart
+	if params.Auth != nil && params.Auth.SecretRef != nil {
+		username, password, err := resolveOCICredentials(ctx, params.Auth, releaseNamespace)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to resolve OCI registry credentials")
+		}
+		credFile, cleanup, err := createTempCredentialsFile(host, username, password)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create OCI credentials file")
+		}
+		defer cleanup()
+		clientOpts = append(clientOpts, registry.ClientOptCredentialsFile(credFile))
+	}
+
+	registryClient, err := registry.NewClient(clientOpts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create OCI registry client")
+	}
+
 	result, err := registryClient.Pull(ref)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to pull OCI chart %s", ref)
@@ -751,6 +806,55 @@ func (p *Provider) loadSecretValues(ctx context.Context, source ValuesFromParams
 		return nil, errors.Wrapf(err, "Secret %s/%s key %q: invalid YAML", ns, source.Name, key)
 	}
 	return values, nil
+}
+
+// resolveOCICredentials resolves OCI registry credentials from a Kubernetes Secret.
+// Returns empty strings when auth is nil or has no SecretRef — callers should
+// proceed unauthenticated in that case.
+// When SecretRef.Namespace is empty, releaseNamespace is used as the default,
+// consistent with how valuesFrom Secret sources resolve in this provider.
+//
+// The Secret must contain "username" and "password" keys in .Data.
+// Credentials are returned as plain strings; Kubernetes already base64-decodes
+// Secret.Data on read, so no further decoding is needed.
+//
+// This is a package-level function (not a Provider method) because it uses no
+// Provider state — only the cluster client via singleton.KubeClient.
+func resolveOCICredentials(ctx context.Context, authParams *AuthParams, releaseNamespace string) (username, password string, err error) {
+	if authParams == nil || authParams.SecretRef == nil {
+		return "", "", nil
+	}
+
+	// TODO(GWCP-98771): Implement a cross-namespace guard here (matching resolveValuesFromNamespace)
+	// before enabling auth in production. fetchOCIChart is now wired into the system via Render().
+	// Requires threading appNamespace through fetchChart -> fetchChartWithoutCache -> fetchOCIChart
+	// -> resolveOCICredentials alongside releaseNamespace. Until then, an explicit
+	// auth.secretRef.namespace can reference any namespace the controller can read.
+	ns := authParams.SecretRef.Namespace
+	if ns == "" {
+		ns = releaseNamespace
+	}
+
+	k8s := singleton.KubeClient.Get()
+	secret := &corev1.Secret{}
+	if getErr := k8s.Get(ctx, client.ObjectKey{Name: authParams.SecretRef.Name, Namespace: ns}, secret); getErr != nil {
+		if apierrors.IsNotFound(getErr) {
+			return "", "", fmt.Errorf("auth secret %s/%s not found: %w", ns, authParams.SecretRef.Name, getErr)
+		}
+		return "", "", errors.Wrapf(getErr, "failed to read auth secret %s/%s", ns, authParams.SecretRef.Name)
+	}
+
+	usernameBytes, ok := secret.Data["username"]
+	if !ok {
+		return "", "", fmt.Errorf("auth secret %s/%s missing required key %q", ns, authParams.SecretRef.Name, "username")
+	}
+
+	passwordBytes, ok := secret.Data["password"]
+	if !ok {
+		return "", "", fmt.Errorf("auth secret %s/%s missing required key %q", ns, authParams.SecretRef.Name, "password")
+	}
+
+	return string(usernameBytes), string(passwordBytes), nil
 }
 
 // getActionConfig initializes a Helm action.Configuration with a real Kubernetes
@@ -1579,7 +1683,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	klog.V(3).Infof("Helm provider: Release name=%s, namespace=%s", releaseName, releaseNamespace)
 
 	// Fetch the chart
-	ch, err := p.fetchChart(ctx, &renderParams.Chart, renderParams.Options)
+	ch, err := p.fetchChart(ctx, &renderParams.Chart, renderParams.Options, releaseNamespace)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch chart")
 	}

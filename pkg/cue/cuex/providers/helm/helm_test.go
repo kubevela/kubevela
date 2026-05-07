@@ -1217,13 +1217,13 @@ spec:
 		})
 
 		It("should fail for unsupported source type", func() {
-			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "test"}, "unknown")
+			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "test"}, "unknown", "default")
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("unsupported chart source type"))
 		})
 
 		It("should fail for repo without repoURL", func() {
-			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "nginx"}, "repo")
+			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "nginx"}, "repo", "default")
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("repoURL is required"))
 		})
@@ -1338,7 +1338,7 @@ spec:
 
 			result, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "nginx", Version: "1.0.0"},
-				nil)
+				nil, "default")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("cached-chart"))
 		})
@@ -1353,7 +1353,7 @@ spec:
 
 			result, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "myapp", Version: "2.0.0"},
-				&RenderOptionsParams{Cache: &CacheParams{Key: "my-prefix"}})
+				&RenderOptionsParams{Cache: &CacheParams{Key: "my-prefix"}}, "default")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("custom-cached"))
 		})
@@ -1363,7 +1363,7 @@ spec:
 			// which will fail since there's no real repo, but the code path is exercised
 			_, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "nginx"},
-				&RenderOptionsParams{Cache: &CacheParams{TTL: "0"}})
+				&RenderOptionsParams{Cache: &CacheParams{TTL: "0"}}, "default")
 			Expect(err).Should(HaveOccurred())
 			// The error should come from fetchChartWithoutCache, not from cache logic
 			Expect(err.Error()).To(ContainSubstring("repoURL is required"))
@@ -1380,7 +1380,7 @@ spec:
 
 			result, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "oci://ghcr.io/example/chart", Version: "3.0.0"},
-				nil)
+				nil, "default")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("oci-chart"))
 		})
@@ -1396,7 +1396,7 @@ spec:
 
 			result, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "https://example.com/chart.tgz", Version: "1.0.0"},
-				nil)
+				nil, "default")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("url-chart"))
 		})
@@ -2228,7 +2228,7 @@ entries:
 				Source:  "cache-miss",
 				RepoURL: server.URL,
 				Version: "1.0.0",
-			}, nil)
+			}, nil, "default")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch.Metadata.Name).To(Equal("cache-miss"))
 
@@ -2249,7 +2249,7 @@ entries:
 			ch, err := p.fetchChart(context.Background(), &ChartSourceParams{
 				Source:  server.URL + "/url-cache-1.0.0.tgz",
 				Version: "1.0.0",
-			}, nil)
+			}, nil, "default")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch.Metadata.Name).To(Equal("url-cache"))
 		})
@@ -2278,6 +2278,151 @@ entries:
 			if err == nil {
 				Expect(result).ToNot(BeNil())
 			}
+		})
+	})
+
+	Describe("resolveOCICredentials", func() {
+		const releaseNS = "prod"
+
+		buildClient := func(objs ...client.Object) {
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			builder := fake.NewClientBuilder().WithScheme(scheme)
+			for _, o := range objs {
+				builder = builder.WithObjects(o)
+			}
+			singleton.KubeClient.Set(builder.Build())
+		}
+
+		It("returns empty credentials when auth is nil", func() {
+			buildClient()
+			username, password, err := resolveOCICredentials(context.Background(), nil, releaseNS)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(username).To(BeEmpty())
+			Expect(password).To(BeEmpty())
+		})
+
+		It("returns empty credentials when auth.SecretRef is nil", func() {
+			buildClient()
+			username, password, err := resolveOCICredentials(context.Background(), &AuthParams{}, releaseNS)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(username).To(BeEmpty())
+			Expect(password).To(BeEmpty())
+		})
+
+		It("returns an error when the Secret does not exist", func() {
+			buildClient()
+			_, _, err := resolveOCICredentials(context.Background(),
+				&AuthParams{SecretRef: &SecretRefParams{Name: "missing-secret"}},
+				releaseNS)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("missing-secret"))
+		})
+
+		It("returns an error when the Secret has no 'username' key", func() {
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "oci-creds", Namespace: releaseNS},
+				Data: map[string][]byte{
+					"password": []byte("s3cret"),
+				},
+			}
+			buildClient(secret)
+			_, _, err := resolveOCICredentials(context.Background(),
+				&AuthParams{SecretRef: &SecretRefParams{Name: "oci-creds"}},
+				releaseNS)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("username"))
+		})
+
+		It("returns an error when the Secret has no 'password' key", func() {
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "oci-creds", Namespace: releaseNS},
+				Data: map[string][]byte{
+					"username": []byte("robot"),
+				},
+			}
+			buildClient(secret)
+			_, _, err := resolveOCICredentials(context.Background(),
+				&AuthParams{SecretRef: &SecretRefParams{Name: "oci-creds"}},
+				releaseNS)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("password"))
+		})
+
+		It("returns credentials from Secret in the release namespace when namespace is omitted", func() {
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "oci-creds", Namespace: releaseNS},
+				Data: map[string][]byte{
+					"username": []byte("robot"),
+					"password": []byte("s3cret"),
+				},
+			}
+			buildClient(secret)
+			username, password, err := resolveOCICredentials(context.Background(),
+				&AuthParams{SecretRef: &SecretRefParams{Name: "oci-creds"}},
+				releaseNS)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(username).To(Equal("robot"))
+			Expect(password).To(Equal("s3cret"))
+		})
+
+		It("uses an explicit namespace from SecretRef when provided", func() {
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "oci-creds", Namespace: "infra"},
+				Data: map[string][]byte{
+					"username": []byte("svc-account"),
+					"password": []byte("tok3n"),
+				},
+			}
+			buildClient(secret)
+			username, password, err := resolveOCICredentials(context.Background(),
+				&AuthParams{SecretRef: &SecretRefParams{Name: "oci-creds", Namespace: "infra"}},
+				releaseNS)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(username).To(Equal("svc-account"))
+			Expect(password).To(Equal("tok3n"))
+		})
+	})
+
+	Describe("fetchOCIChart credential error propagation", func() {
+		It("returns an error when auth.SecretRef names a missing Secret", func() {
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).Build())
+
+			p := NewProviderWithConfig(nil)
+			params := &ChartSourceParams{
+				Source:  "oci://ghcr.io/example/charts/myapp",
+				Version: "1.0.0",
+				Auth: &AuthParams{
+					SecretRef: &SecretRefParams{Name: "nonexistent-secret"},
+				},
+			}
+			_, err := p.fetchOCIChart(context.Background(), params, "prod")
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("nonexistent-secret"))
+		})
+
+		It("proceeds without credentials when auth.SecretRef is nil", func() {
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).Build())
+
+			p := NewProviderWithConfig(nil)
+			params := &ChartSourceParams{
+				Source:  "oci://ghcr.io/example/charts/myapp",
+				Version: "1.0.0",
+				Auth:    &AuthParams{SecretRef: nil},
+			}
+			// The pull itself will fail (no real registry), but it should NOT fail due
+			// to credential resolution — the error must come from the Pull call, not auth.
+			// Note: Helm's own registry client may emit "credentials" in its pull error;
+			// we only assert that our auth resolution code did not produce the error.
+			_, err := p.fetchOCIChart(context.Background(), params, "prod")
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).NotTo(ContainSubstring("failed to resolve OCI registry credentials"))
+			Expect(err.Error()).NotTo(ContainSubstring("failed to create OCI credentials file"))
+			Expect(err.Error()).To(ContainSubstring("failed to pull OCI chart"))
 		})
 	})
 

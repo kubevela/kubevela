@@ -90,14 +90,15 @@ template: {
 			// Version/tag for repository and OCI charts (ignored for direct URLs)
 			version?: string | *"latest"
 
-			// Authentication (optional) - TODO: Not yet implemented
-			// auth?: {
-			// 	// Reference to Secret containing credentials
-			// 	secretRef?: {
-			// 		name: string
-			// 		namespace?: string | *context.namespace
-			// 	}
-			// }
+			// Authentication for private chart repositories
+			auth?: {
+				// Reference to Kubernetes Secret containing registry credentials.
+				// The Secret must have "username" and "password" keys in .data.
+				secretRef?: {
+					name: string
+					namespace?: string | *context.namespace
+				}
+			}
 		}
 
 		// Release configuration (optional - uses context defaults)
