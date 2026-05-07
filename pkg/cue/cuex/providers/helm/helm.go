@@ -331,7 +331,7 @@ func isMutableVersion(version string) bool {
 }
 
 // fetchChart fetches a Helm chart from the specified source
-func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, options *RenderOptionsParams) (*chart.Chart, error) {
+func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, options *RenderOptionsParams, releaseNamespace string) (*chart.Chart, error) {
 	sourceType := detectChartSourceType(params.Source)
 
 	// Build cache key: <cache_key_prefix>/<source_type>/<source>/<version>
@@ -354,7 +354,7 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 	// Check if caching is disabled
 	if options != nil && options.Cache != nil && options.Cache.TTL == "0" {
 		klog.V(4).Info("Cache disabled for this chart")
-		return p.fetchChartWithoutCache(ctx, params, sourceType)
+		return p.fetchChartWithoutCache(ctx, params, sourceType, releaseNamespace)
 	}
 
 	// Check if we have a cached chart
@@ -367,7 +367,7 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 
 	klog.V(4).Infof("Cache miss for key: %s, fetching chart", cacheKey)
 
-	ch, err := p.fetchChartWithoutCache(ctx, params, sourceType)
+	ch, err := p.fetchChartWithoutCache(ctx, params, sourceType, releaseNamespace)
 	if err != nil {
 		return nil, err
 	}
@@ -385,10 +385,10 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 }
 
 // fetchChartWithoutCache fetches a chart without using cache
-func (p *Provider) fetchChartWithoutCache(ctx context.Context, params *ChartSourceParams, sourceType string) (*chart.Chart, error) {
+func (p *Provider) fetchChartWithoutCache(ctx context.Context, params *ChartSourceParams, sourceType, releaseNamespace string) (*chart.Chart, error) {
 	switch sourceType {
 	case "oci":
-		return p.fetchOCIChart(ctx, params)
+		return p.fetchOCIChart(ctx, params, releaseNamespace)
 	case "url":
 		return p.fetchURLChart(ctx, params)
 	case "repo":
@@ -444,8 +444,10 @@ func (p *Provider) determineCacheTTL(version string, options *RenderOptionsParam
 	return p.cacheTTL.ImmutableVersionTTL
 }
 
-// fetchOCIChart fetches a chart from an OCI registry
-func (p *Provider) fetchOCIChart(_ context.Context, params *ChartSourceParams) (*chart.Chart, error) {
+// fetchOCIChart fetches a chart from an OCI registry.
+// If params.Auth is set, credentials are resolved from the named Kubernetes Secret
+// and injected into the registry client via Login so the pull is authenticated.
+func (p *Provider) fetchOCIChart(ctx context.Context, params *ChartSourceParams, releaseNamespace string) (*chart.Chart, error) {
 	registryClient, err := registry.NewClient()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create OCI registry client")
@@ -457,7 +459,18 @@ func (p *Provider) fetchOCIChart(_ context.Context, params *ChartSourceParams) (
 		ref = fmt.Sprintf("%s:%s", ref, params.Version)
 	}
 
-	// Pull the chart
+	if params.Auth != nil && params.Auth.SecretRef != nil {
+		username, password, credErr := resolveOCICredentials(ctx, params.Auth, releaseNamespace)
+		if credErr != nil {
+			return nil, errors.Wrap(credErr, "failed to resolve OCI registry credentials")
+		}
+		// Extract the registry host (first path component after removing scheme prefix).
+		host := strings.SplitN(ref, "/", 2)[0]
+		if loginErr := registryClient.Login(host, registry.LoginOptBasicAuth(username, password)); loginErr != nil {
+			return nil, errors.Wrapf(loginErr, "failed to log in to OCI registry %s", host)
+		}
+	}
+
 	result, err := registryClient.Pull(ref)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to pull OCI chart %s", ref)
@@ -1626,7 +1639,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	klog.V(3).Infof("Helm provider: Release name=%s, namespace=%s", releaseName, releaseNamespace)
 
 	// Fetch the chart
-	ch, err := p.fetchChart(ctx, &renderParams.Chart, renderParams.Options)
+	ch, err := p.fetchChart(ctx, &renderParams.Chart, renderParams.Options, releaseNamespace)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch chart")
 	}

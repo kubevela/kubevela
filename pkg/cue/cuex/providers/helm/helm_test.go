@@ -1217,13 +1217,13 @@ spec:
 		})
 
 		It("should fail for unsupported source type", func() {
-			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "test"}, "unknown")
+			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "test"}, "unknown", "default")
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("unsupported chart source type"))
 		})
 
 		It("should fail for repo without repoURL", func() {
-			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "nginx"}, "repo")
+			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "nginx"}, "repo", "default")
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("repoURL is required"))
 		})
@@ -1338,7 +1338,7 @@ spec:
 
 			result, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "nginx", Version: "1.0.0"},
-				nil)
+				nil, "default")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("cached-chart"))
 		})
@@ -1353,7 +1353,7 @@ spec:
 
 			result, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "myapp", Version: "2.0.0"},
-				&RenderOptionsParams{Cache: &CacheParams{Key: "my-prefix"}})
+				&RenderOptionsParams{Cache: &CacheParams{Key: "my-prefix"}}, "default")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("custom-cached"))
 		})
@@ -1363,7 +1363,7 @@ spec:
 			// which will fail since there's no real repo, but the code path is exercised
 			_, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "nginx"},
-				&RenderOptionsParams{Cache: &CacheParams{TTL: "0"}})
+				&RenderOptionsParams{Cache: &CacheParams{TTL: "0"}}, "default")
 			Expect(err).Should(HaveOccurred())
 			// The error should come from fetchChartWithoutCache, not from cache logic
 			Expect(err.Error()).To(ContainSubstring("repoURL is required"))
@@ -1380,7 +1380,7 @@ spec:
 
 			result, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "oci://ghcr.io/example/chart", Version: "3.0.0"},
-				nil)
+				nil, "default")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("oci-chart"))
 		})
@@ -1396,7 +1396,7 @@ spec:
 
 			result, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "https://example.com/chart.tgz", Version: "1.0.0"},
-				nil)
+				nil, "default")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("url-chart"))
 		})
@@ -2228,7 +2228,7 @@ entries:
 				Source:  "cache-miss",
 				RepoURL: server.URL,
 				Version: "1.0.0",
-			}, nil)
+			}, nil, "default")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch.Metadata.Name).To(Equal("cache-miss"))
 
@@ -2249,7 +2249,7 @@ entries:
 			ch, err := p.fetchChart(context.Background(), &ChartSourceParams{
 				Source:  server.URL + "/url-cache-1.0.0.tgz",
 				Version: "1.0.0",
-			}, nil)
+			}, nil, "default")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch.Metadata.Name).To(Equal("url-cache"))
 		})
@@ -2381,6 +2381,26 @@ entries:
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(username).To(Equal("svc-account"))
 			Expect(password).To(Equal("tok3n"))
+		})
+	})
+
+	Describe("fetchOCIChart credential error propagation", func() {
+		It("returns an error when auth.SecretRef names a missing Secret", func() {
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).Build())
+
+			p := NewProviderWithConfig(nil)
+			params := &ChartSourceParams{
+				Source:  "oci://ghcr.io/example/charts/myapp",
+				Version: "1.0.0",
+				Auth: &AuthParams{
+					SecretRef: &SecretRefParams{Name: "nonexistent-secret"},
+				},
+			}
+			_, err := p.fetchOCIChart(context.Background(), params, "prod")
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("nonexistent-secret"))
 		})
 	})
 
