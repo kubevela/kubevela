@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/spf13/pflag"
@@ -53,4 +54,12 @@ func (c *ApplicationConfig) AddFlags(fs *pflag.FlagSet) {
 // The flow is: CLI flags -> ApplicationConfig struct fields -> commonconfig globals (via this method)
 func (c *ApplicationConfig) SyncToApplicationGlobals() {
 	commonconfig.ApplicationReSyncPeriod = c.ReSyncPeriod
+}
+
+// Validate checks if the application configuration is valid.
+func (c *ApplicationConfig) Validate() error {
+	if c.ReSyncPeriod <= 0 {
+		return fmt.Errorf("application-re-sync-period must be greater than zero")
+	}
+	return nil
 }
