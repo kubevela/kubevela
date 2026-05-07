@@ -762,11 +762,17 @@ func (p *Provider) loadSecretValues(ctx context.Context, source ValuesFromParams
 // The Secret must contain "username" and "password" keys in .Data.
 // Credentials are returned as plain strings; Kubernetes already base64-decodes
 // Secret.Data on read, so no further decoding is needed.
+//
+// This is a package-level function (not a Provider method) because it uses no
+// Provider state — only the cluster client via singleton.KubeClient.
 func resolveOCICredentials(ctx context.Context, authParams *AuthParams, releaseNamespace string) (username, password string, err error) {
 	if authParams == nil || authParams.SecretRef == nil {
 		return "", "", nil
 	}
 
+	// TODO(GWCP-98771): Add a cross-namespace guard here (matching resolveValuesFromNamespace)
+	// before this function is wired into the running system in Task 4. Requires threading
+	// appNamespace through the call chain alongside releaseNamespace.
 	ns := authParams.SecretRef.Namespace
 	if ns == "" {
 		ns = releaseNamespace
