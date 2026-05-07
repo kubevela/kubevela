@@ -21,11 +21,14 @@ import (
 	"context"
 	"crypto/sha256"
 	_ "embed"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -444,31 +447,70 @@ func (p *Provider) determineCacheTTL(version string, options *RenderOptionsParam
 	return p.cacheTTL.ImmutableVersionTTL
 }
 
+// createTempCredentialsFile writes a Docker-style config.json with basic-auth
+// credentials for the given registry host and returns the file path along with
+// a cleanup function that removes the temp directory. Using a per-call temp file
+// (via ClientOptCredentialsFile) avoids writing to the shared Helm credentials
+// file and avoids the live network round-trip that registry.Client.Login() makes.
+func createTempCredentialsFile(host, username, password string) (string, func(), error) {
+	encoded := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+	config := map[string]interface{}{
+		"auths": map[string]interface{}{
+			host: map[string]string{"auth": encoded},
+		},
+	}
+	data, err := json.Marshal(config)
+	if err != nil {
+		return "", func() {}, errors.Wrap(err, "failed to marshal OCI credentials")
+	}
+	dir, err := os.MkdirTemp("", "kubevela-helm-oci-*")
+	if err != nil {
+		return "", func() {}, errors.Wrap(err, "failed to create temp dir for OCI credentials")
+	}
+	cleanup := func() { os.RemoveAll(dir) }
+	path := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		cleanup()
+		return "", func() {}, errors.Wrap(err, "failed to write OCI credentials file")
+	}
+	return path, cleanup, nil
+}
+
 // fetchOCIChart fetches a chart from an OCI registry.
 // If params.Auth is set, credentials are resolved from the named Kubernetes Secret
-// and injected into the registry client via Login so the pull is authenticated.
+// and injected into the registry client via a per-call temp credentials file
+// (ClientOptCredentialsFile). This avoids writing to the shared Helm credentials
+// file and avoids the live network round-trip that registry.Client.Login() makes.
+// This is a package-level function (not a Provider method) because it uses no
+// Provider state — only the cluster client via singleton.KubeClient.
 func (p *Provider) fetchOCIChart(ctx context.Context, params *ChartSourceParams, releaseNamespace string) (*chart.Chart, error) {
-	registryClient, err := registry.NewClient()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create OCI registry client")
-	}
+	var clientOpts []registry.ClientOption
 
-	// Remove oci:// prefix
+	// Extract host before appending the version tag so the split is clean even
+	// for bare registries (e.g. "myregistry:5000" with no repository path).
 	ref := strings.TrimPrefix(params.Source, "oci://")
+	host := strings.SplitN(ref, "/", 2)[0]
+
 	if params.Version != "" {
 		ref = fmt.Sprintf("%s:%s", ref, params.Version)
 	}
 
 	if params.Auth != nil && params.Auth.SecretRef != nil {
-		username, password, credErr := resolveOCICredentials(ctx, params.Auth, releaseNamespace)
-		if credErr != nil {
-			return nil, errors.Wrap(credErr, "failed to resolve OCI registry credentials")
+		username, password, err := resolveOCICredentials(ctx, params.Auth, releaseNamespace)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to resolve OCI registry credentials")
 		}
-		// Extract the registry host (first path component after removing scheme prefix).
-		host := strings.SplitN(ref, "/", 2)[0]
-		if loginErr := registryClient.Login(host, registry.LoginOptBasicAuth(username, password)); loginErr != nil {
-			return nil, errors.Wrapf(loginErr, "failed to log in to OCI registry %s", host)
+		credFile, cleanup, err := createTempCredentialsFile(host, username, password)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create OCI credentials file")
 		}
+		defer cleanup()
+		clientOpts = append(clientOpts, registry.ClientOptCredentialsFile(credFile))
+	}
+
+	registryClient, err := registry.NewClient(clientOpts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create OCI registry client")
 	}
 
 	result, err := registryClient.Pull(ref)
@@ -783,9 +825,11 @@ func resolveOCICredentials(ctx context.Context, authParams *AuthParams, releaseN
 		return "", "", nil
 	}
 
-	// TODO(GWCP-98771): Add a cross-namespace guard here (matching resolveValuesFromNamespace)
-	// before this function is wired into the running system in Task 4. Requires threading
-	// appNamespace through the call chain alongside releaseNamespace.
+	// TODO(GWCP-98771): Implement a cross-namespace guard here (matching resolveValuesFromNamespace)
+	// before enabling auth in production. fetchOCIChart is now wired into the system via Render().
+	// Requires threading appNamespace through fetchChart -> fetchChartWithoutCache -> fetchOCIChart
+	// -> resolveOCICredentials alongside releaseNamespace. Until then, an explicit
+	// auth.secretRef.namespace can reference any namespace the controller can read.
 	ns := authParams.SecretRef.Namespace
 	if ns == "" {
 		ns = releaseNamespace

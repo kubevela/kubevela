@@ -2402,6 +2402,28 @@ entries:
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("nonexistent-secret"))
 		})
+
+		It("proceeds without credentials when auth.SecretRef is nil", func() {
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).Build())
+
+			p := NewProviderWithConfig(nil)
+			params := &ChartSourceParams{
+				Source:  "oci://ghcr.io/example/charts/myapp",
+				Version: "1.0.0",
+				Auth:    &AuthParams{SecretRef: nil},
+			}
+			// The pull itself will fail (no real registry), but it should NOT fail due
+			// to credential resolution — the error must come from the Pull call, not auth.
+			// Note: Helm's own registry client may emit "credentials" in its pull error;
+			// we only assert that our auth resolution code did not produce the error.
+			_, err := p.fetchOCIChart(context.Background(), params, "prod")
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).NotTo(ContainSubstring("failed to resolve OCI registry credentials"))
+			Expect(err.Error()).NotTo(ContainSubstring("failed to create OCI credentials file"))
+			Expect(err.Error()).To(ContainSubstring("failed to pull OCI chart"))
+		})
 	})
 
 })
