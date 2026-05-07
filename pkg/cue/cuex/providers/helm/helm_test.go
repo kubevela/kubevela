@@ -2281,6 +2281,109 @@ entries:
 		})
 	})
 
+	Describe("resolveOCICredentials", func() {
+		const releaseNS = "prod"
+
+		buildClient := func(objs ...client.Object) {
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			builder := fake.NewClientBuilder().WithScheme(scheme)
+			for _, o := range objs {
+				builder = builder.WithObjects(o)
+			}
+			singleton.KubeClient.Set(builder.Build())
+		}
+
+		It("returns empty credentials when auth is nil", func() {
+			buildClient()
+			username, password, err := resolveOCICredentials(context.Background(), nil, releaseNS)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(username).To(BeEmpty())
+			Expect(password).To(BeEmpty())
+		})
+
+		It("returns empty credentials when auth.SecretRef is nil", func() {
+			buildClient()
+			username, password, err := resolveOCICredentials(context.Background(), &AuthParams{}, releaseNS)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(username).To(BeEmpty())
+			Expect(password).To(BeEmpty())
+		})
+
+		It("returns an error when the Secret does not exist", func() {
+			buildClient()
+			_, _, err := resolveOCICredentials(context.Background(),
+				&AuthParams{SecretRef: &SecretRefParams{Name: "missing-secret"}},
+				releaseNS)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("missing-secret"))
+		})
+
+		It("returns an error when the Secret has no 'username' key", func() {
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "oci-creds", Namespace: releaseNS},
+				Data: map[string][]byte{
+					"password": []byte("s3cret"),
+				},
+			}
+			buildClient(secret)
+			_, _, err := resolveOCICredentials(context.Background(),
+				&AuthParams{SecretRef: &SecretRefParams{Name: "oci-creds"}},
+				releaseNS)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("username"))
+		})
+
+		It("returns an error when the Secret has no 'password' key", func() {
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "oci-creds", Namespace: releaseNS},
+				Data: map[string][]byte{
+					"username": []byte("robot"),
+				},
+			}
+			buildClient(secret)
+			_, _, err := resolveOCICredentials(context.Background(),
+				&AuthParams{SecretRef: &SecretRefParams{Name: "oci-creds"}},
+				releaseNS)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("password"))
+		})
+
+		It("returns credentials from Secret in the release namespace when namespace is omitted", func() {
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "oci-creds", Namespace: releaseNS},
+				Data: map[string][]byte{
+					"username": []byte("robot"),
+					"password": []byte("s3cret"),
+				},
+			}
+			buildClient(secret)
+			username, password, err := resolveOCICredentials(context.Background(),
+				&AuthParams{SecretRef: &SecretRefParams{Name: "oci-creds"}},
+				releaseNS)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(username).To(Equal("robot"))
+			Expect(password).To(Equal("s3cret"))
+		})
+
+		It("uses an explicit namespace from SecretRef when provided", func() {
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "oci-creds", Namespace: "infra"},
+				Data: map[string][]byte{
+					"username": []byte("svc-account"),
+					"password": []byte("tok3n"),
+				},
+			}
+			buildClient(secret)
+			username, password, err := resolveOCICredentials(context.Background(),
+				&AuthParams{SecretRef: &SecretRefParams{Name: "oci-creds", Namespace: "infra"}},
+				releaseNS)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(username).To(Equal("svc-account"))
+			Expect(password).To(Equal("tok3n"))
+		})
+	})
+
 })
 
 // createMinimalChartArchive creates a minimal valid Helm chart .tgz archive

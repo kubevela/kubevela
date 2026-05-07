@@ -753,6 +753,47 @@ func (p *Provider) loadSecretValues(ctx context.Context, source ValuesFromParams
 	return values, nil
 }
 
+// resolveOCICredentials resolves OCI registry credentials from a Kubernetes Secret.
+// Returns empty strings when auth is nil or has no SecretRef — callers should
+// proceed unauthenticated in that case.
+// When SecretRef.Namespace is empty, releaseNamespace is used as the default,
+// consistent with how valuesFrom Secret sources resolve in this provider.
+//
+// The Secret must contain "username" and "password" keys in .Data.
+// Credentials are returned as plain strings; Kubernetes already base64-decodes
+// Secret.Data on read, so no further decoding is needed.
+func resolveOCICredentials(ctx context.Context, authParams *AuthParams, releaseNamespace string) (username, password string, err error) {
+	if authParams == nil || authParams.SecretRef == nil {
+		return "", "", nil
+	}
+
+	ns := authParams.SecretRef.Namespace
+	if ns == "" {
+		ns = releaseNamespace
+	}
+
+	k8s := singleton.KubeClient.Get()
+	secret := &corev1.Secret{}
+	if getErr := k8s.Get(ctx, client.ObjectKey{Name: authParams.SecretRef.Name, Namespace: ns}, secret); getErr != nil {
+		if apierrors.IsNotFound(getErr) {
+			return "", "", fmt.Errorf("auth secret %s/%s not found: %w", ns, authParams.SecretRef.Name, getErr)
+		}
+		return "", "", errors.Wrapf(getErr, "failed to read auth secret %s/%s", ns, authParams.SecretRef.Name)
+	}
+
+	usernameBytes, ok := secret.Data["username"]
+	if !ok {
+		return "", "", fmt.Errorf("auth secret %s/%s missing required key %q", ns, authParams.SecretRef.Name, "username")
+	}
+
+	passwordBytes, ok := secret.Data["password"]
+	if !ok {
+		return "", "", fmt.Errorf("auth secret %s/%s missing required key %q", ns, authParams.SecretRef.Name, "password")
+	}
+
+	return string(usernameBytes), string(passwordBytes), nil
+}
+
 // getActionConfig initializes a Helm action.Configuration with a real Kubernetes
 // REST client and a secrets-based storage driver so that releases persist in-cluster.
 func (p *Provider) getActionConfig(namespace string) (*action.Configuration, error) {
