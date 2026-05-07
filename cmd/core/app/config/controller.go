@@ -17,6 +17,8 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
+
 	"github.com/spf13/pflag"
 
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -64,4 +66,21 @@ func (c *ControllerConfig) AddFlags(fs *pflag.FlagSet) {
 		"If true, application controller will not process the app without 'app.oam.dev/controller-version-require' annotation")
 	fs.BoolVar(&c.IgnoreDefinitionWithoutControllerRequirement, "ignore-definition-without-controller-version", c.IgnoreDefinitionWithoutControllerRequirement,
 		"If true, trait/component/workflowstep definition controller will not process the definition without 'definition.oam.dev/controller-version-require' annotation")
+}
+
+// Validate checks if the controller configuration is valid.
+func (c *ControllerConfig) Validate() error {
+	if c.ConcurrentReconciles <= 0 {
+		return fmt.Errorf("concurrent-reconciles must be greater than zero")
+	}
+	if c.RevisionLimit < 0 {
+		return fmt.Errorf("revision-limit must be greater than or equal to zero")
+	}
+	if c.AppRevisionLimit < 0 {
+		return fmt.Errorf("application-revision-limit must be greater than or equal to zero")
+	}
+	if c.DefRevisionLimit < 0 {
+		return fmt.Errorf("definition-revision-limit must be greater than or equal to zero")
+	}
+	return nil
 }
