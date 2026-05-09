@@ -17,6 +17,8 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
+
 	"github.com/spf13/pflag"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -51,4 +53,12 @@ func (c *OAMConfig) AddFlags(fs *pflag.FlagSet) {
 // The flow is: CLI flags -> OAMConfig struct fields -> oam globals (via this method)
 func (c *OAMConfig) SyncToOAMGlobals() {
 	oam.SystemDefinitionNamespace = c.SystemDefinitionNamespace
+}
+
+// Validate ensures the OAM configuration is valid.
+func (c *OAMConfig) Validate() error {
+	if c.SystemDefinitionNamespace == "" {
+		return fmt.Errorf("system-definition-namespace must not be empty")
+	}
+	return nil
 }
