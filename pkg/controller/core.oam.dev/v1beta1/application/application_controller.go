@@ -109,7 +109,7 @@ type options struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	ctx, cancel := ctrlrec.NewReconcileContext(ctx)
 	defer cancel()
-	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("application", req.String(), "controller", "application")
+	logCtx := NewApplicationRequestContext(ctx, req)
 	logCtx.Info("Start reconcile application")
 	defer logCtx.Commit("End reconcile application")
 	app := new(v1beta1.Application)
@@ -123,6 +123,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.result(client.IgnoreNotFound(err)).ret()
 	}
 	ctx = withOriginalApp(ctx, app)
+	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	logCtx.SetContext(ctx)
+	logCtx = EnrichApplicationReconcileContext(logCtx, app)
 	if ctrlrec.IsPaused(app) {
 		return ctrl.Result{}, nil
 	}
@@ -135,11 +138,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	timeReporter := timeReconcile(app)
 	defer timeReporter()
 
-	logCtx.AddTag("resource_version", app.ResourceVersion).AddTag("generation", app.Generation)
-	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
-	logCtx.SetContext(ctx)
 	setVelaVersion(app)
-	logCtx.AddTag("publish_version", app.GetAnnotations()[oam.AnnotationPublishVersion])
 
 	appParser := appfile.NewApplicationParser(r.Client)
 	handler, err := NewAppHandler(logCtx, r, app)
