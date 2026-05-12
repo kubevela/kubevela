@@ -18,9 +18,37 @@ package helm
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/version"
 )
+
+func TestLoadRepoIndex_SetsUserAgent(t *testing.T) {
+	var gotUA string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/"+IndexYaml {
+			http.NotFound(w, r)
+			return
+		}
+		gotUA = r.Header.Get("User-Agent")
+		w.Header().Set("Content-Type", "application/x-yaml")
+		_, _ = w.Write([]byte("apiVersion: v1\nentries: {}\n"))
+	}))
+	defer ts.Close()
+
+	_, err := LoadRepoIndex(context.Background(), ts.URL+"/", &RepoCredential{})
+	if err != nil {
+		t.Fatalf("LoadRepoIndex: %v", err)
+	}
+	want := types.KubeVelaName + "/" + version.GitRevision
+	if gotUA != want {
+		t.Fatalf("User-Agent header = %q, want %q", gotUA, want)
+	}
+}
 
 func TestLoadRepo(t *testing.T) {
 
