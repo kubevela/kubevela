@@ -479,3 +479,54 @@ func TestWithDetailsInCustomStatusExpr(t *testing.T) {
 		t.Errorf("Expected _port preamble in output, got: %s", cue)
 	}
 }
+
+// TestFix_StatusPolicySwitch covers Bug 4: StatusPolicy(Switch(...)) used to
+// emit only the default branch because buildMessageBlock ignored the cases.
+// Now it must delegate to BuildFull() so every case becomes an `if cond {
+// message: ... }` block.
+func TestFix_StatusPolicySwitch(t *testing.T) {
+	s := Status()
+	cue := StatusPolicy(s.Switch(
+		s.Case(s.Field("status.phase").Eq("Running"), "Service is running"),
+		s.Case(s.Field("status.phase").Eq("Pending"), "Service is starting..."),
+		s.Default("Unknown status"),
+	))
+
+	if !strings.Contains(cue, `*"Unknown status" | string`) {
+		t.Errorf("Expected default to remain as the message base, got: %s", cue)
+	}
+	if !strings.Contains(cue, `if context.output.status.phase == "Running"`) {
+		t.Errorf("Expected Running case block, got: %s", cue)
+	}
+	if !strings.Contains(cue, `message: "Service is running"`) {
+		t.Errorf("Expected Running case message, got: %s", cue)
+	}
+	if !strings.Contains(cue, `if context.output.status.phase == "Pending"`) {
+		t.Errorf("Expected Pending case block, got: %s", cue)
+	}
+	if !strings.Contains(cue, `message: "Service is starting..."`) {
+		t.Errorf("Expected Pending case message, got: %s", cue)
+	}
+}
+
+// TestFix_StatusPolicyHealthAware covers the HealthAware half of Bug 4:
+// StatusPolicy(HealthAware(...)) used to emit only the healthy message
+// (because ToCUE() returned healthyMsg.ToCUE()) and never produced the
+// `if context.status.healthy` override.
+func TestFix_StatusPolicyHealthAware(t *testing.T) {
+	s := Status()
+	cue := StatusPolicy(s.HealthAware(
+		"All systems operational",
+		"Service degraded",
+	))
+
+	if !strings.Contains(cue, `*"Service degraded" | string`) {
+		t.Errorf("Expected unhealthy default, got: %s", cue)
+	}
+	if !strings.Contains(cue, "if context.status.healthy") {
+		t.Errorf("Expected healthy override block, got: %s", cue)
+	}
+	if !strings.Contains(cue, `message: "All systems operational"`) {
+		t.Errorf("Expected healthy message inside override, got: %s", cue)
+	}
+}

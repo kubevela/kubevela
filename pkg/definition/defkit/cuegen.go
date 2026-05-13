@@ -426,6 +426,14 @@ func (g *CUEGenerator) GenerateTemplate(c *ComponentDefinition) string {
 		}
 	}
 
+	// Emit let bindings (tpl.AddLetBinding) before the output block so the
+	// rendered let expressions appear in the same order they were declared
+	// and are in scope for the output / outputs / helpers that follow.
+	for _, lb := range tpl.GetLetBindings() {
+		exprStr := g.valueToCUE(lb.Expr())
+		sb.WriteString(fmt.Sprintf("%slet %s = %s\n", g.indent, lb.Name(), exprStr))
+	}
+
 	// Generate output block
 	if output := tpl.GetOutput(); output != nil {
 		g.writeResourceOutput(&sb, "output", output, nil, 1)
@@ -1200,8 +1208,14 @@ func (g *CUEGenerator) writeCollectionOpHelper(sb *strings.Builder, col *Collect
 		}
 	}
 
-	// Default: simple list comprehension
-	sb.WriteString(fmt.Sprintf("[for v in %s { v }]", sourceStr))
+	// Default: simple list comprehension. Honour any guard and filter
+	// conditions collected above so `From().Filter(...).Guard(...).Build()`
+	// renders with the right scope instead of silently dropping them.
+	if filterCondition != "" {
+		sb.WriteString(fmt.Sprintf("[%sfor v in %s if %s { v }]", guardPrefix, sourceStr, filterCondition))
+		return
+	}
+	sb.WriteString(fmt.Sprintf("[%sfor v in %s { v }]", guardPrefix, sourceStr))
 }
 
 // writeFieldMapAsHelper writes a FieldMap as CUE fields.

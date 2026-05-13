@@ -2737,4 +2737,81 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring("value: val.value"))
 		})
 	})
+
+	// ------------------------------------------------------------------
+	// Regression coverage for the defkit audit bugs:
+	//   Bug 1: SetIf on an array-element path drops the if-guard.
+	//   Bug 2: tpl.AddLetBinding(...) ignored on components.
+	//   Bug 3: tpl.Helper(...).Filter(...).Guard(...).Build() drops both.
+	// (Bug 4 is in status_expr_test.go.)
+	// ------------------------------------------------------------------
+
+	Describe("TestFix_ArrayElementSetIfGuard (Bug 1)", func() {
+		It("keeps the if-guard around an array-element SetIf body", func() {
+			cmd := defkit.StringList("cmd").Optional()
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(cmd).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						Set("spec.template.spec.containers[0].image", defkit.Lit("nginx")).
+						SetIf(cmd.IsSet(), "spec.template.spec.containers[0].command", cmd))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring(`if parameter["cmd"] != _|_`))
+			Expect(cue).To(ContainSubstring("command: parameter.cmd"))
+		})
+	})
+
+	Describe("TestFix_ComponentLetBinding (Bug 2)", func() {
+		It("emits the let binding above the output block", func() {
+			privileges := defkit.Array("privileges").WithFields(
+				defkit.String("scope"),
+			).Optional()
+			c := defkit.NewComponent("rbac").
+				Workload("apps/v1", "Deployment").
+				Params(privileges).
+				Template(func(tpl *defkit.Template) {
+					tpl.AddLetBinding("_clusterPrivileges",
+						defkit.From(privileges).
+							Filter(defkit.FieldEquals("scope", "cluster")).
+							Guard(privileges.IsSet()))
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment"))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring("let _clusterPrivileges = "))
+			Expect(cue).To(ContainSubstring(`if parameter["privileges"] != _|_`))
+			Expect(cue).To(ContainSubstring(`v.scope == "cluster"`))
+			// The let must appear before the output block.
+			Expect(strings.Index(cue, "let _clusterPrivileges")).To(BeNumerically("<", strings.Index(cue, "output:")))
+		})
+	})
+
+	Describe("TestFix_HelperFilterGuard (Bug 3)", func() {
+		It("emits both Filter and Guard inside the helper comprehension", func() {
+			privileges := defkit.Array("privileges").WithFields(
+				defkit.String("scope"),
+			).Optional()
+
+			c := defkit.NewComponent("rbac").
+				Workload("apps/v1", "Deployment").
+				Params(privileges).
+				Template(func(tpl *defkit.Template) {
+					tpl.Helper("_clusterPrivileges").
+						From(privileges).
+						Filter(defkit.FieldEquals("scope", "cluster")).
+						Guard(privileges.IsSet()).
+						Build()
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment"))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring(`if parameter["privileges"] != _|_`))
+			Expect(cue).To(ContainSubstring(`for v in parameter.privileges if v.scope == "cluster"`))
+			// Negative: the previous broken output silently dropped both.
+			Expect(cue).NotTo(MatchRegexp(`_clusterPrivileges: \[for v in parameter\.privileges \{ v \}\]`))
+		})
+	})
 })
