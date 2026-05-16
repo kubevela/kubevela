@@ -116,26 +116,35 @@ func TestMemoryCacheStoreConcurrency(t *testing.T) {
 	wg.Wait()
 }
 
-var benchStore *MemoryCacheStore
-
 func BenchmarkMemoryCacheWrite(b *testing.B) {
-	benchStore = NewMemoryCacheStore(context.TODO())
-	defer benchStore.Close()
+	store := NewMemoryCacheStore(context.TODO())
+	defer store.Close()
 
 	for i := 0; i < b.N; i++ {
-		benchStore.Put(fmt.Sprintf("%d", i), i, 0)
+		store.Put(fmt.Sprintf("%d", i), i, 0)
 	}
 }
 
 func BenchmarkMemoryCacheRead(b *testing.B) {
+	store := NewMemoryCacheStore(context.TODO())
+	defer store.Close()
+
+	for i := 0; i < 1000; i++ {
+		store.Put(fmt.Sprintf("%d", i), i, time.Hour)
+	}
+
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		benchStore.Get(fmt.Sprintf("%d", i))
+		store.Get(fmt.Sprintf("%d", i%1000))
 	}
 }
 
 func BenchmarkMemoryCacheRW(b *testing.B) {
+	store := NewMemoryCacheStore(context.TODO())
+	defer store.Close()
+
 	for i := 0; i < b.N; i++ {
-		benchStore.Put(fmt.Sprintf("%d", i), i, 1)
-		benchStore.Get(fmt.Sprintf("%d", i))
+		store.Put(fmt.Sprintf("%d", i), i, 1)
+		store.Get(fmt.Sprintf("%d", i))
 	}
 }
