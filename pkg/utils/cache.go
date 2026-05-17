@@ -68,7 +68,7 @@ func (m *memoryCache) GetData() interface{} {
 // But, Expired cleanup is not necessarily accurate, it has a 3-second window.
 type MemoryCacheStore struct {
 	store         sync.Map
-	cancel        context.CancelFunc
+	done          chan struct{}
 	wg            sync.WaitGroup
 	sweepInterval time.Duration
 	closeOnce     sync.Once
@@ -80,11 +80,9 @@ func NewMemoryCacheStore(parent context.Context, opts ...Option) *MemoryCacheSto
 		parent = context.Background()
 	}
 
-	ctx, cancel := context.WithCancel(parent)
-
 	m := &MemoryCacheStore{
 		sweepInterval: defaultSweepInterval,
-		cancel:        cancel,
+		done:          make(chan struct{}),
 	}
 
 	for _, opt := range opts {
@@ -100,7 +98,9 @@ func NewMemoryCacheStore(parent context.Context, opts ...Option) *MemoryCacheSto
 
 		for {
 			select {
-			case <-ctx.Done():
+			case <-parent.Done():
+				return
+			case <-m.done:
 				return
 			case <-ticker.C:
 				now := time.Now()
@@ -120,10 +120,8 @@ func NewMemoryCacheStore(parent context.Context, opts ...Option) *MemoryCacheSto
 // Close gracefully stops the background sweeper goroutine. It is safe to call concurrently.
 func (m *MemoryCacheStore) Close() {
 	m.closeOnce.Do(func() {
-		if m.cancel != nil {
-			m.cancel()
-			m.wg.Wait()
-		}
+		close(m.done)
+		m.wg.Wait()
 	})
 }
 
