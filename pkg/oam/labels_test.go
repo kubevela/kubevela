@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,8 +46,8 @@ func TestFilterInternalMetadata(t *testing.T) {
 			expected: map[string]string{"mycompany.io/team": "platform"},
 		},
 		{
-			name:  "mixed",
-			input: map[string]string{"app.oam.dev/name": "test", "mycompany.io/team": "platform"},
+			name:     "mixed",
+			input:    map[string]string{"app.oam.dev/name": "test", "mycompany.io/team": "platform"},
 			expected: map[string]string{"mycompany.io/team": "platform"},
 		},
 		{
