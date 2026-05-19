@@ -1,0 +1,66 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chartmuseum-bearer
+  namespace: kubevela-auth-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chartmuseum-bearer
+  template:
+    metadata:
+      labels:
+        app: chartmuseum-bearer
+    spec:
+      containers:
+        - name: chartmuseum
+          image: ghcr.io/helm/chartmuseum:v0.16.2
+          env:
+            - name: STORAGE
+              value: local
+            - name: STORAGE_LOCAL_ROOTDIR
+              value: /charts
+            - name: AUTH_ANONYMOUS_GET
+              value: "true"
+            - name: DISABLE_API
+              value: "false"
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: storage
+              mountPath: /charts
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 443
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: tls
+              mountPath: /etc/nginx/certs
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: nginx-bearer-config
+        - name: tls
+          secret:
+            secretName: registry-tls
+        - name: storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chartmuseum-bearer
+  namespace: kubevela-auth-test
+spec:
+  selector:
+    app: chartmuseum-bearer
+  ports:
+    - name: tls
+      port: 443
+      targetPort: 443
