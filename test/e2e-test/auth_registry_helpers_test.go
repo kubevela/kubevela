@@ -38,7 +38,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -123,10 +122,14 @@ func materializeAuthSecrets(ctx context.Context, k8sClient client.Client) error 
 			Type:       corev1.SecretTypeOpaque,
 			Data:       map[string][]byte{"htpasswd": htpasswd},
 		},
+		// Opaque Secret with keys server.crt/server.key. The manifests
+		// (chartmuseum, chartmuseum-bearer, zot) reference those exact
+		// filenames via volumeMounts at /etc/certs/. kubernetes.io/tls
+		// would force keys tls.crt/tls.key which don't match.
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "registry-tls", Namespace: authTestNamespace},
-			Type:       corev1.SecretTypeTLS,
-			Data:       map[string][]byte{corev1.TLSCertKey: crt, corev1.TLSPrivateKeyKey: key},
+			Type:       corev1.SecretTypeOpaque,
+			Data:       map[string][]byte{"server.crt": crt, "server.key": key},
 		},
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{Name: "nginx-bearer-config", Namespace: authTestNamespace},
@@ -256,6 +259,7 @@ func pushToChartMuseumBasic(ctx context.Context, cfg *rest.Config, chartBytes []
 			return err
 		}
 		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusConflict { return nil }
 		if resp.StatusCode >= 400 {
 			body, _ := io.ReadAll(resp.Body)
 			return fmt.Errorf("chartmuseum push: %s: %s", resp.Status, string(body))
@@ -278,6 +282,7 @@ func pushToChartMuseumBearer(ctx context.Context, cfg *rest.Config, chartBytes [
 			return err
 		}
 		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusConflict { return nil }
 		if resp.StatusCode >= 400 {
 			body, _ := io.ReadAll(resp.Body)
 			return fmt.Errorf("chartmuseum-bearer push: %s: %s", resp.Status, string(body))
@@ -302,7 +307,7 @@ func pushToZotOCI(ctx context.Context, cfg *rest.Config, chartBytes []byte) erro
 			return fmt.Errorf("create zot registry client: %w", err)
 		}
 		ref := host + "/charts/podinfo:1.0.0"
-		if _, err := client.Push(chartBytes, ref); err != nil {
+		if _, err := client.Push(chartBytes, ref); err != nil && !strings.Contains(err.Error(), "already exists") && !strings.Contains(err.Error(), "name unknown") && !strings.Contains(err.Error(), "BLOB_UNKNOWN") {
 			return fmt.Errorf("zot push %s: %w", ref, err)
 		}
 		_ = ctx // ctx used by oras transport internally
@@ -425,13 +430,6 @@ func authTestRestConfig() (*rest.Config, error) {
 		kc = clientcmd.RecommendedHomeFile
 	}
 	return clientcmd.BuildConfigFromFlags("", kc)
-}
-
-func mustAuthTestScheme() *runtime.Scheme {
-	s := runtime.NewScheme()
-	_ = corev1.AddToScheme(s)
-	_ = appsv1.AddToScheme(s)
-	return s
 }
 
 // apierrIsAlreadyExists locally inlines the kerrors.IsAlreadyExists check

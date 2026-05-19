@@ -357,9 +357,18 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 		return p.fetchChartWithoutCache(ctx, params, sourceType, appNamespace, releaseNamespace)
 	}
 
-	// Check if we have a cached chart
+	// Check if we have a cached chart. When the chart source declares an
+	// auth.secretRef, the auth resolver MUST run on every fetch even on a
+	// cache hit -- otherwise a request that references a missing or invalid
+	// Secret would silently succeed by reusing chart bytes that an earlier
+	// authorized request pulled.
 	if cached := p.cache.Get(cacheKey); cached != nil {
 		if ch, ok := cached.(*chart.Chart); ok {
+			if params.Auth != nil && params.Auth.SecretRef != nil {
+				if _, _, err := resolveHTTPOptions(ctx, params, appNamespace, releaseNamespace, sourceType); err != nil {
+					return nil, err
+				}
+			}
 			klog.V(3).Infof("Using cached chart with key: %s", cacheKey)
 			return ch, nil
 		}
@@ -460,6 +469,9 @@ func (p *Provider) fetchOCIChart(ctx context.Context, params *ChartSourceParams,
 		}
 		defer cleanup()
 		clientOpts = append(clientOpts, registry.ClientOptCredentialsFile(credFile))
+	}
+	if httpOpts != nil && httpOpts.PlainHTTP {
+		clientOpts = append(clientOpts, registry.ClientOptPlainHTTP())
 	}
 
 	registryClient, err := registry.NewClient(clientOpts...)

@@ -107,6 +107,10 @@ type HTTPOption struct {
 	CertFile        string `json:"certFile,omitempty"`
 	KeyFile         string `json:"keyFile,omitempty"`
 	InsecureSkipTLS bool   `json:"insecureSkipTLS,omitempty"`
+	// PlainHTTP signals that the caller wants the OCI client to use plain
+	// HTTP rather than TLS. Honored only on the OCI fetch path. Insecure
+	// by design; users opt in via the Opaque Secret key insecurePlainHTTP.
+	PlainHTTP bool `json:"plainHTTP,omitempty"`
 }
 
 // InitBaseRestConfig will return reset config for create controller runtime client

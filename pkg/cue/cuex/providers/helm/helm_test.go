@@ -2253,6 +2253,61 @@ entries:
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch.Metadata.Name).To(Equal("url-cache"))
 		})
+
+		It("re-runs the auth resolver on a cache hit when the source declares auth.secretRef", func() {
+			// Pre-warm the cache with a chart that was previously fetched
+			// without auth, then make a follow-up request that references
+			// a missing Secret. The resolver must fail rather than letting
+			// the cached chart bytes paper over a missing/invalid Secret.
+			chartArchive := createMinimalChartArchive("auth-cache", "1.0.0")
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/index.yaml":
+					_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  auth-cache:
+    - name: auth-cache
+      version: 1.0.0
+      urls:
+        - auth-cache-1.0.0.tgz
+`))
+				case "/auth-cache-1.0.0.tgz":
+					_, _ = w.Write(chartArchive)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			c := fake.NewClientBuilder().WithScheme(scheme).Build()
+			origKube := singleton.KubeClient.Get()
+			singleton.KubeClient.Set(c)
+			defer singleton.KubeClient.Set(origKube)
+
+			p := NewProviderWithConfig(nil)
+			// First call: no auth, populates the cache.
+			_, err := p.fetchChart(context.Background(), &ChartSourceParams{
+				Source:  "auth-cache",
+				RepoURL: server.URL,
+				Version: "1.0.0",
+			}, nil, "ns-app", "ns-rel")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// Second call: same source/version (cache hit), but with an
+			// auth.secretRef pointing at a Secret that does not exist.
+			_, err = p.fetchChart(context.Background(), &ChartSourceParams{
+				Source:  "auth-cache",
+				RepoURL: server.URL,
+				Version: "1.0.0",
+				Auth: &AuthParams{
+					SecretRef: &SecretRefParams{Name: "missing-secret"},
+				},
+			}, nil, "ns-app", "ns-rel")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("missing-secret"))
+		})
 	})
 
 	// -----------------------------------------------------------------------

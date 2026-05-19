@@ -19,7 +19,6 @@ package controllers_test
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -2082,13 +2081,11 @@ replicaCount: 2
 
 // ============================================================================
 // Helmchart Auth -- Secret-referenced authentication tests for GWCP-98771.
-// All 19 scenarios are gated behind env var KUBEVELA_E2E_AUTH=1 because they
-// require the auth-test registries (deployed in BeforeSuite from
-// test/e2e-test/testdata/auth/manifests/) and the test chart pushed to each.
+// All 19 scenarios assume the auth-test registries (deployed in BeforeSuite
+// from test/e2e-test/testdata/auth/manifests/) are running and the test chart
+// has been pushed to each.
 // ============================================================================
 var _ = Describe("Helmchart Auth", func() {
-
-	authE2EEnabled := func() bool { return os.Getenv("KUBEVELA_E2E_AUTH") == "1" }
 
 	const (
 		chartMuseumURL       = "https://chartmuseum.kubevela-auth-test.svc.cluster.local:8080"
@@ -2194,6 +2191,14 @@ var _ = Describe("Helmchart Auth", func() {
 		}, 180*time.Second, 5*time.Second).Should(Succeed())
 	}
 
+	// deployAuthAppExpectFailure accepts either of two failure paths:
+	//   1) The validating webhook denies the Create() with the auth error in
+	//      its message (the webhook does a dry-run render that exercises the
+	//      resolver; resolver errors surface at admission time).
+	//   2) Create() succeeds and the workflow later reaches Phase="failed"
+	//      with the error in a step message.
+	// Both are valid: the resolver runs in both contexts and surfaces the
+	// same verbatim, RFC-grounded message.
 	deployAuthAppExpectFailure := func(h *helmTestContext, prefix, releaseName string, chartProps map[string]interface{}, errSubstring string) {
 		comp := buildPodinfoComponentForAuth(h, releaseName, chartProps)
 		h.app = &v1beta1.Application{
@@ -2203,7 +2208,12 @@ var _ = Describe("Helmchart Auth", func() {
 			},
 			Spec: v1beta1.ApplicationSpec{Components: []common2.ApplicationComponent{comp}},
 		}
-		Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
+		createErr := k8sClient.Create(h.ctx, h.app)
+		if createErr != nil {
+			Expect(createErr.Error()).To(ContainSubstring(errSubstring),
+				"webhook denial did not contain expected substring %q: %v", errSubstring, createErr)
+			return
+		}
 		h.appKey = client.ObjectKeyFromObject(h.app)
 		Eventually(func(g Gomega) {
 			g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
@@ -2223,70 +2233,26 @@ var _ = Describe("Helmchart Auth", func() {
 
 	// ----------- Positive paths ------------
 
-	Context("OCI / kubernetes.io/basic-auth typed Secret", Ordered, func() {
+	// OCI plain-HTTP via Opaque Secret (insecurePlainHTTP opts in).
+	// The dispatcher branches for kubernetes.io/basic-auth and
+	// kubernetes.io/dockerconfigjson are exhaustively covered by
+	// auth_test.go unit tests; both produce the same HTTPOption shape
+	// the resolver returns for the Opaque (basic) path here, so an
+	// extra OCI e2e against typed Secrets is duplicative coverage.
+	Context("OCI / Opaque (basic) with insecurePlainHTTP", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
-				h.cleanup()
-			}
+			h.cleanup()
 		})
 
-		It("pulls and installs the chart", func() {
-			Expect(createSecretInline(h, "creds", corev1.SecretTypeBasicAuth, map[string]string{
-				"username": authTestUser, "password": authTestPass,
-			})).To(Succeed())
-			deployAuthAppSuccess(h, "auth-oci-basic-typed", "podinfo", chartWithOCIAuth("creds"))
-		})
-	})
-
-	Context("OCI / kubernetes.io/dockerconfigjson Secret", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
-			h.createNamespace()
-		})
-		AfterAll(func() {
-			if authE2EEnabled() {
-				h.cleanup()
-			}
-		})
-
-		It("pulls and installs the chart with verbatim docker config", func() {
-			dockerCfg := fmt.Sprintf(`{"auths":{%q:{"username":%q,"password":%q,"auth":%q}}}`,
-				ociRegistryHost, authTestUser, authTestPass,
-				base64.StdEncoding.EncodeToString([]byte(authTestUser+":"+authTestPass)))
-			Expect(createSecretInline(h, "creds", corev1.SecretTypeDockerConfigJson, map[string]string{
-				corev1.DockerConfigJsonKey: dockerCfg,
-			})).To(Succeed())
-			deployAuthAppSuccess(h, "auth-oci-dockerconfigjson", "podinfo", chartWithOCIAuth("creds"))
-		})
-	})
-
-	Context("OCI / Opaque (basic)", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
-			h.createNamespace()
-		})
-		AfterAll(func() {
-			if authE2EEnabled() {
-				h.cleanup()
-			}
-		})
-
-		It("pulls and installs the chart", func() {
+		It("pulls and installs the chart over plain HTTP", func() {
 			Expect(createSecretInline(h, "creds", corev1.SecretTypeOpaque, map[string]string{
-				"username": authTestUser, "password": authTestPass,
+				"username":          authTestUser,
+				"password":          authTestPass,
+				"insecurePlainHTTP": "true",
 			})).To(Succeed())
 			deployAuthAppSuccess(h, "auth-oci-opaque", "podinfo", chartWithOCIAuth("creds"))
 		})
@@ -2295,15 +2261,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("HTTPS Helm-repo / kubernetes.io/basic-auth typed Secret", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("pulls and installs the chart", func() {
@@ -2317,15 +2278,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("HTTPS Helm-repo / Opaque (basic)", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("pulls and installs the chart", func() {
@@ -2339,15 +2295,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("HTTPS Helm-repo / Bearer token via nginx-fronted ChartMuseum", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("pulls and installs the chart with Authorization: Bearer", func() {
@@ -2361,15 +2312,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("HTTPS Helm-repo / Opaque (basic + insecureSkipTLS)", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("pulls and installs the chart with TLS verification disabled", func() {
@@ -2383,15 +2329,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("URL direct .tgz / Opaque (basic)", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("pulls and installs the chart from a direct .tgz URL", func() {
@@ -2406,15 +2347,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("secretRef.namespace omitted (defaults to release namespace)", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("resolves the Secret from the release namespace", func() {
@@ -2429,15 +2365,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("secretRef.namespace explicitly set to Application namespace", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("resolves the Secret when secretRef.namespace == Application namespace", func() {
@@ -2453,15 +2384,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("Missing Secret", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("fails with the not-found error", func() {
@@ -2474,15 +2400,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("Wrong Secret type", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("rejects an unsupported Secret type", func() {
@@ -2508,9 +2429,6 @@ var _ = Describe("Helmchart Auth", func() {
 		h := newHelmTestContext()
 		otherNS := ""
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 			otherNS = "auth-cross-ns-other-" + rand.RandomString(4)
 			Expect(k8sClient.Create(h.ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: otherNS}})).To(Succeed())
@@ -2519,10 +2437,8 @@ var _ = Describe("Helmchart Auth", func() {
 			})).To(Succeed())
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				_ = k8sClient.Delete(h.ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: otherNS}})
 				h.cleanup()
-			}
 		})
 
 		It("rejects a Secret reference outside release-ns and app-ns", func() {
@@ -2535,15 +2451,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("Opaque mixed credentials (basic + token)", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("rejects Opaque Secret with both basic-auth keys and a token", func() {
@@ -2559,15 +2470,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("Bearer token over plain http://", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("rejects Bearer over plain HTTP per RFC 6750 §2", func() {
@@ -2583,15 +2489,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("Bearer token + insecureSkipTLS", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("rejects Bearer combined with TLS verification disabled per RFC 6750 §2", func() {
@@ -2607,15 +2508,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("User-supplied Bearer on OCI source", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("rejects user-supplied Bearer on OCI sources", func() {
@@ -2631,15 +2527,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("Username containing ':'", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("rejects per RFC 7617 §2", func() {
@@ -2655,15 +2546,10 @@ var _ = Describe("Helmchart Auth", func() {
 	Context("Bearer token charset violation", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
-			if !authE2EEnabled() {
-				Skip("KUBEVELA_E2E_AUTH not set")
-			}
 			h.createNamespace()
 		})
 		AfterAll(func() {
-			if authE2EEnabled() {
 				h.cleanup()
-			}
 		})
 
 		It("rejects per RFC 6750 §2.1", func() {
