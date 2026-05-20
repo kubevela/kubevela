@@ -17,6 +17,8 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
+
 	"github.com/spf13/pflag"
 
 	wfTypes "github.com/kubevela/workflow/pkg/types"
@@ -52,6 +54,20 @@ func (c *WorkflowConfig) AddFlags(fs *pflag.FlagSet) {
 		"max-workflow-step-error-retry-times",
 		c.MaxStepErrorRetryTimes,
 		"Set the max workflow step error retry times, default is 10")
+}
+
+// Validate ensures the workflow configuration is valid.
+func (c *WorkflowConfig) Validate() error {
+	if c.MaxWaitBackoffTime <= 0 {
+		return fmt.Errorf("max-workflow-wait-backoff-time must be greater than 0")
+	}
+	if c.MaxFailedBackoffTime <= 0 {
+		return fmt.Errorf("max-workflow-failed-backoff-time must be greater than 0")
+	}
+	if c.MaxStepErrorRetryTimes <= 0 {
+		return fmt.Errorf("max-workflow-step-error-retry-times must be greater than 0")
+	}
+	return nil
 }
 
 // SyncToWorkflowGlobals syncs the parsed configuration values to workflow package global variables.
