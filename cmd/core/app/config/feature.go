@@ -38,3 +38,8 @@ func NewFeatureConfig() *FeatureConfig {
 func (c *FeatureConfig) AddFlags(fs *pflag.FlagSet) {
 	utilfeature.DefaultMutableFeatureGate.AddFlag(fs)
 }
+
+// Validate ensures the configuration is valid.
+func (c *FeatureConfig) Validate() error {
+	return nil
+}
