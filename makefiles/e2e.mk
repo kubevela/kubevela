@@ -87,8 +87,8 @@ e2e-api-test:
 
 .PHONY: e2e-test
 e2e-test:
-	# Run e2e test
-	ginkgo -v ./test/e2e-test
+	# Run e2e test (KUBEVELA_E2E_AUTH=1 enables auth-test registry setup)
+	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-test
 	@$(OK) tests pass
 
 # Run e2e tests with k3d and webhook validation
@@ -123,8 +123,8 @@ e2e-test-local:
 		--set applicationRevisionLimit=5 \
 		--set controllerArgs.reSyncPeriod=1m \
 		--wait --timeout 3m
-	# Run tests
-	ginkgo -v ./test/e2e-test
+	# Run tests (auth registries pre-loaded above, enable the gate)
+	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-test
 	@$(OK) tests pass
 
 # Run e2e application tests with k3d and webhook validation

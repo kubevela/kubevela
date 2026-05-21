@@ -2087,6 +2087,12 @@ replicaCount: 2
 // ============================================================================
 var _ = Describe("Helmchart Auth", func() {
 
+	BeforeEach(func() {
+		if os.Getenv("KUBEVELA_E2E_AUTH") != "1" {
+			Skip("auth-test registries not deployed (set KUBEVELA_E2E_AUTH=1 to enable)")
+		}
+	})
+
 	const (
 		chartMuseumURL       = "https://chartmuseum.kubevela-auth-test.svc.cluster.local:8080"
 		chartMuseumBearerURL = "https://chartmuseum-bearer.kubevela-auth-test.svc.cluster.local"
