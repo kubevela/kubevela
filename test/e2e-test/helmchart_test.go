@@ -2264,7 +2264,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("pulls and installs the chart", func() {
@@ -2281,7 +2281,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("pulls and installs the chart", func() {
@@ -2298,7 +2298,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("pulls and installs the chart with Authorization: Bearer", func() {
@@ -2315,7 +2315,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("pulls and installs the chart with TLS verification disabled", func() {
@@ -2332,7 +2332,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("pulls and installs the chart from a direct .tgz URL", func() {
@@ -2350,7 +2350,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("resolves the Secret from the release namespace", func() {
@@ -2368,7 +2368,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("resolves the Secret when secretRef.namespace == Application namespace", func() {
@@ -2387,7 +2387,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("fails with the not-found error", func() {
@@ -2403,7 +2403,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("rejects an unsupported Secret type", func() {
@@ -2437,8 +2437,8 @@ var _ = Describe("Helmchart Auth", func() {
 			})).To(Succeed())
 		})
 		AfterAll(func() {
-				_ = k8sClient.Delete(h.ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: otherNS}})
-				h.cleanup()
+			_ = k8sClient.Delete(h.ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: otherNS}})
+			h.cleanup()
 		})
 
 		It("rejects a Secret reference outside release-ns and app-ns", func() {
@@ -2454,7 +2454,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("rejects Opaque Secret with both basic-auth keys and a token", func() {
@@ -2473,7 +2473,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("rejects Bearer over plain HTTP per RFC 6750 §2", func() {
@@ -2492,7 +2492,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("rejects Bearer combined with TLS verification disabled per RFC 6750 §2", func() {
@@ -2511,7 +2511,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("rejects user-supplied Bearer on OCI sources", func() {
@@ -2530,7 +2530,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("rejects per RFC 7617 §2", func() {
@@ -2549,7 +2549,7 @@ var _ = Describe("Helmchart Auth", func() {
 			h.createNamespace()
 		})
 		AfterAll(func() {
-				h.cleanup()
+			h.cleanup()
 		})
 
 		It("rejects per RFC 6750 §2.1", func() {
