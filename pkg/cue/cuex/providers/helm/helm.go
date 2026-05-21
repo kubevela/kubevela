@@ -334,7 +334,20 @@ func isMutableVersion(version string) bool {
 func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, options *RenderOptionsParams, appNamespace, releaseNamespace string) (*chart.Chart, error) {
 	sourceType := detectChartSourceType(params.Source)
 
-	// Build cache key: <cache_key_prefix>/<source_type>/<source>/<version>
+	// When the source declares auth.secretRef, the cache key is bound to a
+	// hash of the resolved Secret data. Rotating the Secret (or creating a
+	// new Application that points at a different Secret) invalidates the
+	// cache automatically and forces a fresh registry call that exercises
+	// the new credentials at the wire. Without this binding, cached chart
+	// bytes pulled by an earlier authorized request would be served to a
+	// subsequent request whose Secret no longer authenticates against the
+	// registry — a real auth bypass for the cache TTL window.
+	authTag, err := computeAuthCacheTag(ctx, params, appNamespace, releaseNamespace)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build cache key: <cache_key_prefix>/<source_type>/<source>/<version>[/auth-<tag>]
 	var cacheKey string
 	if options != nil && options.Cache != nil && options.Cache.Key != "" {
 		// User provided cache key
@@ -350,6 +363,9 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 			strings.ReplaceAll(strings.ReplaceAll(params.Source, "://", "-"), "/", "-"),
 			params.Version)
 	}
+	if authTag != "" {
+		cacheKey = cacheKey + "/auth-" + authTag
+	}
 
 	// Check if caching is disabled
 	if options != nil && options.Cache != nil && options.Cache.TTL == "0" {
@@ -357,11 +373,12 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 		return p.fetchChartWithoutCache(ctx, params, sourceType, appNamespace, releaseNamespace)
 	}
 
-	// Check if we have a cached chart. When the chart source declares an
-	// auth.secretRef, the auth resolver MUST run on every fetch even on a
-	// cache hit -- otherwise a request that references a missing or invalid
-	// Secret would silently succeed by reusing chart bytes that an earlier
-	// authorized request pulled.
+	// Check if we have a cached chart. The auth-bound cache key above is
+	// the primary guard against stale credentials. The explicit resolver
+	// re-check below remains as a belt-and-suspenders measure: it catches
+	// a missing or malformed Secret immediately, with the same RFC-cited
+	// errors the cache-miss path would surface, instead of returning a
+	// confusing cache-hit chart for a misconfigured request.
 	if cached := p.cache.Get(cacheKey); cached != nil {
 		if ch, ok := cached.(*chart.Chart); ok {
 			if params.Auth != nil && params.Auth.SecretRef != nil {
@@ -828,6 +845,22 @@ func (r *velaLabelPostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buf
 		labels["app.oam.dev/namespace"] = r.context.AppNamespace
 		labels["app.oam.dev/component"] = r.context.Name
 		obj.SetLabels(labels)
+
+		// Default metadata.namespace for namespaced rendered resources whose
+		// template omitted it. Upstream charts (Bitnami, podinfo, ...)
+		// typically rely on `helm install --namespace` for placement instead
+		// of templating metadata.namespace, and Helm's own apply step then
+		// uses the kube client's default namespace (which under KubeVela
+		// resolves to the controller's own ns, vela-system) rather than the
+		// release namespace. Stamping the namespace here makes every output
+		// in the rendered manifest carry the right placement before helm's
+		// kube.Client.Create runs, and before KubeVela's resource tracker
+		// re-applies it. Cluster-scoped kinds (CRDs, ClusterRoles,
+		// Namespaces, ...) are left as-is so the API server does not reject
+		// them.
+		if r.releaseNamespace != "" && obj.GetNamespace() == "" && !isClusterScopedKind(obj.GetKind()) {
+			obj.SetNamespace(r.releaseNamespace)
+		}
 
 		// Inject ownership annotations (both KubeVela and Helm)
 		annotations := obj.GetAnnotations()
@@ -1411,7 +1444,15 @@ func (p *Provider) InvalidateRelease(releaseName, releaseNamespace string) {
 
 // parseManifestResources parses a Helm release manifest string into a slice of
 // resource maps, skipping test hooks when requested and ordering CRDs first.
-func (p *Provider) parseManifestResources(manifestStr string, options *RenderOptionsParams) ([]map[string]interface{}, error) {
+// Resources whose `metadata.namespace` is empty get defaulted to
+// releaseNamespace unless their kind is cluster-scoped. Upstream Helm charts
+// commonly omit metadata.namespace and rely on the helm install --namespace
+// flag for placement; KubeVela's resource tracker re-applies these outputs
+// independently and would otherwise default them to vela-system, creating
+// shadow copies and tripping helm's ownership annotation guard on the next
+// release. Defaulting at parse time keeps every output keyed to the correct
+// namespace from the start.
+func (p *Provider) parseManifestResources(manifestStr string, options *RenderOptionsParams, releaseNamespace string) ([]map[string]interface{}, error) {
 	skipTests := true
 	if options != nil && options.SkipTests != nil {
 		skipTests = *options.SkipTests
@@ -1439,12 +1480,51 @@ func (p *Provider) parseManifestResources(manifestStr string, options *RenderOpt
 			continue
 		}
 
+		// Default the namespace for namespaced resources whose template
+		// omitted metadata.namespace. Cluster-scoped kinds (CRDs,
+		// ClusterRoles, Namespaces, ...) are left as-is so the API server
+		// does not reject them.
+		if releaseNamespace != "" && resource.GetNamespace() == "" && !isClusterScopedKind(resource.GetKind()) {
+			resource.SetNamespace(releaseNamespace)
+		}
+
 		cleanedResource := cleanResource(resource.Object)
 		resources = append(resources, cleanedResource)
 	}
 
 	// Order resources: CRDs first, then namespaces, then other resources
 	return orderResources(resources), nil
+}
+
+// isClusterScopedKind reports whether `kind` denotes a Kubernetes resource
+// that lives at the cluster scope (no namespace). The set covers the core
+// API plus the well-known extensions a helm chart would commonly emit; it is
+// intentionally conservative: an unrecognized kind is treated as namespaced,
+// so a new namespaced CRD-defined kind gets the safe default.
+func isClusterScopedKind(kind string) bool {
+	switch kind {
+	case "CustomResourceDefinition",
+		"Namespace",
+		"ClusterRole",
+		"ClusterRoleBinding",
+		"PersistentVolume",
+		"StorageClass",
+		"VolumeAttachment",
+		"CSIDriver",
+		"CSINode",
+		"PriorityClass",
+		"RuntimeClass",
+		"IngressClass",
+		"MutatingWebhookConfiguration",
+		"ValidatingWebhookConfiguration",
+		"APIService",
+		"FlowSchema",
+		"PriorityLevelConfiguration",
+		"Node",
+		"ComponentStatus":
+		return true
+	}
+	return false
 }
 
 // isTestResource checks if a resource is a test resource
@@ -1639,7 +1719,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	}
 
 	// Parse the release manifest into KubeVela resource maps
-	resources, err := p.parseManifestResources(manifest, renderParams.Options)
+	resources, err := p.parseManifestResources(manifest, renderParams.Options, releaseNamespace)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse release manifest")
 	}

@@ -57,8 +57,11 @@ const (
 // setupAuthRegistries applies the static manifests under
 // testdata/auth/manifests, materializes the runtime Secrets (registry-htpasswd,
 // registry-tls) and ConfigMap (nginx-bearer-config) from committed files
-// under testdata/auth/, and waits for the three registry Deployments to be
-// Available.
+// under testdata/auth/, waits for the three registry Deployments to be
+// Available, and injects testdata/auth/certs/ca.crt into the vela-core
+// controller's trust store so HTTPS chart fetches against the self-signed
+// chartmuseum / chartmuseum-bearer Services succeed without each test
+// having to opt into insecureSkipTLS.
 func setupAuthRegistries(ctx context.Context, k8sClient client.Client) error {
 	if err := applyManifestDir(ctx, k8sClient, "testdata/auth/manifests"); err != nil {
 		return fmt.Errorf("applying auth registry manifests: %w", err)
@@ -66,7 +69,186 @@ func setupAuthRegistries(ctx context.Context, k8sClient client.Client) error {
 	if err := materializeAuthSecrets(ctx, k8sClient); err != nil {
 		return err
 	}
-	return waitForAuthDeploymentsReady(ctx, k8sClient)
+	if err := waitForAuthDeploymentsReady(ctx, k8sClient); err != nil {
+		return err
+	}
+	return injectAuthTestCA(ctx, k8sClient)
+}
+
+// injectAuthTestCA mounts testdata/auth/certs/ca.crt into the vela-core
+// controller as an extra trusted root and points SSL_CERT_FILE at a combined
+// CA bundle. The init container concatenates the image's existing
+// /etc/ssl/certs/ca-certificates.crt with the test CA into an emptyDir
+// shared with the main container, so the controller continues to trust
+// every public root the image ships plus our self-signed test CA.
+//
+// Idempotent: re-running the function against an already-patched deployment
+// updates the ConfigMap content but does not duplicate volumes / containers
+// / env vars.
+func injectAuthTestCA(ctx context.Context, k8sClient client.Client) error {
+	const (
+		velaNS     = "vela-system"
+		appLabel   = "vela-core"
+		cmName     = "auth-test-ca"
+		extraCAVol = "auth-test-ca"
+		trustVol   = "auth-test-trust"
+		extraCADir = "/auth-test-ca"
+		trustDir   = "/auth-test-trust"
+		initName   = "auth-test-ca-bundler"
+		envName    = "SSL_CERT_FILE"
+		envValue   = "/auth-test-trust/combined.crt"
+	)
+
+	caBytes, err := os.ReadFile("testdata/auth/certs/ca.crt")
+	if err != nil {
+		return fmt.Errorf("reading testdata/auth/certs/ca.crt: %w", err)
+	}
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: cmName, Namespace: velaNS},
+		Data:       map[string]string{"ca.crt": string(caBytes)},
+	}
+	if err := k8sClient.Create(ctx, cm); err != nil {
+		if !apierrIsAlreadyExists(err) {
+			return fmt.Errorf("creating auth-test-ca ConfigMap: %w", err)
+		}
+		existing := &corev1.ConfigMap{}
+		if gerr := k8sClient.Get(ctx, client.ObjectKey{Name: cmName, Namespace: velaNS}, existing); gerr != nil {
+			return fmt.Errorf("getting existing auth-test-ca ConfigMap: %w", gerr)
+		}
+		existing.Data = cm.Data
+		if uerr := k8sClient.Update(ctx, existing); uerr != nil {
+			return fmt.Errorf("updating auth-test-ca ConfigMap: %w", uerr)
+		}
+	}
+
+	var deps appsv1.DeploymentList
+	if err := k8sClient.List(ctx, &deps,
+		client.InNamespace(velaNS),
+		client.MatchingLabels{"app.kubernetes.io/name": appLabel},
+	); err != nil {
+		return fmt.Errorf("listing vela-core deployments: %w", err)
+	}
+	if len(deps.Items) == 0 {
+		return fmt.Errorf("no Deployment with label app.kubernetes.io/name=%s in namespace %s; cannot inject auth-test CA", appLabel, velaNS)
+	}
+
+	addVolume := func(spec *corev1.PodSpec, vol corev1.Volume) {
+		for _, existing := range spec.Volumes {
+			if existing.Name == vol.Name {
+				return
+			}
+		}
+		spec.Volumes = append(spec.Volumes, vol)
+	}
+	addInitContainer := func(spec *corev1.PodSpec, c corev1.Container) {
+		for _, existing := range spec.InitContainers {
+			if existing.Name == c.Name {
+				return
+			}
+		}
+		spec.InitContainers = append(spec.InitContainers, c)
+	}
+	addEnv := func(c *corev1.Container, name, value string) {
+		for i, existing := range c.Env {
+			if existing.Name == name {
+				c.Env[i].Value = value
+				return
+			}
+		}
+		c.Env = append(c.Env, corev1.EnvVar{Name: name, Value: value})
+	}
+	addVolumeMount := func(c *corev1.Container, vm corev1.VolumeMount) {
+		for _, existing := range c.VolumeMounts {
+			if existing.Name == vm.Name {
+				return
+			}
+		}
+		c.VolumeMounts = append(c.VolumeMounts, vm)
+	}
+
+	for i := range deps.Items {
+		dep := &deps.Items[i]
+		spec := &dep.Spec.Template.Spec
+
+		addVolume(spec, corev1.Volume{
+			Name: extraCAVol,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{Name: cmName},
+				},
+			},
+		})
+		addVolume(spec, corev1.Volume{
+			Name:         trustVol,
+			VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+		})
+
+		addInitContainer(spec, corev1.Container{
+			Name:    initName,
+			Image:   "busybox:1.36",
+			Command: []string{"/bin/sh", "-c"},
+			Args: []string{fmt.Sprintf(
+				"cat /etc/ssl/certs/ca-certificates.crt %s/ca.crt > %s/combined.crt",
+				extraCADir, trustDir,
+			)},
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: extraCAVol, MountPath: extraCADir, ReadOnly: true},
+				{Name: trustVol, MountPath: trustDir},
+			},
+		})
+
+		for j := range spec.Containers {
+			c := &spec.Containers[j]
+			addVolumeMount(c, corev1.VolumeMount{
+				Name: trustVol, MountPath: trustDir, ReadOnly: true,
+			})
+			addEnv(c, envName, envValue)
+		}
+
+		if err := k8sClient.Update(ctx, dep); err != nil {
+			return fmt.Errorf("patching deployment %s/%s with auth-test CA: %w", dep.Namespace, dep.Name, err)
+		}
+	}
+
+	return waitForDeploymentsAvailable(ctx, k8sClient, velaNS, "app.kubernetes.io/name", appLabel, 3*time.Minute)
+}
+
+// waitForDeploymentsAvailable polls until every Deployment in `ns` matching
+// `label=value` reports Available=True. Returns the underlying error after
+// the timeout so the caller can surface it.
+func waitForDeploymentsAvailable(ctx context.Context, k8sClient client.Client, ns, label, value string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		var deps appsv1.DeploymentList
+		if err := k8sClient.List(ctx, &deps,
+			client.InNamespace(ns),
+			client.MatchingLabels{label: value},
+		); err != nil {
+			return err
+		}
+		ready := true
+		for _, d := range deps.Items {
+			deploymentReady := false
+			for _, c := range d.Status.Conditions {
+				if c.Type == appsv1.DeploymentAvailable && c.Status == corev1.ConditionTrue {
+					deploymentReady = true
+					break
+				}
+			}
+			if !deploymentReady || d.Status.UpdatedReplicas < *d.Spec.Replicas || d.Status.ObservedGeneration < d.Generation {
+				ready = false
+				break
+			}
+		}
+		if ready {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out waiting for Deployments %s=%s in %s to become Available", label, value, ns)
+		}
+		time.Sleep(2 * time.Second)
+	}
 }
 
 // pushTestChartToRegistries pushes testdata/auth/chart/podinfo-test-1.0.0.tgz

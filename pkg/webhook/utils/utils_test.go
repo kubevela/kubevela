@@ -22,11 +22,9 @@ import (
 	"strings"
 	"testing"
 
-	cuev1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
 	"github.com/kubevela/pkg/util/singleton"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
@@ -290,17 +288,13 @@ func TestValidateCuexTemplate(t *testing.T) {
 		},
 	}
 
-	// Register the cue.oam.dev/v1alpha1 Package GVK in the fake scheme so
-	// the fake DynamicClient resolves List(packages.cue.oam.dev) correctly.
-	// Without this, WorkloadCompiler.Reload's LoadExternalPackages call
-	// returns NotFound and the `test/ext` import below fails to resolve.
-	testScheme := runtime.NewScheme()
-	_ = cuev1alpha1.AddToScheme(testScheme)
-	dcl := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(testScheme,
-		map[schema.GroupVersionResource]string{
-			cuev1alpha1.PackageGroupVersionResource: "PackageList",
-		},
-		packageObj)
+	// Use NewSimpleDynamicClient with an empty scheme + Unstructured packageObj:
+	// the fake constructor copies the object's GVK into its internal scheme as
+	// Unstructured/UnstructuredList, so List(packages.cue.oam.dev) returns the
+	// packageObj. Registering the typed Package+PackageList via AddToScheme
+	// would make the fake try to convert stored Unstructured into typed
+	// v1alpha1.Package and fail with "can't assign or convert".
+	dcl := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), packageObj)
 	singleton.DynamicClient.Set(dcl)
 	velacuex.WorkloadCompiler.Reload()
 

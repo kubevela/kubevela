@@ -18,11 +18,14 @@ package helm
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	neturl "net/url"
 	"os"
+	"sort"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -100,6 +103,64 @@ func resolveAuthSecretNamespace(ref secretRef, opts authResolveOptions) (string,
 	return "", fmt.Errorf(
 		`auth secret reference "%s/%s" rejected: namespace MUST equal the release namespace %q or the Application namespace %q`,
 		ns, ref.Name, opts.ReleaseNamespace, opts.AppNamespace)
+}
+
+// computeAuthCacheTag returns a deterministic short hex tag derived from the
+// referenced auth Secret's data, suitable for use as a suffix on the chart
+// cache key. The intent is to bind cached chart bytes to the credentials
+// that pulled them: any change to the Secret's contents (or a different
+// Secret reference) yields a different tag and forces a cache miss, which
+// in turn forces a fresh registry call that exercises the new credentials
+// at the wire. Returns ("", nil) when params.Auth is nil/empty (no
+// credentials → no auth tag → today's cache-key behaviour preserved for
+// public charts).
+//
+// Errors from this function are surfaced verbatim to the caller so that
+// the cache lookup is never silently bypassed: a missing or
+// cross-namespace Secret reference produces the same RFC-grounded error
+// the resolver would have emitted on the wire fetch path.
+func computeAuthCacheTag(ctx context.Context, params *ChartSourceParams, appNamespace, releaseNamespace string) (string, error) {
+	if params == nil || params.Auth == nil || params.Auth.SecretRef == nil {
+		return "", nil
+	}
+	opts := authResolveOptions{AppNamespace: appNamespace, ReleaseNamespace: releaseNamespace}
+	ns, err := resolveAuthSecretNamespace(secretRef{
+		Name:      params.Auth.SecretRef.Name,
+		Namespace: params.Auth.SecretRef.Namespace,
+	}, opts)
+	if err != nil {
+		return "", err
+	}
+	s := &corev1.Secret{}
+	if err := singleton.KubeClient.Get().Get(ctx, types.NamespacedName{Namespace: ns, Name: params.Auth.SecretRef.Name}, s); err != nil {
+		if apierrors.IsNotFound(err) {
+			return "", fmt.Errorf(
+				`auth secret "%s/%s" not found: it MUST exist in the release namespace %q or the Application namespace %q`,
+				ns, params.Auth.SecretRef.Name, releaseNamespace, appNamespace)
+		}
+		return "", fmt.Errorf(`reading auth secret "%s/%s": %w`, ns, params.Auth.SecretRef.Name, err)
+	}
+	// Sort keys so the hash is stable across map-iteration orderings, and
+	// include the Secret type so a type change (basic-auth ↔ Opaque ↔
+	// dockerconfigjson) is treated as a distinct credential.
+	keys := make([]string, 0, len(s.Data))
+	for k := range s.Data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	h := sha256.New()
+	_, _ = h.Write([]byte(string(s.Type)))
+	_, _ = h.Write([]byte{0})
+	for _, k := range keys {
+		_, _ = h.Write([]byte(k))
+		_, _ = h.Write([]byte{0})
+		_, _ = h.Write(s.Data[k])
+		_, _ = h.Write([]byte{0})
+	}
+	// 16 hex chars (64 bits) is well under any practical collision risk
+	// for the few credentials an Application is likely to reference, and
+	// keeps the cache key readable in debug logs.
+	return hex.EncodeToString(h.Sum(nil))[:16], nil
 }
 
 // validateBasicCredentials enforces RFC 7617 §2 wire-format constraints.

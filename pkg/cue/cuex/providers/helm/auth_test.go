@@ -609,6 +609,111 @@ var _ = Describe("writeOCIRegistryConfigFile", func() {
 	})
 })
 
+var _ = Describe("computeAuthCacheTag", func() {
+	var (
+		scheme         *runtime.Scheme
+		origKubeClient client.Client
+	)
+	BeforeEach(func() {
+		scheme = runtime.NewScheme()
+		Expect(corev1.AddToScheme(scheme)).To(Succeed())
+		origKubeClient = singleton.KubeClient.Get()
+	})
+	AfterEach(func() {
+		singleton.KubeClient.Set(origKubeClient)
+	})
+
+	It("returns empty tag when no auth.secretRef is declared", func() {
+		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).Build())
+		tag, err := computeAuthCacheTag(context.Background(),
+			&ChartSourceParams{Source: "https://example.com/x.tgz"},
+			"app-ns", "rel-ns")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(tag).To(Equal(""))
+	})
+
+	It("returns a stable hex tag for a given Secret content", func() {
+		s := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+			Type:       corev1.SecretTypeBasicAuth,
+			Data:       map[string][]byte{"username": []byte("u"), "password": []byte("p")},
+		}
+		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(s).Build())
+		params := &ChartSourceParams{
+			Source: "oci://r.example.com/charts/c",
+			Auth:   &AuthParams{SecretRef: &SecretRefParams{Name: "creds"}},
+		}
+		tag1, err := computeAuthCacheTag(context.Background(), params, "app-ns", "rel-ns")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(tag1).To(HaveLen(16))
+		tag2, err := computeAuthCacheTag(context.Background(), params, "app-ns", "rel-ns")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(tag2).To(Equal(tag1))
+	})
+
+	It("produces a different tag when the Secret data changes", func() {
+		mkSecret := func(pass string) *corev1.Secret {
+			return &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+				Type:       corev1.SecretTypeBasicAuth,
+				Data:       map[string][]byte{"username": []byte("u"), "password": []byte(pass)},
+			}
+		}
+		params := &ChartSourceParams{
+			Source: "oci://r.example.com/charts/c",
+			Auth:   &AuthParams{SecretRef: &SecretRefParams{Name: "creds"}},
+		}
+		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(mkSecret("p1")).Build())
+		tag1, err := computeAuthCacheTag(context.Background(), params, "app-ns", "rel-ns")
+		Expect(err).NotTo(HaveOccurred())
+		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(mkSecret("p2")).Build())
+		tag2, err := computeAuthCacheTag(context.Background(), params, "app-ns", "rel-ns")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(tag2).NotTo(Equal(tag1))
+	})
+
+	It("produces a different tag when the Secret Type changes", func() {
+		mkSecret := func(t corev1.SecretType) *corev1.Secret {
+			return &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+				Type:       t,
+				Data:       map[string][]byte{"username": []byte("u"), "password": []byte("p")},
+			}
+		}
+		params := &ChartSourceParams{
+			Source: "oci://r.example.com/charts/c",
+			Auth:   &AuthParams{SecretRef: &SecretRefParams{Name: "creds"}},
+		}
+		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(mkSecret(corev1.SecretTypeBasicAuth)).Build())
+		tag1, _ := computeAuthCacheTag(context.Background(), params, "app-ns", "rel-ns")
+		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(mkSecret(corev1.SecretTypeOpaque)).Build())
+		tag2, _ := computeAuthCacheTag(context.Background(), params, "app-ns", "rel-ns")
+		Expect(tag2).NotTo(Equal(tag1))
+	})
+
+	It("returns a clear not-found error when the Secret is missing", func() {
+		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).Build())
+		params := &ChartSourceParams{
+			Source: "oci://r.example.com/charts/c",
+			Auth:   &AuthParams{SecretRef: &SecretRefParams{Name: "missing"}},
+		}
+		_, err := computeAuthCacheTag(context.Background(), params, "app-ns", "rel-ns")
+		Expect(err).To(MatchError(ContainSubstring(`not found: it MUST exist in the release namespace`)))
+	})
+
+	It("rejects cross-namespace secret references", func() {
+		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).Build())
+		params := &ChartSourceParams{
+			Source: "oci://r.example.com/charts/c",
+			Auth: &AuthParams{SecretRef: &SecretRefParams{
+				Name: "creds", Namespace: "kube-system",
+			}},
+		}
+		_, err := computeAuthCacheTag(context.Background(), params, "app-ns", "rel-ns")
+		Expect(err).To(MatchError(ContainSubstring(`MUST equal the release namespace`)))
+	})
+})
+
 var _ = Describe("normalizeDockerHubAliases", func() {
 	canonical := "https://index.docker.io/v1/"
 

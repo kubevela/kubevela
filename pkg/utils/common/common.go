@@ -31,6 +31,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -179,7 +180,13 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 	return httpClient.Do(req)
 }
 
-// HTTPGetWithOption use HTTP option and default client to send get request
+// HTTPGetWithOption use HTTP option and default client to send get request.
+// Non-2xx responses are surfaced as an error including the status line plus a
+// truncated body excerpt. Without this guard, registry 401/403 bodies (HTML
+// or short text) would be returned as raw bytes and later parsed as YAML or
+// gzip-tar, producing misleading "no chart name found" / "cannot unmarshal
+// string into Go value of type repo.IndexFile" failures instead of a clear
+// "HTTP 401 Unauthorized" message.
 func HTTPGetWithOption(ctx context.Context, url string, opts *HTTPOption) ([]byte, error) {
 	resp, err := HTTPGetResponse(ctx, url, opts)
 	if err != nil {
@@ -187,6 +194,14 @@ func HTTPGetWithOption(ctx context.Context, url string, opts *HTTPOption) ([]byt
 	}
 	//nolint:errcheck
 	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		excerpt := strings.TrimSpace(string(body))
+		if excerpt == "" {
+			return nil, fmt.Errorf("HTTP %s", resp.Status)
+		}
+		return nil, fmt.Errorf("HTTP %s: %s", resp.Status, excerpt)
+	}
 	return io.ReadAll(resp.Body)
 }
 

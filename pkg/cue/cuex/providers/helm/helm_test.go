@@ -316,7 +316,7 @@ metadata:
   annotations:
     helm.sh/hook: test-success
 `
-			resources, err := p.parseManifestResources(manifest, nil)
+			resources, err := p.parseManifestResources(manifest, nil, "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resources).To(HaveLen(2))
 
@@ -344,7 +344,7 @@ metadata:
     helm.sh/hook: test-success
 `
 			skipFalse := false
-			resources, err := p.parseManifestResources(manifest, &RenderOptionsParams{SkipTests: &skipFalse})
+			resources, err := p.parseManifestResources(manifest, &RenderOptionsParams{SkipTests: &skipFalse}, "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resources).To(HaveLen(2))
 		})
@@ -366,7 +366,7 @@ kind: Namespace
 metadata:
   name: my-ns
 `
-			resources, err := p.parseManifestResources(manifest, nil)
+			resources, err := p.parseManifestResources(manifest, nil, "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resources).To(HaveLen(3))
 
@@ -376,6 +376,69 @@ metadata:
 			Expect(kind0).To(Equal("CustomResourceDefinition"))
 			Expect(kind1).To(Equal("Namespace"))
 			Expect(kind2).To(Equal("Deployment"))
+		})
+
+		It("defaults metadata.namespace to releaseNamespace for namespaced resources", func() {
+			p := NewProvider()
+			manifest := `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+spec: {replicas: 1}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: widgets.example.com
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: app-reader
+`
+			resources, err := p.parseManifestResources(manifest, nil, "stress-s2")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resources).To(HaveLen(4))
+
+			byKind := map[string]map[string]interface{}{}
+			for _, r := range resources {
+				k, _, _ := unstructured.NestedString(r, "kind")
+				byKind[k] = r
+			}
+
+			depNs, _, _ := unstructured.NestedString(byKind["Deployment"], "metadata", "namespace")
+			Expect(depNs).To(Equal("stress-s2"))
+			svcNs, _, _ := unstructured.NestedString(byKind["Service"], "metadata", "namespace")
+			Expect(svcNs).To(Equal("stress-s2"))
+
+			// Cluster-scoped kinds must NOT be patched with a namespace.
+			_, crdHasNs, _ := unstructured.NestedString(byKind["CustomResourceDefinition"], "metadata", "namespace")
+			Expect(crdHasNs).To(BeFalse())
+			_, crHasNs, _ := unstructured.NestedString(byKind["ClusterRole"], "metadata", "namespace")
+			Expect(crHasNs).To(BeFalse())
+		})
+
+		It("leaves explicit metadata.namespace untouched", func() {
+			p := NewProvider()
+			manifest := `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: explicit-ns
+spec: {replicas: 1}
+`
+			resources, err := p.parseManifestResources(manifest, nil, "release-ns")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resources).To(HaveLen(1))
+			ns, _, _ := unstructured.NestedString(resources[0], "metadata", "namespace")
+			Expect(ns).To(Equal("explicit-ns"))
 		})
 	})
 
@@ -1574,7 +1637,7 @@ spec:
 			_ = notes
 
 			// Parse the manifest
-			resources, err := p.parseManifestResources(manifest, nil)
+			resources, err := p.parseManifestResources(manifest, nil, "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resources).To(HaveLen(1))
 
