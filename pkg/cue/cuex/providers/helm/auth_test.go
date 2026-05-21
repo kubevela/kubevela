@@ -524,6 +524,56 @@ var _ = Describe("writeOCIRegistryConfigFile", func() {
 		Expect(parsed.Auths["ghcr.io"].Username).To(Equal("alice"))
 	})
 
+	// Docker Hub stores credentials under the canonical
+	// "https://index.docker.io/v1/" key, not under the "registry-1.docker.io"
+	// pull host. The Helm/ORAS auth resolver follows that convention, so the
+	// synthesized config MUST register the entry under BOTH keys when the host
+	// is one of the Docker Hub OCI endpoints; otherwise the lookup falls
+	// through to anonymous and the registry returns insufficient_scope.
+	It("registers Docker Hub creds under both registry-1.docker.io and index.docker.io/v1/", func() {
+		path, cleanup, err := writeOCIRegistryConfigFile(
+			&common.HTTPOption{Username: "dh-user", Password: "dckr_pat_fake"}, nil, "registry-1.docker.io")
+		Expect(err).NotTo(HaveOccurred())
+		defer cleanup()
+		b, err := os.ReadFile(path)
+		Expect(err).NotTo(HaveOccurred())
+		var parsed dockerConfigJSON
+		Expect(json.Unmarshal(b, &parsed)).To(Succeed())
+		Expect(parsed.Auths).To(HaveKey("registry-1.docker.io"))
+		Expect(parsed.Auths).To(HaveKey("https://index.docker.io/v1/"))
+		Expect(parsed.Auths["registry-1.docker.io"].Username).To(Equal("dh-user"))
+		Expect(parsed.Auths["https://index.docker.io/v1/"].Username).To(Equal("dh-user"))
+		Expect(parsed.Auths["registry-1.docker.io"].Auth).
+			To(Equal(parsed.Auths["https://index.docker.io/v1/"].Auth))
+	})
+
+	It("registers Docker Hub creds under both keys when host is index.docker.io", func() {
+		path, cleanup, err := writeOCIRegistryConfigFile(
+			&common.HTTPOption{Username: "dh-user", Password: "dckr_pat_fake"}, nil, "index.docker.io")
+		Expect(err).NotTo(HaveOccurred())
+		defer cleanup()
+		b, err := os.ReadFile(path)
+		Expect(err).NotTo(HaveOccurred())
+		var parsed dockerConfigJSON
+		Expect(json.Unmarshal(b, &parsed)).To(Succeed())
+		Expect(parsed.Auths).To(HaveKey("index.docker.io"))
+		Expect(parsed.Auths).To(HaveKey("https://index.docker.io/v1/"))
+	})
+
+	It("does NOT add the Docker Hub alias for non-Docker-Hub hosts", func() {
+		path, cleanup, err := writeOCIRegistryConfigFile(
+			&common.HTTPOption{Username: "u", Password: "p"}, nil, "ghcr.io")
+		Expect(err).NotTo(HaveOccurred())
+		defer cleanup()
+		b, err := os.ReadFile(path)
+		Expect(err).NotTo(HaveOccurred())
+		var parsed dockerConfigJSON
+		Expect(json.Unmarshal(b, &parsed)).To(Succeed())
+		Expect(parsed.Auths).To(HaveKey("ghcr.io"))
+		Expect(parsed.Auths).NotTo(HaveKey("https://index.docker.io/v1/"))
+		Expect(parsed.Auths).To(HaveLen(1))
+	})
+
 	It("writes raw .dockerconfigjson bytes verbatim", func() {
 		raw := []byte(`{"auths":{"ghcr.io":{"username":"x","password":"y"},"other.io":{"username":"a","password":"b"}}}`)
 		path, cleanup, err := writeOCIRegistryConfigFile(nil, raw, "ghcr.io")

@@ -424,12 +424,24 @@ func writeOCIRegistryConfigFile(opts *common.HTTPOption, dockerCfgJSON []byte, h
 		content = dockerCfgJSON
 	case opts != nil && (opts.Username != "" || opts.Password != ""):
 		b64 := base64.StdEncoding.EncodeToString([]byte(opts.Username + ":" + opts.Password))
-		cfg := dockerConfigJSON{Auths: map[string]struct {
+		type authEntry struct {
 			Username string `json:"username"`
 			Password string `json:"password"`
 			Auth     string `json:"auth"`
 			Email    string `json:"email"`
-		}{host: {Username: opts.Username, Password: opts.Password, Auth: b64}}}
+		}
+		entry := authEntry{Username: opts.Username, Password: opts.Password, Auth: b64}
+		auths := map[string]authEntry{host: entry}
+		// Docker Hub quirk: the ORAS/Helm auth resolver looks up Docker Hub creds
+		// under the canonical "https://index.docker.io/v1/" key, not under the
+		// "registry-1.docker.io" pull host. Register the entry under BOTH keys so
+		// the resolver finds it regardless of which lookup path it takes.
+		if host == "registry-1.docker.io" || host == "index.docker.io" {
+			auths["https://index.docker.io/v1/"] = entry
+		}
+		cfg := struct {
+			Auths map[string]authEntry `json:"auths"`
+		}{Auths: auths}
 		content, err = json.Marshal(cfg)
 		if err != nil {
 			_ = f.Close()
