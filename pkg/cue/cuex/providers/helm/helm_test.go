@@ -2374,10 +2374,20 @@ data:
 }
 
 var _ = Describe("fetchURLChart with auth", func() {
-	var scheme *runtime.Scheme
+	var (
+		scheme         *runtime.Scheme
+		origKubeClient client.Client
+	)
 	BeforeEach(func() {
 		scheme = runtime.NewScheme()
 		Expect(corev1.AddToScheme(scheme)).To(Succeed())
+		// Capture the package-global KubeClient so the per-spec
+		// singleton.KubeClient.Set() calls below cannot leak fake
+		// clients into later tests in this package.
+		origKubeClient = singleton.KubeClient.Get()
+	})
+	AfterEach(func() {
+		singleton.KubeClient.Set(origKubeClient)
 	})
 
 	It("sends Authorization: Basic when params.Auth references a basic-auth Secret", func() {
@@ -2409,10 +2419,17 @@ var _ = Describe("fetchURLChart with auth", func() {
 })
 
 var _ = Describe("fetchRepoChart with auth", func() {
-	var scheme *runtime.Scheme
+	var (
+		scheme         *runtime.Scheme
+		origKubeClient client.Client
+	)
 	BeforeEach(func() {
 		scheme = runtime.NewScheme()
 		Expect(corev1.AddToScheme(scheme)).To(Succeed())
+		origKubeClient = singleton.KubeClient.Get()
+	})
+	AfterEach(func() {
+		singleton.KubeClient.Set(origKubeClient)
 	})
 
 	It("authenticates both index.yaml and chart-tarball fetches", func() {

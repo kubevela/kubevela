@@ -228,9 +228,19 @@ spec:
         			"app.oam.dev/name":      context.appName
         			"app.oam.dev/namespace": context.namespace
         			"app.oam.dev/component": context.name
+        			// Preserve `helm.oam.dev/chart` as a label for selector
+        			// compatibility, but only when the source is a valid
+        			// Kubernetes label value (1-63 chars, alphanumeric +
+        			// `.-_`, starting and ending alphanumeric). OCI/HTTPS
+        			// URLs contain `://` and `/`, which are not legal in a
+        			// label value; for those sources the value lives only
+        			// in the annotation below.
+        			if parameter.chart.source =~ "^[A-Za-z0-9]([A-Za-z0-9._-]{0,61}[A-Za-z0-9])?$" {
+        				"helm.oam.dev/chart": parameter.chart.source
+        			}
         		}
-        		// Chart source goes in an annotation because OCI/HTTPS URLs
-        		// routinely exceed the 63-character Kubernetes label value limit.
+        		// Always carries the full chart source, including URLs that
+        		// exceed the label value limit or contain reserved characters.
         		annotations: {
         			"helm.oam.dev/chart": parameter.chart.source
         		}

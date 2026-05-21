@@ -100,13 +100,15 @@ e2e-test-local:
 	docker build -t vela-core:e2e-test -f Dockerfile . --build-arg=VERSION=e2e-test --build-arg=GITVERSION=test
 	k3d image import vela-core:e2e-test -c kubevela-debug
 	# Pre-load auth-test registry images used by Describe("Helmchart Auth")
-	# in test/e2e-test/helmchart_test.go. Each pull is chained with && so a
-	# failed pull aborts the loop instead of silently importing a stale layer.
+	# in test/e2e-test/helmchart_test.go. Each command runs on its own
+	# line under `set -e` so a failed pull stops the loop (a `&&` chain
+	# would swallow the failure as far as `set -e` is concerned).
 	@set -e ; for img in \
 	  ghcr.io/project-zot/zot-minimal-linux-amd64:v2.1.1 \
 	  ghcr.io/helm/chartmuseum:v0.16.2 \
 	  docker.io/library/nginx:1.27-alpine ; do \
-	    docker pull $$img && k3d image import $$img -c kubevela-debug ; \
+	    docker pull $$img ; \
+	    k3d image import $$img -c kubevela-debug ; \
 	done
 	# Deploy with Helm
 	kubectl delete validatingwebhookconfiguration kubevela-vela-core-admission 2>/dev/null || true

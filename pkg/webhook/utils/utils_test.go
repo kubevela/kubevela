@@ -291,8 +291,12 @@ func TestValidateCuexTemplate(t *testing.T) {
 	singleton.DynamicClient.Set(dcl)
 	velacuex.WorkloadCompiler.Reload()
 
-	defer singleton.ReloadClients()
+	// Defer LIFO order matters: restore the real singleton clients FIRST,
+	// then reload the compiler so it picks them up. Reversing the two
+	// would reload the compiler while the fake DynamicClient is still
+	// installed, leaking fake state into later tests in the package.
 	defer velacuex.WorkloadCompiler.Reload()
+	defer singleton.ReloadClients()
 
 	for caseName, cs := range cases {
 		t.Run(caseName, func(t *testing.T) {
