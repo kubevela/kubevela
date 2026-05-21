@@ -560,6 +560,22 @@ var _ = Describe("writeOCIRegistryConfigFile", func() {
 		Expect(parsed.Auths).To(HaveKey("https://index.docker.io/v1/"))
 	})
 
+	It("registers Docker Hub creds under both keys when host is the short docker.io alias", func() {
+		// oras-go's resolveHostname normalises "docker.io" to the v1 index too,
+		// so charts written as oci://docker.io/library/... must also get the
+		// canonical key, not just the explicit pull hosts.
+		path, cleanup, err := writeOCIRegistryConfigFile(
+			&common.HTTPOption{Username: "dh-user", Password: "dckr_pat_fake"}, nil, "docker.io")
+		Expect(err).NotTo(HaveOccurred())
+		defer cleanup()
+		b, err := os.ReadFile(path)
+		Expect(err).NotTo(HaveOccurred())
+		var parsed dockerConfigJSON
+		Expect(json.Unmarshal(b, &parsed)).To(Succeed())
+		Expect(parsed.Auths).To(HaveKey("docker.io"))
+		Expect(parsed.Auths).To(HaveKey("https://index.docker.io/v1/"))
+	})
+
 	It("does NOT add the Docker Hub alias for non-Docker-Hub hosts", func() {
 		path, cleanup, err := writeOCIRegistryConfigFile(
 			&common.HTTPOption{Username: "u", Password: "p"}, nil, "ghcr.io")

@@ -432,11 +432,15 @@ func writeOCIRegistryConfigFile(opts *common.HTTPOption, dockerCfgJSON []byte, h
 		}
 		entry := authEntry{Username: opts.Username, Password: opts.Password, Auth: b64}
 		auths := map[string]authEntry{host: entry}
-		// Docker Hub quirk: the ORAS/Helm auth resolver looks up Docker Hub creds
-		// under the canonical "https://index.docker.io/v1/" key, not under the
-		// "registry-1.docker.io" pull host. Register the entry under BOTH keys so
-		// the resolver finds it regardless of which lookup path it takes.
-		if host == "registry-1.docker.io" || host == "index.docker.io" {
+		// Docker Hub quirk: the ORAS/Helm auth resolver normalises three host
+		// strings ("registry-1.docker.io", "index.docker.io", "docker.io") to
+		// the canonical credential key "https://index.docker.io/v1/", not to
+		// any of the pull hosts. See oras-go/pkg/auth/docker/resolver.go
+		// resolveHostname(). Register the entry under both the pull host and
+		// the canonical v1 key so the resolver finds it regardless of which
+		// lookup path it takes. No other public OCI registry (GHCR, Quay,
+		// ECR, GAR, ACR, Harbor) has this alias quirk.
+		if host == "registry-1.docker.io" || host == "index.docker.io" || host == "docker.io" {
 			auths["https://index.docker.io/v1/"] = entry
 		}
 		cfg := struct {
