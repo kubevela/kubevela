@@ -259,7 +259,9 @@ func pushToChartMuseumBasic(ctx context.Context, cfg *rest.Config, chartBytes []
 			return err
 		}
 		defer resp.Body.Close()
-		if resp.StatusCode == http.StatusConflict { return nil }
+		if resp.StatusCode == http.StatusConflict {
+			return nil
+		}
 		if resp.StatusCode >= 400 {
 			body, _ := io.ReadAll(resp.Body)
 			return fmt.Errorf("chartmuseum push: %s: %s", resp.Status, string(body))
@@ -282,7 +284,9 @@ func pushToChartMuseumBearer(ctx context.Context, cfg *rest.Config, chartBytes [
 			return err
 		}
 		defer resp.Body.Close()
-		if resp.StatusCode == http.StatusConflict { return nil }
+		if resp.StatusCode == http.StatusConflict {
+			return nil
+		}
 		if resp.StatusCode >= 400 {
 			body, _ := io.ReadAll(resp.Body)
 			return fmt.Errorf("chartmuseum-bearer push: %s: %s", resp.Status, string(body))

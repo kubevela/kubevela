@@ -22,11 +22,14 @@ import (
 	"strings"
 	"testing"
 
-	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
+	cuev1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
 	"github.com/kubevela/pkg/util/singleton"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue/errors"
 	"github.com/stretchr/testify/assert"
@@ -287,7 +290,17 @@ func TestValidateCuexTemplate(t *testing.T) {
 		},
 	}
 
-	dcl := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), packageObj)
+	// Register the cue.oam.dev/v1alpha1 Package GVK in the fake scheme so
+	// the fake DynamicClient resolves List(packages.cue.oam.dev) correctly.
+	// Without this, WorkloadCompiler.Reload's LoadExternalPackages call
+	// returns NotFound and the `test/ext` import below fails to resolve.
+	testScheme := runtime.NewScheme()
+	_ = cuev1alpha1.AddToScheme(testScheme)
+	dcl := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(testScheme,
+		map[schema.GroupVersionResource]string{
+			cuev1alpha1.PackageGroupVersionResource: "PackageList",
+		},
+		packageObj)
 	singleton.DynamicClient.Set(dcl)
 	velacuex.WorkloadCompiler.Reload()
 

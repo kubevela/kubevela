@@ -421,7 +421,13 @@ func writeOCIRegistryConfigFile(opts *common.HTTPOption, dockerCfgJSON []byte, h
 	var content []byte
 	switch {
 	case dockerCfgJSON != nil:
-		content = dockerCfgJSON
+		// Apply the same Docker Hub alias normalization to verbatim
+		// kubernetes.io/dockerconfigjson Secrets that the synthesized
+		// path below applies. Without this, a user-supplied dockerconfig
+		// keyed by "registry-1.docker.io" (the pull host) would not be
+		// found by ORAS/Helm, which looks up under the canonical
+		// "https://index.docker.io/v1/" key.
+		content = normalizeDockerHubAliases(dockerCfgJSON, host)
 	case opts != nil && (opts.Username != "" || opts.Password != ""):
 		b64 := base64.StdEncoding.EncodeToString([]byte(opts.Username + ":" + opts.Password))
 		type authEntry struct {
@@ -468,6 +474,66 @@ func writeOCIRegistryConfigFile(opts *common.HTTPOption, dockerCfgJSON []byte, h
 		return "", func() {}, fmt.Errorf("closing OCI credentials file: %w", err)
 	}
 	return path, cleanup, nil
+}
+
+// normalizeDockerHubAliases rewrites a verbatim dockerconfigjson blob so it
+// works regardless of which Docker Hub host the user keyed it under. ORAS/Helm
+// normalizes "registry-1.docker.io", "index.docker.io", and "docker.io" to
+// the canonical "https://index.docker.io/v1/" key when looking up credentials,
+// but a user-supplied Secret may be keyed under any of those aliases. This
+// helper parses the JSON, and if any Docker Hub alias is present (or if the
+// pull host is one of them and matches an existing entry), copies the entry
+// under the canonical key so the lookup succeeds. If parsing fails or no
+// Docker Hub alias is involved, returns the original bytes unchanged.
+func normalizeDockerHubAliases(cfgJSON []byte, host string) []byte {
+	const canonical = "https://index.docker.io/v1/"
+	dockerHubHosts := []string{"registry-1.docker.io", "index.docker.io", "docker.io"}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(cfgJSON, &raw); err != nil {
+		return cfgJSON
+	}
+	authsRaw, ok := raw["auths"]
+	if !ok {
+		return cfgJSON
+	}
+	var auths map[string]json.RawMessage
+	if err := json.Unmarshal(authsRaw, &auths); err != nil {
+		return cfgJSON
+	}
+	if _, exists := auths[canonical]; exists {
+		return cfgJSON
+	}
+	pickSource := func() (json.RawMessage, bool) {
+		for _, h := range dockerHubHosts {
+			if v, ok := auths[h]; ok {
+				return v, true
+			}
+		}
+		for _, h := range dockerHubHosts {
+			if host == h {
+				if v, ok := auths[host]; ok {
+					return v, true
+				}
+			}
+		}
+		return nil, false
+	}
+	src, ok := pickSource()
+	if !ok {
+		return cfgJSON
+	}
+	auths[canonical] = src
+	newAuths, err := json.Marshal(auths)
+	if err != nil {
+		return cfgJSON
+	}
+	raw["auths"] = newAuths
+	out, err := json.Marshal(raw)
+	if err != nil {
+		return cfgJSON
+	}
+	return out
 }
 
 // resolveHTTPOptions is the provider-side wrapper called from each fetcher.

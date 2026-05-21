@@ -352,7 +352,7 @@ var _ = Describe("dispatchOpaqueSecret", func() {
 	It("detects username+password keys", func() {
 		s := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "o", Namespace: "ns"},
-			Data: map[string][]byte{"username": []byte("alice"), "password": []byte("wonderland")},
+			Data:       map[string][]byte{"username": []byte("alice"), "password": []byte("wonderland")},
 		}
 		opts, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "https"})
 		Expect(err).NotTo(HaveOccurred())
@@ -362,7 +362,7 @@ var _ = Describe("dispatchOpaqueSecret", func() {
 	It("detects token key over HTTPS without insecureSkipTLS", func() {
 		s := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "o", Namespace: "ns"},
-			Data: map[string][]byte{"token": []byte("abcDEF123")},
+			Data:       map[string][]byte{"token": []byte("abcDEF123")},
 		}
 		opts, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "https"})
 		Expect(err).NotTo(HaveOccurred())
@@ -372,7 +372,7 @@ var _ = Describe("dispatchOpaqueSecret", func() {
 	It("rejects when both username/password and token are set", func() {
 		s := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "o", Namespace: "ns"},
-			Data: map[string][]byte{"username": []byte("u"), "password": []byte("p"), "token": []byte("t")},
+			Data:       map[string][]byte{"username": []byte("u"), "password": []byte("p"), "token": []byte("t")},
 		}
 		_, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "https"})
 		Expect(err).To(MatchError(ContainSubstring(`at most one credential method MUST be configured per Secret (RFC 6750 §2)`)))
@@ -606,6 +606,64 @@ var _ = Describe("writeOCIRegistryConfigFile", func() {
 		cleanup()
 		_, err = os.Stat(path)
 		Expect(os.IsNotExist(err)).To(BeTrue())
+	})
+})
+
+var _ = Describe("normalizeDockerHubAliases", func() {
+	canonical := "https://index.docker.io/v1/"
+
+	parse := func(b []byte) map[string]interface{} {
+		var m map[string]interface{}
+		Expect(json.Unmarshal(b, &m)).To(Succeed())
+		return m
+	}
+
+	It("copies an existing registry-1.docker.io entry under the canonical v1 key", func() {
+		in := []byte(`{"auths":{"registry-1.docker.io":{"username":"u","password":"p","auth":"dXA="}}}`)
+		out := normalizeDockerHubAliases(in, "registry-1.docker.io")
+		auths := parse(out)["auths"].(map[string]interface{})
+		Expect(auths).To(HaveKey(canonical))
+		Expect(auths).To(HaveKey("registry-1.docker.io"))
+	})
+
+	It("copies an existing index.docker.io entry under the canonical v1 key", func() {
+		in := []byte(`{"auths":{"index.docker.io":{"username":"u","password":"p","auth":"dXA="}}}`)
+		out := normalizeDockerHubAliases(in, "registry-1.docker.io")
+		auths := parse(out)["auths"].(map[string]interface{})
+		Expect(auths).To(HaveKey(canonical))
+	})
+
+	It("copies an existing docker.io entry under the canonical v1 key", func() {
+		in := []byte(`{"auths":{"docker.io":{"auth":"dXA="}}}`)
+		out := normalizeDockerHubAliases(in, "registry-1.docker.io")
+		auths := parse(out)["auths"].(map[string]interface{})
+		Expect(auths).To(HaveKey(canonical))
+	})
+
+	It("is a no-op when the canonical v1 key is already present", func() {
+		in := []byte(`{"auths":{"https://index.docker.io/v1/":{"auth":"dXA="}}}`)
+		out := normalizeDockerHubAliases(in, "registry-1.docker.io")
+		Expect(string(out)).To(Equal(string(in)))
+	})
+
+	It("is a no-op when the host is not Docker Hub", func() {
+		in := []byte(`{"auths":{"ghcr.io":{"auth":"dXA="}}}`)
+		out := normalizeDockerHubAliases(in, "ghcr.io")
+		auths := parse(out)["auths"].(map[string]interface{})
+		Expect(auths).NotTo(HaveKey(canonical))
+		Expect(auths).To(HaveKey("ghcr.io"))
+	})
+
+	It("returns the original bytes on malformed JSON", func() {
+		in := []byte(`{not-json`)
+		out := normalizeDockerHubAliases(in, "registry-1.docker.io")
+		Expect(string(out)).To(Equal(string(in)))
+	})
+
+	It("returns the original bytes when the auths field is absent", func() {
+		in := []byte(`{"other":"value"}`)
+		out := normalizeDockerHubAliases(in, "registry-1.docker.io")
+		Expect(string(out)).To(Equal(string(in)))
 	})
 })
 
