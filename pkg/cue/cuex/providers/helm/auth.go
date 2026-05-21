@@ -142,13 +142,23 @@ func computeAuthCacheTag(ctx context.Context, params *ChartSourceParams, appName
 	}
 	// Sort keys so the hash is stable across map-iteration orderings, and
 	// include the Secret type so a type change (basic-auth ↔ Opaque ↔
-	// dockerconfigjson) is treated as a distinct credential.
+	// dockerconfigjson) is treated as a distinct credential. The chart
+	// source URL and repoURL are also folded in: a multi-host
+	// kubernetes.io/dockerconfigjson Secret would otherwise produce the
+	// same tag across every registry it covers, letting bytes cached
+	// under one host's credentials satisfy a different host's request.
 	keys := make([]string, 0, len(s.Data))
 	for k := range s.Data {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 	h := sha256.New()
+	_, _ = h.Write([]byte("source:"))
+	_, _ = h.Write([]byte(params.Source))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte("repo:"))
+	_, _ = h.Write([]byte(params.RepoURL))
+	_, _ = h.Write([]byte{0})
 	_, _ = h.Write([]byte(string(s.Type)))
 	_, _ = h.Write([]byte{0})
 	for _, k := range keys {

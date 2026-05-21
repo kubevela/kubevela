@@ -40,9 +40,11 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
@@ -858,7 +860,7 @@ func (r *velaLabelPostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buf
 		// re-applies it. Cluster-scoped kinds (CRDs, ClusterRoles,
 		// Namespaces, ...) are left as-is so the API server does not reject
 		// them.
-		if r.releaseNamespace != "" && obj.GetNamespace() == "" && !isClusterScopedKind(obj.GetKind()) {
+		if r.releaseNamespace != "" && obj.GetNamespace() == "" && !isClusterScopedGVK(obj.GroupVersionKind()) {
 			obj.SetNamespace(r.releaseNamespace)
 		}
 
@@ -1484,7 +1486,7 @@ func (p *Provider) parseManifestResources(manifestStr string, options *RenderOpt
 		// omitted metadata.namespace. Cluster-scoped kinds (CRDs,
 		// ClusterRoles, Namespaces, ...) are left as-is so the API server
 		// does not reject them.
-		if releaseNamespace != "" && resource.GetNamespace() == "" && !isClusterScopedKind(resource.GetKind()) {
+		if releaseNamespace != "" && resource.GetNamespace() == "" && !isClusterScopedGVK(resource.GroupVersionKind()) {
 			resource.SetNamespace(releaseNamespace)
 		}
 
@@ -1496,12 +1498,37 @@ func (p *Provider) parseManifestResources(manifestStr string, options *RenderOpt
 	return orderResources(resources), nil
 }
 
-// isClusterScopedKind reports whether `kind` denotes a Kubernetes resource
-// that lives at the cluster scope (no namespace). The set covers the core
-// API plus the well-known extensions a helm chart would commonly emit; it is
-// intentionally conservative: an unrecognized kind is treated as namespaced,
-// so a new namespaced CRD-defined kind gets the safe default.
-func isClusterScopedKind(kind string) bool {
+// isClusterScopedGVK reports whether the given GroupVersionKind denotes a
+// Kubernetes resource that lives at the cluster scope (no namespace).
+//
+// Resolution order:
+//
+//  1. Ask the cluster's RESTMapper. This sees built-in kinds AND third-party
+//     CRDs (cert-manager's ClusterIssuer, Knative's ClusterIngress, etc.),
+//     so the namespace-default logic doesn't mis-namespace custom
+//     cluster-scoped resources.
+//  2. If the RESTMapper is unavailable, or doesn't know the GVK (e.g.,
+//     because the chart manifest itself defines a CRD whose kind hasn't
+//     been registered with the API server yet), fall back to a static
+//     allowlist of well-known cluster-scoped kinds.
+//
+// The fallback is intentionally conservative: an unrecognized kind is
+// treated as namespaced, so a new namespaced custom resource gets the
+// safe default (release namespace) rather than landing in vela-system.
+func isClusterScopedGVK(gvk schema.GroupVersionKind) bool {
+	if mapper := singleton.RESTMapper.Get(); mapper != nil {
+		if mapping, mErr := mapper.RESTMapping(gvk.GroupKind(), gvk.Version); mErr == nil && mapping != nil {
+			return mapping.Scope.Name() == meta.RESTScopeNameRoot
+		}
+	}
+	return isClusterScopedKindStaticFallback(gvk.Kind)
+}
+
+// isClusterScopedKindStaticFallback returns true for the well-known set of
+// built-in cluster-scoped kinds. Used only when the RESTMapper cannot answer
+// authoritatively. New entries should be limited to stable upstream APIs;
+// for third-party CRDs the RESTMapper path is the source of truth.
+func isClusterScopedKindStaticFallback(kind string) bool {
 	switch kind {
 	case "CustomResourceDefinition",
 		"Namespace",

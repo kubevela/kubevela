@@ -701,6 +701,52 @@ var _ = Describe("computeAuthCacheTag", func() {
 		Expect(err).To(MatchError(ContainSubstring(`not found: it MUST exist in the release namespace`)))
 	})
 
+	It("produces a different tag for different chart sources with the same Secret", func() {
+		s := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+			Type:       corev1.SecretTypeDockerConfigJson,
+			Data:       map[string][]byte{".dockerconfigjson": []byte(`{"auths":{"a":{},"b":{}}}`)},
+		}
+		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(s).Build())
+		tag1, err := computeAuthCacheTag(context.Background(),
+			&ChartSourceParams{
+				Source: "oci://a.example.com/charts/c",
+				Auth:   &AuthParams{SecretRef: &SecretRefParams{Name: "creds"}},
+			}, "app-ns", "rel-ns")
+		Expect(err).NotTo(HaveOccurred())
+		tag2, err := computeAuthCacheTag(context.Background(),
+			&ChartSourceParams{
+				Source: "oci://b.example.com/charts/c",
+				Auth:   &AuthParams{SecretRef: &SecretRefParams{Name: "creds"}},
+			}, "app-ns", "rel-ns")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(tag2).NotTo(Equal(tag1))
+	})
+
+	It("produces a different tag when repoURL changes", func() {
+		s := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+			Type:       corev1.SecretTypeBasicAuth,
+			Data:       map[string][]byte{"username": []byte("u"), "password": []byte("p")},
+		}
+		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(s).Build())
+		tag1, err := computeAuthCacheTag(context.Background(),
+			&ChartSourceParams{
+				Source:  "chart",
+				RepoURL: "https://r1.example.com",
+				Auth:    &AuthParams{SecretRef: &SecretRefParams{Name: "creds"}},
+			}, "app-ns", "rel-ns")
+		Expect(err).NotTo(HaveOccurred())
+		tag2, err := computeAuthCacheTag(context.Background(),
+			&ChartSourceParams{
+				Source:  "chart",
+				RepoURL: "https://r2.example.com",
+				Auth:    &AuthParams{SecretRef: &SecretRefParams{Name: "creds"}},
+			}, "app-ns", "rel-ns")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(tag2).NotTo(Equal(tag1))
+	})
+
 	It("rejects cross-namespace secret references", func() {
 		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).Build())
 		params := &ChartSourceParams{
