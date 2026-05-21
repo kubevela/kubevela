@@ -125,25 +125,30 @@ func injectAuthTestCA(ctx context.Context, k8sClient client.Client) error {
 	var deps appsv1.DeploymentList
 	if err := k8sClient.List(ctx, &deps,
 		client.InNamespace(velaNS),
-		client.MatchingLabels{"app.kubernetes.io/name": appLabel},
+		client.MatchingLabels{"controller.oam.dev/name": appLabel},
 	); err != nil {
 		return fmt.Errorf("listing vela-core deployments: %w", err)
 	}
 	if len(deps.Items) == 0 {
-		return fmt.Errorf("no Deployment with label app.kubernetes.io/name=%s in namespace %s; cannot inject auth-test CA", appLabel, velaNS)
+		return fmt.Errorf("no Deployment with label controller.oam.dev/name=%s in namespace %s; cannot inject auth-test CA", appLabel, velaNS)
 	}
 
 	addVolume := func(spec *corev1.PodSpec, vol corev1.Volume) {
-		for _, existing := range spec.Volumes {
+		for i, existing := range spec.Volumes {
 			if existing.Name == vol.Name {
+				spec.Volumes[i] = vol
 				return
 			}
 		}
 		spec.Volumes = append(spec.Volumes, vol)
 	}
 	addInitContainer := func(spec *corev1.PodSpec, c corev1.Container) {
-		for _, existing := range spec.InitContainers {
+		for i, existing := range spec.InitContainers {
 			if existing.Name == c.Name {
+				// Update-in-place so a re-run picks up a newer image
+				// or args. Without this the patch is sticky: the very
+				// first run wins for the lifetime of the cluster.
+				spec.InitContainers[i] = c
 				return
 			}
 		}
@@ -185,8 +190,14 @@ func injectAuthTestCA(ctx context.Context, k8sClient client.Client) error {
 		})
 
 		addInitContainer(spec, corev1.Container{
-			Name:    initName,
-			Image:   "busybox:1.36",
+			Name: initName,
+			// alpine ships /etc/ssl/certs/ca-certificates.crt with the
+			// public CA roots; busybox does not. We need both the
+			// system bundle (for any public registries the controller
+			// reaches outside the test) AND the auth-test CA mounted
+			// at extraCADir/ca.crt, concatenated into the shared trust
+			// volume that the main container reads via SSL_CERT_FILE.
+			Image:   "alpine:3.18",
 			Command: []string{"/bin/sh", "-c"},
 			Args: []string{fmt.Sprintf(
 				"cat /etc/ssl/certs/ca-certificates.crt %s/ca.crt > %s/combined.crt",
@@ -211,7 +222,7 @@ func injectAuthTestCA(ctx context.Context, k8sClient client.Client) error {
 		}
 	}
 
-	return waitForDeploymentsAvailable(ctx, k8sClient, velaNS, "app.kubernetes.io/name", appLabel, 3*time.Minute)
+	return waitForDeploymentsAvailable(ctx, k8sClient, velaNS, "controller.oam.dev/name", appLabel, 3*time.Minute)
 }
 
 // waitForDeploymentsAvailable polls until every Deployment in `ns` matching
@@ -236,7 +247,13 @@ func waitForDeploymentsAvailable(ctx context.Context, k8sClient client.Client, n
 					break
 				}
 			}
-			if !deploymentReady || d.Status.UpdatedReplicas < *d.Spec.Replicas || d.Status.ObservedGeneration < d.Generation {
+			specReplicas := *d.Spec.Replicas
+			rolloutComplete := d.Status.ObservedGeneration >= d.Generation &&
+				d.Status.UpdatedReplicas >= specReplicas &&
+				d.Status.Replicas == d.Status.UpdatedReplicas &&
+				d.Status.AvailableReplicas >= specReplicas &&
+				d.Status.UnavailableReplicas == 0
+			if !deploymentReady || !rolloutComplete {
 				ready = false
 				break
 			}
