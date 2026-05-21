@@ -224,10 +224,29 @@ func dispatchDockerConfigJSONSecret(s *corev1.Secret, opts authResolveOptions) (
 			`auth secret "%s/%s" of type kubernetes.io/dockerconfigjson has no entry matching registry host %q`,
 			s.Namespace, s.Name, opts.RegistryHost)
 	}
-	if err := validateBasicCredentials(entry.Username, entry.Password, s.Namespace, s.Name); err != nil {
+	user, pass := entry.Username, entry.Password
+	// `docker login` stores credentials as a base64-encoded "username:password"
+	// string in the `auth` field, without populating `username`/`password`
+	// separately. Decode it when the explicit fields are absent.
+	if user == "" && pass == "" && entry.Auth != "" {
+		decoded, derr := base64.StdEncoding.DecodeString(entry.Auth)
+		if derr != nil {
+			return nil, nil, fmt.Errorf(
+				`auth secret "%s/%s" of type kubernetes.io/dockerconfigjson has an "auth" field that is not valid base64 for host %q`,
+				s.Namespace, s.Name, opts.RegistryHost)
+		}
+		i := strings.IndexByte(string(decoded), ':')
+		if i < 0 {
+			return nil, nil, fmt.Errorf(
+				`auth secret "%s/%s" of type kubernetes.io/dockerconfigjson "auth" field for host %q MUST decode to "username:password"`,
+				s.Namespace, s.Name, opts.RegistryHost)
+		}
+		user, pass = string(decoded[:i]), string(decoded[i+1:])
+	}
+	if err := validateBasicCredentials(user, pass, s.Namespace, s.Name); err != nil {
 		return nil, nil, err
 	}
-	httpOpt := &common.HTTPOption{Username: entry.Username, Password: entry.Password}
+	httpOpt := &common.HTTPOption{Username: user, Password: pass}
 	if opts.SourceType == sourceTypeOCI {
 		return httpOpt, raw, nil
 	}

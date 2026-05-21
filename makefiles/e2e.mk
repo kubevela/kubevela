@@ -97,12 +97,11 @@ e2e-test:
 # Requires the k3d cluster "kubevela-debug" to exist.
 .PHONY: e2e-auth-images-load-local
 e2e-auth-images-load-local:
-	@for img in \
+	@set -e ; for img in \
 	  ghcr.io/project-zot/zot-minimal-linux-amd64:v2.1.1 \
 	  ghcr.io/helm/chartmuseum:v0.16.2 \
 	  docker.io/library/nginx:1.27-alpine ; do \
-	    docker pull $$img ; \
-	    k3d image import $$img -c kubevela-debug ; \
+	    docker pull $$img && k3d image import $$img -c kubevela-debug ; \
 	done
 
 # Run e2e tests with k3d and webhook validation

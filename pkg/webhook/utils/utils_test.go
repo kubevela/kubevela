@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kubevela/pkg/cue/cuex"
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/pkg/util/singleton"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -289,10 +289,10 @@ func TestValidateCuexTemplate(t *testing.T) {
 
 	dcl := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), packageObj)
 	singleton.DynamicClient.Set(dcl)
-	cuex.DefaultCompiler.Reload()
+	velacuex.WorkloadCompiler.Reload()
 
 	defer singleton.ReloadClients()
-	defer cuex.DefaultCompiler.Reload()
+	defer velacuex.WorkloadCompiler.Reload()
 
 	for caseName, cs := range cases {
 		t.Run(caseName, func(t *testing.T) {

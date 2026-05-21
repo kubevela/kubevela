@@ -24,6 +24,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -227,6 +228,43 @@ var _ = Describe("dispatchDockerConfigJSONSecret", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(opts.Username).To(Equal("alice"))
 		Expect(raw).To(Equal(validCfg))
+	})
+
+	It("decodes the `auth` field when username/password are absent (docker login style)", func() {
+		// `docker login` writes only the base64 "username:password" auth field.
+		authOnly := []byte(`{"auths":{"ghcr.io":{"auth":"YWxpY2U6d29uZGVybGFuZA=="}}}`)
+		s := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "dh", Namespace: "ns"},
+			Type:       corev1.SecretTypeDockerConfigJson,
+			Data:       map[string][]byte{corev1.DockerConfigJsonKey: authOnly},
+		}
+		opts, _, err := dispatchDockerConfigJSONSecret(s, authResolveOptions{RegistryHost: "ghcr.io"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(opts.Username).To(Equal("alice"))
+		Expect(opts.Password).To(Equal("wonderland"))
+	})
+
+	It("rejects an `auth` field that is not valid base64", func() {
+		bad := []byte(`{"auths":{"ghcr.io":{"auth":"not!base64!"}}}`)
+		s := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "dh", Namespace: "ns"},
+			Type:       corev1.SecretTypeDockerConfigJson,
+			Data:       map[string][]byte{corev1.DockerConfigJsonKey: bad},
+		}
+		_, _, err := dispatchDockerConfigJSONSecret(s, authResolveOptions{RegistryHost: "ghcr.io"})
+		Expect(err).To(MatchError(ContainSubstring(`not valid base64`)))
+	})
+
+	It("rejects an `auth` field that decodes without a colon", func() {
+		// base64("nocolonhere")
+		bad := []byte(`{"auths":{"ghcr.io":{"auth":"bm9jb2xvbmhlcmU="}}}`)
+		s := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "dh", Namespace: "ns"},
+			Type:       corev1.SecretTypeDockerConfigJson,
+			Data:       map[string][]byte{corev1.DockerConfigJsonKey: bad},
+		}
+		_, _, err := dispatchDockerConfigJSONSecret(s, authResolveOptions{RegistryHost: "ghcr.io"})
+		Expect(err).To(MatchError(ContainSubstring(`MUST decode to "username:password"`)))
 	})
 
 	It("rejects when the .dockerconfigjson key is absent", func() {
@@ -506,10 +544,20 @@ var _ = Describe("writeOCIRegistryConfigFile", func() {
 })
 
 var _ = Describe("resolveHTTPOptions", func() {
-	var scheme *runtime.Scheme
+	var (
+		scheme         *runtime.Scheme
+		origKubeClient client.Client
+	)
 	BeforeEach(func() {
 		scheme = runtime.NewScheme()
 		Expect(corev1.AddToScheme(scheme)).To(Succeed())
+		// Capture the package-global KubeClient so the per-spec
+		// singleton.KubeClient.Set() calls below cannot leak fake
+		// clients into later tests in this package.
+		origKubeClient = singleton.KubeClient.Get()
+	})
+	AfterEach(func() {
+		singleton.KubeClient.Set(origKubeClient)
 	})
 
 	It("returns (nil, nil, nil) when params.Auth is nil", func() {
