@@ -58,9 +58,11 @@ type authResolveOptions struct {
 
 // extractRegistryHost picks the host for dockerconfigjson matching and for the
 // synthesized OCI Docker config.json's auths.<host>.* entry.
-//   OCI sources:  trim "oci://" and take the first path segment up to '/'.
-//   URL sources:  url.Parse(source).Host.
-//   Repo sources: url.Parse(repoURL).Host.
+//
+//	OCI sources:  trim "oci://" and take the first path segment up to '/'.
+//	URL sources:  url.Parse(source).Host.
+//	Repo sources: url.Parse(repoURL).Host.
+//
 // Returns empty string when neither input is a recognisable URL.
 func extractRegistryHost(source, repoURL string) string {
 	if strings.HasPrefix(source, "oci://") {
@@ -123,7 +125,8 @@ func hasControlChar(s string) bool {
 }
 
 // validateBearerToken enforces the RFC 6750 §2.1 grammar:
-//   b64token = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
+//
+//	b64token = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
 func validateBearerToken(token, ns, name string) error {
 	if token == "" {
 		return fmt.Errorf(`auth secret "%s/%s" token MUST NOT be empty (RFC 6750 §2.1)`, ns, name)
