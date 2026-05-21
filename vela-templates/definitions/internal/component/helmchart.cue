@@ -100,7 +100,8 @@ template: {
 			//                                     optionally caFile/certFile/keyFile/insecureSkipTLS,
 			//                                     plus insecurePlainHTTP for OCI sources only)
 			//
-			// Bearer tokens (RFC 6750) are honored only on HTTPS Helm repositories.
+			// Bearer tokens (RFC 6750) are honored on any HTTPS chart source
+			// (Helm repositories and direct .tgz URLs).
 			// They MUST NOT be combined with insecureSkipTLS (RFC 6750 mandates TLS),
 			// MUST NOT be set alongside basic-auth keys in the same Secret, and
 			// MUST NOT be used with OCI sources (the registry performs its own
