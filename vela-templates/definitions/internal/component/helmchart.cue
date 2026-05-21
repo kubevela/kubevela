@@ -97,7 +97,8 @@ template: {
 			//   - kubernetes.io/dockerconfigjson (key:  .dockerconfigjson)
 			//   - kubernetes.io/tls              (keys: tls.crt, tls.key; optional ca.crt)
 			//   - Opaque                         (keys: username+password OR token,
-			//                                     optionally caFile/certFile/keyFile/insecureSkipTLS)
+			//                                     optionally caFile/certFile/keyFile/insecureSkipTLS,
+			//                                     plus insecurePlainHTTP for OCI sources only)
 			//
 			// Bearer tokens (RFC 6750) are honored only on HTTPS Helm repositories.
 			// They MUST NOT be combined with insecureSkipTLS (RFC 6750 mandates TLS),
@@ -285,7 +286,11 @@ template: {
 				"app.oam.dev/name":      context.appName
 				"app.oam.dev/namespace": context.namespace
 				"app.oam.dev/component": context.name
-				"helm.oam.dev/chart":    parameter.chart.source
+			}
+			// Chart source goes in an annotation because OCI/HTTPS URLs
+			// routinely exceed the 63-character Kubernetes label value limit.
+			annotations: {
+				"helm.oam.dev/chart": parameter.chart.source
 			}
 		}
 		data: {

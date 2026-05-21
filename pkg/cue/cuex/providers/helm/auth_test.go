@@ -368,6 +368,35 @@ var _ = Describe("dispatchOpaqueSecret", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(opts.InsecureSkipTLS).To(BeTrue())
 	})
+
+	It("honors insecurePlainHTTP Opaque key for OCI plain-HTTP", func() {
+		s := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "o", Namespace: "ns"},
+			Data: map[string][]byte{
+				"username":          []byte("u"),
+				"password":          []byte("p"),
+				"insecurePlainHTTP": []byte("true"),
+			},
+		}
+		opts, _, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "oci"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(opts.PlainHTTP).To(BeTrue())
+		Expect(opts.Username).To(Equal("u"))
+		Expect(opts.Password).To(Equal("p"))
+	})
+
+	It("leaves PlainHTTP unset when insecurePlainHTTP is absent", func() {
+		s := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "o", Namespace: "ns"},
+			Data: map[string][]byte{
+				"username": []byte("u"),
+				"password": []byte("p"),
+			},
+		}
+		opts, _, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "oci"})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(opts.PlainHTTP).To(BeFalse())
+	})
 })
 
 var _ = Describe("resolveAuthOptions", func() {

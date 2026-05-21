@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kubevela/pkg/cue/cuex"
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue/cuecontext"
 	cueErrors "cuelang.org/go/cue/errors"
@@ -75,9 +75,11 @@ func ValidateCueTemplate(cueTemplate string) error {
 	return checkError(err)
 }
 
-// ValidateCuexTemplate validate cueTemplate with CueX for types utilising it
+// ValidateCuexTemplate validate cueTemplate with CueX for types utilising it.
+// Uses WorkloadCompiler so that templates referencing internal provider
+// packages (e.g. "vela/helm") parse during admission validation.
 func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
-	val, err := cuex.DefaultCompiler.Get().CompileStringWithOptions(ctx, cueTemplate)
+	val, err := velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx, cueTemplate)
 	if err != nil {
 		return err
 	}

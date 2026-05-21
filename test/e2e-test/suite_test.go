@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -143,17 +142,13 @@ var _ = BeforeSuite(func() {
 	Expect(k8sClient.Create(context.Background(), &adminRoleBinding)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Created cluster role binding for the test service account")
 
-	if os.Getenv("KUBEVELA_E2E_AUTH") == "1" {
-		By("Bringing up auth-test registries")
-		Expect(setupAuthRegistries(context.Background(), k8sClient)).To(Succeed())
+	By("Bringing up auth-test registries")
+	Expect(setupAuthRegistries(context.Background(), k8sClient)).To(Succeed())
 
-		By("Pushing test chart to auth-test registries")
-		cfg, err := authTestRestConfig()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(pushTestChartToRegistries(context.Background(), cfg)).To(Succeed())
-	} else {
-		By("Skipping auth-test registries setup (KUBEVELA_E2E_AUTH not set)")
-	}
+	By("Pushing test chart to auth-test registries")
+	cfg, err := authTestRestConfig()
+	Expect(err).NotTo(HaveOccurred())
+	Expect(pushTestChartToRegistries(context.Background(), cfg)).To(Succeed())
 })
 
 var _ = AfterSuite(func() {
@@ -167,10 +162,8 @@ var _ = AfterSuite(func() {
 	Expect(k8sClient.Delete(context.Background(), &adminRoleBinding)).Should(BeNil())
 	By("Deleted the cluster role binding")
 
-	if os.Getenv("KUBEVELA_E2E_AUTH") == "1" {
-		By("Tearing down auth-test registries")
-		Expect(tearDownAuthRegistries(context.Background(), k8sClient)).To(Succeed())
-	}
+	By("Tearing down auth-test registries")
+	Expect(tearDownAuthRegistries(context.Background(), k8sClient)).To(Succeed())
 })
 
 // RequestReconcileNow will trigger an immediate reconciliation on K8s object.

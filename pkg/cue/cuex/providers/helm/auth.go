@@ -296,6 +296,12 @@ func dispatchOpaqueSecret(s *corev1.Secret, _ authResolveOptions) (*common.HTTPO
 	if v, ok := s.Data["insecureSkipTLS"]; ok && string(v) == "true" {
 		opt.InsecureSkipTLS = true
 	}
+	// insecurePlainHTTP opts the OCI fetcher into plain HTTP instead of TLS.
+	// Honored only on the OCI fetch path; ignored elsewhere. Insecure by
+	// design (no transport encryption); MUST be set explicitly by the user.
+	if v, ok := s.Data["insecurePlainHTTP"]; ok && string(v) == "true" {
+		opt.PlainHTTP = true
+	}
 	return opt, nil, nil
 }
 

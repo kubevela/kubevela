@@ -226,7 +226,11 @@ spec:
         			"app.oam.dev/name":      context.appName
         			"app.oam.dev/namespace": context.namespace
         			"app.oam.dev/component": context.name
-        			"helm.oam.dev/chart":    parameter.chart.source
+        		}
+        		// Chart source goes in an annotation because OCI/HTTPS URLs
+        		// routinely exceed the 63-character Kubernetes label value limit.
+        		annotations: {
+        			"helm.oam.dev/chart": parameter.chart.source
         		}
         	}
         	data: {
