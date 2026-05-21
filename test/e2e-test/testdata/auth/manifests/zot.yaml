@@ -1,0 +1,54 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zot
+  namespace: kubevela-auth-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zot
+  template:
+    metadata:
+      labels:
+        app: zot
+    spec:
+      containers:
+        - name: registry
+          image: docker.io/library/registry:2.8.3
+          env:
+            - name: REGISTRY_AUTH
+              value: htpasswd
+            - name: REGISTRY_AUTH_HTPASSWD_REALM
+              value: kubevela-auth-test
+            - name: REGISTRY_AUTH_HTPASSWD_PATH
+              value: /etc/registry/htpasswd
+            - name: REGISTRY_HTTP_ADDR
+              value: 0.0.0.0:5000
+          ports:
+            - containerPort: 5000
+          volumeMounts:
+            - name: htpasswd
+              mountPath: /etc/registry/htpasswd
+              subPath: htpasswd
+            - name: storage
+              mountPath: /var/lib/registry
+      volumes:
+        - name: htpasswd
+          secret:
+            secretName: registry-htpasswd
+        - name: storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zot
+  namespace: kubevela-auth-test
+spec:
+  selector:
+    app: zot
+  ports:
+    - port: 5000
+      targetPort: 5000

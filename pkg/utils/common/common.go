@@ -102,6 +102,7 @@ func init() {
 type HTTPOption struct {
 	Username        string `json:"username,omitempty"`
 	Password        string `json:"password,omitempty"`
+	BearerToken     string `json:"bearerToken,omitempty"` // RFC 6750. Mutually exclusive with Username/Password.
 	CaFile          string `json:"caFile,omitempty"`
 	CertFile        string `json:"certFile,omitempty"`
 	KeyFile         string `json:"keyFile,omitempty"`
@@ -136,6 +137,14 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 	httpClient := &http.Client{}
 	if opts != nil && len(opts.Username) != 0 && len(opts.Password) != 0 {
 		req.SetBasicAuth(opts.Username, opts.Password)
+	}
+	if opts != nil && opts.BearerToken != "" {
+		if opts.Username != "" || opts.Password != "" {
+			return nil, fmt.Errorf(
+				"HTTPOption sets both basic-auth and a bearer token: " +
+					"at most one credential method MUST be configured (RFC 6750 §2)")
+		}
+		req.Header.Set("Authorization", "Bearer "+opts.BearerToken)
 	}
 	if opts != nil && opts.InsecureSkipTLS {
 		httpClient.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} // nolint

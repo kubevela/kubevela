@@ -91,6 +91,20 @@ e2e-test:
 	ginkgo -v ./test/e2e-test
 	@$(OK) tests pass
 
+# Pre-load auth-test registry images into the k3d cluster used by
+# Describe("Helmchart Auth") in test/e2e-test/helmchart_test.go.
+# Anonymous helmchart scenarios don't need these; only the auth Describe does.
+# Requires the k3d cluster "kubevela-debug" to exist.
+.PHONY: e2e-auth-images-load-local
+e2e-auth-images-load-local:
+	@for img in \
+	  ghcr.io/project-zot/zot-minimal-linux-amd64:v2.1.1 \
+	  ghcr.io/helm/chartmuseum:v0.16.2 \
+	  docker.io/library/nginx:1.27-alpine ; do \
+	    docker pull $$img ; \
+	    k3d image import $$img -c kubevela-debug ; \
+	done
+
 # Run e2e tests with k3d and webhook validation
 .PHONY: e2e-test-local
 e2e-test-local:
@@ -99,6 +113,8 @@ e2e-test-local:
 	# Build and load image
 	docker build -t vela-core:e2e-test -f Dockerfile . --build-arg=VERSION=e2e-test --build-arg=GITVERSION=test
 	k3d image import vela-core:e2e-test -c kubevela-debug
+	# Pre-load auth-test registries used by Describe("Helmchart Auth")
+	@$(MAKE) e2e-auth-images-load-local
 	# Deploy with Helm
 	kubectl delete validatingwebhookconfiguration kubevela-vela-core-admission 2>/dev/null || true
 	helm upgrade --install kubevela ./charts/vela-core \
