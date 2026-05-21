@@ -163,9 +163,8 @@ var _ = Describe("dispatchBasicAuthSecret", func() {
 				corev1.BasicAuthPasswordKey: []byte("wonderland"),
 			},
 		}
-		opts, raw, err := dispatchBasicAuthSecret(s, authResolveOptions{})
+		opts, err := dispatchBasicAuthSecret(s, authResolveOptions{})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(raw).To(BeNil())
 		Expect(opts).To(Equal(&common.HTTPOption{Username: "alice", Password: "wonderland"}))
 	})
 
@@ -175,7 +174,7 @@ var _ = Describe("dispatchBasicAuthSecret", func() {
 			Type:       corev1.SecretTypeBasicAuth,
 			Data:       map[string][]byte{corev1.BasicAuthPasswordKey: []byte("p")},
 		}
-		_, _, err := dispatchBasicAuthSecret(s, authResolveOptions{})
+		_, err := dispatchBasicAuthSecret(s, authResolveOptions{})
 		Expect(err).To(MatchError(ContainSubstring(`MUST contain key "username"`)))
 	})
 
@@ -185,7 +184,7 @@ var _ = Describe("dispatchBasicAuthSecret", func() {
 			Type:       corev1.SecretTypeBasicAuth,
 			Data:       map[string][]byte{corev1.BasicAuthUsernameKey: []byte("u")},
 		}
-		_, _, err := dispatchBasicAuthSecret(s, authResolveOptions{})
+		_, err := dispatchBasicAuthSecret(s, authResolveOptions{})
 		Expect(err).To(MatchError(ContainSubstring(`MUST contain key "password"`)))
 	})
 
@@ -198,7 +197,7 @@ var _ = Describe("dispatchBasicAuthSecret", func() {
 				corev1.BasicAuthPasswordKey: []byte("p"),
 			},
 		}
-		_, _, err := dispatchBasicAuthSecret(s, authResolveOptions{})
+		_, err := dispatchBasicAuthSecret(s, authResolveOptions{})
 		Expect(err).To(MatchError(ContainSubstring(`RFC 7617 §2`)))
 	})
 })
@@ -272,7 +271,7 @@ var _ = Describe("dispatchTLSSecret", func() {
 			Type:       corev1.SecretTypeTLS,
 			Data:       map[string][]byte{corev1.TLSCertKey: crt, corev1.TLSPrivateKeyKey: key},
 		}
-		opts, _, err := dispatchTLSSecret(s, authResolveOptions{})
+		opts, err := dispatchTLSSecret(s, authResolveOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(opts.CertFile).To(Equal(string(crt)))
 		Expect(opts.KeyFile).To(Equal(string(key)))
@@ -285,7 +284,7 @@ var _ = Describe("dispatchTLSSecret", func() {
 			Type:       corev1.SecretTypeTLS,
 			Data:       map[string][]byte{corev1.TLSCertKey: crt, corev1.TLSPrivateKeyKey: key, "ca.crt": ca},
 		}
-		opts, _, err := dispatchTLSSecret(s, authResolveOptions{})
+		opts, err := dispatchTLSSecret(s, authResolveOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(opts.CaFile).To(Equal(string(ca)))
 	})
@@ -296,7 +295,7 @@ var _ = Describe("dispatchTLSSecret", func() {
 			Type:       corev1.SecretTypeTLS,
 			Data:       map[string][]byte{corev1.TLSPrivateKeyKey: key},
 		}
-		_, _, err := dispatchTLSSecret(s, authResolveOptions{})
+		_, err := dispatchTLSSecret(s, authResolveOptions{})
 		Expect(err).To(MatchError(ContainSubstring(`MUST contain key "tls.crt"`)))
 	})
 
@@ -306,7 +305,7 @@ var _ = Describe("dispatchTLSSecret", func() {
 			Type:       corev1.SecretTypeTLS,
 			Data:       map[string][]byte{corev1.TLSCertKey: crt},
 		}
-		_, _, err := dispatchTLSSecret(s, authResolveOptions{})
+		_, err := dispatchTLSSecret(s, authResolveOptions{})
 		Expect(err).To(MatchError(ContainSubstring(`MUST contain key "tls.key"`)))
 	})
 })
@@ -317,7 +316,7 @@ var _ = Describe("dispatchOpaqueSecret", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "o", Namespace: "ns"},
 			Data: map[string][]byte{"username": []byte("alice"), "password": []byte("wonderland")},
 		}
-		opts, _, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "https"})
+		opts, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "https"})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(opts).To(Equal(&common.HTTPOption{Username: "alice", Password: "wonderland"}))
 	})
@@ -327,7 +326,7 @@ var _ = Describe("dispatchOpaqueSecret", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "o", Namespace: "ns"},
 			Data: map[string][]byte{"token": []byte("abcDEF123")},
 		}
-		opts, _, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "https"})
+		opts, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "https"})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(opts).To(Equal(&common.HTTPOption{BearerToken: "abcDEF123"}))
 	})
@@ -337,7 +336,7 @@ var _ = Describe("dispatchOpaqueSecret", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "o", Namespace: "ns"},
 			Data: map[string][]byte{"username": []byte("u"), "password": []byte("p"), "token": []byte("t")},
 		}
-		_, _, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "https"})
+		_, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "https"})
 		Expect(err).To(MatchError(ContainSubstring(`at most one credential method MUST be configured per Secret (RFC 6750 §2)`)))
 	})
 
@@ -350,7 +349,7 @@ var _ = Describe("dispatchOpaqueSecret", func() {
 				"caFile":   []byte("CA"),
 			},
 		}
-		opts, _, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "https"})
+		opts, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "https"})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(opts).To(Equal(&common.HTTPOption{CertFile: "CRT", KeyFile: "KEY", CaFile: "CA"}))
 	})
@@ -364,7 +363,7 @@ var _ = Describe("dispatchOpaqueSecret", func() {
 				"insecureSkipTLS": []byte("true"),
 			},
 		}
-		opts, _, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "https"})
+		opts, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "https"})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(opts.InsecureSkipTLS).To(BeTrue())
 	})
@@ -378,7 +377,7 @@ var _ = Describe("dispatchOpaqueSecret", func() {
 				"insecurePlainHTTP": []byte("true"),
 			},
 		}
-		opts, _, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "oci"})
+		opts, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "oci"})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(opts.PlainHTTP).To(BeTrue())
 		Expect(opts.Username).To(Equal("u"))
@@ -393,7 +392,7 @@ var _ = Describe("dispatchOpaqueSecret", func() {
 				"password": []byte("p"),
 			},
 		}
-		opts, _, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "oci"})
+		opts, err := dispatchOpaqueSecret(s, authResolveOptions{SourceScheme: "oci"})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(opts.PlainHTTP).To(BeFalse())
 	})

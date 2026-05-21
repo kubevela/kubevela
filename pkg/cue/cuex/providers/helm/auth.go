@@ -177,21 +177,23 @@ func validateBearerTransport(scheme string, insecureSkipTLS bool, sourceURL, ns,
 }
 
 // dispatchBasicAuthSecret handles secrets of type kubernetes.io/basic-auth.
-func dispatchBasicAuthSecret(s *corev1.Secret, _ authResolveOptions) (*common.HTTPOption, []byte, error) {
+// Only the dockerconfigjson dispatcher returns a non-nil raw config blob; the
+// other Secret-type dispatchers communicate everything via *common.HTTPOption.
+func dispatchBasicAuthSecret(s *corev1.Secret, _ authResolveOptions) (*common.HTTPOption, error) {
 	user, ok := s.Data[corev1.BasicAuthUsernameKey]
 	if !ok {
-		return nil, nil, fmt.Errorf(`auth secret "%s/%s" of type %q MUST contain key "username"`,
+		return nil, fmt.Errorf(`auth secret "%s/%s" of type %q MUST contain key "username"`,
 			s.Namespace, s.Name, s.Type)
 	}
 	pass, ok := s.Data[corev1.BasicAuthPasswordKey]
 	if !ok {
-		return nil, nil, fmt.Errorf(`auth secret "%s/%s" of type %q MUST contain key "password"`,
+		return nil, fmt.Errorf(`auth secret "%s/%s" of type %q MUST contain key "password"`,
 			s.Namespace, s.Name, s.Type)
 	}
 	if err := validateBasicCredentials(string(user), string(pass), s.Namespace, s.Name); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return &common.HTTPOption{Username: string(user), Password: string(pass)}, nil, nil
+	return &common.HTTPOption{Username: string(user), Password: string(pass)}, nil
 }
 
 type dockerConfigJSON struct {
@@ -232,16 +234,16 @@ func dispatchDockerConfigJSONSecret(s *corev1.Secret, opts authResolveOptions) (
 	return httpOpt, nil, nil
 }
 
-func dispatchTLSSecret(s *corev1.Secret, _ authResolveOptions) (*common.HTTPOption, []byte, error) {
+func dispatchTLSSecret(s *corev1.Secret, _ authResolveOptions) (*common.HTTPOption, error) {
 	crt, ok := s.Data[corev1.TLSCertKey]
 	if !ok {
-		return nil, nil, fmt.Errorf(
+		return nil, fmt.Errorf(
 			`auth secret "%s/%s" of type %q MUST contain key %q`,
 			s.Namespace, s.Name, s.Type, corev1.TLSCertKey)
 	}
 	key, ok := s.Data[corev1.TLSPrivateKeyKey]
 	if !ok {
-		return nil, nil, fmt.Errorf(
+		return nil, fmt.Errorf(
 			`auth secret "%s/%s" of type %q MUST contain key %q`,
 			s.Namespace, s.Name, s.Type, corev1.TLSPrivateKeyKey)
 	}
@@ -249,10 +251,10 @@ func dispatchTLSSecret(s *corev1.Secret, _ authResolveOptions) (*common.HTTPOpti
 	if ca, ok := s.Data["ca.crt"]; ok {
 		opt.CaFile = string(ca)
 	}
-	return opt, nil, nil
+	return opt, nil
 }
 
-func dispatchOpaqueSecret(s *corev1.Secret, _ authResolveOptions) (*common.HTTPOption, []byte, error) {
+func dispatchOpaqueSecret(s *corev1.Secret, _ authResolveOptions) (*common.HTTPOption, error) {
 	opt := &common.HTTPOption{}
 
 	hasUser := len(s.Data["username"]) > 0
@@ -260,7 +262,7 @@ func dispatchOpaqueSecret(s *corev1.Secret, _ authResolveOptions) (*common.HTTPO
 	hasToken := len(s.Data["token"]) > 0
 
 	if hasToken && (hasUser || hasPass) {
-		return nil, nil, fmt.Errorf(
+		return nil, fmt.Errorf(
 			`auth secret "%s/%s" sets both basic-auth keys and a token: at most one credential method MUST be configured per Secret (RFC 6750 §2)`,
 			s.Namespace, s.Name)
 	}
@@ -269,7 +271,7 @@ func dispatchOpaqueSecret(s *corev1.Secret, _ authResolveOptions) (*common.HTTPO
 		u := string(s.Data["username"])
 		p := string(s.Data["password"])
 		if err := validateBasicCredentials(u, p, s.Namespace, s.Name); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		opt.Username = u
 		opt.Password = p
@@ -277,7 +279,7 @@ func dispatchOpaqueSecret(s *corev1.Secret, _ authResolveOptions) (*common.HTTPO
 	if hasToken {
 		t := string(s.Data["token"])
 		if err := validateBearerToken(t, s.Namespace, s.Name); err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		opt.BearerToken = t
 	}
@@ -302,7 +304,7 @@ func dispatchOpaqueSecret(s *corev1.Secret, _ authResolveOptions) (*common.HTTPO
 	if v, ok := s.Data["insecurePlainHTTP"]; ok && string(v) == "true" {
 		opt.PlainHTTP = true
 	}
-	return opt, nil, nil
+	return opt, nil
 }
 
 func firstNonEmpty(m map[string][]byte, keys ...string) (string, bool) {
@@ -342,13 +344,13 @@ func resolveAuthOptions(ctx context.Context, k8s client.Client, ref *secretRef, 
 	)
 	switch s.Type {
 	case corev1.SecretTypeBasicAuth:
-		httpOpt, rawCfg, err = dispatchBasicAuthSecret(s, opts)
+		httpOpt, err = dispatchBasicAuthSecret(s, opts)
 	case corev1.SecretTypeDockerConfigJson:
 		httpOpt, rawCfg, err = dispatchDockerConfigJSONSecret(s, opts)
 	case corev1.SecretTypeTLS:
-		httpOpt, rawCfg, err = dispatchTLSSecret(s, opts)
+		httpOpt, err = dispatchTLSSecret(s, opts)
 	case corev1.SecretTypeOpaque, "":
-		httpOpt, rawCfg, err = dispatchOpaqueSecret(s, opts)
+		httpOpt, err = dispatchOpaqueSecret(s, opts)
 	default:
 		return nil, nil, fmt.Errorf(
 			`auth secret "%s/%s" has unsupported type %q: it MUST be one of kubernetes.io/basic-auth, kubernetes.io/dockerconfigjson, kubernetes.io/tls, or Opaque`,
