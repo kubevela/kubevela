@@ -316,7 +316,7 @@ metadata:
   annotations:
     helm.sh/hook: test-success
 `
-			resources, err := p.parseManifestResources(manifest, nil)
+			resources, err := p.parseManifestResources(manifest, nil, "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resources).To(HaveLen(2))
 
@@ -344,7 +344,7 @@ metadata:
     helm.sh/hook: test-success
 `
 			skipFalse := false
-			resources, err := p.parseManifestResources(manifest, &RenderOptionsParams{SkipTests: &skipFalse})
+			resources, err := p.parseManifestResources(manifest, &RenderOptionsParams{SkipTests: &skipFalse}, "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resources).To(HaveLen(2))
 		})
@@ -366,7 +366,7 @@ kind: Namespace
 metadata:
   name: my-ns
 `
-			resources, err := p.parseManifestResources(manifest, nil)
+			resources, err := p.parseManifestResources(manifest, nil, "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resources).To(HaveLen(3))
 
@@ -376,6 +376,69 @@ metadata:
 			Expect(kind0).To(Equal("CustomResourceDefinition"))
 			Expect(kind1).To(Equal("Namespace"))
 			Expect(kind2).To(Equal("Deployment"))
+		})
+
+		It("defaults metadata.namespace to releaseNamespace for namespaced resources", func() {
+			p := NewProvider()
+			manifest := `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+spec: {replicas: 1}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: widgets.example.com
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: app-reader
+`
+			resources, err := p.parseManifestResources(manifest, nil, "stress-s2")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resources).To(HaveLen(4))
+
+			byKind := map[string]map[string]interface{}{}
+			for _, r := range resources {
+				k, _, _ := unstructured.NestedString(r, "kind")
+				byKind[k] = r
+			}
+
+			depNs, _, _ := unstructured.NestedString(byKind["Deployment"], "metadata", "namespace")
+			Expect(depNs).To(Equal("stress-s2"))
+			svcNs, _, _ := unstructured.NestedString(byKind["Service"], "metadata", "namespace")
+			Expect(svcNs).To(Equal("stress-s2"))
+
+			// Cluster-scoped kinds must NOT be patched with a namespace.
+			_, crdHasNs, _ := unstructured.NestedString(byKind["CustomResourceDefinition"], "metadata", "namespace")
+			Expect(crdHasNs).To(BeFalse())
+			_, crHasNs, _ := unstructured.NestedString(byKind["ClusterRole"], "metadata", "namespace")
+			Expect(crHasNs).To(BeFalse())
+		})
+
+		It("leaves explicit metadata.namespace untouched", func() {
+			p := NewProvider()
+			manifest := `
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: explicit-ns
+spec: {replicas: 1}
+`
+			resources, err := p.parseManifestResources(manifest, nil, "release-ns")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resources).To(HaveLen(1))
+			ns, _, _ := unstructured.NestedString(resources[0], "metadata", "namespace")
+			Expect(ns).To(Equal("explicit-ns"))
 		})
 	})
 
@@ -1217,13 +1280,13 @@ spec:
 		})
 
 		It("should fail for unsupported source type", func() {
-			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "test"}, "unknown")
+			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "test"}, "unknown", "", "")
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("unsupported chart source type"))
 		})
 
 		It("should fail for repo without repoURL", func() {
-			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "nginx"}, "repo")
+			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "nginx"}, "repo", "", "")
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("repoURL is required"))
 		})
@@ -1338,7 +1401,7 @@ spec:
 
 			result, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "nginx", Version: "1.0.0"},
-				nil)
+				nil, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("cached-chart"))
 		})
@@ -1353,7 +1416,7 @@ spec:
 
 			result, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "myapp", Version: "2.0.0"},
-				&RenderOptionsParams{Cache: &CacheParams{Key: "my-prefix"}})
+				&RenderOptionsParams{Cache: &CacheParams{Key: "my-prefix"}}, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("custom-cached"))
 		})
@@ -1363,7 +1426,7 @@ spec:
 			// which will fail since there's no real repo, but the code path is exercised
 			_, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "nginx"},
-				&RenderOptionsParams{Cache: &CacheParams{TTL: "0"}})
+				&RenderOptionsParams{Cache: &CacheParams{TTL: "0"}}, "", "")
 			Expect(err).Should(HaveOccurred())
 			// The error should come from fetchChartWithoutCache, not from cache logic
 			Expect(err.Error()).To(ContainSubstring("repoURL is required"))
@@ -1380,7 +1443,7 @@ spec:
 
 			result, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "oci://ghcr.io/example/chart", Version: "3.0.0"},
-				nil)
+				nil, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("oci-chart"))
 		})
@@ -1396,7 +1459,7 @@ spec:
 
 			result, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "https://example.com/chart.tgz", Version: "1.0.0"},
-				nil)
+				nil, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("url-chart"))
 		})
@@ -1574,7 +1637,7 @@ spec:
 			_ = notes
 
 			// Parse the manifest
-			resources, err := p.parseManifestResources(manifest, nil)
+			resources, err := p.parseManifestResources(manifest, nil, "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resources).To(HaveLen(1))
 
@@ -2041,7 +2104,7 @@ entries:
 				Source:  "test-repo-chart",
 				RepoURL: server.URL,
 				Version: "1.0.0",
-			})
+			}, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch).ToNot(BeNil())
 			Expect(ch.Metadata.Name).To(Equal("test-repo-chart"))
@@ -2074,7 +2137,7 @@ entries:
 			ch, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
 				Source:  "no-ver-chart",
 				RepoURL: server.URL,
-			})
+			}, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch.Metadata.Name).To(Equal("no-ver-chart"))
 		})
@@ -2096,7 +2159,7 @@ entries:
 			_, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
 				Source:  "missing-chart",
 				RepoURL: server.URL,
-			})
+			}, "", "")
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found in repository"))
 		})
@@ -2119,7 +2182,7 @@ entries:
 				Source:  "my-chart",
 				RepoURL: server.URL,
 				Version: "99.0.0",
-			})
+			}, "", "")
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
@@ -2134,7 +2197,7 @@ entries:
 			_, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
 				Source:  "test",
 				RepoURL: server.URL,
-			})
+			}, "", "")
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to parse repository index"))
 		})
@@ -2156,7 +2219,7 @@ entries:
 				Source:  "empty-urls",
 				RepoURL: server.URL,
 				Version: "1.0.0",
-			})
+			}, "", "")
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("no download URL found"))
 		})
@@ -2179,7 +2242,7 @@ entries:
 			p := NewProviderWithConfig(nil)
 			ch, err := p.fetchURLChart(context.Background(), &ChartSourceParams{
 				Source: server.URL + "/url-chart-2.0.0.tgz",
-			})
+			}, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch).ToNot(BeNil())
 			Expect(ch.Metadata.Name).To(Equal("url-chart"))
@@ -2190,7 +2253,7 @@ entries:
 			p := NewProviderWithConfig(nil)
 			_, err := p.fetchURLChart(context.Background(), &ChartSourceParams{
 				Source: "http://127.0.0.1:1/nonexistent.tgz",
-			})
+			}, "", "")
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to download chart"))
 		})
@@ -2228,7 +2291,7 @@ entries:
 				Source:  "cache-miss",
 				RepoURL: server.URL,
 				Version: "1.0.0",
-			}, nil)
+			}, nil, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch.Metadata.Name).To(Equal("cache-miss"))
 
@@ -2249,9 +2312,64 @@ entries:
 			ch, err := p.fetchChart(context.Background(), &ChartSourceParams{
 				Source:  server.URL + "/url-cache-1.0.0.tgz",
 				Version: "1.0.0",
-			}, nil)
+			}, nil, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch.Metadata.Name).To(Equal("url-cache"))
+		})
+
+		It("re-runs the auth resolver on a cache hit when the source declares auth.secretRef", func() {
+			// Pre-warm the cache with a chart that was previously fetched
+			// without auth, then make a follow-up request that references
+			// a missing Secret. The resolver must fail rather than letting
+			// the cached chart bytes paper over a missing/invalid Secret.
+			chartArchive := createMinimalChartArchive("auth-cache", "1.0.0")
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/index.yaml":
+					_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  auth-cache:
+    - name: auth-cache
+      version: 1.0.0
+      urls:
+        - auth-cache-1.0.0.tgz
+`))
+				case "/auth-cache-1.0.0.tgz":
+					_, _ = w.Write(chartArchive)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			c := fake.NewClientBuilder().WithScheme(scheme).Build()
+			origKube := singleton.KubeClient.Get()
+			singleton.KubeClient.Set(c)
+			defer singleton.KubeClient.Set(origKube)
+
+			p := NewProviderWithConfig(nil)
+			// First call: no auth, populates the cache.
+			_, err := p.fetchChart(context.Background(), &ChartSourceParams{
+				Source:  "auth-cache",
+				RepoURL: server.URL,
+				Version: "1.0.0",
+			}, nil, "ns-app", "ns-rel")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// Second call: same source/version (cache hit), but with an
+			// auth.secretRef pointing at a Secret that does not exist.
+			_, err = p.fetchChart(context.Background(), &ChartSourceParams{
+				Source:  "auth-cache",
+				RepoURL: server.URL,
+				Version: "1.0.0",
+				Auth: &AuthParams{
+					SecretRef: &SecretRefParams{Name: "missing-secret"},
+				},
+			}, nil, "ns-app", "ns-rel")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("missing-secret"))
 		})
 	})
 
@@ -2317,3 +2435,135 @@ data:
 
 	return buf.Bytes()
 }
+
+var _ = Describe("fetchURLChart with auth", func() {
+	var (
+		scheme         *runtime.Scheme
+		origKubeClient client.Client
+	)
+	BeforeEach(func() {
+		scheme = runtime.NewScheme()
+		Expect(corev1.AddToScheme(scheme)).To(Succeed())
+		// Capture the package-global KubeClient so the per-spec
+		// singleton.KubeClient.Set() calls below cannot leak fake
+		// clients into later tests in this package.
+		origKubeClient = singleton.KubeClient.Get()
+	})
+	AfterEach(func() {
+		singleton.KubeClient.Set(origKubeClient)
+	})
+
+	It("sends Authorization: Basic when params.Auth references a basic-auth Secret", func() {
+		var gotAuth string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotAuth = r.Header.Get("Authorization")
+			tgz := createMinimalChartArchive("auth-chart", "1.0.0")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(tgz)
+		}))
+		defer server.Close()
+
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+			Type:       corev1.SecretTypeBasicAuth,
+			Data:       map[string][]byte{corev1.BasicAuthUsernameKey: []byte("alice"), corev1.BasicAuthPasswordKey: []byte("wonderland")},
+		}
+		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build())
+
+		p := NewProvider()
+		params := &ChartSourceParams{
+			Source: server.URL + "/x.tgz",
+			Auth:   &AuthParams{SecretRef: &SecretRefParams{Name: "creds"}},
+		}
+		_, err := p.fetchURLChart(context.Background(), params, "app-ns", "rel-ns")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(gotAuth).To(HavePrefix("Basic "))
+	})
+})
+
+var _ = Describe("fetchRepoChart with auth", func() {
+	var (
+		scheme         *runtime.Scheme
+		origKubeClient client.Client
+	)
+	BeforeEach(func() {
+		scheme = runtime.NewScheme()
+		Expect(corev1.AddToScheme(scheme)).To(Succeed())
+		origKubeClient = singleton.KubeClient.Get()
+	})
+	AfterEach(func() {
+		singleton.KubeClient.Set(origKubeClient)
+	})
+
+	It("authenticates both index.yaml and chart-tarball fetches", func() {
+		var indexAuth, chartAuth string
+		var server *httptest.Server
+		server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/index.yaml" {
+				indexAuth = r.Header.Get("Authorization")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  podinfo:
+  - name: podinfo
+    version: 1.0.0
+    urls:
+    - ` + server.URL + `/podinfo-1.0.0.tgz
+`))
+				return
+			}
+			if r.URL.Path == "/podinfo-1.0.0.tgz" {
+				chartAuth = r.Header.Get("Authorization")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(createMinimalChartArchive("podinfo", "1.0.0"))
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer server.Close()
+
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+			Type:       corev1.SecretTypeBasicAuth,
+			Data:       map[string][]byte{corev1.BasicAuthUsernameKey: []byte("u"), corev1.BasicAuthPasswordKey: []byte("p")},
+		}
+		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build())
+
+		p := NewProvider()
+		params := &ChartSourceParams{
+			Source:  "podinfo",
+			RepoURL: server.URL,
+			Version: "1.0.0",
+			Auth:    &AuthParams{SecretRef: &SecretRefParams{Name: "creds"}},
+		}
+		_, err := p.fetchRepoChart(context.Background(), params, "app-ns", "rel-ns")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(indexAuth).To(HavePrefix("Basic "))
+		Expect(chartAuth).To(HavePrefix("Basic "))
+		Expect(indexAuth).To(Equal(chartAuth))
+	})
+})
+
+var _ = Describe("fetchOCIChart with auth", func() {
+	var scheme *runtime.Scheme
+	BeforeEach(func() {
+		scheme = runtime.NewScheme()
+		Expect(corev1.AddToScheme(scheme)).To(Succeed())
+	})
+
+	It("rejects a user-supplied bearer token on an OCI source", func() {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "t", Namespace: "rel-ns"},
+			Data:       map[string][]byte{"token": []byte("abc.def.ghi")},
+		}
+		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build())
+
+		p := NewProvider()
+		params := &ChartSourceParams{
+			Source: "oci://ghcr.io/foo/podinfo",
+			Auth:   &AuthParams{SecretRef: &SecretRefParams{Name: "t"}},
+		}
+		_, err := p.fetchOCIChart(context.Background(), params, "app-ns", "rel-ns")
+		Expect(err).To(MatchError(ContainSubstring(`user-supplied bearer tokens MUST NOT be used with OCI sources`)))
+	})
+})

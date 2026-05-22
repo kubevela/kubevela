@@ -90,14 +90,39 @@ template: {
 			// Version/tag for repository and OCI charts (ignored for direct URLs)
 			version?: string | *"latest"
 
-			// Authentication (optional) - TODO: Not yet implemented
-			// auth?: {
-			// 	// Reference to Secret containing credentials
-			// 	secretRef?: {
-			// 		name: string
-			// 		namespace?: string | *context.namespace
-			// 	}
-			// }
+			// Authentication for private chart repositories.
+			//
+			// The referenced Secret MUST be one of:
+			//   - kubernetes.io/basic-auth       (keys: username, password)
+			//   - kubernetes.io/dockerconfigjson (key:  .dockerconfigjson)
+			//   - kubernetes.io/tls              (keys: tls.crt, tls.key; optional ca.crt)
+			//   - Opaque                         (keys: username+password OR token,
+			//                                     optionally caFile/certFile/keyFile/insecureSkipTLS,
+			//                                     plus insecurePlainHTTP for OCI sources only)
+			//
+			// Bearer tokens (RFC 6750) are honored on any HTTPS chart source
+			// (Helm repositories and direct .tgz URLs).
+			// They MUST NOT be combined with insecureSkipTLS (RFC 6750 mandates TLS),
+			// MUST NOT be set alongside basic-auth keys in the same Secret, and
+			// MUST NOT be used with OCI sources (the registry performs its own
+			// Basic->Bearer exchange per the OCI Distribution Spec).
+			//
+			// Token values are passed opaquely per RFC 7519; KubeVela does not
+			// decode, validate, or inspect JWT structure or claims. Token freshness,
+			// audience, and revocation remain the user's responsibility.
+			//
+			// The Secret MUST live in either the release namespace or the
+			// Application namespace. Cross-namespace references are rejected
+			// (mirrors the valuesFrom policy).
+			auth?: {
+				// Reference to a Kubernetes Secret containing credentials.
+				secretRef?: {
+					// Secret name.
+					name: string
+					// Secret namespace. MAY be omitted (defaults to the release namespace).
+					namespace?: string
+				}
+			}
 		}
 
 		// Release configuration (optional - uses context defaults)
@@ -262,7 +287,21 @@ template: {
 				"app.oam.dev/name":      context.appName
 				"app.oam.dev/namespace": context.namespace
 				"app.oam.dev/component": context.name
-				"helm.oam.dev/chart":    parameter.chart.source
+				// Preserve `helm.oam.dev/chart` as a label for selector
+				// compatibility, but only when the source is a valid
+				// Kubernetes label value (1-63 chars, alphanumeric +
+				// `.-_`, starting and ending alphanumeric). OCI/HTTPS
+				// URLs contain `://` and `/`, which are not legal in a
+				// label value; for those sources the value lives only
+				// in the annotation below.
+				if parameter.chart.source =~ "^[A-Za-z0-9]([A-Za-z0-9._-]{0,61}[A-Za-z0-9])?$" {
+					"helm.oam.dev/chart": parameter.chart.source
+				}
+			}
+			// Always carries the full chart source, including URLs that
+			// exceed the label value limit or contain reserved characters.
+			annotations: {
+				"helm.oam.dev/chart": parameter.chart.source
 			}
 		}
 		data: {
