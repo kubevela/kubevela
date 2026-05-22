@@ -41,8 +41,10 @@ import (
 	"helm.sh/helm/v3/pkg/repo"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
@@ -331,10 +333,23 @@ func isMutableVersion(version string) bool {
 }
 
 // fetchChart fetches a Helm chart from the specified source
-func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, options *RenderOptionsParams) (*chart.Chart, error) {
+func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, options *RenderOptionsParams, appNamespace, releaseNamespace string) (*chart.Chart, error) {
 	sourceType := detectChartSourceType(params.Source)
 
-	// Build cache key: <cache_key_prefix>/<source_type>/<source>/<version>
+	// When the source declares auth.secretRef, the cache key is bound to a
+	// hash of the resolved Secret data. Rotating the Secret (or creating a
+	// new Application that points at a different Secret) invalidates the
+	// cache automatically and forces a fresh registry call that exercises
+	// the new credentials at the wire. Without this binding, cached chart
+	// bytes pulled by an earlier authorized request would be served to a
+	// subsequent request whose Secret no longer authenticates against the
+	// registry — a real auth bypass for the cache TTL window.
+	authTag, err := computeAuthCacheTag(ctx, params, appNamespace, releaseNamespace)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build cache key: <cache_key_prefix>/<source_type>/<source>/<version>[/auth-<tag>]
 	var cacheKey string
 	if options != nil && options.Cache != nil && options.Cache.Key != "" {
 		// User provided cache key
@@ -350,16 +365,29 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 			strings.ReplaceAll(strings.ReplaceAll(params.Source, "://", "-"), "/", "-"),
 			params.Version)
 	}
+	if authTag != "" {
+		cacheKey = cacheKey + "/auth-" + authTag
+	}
 
 	// Check if caching is disabled
 	if options != nil && options.Cache != nil && options.Cache.TTL == "0" {
 		klog.V(4).Info("Cache disabled for this chart")
-		return p.fetchChartWithoutCache(ctx, params, sourceType)
+		return p.fetchChartWithoutCache(ctx, params, sourceType, appNamespace, releaseNamespace)
 	}
 
-	// Check if we have a cached chart
+	// Check if we have a cached chart. The auth-bound cache key above is
+	// the primary guard against stale credentials. The explicit resolver
+	// re-check below remains as a belt-and-suspenders measure: it catches
+	// a missing or malformed Secret immediately, with the same RFC-cited
+	// errors the cache-miss path would surface, instead of returning a
+	// confusing cache-hit chart for a misconfigured request.
 	if cached := p.cache.Get(cacheKey); cached != nil {
 		if ch, ok := cached.(*chart.Chart); ok {
+			if params.Auth != nil && params.Auth.SecretRef != nil {
+				if _, _, err := resolveHTTPOptions(ctx, params, appNamespace, releaseNamespace, sourceType); err != nil {
+					return nil, err
+				}
+			}
 			klog.V(3).Infof("Using cached chart with key: %s", cacheKey)
 			return ch, nil
 		}
@@ -367,7 +395,7 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 
 	klog.V(4).Infof("Cache miss for key: %s, fetching chart", cacheKey)
 
-	ch, err := p.fetchChartWithoutCache(ctx, params, sourceType)
+	ch, err := p.fetchChartWithoutCache(ctx, params, sourceType, appNamespace, releaseNamespace)
 	if err != nil {
 		return nil, err
 	}
@@ -385,14 +413,14 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 }
 
 // fetchChartWithoutCache fetches a chart without using cache
-func (p *Provider) fetchChartWithoutCache(ctx context.Context, params *ChartSourceParams, sourceType string) (*chart.Chart, error) {
+func (p *Provider) fetchChartWithoutCache(ctx context.Context, params *ChartSourceParams, sourceType string, appNamespace, releaseNamespace string) (*chart.Chart, error) {
 	switch sourceType {
 	case "oci":
-		return p.fetchOCIChart(ctx, params)
+		return p.fetchOCIChart(ctx, params, appNamespace, releaseNamespace)
 	case "url":
-		return p.fetchURLChart(ctx, params)
+		return p.fetchURLChart(ctx, params, appNamespace, releaseNamespace)
 	case "repo":
-		return p.fetchRepoChart(ctx, params)
+		return p.fetchRepoChart(ctx, params, appNamespace, releaseNamespace)
 	default:
 		return nil, fmt.Errorf("unsupported chart source type: %s", sourceType)
 	}
@@ -444,88 +472,98 @@ func (p *Provider) determineCacheTTL(version string, options *RenderOptionsParam
 	return p.cacheTTL.ImmutableVersionTTL
 }
 
-// fetchOCIChart fetches a chart from an OCI registry
-func (p *Provider) fetchOCIChart(_ context.Context, params *ChartSourceParams) (*chart.Chart, error) {
-	registryClient, err := registry.NewClient()
+// fetchOCIChart fetches a chart from an OCI registry.
+func (p *Provider) fetchOCIChart(ctx context.Context, params *ChartSourceParams, appNamespace, releaseNamespace string) (*chart.Chart, error) {
+	httpOpts, rawDockerCfg, err := resolveHTTPOptions(ctx, params, appNamespace, releaseNamespace, sourceTypeOCI)
+	if err != nil {
+		return nil, errors.Wrap(err, "auth resolution failed")
+	}
+
+	clientOpts := []registry.ClientOption{}
+	if httpOpts != nil || rawDockerCfg != nil {
+		host := extractRegistryHost(params.Source, params.RepoURL)
+		credFile, cleanup, werr := writeOCIRegistryConfigFile(httpOpts, rawDockerCfg, host)
+		if werr != nil {
+			return nil, errors.Wrap(werr, "failed to materialize OCI credentials file")
+		}
+		defer cleanup()
+		clientOpts = append(clientOpts, registry.ClientOptCredentialsFile(credFile))
+	}
+	if httpOpts != nil && httpOpts.PlainHTTP {
+		clientOpts = append(clientOpts, registry.ClientOptPlainHTTP())
+	}
+
+	registryClient, err := registry.NewClient(clientOpts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create OCI registry client")
 	}
 
-	// Remove oci:// prefix
 	ref := strings.TrimPrefix(params.Source, "oci://")
 	if params.Version != "" {
 		ref = fmt.Sprintf("%s:%s", ref, params.Version)
 	}
-
-	// Pull the chart
 	result, err := registryClient.Pull(ref)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to pull OCI chart %s", ref)
 	}
-
-	ch, err := loader.LoadArchive(bytes.NewReader(result.Chart.Data))
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to load OCI chart")
-	}
-
-	return ch, nil
+	return loader.LoadArchive(bytes.NewReader(result.Chart.Data))
 }
 
-// fetchURLChart fetches a chart from a direct URL
-func (p *Provider) fetchURLChart(ctx context.Context, params *ChartSourceParams) (*chart.Chart, error) {
-	// Create HTTP client with options
-	opts := &common.HTTPOption{}
-	// TODO: Add authentication support from params.Auth
+// fetchURLChart fetches a chart from a direct URL.
+func (p *Provider) fetchURLChart(ctx context.Context, params *ChartSourceParams, appNamespace, releaseNamespace string) (*chart.Chart, error) {
+	httpOpts, _, err := resolveHTTPOptions(ctx, params, appNamespace, releaseNamespace, sourceTypeURL)
+	if err != nil {
+		return nil, errors.Wrap(err, "auth resolution failed")
+	}
+	if httpOpts == nil {
+		httpOpts = &common.HTTPOption{}
+	}
 
-	chartBytes, err := common.HTTPGetWithOption(ctx, params.Source, opts)
+	chartBytes, err := common.HTTPGetWithOption(ctx, params.Source, httpOpts)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to download chart from %s", params.Source)
 	}
-
 	ch, err := loader.LoadArchive(bytes.NewReader(chartBytes))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load chart archive")
 	}
-
 	return ch, nil
 }
 
-// fetchRepoChart fetches a chart from a Helm repository
-func (p *Provider) fetchRepoChart(ctx context.Context, params *ChartSourceParams) (*chart.Chart, error) {
+// fetchRepoChart fetches a chart from a Helm repository.
+func (p *Provider) fetchRepoChart(ctx context.Context, params *ChartSourceParams, appNamespace, releaseNamespace string) (*chart.Chart, error) {
 	if params.RepoURL == "" {
 		return nil, fmt.Errorf("repoURL is required for repository-based charts")
 	}
 
-	// First, fetch the repository index to find the chart
-	indexURL := fmt.Sprintf("%s/index.yaml", params.RepoURL)
+	httpOpts, _, err := resolveHTTPOptions(ctx, params, appNamespace, releaseNamespace, sourceTypeRepo)
+	if err != nil {
+		return nil, errors.Wrap(err, "auth resolution failed")
+	}
+	if httpOpts == nil {
+		httpOpts = &common.HTTPOption{}
+	}
 
-	// Use HTTP client to fetch index
-	indexBytes, err := common.HTTPGetWithOption(ctx, indexURL, &common.HTTPOption{})
+	indexURL := fmt.Sprintf("%s/index.yaml", params.RepoURL)
+	indexBytes, err := common.HTTPGetWithOption(ctx, indexURL, httpOpts)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to fetch repository index from %s", indexURL)
 	}
 
-	// Parse the index to find the chart URL
 	var index repo.IndexFile
 	if err := yaml.Unmarshal(indexBytes, &index); err != nil {
 		return nil, errors.Wrap(err, "failed to parse repository index")
 	}
-
-	// Sort entries so that Get() returns the highest matching version
 	index.SortEntries()
 
-	// Find the requested chart version. Get() supports exact versions (e.g., "1.2.3"),
-	// semver constraints (e.g., "^1.2.0", ">=1.0.0 <2.0.0"), and empty string (latest stable).
 	chartVersion, err := index.Get(params.Source, params.Version)
 	if err != nil {
 		return nil, fmt.Errorf("version %q of chart %s not found in repository %s: %w", params.Version, params.Source, params.RepoURL, err)
 	}
 
-	// Get the download URL
 	var downloadURL string
 	if len(chartVersion.URLs) > 0 {
 		downloadURL = chartVersion.URLs[0]
-		// Make URL absolute if it's relative
 		if !strings.HasPrefix(downloadURL, "http://") && !strings.HasPrefix(downloadURL, "https://") {
 			downloadURL = fmt.Sprintf("%s/%s", params.RepoURL, downloadURL)
 		}
@@ -533,18 +571,14 @@ func (p *Provider) fetchRepoChart(ctx context.Context, params *ChartSourceParams
 		return nil, fmt.Errorf("no download URL found for chart %s", params.Source)
 	}
 
-	// Download the chart
-	chartBytes, err := common.HTTPGetWithOption(ctx, downloadURL, &common.HTTPOption{})
+	chartBytes, err := common.HTTPGetWithOption(ctx, downloadURL, httpOpts)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to download chart from %s", downloadURL)
 	}
-
-	// Load the chart from bytes
 	ch, err := loader.LoadArchive(bytes.NewReader(chartBytes))
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load chart archive")
 	}
-
 	return ch, nil
 }
 
@@ -813,6 +847,22 @@ func (r *velaLabelPostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buf
 		labels["app.oam.dev/namespace"] = r.context.AppNamespace
 		labels["app.oam.dev/component"] = r.context.Name
 		obj.SetLabels(labels)
+
+		// Default metadata.namespace for namespaced rendered resources whose
+		// template omitted it. Upstream charts (Bitnami, podinfo, ...)
+		// typically rely on `helm install --namespace` for placement instead
+		// of templating metadata.namespace, and Helm's own apply step then
+		// uses the kube client's default namespace (which under KubeVela
+		// resolves to the controller's own ns, vela-system) rather than the
+		// release namespace. Stamping the namespace here makes every output
+		// in the rendered manifest carry the right placement before helm's
+		// kube.Client.Create runs, and before KubeVela's resource tracker
+		// re-applies it. Cluster-scoped kinds (CRDs, ClusterRoles,
+		// Namespaces, ...) are left as-is so the API server does not reject
+		// them.
+		if r.releaseNamespace != "" && obj.GetNamespace() == "" && !isClusterScopedGVK(obj.GroupVersionKind()) {
+			obj.SetNamespace(r.releaseNamespace)
+		}
 
 		// Inject ownership annotations (both KubeVela and Helm)
 		annotations := obj.GetAnnotations()
@@ -1396,7 +1446,15 @@ func (p *Provider) InvalidateRelease(releaseName, releaseNamespace string) {
 
 // parseManifestResources parses a Helm release manifest string into a slice of
 // resource maps, skipping test hooks when requested and ordering CRDs first.
-func (p *Provider) parseManifestResources(manifestStr string, options *RenderOptionsParams) ([]map[string]interface{}, error) {
+// Resources whose `metadata.namespace` is empty get defaulted to
+// releaseNamespace unless their kind is cluster-scoped. Upstream Helm charts
+// commonly omit metadata.namespace and rely on the helm install --namespace
+// flag for placement; KubeVela's resource tracker re-applies these outputs
+// independently and would otherwise default them to vela-system, creating
+// shadow copies and tripping helm's ownership annotation guard on the next
+// release. Defaulting at parse time keeps every output keyed to the correct
+// namespace from the start.
+func (p *Provider) parseManifestResources(manifestStr string, options *RenderOptionsParams, releaseNamespace string) ([]map[string]interface{}, error) {
 	skipTests := true
 	if options != nil && options.SkipTests != nil {
 		skipTests = *options.SkipTests
@@ -1424,12 +1482,76 @@ func (p *Provider) parseManifestResources(manifestStr string, options *RenderOpt
 			continue
 		}
 
+		// Default the namespace for namespaced resources whose template
+		// omitted metadata.namespace. Cluster-scoped kinds (CRDs,
+		// ClusterRoles, Namespaces, ...) are left as-is so the API server
+		// does not reject them.
+		if releaseNamespace != "" && resource.GetNamespace() == "" && !isClusterScopedGVK(resource.GroupVersionKind()) {
+			resource.SetNamespace(releaseNamespace)
+		}
+
 		cleanedResource := cleanResource(resource.Object)
 		resources = append(resources, cleanedResource)
 	}
 
 	// Order resources: CRDs first, then namespaces, then other resources
 	return orderResources(resources), nil
+}
+
+// isClusterScopedGVK reports whether the given GroupVersionKind denotes a
+// Kubernetes resource that lives at the cluster scope (no namespace).
+//
+// Resolution order:
+//
+//  1. Ask the cluster's RESTMapper. This sees built-in kinds AND third-party
+//     CRDs (cert-manager's ClusterIssuer, Knative's ClusterIngress, etc.),
+//     so the namespace-default logic doesn't mis-namespace custom
+//     cluster-scoped resources.
+//  2. If the RESTMapper is unavailable, or doesn't know the GVK (e.g.,
+//     because the chart manifest itself defines a CRD whose kind hasn't
+//     been registered with the API server yet), fall back to a static
+//     allowlist of well-known cluster-scoped kinds.
+//
+// The fallback is intentionally conservative: an unrecognized kind is
+// treated as namespaced, so a new namespaced custom resource gets the
+// safe default (release namespace) rather than landing in vela-system.
+func isClusterScopedGVK(gvk schema.GroupVersionKind) bool {
+	if mapper := singleton.RESTMapper.Get(); mapper != nil {
+		if mapping, mErr := mapper.RESTMapping(gvk.GroupKind(), gvk.Version); mErr == nil && mapping != nil {
+			return mapping.Scope.Name() == meta.RESTScopeNameRoot
+		}
+	}
+	return isClusterScopedKindStaticFallback(gvk.Kind)
+}
+
+// isClusterScopedKindStaticFallback returns true for the well-known set of
+// built-in cluster-scoped kinds. Used only when the RESTMapper cannot answer
+// authoritatively. New entries should be limited to stable upstream APIs;
+// for third-party CRDs the RESTMapper path is the source of truth.
+func isClusterScopedKindStaticFallback(kind string) bool {
+	switch kind {
+	case "CustomResourceDefinition",
+		"Namespace",
+		"ClusterRole",
+		"ClusterRoleBinding",
+		"PersistentVolume",
+		"StorageClass",
+		"VolumeAttachment",
+		"CSIDriver",
+		"CSINode",
+		"PriorityClass",
+		"RuntimeClass",
+		"IngressClass",
+		"MutatingWebhookConfiguration",
+		"ValidatingWebhookConfiguration",
+		"APIService",
+		"FlowSchema",
+		"PriorityLevelConfiguration",
+		"Node",
+		"ComponentStatus":
+		return true
+	}
+	return false
 }
 
 // isTestResource checks if a resource is a test resource
@@ -1579,7 +1701,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	klog.V(3).Infof("Helm provider: Release name=%s, namespace=%s", releaseName, releaseNamespace)
 
 	// Fetch the chart
-	ch, err := p.fetchChart(ctx, &renderParams.Chart, renderParams.Options)
+	ch, err := p.fetchChart(ctx, &renderParams.Chart, renderParams.Options, appNamespace, releaseNamespace)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch chart")
 	}
@@ -1624,7 +1746,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	}
 
 	// Parse the release manifest into KubeVela resource maps
-	resources, err := p.parseManifestResources(manifest, renderParams.Options)
+	resources, err := p.parseManifestResources(manifest, renderParams.Options, releaseNamespace)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse release manifest")
 	}

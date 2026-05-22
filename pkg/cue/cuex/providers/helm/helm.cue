@@ -14,13 +14,20 @@ package helm
 			repoURL?: string
 			// +usage=Version/tag for repository and OCI charts
 			version?: string
-			// +usage=Authentication configuration
+			// +usage=Authentication for private chart repositories.
+			// The referenced Secret MUST be one of: kubernetes.io/basic-auth,
+			// kubernetes.io/dockerconfigjson, kubernetes.io/tls, or Opaque.
+			// User-supplied bearer tokens MUST NOT be used with OCI sources;
+			// the registry performs its own Basic->Bearer exchange per the OCI
+			// Distribution Spec. Tokens are treated as opaque per RFC 7519.
 			auth?: {
-				// +usage=Reference to Secret containing credentials
+				// +usage=Reference to a Kubernetes Secret containing credentials.
 				secretRef?: {
-					// +usage=Secret name
+					// +usage=Secret name.
 					name: string
-					// +usage=Secret namespace
+					// +usage=Secret namespace. MAY be omitted (defaults to the
+					// release namespace). When set, it MUST equal either the
+					// release namespace or the Application namespace.
 					namespace?: string
 				}
 			}
