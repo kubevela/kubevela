@@ -20,10 +20,8 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"strings"
 
 	"github.com/pkg/errors"
-	"helm.sh/helm/v3/pkg/action"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
@@ -248,52 +246,6 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	return result, nil
 }
 
-// Uninstall runs `helm uninstall` for the named release and clears the provider's
-// in-memory fingerprint cache so a subsequent Render triggers a fresh install.
-func Uninstall(ctx context.Context, params *providers.Params[UninstallParams]) (*providers.Returns[UninstallReturns], error) {
-	p := NewProvider()
-	up := params.Params
-
-	releaseName := up.Release.Name
-	releaseNamespace := up.Release.Namespace
-
-	klog.Infof("Helm provider: Uninstalling release %s in namespace %s", releaseName, releaseNamespace)
-
-	actionConfig, err := p.getActionConfig(releaseNamespace)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialize helm action config for uninstall")
-	}
-
-	uninstallAction := action.NewUninstall(actionConfig)
-	uninstallAction.KeepHistory = up.KeepHistory
-
-	_, err = uninstallAction.Run(releaseName)
-	if err != nil {
-		// Treat "not found" as a success — the release is already gone
-		if strings.Contains(err.Error(), "not found") {
-			klog.Infof("Helm provider: Release %s not found, treating as already uninstalled", releaseName)
-		} else {
-			return &providers.Returns[UninstallReturns]{
-				Returns: UninstallReturns{Success: false, Message: err.Error()},
-			}, err
-		}
-	} else {
-		klog.Infof("Helm provider: Successfully uninstalled release %s", releaseName)
-	}
-
-	// Clear in-memory state so the next Render performs a fresh install
-	cacheKey := releaseCacheKey(releaseNamespace, releaseName)
-	p.releaseMu.Lock()
-	delete(p.releaseFingerprints, cacheKey)
-	delete(p.releaseManifests, cacheKey)
-	delete(p.releaseVersions, cacheKey)
-	p.releaseMu.Unlock()
-
-	return &providers.Returns[UninstallReturns]{
-		Returns: UninstallReturns{Success: true},
-	}, nil
-}
-
 // ProviderName is the name of this provider
 const ProviderName = "helm"
 
@@ -305,6 +257,5 @@ var Template = template
 
 // Package exports the provider package for registration
 var Package = runtime.Must(cuexruntime.NewInternalPackage(ProviderName, template, map[string]cuexruntime.ProviderFn{
-	"render":    cuexruntime.GenericProviderFn[providers.Params[RenderParams], providers.Returns[RenderReturns]](Render),
-	"uninstall": cuexruntime.GenericProviderFn[providers.Params[UninstallParams], providers.Returns[UninstallReturns]](Uninstall),
+	"render": cuexruntime.GenericProviderFn[providers.Params[RenderParams], providers.Returns[RenderReturns]](Render),
 }))

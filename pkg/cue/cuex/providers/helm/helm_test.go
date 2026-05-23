@@ -628,21 +628,6 @@ spec:
 		})
 	})
 
-	Describe("UninstallParams structure", func() {
-		It("should hold all fields correctly", func() {
-			params := &UninstallParams{
-				Release: ReleaseParams{
-					Name:      "my-release",
-					Namespace: "my-ns",
-				},
-				KeepHistory: true,
-			}
-			Expect(params.Release.Name).To(Equal("my-release"))
-			Expect(params.Release.Namespace).To(Equal("my-ns"))
-			Expect(params.KeepHistory).To(BeTrue())
-		})
-	})
-
 	// -----------------------------------------------------------------------
 	// NEW TESTS for additional coverage
 	// -----------------------------------------------------------------------
@@ -1755,25 +1740,7 @@ metadata:
 	})
 
 	// -----------------------------------------------------------------------
-	// Additional coverage: Uninstall structure and defaults
-	// -----------------------------------------------------------------------
-
-	Describe("Uninstall params", func() {
-		It("should handle KeepHistory=false", func() {
-			params := &UninstallParams{
-				Release: ReleaseParams{
-					Name:      "rel",
-					Namespace: "ns",
-				},
-				KeepHistory: false,
-			}
-			Expect(params.KeepHistory).To(BeFalse())
-			Expect(params.Release.Name).To(Equal("rel"))
-		})
-	})
-
-	// -----------------------------------------------------------------------
-	// Additional coverage: RenderReturns and UninstallReturns structures
+	// Additional coverage: RenderReturns structure
 	// -----------------------------------------------------------------------
 
 	Describe("return types", func() {
@@ -1786,15 +1753,6 @@ metadata:
 			}
 			Expect(ret.Resources).To(HaveLen(1))
 			Expect(ret.Notes).To(Equal("install notes"))
-		})
-
-		It("UninstallReturns should hold success and message", func() {
-			ret := UninstallReturns{
-				Success: true,
-				Message: "uninstalled",
-			}
-			Expect(ret.Success).To(BeTrue())
-			Expect(ret.Message).To(Equal("uninstalled"))
 		})
 	})
 
@@ -2370,32 +2328,6 @@ entries:
 			}, nil, "ns-app", "ns-rel")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("missing-secret"))
-		})
-	})
-
-	// -----------------------------------------------------------------------
-	// Tier 1 Coverage: Uninstall top-level provider function
-	// -----------------------------------------------------------------------
-
-	Describe("Uninstall top-level function", func() {
-		It("should exercise the function entry and return without panicking", func() {
-			// Without a reachable cluster the call typically fails at
-			// getActionConfig or while contacting the API server; with a
-			// cluster it succeeds. The only invariant we can assert portably
-			// is that the function returns in a consistent shape — result is
-			// non-nil on success, or an error is returned on failure.
-			result, err := Uninstall(context.Background(), &providers.Params[UninstallParams]{
-				Params: UninstallParams{
-					Release: ReleaseParams{
-						Name:      "uninstall-test",
-						Namespace: "default",
-					},
-					KeepHistory: false,
-				},
-			})
-			if err == nil {
-				Expect(result).ToNot(BeNil())
-			}
 		})
 	})
 

@@ -138,14 +138,3 @@ type CacheTTLConfig struct {
 	MutableVersionTTL time.Duration
 }
 
-// UninstallParams are the parameters for uninstalling a Helm release
-type UninstallParams struct {
-	Release     ReleaseParams `json:"release"`
-	KeepHistory bool          `json:"keepHistory,omitempty"`
-}
-
-// UninstallReturns are the return values from uninstalling a Helm release
-type UninstallReturns struct {
-	Success bool   `json:"success"`
-	Message string `json:"message,omitempty"`
-}
