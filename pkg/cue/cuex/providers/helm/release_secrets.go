@@ -16,6 +16,8 @@ limitations under the License.
 
 package helm
 
+// Lifecycle of Helm release Secrets: health validation, label adoption, listing, orphan cleanup, and cache invalidation.
+
 import (
 	"context"
 	"fmt"

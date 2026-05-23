@@ -16,6 +16,8 @@ limitations under the License.
 
 package helm
 
+// Helm post-renderer that injects KubeVela ownership labels and Helm release annotations on every rendered resource.
+
 import (
 	"bytes"
 	stderrors "errors"

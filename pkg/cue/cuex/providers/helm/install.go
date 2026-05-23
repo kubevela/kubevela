@@ -16,6 +16,8 @@ limitations under the License.
 
 package helm
 
+// Helm install action with retry-on-orphaned-state and the install-side option applier.
+
 import (
 	"context"
 	"strings"

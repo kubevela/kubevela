@@ -16,6 +16,8 @@ limitations under the License.
 
 package helm
 
+// Client-only dry-run renderer used by webhook validation, plus the cluster Kubernetes-version lookup.
+
 import (
 	"fmt"
 

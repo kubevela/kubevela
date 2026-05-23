@@ -16,6 +16,8 @@ limitations under the License.
 
 package helm
 
+// Parses Helm release manifests into resource maps, defaults namespaces for namespaced kinds, and orders CRDs and Namespaces first.
+
 import (
 	stderrors "errors"
 	"io"

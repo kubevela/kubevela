@@ -16,6 +16,8 @@ limitations under the License.
 
 package helm
 
+// Helm upgrade action and the upgrade-side option applier.
+
 import (
 	"context"
 	"time"

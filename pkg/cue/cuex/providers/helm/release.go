@@ -16,6 +16,8 @@ limitations under the License.
 
 package helm
 
+// Dispatches between install and upgrade based on existing release state, fingerprint match, and publishVersion pin.
+
 import (
 	"context"
 	"crypto/sha256"

@@ -16,6 +16,8 @@ limitations under the License.
 
 package helm
 
+// Public Render entry point and package registration for the helm cuex provider.
+
 import (
 	"context"
 	_ "embed"

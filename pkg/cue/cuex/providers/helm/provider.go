@@ -16,6 +16,8 @@ limitations under the License.
 
 package helm
 
+// Provider singleton, constructors, dry-run context flag, and small ownership/cache-key utilities.
+
 import (
 	"context"
 	"fmt"

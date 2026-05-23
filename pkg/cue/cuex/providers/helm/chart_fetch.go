@@ -16,6 +16,8 @@ limitations under the License.
 
 package helm
 
+// Detects chart source type (OCI / URL / repo) and fetches charts with a TTL-bounded in-memory cache.
+
 import (
 	"bytes"
 	"context"

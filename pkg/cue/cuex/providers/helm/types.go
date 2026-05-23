@@ -16,6 +16,8 @@ limitations under the License.
 
 package helm
 
+// Param and return struct definitions exchanged with the CUE schema.
+
 import "time"
 
 // ChartSourceParams represents the chart source configuration

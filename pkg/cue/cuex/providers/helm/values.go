@@ -16,6 +16,8 @@ limitations under the License.
 
 package helm
 
+// Resolves inline and valuesFrom value sources from ConfigMaps and Secrets, with the cross-namespace guard.
+
 import (
 	"context"
 	stderrors "errors"
