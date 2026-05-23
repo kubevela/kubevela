@@ -38,14 +38,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-
-
-
-
-
-
-
-
 // Render is the main provider function: it performs a real Helm install/upgrade
 // against the cluster and returns the deployed resources for KubeVela to adopt.
 func Render(ctx context.Context, params *providers.Params[RenderParams]) (*providers.Returns[RenderReturns], error) {

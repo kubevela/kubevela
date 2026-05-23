@@ -138,4 +138,3 @@ type CacheTTLConfig struct {
 	// TTL for mutable tags (e.g., "latest", "dev", "main")
 	MutableVersionTTL time.Duration
 }
-
