@@ -70,7 +70,6 @@ type RenderOptionsParams struct {
 	MaxHistory      int               `json:"maxHistory,omitempty"`
 	Atomic          bool              `json:"atomic,omitempty"`
 	Wait            bool              `json:"wait,omitempty"`
-	WaitTimeout     string            `json:"waitTimeout,omitempty"`
 	Force           bool              `json:"force,omitempty"`
 	RecreatePods    bool              `json:"recreatePods,omitempty"`
 	CleanupOnFail   bool              `json:"cleanupOnFail,omitempty"`

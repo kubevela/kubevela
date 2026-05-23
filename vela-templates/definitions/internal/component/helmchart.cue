@@ -178,18 +178,17 @@ template: {
 
 		// Rendering options
 		options?: {
-			includeCRDs?:     bool | *true    // Install CRDs from chart
+			includeCRDs?:     bool | *true    // Install CRDs from the chart's crds/ directory
 			skipTests?:       bool | *true    // Skip test resources
 			skipHooks?:       bool | *false   // Skip hook resources
 			createNamespace?: bool | *true    // Create namespace if it doesn't exist
-			timeout?:         string | *"5m"  // Rendering timeout
-			maxHistory?:      int | *10       // Revisions to keep
+			timeout?:         string | *"5m"  // Rendering and wait timeout (Helm SDK uses one value for both)
+			maxHistory?:      int | *10       // Revisions to keep (upgrade-only; ignored on first install)
 			atomic?:          bool | *false   // Rollback on failure
-			wait?:            bool | *false   // Wait for resources
-			waitTimeout?:     string | *"10m" // Wait timeout
+			wait?:            bool | *false   // Wait for resources to become ready
 			force?:           bool | *false   // Force resource updates
-			recreatePods?:    bool | *false   // Recreate pods on upgrade
-			cleanupOnFail?:   bool | *false   // Cleanup on failure
+			recreatePods?:    bool | *false   // Recreate pods (upgrade-only; ignored on first install)
+			cleanupOnFail?:   bool | *false   // Cleanup on failure (upgrade-only; ignored on first install)
 
 			// Cache configuration
 			cache?: {

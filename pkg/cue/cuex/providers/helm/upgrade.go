@@ -54,6 +54,9 @@ func applyCommonUpgradeOptions(upgrade *action.Upgrade, opts *RenderOptionsParam
 	if opts == nil {
 		return
 	}
+	if opts.IncludeCRDs != nil {
+		upgrade.SkipCRDs = !*opts.IncludeCRDs
+	}
 	if opts.Atomic {
 		upgrade.Atomic = true
 	}

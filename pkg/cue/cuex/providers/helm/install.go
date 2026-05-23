@@ -83,6 +83,12 @@ func applyCommonInstallOptions(install *action.Install, opts *RenderOptionsParam
 	if opts == nil {
 		return
 	}
+	if opts.IncludeCRDs != nil {
+		install.SkipCRDs = !*opts.IncludeCRDs
+	}
+	if opts.Force {
+		install.Force = true
+	}
 	if opts.Atomic {
 		install.Atomic = true
 	}
