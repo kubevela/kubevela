@@ -250,6 +250,38 @@ parameter: #PatchParams
 			Expect(cue).To(ContainSubstring(`"strconv"`))
 			Expect(cue).To(ContainSubstring(`"strings"`))
 		})
+
+		It("should auto-detect the list import when an ArrayConcat appears in a patch block", func() {
+			extras := defkit.Array("extraVolumeMounts").WithFields(
+				defkit.String("name"),
+				defkit.String("mountPath"),
+			)
+
+			trait := defkit.NewTrait("auto-import-from-array-concat").
+				Description("ArrayConcat inside patch must pull the list import without WithImports").
+				AppliesTo("deployments.apps").
+				Params(extras).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().PatchKey("spec.template.spec.containers", "name",
+						defkit.NewArrayElement().
+							PatchKeyField("volumeMounts", "name", defkit.ArrayConcat(
+								defkit.NewArray().Item(
+									defkit.NewArrayElement().
+										Set("name", defkit.Lit("work")).
+										Set("mountPath", defkit.Lit("/work")),
+								),
+								extras,
+							)),
+					)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring(`import (`))
+			Expect(cue).To(ContainSubstring(`"list"`))
+			Expect(cue).To(ContainSubstring(`list.Concat([`))
+			Expect(cue).NotTo(ContainSubstring(`] + parameter.extraVolumeMounts`))
+		})
 	})
 
 	Context("ToCue Generation - Status", func() {

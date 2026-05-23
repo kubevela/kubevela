@@ -466,6 +466,38 @@ var _ = Describe("ArrayConcat", func() {
 		Expect(concat.Left()).To(BeIdenticalTo(left))
 		Expect(concat.Right()).To(BeIdenticalTo(right))
 	})
+
+	It("should declare the list import via RequiredImports", func() {
+		concat := defkit.ArrayConcat(defkit.NewArray(), defkit.List("extra"))
+		Expect(concat.RequiredImports()).To(ConsistOf("list"))
+	})
+
+	It("should generate CUE as list.Concat (not list-addition) so it evaluates on CUE v0.11+", func() {
+		comp := defkit.NewComponent("svc").
+			Workload("apps/v1", "Deployment").
+			Params(
+				defkit.List("volumes"),
+				defkit.Array("extraVolumeMounts"),
+			).
+			Template(func(tpl *defkit.Template) {
+				volumes := defkit.List("volumes")
+				mounts := defkit.NewArray().ForEach(volumes, defkit.NewArrayElement().
+					Set("name", defkit.Reference("m.name")).
+					Set("mountPath", defkit.Reference("m.mountPath")))
+				dep := defkit.NewResource("apps/v1", "Deployment").
+					Set("spec.template.spec.containers[0].volumeMounts",
+						defkit.ArrayConcat(mounts, defkit.ParamRef("extraVolumeMounts")))
+				tpl.Output(dep)
+			})
+
+		cue := defkit.NewCUEGenerator().GenerateFullDefinition(comp)
+
+		Expect(cue).To(ContainSubstring(`import (`))
+		Expect(cue).To(ContainSubstring(`"list"`))
+		Expect(cue).To(ContainSubstring(`list.Concat([`))
+		Expect(cue).To(ContainSubstring(`, parameter.extraVolumeMounts])`))
+		Expect(cue).NotTo(ContainSubstring(`] + parameter.extraVolumeMounts`))
+	})
 })
 
 var _ = Describe("ArrayBuilder CUE Generation", func() {

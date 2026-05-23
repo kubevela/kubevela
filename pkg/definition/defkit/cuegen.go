@@ -262,8 +262,13 @@ func (g *CUEGenerator) collectImportsFromResource(res *Resource) {
 	if res == nil {
 		return
 	}
+	g.collectImportsFromOps(res.Ops())
+}
 
-	for _, op := range res.Ops() {
+// collectImportsFromOps walks a slice of ResourceOp (used by Resource, PatchResource,
+// and similar) and surfaces any imports declared via ImportRequirer.
+func (g *CUEGenerator) collectImportsFromOps(ops []ResourceOp) {
+	for _, op := range ops {
 		switch o := op.(type) {
 		case *SetOp:
 			g.collectImportsFromValue(o.Value())
@@ -282,6 +287,18 @@ func (g *CUEGenerator) collectImportsFromResource(res *Resource) {
 				case *SetIfOp:
 					g.collectImportsFromValue(inner.Value())
 					g.collectImportsFromValue(inner.Cond())
+				}
+			}
+		case *PatchKeyOp:
+			for _, elem := range o.Elements() {
+				g.collectImportsFromValue(elem)
+				if ae, ok := elem.(*ArrayElement); ok {
+					for _, fv := range ae.Fields() {
+						g.collectImportsFromValue(fv)
+					}
+					for _, pkf := range ae.PatchKeyFields() {
+						g.collectImportsFromValue(pkf.value)
+					}
 				}
 			}
 		}
@@ -2237,7 +2254,7 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 	case *ArrayBuilder:
 		return g.arrayBuilderToCUE(val, 1)
 	case *ArrayConcatValue:
-		return g.valueToCUE(val.Left()) + " + " + g.valueToCUE(val.Right())
+		return "list.Concat([" + g.valueToCUE(val.Left()) + ", " + g.valueToCUE(val.Right()) + "])"
 	case *ListComprehension:
 		// Return list comprehension CUE
 		return g.listComprehensionToCUE(val)
@@ -2359,7 +2376,7 @@ func (g *CUEGenerator) valueToCUEAtDepth(v Value, depth int) string {
 	case *ArrayBuilder:
 		return g.arrayBuilderToCUE(val, depth)
 	case *ArrayConcatValue:
-		return g.valueToCUEAtDepth(val.Left(), depth) + " + " + g.valueToCUE(val.Right())
+		return "list.Concat([" + g.valueToCUEAtDepth(val.Left(), depth) + ", " + g.valueToCUE(val.Right()) + "])"
 	default:
 		return g.valueToCUE(v)
 	}

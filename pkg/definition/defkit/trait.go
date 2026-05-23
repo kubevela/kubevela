@@ -471,8 +471,80 @@ func (g *TraitCUEGenerator) WithImports(imports ...string) *TraitCUEGenerator {
 	return g
 }
 
+// addImportIfMissing adds an import only when not already present.
+func (g *TraitCUEGenerator) addImportIfMissing(imp string) {
+	for _, existing := range g.imports {
+		if existing == imp {
+			return
+		}
+	}
+	g.imports = append(g.imports, imp)
+}
+
+// detectRequiredImports analyzes the trait template and adds any CUE standard
+// library imports declared by its values via the ImportRequirer interface.
+// Mirrors CUEGenerator.detectRequiredImports for components so that helpers
+// like ArrayConcat (which renders as list.Concat) auto-pull "list" without
+// the trait author calling WithImports.
+func (g *TraitCUEGenerator) detectRequiredImports(t *TraitDefinition) {
+	if !t.HasTemplate() {
+		return
+	}
+	tpl := NewTemplate()
+	t.GetTemplate()(tpl)
+
+	scan := NewCUEGenerator()
+
+	// Template-level helpers (list.Concat / struct-array / dedupe / let bindings).
+	for _, helper := range tpl.GetConcatHelpers() {
+		scan.collectImportsFromValue(helper)
+	}
+	for _, helper := range tpl.GetStructArrayHelpers() {
+		scan.collectImportsFromValue(helper)
+	}
+	for _, helper := range tpl.GetDedupeHelpers() {
+		scan.collectImportsFromValue(helper)
+	}
+	for _, helper := range tpl.GetHelpersBeforeOutput() {
+		scan.collectImportsFromValue(helper)
+		scan.collectImportsFromValue(helper.Collection())
+	}
+	for _, helper := range tpl.GetHelpersAfterOutput() {
+		scan.collectImportsFromValue(helper)
+		scan.collectImportsFromValue(helper.Collection())
+	}
+
+	// Trait params can declare ImportRequirer themselves (e.g. StringParam
+	// with MinLen/MaxLen requires "strings").
+	for _, param := range t.GetParams() {
+		if ir, ok := param.(ImportRequirer); ok {
+			for _, imp := range ir.RequiredImports() {
+				g.addImportIfMissing(imp)
+			}
+		}
+	}
+
+	// Resource operations in output / outputs / patch.
+	if output := tpl.GetOutput(); output != nil {
+		scan.collectImportsFromResource(output)
+	}
+	for _, res := range tpl.GetOutputs() {
+		scan.collectImportsFromResource(res)
+	}
+	if patch := tpl.GetPatch(); patch != nil {
+		scan.collectImportsFromOps(patch.Ops())
+	}
+
+	for _, imp := range scan.imports {
+		g.addImportIfMissing(imp)
+	}
+}
+
 // GenerateFullDefinition generates the complete CUE definition for a trait.
 func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
+	// Auto-detect imports needed by template values (e.g. ArrayConcat → list).
+	g.detectRequiredImports(t)
+
 	var sb strings.Builder
 
 	// Write imports if any
