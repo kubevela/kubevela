@@ -27,7 +27,6 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -117,16 +116,40 @@ func (p *Provider) mergeValues(ctx context.Context, baseValues interface{}, valu
 // deepCloneValues returns a deep copy of a values map.
 // CoalesceTables mutates the destination map (including nested entries) in
 // place, so we must isolate the caller's map at every depth, not just the
-// top level. runtime.DeepCopyJSON is the right tool here: it walks the
-// nested map/slice mix that Helm values can contain AND preserves Go
-// numeric types (int vs float64), where a JSON round-trip would coerce
-// every number to float64 and break Helm templates that rely on integer
-// type assertions (e.g. `{{ .Values.replicaCount | int }}`).
+// top level. We walk the structure by hand rather than using
+// runtime.DeepCopyJSON because that helper only accepts the narrow set of
+// types json.Unmarshal returns (float64, not int) and panics on the int /
+// int32 / int64 values CUE evaluation routinely produces. Plain
+// json.Marshal/Unmarshal would coerce every number to float64 and break
+// Helm templates that depend on integer type assertions like
+// `{{ .Values.replicaCount | int }}`.
+//
+// Maps and slices are recreated; scalars (numbers, strings, bool, nil)
+// are immutable in Go and so the interface copy is sufficient.
 func deepCloneValues(in map[string]interface{}) map[string]interface{} {
 	if in == nil {
 		return nil
 	}
-	return runtime.DeepCopyJSON(in)
+	out := make(map[string]interface{}, len(in))
+	for k, v := range in {
+		out[k] = deepCloneValue(v)
+	}
+	return out
+}
+
+func deepCloneValue(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		return deepCloneValues(val)
+	case []interface{}:
+		out := make([]interface{}, len(val))
+		for i, item := range val {
+			out[i] = deepCloneValue(item)
+		}
+		return out
+	default:
+		return v
+	}
 }
 
 // loadValuesFromSource dispatches to the appropriate loader based on source.Kind.

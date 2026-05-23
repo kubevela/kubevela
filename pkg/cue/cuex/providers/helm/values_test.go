@@ -522,4 +522,46 @@ var _ = Describe("values", func() {
 		})
 	})
 
+	Describe("deepCloneValues", func() {
+		It("returns nil for nil input", func() {
+			Expect(deepCloneValues(nil)).To(BeNil())
+		})
+
+		It("preserves Go int values (does not coerce to float64)", func() {
+			in := map[string]interface{}{"replicas": 2, "name": "podinfo"}
+			out := deepCloneValues(in)
+			Expect(out["replicas"]).To(BeAssignableToTypeOf(int(0)))
+			Expect(out["replicas"]).To(Equal(2))
+		})
+
+		It("preserves Go int64 and float64 values", func() {
+			in := map[string]interface{}{"big": int64(1 << 40), "ratio": float64(1.5)}
+			out := deepCloneValues(in)
+			Expect(out["big"]).To(BeAssignableToTypeOf(int64(0)))
+			Expect(out["big"]).To(Equal(int64(1 << 40)))
+			Expect(out["ratio"]).To(BeAssignableToTypeOf(float64(0)))
+			Expect(out["ratio"]).To(Equal(1.5))
+		})
+
+		It("isolates nested maps so the caller's tree is not mutated through CoalesceTables", func() {
+			in := map[string]interface{}{
+				"resources": map[string]interface{}{
+					"limits":   map[string]interface{}{"cpu": "100m"},
+					"requests": map[string]interface{}{"cpu": "50m"},
+				},
+			}
+			out := deepCloneValues(in)
+			// Mutate the clone; the original must be untouched.
+			out["resources"].(map[string]interface{})["limits"].(map[string]interface{})["cpu"] = "999m"
+			Expect(in["resources"].(map[string]interface{})["limits"].(map[string]interface{})["cpu"]).To(Equal("100m"))
+		})
+
+		It("isolates slices", func() {
+			in := map[string]interface{}{"args": []interface{}{"--debug", "--timeout=30s"}}
+			out := deepCloneValues(in)
+			out["args"].([]interface{})[0] = "MUTATED"
+			Expect(in["args"].([]interface{})[0]).To(Equal("--debug"))
+		})
+	})
+
 })
