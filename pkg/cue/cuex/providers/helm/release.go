@@ -78,7 +78,7 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 	p.releaseMu.Lock()
 	defer p.releaseMu.Unlock()
 
-	actionConfig, err := p.getActionConfig(releaseNamespace)
+	actionConfig, err := p.actionConfigFactory(releaseNamespace)
 	if err != nil {
 		return "", "", 0, err
 	}

@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -82,6 +83,11 @@ type Provider struct {
 	releaseFingerprints map[string]string // namespace/releaseName → fingerprint (chartVersion|valuesHash)
 	releaseManifests    map[string]string // namespace/releaseName → last successful manifest
 	releaseVersions     map[string]int    // namespace/releaseName → current release version number
+	// actionConfigFactory builds a helm action.Configuration for a given
+	// namespace. Defaults to getActionConfig (a real cluster client). Tests
+	// override this to inject a fake KubeClient + memory storage driver so
+	// they can exercise the install/upgrade dispatcher without a cluster.
+	actionConfigFactory func(namespace string) (*action.Configuration, error)
 }
 
 var (
@@ -102,6 +108,7 @@ func NewProvider() *Provider {
 			releaseManifests:    make(map[string]string),
 			releaseVersions:     make(map[string]int),
 		}
+		globalProvider.actionConfigFactory = globalProvider.getActionConfig
 	})
 	return globalProvider
 }
@@ -111,7 +118,7 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 	if ttlConfig == nil {
 		ttlConfig = DefaultCacheTTLConfig()
 	}
-	return &Provider{
+	p := &Provider{
 		cache:               utils.NewMemoryCacheStore(context.Background()),
 		helmClient:          cli.New(),
 		cacheTTL:            ttlConfig,
@@ -119,4 +126,6 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 		releaseManifests:    make(map[string]string),
 		releaseVersions:     make(map[string]int),
 	}
+	p.actionConfigFactory = p.getActionConfig
+	return p
 }
