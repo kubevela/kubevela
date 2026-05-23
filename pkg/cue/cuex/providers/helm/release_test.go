@@ -18,6 +18,7 @@ package helm
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -32,6 +33,34 @@ import (
 	"k8s.io/client-go/kubernetes"
 	clientsetfake "k8s.io/client-go/kubernetes/fake"
 )
+
+// corruptingDriver wraps a real driver and replaces Get / Query results for a
+// configured release name with a synthetic decode-style error, simulating the
+// production case where .data.release on a helm release Secret has been
+// mutated to invalid base64 / gzip / json bytes.
+type corruptingDriver struct {
+	driver.Driver
+	corruptName string
+}
+
+func (c *corruptingDriver) Get(key string) (*release.Release, error) {
+	if c.corruptName != "" && (key == c.corruptName || keyStartsWithRelease(key, c.corruptName)) {
+		return nil, errors.New("invalid character '\\x00' looking for beginning of value")
+	}
+	return c.Driver.Get(key)
+}
+
+func (c *corruptingDriver) Query(labels map[string]string) ([]*release.Release, error) {
+	if c.corruptName != "" && labels["name"] == c.corruptName {
+		return nil, errors.New("invalid character '\\x00' looking for beginning of value")
+	}
+	return c.Driver.Query(labels)
+}
+
+func keyStartsWithRelease(key, releaseName string) bool {
+	prefix := "sh.helm.release.v1." + releaseName + "."
+	return len(key) >= len(prefix) && key[:len(prefix)] == prefix
+}
 
 // fakeActionConfig builds an action.Configuration backed by helm's printing
 // fake KubeClient and an in-memory release storage driver. This lets us
@@ -244,6 +273,58 @@ var _ = Describe("release", func() {
 			Expect(adopted.Labels).To(HaveKeyWithValue("app.oam.dev/name", "app"))
 			Expect(adopted.Labels).To(HaveKeyWithValue("app.oam.dev/namespace", relNS))
 			Expect(adopted.Labels).To(HaveKeyWithValue("app.oam.dev/component", "comp"))
+		})
+
+		It("falls through to fresh install when Get returns a corruption-style error", func() {
+			// Reproduces the contract validated by the e2e test
+			// "Helmchart Self-Healing / should recover from corrupted Helm
+			// release secret": when helm's storage driver returns a non-
+			// NotFound error (e.g. the release Secret's .data.release has
+			// been mutated to garbage and helm cannot decode it), the
+			// dispatcher must NOT surface that error to the caller. Instead
+			// it must clear the in-memory cache, call freshInstall, and let
+			// the orphan-state retry path clean the corrupted secret.
+			mem := driver.NewMemory()
+			pre := &release.Release{
+				Name: "rel", Namespace: relNS, Version: 1,
+				Info:   &release.Info{Status: release.StatusDeployed},
+				Chart:  minimalChart("c", "1.0.0"),
+				Config: map[string]interface{}{},
+			}
+			Expect(mem.Create("rel.v1", pre)).To(Succeed())
+
+			cfg := &action.Configuration{
+				Releases:     storage.Init(&corruptingDriver{Driver: mem, corruptName: relName}),
+				KubeClient:   &kubefake.PrintingKubeClient{Out: io.Discard},
+				Capabilities: chartutil.DefaultCapabilities,
+				Log:          func(format string, v ...interface{}) {},
+			}
+			p := installProviderWithFake(cfg)
+
+			// Pre-seed the in-memory cache so the dispatcher would short-
+			// circuit on it if the Get-failure handling did not clear it.
+			cacheKey := releaseCacheKey(relNS, relName)
+			p.releaseMu.Lock()
+			p.releaseFingerprints[cacheKey] = "stale|stalehash"
+			p.releaseManifests[cacheKey] = "stale-manifest"
+			p.releaseVersions[cacheKey] = 999
+			p.releaseMu.Unlock()
+
+			_, _, version, err := p.installOrUpgradeChart(
+				context.Background(), minimalChart("c", "1.0.0"), relName, relNS,
+				map[string]interface{}{}, nil, nil)
+
+			Expect(err).ShouldNot(HaveOccurred(), "dispatcher MUST swallow the corruption error and recover")
+			Expect(version).To(Equal(1), "freshInstall path must run and produce a new revision 1")
+
+			// The fresh install repopulates the cache with the new fingerprint
+			// computed from the rendered chart+values. The stale fingerprint
+			// the test pre-seeded MUST be gone.
+			p.releaseMu.Lock()
+			fp := p.releaseFingerprints[cacheKey]
+			p.releaseMu.Unlock()
+			Expect(fp).NotTo(Equal("stale|stalehash"), "stale fingerprint must be replaced by the fresh install's fingerprint")
+			Expect(fp).NotTo(BeEmpty(), "fresh install must repopulate the cache")
 		})
 
 		It("honors publishVersion pin when chart version and pin label match", func() {
