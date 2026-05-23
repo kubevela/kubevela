@@ -26,7 +26,6 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/release"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 )
 
@@ -40,7 +39,7 @@ import (
 // path. It acquires the release mutex only when it needs to clear the cache.
 func (p *Provider) validateReleaseHealth(releaseName, releaseNamespace string) {
 	cacheKey := releaseCacheKey(releaseNamespace, releaseName)
-	actionConfig, err := p.getActionConfig(releaseNamespace)
+	actionConfig, err := p.actionConfigFactory(releaseNamespace)
 	if err != nil {
 		klog.Warningf("Helm provider health check: failed to get action config for release %s: %v", releaseName, err)
 		return
@@ -98,14 +97,9 @@ func (p *Provider) cleanOrphanedReleaseSecrets(_ *action.Configuration, releaseN
 // given release. Used to track all revision secrets in the ResourceTracker so
 // GC cleans them all up on Application deletion.
 func (p *Provider) listReleaseSecretNames(namespace, releaseName string) []string {
-	cfg, err := p.helmClient.RESTClientGetter().ToRESTConfig()
+	clientset, err := p.kubeClientFactory()
 	if err != nil {
-		klog.V(4).Infof("Helm provider: Failed to get REST config for listing secrets: %v", err)
-		return nil
-	}
-	clientset, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		klog.V(4).Infof("Helm provider: Failed to create clientset for listing secrets: %v", err)
+		klog.V(4).Infof("Helm provider: Failed to build kubernetes client for listing secrets: %v", err)
 		return nil
 	}
 
@@ -137,12 +131,9 @@ func (p *Provider) labelReleaseSecrets(namespace, releaseName string, velaCtx *C
 	if velaCtx == nil {
 		return
 	}
-	cfg, err := p.helmClient.RESTClientGetter().ToRESTConfig()
+	clientset, err := p.kubeClientFactory()
 	if err != nil {
-		return
-	}
-	clientset, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
+		klog.V(4).Infof("Helm provider [%s]: Failed to build kubernetes client for labeling release secrets: %v", velaContextStr(velaCtx), err)
 		return
 	}
 
@@ -175,13 +166,9 @@ func (p *Provider) labelReleaseSecrets(namespace, releaseName string, velaCtx *C
 // release secrets. This is the last-resort cleanup for secrets that are too
 // corrupted for Helm's own storage driver or uninstall action to handle.
 func (p *Provider) deleteReleaseSecretsDirect(namespace, releaseName string, velaCtx *ContextParams) error {
-	cfg, err := p.helmClient.RESTClientGetter().ToRESTConfig()
+	clientset, err := p.kubeClientFactory()
 	if err != nil {
-		return errors.Wrap(err, "failed to get REST config")
-	}
-	clientset, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		return errors.Wrap(err, "failed to create kubernetes client")
+		return err
 	}
 
 	// List secrets with Helm's labels for this release

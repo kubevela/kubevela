@@ -29,6 +29,8 @@ import (
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
+	"k8s.io/client-go/kubernetes"
+	clientsetfake "k8s.io/client-go/kubernetes/fake"
 )
 
 // fakeActionConfig builds an action.Configuration backed by helm's printing
@@ -43,12 +45,16 @@ func fakeActionConfig() *action.Configuration {
 	}
 }
 
-// installProviderWithFake returns a fresh Provider whose action-config
-// factory is bound to the supplied fake config, so multiple test specs do
-// not share storage state.
+// installProviderWithFake returns a fresh Provider whose two seams
+// (actionConfigFactory and kubeClientFactory) are bound to the supplied
+// fakes, so the dispatcher cannot reach the active cluster. Multiple test
+// specs do not share storage state because each call constructs its own
+// fake action.Configuration + clientset.
 func installProviderWithFake(cfg *action.Configuration) *Provider {
 	p := NewProviderWithConfig(nil)
 	p.actionConfigFactory = func(string) (*action.Configuration, error) { return cfg, nil }
+	cs := clientsetfake.NewSimpleClientset()
+	p.kubeClientFactory = func() (kubernetes.Interface, error) { return cs, nil }
 	return p
 }
 
@@ -236,6 +242,8 @@ var _ = Describe("release", func() {
 			adopted, err := cfg.Releases.Get(relName, 2)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(adopted.Labels).To(HaveKeyWithValue("app.oam.dev/name", "app"))
+			Expect(adopted.Labels).To(HaveKeyWithValue("app.oam.dev/namespace", relNS))
+			Expect(adopted.Labels).To(HaveKeyWithValue("app.oam.dev/component", "comp"))
 		})
 
 		It("honors publishVersion pin when chart version and pin label match", func() {

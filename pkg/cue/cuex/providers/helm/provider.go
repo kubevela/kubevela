@@ -24,8 +24,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -88,6 +90,12 @@ type Provider struct {
 	// override this to inject a fake KubeClient + memory storage driver so
 	// they can exercise the install/upgrade dispatcher without a cluster.
 	actionConfigFactory func(namespace string) (*action.Configuration, error)
+	// kubeClientFactory builds a kubernetes.Interface client used by the
+	// release-secret helpers (list, label, delete, validate health) which
+	// talk to the API server directly rather than via the helm SDK. Tests
+	// override this to inject a fake clientset so the dispatcher's adoption
+	// path and background health checks do not leak to the active cluster.
+	kubeClientFactory func() (kubernetes.Interface, error)
 }
 
 var (
@@ -109,6 +117,7 @@ func NewProvider() *Provider {
 			releaseVersions:     make(map[string]int),
 		}
 		globalProvider.actionConfigFactory = globalProvider.getActionConfig
+		globalProvider.kubeClientFactory = globalProvider.getKubeClientset
 	})
 	return globalProvider
 }
@@ -127,5 +136,22 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 		releaseVersions:     make(map[string]int),
 	}
 	p.actionConfigFactory = p.getActionConfig
+	p.kubeClientFactory = p.getKubeClientset
 	return p
+}
+
+// getKubeClientset is the default kubeClientFactory: builds a typed Kubernetes
+// client from the helm CLI environment's REST config. Tests inject a fake
+// clientset instead so the release-secret helpers never reach the active
+// cluster.
+func (p *Provider) getKubeClientset() (kubernetes.Interface, error) {
+	cfg, err := p.helmClient.RESTClientGetter().ToRESTConfig()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get REST config")
+	}
+	cs, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create kubernetes client")
+	}
+	return cs, nil
 }
