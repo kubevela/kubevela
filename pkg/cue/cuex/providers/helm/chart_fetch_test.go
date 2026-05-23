@@ -690,10 +690,20 @@ entries:
 })
 
 var _ = Describe("fetchOCIChart with auth", func() {
-	var scheme *runtime.Scheme
+	var (
+		scheme         *runtime.Scheme
+		origKubeClient client.Client
+	)
 	BeforeEach(func() {
 		scheme = runtime.NewScheme()
 		Expect(corev1.AddToScheme(scheme)).To(Succeed())
+		// Capture the package-global KubeClient so the per-spec
+		// singleton.KubeClient.Set() calls below cannot leak fake
+		// clients into later tests in this package.
+		origKubeClient = singleton.KubeClient.Get()
+	})
+	AfterEach(func() {
+		singleton.KubeClient.Set(origKubeClient)
 	})
 
 	It("rejects a user-supplied bearer token on an OCI source", func() {

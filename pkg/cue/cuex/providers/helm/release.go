@@ -24,9 +24,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 
+	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v3/pkg/storage/driver"
 	"k8s.io/klog/v2"
 )
 
@@ -98,7 +100,14 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 	existingRelease, getErr := getAction.Run(releaseName)
 
 	if getErr != nil {
-		// Release not found in cluster — clear any stale cache entry so we
+		// Only "release not found" should fall through to fresh install. Other
+		// errors (RBAC, API server timeouts, storage driver issues) must be
+		// surfaced so the caller does not accidentally double-install or wipe
+		// release secrets for a release that actually exists.
+		if !errors.Is(getErr, driver.ErrReleaseNotFound) {
+			return "", "", 0, errors.Wrapf(getErr, "failed to look up existing helm release %s", releaseName)
+		}
+		// Release genuinely missing — clear any stale cache entry so we
 		// fall through to a fresh install below.
 		if cached, ok := p.releaseFingerprints[cacheKey]; ok {
 			klog.Infof("Helm provider [%s]: Release %s not found in cluster but cached (fingerprint=%s), clearing stale cache", velaContextStr(velaCtx), releaseName, cached[:16])
@@ -150,7 +159,7 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 		}
 
 		// Release exists — check if it is already deployed with the same fingerprint
-		if !needsAdoption && existingRelease.Info.Status == release.StatusDeployed {
+		if !needsAdoption && existingRelease.Info != nil && existingRelease.Info.Status == release.StatusDeployed {
 			clusterFingerprint := computeReleaseFingerprint(existingRelease.Chart, existingRelease.Config)
 			if clusterFingerprint == fingerprint {
 				klog.V(3).Infof("Helm provider [%s]: Release %s already deployed and unchanged (cluster fingerprint match), skipping upgrade", velaContextStr(velaCtx), releaseName)

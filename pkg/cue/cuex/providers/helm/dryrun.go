@@ -83,8 +83,15 @@ func (p *Provider) getKubeVersion() *chartutil.KubeVersion {
 	if err != nil {
 		return nil
 	}
+	// Prefer the full GitVersion (e.g. "v1.31.4") so charts with patch-level
+	// kubeVersion constraints validate correctly. Fall back to "vMAJOR.MINOR"
+	// only if GitVersion is empty.
+	version := info.GitVersion
+	if version == "" {
+		version = fmt.Sprintf("v%s.%s", info.Major, info.Minor)
+	}
 	return &chartutil.KubeVersion{
-		Version: fmt.Sprintf("v%s.%s", info.Major, info.Minor),
+		Version: version,
 		Major:   info.Major,
 		Minor:   info.Minor,
 	}

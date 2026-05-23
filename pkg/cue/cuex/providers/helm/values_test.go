@@ -118,21 +118,24 @@ var _ = Describe("values", func() {
 			singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).Build())
 		})
 
-		It("rejects a ConfigMap reference to a namespace other than the Application's", func() {
+		It("rejects a ConfigMap reference to a namespace other than the Application's or release's", func() {
+			// Distinct app vs release namespaces so the guard must reject a
+			// third unrelated namespace (kube-system here) on both axes.
 			_, err := p.loadConfigMapValues(context.Background(),
 				ValuesFromParams{Kind: "ConfigMap", Name: "secrets-bearer", Namespace: "kube-system"},
-				"tenant-a", "tenant-a")
+				"tenant-a", "release-a")
 			Expect(err).Should(HaveOccurred())
 			Expect(errors.Is(err, errCrossNamespaceValuesFrom)).To(BeTrue(),
 				"cross-ns error must be detectable via errors.Is")
 			Expect(err.Error()).To(ContainSubstring("kube-system"))
 			Expect(err.Error()).To(ContainSubstring("tenant-a"))
+			Expect(err.Error()).To(ContainSubstring("release-a"))
 		})
 
-		It("rejects a Secret reference to a namespace other than the Application's", func() {
+		It("rejects a Secret reference to a namespace other than the Application's or release's", func() {
 			_, err := p.loadSecretValues(context.Background(),
 				ValuesFromParams{Kind: "Secret", Name: "any", Namespace: "other-tenant"},
-				"tenant-a", "tenant-a")
+				"tenant-a", "release-a")
 			Expect(err).Should(HaveOccurred())
 			Expect(errors.Is(err, errCrossNamespaceValuesFrom)).To(BeTrue())
 		})
@@ -147,7 +150,22 @@ var _ = Describe("values", func() {
 			singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build())
 			values, err := p.loadConfigMapValues(context.Background(),
 				ValuesFromParams{Kind: "ConfigMap", Name: "same", Namespace: "tenant-a"},
-				"tenant-a", "tenant-a")
+				"tenant-a", "release-a")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(values["k"]).To(Equal("v"))
+		})
+
+		It("allows an explicit Namespace equal to the release's namespace", func() {
+			cm := &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "same", Namespace: "release-a"},
+				Data:       map[string]string{"values.yaml": "k: v"},
+			}
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build())
+			values, err := p.loadConfigMapValues(context.Background(),
+				ValuesFromParams{Kind: "ConfigMap", Name: "same", Namespace: "release-a"},
+				"tenant-a", "release-a")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(values["k"]).To(Equal("v"))
 		})

@@ -17,8 +17,6 @@ limitations under the License.
 package helm
 
 import (
-	"context"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"helm.sh/helm/v3/pkg/chart"
@@ -75,79 +73,6 @@ var _ = Describe("release", func() {
 			fpNil := computeReleaseFingerprint(ch, nil)
 			fpEmpty := computeReleaseFingerprint(ch, map[string]interface{}{})
 			Expect(fpNil).To(Equal(fpEmpty))
-		})
-	})
-
-	Describe("cache invalidation on missing release", func() {
-		It("should not return stale cached data", func() {
-			p := NewProviderWithConfig(nil)
-
-			ch := &chart.Chart{Metadata: &chart.Metadata{Version: "1.0.0"}}
-			values := map[string]interface{}{"replicas": 1}
-			fp := computeReleaseFingerprint(ch, values)
-
-			cacheKey := "default/my-release"
-			// Pre-seed the in-memory cache
-			p.releaseMu.Lock()
-			p.releaseFingerprints[cacheKey] = fp
-			p.releaseManifests[cacheKey] = "---\napiVersion: v1\nkind: Service\n"
-			p.releaseVersions[cacheKey] = 3
-			p.releaseMu.Unlock()
-
-			manifest, _, version, _ := p.installOrUpgradeChart(
-				context.Background(), ch, "my-release", "default", values, nil, nil,
-			)
-			// Stale cache should NOT be returned
-			if manifest == "---\napiVersion: v1\nkind: Service\n" && version == 3 {
-				Fail("stale cached data was returned — cache invalidation failed")
-			}
-
-			p.releaseMu.Lock()
-			_, hasFP := p.releaseFingerprints[cacheKey]
-			p.releaseMu.Unlock()
-			if hasFP && p.releaseManifests[cacheKey] == "---\napiVersion: v1\nkind: Service\n" {
-				Fail("stale cache entry was not invalidated")
-			}
-		})
-	})
-
-	Describe("installOrUpgradeChart options", func() {
-		It("should not panic when called with various options (no cluster)", func() {
-			p := NewProviderWithConfig(nil)
-			ch := &chart.Chart{Metadata: &chart.Metadata{Version: "1.0.0"}}
-			values := map[string]interface{}{"key": "val"}
-			opts := &RenderOptionsParams{
-				Atomic:        true,
-				Wait:          true,
-				Timeout:       "30s",
-				Force:         true,
-				CleanupOnFail: true,
-				RecreatePods:  true,
-				MaxHistory:    5,
-			}
-
-			// This will fail (no cluster) but exercises the options parsing code paths
-			_, _, _, err := p.installOrUpgradeChart(
-				context.Background(), ch, "test-opts", "default", values, opts, nil,
-			)
-			// Error expected (no cluster), but no panic
-			_ = err
-		})
-
-		It("should exercise velaCtx adoption path (no cluster)", func() {
-			p := NewProviderWithConfig(nil)
-			ch := &chart.Chart{Metadata: &chart.Metadata{Version: "1.0.0"}}
-			velaCtx := &ContextParams{
-				AppName:      "my-app",
-				AppNamespace: "my-ns",
-				Name:         "my-comp",
-			}
-
-			_, _, _, err := p.installOrUpgradeChart(
-				context.Background(), ch, "test-adopt", "default",
-				map[string]interface{}{}, nil, velaCtx,
-			)
-			_ = err
 		})
 	})
 

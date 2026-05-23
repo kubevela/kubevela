@@ -111,11 +111,17 @@ func applyCommonInstallOptions(install *action.Install, opts *RenderOptionsParam
 }
 
 // isRetryableInstallError returns true if the error indicates orphaned state
-// that can be fixed by cleaning up and retrying.
+// that can be fixed by cleaning up and retrying. The "cannot reuse a name"
+// variant fires when an old release record blocks reuse of a release name
+// even though the underlying resources have been cleaned up externally; the
+// dash-hyphen alternative covers Helm SDK versions that emit "re-use" instead
+// of "reuse".
 func isRetryableInstallError(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "cannot be imported") ||
 		strings.Contains(msg, "invalid ownership metadata") ||
 		strings.Contains(msg, "no revision for release") ||
-		strings.Contains(msg, "release: already exists")
+		strings.Contains(msg, "release: already exists") ||
+		strings.Contains(msg, "cannot reuse a name that is still in use") ||
+		strings.Contains(msg, "cannot re-use a name that is still in use")
 }

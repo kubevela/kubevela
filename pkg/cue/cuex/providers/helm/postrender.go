@@ -60,10 +60,14 @@ type velaLabelPostRenderer struct {
 }
 
 // Run implements postrender.PostRenderer. It parses each YAML document in the
-// rendered manifests, injects KubeVela ownership labels/annotations, and returns
-// the modified manifests.
+// rendered manifests, injects KubeVela ownership labels/annotations, defaults
+// the namespace for namespaced kinds that omitted it, and returns the modified
+// manifests. The namespace defaulting runs even when the KubeVela ownership
+// context is absent, since direct callers (tests, CLI tooling) can still
+// supply a release namespace and benefit from the defaulting fix.
 func (r *velaLabelPostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buffer, error) {
-	if r.context == nil {
+	if r.context == nil && r.releaseNamespace == "" && r.releaseName == "" {
+		// Nothing to inject and no namespace to default — return unchanged.
 		return renderedManifests, nil
 	}
 
@@ -83,15 +87,17 @@ func (r *velaLabelPostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buf
 			continue
 		}
 
-		// Inject KubeVela ownership labels
-		labels := obj.GetLabels()
-		if labels == nil {
-			labels = make(map[string]string)
+		// Inject KubeVela ownership labels when context is available.
+		if r.context != nil {
+			labels := obj.GetLabels()
+			if labels == nil {
+				labels = make(map[string]string)
+			}
+			labels["app.oam.dev/name"] = r.context.AppName
+			labels["app.oam.dev/namespace"] = r.context.AppNamespace
+			labels["app.oam.dev/component"] = r.context.Name
+			obj.SetLabels(labels)
 		}
-		labels["app.oam.dev/name"] = r.context.AppName
-		labels["app.oam.dev/namespace"] = r.context.AppNamespace
-		labels["app.oam.dev/component"] = r.context.Name
-		obj.SetLabels(labels)
 
 		// Default metadata.namespace for namespaced rendered resources whose
 		// template omitted it. Upstream charts (Bitnami, podinfo, ...)
@@ -109,16 +115,18 @@ func (r *velaLabelPostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buf
 			obj.SetNamespace(r.releaseNamespace)
 		}
 
-		// Inject ownership annotations (both KubeVela and Helm)
+		// Inject ownership annotations (both KubeVela and Helm). Helm ownership
+		// annotations are stamped regardless of velaCtx so that resources
+		// re-applied from KubeVela's ResourceTracker retain Helm adoption
+		// metadata. Without these, a subsequent helm install would fail with:
+		//   "cannot be imported into the current release: invalid ownership metadata"
 		annotations := obj.GetAnnotations()
 		if annotations == nil {
 			annotations = make(map[string]string)
 		}
-		annotations["app.oam.dev/owner"] = "helm-provider"
-		// Inject Helm ownership annotations so that resources re-applied from
-		// KubeVela's ResourceTracker retain Helm adoption metadata. Without
-		// these, a subsequent helm install would fail with:
-		//   "cannot be imported into the current release: invalid ownership metadata"
+		if r.context != nil {
+			annotations["app.oam.dev/owner"] = "helm-provider"
+		}
 		if r.releaseName != "" {
 			annotations["meta.helm.sh/release-name"] = r.releaseName
 		}
@@ -161,10 +169,15 @@ func velaOwnerLabels(velaCtx *ContextParams) map[string]string {
 	return labels
 }
 
-// isOwnedByVela checks whether a Helm release was installed/managed by KubeVela
-// by looking for the app.oam.dev/name label on the release's metadata (which is
-// stored on the Kubernetes release Secret via install.Labels / upgrade.Labels).
-// An external release (installed via `helm install` on the CLI) won't have this label.
+// isOwnedByVela checks whether a Helm release was installed/managed by THIS
+// KubeVela Application + component triple by comparing the release Secret's
+// stored ownership labels against the current render context. Matching only
+// on a non-empty app.oam.dev/name would let one Application's release pass
+// as already owned when another Application's component happens to target
+// the same release name in the same namespace; that path skips adoption and
+// can corrupt cross-tenant ownership tracking. An external release (vanilla
+// `helm install` on the CLI) carries no ownership labels at all and falls
+// through to the adoption code path.
 func isOwnedByVela(rel *release.Release, velaCtx *ContextParams) bool {
 	if rel == nil || velaCtx == nil {
 		return false
@@ -172,5 +185,7 @@ func isOwnedByVela(rel *release.Release, velaCtx *ContextParams) bool {
 	if rel.Labels == nil {
 		return false
 	}
-	return rel.Labels["app.oam.dev/name"] != ""
+	return rel.Labels["app.oam.dev/name"] == velaCtx.AppName &&
+		rel.Labels["app.oam.dev/namespace"] == velaCtx.AppNamespace &&
+		rel.Labels["app.oam.dev/component"] == velaCtx.Name
 }

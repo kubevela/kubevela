@@ -56,6 +56,13 @@ func applyCommonUpgradeOptions(upgrade *action.Upgrade, opts *RenderOptionsParam
 	if opts == nil {
 		return
 	}
+	// SkipCRDs is honored by helm v3 only on the install-mode upgrade path
+	// (when an upgrade is performed against a release that does not yet
+	// exist, e.g. `helm upgrade --install`). On a normal upgrade helm does
+	// not touch the chart's crds/ directory at all — those CRDs are install-
+	// time only by helm SDK design. We still wire the flag so that the
+	// install-mode upgrade path honors it; documenting the limitation here
+	// is the price of staying honest about helm's behavior.
 	if opts.IncludeCRDs != nil {
 		upgrade.SkipCRDs = !*opts.IncludeCRDs
 	}

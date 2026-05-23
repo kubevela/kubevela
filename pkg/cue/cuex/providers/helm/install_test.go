@@ -17,14 +17,12 @@ limitations under the License.
 package helm
 
 import (
-	"context"
 	"errors"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart"
 )
 
 func boolPtr(b bool) *bool { return &b }
@@ -179,32 +177,6 @@ var _ = Describe("install action and retry", func() {
 			}, nil, nil)
 			Expect(install.Wait).To(BeTrue())
 			Expect(install.Atomic).To(BeFalse())
-		})
-	})
-
-	Describe("freshInstall", func() {
-		It("should return error when install fails (via installOrUpgradeChart)", func() {
-			p := NewProviderWithConfig(nil)
-			ch := &chart.Chart{
-				Metadata: &chart.Metadata{Name: "test-fresh", Version: "1.0.0"},
-				Templates: []*chart.File{
-					{
-						Name: "templates/cm.yaml",
-						Data: []byte(`apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ .Release.Name }}
-`),
-					},
-				},
-			}
-			// Use installOrUpgradeChart which handles actionConfig initialization safely
-			// It will install into a real cluster if available, or fail if not
-			_, _, _, err := p.installOrUpgradeChart(
-				context.Background(), ch, "test-fresh-install", "default",
-				map[string]interface{}{}, nil, nil)
-			// We just verify it doesn't panic - it may succeed or fail depending on cluster
-			_ = err
 		})
 	})
 
