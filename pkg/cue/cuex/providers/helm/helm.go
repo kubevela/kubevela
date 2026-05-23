@@ -21,12 +21,9 @@ import (
 	_ "embed"
 	"encoding/json"
 	"strings"
-	"time"
 
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/action"
-	"helm.sh/helm/v3/pkg/chart"
-	"helm.sh/helm/v3/pkg/release"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog/v2"
@@ -45,78 +42,6 @@ import (
 
 
 
-// freshInstall performs a helm install with retry logic for orphaned/corrupted state.
-func (p *Provider) freshInstall(ctx context.Context, actionConfig *action.Configuration, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, postRenderer *velaLabelPostRenderer, releaseLabels map[string]string, velaCtx *ContextParams) (*release.Release, error) {
-	install := p.newInstallAction(actionConfig, releaseName, releaseNamespace, options, postRenderer, releaseLabels)
-
-	klog.Infof("Helm provider [%s]: Installing release %s in namespace %s", velaContextStr(velaCtx), releaseName, releaseNamespace)
-	rel, err := install.RunWithContext(ctx, ch, values)
-	if err == nil {
-		return rel, nil
-	}
-
-	// If install fails due to corrupted/orphaned release secrets or ownership
-	// conflicts, clean up the broken state and retry once.
-	if !isRetryableInstallError(err) {
-		return nil, errors.Wrapf(err, "failed to install helm release %s", releaseName)
-	}
-
-	klog.Warningf("Helm provider [%s]: Install failed for %s due to orphaned state (%v), cleaning up and retrying", velaContextStr(velaCtx), releaseName, err)
-	if cleanErr := p.cleanOrphanedReleaseSecrets(actionConfig, releaseName, releaseNamespace, velaCtx); cleanErr != nil {
-		klog.Warningf("Helm provider [%s]: Failed to clean orphaned secrets for %s: %v", velaContextStr(velaCtx), releaseName, cleanErr)
-		return nil, errors.Wrapf(err, "failed to install helm release %s (cleanup also failed: %v)", releaseName, cleanErr)
-	}
-
-	retry := p.newInstallAction(actionConfig, releaseName, releaseNamespace, options, postRenderer, releaseLabels)
-	klog.Infof("Helm provider [%s]: Retrying install for release %s after cleanup", velaContextStr(velaCtx), releaseName)
-	rel, err = retry.RunWithContext(ctx, ch, values)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to install helm release %s after cleanup retry", releaseName)
-	}
-	return rel, nil
-}
-
-// newInstallAction creates a configured helm install action.
-func (p *Provider) newInstallAction(actionConfig *action.Configuration, releaseName, releaseNamespace string, options *RenderOptionsParams, postRenderer *velaLabelPostRenderer, releaseLabels map[string]string) *action.Install {
-	install := action.NewInstall(actionConfig)
-	install.ReleaseName = releaseName
-	install.Namespace = releaseNamespace
-	install.DryRun = false
-	install.ClientOnly = false
-	install.PostRenderer = postRenderer
-	install.CreateNamespace = true
-	install.Labels = releaseLabels
-	if options != nil {
-		if options.Atomic {
-			install.Atomic = true
-		}
-		if options.Wait || options.Atomic {
-			install.Wait = true
-		}
-		if options.Timeout != "" {
-			if d, err := time.ParseDuration(options.Timeout); err == nil {
-				install.Timeout = d
-			}
-		}
-		if options.CreateNamespace != nil {
-			install.CreateNamespace = *options.CreateNamespace
-		}
-		if options.SkipHooks != nil {
-			install.DisableHooks = *options.SkipHooks
-		}
-	}
-	return install
-}
-
-// isRetryableInstallError returns true if the error indicates orphaned state
-// that can be fixed by cleaning up and retrying.
-func isRetryableInstallError(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "cannot be imported") ||
-		strings.Contains(msg, "invalid ownership metadata") ||
-		strings.Contains(msg, "no revision for release") ||
-		strings.Contains(msg, "release: already exists")
-}
 
 
 

@@ -21,9 +21,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"time"
 
-	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/release"
@@ -165,46 +163,10 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 		}
 
 		// Fingerprint differs, needs adoption, or release is not in a clean deployed state — upgrade
-		upgrade := action.NewUpgrade(actionConfig)
-		upgrade.Namespace = releaseNamespace
-		upgrade.PostRenderer = postRenderer
-		upgrade.Labels = releaseLabels
-
-		if options != nil {
-			if options.Atomic {
-				upgrade.Atomic = true
-			}
-			if options.Wait || options.Atomic {
-				upgrade.Wait = true
-			}
-			if options.Timeout != "" {
-				if d, err := time.ParseDuration(options.Timeout); err == nil {
-					upgrade.Timeout = d
-				}
-			}
-			if options.Force {
-				upgrade.Force = true
-			}
-			if options.CleanupOnFail {
-				upgrade.CleanupOnFail = true
-			}
-			if options.RecreatePods {
-				upgrade.Recreate = true
-			}
-			if options.MaxHistory > 0 {
-				upgrade.MaxHistory = options.MaxHistory
-			}
-			if options.SkipHooks != nil {
-				upgrade.DisableHooks = *options.SkipHooks
-			}
-		}
-
-		klog.Infof("Helm provider [%s]: Upgrading release %s in namespace %s", velaContextStr(velaCtx), releaseName, releaseNamespace)
-		rel, err := upgrade.RunWithContext(ctx, releaseName, ch, values)
+		rel, err := p.performUpgrade(ctx, actionConfig, ch, releaseName, releaseNamespace, values, options, postRenderer, releaseLabels, velaCtx)
 		if err != nil {
-			return "", "", 0, errors.Wrapf(err, "failed to upgrade helm release %s", releaseName)
+			return "", "", 0, err
 		}
-		klog.Infof("Helm provider [%s]: Successfully upgraded release %s", velaContextStr(velaCtx), releaseName)
 		p.releaseFingerprints[cacheKey] = fingerprint
 		p.releaseManifests[cacheKey] = rel.Manifest
 		p.releaseVersions[cacheKey] = rel.Version
