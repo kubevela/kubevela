@@ -20,7 +20,6 @@ package helm
 
 import (
 	"context"
-	"encoding/json"
 	stderrors "errors"
 	"fmt"
 
@@ -28,6 +27,7 @@ import (
 	"helm.sh/helm/v3/pkg/chartutil"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
@@ -106,38 +106,27 @@ func (p *Provider) mergeValues(ctx context.Context, baseValues interface{}, valu
 	// because CoalesceTables mutates dst in place, and dst here is the caller's
 	// map (renderParams.Values). A shallow copy is not enough: nested maps
 	// would still be shared with the caller and could be mutated by deep
-	// keys CoalesceTables fills in. Deep-clone via the JSON round-trip used
-	// elsewhere in the helm SDK for the same reason.
+	// keys CoalesceTables fills in.
 	if inline, ok := baseValues.(map[string]interface{}); ok {
-		clone, err := deepCloneValues(inline)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to deep-clone inline values before merge")
-		}
-		accumulated = chartutil.CoalesceTables(clone, accumulated)
+		accumulated = chartutil.CoalesceTables(deepCloneValues(inline), accumulated)
 	}
 
 	return accumulated, nil
 }
 
-// deepCloneValues returns a deep copy of a values map by JSON round-trip.
+// deepCloneValues returns a deep copy of a values map.
 // CoalesceTables mutates the destination map (including nested entries) in
 // place, so we must isolate the caller's map at every depth, not just the
-// top level. A JSON round-trip is heavier than `maps.Clone` but is the same
-// technique helm SDK uses internally for the same reason and handles the
-// nested map/slice mix that Helm values can contain.
-func deepCloneValues(in map[string]interface{}) (map[string]interface{}, error) {
+// top level. runtime.DeepCopyJSON is the right tool here: it walks the
+// nested map/slice mix that Helm values can contain AND preserves Go
+// numeric types (int vs float64), where a JSON round-trip would coerce
+// every number to float64 and break Helm templates that rely on integer
+// type assertions (e.g. `{{ .Values.replicaCount | int }}`).
+func deepCloneValues(in map[string]interface{}) map[string]interface{} {
 	if in == nil {
-		return nil, nil
+		return nil
 	}
-	buf, err := json.Marshal(in)
-	if err != nil {
-		return nil, err
-	}
-	var out map[string]interface{}
-	if err := json.Unmarshal(buf, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return runtime.DeepCopyJSON(in)
 }
 
 // loadValuesFromSource dispatches to the appropriate loader based on source.Kind.
