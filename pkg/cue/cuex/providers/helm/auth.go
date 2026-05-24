@@ -16,6 +16,8 @@ limitations under the License.
 
 package helm
 
+// Resolves Secret-referenced authentication for OCI registries and HTTPS chart sources.
+
 import (
 	"context"
 	"crypto/sha256"
