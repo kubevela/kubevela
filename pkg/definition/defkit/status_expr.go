@@ -39,7 +39,19 @@ type StatusExpression interface {
 }
 
 // StatusPolicy wraps a StatusExpression and generates the complete customStatus CUE block.
+//
+// Switch and HealthAware expressions need the multi-branch rendering produced
+// by their BuildFull() methods — emitting only the default through the generic
+// `message: <expr>` path would silently drop every case / unhealthy branch.
+// CustomStatusExpr applies the same special-casing; keeping them aligned means
+// the two entry points always render identical CUE for the same expression.
 func StatusPolicy(expr StatusExpression) string {
+	switch e := expr.(type) {
+	case *statusSwitchExpr:
+		return e.BuildFull()
+	case *statusHealthAwareExpr:
+		return e.BuildFull()
+	}
 	preamble := expr.Preamble()
 	if preamble != "" {
 		return preamble + "\nmessage: " + expr.ToCUE()

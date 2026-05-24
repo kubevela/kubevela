@@ -250,6 +250,150 @@ parameter: #PatchParams
 			Expect(cue).To(ContainSubstring(`"strconv"`))
 			Expect(cue).To(ContainSubstring(`"strings"`))
 		})
+
+		It("should still auto-detect param imports when the trait has no Template() func", func() {
+			// Reproduces the P1 review finding: a trait that declares
+			// constraint-bearing params but no Template(func(tpl)) body
+			// (raw TemplateBlock / status-only trait) used to short-circuit
+			// out of detectRequiredImports and skip the params loop, so
+			// "strings" was never added even though MinLen rendered
+			// strings.MinRunes(...) into the parameter block.
+			name := defkit.String("name").MinLen(3)
+
+			trait := defkit.NewTrait("params-only").
+				Description("Trait with constraint params but no Template func").
+				AppliesTo("deployments.apps").
+				Params(name).
+				TemplateBlock(`patch: metadata: name: parameter.name`)
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring(`import (`))
+			Expect(cue).To(ContainSubstring(`"strings"`))
+		})
+
+		It("should auto-detect the strings import for StringParam with MinLen via ImportRequirer", func() {
+			name := defkit.String("name").MinLen(3)
+
+			trait := defkit.NewTrait("named-trait").
+				Description("Trait whose StringParam requires strings import").
+				AppliesTo("deployments.apps").
+				Params(name).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().Set("metadata.name", name)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring(`import (`))
+			Expect(cue).To(ContainSubstring(`"strings"`))
+		})
+
+		It("should auto-detect the list import via Template helpers (Helper, ConcatHelper, DedupeHelper, StructArrayHelper)", func() {
+			volumes := defkit.Array("volumes").WithFields(
+				defkit.String("name"),
+				defkit.String("type"),
+			).Optional()
+			extras := defkit.Array("extras").WithFields(
+				defkit.String("name"),
+			).Optional()
+
+			trait := defkit.NewTrait("helper-imports").
+				Description("Helpers on a trait template must pull their imports").
+				AppliesTo("deployments.apps").
+				Params(volumes, extras).
+				Template(func(tpl *defkit.Template) {
+					// HelperVar — exercises GetHelpersBeforeOutput on a trait.
+					tpl.Helper("_namedVolumes").
+						From(volumes).
+						Map(defkit.FieldMap{"name": defkit.FieldRef("name")}).
+						Build()
+					// StructArrayHelper + ConcatHelper — both declared
+					// at template scope, both ImportRequirers.
+					byType := tpl.StructArrayHelper("_byType", volumes).
+						Field("pvc", defkit.FieldMap{"name": defkit.FieldRef("name")}).
+						Build()
+					tpl.ConcatHelper("_allTypes", byType).Fields("pvc").Build()
+					// DedupeHelper — also an ImportRequirer.
+					tpl.DedupeHelper("_uniqExtras", extras).
+						ByKey("name").
+						Build()
+					tpl.Outputs("dep", defkit.NewResource("apps/v1", "Deployment").
+						SetIf(extras.IsSet(),
+							"metadata.annotations.uniq", defkit.Lit("set")))
+				})
+
+			cue := trait.ToCue()
+
+			// Helpers above ought to surface "list" because both
+			// ConcatHelper and DedupeHelper render via list.Concat /
+			// list-based dedupe operations.
+			Expect(cue).To(ContainSubstring(`import (`))
+			Expect(cue).To(ContainSubstring(`"list"`))
+		})
+
+		It("should not duplicate imports when WithImports already declares the same package", func() {
+			extras := defkit.Array("extraVolumeMounts").WithFields(
+				defkit.String("name"),
+				defkit.String("mountPath"),
+			)
+
+			trait := defkit.NewTrait("dedup-imports").
+				Description("WithImports + auto-detect should converge on one list import").
+				AppliesTo("deployments.apps").
+				WithImports("list").
+				Params(extras).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().PatchKey("spec.template.spec.containers", "name",
+						defkit.NewArrayElement().
+							PatchKeyField("volumeMounts", "name", defkit.ArrayConcat(
+								defkit.NewArray().Item(
+									defkit.NewArrayElement().
+										Set("name", defkit.Lit("work")).
+										Set("mountPath", defkit.Lit("/work")),
+								),
+								extras,
+							)),
+					)
+				})
+
+			cue := trait.ToCue()
+			// Exactly one "list" import in the imports block.
+			imp := strings.Count(cue, `"list"`)
+			Expect(imp).To(Equal(1))
+		})
+
+		It("should auto-detect the list import when an ArrayConcat appears in a patch block", func() {
+			extras := defkit.Array("extraVolumeMounts").WithFields(
+				defkit.String("name"),
+				defkit.String("mountPath"),
+			)
+
+			trait := defkit.NewTrait("auto-import-from-array-concat").
+				Description("ArrayConcat inside patch must pull the list import without WithImports").
+				AppliesTo("deployments.apps").
+				Params(extras).
+				Template(func(tpl *defkit.Template) {
+					tpl.Patch().PatchKey("spec.template.spec.containers", "name",
+						defkit.NewArrayElement().
+							PatchKeyField("volumeMounts", "name", defkit.ArrayConcat(
+								defkit.NewArray().Item(
+									defkit.NewArrayElement().
+										Set("name", defkit.Lit("work")).
+										Set("mountPath", defkit.Lit("/work")),
+								),
+								extras,
+							)),
+					)
+				})
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring(`import (`))
+			Expect(cue).To(ContainSubstring(`"list"`))
+			Expect(cue).To(ContainSubstring(`list.Concat([`))
+			Expect(cue).NotTo(ContainSubstring(`] + parameter.extraVolumeMounts`))
+		})
 	})
 
 	Context("ToCue Generation - Status", func() {
