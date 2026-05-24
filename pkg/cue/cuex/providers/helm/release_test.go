@@ -19,7 +19,6 @@ package helm
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -277,37 +276,25 @@ var _ = Describe("release", func() {
 		})
 
 		It("falls through to fresh install when Get returns a corruption-style error", func() {
-			// Reproduces the dispatcher-layer contract validated by the e2e
-			// test "Helmchart Self-Healing / should recover from corrupted
-			// Helm release secret": when helm's storage driver returns a
-			// non-NotFound error (e.g. the release Secret's .data.release has
-			// been mutated to garbage and helm cannot decode it), the
-			// dispatcher MUST clear the in-memory cache and fall through to
-			// freshInstall rather than surfacing the error to the caller.
+			// Pins the dispatcher-layer half of the self-healing contract
+			// validated end-to-end by "Helmchart Self-Healing / should
+			// recover from corrupted Helm release secret" in
+			// test/e2e-test/helmchart_test.go: when helm's storage driver
+			// returns a non-NotFound error (the release Secret's
+			// .data.release has been mutated to garbage and helm cannot
+			// decode it), the dispatcher MUST clear the in-memory cache and
+			// fall through to freshInstall rather than surfacing the error.
 			//
-			// Seeded at the canonical storage key (sh.helm.release.v1.<name>.
-			// v<version>) so the in-memory release record collides with the
-			// key helm SDK derives for a release of the same name+version on
-			// the install path. The corruptingDriver layered on top returns
+			// The corruptingDriver layered on the in-memory storage returns
 			// a synthetic decode error for every Get/Query targeting this
-			// release name, forcing the dispatcher down the recovery path.
-			//
-			// End-to-end cleanup (delete corrupted Secret via the kube
-			// clientset, retry install) is exercised by the e2e test
-			// referenced above; this unit test pins the dispatcher's
-			// swallow-and-fall-through contract that gates it.
-			mem := driver.NewMemory()
-			pre := &release.Release{
-				Name: relName, Namespace: relNS, Version: 1,
-				Info:   &release.Info{Status: release.StatusDeployed},
-				Chart:  minimalChart("c", "1.0.0"),
-				Config: map[string]interface{}{},
-			}
-			canonicalKey := fmt.Sprintf("sh.helm.release.v1.%s.v%d", relName, 1)
-			Expect(mem.Create(canonicalKey, pre)).To(Succeed())
-
+			// release name, forcing the dispatcher down the recovery branch.
+			// The end-to-end recovery loop (cleanup the corrupted Secret via
+			// the kube clientset and retry install) requires storage and
+			// secrets to be backed by the same Kubernetes API, which the
+			// fake setup here intentionally does not bridge — that path is
+			// the e2e test's job. The two gates together cover the contract.
 			cfg := &action.Configuration{
-				Releases:     storage.Init(&corruptingDriver{Driver: mem, corruptName: relName}),
+				Releases:     storage.Init(&corruptingDriver{Driver: driver.NewMemory(), corruptName: relName}),
 				KubeClient:   &kubefake.PrintingKubeClient{Out: io.Discard},
 				Capabilities: chartutil.DefaultCapabilities,
 				Log:          func(format string, v ...interface{}) {},
