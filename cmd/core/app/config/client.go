@@ -38,3 +38,8 @@ func NewClientConfig() *ClientConfig {
 func (c *ClientConfig) AddFlags(fs *pflag.FlagSet) {
 	pkgclient.AddTimeoutControllerClientFlags(fs)
 }
+
+// Validate ensures the configuration is valid.
+func (c *ClientConfig) Validate() error {
+	return nil
+}

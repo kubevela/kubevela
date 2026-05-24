@@ -17,6 +17,7 @@ limitations under the License.
 package options
 
 import (
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	cliflag "k8s.io/component-base/cli/flag"
 
 	"github.com/oam-dev/kubevela/cmd/core/app/config"
@@ -123,4 +124,27 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	s.KLog.AddFlags(fss.FlagSet("klog"))
 
 	return fss
+}
+
+// Validate runs validation on all config modules that implement a Validate() error method.
+func (s *CoreOptions) Validate() error {
+	var errs []error
+
+	// List all config modules
+	configs := []interface{}{
+		s.Server, s.Webhook, s.Observability, s.Kubernetes, s.MultiCluster,
+		s.CUE, s.Application, s.OAM, s.Performance, s.Workflow, s.Admission,
+		s.Resource, s.Client, s.Reconcile, s.Sharding, s.Feature, s.Profiling,
+		s.KLog, s.Controller,
+	}
+
+	for _, c := range configs {
+		if v, ok := c.(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+
+	return utilerrors.NewAggregate(errs)
 }
