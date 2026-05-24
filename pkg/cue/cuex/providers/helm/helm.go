@@ -17,6 +17,7 @@ limitations under the License.
 package helm
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -110,11 +111,14 @@ type ReleaseParams struct {
 
 // ValuesFromParams represents a values source.
 type ValuesFromParams struct {
-	Kind      string `json:"kind"`
-	Name      string `json:"name"`
-	Namespace string `json:"namespace,omitempty"`
-	Key       string `json:"key,omitempty"`
-	Optional  bool   `json:"optional,omitempty"`
+	Kind      string      `json:"kind"`
+	Name      string      `json:"name"`
+	Namespace string      `json:"namespace,omitempty"`
+	Key       string      `json:"key,omitempty"`
+	URL       string      `json:"url,omitempty"`
+	Tag       string      `json:"tag,omitempty"`
+	Auth      *AuthParams `json:"auth,omitempty"`
+	Optional  bool        `json:"optional,omitempty"`
 }
 
 // CacheParams represents cache configuration from the template
@@ -670,6 +674,8 @@ func (p *Provider) loadValuesFromSource(ctx context.Context, source ValuesFromPa
 		return p.loadConfigMapValues(ctx, source, appNamespace, releaseNamespace)
 	case "Secret":
 		return p.loadSecretValues(ctx, source, appNamespace, releaseNamespace)
+	case "OCIRepository":
+		return p.loadOCIValues(ctx, source, appNamespace, releaseNamespace)
 	default:
 		return nil, fmt.Errorf("unsupported values source kind: %s", source.Kind)
 	}
@@ -783,6 +789,101 @@ func (p *Provider) loadSecretValues(ctx context.Context, source ValuesFromParams
 	var values map[string]interface{}
 	if err := yaml.Unmarshal(raw, &values); err != nil {
 		return nil, errors.Wrapf(err, "Secret %s/%s key %q: invalid YAML", ns, source.Name, key)
+	}
+	return values, nil
+}
+
+func (p *Provider) loadOCIValues(ctx context.Context, source ValuesFromParams, appNamespace, releaseNamespace string) (map[string]interface{}, error) {
+	if source.URL == "" {
+		return nil, fmt.Errorf("OCIRepository values source requires a url")
+	}
+	if source.Tag == "" {
+		source.Tag = "latest"
+	}
+	key := source.Key
+	if key == "" {
+		key = defaultValuesKey
+	}
+	// Build ChartSourceParams from the valuesFrom entry so existing auth
+	// plumbing (resolveHTTPOptions, writeOCIRegistryConfigFile) works unchanged.
+	chartParams := &ChartSourceParams{
+		Source:  source.URL,
+		Version: source.Tag,
+		Auth:    source.Auth,
+	}
+	httpOpts, rawDockerCfg, err := resolveHTTPOptions(ctx, chartParams, appNamespace, releaseNamespace, sourceTypeOCI)
+	if err != nil {
+		return nil, errors.Wrap(err, "auth resolution failed for OCI values source")
+	}
+	clientOpts := []registry.ClientOption{}
+	if httpOpts != nil || rawDockerCfg != nil {
+		host := extractRegistryHost(source.URL, "")
+		credFile, cleanup, werr := writeOCIRegistryConfigFile(httpOpts, rawDockerCfg, host)
+		if werr != nil {
+			return nil, errors.Wrap(werr, "failed to materialize OCI credentials file for values source")
+		}
+		defer cleanup()
+		clientOpts = append(clientOpts, registry.ClientOptCredentialsFile(credFile))
+	}
+	if httpOpts != nil && httpOpts.PlainHTTP {
+		clientOpts = append(clientOpts, registry.ClientOptPlainHTTP())
+	}
+	registryClient, err := registry.NewClient(clientOpts...)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create OCI registry client for values source")
+	}
+	ref := strings.TrimPrefix(source.URL, "oci://")
+	if source.Tag != "" {
+		ref = fmt.Sprintf("%s:%s", ref, source.Tag)
+	}
+	result, err := registryClient.Pull(ref)
+	if err != nil {
+		if source.Optional {
+			return map[string]interface{}{}, &valueSourceMissingError{
+				kind: "OCIRepository", name: source.URL, namespace: ref,
+				cause: err,
+			}
+		}
+		return nil, errors.Wrapf(err, "failed to pull OCI values artifact from %s", ref)
+	}
+	// Extract the requested key from the pulled tarball.
+	tarReader := tar.NewReader(bytes.NewReader(result.Chart.Data))
+	var valuesBytes []byte
+	found := false
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to read OCI artifact tar")
+		}
+		// Match the file at any depth (helm-style tarballs have a top-level dir).
+		if strings.HasSuffix(header.Name, "/"+key) || header.Name == key {
+			data, err := io.ReadAll(tarReader)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to read %q from OCI artifact", key)
+			}
+			valuesBytes = data
+			found = true
+			break
+		}
+	}
+	if !found {
+		if source.Optional {
+			return map[string]interface{}{}, &valueSourceMissingError{
+				kind: "OCIRepository", name: source.URL, namespace: ref, key: key,
+				cause: fmt.Errorf("key %q not found in OCI artifact", key),
+			}
+		}
+		return nil, &valueSourceMissingError{
+			kind: "OCIRepository", name: source.URL, namespace: ref, key: key,
+			cause: fmt.Errorf("key %q not found in OCI artifact", key),
+		}
+	}
+	var values map[string]interface{}
+	if err := yaml.Unmarshal(valuesBytes, &values); err != nil {
+		return nil, errors.Wrapf(err, "OCIRepository %s key %q: invalid YAML", source.URL, key)
 	}
 	return values, nil
 }
