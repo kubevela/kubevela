@@ -864,8 +864,8 @@ spec:
 			p = NewProviderWithConfig(nil)
 		})
 
-		It("returns an error for unsupported kinds (including the reserved OCIRepository)", func() {
-			for _, kind := range []string{"OCIRepository", "Unknown", "configmap", ""} {
+		It("returns an error for unsupported kinds", func() {
+			for _, kind := range []string{"Unknown", "configmap", ""} {
 				_, err := p.loadValuesFromSource(context.Background(),
 					ValuesFromParams{Kind: kind, Name: "test"},
 					"default", "default")
@@ -1077,6 +1077,34 @@ spec:
 		})
 	})
 
+	Describe("loadOCIValues validation", func() {
+		var p *Provider
+
+		BeforeEach(func() {
+			p = NewProviderWithConfig(nil)
+		})
+
+		It("requires a url", func() {
+			_, err := p.loadValuesFromSource(context.Background(),
+				ValuesFromParams{Kind: "OCIRepository", Key: "values.yaml"},
+				"default", "default")
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("requires a url"))
+		})
+
+		It("accepts OCIRepository as a valid kind via loadValuesFromSource", func() {
+			// Without a real OCI registry, the call will fail at
+			// registry.NewClient, not at the kind-dispatch level.
+			// Proving dispatch works and surfaces a meaningful error.
+			_, err := p.loadValuesFromSource(context.Background(),
+				ValuesFromParams{Kind: "OCIRepository", URL: "oci://ghcr.io/test/values", Tag: "v1"},
+				"default", "default")
+			Expect(err).Should(HaveOccurred())
+			// The error must NOT say "unsupported" — that means dispatch worked.
+			Expect(err.Error()).ToNot(ContainSubstring("unsupported values source kind"))
+		})
+	})
+
 	Describe("mergeValues priority", func() {
 		const releaseNS = "prod"
 
@@ -1269,6 +1297,40 @@ spec:
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result["image"]).To(Equal("secret-image"), "later Secret wins over earlier ConfigMap")
 			Expect(result["replicaCount"]).To(BeEquivalentTo(2), "orthogonal CM key preserved")
+		})
+	})
+
+	Describe("mergeValues with OCIRepository", func() {
+		const releaseNS = "prod"
+
+		var (
+			p   *Provider
+			ctx context.Context
+		)
+
+		BeforeEach(func() {
+			p = NewProviderWithConfig(nil)
+			ctx = context.Background()
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).Build())
+		})
+
+		It("skips an optional OCIRepository source when the registry is unreachable", func() {
+			base := map[string]interface{}{"key": "from-inline"}
+			result, err := p.mergeValues(ctx, base, []ValuesFromParams{
+				{Kind: "OCIRepository", URL: "oci://127.0.0.1:1/test", Tag: "latest", Optional: true},
+			}, releaseNS, releaseNS)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(result["key"]).To(Equal("from-inline"))
+		})
+
+		It("fails on a required OCIRepository source when the registry is unreachable", func() {
+			_, err := p.mergeValues(ctx, nil, []ValuesFromParams{
+				{Kind: "OCIRepository", URL: "oci://127.0.0.1:1/test", Tag: "latest", Optional: false},
+			}, releaseNS, releaseNS)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to load values from"))
 		})
 	})
 

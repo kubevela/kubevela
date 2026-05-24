@@ -138,15 +138,23 @@ template: {
 
 		// +usage=Additional values sources merged in array order. Later entries override earlier ones on conflict, and inline `values` override everything in valuesFrom. Deep-merges map keys; arrays are replaced (not concatenated); null is preserved. On every reconcile the controller computes a content fingerprint over all referenced sources and folds it into the workflow revision; an external edit to a referenced ConfigMap/Secret triggers a `helm upgrade` on the next reconcile (default resync ~5 min). Sources are read from the control-plane cluster regardless of where the chart is deployed. Suppressed when the `app.oam.dev/publishVersion` annotation is set so explicit pins remain hard.
 		valuesFrom?: [...{
-			// +usage=Source kind. Only Secret and ConfigMap are supported; OCIRepository is reserved for a future release.
-			kind: "Secret" | "ConfigMap"
+			// +usage=Source kind. Only Secret, ConfigMap and OCIRepository are supported; 
+			kind: "Secret" | "ConfigMap" | "OCIRepository"
 			// +usage=Name of the Secret or ConfigMap.
-			name: string
+			name?: string
 			// +usage=Namespace of the Secret or ConfigMap. Defaults to the chart release namespace, which itself defaults to the Application's own namespace when release.namespace is unset. Cross-namespace references are rejected to prevent cross-tenant reads via the controller's cluster-wide RBAC.
 			namespace?: string
 			// +usage=Key inside .data whose value is parsed as YAML. Defaults to "values.yaml" (FluxCD / Helm convention). Only ConfigMap.data and Secret.data are read; ConfigMap.binaryData is rejected.
 			key?: string
 			// +usage=If true, a missing Secret/ConfigMap or missing key is skipped silently. Parse errors and permission errors still fail the render.
+			url?: string
+			tag?: string
+			auth?: {
+				secretRef?: {
+					name:       string
+					namespace?: string
+				}
+			}
 			optional?: bool | *false
 		}]
 
