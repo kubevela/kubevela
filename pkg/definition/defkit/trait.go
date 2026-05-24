@@ -487,6 +487,18 @@ func (g *TraitCUEGenerator) addImportIfMissing(imp string) {
 // like ArrayConcat (which renders as list.Concat) auto-pull "list" without
 // the trait author calling WithImports.
 func (g *TraitCUEGenerator) detectRequiredImports(t *TraitDefinition) {
+	// Trait params can declare ImportRequirer themselves (e.g. StringParam
+	// with MinLen/MaxLen requires "strings"). Scan params first so traits
+	// without a Template(func(tpl)) body (raw TemplateBlock, status-only,
+	// etc.) still pick up the imports their parameter schema needs.
+	for _, param := range t.GetParams() {
+		if ir, ok := param.(ImportRequirer); ok {
+			for _, imp := range ir.RequiredImports() {
+				g.addImportIfMissing(imp)
+			}
+		}
+	}
+
 	if !t.HasTemplate() {
 		return
 	}
@@ -512,16 +524,6 @@ func (g *TraitCUEGenerator) detectRequiredImports(t *TraitDefinition) {
 	for _, helper := range tpl.GetHelpersAfterOutput() {
 		scan.collectImportsFromValue(helper)
 		scan.collectImportsFromValue(helper.Collection())
-	}
-
-	// Trait params can declare ImportRequirer themselves (e.g. StringParam
-	// with MinLen/MaxLen requires "strings").
-	for _, param := range t.GetParams() {
-		if ir, ok := param.(ImportRequirer); ok {
-			for _, imp := range ir.RequiredImports() {
-				g.addImportIfMissing(imp)
-			}
-		}
 	}
 
 	// Resource operations in output / outputs / patch.

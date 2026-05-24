@@ -251,6 +251,27 @@ parameter: #PatchParams
 			Expect(cue).To(ContainSubstring(`"strings"`))
 		})
 
+		It("should still auto-detect param imports when the trait has no Template() func", func() {
+			// Reproduces the P1 review finding: a trait that declares
+			// constraint-bearing params but no Template(func(tpl)) body
+			// (raw TemplateBlock / status-only trait) used to short-circuit
+			// out of detectRequiredImports and skip the params loop, so
+			// "strings" was never added even though MinLen rendered
+			// strings.MinRunes(...) into the parameter block.
+			name := defkit.String("name").MinLen(3)
+
+			trait := defkit.NewTrait("params-only").
+				Description("Trait with constraint params but no Template func").
+				AppliesTo("deployments.apps").
+				Params(name).
+				TemplateBlock(`patch: metadata: name: parameter.name`)
+
+			cue := trait.ToCue()
+
+			Expect(cue).To(ContainSubstring(`import (`))
+			Expect(cue).To(ContainSubstring(`"strings"`))
+		})
+
 		It("should auto-detect the strings import for StringParam with MinLen via ImportRequirer", func() {
 			name := defkit.String("name").MinLen(3)
 
