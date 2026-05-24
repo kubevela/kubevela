@@ -262,8 +262,13 @@ func (g *CUEGenerator) collectImportsFromResource(res *Resource) {
 	if res == nil {
 		return
 	}
+	g.collectImportsFromOps(res.Ops())
+}
 
-	for _, op := range res.Ops() {
+// collectImportsFromOps walks a slice of ResourceOp (used by Resource, PatchResource,
+// and similar) and surfaces any imports declared via ImportRequirer.
+func (g *CUEGenerator) collectImportsFromOps(ops []ResourceOp) {
+	for _, op := range ops {
 		switch o := op.(type) {
 		case *SetOp:
 			g.collectImportsFromValue(o.Value())
@@ -282,6 +287,18 @@ func (g *CUEGenerator) collectImportsFromResource(res *Resource) {
 				case *SetIfOp:
 					g.collectImportsFromValue(inner.Value())
 					g.collectImportsFromValue(inner.Cond())
+				}
+			}
+		case *PatchKeyOp:
+			for _, elem := range o.Elements() {
+				g.collectImportsFromValue(elem)
+				if ae, ok := elem.(*ArrayElement); ok {
+					for _, fv := range ae.Fields() {
+						g.collectImportsFromValue(fv)
+					}
+					for _, pkf := range ae.PatchKeyFields() {
+						g.collectImportsFromValue(pkf.value)
+					}
 				}
 			}
 		}
@@ -424,6 +441,14 @@ func (g *CUEGenerator) GenerateTemplate(c *ComponentDefinition) string {
 			sb.WriteString(line)
 			sb.WriteString("\n")
 		}
+	}
+
+	// Emit let bindings (tpl.AddLetBinding) before the output block so the
+	// rendered let expressions appear in the same order they were declared
+	// and are in scope for the output / outputs / helpers that follow.
+	for _, lb := range tpl.GetLetBindings() {
+		exprStr := g.valueToCUE(lb.Expr())
+		sb.WriteString(fmt.Sprintf("%slet %s = %s\n", g.indent, lb.Name(), exprStr))
 	}
 
 	// Generate output block
@@ -1024,7 +1049,7 @@ func (g *CUEGenerator) writeMultiSourceHelper(sb *strings.Builder, ms *MultiSour
 		}
 		var cond string
 		if fOp, ok := op.(*filterOp); ok {
-			cond = g.predicateToCUE(fOp.pred)
+			cond = g.predicateToCUE(fOp.pred, "v")
 		} else if fOp, ok := op.(*filterCondCollectionOp); ok {
 			cond = g.conditionToCUE(fOp.Cond())
 		}
@@ -1093,7 +1118,7 @@ func (g *CUEGenerator) writeCollectionOpHelper(sb *strings.Builder, col *Collect
 	for _, op := range ops {
 		var cond string
 		if fOp, ok := op.(*filterOp); ok {
-			cond = g.predicateToCUE(fOp.pred)
+			cond = g.predicateToCUE(fOp.pred, "v")
 		} else if fOp, ok := op.(*filterCondCollectionOp); ok {
 			cond = g.conditionToCUE(fOp.Cond())
 		}
@@ -1200,8 +1225,14 @@ func (g *CUEGenerator) writeCollectionOpHelper(sb *strings.Builder, col *Collect
 		}
 	}
 
-	// Default: simple list comprehension
-	sb.WriteString(fmt.Sprintf("[for v in %s { v }]", sourceStr))
+	// Default: simple list comprehension. Honour any guard and filter
+	// conditions collected above so `From().Filter(...).Guard(...).Build()`
+	// renders with the right scope instead of silently dropping them.
+	if filterCondition != "" {
+		sb.WriteString(fmt.Sprintf("[%sfor v in %s if %s { v }]", guardPrefix, sourceStr, filterCondition))
+		return
+	}
+	sb.WriteString(fmt.Sprintf("[%sfor v in %s { v }]", guardPrefix, sourceStr))
 }
 
 // writeFieldMapAsHelper writes a FieldMap as CUE fields.
@@ -2223,7 +2254,7 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 	case *ArrayBuilder:
 		return g.arrayBuilderToCUE(val, 1)
 	case *ArrayConcatValue:
-		return g.valueToCUE(val.Left()) + " + " + g.valueToCUE(val.Right())
+		return "list.Concat([" + g.valueToCUE(val.Left()) + ", " + g.valueToCUE(val.Right()) + "])"
 	case *ListComprehension:
 		// Return list comprehension CUE
 		return g.listComprehensionToCUE(val)
@@ -2345,7 +2376,7 @@ func (g *CUEGenerator) valueToCUEAtDepth(v Value, depth int) string {
 	case *ArrayBuilder:
 		return g.arrayBuilderToCUE(val, depth)
 	case *ArrayConcatValue:
-		return g.valueToCUEAtDepth(val.Left(), depth) + " + " + g.valueToCUE(val.Right())
+		return "list.Concat([" + g.valueToCUEAtDepth(val.Left(), depth) + ", " + g.valueToCUE(val.Right()) + "])"
 	default:
 		return g.valueToCUE(v)
 	}
@@ -2473,7 +2504,7 @@ func (g *CUEGenerator) arrayBuilderToCUE(ab *ArrayBuilder, depth int) string {
 			}
 			filterSuffix := ""
 			if entry.filter != nil {
-				filterSuffix = " if " + g.predicateToCUE(entry.filter)
+				filterSuffix = " if " + g.predicateToCUE(entry.filter, entry.itemBuilder.VarName())
 			}
 			sb.WriteString(fmt.Sprintf("%s%sfor %s in %s%s {\n", innerIndent, guardPrefix, entry.itemBuilder.VarName(), sourceStr, filterSuffix))
 			g.writeItemBuilderOps(&sb, entry.itemBuilder.Ops(), depth+2)
@@ -2538,7 +2569,7 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 	for _, op := range ops {
 		var cond string
 		if fOp, ok := op.(*filterOp); ok {
-			cond = g.predicateToCUE(fOp.pred)
+			cond = g.predicateToCUE(fOp.pred, "v")
 		} else if fOp, ok := op.(*filterCondCollectionOp); ok {
 			cond = g.conditionToCUE(fOp.Cond())
 		}
@@ -2564,7 +2595,12 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 	}
 
 	// Dedupe: render the nested-comprehension pattern.
-	// This is placed after all op detection so that guard/filter/map are not bypassed.
+	//
+	// When Filter and/or Map are also present in the chain, we have to thread
+	// them through the dedupe template — otherwise both stages were silently
+	// dropped, which is the bug the regression test in collections_test.go
+	// guards against. The semantics this honours are "filter first, dedupe by
+	// key, then map", which matches the order the chain was declared in.
 	if dedupeKeyField != "" {
 		var sb strings.Builder
 		// Apply guard if present
@@ -2572,18 +2608,42 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 			guardStr := g.conditionToCUE(guard)
 			sb.WriteString(fmt.Sprintf("if %s ", guardStr))
 		}
+
+		// Render the filter twice — once for the i-loop and once for the
+		// j-loop — so we only ever compare items inside the filtered set.
+		// Without filtering both, an unfiltered earlier vj could mark the
+		// first FILTERED occurrence as a duplicate and drop it.
+		filterVi, filterVj := g.collectFilterCondition(ops, "vi"), g.collectFilterCondition(ops, "vj")
+		iFilterClause := ""
+		if filterVi != "" {
+			iFilterClause = " if " + filterVi
+		}
+		jFilterClause := ""
+		if filterVj != "" {
+			jFilterClause = filterVj + " && "
+		}
+
 		sb.WriteString(fmt.Sprintf(`[
 		for val in [
-			for i, vi in %s {
-				for j, vj in %s if j < i && vi.%s == vj.%s {
+			for i, vi in %s%s {
+				for j, vj in %s if j < i && %svi.%s == vj.%s {
 					_ignore: true
 				}
 				vi
 			},
 		] if val._ignore == _|_ {
-			val
-		},
-	]`, sourceStr, sourceStr, dedupeKeyField, dedupeKeyField))
+`, sourceStr, iFilterClause, sourceStr, jFilterClause, dedupeKeyField, dedupeKeyField))
+
+		// Apply Map / MapVariant if present, otherwise pass the deduped
+		// element through unchanged. The outer iteration variable is "val",
+		// so writeMapBody substitutes FieldRef("v.x") into "val.x" via the
+		// varName parameter.
+		if hasMap || hasVariant {
+			g.writeMapBody(&sb, ops, "\t\t\t", "val")
+		} else {
+			sb.WriteString("\t\t\tval,\n")
+		}
+		sb.WriteString("\t\t},\n\t]")
 		return sb.String()
 	}
 
@@ -2668,18 +2728,123 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 	return sb.String()
 }
 
-// predicateToCUE converts a Predicate to CUE filter condition.
-func (g *CUEGenerator) predicateToCUE(pred Predicate) string {
+// predicateToCUE converts a Predicate to CUE filter condition for the given
+// iteration variable. When varName is empty it falls back to "v" so existing
+// callers that emit `for v in source if ...` keep their behaviour. Renaming
+// callers (ForEachWithVar / ForEachWithGuardedFilteredVar, the dedupe inner
+// loops) pass their own variable name so the rendered CUE references the
+// right scope.
+func (g *CUEGenerator) predicateToCUE(pred Predicate, varName string) string {
+	if varName == "" {
+		varName = "v"
+	}
 	switch p := pred.(type) {
 	case FieldEq:
-		// Generate: v.field == value
-		return fmt.Sprintf("v.%s == %s", p.field, formatCUEValue(p.value))
+		// Generate: <varName>.field == value
+		return fmt.Sprintf("%s.%s == %s", varName, p.field, formatCUEValue(p.value))
 	case FieldIsSet:
-		// Generate: v.field != _|_
-		return fmt.Sprintf("v.%s != _|_", p.field)
+		// Generate: <varName>.field != _|_
+		return fmt.Sprintf("%s.%s != _|_", varName, p.field)
 	default:
 		return cueBoolTrue
 	}
+}
+
+// collectFilterCondition AND-composes every filterOp predicate into a single
+// CUE expression evaluated against varName. Returns "" when no filter is
+// present. filterCondCollectionOp is intentionally skipped because its
+// ConditionToCUE rendering does not depend on the iteration variable.
+func (g *CUEGenerator) collectFilterCondition(ops []collectionOperation, varName string) string {
+	out := ""
+	for _, op := range ops {
+		fOp, ok := op.(*filterOp)
+		if !ok {
+			continue
+		}
+		cond := g.predicateToCUE(fOp.pred, varName)
+		if cond == "" {
+			continue
+		}
+		if out == "" {
+			out = cond
+		} else {
+			out = out + " && " + cond
+		}
+	}
+	return out
+}
+
+// writeMapBody writes the Map / MapVariant rendering used by both the regular
+// comprehension path and the dedupe path. The iteration variable name is
+// parameterized so the dedupe path (where the outer variable is "val") and
+// the non-dedupe path (where it is "v") both render with the right scope.
+// fieldValueToCUE on a FieldRef always emits "v.field" — we substitute "v"
+// for the requested varName so the references resolve.
+func (g *CUEGenerator) writeMapBody(sb *strings.Builder, ops []collectionOperation, indent, varName string) {
+	if varName == "" {
+		varName = "v"
+	}
+	subVar := func(s string) string {
+		if varName == "v" {
+			return s
+		}
+		return strings.ReplaceAll(s, "v.", varName+".")
+	}
+	sb.WriteString(indent + "{\n")
+	inner := indent + "\t"
+	for _, op := range ops {
+		mOp, ok := op.(*mapOp)
+		if !ok {
+			continue
+		}
+		for _, fieldName := range sortedKeys(mOp.mappings) {
+			fieldVal := mOp.mappings[fieldName]
+			switch fv := fieldVal.(type) {
+			case *OptionalField:
+				sb.WriteString(fmt.Sprintf("%sif %s.%s != _|_ {\n", inner, varName, fv.field))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s.%s\n", inner, fieldName, varName, fv.field))
+				sb.WriteString(inner + "}\n")
+			case *CompoundOptionalField:
+				condStr := g.conditionToCUE(fv.additionalCond)
+				sb.WriteString(fmt.Sprintf("%sif %s.%s != _|_ if %s {\n", inner, varName, fv.field, condStr))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s.%s\n", inner, fieldName, varName, fv.field))
+				sb.WriteString(inner + "}\n")
+			case *ConditionalOrFieldRef:
+				primaryField := string(fv.primary)
+				fallbackStr := g.fieldValueToCUE(fv.fallback)
+				sb.WriteString(fmt.Sprintf("%sif %s.%s != _|_ {\n", inner, varName, primaryField))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s.%s\n", inner, fieldName, varName, primaryField))
+				sb.WriteString(inner + "}\n")
+				sb.WriteString(fmt.Sprintf("%sif %s.%s == _|_ {\n", inner, varName, primaryField))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", inner, fieldName, subVar(fallbackStr)))
+				sb.WriteString(inner + "}\n")
+			default:
+				valStr := subVar(g.fieldValueToCUE(fieldVal))
+				sb.WriteString(fmt.Sprintf("%s%s: %s\n", inner, fieldName, valStr))
+			}
+		}
+	}
+	for _, op := range ops {
+		mvOp, ok := op.(*mapVariantOp)
+		if !ok {
+			continue
+		}
+		sb.WriteString(fmt.Sprintf("%sif %s.%s == %q {\n", inner, varName, mvOp.discriminator, mvOp.variantName))
+		variantInner := inner + "\t"
+		for _, fieldName := range sortedKeys(mvOp.mappings) {
+			fieldVal := mvOp.mappings[fieldName]
+			if optField, isOptional := fieldVal.(*OptionalField); isOptional {
+				sb.WriteString(fmt.Sprintf("%sif %s.%s != _|_ {\n", variantInner, varName, optField.field))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s.%s\n", variantInner, fieldName, varName, optField.field))
+				sb.WriteString(variantInner + "}\n")
+			} else {
+				valStr := subVar(g.fieldValueToCUE(fieldVal))
+				sb.WriteString(fmt.Sprintf("%s%s: %s\n", variantInner, fieldName, valStr))
+			}
+		}
+		sb.WriteString(inner + "}\n")
+	}
+	sb.WriteString(indent + "},\n")
 }
 
 // listComprehensionToCUE generates CUE for a ListComprehension.
@@ -2763,7 +2928,7 @@ func (g *CUEGenerator) multiSourceToCUE(ms *MultiSource) string {
 	for _, op := range ms.Operations() {
 		var cond string
 		if fOp, ok := op.(*filterOp); ok {
-			cond = g.predicateToCUE(fOp.pred)
+			cond = g.predicateToCUE(fOp.pred, "v")
 		} else if fOp, ok := op.(*filterCondCollectionOp); ok {
 			cond = g.conditionToCUE(fOp.Cond())
 		} else if pOp, ok := op.(*pickOp); ok {

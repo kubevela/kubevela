@@ -282,8 +282,10 @@ func (v *IterVarBuilder) Field(name string) *IterFieldRef {
 	return &IterFieldRef{varName: v.varName, field: name}
 }
 
-// ArrayConcatValue represents an array concatenation: left + right.
-// Used for expressions like [items] + parameter.extraVolumeMounts.
+// ArrayConcatValue represents an array concatenation.
+// Renders as list.Concat([left, right]) so it remains evaluatable on
+// CUE v0.11+, which removed the list-addition `+` operator.
+// Used for expressions like list.Concat([[items], parameter.extraVolumeMounts]).
 type ArrayConcatValue struct {
 	left  Value
 	right Value
@@ -298,8 +300,18 @@ func (a *ArrayConcatValue) Left() Value { return a.left }
 // Right returns the right operand.
 func (a *ArrayConcatValue) Right() Value { return a.right }
 
+// RequiredImports returns the CUE imports required by ArrayConcatValue.
+// ArrayConcatValue renders as list.Concat([left, right]) which needs "list".
+func (a *ArrayConcatValue) RequiredImports() []string {
+	return []string{"list"}
+}
+
 // ArrayConcat creates an array concatenation expression.
-// Generates CUE: left + right
+// Generates CUE: list.Concat([left, right])
+//
+// CUE v0.11 removed the list-addition `+` operator
+// (see https://cuelang.org/e/v0.11-list-arithmetic); modern KubeVela
+// runtimes reject `[a] + [b]` and require list.Concat instead.
 func ArrayConcat(left, right Value) *ArrayConcatValue {
 	return &ArrayConcatValue{left: left, right: right}
 }
