@@ -46,18 +46,14 @@ package helm
 		
 		// +usage=Value sources to merge
 		valuesFrom?: [...{
-			// +usage=Source kind (Secret, ConfigMap, OCIRepository)
-			kind: "Secret" | "ConfigMap" | "OCIRepository"
+			// +usage=Source kind. Only Secret and ConfigMap are supported.
+			kind: "Secret" | "ConfigMap"
 			// +usage=Resource name
 			name: string
 			// +usage=Resource namespace
 			namespace?: string
 			// +usage=Specific key in ConfigMap/Secret
 			key?: string
-			// +usage=URL for OCIRepository
-			url?: string
-			// +usage=Tag for OCIRepository
-			tag?: string
 			// +usage=Don't fail if source doesn't exist
 			optional?: bool
 		}]
@@ -76,7 +72,7 @@ package helm
 
 		// +usage=Rendering options
 		options?: {
-			// +usage=Install CRDs from chart
+			// +usage=Install CRDs from the chart's crds/ directory
 			includeCRDs?: bool
 			// +usage=Skip test resources
 			skipTests?: bool
@@ -84,21 +80,19 @@ package helm
 			skipHooks?: bool
 			// +usage=Create namespace if it doesn't exist
 			createNamespace?: bool
-			// +usage=Rendering timeout
+			// +usage=Rendering and wait timeout (Helm SDK uses one value for both)
 			timeout?: string
-			// +usage=Revisions to keep
+			// +usage=Revisions to keep (upgrade-only; ignored on first install)
 			maxHistory?: int
 			// +usage=Rollback on failure
 			atomic?: bool
-			// +usage=Wait for resources
+			// +usage=Wait for resources to become ready
 			wait?: bool
-			// +usage=Wait timeout
-			waitTimeout?: string
 			// +usage=Force resource updates
 			force?: bool
-			// +usage=Recreate pods on upgrade
+			// +usage=Recreate pods (upgrade-only; ignored on first install)
 			recreatePods?: bool
-			// +usage=Cleanup on failure
+			// +usage=Cleanup on failure (upgrade-only; ignored on first install)
 			cleanupOnFail?: bool
 			
 			// +usage=Cache configuration
@@ -144,33 +138,6 @@ package helm
 		}]
 		// +usage=Chart notes
 		notes?: string
-	}
-	...
-}
-
-#Uninstall: {
-	#do:       "uninstall"
-	#provider: "helm"
-
-	// +usage=The params for uninstalling a Helm release
-	$params: {
-		// +usage=Release to uninstall
-		release: {
-			// +usage=Release name
-			name: string
-			// +usage=Release namespace
-			namespace: string
-		}
-		// +usage=Retain release history after uninstall
-		keepHistory?: bool
-	}
-
-	// +usage=The returns of uninstalling a Helm release
-	$returns?: {
-		// +usage=Whether the uninstall succeeded
-		success: bool
-		// +usage=Additional message (e.g. error detail)
-		message?: string
 	}
 	...
 }

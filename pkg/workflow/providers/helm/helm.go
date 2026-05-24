@@ -36,7 +36,6 @@ func GetTemplate() string {
 // GetProviders returns the cue providers.
 func GetProviders() map[string]cuexruntime.ProviderFn {
 	return map[string]cuexruntime.ProviderFn{
-		"render":    cuexruntime.GenericProviderFn[providers.Params[helmProvider.RenderParams], providers.Returns[helmProvider.RenderReturns]](helmProvider.Render),
-		"uninstall": cuexruntime.GenericProviderFn[providers.Params[helmProvider.UninstallParams], providers.Returns[helmProvider.UninstallReturns]](helmProvider.Uninstall),
+		"render": cuexruntime.GenericProviderFn[providers.Params[helmProvider.RenderParams], providers.Returns[helmProvider.RenderReturns]](helmProvider.Render),
 	}
 }
