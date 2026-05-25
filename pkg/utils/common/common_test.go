@@ -40,6 +40,8 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/oam-dev/kubevela/version"
 )
 
 var ResponseString = "Hello HTTP Get."
@@ -202,6 +204,49 @@ func TestHTTPGetResponse_BearerAndBasicMutuallyExclusive(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "RFC 6750") {
 		t.Fatalf("expected error to cite RFC 6750, got %v", err)
+	}
+}
+
+func TestHTTPGetResponse_UserAgent(t *testing.T) {
+	tests := []struct {
+		name          string
+		opts          *HTTPOption
+		expectedAgent string
+	}{
+		{
+			name:          "default user agent when opts is nil",
+			opts:          nil,
+			expectedAgent: "kubevela/" + version.VelaVersion,
+		},
+		{
+			name:          "default user agent when UserAgent field is empty",
+			opts:          &HTTPOption{},
+			expectedAgent: "kubevela/" + version.VelaVersion,
+		},
+		{
+			name:          "custom user agent is used when set",
+			opts:          &HTTPOption{UserAgent: "my-tool/1.0"},
+			expectedAgent: "my-tool/1.0",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotUA string
+			testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotUA = r.Header.Get("User-Agent")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("ok"))
+			}))
+			defer testServer.Close()
+			resp, err := HTTPGetResponse(context.Background(), testServer.URL, tt.opts)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			defer resp.Body.Close()
+			if gotUA != tt.expectedAgent {
+				t.Fatalf("expected User-Agent=%q, got %q", tt.expectedAgent, gotUA)
+			}
+		})
 	}
 }
 
