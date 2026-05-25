@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-	http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,25 +17,22 @@ limitations under the License.
 package utils
 
 import (
+	"container/list"
 	"context"
 	"sync"
 	"time"
 )
 
-// memoryCache memory cache, support time expired
 type memoryCache struct {
 	data          interface{}
 	cacheDuration time.Duration
 	startTime     time.Time
 }
 
-// NewMemoryCache new memory cache instance
 func newMemoryCache(data interface{}, cacheDuration time.Duration) *memoryCache {
-	mc := &memoryCache{data: data, cacheDuration: cacheDuration, startTime: time.Now()}
-	return mc
+	return &memoryCache{data: data, cacheDuration: cacheDuration, startTime: time.Now()}
 }
 
-// IsExpired whether the cache data expires
 func (m *memoryCache) IsExpired() bool {
 	if m.cacheDuration <= 0 {
 		return false
@@ -43,60 +40,120 @@ func (m *memoryCache) IsExpired() bool {
 	return time.Now().After(m.startTime.Add(m.cacheDuration))
 }
 
-// GetData get cache data
 func (m *memoryCache) GetData() interface{} {
 	return m.data
 }
 
-// MemoryCacheStore a sample memory cache instance, if data set cache duration, will auto clear after timeout.
-// But, Expired cleanup is not necessarily accurate, it has a 3-second window.
+// MemoryCacheStore is a TTL-based memory cache. Expired cleanup has a 3-second window.
+// Use NewMemoryCacheStoreWithMaxSize to bound memory via LRU eviction.
 type MemoryCacheStore struct {
-	store sync.Map
+	mu      sync.Mutex
+	items   map[interface{}]*list.Element
+	lru     *list.List
+	maxSize int
 }
 
-// NewMemoryCacheStore memory cache store
+type cacheEntry struct {
+	key   interface{}
+	value *memoryCache
+}
+
+// NewMemoryCacheStore creates an unbounded cache (backward compatible).
 func NewMemoryCacheStore(ctx context.Context) *MemoryCacheStore {
 	mcs := &MemoryCacheStore{
-		store: sync.Map{},
+		items:   make(map[interface{}]*list.Element),
+		lru:     list.New(),
+		maxSize: 0,
+	}
+	go mcs.run(ctx)
+	return mcs
+}
+
+// NewMemoryCacheStoreWithMaxSize creates a cache that evicts the least-recently-used
+// entry when the number of items exceeds maxSize. maxSize must be > 0.
+func NewMemoryCacheStoreWithMaxSize(ctx context.Context, maxSize int) *MemoryCacheStore {
+	if maxSize <= 0 {
+		return NewMemoryCacheStore(ctx)
+	}
+	mcs := &MemoryCacheStore{
+		items:   make(map[interface{}]*list.Element),
+		lru:     list.New(),
+		maxSize: maxSize,
 	}
 	go mcs.run(ctx)
 	return mcs
 }
 
 func (m *MemoryCacheStore) run(ctx context.Context) {
-	ticker := time.NewTicker(time.Second * 3)
+	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			m.store.Range(func(key, value interface{}) bool {
-				if value.(*memoryCache).IsExpired() {
-					m.store.Delete(key)
+			m.mu.Lock()
+			for key, el := range m.items {
+				if el.Value.(*cacheEntry).value.IsExpired() {
+					m.lru.Remove(el)
+					delete(m.items, key)
 				}
-				return true
-			})
+			}
+			m.mu.Unlock()
 		}
 	}
 }
 
-// Put cache data, if cacheDuration>0, store will clear data after timeout.
+// Put stores a value. If maxSize is set and the cache is full, the least-recently-used
+// entry is evicted first.
 func (m *MemoryCacheStore) Put(key, value interface{}, cacheDuration time.Duration) {
 	mc := newMemoryCache(value, cacheDuration)
-	m.store.Store(key, mc)
-}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-// Delete cache data from store
-func (m *MemoryCacheStore) Delete(key interface{}) {
-	m.store.Delete(key)
-}
-
-// Get cache data from store, if not exist or timeout, will return nil
-func (m *MemoryCacheStore) Get(key interface{}) (value interface{}) {
-	mc, ok := m.store.Load(key)
-	if ok && !mc.(*memoryCache).IsExpired() {
-		return mc.(*memoryCache).GetData()
+	if el, ok := m.items[key]; ok {
+		m.lru.MoveToFront(el)
+		el.Value.(*cacheEntry).value = mc
+		return
 	}
-	return nil
+
+	if m.maxSize > 0 && m.lru.Len() >= m.maxSize {
+		oldest := m.lru.Back()
+		if oldest != nil {
+			m.lru.Remove(oldest)
+			delete(m.items, oldest.Value.(*cacheEntry).key)
+		}
+	}
+
+	el := m.lru.PushFront(&cacheEntry{key: key, value: mc})
+	m.items[key] = el
+}
+
+// Delete removes a key from the cache.
+func (m *MemoryCacheStore) Delete(key interface{}) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if el, ok := m.items[key]; ok {
+		m.lru.Remove(el)
+		delete(m.items, key)
+	}
+}
+
+// Get returns the cached value, or nil if missing or expired.
+// A cache hit moves the entry to the front of the LRU list.
+func (m *MemoryCacheStore) Get(key interface{}) interface{} {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	el, ok := m.items[key]
+	if !ok {
+		return nil
+	}
+	entry := el.Value.(*cacheEntry)
+	if entry.value.IsExpired() {
+		m.lru.Remove(el)
+		delete(m.items, key)
+		return nil
+	}
+	m.lru.MoveToFront(el)
+	return entry.value.GetData()
 }
