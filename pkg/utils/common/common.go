@@ -69,6 +69,8 @@ import (
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
+
+	"github.com/oam-dev/kubevela/version"
 )
 
 var (
@@ -112,6 +114,8 @@ type HTTPOption struct {
 	// HTTP rather than TLS. Honored only on the OCI fetch path. Insecure
 	// by design; users opt in via the Opaque Secret key insecurePlainHTTP.
 	PlainHTTP bool `json:"plainHTTP,omitempty"`
+	// UserAgent overrides the HTTP User-Agent header. If empty, defaults to "kubevela/<version>".
+	UserAgent string `json:"userAgent,omitempty"`
 }
 
 // InitBaseRestConfig will return reset config for create controller runtime client
@@ -151,6 +155,11 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 		}
 		req.Header.Set("Authorization", "Bearer "+opts.BearerToken)
 	}
+	ua := "kubevela/" + version.VelaVersion
+	if opts != nil && opts.UserAgent != "" {
+		ua = opts.UserAgent
+	}
+	req.Header.Set("User-Agent", ua)
 	if opts != nil && opts.InsecureSkipTLS {
 		httpClient.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} // nolint
 	}
