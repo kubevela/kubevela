@@ -17,6 +17,7 @@ limitations under the License.
 package helm
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -35,6 +36,10 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 
+// helmEnvTestControlPlaneStarted is true only after envtest.Start succeeds so AfterSuite
+// does not call Stop() when the control plane never came up (avoids secondary failures).
+var helmEnvTestControlPlaneStarted bool
+
 var _ = BeforeSuite(func() {
 	rand.Seed(time.Now().UnixNano())
 	By("bootstrapping test environment")
@@ -50,6 +55,7 @@ var _ = BeforeSuite(func() {
 	cfg, err = testEnv.Start()
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
+	helmEnvTestControlPlaneStarted = true
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: common.Scheme})
 	Expect(err).Should(BeNil())
@@ -57,9 +63,11 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	if testEnv != nil {
-		err := testEnv.Stop()
-		Expect(err).Should(BeNil())
+	if !helmEnvTestControlPlaneStarted || testEnv == nil {
+		return
+	}
+	if err := testEnv.Stop(); err != nil {
+		_, _ = fmt.Fprintf(GinkgoWriter, "warning: envtest teardown: %v\n", err)
 	}
 })
 
