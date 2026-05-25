@@ -22,19 +22,21 @@ import (
 
 func TestFilterInternalMetadata(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    map[string]string
-		expected map[string]string
+		name        string
+		input       map[string]string
+		expectNil   bool
+		expectedLen int
+		expected    map[string]string
 	}{
 		{
-			name:     "nil input returns nil",
-			input:    nil,
-			expected: nil,
+			name:      "nil input returns nil",
+			input:     nil,
+			expectNil: true,
 		},
 		{
-			name:     "empty map returns nil",
-			input:    map[string]string{},
-			expected: nil,
+			name:      "empty map returns nil",
+			input:     map[string]string{},
+			expectNil: true,
 		},
 		{
 			name: "all internal keys returns nil",
@@ -42,7 +44,7 @@ func TestFilterInternalMetadata(t *testing.T) {
 				"app.oam.dev/revision":     "filter",
 				"kubernetes.io/managed-by": "filter",
 			},
-			expected: nil,
+			expectNil: true,
 		},
 		{
 			name: "keys without prefixes are kept",
@@ -103,8 +105,18 @@ func TestFilterInternalMetadata(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := FilterInternalMetadata(tt.input)
+			if tt.expectNil {
+				if got != nil {
+					t.Errorf("expected nil, got %v", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Errorf("expected non-nil map, got nil")
+				return
+			}
 			if len(got) != len(tt.expected) {
-				t.Errorf("expected %d keys, got %d", len(tt.expected), len(got))
+				t.Errorf("expected %d keys, got %d: %v", len(tt.expected), len(got), got)
 				return
 			}
 			for k, v := range tt.expected {
