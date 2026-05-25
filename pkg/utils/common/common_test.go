@@ -40,9 +40,37 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 var ResponseString = "Hello HTTP Get."
+
+func TestKubeVelaUserAgent(t *testing.T) {
+	got := KubeVelaUserAgent()
+	if !strings.HasPrefix(got, types.KubeVelaName+"/") {
+		t.Fatalf("KubeVelaUserAgent() = %q, want prefix %q", got, types.KubeVelaName+"/")
+	}
+}
+
+func TestHTTPGetResponse_SetsUserAgent(t *testing.T) {
+	var gotUA string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUA = r.Header.Get("User-Agent")
+		fmt.Fprintln(w, ResponseString)
+	}))
+	defer ts.Close()
+
+	resp, err := HTTPGetResponse(context.Background(), ts.URL, nil)
+	if err != nil {
+		t.Fatalf("HTTPGetResponse: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if !strings.HasPrefix(gotUA, types.KubeVelaName+"/") {
+		t.Fatalf("User-Agent = %q, want prefix %q", gotUA, types.KubeVelaName+"/")
+	}
+}
 
 func TestHTTPGet(t *testing.T) {
 	type want struct {

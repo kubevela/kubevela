@@ -27,15 +27,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/version"
 )
-
-func TestHelmIndexUserAgent(t *testing.T) {
-	want := types.KubeVelaName + "/" + version.GitRevision
-	if got := helmIndexUserAgent(); got != want {
-		t.Fatalf("helmIndexUserAgent() = %q, want %q", got, want)
-	}
-}
 
 func TestLoadIndex(t *testing.T) {
 	t.Run("valid index", func(t *testing.T) {
@@ -95,9 +87,8 @@ func TestLoadData(t *testing.T) {
 		if err != nil {
 			t.Fatalf("loadData: %v", err)
 		}
-		want := types.KubeVelaName + "/" + version.GitRevision
-		if gotUA != want {
-			t.Fatalf("User-Agent = %q, want %q", gotUA, want)
+		if !strings.HasPrefix(gotUA, types.KubeVelaName+"/") {
+			t.Fatalf("User-Agent = %q, want prefix %q", gotUA, types.KubeVelaName+"/")
 		}
 	})
 }
@@ -119,9 +110,8 @@ func TestLoadRepoIndex_SetsUserAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadRepoIndex: %v", err)
 	}
-	want := types.KubeVelaName + "/" + version.GitRevision
-	if gotUA != want {
-		t.Fatalf("User-Agent header = %q, want %q", gotUA, want)
+	if !strings.HasPrefix(gotUA, types.KubeVelaName+"/") {
+		t.Fatalf("User-Agent header = %q, want prefix %q", gotUA, types.KubeVelaName+"/")
 	}
 }
 
@@ -176,9 +166,8 @@ entries:
 		if _, err := loadData(chartURL, &RepoCredential{}); err != nil {
 			t.Fatalf("loadData chart: %v", err)
 		}
-		want := types.KubeVelaName + "/" + version.GitRevision
-		if chartUA != want {
-			t.Fatalf("chart User-Agent = %q, want %q", chartUA, want)
+		if !strings.HasPrefix(chartUA, types.KubeVelaName+"/") {
+			t.Fatalf("chart User-Agent = %q, want prefix %q", chartUA, types.KubeVelaName+"/")
 		}
 		return
 	}

@@ -66,6 +66,7 @@ import (
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/version"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -96,6 +97,12 @@ func init() {
 	_ = workflowv1alpha1.AddToScheme(Scheme)
 	_ = cuexv1alpha1.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
+}
+
+// KubeVelaUserAgent returns the User-Agent string for outbound HTTP calls,
+// matching the Kubernetes client configuration in cmd/core/app/server.go.
+func KubeVelaUserAgent() string {
+	return types.KubeVelaName + "/" + version.GitRevision
 }
 
 // HTTPOption define the https options
@@ -133,6 +140,7 @@ func HTTPGetResponse(ctx context.Context, url string, opts *HTTPOption) (*http.R
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("User-Agent", KubeVelaUserAgent())
 	httpClient := &http.Client{}
 	if opts != nil && len(opts.Username) != 0 && len(opts.Password) != 0 {
 		req.SetBasicAuth(opts.Username, opts.Password)

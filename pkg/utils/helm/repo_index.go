@@ -28,8 +28,7 @@ import (
 	helmrepo "helm.sh/helm/v3/pkg/repo"
 	"sigs.k8s.io/yaml"
 
-	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/version"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // IndexYaml is the index.yaml of helm repo
@@ -57,12 +56,6 @@ func LoadRepoIndex(_ context.Context, u string, cred *RepoCredential) (*helmrepo
 	return indexFile, nil
 }
 
-// helmIndexUserAgent identifies KubeVela when fetching Helm repository index.yaml,
-// matching the Kubernetes client user-agent pattern used by the core controller.
-func helmIndexUserAgent() string {
-	return types.KubeVelaName + "/" + version.GitRevision
-}
-
 func loadData(u string, cred *RepoCredential) (*bytes.Buffer, error) {
 	parsedURL, err := url.Parse(u)
 	if err != nil {
@@ -83,7 +76,7 @@ func loadData(u string, cred *RepoCredential) (*bytes.Buffer, error) {
 		getter.WithInsecureSkipVerifyTLS(skipTLS),
 		getter.WithTLSClientConfig(cred.CertFile, cred.KeyFile, cred.CAFile),
 		getter.WithBasicAuth(cred.Username, cred.Password),
-		getter.WithUserAgent(helmIndexUserAgent()),
+		getter.WithUserAgent(common.KubeVelaUserAgent()),
 	)
 	if err != nil {
 		return nil, err

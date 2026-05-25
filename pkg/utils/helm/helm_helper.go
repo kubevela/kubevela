@@ -418,10 +418,13 @@ func fetchChartValuesFromOciRepo(repoURL string, chartName string, version strin
 		Getters: getter.All(cli.New()),
 	}
 
+	d.Options = []getter.Option{getter.WithUserAgent(common.KubeVelaUserAgent())}
 	if opts != nil {
-		d.Options = append(d.Options, getter.WithInsecureSkipVerifyTLS(opts.InsecureSkipTLS),
+		d.Options = append(d.Options,
+			getter.WithInsecureSkipVerifyTLS(opts.InsecureSkipTLS),
 			getter.WithTLSClientConfig(opts.CertFile, opts.KeyFile, opts.CaFile),
-			getter.WithBasicAuth(opts.Username, opts.Password))
+			getter.WithBasicAuth(opts.Username, opts.Password),
+		)
 	}
 
 	var err error
