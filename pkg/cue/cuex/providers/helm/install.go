@@ -31,7 +31,7 @@ import (
 )
 
 // freshInstall performs a helm install with retry logic for orphaned/corrupted state.
-func (p *Provider) freshInstall(ctx context.Context, actionConfig *action.Configuration, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, postRenderer *velaLabelPostRenderer, releaseLabels map[string]string, velaCtx *ContextParams) (*release.Release, error) {
+func (p *Provider) freshInstall(ctx context.Context, actionConfig *action.Configuration, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, postRenderer helmPostRenderer, releaseLabels map[string]string, velaCtx *ContextParams) (*release.Release, error) {
 	install := p.newInstallAction(actionConfig, releaseName, releaseNamespace, options, postRenderer, releaseLabels)
 
 	klog.Infof("Helm provider [%s]: Installing release %s in namespace %s", velaContextStr(velaCtx), releaseName, releaseNamespace)
@@ -62,7 +62,7 @@ func (p *Provider) freshInstall(ctx context.Context, actionConfig *action.Config
 }
 
 // newInstallAction creates a configured helm install action.
-func (p *Provider) newInstallAction(actionConfig *action.Configuration, releaseName, releaseNamespace string, options *RenderOptionsParams, postRenderer *velaLabelPostRenderer, releaseLabels map[string]string) *action.Install {
+func (p *Provider) newInstallAction(actionConfig *action.Configuration, releaseName, releaseNamespace string, options *RenderOptionsParams, postRenderer helmPostRenderer, releaseLabels map[string]string) *action.Install {
 	install := action.NewInstall(actionConfig)
 	install.ReleaseName = releaseName
 	install.Namespace = releaseNamespace
