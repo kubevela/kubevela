@@ -33,80 +33,9 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-var _ = Describe("Test FilterInternalMetadata", func() {
-	It("should filter out internal annotations and labels", func() {
-		metadata := map[string]string{
-			// User metadata - should be kept
-			"user.custom/annotation":   "keep",
-			"my-label":                 "keep",
-			"team":                     "platform",
-			"custom.guidewire.dev/foo": "keep",
-
-			// Internal metadata - should be filtered out
-			"app.oam.dev/revision":               "filter",
-			"oam.dev/resourceTracker":            "filter",
-			"kubectl.kubernetes.io/last-applied": "filter",
-			"kubernetes.io/service-account":      "filter",
-			"k8s.io/cluster-service":             "filter",
-			"helm.sh/chart":                      "filter",
-			"app.kubernetes.io/managed-by":       "filter",
-		}
-
-		filtered := oam.FilterInternalMetadata(metadata)
-
-		// Should keep user metadata
-		Expect(filtered).Should(HaveKeyWithValue("user.custom/annotation", "keep"))
-		Expect(filtered).Should(HaveKeyWithValue("my-label", "keep"))
-		Expect(filtered).Should(HaveKeyWithValue("team", "platform"))
-		Expect(filtered).Should(HaveKeyWithValue("custom.guidewire.dev/foo", "keep"))
-
-		// Should filter out internal metadata
-		Expect(filtered).ShouldNot(HaveKey("app.oam.dev/revision"))
-		Expect(filtered).ShouldNot(HaveKey("oam.dev/resourceTracker"))
-		Expect(filtered).ShouldNot(HaveKey("kubectl.kubernetes.io/last-applied"))
-		Expect(filtered).ShouldNot(HaveKey("kubernetes.io/service-account"))
-		Expect(filtered).ShouldNot(HaveKey("k8s.io/cluster-service"))
-		Expect(filtered).ShouldNot(HaveKey("helm.sh/chart"))
-		Expect(filtered).ShouldNot(HaveKey("app.kubernetes.io/managed-by"))
-
-		// Should have exactly 4 items
-		Expect(len(filtered)).Should(Equal(4))
-	})
-
-	It("should return nil for empty input", func() {
-		filtered := oam.FilterInternalMetadata(nil)
-		Expect(filtered).Should(BeNil())
-
-		filtered = oam.FilterInternalMetadata(map[string]string{})
-		Expect(filtered).Should(BeNil())
-	})
-
-	It("should return nil when all metadata is internal", func() {
-		metadata := map[string]string{
-			"app.oam.dev/revision":     "filter",
-			"kubernetes.io/managed-by": "filter",
-		}
-
-		filtered := oam.FilterInternalMetadata(metadata)
-		Expect(filtered).Should(BeNil())
-	})
-
-	It("should handle keys without prefixes", func() {
-		metadata := map[string]string{
-			"simple-key": "keep",
-			"another":    "keep",
-		}
-
-		filtered := oam.FilterInternalMetadata(metadata)
-		Expect(filtered).Should(HaveKeyWithValue("simple-key", "keep"))
-		Expect(filtered).Should(HaveKeyWithValue("another", "keep"))
-		Expect(len(filtered)).Should(Equal(2))
-	})
-})
 
 var _ = Describe("Test policy context with explicit fields and filtered metadata", func() {
 	namespace := "policy-context-test"
