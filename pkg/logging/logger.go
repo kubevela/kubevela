@@ -20,6 +20,7 @@ package logging
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -53,6 +54,14 @@ const (
 	FieldError   = "error"   // Error indicator
 	FieldSuccess = "success" // Success indicator
 )
+
+// LineFormatter is an io.Writer that also exposes a Flush method so callers
+// can drain any buffered partial line before shutdown. Implemented by both
+// colorWriter (dev-logs) and requestIDInjector (default mode).
+type LineFormatter interface {
+	io.Writer
+	Flush() error
+}
 
 // contextKey for storing values in context
 type contextKey struct{ name string }

@@ -1,5 +1,5 @@
 /*
-Copyright 2026 The KubeVela Authors.
+Copyright 2025 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -57,11 +57,16 @@ type requestIDInjector struct {
 }
 
 // NewRequestIDInjector wraps dst so klog output has the requestID hoisted
-// into the header. Safe for concurrent Write calls.
-func NewRequestIDInjector(dst io.Writer) io.Writer {
+// into the header. Safe for concurrent Write calls. The returned writer also
+// implements Flush so callers can drain any buffered partial line at shutdown.
+func NewRequestIDInjector(dst io.Writer) LineFormatter {
 	return &requestIDInjector{dst: dst}
 }
 
+// Write accepts klog-formatted lines, hoists the requestID/spanID into the
+// header for any complete line, and buffers any trailing partial line until
+// the next Write or Flush. On downstream write failure the buffered line is
+// retained so callers retrying the same input don't silently drop the line.
 func (w *requestIDInjector) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -70,25 +75,40 @@ func (w *requestIDInjector) Write(p []byte) (int, error) {
 	for len(p) > 0 {
 		idx := bytes.IndexByte(p, '\n')
 		if idx == -1 {
+			// No newline in the remaining chunk — buffer it and wait for more.
 			_, _ = w.buf.Write(p)
 			written += len(p)
 			break
 		}
 		_, _ = w.buf.Write(p[:idx])
 		line := w.buf.String()
+		// Hold the line; only commit (reset buffer + advance written) once the
+		// downstream write succeeds. On failure the buffer keeps the line for
+		// the next Write/Flush attempt.
+		if _, err := io.WriteString(w.dst, injectRequestIDPlain(line)+"\n"); err != nil {
+			return written, err
+		}
 		w.buf.Reset()
-		if _, err := io.WriteString(w.dst, injectRequestIDPlain(line)); err != nil {
-			written += idx
-			return written, err
-		}
-		if _, err := w.dst.Write([]byte{'\n'}); err != nil {
-			written += idx + 1
-			return written, err
-		}
 		p = p[idx+1:]
 		written += idx + 1
 	}
 	return written, nil
+}
+
+// Flush writes any buffered partial line (one without a trailing newline) to
+// the underlying writer. Idempotent; safe to call multiple times.
+func (w *requestIDInjector) Flush() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.buf.Len() == 0 {
+		return nil
+	}
+	line := w.buf.String()
+	if _, err := io.WriteString(w.dst, injectRequestIDPlain(line)); err != nil {
+		return err
+	}
+	w.buf.Reset()
+	return nil
 }
 
 // injectRequestIDPlain rewrites a single klog-formatted line, hoisting the

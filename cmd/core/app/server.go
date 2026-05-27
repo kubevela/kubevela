@@ -118,7 +118,8 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 		"debug", coreOptions.Observability.LogDebug,
 		"devLogs", coreOptions.Observability.DevLogs,
 		"logFilePath", coreOptions.Observability.LogFilePath)
-	setupLogging(coreOptions.Observability)
+	loggingCleanup := setupLogging(coreOptions.Observability)
+	defer loggingCleanup()
 
 	// Configure Kubernetes client
 	klog.InfoS("Configuring Kubernetes client",
@@ -227,8 +228,11 @@ func syncConfigurations(coreOptions *options.CoreOptions) {
 	}
 }
 
-// setupLogging configures klog based on parsed observability settings
-func setupLogging(observabilityConfig *config.ObservabilityConfig) {
+// setupLogging configures klog based on parsed observability settings.
+// Returns a cleanup function the caller must defer; the cleanup flushes any
+// buffered partial-line writes and drains the stderr-pipe goroutine so the
+// last bytes of stderr survive shutdown.
+func setupLogging(observabilityConfig *config.ObservabilityConfig) func() {
 	// Configure klog verbosity
 	if observabilityConfig.LogDebug {
 		_ = flag.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
@@ -253,34 +257,61 @@ func setupLogging(observabilityConfig *config.ObservabilityConfig) {
 	// catches klog's threshold copies, runtime panics, and any third-party
 	// library that writes to stderr directly.
 	realStderr := os.Stderr
-	stderrFormatter := func(dst io.Writer) io.Writer {
+	stderrFormatter := func(dst io.Writer) logging.LineFormatter {
 		if observabilityConfig.DevLogs {
 			return logging.NewColorWriter(dst)
 		}
 		return logging.NewRequestIDInjector(dst)
 	}
+
+	var stderrSink logging.LineFormatter
+	pipeDone := make(chan struct{})
+	var pipeW *os.File
 	if pr, pw, err := os.Pipe(); err == nil {
 		os.Stderr = pw
+		pipeW = pw
+		stderrSink = stderrFormatter(realStderr)
 		go func() {
-			_, _ = io.Copy(stderrFormatter(realStderr), pr)
+			defer close(pipeDone)
+			_, _ = io.Copy(stderrSink, pr)
 		}()
+	} else {
+		// If we can't redirect stderr, klog's threshold copies will bypass
+		// the formatter. Warn but keep running — log lines from klog.SetOutput
+		// will still be hoisted; only the side-channel stderr writes won't be.
+		klog.Warningf("setupLogging: failed to create stderr redirection pipe (%v); klog stderrthreshold copies will not be formatted", err)
+		close(pipeDone)
 	}
 
+	var sink logging.LineFormatter
 	if observabilityConfig.DevLogs {
 		// colorWriter colourises and hoists requestID for human-readable terminals.
-		logOutput := logging.NewColorWriter(os.Stdout)
-		klog.LogToStderr(false)
-		klog.SetOutput(logOutput)
-		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig(textlogger.Output(logOutput))))
-		return
+		sink = logging.NewColorWriter(os.Stdout)
+	} else {
+		// Default mode: requestIDInjector hoists requestID without ANSI codes,
+		// preserving klog native format for log aggregators (Loki/ES/CloudWatch).
+		sink = logging.NewRequestIDInjector(realStderr)
 	}
-
-	// Default mode: requestIDInjector hoists requestID without ANSI codes,
-	// preserving klog native format for log aggregators (Loki/ES/CloudWatch).
-	logOutput := logging.NewRequestIDInjector(realStderr)
 	klog.LogToStderr(false)
-	klog.SetOutput(logOutput)
-	ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig(textlogger.Output(logOutput))))
+	klog.SetOutput(sink)
+	ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig(textlogger.Output(sink))))
+
+	return func() {
+		// Flush any in-progress partial line in the writer-side formatter
+		// before signalling the pipe goroutine.
+		if sink != nil {
+			_ = sink.Flush()
+		}
+		if pipeW != nil {
+			_ = pipeW.Close()
+			// Wait for the io.Copy goroutine to drain any bytes still in the
+			// pipe and exit cleanly. Bounded by the OS pipe buffer size.
+			<-pipeDone
+		}
+		if stderrSink != nil {
+			_ = stderrSink.Flush()
+		}
+	}
 }
 
 // ConfigProvider is a function type that provides a Kubernetes REST config

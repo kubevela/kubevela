@@ -76,11 +76,15 @@ type colorWriter struct {
 // It wraps the provided writer and colorizes log messages based on severity level,
 // enhances location information with function names, and formats structured fields.
 // This is primarily intended for development mode (--dev-logs=true) to improve
-// log readability in terminal output.
-func NewColorWriter(dst io.Writer) io.Writer {
+// log readability in terminal output. The returned writer also implements Flush
+// so callers can drain any buffered partial line at shutdown.
+func NewColorWriter(dst io.Writer) LineFormatter {
 	return &colorWriter{dst: dst}
 }
 
+// Write accepts klog-formatted lines and emits ANSI-colored, header-hoisted
+// versions. On downstream write failure the buffered line is retained so
+// callers retrying the same input don't silently drop the line.
 func (w *colorWriter) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -94,28 +98,34 @@ func (w *colorWriter) Write(p []byte) (int, error) {
 			break
 		}
 		_, _ = w.buf.Write(p[:idx])
-		if err := w.flushLineLocked(); err != nil {
-			written += idx
+		line := w.buf.String()
+		// Combine the formatted line and newline into a single write so a
+		// partial failure either succeeds in full or leaves the buffered line
+		// untouched for retry.
+		if _, err := io.WriteString(w.dst, formatColoredLine(line)+"\n"); err != nil {
 			return written, err
 		}
-		if _, err := w.dst.Write([]byte{'\n'}); err != nil {
-			written += idx + 1
-			return written, err
-		}
+		w.buf.Reset()
 		p = p[idx+1:]
 		written += idx + 1
 	}
 	return written, nil
 }
 
-func (w *colorWriter) flushLineLocked() error {
+// Flush writes any buffered partial line (one without a trailing newline) to
+// the underlying writer. Idempotent.
+func (w *colorWriter) Flush() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	if w.buf.Len() == 0 {
 		return nil
 	}
 	line := w.buf.String()
+	if _, err := io.WriteString(w.dst, formatColoredLine(line)); err != nil {
+		return err
+	}
 	w.buf.Reset()
-	_, err := io.WriteString(w.dst, formatColoredLine(line))
-	return err
+	return nil
 }
 
 func formatColoredLine(line string) string {
@@ -332,7 +342,14 @@ func findFirstKVIndex(s string) int {
 	for i := 0; i < len(s); i++ {
 		ch := s[i]
 		if ch == '"' {
-			if i == 0 || s[i-1] != '\\' {
+			// Count trailing backslashes: an even count means the quote is
+			// unescaped (e.g. `\\"` = escaped backslash + quote), an odd count
+			// means the quote itself is escaped (e.g. `\"`).
+			n := 0
+			for j := i - 1; j >= 0 && s[j] == '\\'; j-- {
+				n++
+			}
+			if n%2 == 0 {
 				inQuotes = !inQuotes
 			}
 			continue

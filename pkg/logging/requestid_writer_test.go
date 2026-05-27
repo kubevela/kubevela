@@ -1,5 +1,5 @@
 /*
-Copyright 2026 The KubeVela Authors.
+Copyright 2025 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -161,6 +161,73 @@ func TestInjectRequestIDPlain_HoistsSpanIDAfterTraceID(t *testing.T) {
 		})
 	}
 }
+
+func TestRequestIDInjector_FlushDrainsBufferedPartialLine(t *testing.T) {
+	var buf bytes.Buffer
+	w := NewRequestIDInjector(&buf)
+
+	// Write a line WITHOUT a trailing newline — should sit in the buffer.
+	partial := `I0527 23:08:32.627885   98950 file.go:42] "msg" requestID="trace-tail"`
+	if _, err := w.Write([]byte(partial)); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("expected nothing flushed yet, got: %q", buf.String())
+	}
+	if err := w.Flush(); err != nil {
+		t.Fatalf("Flush: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, `{trace-tail} file.go:42]`) {
+		t.Fatalf("expected hoisted requestID after Flush, got: %q", out)
+	}
+	// Calling Flush again is a no-op.
+	beforeLen := buf.Len()
+	if err := w.Flush(); err != nil {
+		t.Fatalf("second Flush: %v", err)
+	}
+	if buf.Len() != beforeLen {
+		t.Fatalf("idempotent Flush wrote more bytes: before=%d after=%d", beforeLen, buf.Len())
+	}
+}
+
+func TestRequestIDInjector_RetainsLineOnDownstreamFailure(t *testing.T) {
+	// failingWriter rejects the first write, accepts subsequent writes.
+	// This simulates a transient downstream failure (closed pipe etc.).
+	fw := &failingWriter{failNext: 1}
+	w := NewRequestIDInjector(fw)
+
+	in := `I0527 23:08:32.627885   98950 file.go:42] "msg" requestID="trace-keep"` + "\n"
+	if _, err := w.Write([]byte(in)); err == nil {
+		t.Fatalf("expected first Write to fail")
+	}
+	// The line must still be in the buffer so a retry can recover it.
+	if err := w.Flush(); err != nil {
+		t.Fatalf("Flush after retry: %v", err)
+	}
+	if !strings.Contains(fw.buf.String(), `{trace-keep}`) {
+		t.Fatalf("expected line recovered on Flush, got: %q", fw.buf.String())
+	}
+}
+
+type failingWriter struct {
+	buf      bytes.Buffer
+	failNext int
+}
+
+func (f *failingWriter) Write(p []byte) (int, error) {
+	if f.failNext > 0 {
+		f.failNext--
+		return 0, errFakeIO
+	}
+	return f.buf.Write(p)
+}
+
+var errFakeIO = &fakeIOErr{}
+
+type fakeIOErr struct{}
+
+func (*fakeIOErr) Error() string { return "fake io error" }
 
 func TestStripSpanSuffix(t *testing.T) {
 	tests := map[string]string{
