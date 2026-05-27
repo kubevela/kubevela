@@ -34,19 +34,31 @@ import (
 )
 
 const (
-	ansiReset    = "\x1b[0m"
-	ansiDate     = "\x1b[36m"
-	ansiInfo     = "\x1b[32m"
-	ansiWarn     = "\x1b[33m"
-	ansiError    = "\x1b[31m"
-	ansiFatal    = "\x1b[35m"
-	ansiDebug    = "\x1b[34m"
-	ansiThread   = "\x1b[34m"
-	ansiLocation = "\x1b[93m"
-	ansiMessage  = "\x1b[97m"
-	ansiKey      = "\x1b[96m"
-	ansiValue    = "\x1b[37m"
+	ansiReset     = "\x1b[0m"
+	ansiDate      = "\x1b[36m"
+	ansiInfo      = "\x1b[32m"
+	ansiWarn      = "\x1b[33m"
+	ansiError     = "\x1b[31m"
+	ansiFatal     = "\x1b[35m"
+	ansiDebug     = "\x1b[34m"
+	ansiThread    = "\x1b[34m"
+	ansiRequestID = "\x1b[95m" // bright magenta — trace ID
+	ansiSpanID    = "\x1b[94m" // bright blue — per-reconcile span ID
+	ansiLocation  = "\x1b[93m"
+	ansiMessage   = "\x1b[97m"
+	ansiKey       = "\x1b[96m"
+	ansiValue     = "\x1b[37m"
 )
+
+// stripSpanSuffix returns the UUID portion of a spanID value, dropping any
+// ".<operation>" suffix so the header block stays visually clean. The full
+// value (with suffix) stays in the trailing key/value list for sub-span detail.
+func stripSpanSuffix(s string) string {
+	if dot := strings.IndexByte(s, '.'); dot >= 0 {
+		return s[:dot]
+	}
+	return s
+}
 
 var methodPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\b(?:caller|func|function|method)\s*[:=]\s*"?([a-zA-Z0-9_./()*-]+)`),
@@ -130,6 +142,32 @@ func formatColoredLine(line string) string {
 	level, levelColor := mapSeverity(severity)
 	location := buildLocation(rawLocation, remainder)
 
+	// Pre-parse remainder so we can hoist requestID and spanID into the
+	// header. requestID is dropped from the trailing list (full value lives
+	// in the {...} header block); spanID stays in the trailing list because
+	// its full value (with optional ".<operation>" suffix) carries sub-span
+	// detail the header only shows the UUID prefix of.
+	var msg string
+	var kvFields []kvField
+	var headerRequestID, headerSpanID string
+	if remainder != "" {
+		msg, kvFields = splitMessageAndFields(remainder)
+		filtered := kvFields[:0]
+		for _, f := range kvFields {
+			if f.key == FieldRequestID && headerRequestID == "" {
+				headerRequestID = f.value
+				continue
+			}
+			if f.key == FieldSpanID && headerSpanID == "" {
+				// Strip ".<operation>" suffix for the header block — keep
+				// only the per-reconcile UUID portion.
+				headerSpanID = stripSpanSuffix(f.value)
+			}
+			filtered = append(filtered, f)
+		}
+		kvFields = filtered
+	}
+
 	sb := strings.Builder{}
 	sb.Grow(len(line) + 32)
 
@@ -154,30 +192,45 @@ func formatColoredLine(line string) string {
 	sb.WriteString(ansiReset)
 	sb.WriteString(" ")
 
+	if headerRequestID != "" {
+		sb.WriteString(ansiRequestID)
+		sb.WriteString("{")
+		sb.WriteString(headerRequestID)
+		sb.WriteString("}")
+		sb.WriteString(ansiReset)
+		sb.WriteString(" ")
+	}
+
+	if headerSpanID != "" {
+		sb.WriteString(ansiSpanID)
+		sb.WriteString("{")
+		sb.WriteString(headerSpanID)
+		sb.WriteString("}")
+		sb.WriteString(ansiReset)
+		sb.WriteString(" ")
+	}
+
 	sb.WriteString(ansiLocation)
 	sb.WriteString("[")
 	sb.WriteString(location)
 	sb.WriteString("]")
 	sb.WriteString(ansiReset)
 
-	if remainder != "" {
-		msg, fields := splitMessageAndFields(remainder)
-		if msg != "" {
-			sb.WriteString(" ")
-			sb.WriteString(ansiMessage)
-			sb.WriteString(msg)
-			sb.WriteString(ansiReset)
-		}
-		for _, field := range fields {
-			sb.WriteString(" ")
-			sb.WriteString(ansiKey)
-			sb.WriteString(field.key)
-			sb.WriteString(ansiReset)
-			sb.WriteString("=")
-			sb.WriteString(ansiValue)
-			sb.WriteString(field.renderValue())
-			sb.WriteString(ansiReset)
-		}
+	if msg != "" {
+		sb.WriteString(" ")
+		sb.WriteString(ansiMessage)
+		sb.WriteString(msg)
+		sb.WriteString(ansiReset)
+	}
+	for _, field := range kvFields {
+		sb.WriteString(" ")
+		sb.WriteString(ansiKey)
+		sb.WriteString(field.key)
+		sb.WriteString(ansiReset)
+		sb.WriteString("=")
+		sb.WriteString(ansiValue)
+		sb.WriteString(field.renderValue())
+		sb.WriteString(ansiReset)
 	}
 
 	return sb.String()

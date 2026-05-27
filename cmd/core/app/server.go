@@ -241,15 +241,46 @@ func setupLogging(observabilityConfig *config.ObservabilityConfig) {
 		_ = flag.Set("log_file_max_size", strconv.FormatUint(observabilityConfig.LogFileMaxSize, 10))
 	}
 
-	// Set logger (use --dev-logs=true for local development)
+	// Set logger. In both dev-logs and default modes the requestID is hoisted
+	// into the log header (between PID and file:line) so reconcile log lines
+	// are correlatable without scanning the trailing key/value list.
+	//
+	// klog's stderrthreshold=ERROR (default) routes ERROR/WARN lines directly
+	// to stderr in addition to klog.SetOutput, which would bypass our
+	// formatters and emit unhoisted duplicates. The stderrthreshold flag is
+	// registered on a private cobra flagset we can't mutate from here, so we
+	// redirect os.Stderr through the formatter via a pipe instead. This
+	// catches klog's threshold copies, runtime panics, and any third-party
+	// library that writes to stderr directly.
+	realStderr := os.Stderr
+	stderrFormatter := func(dst io.Writer) io.Writer {
+		if observabilityConfig.DevLogs {
+			return logging.NewColorWriter(dst)
+		}
+		return logging.NewRequestIDInjector(dst)
+	}
+	if pr, pw, err := os.Pipe(); err == nil {
+		os.Stderr = pw
+		go func() {
+			_, _ = io.Copy(stderrFormatter(realStderr), pr)
+		}()
+	}
+
 	if observabilityConfig.DevLogs {
+		// colorWriter colourises and hoists requestID for human-readable terminals.
 		logOutput := logging.NewColorWriter(os.Stdout)
 		klog.LogToStderr(false)
 		klog.SetOutput(logOutput)
 		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig(textlogger.Output(logOutput))))
-	} else {
-		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig()))
+		return
 	}
+
+	// Default mode: requestIDInjector hoists requestID without ANSI codes,
+	// preserving klog native format for log aggregators (Loki/ES/CloudWatch).
+	logOutput := logging.NewRequestIDInjector(realStderr)
+	klog.LogToStderr(false)
+	klog.SetOutput(logOutput)
+	ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig(textlogger.Output(logOutput))))
 }
 
 // ConfigProvider is a function type that provides a Kubernetes REST config

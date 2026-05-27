@@ -23,14 +23,18 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // Structured logging field keys - consistent across all handlers for observability
 const (
 	// Core traceability fields
-	FieldRequestID = "requestID"  // Unique identifier for request correlation
+	FieldRequestID = "requestID"  // Unique identifier for request correlation (trace ID)
+	FieldSpanID    = "spanID"     // Per-reconcile span identifier (matches monitorContext convention)
 	FieldOperation = "operation"  // Webhook operation (CREATE/UPDATE/DELETE)
 	FieldHandler   = "handler"    // Handler processing the request
 	FieldStep      = "step"       // Current processing step
@@ -81,6 +85,18 @@ func WithContext(ctx context.Context) Logger {
 	return New()
 }
 
+// FromContext returns a Logger seeded with the requestID present on ctx.
+// Use this from any reconcile-path function that has only a std context.Context
+// so the emitted log lines correlate with the rest of the reconcile.
+// If ctx carries no requestID (e.g. startup runnables), returns a plain logger.
+func FromContext(ctx context.Context) Logger {
+	logger := WithContext(ctx)
+	if id, ok := RequestIDFrom(ctx); ok {
+		logger = logger.WithValues(FieldRequestID, id)
+	}
+	return logger
+}
+
 // IntoContext stores the Logger in context
 func (l Logger) IntoContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, loggerKey, l)
@@ -98,6 +114,43 @@ func WithRequestID(ctx context.Context, requestID string) context.Context {
 func RequestIDFrom(ctx context.Context) (string, bool) {
 	id, ok := ctx.Value(requestIDKey).(string)
 	return id, ok && id != ""
+}
+
+// TraceIDFromObject returns the trace ID stamped by the mutating webhook on
+// the object's annotations, or false if the object is nil, has no annotations,
+// or the annotation is empty.
+func TraceIDFromObject(obj metav1.Object) (string, bool) {
+	if obj == nil {
+		return "", false
+	}
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		return "", false
+	}
+	id := annotations[oam.AnnotationTraceID]
+	if id == "" {
+		return "", false
+	}
+	return id, true
+}
+
+// EnsureTraceIDAnnotation sets the trace ID annotation only when it is
+// currently absent or empty. Returns true when the object was mutated so
+// callers can decide whether a patch is needed. A nil object or empty
+// traceID is a no-op and returns false.
+func EnsureTraceIDAnnotation(obj metav1.Object, traceID string) bool {
+	if obj == nil || traceID == "" {
+		return false
+	}
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	} else if existing := annotations[oam.AnnotationTraceID]; existing != "" {
+		return false
+	}
+	annotations[oam.AnnotationTraceID] = traceID
+	obj.SetAnnotations(annotations)
+	return true
 }
 
 // NewHandlerLogger creates a logger for webhook handlers with full request context
@@ -152,22 +205,27 @@ func (l Logger) V(level int) Logger {
 	return Logger{Logger: l.Logger.V(level)}
 }
 
+// WithCallDepth(1) on every emit ensures the file:line reported by the
+// underlying sink is the caller of our wrapper (e.g. assemble.go:73), not
+// this logger.go file. Required because pkg/logging.Logger wraps logr.Logger
+// with one extra stack frame.
+
 // Debug logs debug message (verbosity 1)
 func (l Logger) Debug(msg string, keysAndValues ...interface{}) {
-	l.Logger.V(1).Info(msg, keysAndValues...)
+	l.Logger.V(1).WithCallDepth(1).Info(msg, keysAndValues...)
 }
 
 // Trace logs trace message (verbosity 2)
 func (l Logger) Trace(msg string, keysAndValues ...interface{}) {
-	l.Logger.V(2).Info(msg, keysAndValues...)
+	l.Logger.V(2).WithCallDepth(1).Info(msg, keysAndValues...)
 }
 
 // Info logs info message
 func (l Logger) Info(msg string, keysAndValues ...interface{}) {
-	l.Logger.Info(msg, keysAndValues...)
+	l.Logger.WithCallDepth(1).Info(msg, keysAndValues...)
 }
 
 // Error logs error message
 func (l Logger) Error(err error, msg string, keysAndValues ...interface{}) {
-	l.Logger.Error(err, msg, keysAndValues...)
+	l.Logger.WithCallDepth(1).Error(err, msg, keysAndValues...)
 }

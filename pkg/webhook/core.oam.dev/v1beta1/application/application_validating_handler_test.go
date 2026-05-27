@@ -358,4 +358,38 @@ var _ = Describe("Test Application Validator", func() {
 		resp := handler.Handle(ctx, req)
 		Expect(resp.Allowed).Should(BeTrue())
 	})
+
+	It("Test Application Validator [allows when traceID annotation present]", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				UID:       "fresh-req-uid",
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"app-with-trace","namespace":"default","annotations":{"app.oam.dev/traceID":"propagated-trace-id"}},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"busybox"}}]}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+	})
+
+	It("Test Application Validator [allows when traceID annotation absent, falls back to req.UID]", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				UID:       "fallback-uid",
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1beta1", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"app-without-trace","namespace":"default"},"spec":{"components":[{"name":"comp","type":"worker","properties":{"image":"busybox"}}]}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+	})
 })
