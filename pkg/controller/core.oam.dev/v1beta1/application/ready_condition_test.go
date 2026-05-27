@@ -72,6 +72,7 @@ func TestEndWithNegativeConditionFlipsReady(t *testing.T) {
 	assert.NotNil(t, gotReady, "Ready condition must be set after negative reconcile")
 	assert.Equal(t, corev1.ConditionFalse, gotReady.Status, "Ready must be False on reconcile failure")
 	assert.Equal(t, condition.ReasonReconcileError, gotReady.Reason, "Ready reason must be ReconcileError")
+	assert.Equal(t, parsedFailure.Message, gotReady.Message, "Ready message must mirror the failing sub-condition's message")
 }
 
 func findCondition(conds []condition.Condition, t condition.ConditionType) *condition.Condition {
