@@ -17,6 +17,7 @@ limitations under the License.
 package application
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -123,7 +124,7 @@ func TestReconcileResultForApp(t *testing.T) {
 			if tt.explicitRequeue > 0 {
 				res.requeue(tt.explicitRequeue)
 			}
-			res.forApp(app)
+			res.forApp(context.Background(), app)
 
 			result, err := res.ret()
 
@@ -140,7 +141,7 @@ func TestReconcileResultForApp(t *testing.T) {
 
 func TestReconcileResultForAppNilApp(t *testing.T) {
 	r := &Reconciler{}
-	res := r.result(nil).forApp(nil)
+	res := r.result(nil).forApp(context.Background(), nil)
 	result, err := res.ret()
 
 	assert.NoError(t, err)
