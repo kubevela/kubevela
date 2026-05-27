@@ -39,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/docgen/fix"
+	"github.com/kubevela/pkg/apis/cue/v1alpha1"
 )
 
 // DescriptionUndefined indicates the description is not defined
@@ -81,6 +82,15 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.
 	}
 	caps = append(caps, wfs...)
 
+	pkgs, erl, err := GetPackages(ctx, namespace, c)
+	if err != nil {
+		return nil, err
+	}
+	for _, er := range erl {
+		klog.Infof("get package capability %v", er)
+	}
+	caps = append(caps, pkgs...)
+
 	return caps, nil
 }
 
@@ -105,6 +115,10 @@ func GetNamespacedCapabilitiesFromCluster(ctx context.Context, namespace string,
 		capabilities = append(capabilities, policies...)
 	}
 
+	if packages, _, err := GetPackages(ctx, namespace, c); err == nil {
+		capabilities = append(capabilities, packages...)
+	}
+
 	if namespace != types.DefaultKubeVelaNS {
 		// get components from default namespace
 		if workloads, _, err := GetComponentsFromClusterWithValidateOption(ctx, types.DefaultKubeVelaNS, c, selector, false); err == nil {
@@ -123,12 +137,16 @@ func GetNamespacedCapabilitiesFromCluster(ctx context.Context, namespace string,
 		if policies, _, err := GetPolicies(ctx, types.DefaultKubeVelaNS, c); err == nil {
 			capabilities = append(capabilities, policies...)
 		}
+
+		if packages, _, err := GetPackages(ctx, types.DefaultKubeVelaNS, c); err == nil {
+			capabilities = append(capabilities, packages...)
+		}
 	}
 
 	if len(capabilities) > 0 {
 		return capabilities, nil
 	}
-	return nil, fmt.Errorf("could not find any components, traits or workflowSteps from namespace %s and %s", namespace, types.DefaultKubeVelaNS)
+	return nil, fmt.Errorf("could not find any components, traits, workflow steps, policies, or packages from namespace %s and %s", namespace, types.DefaultKubeVelaNS)
 }
 
 // GetComponentsFromCluster will get capability from K8s cluster
@@ -263,6 +281,32 @@ func GetPolicies(ctx context.Context, namespace string, c common.Args) ([]types.
 	var templateErrors []error
 	for _, def := range defs.Items {
 		tmp, err := GetCapabilityByPolicyDefinitionObject(def)
+		if err != nil {
+			templateErrors = append(templateErrors, err)
+			continue
+		}
+		templates = append(templates, *tmp)
+	}
+	return templates, templateErrors, nil
+}
+
+// GetPackages will get Package list from K8s cluster
+func GetPackages(ctx context.Context, namespace string, c common.Args) ([]types.Capability, []error, error) {
+	newClient, err := c.GetClient()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var templates []types.Capability
+	var defs v1alpha1.PackageList
+	err = newClient.List(ctx, &defs, &client.ListOptions{Namespace: namespace})
+	if err != nil {
+		return nil, nil, fmt.Errorf("list Package err: %w", err)
+	}
+
+	var templateErrors []error
+	for _, def := range defs.Items {
+		tmp, err := GetCapabilityByPackageObject(def)
 		if err != nil {
 			templateErrors = append(templateErrors, err)
 			continue
@@ -462,6 +506,25 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 		}
 		return capability, nil
 	}
+	
+	foundCapability = false
+	var pkg v1alpha1.Package
+	err = newClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: capabilityName}, &pkg)
+	if err == nil {
+		foundCapability = true
+	} else if kerrors.IsNotFound(err) {
+		err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &pkg)
+		if err == nil {
+			foundCapability = true
+		}
+	}
+	if foundCapability {
+		capability, err = GetCapabilityByPackageObject(pkg)
+		if err != nil {
+			return nil, err
+		}
+		return capability, nil
+	}
 
 	if ns == types.DefaultKubeVelaNS {
 		return nil, fmt.Errorf("could not find %s in namespace %s", capabilityName, ns)
@@ -566,5 +629,17 @@ func GetCapabilityByPolicyDefinitionObject(def v1beta1.PolicyDefinition) (*types
 		return nil, errors.Wrap(err, "failed to handle PolicyDefinition")
 	}
 	capability.Namespace = def.Namespace
+	return &capability, nil
+}
+
+// GetCapabilityByPackageObject converts a Package object into a Capability
+func GetCapabilityByPackageObject(pkg v1alpha1.Package) (*types.Capability, error) {
+	capability := types.Capability{
+		Name:      pkg.Name,
+		Type:      types.TypePackage,
+		Namespace: pkg.Namespace,
+		Labels:    pkg.Labels,
+		Path:      pkg.Spec.Path,
+	}
 	return &capability, nil
 }

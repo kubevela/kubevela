@@ -140,7 +140,7 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(_ context.Context, c types.
 		err           error
 	)
 	switch c.Type {
-	case types.TypeWorkload, types.TypeComponentDefinition, types.TypeTrait, types.TypeWorkflowStep, types.TypePolicy:
+	case types.TypeWorkload, types.TypeComponentDefinition, types.TypeTrait, types.TypeWorkflowStep, types.TypePolicy, types.TypePackage:
 	default:
 		return "", fmt.Errorf("type(%s) of the capability(%s) is not supported for now", c.Type, c.Name)
 	}
