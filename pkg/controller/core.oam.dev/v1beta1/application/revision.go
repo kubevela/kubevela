@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"sort"
+	"strings"
 
 	"github.com/hashicorp/go-version"
 	"github.com/kubevela/pkg/util/k8s"
@@ -367,7 +368,7 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 	}
 
 	isLatestRev := deepEqualAppInRevision(h.latestAppRev, h.currentAppRev)
-	if metav1.HasAnnotation(h.app.ObjectMeta, oam.AnnotationAutoUpdate) {
+	if hasBareTypeComponents(h.app) || metav1.HasAnnotation(h.app.ObjectMeta, oam.AnnotationAutoUpdate) {
 		isLatestRev = h.app.Status.LatestRevision.RevisionHash == h.currentRevHash && DeepEqualRevision(h.latestAppRev, h.currentAppRev)
 	}
 	if h.latestAppRev != nil && oam.GetPublishVersion(h.app) != oam.GetPublishVersion(h.latestAppRev) {
@@ -408,6 +409,14 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 
 	// if reach here, it has different spec
 	return true, true, nil
+}
+func hasBareTypeComponents(app *v1beta1.Application) bool {
+	for _, comp := range app.Spec.Components {
+		if !strings.Contains(comp.Type, "@") {
+			return true
+		}
+	}
+	return false
 }
 
 // DeepEqualRevision will compare the spec of Application and Definition to see if the Application is the same revision
