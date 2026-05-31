@@ -35,25 +35,22 @@ var _ = Describe("Helm Workflow Provider", func() {
 			Expect(tmpl).ToNot(BeEmpty())
 		})
 
-		It("should contain render and uninstall provider definitions", func() {
+		It("should contain the render provider definition", func() {
 			tmpl := GetTemplate()
 			Expect(tmpl).To(ContainSubstring("render"))
-			Expect(tmpl).To(ContainSubstring("uninstall"))
 		})
 	})
 
 	Describe("GetProviders", func() {
-		It("should return a map with render and uninstall providers", func() {
+		It("should return a map with the render provider", func() {
 			providers := GetProviders()
 			Expect(providers).ToNot(BeNil())
 			Expect(providers).To(HaveKey("render"))
-			Expect(providers).To(HaveKey("uninstall"))
 		})
 
-		It("should have non-nil provider functions", func() {
+		It("should have a non-nil render provider function", func() {
 			providers := GetProviders()
 			Expect(providers["render"]).ToNot(BeNil())
-			Expect(providers["uninstall"]).ToNot(BeNil())
 		})
 	})
 })

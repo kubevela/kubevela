@@ -1,0 +1,4 @@
+replicaCount: 1
+image:
+  repository: ghcr.io/stefanprodan/podinfo
+  tag: "6.5.0"

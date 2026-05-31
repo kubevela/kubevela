@@ -173,6 +173,38 @@ func TestHTTPGetWithOption(t *testing.T) {
 
 }
 
+func TestHTTPGetResponse_BearerToken(t *testing.T) {
+	var gotAuth string
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer testServer.Close()
+
+	opts := &HTTPOption{BearerToken: "abc.def.ghi"}
+	resp, err := HTTPGetResponse(context.Background(), testServer.URL, opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if gotAuth != "Bearer abc.def.ghi" {
+		t.Fatalf("expected Authorization=%q, got %q", "Bearer abc.def.ghi", gotAuth)
+	}
+}
+
+func TestHTTPGetResponse_BearerAndBasicMutuallyExclusive(t *testing.T) {
+	opts := &HTTPOption{Username: "u", Password: "p", BearerToken: "t"}
+	_, err := HTTPGetResponse(context.Background(), "https://example.com", opts)
+	if err == nil {
+		t.Fatal("expected error when both basic and bearer are set, got nil")
+	}
+	if !strings.Contains(err.Error(), "RFC 6750") {
+		t.Fatalf("expected error to cite RFC 6750, got %v", err)
+	}
+}
+
 func TestHttpGetCaFile(t *testing.T) {
 	type want struct {
 		data string
