@@ -34,7 +34,7 @@ import (
 const (
 	// Core traceability fields
 	FieldRequestID = "requestID"  // Unique identifier for request correlation
-	FieldSpanID    = "spanID"     //Per-reconcile Identifier
+	FieldSpanID    = "spanID"     // Per-reconcile identifier
 	FieldOperation = "operation"  // Webhook operation (CREATE/UPDATE/DELETE)
 	FieldHandler   = "handler"    // Handler processing the request
 	FieldStep      = "step"       // Current processing step
@@ -128,7 +128,7 @@ func WithSpanID(ctx context.Context, spanID string) context.Context {
 	return context.WithValue(ctx, spanIDKey, spanID)
 }
 
-// SpanIDFrom retrives span ID from context
+// SpanIDFrom retrieves span ID from context
 func SpanIDFrom(ctx context.Context) (string, bool) {
 	id, ok := ctx.Value(spanIDKey).(string)
 	return id, ok && id != ""
