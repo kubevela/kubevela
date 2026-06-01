@@ -23,14 +23,18 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // Structured logging field keys - consistent across all handlers for observability
 const (
 	// Core traceability fields
 	FieldRequestID = "requestID"  // Unique identifier for request correlation
+	FieldSpanID    = "spanID"     //Per-reconcile Identifier
 	FieldOperation = "operation"  // Webhook operation (CREATE/UPDATE/DELETE)
 	FieldHandler   = "handler"    // Handler processing the request
 	FieldStep      = "step"       // Current processing step
@@ -55,6 +59,7 @@ type contextKey struct{ name string }
 
 var (
 	requestIDKey = contextKey{name: "requestID"}
+	spanIDKey    = contextKey{name: "spanID"}
 	loggerKey    = contextKey{name: "logger"}
 )
 
@@ -86,6 +91,21 @@ func (l Logger) IntoContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, loggerKey, l)
 }
 
+// FromContext returns a Logger seeded with the requestID and spanID present on ctx.
+// Use this from any reconcile-path function that has only a std context.Context
+// If ctx carries no requestID or spanID, returns a plain logger.
+func FromContext(ctx context.Context) Logger {
+	logger := WithContext(ctx)
+	if id, ok := RequestIDFrom(ctx); ok {
+		logger = logger.WithValues(FieldRequestID, id)
+	}
+	if id, ok := SpanIDFrom(ctx); ok {
+		logger = logger.WithValues(FieldSpanID, id)
+	}
+
+	return logger
+}
+
 // WithRequestID stores request ID in context
 func WithRequestID(ctx context.Context, requestID string) context.Context {
 	if requestID == "" {
@@ -98,6 +118,57 @@ func WithRequestID(ctx context.Context, requestID string) context.Context {
 func RequestIDFrom(ctx context.Context) (string, bool) {
 	id, ok := ctx.Value(requestIDKey).(string)
 	return id, ok && id != ""
+}
+
+// WithSpanID stores the Span ID in context
+func WithSpanID(ctx context.Context, spanID string) context.Context {
+	if spanID == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, spanIDKey, spanID)
+}
+
+// SpanIDFrom retrives span ID from context
+func SpanIDFrom(ctx context.Context) (string, bool) {
+	id, ok := ctx.Value(spanIDKey).(string)
+	return id, ok && id != ""
+}
+
+// TraceIDFromObject return the traceID stamped by the mutating webhook on
+// the object's annotations, or false if the object is empty or the annotation is empty
+func TraceIDFromObject(obj metav1.Object) (string, bool) {
+	if obj == nil {
+		return "", false
+	}
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		return "", false
+	}
+	id := annotations[oam.AnnotationTraceID]
+	if id == "" {
+		return "", false
+	}
+	return id, true
+
+}
+
+// EnsureTraceIDAnnotation sets the trace ID annotation only when it is
+// currently absent or empty. Returns true when the object was mutated so
+// callers can decide whether a patch is needed. A nil object or empty
+// traceID is a no-op and returns false.
+func EnsureTraceIDAnnotation(obj metav1.Object, traceID string) bool {
+	if obj == nil || traceID == "" {
+		return false
+	}
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	} else if existing := annotations[oam.AnnotationTraceID]; existing != "" {
+		return false
+	}
+	annotations[oam.AnnotationTraceID] = traceID
+	obj.SetAnnotations(annotations)
+	return true
 }
 
 // NewHandlerLogger creates a logger for webhook handlers with full request context
@@ -154,20 +225,20 @@ func (l Logger) V(level int) Logger {
 
 // Debug logs debug message (verbosity 1)
 func (l Logger) Debug(msg string, keysAndValues ...interface{}) {
-	l.Logger.V(1).Info(msg, keysAndValues...)
+	l.Logger.V(1).WithCallDepth(1).Info(msg, keysAndValues...)
 }
 
 // Trace logs trace message (verbosity 2)
 func (l Logger) Trace(msg string, keysAndValues ...interface{}) {
-	l.Logger.V(2).Info(msg, keysAndValues...)
+	l.Logger.V(2).WithCallDepth(1).Info(msg, keysAndValues...)
 }
 
 // Info logs info message
 func (l Logger) Info(msg string, keysAndValues ...interface{}) {
-	l.Logger.Info(msg, keysAndValues...)
+	l.Logger.WithCallDepth(1).Info(msg, keysAndValues...)
 }
 
 // Error logs error message
 func (l Logger) Error(err error, msg string, keysAndValues ...interface{}) {
-	l.Logger.Error(err, msg, keysAndValues...)
+	l.Logger.WithCallDepth(1).Error(err, msg, keysAndValues...)
 }

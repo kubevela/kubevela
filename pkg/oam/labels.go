@@ -226,6 +226,8 @@ const (
 	// "1m", "15m", "30s").  Values below 10s are ignored and fall back to the
 	// global default.  Invalid values are also ignored.
 	AnnotationReconcileInterval = "app.oam.dev/reconcile-interval"
+
+	AnnotationTraceID = "app.oam.dev/traceID"
 )
 
 const (
