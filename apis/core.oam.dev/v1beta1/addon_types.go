@@ -258,9 +258,9 @@ type AddonModuleLineStatus struct {
 	// resolved to true against the current cluster context.
 	Enabled bool `json:"enabled"`
 
-	// Deprecated is true when the line is marked deprecated per the
-	// KEP-2.20 deprecation lifecycle. Existing consumers keep working but
-	// new Applications referencing this line's definitions are blocked by
+	// Set to true when the line is marked deprecated per the KEP-2.20
+	// deprecation lifecycle. Existing consumers keep working but new
+	// Applications referencing this line's definitions are blocked by
 	// admission.
 	Deprecated bool `json:"deprecated"`
 
@@ -363,9 +363,9 @@ type AddonResourceRef struct {
 	// "ConfigTemplate", "ConfigMap").
 	Kind string `json:"kind"`
 
-	// Deprecated indicates the resource is marked deprecated per the
-	// KEP-2.20 deprecation lifecycle. Consumers are still allowed to use
-	// it, but new Applications referencing it are blocked by admission.
+	// Set to true when the resource is marked deprecated per the KEP-2.20
+	// deprecation lifecycle. Consumers are still allowed to use it, but new
+	// Applications referencing it are blocked by admission.
 	Deprecated bool `json:"deprecated,omitempty"`
 
 	// DeprecatedAt is the timestamp (RFC3339) at which Deprecated was set.
