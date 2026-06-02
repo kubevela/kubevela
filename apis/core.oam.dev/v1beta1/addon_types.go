@@ -90,6 +90,9 @@ const (
 // addon's resources, definitions, and auxiliary objects onto the cluster and
 // to continuously reconcile their drift.
 //
+// +kubebuilder:printcolumn:name="PHASE",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="VERSION",type=string,JSONPath=`.status.installedVersion`
+// +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster,shortName=addon
 // +kubebuilder:subresource:status
