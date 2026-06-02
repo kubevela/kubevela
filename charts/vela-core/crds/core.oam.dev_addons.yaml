@@ -231,9 +231,9 @@ spec:
                       properties:
                         deprecated:
                           description: |-
-                            Deprecated indicates the resource is marked deprecated per the
-                            KEP-2.20 deprecation lifecycle. Consumers are still allowed to use
-                            it, but new Applications referencing it are blocked by admission.
+                            Set to true when the resource is marked deprecated per the KEP-2.20
+                            deprecation lifecycle. Consumers are still allowed to use it, but new
+                            Applications referencing it are blocked by admission.
                           type: boolean
                         deprecatedAt:
                           description: |-
@@ -267,9 +267,9 @@ spec:
                       properties:
                         deprecated:
                           description: |-
-                            Deprecated indicates the resource is marked deprecated per the
-                            KEP-2.20 deprecation lifecycle. Consumers are still allowed to use
-                            it, but new Applications referencing it are blocked by admission.
+                            Set to true when the resource is marked deprecated per the KEP-2.20
+                            deprecation lifecycle. Consumers are still allowed to use it, but new
+                            Applications referencing it are blocked by admission.
                           type: boolean
                         deprecatedAt:
                           description: |-
@@ -302,9 +302,9 @@ spec:
                       properties:
                         deprecated:
                           description: |-
-                            Deprecated indicates the resource is marked deprecated per the
-                            KEP-2.20 deprecation lifecycle. Consumers are still allowed to use
-                            it, but new Applications referencing it are blocked by admission.
+                            Set to true when the resource is marked deprecated per the KEP-2.20
+                            deprecation lifecycle. Consumers are still allowed to use it, but new
+                            Applications referencing it are blocked by admission.
                           type: boolean
                         deprecatedAt:
                           description: |-
@@ -337,9 +337,9 @@ spec:
                       properties:
                         deprecated:
                           description: |-
-                            Deprecated indicates the resource is marked deprecated per the
-                            KEP-2.20 deprecation lifecycle. Consumers are still allowed to use
-                            it, but new Applications referencing it are blocked by admission.
+                            Set to true when the resource is marked deprecated per the KEP-2.20
+                            deprecation lifecycle. Consumers are still allowed to use it, but new
+                            Applications referencing it are blocked by admission.
                           type: boolean
                         deprecatedAt:
                           description: |-
@@ -371,9 +371,9 @@ spec:
                       properties:
                         deprecated:
                           description: |-
-                            Deprecated indicates the resource is marked deprecated per the
-                            KEP-2.20 deprecation lifecycle. Consumers are still allowed to use
-                            it, but new Applications referencing it are blocked by admission.
+                            Set to true when the resource is marked deprecated per the KEP-2.20
+                            deprecation lifecycle. Consumers are still allowed to use it, but new
+                            Applications referencing it are blocked by admission.
                           type: boolean
                         deprecatedAt:
                           description: |-
@@ -446,9 +446,9 @@ spec:
                               properties:
                                 deprecated:
                                   description: |-
-                                    Deprecated indicates the resource is marked deprecated per the
-                                    KEP-2.20 deprecation lifecycle. Consumers are still allowed to use
-                                    it, but new Applications referencing it are blocked by admission.
+                                    Set to true when the resource is marked deprecated per the KEP-2.20
+                                    deprecation lifecycle. Consumers are still allowed to use it, but new
+                                    Applications referencing it are blocked by admission.
                                   type: boolean
                                 deprecatedAt:
                                   description: |-
