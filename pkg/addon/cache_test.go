@@ -30,8 +30,9 @@ func TestPutVersionedUIData2cache(t *testing.T) {
 	u.putVersionedUIData2Cache("helm-repo", "fluxcd", "1.0.0", &uiData)
 	assert.NotEmpty(t, u.versionedUIData)
 	assert.NotEmpty(t, u.versionedUIData["helm-repo"])
-	assert.NotEmpty(t, u.versionedUIData["helm-repo"]["fluxcd-1.0.0"])
-	assert.Equal(t, u.versionedUIData["helm-repo"]["fluxcd-1.0.0"].Name, "fluxcd")
+	val, ok := u.versionedUIData["helm-repo"].get("fluxcd-1.0.0")
+	assert.True(t, ok)
+	assert.Equal(t, val.Name, "fluxcd")
 }
 
 func TestPutAddonUIData2Cache(t *testing.T) {

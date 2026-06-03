@@ -17,6 +17,7 @@ limitations under the License.
 package addon
 
 import (
+	"container/list"
 	"context"
 	"fmt"
 	"strings"
@@ -47,7 +48,7 @@ type Cache struct {
 
 	registry map[string]Registry
 
-	versionedUIData map[string]map[string]*UIData
+	versionedUIData map[string]*LRUCache
 
 	mutex *sync.RWMutex
 
@@ -60,7 +61,7 @@ func NewCache(ds RegistryDataStore) *Cache {
 		uiData:          make(map[string][]*UIData),
 		registryMeta:    make(map[string]map[string]SourceMeta),
 		registry:        make(map[string]Registry),
-		versionedUIData: make(map[string]map[string]*UIData),
+		versionedUIData: make(map[string]*LRUCache),
 		mutex:           new(sync.RWMutex),
 		ds:              ds,
 	}
@@ -166,7 +167,11 @@ func (u *Cache) getCachedUIData(registry Registry, addonName, version string) *U
 		if len(version) == 0 {
 			version = "latest"
 		}
-		return u.versionedUIData[registry.Name][fmt.Sprintf("%s-%s", addonName, version)]
+		if lru, ok := u.versionedUIData[registry.Name]; ok {
+			val, _ := lru.get(fmt.Sprintf("%s-%s", addonName, version))
+			return val
+		}
+		return nil
 	}
 	return nil
 }
@@ -192,14 +197,16 @@ func (u *Cache) listVersionRegistryCachedUIData(name string) []*UIData {
 	}
 	u.mutex.RLock()
 	defer u.mutex.RUnlock()
-	d, ok := u.versionedUIData[name]
+	lru, ok := u.versionedUIData[name]
 	if !ok {
 		return nil
 	}
 	var uiDatas []*UIData
-	for version, uiData := range d {
-		if !strings.Contains(version, "-latest") {
-			uiDatas = append(uiDatas, uiData)
+	for _, k := range lru.keys() {
+		if !strings.Contains(k, "-latest") {
+			if val, ok := lru.get(k); ok {
+				uiDatas = append(uiDatas, val)
+			}
 		}
 	}
 
@@ -276,9 +283,9 @@ func (u *Cache) putVersionedUIData2Cache(registryName, addonName, version string
 	defer u.mutex.Unlock()
 
 	if u.versionedUIData[registryName] == nil {
-		u.versionedUIData[registryName] = make(map[string]*UIData)
+		u.versionedUIData[registryName] = newLRUCache(100)
 	}
-	u.versionedUIData[registryName][fmt.Sprintf("%s-%s", addonName, version)] = uiData
+	u.versionedUIData[registryName].put(fmt.Sprintf("%s-%s", addonName, version), uiData)
 }
 
 func (u *Cache) discoverAndRefreshRegistry() {
@@ -347,8 +354,8 @@ func (u *Cache) listVersionRegistryUIDataAndCache(r Registry) ([]*UIData, error)
 		u.putVersionedUIData2Cache(r.Name, addon.Name, "latest", uiData)
 	}
 	// delete the addon which has been deleted from the addonRegistryCache
-	if addonUIData, ok := u.versionedUIData[r.Name]; ok {
-		for k := range addonUIData {
+	if lru, ok := u.versionedUIData[r.Name]; ok {
+		for _, k := range lru.keys() {
 			lastInd := strings.LastIndex(k, "-")
 			var needDelete = true
 			for _, addon := range uiDatas {
@@ -358,9 +365,75 @@ func (u *Cache) listVersionRegistryUIDataAndCache(r Registry) ([]*UIData, error)
 				}
 			}
 			if needDelete {
-				delete(addonUIData, k)
+				lru.delete(k)
 			}
 		}
 	}
 	return uiDatas, nil
+}
+
+// lruEntry holds the key and value for LRU eviction
+type lruEntry struct {
+	key   string
+	value *UIData
+}
+
+// LRUCache is a thread-safe LRU cache for versioned UIData
+type LRUCache struct {
+	capacity int
+	list     *list.List
+	items    map[string]*list.Element
+}
+
+// newLRUCache creates a new LRUCache with given capacity
+func newLRUCache(capacity int) *LRUCache {
+	return &LRUCache{
+		capacity: capacity,
+		list:     list.New(),
+		items:    make(map[string]*list.Element),
+	}
+}
+
+// get retrieves a value and marks it as recently used
+func (c *LRUCache) get(key string) (*UIData, bool) {
+	if el, ok := c.items[key]; ok {
+		c.list.MoveToFront(el)
+		return el.Value.(*lruEntry).value, true
+	}
+	return nil, false
+}
+
+// put inserts or updates a value, evicting LRU entry if at capacity
+func (c *LRUCache) put(key string, value *UIData) {
+	if el, ok := c.items[key]; ok {
+		c.list.MoveToFront(el)
+		el.Value.(*lruEntry).value = value
+		return
+	}
+	if c.list.Len() >= c.capacity {
+		oldest := c.list.Back()
+		if oldest != nil {
+			c.list.Remove(oldest)
+			delete(c.items, oldest.Value.(*lruEntry).key)
+		}
+	}
+	el := c.list.PushFront(&lruEntry{key: key, value: value})
+	c.items[key] = el
+}
+
+// delete removes a key from the cache
+func (c *LRUCache) delete(key string) {
+	if el, ok := c.items[key]; ok {
+		c.list.Remove(el)
+		delete(c.items, key)
+	}
+}
+
+// keys returns all keys currently in cache
+func (c *LRUCache) keys() []string {
+	keys := make([]string, 0, len(c.items))
+	for k := range c.items {
+		keys = append(keys, k)
+	}
+	return keys
 }
