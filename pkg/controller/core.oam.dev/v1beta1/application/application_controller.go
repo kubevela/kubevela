@@ -527,12 +527,20 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 	return r.result(nil).end(false)
 }
 
-func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, condition condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
-	app.SetConditions(condition)
+func (r *Reconciler) endWithNegativeCondition(ctx context.Context, app *v1beta1.Application, cond condition.Condition, phase common.ApplicationPhase) (ctrl.Result, error) {
+	// Flip the rollup Ready condition alongside the failing sub-condition so health checkers
+	// polling Ready see the failure instead of the last successful reconcile (#7164).
+	app.SetConditions(cond, condition.Condition{
+		Type:               condition.ConditionType(common.ReadyCondition.String()),
+		Status:             corev1.ConditionFalse,
+		LastTransitionTime: metav1.Now(),
+		Reason:             condition.ReasonReconcileError,
+		Message:            cond.Message,
+	})
 	if err := r.patchStatus(ctx, app, phase); err != nil {
 		return r.result(errors.WithMessage(err, "cannot update application status")).ret()
 	}
-	return r.result(fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(condition.Type), condition.Message)).ret()
+	return r.result(fmt.Errorf("object level reconcile error, type: %q, msg: %q", string(cond.Type), cond.Message)).ret()
 }
 
 // Application status can be updated by two methods: patch and update.
