@@ -120,6 +120,10 @@ type AddonSpec struct {
 	// A semver constraint selects tracking mode: the controller resolves the
 	// constraint against the registry on every periodic reconcile. The
 	// upgrade behaviour is then governed by spec.upgradePolicy.
+	//
+	// The Reconcile slice supports pinned exact tags only; semver constraints
+	// are rejected at admission until tracking mode lands in a follow-up epic.
+	// +kubebuilder:validation:XValidation:rule="self.matches('^v?[0-9]+\\\\.[0-9]+\\\\.[0-9]+([-+].*)?$')",message="semver constraints are not supported in this version; use an exact tag (e.g. v1.2.0)"
 	Version string `json:"version,omitempty"`
 
 	// UpgradePolicy controls autonomous upgrade behaviour when spec.version
@@ -162,6 +166,11 @@ type AddonSpec struct {
 
 	// DeletionPolicy controls what happens when the Addon CR is deleted.
 	// Defaults to Protect.
+	//
+	// The Reconcile slice supports Protect only; Force and Orphan are rejected
+	// at admission until they are implemented in a follow-up epic.
+	// +kubebuilder:default=Protect
+	// +kubebuilder:validation:XValidation:rule="self == '' || self == 'Protect'",message="Force and Orphan deletion policies are not supported in this version; only Protect is accepted"
 	DeletionPolicy AddonDeletionPolicy `json:"deletionPolicy,omitempty"`
 }
 

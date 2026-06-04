@@ -70,10 +70,18 @@ spec:
                   type: string
                 type: array
               deletionPolicy:
+                default: Protect
                 description: |-
                   DeletionPolicy controls what happens when the Addon CR is deleted.
                   Defaults to Protect.
+
+                  The Reconcile slice supports Protect only; Force and Orphan are rejected
+                  at admission until they are implemented in a follow-up epic.
                 type: string
+                x-kubernetes-validations:
+                - message: Force and Orphan deletion policies are not supported in
+                    this version; only Protect is accepted
+                  rule: self == '' || self == 'Protect'
               overrideDefinitions:
                 description: |-
                   OverrideDefinitions allows the addon to overwrite definitions that
@@ -120,7 +128,14 @@ spec:
                   A semver constraint selects tracking mode: the controller resolves the
                   constraint against the registry on every periodic reconcile. The
                   upgrade behaviour is then governed by spec.upgradePolicy.
+
+                  The Reconcile slice supports pinned exact tags only; semver constraints
+                  are rejected at admission until tracking mode lands in a follow-up epic.
                 type: string
+                x-kubernetes-validations:
+                - message: semver constraints are not supported in this version; use
+                    an exact tag (e.g. v1.2.0)
+                  rule: self.matches('^v?[0-9]+\\.[0-9]+\\.[0-9]+([-+].*)?$')
             type: object
           status:
             description: |-
@@ -472,9 +487,9 @@ spec:
                             type: array
                           deprecated:
                             description: |-
-                              Deprecated is true when the line is marked deprecated per the
-                              KEP-2.20 deprecation lifecycle. Existing consumers keep working but
-                              new Applications referencing this line's definitions are blocked by
+                              Set to true when the line is marked deprecated per the KEP-2.20
+                              deprecation lifecycle. Existing consumers keep working but new
+                              Applications referencing this line's definitions are blocked by
                               admission.
                             type: boolean
                           deprecationReason:
