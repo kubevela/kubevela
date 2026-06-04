@@ -50,13 +50,22 @@ func getAssociatedRollouts(ctx context.Context, cli client.Client, app *v1beta1.
 	if !withHistoryRTs {
 		historyRTs = []*v1beta1.ResourceTracker{}
 	}
+	
+	seen := make(map[string]struct{})
 	var rollouts []*ClusterRollout
+	
 	for _, rt := range append(historyRTs, rootRT, currentRT) {
 		if rt == nil {
 			continue
 		}
 		for _, mr := range rt.Spec.ManagedResources {
 			if mr.APIVersion == kruisev1alpha1.SchemeGroupVersion.String() && mr.Kind == "Rollout" {
+				key := fmt.Sprintf("%s/%s/%s", mr.Cluster, mr.Namespace, mr.Name)
+				if _, ok := seen[key]; ok {
+					continue
+				}
+				seen[key] = struct{}{}
+				
 				rollout := &kruisev1alpha1.Rollout{}
 				if err = cli.Get(multicluster.ContextWithClusterName(ctx, mr.Cluster), k8stypes.NamespacedName{Namespace: mr.Namespace, Name: mr.Name}, rollout); err != nil {
 					if multicluster.IsNotFoundOrClusterNotExists(err) || velaerrors.IsCRDNotExists(err) {
@@ -72,6 +81,28 @@ func getAssociatedRollouts(ctx context.Context, cli client.Client, app *v1beta1.
 		}
 	}
 	return rollouts, nil
+}
+
+// isCanaryStepPaused returns true if the rollout is paused at a canary step.
+// TODO(DependencyUpgrade): openkruise/rollouts v0.3.0 does not include BlueGreenStatus.
+// Once KubeVela upgrades the dependency (e.g. to v0.6.0+), BlueGreenStatus should be
+// checked here as well since it shares the identical state machine.
+func isCanaryStepPaused(r *kruisev1alpha1.Rollout) bool {
+	if r.Status.CanaryStatus != nil &&
+		r.Status.CanaryStatus.CurrentStepState == kruisev1alpha1.CanaryStepStatePaused {
+		return true
+	}
+	return false
+}
+
+// setCanaryStepReady advances the CurrentStepState to CanaryStepStateReady.
+// TODO(DependencyUpgrade): Extend this to handle BlueGreenStatus once the Kruise
+// rollout API dependency is upgraded to a version that supports it.
+func setCanaryStepReady(r *kruisev1alpha1.Rollout) {
+	if r.Status.CanaryStatus != nil &&
+		r.Status.CanaryStatus.CurrentStepState == kruisev1alpha1.CanaryStepStatePaused {
+		r.Status.CanaryStatus.CurrentStepState = kruisev1alpha1.CanaryStepStateReady
+	}
 }
 
 // SuspendRollout find all rollouts associated with the application (including history RTs) and resume them
@@ -117,7 +148,7 @@ func ResumeRollout(ctx context.Context, cli client.Client, app *v1beta1.Applicat
 	modified := false
 	for i := range rollouts {
 		rollout := rollouts[i]
-		if rollout.Spec.Strategy.Paused || (rollout.Status.CanaryStatus != nil && rollout.Status.CanaryStatus.CurrentStepState == kruisev1alpha1.CanaryStepStatePaused) {
+		if rollout.Spec.Strategy.Paused || isCanaryStepPaused(rollout.Rollout) {
 			_ctx := multicluster.ContextWithClusterName(ctx, rollout.Cluster)
 			rolloutKey := client.ObjectKeyFromObject(rollout.Rollout)
 			resumed := false
@@ -141,8 +172,8 @@ func ResumeRollout(ctx context.Context, cli client.Client, app *v1beta1.Applicat
 				if err = cli.Get(_ctx, rolloutKey, rollout.Rollout); err != nil {
 					return err
 				}
-				if rollout.Status.CanaryStatus != nil && rollout.Status.CanaryStatus.CurrentStepState == kruisev1alpha1.CanaryStepStatePaused {
-					rollout.Status.CanaryStatus.CurrentStepState = kruisev1alpha1.CanaryStepStateReady
+				if isCanaryStepPaused(rollout.Rollout) {
+					setCanaryStepReady(rollout.Rollout)
 					if err = cli.Status().Update(_ctx, rollout.Rollout); err != nil {
 						return err
 					}
@@ -173,7 +204,7 @@ func RollbackRollout(ctx context.Context, cli client.Client, app *v1beta1.Applic
 	modified := false
 	for i := range rollouts {
 		rollout := rollouts[i]
-		if rollout.Spec.Strategy.Paused || (rollout.Status.CanaryStatus != nil && rollout.Status.CanaryStatus.CurrentStepState == kruisev1alpha1.CanaryStepStatePaused) {
+		if rollout.Spec.Strategy.Paused || isCanaryStepPaused(rollout.Rollout) {
 			_ctx := multicluster.ContextWithClusterName(ctx, rollout.Cluster)
 			rolloutKey := client.ObjectKeyFromObject(rollout.Rollout)
 			resumed := false
@@ -184,6 +215,22 @@ func RollbackRollout(ctx context.Context, cli client.Client, app *v1beta1.Applic
 				if rollout.Spec.Strategy.Paused {
 					rollout.Spec.Strategy.Paused = false
 					if err = cli.Update(_ctx, rollout.Rollout); err != nil {
+						return err
+					}
+					resumed = true
+					return nil
+				}
+				return nil
+			}); err != nil {
+				return false, errors.Wrapf(err, "failed to rollback rollout %s/%s in cluster %s", rollout.Namespace, rollout.Name, rollout.Cluster)
+			}
+			if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				if err = cli.Get(_ctx, rolloutKey, rollout.Rollout); err != nil {
+					return err
+				}
+				if isCanaryStepPaused(rollout.Rollout) {
+					setCanaryStepReady(rollout.Rollout)
+					if err = cli.Status().Update(_ctx, rollout.Rollout); err != nil {
 						return err
 					}
 					resumed = true
