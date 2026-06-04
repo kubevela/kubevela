@@ -59,13 +59,12 @@ func TestKubernetesConfig_Validate(t *testing.T) {
 			errMsg:  "kubernetes client burst cannot be negative",
 		},
 		{
-			name: "Invalid Configuration - Burst Lower Than QPS",
+			name: "Valid Configuration - Burst Lower Than QPS",
 			setupConfig: func() *KubernetesConfig {
 				cfg := &KubernetesConfig{QPS: 100, Burst: 50}
 				return cfg
 			},
-			wantErr: true,
-			errMsg:  "kubernetes client burst (50) must be greater than or equal to QPS (100) to prevent token bucket starvation",
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {

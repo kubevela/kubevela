@@ -46,6 +46,16 @@ func TestOAMConfig_Validate(t *testing.T) {
 			wantErr: true,
 			errMsg:  "system-definition-namespace must not be empty",
 		},
+		{
+			name: "Invalid: non-DNS-1123 compliant namespace",
+			setupConfig: func() *OAMConfig {
+				cfg := NewOAMConfig()
+				cfg.SystemDefinitionNamespace = "Invalid_NS"
+				return cfg
+			},
+			wantErr: true,
+			errMsg:  "system-definition-namespace is invalid: ",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

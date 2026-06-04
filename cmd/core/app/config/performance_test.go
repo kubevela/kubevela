@@ -33,5 +33,7 @@ func TestPerformanceConfig_AddFlags(t *testing.T) {
 	cfg := NewPerformanceConfig()
 	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	cfg.AddFlags(fs)
-	assert.True(t, fs.HasFlags(), "AddFlags should register flags")
+	err := fs.Parse([]string{"--perf-enabled=true"})
+	assert.NoError(t, err)
+	assert.True(t, cfg.PerfEnabled, "PerfEnabled should be bound to --perf-enabled")
 }

@@ -18,8 +18,10 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/pflag"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -59,6 +61,9 @@ func (c *OAMConfig) SyncToOAMGlobals() {
 func (c *OAMConfig) Validate() error {
 	if c.SystemDefinitionNamespace == "" {
 		return fmt.Errorf("system-definition-namespace must not be empty")
+	}
+	if errs := validation.IsDNS1123Label(c.SystemDefinitionNamespace); len(errs) > 0 {
+		return fmt.Errorf("system-definition-namespace is invalid: %s", strings.Join(errs, ", "))
 	}
 	return nil
 }

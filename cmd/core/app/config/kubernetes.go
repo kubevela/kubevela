@@ -57,8 +57,5 @@ func (c *KubernetesConfig) Validate() error {
 	if c.Burst < 0 {
 		return fmt.Errorf("kubernetes client burst cannot be negative")
 	}
-	if c.QPS > 0 && float64(c.Burst) < c.QPS {
-		return fmt.Errorf("kubernetes client burst (%d) must be greater than or equal to QPS (%v) to prevent token bucket starvation", c.Burst, c.QPS)
-	}
 	return nil
 }
