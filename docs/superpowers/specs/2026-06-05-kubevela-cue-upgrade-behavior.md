@@ -94,16 +94,15 @@ phase `running`, healthy `true`.
 One row per question. The cells are the verbatim observed behaviour on
 the k3d cluster after upgrading from 1.10.6 to 1.11.0-alpha.3, with the
 CUE-list-concat CD still in place. Detail and evidence for each row are
-in the Q1–Q6 sections that follow.
+in the Q1–Q5 sections that follow.
 
 | # | Scenario | CUE re-evaluated? | App status changes? | Underlying workload changes? | User-visible signal |
 | --- | --- | --- | --- | --- | --- |
 | Q1 | Reconcile post-upgrade, no spec touched | Yes — only in the health-collection sub-pipeline; error is logged and swallowed | No | No. Apply path patches from the ResourceTracker zstd cache | None on the user surface. Only the controller log shows the CUE error |
 | Q2 | `kubectl patch` / `kubectl edit` the App | Yes — synchronously at the validating webhook | No (request rejected, nothing persists) | No | HTTP 400 with the full CUE error returned to the caller |
-| Q3 | App ↔ ApplicationRevision relationship | No on the steady-state reconcile path. AppRev's hash is used only to decide "is this still the same revision" | N/A | N/A | `kubectl get apprev` lists revisions; a new one is cut only on accepted spec edit, `publishVersion` bump, or `autoUpdate`-triggered roll |
-| Q4 | Where CUE is read on each reconcile path | Parse: live CD text loaded, not compiled. Apply: RT zstd cache, no CUE. Health: live CD re-evaluated against current parameters | N/A | N/A | N/A. The AppRev's `componentDefinitions[...]` snapshot is present but not read by any reconcile path |
-| Q5 | `kubectl get app` health field | No. Last-good value is carried forward when the health-collection eval fails | No | No | `services[*].healthy` keeps reading `true` even though a real CUE failure fires every 30s |
-| Q6 | Delete a rendered resource (Crossplane Claim, Deployment, etc.) | Yes — health-only, swallowed. Apply pipeline calls `Create()` with cached bytes | No | Yes — resource is recreated with a new UID and identical spec | None. App stays `running` / `healthy: true` through the gap |
+| Q3 | Where CUE is read on each reconcile path | Parse: live CD text loaded, not compiled. Apply: RT zstd cache, no CUE. Health: live CD re-evaluated against current parameters | N/A | N/A | N/A. The AppRev's `componentDefinitions[...]` snapshot is present but not read by any reconcile path |
+| Q4 | `kubectl get app` health field | No. Last-good value is carried forward when the health-collection eval fails | No | No | `services[*].healthy` keeps reading `true` even though a real CUE failure fires every 30s |
+| Q5 | Delete a rendered resource (Crossplane Claim, Deployment, etc.) | Yes — health-only, swallowed. Apply pipeline calls `Create()` with cached bytes | No | Yes — resource is recreated with a new UID and identical spec | None. App stays `running` / `healthy: true` through the gap |
 
 ### Q1. Will reconciliation break the running app after the upgrade?
 
@@ -125,20 +124,7 @@ list-concat error, and returns HTTP 400 with the error verbatim in the
 response body. The user sees the error immediately, the App and the
 Deployment stay exactly as they were.
 
-### Q3. What is the relationship between Application and ApplicationRevision?
-
-The AppRev is an immutable snapshot of everything the App needed at the
-time it was last accepted: the App's spec, all referenced CDs, all
-referenced policies, all referenced traits — each captured by value,
-not by reference. A new AppRev is cut whenever the controller decides
-the App has materially changed (spec edit, `publishVersion` bump, or
-the `autoUpdate` annotation triggering a reconcile of dependencies).
-The AppRev's name encodes the revision number (`victim-v1`,
-`victim-v2`, etc.) and its hash is what the controller uses to decide
-"is this still the same revision". When a spec edit is rejected by the
-webhook, no AppRev is cut.
-
-### Q4. During reconciliation and health check, where does CUE get read from?
+### Q3. During reconciliation and health check, where does CUE get read from?
 
 Three different places, depending on the path:
 
@@ -156,7 +142,7 @@ from it. Delete the live CD and the parse path fails immediately with
 AppRev still has the template byte-for-byte. The AppRev is for change
 detection, rollback, and audit. It is not the runtime cache.
 
-### Q5. What does the health status show?
+### Q4. What does the health status show?
 
 `services[0].healthy: true`, the whole time. Same value as before the
 upgrade. The health-collection path is the only place CUE compilation
@@ -167,7 +153,7 @@ the last successful collection — which in our case was `true` from the
 1.10.6 era. If the upgrade had happened while the app was unhealthy, it
 would stay unhealthy with the same indifference.
 
-### Q6. What if I delete a rendered resource (e.g., a Crossplane S3 Claim)?
+### Q5. What if I delete a rendered resource (e.g., a Crossplane S3 Claim)?
 
 The KubeVela controller re-creates it from the ResourceTracker zstd
 cache on the next reconcile. CUE is not invoked. We proved this live by
