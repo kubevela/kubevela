@@ -199,34 +199,3 @@ as applied, `services[0].healthy` keeps reading `true`, and there is
 no signal that the actual bucket is absent. CUE has nothing to do with
 this — it is a layer-mismatch problem that exists at every version.
 
-## What's still risky in production
-
-- **Silent health surface.** The most dangerous part of this is not
-  the upgrade itself, it is what comes after. A real CUE 0.14
-  incompatibility is firing on every reconcile and no metric, no
-  condition, and no `kubectl get app` column reflects it. Anyone
-  watching the dashboards will see green. The only signal is the
-  controller log, which is rarely the first place to look.
-- **Drift detection is dead while CUE is broken.** The apply path
-  patches the Deployment with the pre-upgrade manifest. If the
-  rendered template would have changed for some other reason
-  (security fix, new label, sidecar injection upstream of CUE), the
-  cluster will continue running the stale shape. Reconciliation is
-  not regenerating it.
-- **The CD deletion behaviour is fragile.** During the broken-CUE
-  window, deleting the live CD switches the App from "silently
-  unhealthy" to "loudly stuck on parse". The Deployment keeps running
-  by inertia. If the cluster is ever scaled down, restarted, or
-  GC-pressured during this state, the App has no path to come back —
-  there is no CD to load.
-- **You can edit the App, but only the bits the webhook doesn't
-  evaluate.** Status writes, label patches, owner-reference updates,
-  GC actions — all of those bypass the validating webhook. Any code
-  path that doesn't go through Application admission can mutate App
-  state even while the CD is broken.
-
-The recovery path is to rewrite the CD with `list.Concat` (or any
-CUE 0.14-compatible expression). After re-admission, the next
-reconcile re-renders, replaces the RT zstd payload with fresh bytes,
-and the health-collection path stops erroring. We will verify this
-explicitly in Approach 2.
