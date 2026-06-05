@@ -2,15 +2,18 @@
 
 ## TL;DR
 
-A KubeVela 1.10.6 Application built on a ComponentDefinition that uses
-CUE list-concat (`a + b`) keeps running after you upgrade to 1.11.0-alpha.3
-on CUE 0.14. The pod does not restart, the Deployment UID does not
-change, and `kubectl get app` still says `healthy: true`. The CUE error
-fires inside the health-collection sub-pipeline on every reconcile, gets
+A KubeVela Application built on a ComponentDefinition whose CUE
+template compiled under the previous KubeVela's CUE engine but no
+longer compiles under the new one keeps running through the upgrade.
+The pod does not restart, the Deployment UID does not change, and
+`kubectl get app` still says `healthy: true`. The CUE error fires
+inside the health-collection sub-pipeline on every reconcile, gets
 logged at error level, and is silently swallowed. The only thing that
 breaks loudly is any attempt to edit the App spec — the validating
 webhook rejects the request because the CD template no longer compiles
-under CUE 0.14.
+under the new CUE engine. The behaviour is the same for any kind of
+CUE breaking change between two KubeVela versions, not specific to a
+particular operator or expression.
 
 ## Setup
 
@@ -92,9 +95,12 @@ phase `running`, healthy `true`.
 ### Summary matrix
 
 One row per question. The cells are the verbatim observed behaviour on
-the k3d cluster after upgrading from 1.10.6 to 1.11.0-alpha.3, with the
-CUE-list-concat CD still in place. Detail and evidence for each row are
-in the Q1–Q5 sections that follow.
+the k3d cluster after upgrading from 1.10.6 to 1.11.0-alpha.3, with a
+ComponentDefinition that compiled on the old CUE engine but no longer
+compiles on the new one still in place. The same pattern applies to any
+CUE breaking change between two KubeVela versions; the list-concat case
+below is just the concrete example we used to reproduce. Detail and
+evidence for each row are in the Q1–Q5 sections that follow.
 
 | # | Scenario | CUE re-evaluated? | App status changes? | Underlying workload changes? | User-visible signal |
 | --- | --- | --- | --- | --- | --- |
