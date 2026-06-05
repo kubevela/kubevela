@@ -304,50 +304,6 @@ The `healthy: true` carryover across every scenario is the headline.
 The status surface is lying about a real problem, every 30 seconds, in
 plain sight of `kubectl get app`.
 
-## Why it works this way
-
-Three layers, each doing its own thing:
-
-1. **Validating webhook on Application admission.** It runs the full
-   CUE eval up front. This is the loud, synchronous gate. Any write
-   to an Application that fails CUE eval is rejected before the
-   apiserver persists it. This is why O2 fails immediately and
-   visibly.
-
-2. **Reconciler's apply path.** It does not re-render CUE on every
-   loop. The ResourceTracker holds a zstd-compressed copy of the
-   rendered manifests from the last successful render. The apply path
-   reads those bytes and three-way-merges them onto the live
-   Deployment. This is why O1's Deployment never changes and never
-   restarts. The CUE engine could be ripped out of the binary and this
-   loop would still work.
-
-3. **Reconciler's health-collection path.** This one does re-run the
-   CUE eval to compute health. It calls `GenerateComponentManifest`
-   against the live CD with the current parameters. When CUE fails,
-   it returns an error to the caller in `application_controller.go`
-   around line 905. The caller has this shape:
-
-   ```go
-   status, err := getComponentHealthStatus(...)
-   if err != nil {
-       log.Error(err, "Failed to collect health status")
-   } else if status != nil {
-       handler.services[idx].Healthy = status.Healthy
-   }
-   ```
-
-   No retry, no propagation, no condition update. Just a log line. The
-   `services[idx].Healthy` field is only touched on success, so on
-   failure it carries forward whatever was there last.
-
-The AppRev sits to the side of all three. It is the durable snapshot
-that lets KubeVela tell whether the App has materially changed since
-last time, lets users roll back to a known-good version, and lets
-auditors see what was in flight at a given moment. The runtime
-reconciler does not use it as the source of CUE templates — that
-remains the live ComponentDefinition.
-
 ## What's still risky in production
 
 - **Silent health surface.** The most dangerous part of this is not
