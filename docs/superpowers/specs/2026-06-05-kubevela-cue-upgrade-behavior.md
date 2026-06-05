@@ -99,33 +99,35 @@ of which CUE breaking change triggered it or which workload kind the CD
 renders. Detail and evidence for each row are in the Q1–Q5 sections
 that follow.
 
-| # | Scenario | CUE re-evaluated? | App status changes? | Underlying workload changes? | User-visible signal |
+| # | Scenario | CUE re-evaluated? | App status changes? | Managed resource changes? | User-visible signal |
 | --- | --- | --- | --- | --- | --- |
 | Q1 | Reconcile post-upgrade, no spec touched | Yes — only in the health-collection sub-pipeline; error is logged and swallowed | No | No. Apply path patches from the ResourceTracker zstd cache | None on the user surface. Only the controller log shows the CUE error |
 | Q2 | `kubectl patch` / `kubectl edit` the App | Yes — synchronously at the validating webhook | No (request rejected, nothing persists) | No | HTTP 400 with the full CUE error returned to the caller |
 | Q3 | Where CUE is read on each reconcile path | Parse: live CD text loaded, not compiled. Apply: RT zstd cache, no CUE. Health: live CD re-evaluated against current parameters | N/A | N/A | N/A. The AppRev's `componentDefinitions[...]` snapshot is present but not read by any reconcile path |
 | Q4 | `kubectl get app` health field | No. Last-good value is carried forward when the health-collection eval fails | No | No | `services[*].healthy` keeps reading `true` even though a real CUE failure fires every 30s |
-| Q5 | Delete a rendered resource (Crossplane Claim, Deployment, etc.) | Yes — health-only, swallowed. Apply pipeline calls `Create()` with cached bytes | No | Yes — resource is recreated with a new UID and identical spec | None. App stays `running` / `healthy: true` through the gap |
+| Q5 | Delete a managed resource (Crossplane Claim, Deployment, ConfigMap, custom CR, etc.) | Yes — health-only, swallowed. Apply pipeline calls `Create()` with cached bytes | No | Yes — resource is recreated with a new UID and identical spec | None. App stays `running` / `healthy: true` through the gap |
 
 ### Q1. Will reconciliation break the running app after the upgrade?
 
-No. The Deployment, the pod, and the App status all survive. The
-controller does hit a real CUE 0.14 error on every reconcile, but it
-fires inside the health-collection sub-pipeline in
+No. The Application and the resources it manages (whatever workload
+kind the CD declares — Deployment in our fixture, but equally a
+Crossplane Claim, ConfigMap, StatefulSet, custom CR, and so on) all
+survive. The controller does hit a real CUE error on every reconcile,
+but it fires inside the health-collection sub-pipeline in
 `applyComponentHealthToServices`
 (`pkg/controller/core.oam.dev/v1beta1/application/application_controller.go`),
-which logs the error and continues.
-The main apply path never re-renders the CUE template; it reads a
-pre-rendered manifest from the ResourceTracker's zstd cache and patches
-the Deployment with bytes that were computed back on 1.10.6.
+which logs the error and continues. The main apply path never
+re-renders the CUE template; it reads a pre-rendered manifest from the
+ResourceTracker's zstd cache and patches the managed resource with
+bytes that were computed under the previous KubeVela version.
 
 ### Q2. What if I change the App spec?
 
 The validating webhook rejects the request before etcd is touched. It
 runs the same CUE eval up front as part of admission, hits the same
-list-concat error, and returns HTTP 400 with the error verbatim in the
-response body. The user sees the error immediately, the App and the
-Deployment stay exactly as they were.
+CUE error, and returns HTTP 400 with the error verbatim in the response
+body. The user sees the error immediately; the App and every resource
+it manages stay exactly as they were.
 
 ### Q3. During reconciliation and health check, where does CUE get read from?
 
@@ -134,7 +136,7 @@ Three different places, depending on the path:
 | Path | Source of CUE/manifest | What happens on broken CUE |
 | --- | --- | --- |
 | Parse (`parser.go`) | **Live ComponentDefinition** object | Read succeeds (it's just YAML); doesn't actually compile the CUE here |
-| Apply (`apply.go:126`) | **ResourceTracker zstd cache** of already-rendered manifests | No CUE involved; patches the live Deployment with cached bytes |
+| Apply (`apply.go:126`) | **ResourceTracker zstd cache** of already-rendered manifests | No CUE involved; patches the live managed resource with cached bytes |
 | Health collection (`applyComponentHealthToServices`) | **Live CD again**, re-evaluates CUE template against current parameters | Fails with the CUE 0.14 error; error is logged and swallowed |
 | AppRev `componentDefinitions[bad-cd]` snapshot | exists, but **not read** by any of the above paths during steady-state reconcile |  |
 
@@ -156,12 +158,14 @@ the last successful collection — which in our case was `true` from the
 1.10.6 era. If the upgrade had happened while the app was unhealthy, it
 would stay unhealthy with the same indifference.
 
-### Q5. What if I delete a rendered resource (e.g., a Crossplane S3 Claim)?
+### Q5. What if I delete a managed resource (e.g., a Crossplane S3 Claim)?
 
 The KubeVela controller re-creates it from the ResourceTracker zstd
-cache on the next reconcile. CUE is not invoked. We proved this live by
-deleting the `victim-pod` Deployment after the upgrade: within 40
-seconds it was back, with a new UID, identical spec, and `App` status
+cache on the next reconcile. CUE is not invoked. The behaviour is the
+same regardless of the resource kind — Deployment, Crossplane Claim,
+ConfigMap, StatefulSet, custom CR. We proved it live by deleting the
+Deployment used as our test fixture: it was recreated on the next
+reconcile with a new UID, identical spec, and the `App` status
 unchanged. The controller log shows `apply.go:126 "creating object"`
 right after the health-collection CUE error fired and was swallowed —
 the apply pipeline went ahead with cached bytes regardless.
@@ -176,9 +180,10 @@ What this means in different deletion scenarios:
 
 The cached manifest carries forward the original annotations
 (`oam.dev/kubevela-version: v1.10.6`, `app.oam.dev/app-revision-hash`,
-etc.). A recreated Claim looks identical to the deleted one except for
-UID and resourceVersion. Crossplane's composition logic treats it as
-the same Claim.
+etc.). A recreated managed resource looks identical to the deleted one
+except for UID and resourceVersion. The downstream operator (Crossplane
+in the example above, the Deployment controller for a workload, etc.)
+treats it as the same resource.
 
 The silent-failure edge here is when the Claim exists in etcd but the
 underlying S3 bucket was never (or no longer) provisioned — for
