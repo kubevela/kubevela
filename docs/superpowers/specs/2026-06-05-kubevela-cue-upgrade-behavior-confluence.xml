@@ -1,0 +1,350 @@
+<ac:structured-macro ac:name="info">
+  <ac:rich-text-body>
+    <p><strong>TL;DR.</strong> A KubeVela 1.10.6 Application built on a ComponentDefinition that uses CUE list-concat (<code>a + b</code>) keeps running after you upgrade to 1.11.0-alpha.3 on CUE 0.14. The pod does not restart, the Deployment UID does not change, and <code>kubectl get app</code> still says <code>healthy: true</code>. The CUE error fires inside the health-collection sub-pipeline on every reconcile, gets logged at error level, and is silently swallowed. The only thing that breaks loudly is any attempt to edit the App spec — the validating webhook rejects the request because the CD template no longer compiles under CUE 0.14.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<ac:structured-macro ac:name="toc">
+  <ac:parameter ac:name="minLevel">2</ac:parameter>
+  <ac:parameter ac:name="maxLevel">3</ac:parameter>
+  <ac:parameter ac:name="style">disc</ac:parameter>
+</ac:structured-macro>
+
+<h2>Setup</h2>
+
+<table>
+  <colgroup><col style="width: 30%;"/><col/></colgroup>
+  <tbody>
+    <tr>
+      <th>Cluster</th>
+      <td>k3d-kubevela, k3s v1.33.6</td>
+    </tr>
+    <tr>
+      <th>KubeVela 1.10.6</th>
+      <td><code>oamdev/vela-core:v1.10.6</code> (CUE 0.9 era) — <ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Green</ac:parameter><ac:parameter ac:name="title">Working</ac:parameter></ac:structured-macro></td>
+    </tr>
+    <tr>
+      <th>KubeVela 1.11.0-alpha.3</th>
+      <td><code>oamdev/vela-core:v1.11.0-alpha.3</code> (CUE 0.14) — <ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Red</ac:parameter><ac:parameter ac:name="title">Breaks CUE list-concat</ac:parameter></ac:structured-macro></td>
+    </tr>
+    <tr>
+      <th>Resync</th>
+      <td><code>--application-re-sync-period=30s</code> (tighter than the 5-min default)</td>
+    </tr>
+    <tr>
+      <th>Install commands</th>
+      <td>
+        <ac:structured-macro ac:name="code">
+          <ac:parameter ac:name="language">bash</ac:parameter>
+          <ac:plain-text-body><![CDATA[vela install --version 1.10.6 --yes
+# ...later...
+vela install --set controllerArgs.reSyncPeriod=30s --version 1.11.0-alpha.3 --yes]]></ac:plain-text-body>
+        </ac:structured-macro>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Fixture: <code>bad-cd</code></h3>
+
+<p>This ComponentDefinition uses the CUE <code>+</code> operator to concatenate two lists. Compiles fine on CUE 0.9. CUE 0.11 removed it. CUE 0.14, used by KubeVela 1.11, rejects it with <em>"Addition of lists is superseded by list.Concat"</em>.</p>
+
+<ac:structured-macro ac:name="expand">
+  <ac:parameter ac:name="title">Show ComponentDefinition YAML</ac:parameter>
+  <ac:rich-text-body>
+    <ac:structured-macro ac:name="code">
+      <ac:parameter ac:name="language">yaml</ac:parameter>
+      <ac:plain-text-body><![CDATA[apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: bad-cd
+  namespace: vela-system
+spec:
+  workload:
+    definition: { apiVersion: apps/v1, kind: Deployment }
+  schematic:
+    cue:
+      template: |
+        output: {
+          apiVersion: "apps/v1"
+          kind:       "Deployment"
+          metadata: name: context.name
+          spec: {
+            replicas: parameter.replicas
+            selector: matchLabels: "app.oam.dev/component": context.name
+            template: {
+              metadata: labels: "app.oam.dev/component": context.name
+              spec: containers: [{
+                name:    "main"
+                image:   parameter.image
+                command: parameter.preArgs + parameter.postArgs   # <-- the bomb
+              }]
+            }
+          }
+        }
+        parameter: {
+          image:    string
+          replicas: *1 | int
+          preArgs:  [...string]
+          postArgs: [...string]
+        }]]></ac:plain-text-body>
+    </ac:structured-macro>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<h3>Fixture: <code>victim</code> Application</h3>
+
+<ac:structured-macro ac:name="expand">
+  <ac:parameter ac:name="title">Show Application YAML</ac:parameter>
+  <ac:rich-text-body>
+    <ac:structured-macro ac:name="code">
+      <ac:parameter ac:name="language">yaml</ac:parameter>
+      <ac:plain-text-body><![CDATA[apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: victim
+  namespace: default
+spec:
+  components:
+    - name: victim-pod
+      type: bad-cd
+      properties:
+        image: nginx:1.27
+        replicas: 1
+        preArgs: ["sh", "-c"]
+        postArgs: ["sleep 3600"]]]></ac:plain-text-body>
+    </ac:structured-macro>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<p>On 1.10.6 this renders to a Deployment running <code>["sh","-c","sleep 3600"]</code>, phase <code>running</code>, healthy <code>true</code>.</p>
+
+<h2>Answers to your questions</h2>
+
+<h3>Summary matrix</h3>
+
+<p>One row per question. Cells are the verbatim observed behaviour on the k3d cluster after upgrading from 1.10.6 to 1.11.0-alpha.3 with the CUE-list-concat CD still in place. Full evidence in the Q1–Q5 sections below.</p>
+
+<table>
+  <colgroup>
+    <col style="width: 4%;"/>
+    <col style="width: 18%;"/>
+    <col style="width: 22%;"/>
+    <col style="width: 14%;"/>
+    <col style="width: 18%;"/>
+    <col style="width: 24%;"/>
+  </colgroup>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Scenario</th>
+      <th>CUE re-evaluated?</th>
+      <th>App status changes?</th>
+      <th>Workload changes?</th>
+      <th>User-visible signal</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Q1</strong></td>
+      <td>Reconcile post-upgrade, no spec touched</td>
+      <td>Yes — only in the health-collection sub-pipeline; error is logged and swallowed</td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Green</ac:parameter><ac:parameter ac:name="title">No</ac:parameter></ac:structured-macro></td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Green</ac:parameter><ac:parameter ac:name="title">No</ac:parameter></ac:structured-macro> Apply path patches from the ResourceTracker zstd cache</td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Yellow</ac:parameter><ac:parameter ac:name="title">Silent</ac:parameter></ac:structured-macro> Only the controller log shows the CUE error</td>
+    </tr>
+    <tr>
+      <td><strong>Q2</strong></td>
+      <td><code>kubectl patch</code> / <code>kubectl edit</code> the App</td>
+      <td>Yes — synchronously at the validating webhook</td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Green</ac:parameter><ac:parameter ac:name="title">No</ac:parameter></ac:structured-macro> Request rejected, nothing persists</td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Green</ac:parameter><ac:parameter ac:name="title">No</ac:parameter></ac:structured-macro></td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Red</ac:parameter><ac:parameter ac:name="title">Loud</ac:parameter></ac:structured-macro> HTTP 400 with the full CUE error returned to the caller</td>
+    </tr>
+    <tr>
+      <td><strong>Q3</strong></td>
+      <td>Where CUE is read on each reconcile path</td>
+      <td>Parse: live CD text loaded, not compiled. Apply: RT zstd cache, no CUE. Health: live CD re-evaluated against current parameters</td>
+      <td>N/A</td>
+      <td>N/A</td>
+      <td>N/A. The AppRev's <code>componentDefinitions[...]</code> snapshot is present but not read by any reconcile path</td>
+    </tr>
+    <tr>
+      <td><strong>Q4</strong></td>
+      <td><code>kubectl get app</code> health field</td>
+      <td>No. Last-good value is carried forward when the health-collection eval fails</td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Green</ac:parameter><ac:parameter ac:name="title">No</ac:parameter></ac:structured-macro></td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Green</ac:parameter><ac:parameter ac:name="title">No</ac:parameter></ac:structured-macro></td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Red</ac:parameter><ac:parameter ac:name="title">Misleading</ac:parameter></ac:structured-macro> <code>services[*].healthy</code> keeps reading <code>true</code> even though a real CUE failure fires every 30s</td>
+    </tr>
+    <tr>
+      <td><strong>Q5</strong></td>
+      <td>Delete a rendered resource (Crossplane Claim, Deployment, etc.)</td>
+      <td>Yes — health-only, swallowed. Apply pipeline calls <code>Create()</code> with cached bytes</td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Green</ac:parameter><ac:parameter ac:name="title">No</ac:parameter></ac:structured-macro></td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Yellow</ac:parameter><ac:parameter ac:name="title">Recreated</ac:parameter></ac:structured-macro> New UID, identical spec</td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Yellow</ac:parameter><ac:parameter ac:name="title">Silent</ac:parameter></ac:structured-macro> App stays <code>running</code> / <code>healthy: true</code> through the gap</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Q1. Will reconciliation break the running app after the upgrade?</h3>
+
+<ac:structured-macro ac:name="tip">
+  <ac:rich-text-body>
+    <p><strong>No.</strong> The Deployment, the pod, and the App status all survive.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<p>The controller does hit a real CUE 0.14 error on every reconcile, but it fires inside the health-collection sub-pipeline in <code>applyComponentHealthToServices</code> (<code>pkg/controller/core.oam.dev/v1beta1/application/application_controller.go</code>), which logs the error and continues. The main apply path never re-renders the CUE template; it reads a pre-rendered manifest from the ResourceTracker's zstd cache and patches the Deployment with bytes that were computed back on 1.10.6.</p>
+
+<ac:structured-macro ac:name="code">
+  <ac:parameter ac:name="language">text</ac:parameter>
+  <ac:parameter ac:name="title">Controller log on every 30s reconcile (truncated)</ac:parameter>
+  <ac:plain-text-body><![CDATA[E0605 04:48:19.564769  application_controller.go:905
+"Failed to collect health status" err=<
+  GenerateComponentManifest: evaluate base template app=victim in namespace=default:
+  validation failed for workload victim-pod:
+  Template errors:
+    output.spec.template.spec.containers.0.command:
+      Addition of lists is superseded by list.Concat;
+      see https://cuelang.org/e/v0.11-list-arithmetic
+>
+I0605 04:48:19.569515  apply.go:126  "patching object" name="victim-pod"]]></ac:plain-text-body>
+</ac:structured-macro>
+
+<h3>Q2. What if I change the App spec?</h3>
+
+<ac:structured-macro ac:name="warning">
+  <ac:rich-text-body>
+    <p><strong>The validating webhook rejects the request before etcd is touched.</strong> It runs the same CUE eval up front as part of admission, hits the same list-concat error, and returns HTTP 400 with the error verbatim in the response body. The user sees the error immediately, the App and the Deployment stay exactly as they were.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<ac:structured-macro ac:name="code">
+  <ac:parameter ac:name="language">text</ac:parameter>
+  <ac:parameter ac:name="title">Webhook response on kubectl patch</ac:parameter>
+  <ac:plain-text-body><![CDATA[Error from server: admission webhook
+"validating.core.oam.dev.v1beta1.applications" denied the request:
+  1) "schematic": cannot create the validation process context
+     of app=victim in namespace=default:
+     evaluate base template app=victim in namespace=default:
+     validation failed for workload victim-pod:
+  Template errors:
+    output.spec.template.spec.containers.0.command:
+      Addition of lists is superseded by list.Concat]]></ac:plain-text-body>
+</ac:structured-macro>
+
+<h3>Q3. During reconciliation and health check, where does CUE get read from?</h3>
+
+<p>Three different places, depending on the path:</p>
+
+<table>
+  <colgroup>
+    <col style="width: 25%;"/>
+    <col style="width: 35%;"/>
+    <col style="width: 40%;"/>
+  </colgroup>
+  <thead>
+    <tr>
+      <th>Path</th>
+      <th>Source of CUE/manifest</th>
+      <th>What happens on broken CUE</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Parse (<code>parser.go</code>)</td>
+      <td><strong>Live ComponentDefinition</strong> object</td>
+      <td>Read succeeds (it's just YAML); doesn't actually compile the CUE here</td>
+    </tr>
+    <tr>
+      <td>Apply (<code>apply.go:126</code>)</td>
+      <td><strong>ResourceTracker zstd cache</strong> of already-rendered manifests</td>
+      <td>No CUE involved; patches the live Deployment with cached bytes</td>
+    </tr>
+    <tr>
+      <td>Health collection (<code>applyComponentHealthToServices</code>)</td>
+      <td><strong>Live CD again</strong>, re-evaluates CUE template against current parameters</td>
+      <td>Fails with the CUE 0.14 error; error is logged and swallowed</td>
+    </tr>
+    <tr>
+      <td>AppRev <code>componentDefinitions[bad-cd]</code> snapshot</td>
+      <td colspan="2">Exists, but <strong>not read</strong> by any of the above paths during steady-state reconcile</td>
+    </tr>
+  </tbody>
+</table>
+
+<ac:structured-macro ac:name="note">
+  <ac:rich-text-body>
+    <p>The AppRev's snapshot of the CD template is real (we verified the exact broken line is in the AppRev YAML), but the reconciler does not read from it. Delete the live CD and the parse path fails immediately with <code>WorkloadDefinition.core.oam.dev "bad-cd" not found</code>, even though the AppRev still has the template byte-for-byte. The AppRev is for change detection, rollback, and audit. It is not the runtime cache.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<h3>Q4. What does the health status show?</h3>
+
+<ac:structured-macro ac:name="warning">
+  <ac:rich-text-body>
+    <p><strong><code>services[0].healthy: true</code>, the whole time.</strong> Same value as before the upgrade.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<p>The health-collection path is the only place CUE compilation fires on a steady-state reconcile, and when it fails it returns an error to the caller. The caller logs the error and moves on without updating <code>services[*].healthy</code>, so the field keeps the value it had on the last successful collection — which in our case was <code>true</code> from the 1.10.6 era. If the upgrade had happened while the app was unhealthy, it would stay unhealthy with the same indifference.</p>
+
+<h3>Q5. What if I delete a rendered resource (e.g., a Crossplane S3 Claim)?</h3>
+
+<ac:structured-macro ac:name="tip">
+  <ac:rich-text-body>
+    <p><strong>The KubeVela controller re-creates it from the ResourceTracker zstd cache on the next reconcile. CUE is not invoked.</strong></p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<p>We proved this live by deleting the <code>victim-pod</code> Deployment after the upgrade: within 40 seconds it was back, with a new UID, identical spec, and <code>App</code> status unchanged. The controller log shows <code>apply.go:126 "creating object"</code> right after the health-collection CUE error fired and was swallowed — the apply pipeline went ahead with cached bytes regardless.</p>
+
+<p>What this means in different deletion scenarios:</p>
+
+<table>
+  <colgroup>
+    <col style="width: 30%;"/>
+    <col style="width: 35%;"/>
+    <col style="width: 10%;"/>
+    <col style="width: 25%;"/>
+  </colgroup>
+  <thead>
+    <tr>
+      <th>Action</th>
+      <th>What KubeVela does</th>
+      <th>CUE involved?</th>
+      <th>Outcome</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>kubectl delete bucket my-s3</code> (delete the Claim that KubeVela rendered)</td>
+      <td>Sees the Claim missing, reads RT zstd cache, calls <code>Create()</code> with the cached Claim manifest</td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Green</ac:parameter><ac:parameter ac:name="title">No</ac:parameter></ac:structured-macro></td>
+      <td>Claim comes back with a new UID. Crossplane sees the new Claim and (re)creates the underlying S3 bucket.</td>
+    </tr>
+    <tr>
+      <td>Someone deletes the actual S3 bucket in AWS (Claim CR still in the cluster)</td>
+      <td>KubeVela tracks only the Claim, not the bucket. Reconcile patches the Claim with cached bytes — a no-op since the Claim is unchanged</td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Green</ac:parameter><ac:parameter ac:name="title">No</ac:parameter></ac:structured-macro></td>
+      <td>Crossplane is responsible for noticing the drift and reconciling the bucket. KubeVela has nothing to say.</td>
+    </tr>
+    <tr>
+      <td><code>kubectl delete app victim</code></td>
+      <td>Controller deletes the Claim through ResourceTracker GC</td>
+      <td><ac:structured-macro ac:name="status"><ac:parameter ac:name="colour">Green</ac:parameter><ac:parameter ac:name="title">No</ac:parameter></ac:structured-macro></td>
+      <td>Claim deleted, Crossplane garbage-collects the bucket.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The cached manifest carries forward the original annotations (<code>oam.dev/kubevela-version: v1.10.6</code>, <code>app.oam.dev/app-revision-hash</code>, etc.). A recreated Claim looks identical to the deleted one except for UID and resourceVersion. Crossplane's composition logic treats it as the same Claim.</p>
+
+<ac:structured-macro ac:name="note">
+  <ac:parameter ac:name="title">Silent-failure edge</ac:parameter>
+  <ac:rich-text-body>
+    <p>If the Claim exists in etcd but the underlying S3 bucket was never (or no longer) provisioned — say the Crossplane provider was scaled to zero, or its cloud credentials were rotated and lost — KubeVela's RT still shows the Claim as applied, <code>services[0].healthy</code> keeps reading <code>true</code>, and there is no signal that the actual bucket is absent. CUE has nothing to do with this. It's a layer-mismatch problem that exists at every version.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
