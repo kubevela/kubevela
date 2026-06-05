@@ -203,6 +203,16 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 	return generateJSONSchemaWithRequiredProperty(schemas, required)
 }
 
+// validatePathInsideCache checks that resolved is inside cachePath after cleaning.
+func validatePathInsideCache(resolved, cachePath string) error {
+	cleanResolved := filepath.Clean(resolved)
+	cleanCache := filepath.Clean(cachePath) + string(filepath.Separator)
+	if !strings.HasPrefix(cleanResolved, cleanCache) && cleanResolved != filepath.Clean(cachePath) {
+		return fmt.Errorf("remote path %q escapes the module cache directory", resolved)
+	}
+	return nil
+}
+
 // GetTerraformConfigurationFromRemote gets Terraform Configuration(HCL)
 func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string, sshPublicKey *gitssh.PublicKeys) (string, error) {
 	userHome, err := os.UserHomeDir()
@@ -229,8 +239,14 @@ func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string, ssh
 	_ = os.Remove(sshKnownHostsPath)
 
 	tfPath := filepath.Join(cachePath, remotePath, "variables.tf")
+	if err := validatePathInsideCache(tfPath, cachePath); err != nil {
+		return "", err
+	}
 	if _, err := os.Stat(tfPath); err != nil {
 		tfPath = filepath.Join(cachePath, remotePath, "main.tf")
+		if err := validatePathInsideCache(tfPath, cachePath); err != nil {
+			return "", err
+		}
 		if _, err := os.Stat(tfPath); err != nil {
 			return "", errors.Wrap(err, "failed to find main.tf or variables.tf in Terraform configurations of the remote repository")
 		}

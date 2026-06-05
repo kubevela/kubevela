@@ -535,3 +535,56 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 		})
 	}
 }
+
+func TestValidatePathInsideCache(t *testing.T) {
+	cachePath := "/home/user/.vela/terraform/mymodule"
+
+	cases := []struct {
+		name      string
+		resolved  string
+		wantError bool
+	}{
+		{
+			name:      "valid path inside cache",
+			resolved:  "/home/user/.vela/terraform/mymodule/subdir/variables.tf",
+			wantError: false,
+		},
+		{
+			name:      "path traversal escapes cache",
+			resolved:  "/home/user/.vela/terraform/mymodule/../../../etc/passwd",
+			wantError: true,
+		},
+		{
+			name:      "single dot-dot escape",
+			resolved:  "/home/user/.vela/terraform/mymodule/../other/variables.tf",
+			wantError: true,
+		},
+		{
+			name:      "nested traversal",
+			resolved:  "/home/user/.vela/terraform/mymodule/sub/../../secret.tf",
+			wantError: true,
+		},
+		{
+			name:      "exact cache path",
+			resolved:  "/home/user/.vela/terraform/mymodule",
+			wantError: false,
+		},
+		{
+			name:      "normal file in cache root",
+			resolved:  "/home/user/.vela/terraform/mymodule/variables.tf",
+			wantError: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validatePathInsideCache(tc.resolved, cachePath)
+			if tc.wantError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "escapes the module cache directory")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
