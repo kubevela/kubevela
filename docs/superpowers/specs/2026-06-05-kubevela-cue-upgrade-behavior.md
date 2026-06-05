@@ -87,7 +87,7 @@ spec:
 On 1.10.6 this renders to a Deployment running `["sh","-c","sleep 3600"]`,
 phase `running`, healthy `true`.
 
-## Answers to your five questions
+## Answers to your questions
 
 ### Q1. Will reconciliation break the running app after the upgrade?
 
@@ -150,6 +150,38 @@ updating `services[*].healthy`, so the field keeps the value it had on
 the last successful collection — which in our case was `true` from the
 1.10.6 era. If the upgrade had happened while the app was unhealthy, it
 would stay unhealthy with the same indifference.
+
+### Q6. What if I delete a rendered resource (e.g., a Crossplane S3 Claim)?
+
+The KubeVela controller re-creates it from the ResourceTracker zstd
+cache on the next reconcile. CUE is not invoked. We proved this live by
+deleting the `victim-pod` Deployment after the upgrade: within 40
+seconds it was back, with a new UID, identical spec, and `App` status
+unchanged. The controller log shows `apply.go:126 "creating object"`
+right after the health-collection CUE error fired and was swallowed —
+the apply pipeline went ahead with cached bytes regardless.
+
+What this means in different deletion scenarios:
+
+| Action | What KubeVela does | CUE involved? | Outcome |
+| --- | --- | --- | --- |
+| `kubectl delete bucket my-s3` (delete the Claim that KubeVela rendered) | Sees the Claim missing, reads RT zstd cache, calls `Create()` with the cached Claim manifest | No | Claim comes back with a new UID. Crossplane sees the new Claim and (re)creates the underlying S3 bucket. |
+| Someone deletes the actual S3 bucket in AWS (Claim CR still in the cluster) | KubeVela tracks only the Claim, not the bucket. Reconcile patches the Claim with cached bytes — a no-op since the Claim is unchanged | No | Crossplane is responsible for noticing the drift and reconciling the bucket. KubeVela has nothing to say. |
+| `kubectl delete app victim` | Controller deletes the Claim through ResourceTracker GC | No | Claim deleted, Crossplane garbage-collects the bucket. |
+
+The cached manifest carries forward the original annotations
+(`oam.dev/kubevela-version: v1.10.6`, `app.oam.dev/app-revision-hash`,
+etc.). A recreated Claim looks identical to the deleted one except for
+UID and resourceVersion. Crossplane's composition logic treats it as
+the same Claim.
+
+The silent-failure edge here is when the Claim exists in etcd but the
+underlying S3 bucket was never (or no longer) provisioned — for
+example if the Crossplane provider was scaled to zero, or its cloud
+credentials were rotated and lost. KubeVela's RT still shows the Claim
+as applied, `services[0].healthy` keeps reading `true`, and there is
+no signal that the actual bucket is absent. CUE has nothing to do with
+this — it is a layer-mismatch problem that exists at every version.
 
 ## What's still risky in production
 
