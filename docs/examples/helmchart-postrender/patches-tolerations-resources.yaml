@@ -1,0 +1,57 @@
+# helmchart + postRender.kustomize example — tolerations + resource limits
+#
+# Patches a chart you do not own (podinfo) to:
+#   1. Add a control-plane toleration to the Deployment via a JSON 6902 patch.
+#   2. Override container resource requests via a strategic-merge patch.
+#
+# Apply with:
+#   kubectl apply -f patches-tolerations-resources.yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: podinfo-patched
+spec:
+  components:
+    - name: podinfo
+      type: helmchart
+      properties:
+        chart:
+          source: podinfo
+          repoURL: https://stefanprodan.github.io/podinfo
+          version: "6.5.0"
+        release:
+          name: podinfo
+          namespace: default
+        options:
+          createNamespace: true
+          skipTests: true
+          postRender:
+            kustomize:
+              # Add a control-plane toleration via JSON 6902 patch (preferred style).
+              patches:
+                - target:
+                    kind: Deployment
+                    name: podinfo
+                  patch: |
+                    - op: add
+                      path: /spec/template/spec/tolerations
+                      value:
+                        - key: node-role.kubernetes.io/control-plane
+                          operator: Exists
+                          effect: NoSchedule
+              # Override resource requests via strategic-merge patch.
+              patchesStrategicMerge:
+                - |
+                  apiVersion: apps/v1
+                  kind: Deployment
+                  metadata:
+                    name: podinfo
+                  spec:
+                    template:
+                      spec:
+                        containers:
+                          - name: podinfo
+                            resources:
+                              requests:
+                                cpu: 50m
+                                memory: 64Mi
