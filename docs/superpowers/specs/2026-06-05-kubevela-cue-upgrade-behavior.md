@@ -89,6 +89,22 @@ phase `running`, healthy `true`.
 
 ## Answers to your questions
 
+### Summary matrix
+
+One row per question. The cells are the verbatim observed behaviour on
+the k3d cluster after upgrading from 1.10.6 to 1.11.0-alpha.3, with the
+CUE-list-concat CD still in place. Detail and evidence for each row are
+in the Q1–Q6 sections that follow.
+
+| # | Scenario | CUE re-evaluated? | App status changes? | Underlying workload changes? | User-visible signal |
+| --- | --- | --- | --- | --- | --- |
+| Q1 | Reconcile post-upgrade, no spec touched | Yes — only in the health-collection sub-pipeline; error is logged and swallowed | No | No. Apply path patches from the ResourceTracker zstd cache | None on the user surface. Only the controller log shows the CUE error |
+| Q2 | `kubectl patch` / `kubectl edit` the App | Yes — synchronously at the validating webhook | No (request rejected, nothing persists) | No | HTTP 400 with the full CUE error returned to the caller |
+| Q3 | App ↔ ApplicationRevision relationship | No on the steady-state reconcile path. AppRev's hash is used only to decide "is this still the same revision" | N/A | N/A | `kubectl get apprev` lists revisions; a new one is cut only on accepted spec edit, `publishVersion` bump, or `autoUpdate`-triggered roll |
+| Q4 | Where CUE is read on each reconcile path | Parse: live CD text loaded, not compiled. Apply: RT zstd cache, no CUE. Health: live CD re-evaluated against current parameters | N/A | N/A | N/A. The AppRev's `componentDefinitions[...]` snapshot is present but not read by any reconcile path |
+| Q5 | `kubectl get app` health field | No. Last-good value is carried forward when the health-collection eval fails | No | No | `services[*].healthy` keeps reading `true` even though a real CUE failure fires every 30s |
+| Q6 | Delete a rendered resource (Crossplane Claim, Deployment, etc.) | Yes — health-only, swallowed. Apply pipeline calls `Create()` with cached bytes | No | Yes — resource is recreated with a new UID and identical spec | None. App stays `running` / `healthy: true` through the gap |
+
 ### Q1. Will reconciliation break the running app after the upgrade?
 
 No. The Deployment, the pod, and the App status all survive. The
