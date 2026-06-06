@@ -2,7 +2,7 @@
 #
 # Patches a chart you do not own (podinfo) to:
 #   1. Add a control-plane toleration to the Deployment via a JSON 6902 patch.
-#   2. Override container resource requests via a strategic-merge patch.
+#   2. Override container resource requests via a strategic-merge patch (map form).
 #
 # Apply with:
 #   kubectl apply -f patches-tolerations-resources.yaml
@@ -39,10 +39,9 @@ spec:
                         - key: node-role.kubernetes.io/control-plane
                           operator: Exists
                           effect: NoSchedule
-              # Override resource requests via strategic-merge patch.
+              # Override resource requests via strategic-merge patch (map object form).
               patchesStrategicMerge:
-                - |
-                  apiVersion: apps/v1
+                - apiVersion: apps/v1
                   kind: Deployment
                   metadata:
                     name: podinfo

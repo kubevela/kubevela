@@ -226,11 +226,10 @@ template: {
 						patch?: string
 						path?:  string
 					}]
-					// +usage=Strategic-merge patches. Each item is a YAML string or
-					// a map object shaped like the resource to be patched.
-					// Note: upstream kustomize emits a deprecation advisory suggesting
-					// `patches` be used instead; correctness is unaffected.
-					patchesStrategicMerge?: [...(string | {...})]
+					// +usage=Strategic-merge patches. Each item is a map object shaped
+					// like the resource to be patched. String-form patches should use
+					// the `patches` field instead (kustomize deprecates this field).
+					patchesStrategicMerge?: [...{...}]
 					// +usage=RFC 6902 JSON Patch operations (deprecated; prefer `patches`).
 					patchesJson6902?: [...{
 						target: {

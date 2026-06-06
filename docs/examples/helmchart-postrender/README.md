@@ -57,15 +57,13 @@ patches:
 
 ### `patchesStrategicMerge`
 
-Each item is either a YAML string or a map object shaped like the resource
-being patched. Kustomize upstream has deprecated this field in favour of
-`patches`; a deprecation advisory is emitted to the controller log but
-correctness is not affected.
+Each item is a map object shaped like the resource being patched. Kustomize
+upstream has deprecated this field in favour of `patches`; a deprecation
+advisory is emitted to the controller log but correctness is not affected.
 
 ```yaml
 patchesStrategicMerge:
-  - |
-    apiVersion: apps/v1
+  - apiVersion: apps/v1
     kind: Deployment
     metadata:
       name: my-app
