@@ -211,8 +211,7 @@ template: {
 				// All sub-fields are optional; set only what you need.
 				kustomize?: {
 					// +usage=JSON 6902 or strategic-merge patches (preferred).
-					// Each entry needs a target selector and either an inline
-					// patch string (op/path/value) or a file path.
+					// Each entry needs a target selector and an inline patch string.
 					patches?: [...{
 						target?: {
 							kind?:               string
@@ -224,7 +223,6 @@ template: {
 							labelSelector?:      string
 						}
 						patch?: string
-						path?:  string
 					}]
 					// +usage=Strategic-merge patches. Each item is a map object shaped
 					// like the resource to be patched. String-form patches should use
