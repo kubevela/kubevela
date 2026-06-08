@@ -124,4 +124,64 @@ var _ = Describe("Test Application Mutator", func() {
 			Value:     "step-0",
 		}))
 	})
+
+	It("Test Application Mutator [traceID annotation injection on create]", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				UID:       "test-trace-id-1234",
+				Resource:  metav1.GroupVersionResource{Group: v1beta1.Group, Version: v1beta1.Version, Resource: "applications"},
+				Object:    runtime.RawExtension{Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"example"}}`)},
+			},
+		}
+		resp := mutatingHandler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+		Expect(resp.Patches).Should(ContainElement(jsonpatch.JsonPatchOperation{
+			Operation: "add",
+			Path:      "/metadata/annotations",
+			Value: map[string]interface{}{
+				oam.AnnotationTraceID: "test-trace-id-1234",
+			},
+		}))
+	})
+
+	It("Test Application Mutator [traceID annotation unchanged on update]", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Update,
+				UID:       "new-req-uid-5678",
+				Resource:  metav1.GroupVersionResource{Group: v1beta1.Group, Version: v1beta1.Version, Resource: "applications"},
+				OldObject: runtime.RawExtension{Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"example","annotations":{"` + oam.AnnotationTraceID + `":"existing-trace-id"}}}`)},
+				Object:    runtime.RawExtension{Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"example","annotations":{"` + oam.AnnotationTraceID + `":"existing-trace-id"}}}`)},
+			},
+		}
+		resp := mutatingHandler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+		for _, patch := range resp.Patches {
+			if patch.Path == "/metadata/annotations" || patch.Path == "/metadata/annotations/"+oam.AnnotationTraceID {
+				Fail("Should not modify existing traceID annotation")
+			}
+		}
+	})
+
+	It("Test Application Mutator [traceID annotation injection on update when missing]", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Update,
+				UID:       "new-req-uid-9012",
+				Resource:  metav1.GroupVersionResource{Group: v1beta1.Group, Version: v1beta1.Version, Resource: "applications"},
+				OldObject: runtime.RawExtension{Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"example"}}`)},
+				Object:    runtime.RawExtension{Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"example"}}`)},
+			},
+		}
+		resp := mutatingHandler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+		Expect(resp.Patches).Should(ContainElement(jsonpatch.JsonPatchOperation{
+			Operation: "add",
+			Path:      "/metadata/annotations",
+			Value: map[string]interface{}{
+				oam.AnnotationTraceID: "new-req-uid-9012",
+			},
+		}))
+	})
 })

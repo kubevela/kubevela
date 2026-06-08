@@ -58,6 +58,7 @@ import (
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -109,14 +110,25 @@ type options struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	ctx, cancel := ctrlrec.NewReconcileContext(ctx)
 	defer cancel()
-	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("application", req.String(), "controller", "application")
-	logCtx.Info("Start reconcile application")
-	defer logCtx.Commit("End reconcile application")
+
 	app := new(v1beta1.Application)
-	if err := r.Get(ctx, client.ObjectKey{
+	err := r.Get(ctx, client.ObjectKey{
 		Name:      req.Name,
 		Namespace: req.Namespace,
-	}, app); err != nil {
+	}, app)
+
+	traceID := ""
+	if err == nil {
+		if id, ok := logging.TraceIDFromObject(app); ok {
+			traceID = id
+		}
+	}
+
+	logCtx := monitorContext.NewTraceContext(ctx, traceID).AddTag("application", req.String(), "controller", "application")
+	logCtx.Info("Start reconcile application")
+	defer logCtx.Commit("End reconcile application")
+
+	if err != nil {
 		if !kerrors.IsNotFound(err) {
 			logCtx.Error(err, "get application")
 		}
