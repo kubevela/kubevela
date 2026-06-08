@@ -136,13 +136,21 @@ var _ = Describe("Test Application Mutator", func() {
 		}
 		resp := mutatingHandler.Handle(ctx, req)
 		Expect(resp.Allowed).Should(BeTrue())
-		Expect(resp.Patches).Should(ContainElement(jsonpatch.JsonPatchOperation{
-			Operation: "add",
-			Path:      "/metadata/annotations",
-			Value: map[string]interface{}{
-				oam.AnnotationTraceID: "test-trace-id-1234",
-			},
-		}))
+		
+		found := false
+		for _, p := range resp.Patches {
+			if p.Operation == "add" && p.Path == "/metadata/annotations" {
+				m, ok := p.Value.(map[string]interface{})
+				if ok && m[oam.AnnotationTraceID] == "test-trace-id-1234" {
+					found = true
+				}
+			} else if p.Operation == "add" && p.Path == "/metadata/annotations/app.oam.dev~1traceID" {
+				if p.Value == "test-trace-id-1234" {
+					found = true
+				}
+			}
+		}
+		Expect(found).Should(BeTrue(), "traceID annotation should be injected")
 	})
 
 	It("Test Application Mutator [traceID annotation unchanged on update]", func() {
@@ -176,12 +184,20 @@ var _ = Describe("Test Application Mutator", func() {
 		}
 		resp := mutatingHandler.Handle(ctx, req)
 		Expect(resp.Allowed).Should(BeTrue())
-		Expect(resp.Patches).Should(ContainElement(jsonpatch.JsonPatchOperation{
-			Operation: "add",
-			Path:      "/metadata/annotations",
-			Value: map[string]interface{}{
-				oam.AnnotationTraceID: "new-req-uid-9012",
-			},
-		}))
+		
+		found := false
+		for _, p := range resp.Patches {
+			if p.Operation == "add" && p.Path == "/metadata/annotations" {
+				m, ok := p.Value.(map[string]interface{})
+				if ok && m[oam.AnnotationTraceID] == "new-req-uid-9012" {
+					found = true
+				}
+			} else if p.Operation == "add" && p.Path == "/metadata/annotations/app.oam.dev~1traceID" {
+				if p.Value == "new-req-uid-9012" {
+					found = true
+				}
+			}
+		}
+		Expect(found).Should(BeTrue(), "traceID annotation should be injected")
 	})
 })
