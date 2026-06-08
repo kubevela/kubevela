@@ -550,6 +550,8 @@ func TestValidatePathInsideCache(t *testing.T) {
 	assert.NoError(t, os.MkdirAll(outsideDir, 0o755))
 	assert.NoError(t, os.WriteFile(filepath.Join(outsideDir, "secret.tf"), []byte("secret"), 0o644))
 	assert.NoError(t, os.Symlink(outsideDir, filepath.Join(cachePath, "link")))
+	// Symlink inside cache pointing inside cache (should be allowed).
+	assert.NoError(t, os.Symlink(filepath.Join(cachePath, "subdir"), filepath.Join(cachePath, "innerlink")))
 
 	cases := []struct {
 		name      string
@@ -590,6 +592,16 @@ func TestValidatePathInsideCache(t *testing.T) {
 			name:      "symlink escapes cache",
 			resolved:  filepath.Join(cachePath, "link", "secret.tf"),
 			wantError: true,
+		},
+		{
+			name:      "parent directory does not exist",
+			resolved:  filepath.Join(cachePath, "nonexistent_dir", "file.tf"),
+			wantError: true,
+		},
+		{
+			name:      "symlink stays inside cache",
+			resolved:  filepath.Join(cachePath, "innerlink", "main.tf"),
+			wantError: false,
 		},
 	}
 
