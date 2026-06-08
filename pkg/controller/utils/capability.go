@@ -203,11 +203,22 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 	return generateJSONSchemaWithRequiredProperty(schemas, required)
 }
 
-// validatePathInsideCache checks that resolved is inside cachePath after cleaning.
+// validatePathInsideCache checks that resolved is inside cachePath after
+// resolving symlinks and cleaning. This prevents both traversal attacks
+// (../) and symlink-based escapes.
 func validatePathInsideCache(resolved, cachePath string) error {
-	cleanResolved := filepath.Clean(resolved)
 	cleanCache := filepath.Clean(cachePath) + string(filepath.Separator)
-	if !strings.HasPrefix(cleanResolved, cleanCache) && cleanResolved != filepath.Clean(cachePath) {
+
+	// Resolve symlinks on the parent directory so the check works even
+	// when the target file does not exist yet.
+	parent := filepath.Dir(resolved)
+	resolvedParent, err := filepath.EvalSymlinks(parent)
+	if err != nil {
+		return fmt.Errorf("failed to resolve symlinks for %q: %w", resolved, err)
+	}
+	realResolved := filepath.Join(resolvedParent, filepath.Base(resolved))
+
+	if !strings.HasPrefix(realResolved, cleanCache) && realResolved != filepath.Clean(cachePath) {
 		return fmt.Errorf("remote path %q escapes the module cache directory", resolved)
 	}
 	return nil

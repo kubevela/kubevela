@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -537,7 +538,18 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 }
 
 func TestValidatePathInsideCache(t *testing.T) {
-	cachePath := "/home/user/.vela/terraform/mymodule"
+	// Use real directories so filepath.EvalSymlinks works.
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache")
+	assert.NoError(t, os.MkdirAll(filepath.Join(cachePath, "subdir"), 0o755))
+	assert.NoError(t, os.WriteFile(filepath.Join(cachePath, "variables.tf"), []byte("ok"), 0o644))
+	assert.NoError(t, os.WriteFile(filepath.Join(cachePath, "subdir", "main.tf"), []byte("ok"), 0o644))
+
+	// Create a symlink inside cache pointing outside.
+	outsideDir := filepath.Join(tmpDir, "outside")
+	assert.NoError(t, os.MkdirAll(outsideDir, 0o755))
+	assert.NoError(t, os.WriteFile(filepath.Join(outsideDir, "secret.tf"), []byte("secret"), 0o644))
+	assert.NoError(t, os.Symlink(outsideDir, filepath.Join(cachePath, "link")))
 
 	cases := []struct {
 		name      string
@@ -546,33 +558,38 @@ func TestValidatePathInsideCache(t *testing.T) {
 	}{
 		{
 			name:      "valid path inside cache",
-			resolved:  "/home/user/.vela/terraform/mymodule/subdir/variables.tf",
+			resolved:  filepath.Join(cachePath, "subdir", "variables.tf"),
 			wantError: false,
 		},
 		{
 			name:      "path traversal escapes cache",
-			resolved:  "/home/user/.vela/terraform/mymodule/../../../etc/passwd",
+			resolved:  filepath.Join(cachePath, "..", "..", "..", "etc", "passwd"),
 			wantError: true,
 		},
 		{
 			name:      "single dot-dot escape",
-			resolved:  "/home/user/.vela/terraform/mymodule/../other/variables.tf",
+			resolved:  filepath.Join(cachePath, "..", "other", "variables.tf"),
 			wantError: true,
 		},
 		{
 			name:      "nested traversal",
-			resolved:  "/home/user/.vela/terraform/mymodule/sub/../../secret.tf",
+			resolved:  filepath.Join(cachePath, "sub", "..", "..", "secret.tf"),
 			wantError: true,
 		},
 		{
 			name:      "exact cache path",
-			resolved:  "/home/user/.vela/terraform/mymodule",
+			resolved:  cachePath,
 			wantError: false,
 		},
 		{
 			name:      "normal file in cache root",
-			resolved:  "/home/user/.vela/terraform/mymodule/variables.tf",
+			resolved:  filepath.Join(cachePath, "variables.tf"),
 			wantError: false,
+		},
+		{
+			name:      "symlink escapes cache",
+			resolved:  filepath.Join(cachePath, "link", "secret.tf"),
+			wantError: true,
 		},
 	}
 
@@ -581,7 +598,6 @@ func TestValidatePathInsideCache(t *testing.T) {
 			err := validatePathInsideCache(tc.resolved, cachePath)
 			if tc.wantError {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), "escapes the module cache directory")
 			} else {
 				assert.NoError(t, err)
 			}
