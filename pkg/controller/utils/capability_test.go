@@ -552,6 +552,8 @@ func TestValidatePathInsideCache(t *testing.T) {
 	assert.NoError(t, os.Symlink(outsideDir, filepath.Join(cachePath, "link")))
 	// Symlink inside cache pointing inside cache (should be allowed).
 	assert.NoError(t, os.Symlink(filepath.Join(cachePath, "subdir"), filepath.Join(cachePath, "innerlink")))
+	// File symlink inside cache pointing to file outside cache.
+	assert.NoError(t, os.Symlink(filepath.Join(outsideDir, "secret.tf"), filepath.Join(cachePath, "variables.tf.link")))
 
 	cases := []struct {
 		name      string
@@ -602,6 +604,11 @@ func TestValidatePathInsideCache(t *testing.T) {
 			name:      "symlink stays inside cache",
 			resolved:  filepath.Join(cachePath, "innerlink", "main.tf"),
 			wantError: false,
+		},
+		{
+			name:      "file symlink escapes cache",
+			resolved:  filepath.Join(cachePath, "variables.tf.link"),
+			wantError: true,
 		},
 	}
 

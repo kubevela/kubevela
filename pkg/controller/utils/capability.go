@@ -209,14 +209,17 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 func validatePathInsideCache(resolved, cachePath string) error {
 	cleanCache := filepath.Clean(cachePath) + string(filepath.Separator)
 
-	// Resolve symlinks on the parent directory so the check works even
-	// when the target file does not exist yet.
-	parent := filepath.Dir(resolved)
-	resolvedParent, err := filepath.EvalSymlinks(parent)
+	// Try to resolve the full path (handles both directory and file symlinks).
+	// Falls back to parent-only resolution when the file does not exist yet.
+	realResolved, err := filepath.EvalSymlinks(resolved)
 	if err != nil {
-		return fmt.Errorf("failed to resolve symlinks for %q: %w", resolved, err)
+		parent := filepath.Dir(resolved)
+		resolvedParent, err := filepath.EvalSymlinks(parent)
+		if err != nil {
+			return fmt.Errorf("failed to resolve symlinks for %q: %w", resolved, err)
+		}
+		realResolved = filepath.Join(resolvedParent, filepath.Base(resolved))
 	}
-	realResolved := filepath.Join(resolvedParent, filepath.Base(resolved))
 
 	if !strings.HasPrefix(realResolved, cleanCache) && realResolved != filepath.Clean(cachePath) {
 		return fmt.Errorf("remote path %q escapes the module cache directory", resolved)
