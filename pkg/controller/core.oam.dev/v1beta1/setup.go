@@ -19,6 +19,7 @@ package v1beta1
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/addon"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core/components/componentdefinition"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core/policies/policydefinition"
@@ -30,9 +31,15 @@ import (
 
 // Setup workload controllers.
 func Setup(mgr ctrl.Manager, args controller.Args) error {
-	for _, setup := range []func(ctrl.Manager, controller.Args) error{
+	setupFuncs := []func(ctrl.Manager, controller.Args) error{
 		application.Setup, traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
-	} {
+	}
+	// The addon controller is registered only when the AddonCRD feature gate is
+	// enabled (off in alpha, on in beta). See KEP-2.13.
+	if addon.Enabled() {
+		setupFuncs = append(setupFuncs, addon.Setup)
+	}
+	for _, setup := range setupFuncs {
 		if err := setup(mgr, args); err != nil {
 			return err
 		}
