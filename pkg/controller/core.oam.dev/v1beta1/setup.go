@@ -31,15 +31,12 @@ import (
 
 // Setup workload controllers.
 func Setup(mgr ctrl.Manager, args controller.Args) error {
-	setupFuncs := []func(ctrl.Manager, controller.Args) error{
-		application.Setup, traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup,
-	}
-	// The addon controller is registered only when the AddonCRD feature gate is
-	// enabled (off in alpha, on in beta). See KEP-2.13.
-	if addon.Enabled() {
-		setupFuncs = append(setupFuncs, addon.Setup)
-	}
-	for _, setup := range setupFuncs {
+	// addon.Setup is a no-op unless the AddonCRD feature gate is enabled; it
+	// gates its own registration internally (see KEP-2.13), so it sits in the
+	// list like every other controller.
+	for _, setup := range []func(ctrl.Manager, controller.Args) error{
+		application.Setup, traitdefinition.Setup, componentdefinition.Setup, policydefinition.Setup, workflowstepdefinition.Setup, addon.Setup,
+	} {
 		if err := setup(mgr, args); err != nil {
 			return err
 		}

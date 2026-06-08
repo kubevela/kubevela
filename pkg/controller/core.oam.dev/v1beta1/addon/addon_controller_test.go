@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/features"
 )
 
@@ -41,15 +42,25 @@ func newTestScheme(t *testing.T) *runtime.Scheme {
 	return scheme
 }
 
-// AC9: gate off (the default) → controller is not enabled, so setup.go does not register it.
-// AC10 (gate-on half): gate on → controller is enabled.
-func TestEnabled(t *testing.T) {
-	// Default state is off (registered with Default:false in pkg/features).
-	assert.False(t, Enabled(), "AddonCRD feature gate must be off by default")
+// AC4 + AC9: with the AddonCRD gate off (the default), Setup is a no-op and
+// registers nothing. Passing a nil manager proves the gate short-circuits
+// before any manager access: if the early return were missing, the nil manager
+// would panic.
+func TestSetupGateOffSkipsRegistration(t *testing.T) {
+	assert.NotPanics(t, func() {
+		err := Setup(nil, oamctrl.Args{})
+		assert.NoError(t, err, "Setup must be a clean no-op when the AddonCRD gate is off")
+	})
+}
 
-	// Flip the gate on for the duration of this sub-test.
+// AC4 + AC10 (gate-on half): with the gate on, Setup no longer short-circuits,
+// so it proceeds past the gate and dereferences the (nil) manager — which
+// panics. That panic is the observable proof the gate now permits registration.
+func TestSetupGateOnProceedsPastGate(t *testing.T) {
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate, features.AddonCRD, true)
-	assert.True(t, Enabled(), "Enabled() must report true when AddonCRD gate is on")
+	assert.Panics(t, func() {
+		_ = Setup(nil, oamctrl.Args{})
+	}, "with the gate on, Setup must proceed past the gate (and reach manager access)")
 }
 
 // AC8 + AC10: a reconcile for a CR that does not exist returns cleanly (no error, no requeue).

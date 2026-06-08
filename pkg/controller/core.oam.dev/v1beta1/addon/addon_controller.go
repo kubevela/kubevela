@@ -67,10 +67,13 @@ type options struct {
 	reconcileInterval    time.Duration
 }
 
-// Enabled reports whether the AddonCRD feature gate is on. setup.go consults
-// this to decide whether to register the controller with the manager.
-func Enabled() bool {
-	return utilfeature.DefaultMutableFeatureGate.Enabled(features.AddonCRD)
+// parseOptions builds the reconciler options from the shared controller args,
+// mirroring the parseOptions helper used by the other core controllers.
+func parseOptions(args oamctrl.Args) options {
+	return options{
+		concurrentReconciles: args.ConcurrentReconciles,
+		reconcileInterval:    defaultReconcileInterval,
+	}
 }
 
 // interval returns the configured periodic reconcile interval, falling back to
@@ -110,13 +113,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // SetupWithManager wires the reconciler into the controller-runtime manager,
 // watching Addon resources.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if r.Recorder == nil {
-		r.Recorder = event.NewAPIRecorder(mgr.GetEventRecorderFor("Addon")).
-			WithAnnotations("controller", "Addon")
-	}
-	if r.reconcileInterval <= 0 {
-		r.reconcileInterval = defaultReconcileInterval
-	}
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: r.concurrentReconciles,
@@ -125,18 +121,18 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// Setup adds the addon controller to the manager. Callers gate this on
-// Enabled() so the controller is only registered when the AddonCRD feature
-// gate is on.
+// Setup adds the addon controller to the manager. It is a no-op unless the
+// AddonCRD feature gate is enabled (off in alpha, on in beta; see KEP-2.13),
+// so it can sit in the standard controller setup list without special-casing.
 func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
+	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.AddonCRD) {
+		return nil
+	}
 	r := Reconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("Addon")).WithAnnotations("controller", "Addon"),
-		options: options{
-			concurrentReconciles: args.ConcurrentReconciles,
-			reconcileInterval:    defaultReconcileInterval,
-		},
+		options:  parseOptions(args),
 	}
 	return r.SetupWithManager(mgr)
 }
