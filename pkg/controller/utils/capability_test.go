@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -531,6 +532,93 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 				known_hosts, err := os.ReadFile(known_hosts_filepath)
 				assert.NoError(t, err)
 				assert.Equal(t, known_hosts, sshAuth[GitCredsKnownHosts])
+			}
+		})
+	}
+}
+
+func TestValidatePathInsideCache(t *testing.T) {
+	// Use real directories so filepath.EvalSymlinks works.
+	tmpDir := t.TempDir()
+	cachePath := filepath.Join(tmpDir, "cache")
+	assert.NoError(t, os.MkdirAll(filepath.Join(cachePath, "subdir"), 0o755))
+	assert.NoError(t, os.WriteFile(filepath.Join(cachePath, "variables.tf"), []byte("ok"), 0o644))
+	assert.NoError(t, os.WriteFile(filepath.Join(cachePath, "subdir", "main.tf"), []byte("ok"), 0o644))
+
+	// Create a symlink inside cache pointing outside.
+	outsideDir := filepath.Join(tmpDir, "outside")
+	assert.NoError(t, os.MkdirAll(outsideDir, 0o755))
+	assert.NoError(t, os.WriteFile(filepath.Join(outsideDir, "secret.tf"), []byte("secret"), 0o644))
+	assert.NoError(t, os.Symlink(outsideDir, filepath.Join(cachePath, "link")))
+	// Symlink inside cache pointing inside cache (should be allowed).
+	assert.NoError(t, os.Symlink(filepath.Join(cachePath, "subdir"), filepath.Join(cachePath, "innerlink")))
+	// File symlink inside cache pointing to file outside cache.
+	assert.NoError(t, os.Symlink(filepath.Join(outsideDir, "secret.tf"), filepath.Join(cachePath, "variables.tf.link")))
+
+	cases := []struct {
+		name      string
+		resolved  string
+		wantError bool
+	}{
+		{
+			name:      "valid path inside cache",
+			resolved:  filepath.Join(cachePath, "subdir", "variables.tf"),
+			wantError: false,
+		},
+		{
+			name:      "path traversal escapes cache",
+			resolved:  filepath.Join(cachePath, "..", "..", "..", "etc", "passwd"),
+			wantError: true,
+		},
+		{
+			name:      "single dot-dot escape",
+			resolved:  filepath.Join(cachePath, "..", "other", "variables.tf"),
+			wantError: true,
+		},
+		{
+			name:      "nested traversal",
+			resolved:  filepath.Join(cachePath, "sub", "..", "..", "secret.tf"),
+			wantError: true,
+		},
+		{
+			name:      "exact cache path",
+			resolved:  cachePath,
+			wantError: false,
+		},
+		{
+			name:      "normal file in cache root",
+			resolved:  filepath.Join(cachePath, "variables.tf"),
+			wantError: false,
+		},
+		{
+			name:      "symlink escapes cache",
+			resolved:  filepath.Join(cachePath, "link", "secret.tf"),
+			wantError: true,
+		},
+		{
+			name:      "parent directory does not exist",
+			resolved:  filepath.Join(cachePath, "nonexistent_dir", "file.tf"),
+			wantError: true,
+		},
+		{
+			name:      "symlink stays inside cache",
+			resolved:  filepath.Join(cachePath, "innerlink", "main.tf"),
+			wantError: false,
+		},
+		{
+			name:      "file symlink escapes cache",
+			resolved:  filepath.Join(cachePath, "variables.tf.link"),
+			wantError: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validatePathInsideCache(tc.resolved, cachePath)
+			if tc.wantError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
