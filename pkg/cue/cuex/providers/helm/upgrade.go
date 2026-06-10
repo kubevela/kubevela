@@ -33,7 +33,7 @@ import (
 // resolved chart and merged values. The caller (installOrUpgradeChart) has
 // already decided that an upgrade is warranted (fingerprint differs, the
 // release needs adoption, or the release is not in a clean deployed state).
-func (p *Provider) performUpgrade(ctx context.Context, actionConfig *action.Configuration, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, postRenderer *velaLabelPostRenderer, releaseLabels map[string]string, velaCtx *ContextParams) (*release.Release, error) {
+func (p *Provider) performUpgrade(ctx context.Context, actionConfig *action.Configuration, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, postRenderer helmPostRenderer, releaseLabels map[string]string, velaCtx *ContextParams) (*release.Release, error) {
 	upgrade := action.NewUpgrade(actionConfig)
 	upgrade.Namespace = releaseNamespace
 	upgrade.PostRenderer = postRenderer
