@@ -30,6 +30,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/strings/slices"
@@ -124,7 +125,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 	}
 
-	logCtx := monitorContext.NewTraceContext(ctx, traceID).AddTag("application", req.String(), "controller", "application")
+	ctx = logging.WithRequestID(ctx, traceID)
+	spanID := string(uuid.NewUUID())
+	ctx = logging.WithSpanID(ctx, spanID)
+
+	logCtx := monitorContext.NewTraceContext(ctx, spanID).AddTag("application", req.String(), "controller", "application", logging.FieldRequestID, traceID)
 	logCtx.Info("Start reconcile application")
 	defer logCtx.Commit("End reconcile application")
 
