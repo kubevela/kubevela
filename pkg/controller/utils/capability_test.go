@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -533,5 +534,275 @@ func TestGetGitSSHPublicKey(t *testing.T) {
 				assert.Equal(t, known_hosts, sshAuth[GitCredsKnownHosts])
 			}
 		})
+	}
+}
+
+// TestReadTerraformConfigFromDir guards the remote Terraform loader against
+// GHSA-fmgp-q6jx-gg3x: a variables.tf (or a parent directory) that symlinks
+// outside the clone cache, and an oversized configuration file. The loader
+// must read normal regular files but refuse anything that escapes the cache
+// or exceeds the size cap, before any content is returned.
+func TestReadTerraformConfigFromDir(t *testing.T) {
+	// A sentinel file outside the clone cache. A successful escape would leak
+	// its content; the guards must prevent that.
+	outside := t.TempDir()
+	secretPath := filepath.Join(outside, "secret.txt")
+	assert.NoError(t, os.WriteFile(secretPath, []byte("top-secret-host-data"), 0600))
+
+	t.Run("reads variables.tf", func(t *testing.T) {
+		dir := t.TempDir()
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "variables.tf"), []byte(`variable "x" {}`), 0600))
+		got, err := readTerraformConfigFromDir(dir, "")
+		assert.NoError(t, err)
+		assert.Equal(t, `variable "x" {}`, got)
+	})
+
+	t.Run("falls back to main.tf", func(t *testing.T) {
+		dir := t.TempDir()
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), []byte(`resource "x" "y" {}`), 0600))
+		got, err := readTerraformConfigFromDir(dir, "")
+		assert.NoError(t, err)
+		assert.Equal(t, `resource "x" "y" {}`, got)
+	})
+
+	t.Run("errors when neither file is present", func(t *testing.T) {
+		dir := t.TempDir()
+		_, err := readTerraformConfigFromDir(dir, "")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to find")
+	})
+
+	t.Run("refuses a variables.tf that symlinks outside the cache", func(t *testing.T) {
+		dir := t.TempDir()
+		// This is the advisory's attack: variables.tf -> a path outside the clone.
+		assert.NoError(t, os.Symlink(secretPath, filepath.Join(dir, "variables.tf")))
+		got, err := readTerraformConfigFromDir(dir, "")
+		assert.Error(t, err)
+		assert.NotContains(t, got, "top-secret-host-data")
+	})
+
+	t.Run("refuses a symlinked subdirectory that escapes the cache", func(t *testing.T) {
+		dir := t.TempDir()
+		outDir := t.TempDir()
+		assert.NoError(t, os.WriteFile(filepath.Join(outDir, "variables.tf"), []byte("secret-config"), 0600))
+		assert.NoError(t, os.Symlink(outDir, filepath.Join(dir, "evil")))
+		got, err := readTerraformConfigFromDir(dir, "evil")
+		assert.Error(t, err)
+		assert.NotContains(t, got, "secret-config")
+	})
+
+	t.Run("refuses a file larger than the size cap", func(t *testing.T) {
+		dir := t.TempDir()
+		big := make([]byte, maxTerraformConfigBytes+1024)
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "variables.tf"), big, 0600))
+		_, err := readTerraformConfigFromDir(dir, "")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds the maximum")
+	})
+
+	t.Run("accepts a file exactly at the size cap", func(t *testing.T) {
+		dir := t.TempDir()
+		atCap := make([]byte, maxTerraformConfigBytes)
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "variables.tf"), atCap, 0600))
+		got, err := readTerraformConfigFromDir(dir, "")
+		assert.NoError(t, err)
+		assert.Len(t, got, int(maxTerraformConfigBytes))
+	})
+
+	t.Run("refuses a file one byte over the size cap", func(t *testing.T) {
+		dir := t.TempDir()
+		overCap := make([]byte, maxTerraformConfigBytes+1)
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "variables.tf"), overCap, 0600))
+		_, err := readTerraformConfigFromDir(dir, "")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds the maximum")
+	})
+
+	t.Run("refuses lexical ../ traversal via remotePath with no symlink", func(t *testing.T) {
+		dir := t.TempDir()
+		// A real variables.tf in a sibling of the cache dir, reached purely by a
+		// cleaned ".." in remotePath, with no symlink anywhere. The containment
+		// check (not the symlink check) must reject this.
+		sibling := filepath.Join(filepath.Dir(dir), "sibling-"+filepath.Base(dir))
+		assert.NoError(t, os.MkdirAll(sibling, 0700))
+		defer func() { _ = os.RemoveAll(sibling) }()
+		assert.NoError(t, os.WriteFile(filepath.Join(sibling, "variables.tf"), []byte("escaped-config"), 0600))
+		got, err := readTerraformConfigFromDir(dir, "../"+filepath.Base(sibling))
+		assert.Error(t, err)
+		assert.NotContains(t, got, "escaped-config")
+	})
+
+	t.Run("refuses even a contained in-cache symlink", func(t *testing.T) {
+		dir := t.TempDir()
+		// Pins the deliberate reject-all-symlinks policy: a symlink whose target
+		// is a regular file inside the cache is still refused.
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "real.tf"), []byte(`variable "x" {}`), 0600))
+		assert.NoError(t, os.Symlink(filepath.Join(dir, "real.tf"), filepath.Join(dir, "variables.tf")))
+		got, err := readTerraformConfigFromDir(dir, "")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "symlinked")
+		assert.NotContains(t, got, "variable")
+	})
+}
+
+// TestEnsureDirWithinLimits covers the clone caps that bound how large (bytes)
+// and how many files a cloned remote Terraform module may retain on disk
+// (GHSA-fmgp-q6jx-gg3x).
+func TestEnsureDirWithinLimits(t *testing.T) {
+	t.Run("passes when under the limits", func(t *testing.T) {
+		dir := t.TempDir()
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "a"), make([]byte, 1024), 0600))
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "b"), make([]byte, 1024), 0600))
+		assert.NoError(t, ensureDirWithinLimits(dir, 4096, 100))
+	})
+
+	t.Run("passes when cumulative size is exactly at the limit", func(t *testing.T) {
+		dir := t.TempDir()
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "a"), make([]byte, 4096), 0600))
+		assert.NoError(t, ensureDirWithinLimits(dir, 4096, 100))
+	})
+
+	t.Run("fails when cumulative size is one byte over the limit", func(t *testing.T) {
+		dir := t.TempDir()
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "a"), make([]byte, 4097), 0600))
+		err := ensureDirWithinLimits(dir, 4096, 100)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds the maximum allowed size")
+	})
+
+	t.Run("sums regular files across nested subdirectories", func(t *testing.T) {
+		dir := t.TempDir()
+		sub := filepath.Join(dir, "modules", "vpc")
+		assert.NoError(t, os.MkdirAll(sub, 0700))
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "main.tf"), make([]byte, 3000), 0600))
+		assert.NoError(t, os.WriteFile(filepath.Join(sub, "vars.tf"), make([]byte, 2000), 0600))
+		assert.Error(t, ensureDirWithinLimits(dir, 4096, 100))
+	})
+
+	t.Run("fails when the entry count exceeds the limit", func(t *testing.T) {
+		dir := t.TempDir()
+		for i := 0; i < 5; i++ {
+			assert.NoError(t, os.WriteFile(filepath.Join(dir, fmt.Sprintf("f%d", i)), []byte("x"), 0600))
+		}
+		err := ensureDirWithinLimits(dir, 4096, 3)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "entry count")
+	})
+
+	t.Run("counts directories toward the entry limit (inode-exhaustion guard)", func(t *testing.T) {
+		dir := t.TempDir()
+		// Many empty directories carry no regular-file bytes and no regular files,
+		// but each is an inode, so they must still trip the entry cap.
+		for i := 0; i < 10; i++ {
+			assert.NoError(t, os.MkdirAll(filepath.Join(dir, fmt.Sprintf("d%d", i)), 0700))
+		}
+		err := ensureDirWithinLimits(dir, 4096, 3)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "entry count")
+	})
+
+	t.Run("does not follow or count symlinks", func(t *testing.T) {
+		dir := t.TempDir()
+		outside := t.TempDir()
+		big := filepath.Join(outside, "big")
+		assert.NoError(t, os.WriteFile(big, make([]byte, 8192), 0600))
+		assert.NoError(t, os.Symlink(big, filepath.Join(dir, "link")))
+		// The symlink is skipped (not a regular file), so the 8192-byte target is
+		// neither followed nor counted against the 4096 cap.
+		assert.NoError(t, ensureDirWithinLimits(dir, 4096, 100))
+	})
+
+	t.Run("returns an error when the root does not exist", func(t *testing.T) {
+		assert.Error(t, ensureDirWithinLimits(filepath.Join(t.TempDir(), "missing"), 4096, 100))
+	})
+}
+
+// TestCacheMatchesRemote verifies the URL-keyed cache reuse decision.
+func TestCacheMatchesRemote(t *testing.T) {
+	populated := func(t *testing.T, markerURL string, withMarker bool) string {
+		t.Helper()
+		cache := filepath.Join(t.TempDir(), "mod")
+		assert.NoError(t, os.MkdirAll(cache, 0700))
+		assert.NoError(t, os.WriteFile(filepath.Join(cache, "variables.tf"), []byte("x"), 0600))
+		if withMarker {
+			assert.NoError(t, os.WriteFile(cache+cacheRemoteMarkerSuffix, []byte(markerURL), 0600))
+		}
+		return cache
+	}
+
+	t.Run("matches when populated and the URL marker matches", func(t *testing.T) {
+		cache := populated(t, "git://example/repo.git", true)
+		assert.True(t, cacheMatchesRemote(cache, "git://example/repo.git"))
+	})
+
+	t.Run("does not match when the URL changed", func(t *testing.T) {
+		cache := populated(t, "git://example/old.git", true)
+		assert.False(t, cacheMatchesRemote(cache, "git://example/new.git"))
+	})
+
+	t.Run("does not match when the marker is missing", func(t *testing.T) {
+		cache := populated(t, "", false)
+		assert.False(t, cacheMatchesRemote(cache, "git://example/repo.git"))
+	})
+
+	t.Run("does not match when the cache is empty", func(t *testing.T) {
+		assert.False(t, cacheMatchesRemote(t.TempDir(), "git://example/repo.git"))
+	})
+}
+
+// TestGetTerraformConfigurationFromRemoteInvalidatesCacheOnRejection exercises
+// the cache-reuse path with no network: a populated cache whose URL marker
+// matches skips the clone, so a poisoned cached variables.tf (a symlink escaping
+// the cache) is rejected AND the cache removed (GHSA-fmgp-q6jx-gg3x).
+func TestGetTerraformConfigurationFromRemoteInvalidatesCacheOnRejection(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	outside := t.TempDir()
+	secret := filepath.Join(outside, "secret.txt")
+	assert.NoError(t, os.WriteFile(secret, []byte("top-secret-host-data"), 0600))
+
+	name := "poisoned-module"
+	url := "git://unused.invalid/repo.git"
+	cachePath := filepath.Join(home, ".vela", "terraform", name)
+	assert.NoError(t, os.MkdirAll(cachePath, 0700))
+	assert.NoError(t, os.Symlink(secret, filepath.Join(cachePath, "variables.tf")))
+	// Matching URL marker so the populated cache is reused and the clone is skipped.
+	assert.NoError(t, os.WriteFile(cachePath+cacheRemoteMarkerSuffix, []byte(url), 0600))
+
+	got, err := GetTerraformConfigurationFromRemote(name, url, "", nil)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "symlinked")
+	assert.NotContains(t, got, "top-secret-host-data")
+
+	_, statErr := os.Stat(cachePath)
+	assert.True(t, os.IsNotExist(statErr), "cache should be removed after a rejected read")
+}
+
+// TestGetTerraformConfigurationFromRemoteCleansUpOnCloneFailure verifies that a
+// failed clone (here a non-existent local repo) leaves no cache directory behind
+// for the next reconcile to reuse (GHSA-fmgp-q6jx-gg3x).
+func TestGetTerraformConfigurationFromRemoteCleansUpOnCloneFailure(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	name := "clone-fail-module"
+	bogus := filepath.Join(t.TempDir(), "does-not-exist.git")
+
+	_, err := GetTerraformConfigurationFromRemote(name, bogus, "", nil)
+	assert.Error(t, err)
+
+	cachePath := filepath.Join(home, ".vela", "terraform", name)
+	_, statErr := os.Stat(cachePath)
+	assert.True(t, os.IsNotExist(statErr), "cache should be removed after a failed clone")
+}
+
+// TestGetTerraformConfigurationFromRemoteRejectsInvalidName ensures a name that
+// could steer the cache path outside the cache directory is rejected up front.
+func TestGetTerraformConfigurationFromRemoteRejectsInvalidName(t *testing.T) {
+	for _, name := range []string{"", ".", "..", "a/b", "../evil"} {
+		_, err := GetTerraformConfigurationFromRemote(name, "git://example/repo.git", "", nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid Terraform module name")
 	}
 }
