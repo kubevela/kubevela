@@ -268,7 +268,7 @@ func cacheMatchesRemote(cachePath, remoteURL string) bool {
 	if err != nil || len(entities) == 0 {
 		return false
 	}
-	recorded, err := os.ReadFile(cachePath + cacheRemoteMarkerSuffix)
+	recorded, err := os.ReadFile(filepath.Clean(cachePath + cacheRemoteMarkerSuffix))
 	if err != nil {
 		return false
 	}
