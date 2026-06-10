@@ -613,7 +613,7 @@ func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appPars
 		}
 
 		// Render traits
-		_, readyTraits, err := renderComponentsAndTraits(manifest, h.currentAppRev, svc.Cluster, svc.Namespace)
+		_, readyTraits, err := renderComponentsAndTraits(ctx, manifest, h.currentAppRev, svc.Cluster, svc.Namespace)
 		if err != nil {
 			return errors.WithMessagef(err, "failed to render PostDispatch traits for component %s", comp.Name)
 		}

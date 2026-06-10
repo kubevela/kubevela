@@ -24,6 +24,7 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -58,6 +59,7 @@ import (
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -109,19 +111,34 @@ type options struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	ctx, cancel := ctrlrec.NewReconcileContext(ctx)
 	defer cancel()
-	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("application", req.String(), "controller", "application")
-	logCtx.Info("Start reconcile application")
-	defer logCtx.Commit("End reconcile application")
+
 	app := new(v1beta1.Application)
 	if err := r.Get(ctx, client.ObjectKey{
 		Name:      req.Name,
 		Namespace: req.Namespace,
 	}, app); err != nil {
 		if !kerrors.IsNotFound(err) {
-			logCtx.Error(err, "get application")
+			// Best-effort trace ID for this pre-fetch error log only. The retry-on-backoff
+			// will mint its own fresh ID; this line will not correlate with the eventually-
+			// successful reconcile. Don't try to "fix" by keying off req.NamespacedName —
+			// trace ID lifetime is per user-initiated admission, not per reconcile key.
+			traceID := uuid.NewString()
+			preCtx := monitorContext.NewTraceContext(logging.WithRequestID(ctx, traceID), traceID).
+				AddTag(logging.FieldRequestID, traceID, "application", req.String(), "controller", "application")
+			preCtx.Error(err, "get application")
 		}
 		return r.result(client.IgnoreNotFound(err)).ret()
 	}
+
+	logCtx, traceID := ApplicationLogContext(ctx, app, req)
+	logCtx.Info("Start reconcile application")
+	defer logCtx.Commit("End reconcile application")
+
+	// Seed the std ctx with the resolved trace ID so any downstream package
+	// that receives a plain context.Context (e.g., pkg/utils/apply) can still
+	// extract the trace ID via logging.FromContext / logging.RequestIDFrom.
+	// Note: logCtx.GetID() is the reconcile span ID now, not the trace ID.
+	ctx = logging.WithRequestID(ctx, traceID)
 	ctx = withOriginalApp(ctx, app)
 	if ctrlrec.IsPaused(app) {
 		return ctrl.Result{}, nil
@@ -135,11 +152,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	timeReporter := timeReconcile(app)
 	defer timeReporter()
 
-	logCtx.AddTag("resource_version", app.ResourceVersion).AddTag("generation", app.Generation)
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	logCtx.SetContext(ctx)
 	setVelaVersion(app)
-	logCtx.AddTag("publish_version", app.GetAnnotations()[oam.AnnotationPublishVersion])
 
 	appParser := appfile.NewApplicationParser(r.Client)
 	handler, err := NewAppHandler(logCtx, r, app)
@@ -412,7 +427,7 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		cond := condition.Deleting()
 		cond.Message = fmt.Sprintf("error encountered during garbage collection: %s", err.Error())
 		handler.app.Status.SetConditions(cond)
-		return r.result(statusUpdater(logCtx, handler.app, phase)).forApp(handler.app).ret()
+		return r.result(statusUpdater(logCtx, handler.app, phase)).forApp(logCtx, handler.app).ret()
 	}
 	if !finished {
 		logCtx.Info("GarbageCollecting resourcetrackers unfinished")
@@ -424,7 +439,7 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		return r.result(statusUpdater(logCtx, handler.app, phase)).requeue(baseGCBackoffWaitTime).ret()
 	}
 	logCtx.Info("GarbageCollected resourcetrackers")
-	return r.result(statusUpdater(logCtx, handler.app, phase)).forApp(handler.app).ret()
+	return r.result(statusUpdater(logCtx, handler.app, phase)).forApp(logCtx, handler.app).ret()
 }
 
 type reconcileResult struct {
@@ -440,7 +455,10 @@ func (r *reconcileResult) requeue(d time.Duration) *reconcileResult {
 
 // forApp overrides the default resync period with the per-application value
 // parsed from the AnnotationReconcileInterval annotation, if present and valid.
-func (r *reconcileResult) forApp(app *v1beta1.Application) *reconcileResult {
+// Warnings about invalid or below-minimum values are logged with ctx so they
+// share the reconcile trace ID; pass context.Background() for callers without
+// reconcile context (tests, init paths).
+func (r *reconcileResult) forApp(ctx context.Context, app *v1beta1.Application) *reconcileResult {
 	if app == nil || app.Annotations == nil {
 		return r
 	}
@@ -451,11 +469,11 @@ func (r *reconcileResult) forApp(app *v1beta1.Application) *reconcileResult {
 	d, err := time.ParseDuration(v)
 	switch {
 	case err != nil:
-		klog.Warningf("ignoring invalid %s annotation %q on application %s/%s, using global default",
-			oam.AnnotationReconcileInterval, v, app.Namespace, app.Name)
+		logging.FromContext(ctx).Info(fmt.Sprintf("ignoring invalid %s annotation %q on application %s/%s, using global default",
+			oam.AnnotationReconcileInterval, v, app.Namespace, app.Name))
 	case d < minPerAppResyncPeriod:
-		klog.Warningf("ignoring %s annotation %q below minimum %s on application %s/%s, using global default",
-			oam.AnnotationReconcileInterval, v, minPerAppResyncPeriod, app.Namespace, app.Name)
+		logging.FromContext(ctx).Info(fmt.Sprintf("ignoring %s annotation %q below minimum %s on application %s/%s, using global default",
+			oam.AnnotationReconcileInterval, v, minPerAppResyncPeriod, app.Namespace, app.Name))
 	default:
 		r.defaultResync = d
 	}
@@ -510,7 +528,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 			}
 			if rootRT == nil && currentRT == nil && len(historyRTs) == 0 && crRT == nil {
 				if revs, err := resourcekeeper.ListApplicationRevisions(ctx, r.Client, app.Name, app.Namespace); len(revs) > 0 || err != nil {
-					klog.Infof("garbage collecting application revisions for application %s/%s, rest: %d, err: %s", app.Namespace, app.Name, len(revs), err)
+					ctx.Info("garbage collecting application revisions", logging.FieldName, app.Name, logging.FieldNamespace, app.Namespace, "rest", len(revs), "err", err)
 					return r.result(err).requeue(baseGCBackoffWaitTime).end(true)
 				}
 				meta.RemoveFinalizer(app, oam.FinalizerResourceTracker)
