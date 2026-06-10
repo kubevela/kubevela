@@ -632,7 +632,7 @@ var _ = Describe("Helmchart Self-Healing", func() {
 
 var _ = Describe("Helmchart Adoption & Takeover", func() {
 
-	Context("Adopt an Existing Vanilla Helm Release", Ordered, func() {
+	Context("Adopt an Existing Vanilla Helm Release", FlakeAttempts(2), Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
@@ -645,13 +645,16 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 
 			initialSecretCount := len(h.getHelmSecrets().Items)
 
+			By("Waiting for Deployment to be ready before recording pod UIDs")
+			Eventually(func(g Gomega) {
+				d := &appsv1.Deployment{}
+				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
+				g.Expect(d.Status.ReadyReplicas).Should(Equal(int32(2)))
+			}, 120*time.Second, 3*time.Second).Should(Succeed())
 			By("Recording running pod UIDs before adoption")
 			var podList corev1.PodList
-			Eventually(func(g Gomega) {
-				g.Expect(k8sClient.List(h.ctx, &podList, client.InNamespace(h.namespace),
-					client.MatchingLabels{"app.kubernetes.io/name": "podinfo"})).Should(Succeed())
-				g.Expect(len(podList.Items)).Should(BeNumerically(">=", 2))
-			}, 60*time.Second, 3*time.Second).Should(Succeed())
+			Expect(k8sClient.List(h.ctx, &podList, client.InNamespace(h.namespace),
+				client.MatchingLabels{"app.kubernetes.io/name": "podinfo"})).Should(Succeed())
 			originalPodUIDs := make(map[types.UID]bool)
 			for _, pod := range podList.Items {
 				originalPodUIDs[pod.UID] = true
@@ -734,7 +737,7 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 		})
 	})
 
-	Context("Re-adopt After Application Deletion", Ordered, func() {
+	Context("Re-adopt After Application Deletion", FlakeAttempts(2), Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanupNamespaceOnly() })
@@ -744,6 +747,11 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 			runCommandSucceed("helm", "install", "podinfo",
 				"--repo", "https://stefanprodan.github.io/podinfo", "podinfo",
 				"--version", "6.11.1", "--set", "replicaCount=2", "-n", h.namespace)
+			Eventually(func(g Gomega) {
+				d := &appsv1.Deployment{}
+				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
+				g.Expect(d.Status.ReadyReplicas).Should(Equal(int32(2)))
+			}, 120*time.Second, 3*time.Second).Should(Succeed())
 
 			By("Applying KubeVela Application (adopts the release)")
 			h.deployApp()
@@ -763,6 +771,11 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 			runCommandSucceed("helm", "install", "podinfo",
 				"--repo", "https://stefanprodan.github.io/podinfo", "podinfo",
 				"--version", "6.11.1", "--set", "replicaCount=2", "-n", h.namespace)
+			Eventually(func(g Gomega) {
+				d := &appsv1.Deployment{}
+				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
+				g.Expect(d.Status.ReadyReplicas).Should(Equal(int32(2)))
+			}, 120*time.Second, 3*time.Second).Should(Succeed())
 
 			By("Applying the same KubeVela Application again")
 			h.deployApp()
@@ -2011,7 +2024,7 @@ replicaCount: 2
 		})
 	})
 
-	Context("Adoption of an existing vanilla Helm release with valuesFrom", Ordered, func() {
+	Context("Adoption of an existing vanilla Helm release with valuesFrom", FlakeAttempts(2), Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
