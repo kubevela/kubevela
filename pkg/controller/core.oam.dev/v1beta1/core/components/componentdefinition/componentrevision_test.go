@@ -108,6 +108,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 
 			var cdGet v1beta1.ComponentDefinition
 			Eventually(func() bool {
+				testutil.ReconcileRetry(&r, req)
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: cdName}, &cdGet)
 				if err == nil {
 					klog.Infof("component definition %s status: %v", cdName, cdGet.Status)
