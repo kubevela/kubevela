@@ -39,7 +39,7 @@ the same operation with the annotation removed.
 | 1 | ComponentDefinition `mk-cd` v1→v2 | Yes | Yes (`multi-app-v2`) | `multi-cm.data.cdMarker` v1 → v2 |
 | 2 | TraitDefinition `mk-trait` v1→v2 | Yes | Yes (`multi-app-v3`) | `multi-cm` annotation `mk-trait/marker` v1 → v2 |
 | 3 | PolicyDefinition `mk-policy` v1→v2 | Yes | Yes (`multi-app-v4`) | `mk-policy-marker.data.policyMarker` v1 → v2 |
-| 4 | WorkflowStepDefinition `mk-step` v1→v2 | Yes | Yes (`multi-app-v5`) | No rendered marker for this kind; AppRev hash proves the change was noticed |
+| 4 | WorkflowStepDefinition `mk-step` v1→v2 | Yes | Yes (`multi-app-v5`) | `app.status.workflow.steps[].message` = `"mk-step v2: ping"` — the v2 template's literal string ran during the workflow |
 | Control | ComponentDefinition `mk-cd` v2→v1 | No (annotation removed) | No | Rendered manifest still `cdMarker: "v2"` — live CD already at v1, but the cached RT manifest is what the apply path reads |
 
 ### Q1. Does autoUpdate cover ComponentDefinitions?
@@ -65,10 +65,14 @@ the AppRev hash is the only visible signal — but the gate is the same.
 
 ### Q4. Does autoUpdate cover WorkflowStepDefinitions?
 
-Yes. Mutating `mk-step` cut `multi-app-v5`. The step itself is a
-no-op message builder in our fixture, so nothing visible changes in
-the cluster, but the AppRev hash bump and the new revision name are
-proof that the controller noticed the change.
+Yes. Mutating `mk-step` cut `multi-app-v5`. The step's CUE template
+embeds the marker into its `builtin.#Message` output, so when the
+workflow executes the v2 step, the App's
+`status.workflow.steps[].message` field literally reads
+`"mk-step v2: ping"`. The v1 template would have produced
+`"mk-step v1: ping"`. The string in the rendered status field is
+proof that the step actually re-ran under the new definition, not
+just that the AppRev hash bumped.
 
 ### Q5. What about WorkloadDefinitions?
 
