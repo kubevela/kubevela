@@ -138,6 +138,11 @@ const (
 	// CUE definition schema. When enabled, any parameter field not present in the template's
 	// parameter stanza will cause a validation error at admission time.
 	ValidateUndeclaredParameters = "ValidateUndeclaredParameters"
+
+	// AddonCRD enables the declarative Addon CRD reconciliation controller (KEP-2.13).
+	// When enabled, the AddonController is registered with the manager and continuously
+	// reconciles Addon resources.
+	AddonCRD featuregate.Feature = "AddonCRD"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -169,6 +174,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	EnableGlobalPolicies:                          {Default: false, PreRelease: featuregate.Alpha},
 	EnableApplicationScopedPolicies:               {Default: false, PreRelease: featuregate.Alpha},
 	ValidateUndeclaredParameters:                  {Default: false, PreRelease: featuregate.Alpha},
+	AddonCRD:                                      {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

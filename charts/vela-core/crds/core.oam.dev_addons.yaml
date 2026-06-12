@@ -1,0 +1,557 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.5
+  name: addons.core.oam.dev
+spec:
+  group: core.oam.dev
+  names:
+    kind: Addon
+    listKind: AddonList
+    plural: addons
+    shortNames:
+    - addon
+    singular: addon
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: PHASE
+      type: string
+    - jsonPath: .status.installedVersion
+      name: VERSION
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          Addon is the declarative delivery unit for a versioned set of X-Definition
+          APIs (KEP-2.13). Creating an Addon CR causes the controller to install the
+          addon's resources, definitions, and auxiliary objects onto the cluster and
+          to continuously reconcile their drift.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              AddonSpec defines the desired state of an Addon. The field set tracks
+              KEP-2.13 §API Changes (Extended Addon CR Spec).
+            properties:
+              clusters:
+                description: |-
+                  Clusters lists the cluster names to deploy the addon's Application to
+                  in multi-cluster KubeVela setups. Translated at reconcile time into an
+                  OAM topology policy on the owned Application.
+
+                  Only takes effect when the addon's parameter.cue declares a "clusters"
+                  input. Omitting the field deploys to all registered clusters
+                  (consistent with existing addon behaviour).
+                items:
+                  type: string
+                type: array
+              deletionPolicy:
+                default: Protect
+                description: |-
+                  DeletionPolicy controls what happens when the Addon CR is deleted.
+                  Defaults to Protect.
+
+                  The Reconcile slice supports Protect only; Force and Orphan are rejected
+                  at admission until they are implemented in a follow-up epic.
+                type: string
+                x-kubernetes-validations:
+                - message: Force and Orphan deletion policies are not supported in
+                    this version; only Protect is accepted
+                  rule: self == '' || self == 'Protect'
+              overrideDefinitions:
+                description: |-
+                  OverrideDefinitions allows the addon to overwrite definitions that
+                  already exist on the cluster under a different owner. When false
+                  (default), any such definition fails reconciliation immediately with a
+                  DefinitionConflict condition listing each conflict and its current
+                  owner.
+                type: boolean
+              parameters:
+                description: |-
+                  Parameters are input values injected into the addon's parameter.cue at
+                  render time. They are equivalent to the old `--set` flags on the CLI.
+                  The schema is intentionally free-form; the addon's own parameter.cue
+                  constrains what is valid.
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              registry:
+                description: |-
+                  Registry names the source registry from which to fetch the addon. Must
+                  match a registry already registered with KubeVela.
+                type: string
+              skipVersionCheck:
+                description: |-
+                  SkipVersionCheck bypasses the minKubeVelaVersion compatibility check
+                  declared in the addon's metadata. Use with caution; skipping the check
+                  may result in installing an addon against an incompatible KubeVela
+                  version.
+                type: boolean
+              upgradePolicy:
+                description: |-
+                  UpgradePolicy controls autonomous upgrade behaviour when spec.version
+                  is a semver constraint (tracking mode). Ignored when spec.version is an
+                  exact tag. Defaults to Manual.
+                type: string
+              version:
+                description: |-
+                  Version is an exact semver tag (e.g. "v1.2.0") or a semver constraint
+                  (e.g. ">=1.2.0", "~2.1.0", "^1.0.0").
+
+                  Exact tag selects pinned mode: the controller installs exactly this
+                  version and never changes it autonomously. This is the recommended
+                  default for GitOps workflows.
+
+                  A semver constraint selects tracking mode: the controller resolves the
+                  constraint against the registry on every periodic reconcile. The
+                  upgrade behaviour is then governed by spec.upgradePolicy.
+
+                  The Reconcile slice supports pinned exact tags only; semver constraints
+                  are rejected at admission until tracking mode lands in a follow-up epic.
+                type: string
+                x-kubernetes-validations:
+                - message: semver constraints are not supported in this version; use
+                    an exact tag (e.g. v1.2.0)
+                  rule: self.matches('^v?[0-9]+\\.[0-9]+\\.[0-9]+([-+].*)?$')
+            type: object
+          status:
+            description: |-
+              AddonStatus defines the observed state of an Addon. The fields track
+              KEP-2.13 §API Changes (Addon CR Status). Writers (reconciler, source
+              resolve, drift correction, finalizer) populate them; this type just
+              declares the data shape.
+            properties:
+              applicationHealthy:
+                description: |-
+                  ApplicationHealthy is a quick boolean indicator of the owned
+                  Application's health. Supplemented by the ApplicationHealthy condition
+                  which carries transition time and reason.
+                type: boolean
+              applicationName:
+                description: |-
+                  ApplicationName is the name of the owned Application in vela-system
+                  (typically "addon-{name}"). Provided so tooling can navigate from the
+                  Addon CR to its payload.
+                type: string
+              availableUpgrade:
+                description: |-
+                  AvailableUpgrade is populated in tracking mode with Manual upgrade
+                  policy when the controller resolves a constraint to a newer version
+                  than InstalledVersion. Cleared once the upgrade is applied.
+                type: string
+              conditions:
+                description: |-
+                  Conditions provides structured Kubernetes-native status reporting and
+                  integrates with kubectl wait, GitOps health checks, and other
+                  status.conditions tooling. See the AddonCondition* constants for the
+                  type strings used.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              installedRegistry:
+                description: InstalledRegistry is the registry that provided the installed
+                  version.
+                type: string
+              installedResources:
+                description: |-
+                  InstalledResources is the inventory of metadata resources the addon
+                  installed at the end of the last reconcile. The staleness diff
+                  compares the freshly rendered set against this inventory to identify
+                  resources to clean up. Per-API-line auxiliary resources are tracked
+                  separately on AddonModuleLineStatus.AuxiliaryResources.
+                properties:
+                  configTemplates:
+                    description: ConfigTemplates lists every ConfigTemplate shipped
+                      by the addon.
+                    items:
+                      description: |-
+                        AddonResourceRef identifies one resource within the addon inventory. Name
+                        and Kind are unique within an AddonInstalledResources category; the group
+                        and namespace are implied by the category bucket and the addon scope.
+                      properties:
+                        deprecated:
+                          description: |-
+                            Set to true when the resource is marked deprecated per the KEP-2.20
+                            deprecation lifecycle. Consumers are still allowed to use it, but new
+                            Applications referencing it are blocked by admission.
+                          type: boolean
+                        deprecatedAt:
+                          description: |-
+                            DeprecatedAt is the timestamp (RFC3339) at which Deprecated was set.
+                            Free-form string rather than metav1.Time so it round-trips cleanly
+                            when annotations carry it as a label value.
+                          type: string
+                        kind:
+                          description: |-
+                            Kind of the resource (e.g. "ComponentDefinition", "View",
+                            "ConfigTemplate", "ConfigMap").
+                          type: string
+                        name:
+                          description: Name of the resource as it appears on the cluster.
+                          type: string
+                      required:
+                      - kind
+                      - name
+                      type: object
+                    type: array
+                  definitions:
+                    description: |-
+                      Definitions lists every X-Definition (ComponentDefinition,
+                      TraitDefinition, WorkflowStepDefinition, PolicyDefinition) the addon
+                      installed.
+                    items:
+                      description: |-
+                        AddonResourceRef identifies one resource within the addon inventory. Name
+                        and Kind are unique within an AddonInstalledResources category; the group
+                        and namespace are implied by the category bucket and the addon scope.
+                      properties:
+                        deprecated:
+                          description: |-
+                            Set to true when the resource is marked deprecated per the KEP-2.20
+                            deprecation lifecycle. Consumers are still allowed to use it, but new
+                            Applications referencing it are blocked by admission.
+                          type: boolean
+                        deprecatedAt:
+                          description: |-
+                            DeprecatedAt is the timestamp (RFC3339) at which Deprecated was set.
+                            Free-form string rather than metav1.Time so it round-trips cleanly
+                            when annotations carry it as a label value.
+                          type: string
+                        kind:
+                          description: |-
+                            Kind of the resource (e.g. "ComponentDefinition", "View",
+                            "ConfigTemplate", "ConfigMap").
+                          type: string
+                        name:
+                          description: Name of the resource as it appears on the cluster.
+                          type: string
+                      required:
+                      - kind
+                      - name
+                      type: object
+                    type: array
+                  packages:
+                    description: |-
+                      Packages tracks CUE package files installed from packages/. Populated
+                      once the packages/ feature is implemented.
+                    items:
+                      description: |-
+                        AddonResourceRef identifies one resource within the addon inventory. Name
+                        and Kind are unique within an AddonInstalledResources category; the group
+                        and namespace are implied by the category bucket and the addon scope.
+                      properties:
+                        deprecated:
+                          description: |-
+                            Set to true when the resource is marked deprecated per the KEP-2.20
+                            deprecation lifecycle. Consumers are still allowed to use it, but new
+                            Applications referencing it are blocked by admission.
+                          type: boolean
+                        deprecatedAt:
+                          description: |-
+                            DeprecatedAt is the timestamp (RFC3339) at which Deprecated was set.
+                            Free-form string rather than metav1.Time so it round-trips cleanly
+                            when annotations carry it as a label value.
+                          type: string
+                        kind:
+                          description: |-
+                            Kind of the resource (e.g. "ComponentDefinition", "View",
+                            "ConfigTemplate", "ConfigMap").
+                          type: string
+                        name:
+                          description: Name of the resource as it appears on the cluster.
+                          type: string
+                      required:
+                      - kind
+                      - name
+                      type: object
+                    type: array
+                  schemas:
+                    description: |-
+                      Schemas lists every UI Schema ConfigMap shipped by the addon for
+                      VelaUX form rendering.
+                    items:
+                      description: |-
+                        AddonResourceRef identifies one resource within the addon inventory. Name
+                        and Kind are unique within an AddonInstalledResources category; the group
+                        and namespace are implied by the category bucket and the addon scope.
+                      properties:
+                        deprecated:
+                          description: |-
+                            Set to true when the resource is marked deprecated per the KEP-2.20
+                            deprecation lifecycle. Consumers are still allowed to use it, but new
+                            Applications referencing it are blocked by admission.
+                          type: boolean
+                        deprecatedAt:
+                          description: |-
+                            DeprecatedAt is the timestamp (RFC3339) at which Deprecated was set.
+                            Free-form string rather than metav1.Time so it round-trips cleanly
+                            when annotations carry it as a label value.
+                          type: string
+                        kind:
+                          description: |-
+                            Kind of the resource (e.g. "ComponentDefinition", "View",
+                            "ConfigTemplate", "ConfigMap").
+                          type: string
+                        name:
+                          description: Name of the resource as it appears on the cluster.
+                          type: string
+                      required:
+                      - kind
+                      - name
+                      type: object
+                    type: array
+                  velaQLViews:
+                    description: VelaQLViews lists every VelaQL View shipped by the
+                      addon.
+                    items:
+                      description: |-
+                        AddonResourceRef identifies one resource within the addon inventory. Name
+                        and Kind are unique within an AddonInstalledResources category; the group
+                        and namespace are implied by the category bucket and the addon scope.
+                      properties:
+                        deprecated:
+                          description: |-
+                            Set to true when the resource is marked deprecated per the KEP-2.20
+                            deprecation lifecycle. Consumers are still allowed to use it, but new
+                            Applications referencing it are blocked by admission.
+                          type: boolean
+                        deprecatedAt:
+                          description: |-
+                            DeprecatedAt is the timestamp (RFC3339) at which Deprecated was set.
+                            Free-form string rather than metav1.Time so it round-trips cleanly
+                            when annotations carry it as a label value.
+                          type: string
+                        kind:
+                          description: |-
+                            Kind of the resource (e.g. "ComponentDefinition", "View",
+                            "ConfigTemplate", "ConfigMap").
+                          type: string
+                        name:
+                          description: Name of the resource as it appears on the cluster.
+                          type: string
+                      required:
+                      - kind
+                      - name
+                      type: object
+                    type: array
+                type: object
+              installedVersion:
+                description: |-
+                  InstalledVersion is the addon version actually running on the cluster.
+                  Compared against spec.version to detect drift or upgrade triggers.
+                type: string
+              lastReconciledAt:
+                description: |-
+                  LastReconciledAt is the wall-clock timestamp of the most recent
+                  reconcile. Useful for "is the controller stuck?" diagnostics.
+                format: date-time
+                type: string
+              modules:
+                description: |-
+                  Modules records per-module API line states (see KEP-2.20). Populated
+                  only for addons that use the modules/ directory; empty for addons that
+                  use only definitions/.
+                items:
+                  description: |-
+                    AddonModuleStatus records the reconcile state of a single module within
+                    the addon. A module is the unit of API-line versioning under modules/ in
+                    the addon source tree (see KEP-2.20).
+                  properties:
+                    lines:
+                      description: |-
+                        Lines reports the reconcile state per enabled API line in this
+                        module. Each entry corresponds to a versioned subdirectory under
+                        modules/<name>/ (e.g. v1, v2).
+                      items:
+                        description: |-
+                          AddonModuleLineStatus records the reconcile state of a single API line
+                          within a module. Defined in KEP-2.20; extended here with AuxiliaryResources
+                          to track the per-line auxiliary set applied this cycle.
+                        properties:
+                          apiVersion:
+                            description: |-
+                              APIVersion is the line identifier (e.g. "v1", "v2") taken from the
+                              versioned subdirectory under modules/<name>/.
+                            type: string
+                          auxiliaryResources:
+                            description: |-
+                              AuxiliaryResources tracks the auxiliary/ resources applied for this
+                              API line (e.g. Crossplane Compositions, KRO ResourceGraphDefinitions).
+                              Used by the staleness diff scoped to this line.
+                            items:
+                              description: |-
+                                AddonResourceRef identifies one resource within the addon inventory. Name
+                                and Kind are unique within an AddonInstalledResources category; the group
+                                and namespace are implied by the category bucket and the addon scope.
+                              properties:
+                                deprecated:
+                                  description: |-
+                                    Set to true when the resource is marked deprecated per the KEP-2.20
+                                    deprecation lifecycle. Consumers are still allowed to use it, but new
+                                    Applications referencing it are blocked by admission.
+                                  type: boolean
+                                deprecatedAt:
+                                  description: |-
+                                    DeprecatedAt is the timestamp (RFC3339) at which Deprecated was set.
+                                    Free-form string rather than metav1.Time so it round-trips cleanly
+                                    when annotations carry it as a label value.
+                                  type: string
+                                kind:
+                                  description: |-
+                                    Kind of the resource (e.g. "ComponentDefinition", "View",
+                                    "ConfigTemplate", "ConfigMap").
+                                  type: string
+                                name:
+                                  description: Name of the resource as it appears
+                                    on the cluster.
+                                  type: string
+                              required:
+                              - kind
+                              - name
+                              type: object
+                            type: array
+                          deprecated:
+                            description: |-
+                              Set to true when the line is marked deprecated per the KEP-2.20
+                              deprecation lifecycle. Existing consumers keep working but new
+                              Applications referencing this line's definitions are blocked by
+                              admission.
+                            type: boolean
+                          deprecationReason:
+                            description: |-
+                              DeprecationReason carries a free-form explanation for the
+                              deprecation, surfaced to operators inspecting the addon.
+                            type: string
+                          enabled:
+                            description: |-
+                              Enabled reflects whether the line's _version.cue `enabled` expression
+                              resolved to true against the current cluster context.
+                            type: boolean
+                          message:
+                            description: |-
+                              Message carries any free-form information the reconciler wants to
+                              surface for this line (e.g. why a line is currently disabled).
+                            type: string
+                          resolvedSourceVersion:
+                            description: |-
+                              ResolvedSourceVersion records, for lines that reference an external
+                              module via _version.cue `source`, which module version was pulled at
+                              the last reconcile.
+                            type: string
+                        required:
+                        - apiVersion
+                        - deprecated
+                        - enabled
+                        type: object
+                      type: array
+                    name:
+                      description: Name is the module directory name under modules/
+                        (e.g. "aws-s3").
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the metadata.generation that the controller has
+                  most recently reconciled. Consumers compare this to the resource's
+                  current metadata.generation to detect whether the controller has
+                  caught up to the latest spec change.
+                format: int64
+                type: integer
+              phase:
+                description: |-
+                  Phase is the high-level lifecycle state observed by the controller.
+                  See AddonPhase for the allowed values.
+                type: string
+              resolvedSourceDigest:
+                description: |-
+                  ResolvedSourceDigest is the content-addressable identifier of the
+                  addon source artifact resolved at the last install or upgrade. For
+                  OCI sources this is the manifest digest (e.g. "sha256:abc..."); for
+                  Git sources this is the full commit SHA. The controller compares this
+                  value against the current remote digest on each periodic reconcile to
+                  short-circuit re-fetch when the source has not changed.
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

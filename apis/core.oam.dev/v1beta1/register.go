@@ -119,6 +119,15 @@ var (
 	ResourceTrackerKindVersionKind = SchemeGroupVersion.WithKind(ResourceTrackerKind)
 )
 
+// Addon type metadata.
+var (
+	AddonKind             = reflect.TypeOf(Addon{}).Name()
+	AddonGroupKind        = schema.GroupKind{Group: Group, Kind: AddonKind}.String()
+	AddonKindAPIVersion   = AddonKind + "." + SchemeGroupVersion.String()
+	AddonGroupVersionKind = SchemeGroupVersion.WithKind(AddonKind)
+	AddonGVR              = SchemeGroupVersion.WithResource("addons")
+)
+
 // DefinitionTypeInfo contains the mapping information for a definition type
 type DefinitionTypeInfo struct {
 	GVR  schema.GroupVersionResource
@@ -143,6 +152,7 @@ func init() {
 	SchemeBuilder.Register(&Application{}, &ApplicationList{})
 	SchemeBuilder.Register(&ApplicationRevision{}, &ApplicationRevisionList{})
 	SchemeBuilder.Register(&ResourceTracker{}, &ResourceTrackerList{})
+	SchemeBuilder.Register(&Addon{}, &AddonList{})
 	_ = SchemeBuilder.AddToScheme(k8sscheme.Scheme)
 }
 
