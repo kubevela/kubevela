@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
 	"time"
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
@@ -50,4 +51,15 @@ func (c *MultiClusterConfig) AddFlags(fs *pflag.FlagSet) {
 
 	// Also register additional multicluster flags from external package
 	pkgmulticluster.AddFlags(fs)
+}
+
+// Validate ensures the multi-cluster configuration is logically consistent.
+func (c *MultiClusterConfig) Validate() error {
+	if c.EnableClusterMetrics && !c.EnableClusterGateway {
+		return fmt.Errorf("enable-cluster-gateway must be true when enable-cluster-metrics is true")
+	}
+	if c.ClusterMetricsInterval <= 0 {
+		return fmt.Errorf("cluster-metrics-interval must be greater than zero")
+	}
+	return nil
 }

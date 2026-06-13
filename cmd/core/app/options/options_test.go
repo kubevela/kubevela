@@ -932,3 +932,20 @@ func TestCoreOptions_CompleteIntegration(t *testing.T) {
 	assert.Equal(t, 10*time.Minute, commonconfig.ApplicationReSyncPeriod)
 	assert.True(t, commonconfig.PerfEnabled)
 }
+
+func TestCoreOptions_Validate(t *testing.T) {
+	opts := NewCoreOptions()
+	err := opts.Validate()
+	assert.NoError(t, err, "Validate should not return error on default options")
+
+	// Test validation error propagation
+	opts.OAM.SystemDefinitionNamespace = ""
+	err = opts.Validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "system-definition-namespace must not be empty")
+
+	opts.OAM.SystemDefinitionNamespace = "Invalid_NS"
+	err = opts.Validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "system-definition-namespace is invalid")
+}

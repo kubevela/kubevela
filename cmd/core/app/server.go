@@ -103,6 +103,12 @@ func NewCoreCommand() *cobra.Command {
 }
 
 func run(ctx context.Context, coreOptions *options.CoreOptions) error {
+	// Validate configurations
+	if err := coreOptions.Validate(); err != nil {
+		klog.ErrorS(err, "Invalid configuration")
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
+
 	klog.InfoS("Starting KubeVela core controller",
 		"context", "initialization",
 		"leaderElection", coreOptions.Server.EnableLeaderElection,

@@ -17,6 +17,8 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
+
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/spf13/pflag"
 )
@@ -58,4 +60,12 @@ func (c *CUEConfig) AddFlags(fs *pflag.FlagSet) {
 func (c *CUEConfig) SyncToCUEGlobals() {
 	cuex.EnableExternalPackageForDefaultCompiler = c.EnableExternalPackage
 	cuex.EnableExternalPackageWatchForDefaultCompiler = c.EnableExternalPackageWatch
+}
+
+// Validate checks if the CUE configuration is valid.
+func (c *CUEConfig) Validate() error {
+	if c.EnableExternalPackageWatch && !c.EnableExternalPackage {
+		return fmt.Errorf("enable-external-package-watch-for-default-compiler cannot be true when enable-external-package-for-default-compiler is false")
+	}
+	return nil
 }

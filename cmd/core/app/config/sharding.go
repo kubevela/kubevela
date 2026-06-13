@@ -38,3 +38,8 @@ func NewShardingConfig() *ShardingConfig {
 func (c *ShardingConfig) AddFlags(fs *pflag.FlagSet) {
 	sharding.AddFlags(fs)
 }
+
+// Validate ensures the configuration is valid.
+func (c *ShardingConfig) Validate() error {
+	return nil
+}
