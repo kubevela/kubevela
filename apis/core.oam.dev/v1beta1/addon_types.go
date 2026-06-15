@@ -40,6 +40,12 @@ const (
 	// reconcile tiers. Inspect status.conditions for the specific cause
 	// (DefinitionConflict, ApplicationHealthy, AuxiliaryReady, ...).
 	AddonPhaseFailed AddonPhase = "failed"
+	// AddonPhaseDeleting indicates the Addon CR is being deleted (a
+	// deletionTimestamp is set) and the controller is running its deletion
+	// policy. It is surfaced for the lingering cases — a blocked Protect delete
+	// or a teardown that is still failing — so `kubectl get addons` shows the
+	// terminating state; inspect status.conditions for the reason.
+	AddonPhaseDeleting AddonPhase = "deleting"
 )
 
 // AddonUpgradePolicy controls how the controller acts on a newly resolved
