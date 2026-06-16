@@ -40,7 +40,7 @@ var _ = Describe("Kruise rollout test", func() {
 		Expect(k8sClient.Create(ctx, rt.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(k8sClient.Create(ctx, app.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 		Expect(k8sClient.Create(ctx, rollingReleaseRollout.DeepCopy())).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
-		
+
 		historyRT := rt.DeepCopy()
 		historyRT.Name = "rollout-app-history"
 		historyRT.Labels["app.oam.dev/appRevision"] = "rollout-app-v0"
@@ -87,16 +87,17 @@ var _ = Describe("Kruise rollout test", func() {
 		r := kruisev1alpha1.Rollout{}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
 		r.Spec.Strategy.Paused = true
+		Expect(k8sClient.Update(ctx, &r)).Should(BeNil())
+
 		r.Status.CanaryStatus = &kruisev1alpha1.CanaryStatus{
 			CurrentStepState: kruisev1alpha1.CanaryStepStatePaused,
 		}
-		Expect(k8sClient.Update(ctx, &r)).Should(BeNil())
 		Expect(k8sClient.Status().Update(ctx, &r)).Should(BeNil())
-		
+
 		modified, err := RollbackRollout(ctx, k8sClient, &app, nil)
 		Expect(err).Should(BeNil())
 		Expect(modified).Should(BeEquivalentTo(true))
-		
+
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r))
 		Expect(r.Spec.Strategy.Paused).Should(BeEquivalentTo(false))
 		Expect(r.Status.CanaryStatus.CurrentStepState).Should(BeEquivalentTo(kruisev1alpha1.CanaryStepStateReady))

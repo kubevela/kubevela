@@ -50,10 +50,10 @@ func getAssociatedRollouts(ctx context.Context, cli client.Client, app *v1beta1.
 	if !withHistoryRTs {
 		historyRTs = []*v1beta1.ResourceTracker{}
 	}
-	
+
 	seen := make(map[string]struct{})
 	var rollouts []*ClusterRollout
-	
+
 	for _, rt := range append(historyRTs, rootRT, currentRT) {
 		if rt == nil {
 			continue
@@ -65,7 +65,7 @@ func getAssociatedRollouts(ctx context.Context, cli client.Client, app *v1beta1.
 					continue
 				}
 				seen[key] = struct{}{}
-				
+
 				rollout := &kruisev1alpha1.Rollout{}
 				if err = cli.Get(multicluster.ContextWithClusterName(ctx, mr.Cluster), k8stypes.NamespacedName{Namespace: mr.Namespace, Name: mr.Name}, rollout); err != nil {
 					if multicluster.IsNotFoundOrClusterNotExists(err) || velaerrors.IsCRDNotExists(err) {
@@ -121,8 +121,9 @@ func SuspendRollout(ctx context.Context, cli client.Client, app *v1beta1.Applica
 					return err
 				}
 				if rollout.Status.Phase == kruisev1alpha1.RolloutPhaseProgressing && !rollout.Spec.Strategy.Paused {
+					patch := client.MergeFrom(rollout.Rollout.DeepCopy())
 					rollout.Spec.Strategy.Paused = true
-					if err = cli.Update(_ctx, rollout.Rollout); err != nil {
+					if err = cli.Patch(_ctx, rollout.Rollout, patch); err != nil {
 						return err
 					}
 					if writer != nil {
@@ -157,8 +158,9 @@ func ResumeRollout(ctx context.Context, cli client.Client, app *v1beta1.Applicat
 					return err
 				}
 				if rollout.Spec.Strategy.Paused {
+					patch := client.MergeFrom(rollout.Rollout.DeepCopy())
 					rollout.Spec.Strategy.Paused = false
-					if err = cli.Update(_ctx, rollout.Rollout); err != nil {
+					if err = cli.Patch(_ctx, rollout.Rollout, patch); err != nil {
 						return err
 					}
 					resumed = true
@@ -173,8 +175,9 @@ func ResumeRollout(ctx context.Context, cli client.Client, app *v1beta1.Applicat
 					return err
 				}
 				if isCanaryStepPaused(rollout.Rollout) {
+					patch := client.MergeFrom(rollout.Rollout.DeepCopy())
 					setCanaryStepReady(rollout.Rollout)
-					if err = cli.Status().Update(_ctx, rollout.Rollout); err != nil {
+					if err = cli.Status().Patch(_ctx, rollout.Rollout, patch); err != nil {
 						return err
 					}
 					resumed = true
@@ -213,8 +216,9 @@ func RollbackRollout(ctx context.Context, cli client.Client, app *v1beta1.Applic
 					return err
 				}
 				if rollout.Spec.Strategy.Paused {
+					patch := client.MergeFrom(rollout.Rollout.DeepCopy())
 					rollout.Spec.Strategy.Paused = false
-					if err = cli.Update(_ctx, rollout.Rollout); err != nil {
+					if err = cli.Patch(_ctx, rollout.Rollout, patch); err != nil {
 						return err
 					}
 					resumed = true
@@ -229,8 +233,9 @@ func RollbackRollout(ctx context.Context, cli client.Client, app *v1beta1.Applic
 					return err
 				}
 				if isCanaryStepPaused(rollout.Rollout) {
+					patch := client.MergeFrom(rollout.Rollout.DeepCopy())
 					setCanaryStepReady(rollout.Rollout)
-					if err = cli.Status().Update(_ctx, rollout.Rollout); err != nil {
+					if err = cli.Status().Patch(_ctx, rollout.Rollout, patch); err != nil {
 						return err
 					}
 					resumed = true
