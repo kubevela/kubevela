@@ -1,0 +1,11 @@
+name: broken-render
+version: 1.0.0
+description: Addon whose CUE renders fail on purpose, to exercise the InstallFailed branch
+icon: ""
+url: ""
+tags:
+  - mock
+deployTo:
+  control_plane: true
+  runtime_cluster: false
+dependencies: []
