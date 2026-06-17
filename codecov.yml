@@ -10,3 +10,4 @@ ignore:
   - "**/zz_generated.deepcopy.go"
   - "references/"
   - "apis/"
+  - "pkg/definition/gen_sdk/"
