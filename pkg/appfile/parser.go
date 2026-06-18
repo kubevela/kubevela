@@ -153,6 +153,9 @@ func newAppFile(app *v1beta1.Application) *Appfile {
 		app: app,
 	}
 	for k, v := range app.Annotations {
+		if k == oam.AnnotationTraceID {
+			continue
+		}
 		file.AppAnnotations[k] = v
 	}
 	for k, v := range app.Labels {

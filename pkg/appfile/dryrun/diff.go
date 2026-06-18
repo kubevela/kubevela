@@ -535,7 +535,7 @@ func clearedLabels(labels map[string]string) map[string]string {
 func clearedAnnotations(annotations map[string]string) map[string]string {
 	newAnnotations := map[string]string{}
 	for k, v := range annotations {
-		if k == oam.AnnotationKubeVelaVersion || k == oam.AnnotationAppRevision || k == "kubectl.kubernetes.io/last-applied-configuration" {
+		if k == oam.AnnotationKubeVelaVersion || k == oam.AnnotationAppRevision || k == "kubectl.kubernetes.io/last-applied-configuration" || k == oam.AnnotationTraceID {
 			continue
 		}
 		newAnnotations[k] = v

@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -98,22 +99,35 @@ func (h *MutatingHandler) handleSharding(_ context.Context, _ admission.Request,
 	return false, nil
 }
 
+// handleTraceID stamps the trace ID annotation if missing. Idempotent across
+// Update operations: existing values are preserved (set-if-missing semantic)
+// so the original trace ID survives subsequent admissions like finalizer adds.
+func (h *MutatingHandler) handleTraceID(_ context.Context, req admission.Request, _ *v1beta1.Application, newApp *v1beta1.Application) (bool, error) {
+	return logging.EnsureTraceIDAnnotation(newApp, string(req.UID)), nil
+}
+
 // Handle mutate application
 func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	ctx = logging.WithRequestID(ctx, string(req.UID))
+	logger := logging.NewHandlerLogger(ctx, req, "ApplicationMutator")
+
 	oldApp, newApp := &v1beta1.Application{}, &v1beta1.Application{}
 	if err := h.Decoder.Decode(req, newApp); err != nil {
+		logger.WithStep("decode").WithError(err).Error(err, "Unable to decode admission request payload into Application object")
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 	if len(req.OldObject.Raw) > 0 {
 		if err := h.Decoder.DecodeRaw(req.OldObject, oldApp); err != nil {
+			logger.WithStep("decode-old").WithError(err).Error(err, "Unable to decode previous Application state from admission request")
 			return admission.Errored(http.StatusBadRequest, err)
 		}
 	}
 
 	modified := false
-	for _, handler := range []appMutator{h.handleIdentity, h.handleSharding, h.handleWorkflow} {
+	for _, handler := range []appMutator{h.handleIdentity, h.handleSharding, h.handleWorkflow, h.handleTraceID} {
 		m, err := handler(ctx, req, oldApp, newApp)
 		if err != nil {
+			logger.WithError(err).Error(err, "Application mutator failed")
 			return admission.Errored(http.StatusBadRequest, err)
 		}
 		if m {
