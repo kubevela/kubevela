@@ -282,7 +282,11 @@ spec:
             {{ if .Values.multicluster.clusterGateway.direct }}
             - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:9443"
             {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+            {{ if .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
+            - "--cluster-gateway-ca-file=/cluster-gateway-tls-cert/ca.crt"
+            {{ else }}
             - "--cluster-gateway-ca-file=/cluster-gateway-tls-cert/ca"
+            {{ end }}
             {{ end }}
             {{ end }}
             {{ end }}
