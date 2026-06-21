@@ -64,6 +64,7 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 	"sigs.k8s.io/yaml"
 
+	configoam "github.com/oam-dev/kubevela/apis/config.oam.dev"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
@@ -84,6 +85,7 @@ func init() {
 	_ = apiregistrationv1.AddToScheme(Scheme)
 	_ = crdv1.AddToScheme(Scheme)
 	_ = oamcore.AddToScheme(Scheme)
+	_ = configoam.AddToScheme(Scheme)
 	_ = kruise.AddToScheme(Scheme)
 	_ = terraformapi.AddToScheme(Scheme)
 	_ = terraformapiv1.AddToScheme(Scheme)
@@ -456,6 +458,9 @@ func NewK8sClient() (client.Client, error) {
 		return nil, err
 	}
 	if err := oamcore.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := configoam.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
 
