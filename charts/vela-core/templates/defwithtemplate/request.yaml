@@ -28,6 +28,9 @@ spec:
         			if parameter.header != _|_ {
         				header: parameter.header
         			}
+        			if parameter.headersFromSecret != _|_ {
+        				headersFromSecret: parameter.headersFromSecret
+        			}
         		}
         	}
         }
@@ -52,5 +55,14 @@ spec:
         	method: *"GET" | "POST" | "PUT" | "DELETE"
         	body?: {...}
         	header?: [string]: string
+        	// +usage=Headers whose values are sourced from Kubernetes Secrets
+        	headersFromSecret?: [...{
+        		// +usage=The HTTP header name to set
+        		name: string
+        		// +usage=The name of the Kubernetes Secret
+        		secret: string
+        		// +usage=The key within Secret.Data whose value becomes the header value
+        		key: string
+        	}]
         }
 
