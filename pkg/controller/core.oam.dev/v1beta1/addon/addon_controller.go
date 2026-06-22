@@ -162,6 +162,28 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	base := addon.DeepCopy()
 
+	// Load the addon-owned drift ResourceTracker (nil when this addon has never
+	// been installed). It records what the last install applied and drives the
+	// heal-vs-install decision below.
+	rt, err := r.loadTracker(ctx, addon.Name)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	// Steady state: a tracker exists and the requested version matches the
+	// installed one, so no network install is needed. Heal any drift from the
+	// stored manifests (re-create deleted resources, revert edits) and report
+	// running, without fetching the addon package from the registry.
+	if !r.needsInstall(&addon, rt) {
+		if err := r.healFromTracker(ctx, rt); err != nil {
+			return ctrl.Result{}, err
+		}
+		setCondition(&addon, v1beta1.AddonConditionSourceResolved, metav1.ConditionTrue, "SourceFetched", "addon source resolved and fetched")
+		setPhase(&addon, v1beta1.AddonPhaseRunning)
+		setCondition(&addon, v1beta1.AddonConditionReady, metav1.ConditionTrue, "Installed", "addon installed and running")
+		return r.finish(ctx, base, &addon, ctrl.Result{RequeueAfter: r.interval()}, nil)
+	}
+
 	if addon.Status.Phase == "" {
 		setPhase(&addon, v1beta1.AddonPhaseInstalling)
 		setCondition(&addon, v1beta1.AddonConditionReady, metav1.ConditionFalse, "Reconciling", "addon reconcile started")
@@ -176,10 +198,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			if stale {
 				setPhase(&addon, v1beta1.AddonPhaseFailed)
 			}
-			if perr := r.patchStatus(ctx, base, &addon); perr != nil {
-				return ctrl.Result{}, perr
-			}
-			return ctrl.Result{}, err
+			return r.finish(ctx, base, &addon, ctrl.Result{}, err)
 		}
 		// Not a source/registry failure: the source resolved, so reflect that
 		// and fail on the install step rather than leaving a stale
@@ -187,10 +206,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		setCondition(&addon, v1beta1.AddonConditionSourceResolved, metav1.ConditionTrue, "SourceFetched", "addon source resolved and fetched")
 		setPhase(&addon, v1beta1.AddonPhaseFailed)
 		setCondition(&addon, v1beta1.AddonConditionReady, metav1.ConditionFalse, "InstallFailed", err.Error())
-		if perr := r.patchStatus(ctx, base, &addon); perr != nil {
-			return ctrl.Result{}, perr
-		}
-		return ctrl.Result{}, err
+		return r.finish(ctx, base, &addon, ctrl.Result{}, err)
 	}
 
 	setCondition(&addon, v1beta1.AddonConditionSourceResolved, metav1.ConditionTrue, "SourceFetched", "addon source resolved and fetched")
@@ -198,18 +214,45 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		// Install succeeded but reflecting the result into status failed. Persist
 		// the SourceResolved progress so the failure is observable, then retry via
 		// the rate limiter — do not mislabel the phase as failed.
-		if perr := r.patchStatus(ctx, base, &addon); perr != nil {
-			return ctrl.Result{}, perr
-		}
-		return ctrl.Result{}, err
+		return r.finish(ctx, base, &addon, ctrl.Result{}, err)
 	}
 	setPhase(&addon, v1beta1.AddonPhaseRunning)
 	setCondition(&addon, v1beta1.AddonConditionReady, metav1.ConditionTrue, "Installed", "addon installed and running")
 
-	if err := r.patchStatus(ctx, base, &addon); err != nil {
+	return r.finish(ctx, base, &addon, ctrl.Result{RequeueAfter: r.interval()}, nil)
+}
+
+// finish writes status (a no-op when nothing changed) and returns the given
+// result. A status-write failure takes precedence over cause. It centralizes
+// the "patch status then return" tail shared by every reconcile exit, mirroring
+// the Application controller's endWithNegativeCondition pattern.
+func (r *Reconciler) finish(ctx context.Context, base, ad *v1beta1.Addon, res ctrl.Result, cause error) (ctrl.Result, error) {
+	if err := r.patchStatus(ctx, base, ad); err != nil {
 		return ctrl.Result{}, err
 	}
-	return ctrl.Result{RequeueAfter: r.interval()}, nil
+	return res, cause
+}
+
+// needsInstall reports whether a full (network) install is required: there is
+// no drift tracker yet (first install / completely missing), or the requested
+// version differs from the installed one (an upgrade needing fresh manifests).
+func (r *Reconciler) needsInstall(ad *v1beta1.Addon, rt *v1beta1.ResourceTracker) bool {
+	if rt == nil {
+		return true
+	}
+	// A tracker not controlled by this Addon instance is stale: it belongs to a
+	// previous addon of the same name whose owner-reference GC has not finished.
+	// Healing from it would re-apply manifests carrying a dead owner UID (which
+	// Kubernetes immediately garbage-collects, churning forever), so force a
+	// fresh install that rewrites the tracker for the current instance.
+	if !metav1.IsControlledBy(rt, ad) {
+		return true
+	}
+	// Only treat a differing version as an upgrade when we actually know the
+	// installed version. An empty InstalledVersion with a tracker present means
+	// a prior install succeeded but readBack failed to record the version; in
+	// that case heal from the tracker rather than looping a full reinstall.
+	return ad.Spec.Version != "" && ad.Status.InstalledVersion != "" && ad.Spec.Version != ad.Status.InstalledVersion
 }
 
 // ensureDefaults wires the install / read-back / disable seams to their real

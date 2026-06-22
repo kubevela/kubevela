@@ -287,6 +287,12 @@ func OverrideDefinitions(installer *Installer) {
 	installer.overrideDefs = true
 }
 
+// WithAppliedObjectSink registers a callback that receives every object the
+// installer applies (Application plus auxiliaries), for drift tracking.
+func WithAppliedObjectSink(sink func(client.Object)) InstallOption {
+	return func(installer *Installer) { installer.objectSink = sink }
+}
+
 // AllowGoDefOverride is a marker option indicating that Go definitions can override CUE definitions
 // within the same addon. This is used when enabling local addons that have both definitions/ and godef/ folders.
 type AllowGoDefOverride struct{}

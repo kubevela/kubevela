@@ -25,7 +25,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
@@ -181,6 +183,37 @@ func TestReconcileFirstInstallReachesRunning(t *testing.T) {
 	assert.Equal(t, "v1.2.0", got.Status.InstalledVersion)
 	assert.Equal(t, metav1.ConditionTrue, findCond(got, v1beta1.AddonConditionReady).Status)
 	assert.Equal(t, metav1.ConditionTrue, findCond(got, v1beta1.AddonConditionSourceResolved).Status)
+}
+
+// A tracker present and owned, with no version change, must drive the heal path:
+// the deleted auxiliary is re-created from the stored manifest and the network
+// install (installFn) is never called.
+func TestReconcileHealsWithoutInstall(t *testing.T) {
+	ad := &v1beta1.Addon{ObjectMeta: metav1.ObjectMeta{Name: "fluxcd", UID: "u1", Finalizers: []string{FinalizerAddonCleanup}}}
+	r := newPhaseReconciler(t, ad)
+	r.installFn = func(context.Context, *v1beta1.Addon) error {
+		t.Fatal("install (network fetch) must not run on a steady-state heal")
+		return nil
+	}
+
+	def := &unstructured.Unstructured{}
+	def.SetGroupVersionKind(schema.FromAPIVersionAndKind("core.oam.dev/v1beta1", "ComponentDefinition"))
+	def.SetNamespace("vela-system")
+	def.SetName("helm-fluxcd")
+	assert.NoError(t, r.writeTracker(context.Background(), ad, []client.Object{def}))
+
+	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn("fluxcd")})
+	assert.NoError(t, err)
+
+	healed := &unstructured.Unstructured{}
+	healed.SetGroupVersionKind(schema.FromAPIVersionAndKind("core.oam.dev/v1beta1", "ComponentDefinition"))
+	assert.NoError(t, r.Get(context.Background(),
+		client.ObjectKey{Namespace: "vela-system", Name: "helm-fluxcd"}, healed),
+		"deleted auxiliary must be healed from the tracker")
+
+	got := &v1beta1.Addon{}
+	assert.NoError(t, r.Get(context.Background(), nn("fluxcd"), got))
+	assert.Equal(t, v1beta1.AddonPhaseRunning, got.Status.Phase)
 }
 
 func TestReconcileUpgradePhase(t *testing.T) {

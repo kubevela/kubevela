@@ -5,15 +5,47 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
+
+// objectCollector accumulates the objects the installer applied, for recording
+// into the addon's drift ResourceTracker.
+type objectCollector struct {
+	mu   sync.Mutex
+	objs []client.Object
+}
+
+func newObjectCollector() *objectCollector { return &objectCollector{} }
+
+func (c *objectCollector) sink(o client.Object) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	// DeepCopyObject returns runtime.Object; every object the installer emits is a
+	// client.Object, but guard the assertion so a future non-client.Object emitter
+	// drops the object rather than panicking the controller.
+	copied, ok := o.DeepCopyObject().(client.Object)
+	if !ok {
+		return
+	}
+	c.objs = append(c.objs, copied)
+}
+
+func (c *objectCollector) objects() []client.Object {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]client.Object, len(c.objs))
+	copy(out, c.objs)
+	return out
+}
 
 // errSourceUnresolved marks failures where the addon source could not be
 // reached or resolved (registry list/connect failure, or a fetch error). These
@@ -64,17 +96,23 @@ func (r *Reconciler) install(ctx context.Context, ad *v1beta1.Addon) error {
 	if err != nil {
 		return err
 	}
+	collector := newObjectCollector()
+	opts := append(installOptions(ad), pkgaddon.WithAppliedObjectSink(collector.sink))
 	_, err = pkgaddon.EnableAddon(ctx, ad.Name, ad.Spec.Version,
 		r.Client, r.DiscoveryClient, apply.NewAPIApplicator(r.Client), r.Config,
 		registry, args, nil, // cache: fetch every reconcile
-		pkgaddon.FilterDependencyRegistries(i, registries), installOptions(ad)...)
+		pkgaddon.FilterDependencyRegistries(i, registries), opts...)
 	if err != nil {
 		if errors.Is(err, pkgaddon.ErrFetch) {
 			return fmt.Errorf("%w: %w", errSourceUnresolved, err)
 		}
 		return err
 	}
-	return nil
+	// Record everything the installer applied (the Application plus each
+	// auxiliary) in the addon-owned drift ResourceTracker, so steady-state
+	// reconciles can heal drift from the stored manifests without a registry
+	// fetch.
+	return r.writeTracker(ctx, ad, collector.objects())
 }
 
 // installOptions maps Addon spec flags onto the installer's InstallOptions.

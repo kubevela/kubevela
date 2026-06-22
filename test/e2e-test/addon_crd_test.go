@@ -23,6 +23,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -297,6 +298,73 @@ var _ = Describe("Addon CRD lifecycle e2e", func() {
 				_ = k8sClient.Update(ctx, cur)
 				return fmt.Errorf("still present")
 			}, 120*time.Second, 5*time.Second).Should(Succeed())
+		})
+	})
+
+	Context("drift detection", func() {
+		const addonName = "example"
+		const driftRT = "addon-example-drift"
+		const ownedDef = "helm-example" // ComponentDefinition the example addon installs
+
+		AfterEach(func() {
+			_ = k8sClient.Delete(ctx, &v1beta1.Addon{ObjectMeta: metav1.ObjectMeta{Name: addonName}})
+			Eventually(func() *v1beta1.Addon { return getAddon(ctx, addonName) },
+				180*time.Second, 5*time.Second).Should(BeNil(), "addon must be cleaned up")
+			// The owned Application must also be fully gone, otherwise a later
+			// spec that reuses this addon name would capture a terminating app.
+			Eventually(func() bool {
+				return apierrors.IsNotFound(k8sClient.Get(ctx,
+					client.ObjectKey{Namespace: "vela-system", Name: "addon-" + addonName},
+					&v1beta1.Application{}))
+			}, 180*time.Second, 5*time.Second).Should(BeTrue(), "owned Application must be cleaned up")
+		})
+
+		It("records a drift ResourceTracker and heals a deleted definition without a registry fetch", func() {
+			By("start from clean state: no leftover terminating addon-example Application")
+			Eventually(func() bool {
+				return apierrors.IsNotFound(k8sClient.Get(ctx,
+					client.ObjectKey{Namespace: "vela-system", Name: "addon-" + addonName},
+					&v1beta1.Application{}))
+			}, 180*time.Second, 5*time.Second).Should(BeTrue())
+
+			ad := newAddon(addonName, "1.0.0", mockRegistry)
+			ad.Spec.Parameters = exampleParams()
+			Expect(k8sClient.Create(ctx, ad)).To(Succeed())
+			Eventually(func() v1beta1.AddonPhase { return addonPhase(ctx, addonName) },
+				180*time.Second, 3*time.Second).Should(Equal(v1beta1.AddonPhaseRunning))
+
+			By("the addon-owned drift ResourceTracker exists with managed resources")
+			Eventually(func() (int, error) {
+				rt := &v1beta1.ResourceTracker{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: driftRT}, rt); err != nil {
+					return 0, err
+				}
+				return len(rt.Spec.ManagedResources), nil
+			}, 60*time.Second, 3*time.Second).Should(BeNumerically(">", 0))
+
+			By("delete a definition the addon installed")
+			Expect(k8sClient.Delete(ctx, &v1beta1.ComponentDefinition{
+				ObjectMeta: metav1.ObjectMeta{Namespace: "vela-system", Name: ownedDef}})).To(Succeed())
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: "vela-system", Name: ownedDef},
+					&v1beta1.ComponentDefinition{})
+				return apierrors.IsNotFound(err)
+			}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+			By("nudge the addon CR to trigger a reconcile (no definition watch); heal restores the definition")
+			Eventually(func() error {
+				cur := getAddon(ctx, addonName)
+				if cur == nil {
+					return fmt.Errorf("addon gone")
+				}
+				if cur.Annotations == nil {
+					cur.Annotations = map[string]string{}
+				}
+				cur.Annotations["e2e.nudge"] = fmt.Sprintf("%d", time.Now().UnixNano())
+				_ = k8sClient.Update(ctx, cur)
+				return k8sClient.Get(ctx, client.ObjectKey{Namespace: "vela-system", Name: ownedDef},
+					&v1beta1.ComponentDefinition{})
+			}, 120*time.Second, 5*time.Second).Should(Succeed(), "deleted definition must be healed from the tracker")
 		})
 	})
 })
