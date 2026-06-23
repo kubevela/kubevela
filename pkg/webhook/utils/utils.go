@@ -66,12 +66,10 @@ func ValidateDefinitionRevision(ctx context.Context, cli client.Client, def runt
 
 // ValidateCueTemplate validate cueTemplate
 func ValidateCueTemplate(cueTemplate string) error {
-
 	val := cuecontext.New().CompileString(cueTemplate)
 	if e := checkError(val.Err()); e != nil {
 		return e
 	}
-
 	err := val.Validate()
 	return checkError(err)
 }

@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
@@ -46,6 +47,7 @@ import (
 
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/cue/task"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -106,7 +108,16 @@ func NewWorkloadAbstractEngine(name string) AbstractEngine {
 }
 
 // Complete do workload definition's rendering
-func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
+func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) (retErr error) {
+	start := time.Now()
+	defer func() {
+		status := "ok"
+		if retErr != nil {
+			status = "error"
+		}
+		CUERenderDuration.WithLabelValues(string(upgrade.ComponentKind), status).Observe(time.Since(start).Seconds())
+	}()
+
 	var paramFile = velaprocess.ParameterFieldName + ": {}"
 	if params != nil {
 		bt, err := json.Marshal(params)
@@ -123,10 +134,11 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return err
 	}
 
+	abstractTemplate = upgrade.EnsureCueVersionCompatibility(abstractTemplate, wd.name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
+
 	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), strings.Join([]string{
 		renderTemplate(abstractTemplate), paramFile, c,
 	}, "\n"))
-
 	if err != nil {
 		return errors.WithMessagef(err, "failed to compile workload %s after merge parameter and context", wd.name)
 	}
@@ -278,7 +290,17 @@ func NewTraitAbstractEngine(name string) AbstractEngine {
 
 // Complete do trait definition's rendering
 // nolint:gocyclo
-func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
+func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) (retErr error) {
+	start := time.Now()
+	defer func() {
+		status := "ok"
+		if retErr != nil {
+			status = "error"
+		}
+		CUERenderDuration.WithLabelValues(string(upgrade.TraitKind), status).Observe(time.Since(start).Seconds())
+	}()
+
+	abstractTemplate = upgrade.EnsureCueVersionCompatibility(abstractTemplate, td.name, upgrade.TraitKind, upgrade.TemplateAreaMain)
 	buff := abstractTemplate + "\n"
 	if params != nil {
 		bt, err := json.Marshal(params)

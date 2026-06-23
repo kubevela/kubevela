@@ -16,8 +16,12 @@ limitations under the License.
 package upgrade
 
 import (
+	"slices"
 	"strings"
 	"testing"
+
+	cueast "cuelang.org/go/cue/ast"
+	dto "github.com/prometheus/client_model/go"
 
 	"github.com/oam-dev/kubevela/version"
 )
@@ -119,7 +123,7 @@ repeated: concatenated * 2
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Upgrade(tt.input, "1.11") // Explicitly provide version for tests
+			got, err := Upgrade(tt.input, Version{Major: 1, Minor: 11}) // Explicitly provide version for tests
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Upgrade() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -144,6 +148,184 @@ repeated: concatenated * 2
 			}
 		})
 	}
+}
+
+func TestUpgradeErrorFieldLabel(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		contains string
+		absent   string
+	}{
+		{
+			name: "top-level error field",
+			input: `
+error: "something went wrong"
+output: {name: "test"}
+`,
+			contains: `"error": "something went wrong"`,
+			absent:   "error: \"something went wrong\"",
+		},
+		{
+			name: "nested error field",
+			input: `
+template: {
+	error: "bad"
+	output: {}
+}
+`,
+			contains: `"error": "bad"`,
+		},
+		{
+			name: "error field not confused with error() call",
+			input: `
+result: error("something")
+`,
+			// error() call should be left alone — it's not a field label
+			contains: `error("something")`,
+		},
+		{
+			name: "already quoted error field unchanged",
+			input: `
+"error": "already quoted"
+`,
+			contains: `"error": "already quoted"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Upgrade(tt.input, Version{Major: 1, Minor: 11})
+			if err != nil {
+				t.Fatalf("Upgrade() error = %v", err)
+			}
+			if tt.contains != "" && !strings.Contains(got, tt.contains) {
+				t.Errorf("expected output to contain %q, got:\n%s", tt.contains, got)
+			}
+			if tt.absent != "" && strings.Contains(got, tt.absent) {
+				t.Errorf("expected output NOT to contain %q, got:\n%s", tt.absent, got)
+			}
+			t.Logf("output:\n%s", got)
+		})
+	}
+}
+
+func TestRequiresUpgradeErrorField(t *testing.T) {
+	input := `
+template: {
+	error: "something"
+	output: {}
+}
+`
+	needsUpgrade, reasons, err := RequiresUpgrade(input, Version{Major: 1, Minor: 11})
+	if err != nil {
+		t.Fatalf("RequiresUpgrade() error = %v", err)
+	}
+	if !needsUpgrade {
+		t.Error("expected upgrade required for error field label")
+	}
+	if len(reasons) != 1 {
+		t.Errorf("expected 1 reason, got %d: %v", len(reasons), reasons)
+	}
+}
+
+func TestUpgradeChainedListConcat(t *testing.T) {
+	// Chained a + b + c + d must become list.Concat([a, b, c, d]) in a single pass,
+	// not nested list.Concat(list.Concat(...)) calls.
+	// This is the real-world pattern from vela-templates/definitions/internal/component/cron-task.cue
+	common := `mountsArray: {
+	pvc:       [{mountPath: "/pvc"}]
+	configMap: [{mountPath: "/cm"}]
+	secret:    [{mountPath: "/secret"}]
+	emptyDir:  [{mountPath: "/empty"}]
+	hostPath:  [{mountPath: "/host"}]
+}`
+	want := "list.Concat([mountsArray.pvc, mountsArray.configMap, mountsArray.secret, mountsArray.emptyDir, mountsArray.hostPath])"
+
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "fresh chain",
+			input: "volumeMounts: mountsArray.pvc + mountsArray.configMap + mountsArray.secret + mountsArray.emptyDir + mountsArray.hostPath\n" + common,
+		},
+		{
+			// Simulates a partially-upgraded file (previous upgrade pass converted only the first pair).
+			name:  "partially upgraded chain",
+			input: "volumeMounts: list.Concat([mountsArray.pvc, mountsArray.configMap]) + mountsArray.secret + mountsArray.emptyDir + mountsArray.hostPath\n" + common,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := EnsureCueVersionCompatibility(tt.input, "test", ComponentKind, TemplateAreaMain)
+			if strings.Contains(result, "list.Concat([list.Concat(") {
+				t.Errorf("got nested list.Concat instead of flat: %s", result)
+			}
+			if !strings.Contains(result, want) {
+				t.Errorf("expected flat list.Concat with all 5 operands, got:\n%s", result)
+			}
+		})
+	}
+}
+
+func TestRequiresUpgradeErrorFieldNegative(t *testing.T) {
+	// Templates that contain "error" but NOT as an unquoted field label should not trigger.
+	cases := []string{
+		`output: { message: "error occurred" }`,
+		`output: { errorMessage: "bad" }`,
+		`// handle error cases\noutput: {}`,
+		`output: { "error": "already quoted" }`, // already quoted — upgrade would be a no-op, precheck still fires (fine)
+	}
+	for _, input := range cases {
+		if errorFieldLabelRe.MatchString(input) {
+			// Only "error:" (field label) should match; none of the above have an unquoted error: label.
+			t.Errorf("errorFieldLabelRe false positive on: %q", input)
+		}
+	}
+	// Positive: unquoted error field label must match.
+	positive := `output: { error: "something" }`
+	if !errorFieldLabelRe.MatchString(positive) {
+		t.Errorf("errorFieldLabelRe failed to match: %q", positive)
+	}
+}
+
+func TestUpgradeWithOpenListParameter(t *testing.T) {
+	// Real-world pattern: parameter declared as open list type `*[] | [...{...}]`
+	// The old registry only matched literal list values; this tests the disjunction case.
+	input := `
+template: {
+	envWithDefaults: parameter.env + [{name: "MANAGED_BY", value: "kubevela"}]
+
+	output: {
+		spec: containers: [{
+			env: envWithDefaults
+		}]
+	}
+
+	parameter: {
+		env: *[] | [...{
+			name:   string
+			value?: string
+		}]
+	}
+}
+`
+	got, err := Upgrade(input, Version{Major: 1, Minor: 11})
+	if err != nil {
+		t.Fatalf("Upgrade() error = %v", err)
+	}
+
+	if !strings.Contains(got, "list.Concat") {
+		t.Errorf("Upgrade() did not transform open list parameter concatenation, got:\n%s", got)
+	}
+
+	if !strings.Contains(got, `import "list"`) {
+		t.Errorf("Upgrade() did not add list import, got:\n%s", got)
+	}
+
+	t.Logf("Transformed:\n%s", got)
 }
 
 func TestUpgradeWithComplexTemplate(t *testing.T) {
@@ -175,7 +357,7 @@ parameter: {
 output: template
 `
 
-	got, err := Upgrade(input, "1.11") // Explicitly provide version for tests
+	got, err := Upgrade(input, Version{Major: 1, Minor: 11}) // Explicitly provide version for tests
 	if err != nil {
 		t.Fatalf("Upgrade() error = %v", err)
 	}
@@ -227,7 +409,7 @@ template: {
 }
 `
 
-	got, err := Upgrade(input, "1.11") // Explicitly provide version for tests
+	got, err := Upgrade(input, Version{Major: 1, Minor: 11}) // Explicitly provide version for tests
 	if err != nil {
 		t.Fatalf("Upgrade() error = %v", err)
 	}
@@ -261,7 +443,7 @@ list1: [1, 2, 3]
 list2: [4, 5, 6]
 result: list1 + list2
 `
-	result, err := Upgrade(input, "1.11") // Provide explicit version for test
+	result, err := Upgrade(input, Version{Major: 1, Minor: 11}) // Provide explicit version for test
 	if err != nil {
 		t.Fatalf("Upgrade() error = %v", err)
 	}
@@ -270,7 +452,7 @@ result: list1 + list2
 	}
 
 	// Test explicit version 1.11
-	result, err = Upgrade(input, "1.11")
+	result, err = Upgrade(input, Version{Major: 1, Minor: 11})
 	if err != nil {
 		t.Fatalf("Upgrade() error = %v", err)
 	}
@@ -279,7 +461,7 @@ result: list1 + list2
 	}
 
 	// Test future version (should still apply 1.11 upgrades)
-	result, err = Upgrade(input, "1.12")
+	result, err = Upgrade(input, Version{Major: 1, Minor: 12})
 	if err != nil {
 		t.Fatalf("Upgrade() error = %v", err)
 	}
@@ -295,19 +477,12 @@ func TestGetSupportedVersions(t *testing.T) {
 	}
 
 	// Should include 1.11 since that's registered in init()
-	found := false
-	for _, v := range versions {
-		if v == "1.11" {
-			found = true
-			break
-		}
-	}
-	if !found {
+	if !slices.Contains(versions, Version{Major: 1, Minor: 11}) {
 		t.Errorf("Expected 1.11 to be in supported versions, got %v", versions)
 	}
 }
 
-func TestGetCurrentKubeVelaMinorVersion(t *testing.T) {
+func TestGetCurrentKubeVelaVersion(t *testing.T) {
 	tests := []struct {
 		name            string
 		mockVersion     string
@@ -333,14 +508,16 @@ func TestGetCurrentKubeVelaMinorVersion(t *testing.T) {
 			expectError:     false,
 		},
 		{
-			name:        "unknown version error",
-			mockVersion: "UNKNOWN",
-			expectError: true,
+			name:            "unknown version uses latest",
+			mockVersion:     "UNKNOWN",
+			expectedVersion: "1.11",
+			expectError:     false,
 		},
 		{
-			name:        "empty version error",
-			mockVersion: "",
-			expectError: true,
+			name:            "empty version uses latest",
+			mockVersion:     "",
+			expectedVersion: "1.11",
+			expectError:     false,
 		},
 		{
 			name:        "invalid version error",
@@ -357,24 +534,23 @@ func TestGetCurrentKubeVelaMinorVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Mock the version
 			version.VelaVersion = tt.mockVersion
 
-			got, err := getCurrentKubeVelaMinorVersion()
+			got, err := getCurrentKubeVelaVersion()
 			if tt.expectError {
 				if err == nil {
-					t.Errorf("getCurrentKubeVelaMinorVersion() expected error but got none")
+					t.Errorf("getCurrentKubeVelaVersion() expected error but got none")
 				}
 				return
 			}
 
 			if err != nil {
-				t.Errorf("getCurrentKubeVelaMinorVersion() unexpected error: %v", err)
+				t.Errorf("getCurrentKubeVelaVersion() unexpected error: %v", err)
 				return
 			}
 
-			if got != tt.expectedVersion {
-				t.Errorf("getCurrentKubeVelaMinorVersion() = %v, want %v", got, tt.expectedVersion)
+			if got.String() != tt.expectedVersion {
+				t.Errorf("getCurrentKubeVelaVersion() = %v, want %v", got, tt.expectedVersion)
 			}
 		})
 	}
@@ -453,7 +629,7 @@ repeated: list.Repeat(items, 5)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			needsUpgrade, reasons, err := RequiresUpgrade(tt.input, "1.11")
+			needsUpgrade, reasons, err := RequiresUpgrade(tt.input, Version{Major: 1, Minor: 11})
 			if err != nil {
 				t.Fatalf("RequiresUpgrade() error = %v", err)
 			}
@@ -470,14 +646,109 @@ repeated: list.Repeat(items, 5)
 	}
 }
 
-func TestUpgradeWithUnknownVersionError(t *testing.T) {
+func TestParseVersion(t *testing.T) {
+	tests := []struct {
+		input     string
+		wantMajor int
+		wantMinor int
+		wantErr   bool
+	}{
+		{"1.11", 1, 11, false},
+		{"v1.11", 1, 11, false},
+		{"1.11.2", 1, 11, false},
+		{"v1.11.2", 1, 11, false},
+		{"1.9", 1, 9, false},
+		{"2.0", 2, 0, false},
+		{"v1.13.0-alpha.1+dev", 1, 13, false},
+		{"1.11foo", 0, 0, true},
+		{"1.11.2foo", 0, 0, true},
+		{"invalid", 0, 0, true},
+		{"", 0, 0, true},
+		{"v", 0, 0, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := ParseVersion(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ParseVersion(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if got.Major != tt.wantMajor || got.Minor != tt.wantMinor {
+				t.Errorf("ParseVersion(%q) = {%d,%d}, want {%d,%d}", tt.input, got.Major, got.Minor, tt.wantMajor, tt.wantMinor)
+			}
+		})
+	}
+}
+
+func TestVersionString(t *testing.T) {
+	tests := []struct {
+		v    Version
+		want string
+	}{
+		{Version{1, 11}, "1.11"},
+		{Version{2, 0}, "2.0"},
+		{Version{0, 9}, "0.9"},
+	}
+	for _, tt := range tests {
+		if got := tt.v.String(); got != tt.want {
+			t.Errorf("Version%v.String() = %q, want %q", tt.v, got, tt.want)
+		}
+	}
+}
+
+func TestVersionLess(t *testing.T) {
+	tests := []struct {
+		a, b Version
+		want bool
+	}{
+		{Version{1, 9}, Version{1, 11}, true},   // minor ordering (not lexicographic)
+		{Version{1, 11}, Version{1, 9}, false},  // reverse
+		{Version{1, 11}, Version{1, 11}, false}, // equal
+		{Version{1, 11}, Version{2, 0}, true},   // major ordering
+		{Version{2, 0}, Version{1, 11}, false},
+	}
+	for _, tt := range tests {
+		if got := tt.a.less(tt.b); got != tt.want {
+			t.Errorf("Version%v.less(Version%v) = %v, want %v", tt.a, tt.b, got, tt.want)
+		}
+	}
+}
+
+func TestSortedVersionsOrdering(t *testing.T) {
+	vs := sortedVersions()
+	for i := 1; i < len(vs); i++ {
+		if !vs[i-1].less(vs[i]) {
+			t.Errorf("sortedVersions() not in ascending order: %v >= %v at index %d", vs[i-1], vs[i], i)
+		}
+	}
+}
+
+func TestEnsureCueVersionCompatibilityDisabled(t *testing.T) {
+	original := EnableCUEVersionCompatibility
+	defer func() { EnableCUEVersionCompatibility = original }()
+	EnableCUEVersionCompatibility = false
+
+	input := `
+list1: [1, 2, 3]
+list2: [4, 5, 6]
+combined: list1 + list2
+`
+	got := EnsureCueVersionCompatibility(input, "test-def", ComponentKind, TemplateAreaMain)
+	if got != input {
+		t.Errorf("expected input returned unchanged when compatibility disabled, got %q", got)
+	}
+}
+
+func TestUpgradeWithUnknownVersion(t *testing.T) {
 	// Save original version
 	originalVersion := version.VelaVersion
 	defer func() {
 		version.VelaVersion = originalVersion
 	}()
 
-	// Mock unknown version
+	// Mock unknown version (dev build)
 	version.VelaVersion = "UNKNOWN"
 
 	input := `
@@ -486,24 +757,87 @@ list2: [4, 5, 6]
 combined: list1 + list2
 `
 
-	// Should return error when no version is specified and VelaVersion is UNKNOWN
-	_, err := Upgrade(input)
-	if err == nil {
-		t.Errorf("Upgrade() expected error when version is UNKNOWN but got none")
-	}
-
-	// Should contain helpful message
-	expectedMsg := "Please specify the target version explicitly using --target-version=1.11"
-	if !strings.Contains(err.Error(), expectedMsg) {
-		t.Errorf("Error message should contain guidance about using --target-version flag, got: %v", err.Error())
-	}
-
-	// Should work when explicit version is provided
-	result, err := Upgrade(input, "1.11")
+	// Should apply all upgrades (treating UNKNOWN as latest) rather than erroring
+	result, err := Upgrade(input)
 	if err != nil {
-		t.Errorf("Upgrade() with explicit version should work even when VelaVersion is UNKNOWN, got error: %v", err)
+		t.Errorf("Upgrade() should not error on UNKNOWN version, got: %v", err)
 	}
 	if !strings.Contains(result, "list.Concat") {
-		t.Errorf("Upgrade() with explicit version should still apply transformations")
+		t.Errorf("Upgrade() with UNKNOWN version should still apply all upgrades, got: %v", result)
+	}
+}
+
+func TestUpgradeFuncIDRequired(t *testing.T) {
+	// RegisterUpgrade must panic if ID is empty.
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("RegisterUpgrade with empty ID should panic")
+		}
+	}()
+	RegisterUpgrade(KubeVelaUpgradeFunc{
+		ID:          "", // intentionally empty
+		VelaVersion: Version{Major: 99, Minor: 0},
+		Reason:      "test",
+		Upgrade:     func(s string, f *cueast.File) (string, error) { return s, nil },
+	})
+}
+
+func TestUpgradeFuncIDsPresent(t *testing.T) {
+	// All registered upgrade functions must have non-empty IDs.
+	for v, funcs := range upgradeRegistry {
+		for i, u := range funcs {
+			if u.id() == "" {
+				t.Errorf("upgradeRegistry[%s][%d] has empty ID", v, i)
+			}
+		}
+	}
+}
+
+func TestRequiresUpgradeReasonsContainID(t *testing.T) {
+	// Reasons returned by RequiresUpgrade must include the upgrade ID.
+	input := `
+list1: [1, 2, 3]
+list2: [4, 5, 6]
+combined: list1 + list2
+`
+	_, reasons, err := RequiresUpgrade(input, Version{Major: 1, Minor: 11})
+	if err != nil {
+		t.Fatalf("RequiresUpgrade() error = %v", err)
+	}
+	if len(reasons) == 0 {
+		t.Fatal("expected at least one reason")
+	}
+	for _, r := range reasons {
+		if !strings.Contains(r, "[cue@0.14] [list-arithmetic]") {
+			t.Errorf("reason %q does not contain expected prefix '[cue@0.14] [list-arithmetic]'", r)
+		}
+	}
+}
+
+func TestEnsureCueVersionCompatibilityIncrementsMetric(t *testing.T) {
+	// Reset cache so the upgrade path actually runs.
+	compatCache = newLRUCache(512)
+
+	// Reset the counter before the test.
+	CUECompatRewriteTotal.Reset()
+
+	input := `
+list1: [1, 2, 3]
+list2: [4, 5, 6]
+combined: list1 + list2
+`
+	EnsureCueVersionCompatibility(input, "test-def", ComponentKind, TemplateAreaMain)
+
+	// Gather the metric value for the expected label triple.
+	mf, err := CUECompatRewriteTotal.GetMetricWithLabelValues("list-arithmetic", "1.11", string(ComponentKind), string(TemplateAreaMain))
+	if err != nil {
+		t.Fatalf("failed to get metric: %v", err)
+	}
+	m := &dto.Metric{}
+	if err := mf.Write(m); err != nil {
+		t.Fatalf("failed to write metric: %v", err)
+	}
+	if m.Counter == nil || m.Counter.GetValue() < 1 {
+		t.Errorf("expected counter >= 1 for list-arithmetic/1.11/Component, got %v", m)
 	}
 }

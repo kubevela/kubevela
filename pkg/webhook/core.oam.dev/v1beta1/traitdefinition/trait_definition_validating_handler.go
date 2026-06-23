@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -32,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
@@ -89,6 +91,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	if req.Operation == admissionv1.Create || req.Operation == admissionv1.Update {
+		var warnings []string
 		if err := h.Decoder.Decode(req, obj); err != nil {
 			logger.WithStep("decode").WithError(err).Error(err, "Unable to decode admission request payload into TraitDefinition object - malformed request")
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%s (requestUID=%s)", err.Error(), req.UID))
@@ -112,11 +115,23 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		// validate cueTemplate
 		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
 			logger.WithStep("validate-cue").Info("Validating CUE template syntax and semantics for TraitDefinition schematic")
-			if err := webhookutils.ValidateCuexTemplate(ctx, obj.Spec.Schematic.CUE.Template); err != nil {
+
+			// Validate against the effective template; with auto-upgrade is enabled
+			cueTemplate := obj.Spec.Schematic.CUE.Template
+			if upgrade.EnableCUEVersionCompatibility {
+				if needsUpgrade, reasons, err := upgrade.RequiresUpgrade(cueTemplate); err == nil && needsUpgrade {
+					warnings = append(warnings, fmt.Sprintf(
+						"CUE template uses legacy syntax that will be auto-upgraded at render time. Run `vela def compat definitions` to scan all definitions for legacy syntax. Reasons: %s",
+						strings.Join(reasons, "; ")))
+					cueTemplate = upgrade.EnsureCueVersionCompatibility(cueTemplate, obj.Name, upgrade.TraitKind, upgrade.TemplateAreaMain)
+				}
+			}
+
+			if err := webhookutils.ValidateCuexTemplate(ctx, cueTemplate); err != nil {
 				logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template contains syntax errors or invalid constructs - template compilation failed")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			if err := webhookutils.ValidateOutputResourcesExist(obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper(), obj); err != nil {
+			if err := webhookutils.ValidateOutputResourcesExist(cueTemplate, h.Client.RESTMapper(), obj); err != nil {
 				logger.WithStep("validate-output-resources").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
@@ -145,6 +160,9 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
 		logger.WithStep("complete").WithSuccess(true, startTime).Info("TraitDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
+		if len(warnings) > 0 {
+			return admission.ValidationResponse(true, "").WithWarnings(warnings...)
+		}
 	} else {
 		logger.WithStep("skip-validation").Info("Skipping TraitDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
 	}
