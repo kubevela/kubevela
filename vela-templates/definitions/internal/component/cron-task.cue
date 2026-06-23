@@ -227,7 +227,7 @@ template: {
 										}}]
 								}
 								if parameter["volumeMounts"] != _|_ {
-									volumeMounts: mountsArray.pvc + mountsArray.configMap + mountsArray.secret + mountsArray.emptyDir + mountsArray.hostPath
+									volumeMounts: list.Concat([mountsArray.pvc, mountsArray.configMap, mountsArray.secret, mountsArray.emptyDir, mountsArray.hostPath])
 								}
 							}]
 							if parameter["volumes"] != _|_ if parameter["volumeMounts"] == _|_ {

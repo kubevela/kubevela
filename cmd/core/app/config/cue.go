@@ -17,21 +17,29 @@ limitations under the License.
 package config
 
 import (
+	"context"
+
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/spf13/pflag"
+
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 )
 
 // CUEConfig contains CUE language configuration.
 type CUEConfig struct {
-	EnableExternalPackage      bool
-	EnableExternalPackageWatch bool
+	EnableExternalPackage         bool
+	EnableExternalPackageWatch    bool
+	EnableCUEVersionCompatibility bool
+	CUECompatibilityCacheSize     int
 }
 
 // NewCUEConfig creates a new CUEConfig with defaults.
 func NewCUEConfig() *CUEConfig {
 	return &CUEConfig{
-		EnableExternalPackage:      cuex.EnableExternalPackageForDefaultCompiler,
-		EnableExternalPackageWatch: cuex.EnableExternalPackageWatchForDefaultCompiler,
+		EnableExternalPackage:         cuex.EnableExternalPackageForDefaultCompiler,
+		EnableExternalPackageWatch:    cuex.EnableExternalPackageWatchForDefaultCompiler,
+		EnableCUEVersionCompatibility: upgrade.EnableCUEVersionCompatibility,
+		CUECompatibilityCacheSize:     upgrade.CompatibilityCacheSize,
 	}
 }
 
@@ -45,6 +53,14 @@ func (c *CUEConfig) AddFlags(fs *pflag.FlagSet) {
 		"enable-external-package-watch-for-default-compiler",
 		c.EnableExternalPackageWatch,
 		"Enable watching for changes in external CUE packages and automatically reload them when modified. Requires enable-external-package-for-default-compiler to be enabled.")
+	fs.BoolVar(&c.EnableCUEVersionCompatibility,
+		"enable-cue-version-compatibility",
+		c.EnableCUEVersionCompatibility,
+		"Automatically rewrite legacy CUE syntax in stored definitions at render time.")
+	fs.IntVar(&c.CUECompatibilityCacheSize,
+		"cue-compatibility-cache-size",
+		c.CUECompatibilityCacheSize,
+		"Maximum number of CUE templates to cache after version compatibility rewriting.")
 }
 
 // SyncToCUEGlobals syncs the parsed configuration values to CUE package global variables.
@@ -54,8 +70,11 @@ func (c *CUEConfig) AddFlags(fs *pflag.FlagSet) {
 // variables in the cuex package. Ideally, the CUE compiler configuration should be injected
 // rather than relying on globals.
 //
-// The flow is: CLI flags -> CUEConfig struct fields -> cuex globals (via this method)
-func (c *CUEConfig) SyncToCUEGlobals() {
+// The flow is: CLI flags -> CUEConfig struct fields -> cuex/upgrade globals (via this method)
+// ctx should be the controller's root context so cache eviction goroutines are tied to its lifetime.
+func (c *CUEConfig) SyncToCUEGlobals(ctx context.Context) {
 	cuex.EnableExternalPackageForDefaultCompiler = c.EnableExternalPackage
 	cuex.EnableExternalPackageWatchForDefaultCompiler = c.EnableExternalPackageWatch
+	upgrade.EnableCUEVersionCompatibility = c.EnableCUEVersionCompatibility
+	upgrade.InitCompatibilityCache(ctx, c.CUECompatibilityCacheSize)
 }

@@ -20,6 +20,7 @@ import (
 	"os"
 
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/rest"
 
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/references/a/preimport"
@@ -30,6 +31,7 @@ func main() {
 	preimport.ResumeLogging()
 	_ = utilfeature.DefaultMutableFeatureGate.Set("AllAlpha=true")
 	system.BindEnvironmentVariables()
+	rest.SetDefaultWarningHandler(rest.NewWarningWriter(os.Stderr, rest.WarningWriterOptions{Deduplicate: true}))
 
 	command := cli.NewCommand()
 

@@ -17,6 +17,7 @@ limitations under the License.
 package options
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -248,7 +249,7 @@ func TestCuexOptions_SyncToGlobals(t *testing.T) {
 	assert.False(t, cuex.EnableExternalPackageWatchForDefaultCompiler)
 
 	// After sync, globals should be updated
-	opts.CUE.SyncToCUEGlobals()
+	opts.CUE.SyncToCUEGlobals(context.Background())
 	assert.True(t, cuex.EnableExternalPackageForDefaultCompiler)
 	assert.True(t, cuex.EnableExternalPackageWatchForDefaultCompiler)
 }
@@ -597,8 +598,8 @@ func TestCoreOptions_MultipleSyncCalls(t *testing.T) {
 	opts.Performance.PerfEnabled = true
 
 	// Call sync multiple times
-	opts.CUE.SyncToCUEGlobals()
-	opts.CUE.SyncToCUEGlobals()
+	opts.CUE.SyncToCUEGlobals(context.Background())
+	opts.CUE.SyncToCUEGlobals(context.Background())
 
 	opts.Workflow.SyncToWorkflowGlobals()
 	opts.Workflow.SyncToWorkflowGlobals()
@@ -849,7 +850,7 @@ func TestCoreOptions_CLIOverridesWork(t *testing.T) {
 	opt.OAM.SyncToOAMGlobals()
 	opt.Application.SyncToApplicationGlobals()
 	opt.Performance.SyncToPerformanceGlobals()
-	opt.CUE.SyncToCUEGlobals()
+	opt.CUE.SyncToCUEGlobals(context.Background())
 
 	// Verify globals got the CLI values
 	assert.Equal(t, 999, wfTypes.MaxWorkflowWaitBackoffTime, "Global should have CLI value")
@@ -917,7 +918,7 @@ func TestCoreOptions_CompleteIntegration(t *testing.T) {
 	assert.Equal(t, 30*time.Second, opt.MultiCluster.ClusterMetricsInterval)
 
 	// Sync all configurations that need it
-	opt.CUE.SyncToCUEGlobals()
+	opt.CUE.SyncToCUEGlobals(context.Background())
 	opt.Workflow.SyncToWorkflowGlobals()
 	opt.Resource.SyncToResourceGlobals()
 	opt.OAM.SyncToOAMGlobals()

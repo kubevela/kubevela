@@ -28,6 +28,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/features"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
@@ -84,10 +85,13 @@ func ValidatePolicyDefinition(policy *v1beta1.PolicyDefinition) *PolicyValidatio
 		}
 	}
 
-	// CUE syntax validation (output field structure is validated at render time)
-	if err := webhookutils.ValidateCueTemplate(policy.Spec.Schematic.CUE.Template); err != nil {
+	// CUE syntax validation (output field structure is validated at render time).
+	// Upgrade legacy syntax before validating so definitions using deprecated constructs
+	// are accepted and auto-upgraded at render time.
+	cueTemplate := upgrade.EnsureCueVersionCompatibility(policy.Spec.Schematic.CUE.Template, policy.Name, upgrade.PolicyKind, upgrade.TemplateAreaMain)
+	if err := webhookutils.ValidateCueTemplate(cueTemplate); err != nil {
 		result.Errors = append(result.Errors, err.Error())
-	} else if err := validateEnabledFieldType(policy.Spec.Schematic.CUE.Template); err != nil {
+	} else if err := validateEnabledFieldType(cueTemplate); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 	}
 
@@ -151,7 +155,7 @@ func isASTBoolExpr(expr ast.Expr) bool {
 // validateNoRequiredParameters checks that all parameters have default values
 // For global policies, ALL parameters must have defaults since users can't provide values
 func validateNoRequiredParameters(policy *v1beta1.PolicyDefinition) error {
-	cueTemplate := policy.Spec.Schematic.CUE.Template
+	cueTemplate := upgrade.EnsureCueVersionCompatibility(policy.Spec.Schematic.CUE.Template, policy.Name, upgrade.PolicyKind, upgrade.TemplateAreaMain)
 
 	ctx := cuecontext.New()
 	value := ctx.CompileString(cueTemplate)
