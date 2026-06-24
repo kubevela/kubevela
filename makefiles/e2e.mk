@@ -9,6 +9,9 @@ e2e-setup-core-post-hook:
 	kill -9 $(lsof -it:9098) || true
 	go run ./e2e/addon/mock &
 	bin/vela addon enable ./e2e/addon/mock/testdata/fluxcd
+	timeout 600s bash -c -- 'while true; do kubectl get ns flux-system; if [ $$? -eq 0 ] ; then break; else sleep 5; fi;done'
+	kubectl wait --for=condition=Ready pod -l app=source-controller -n flux-system --timeout=600s
+	kubectl wait --for=condition=Ready pod -l app=helm-controller -n flux-system --timeout=600s
 	bin/vela addon enable ./e2e/addon/mock/testdata/terraform
 	bin/vela addon enable ./e2e/addon/mock/testdata/terraform-alibaba ALICLOUD_ACCESS_KEY=xxx ALICLOUD_SECRET_KEY=yyy ALICLOUD_REGION=cn-beijing
 
