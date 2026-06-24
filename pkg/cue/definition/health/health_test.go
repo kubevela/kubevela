@@ -329,6 +329,19 @@ func TestGetStatus(t *testing.T) {
 				"sum": "4",
 			},
 		},
+		"test-status-with-import-statement": {
+			tpContext: map[string]interface{}{
+				"output": map[string]interface{}{},
+			},
+			parameter: make(map[string]interface{}),
+			statusCue: strings.TrimSpace(`
+				import "strings"
+				"my.details": strings.Join(["foo", "bar"], ",")
+			`),
+			expStatus: map[string]string{
+				"my.details": "foo,bar",
+			},
+		},
 		"test-key-input-too-large-skipped": {
 			tpContext: map[string]interface{}{
 				"output": map[string]interface{}{
