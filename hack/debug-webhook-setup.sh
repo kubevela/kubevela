@@ -9,6 +9,7 @@ CERT_DIR="k8s-webhook-server/serving-certs"
 NAMESPACE="vela-system"
 SECRET_NAME="webhook-server-cert"
 WEBHOOK_CONFIG_NAME="kubevela-vela-core-admission"
+WEBHOOK_PORT="${1:-9445}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -100,21 +101,28 @@ generate_certificates() {
                 HOST_IP="127.0.0.1"
             fi
         else
-            # Bridge network mode - get gateway IP
-            NETWORK_NAME="k3d-${K3D_CLUSTER}"
-            HOST_IP=$(docker network inspect "$NETWORK_NAME" -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || echo "")
+            # Bridge network mode
+            if [ "$(uname)" = "Darwin" ]; then
+                # macOS with Docker Desktop - host.docker.internal is always reachable from containers
+                echo "Detected k3d with bridge network on macOS, using host.docker.internal"
+                HOST_IP="host.docker.internal"
+            else
+                # Linux bridge - get gateway IP
+                NETWORK_NAME="k3d-${K3D_CLUSTER}"
+                HOST_IP=$(docker network inspect "$NETWORK_NAME" -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' 2>/dev/null || echo "")
 
-            if [ -z "$HOST_IP" ]; then
-                # Fallback to common k3d gateway IPs
-                echo "Could not detect gateway IP, trying common defaults..."
-                if docker exec "k3d-${K3D_CLUSTER}-server-0" getent hosts host.k3d.internal 2>/dev/null | awk '{print $1}' | grep -q .; then
-                    HOST_IP=$(docker exec "k3d-${K3D_CLUSTER}-server-0" cat /etc/hosts | grep host.k3d.internal | awk '{print $1}')
-                else
-                    HOST_IP="172.18.0.1"
+                if [ -z "$HOST_IP" ]; then
+                    # Fallback to common k3d gateway IPs
+                    echo "Could not detect gateway IP, trying common defaults..."
+                    if docker exec "k3d-${K3D_CLUSTER}-server-0" getent hosts host.k3d.internal 2>/dev/null | awk '{print $1}' | grep -q .; then
+                        HOST_IP=$(docker exec "k3d-${K3D_CLUSTER}-server-0" cat /etc/hosts | grep host.k3d.internal | awk '{print $1}')
+                    else
+                        HOST_IP="172.18.0.1"
+                    fi
                 fi
-            fi
 
-            echo "Detected k3d with bridge network, using gateway IP: $HOST_IP"
+                echo "Detected k3d with bridge network, using gateway IP: $HOST_IP"
+            fi
         fi
     else
         # Not k3d, use default
@@ -217,7 +225,7 @@ metadata:
 webhooks:
 - name: componentdefinition.core.oam.dev
   clientConfig:
-    url: https://${HOST_IP}:9445/validating-core-oam-dev-v1beta1-componentdefinitions
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-core-oam-dev-v1beta1-componentdefinitions
     caBundle: ${CA_BUNDLE}
   rules:
   - apiGroups: ["core.oam.dev"]
@@ -229,7 +237,7 @@ webhooks:
   failurePolicy: Fail
 - name: traitdefinition.core.oam.dev
   clientConfig:
-    url: https://${HOST_IP}:9445/validating-core-oam-dev-v1beta1-traitdefinitions
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-core-oam-dev-v1beta1-traitdefinitions
     caBundle: ${CA_BUNDLE}
   rules:
   - apiGroups: ["core.oam.dev"]
@@ -241,7 +249,7 @@ webhooks:
   failurePolicy: Fail
 - name: policydefinition.core.oam.dev
   clientConfig:
-    url: https://${HOST_IP}:9445/validating-core-oam-dev-v1beta1-policydefinitions
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-core-oam-dev-v1beta1-policydefinitions
     caBundle: ${CA_BUNDLE}
   rules:
   - apiGroups: ["core.oam.dev"]
@@ -253,7 +261,7 @@ webhooks:
   failurePolicy: Fail
 - name: workflowstepdefinition.core.oam.dev
   clientConfig:
-    url: https://${HOST_IP}:9445/validating-core-oam-dev-v1beta1-workflowstepdefinitions
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-core-oam-dev-v1beta1-workflowstepdefinitions
     caBundle: ${CA_BUNDLE}
   rules:
   - apiGroups: ["core.oam.dev"]
@@ -265,7 +273,7 @@ webhooks:
   failurePolicy: Fail
 - name: applications.core.oam.dev
   clientConfig:
-    url: https://${HOST_IP}:9445/validating-core-oam-dev-v1beta1-applications
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-core-oam-dev-v1beta1-applications
     caBundle: ${CA_BUNDLE}
   rules:
   - apiGroups: ["core.oam.dev"]
@@ -292,7 +300,7 @@ show_next_steps() {
     echo -e "${NC}"
 
     echo "Configuration:"
-    echo "  - Webhook URL: https://${HOST_IP}:9445"
+    echo "  - Webhook URL: https://${HOST_IP}:${WEBHOOK_PORT}"
     echo "  - Certificate directory: ${CERT_DIR}"
 
     if [ -n "$K3D_CLUSTER" ]; then
@@ -312,7 +320,7 @@ show_next_steps() {
     echo "   - pkg/webhook/core.oam.dev/v1beta1/componentdefinition/component_definition_validating_handler.go:74"
     echo "3. Start debugging cmd/core/main.go with arguments:"
     echo "   --use-webhook=true"
-    echo "   --webhook-port=9445"
+    echo "   --webhook-port=${WEBHOOK_PORT}"
     echo "   --webhook-cert-dir=${CERT_DIR}"
     echo "   --leader-elect=false"
     echo "4. Wait for webhook server to start"
