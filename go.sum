@@ -480,6 +480,7 @@ github.com/kubevela/pkg v1.10.0 h1:opwBitEK+Un1StWhz+iq+bWjZDge+Va65fh6BVtmjUc=
 github.com/kubevela/pkg v1.10.0/go.mod h1:EmM4VIyU7KxDmPBq9hG4GpSZbGwiM76/W/8paLBk8wY=
 github.com/kubevela/workflow v0.6.3 h1:Kd3sCL/MVuP+MzKkaMWkFAl3Ac1GXAiDGKQ044K4ya0=
 github.com/kubevela/workflow v0.6.3/go.mod h1:O0Re7zFM2gUUZUwuJgcQ0z72tJByiFxltsEYzBysH1o=
+github.com/kubevela/workflow v0.6.4/go.mod h1:O0Re7zFM2gUUZUwuJgcQ0z72tJByiFxltsEYzBysH1o=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/kyokomi/emoji v2.2.4+incompatible h1:np0woGKwx9LiHAQmwZx79Oc0rHpNw3o+3evou4BEPv4=
