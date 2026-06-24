@@ -1,35 +1,35 @@
 # This file is a github code protect rule follow the codeowners https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-on-github/about-code-owners#example-of-a-codeowners-file
 
-*                                  @barnettZQG @wonderflow @leejanee @Somefive @jefree-cat @FogDong @wangyikewxgm @chivalryq @anoop2811
-design/                            @barnettZQG @leejanee @wonderflow @Somefive @jefree-cat @FogDong @anoop2811
+*                                  @barnettZQG @wonderflow @leejanee @Somefive @jefree-cat @FogDong @wangyikewxgm @chivalryq @anoop2811 @briankane @jguionnet
+design/                            @barnettZQG @leejanee @wonderflow @Somefive @jefree-cat @FogDong @anoop2811 @briankane @jguionnet
 
 # Owner of Core Controllers
-pkg/controller/core.oam.dev       @Somefive @FogDong @barnettZQG @wonderflow @wangyikewxgm @chivalryq @anoop2811
+pkg/controller/core.oam.dev       @Somefive @FogDong @barnettZQG @wonderflow @wangyikewxgm @chivalryq @anoop2811 @briankane @jguionnet
 
 # Owner of Standard Controllers
-pkg/controller/standard.oam.dev   @wangyikewxgm @barnettZQG @wonderflow @Somefive @anoop2811 @FogDong
+pkg/controller/standard.oam.dev   @wangyikewxgm @barnettZQG @wonderflow @Somefive @anoop2811 @FogDong @briankane @jguionnet
 
 # Owner of CUE
-pkg/cue                            @leejanee @FogDong @Somefive @anoop2811
-pkg/stdlib                         @leejanee @FogDong @Somefive @anoop2811
+pkg/cue                            @leejanee @FogDong @Somefive @anoop2811 @briankane @jguionnet
+pkg/stdlib                         @leejanee @FogDong @Somefive @anoop2811 @briankane @jguionnet
 
 # Owner of Workflow
-pkg/workflow                       @leejanee @FogDong @Somefive @wangyikewxgm @chivalryq @anoop2811
+pkg/workflow                       @leejanee @FogDong @Somefive @wangyikewxgm @chivalryq @anoop2811 @briankane @jguionnet
 
 # Owner of vela templates
-vela-templates/                     @Somefive @barnettZQG @wonderflow @FogDong @wangyikewxgm @chivalryq @anoop2811
+vela-templates/                     @Somefive @barnettZQG @wonderflow @FogDong @wangyikewxgm @chivalryq @anoop2811 @briankane @jguionnet
 
 # Owner of vela CLI
-references/cli/                     @Somefive @StevenLeiZhang @charlie0129 @wangyikewxgm @chivalryq @anoop2811 @FogDong
+references/cli/                     @Somefive @StevenLeiZhang @charlie0129 @wangyikewxgm @chivalryq @anoop2811 @FogDong @briankane @jguionnet
 
 # Owner of vela addon framework
-pkg/addon/                         @wangyikewxgm @wonderflow @charlie0129 @anoop2811 @FogDong
+pkg/addon/                         @wangyikewxgm @wonderflow @charlie0129 @anoop2811 @FogDong @briankane @jguionnet
 
 # Owner of resource keeper and tracker
-pkg/resourcekeeper                 @Somefive @FogDong @chivalryq @anoop2811
-pkg/resourcetracker                @Somefive @FogDong @chivalryq @anoop2811
+pkg/resourcekeeper                 @Somefive @FogDong @chivalryq @anoop2811 @briankane @jguionnet
+pkg/resourcetracker                @Somefive @FogDong @chivalryq @anoop2811 @briankane @jguionnet
 
-.github/                           @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm @anoop2811
-makefiles                          @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm @anoop2811
-go.*                               @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm @anoop2811
+.github/                           @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm @anoop2811 @briankane @jguionnet
+makefiles                          @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm @anoop2811 @briankane @jguionnet
+go.*                               @chivalryq @wonderflow @Somefive @FogDong @wangyikewxgm @anoop2811 @briankane @jguionnet
 
