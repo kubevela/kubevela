@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -222,10 +223,10 @@ func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string, ssh
 	// tree. See GHSA-fmgp-q6jx-gg3x.
 	if !cacheMatchesRemote(cachePath, remoteURL) {
 		_ = os.RemoveAll(cachePath)
-		klog.InfoS("cloning remote Terraform module", "module", name, "url", remoteURL, "cache", cachePath)
+		klog.InfoS("cloning remote Terraform module", "module", name, "url", redactURLCredentials(remoteURL), "cache", cachePath)
 		if err = cloneTerraformModule(cachePath, remoteURL, sshPublicKey); err != nil {
 			// Do not leave a partial or oversized clone behind for the next reconcile.
-			klog.ErrorS(err, "failed to clone remote Terraform module", "module", name, "url", remoteURL)
+			klog.ErrorS(err, "failed to clone remote Terraform module", "module", name, "url", redactURLCredentials(remoteURL))
 			_ = os.RemoveAll(cachePath)
 			return "", err
 		}
@@ -247,8 +248,10 @@ func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string, ssh
 	return conf, nil
 }
 
-// cacheRemoteMarkerSuffix names the sibling file that records which remote URL a
-// cached Terraform module was cloned from, used to detect a changed URL.
+// cacheRemoteMarkerSuffix names the sibling file that records the remote a cached
+// Terraform module was cloned from, used to detect a changed remote. A
+// credential-stripped form of the URL is stored (see redactURLCredentials) so the
+// marker never persists secrets embedded in an authenticated Git URL.
 const cacheRemoteMarkerSuffix = ".remote-url"
 
 // validateModuleName rejects names that could steer the cache path (and the
@@ -262,7 +265,8 @@ func validateModuleName(name string) error {
 }
 
 // cacheMatchesRemote reports whether cachePath holds a populated clone recorded
-// as coming from remoteURL.
+// as coming from remoteURL. The marker stores a credential-stripped URL, so the
+// comparison strips credentials from remoteURL the same way before matching.
 func cacheMatchesRemote(cachePath, remoteURL string) bool {
 	entities, err := os.ReadDir(cachePath)
 	if err != nil || len(entities) == 0 {
@@ -272,14 +276,34 @@ func cacheMatchesRemote(cachePath, remoteURL string) bool {
 	if err != nil {
 		return false
 	}
-	return string(recorded) == remoteURL
+	return string(recorded) == redactURLCredentials(remoteURL)
 }
 
-// recordCacheRemote records the remote URL a freshly cloned module came from.
+// recordCacheRemote records the remote a freshly cloned module came from. It stores a
+// credential-stripped URL so the marker never persists secrets that an authenticated
+// Git URL may embed.
 func recordCacheRemote(cachePath, remoteURL string) {
-	if err := os.WriteFile(cachePath+cacheRemoteMarkerSuffix, []byte(remoteURL), 0600); err != nil {
+	if err := os.WriteFile(cachePath+cacheRemoteMarkerSuffix, []byte(redactURLCredentials(remoteURL)), 0600); err != nil {
 		klog.ErrorS(err, "failed to record Terraform module remote URL", "cache", cachePath)
 	}
+}
+
+// redactURLCredentials strips any embedded userinfo (a username, password, or token)
+// from a URL so it is safe to log and persist. Authenticated HTTPS Git URLs can carry
+// credentials in the userinfo; scp-style SSH URLs ("git@host:path") fail url.Parse but
+// authenticate with keys, so they carry no secret. The same stripped form is used for
+// logging and for the cache marker, so record and match stay consistent.
+func redactURLCredentials(raw string) string {
+	if u, err := url.Parse(raw); err == nil {
+		u.User = nil
+		return u.String()
+	}
+	// url.Parse failed (typically scp-style SSH). Strip a leading "user@" defensively
+	// in case a malformed URL still embeds credentials before the host.
+	if _, after, found := strings.Cut(raw, "@"); found {
+		return after
+	}
+	return raw
 }
 
 const (
