@@ -70,12 +70,11 @@ jobs:
           go install sigs.k8s.io/kind@v0.19.0
           kind create cluster
 
-      - name: install Kubebuilder
-        uses: RyanSiu1995/kubebuilder-action@7170cb0476187070ae04cbb6cee305e809de2693
-        with:
-          version: 3.9.1
-          kubebuilderOnly: false
-          kubernetesVersion: v1.26.2
+      - name: Install envtest binaries
+        run: |
+          curl -sSLo setup-envtest https://github.com/kubernetes-sigs/controller-runtime/releases/download/v0.19.7/setup-envtest-linux-amd64
+          chmod +x setup-envtest
+          echo "KUBEBUILDER_ASSETS=$(./setup-envtest use 1.26.1 -p path)" >> "$GITHUB_ENV"
 
       - name: Run Make test
         run: make test
