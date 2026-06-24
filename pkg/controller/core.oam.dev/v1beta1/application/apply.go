@@ -129,6 +129,35 @@ func (h *AppHandler) Delete(ctx context.Context, _ client.Client, cluster string
 	return nil
 }
 
+// appliedResourcesWithCreator rebuilds the applied resources from the ResourceTracker,
+// which is the authoritative source of which resources currently exist, and re-attaches
+// the creator recorded while dispatching them. The ResourceTracker does not persist the
+// creator, so rebuilding from it alone drops the creator attribution from the status.
+// reconcile runs single threaded, matching addAppliedResource, so no locking is needed.
+func (h *AppHandler) appliedResourcesWithCreator() []common.ClusterObjectReference {
+	rebuilt := h.resourceKeeper.GetAppliedResources()
+	for i := range rebuilt {
+		if rebuilt[i].Creator != "" {
+			continue
+		}
+		for _, dispatched := range h.appliedResources {
+			if dispatched.Creator != "" && sameResource(rebuilt[i], dispatched) {
+				rebuilt[i].Creator = dispatched.Creator
+				break
+			}
+		}
+	}
+	return rebuilt
+}
+
+// sameResource reports whether two references point at the same object. It compares
+// object identity only: creator is excluded on purpose (it is the field being restored),
+// and UID is not populated on the ResourceTracker side.
+func sameResource(a, b common.ClusterObjectReference) bool {
+	return a.APIVersion == b.APIVersion && a.Kind == b.Kind &&
+		a.Name == b.Name && a.Namespace == b.Namespace && a.Cluster == b.Cluster
+}
+
 // addAppliedResource recorde applied resource.
 // reconcile run at single threaded. So there is no need to consider to use locker.
 func (h *AppHandler) addAppliedResource(previous bool, refs ...common.ClusterObjectReference) {
