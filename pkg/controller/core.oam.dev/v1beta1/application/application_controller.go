@@ -269,8 +269,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	// Rebuild appliedResources from the ResourceTracker now that the workflow has finished
-	// dispatching. The RT is the authoritative source
-	app.Status.AppliedResources = handler.resourceKeeper.GetAppliedResources()
+	// dispatching. The RT is the authoritative source of which resources exist; the creator
+	// attribution, which the RT does not persist, is re-attached from the dispatch records.
+	app.Status.AppliedResources = handler.appliedResourcesWithCreator()
 
 	var phase = common.ApplicationRunning
 	isHealthy := evalStatus(logCtx, handler, appFile, appParser)
