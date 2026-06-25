@@ -395,7 +395,7 @@ func EnsureCueVersionCompatibility(cueStr, defName string, defKind DefinitionKin
 	if entry, ok := cache.get(key); ok {
 		if !entry.requiresUpgrade {
 			klog.V(4).InfoS("cue/upgrade: skip (already compatible)", "definition", defName)
-			return cueStr, false
+			return entry.upgraded, false
 		}
 		klog.V(4).InfoS("cue/upgrade: cache hit (upgraded template)", "definition", defName)
 		return entry.upgraded, true
@@ -418,7 +418,7 @@ func EnsureCueVersionCompatibility(cueStr, defName string, defKind DefinitionKin
 		}
 		klog.InfoS("cue/upgrade: applied CUE version compatibility fixes", "definition", defName, "elapsed", elapsed)
 	} else {
-		cache.put(key, compatEntry{requiresUpgrade: false})
+		cache.put(key, compatEntry{requiresUpgrade: false, upgraded: upgraded})
 		klog.V(4).InfoS("cue/upgrade: no compatibility fixes needed", "definition", defName, "elapsed", elapsed)
 	}
 

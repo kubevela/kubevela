@@ -559,12 +559,16 @@ var _ = Describe("Application Normal tests", func() {
 		// createAndTrack creates obj if it doesn't already exist and registers a DeferCleanup
 		// that only deletes the resource if this test was the one that created it.
 		createAndTrack := func(obj client.Object) {
-			key := client.ObjectKeyFromObject(obj)
-			preExisting := k8sClient.Get(ctx, key, obj) == nil
-			Eventually(func() error {
-				return k8sClient.Create(ctx, obj.DeepCopyObject().(client.Object))
-			}, 10*time.Second, 500*time.Millisecond).Should(SatisfyAny(util.AlreadyExistMatcher{}, BeNil()))
-			if !preExisting {
+			err := k8sClient.Create(ctx, obj.DeepCopyObject().(client.Object))
+			if err != nil && !errors.IsAlreadyExists(err) {
+				// Retry on transient errors only.
+				Eventually(func() error {
+					return k8sClient.Create(ctx, obj.DeepCopyObject().(client.Object))
+				}, 10*time.Second, 500*time.Millisecond).Should(SatisfyAny(util.AlreadyExistMatcher{}, BeNil()))
+				// After retrying we cannot be certain who created it; skip cleanup.
+				return
+			}
+			if err == nil {
 				DeferCleanup(func() { _ = k8sClient.Delete(ctx, obj) })
 			}
 		}

@@ -73,7 +73,8 @@ func templateHash(s string) string {
 }
 
 // compatEntry is the cached result for a single template.
-// If requiresUpgrade is false, upgraded is empty and the original template is returned as-is.
+// upgraded always holds the normalised (and possibly semantically rewritten) template.
+// requiresUpgrade is true only when semantic fixes were applied.
 type compatEntry struct {
 	requiresUpgrade bool
 	upgraded        string
