@@ -559,31 +559,52 @@ var _ = Describe("Application Normal tests", func() {
 		By("Applying the legacy-cue-component ComponentDefinition (uses deprecated + list arithmetic)")
 		var compDef v1beta1.ComponentDefinition
 		Expect(common.ReadYamlToObject("testdata/definition/legacy-cue-component.yaml", &compDef)).Should(BeNil())
+		var compDefCreated bool
 		Eventually(func() error {
-			return k8sClient.Create(ctx, compDef.DeepCopy())
+			err := k8sClient.Create(ctx, compDef.DeepCopy())
+			if err == nil {
+				compDefCreated = true
+			}
+			return err
 		}, 10*time.Second, 500*time.Millisecond).Should(SatisfyAny(util.AlreadyExistMatcher{}, BeNil()))
 		DeferCleanup(func() {
-			_ = k8sClient.Delete(ctx, &compDef)
+			if compDefCreated {
+				_ = k8sClient.Delete(ctx, &compDef)
+			}
 		})
 
 		By("Applying the legacy-cue-trait TraitDefinition (uses deprecated + list arithmetic)")
 		var traitDef v1beta1.TraitDefinition
 		Expect(common.ReadYamlToObject("testdata/definition/legacy-cue-trait.yaml", &traitDef)).Should(BeNil())
+		var traitDefCreated bool
 		Eventually(func() error {
-			return k8sClient.Create(ctx, traitDef.DeepCopy())
+			err := k8sClient.Create(ctx, traitDef.DeepCopy())
+			if err == nil {
+				traitDefCreated = true
+			}
+			return err
 		}, 10*time.Second, 500*time.Millisecond).Should(SatisfyAny(util.AlreadyExistMatcher{}, BeNil()))
 		DeferCleanup(func() {
-			_ = k8sClient.Delete(ctx, &traitDef)
+			if traitDefCreated {
+				_ = k8sClient.Delete(ctx, &traitDef)
+			}
 		})
 
 		By("Applying the legacy-cue-policy PolicyDefinition (uses deprecated + list arithmetic)")
 		var policyDef v1beta1.PolicyDefinition
 		Expect(common.ReadYamlToObject("testdata/definition/legacy-cue-policy.yaml", &policyDef)).Should(BeNil())
+		var policyDefCreated bool
 		Eventually(func() error {
-			return k8sClient.Create(ctx, policyDef.DeepCopy())
+			err := k8sClient.Create(ctx, policyDef.DeepCopy())
+			if err == nil {
+				policyDefCreated = true
+			}
+			return err
 		}, 10*time.Second, 500*time.Millisecond).Should(SatisfyAny(util.AlreadyExistMatcher{}, BeNil()))
 		DeferCleanup(func() {
-			_ = k8sClient.Delete(ctx, &policyDef)
+			if policyDefCreated {
+				_ = k8sClient.Delete(ctx, &policyDef)
+			}
 		})
 
 		By("Creating an application that uses legacy CUE definitions")

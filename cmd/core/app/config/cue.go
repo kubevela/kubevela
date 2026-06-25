@@ -21,6 +21,7 @@ import (
 
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/spf13/pflag"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 )
@@ -60,7 +61,7 @@ func (c *CUEConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&c.CUECompatibilityCacheSize,
 		"cue-compatibility-cache-size",
 		c.CUECompatibilityCacheSize,
-		"Maximum number of CUE templates to cache after version compatibility rewriting.")
+		"Maximum number of CUE templates to cache after version compatibility rewriting. Set to 0 to disable caching.")
 }
 
 // SyncToCUEGlobals syncs the parsed configuration values to CUE package global variables.
@@ -76,5 +77,9 @@ func (c *CUEConfig) SyncToCUEGlobals(ctx context.Context) {
 	cuex.EnableExternalPackageForDefaultCompiler = c.EnableExternalPackage
 	cuex.EnableExternalPackageWatchForDefaultCompiler = c.EnableExternalPackageWatch
 	upgrade.EnableCUEVersionCompatibility = c.EnableCUEVersionCompatibility
+	if c.CUECompatibilityCacheSize < 0 {
+		klog.Warningf("cue-compatibility-cache-size %d is invalid (must be >= 0); caching disabled", c.CUECompatibilityCacheSize)
+		c.CUECompatibilityCacheSize = 0
+	}
 	upgrade.InitCompatibilityCache(ctx, c.CUECompatibilityCacheSize)
 }

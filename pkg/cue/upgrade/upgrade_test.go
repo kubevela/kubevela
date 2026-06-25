@@ -284,10 +284,16 @@ func TestRequiresUpgradeErrorFieldNegative(t *testing.T) {
 			t.Errorf("errorFieldLabelRe false positive on: %q", input)
 		}
 	}
-	// Positive: unquoted error field label must match.
-	positive := `output: { error: "something" }`
-	if !errorFieldLabelRe.MatchString(positive) {
-		t.Errorf("errorFieldLabelRe failed to match: %q", positive)
+	// Positive: all unquoted error field label variants must match.
+	positives := []string{
+		`output: { error: "something" }`,
+		`output: { error?: "optional" }`,
+		`output: { error!: "required" }`,
+	}
+	for _, p := range positives {
+		if !errorFieldLabelRe.MatchString(p) {
+			t.Errorf("errorFieldLabelRe failed to match: %q", p)
+		}
 	}
 }
 
@@ -816,7 +822,7 @@ combined: list1 + list2
 
 func TestEnsureCueVersionCompatibilityIncrementsMetric(t *testing.T) {
 	// Reset cache so the upgrade path actually runs.
-	compatCache = newLRUCache(512)
+	compatCache.Store(newLRUCache(512))
 
 	// Reset the counter before the test.
 	CUECompatRewriteTotal.Reset()

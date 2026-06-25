@@ -26,15 +26,12 @@ import (
 //   - definition_kind: definition type, e.g. "Component", "Trait"
 //   - status: "ok" on success, "error" on failure
 //
-// Use this metric to track overall render latency per definition type.
-var CUERenderDuration = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-	Name: "kubevela_cue_render_duration_seconds",
-	Help: "End-to-end duration of CUE definition rendering (compat rewrite + compile + validate), by definition kind and status.",
-	Objectives: map[float64]float64{
-		0.5:  0.05,
-		0.9:  0.01,
-		0.99: 0.001,
-	},
+// Buckets are tuned for the expected millisecond range of CUE compilation and validation.
+// Use histogram_quantile() in PromQL to compute aggregated latency percentiles across replicas.
+var CUERenderDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	Name:    "kubevela_cue_render_duration_seconds",
+	Help:    "End-to-end duration of CUE definition rendering (compat rewrite + compile + validate), by definition kind and status.",
+	Buckets: []float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0},
 }, []string{"definition_kind", "status"})
 
 func init() {

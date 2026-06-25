@@ -27,6 +27,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -549,6 +550,8 @@ func scanApplications(ctx context.Context, k8sClient client.Client, opts scanApp
 			Namespace: app.Namespace,
 			Name:      app.Status.LatestRevision.Name,
 		}, rev); err != nil {
+			klog.Warningf("def compat: skipping application %s/%s: failed to fetch revision %s: %v",
+				app.Namespace, app.Name, app.Status.LatestRevision.Name, err)
 			continue
 		}
 		appIssues := scanAppRevision(rev, typeSet)

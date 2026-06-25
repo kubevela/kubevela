@@ -28,9 +28,10 @@ import (
 
 var v1_11 = Version{Major: 1, Minor: 11}
 
-// errorFieldLabelRe matches an unquoted `error` used as a field label, i.e. `error` followed by
-// optional whitespace and a colon. This avoids false positives on identifiers like `errorMessage`.
-var errorFieldLabelRe = regexp.MustCompile(`\berror\s*:`)
+// errorFieldLabelRe matches an unquoted `error` used as a field label: `error` followed by
+// optional whitespace, an optional field constraint marker (? for optional, ! for required),
+// and a colon. This avoids false positives on identifiers like `errorMessage`.
+var errorFieldLabelRe = regexp.MustCompile(`\berror\s*[?!]?\s*:`)
 
 func init() {
 	// list arithmetic (+ and *) was deprecated in CUE v0.11 and became a hard error in v0.14.

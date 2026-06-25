@@ -40,16 +40,12 @@ var CUECompatRewriteTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 // Labels:
 //   - definition_kind: definition type, e.g. "Component"
 //
-// Use _count for frequency and quantiles for latency of the upgrade work itself.
+// Use histogram_quantile() in PromQL to compute aggregated latency percentiles across replicas.
 // Cache hits are not recorded — they are too cheap to be meaningful.
-var CUECompatUpgradeDuration = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-	Name: "kubevela_cue_compat_upgrade_duration_seconds",
-	Help: "Duration of CUE version compatibility checks at render time (cache misses only), by definition kind.",
-	Objectives: map[float64]float64{
-		0.5:  0.05,
-		0.9:  0.01,
-		0.99: 0.001,
-	},
+var CUECompatUpgradeDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	Name:    "kubevela_cue_compat_upgrade_duration_seconds",
+	Help:    "Duration of CUE version compatibility checks at render time (cache misses only), by definition kind.",
+	Buckets: []float64{0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1},
 }, []string{"definition_kind"})
 
 // CUECompatCacheEvictionsTotal counts cache entries evicted, by reason.

@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -29,10 +30,17 @@ import (
 var CompatibilityCacheSize = 2000
 
 // compatCache stores the result of each template compatibility check, keyed by SHA-256 of the raw template.
-var compatCache = newLRUCache(CompatibilityCacheSize)
+var compatCache atomic.Pointer[lruCache]
 
 // compatCacheCancel cancels the eviction goroutine of the current compatCache instance.
 var compatCacheCancel context.CancelFunc
+
+// compatCacheMu serialises concurrent calls to InitCompatibilityCache.
+var compatCacheMu sync.Mutex
+
+func init() {
+	compatCache.Store(newLRUCache(CompatibilityCacheSize))
+}
 
 // CacheEntryTTL is how long an unaccessed entry lives before being swept.
 var CacheEntryTTL = 1 * time.Hour
@@ -41,14 +49,17 @@ var CacheEntryTTL = 1 * time.Hour
 // Safe to call multiple times (e.g. in tests): the previous eviction goroutine is stopped before the
 // new cache is installed.
 func InitCompatibilityCache(ctx context.Context, size int) {
+	compatCacheMu.Lock()
+	defer compatCacheMu.Unlock()
 	if compatCacheCancel != nil {
 		compatCacheCancel()
 	}
 	CompatibilityCacheSize = size
-	compatCache = newLRUCache(CompatibilityCacheSize)
+	c := newLRUCache(CompatibilityCacheSize)
 	cacheCtx, cancel := context.WithCancel(ctx)
 	compatCacheCancel = cancel
-	compatCache.startEvictionLoop(cacheCtx)
+	c.startEvictionLoop(cacheCtx)
+	compatCache.Store(c)
 }
 
 // templateHash returns the SHA-256 hex digest of s, used as the cache key.
@@ -128,6 +139,9 @@ func (c *lruCache) get(key string) (compatEntry, bool) {
 }
 
 func (c *lruCache) put(key string, value compatEntry) {
+	if c.capacity <= 0 {
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if el, ok := c.items[key]; ok {

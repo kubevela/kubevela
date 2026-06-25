@@ -68,7 +68,7 @@ func TestLRUCacheCapacity(t *testing.T) {
 }
 
 func TestEnsureCueVersionCompatibilityCacheHit(t *testing.T) {
-	compatCache = newLRUCache(512)
+	compatCache.Store(newLRUCache(512))
 
 	input := `
 list1: [1, 2, 3]
@@ -80,7 +80,7 @@ combined: list1 + list2
 
 	const sentinel = "CACHE_HIT_SENTINEL"
 	key := templateHash(input)
-	compatCache.put(key, compatEntry{requiresUpgrade: true, upgraded: sentinel})
+	compatCache.Load().put(key, compatEntry{requiresUpgrade: true, upgraded: sentinel})
 
 	// Second call — must return the sentinel from cache, not a freshly computed value
 	result2 := EnsureCueVersionCompatibility(input, "test-def", ComponentKind, TemplateAreaMain)
@@ -88,13 +88,13 @@ combined: list1 + list2
 	if result2 != sentinel {
 		t.Errorf("second call did not use cache: expected sentinel %q, got %q (first result was %q)", sentinel, result2, result1)
 	}
-	if compatCache.len() != 1 {
-		t.Errorf("expected 1 cache entry, got %d", compatCache.len())
+	if compatCache.Load().len() != 1 {
+		t.Errorf("expected 1 cache entry, got %d", compatCache.Load().len())
 	}
 }
 
 func TestEnsureCueVersionCompatibilityAlreadyCompatible(t *testing.T) {
-	compatCache = newLRUCache(512)
+	compatCache.Store(newLRUCache(512))
 
 	// Use canonical CUE formatting (no leading newline, blank line after import).
 	input := `import "list"
@@ -108,13 +108,13 @@ combined: list.Concat([list1, list2])`
 	}
 	const sentinel = "CACHE_HIT_SENTINEL"
 	key := templateHash(input)
-	compatCache.put(key, compatEntry{requiresUpgrade: true, upgraded: sentinel})
+	compatCache.Load().put(key, compatEntry{requiresUpgrade: true, upgraded: sentinel})
 
 	result2 := EnsureCueVersionCompatibility(input, "test-def", ComponentKind, TemplateAreaMain)
 	if result2 != sentinel {
 		t.Errorf("second call did not use cache: expected sentinel %q, got %q", sentinel, result2)
 	}
-	if compatCache.len() != 1 {
-		t.Errorf("expected 1 cache entry, got %d", compatCache.len())
+	if compatCache.Load().len() != 1 {
+		t.Errorf("expected 1 cache entry, got %d", compatCache.Load().len())
 	}
 }
