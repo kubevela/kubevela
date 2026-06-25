@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	admissionv1 "k8s.io/api/admission/v1"
@@ -87,11 +86,10 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			// Validate against the effective template; with auto-upgrade is enabled
 			cueTemplate := obj.Spec.Schematic.CUE.Template
 			if upgrade.EnableCUEVersionCompatibility {
-				if needsUpgrade, reasons, err := upgrade.RequiresUpgrade(cueTemplate); err == nil && needsUpgrade {
-					cueWarnings = append(cueWarnings, fmt.Sprintf(
-						"CUE template uses legacy syntax that will be auto-upgraded at render time. Run `vela def compat definitions` to scan all definitions for legacy syntax. Reasons: %s",
-						strings.Join(reasons, "; ")))
-					cueTemplate = upgrade.EnsureCueVersionCompatibility(cueTemplate, obj.Name, upgrade.PolicyKind, upgrade.TemplateAreaMain)
+				upgraded, wasUpgraded := upgrade.EnsureCueVersionCompatibility(cueTemplate, obj.Name, upgrade.PolicyKind, upgrade.TemplateAreaMain)
+				if wasUpgraded {
+					cueWarnings = append(cueWarnings, "CUE template uses legacy syntax that will be auto-upgraded at render time. Run `vela def compat definitions` to scan all definitions for legacy syntax.")
+					cueTemplate = upgraded
 				}
 			}
 

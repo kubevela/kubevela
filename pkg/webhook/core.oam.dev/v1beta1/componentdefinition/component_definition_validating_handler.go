@@ -100,8 +100,8 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			// syntax before validation so the template compiles correctly.
 			cueTemplate := obj.Spec.Schematic.CUE.Template
 			if upgrade.EnableCUEVersionCompatibility {
-				upgraded := upgrade.EnsureCueVersionCompatibility(cueTemplate, obj.Name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
-				if upgraded != cueTemplate {
+				upgraded, wasUpgraded := upgrade.EnsureCueVersionCompatibility(cueTemplate, obj.Name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
+				if wasUpgraded {
 					warnings = append(warnings, "CUE template uses legacy syntax that will be auto-upgraded at render time. Run `vela def compat definitions` to scan all definitions for legacy syntax.")
 					cueTemplate = upgraded
 				}

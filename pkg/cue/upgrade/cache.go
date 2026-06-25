@@ -56,9 +56,13 @@ func InitCompatibilityCache(ctx context.Context, size int) {
 	}
 	CompatibilityCacheSize = size
 	c := newLRUCache(CompatibilityCacheSize)
-	cacheCtx, cancel := context.WithCancel(ctx)
-	compatCacheCancel = cancel
-	c.startEvictionLoop(cacheCtx)
+	if size > 0 {
+		cacheCtx, cancel := context.WithCancel(ctx)
+		compatCacheCancel = cancel
+		c.startEvictionLoop(cacheCtx)
+	} else {
+		compatCacheCancel = nil
+	}
 	compatCache.Store(c)
 }
 

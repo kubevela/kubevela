@@ -556,56 +556,33 @@ var _ = Describe("Application Normal tests", func() {
 	})
 
 	It("test app with legacy CUE syntax renders and becomes healthy", func() {
+		// createAndTrack creates obj if it doesn't already exist and registers a DeferCleanup
+		// that only deletes the resource if this test was the one that created it.
+		createAndTrack := func(obj client.Object) {
+			key := client.ObjectKeyFromObject(obj)
+			preExisting := k8sClient.Get(ctx, key, obj) == nil
+			Eventually(func() error {
+				return k8sClient.Create(ctx, obj.DeepCopyObject().(client.Object))
+			}, 10*time.Second, 500*time.Millisecond).Should(SatisfyAny(util.AlreadyExistMatcher{}, BeNil()))
+			if !preExisting {
+				DeferCleanup(func() { _ = k8sClient.Delete(ctx, obj) })
+			}
+		}
+
 		By("Applying the legacy-cue-component ComponentDefinition (uses deprecated + list arithmetic)")
 		var compDef v1beta1.ComponentDefinition
 		Expect(common.ReadYamlToObject("testdata/definition/legacy-cue-component.yaml", &compDef)).Should(BeNil())
-		var compDefCreated bool
-		Eventually(func() error {
-			err := k8sClient.Create(ctx, compDef.DeepCopy())
-			if err == nil {
-				compDefCreated = true
-			}
-			return err
-		}, 10*time.Second, 500*time.Millisecond).Should(SatisfyAny(util.AlreadyExistMatcher{}, BeNil()))
-		DeferCleanup(func() {
-			if compDefCreated {
-				_ = k8sClient.Delete(ctx, &compDef)
-			}
-		})
+		createAndTrack(&compDef)
 
 		By("Applying the legacy-cue-trait TraitDefinition (uses deprecated + list arithmetic)")
 		var traitDef v1beta1.TraitDefinition
 		Expect(common.ReadYamlToObject("testdata/definition/legacy-cue-trait.yaml", &traitDef)).Should(BeNil())
-		var traitDefCreated bool
-		Eventually(func() error {
-			err := k8sClient.Create(ctx, traitDef.DeepCopy())
-			if err == nil {
-				traitDefCreated = true
-			}
-			return err
-		}, 10*time.Second, 500*time.Millisecond).Should(SatisfyAny(util.AlreadyExistMatcher{}, BeNil()))
-		DeferCleanup(func() {
-			if traitDefCreated {
-				_ = k8sClient.Delete(ctx, &traitDef)
-			}
-		})
+		createAndTrack(&traitDef)
 
 		By("Applying the legacy-cue-policy PolicyDefinition (uses deprecated + list arithmetic)")
 		var policyDef v1beta1.PolicyDefinition
 		Expect(common.ReadYamlToObject("testdata/definition/legacy-cue-policy.yaml", &policyDef)).Should(BeNil())
-		var policyDefCreated bool
-		Eventually(func() error {
-			err := k8sClient.Create(ctx, policyDef.DeepCopy())
-			if err == nil {
-				policyDefCreated = true
-			}
-			return err
-		}, 10*time.Second, 500*time.Millisecond).Should(SatisfyAny(util.AlreadyExistMatcher{}, BeNil()))
-		DeferCleanup(func() {
-			if policyDefCreated {
-				_ = k8sClient.Delete(ctx, &policyDef)
-			}
-		})
+		createAndTrack(&policyDef)
 
 		By("Creating an application that uses legacy CUE definitions")
 		var app v1beta1.Application

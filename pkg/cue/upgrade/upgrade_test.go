@@ -259,7 +259,7 @@ func TestUpgradeChainedListConcat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := EnsureCueVersionCompatibility(tt.input, "test", ComponentKind, TemplateAreaMain)
+			result, _ := EnsureCueVersionCompatibility(tt.input, "test", ComponentKind, TemplateAreaMain)
 			if strings.Contains(result, "list.Concat([list.Concat(") {
 				t.Errorf("got nested list.Concat instead of flat: %s", result)
 			}
@@ -741,7 +741,7 @@ list1: [1, 2, 3]
 list2: [4, 5, 6]
 combined: list1 + list2
 `
-	got := EnsureCueVersionCompatibility(input, "test-def", ComponentKind, TemplateAreaMain)
+	got, _ := EnsureCueVersionCompatibility(input, "test-def", ComponentKind, TemplateAreaMain)
 	if got != input {
 		t.Errorf("expected input returned unchanged when compatibility disabled, got %q", got)
 	}

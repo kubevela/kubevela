@@ -379,11 +379,13 @@ func upgradeWithIDs(cueStr string) (result string, applied []appliedFix, err err
 }
 
 // EnsureCueVersionCompatibility applies all upgrades for the current KubeVela version to the
-// provided CUE string, ensuring backward compatibility with legacy CUE syntax
+// provided CUE string, ensuring backward compatibility with legacy CUE syntax.
+// Returns the upgraded template and whether any semantic upgrades were actually applied
+// (false for formatting-only normalization or already-compatible templates).
 // Returns the original string unchanged if EnableCUEVersionCompatibility is false.
-func EnsureCueVersionCompatibility(cueStr, defName string, defKind DefinitionKind, area TemplateArea) string {
+func EnsureCueVersionCompatibility(cueStr, defName string, defKind DefinitionKind, area TemplateArea) (string, bool) {
 	if !EnableCUEVersionCompatibility {
-		return cueStr
+		return cueStr, false
 	}
 
 	key := templateHash(cueStr)
@@ -393,10 +395,10 @@ func EnsureCueVersionCompatibility(cueStr, defName string, defKind DefinitionKin
 	if entry, ok := cache.get(key); ok {
 		if !entry.requiresUpgrade {
 			klog.V(4).InfoS("cue/upgrade: skip (already compatible)", "definition", defName)
-			return cueStr
+			return cueStr, false
 		}
 		klog.V(4).InfoS("cue/upgrade: cache hit (upgraded template)", "definition", defName)
-		return entry.upgraded
+		return entry.upgraded, true
 	}
 
 	upgraded, applied, err := upgradeWithIDs(cueStr)
@@ -405,10 +407,11 @@ func EnsureCueVersionCompatibility(cueStr, defName string, defKind DefinitionKin
 
 	if err != nil {
 		klog.InfoS("cue/upgrade: skipping compatibility upgrade (fail-open)", "definition", defName, "err", err, "elapsed", elapsed)
-		return cueStr
+		return cueStr, false
 	}
 
-	if upgraded != cueStr {
+	wasUpgraded := len(applied) > 0
+	if wasUpgraded {
 		cache.put(key, compatEntry{requiresUpgrade: true, upgraded: upgraded})
 		for _, fix := range applied {
 			CUECompatRewriteTotal.WithLabelValues(fix.id, fix.version, string(defKind), string(area)).Inc()
@@ -419,7 +422,7 @@ func EnsureCueVersionCompatibility(cueStr, defName string, defKind DefinitionKin
 		klog.V(4).InfoS("cue/upgrade: no compatibility fixes needed", "definition", defName, "elapsed", elapsed)
 	}
 
-	return upgraded
+	return upgraded, wasUpgraded
 }
 
 // RequiresUpgrade checks if the CUE string requires upgrading to the target version.

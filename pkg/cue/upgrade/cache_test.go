@@ -76,14 +76,14 @@ list2: [4, 5, 6]
 combined: list1 + list2
 `
 	// First call — cache miss, runs upgrade
-	result1 := EnsureCueVersionCompatibility(input, "test-def", ComponentKind, TemplateAreaMain)
+	result1, _ := EnsureCueVersionCompatibility(input, "test-def", ComponentKind, TemplateAreaMain)
 
 	const sentinel = "CACHE_HIT_SENTINEL"
 	key := templateHash(input)
 	compatCache.Load().put(key, compatEntry{requiresUpgrade: true, upgraded: sentinel})
 
 	// Second call — must return the sentinel from cache, not a freshly computed value
-	result2 := EnsureCueVersionCompatibility(input, "test-def", ComponentKind, TemplateAreaMain)
+	result2, _ := EnsureCueVersionCompatibility(input, "test-def", ComponentKind, TemplateAreaMain)
 
 	if result2 != sentinel {
 		t.Errorf("second call did not use cache: expected sentinel %q, got %q (first result was %q)", sentinel, result2, result1)
@@ -102,7 +102,7 @@ func TestEnsureCueVersionCompatibilityAlreadyCompatible(t *testing.T) {
 list1: [1, 2, 3]
 list2: [4, 5, 6]
 combined: list.Concat([list1, list2])`
-	result1 := EnsureCueVersionCompatibility(input, "test-def", ComponentKind, TemplateAreaMain)
+	result1, _ := EnsureCueVersionCompatibility(input, "test-def", ComponentKind, TemplateAreaMain)
 	if result1 != input {
 		t.Errorf("already-compatible template should be returned unchanged on first call, got %q", result1)
 	}
@@ -110,7 +110,7 @@ combined: list.Concat([list1, list2])`
 	key := templateHash(input)
 	compatCache.Load().put(key, compatEntry{requiresUpgrade: true, upgraded: sentinel})
 
-	result2 := EnsureCueVersionCompatibility(input, "test-def", ComponentKind, TemplateAreaMain)
+	result2, _ := EnsureCueVersionCompatibility(input, "test-def", ComponentKind, TemplateAreaMain)
 	if result2 != sentinel {
 		t.Errorf("second call did not use cache: expected sentinel %q, got %q", sentinel, result2)
 	}

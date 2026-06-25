@@ -562,7 +562,7 @@ func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1
 		return cue.Value{}, errors.Wrap(err, "failed to generate base context")
 	}
 
-	template := upgrade.EnsureCueVersionCompatibility(policyDef.Spec.Schematic.CUE.Template, policyDef.Name, upgrade.PolicyKind, upgrade.TemplateAreaMain)
+	template, _ := upgrade.EnsureCueVersionCompatibility(policyDef.Spec.Schematic.CUE.Template, policyDef.Name, upgrade.PolicyKind, upgrade.TemplateAreaMain)
 	cueSource := strings.Join([]string{
 		template,
 		paramFile,

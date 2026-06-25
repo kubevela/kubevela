@@ -144,7 +144,7 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 	}
 
 	// Apply the cue compatibility upgrades so that the render path applies
-	templateStr := upgrade.EnsureCueVersionCompatibility(wl.FullTemplate.TemplateStr, wl.Name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
+	templateStr, _ := upgrade.EnsureCueVersionCompatibility(wl.FullTemplate.TemplateStr, wl.Name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
 
 	cueSrc := strings.Join([]string{
 		renderTemplate(templateStr),
@@ -643,7 +643,7 @@ func (p *Parser) augmentComponentParamsForValidation(wl *Component, workflowPara
 		return false, wl.Params
 	}
 
-	templateStr := upgrade.EnsureCueVersionCompatibility(wl.FullTemplate.TemplateStr, wl.Name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
+	templateStr, _ := upgrade.EnsureCueVersionCompatibility(wl.FullTemplate.TemplateStr, wl.Name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
 	cueSrc := strings.Join([]string{
 		renderTemplate(templateStr),
 		paramSnippet,

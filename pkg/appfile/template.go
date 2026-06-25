@@ -423,9 +423,9 @@ func (t *Template) definitionKind() upgrade.DefinitionKind {
 
 func (t *Template) AsStatusRequest(parameter map[string]interface{}) *health.StatusRequest {
 	kind := t.definitionKind()
-	healthCUE := upgrade.EnsureCueVersionCompatibility(t.Health, "health", kind, upgrade.TemplateAreaHealth)
-	customCUE := upgrade.EnsureCueVersionCompatibility(t.CustomStatus, "customStatus", kind, upgrade.TemplateAreaCustomStatus)
-	detailsCUE := upgrade.EnsureCueVersionCompatibility(t.Details, "statusDetails", kind, upgrade.TemplateAreaStatusDetail)
+	healthCUE, _ := upgrade.EnsureCueVersionCompatibility(t.Health, "health", kind, upgrade.TemplateAreaHealth)
+	customCUE, _ := upgrade.EnsureCueVersionCompatibility(t.CustomStatus, "customStatus", kind, upgrade.TemplateAreaCustomStatus)
+	detailsCUE, _ := upgrade.EnsureCueVersionCompatibility(t.Details, "statusDetails", kind, upgrade.TemplateAreaStatusDetail)
 	return &health.StatusRequest{
 		Health:    healthCUE,
 		Custom:    customCUE,
