@@ -750,6 +750,54 @@ func TestCacheMatchesRemote(t *testing.T) {
 	})
 }
 
+// TestRedactURLCredentials verifies credentials embedded in a remote URL are stripped
+// before the URL is logged or written to the cache marker (GHSA-fmgp-q6jx-gg3x).
+func TestRedactURLCredentials(t *testing.T) {
+	cases := map[string]struct {
+		in   string
+		want string
+	}{
+		"https with user and password":   {"https://user:s3cr3t@github.com/org/repo.git", "https://github.com/org/repo.git"},
+		"https with token as user":       {"https://ghp_TOKEN123@github.com/org/repo.git", "https://github.com/org/repo.git"},
+		"https without credentials":      {"https://github.com/org/repo.git", "https://github.com/org/repo.git"},
+		"ssh url with user":              {"ssh://git@github.com/org/repo.git", "ssh://github.com/org/repo.git"},
+		"scp-style ssh":                  {"git@github.com:org/repo.git", "github.com:org/repo.git"},
+		"git scheme without credentials": {"git://example/repo.git", "git://example/repo.git"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := redactURLCredentials(tc.in)
+			assert.Equal(t, tc.want, got)
+			assert.NotContains(t, got, "s3cr3t")
+			assert.NotContains(t, got, "ghp_TOKEN123")
+		})
+	}
+}
+
+// TestRecordCacheRemoteRedactsCredentials verifies the persisted cache marker never
+// contains credentials from an authenticated remote URL, while the populated cache is
+// still reused for the same repository (GHSA-fmgp-q6jx-gg3x).
+func TestRecordCacheRemoteRedactsCredentials(t *testing.T) {
+	cache := filepath.Join(t.TempDir(), "mod")
+	assert.NoError(t, os.MkdirAll(cache, 0700))
+	assert.NoError(t, os.WriteFile(filepath.Join(cache, "variables.tf"), []byte("x"), 0600))
+
+	recordCacheRemote(cache, "https://user:s3cr3t@github.com/org/repo.git")
+
+	marker, err := os.ReadFile(filepath.Clean(cache + cacheRemoteMarkerSuffix))
+	assert.NoError(t, err)
+	assert.NotContains(t, string(marker), "s3cr3t")
+	assert.NotContains(t, string(marker), "user")
+	assert.Equal(t, "https://github.com/org/repo.git", string(marker))
+
+	// The same repository, with or without credentials, still matches the recorded
+	// marker, so a populated cache is reused rather than re-cloned.
+	assert.True(t, cacheMatchesRemote(cache, "https://user:s3cr3t@github.com/org/repo.git"))
+	assert.True(t, cacheMatchesRemote(cache, "https://github.com/org/repo.git"))
+	// A different repository does not match.
+	assert.False(t, cacheMatchesRemote(cache, "https://github.com/org/other.git"))
+}
+
 // TestGetTerraformConfigurationFromRemoteInvalidatesCacheOnRejection exercises
 // the cache-reuse path with no network: a populated cache whose URL marker
 // matches skips the clone, so a poisoned cached variables.tf (a symlink escaping
