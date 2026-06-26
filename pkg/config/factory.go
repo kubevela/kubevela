@@ -615,6 +615,9 @@ func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name strin
 func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config, _ string) error {
 	var secret v1.Secret
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: i.Namespace, Name: i.Name}, &secret); err == nil {
+		if secret.Labels[types.LabelConfigCatalog] != types.VelaCoreConfig {
+			return fmt.Errorf("a secret named %q already exists in namespace %q and is not a vela config", i.Name, i.Namespace)
+		}
 		if secret.Labels[types.LabelConfigType] != i.Template.Name {
 			return ErrChangeTemplate
 		}
