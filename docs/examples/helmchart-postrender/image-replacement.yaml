@@ -1,0 +1,37 @@
+# helmchart + postRender.kustomize example — image tag and replica override
+#
+# Overrides the podinfo container image tag and scales the Deployment to 2
+# replicas without touching chart values.  Useful when you need to pin a
+# specific image digest in production while keeping chart values unchanged.
+#
+# Apply with:
+#   kubectl apply -f image-replacement.yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: podinfo-pinned
+spec:
+  components:
+    - name: podinfo
+      type: helmchart
+      properties:
+        chart:
+          source: podinfo
+          repoURL: https://stefanprodan.github.io/podinfo
+          version: "6.5.0"
+        release:
+          name: podinfo
+          namespace: default
+        options:
+          createNamespace: true
+          skipTests: true
+          postRender:
+            kustomize:
+              # Pin the container image to a specific tag.
+              images:
+                - name: ghcr.io/stefanprodan/podinfo
+                  newTag: "6.5.4"
+              # Override replica count independently of chart values.
+              replicas:
+                - name: podinfo
+                  count: 2
