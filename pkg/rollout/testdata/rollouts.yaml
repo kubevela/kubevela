@@ -216,12 +216,6 @@ spec:
                     rolloutHash:
                       description: RolloutHash from rollout.spec object
                       type: string
-                  required:
-                    - canaryReadyReplicas
-                    - canaryReplicas
-                    - canaryService
-                    - currentStepState
-                    - podTemplateHash
                   type: object
                 conditions:
                   description: Conditions a list of conditions a rollout can have.
