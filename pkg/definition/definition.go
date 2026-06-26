@@ -228,10 +228,14 @@ func (def *Definition) ToCUEString() (string, error) {
 		return "", errors.Wrapf(err, "failed to parse template cue string")
 	}
 
-	// Extract imports before fix.File() clears them
+	// Extract imports from original file; fix.File may drop unreferenced ones.
 	importPaths := extractImportsFromFile(f)
 
 	f = fix.File(f)
+
+	// Merge any new imports added by fix.File (e.g. "list" when rewriting list arithmetic).
+	importPaths = mergeImports(importPaths, extractImportsFromFile(f))
+
 	var templateDecls []ast.Decl
 	for _, decl := range f.Decls {
 		if _, ok := decl.(*ast.ImportDecl); !ok {
@@ -425,9 +429,8 @@ func (def *Definition) FromCUEString(cueString string, _ *rest.Config) error {
 	if err != nil {
 		return err
 	}
-	n := fix.File(f)
 	var importDecls, metadataDecls, templateDecls []ast.Decl
-	for _, decl := range n.Decls {
+	for _, decl := range f.Decls {
 		if importDecl, ok := decl.(*ast.ImportDecl); ok {
 			importDecls = append(importDecls, importDecl)
 		} else if field, ok := decl.(*ast.Field); ok {
@@ -478,12 +481,16 @@ func (def *Definition) FromCUEString(cueString string, _ *rest.Config) error {
 	if err != nil {
 		return err
 	}
-	templateString, err = formatCUEString(importString + templateString)
+	// Validate by compiling the upgraded template; store the original user-supplied syntax.
+	upgradedTemplate, err := formatCUEString(importString + templateString)
 	if err != nil {
 		return err
 	}
-	if _, err := providers.DefaultCompiler.Get().CompileStringWithOptions(context.Background(), templateString+"\n"+velacue.BaseTemplate, cuex.DisableResolveProviderFunctions{}); err != nil {
+	if _, err := providers.DefaultCompiler.Get().CompileStringWithOptions(context.Background(), upgradedTemplate+"\n"+velacue.BaseTemplate, cuex.DisableResolveProviderFunctions{}); err != nil {
 		return err
+	}
+	if imp := strings.TrimSpace(importString); imp != "" {
+		return def.FromCUE(&inst, imp+"\n"+templateString)
 	}
 	return def.FromCUE(&inst, templateString)
 }
@@ -685,20 +692,39 @@ func extractImportsFromFile(f *ast.File) []string {
 	return importPaths
 }
 
+// mergeImports appends any paths from additional that are not already in base.
+func mergeImports(base, additional []string) []string {
+	for _, p := range additional {
+		found := false
+		for _, existing := range base {
+			if existing == p {
+				found = true
+				break
+			}
+		}
+		if !found {
+			base = append(base, p)
+		}
+	}
+	return base
+}
+
 func formatCUEString(cueString string) (string, error) {
 	f, err := parser.ParseFile("-", cueString, parser.ParseComments)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to parse file during format cue string")
 	}
 
-	// Extract imports before fix.File() clears them
+	// Extract imports from original file; fix.File may drop unreferenced ones.
 	importPaths := extractImportsFromFile(f)
 
-	n := fix.File(f)
+	fixed := fix.File(f)
 
-	// Format only non-import declarations
+	// Merge any new imports added by fix.File (e.g. "list" when rewriting list arithmetic).
+	importPaths = mergeImports(importPaths, extractImportsFromFile(fixed))
+
 	var nonImportDecls []ast.Decl
-	for _, decl := range n.Decls {
+	for _, decl := range fixed.Decls {
 		if _, ok := decl.(*ast.ImportDecl); !ok {
 			nonImportDecls = append(nonImportDecls, decl)
 		}

@@ -1,3 +1,5 @@
+import "list"
+
 import (
 	"strconv"
 	"strings"
@@ -60,7 +62,7 @@ template: {
 				_basePortsMap: {for _basePort in _basePorts {(strings.ToLower(_basePort.protocol) + strconv.FormatInt(_basePort.containerPort, 10)): _basePort}}
 				_portsMap: {for port in _params.ports {(strings.ToLower(port.protocol) + strconv.FormatInt(port.containerPort, 10)): port}}
 				// +patchStrategy=replace
-				ports: [for portVar in _basePorts {
+				ports: list.Concat([[for portVar in _basePorts {
 					containerPort: portVar.containerPort
 					protocol:      portVar.protocol
 					name:          portVar.name
@@ -73,7 +75,7 @@ template: {
 							hostIP: _portsMap[_uniqueKey].hostIP
 						}
 					}
-				}] + [for port in _params.ports if _basePortsMap[strings.ToLower(port.protocol)+strconv.FormatInt(port.containerPort, 10)] == _|_ {
+				}], [for port in _params.ports if _basePortsMap[strings.ToLower(port.protocol)+strconv.FormatInt(port.containerPort, 10)] == _|_ {
 					if port.containerPort != _|_ {
 						containerPort: port.containerPort
 					}
@@ -86,7 +88,7 @@ template: {
 					if port.hostIP != _|_ {
 						hostIP: port.hostIP
 					}
-				}]
+				}]])
 			}
 		}
 	}

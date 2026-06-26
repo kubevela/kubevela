@@ -15,7 +15,6 @@ spec:
     cue:
       template: |
         import "encoding/json"
-
         patch: metadata: annotations: "my.autoscale.ann": json.Marshal({
         	minReplicas: parameter.min
         	maxReplicas: parameter.max

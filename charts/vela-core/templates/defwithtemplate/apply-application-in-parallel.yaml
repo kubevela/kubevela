@@ -15,7 +15,8 @@ spec:
   schematic:
     cue:
       template: |
-        import "vela/op"
-
+        import (
+        	"vela/op"
+        )
         output: op.#ApplyApplicationInParallel & {}
 

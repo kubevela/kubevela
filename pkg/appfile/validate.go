@@ -41,6 +41,7 @@ import (
 	// config) and is initialized lazily (no init-time kubeconfig dependency).
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/features"
 
 	"github.com/pkg/errors"
@@ -142,8 +143,11 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 		return errors.WithMessagef(err, "component %q: invalid params", wl.Name)
 	}
 
+	// Apply the cue compatibility upgrades so that the render path applies
+	templateStr, _ := upgrade.EnsureCueVersionCompatibility(wl.FullTemplate.TemplateStr, wl.Name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
+
 	cueSrc := strings.Join([]string{
-		renderTemplate(wl.FullTemplate.TemplateStr),
+		renderTemplate(templateStr),
 		paramSnippet,
 		baseCtx,
 	}, "\n")
@@ -174,7 +178,7 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateUndeclaredParameters) {
 		// Compile the template WITHOUT user params to get the pure schema.
 		schemaSrc := strings.Join([]string{
-			renderTemplate(wl.FullTemplate.TemplateStr),
+			renderTemplate(templateStr),
 			baseCtx,
 		}, "\n")
 		schemaRoot, schemaErr := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), schemaSrc)
@@ -199,7 +203,7 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 					condSnippet, fErr := cueParamBlock(filteredParams)
 					if fErr == nil {
 						condSrc := strings.Join([]string{
-							renderTemplate(wl.FullTemplate.TemplateStr),
+							renderTemplate(templateStr),
 							condSnippet,
 							baseCtx,
 						}, "\n")
@@ -639,8 +643,9 @@ func (p *Parser) augmentComponentParamsForValidation(wl *Component, workflowPara
 		return false, wl.Params
 	}
 
+	templateStr, _ := upgrade.EnsureCueVersionCompatibility(wl.FullTemplate.TemplateStr, wl.Name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
 	cueSrc := strings.Join([]string{
-		renderTemplate(wl.FullTemplate.TemplateStr),
+		renderTemplate(templateStr),
 		paramSnippet,
 		baseCtx,
 	}, "\n")

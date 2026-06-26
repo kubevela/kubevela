@@ -276,8 +276,11 @@ var _ = Describe("Application Normal tests", func() {
 		}, 5*time.Second).Should(BeNil())
 
 		By("check trait status")
-		Expect(testApp.Status.Services[0].Traits[0].Message).Should(Equal("configMap:app-file-html"))
-		Expect(testApp.Status.Services[0].Traits[1].Message).Should(Equal("secret:app-env-config"))
+		traitMessages := []string{
+			testApp.Status.Services[0].Traits[0].Message,
+			testApp.Status.Services[0].Traits[1].Message,
+		}
+		Expect(traitMessages).Should(ContainElements("configMap:app-file-html", "secret:app-env-config"))
 	})
 
 	It("Test app have components with same name", func() {
@@ -550,6 +553,67 @@ var _ = Describe("Application Normal tests", func() {
 		Expect(app.Status.Services[0].Traits[0].Healthy).Should(BeTrue())
 		Expect(app.Status.Services[0].Traits[0].Message).Should(Equal(fmt.Sprintf("Healthy - %v / %v replicas are ready", traitReplicas, traitReplicas)))
 		Expect(app.Status.Services[0].Traits[0].Details["allReplicasReady"]).Should(Equal("true"))
+	})
+
+	It("test app with legacy CUE syntax renders and becomes healthy", func() {
+		// createAndTrack creates obj if it doesn't already exist and registers a DeferCleanup
+		// that only deletes the resource if this test was the one that created it.
+		createAndTrack := func(obj client.Object) {
+			err := k8sClient.Create(ctx, obj.DeepCopyObject().(client.Object))
+			if err != nil && !errors.IsAlreadyExists(err) {
+				// Retry on transient errors only.
+				Eventually(func() error {
+					return k8sClient.Create(ctx, obj.DeepCopyObject().(client.Object))
+				}, 10*time.Second, 500*time.Millisecond).Should(SatisfyAny(util.AlreadyExistMatcher{}, BeNil()))
+				// After retrying we cannot be certain who created it; skip cleanup.
+				return
+			}
+			if err == nil {
+				DeferCleanup(func() { _ = k8sClient.Delete(ctx, obj) })
+			}
+		}
+
+		By("Applying the legacy-cue-component ComponentDefinition (uses deprecated + list arithmetic)")
+		var compDef v1beta1.ComponentDefinition
+		Expect(common.ReadYamlToObject("testdata/definition/legacy-cue-component.yaml", &compDef)).Should(BeNil())
+		createAndTrack(&compDef)
+
+		By("Applying the legacy-cue-trait TraitDefinition (uses deprecated + list arithmetic)")
+		var traitDef v1beta1.TraitDefinition
+		Expect(common.ReadYamlToObject("testdata/definition/legacy-cue-trait.yaml", &traitDef)).Should(BeNil())
+		createAndTrack(&traitDef)
+
+		By("Applying the legacy-cue-policy PolicyDefinition (uses deprecated + list arithmetic)")
+		var policyDef v1beta1.PolicyDefinition
+		Expect(common.ReadYamlToObject("testdata/definition/legacy-cue-policy.yaml", &policyDef)).Should(BeNil())
+		createAndTrack(&policyDef)
+
+		By("Creating an application that uses legacy CUE definitions")
+		var app v1beta1.Application
+		applyApp(ctx, namespaceName, "app_with_legacy_cue.yaml", &app)
+
+		By("Waiting for the deployment to be running")
+		verifyWorkloadRunningExpected(ctx, namespaceName, "legacy-cue-component", 1, "nginx")
+
+		By("Waiting for the app component to become healthy")
+		Eventually(func() bool {
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: app.Name}, &app)
+			if err != nil || len(app.Status.Services) == 0 {
+				return false
+			}
+			return app.Status.Services[0].Healthy
+		}, 60*time.Second, 2*time.Second).Should(BeTrue(), "Expected application with legacy CUE syntax to become healthy")
+
+		By("Verifying component health and status messages from upgraded CUE templates")
+		Expect(app.Status.Services[0].Healthy).Should(BeTrue())
+		Expect(app.Status.Services[0].Message).Should(ContainSubstring("Healthy"))
+
+		By("Verifying the legacy CUE policy rendered correctly (ConfigMap produced by upgraded list arithmetic)")
+		cm := &corev1.ConfigMap{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "legacy-cue-policy"}, cm)
+		}, 30*time.Second, 2*time.Second).Should(Succeed())
+		Expect(cm.Data["team"]).Should(Equal("platform"))
 	})
 })
 

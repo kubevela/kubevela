@@ -47,6 +47,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/config"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -561,8 +562,9 @@ func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1
 		return cue.Value{}, errors.Wrap(err, "failed to generate base context")
 	}
 
+	template, _ := upgrade.EnsureCueVersionCompatibility(policyDef.Spec.Schematic.CUE.Template, policyDef.Name, upgrade.PolicyKind, upgrade.TemplateAreaMain)
 	cueSource := strings.Join([]string{
-		policyDef.Spec.Schematic.CUE.Template,
+		template,
 		paramFile,
 		baseContext,
 	}, "\n")

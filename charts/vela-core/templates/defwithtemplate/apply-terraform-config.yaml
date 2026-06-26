@@ -13,9 +13,10 @@ spec:
   schematic:
     cue:
       template: |
-        import "vela/kube"
-        import "vela/builtin"
-
+        import (
+        	"vela/kube"
+        	"vela/builtin"
+        )
         apply: kube.#Apply & {
         	$params: value: {
         		apiVersion: "terraform.core.oam.dev/v1beta2"
