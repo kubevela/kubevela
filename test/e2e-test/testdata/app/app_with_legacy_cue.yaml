@@ -1,0 +1,15 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-with-legacy-cue
+spec:
+  components:
+    - name: legacy-cue-component
+      type: legacy-cue-component
+      traits:
+        - type: legacy-cue-trait
+  policies:
+    - name: legacy-cue-policy
+      type: legacy-cue-policy
+      properties:
+        team: platform

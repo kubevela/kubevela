@@ -150,11 +150,11 @@ var _ = Describe("Server Tests", func() {
 				coreOpts.Kubernetes.InformerSyncPeriod = 10 * time.Hour
 
 				// Call sync function
-				syncConfigurations(coreOpts)
+				syncConfigurations(context.Background(), coreOpts)
 
 				// Verify globals were updated (this is a smoke test - actual values depend on implementation)
 				// The key point is the function runs without panicking
-				Expect(func() { syncConfigurations(coreOpts) }).NotTo(Panic())
+				Expect(func() { syncConfigurations(context.Background(), coreOpts) }).NotTo(Panic())
 			})
 		})
 
@@ -171,7 +171,7 @@ var _ = Describe("Server Tests", func() {
 
 				// Should not panic even with nil fields
 				Expect(func() {
-					syncConfigurations(opts)
+					syncConfigurations(context.Background(), opts)
 				}).NotTo(Panic())
 			})
 		})
@@ -181,7 +181,7 @@ var _ = Describe("Server Tests", func() {
 				nilOpts := &options.CoreOptions{}
 				// Should not panic even with nil fields
 				Expect(func() {
-					syncConfigurations(nilOpts)
+					syncConfigurations(context.Background(), nilOpts)
 				}).NotTo(Panic())
 			})
 		})

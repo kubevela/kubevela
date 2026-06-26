@@ -1,3 +1,5 @@
+import "list"
+
 env: {
 	type: "trait"
 	annotations: {}
@@ -40,7 +42,7 @@ template: {
 			if _baseEnv != _|_ {
 				_baseEnvMap: {for envVar in _baseEnv {(envVar.name): envVar}}
 				// +patchStrategy=replace
-				env: [for envVar in _baseEnv if _delKeys[envVar.name] == _|_ && !_params.replace {
+				env: list.Concat([[for envVar in _baseEnv if _delKeys[envVar.name] == _|_ && !_params.replace {
 					name: envVar.name
 					if _params.env[envVar.name] != _|_ {
 						value: _params.env[envVar.name]
@@ -53,10 +55,10 @@ template: {
 							valueFrom: envVar.valueFrom
 						}
 					}
-				}] + [for k, v in _params.env if _delKeys[k] == _|_ && (_params.replace || _baseEnvMap[k] == _|_) {
+				}], [for k, v in _params.env if _delKeys[k] == _|_ && (_params.replace || _baseEnvMap[k] == _|_) {
 					name:  k
 					value: v
-				}]
+				}]])
 			}
 		}
 	}

@@ -29,6 +29,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/features"
 )
 
@@ -181,6 +182,7 @@ func TestParser_ValidateComponentParams(t *testing.T) {
 		template string
 		params   map[string]interface{}
 		wantErr  string
+		setup    func(t *testing.T)
 	}{
 		{
 			name:     "valid params and template",
@@ -266,10 +268,35 @@ func TestParser_ValidateComponentParams(t *testing.T) {
 			},
 			wantErr: "parameter constraint violation",
 		},
+		{
+			name:     "legacy list-arithmetic syntax is accepted when flag enabled",
+			compName: "legacy-list",
+			template: `
+			envWithDefaults: parameter.env + [{name: "MANAGED_BY", value: "kubevela"}]
+			output: {
+				apiVersion: "apps/v1"
+				kind: "Deployment"
+				spec: containers: [{env: envWithDefaults}]
+			}
+			parameter: {
+				env: *[] | [...{name: string, value?: string}]
+			}
+			`,
+			params:  map[string]interface{}{},
+			wantErr: "",
+			setup: func(t *testing.T) {
+				prev := upgrade.EnableCUEVersionCompatibility
+				upgrade.EnableCUEVersionCompatibility = true
+				t.Cleanup(func() { upgrade.EnableCUEVersionCompatibility = prev })
+			},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.setup != nil {
+				tc.setup(t)
+			}
 			wl := &Component{
 				Name:         tc.compName,
 				Type:         "worker",
@@ -1485,5 +1512,57 @@ func TestGetDeclaredFieldNames(t *testing.T) {
 		schema := inst.Value().LookupPath(cue.ParsePath("parameter"))
 		declared := getDeclaredFieldNames(schema)
 		assert.Empty(t, declared)
+	})
+}
+
+func TestValidateCUESchematicAppfile_LegacySyntax(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=true"))
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=false"))
+	})
+
+	legacyTemplate := `
+		envWithDefaults: parameter.env + [{name: "MANAGED_BY", value: "kubevela"}]
+		output: {
+			apiVersion: "apps/v1"
+			kind: "Deployment"
+			spec: containers: [{env: envWithDefaults}]
+		}
+		parameter: {
+			env: *[] | [...{name: string, value?: string}]
+		}
+	`
+
+	newAppfile := func(template string) *Appfile {
+		return &Appfile{
+			Name:      "test-app",
+			Namespace: "test-ns",
+			ParsedComponents: []*Component{{
+				Name:               "my-comp",
+				Type:               "worker",
+				CapabilityCategory: types.CUECategory,
+				Params:             map[string]any{},
+				FullTemplate:       &Template{TemplateStr: template},
+				engine:             definition.NewWorkloadAbstractEngine("my-comp"),
+			}},
+		}
+	}
+
+	t.Run("legacy list-arithmetic is accepted when flag enabled", func(t *testing.T) {
+		original := upgrade.EnableCUEVersionCompatibility
+		upgrade.EnableCUEVersionCompatibility = true
+		t.Cleanup(func() { upgrade.EnableCUEVersionCompatibility = original })
+
+		err := (&Parser{}).ValidateCUESchematicAppfile(newAppfile(legacyTemplate))
+		assert.NoError(t, err)
+	})
+
+	t.Run("legacy list-arithmetic is rejected when flag disabled", func(t *testing.T) {
+		original := upgrade.EnableCUEVersionCompatibility
+		upgrade.EnableCUEVersionCompatibility = false
+		t.Cleanup(func() { upgrade.EnableCUEVersionCompatibility = original })
+
+		err := (&Parser{}).ValidateCUESchematicAppfile(newAppfile(legacyTemplate))
+		assert.Error(t, err)
 	})
 }

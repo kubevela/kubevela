@@ -34,6 +34,7 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/encoding/gocode/gocodec"
+	"github.com/fatih/color"
 	"github.com/kubevela/pkg/util/slices"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	crossplane "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
@@ -96,6 +97,7 @@ func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStream
 		NewDefinitionInitCommand(c),
 		NewDefinitionValidateCommand(c),
 		NewDefinitionUpgradeCommand(c, ioStreams),
+		NewDefinitionCompatibilityCommand(c, ioStreams),
 		NewDefinitionDocGenCommand(c, ioStreams),
 		NewCapabilityShowCommand(c, "", ioStreams),
 		NewDefinitionGenAPICommand(c),
@@ -1177,7 +1179,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 				return errors.Wrapf(err, "failed to get `%s`", FlagFormat)
 			}
 			// Validate output format
-			if outputFormat != "yaml" && outputFormat != "cue" {
+			if outputFormat != outputFormatYAML && outputFormat != "cue" {
 				return errors.Errorf("invalid format %q, must be 'yaml' or 'cue'", outputFormat)
 			}
 
@@ -1554,43 +1556,53 @@ func defApplyOne(ctx context.Context, c common.Args, namespace, defpath string, 
 		}
 		return []string{fmt.Sprintf("%s %s in namespace %s %s.\n", def.GetKind(), def.GetName(), def.GetNamespace(), op)}, nil
 	default:
+		var results []string
+		if upgrade.EnableCUEVersionCompatibility {
+			if needsUpgrade, reasons, err := upgrade.RequiresUpgrade(string(defBytes)); err == nil && needsUpgrade {
+				relpath := defpath
+				if rel, err := filepath.Rel(".", defpath); err == nil {
+					relpath = rel
+				}
+				header := color.New(color.Bold).Sprint("Compatibility Warning:")
+				results = append(results, fmt.Sprintf("%s %s uses legacy CUE syntax that will be auto-upgraded at render time.\n  - %s\nRun `vela def upgrade <file> -o <file>` to rewrite the file.\n\n",
+					header, relpath, strings.Join(reasons, "\n  - ")))
+			}
+		}
 		if err := def.FromCUEString(string(defBytes), config); err != nil {
 			return nil, errors.Wrapf(err, "failed to parse CUE for definition")
 		}
 		def.SetNamespace(namespace)
-	}
-
-	if dryRun {
-		s, err := prettyYAMLMarshal(def.Object)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to marshal CRD into YAML")
-		}
-		return []string{s}, nil
-	}
-
-	oldDef := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
-	oldDef.SetGroupVersionKind(def.GroupVersionKind())
-	err = k8sClient.Get(ctx, types2.NamespacedName{
-		Namespace: def.GetNamespace(),
-		Name:      def.GetName(),
-	}, &oldDef)
-	if err != nil {
-		if errors2.IsNotFound(err) {
-			kind := def.GetKind()
-			if err = k8sClient.Create(ctx, &def); err != nil {
-				return nil, errors.Wrapf(err, "failed to create new definition in kubernetes")
+		if dryRun {
+			s, err := prettyYAMLMarshal(def.Object)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to marshal CRD into YAML")
 			}
-			return []string{fmt.Sprintf("%s %s created in namespace %s.\n", kind, def.GetName(), def.GetNamespace())}, nil
+			return append(results, s), nil
 		}
-		return nil, errors.Wrapf(err, "failed to check existence of target definition in kubernetes")
+		oldDef := pkgdef.Definition{Unstructured: unstructured.Unstructured{}}
+		oldDef.SetGroupVersionKind(def.GroupVersionKind())
+		err = k8sClient.Get(ctx, types2.NamespacedName{
+			Namespace: def.GetNamespace(),
+			Name:      def.GetName(),
+		}, &oldDef)
+		if err != nil {
+			if errors2.IsNotFound(err) {
+				kind := def.GetKind()
+				if err = k8sClient.Create(ctx, &def); err != nil {
+					return nil, errors.Wrapf(err, "failed to create new definition in kubernetes")
+				}
+				return append(results, fmt.Sprintf("%s %s created in namespace %s.\n", kind, def.GetName(), def.GetNamespace())), nil
+			}
+			return nil, errors.Wrapf(err, "failed to check existence of target definition in kubernetes")
+		}
+		if err := oldDef.FromCUEString(string(defBytes), config); err != nil {
+			return nil, errors.Wrapf(err, "failed to merge with existing definition")
+		}
+		if err = k8sClient.Update(ctx, &oldDef); err != nil {
+			return nil, errors.Wrapf(err, "failed to update existing definition in kubernetes")
+		}
+		return append(results, fmt.Sprintf("%s %s in namespace %s updated.\n", oldDef.GetKind(), oldDef.GetName(), oldDef.GetNamespace())), nil
 	}
-	if err := oldDef.FromCUEString(string(defBytes), config); err != nil {
-		return nil, errors.Wrapf(err, "failed to merge with existing definition")
-	}
-	if err = k8sClient.Update(ctx, &oldDef); err != nil {
-		return nil, errors.Wrapf(err, "failed to update existing definition in kubernetes")
-	}
-	return []string{fmt.Sprintf("%s %s in namespace %s updated.\n", oldDef.GetKind(), oldDef.GetName(), oldDef.GetNamespace())}, nil
 }
 
 // defApplyGoFile handles applying Go definition files
@@ -2042,16 +2054,17 @@ func NewDefinitionUpgradeCommand(c common.Args, ioStreams util.IOStreams) *cobra
 				return fmt.Errorf("failed to read source file %s: %w", sourceFile, err)
 			}
 
-			// Prepare target version (strip 'v' prefix if present for consistency)
-			version := strings.TrimPrefix(targetVersion, "v")
-
 			// Check-only mode
 			if checkOnly {
 				var needsUpgrade bool
 				var reasons []string
 
-				if version != "" {
-					needsUpgrade, reasons, err = upgrade.RequiresUpgrade(string(content), version)
+				if targetVersion != "" {
+					v, parseErr := upgrade.ParseVersion(targetVersion)
+					if parseErr != nil {
+						return fmt.Errorf("invalid --target-version: %w", parseErr)
+					}
+					needsUpgrade, reasons, err = upgrade.RequiresUpgrade(string(content), v)
 				} else {
 					needsUpgrade, reasons, err = upgrade.RequiresUpgrade(string(content))
 				}
@@ -2076,10 +2089,13 @@ func NewDefinitionUpgradeCommand(c common.Args, ioStreams util.IOStreams) *cobra
 
 			// Apply upgrades
 			var upgradedContent string
-			if version != "" {
-				upgradedContent, err = upgrade.Upgrade(string(content), version)
+			if targetVersion != "" {
+				v, parseErr := upgrade.ParseVersion(targetVersion)
+				if parseErr != nil {
+					return fmt.Errorf("invalid --target-version: %w", parseErr)
+				}
+				upgradedContent, err = upgrade.Upgrade(string(content), v)
 			} else {
-				// Use default version (current KubeVela)
 				upgradedContent, err = upgrade.Upgrade(string(content))
 			}
 

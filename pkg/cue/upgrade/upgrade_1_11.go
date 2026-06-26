@@ -17,68 +17,49 @@ package upgrade
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/ast/astutil"
 	"cuelang.org/go/cue/format"
-	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 )
 
+var v1_11 = Version{Major: 1, Minor: 11}
+
+// errorFieldLabelRe matches an unquoted `error` used as a field label: `error` followed by
+// optional whitespace, an optional field constraint marker (? for optional, ! for required),
+// and a colon. This avoids false positives on identifiers like `errorMessage`.
+var errorFieldLabelRe = regexp.MustCompile(`\berror\s*[?!]?\s*:`)
+
 func init() {
-	RegisterUpgrade("1.11", upgradeListConcatenation)
-}
+	// list arithmetic (+ and *) was deprecated in CUE v0.11 and became a hard error in v0.14.
+	// Associated with KubeVela 1.11 which first shipped CUE >= v0.14.
+	RegisterUpgrade(CUEUpgradeFunc{
+		ID:                    "list-arithmetic",
+		CUEVersion:            Version{0, 14},
+		AssociatedVelaVersion: v1_11,
+		Reason:                "contains deprecated list operators (+ or *) that need upgrading to list.Concat() or list.Repeat()",
+		Precheck:              func(s string) bool { return strings.Contains(s, "+") || strings.Contains(s, "*") },
+		Upgrade:               upgradeListConcatenation,
+	})
 
-func requires111Upgrade(cueStr string) (bool, []string, error) {
-	file, err := parser.ParseFile("", cueStr, parser.ParseComments)
-	if err != nil {
-		return false, nil, fmt.Errorf("failed to parse CUE: %w", err)
-	}
-
-	var reasons []string
-	if hasOldListConcatenation(file) {
-		reasons = append(reasons, "contains deprecated list operators (+ or *) that need upgrading to list.Concat() or list.Repeat()")
-	}
-
-	return len(reasons) > 0, reasons, nil
-}
-
-func hasOldListConcatenation(file *ast.File) bool {
-	listRegistry := collectListDeclarations(file)
-
-	found := false
-	astutil.Apply(file, func(cursor astutil.Cursor) bool {
-		if binExpr, ok := cursor.Node().(*ast.BinaryExpr); ok {
-			if binExpr.Op.String() == "+" {
-				if isListExpression(binExpr.X, listRegistry) && isListExpression(binExpr.Y, listRegistry) {
-					found = true
-					return false
-				}
-			}
-			if binExpr.Op.String() == "*" {
-				if (isListExpression(binExpr.X, listRegistry) && isNumericExpression(binExpr.Y, listRegistry)) ||
-					(isNumericExpression(binExpr.X, listRegistry) && isListExpression(binExpr.Y, listRegistry)) {
-					found = true
-					return false
-				}
-			}
-		}
-		return true
-	}, nil)
-
-	return found
+	// The `error` built-in was introduced in CUE v0.14; unquoted `error` field labels now conflict.
+	RegisterUpgrade(CUEUpgradeFunc{
+		ID:                    "error-field-label",
+		CUEVersion:            Version{0, 14},
+		AssociatedVelaVersion: v1_11,
+		Reason:                `contains field named 'error' which conflicts with the CUE 0.14 built-in; must be quoted as "error"`,
+		Precheck:              func(s string) bool { return errorFieldLabelRe.MatchString(s) },
+		Upgrade:               upgradeErrorFieldLabel,
+	})
 }
 
 // upgradeListConcatenation handles:
 // - list1 + list2 -> list.Concat([list1, list2])
 // - list * n -> list.Repeat(list, n)
-// - n * list -> list.Repeat(list, n)
-func upgradeListConcatenation(cueStr string) (string, error) {
-	file, err := parser.ParseFile("", cueStr, parser.ParseComments)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse CUE: %w", err)
-	}
-
+func upgradeListConcatenation(cueStr string, file *ast.File) (string, error) {
 	transformed := upgradeListConcatenationAST(file)
 
 	result, err := format.Node(transformed)
@@ -86,7 +67,7 @@ func upgradeListConcatenation(cueStr string) (string, error) {
 		return "", fmt.Errorf("failed to format CUE: %w", err)
 	}
 
-	return string(result), nil
+	return strings.TrimRight(string(result), "\n"), nil
 }
 
 func upgradeListConcatenationAST(file *ast.File) *ast.File {
@@ -97,19 +78,20 @@ func upgradeListConcatenationAST(file *ast.File) *ast.File {
 	result := astutil.Apply(file, func(cursor astutil.Cursor) bool {
 		if binExpr, ok := cursor.Node().(*ast.BinaryExpr); ok {
 			if binExpr.Op.String() == "+" {
-				if isListExpression(binExpr.X, listRegistry) && isListExpression(binExpr.Y, listRegistry) {
+				// Collect all operands from a left-associative + chain so that
+				// a + b + c + d becomes list.Concat([a, b, c, d]) in one pass
+				// rather than nested list.Concat(list.Concat(...)) calls.
+				operands := collectAddChain(binExpr, listRegistry)
+				if len(operands) >= 2 {
 					callExpr := &ast.CallExpr{
 						Fun: &ast.SelectorExpr{
 							X:   &ast.Ident{Name: "list"},
 							Sel: &ast.Ident{Name: "Concat"},
 						},
 						Args: []ast.Expr{
-							&ast.ListLit{
-								Elts: []ast.Expr{binExpr.X, binExpr.Y},
-							},
+							&ast.ListLit{Elts: operands},
 						},
 					}
-
 					cursor.Replace(callExpr)
 					needsListImport = true
 				}
@@ -152,6 +134,55 @@ func upgradeListConcatenationAST(file *ast.File) *ast.File {
 	}
 
 	return file
+}
+
+// collectAddChain flattens a left-associative + chain into a flat slice of operands,
+// returning nil if any operand is not a list expression (so non-list + is left alone).
+// If any operand is itself a list.Concat([...]) call (from a prior upgrade pass),
+// its inner elements are inlined so the result is always a single flat list.Concat call.
+func collectAddChain(expr ast.Expr, listRegistry map[string]bool) []ast.Expr {
+	bin, ok := expr.(*ast.BinaryExpr)
+	if !ok || bin.Op.String() != "+" {
+		if isListExpression(expr, listRegistry) {
+			return extractListConcatArgs(expr)
+		}
+		return nil
+	}
+	left := collectAddChain(bin.X, listRegistry)
+	if left == nil {
+		return nil
+	}
+	if !isListExpression(bin.Y, listRegistry) {
+		return nil
+	}
+	return append(left, extractListConcatArgs(bin.Y)...)
+}
+
+// extractListConcatArgs returns the inner elements of a list.Concat([...]) call,
+// or wraps expr in a single-element slice if it is not such a call.
+// This allows repeated upgrade passes to produce a flat rather than nested result.
+func extractListConcatArgs(expr ast.Expr) []ast.Expr {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok || len(call.Args) != 1 {
+		return []ast.Expr{expr}
+	}
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return []ast.Expr{expr}
+	}
+	base, ok := sel.X.(*ast.Ident)
+	if !ok || base.Name != "list" {
+		return []ast.Expr{expr}
+	}
+	selName, ok := sel.Sel.(*ast.Ident)
+	if !ok || selName.Name != "Concat" {
+		return []ast.Expr{expr}
+	}
+	listLit, ok := call.Args[0].(*ast.ListLit)
+	if !ok {
+		return []ast.Expr{expr}
+	}
+	return listLit.Elts
 }
 
 func ensureListImport(file *ast.File) {
@@ -283,6 +314,15 @@ func isListLiteral(expr ast.Expr) bool {
 			}
 		}
 		return false
+	case *ast.BinaryExpr:
+		// Handle disjunctions like `*[] | [...string]` — if either side is a list, treat as list
+		if e.Op.String() == "|" {
+			return isListLiteral(e.X) || isListLiteral(e.Y)
+		}
+		return false
+	case *ast.UnaryExpr:
+		// Handle default markers like `*[]`
+		return isListLiteral(e.X)
 	}
 	return false
 }
@@ -350,4 +390,28 @@ func isListOperationResult(expr ast.Expr, listRegistry map[string]bool) bool {
 		}
 	}
 	return false
+}
+
+// upgradeErrorFieldLabel rewrites any field label named `error` (an unquoted identifier)
+// to `"error"` (a quoted string label) to avoid conflict with the CUE 0.14 built-in.
+func upgradeErrorFieldLabel(cueStr string, file *ast.File) (string, error) {
+	astutil.Apply(file, func(cursor astutil.Cursor) bool {
+		field, ok := cursor.Node().(*ast.Field)
+		if !ok {
+			return true
+		}
+		ident, ok := field.Label.(*ast.Ident)
+		if !ok || ident.Name != "error" {
+			return true
+		}
+		field.Label = ast.NewString("error")
+		return true
+	}, nil)
+
+	result, err := format.Node(file)
+	if err != nil {
+		return "", fmt.Errorf("failed to format CUE: %w", err)
+	}
+
+	return strings.TrimRight(string(result), "\n"), nil
 }

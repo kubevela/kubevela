@@ -18,7 +18,6 @@ spec:
     cue:
       template: |
         import "list"
-
         patch: spec: template: spec: {
         	// +patchKey=name
         	containers: [{

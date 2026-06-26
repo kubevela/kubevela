@@ -13,8 +13,9 @@ spec:
   schematic:
     cue:
       template: |
-        import "vela/helm"
-
+        import (
+        	"vela/helm"
+        )
         output:  _
         outputs: _
 

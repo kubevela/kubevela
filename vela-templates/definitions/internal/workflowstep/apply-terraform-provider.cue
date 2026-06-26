@@ -2,7 +2,6 @@ import (
 	"vela/config"
 	"vela/kube"
 	"vela/builtin"
-	"strings"
 )
 
 "apply-terraform-provider": {

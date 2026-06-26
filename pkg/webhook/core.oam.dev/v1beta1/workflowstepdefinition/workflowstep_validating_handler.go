@@ -106,6 +106,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	// Validate output resources
 	if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
 		logger.WithStep("validate-output-resources").Info("Validating output resources referenced in WorkflowStepDefinition CUE template")
+
 		if err := webhookutils.ValidateOutputResourcesExist(obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper(), obj); err != nil {
 			logger.WithStep("validate-output-resources").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
 			return admission.Denied(fmt.Sprintf("output resource validation failed: %s (requestUID=%s)", err.Error(), req.UID))
