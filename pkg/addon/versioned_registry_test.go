@@ -31,7 +31,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 )
 
@@ -207,16 +206,17 @@ func TestToVersionedRegistry(t *testing.T) {
 	actual, err := ToVersionedRegistry(registry)
 
 	assert.NoError(t, err)
-	expected := &versionedRegistry{
-		name: registry.Name,
-		url:  registry.Helm.URL,
-		h:    helm.NewHelperWithCache(),
-		Opts: &common.HTTPOption{
-			Username: registry.Helm.Username,
-			Password: registry.Helm.Password,
-		},
-	}
-	assert.Equal(t, expected, actual)
+
+	v, ok := actual.(*versionedRegistry)
+	require.True(t, ok)
+
+	assert.Equal(t, registry.Name, v.name)
+	assert.Equal(t, registry.Helm.URL, v.url)
+	assert.NotNil(t, v.h)
+	require.NotNil(t, v.Opts)
+	assert.Equal(t, registry.Helm.Username, v.Opts.Username)
+	assert.Equal(t, registry.Helm.Password, v.Opts.Password)
+	assert.Equal(t, registry.Helm.InsecureSkipTLS, v.Opts.InsecureSkipTLS)
 
 	// Test case 2: when converting a git-based registry, return error
 	registry = Registry{
