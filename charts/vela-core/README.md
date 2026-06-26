@@ -103,6 +103,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.validateResourcesExist`                        | enable webhook validation to check if resource types referenced in definition templates exist in the cluster                                                                                                                     | `false` |
 | `featureGates.enableApplicationScopedPolicies`               | enable Application-scoped PolicyDefinitions that transform Application CR before rendering (Alpha)                                                                                                                               | `false` |
 | `featureGates.enableGlobalPolicies`                          | enable automatic discovery and application of global PolicyDefinitions to all Applications (Alpha)                                                                                                                               | `false` |
+| `featureGates.addonCRD`                                      | enable the declarative Addon CRD reconciliation controller (KEP-2.13). Off in alpha, on in beta (Alpha)                                                                                                                          | `false` |
 
 ### MultiCluster parameters
 

@@ -909,6 +909,19 @@ type Installer struct {
 	installerRuntime map[string]interface{}
 
 	registries []Registry
+
+	// objectSink, when set via WithAppliedObjectSink, receives every object the
+	// installer applies (the Application and each auxiliary). The addon
+	// controller uses it to record managed resources for drift detection
+	// without a second registry fetch.
+	objectSink func(client.Object)
+}
+
+// emitObject forwards an applied object to the sink if one is registered.
+func (h *Installer) emitObject(o client.Object) {
+	if h.objectSink != nil {
+		h.objectSink(o)
+	}
 }
 
 // NewAddonInstaller will create an installer for addon
@@ -1061,6 +1074,11 @@ func (h *Installer) installDependency(ctx context.Context, addon *InstallPackage
 			continue
 		}
 		depHandler := *h
+		// A dependency's resources are tracked by the dependency's own addon
+		// install path, not by this parent addon's drift tracker. Clear the sink
+		// so the parent does not capture (and later try to heal) resources it
+		// does not own.
+		depHandler.objectSink = nil
 		// reset dependency addon clusters parameter
 		depArgs, depArgsErr := getDependencyArgs(h.ctx, h.cli, dep.Name, addonClusters)
 		if depArgsErr != nil {
@@ -1565,6 +1583,11 @@ func (h *Installer) dispatchAddonResource(ctx context.Context, addon *InstallPac
 		if updated {
 			h.installerRuntime["upgrade"] = true
 		}
+		// The CUE render path may leave the Application's GVK empty; set it
+		// explicitly so the drift tracker stores a manifest with a valid
+		// apiVersion/kind that can be re-applied.
+		app.SetGroupVersionKind(v1beta1.ApplicationKindVersionKind)
+		h.emitObject(app)
 	}
 
 	auxiliaryOutputs = append(auxiliaryOutputs, defs...)
@@ -1593,6 +1616,7 @@ func (h *Installer) dispatchAddonResource(ctx context.Context, addon *InstallPac
 		if err != nil {
 			return err
 		}
+		h.emitObject(o)
 	}
 
 	if h.dryRun {
@@ -1607,6 +1631,7 @@ func (h *Installer) dispatchAddonResource(ctx context.Context, addon *InstallPac
 		if err != nil {
 			return err
 		}
+		h.emitObject(sec)
 	} else {
 		// delete addon args secret file
 		deleteErr := deleteArgsSecret(h.ctx, h.cli, addon.Name)
