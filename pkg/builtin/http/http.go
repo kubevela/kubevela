@@ -51,11 +51,26 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 		method = meta.String("method")
 		u      = meta.String("url")
 	)
+	timeout := 3 * time.Second
+	if v := meta.Obj.LookupPath(value.FieldPath("timeout")); v.Exists() {
+		s, err := v.String()
+		if err != nil {
+			return nil, errors.WithMessage(err, "parse timeout")
+		}
+		d, err := time.ParseDuration(s)
+		if err != nil {
+			return nil, errors.WithMessagef(err, "invalid timeout %q: must be a Go duration string (e.g. \"30s\", \"2m\")", s)
+		}
+		if d <= 0 {
+			return nil, errors.Errorf("timeout must be positive, got %q", s)
+		}
+		timeout = d
+	}
 	var (
 		r      io.Reader
 		client = &http.Client{
 			Transport: http.DefaultTransport,
-			Timeout:   time.Second * 3,
+			Timeout:   timeout,
 		}
 	)
 	if obj := meta.Obj.LookupPath(value.FieldPath("request")); obj.Exists() {

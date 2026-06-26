@@ -69,6 +69,57 @@ const (
 `
 )
 
+func TestHTTPCmdRunWithTimeout(t *testing.T) {
+	s := NewMock()
+	defer s.Close()
+
+	runner, _ := newHTTPCmd(cue.Value{})
+
+	t.Run("valid timeout succeeds", func(t *testing.T) {
+		reqInst := cuecontext.New().CompileString(`{
+  method: "GET"
+  url: "http://127.0.0.1:8090/api/v1/token?val=test-token"
+  timeout: "10s"
+}`)
+		got, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := (got.(map[string]interface{}))["body"].(string)
+		assert.Equal(t, "{\"token\":\"test-token\"}", body)
+	})
+
+	t.Run("invalid duration string returns error", func(t *testing.T) {
+		reqInst := cuecontext.New().CompileString(`{
+  method: "GET"
+  url: "http://127.0.0.1:8090/api/v1/token?val=test-token"
+  timeout: "notaduration"
+}`)
+		_, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
+		assert.ErrorContains(t, err, "invalid timeout")
+	})
+
+	t.Run("non-positive timeout returns error", func(t *testing.T) {
+		reqInst := cuecontext.New().CompileString(`{
+  method: "GET"
+  url: "http://127.0.0.1:8090/api/v1/token?val=test-token"
+  timeout: "-5s"
+}`)
+		_, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
+		assert.ErrorContains(t, err, "timeout must be positive")
+	})
+
+	t.Run("non-string timeout type returns error", func(t *testing.T) {
+		reqInst := cuecontext.New().CompileString(`{
+  method: "GET"
+  url: "http://127.0.0.1:8090/api/v1/token?val=test-token"
+  timeout: 30
+}`)
+		_, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
+		assert.ErrorContains(t, err, "parse timeout")
+	})
+}
+
 func TestHTTPCmdRun(t *testing.T) {
 	s := NewMock()
 	defer s.Close()
