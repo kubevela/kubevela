@@ -53,7 +53,7 @@ jobs:
           submodules: true
 
       - name: Cache Go Dependencies
-        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
@@ -70,12 +70,17 @@ jobs:
           go install sigs.k8s.io/kind@v0.19.0
           kind create cluster
 
-      - name: install Kubebuilder
-        uses: RyanSiu1995/kubebuilder-action@7170cb0476187070ae04cbb6cee305e809de2693
-        with:
-          version: 3.9.1
-          kubebuilderOnly: false
-          kubernetesVersion: v1.26.2
+      - name: Install envtest binaries
+        run: |
+          curl -fsSLo setup-envtest https://github.com/kubernetes-sigs/controller-runtime/releases/download/v0.19.7/setup-envtest-linux-amd64
+          echo "1b8a93325f5dfe539bb8d6175fe25587fb63121509c2114f670d66849abf24c9  setup-envtest" | sha256sum -c -
+          chmod +x setup-envtest
+          assets_path=$(./setup-envtest use 1.26.1 -p path)
+          if [ -z "$assets_path" ] || [ ! -d "$assets_path" ]; then
+            echo "failed to resolve envtest binary path"
+            exit 1
+          fi
+          echo "KUBEBUILDER_ASSETS=$assets_path" >> "$GITHUB_ENV"
 
       - name: Run Make test
         run: make test
