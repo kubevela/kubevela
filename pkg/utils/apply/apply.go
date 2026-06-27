@@ -33,13 +33,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -113,17 +113,19 @@ type APIApplicator struct {
 	c client.Client
 }
 
-// loggingApply will record a log with desired object applied
-func loggingApply(msg string, desired client.Object, quiet bool) {
+// loggingApply records a log line tagged with the reconcile trace ID (when ctx carries one).
+// Falls back to a plain logger when ctx has no requestID (e.g. callers outside the reconcile path).
+func loggingApply(ctx context.Context, msg string, desired client.Object, quiet bool) {
 	if quiet {
 		return
 	}
+	logger := logging.FromContext(ctx)
 	d, ok := desired.(metav1.Object)
 	if !ok {
-		klog.InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
+		logger.Info(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
 		return
 	}
-	klog.InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
+	logger.Info(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
 }
 
 // trimLastAppliedConfigurationForSpecialResources will filter special object that can reduce the record for "app.oam.dev/last-applied-configuration" annotation.
@@ -202,14 +204,14 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	}
 
 	if applyAct.skipUpdate {
-		loggingApply("skip update", desired, applyAct.quiet)
+		loggingApply(ctx, "skip update", desired, applyAct.quiet)
 		return nil
 	}
 
 	// Short-circuit for shared resources: only patch the shared-by annotation
 	// This avoids the three-way merge which could pollute last-applied-configuration
 	if applyAct.isShared {
-		loggingApply("patching shared resource annotation only", desired, applyAct.quiet)
+		loggingApply(ctx, "patching shared resource annotation only", desired, applyAct.quiet)
 		sharedBy := desired.GetAnnotations()[oam.AnnotationAppSharedBy]
 		patch := []byte(fmt.Sprintf(`{"metadata":{"annotations":{"%s":"%s"}}}`, oam.AnnotationAppSharedBy, sharedBy))
 		var patchOpts []client.PatchOption
@@ -234,7 +236,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 		return fmt.Errorf("failed to evaluate recreateFields: %w", err)
 	}
 	if shouldRecreate {
-		loggingApply("recreating object", desired, applyAct.quiet)
+		loggingApply(ctx, "recreating object", desired, applyAct.quiet)
 		if applyAct.dryRun { // recreate does not support dryrun
 			return nil
 		}
@@ -248,7 +250,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 
 	switch strategy.Op {
 	case v1alpha1.ResourceUpdateStrategyReplace:
-		loggingApply("replacing object", desired, applyAct.quiet)
+		loggingApply(ctx, "replacing object", desired, applyAct.quiet)
 		desired.SetResourceVersion(existing.GetResourceVersion())
 		var options []client.UpdateOption
 		if applyAct.dryRun {
@@ -258,7 +260,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	case v1alpha1.ResourceUpdateStrategyPatch:
 		fallthrough
 	default:
-		loggingApply("patching object", desired, applyAct.quiet)
+		loggingApply(ctx, "patching object", desired, applyAct.quiet)
 		patch, err := a.patcher.patch(existing, desired, applyAct)
 		if err != nil {
 			return errors.Wrap(err, "cannot calculate patch by computing a three way diff")
@@ -322,7 +324,7 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 				return nil, err
 			}
 		}
-		loggingApply("creating object", desired, act.quiet)
+		loggingApply(ctx, "creating object", desired, act.quiet)
 		if act.dryRun {
 			return nil, errors.Wrap(c.Create(ctx, desired, client.DryRunAll), "cannot create object")
 		}

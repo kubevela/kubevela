@@ -434,10 +434,10 @@ output: {
 		Expect(err).Should(BeNil())
 
 		// The gatherRevisionSpec() function now normalizes JSON
-		rev1, hash1, err1 := handler1.gatherRevisionSpec(nil)
+		rev1, hash1, err1 := handler1.gatherRevisionSpec(ctx, nil)
 		Expect(err1).Should(BeNil())
 
-		rev2, hash2, err2 := handler2.gatherRevisionSpec(nil)
+		rev2, hash2, err2 := handler2.gatherRevisionSpec(ctx, nil)
 		Expect(err2).Should(BeNil())
 
 		// CRITICAL: Despite different input JSON byte order, normalized properties should be identical

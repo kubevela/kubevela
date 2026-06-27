@@ -299,4 +299,57 @@ var _ = Describe("Color Writer", func() {
 			Expect(len(output)).Should(BeNumerically(">", 10000))
 		})
 	})
+
+	Context("trace and span ID hoisting", func() {
+		It("hoists requestID and spanID into separate header blocks", func() {
+			var buf bytes.Buffer
+			writer := logging.NewColorWriter(&buf)
+
+			input := `I1117 12:34:56.789012    1234 app_controller.go:130] "Start reconcile" application="ns/app" requestID="trace-abc" spanID="span-xyz"`
+			_, err := writer.Write([]byte(input + "\n"))
+			Expect(err).Should(BeNil())
+
+			output := buf.String()
+			// Both blocks appear in the header, in order.
+			Expect(output).Should(ContainSubstring("{trace-abc}"))
+			Expect(output).Should(ContainSubstring("{span-xyz}"))
+			Expect(strings.Index(output, "{trace-abc}")).Should(BeNumerically("<", strings.Index(output, "{span-xyz}")))
+			// requestID stripped from trailing.
+			Expect(output).ShouldNot(ContainSubstring(`requestID="trace-abc"`))
+			// spanID kept in trailing for sub-span detail.
+			Expect(output).Should(ContainSubstring(`span-xyz`))
+		})
+
+		It("strips operation suffix from spanID for the header block only", func() {
+			var buf bytes.Buffer
+			writer := logging.NewColorWriter(&buf)
+
+			input := `I1117 12:34:56.789012    1234 apply.go:491] "[Finished]: span-xyz.apply-policies(...)" requestID="trace-abc" spanID="span-xyz.apply-policies"`
+			_, err := writer.Write([]byte(input + "\n"))
+			Expect(err).Should(BeNil())
+
+			output := buf.String()
+			// Header block is the UUID portion only.
+			Expect(output).Should(ContainSubstring("{span-xyz}"))
+			Expect(output).ShouldNot(ContainSubstring("{span-xyz.apply-policies}"))
+			// Trailing keeps the full spanID with the suffix.
+			Expect(output).Should(ContainSubstring(`span-xyz.apply-policies`))
+		})
+
+		It("emits only requestID block when spanID is absent (webhook log shape)", func() {
+			var buf bytes.Buffer
+			writer := logging.NewColorWriter(&buf)
+
+			input := `I1117 12:34:56.789012    1234 application_validating_handler.go:87] "Starting admission validation" handler="ApplicationValidator" requestID="trace-abc"`
+			_, err := writer.Write([]byte(input + "\n"))
+			Expect(err).Should(BeNil())
+
+			output := buf.String()
+			Expect(output).Should(ContainSubstring("{trace-abc}"))
+			// No spanID block should appear — webhook lines don't fork spans.
+			matches := strings.Count(output, "{trace-abc}")
+			Expect(matches).Should(Equal(1))
+			Expect(output).ShouldNot(ContainSubstring(`requestID="trace-abc"`))
+		})
+	})
 })
