@@ -80,6 +80,8 @@ var _ = Describe("chart_fetch", func() {
 			Entry("semver 1.2.3", "1.2.3", false),
 			Entry("semver v1.2.3", "v1.2.3", false),
 			Entry("semver short 1.0", "1.0", false),
+			Entry("OCI digest sha256:", "sha256:a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c", false),
+			Entry("OCI digest short sha256:", "sha256:abc123", false),
 		)
 	})
 
@@ -93,12 +95,20 @@ var _ = Describe("chart_fetch", func() {
 			})
 		})
 
+		AfterEach(func() {
+			p.Close()
+		})
+
 		It("should use default immutable TTL for semver", func() {
 			Expect(p.determineCacheTTL("1.2.3", nil)).To(Equal(24 * time.Hour))
 		})
 
 		It("should use default mutable TTL for latest", func() {
 			Expect(p.determineCacheTTL("latest", nil)).To(Equal(5 * time.Minute))
+		})
+
+		It("should use default immutable TTL for OCI digest", func() {
+			Expect(p.determineCacheTTL("sha256:a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c", nil)).To(Equal(24 * time.Hour))
 		})
 
 		It("should use explicit TTL from options", func() {
@@ -159,6 +169,10 @@ var _ = Describe("chart_fetch", func() {
 			p = NewProviderWithConfig(nil)
 		})
 
+		AfterEach(func() {
+			p.Close()
+		})
+
 		It("should fail for unsupported source type", func() {
 			_, err := p.fetchChartWithoutCache(context.Background(), &ChartSourceParams{Source: "test"}, "unknown", "", "")
 			Expect(err).Should(HaveOccurred())
@@ -177,6 +191,10 @@ var _ = Describe("chart_fetch", func() {
 
 		BeforeEach(func() {
 			p = NewProviderWithConfig(nil)
+		})
+
+		AfterEach(func() {
+			p.Close()
 		})
 
 		It("should return a cached chart on cache hit", func() {
@@ -279,6 +297,7 @@ entries:
 			defer server.Close()
 
 			p := NewProviderWithConfig(nil)
+			defer p.Close()
 			ch, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
 				Source:  "test-repo-chart",
 				RepoURL: server.URL,
@@ -313,6 +332,7 @@ entries:
 			defer server.Close()
 
 			p := NewProviderWithConfig(nil)
+			defer p.Close()
 			ch, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
 				Source:  "no-ver-chart",
 				RepoURL: server.URL,
@@ -335,6 +355,7 @@ entries:
 			defer server.Close()
 
 			p := NewProviderWithConfig(nil)
+			defer p.Close()
 			_, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
 				Source:  "missing-chart",
 				RepoURL: server.URL,
@@ -357,6 +378,7 @@ entries:
 			defer server.Close()
 
 			p := NewProviderWithConfig(nil)
+			defer p.Close()
 			_, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
 				Source:  "my-chart",
 				RepoURL: server.URL,
@@ -373,6 +395,7 @@ entries:
 			defer server.Close()
 
 			p := NewProviderWithConfig(nil)
+			defer p.Close()
 			_, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
 				Source:  "test",
 				RepoURL: server.URL,
@@ -394,6 +417,7 @@ entries:
 			defer server.Close()
 
 			p := NewProviderWithConfig(nil)
+			defer p.Close()
 			_, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
 				Source:  "empty-urls",
 				RepoURL: server.URL,
@@ -415,6 +439,7 @@ entries:
 			defer server.Close()
 
 			p := NewProviderWithConfig(nil)
+			defer p.Close()
 			ch, err := p.fetchURLChart(context.Background(), &ChartSourceParams{
 				Source: server.URL + "/url-chart-2.0.0.tgz",
 			}, "", "")
@@ -426,6 +451,7 @@ entries:
 
 		It("should return error for unreachable URL", func() {
 			p := NewProviderWithConfig(nil)
+			defer p.Close()
 			_, err := p.fetchURLChart(context.Background(), &ChartSourceParams{
 				Source: "http://127.0.0.1:1/nonexistent.tgz",
 			}, "", "")
@@ -469,6 +495,7 @@ entries:
 			// Verify it's now cached
 			cached := p.cache.Get("repo/cache-miss/1.0.0")
 			Expect(cached).ToNot(BeNil())
+			p.Close()
 		})
 
 		It("should fetch URL chart on miss and cache it", func() {
@@ -486,6 +513,7 @@ entries:
 			}, nil, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch.Metadata.Name).To(Equal("url-cache"))
+			p.Close()
 		})
 
 		It("re-runs the auth resolver on a cache hit when the source declares auth.secretRef", func() {
@@ -541,6 +569,7 @@ entries:
 			}, nil, "ns-app", "ns-rel")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("missing-secret"))
+			p.Close()
 		})
 	})
 

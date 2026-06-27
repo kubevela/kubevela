@@ -56,6 +56,7 @@ var _ = Describe("provider", func() {
 	Describe("NewProviderWithConfig", func() {
 		It("should use defaults when config is nil", func() {
 			p := NewProviderWithConfig(nil)
+			defer p.Close()
 			Expect(p.cacheTTL.ImmutableVersionTTL).To(Equal(24 * time.Hour))
 			Expect(p.cacheTTL.MutableVersionTTL).To(Equal(5 * time.Minute))
 			Expect(p.releaseFingerprints).ToNot(BeNil())
@@ -68,6 +69,7 @@ var _ = Describe("provider", func() {
 				ImmutableVersionTTL: 1 * time.Hour,
 				MutableVersionTTL:   1 * time.Minute,
 			})
+			defer p.Close()
 			Expect(p.cacheTTL.ImmutableVersionTTL).To(Equal(1 * time.Hour))
 			Expect(p.cacheTTL.MutableVersionTTL).To(Equal(1 * time.Minute))
 		})
