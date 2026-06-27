@@ -140,6 +140,16 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 	return p
 }
 
+// Close stops the provider's background goroutines (cache sweeper). Callers
+// that create a provider via NewProviderWithConfig SHOULD call Close when
+// the provider is no longer needed, particularly in tests, to prevent
+// goroutine leaks. Safe to call multiple times.
+func (p *Provider) Close() {
+	if p.cache != nil {
+		p.cache.Stop()
+	}
+}
+
 // getKubeClientset is the default kubeClientFactory: builds a typed Kubernetes
 // client from the helm CLI environment's REST config. Tests inject a fake
 // clientset instead so the release-secret helpers never reach the active
