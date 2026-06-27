@@ -59,6 +59,12 @@ func detectChartSourceType(source string) string {
 
 // isMutableVersion determines if a version string represents a mutable tag
 func isMutableVersion(version string) bool {
+	// OCI digest references (e.g. sha256:a1b2c3d4...) are content-addressed
+	// and fully immutable. They MUST get the long (24-hour) cache TTL.
+	if strings.HasPrefix(version, "sha256:") {
+		return false
+	}
+
 	// Common mutable tags
 	mutableTags := []string{"latest", "dev", "develop", "main", "master", "edge", "canary", "nightly"}
 

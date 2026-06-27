@@ -51,16 +51,26 @@ func (m *memoryCache) GetData() interface{} {
 // MemoryCacheStore a sample memory cache instance, if data set cache duration, will auto clear after timeout.
 // But, Expired cleanup is not necessarily accurate, it has a 3-second window.
 type MemoryCacheStore struct {
-	store sync.Map
+	store      sync.Map
+	cancelFunc context.CancelFunc
 }
 
 // NewMemoryCacheStore memory cache store
 func NewMemoryCacheStore(ctx context.Context) *MemoryCacheStore {
+	ctx, cancel := context.WithCancel(ctx)
 	mcs := &MemoryCacheStore{
-		store: sync.Map{},
+		store:      sync.Map{},
+		cancelFunc: cancel,
 	}
 	go mcs.run(ctx)
 	return mcs
+}
+
+// Stop cancels the background sweep goroutine. Idempotent.
+func (m *MemoryCacheStore) Stop() {
+	if m.cancelFunc != nil {
+		m.cancelFunc()
+	}
 }
 
 func (m *MemoryCacheStore) run(ctx context.Context) {
