@@ -174,6 +174,24 @@ func TestParseGitlab(t *testing.T) {
 			repo:    "repo",
 			wantErr: true,
 		},
+		{
+			name:    "invalid gitlab url repo at path root without owner",
+			addr:    "https://gitlab.com/catalog",
+			repo:    "catalog",
+			wantErr: true,
+		},
+		{
+			name:    "invalid gitlab url tree branch missing",
+			addr:    "https://gitlab.com/kubevela/catalog/tree",
+			repo:    "catalog",
+			wantErr: true,
+		},
+		{
+			name:    "invalid gitlab url repo only in host",
+			addr:    "https://catalog.gitlab.com/kubevela/foo",
+			repo:    "catalog",
+			wantErr: true,
+		},
 	}
 
 	for _, tc := range testCases {
