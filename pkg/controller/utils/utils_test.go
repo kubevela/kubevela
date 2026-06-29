@@ -42,7 +42,7 @@ func TestConstructExtract(t *testing.T) {
 			}
 		})
 	}
-	badRevision := []string{"xx", "yy-", "zz-0.1"}
+	badRevision := []string{"xx", "yy-", "zz-0.1", "5", "myapp-a1"}
 	t.Run(fmt.Sprintf("tests %s for extractRevision", badRevision), func(t *testing.T) {
 		for _, revisionName := range badRevision {
 			_, err := ExtractRevision(revisionName)
