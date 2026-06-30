@@ -48,7 +48,7 @@
     - [Mode 1: Provision](#mode-1-provision---create-new-cluster)
     - [Mode 2: Adopt](#mode-2-adopt---connect-to-existing-cluster)
     - [Mode 3: Connect](#mode-3-connect---manage-existing-cluster)
-    - [Cluster Lifecycle Phases: infraProvisioning, planeProvisioning, healthValidation](#cluster-lifecycle-phases-infraprovisioning-planeprovisioning-healthvalidation)
+    - [Cluster Lifecycle Phases: infraProvisioning, clusterInit, planeProvisioning, healthValidation](#cluster-lifecycle-phases-infraprovisioning-clusterinit-planeprovisioning-healthvalidation)
     - [ClusterProviderDefinition](#clusterproviderdefinition)
   - [Definition Types](#definition-types)
     - [Definition Scope Model](#definition-scope-model)
@@ -123,7 +123,7 @@ This KEP extends OAM's abstraction model to cluster infrastructure by introducin
 
 - A **SpokeCluster** is the hub-side handle for a managed cluster: the fleet object an operator lists on the hub (`kubectl get spokeclusters`) and the dispatcher that hands a blueprint revision down to a spoke. The hub owns the SpokeCluster and learns spoke state by querying the spoke on demand, not by receiving pushes from it.
 
-- A **Cluster** is the spoke-side, self-reconciling representation of that managed cluster. The spoke runs `vela-cluster-core`, which reconciles the dispatched `ClusterBlueprint` into a `Cluster` and keeps it converged locally. Reconciliation runs entirely on the spoke and never calls back to the hub, so it keeps going even while the hub is offline. Each cluster moves through lifecycle phases: shared cloud infrastructure is prepared on the hub before the cluster exists (`infraProvisioning`), the spoke applies its blueprint by provisioning each `ClusterPlane` the blueprint declares (`planeProvisioning`), and an acceptance and health gate runs before the cluster is marked ready (`healthValidation`).
+- A **Cluster** is the spoke-side, self-reconciling representation of that managed cluster. The spoke runs `vela-cluster-core`, which reconciles the dispatched `ClusterBlueprint` into a `Cluster` and keeps it converged locally. Reconciliation runs entirely on the spoke and never calls back to the hub, so it keeps going even while the hub is offline. Each cluster moves through lifecycle phases: shared cloud infrastructure is prepared on the hub before the cluster exists (`infraProvisioning`), the spoke installs the foundational controllers and charts the planes depend on (`clusterInit`), the spoke applies its blueprint by provisioning each `ClusterPlane` the blueprint declares (`planeProvisioning`), and an acceptance and health gate runs before the cluster is marked ready (`healthValidation`).
 
 - A **ClusterPlane** is a composable infrastructure layer owned by a team — for example, a networking plane (Cilium, CoreDNS, ingress), a security plane (OPA, cert-manager), or an observability plane (Prometheus, Grafana). Each plane has its own components, versioning, health checks, and outputs. Planes can be scoped as `shared` (created once, consumed by many clusters) or `perCluster` (created for each cluster).
 
@@ -4381,9 +4381,9 @@ status:
     managedResources: 47
 ```
 
-#### Cluster Lifecycle Phases: infraProvisioning, planeProvisioning, healthValidation
+#### Cluster Lifecycle Phases: infraProvisioning, clusterInit, planeProvisioning, healthValidation
 
-A managed cluster moves through three phases. `infraProvisioning` runs on the hub and prepares shared cloud infrastructure (VPC, IAM, DNS) before the cluster exists. `planeProvisioning` runs on the spoke: once the blueprint is dispatched, `vela-cluster-core` reconciles every plane into the local `Cluster` and keeps it converged. `healthValidation` gates readiness with acceptance and smoke checks; the hub reads the verdict by probing the spoke on demand.
+A managed cluster moves through these lifecycle phases. `infraProvisioning` runs on the hub and prepares shared cloud infrastructure (VPC, IAM, DNS) before the cluster exists, and ensures `vela-cluster-core` is running on the spoke. `clusterInit` runs on the spoke: `vela-cluster-core` installs the foundational layer the planes depend on, such as Kubernetes controllers, operators, Helm charts, and CRDs. `planeProvisioning` also runs on the spoke: once the blueprint is dispatched, `vela-cluster-core` reconciles every plane into the local `Cluster` on top of that foundation and keeps it converged. `healthValidation` gates readiness with acceptance and smoke checks; the hub reads the verdict by probing the spoke on demand.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -4402,18 +4402,24 @@ spec:
       name: aws-production
     region: us-east-1
 
-  # Phase 1 (hub): shared cloud infrastructure, before the cluster exists.
+  # infraProvisioning (hub): shared cloud infrastructure, before the cluster exists.
   # If another SpokeCluster already reconciled this blueprint, its outputs are
   # consumed without re-creation (same semantics as scope: shared planes).
   infraProvisioning:
     blueprintRef:
       name: shared-infrastructure-us-east # VPC, IAM, DNS
 
-  # Phase 2 (spoke): the blueprint the spoke reconciles into its Cluster.
+  # clusterInit (spoke): foundational layer the planes depend on, reconciled by
+  # vela-cluster-core (controllers, operators, Helm charts, base CRDs).
+  clusterInit:
+    blueprintRef:
+      name: cluster-foundation # CNI, base controllers/operators, Helm runtime, CRDs
+
+  # planeProvisioning (spoke): the blueprint the spoke reconciles into its Cluster.
   blueprintRef:
     name: production-eks # control plane, node pools, Cilium, cert-manager, monitoring
 
-  # Phase 3 (hub/both): acceptance and health gate, read by probing the spoke.
+  # healthValidation (hub/both): acceptance and health gate, read by probing the spoke.
   healthValidation:
     blueprintRef:
       name: cluster-validation # smoke tests, readiness checks
@@ -4422,26 +4428,33 @@ spec:
 **Lifecycle Phases:**
 
 ```
-Phase 1: infraProvisioning  (Hub)
+infraProvisioning  (Hub)
   - Prepares shared cloud infrastructure (VPC, IAM, DNS) against cloud APIs.
-  - Runs on the hub; no spoke exists yet.
+  - Runs on the hub; no spoke exists yet. Ends with vela-cluster-core running
+    on the spoke so the spoke can reconcile the steps that follow.
   - If the blueprint is already reconciled by another SpokeCluster, it is a
     no-op and the existing outputs are consumed (scope: shared semantics).
 
-Phase 2: planeProvisioning  (Spoke)
+clusterInit  (Spoke)
+  - vela-cluster-core installs the foundational layer the planes depend on:
+    Kubernetes controllers, operators, Helm charts, and base CRDs.
+  - Runs on the spoke and is reconciled locally, like planeProvisioning.
+  - Must converge before planeProvisioning, which builds on this foundation.
+
+planeProvisioning  (Spoke)
   - The hub dispatches blueprintRef to the spoke.
   - vela-cluster-core reconciles every plane into the local Cluster and keeps
     it converged. Consumes infraProvisioning outputs (vpcId, subnetIds, ...).
-  - On mode: provision, the cluster itself is provisioned in this phase before
-    the planes are applied.
+  - On mode: provision, the cluster itself is provisioned here before the
+    planes are applied.
 
-Phase 3: healthValidation  (Hub / both)
+healthValidation  (Hub / both)
   - Runs after the spoke reports all planes healthy (read on demand).
   - Acceptance apps, smoke tests, and readiness checks gate the ready state.
 
 For mode: adopt / connect
   - infraProvisioning can prepare pre-adoption setup (IAM roles, RBAC) on the hub.
-  - blueprintRef is dispatched for the spoke to reconcile.
+  - clusterInit and blueprintRef are dispatched for the spoke to reconcile.
   - healthValidation runs after the spoke converges.
   - Connectivity is available from the start (credentials provided).
 ```
@@ -4472,7 +4485,8 @@ When a SpokeCluster is deleted, phases are cleaned up in reverse order:
 
 1. **healthValidation** resources removed.
 2. **planeProvisioning** resources cleaned up on the spoke (the cluster is deprovisioned if `mode: provision`).
-3. **infraProvisioning** consumer count decremented; shared resources remain if other consumers exist.
+3. **clusterInit** foundational resources removed from the spoke.
+4. **infraProvisioning** consumer count decremented; shared resources remain if other consumers exist.
 
 #### ClusterProviderDefinition
 
