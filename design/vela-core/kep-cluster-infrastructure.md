@@ -749,7 +749,7 @@ The model runs two controllers on two clusters.
 
 #### SpokeCluster (hub-side handle)
 
-The `SpokeCluster` CRD lives on the hub, one per managed cluster. It carries the desired `blueprintRef`, the credential used to reach the spoke, and the rollout reference. It is what an operator lists with `kubectl get spokeclusters`. The hub `SpokeClusterController` dispatches the referenced blueprint revision to the spoke and records connection and dispatch status; it never receives a status push from the spoke.
+The `SpokeCluster` CRD lives on the hub, one per managed cluster. It carries the credential used to reach the spoke, the hub-reconciled `infraProvisioning` blueprint, the desired `blueprintRef` it dispatches, per-cluster `patches`, the rollout reference, and the `maintenance` windows that gate dispatch. It is what an operator lists with `kubectl get spokeclusters`. The hub `SpokeClusterController` reconciles `infraProvisioning` against cloud APIs, dispatches the referenced blueprint revision to the spoke, and records connection, dispatch, and pulled `health` on `status`; it never receives a status push from the spoke.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -783,14 +783,40 @@ spec:
     # gcp:
     #   authMode: workloadIdentity   # workloadIdentity
 
+  # infraProvisioning (hub): shared cloud infrastructure the hub reconciles against
+  # cloud APIs before the cluster exists, plus cluster creation on mode: provision.
+  infraProvisioning:
+    blueprintRef:
+      name: shared-infrastructure-us-east # VPC, IAM, DNS
+
   # Desired blueprint revision to dispatch to the spoke (user/GitOps owned).
   blueprintRef:
     name: production-standard
     revision: production-standard-v2.3.0
 
+  # Per-cluster overrides applied on top of the dispatched blueprint.
+  patches:
+    - plane: networking
+      component: ingress-nginx
+      properties:
+        values:
+          controller:
+            replicaCount: 5
+
   # Rollout strategy that gates WHEN a new revision is dispatched.
   rolloutStrategyRef:
     name: production-rollout
+
+  # Update windows that gate WHEN a new revision is dispatched to this spoke.
+  maintenance:
+    windows:
+      - name: weekend-maintenance
+        start: "02:00"
+        end: "06:00"
+        timezone: America/New_York
+        days: [Sat, Sun]
+    allowEmergencyUpdates: true
+    enforceWindow: true
 
 status:
   connection: Connected # observed by an on-demand probe, not pushed by the spoke
@@ -800,6 +826,11 @@ status:
     nodeCount: 12
     platform: eks
     region: us-east-1
+  health: # pulled from the spoke Cluster on demand while connected
+    status: Healthy
+    planesHealthy: 3
+    planesTotal: 3
+    lastPulledAt: "2024-12-24T10:00:00Z"
 ```
 
 The `credential` field is a discriminated union keyed by `type`, the method the hub uses to authenticate to the spoke. `kubeconfig` is for clusters whose kubeconfig is supplied directly, which covers k3s, kind, and any cluster already reachable by a kubeconfig. The cloud-native arms (`aws`, `azure`, `gcp`) reach the cluster through the provider's workload identity and store no static credentials. Auth modes are scoped to their provider so an unrelated mode cannot attach to the wrong one: `aws` offers `podIdentity` and `irsa`, `azure` offers `workloadIdentity` and `managedIdentity`, `gcp` offers `workloadIdentity`. The cluster's flavour (eks, gke, aks, kind, k3s) is discovered and reported in status, it is not a credential type. New providers extend this set the same way the provisioning side extends `ClusterProviderDefinition`.
