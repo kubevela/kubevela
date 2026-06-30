@@ -29,6 +29,7 @@
 - [Non-Goals](#non-goals)
 - [Proposal](#proposal)
   - [Core CRDs](#core-crds)
+    - [SpokeCluster (hub-side handle)](#spokecluster-hub-side-handle)
     - [Cluster](#1-cluster)
     - [ClusterPlane](#2-clusterplane)
     - [ClusterPlane Versioning Strategy](#clusterplane-versioning-strategy)
@@ -47,7 +48,7 @@
     - [Mode 1: Provision](#mode-1-provision---create-new-cluster)
     - [Mode 2: Adopt](#mode-2-adopt---connect-to-existing-cluster)
     - [Mode 3: Connect](#mode-3-connect---manage-existing-cluster)
-    - [Cluster Lifecycle Phases: preCreate and postCreate](#cluster-lifecycle-phases-precreate-and-postcreate)
+    - [Cluster Lifecycle Phases: infraProvisioning, planeProvisioning, healthValidation](#cluster-lifecycle-phases-infraprovisioning-planeprovisioning-healthvalidation)
     - [ClusterProviderDefinition](#clusterproviderdefinition)
   - [Definition Types](#definition-types)
     - [Definition Scope Model](#definition-scope-model)
@@ -120,7 +121,9 @@ KubeVela's job is to sequence components, gate rollouts, enforce ownership bound
 
 This KEP extends OAM's abstraction model to cluster infrastructure by introducing a layered composition model:
 
-- A **Cluster** represents a managed Kubernetes cluster with its full lifecycle — provisioning, connecting, or adopting existing clusters. Each Cluster goes through optional lifecycle phases: shared cloud infrastructure can be set up before the cluster is created (`preCreate`), the cluster itself is provisioned and configured via a blueprint (`blueprintRef`), and post-creation tasks like deploying validation apps or running smoke tests can be triggered after the cluster is ready (`postCreate`).
+- A **SpokeCluster** is the hub-side handle for a managed cluster: the fleet object an operator lists on the hub (`kubectl get spokeclusters`) and the dispatcher that hands a blueprint revision down to a spoke. The hub owns the SpokeCluster and learns spoke state by querying the spoke on demand, not by receiving pushes from it.
+
+- A **Cluster** is the spoke-side, self-reconciling representation of that managed cluster. The spoke runs `vela-cluster-core`, which reconciles the dispatched `ClusterBlueprint` into a `Cluster` and keeps it converged locally, whether or not the hub is reachable. Each cluster moves through lifecycle phases: shared cloud infrastructure is prepared on the hub before the cluster exists (`infraProvisioning`), the spoke reconciles its blueprint into every cluster plane (`planeProvisioning`), and an acceptance and health gate runs before the cluster is marked ready (`healthValidation`).
 
 - A **ClusterPlane** is a composable infrastructure layer owned by a team — for example, a networking plane (Cilium, CoreDNS, ingress), a security plane (OPA, cert-manager), or an observability plane (Prometheus, Grafana). Each plane has its own components, versioning, health checks, and outputs. Planes can be scoped as `shared` (created once, consumed by many clusters) or `perCluster` (created for each cluster).
 
@@ -136,7 +139,8 @@ Infrastructure definitions reuse the existing KubeVela definition CRDs (`Compone
 
 | CRD                            | Description                                                                                |
 | ------------------------------ | ------------------------------------------------------------------------------------------ |
-| **`Cluster`**                  | First-class representation of a managed cluster with full inventory, health, and status    |
+| **`SpokeCluster`**             | Hub-side handle for a managed cluster: fleet listing and blueprint dispatcher, one per spoke |
+| **`Cluster`**                  | Spoke-side, self-reconciling representation of a cluster, built from the dispatched blueprint |
 | **`ClusterPlane`**             | A composable infrastructure layer owned by a team (e.g., networking plane, security plane) |
 | **`ClusterPlaneRevision`**     | Immutable snapshot of a ClusterPlane at a specific version                                 |
 | **`ClusterBlueprint`**         | A complete cluster specification composed of multiple ClusterPlanes                        |
@@ -325,7 +329,8 @@ The following sequence must be followed to set up the hub and begin managing spo
 
 | Resource                                       | Location                                                              | Notes                                                                                                                                                                                                                                         |
 | ---------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| KubeVela Infrastructure Controllers (this KEP) | Hub cluster only                                                      | All CRDs and controllers from this KEP: `Cluster`, `ClusterPlane`, `ClusterBlueprint`, `ClusterRolloutStrategy`, `ClusterController`, `ClusterPlaneController`, `ClusterBlueprintController`, `ClusterRolloutController`                      |
+| KubeVela hub controllers (this KEP)            | Hub cluster only                                                      | `SpokeCluster`, `ClusterPlane`, `ClusterBlueprint`, `ClusterRolloutStrategy` and their controllers, plus the `SpokeClusterController` that dispatches blueprint revisions to spokes and probes spoke state on demand                          |
+| KubeVela spoke engine (`vela-cluster-core`)    | Spoke clusters                                                        | Reconciles the dispatched `ClusterBlueprint` into a self-sufficient spoke-side `Cluster`, keeps the cluster converged locally, and does not push status back to the hub                                                                      |
 | KubeVela Core (`vela-core`)                    | Hub always; spokes if running Application workloads                   | The hub always runs vela-core. Spoke clusters that run KubeVela `Application` workloads also need vela-core and X-Definitions — see [VelaRuntime ClusterPlane](#velaruntime-clusterplane)                                                    |
 | Provisioning controllers                       | Hub always; spokes if Application workloads provision cloud resources | Crossplane, CAPI, tf-controller, KRO (optional, user's choice). The hub needs these for `preCreate`/`blueprintRef` phases. Spokes also need them if Application components provision cloud resources (e.g., a database via Crossplane or ACK) |
 | Cloud credentials                              | Hub always; spokes if provisioning cloud resources                    | Secrets for provider access. Hub credentials are for cluster provisioning. Spoke credentials are for Application-scoped cloud resources                                                                                                       |
@@ -334,9 +339,9 @@ The following sequence must be followed to set up the hub and begin managing spo
 | Deployed infrastructure                        | Spoke clusters                                                        | CNI, ingress, cert-manager, security policies, etc.                                                                                                                                                                                           |
 | Workload Applications                          | Spoke clusters                                                        | Your actual applications (managed via KubeVela `Application` CRD)                                                                                                                                                                             |
 
-> **The hub cluster is the single pane of glass** for managing your entire fleet. All declarative state (desired state) lives on the hub; spoke clusters receive the rendered infrastructure components.
+> **The hub cluster is the single pane of glass** for managing your entire fleet. The hub holds the desired state (each `SpokeCluster` references an immutable `ClusterBlueprint` revision) and dispatches that blueprint down to the spoke. The spoke is the actor: `vela-cluster-core` reconciles the blueprint into a `Cluster` and keeps it converged. The hub reads spoke state by querying on demand, and the spoke never pushes status back, so hub downtime never stops a spoke from reconciling.
 >
-> **Important**: If spoke clusters run KubeVela `Application` workloads (not just raw Kubernetes resources), those spokes need the KubeVela runtime (`vela-core` + X-Definitions) installed. This is handled declaratively via a `vela-runtime` ClusterPlane — see [VelaRuntime ClusterPlane](#velaruntime-clusterplane).
+> **Important**: If spoke clusters run KubeVela `Application` workloads (not just raw Kubernetes resources), those spokes need the KubeVela application runtime (`vela-core` + X-Definitions) installed alongside `vela-cluster-core`. This is handled declaratively via a `vela-runtime` ClusterPlane (see [VelaRuntime ClusterPlane](#velaruntime-clusterplane)).
 
 ### Provisioning Controller Flexibility
 
@@ -591,207 +596,121 @@ KubeVela currently uses **cluster-gateway** (`github.com/oam-dev/cluster-gateway
 - No composition or team ownership boundaries
 - Clusters are just connection endpoints, not managed resources
 
-#### Proposed Architecture: Self-Sufficient Cluster CRD
+#### Proposed Architecture: Spoke-Reconciled Cluster
 
-**Key Architectural Decision:** The Cluster CRD manages connectivity **directly**. This ensures the core CRD is self-sufficient.
+**Key Architectural Decision:** the hub does not reconcile spoke infrastructure. The hub owns a `SpokeCluster` that wraps the desired `ClusterBlueprint` revision for a spoke and dispatches it. The spoke runs `vela-cluster-core`, which reconciles that blueprint into a self-sufficient `Cluster` and keeps it converged locally. The hub never receives a status push from the spoke; when it needs live state it queries the spoke on demand.
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│           PROPOSED: Cluster CRD (Self-Sufficient Connectivity)         │
-├────────────────────────────────────────────────────────────────────────┤
-│                                                                        │
-│  ┌─────────────────────────────────────────────────────────────────┐   │
-│  │ Cluster CRD (core.oam.dev/v1beta1)                              │   │
-│  │                                                                 │   │
-│  │   INTENT & STATE:                                               │   │
-│  │   - blueprintRef: production-standard-v2.3.0                    │   │
-│  │   - patches: cluster-specific overrides                         │   │
-│  │   - inventory: what's deployed                                  │   │
-│  │   - health: aggregated status                                   │   │
-│  │   - lifecycle: provision/adopt/connect mode                     │   │
-│  │   - preCreate/postCreate: optional lifecycle phases            │   │
-│  │                                                                 │   │
-│  │   CONNECTIVITY (self-managed by ClusterController):             │   │
-│  │   ┌───────────────────────────────────────────────────────────┐ │   │
-│  │   │ Option 1: Inline Credentials                              │ │   │
-│  │   │   credential:                                             │ │   │
-│  │   │     type: X509 | ServiceAccountToken | Bearer             │ │   │
-│  │   │     endpoint: "https://..."                               │ │   │
-│  │   │     caData: "..."                                         │ │   │
-│  │   ├───────────────────────────────────────────────────────────┤ │   │
-│  │   │ Option 2: Secret Reference (kubeconfig)                   │ │   │
-│  │   │   credential:                                             │ │   │
-│  │   │     secretRef:                                            │ │   │
-│  │   │       name: my-kubeconfig                                 │ │   │
-│  │   │       key: kubeconfig                                     │ │   │
-│  │   ├───────────────────────────────────────────────────────────┤ │   │
-│  │   │ Option 3: Cloud Provider Native (IAM, workload identity)  │ │   │
-│  │   │   credential:                                             │ │   │
-│  │   │     cloudProvider:                                        │ │   │
-│  │   │       type: aws-eks | gcp-gke | azure-aks                 │ │   │
-│  │   └───────────────────────────────────────────────────────────┘ │   │
-│  └─────────────────────────────────────────────────────────────────┘   │
-│                                                                        │
-│  ClusterController handles connectivity directly:                      │
-│  - Creates internal client for remote cluster                          │
-│  - Self-contained connectivity management                              │
-│                                                                        │
-└────────────────────────────────────────────────────────────────────────┘
+HUB
+  SpokeCluster (core.oam.dev/v1beta1)
+    spec.blueprintRef:         production-standard-v2.3.0   (desired)
+    spec.credential:           how to reach the spoke
+    status.dispatchedRevision: production-standard-v2.3.0   (last sent)
+    status.connection:         Connected  (observed by on-demand probe)
+        |
+        |  dispatch blueprint revision  (push or pull)
+        v
+SPOKE  (runs vela-cluster-core)
+    ClusterBlueprint (dispatched copy)
+        |  reconciled locally
+        v
+    Cluster (core.oam.dev/v1beta1)  =  self-sufficient
+        reconciles all planes from the blueprint
+        keeps itself converged with or without the hub
+        status.inventory / status.health  =  local truth
+
+Status is read UP only on demand (the hub probes the spoke).
+The spoke never pushes; hub downtime does not stop spoke reconciliation.
 ```
+
+This keeps the connectivity self-sufficiency of the earlier design (no dependency on a separate `VirtualCluster` object) and extends it. The spoke is now self-sufficient for reconciliation as well, not just for connectivity: the `Cluster` is built and maintained where it runs.
 
 #### Design Principles
 
-1. **Self-Sufficient**: Cluster CRD functions independently
-2. **Pluggable Connectivity**: Multiple credential options supported (inline, secretRef, cloudProvider)
-3. **Layered Abstraction**: `Cluster` CRD adds intent/state layer on top of connectivity
-4. **Single Source of Truth**: `Cluster` CRD becomes the authoritative record for managed clusters
-5. **Clear Ownership Boundaries**: Controllers NEVER modify `spec` fields they don't own (prevents circular references)
+1. **Spoke self-sufficiency**: the spoke reconciles its own `Cluster` from the dispatched blueprint and stays converged independently of the hub.
+2. **Hub owns desired state, not live state**: the hub `SpokeCluster` carries the desired blueprint revision and dispatches it; live state is read from the spoke on demand.
+3. **No status push-back**: the spoke never writes to hub objects. Loose coupling holds in both directions, so hub downtime does not break the spoke and spoke downtime does not break the hub registry.
+4. **Pluggable connectivity**: `SpokeCluster` supports multiple credential options (inline, secretRef, cloudProvider).
+5. **Clear ownership boundaries**: controllers never modify `spec` fields they do not own, so no reconciliation cycle crosses the hub/spoke boundary.
 
 #### Controller Ownership Model (Circular Reference Prevention)
 
-A critical design principle is **preventing circular references** between controllers. Each controller has explicit ownership boundaries:
+Ownership now spans two clusters. The hub owns desired state and dispatch; the spoke owns reconciliation and live status. No controller writes a `spec` it does not own, and nothing flows from spoke to hub except on an explicit hub-initiated read.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    CONTROLLER OWNERSHIP MODEL (NO CYCLES)                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  COMPONENT                  OWNER                 CONTROLLERS CAN MODIFY?   │
-│  ─────────                 ─────                 ────────────────────────   │
-│                                                                             │
-│  ClusterBlueprint          User/GitOps           NEVER (immutable template) │
-│                                                                             │
-│  Cluster.spec.blueprintRef User/GitOps           NEVER by controllers       │
-│                                                  (this is desired state)    │
-│                                                                             │
-│  Cluster.status.blueprint  ClusterController     YES (actual applied state) │
-│  Cluster.status.health     ClusterController     YES                        │
-│  Cluster.status.inventory  ClusterController     YES                        │
-│  Cluster.status.maintenance ClusterController    YES (window computation)   │
-│                                                                             │
-│  RolloutStrategy.status    ClusterRolloutCtrl    YES (wave/progress status) │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+| Component                          | Owner                     | Who writes it                                   |
+| ---------------------------------- | ------------------------- | ----------------------------------------------- |
+| `ClusterBlueprint` (hub)           | User/GitOps               | Never modified after publish (immutable)        |
+| `SpokeCluster.spec.blueprintRef`   | User/GitOps               | Never modified by controllers (desired state)   |
+| `SpokeCluster.status` (dispatchedRevision, connection) | `SpokeClusterController` (hub) | Set on dispatch and on-demand probe |
+| `Cluster.status` (inventory, health) | `vela-cluster-core` (spoke) | Set by local reconciliation, on the spoke     |
 
-**Why This Matters:**
-
-Without clear ownership, the following cycle could occur:
-
-1. `Cluster.spec.blueprintRef` → references `ClusterBlueprint`
-2. `ClusterBlueprint` → defines planes to deploy
-3. `ClusterPlane` → deploys resources that affect cluster health
-4. `Cluster.status.health` → affects rollout progression
-5. **BAD**: Rollout controller updates `Cluster.spec.blueprintRef` → cycle!
+No edge ever writes from spoke to hub. The hub reads spoke state by querying it, which removes the cycle risk that a push-back path would create.
 
 **The Correct Flow (No Cycle):**
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         CORRECT UPDATE FLOW                                 │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  1. USER/GITOPS updates Cluster.spec.blueprintRef to new version            │
-│     │                                                                       │
-│     ▼                                                                       │
-│  2. ClusterController detects spec.blueprintRef != status.blueprint         │
-│     │                                                                       │
-│     ▼                                                                       │
-│  3. ClusterController queries ClusterRolloutController: "Can I update?"     │
-│     │                                                                       │
-│     ├─── NO: Rollout says "wait" (wave not ready, window closed, etc.)      │
-│     │         → ClusterController waits, requeues                           │
-│     │                                                                       │
-│     └─── YES: Rollout says "proceed"                                        │
-│           │                                                                 │
-│           ▼                                                                 │
-│  4. ClusterController applies blueprint to cluster                          │
-│     │                                                                       │
-│     ▼                                                                       │
-│  5. ClusterController updates status.blueprint, status.health               │
-│     │                                                                       │
-│     ▼                                                                       │
-│  6. ClusterRolloutController reads status.health for wave progression       │
-│     (but NEVER modifies spec.blueprintRef - that's User/GitOps's job)       │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+1. User or GitOps sets `SpokeCluster.spec.blueprintRef` to a new revision on the hub.
+2. `SpokeClusterController` asks `ClusterRolloutController` whether it may dispatch (wave ready, maintenance window open).
+3. If denied, it waits and requeues. If approved, it dispatches the blueprint revision to the spoke.
+4. The spoke's `vela-cluster-core` reconciles the blueprint into its `Cluster` and keeps it converged locally.
+5. `SpokeClusterController` records `status.dispatchedRevision` and reads spoke health on demand for wave progression. It never writes the spoke's spec, and the spoke never writes the hub.
 
 **Key Invariants:**
 
-| Invariant                                    | Description                                                                                                                    |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **ClusterBlueprint is immutable**            | Once created, a blueprint version never changes. New versions create new `ClusterBlueprintRevision` objects.                   |
-| **spec.blueprintRef is user-owned**          | Only users or external automation (GitOps) modify `Cluster.spec.blueprintRef`. Controllers NEVER touch it.                     |
-| **status.blueprint is controller-owned**     | Only `ClusterController` modifies `status.blueprint` after successful application.                                             |
-| **Rollout controls timing, not state**       | `ClusterRolloutController` gates WHEN updates happen via a "can proceed" signal. It never modifies cluster spec or blueprints. |
-| **Health affects progression, not triggers** | Cluster health affects rollout wave progression decisions, but health changes don't trigger spec modifications.                |
+| Invariant                                | Description                                                                                                                |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **ClusterBlueprint is immutable**        | Once created, a blueprint revision never changes. New versions create new `ClusterBlueprintRevision` objects.              |
+| **spec.blueprintRef is user-owned**      | Only users or GitOps set the desired revision on the hub `SpokeCluster`. Controllers never modify it.                      |
+| **The spoke owns reconciliation**        | Only the spoke's `vela-cluster-core` reconciles the blueprint into the `Cluster`. The hub does not apply plane resources.  |
+| **No status push-back**                  | The spoke never writes hub objects. The hub reads spoke state by querying on demand.                                       |
+| **Rollout controls timing, not state**   | `ClusterRolloutController` gates WHEN the hub dispatches a new revision. It never modifies spec or blueprints.             |
 
 #### Migration Path
 
-| Stage                     | Cluster CRD                  | Connectivity                                            | Behavior                                                |
-| ------------------------- | ---------------------------- | ------------------------------------------------------- | ------------------------------------------------------- |
-| **Stage 0** (current)     | Not used                     | Manual kubeconfig management                            | Current behavior, no change                             |
-| **Stage 1** (adoption)    | Created with `mode: connect` | Any supported method (inline, secretRef, cloudProvider) | Cluster CRD tracks state                                |
-| **Stage 2** (managed)     | Full spec with blueprint     | ClusterController manages connectivity                  | Controller ensures connectivity, applies infrastructure |
-| **Stage 3** (provisioned) | `mode: provision`            | Auto-created from provisioning outputs                  | Cluster CRD provisions cluster AND creates connectivity |
+| Stage                     | Hub object                            | Spoke                                  | Behavior                                                              |
+| ------------------------- | ------------------------------------- | -------------------------------------- | -------------------------------------------------------------------- |
+| **Stage 0** (current)     | None                                  | Manual kubeconfig                      | Current behavior, no change                                          |
+| **Stage 1** (connect)     | `SpokeCluster` with `mode: connect`   | No spoke engine yet                    | Hub registers and probes the spoke; fleet listing works              |
+| **Stage 2** (dispatch)    | `SpokeCluster` with `blueprintRef`    | `vela-cluster-core` installed          | Hub dispatches the blueprint; the spoke reconciles its `Cluster`     |
+| **Stage 3** (provisioned) | `SpokeCluster` with `mode: provision` | `vela-cluster-core` installed at bootstrap | Hub provisions the cluster, then dispatches the blueprint to it  |
 
 #### Controller Reconciliation
 
-**ClusterController reconcile algorithm:**
+The model runs two controllers on two clusters.
 
-1. Establish connectivity to target cluster (using spec.credential)
-2. Create internal client for remote cluster
-3. **Always** update `status.maintenance` (compute window state)
-4. If `spec.blueprintRef.revision` ≠ `status.blueprint.revision`:
-   - Check rollout permission (read-only query to ClusterRolloutStrategy)
-   - If denied: requeue and wait
-   - If approved: apply blueprint, update `status.blueprint`
-5. Update inventory and health status
+**Hub `SpokeClusterController` reconcile algorithm:**
 
-**Rollout permission check:**
+1. Establish connectivity to the spoke (using `spec.credential`).
+2. If `mode: connect` with no blueprint set, probe the spoke, record connection status, and stop.
+3. If `spec.blueprintRef.revision` differs from `status.dispatchedRevision`:
+   - Check rollout permission (read-only query to `ClusterRolloutStrategy`).
+   - If denied: requeue and wait.
+   - If approved: dispatch the blueprint revision to the spoke, then record `status.dispatchedRevision`.
+4. Probe the spoke on demand for `status.connection` and a health summary used for rollout progression.
 
-- No strategy → allow immediately
-- Strategy with `respectClusterWindows: true` → check `status.maintenance.inWindow`
-- Check wave progression status → allow if wave permits
+**Spoke `vela-cluster-core` reconcile algorithm:**
+
+1. Read the dispatched `ClusterBlueprint` and resolve it into planes.
+2. Reconcile every plane into the local `Cluster`, in dependency order.
+3. Keep the `Cluster` converged on every resync, independent of hub availability.
+4. Maintain `Cluster.status.inventory` and `Cluster.status.health` as local truth.
 
 **Key ownership boundaries:**
 
-- `ClusterController` READS `spec.blueprintRef`, WRITES `status.blueprint`
-- `ClusterController` NEVER modifies `spec` or `ClusterBlueprint`
-- `ClusterRolloutController` gates timing via status fields
+- The hub `SpokeClusterController` READS `spec.blueprintRef`, WRITES `SpokeCluster.status`, and dispatches the blueprint. It does not write spoke objects beyond delivering the blueprint.
+- The spoke `vela-cluster-core` owns the `Cluster` and its status. It never writes hub objects.
+- `ClusterRolloutController` gates dispatch timing via hub status fields only.
 
 #### Controller Responsibilities Matrix
 
-**Critical Design Principle:** ClusterPlane is ONLY reconciled when referenced by a Cluster. Creating a ClusterPlane CRD does NOT create infrastructure resources—the Cluster CRD is the reconciliation trigger.
+**Critical Design Principle:** a `ClusterPlane` is only reconciled on a spoke when a dispatched blueprint references it. Creating a `ClusterPlane` on the hub does not create infrastructure; the dispatched blueprint, reconciled by the spoke, is the trigger.
 
-| Controller                     | Responsibilities                                                                                                                                                                                                                                                                     | Does NOT Do                                                                                                    |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| **ClusterController**          | • Triggers ALL resource reconciliation<br>• Resolves Blueprint → Planes<br>• For shared planes: first Cluster triggers creation, others consume outputs<br>• For perCluster planes: creates instance per cluster<br>• Manages connectivity directly<br>• Aggregates health/inventory | • Never modifies ClusterPlane or ClusterBlueprint specs<br>• Never creates resources without a Cluster trigger |
-| **ClusterPlaneController**     | • Creates ClusterPlaneRevision on publishVersion<br>• Validates inputs/outputs schema<br>• Tracks consumers (updates status.consumers)<br>• Computes status based on Cluster reports                                                                                                 | • Does NOT create infrastructure resources<br>• Does NOT dispatch to clusters                                  |
-| **ClusterBlueprintController** | • Creates ClusterBlueprintRevision on publishVersion<br>• Validates plane composition<br>• Resolves version constraints                                                                                                                                                              | • Does NOT dispatch to clusters (pull model)<br>• Does NOT modify Cluster specs                                |
-| **ClusterRolloutController**   | • Manages wave progression timing<br>• Enforces maintenance windows<br>• Gates blueprint transitions                                                                                                                                                                                 | • Does NOT apply blueprints (only gates timing)<br>• Does NOT modify Cluster specs                             |
-
-**Reconciliation Flow:**
-
-```
-User creates/updates Cluster with blueprintRef
-           │
-           ▼
-┌─────────────────────────────────────────────────────────────┐
-│ ClusterController                                           │
-│   1. Check rollout permission (via ClusterRolloutController)│
-│   2. Resolve Blueprint → list of ClusterPlanes              │
-│   3. For each Plane:                                        │
-│      ├─ scope=shared AND already reconciled?                │
-│      │    → Consume outputs from existing instance          │
-│      ├─ scope=shared AND first consumer?                    │
-│      │    → Reconcile shared plane, store outputs           │
-│      └─ scope=perCluster?                                   │
-│           → Reconcile new instance for this cluster         │
-│   4. Update Cluster status with plane statuses              │
-└─────────────────────────────────────────────────────────────┘
-```
+| Controller                          | Responsibilities                                                                                                                                                                                                  | Does NOT Do                                                                                          |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **SpokeClusterController** (hub)    | - Owns the `SpokeCluster` fleet object<br>- Dispatches the blueprint revision to the spoke when rollout permits<br>- Records `status.dispatchedRevision` and `status.connection`<br>- Probes the spoke on demand   | - Never reconciles spoke planes itself<br>- Never requires or receives a status push from the spoke  |
+| **vela-cluster-core** (spoke)       | - Reconciles the dispatched `ClusterBlueprint` into the local `Cluster`<br>- Resolves Blueprint to Planes and applies them in order<br>- Keeps the cluster converged with or without the hub<br>- Owns `Cluster.status` as local truth | - Never writes hub objects<br>- Never pushes status to the hub                            |
+| **ClusterPlaneController** (hub)    | - Creates `ClusterPlaneRevision` on publishVersion<br>- Validates inputs/outputs schema                                                                                                                            | - Does NOT create infrastructure resources<br>- Does NOT dispatch to clusters                        |
+| **ClusterBlueprintController** (hub)| - Creates `ClusterBlueprintRevision` on publishVersion<br>- Validates plane composition                                                                                                                            | - Does NOT reconcile spoke infrastructure<br>- Does NOT modify SpokeCluster specs                    |
+| **ClusterRolloutController** (hub)  | - Manages wave progression timing<br>- Enforces maintenance windows<br>- Gates blueprint dispatch                                                                                                                  | - Does NOT dispatch blueprints (only gates timing)<br>- Does NOT modify SpokeCluster specs           |
 
 ---
 
@@ -820,9 +739,56 @@ User creates/updates Cluster with blueprintRef
 
 ### Core CRDs
 
+> **Hub and spoke objects.** The hub owns a `SpokeCluster` per managed cluster (the fleet handle and blueprint dispatcher). The spoke owns the `Cluster` (the self-reconciling representation built from the dispatched blueprint). The hub-side `SpokeCluster` is summarized first; the numbered CRDs below describe the spoke-side `Cluster` and the shared plane, blueprint, and rollout objects.
+
+#### SpokeCluster (hub-side handle)
+
+The `SpokeCluster` CRD lives on the hub, one per managed cluster. It carries the desired `blueprintRef`, the credential used to reach the spoke, and the rollout reference. It is what an operator lists with `kubectl get spokeclusters`. The hub `SpokeClusterController` dispatches the referenced blueprint revision to the spoke and records connection and dispatch status; it never receives a status push from the spoke.
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: SpokeCluster
+metadata:
+  name: production-us-east-1
+  namespace: vela-system
+  labels:
+    environment: production
+    region: us-east-1
+    provider: aws
+spec:
+  # Phase 1 ships mode: connect; provision and adopt follow.
+  mode: connect
+
+  # How the hub reaches the spoke (same connectivity options as Cluster below).
+  credential:
+    secretRef:
+      name: production-us-east-1-kubeconfig
+      namespace: vela-system
+
+  # Desired blueprint revision to dispatch to the spoke (user/GitOps owned).
+  blueprintRef:
+    name: production-standard
+    revision: production-standard-v2.3.0
+
+  # Rollout strategy that gates WHEN a new revision is dispatched.
+  rolloutStrategyRef:
+    name: production-rollout
+
+status:
+  connection: Connected # observed by an on-demand probe, not pushed by the spoke
+  dispatchedRevision: production-standard-v2.3.0
+  clusterInfo: # summary pulled from the spoke on demand
+    kubernetesVersion: v1.28.5
+    nodeCount: 12
+    platform: eks
+    region: us-east-1
+```
+
 #### 1. Cluster
 
-The `Cluster` CRD is the **first-class representation** of a managed cluster. It provides a single source of truth for cluster state, inventory, and applied infrastructure.
+The `Cluster` CRD is the **spoke-side, self-reconciling representation** of a managed cluster. It lives on the spoke, where `vela-cluster-core` reconciles it from the dispatched `ClusterBlueprint`, and it is the local source of truth for cluster state, inventory, and applied infrastructure. The hub does not host a `Cluster`; it hosts the `SpokeCluster` summarized above.
+
+> **Field migration note.** Fields that describe how the hub reaches or schedules a spoke (for example `credential` and `rolloutStrategyRef`) belong on `SpokeCluster` in this model. The catalog spec below still shows them inline; moving them onto `SpokeCluster` and trimming the `Cluster` spec to spoke-local concerns is a follow-up to this amendment.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -4396,13 +4362,13 @@ status:
     managedResources: 47
 ```
 
-#### Cluster Lifecycle Phases: preCreate and postCreate
+#### Cluster Lifecycle Phases: infraProvisioning, planeProvisioning, healthValidation
 
-The Cluster CRD supports optional `preCreate` and `postCreate` blueprint references. `preCreate` reconciles shared cloud infrastructure (VPC, IAM, DNS) before the cluster is created. `postCreate` runs validation tasks (test apps, smoke tests) after the cluster and all blueprint planes are healthy.
+A managed cluster moves through three phases. `infraProvisioning` runs on the hub and prepares shared cloud infrastructure (VPC, IAM, DNS) before the cluster exists. `planeProvisioning` runs on the spoke: once the blueprint is dispatched, `vela-cluster-core` reconciles every plane into the local `Cluster` and keeps it converged. `healthValidation` gates readiness with acceptance and smoke checks; the hub reads the verdict by probing the spoke on demand.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: prod-us-east-1-a
   namespace: vela-system
@@ -4417,89 +4383,77 @@ spec:
       name: aws-production
     region: us-east-1
 
-  # Phase 1: Shared cloud infrastructure (before cluster creation)
-  # If this blueprint is already reconciled by another Cluster, outputs are
+  # Phase 1 (hub): shared cloud infrastructure, before the cluster exists.
+  # If another SpokeCluster already reconciled this blueprint, its outputs are
   # consumed without re-creation (same semantics as scope: shared planes).
-  preCreate:
+  infraProvisioning:
     blueprintRef:
       name: shared-infrastructure-us-east # VPC, IAM, DNS
 
-  # Phase 2: Cluster provisioning + infrastructure (the golden path)
+  # Phase 2 (spoke): the blueprint the spoke reconciles into its Cluster.
   blueprintRef:
-    name: production-eks # EKS control plane, node pools, Cilium, cert-manager, monitoring
+    name: production-eks # control plane, node pools, Cilium, cert-manager, monitoring
 
-  # Phase 3: Post-creation validation (after cluster is ready)
-  # Dispatched to the spoke cluster via cluster-gateway.
-  postCreate:
+  # Phase 3 (hub/both): acceptance and health gate, read by probing the spoke.
+  healthValidation:
     blueprintRef:
-      name: cluster-validation # Deploy test apps, run smoke tests
+      name: cluster-validation # smoke tests, readiness checks
 ```
 
 **Lifecycle Phases:**
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    CLUSTER LIFECYCLE PHASES                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  Phase 1: preCreate (optional)                                              │
-│  ─────────────────────────────                                              │
-│  • Reconciles shared cloud infrastructure (VPC, IAM, DNS)                   │
-│  • Runs on the hub against cloud APIs (no spoke exists yet)                 │
-│  • If blueprint already reconciled by another Cluster → no-op,              │
-│    consume existing outputs                                                 │
-│  • Uses existing scope: shared semantics on ClusterPlanes                   │
-│                                                                             │
-│  Phase 2: blueprintRef (cluster provisioning)                               │
-│  ────────────────────────────────────────────                               │
-│  • Provisions the cluster itself (EKS, GKE, node pools)                     │
-│  • Consumes outputs from preCreate (vpcId, subnetIds, etc.)                 │
-│  • On completion, ClusterController creates credential Secret               │
-│    from provisioning outputs → cluster-gateway can now reach spoke          │
-│                                                                             │
-│  Phase 3: postCreate (optional)                                             │
-│  ──────────────────────────────                                             │
-│  • Runs after all blueprintRef planes are healthy                           │
-│  • Dispatched via cluster-gateway (spoke now has connectivity)              │
-│  • Validation apps, smoke tests, readiness checks                           │
-│                                                                             │
-│  For mode: adopt/connect                                                    │
-│  ───────────────────────                                                    │
-│  • preCreate can handle pre-adoption setup (IAM roles, RBAC)                │
-│  • blueprintRef applies the cluster management blueprint                    │
-│  • postCreate runs validation after blueprint is applied                    │
-│  • Connectivity is available from the start (credentials provided)          │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+Phase 1: infraProvisioning  (Hub)
+  - Prepares shared cloud infrastructure (VPC, IAM, DNS) against cloud APIs.
+  - Runs on the hub; no spoke exists yet.
+  - If the blueprint is already reconciled by another SpokeCluster, it is a
+    no-op and the existing outputs are consumed (scope: shared semantics).
+
+Phase 2: planeProvisioning  (Spoke)
+  - The hub dispatches blueprintRef to the spoke.
+  - vela-cluster-core reconciles every plane into the local Cluster and keeps
+    it converged. Consumes infraProvisioning outputs (vpcId, subnetIds, ...).
+  - On mode: provision, the cluster itself is provisioned in this phase before
+    the planes are applied.
+
+Phase 3: healthValidation  (Hub / both)
+  - Runs after the spoke reports all planes healthy (read on demand).
+  - Acceptance apps, smoke tests, and readiness checks gate the ready state.
+
+For mode: adopt / connect
+  - infraProvisioning can prepare pre-adoption setup (IAM roles, RBAC) on the hub.
+  - blueprintRef is dispatched for the spoke to reconcile.
+  - healthValidation runs after the spoke converges.
+  - Connectivity is available from the start (credentials provided).
 ```
 
-**Shared preCreate Blueprint Semantics:**
+**Shared infraProvisioning Blueprint Semantics:**
 
-When multiple Clusters reference the same `preCreate.blueprintRef`, the shared plane semantics apply automatically:
+When multiple SpokeClusters reference the same `infraProvisioning.blueprintRef`, the shared plane semantics apply automatically:
 
 ```
-cluster-a (preCreate: shared-infrastructure-us-east)
-  → First consumer → reconciles blueprint → creates VPC → stores outputs
+spoke-a (infraProvisioning: shared-infrastructure-us-east)
+  -> First consumer -> reconciles blueprint -> creates VPC -> stores outputs
 
-cluster-b (preCreate: shared-infrastructure-us-east)
-  → Blueprint already reconciled → consumes outputs → no-op
+spoke-b (infraProvisioning: shared-infrastructure-us-east)
+  -> Blueprint already reconciled -> consumes outputs -> no-op
 
-cluster-b deleted
-  → preCreate blueprint still has consumer (cluster-a) → no-op
+spoke-b deleted
+  -> infraProvisioning blueprint still has consumer (spoke-a) -> no-op
 
-cluster-a deleted
-  → preCreate blueprint has no consumers → eligible for cleanup
+spoke-a deleted
+  -> infraProvisioning blueprint has no consumers -> eligible for cleanup
 ```
 
-This is implemented using the same `scope: shared` mechanism on ClusterPlanes within the blueprint. The controller tracks consumers via `status.consumers` on shared planes.
+This uses the same `scope: shared` mechanism on ClusterPlanes within the blueprint. The hub tracks consumers via `status.consumers` on shared planes.
 
 **Deletion Order:**
 
-When a Cluster is deleted, phases are cleaned up in reverse order:
+When a SpokeCluster is deleted, phases are cleaned up in reverse order:
 
-1. **postCreate** resources removed from spoke cluster
-2. **blueprintRef** resources cleaned up (cluster deprovisioned if `mode: provision`)
-3. **preCreate** consumer count decremented — shared resources remain if other consumers exist
+1. **healthValidation** resources removed.
+2. **planeProvisioning** resources cleaned up on the spoke (the cluster is deprovisioned if `mode: provision`).
+3. **infraProvisioning** consumer count decremented; shared resources remain if other consumers exist.
 
 #### ClusterProviderDefinition
 
