@@ -628,9 +628,9 @@ This keeps the connectivity self-sufficiency of the earlier design (no dependenc
 
 #### Design Principles
 
-1. **Spoke self-sufficiency**: the spoke reconciles its own `Cluster` from the dispatched blueprint and stays converged independently of the hub.
-2. **Hub owns desired state, not live state**: the hub `SpokeCluster` carries the desired blueprint revision and dispatches it; live state is read from the spoke on demand.
-3. **No status push-back**: the spoke never writes to hub objects. Loose coupling holds in both directions, so hub downtime does not break the spoke and spoke downtime does not break the hub registry.
+1. **Self-Sufficient**: the spoke reconciles its own `Cluster` from the dispatched blueprint and stays converged independently of the hub.
+2. **Central Intent, Local Truth**: the hub `SpokeCluster` carries the desired blueprint revision and dispatches it; live state is read from the spoke on demand.
+3. **One-Way Reconciliation Boundary**: the spoke never writes to hub objects. Loose coupling holds in both directions, so hub downtime does not break the spoke and spoke downtime does not break the hub registry.
 4. **Pluggable connectivity**: `SpokeCluster` authenticates to the spoke through a discriminated credential model keyed by auth method, with a directly supplied kubeconfig alongside cloud-native identity for each supported provider. Provider-specific settings, such as the auth mode, are scoped to their provider so invalid combinations cannot be expressed.
 5. **Clear ownership boundaries**: controllers never modify `spec` fields they do not own, so no reconciliation cycle crosses the hub/spoke boundary.
 
