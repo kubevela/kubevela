@@ -343,6 +343,8 @@ The following sequence must be followed to set up the hub and begin managing spo
 >
 > **Important**: If spoke clusters run KubeVela `Application` workloads (not just raw Kubernetes resources), those spokes need the KubeVela application runtime (`vela-core` + X-Definitions) installed alongside `vela-cluster-core`. This is handled declaratively via a `vela-runtime` ClusterPlane (see [VelaRuntime ClusterPlane](#velaruntime-clusterplane)).
 
+A `SpokeCluster` is a hub-role object, one per managed cluster. Because the topology is a tree rather than a star, a spoke that itself acts as a hub for downstream clusters holds `SpokeCluster` objects for those children. A cluster hosts `SpokeCluster` objects for whichever children it is a hub to, at any level of the tree.
+
 ### Provisioning Controller Flexibility
 
 This KEP is **agnostic** to which provisioning controller you use. The `Cluster` CRD can delegate cluster creation to any of:
@@ -630,8 +632,12 @@ This keeps the connectivity self-sufficiency of the earlier design (no dependenc
 1. **Spoke self-sufficiency**: the spoke reconciles its own `Cluster` from the dispatched blueprint and stays converged independently of the hub.
 2. **Hub owns desired state, not live state**: the hub `SpokeCluster` carries the desired blueprint revision and dispatches it; live state is read from the spoke on demand.
 3. **No status push-back**: the spoke never writes to hub objects. Loose coupling holds in both directions, so hub downtime does not break the spoke and spoke downtime does not break the hub registry.
-4. **Pluggable connectivity**: `SpokeCluster` supports multiple credential options (inline, secretRef, cloudProvider).
+4. **Pluggable connectivity**: `SpokeCluster` authenticates to the spoke through a discriminated credential model keyed by auth method, with a directly supplied kubeconfig alongside cloud-native identity for each supported provider. Provider-specific settings, such as the auth mode, are scoped to their provider so invalid combinations cannot be expressed.
 5. **Clear ownership boundaries**: controllers never modify `spec` fields they do not own, so no reconciliation cycle crosses the hub/spoke boundary.
+
+**Connectivity substrate.** The hub reaches spoke API servers through cluster-gateway, the aggregated API server KubeVela already uses for multi-cluster. It is hub-initiated and agent-free, so the spoke runs nothing for connectivity and never pushes to the hub. Fleets where the hub cannot route to the spoke, for example across accounts or networks, are not addressed by cluster-gateway and would call for an agent-based substrate such as Open Cluster Management.
+
+**Hub-to-spoke authentication.** Each cloud provider authenticates through its native workload identity and assumes a per-cluster scoped identity, so a credential reaches only the cluster it is meant for. For AWS this is EKS Pod Identity, with IRSA as an alternative; Azure and GCP use their workload-identity equivalents. Each provider's auth modes appear in the matching arm's `authMode`.
 
 #### Controller Ownership Model (Circular Reference Prevention)
 
@@ -756,14 +762,26 @@ metadata:
     region: us-east-1
     provider: aws
 spec:
-  # Phase 1 ships mode: connect; provision and adopt follow.
+  # connect attaches to a cluster that already exists and never creates one.
+  # provision creates the cluster when it is absent.
   mode: connect
 
-  # How the hub reaches the spoke (same connectivity options as Cluster below).
+  # How the hub authenticates to the spoke. A discriminated union keyed by auth
+  # method; exactly one arm is set. The cloud-native arms store no static credentials.
   credential:
-    secretRef:
-      name: production-us-east-1-kubeconfig
-      namespace: vela-system
+    type: aws                     # kubeconfig | aws | azure | gcp
+    # kubeconfig: spoke kubeconfig supplied directly (k3s, kind, any existing cluster)
+    # kubeconfig:
+    #   secretRef: { name: production-us-east-1-kubeconfig, namespace: vela-system }
+    aws:
+      authMode: podIdentity       # podIdentity | irsa
+      clusterName: production-us-east-1
+      region: us-east-1
+      roleArn: <per-cluster IAM role>
+    # azure:
+    #   authMode: workloadIdentity   # workloadIdentity | managedIdentity
+    # gcp:
+    #   authMode: workloadIdentity   # workloadIdentity
 
   # Desired blueprint revision to dispatch to the spoke (user/GitOps owned).
   blueprintRef:
@@ -783,6 +801,8 @@ status:
     platform: eks
     region: us-east-1
 ```
+
+The `credential` field is a discriminated union keyed by `type`, the method the hub uses to authenticate to the spoke. `kubeconfig` is for clusters whose kubeconfig is supplied directly, which covers k3s, kind, and any cluster already reachable by a kubeconfig. The cloud-native arms (`aws`, `azure`, `gcp`) reach the cluster through the provider's workload identity and store no static credentials. Auth modes are scoped to their provider so an unrelated mode cannot attach to the wrong one: `aws` offers `podIdentity` and `irsa`, `azure` offers `workloadIdentity` and `managedIdentity`, `gcp` offers `workloadIdentity`. The cluster's flavour (eks, gke, aks, kind, k3s) is discovered and reported in status, it is not a credential type. New providers extend this set the same way the provisioning side extends `ClusterProviderDefinition`.
 
 #### 1. Cluster
 
@@ -4312,7 +4332,7 @@ spec:
 
 #### Mode 3: Connect - Manage Existing Cluster
 
-Simply connect to an existing cluster without adopting infrastructure management. Uses the same connectivity options as Mode 2.
+Connect to an existing cluster without adopting infrastructure management. Uses the same connectivity options as Mode 2. connect asserts that the cluster already exists and attaches to it; it never creates a cluster. Creating a cluster when it is absent is the role of provision. This makes `mode` the seam between attaching and provisioning.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
