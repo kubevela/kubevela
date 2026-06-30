@@ -212,16 +212,16 @@ Before using the CRDs defined in this KEP, the following must be in place:
 │  │   │                                                                  │   │    │
 │  │   │  • vela-core controller                                          │   │    │
 │  │   │  • cluster-gateway (multi-cluster connectivity)                  │   │    │
-│  │   │  • ClusterController (this KEP)                                  │   │    │
+│  │   │  • SpokeClusterController (this KEP)                             │   │    │
 │  │   │  • ClusterPlaneController (this KEP)                             │   │    │
 │  │   │  • ClusterBlueprintController (this KEP)                         │   │    │
 │  │   │  • ClusterRolloutController (this KEP)                           │   │    │
 │  │   └──────────────────────────────────────────────────────────────────┘   │    │
 │  │                                                                          │    │
 │  │   ┌──────────────────────────────────────────────────────────────────┐   │    │
-│  │   │  CRDs (all live on hub cluster)                                  │   │    │
+│  │   │  CRDs on the hub (Cluster is spoke-resident)                     │   │    │
 │  │   │                                                                  │   │    │
-│  │   │  • Cluster           (represents spoke clusters)                 │   │    │
+│  │   │  • SpokeCluster           (hub handle, one per spoke)            │   │    │
 │  │   │  • ClusterPlane      (infrastructure layers)                     │   │    │
 │  │   │  • ClusterBlueprint  (composed specifications)                   │   │    │
 │  │   │  • ClusterRollout    (progressive rollout state)                 │   │    │
@@ -298,7 +298,7 @@ The following sequence must be followed to set up the hub and begin managing spo
 │  STEP 3: Install Cluster Infrastructure Controllers (This KEP)                  │
 │  ─────────────────────────────────────────────────────────────                  │
 │    $ vela addon enable cluster-infrastructure                                   │
-│    # Installs: ClusterController, ClusterPlaneController, etc.                  │
+│    # Installs: vela-cluster-core and its reconcilers                            │
 │                                                                                  │
 │  STEP 4: (Optional) Install Provisioning Controllers                            │
 │  ───────────────────────────────────────────────────                            │
@@ -319,7 +319,7 @@ The following sequence must be followed to set up the hub and begin managing spo
 │                                                                                  │
 │  STEP 6: Create/Connect Spoke Clusters (via this KEP's CRDs)                    │
 │  ───────────────────────────────────────────────────────────                    │
-│    # Now you can use Cluster CRD to provision or connect spoke clusters         │
+│    # Now you can use SpokeCluster CRD to provision or connect spoke clusters    │
 │    $ kubectl apply -f cluster-spoke-production.yaml                             │
 │                                                                                  │
 └─────────────────────────────────────────────────────────────────────────────────┘
@@ -331,7 +331,7 @@ The following sequence must be followed to set up the hub and begin managing spo
 | ---------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | KubeVela cluster engine (`vela-cluster-core`)  | Every cluster in the fleet                                            | One engine, two roles, activated by the CRs a cluster holds. Hub-role reconciles `SpokeCluster` (blueprint dispatch and fleet) plus `ClusterPlane`, `ClusterBlueprint`, and `ClusterRolloutStrategy`. Spoke-role reconciles the dispatched `ClusterBlueprint` into the local `Cluster`, keeps it converged, and never pushes status to the hub. A cluster holding `SpokeCluster` objects acts as a hub for those children; one holding its own `Cluster` acts as a spoke; a mid-tier cluster does both. |
 | KubeVela Core (`vela-core`)                    | Hub always; spokes if running Application workloads                   | The hub always runs vela-core. Spoke clusters that run KubeVela `Application` workloads also need vela-core and X-Definitions — see [VelaRuntime ClusterPlane](#velaruntime-clusterplane)                                                    |
-| Provisioning controllers                       | Hub always; spokes if Application workloads provision cloud resources | Crossplane, CAPI, tf-controller, KRO (optional, user's choice). The hub needs these for `preCreate`/`blueprintRef` phases. Spokes also need them if Application components provision cloud resources (e.g., a database via Crossplane or ACK) |
+| Provisioning controllers                                     | Hub always; spokes if Application workloads provision cloud resources | Crossplane, CAPI, tf-controller, KRO (optional, user's choice). The hub needs these for `infraProvisioning`. Spokes also need them if Application components provision cloud resources (e.g., a database via Crossplane or ACK) |
 | Cloud credentials                              | Hub always; spokes if provisioning cloud resources                    | Secrets for provider access. Hub credentials are for cluster provisioning. Spoke credentials are for Application-scoped cloud resources                                                                                                       |
 | ClusterPlane definitions                       | Hub cluster only                                                      | Existing `ComponentDefinition`, `TraitDefinition`, etc. with `definition.oam.dev/scope: cluster` in `vela-system`                                                                                                                             |
 | X-Definitions for Application workloads        | Hub always; spokes if running Application workloads                   | `ComponentDefinition`, `TraitDefinition`, etc. needed wherever `Application` CRDs are processed — see [Definition Distribution](#definition-distribution-to-spoke-clusters)                                                                   |
@@ -346,7 +346,7 @@ A `SpokeCluster` is a hub-role object, one per managed cluster. Because the topo
 
 ### Provisioning Controller Flexibility
 
-This KEP is **agnostic** to which provisioning controller you use. The `Cluster` CRD can delegate cluster creation to any of:
+This KEP is **agnostic** to which provisioning controller you use. The `SpokeCluster`'s `infraProvisioning` can delegate cluster creation to any of:
 
 | Controller                   | Use Case                            | How It Integrates                                     |
 | ---------------------------- | ----------------------------------- | ----------------------------------------------------- |
