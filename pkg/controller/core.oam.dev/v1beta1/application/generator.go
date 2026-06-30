@@ -18,6 +18,8 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"hash/fnv"
 	"strings"
 	"time"
 
@@ -26,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/rand"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -480,7 +483,98 @@ func renderComponentsAndTraits(manifest *types.ComponentManifest, appRev *v1beta
 		}
 	}
 	readyTraits = redirectTraitToLocalIfNeed(appRev, readyTraits)
+
+	// Apply podDisruptive logic: if any trait has PodDisruptive=true, compute a hash of
+	// the disruptive trait outputs and inject it into the workload's pod template annotations.
+	// This ensures that when a disruptive trait's output changes, the pod template changes
+	// and Kubernetes performs a rolling update.
+	if err := applyPodDisruptiveHash(readyWorkload, readyTraits, appRev); err != nil {
+		return nil, nil, errors.WithMessage(err, "apply pod disruptive hash")
+	}
+
 	return readyWorkload, readyTraits, nil
+}
+
+// applyPodDisruptiveHash computes a combined hash of all disruptive trait outputs and
+// injects it into the workload's spec.template.metadata.annotations. When the trait
+// output changes, the hash changes and Kubernetes triggers a rolling update.
+func applyPodDisruptiveHash(workload *unstructured.Unstructured, traits []*unstructured.Unstructured, appRev *v1beta1.ApplicationRevision) error {
+	if workload == nil || len(traits) == 0 {
+		return nil
+	}
+
+	// Check if the workload has a spec.template path (e.g. Deployment, StatefulSet, DaemonSet)
+	// If not, we cannot inject the hash into the pod template.
+	specTemplate, found, err := unstructured.NestedMap(workload.Object, "spec", "template")
+	if err != nil || !found {
+		return nil
+	}
+
+	// Collect hashes from all disruptive traits
+	var disruptiveHashes []string
+	for _, trait := range traits {
+		traitType := trait.GetLabels()[oam.TraitTypeLabel]
+		if traitType == "" {
+			continue
+		}
+
+		// Handle version-prefixed trait types (same pattern as getTraitDispatchStage)
+		lookupType := traitType
+		if strings.Contains(traitType, "-") {
+			splitName := traitType[0:strings.LastIndex(traitType, "-")]
+			if _, ok := appRev.Spec.TraitDefinitions[splitName]; ok {
+				lookupType = splitName
+			}
+		}
+
+		// Look up the TraitDefinition to check if it's disruptive
+		traitDef, ok := appRev.Spec.TraitDefinitions[lookupType]
+		if !ok {
+			continue
+		}
+		if !traitDef.Spec.PodDisruptive {
+			continue
+		}
+
+		// Compute a hash of the trait's rendered content
+		hash := util.ComputeHash(trait)
+		disruptiveHashes = append(disruptiveHashes, hash)
+	}
+
+	if len(disruptiveHashes) == 0 {
+		return nil
+	}
+
+	// Combine all disruptive trait hashes into a single combined hash
+	hasher := fnv.New32a()
+	for _, h := range disruptiveHashes {
+		_, _ = hasher.Write([]byte(h))
+	}
+	combinedHash := rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
+
+	// Inject the combined hash into the pod template annotations
+	if specTemplate["metadata"] == nil {
+		specTemplate["metadata"] = map[string]interface{}{}
+	}
+	templateMetadata, ok := specTemplate["metadata"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	if templateMetadata["annotations"] == nil {
+		templateMetadata["annotations"] = map[string]interface{}{}
+	}
+	annotations, ok := templateMetadata["annotations"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	annotations[oam.AnnotationPodDisruptiveHash] = combinedHash
+
+	// Write back the modified template
+	if err := unstructured.SetNestedMap(workload.Object, specTemplate, "spec", "template"); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // componentOutputsConsumed returns true if any other component depends on outputs produced
