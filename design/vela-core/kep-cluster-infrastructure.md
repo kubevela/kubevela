@@ -685,12 +685,13 @@ The model runs two controllers on two clusters.
 **Hub `SpokeClusterController` reconcile algorithm:**
 
 1. Establish connectivity to the spoke (using `spec.credential`).
-2. If `mode: connect` with no blueprint set, probe the spoke, record connection status, and stop.
-3. If `spec.blueprintRef.revision` differs from `status.dispatchedRevision`:
+2. If `spec.infraProvisioning.blueprintRef` is set, reconcile it on the hub against cloud APIs (VPC, IAM, DNS, and for `mode: provision` the cluster itself), consuming existing outputs when another `SpokeCluster` already reconciled the same shared blueprint. This runs before any dispatch and leaves `vela-cluster-core` on the spoke.
+3. If `mode: connect` with no blueprint set, probe the spoke, record connection status, and stop.
+4. If `spec.blueprintRef.revision` differs from `status.dispatchedRevision`:
    - Check rollout permission (read-only query to `ClusterRolloutStrategy`).
    - If denied: requeue and wait.
-   - If approved: dispatch the blueprint revision to the spoke, then record `status.dispatchedRevision`.
-4. Probe the spoke on demand for `status.connection` and a health summary used for rollout progression.
+   - If approved: dispatch the spoke-reconciled blueprints (`clusterInit`, then the main blueprint) to the spoke, then record `status.dispatchedRevision`.
+5. Probe the spoke on demand for `status.connection` and a health summary used for rollout progression.
 
 **Spoke `vela-cluster-core` reconcile algorithm:**
 
@@ -711,7 +712,7 @@ The model runs two controllers on two clusters.
 
 | Controller                          | Responsibilities                                                                                                                                                                                                  | Does NOT Do                                                                                          |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **SpokeClusterController** (hub)    | - Owns the `SpokeCluster` fleet object<br>- Dispatches the blueprint revision to the spoke when rollout permits<br>- Records `status.dispatchedRevision` and `status.connection`<br>- Probes the spoke on demand   | - Never reconciles spoke planes itself<br>- Never requires or receives a status push from the spoke  |
+| **SpokeClusterController** (hub)    | - Owns the `SpokeCluster` fleet object<br>- Reconciles `infraProvisioning` on the hub (cloud infra) before dispatch<br>- Dispatches the blueprint revision to the spoke when rollout permits<br>- Records `status.dispatchedRevision` and `status.connection`<br>- Probes the spoke on demand   | - Never reconciles spoke planes itself<br>- Never requires or receives a status push from the spoke  |
 | **vela-cluster-core** (spoke)       | - Reconciles the dispatched `ClusterBlueprint` into the local `Cluster`<br>- Resolves Blueprint to Planes and applies them in order<br>- Keeps the cluster converged with or without the hub<br>- Owns `Cluster.status` as local truth | - Never writes hub objects<br>- Never pushes status to the hub                            |
 | **ClusterPlaneController** (hub)    | - Creates `ClusterPlaneRevision` on publishVersion<br>- Validates inputs/outputs schema                                                                                                                            | - Does NOT create infrastructure resources<br>- Does NOT dispatch to clusters                        |
 | **ClusterBlueprintController** (hub)| - Creates `ClusterBlueprintRevision` on publishVersion<br>- Validates plane composition                                                                                                                            | - Does NOT reconcile spoke infrastructure<br>- Does NOT modify SpokeCluster specs                    |
