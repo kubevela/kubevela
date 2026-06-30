@@ -839,7 +839,7 @@ The `credential` field is a discriminated union keyed by `type`, the method the 
 
 The `Cluster` CRD is the **spoke-side, self-reconciling representation** of a managed cluster. It lives on the spoke, where `vela-cluster-core` reconciles it from the dispatched `ClusterBlueprint`, and it is the local source of truth for cluster state, inventory, and applied infrastructure. The hub does not host a `Cluster`; it hosts the `SpokeCluster` summarized above.
 
-> **Field migration note.** Fields that describe how the hub reaches or schedules a spoke (for example `credential` and `rolloutStrategyRef`) belong on `SpokeCluster` in this model. The catalog spec below still shows them inline; moving them onto `SpokeCluster` and trimming the `Cluster` spec to spoke-local concerns is a follow-up to this amendment.
+> **Hub vs spoke fields.** Everything about how the hub reaches, schedules, or provisions a spoke (`mode`, `credential`, `infraProvisioning`, the dispatched `blueprintRef`, `patches`, `rolloutStrategyRef`, `maintenance`) lives on the hub `SpokeCluster` above. The spoke-side `Cluster` below carries only what the spoke reconciles locally: the `clusterInit`, `planeProvisioning`, and `healthValidation` phases (driven by the dispatched blueprint) plus its observed status. Cluster-level policies are part of the blueprint, not a separate `Cluster` field.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -854,84 +854,32 @@ metadata:
     provider: aws
     tier: standard
 spec:
-  # Cluster access configuration
-  credential:
-    # Reference to kubeconfig secret
-    secretRef:
-      name: production-us-east-1-kubeconfig
-      namespace: vela-system
-    # Or inline (not recommended for production)
-    # kubeconfig: |
-    #   apiVersion: v1
-    #   kind: Config
-    #   ...
+  # The spoke reconciles these phases locally with vela-cluster-core, from the
+  # blueprint the hub dispatched (SpokeCluster.blueprintRef). The hub does not
+  # reconcile them; it dispatches and then reads status by pull. Fields about
+  # reaching, scheduling, or provisioning the spoke (credential, infraProvisioning,
+  # patches, rolloutStrategyRef, maintenance) live on the hub SpokeCluster, not here.
 
-  # Which blueprint this cluster should follow
-  blueprintRef:
-    name: production-standard
-    # Optional: pin to specific revision (otherwise uses latest)
-    revision: production-standard-v2.3.0
+  # clusterInit: the foundational layer the planes depend on.
+  clusterInit:
+    blueprintRef:
+      name: cluster-foundation # CNI, base controllers/operators, Helm runtime, CRDs
 
-  # Cluster-specific overrides for the blueprint
-  patches:
-    # Override plane component properties for this cluster
-    - plane: networking
-      component: ingress-nginx
-      properties:
-        values:
-          controller:
-            replicaCount: 5 # This cluster needs more replicas
+  # planeProvisioning: the cluster planes, reconciled on top of clusterInit.
+  planeProvisioning:
+    blueprintRef:
+      name: production-standard
+      revision: production-standard-v2.3.0
 
-  # Cluster metadata (synced from actual cluster)
-  clusterInfo:
-    # These are auto-discovered but can be overridden
-    displayName: "Production US East 1"
-    description: "Primary production cluster for US East region"
-    contactEmail: "platform-us-east@example.com"
-
-  # Rollout strategy reference - determines how this cluster receives updates
-  # The cluster's labels determine which wave it belongs to
-  rolloutStrategyRef:
-    name: production-rollout
-    # Optional: cluster-specific overrides
-    overrides:
-      # Stricter analysis thresholds for this cluster
-      analysis:
-        metrics:
-          - name: error-rate
-            thresholds:
-              - condition: "< 0.5%" # Stricter than strategy default
-      # Skip certain waves (useful for canary clusters)
-      # skipWaves: [non-critical, critical]
-
-  # Maintenance windows for this cluster
-  # See "Maintenance Window Enforcement" section for details
-  maintenance:
-    windows:
-      - name: weekend-maintenance
-        start: "02:00"
-        end: "06:00"
-        timezone: "America/New_York" # IANA timezone name
-        days: [Sat, Sun]
-        dstPolicy: extend # extend | shrink | skip (DST handling)
-    # Allow emergency updates outside window
-    allowEmergencyUpdates: true
-    # Enforce window strictly (block updates outside window)
-    enforceWindow: true
-
-  # Cluster-level policies (in addition to blueprint policies)
-  policies:
-    - name: backup-retention
-      type: velero-backup
-      properties:
-        schedule: "0 2 * * *"
-        retention: "30d"
+  # healthValidation: acceptance and smoke checks. The verdict is read by the
+  # hub on demand (pull); the spoke never pushes it up.
+  healthValidation:
+    blueprintRef:
+      name: cluster-validation
 
 status:
-  # Connection status
-  connectionStatus: Connected # Connected, Disconnected, Unknown
-  lastProbeTime: "2024-12-24T10:00:00Z"
-  latency: "45ms"
+  # Local source of truth for this cluster. The hub reads it on demand; the
+  # spoke never pushes status to the hub.
 
   # Cluster information (auto-discovered)
   clusterInfo:
@@ -1040,30 +988,6 @@ status:
     #     expected: 5
     #     actual: 3
 
-  # Maintenance window state (computed by ClusterController)
-  # See "Maintenance Window Enforcement" section for details
-  maintenance:
-    # Is the cluster currently in a maintenance window?
-    inWindow: true
-    # Current active window (populated when inWindow is true)
-    currentWindow:
-      name: weekend-maintenance
-      startedAt: "2024-12-24T07:00:00Z"
-      endsAt: "2024-12-24T11:00:00Z"
-      remainingMinutes: 120
-    # Next scheduled window
-    nextWindow:
-      name: weeknight-maintenance
-      startsAt: "2024-12-25T08:00:00Z"
-      startsInMinutes: 1320
-    # Last time windows were evaluated
-    lastEvaluatedAt: "2024-12-24T09:00:00Z"
-    # Timezone information
-    timezoneInfo:
-      name: "America/New_York"
-      currentOffset: "-05:00"
-      isDST: false
-
   # Resource usage summary
   resources:
     cpu:
@@ -1082,9 +1006,6 @@ status:
 
   # Conditions
   conditions:
-    - type: Connected
-      status: "True"
-      lastTransitionTime: "2024-12-24T00:00:00Z"
     - type: BlueprintApplied
       status: "True"
       lastTransitionTime: "2024-12-24T08:00:00Z"
@@ -1109,11 +1030,11 @@ status:
 
 **Key Design Decisions for Cluster CRD:**
 
-1. **Single source of truth** - All cluster information in one place
+1. **Local source of truth** - The spoke `Cluster` holds the actual reconciled state of its own cluster
 2. **Rich inventory** - Full component and resource inventory with versions
 3. **Auto-discovery** - Cluster info, node count, versions are discovered automatically
-4. **Blueprint binding** - Each cluster declares which blueprint it follows
-5. **Override support** - Cluster-specific patches for blueprint customization
+4. **Blueprint-driven** - Phases are reconciled from the blueprint the hub dispatched; the desired `blueprintRef` lives on `SpokeCluster`
+5. **Spoke-local reconciliation** - `vela-cluster-core` reconciles locally; per-cluster `patches` come from the hub `SpokeCluster`
 6. **Health aggregation** - Roll-up health status from planes and components
 7. **History tracking** - Full audit trail of what was applied when
 
