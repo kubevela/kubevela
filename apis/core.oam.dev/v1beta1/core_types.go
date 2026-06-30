@@ -115,7 +115,13 @@ type TraitDefinitionSpec struct {
 	// +optional
 	WorkloadRefPath string `json:"workloadRefPath,omitempty"`
 
-	// PodDisruptive specifies whether using the trait will cause the pod to restart or not.
+	// PodDisruptive specifies whether applying this trait will cause the pod to restart.
+	// When set to true, the controller computes a hash of the trait's rendered output and
+	// injects it into the workload's spec.template.metadata.annotations. If the trait output
+	// changes on a subsequent reconcile, the hash changes and Kubernetes performs a rolling
+	// update of the pods. This works for any workload kind that has a spec.template path
+	// (e.g. Deployment, StatefulSet, DaemonSet). The field is ignored if the workload does
+	// not have a spec.template path.
 	// +optional
 	PodDisruptive bool `json:"podDisruptive,omitempty"`
 

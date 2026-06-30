@@ -226,6 +226,11 @@ const (
 	// "1m", "15m", "30s").  Values below 10s are ignored and fall back to the
 	// global default.  Invalid values are also ignored.
 	AnnotationReconcileInterval = "app.oam.dev/reconcile-interval"
+
+	// AnnotationPodDisruptiveHash is the annotation key used on workload's pod template
+	// metadata to store a hash of disruptive trait outputs. When the trait output changes,
+	// the hash changes and Kubernetes triggers a rolling update of the pods.
+	AnnotationPodDisruptiveHash = "app.oam.dev/pod-disruptive-hash"
 )
 
 const (

@@ -1,0 +1,15 @@
+* [33m5f1ff057[m[33m ([m[1;31morigin/fix/oci-ttl[m[33m)[m fix: treat sha256 OCI digests as immutable in isMutableVersion
+* [33m5a44b5f1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m Feat: auto remediate cue issues (#7199)
+* [33m5d19a031[m Fix: do not log or persist credentials embedded in Terraform module remote URLs (#7201)
+* [33maaa1b050[m Chore: update kubevela/workflow to v0.6.4 (#7200)
+* [33ma10dba6d[m Fix: resolve gosec G304 lint failure in Terraform module cache check (#7190)
+* [33mf6a64398[m Merge commit from fork
+* [33m8598986e[m feat(helm): set User-Agent when downloading Helm repo index.yaml (#7162)
+* [33m24ae77d3[m Fix(controller): set Ready condition to False on reconcile failure (#7168)
+* [33mc3e510a0[m Chore: (deps): Bump imjasonh/setup-crane from 0.3 to 0.4 (#6851)
+* [33ma24d3a9c[m Fix: defkit changes for resource builder docs (#7136)
+* [33m3eaf62b2[m Fix(helmchart): wire options correctly (#7151) and decompose provider (#7154)
+* [33mbcf6af97[m Feat: helm chart auth (#7148)
+* [33m5664912a[m Feat: support per-application reconciliation interval override via annotation (#7089)
+* [33mc81b1413[m Fix: handle optional collections in CUE strict mode in defkit (#7102)
+* [33m28892ccc[m Feat: implement valuesFrom support for helmchart component and update… (#7099)
