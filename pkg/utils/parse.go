@@ -232,6 +232,9 @@ func ParseGitlab(addr, repo string) (string, *Content, error) {
 
 	arr := strings.Split(addr, repo)
 	owner := strings.Split(arr[0], URL.Host+"/")
+	if len(owner) < 2 || len(owner[1]) == 0 {
+		return "", nil, errors.New(errInvalidFormatMsg + addr)
+	}
 	if !strings.Contains(arr[1], "/") {
 		// https://example.gitlab.com/<owner>/<repo>
 		return TypeGitlab, &Content{
@@ -246,6 +249,9 @@ func ParseGitlab(addr, repo string) (string, *Content, error) {
 
 	// https://example.gitlab.com/<owner>/<repo>/tree/<branch>
 	l := strings.Split(arr[1], "/")
+	if len(l) < 3 {
+		return "", nil, errors.New(errInvalidFormatMsg + addr)
+	}
 
 	return TypeGitlab, &Content{
 		GitlabContent: GitlabContent{
