@@ -236,7 +236,7 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(_ context.Context, c types.
 		var applyto string
 		if len(c.AppliesTo) == 1 && c.AppliesTo[0] == AllComponentTypes {
 			applyto += lang.Get("All Component Types.")
-		} else {
+		} else if len(c.AppliesTo) > 0 {
 			applyto += lang.Get("Component based on the following kinds of resources:") + "\n"
 			for _, ap := range c.AppliesTo {
 				applyto += "- " + ap + "\n"
