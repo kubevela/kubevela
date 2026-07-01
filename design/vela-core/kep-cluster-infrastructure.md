@@ -1288,8 +1288,8 @@ spec:
 
 status:
   # ClusterPlane is a template — its status reflects publishing state, not runtime.
-  # Runtime state (phase, component health, outputs) lives on the Cluster status,
-  # since each Cluster independently reconciles the plane.
+  # Runtime state (phase, component health, outputs) lives on the spoke Cluster's
+  # status.planes[], since vela-cluster-core reconciles the plane there.
   phase: Published # Draft, Published, Deprecated
 
   # Current published revision
@@ -1469,8 +1469,8 @@ spec:
         fieldPath: outputs.cluster_name
 
 status:
-  # ClusterPlane is a template — runtime state (component health, outputs)
-  # lives on the Cluster's status.planes[] for each cluster using this plane.
+  # ClusterPlane is a template; runtime state (component health, outputs) lives on
+  # each spoke Cluster's status.planes[] for the clusters using this plane.
   phase: Published
   currentRevision: aws-foundation-v1.2.0
   currentVersion: "1.2.0"
@@ -2747,7 +2747,7 @@ spec:
         dependsOn: [deploy-observability]
 
 status:
-  # ClusterBlueprint is a template — runtime state lives on Cluster's status.
+  # ClusterBlueprint is a template; runtime state lives on the spoke Cluster's status.
   phase: Published
 
   # Current published revision
@@ -6910,12 +6910,12 @@ The spoke-side, self-reconciling representation. `vela-cluster-core` reconciles 
 | `spec.garbageCollection`                | GCPolicy          | Resource cleanup policy                                    |
 | `status.phase`                          | string            | Current phase                                              |
 | `status.scope`                          | string            | Effective scope (`perCluster` or `shared`)                 |
-| `status.consumers`                      | ConsumersStatus   | Clusters using this shared plane (scope=shared only)       |
-| `status.consumers.count`                | int               | Number of clusters consuming this plane                    |
-| `status.consumers.clusters`             | []ConsumerRef     | List of consuming clusters                                 |
-| `status.consumers.clusters[].name`      | string            | Cluster name                                               |
-| `status.consumers.clusters[].blueprint` | string            | Blueprint the cluster uses                                 |
-| `status.consumers.clusters[].since`     | Time              | When the cluster started consuming                         |
+| `status.consumers`                      | ConsumersStatus   | SpokeClusters using this shared plane (scope=shared only)       |
+| `status.consumers.count`                | int               | Number of SpokeClusters consuming this plane                    |
+| `status.consumers.clusters`             | []ConsumerRef     | List of consuming SpokeClusters                                 |
+| `status.consumers.clusters[].name`      | string            | SpokeCluster name                                               |
+| `status.consumers.clusters[].blueprint` | string            | Blueprint the SpokeCluster uses                                 |
+| `status.consumers.clusters[].since`     | Time              | When the SpokeCluster started consuming                         |
 | `status.components`                     | []ComponentStatus | Per-component status                                       |
 | `status.outputs`                        | map[string]string | Resolved output values                                     |
 
@@ -7916,7 +7916,7 @@ For organizations currently using `vela cluster join` and cluster-gateway secret
 
 | Current State                            | Migration Path                                                          | Effort                     |
 | ---------------------------------------- | ----------------------------------------------------------------------- | -------------------------- |
-| Clusters joined via `vela cluster join`  | Create Cluster CRD with `clusterGatewayRef` pointing to existing secret | Minimal                    |
+| Clusters joined via `vela cluster join`  | Create SpokeCluster CRD with `clusterGatewayRef` pointing to existing secret | Minimal                    |
 | cluster-gateway secrets in `vela-system` | Use `clusterGatewayRef`, or migrate to `credential.secretRef`           | Optional                   |
 | Custom cluster-gateway configurations    | Reference existing secrets OR migrate to cloud-native auth              | Choose based on preference |
 
@@ -7924,7 +7924,7 @@ For organizations currently using `vela cluster join` and cluster-gateway secret
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: my-existing-cluster
 spec:
