@@ -1060,7 +1060,7 @@ ClusterPlane created → Nothing happens (it's just a template)
                        │
                        │  Later...
                        ▼
-Cluster created with blueprintRef → ClusterController resolves Blueprint
+SpokeCluster created with blueprintRef → hub dispatches it; vela-cluster-core on the spoke resolves the Blueprint into planes
                        │
                        ▼
                For each Plane in Blueprint:
@@ -1077,32 +1077,23 @@ Cluster created with blueprintRef → ClusterController resolves Blueprint
 This **pull model** ensures:
 
 - ClusterPlanes are reusable templates
-- No orphaned infrastructure (every resource tied to a Cluster)
-- Clear lifecycle (Cluster deletion triggers cleanup)
+- No orphaned infrastructure (every resource tied to a SpokeCluster)
+- Clear lifecycle (SpokeCluster deletion triggers cleanup)
 
 ##### GitOps Integration
 
-The Cluster CRD is designed to work seamlessly with GitOps tools. Since reconciliation is triggered by **Cluster CRD changes**, standard GitOps workflows apply:
+The SpokeCluster CRD is designed to work seamlessly with GitOps. Since dispatch is triggered by **SpokeCluster CRD changes**, standard GitOps workflows apply:
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         GITOPS RECONCILIATION FLOW                          │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌──────────────┐     ┌──────────────┐     ┌──────────────────────────────┐ │
-│  │  Git Repo    │     │  GitOps Tool │     │     KubeVela Controllers     │ │
-│  │              │     │              │     │                              │ │
-│  │ cluster.yaml │────▶│ Flux/ArgoCD  │────▶│  ClusterController detects   │ │
-│  │ (updated)    │     │ syncs change │     │  Cluster spec change and     │ │
-│  │              │     │ to K8s API   │     │  reconciles infrastructure   │ │
-│  └──────────────┘     └──────────────┘     └──────────────────────────────┘ │
-│                                                                             │
-│  Examples:                                                                  │
-│  • Update spec.blueprintRef.version → triggers blueprint upgrade            │
-│  • Create new Cluster CRD → triggers plane reconciliation                   │
-│  • Delete Cluster CRD → triggers infrastructure cleanup                     │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+Git repo (spokecluster.yaml, updated)
+  → Flux/ArgoCD syncs the change to the hub API
+  → SpokeClusterController detects the SpokeCluster change and dispatches the
+    blueprint revision to the spoke; vela-cluster-core on the spoke reconciles.
+
+Examples:
+  • Update spec.blueprintRef.revision → hub dispatches the new revision
+  • Create a SpokeCluster             → hub connects or provisions, then dispatches
+  • Delete a SpokeCluster             → phased cleanup on the spoke, consumers decremented
 ```
 
 **Supported GitOps Tools:**
@@ -1130,7 +1121,7 @@ spec:
     name: infrastructure-repo
   path: ./clusters/production
   prune: true
-  # Flux syncs Cluster CRDs → KubeVela ClusterController reconciles
+  # Flux syncs SpokeCluster CRDs → the hub dispatches, the spoke reconciles
 ```
 
 **Example: Argo CD Integration**
@@ -1154,10 +1145,10 @@ spec:
     automated:
       prune: true
       selfHeal: true
-    # ArgoCD syncs Cluster CRDs → KubeVela ClusterController reconciles
+    # ArgoCD syncs SpokeCluster CRDs → the hub dispatches, the spoke reconciles
 ```
 
-**Key Principle:** GitOps tools manage the **desired state** (Cluster CRDs in Git), KubeVela's ClusterController manages the **actual state** (infrastructure reconciliation). This separation allows teams to use their existing GitOps workflows without modification.
+**Key Principle:** GitOps tools manage the **desired state** (SpokeCluster CRDs in Git); on the hub the SpokeClusterController dispatches the referenced blueprint, and the spoke's vela-cluster-core manages the **actual state** (local reconciliation). This separation lets teams use their existing GitOps workflows without modification.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -1272,7 +1263,7 @@ spec:
         fieldPath: status.dnsZone
 
   # Inputs consumed from other planes reconciled for the same cluster
-  # (including shared planes from preCreate blueprints)
+  # (including shared planes from infraProvisioning blueprints)
   inputs:
     - name: vpcId
       fromPlane: shared-vpc-us-east-1 # Reference to a shared plane
@@ -2006,7 +1997,7 @@ spec:
 **Resolution Flow:**
 
 1. **Discover**: List all `crossClusterInputs` from spec
-2. **Resolve**: For each input, use cluster connectivity (managed by ClusterController) to access source cluster, read `status.outputs[output]`, cache with TTL
+2. **Resolve**: For each input, use cluster-gateway connectivity (hub-initiated, managed by the hub-role `SpokeClusterController`) to reach the source cluster, read `status.outputs[output]`, cache with TTL
 3. **Validate**: Required inputs must resolve (→ phase=Blocked if not), optional use fallback
 4. **Inject**: Template substitution `{{ inputs.{name} }}`
 5. **Watch**: Re-reconcile when source outputs change
@@ -2072,54 +2063,33 @@ In enterprise deployments, infrastructure resources like VPCs, NAT Gateways, and
 
 ##### Shared Plane Ownership Model
 
-**The Critical Question:** Who "owns" a shared plane's resources? Since ClusterPlanes are only reconciled when referenced by a Cluster, we need clear ownership semantics.
+**The Critical Question:** Who "owns" a shared plane's resources? Since ClusterPlanes are only reconciled when a `SpokeCluster` references them for shared infrastructure (via `infraProvisioning`) or a spoke reconciles a dispatched blueprint, we need clear ownership semantics.
 
-**Ownership Pattern: preCreate Blueprint with Consumer Tracking**
+**Ownership Pattern: infraProvisioning Blueprint with Consumer Tracking**
 
-Shared infrastructure is defined in a ClusterBlueprint and referenced via `preCreate.blueprintRef` on each Cluster that needs it. The first Cluster to reference the blueprint triggers creation; subsequent Clusters consume the existing outputs.
+Shared infrastructure is defined in a ClusterBlueprint and referenced via `infraProvisioning.blueprintRef` on each `SpokeCluster` that needs it. The first `SpokeCluster` to reference the blueprint triggers creation; subsequent SpokeClusters consume the existing outputs.
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    SHARED PRECREATE BLUEPRINT PATTERN                        │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  Hub/Management Cluster                                                     │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │                                                                       │  │
-│  │  ClusterBlueprint: shared-infrastructure-us-east                      │  │
-│  │    └─ ClusterPlane: shared-vpc (scope: shared)                        │  │
-│  │    └─ ClusterPlane: shared-transit-gw (scope: shared)                 │  │
-│  │    └─ ClusterPlane: shared-dns (scope: shared)                        │  │
-│  │                          │ referenced as preCreate by                  │  │
-│  │                          ▼                                            │  │
-│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
-│  │  │ Cluster: prod-us-east-1-a (mode: provision)                     │  │  │
-│  │  │   preCreate: shared-infrastructure-us-east ← first consumer     │  │  │
-│  │  │   blueprintRef: production-eks                                  │  │  │
-│  │  │   postCreate: smoke-tests                                       │  │  │
-│  │  └─────────────────────────────────────────────────────────────────┘  │  │
-│  │                                                                       │  │
-│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
-│  │  │ Cluster: prod-us-east-1-b (mode: provision)                     │  │  │
-│  │  │   preCreate: shared-infrastructure-us-east ← consumes outputs   │  │  │
-│  │  │   blueprintRef: production-eks                                  │  │  │
-│  │  │   postCreate: smoke-tests                                       │  │  │
-│  │  └─────────────────────────────────────────────────────────────────┘  │  │
-│  │                                                                       │  │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-│  KEY INSIGHT: The first Cluster's preCreate triggers shared plane           │
-│  creation. Subsequent Clusters consume outputs without re-creation.         │
-│  Shared planes are protected from deletion while any consumer exists.       │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+Hub cluster:
+  ClusterBlueprint: shared-infrastructure-us-east
+    - ClusterPlane: shared-vpc         (scope: shared)
+    - ClusterPlane: shared-transit-gw  (scope: shared)
+    - ClusterPlane: shared-dns         (scope: shared)
+
+  Referenced as infraProvisioning by:
+    SpokeCluster prod-us-east-1-a (mode: provision)  → first consumer, triggers creation
+    SpokeCluster prod-us-east-1-b (mode: provision)  → consumes existing outputs
+
+KEY INSIGHT: the first SpokeCluster's infraProvisioning triggers shared-plane
+creation on the hub; later SpokeClusters consume the outputs without re-creating.
+Shared planes are protected from deletion while any consumer exists.
 ```
 
-**Example Cluster with preCreate:**
+**Example SpokeCluster with infraProvisioning:**
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: prod-us-east-1-a
   namespace: vela-system
@@ -2128,25 +2098,23 @@ metadata:
     environment: production
 spec:
   mode: provision
-  provider:
+  credential:
     type: aws
-    credentialRef:
-      name: aws-production
-    region: us-east-1
+    aws:
+      authMode: podIdentity
+      clusterName: prod-us-east-1-a
+      region: us-east-1
 
-  # Shared cloud infrastructure — reconciled once, consumed by all clusters
-  preCreate:
+  # infraProvisioning (hub): shared cloud infrastructure, reconciled once and
+  # consumed by every SpokeCluster that references it.
+  infraProvisioning:
     blueprintRef:
       name: shared-infrastructure-us-east
 
-  # Cluster provisioning
+  # Blueprint dispatched to the spoke; the spoke reconciles it into its Cluster
+  # (clusterInit, planeProvisioning) and runs healthValidation, read by the hub.
   blueprintRef:
     name: production-eks
-
-  # Post-creation validation — deploy test apps, run smoke tests
-  postCreate:
-    blueprintRef:
-      name: cluster-validation
 ```
 
 **Why This Pattern?**
@@ -2155,25 +2123,25 @@ spec:
 | ------------------------------- | -------------------------------------------------------------------------------- |
 | **Implicit Ownership**          | Consumer tracking on shared planes — no separate "owner" resource needed         |
 | **Natural Deletion Protection** | Shared planes blocked from deletion while any Cluster references them            |
-| **No Virtual Clusters**         | Every Cluster CRD represents a real cluster — no dual semantics                  |
-| **Explicit Lifecycle Phases**   | `preCreate` → `blueprintRef` → `postCreate` makes ordering unambiguous           |
+| **No Virtual Clusters**         | Every `SpokeCluster` represents a real cluster, no dual semantics                |
+| **Explicit Lifecycle Phases**   | `infraProvisioning` → `clusterInit` → `planeProvisioning` → `healthValidation` makes ordering unambiguous |
 | **Label-Based Access**          | `sharedWith.clusterSelector` on ClusterPlane controls which clusters can consume |
 
 **Lifecycle Semantics:**
 
 ```
-1. Platform team creates prod-us-east-1-a with preCreate: shared-infrastructure-us-east
-   → ClusterController reconciles preCreate blueprint
+1. Platform team creates SpokeCluster prod-us-east-1-a with infraProvisioning: shared-infrastructure-us-east
+   → SpokeClusterController reconciles the infraProvisioning blueprint on the hub
    → First consumer → creates shared planes (VPC, DNS, etc.)
    → Shared plane status.phase = Running, status.consumers.count = 1
 
-2. Platform team creates prod-us-east-1-b with same preCreate blueprint
-   → ClusterController sees shared planes already reconciled
+2. Platform team creates SpokeCluster prod-us-east-1-b with the same infraProvisioning blueprint
+   → SpokeClusterController sees the shared planes already reconciled
    → Consumes outputs (vpcId, subnetIds) without re-creating
    → Updates shared plane status.consumers.count = 2
 
 3. Platform team deletes prod-us-east-1-b
-   → ClusterController decrements shared plane consumers
+   → SpokeClusterController decrements shared plane consumers
    → Shared plane resources REMAIN (still consumed by prod-us-east-1-a)
 
 4. Platform team deletes prod-us-east-1-a (last consumer)
@@ -2320,11 +2288,11 @@ The blueprint doesn't need special sharing configuration—the plane's `scope` f
 
 | Resource                            | Deletion Behavior        | Blocked When                                                                                               |
 | ----------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| **ClusterPlane (scope=shared)**     | BLOCKED if consumers > 0 | Any Cluster's preCreate/blueprintRef consuming outputs                                                     |
+| **ClusterPlane (scope=shared)**     | BLOCKED if consumers > 0 | Any SpokeCluster's infraProvisioning (or a dispatched blueprint) consuming its outputs                     |
 | **ClusterPlane (scope=perCluster)** | Allowed                  | Never blocked (per-cluster instances cleaned up)                                                           |
-| **ClusterBlueprint**                | BLOCKED if referenced    | Any Cluster has `preCreate`, `blueprintRef`, or `postCreate` pointing to it                                |
-| **ClusterBlueprintRevision**        | BLOCKED if active        | Any Cluster using this specific revision                                                                   |
-| **Cluster**                         | Allowed with cleanup     | Never blocked (triggers phased resource cleanup: postCreate → blueprintRef → preCreate consumer decrement) |
+| **ClusterBlueprint**                | BLOCKED if referenced    | Any SpokeCluster references it via infraProvisioning or blueprintRef                                       |
+| **ClusterBlueprintRevision**        | BLOCKED if active        | Any SpokeCluster using this specific revision                                                              |
+| **SpokeCluster**                    | Allowed with cleanup     | Never blocked (phased cleanup: healthValidation, planeProvisioning, clusterInit, infraProvisioning)        |
 
 ##### ClusterPlane Deletion
 
@@ -2336,39 +2304,30 @@ $ kubectl delete clusterplane shared-vpc-us-east-1
 Error from server: admission webhook "clusterplane.validation.oam.dev" denied the request:
   Cannot delete shared ClusterPlane "shared-vpc-us-east-1"
 
-  The following clusters are using this plane:
+  The following SpokeClusters reference this plane:
     - production-us-east-1-a (via blueprint: production-standard)
     - production-us-east-1-b (via blueprint: production-standard)
     - production-us-east-1-c (via blueprint: production-standard)
 
-  To delete, first remove these clusters or update their blueprints.
+  To delete, first remove these SpokeClusters or update their blueprints.
   Use --force to delete anyway (DANGER: will orphan dependent infrastructure)
 ```
 
-##### Cluster Deletion Cascade
+##### SpokeCluster Deletion Cascade
 
-When a Cluster is deleted, cleanup follows the reverse of the lifecycle phases:
+When a SpokeCluster is deleted, cleanup follows the reverse of the lifecycle phases:
 
 ```
-Cluster deletion triggered
-           │
-           ▼
-┌─────────────────────────────────────────────────────────────┐
-│ 1. Clean up postCreate resources                             │
-│    → Removes validation apps and smoke tests from spoke     │
-│    → Deletes postCreate plane instances                     │
-│                                                             │
-│ 2. Clean up blueprintRef resources                           │
-│    → For mode=provision: Destroy cloud infrastructure       │
-│      (triggers Terraform/Crossplane cleanup for EKS, nodes) │
-│    → Removes perCluster plane instances and ResourceTrackers│
-│    → Remove connectivity credentials (if controller-created)│
-│                                                             │
-│ 3. Decrement preCreate shared plane consumers                │
-│    → Decrements status.consumers.count on each shared plane │
-│    → If consumers = 0: eligible for cleanup (per policy)    │
-│    → If consumers > 0: shared resources remain              │
-└─────────────────────────────────────────────────────────────┘
+SpokeCluster deletion triggered. Cleanup runs in reverse phase order:
+
+1. healthValidation: remove validation apps and smoke tests from the spoke.
+2. planeProvisioning: clean up the spoke's planes; for mode: provision, destroy
+   the cloud infrastructure (Terraform/Crossplane cleanup for EKS, nodes) and
+   remove perCluster plane instances and ResourceTrackers.
+3. clusterInit: remove the foundational plane instances from the spoke.
+4. infraProvisioning: decrement status.consumers.count on each shared plane; if
+   consumers reach 0 the shared resources are eligible for cleanup (per policy),
+   otherwise they remain.
 ```
 
 ##### Force Deletion
