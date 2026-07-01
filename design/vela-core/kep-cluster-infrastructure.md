@@ -3928,19 +3928,21 @@ The `Cluster` CRD supports the full cluster lifecycle, from provisioning new clu
 
 **Component Execution Model**
 
-The Cluster lifecycle phase determines where ClusterPlane component resources are rendered and dispatched. There are three distinct execution contexts, mapped to the `preCreate`, `blueprintRef`, and `postCreate` phases (see [Cluster Lifecycle Phases](#cluster-lifecycle-phases-precreate-and-postcreate)):
+The lifecycle phase determines where each ClusterPlane's resources are reconciled. Only `infraProvisioning` runs on the hub; the rest are reconciled by `vela-cluster-core` on the spoke (see [Cluster Lifecycle Phases](#cluster-lifecycle-phases-infraprovisioning-clusterinit-planeprovisioning-healthvalidation)):
 
-| Execution Context                         | Lifecycle Phase            | Rendered On  | Resources Land On              | Examples                                                                                  |
-| ----------------------------------------- | -------------------------- | ------------ | ------------------------------ | ----------------------------------------------------------------------------------------- |
-| **Shared cloud infrastructure**           | `preCreate`                | Hub          | Cloud provider                 | VPC, IAM roles, DNS zones                                                                 |
-| **Cluster provisioning & infrastructure** | `blueprintRef`             | Hub          | Cloud provider + spoke cluster | EKS/GKE creation, node pools, Cilium, cert-manager, ingress controller, monitoring agents |
-| **Post-creation validation**              | `postCreate`               | Hub          | Target spoke cluster           | Validation apps, smoke tests, readiness checks                                            |
-| **Application workloads**                 | N/A — uses Application CRD | Hub or spoke | Spoke cluster                  | Databases, message queues, application services                                           |
+| Execution Context                         | Lifecycle Phase            | Reconciled On | Resources Land On            | Examples                                                                    |
+| ----------------------------------------- | -------------------------- | ------------- | ---------------------------- | --------------------------------------------------------------------------- |
+| **Shared cloud infrastructure**           | `infraProvisioning`        | Hub           | Cloud provider               | VPC, IAM roles, DNS zones                                                   |
+| **Foundational layer**                    | `clusterInit`              | Spoke         | Spoke cluster                | CNI, base controllers/operators, Helm runtime, base CRDs                    |
+| **Cluster planes**                        | `planeProvisioning`        | Spoke         | Spoke cluster                | Cilium, cert-manager, ingress controller, monitoring agents                 |
+| **Acceptance and health**                 | `healthValidation`         | Spoke         | Spoke cluster (read by hub)  | Validation apps, smoke tests, readiness checks                              |
+| **Application workloads**                 | N/A, uses Application CRD  | Spoke         | Spoke cluster                | Databases, message queues, application services                             |
 
-- **Shared cloud infrastructure**: The `preCreate` blueprint runs on the hub against cloud APIs. Components use types like `terraform-module` or `crossplane-resource`. The spoke cluster does not yet exist, so no cluster-gateway connectivity is needed. If the same preCreate blueprint is referenced by another Cluster, its outputs are consumed without re-creation (shared plane semantics).
-- **Cluster provisioning & infrastructure**: The `blueprintRef` blueprint handles both cluster creation (against cloud APIs) and all cluster-level infrastructure (networking, security, observability planes). Provisioning outputs (cluster endpoint, CA cert, credentials) are used by the ClusterController to create a credential Secret, which registers the new cluster with cluster-gateway. Once connectivity is established, infrastructure planes (Cilium, cert-manager, ingress, monitoring) are dispatched to the spoke via cluster-gateway. This is the golden path — all cluster infrastructure is defined in the blueprint.
-- **Post-creation validation**: The `postCreate` blueprint runs after the spoke cluster is fully provisioned and all `blueprintRef` planes are healthy. It is used for deploying validation apps, running smoke tests, and performing readiness checks. For `mode: adopt/connect`, connectivity is available from the start, so `postCreate` can begin immediately after the main blueprint is applied.
-- **Application workloads**: Not part of ClusterPlane. Application-scoped infrastructure (databases, caches, queues) is managed through the existing `Application` CRD using standard `ComponentDefinition` and `TraitDefinition` resources (without the `scope: cluster` annotation). These workloads depend on cluster-level infrastructure being in place first.
+- **Shared cloud infrastructure**: the `infraProvisioning` blueprint runs on the hub against cloud APIs (types like `terraform-module` or `crossplane-resource`). The spoke may not exist yet, so no spoke connectivity is needed. If another SpokeCluster references the same blueprint, its outputs are consumed without re-creation (shared plane semantics).
+- **Foundational layer**: `vela-cluster-core` on the spoke reconciles `clusterInit`, the CNI, base operators, Helm runtime, and CRDs that the cluster planes depend on.
+- **Cluster planes**: `vela-cluster-core` reconciles the dispatched blueprint's planes (networking, security, observability) into the local `Cluster`. For mode: provision the cluster was created during infraProvisioning on the hub. The hub only dispatches; it does not render or apply the planes.
+- **Acceptance and health**: `healthValidation` runs on the spoke; the hub reads the verdict on demand (pull), never by push.
+- **Application workloads**: not part of ClusterPlane. Application-scoped infrastructure (databases, caches, queues) is managed through the existing `Application` CRD using standard `ComponentDefinition` and `TraitDefinition` resources. These depend on cluster-level infrastructure being in place first.
 
 #### Mode 1: Provision - Create New Cluster
 
@@ -4264,6 +4266,8 @@ status:
 A managed cluster moves through these lifecycle phases. `infraProvisioning` runs on the hub and prepares shared cloud infrastructure (VPC, IAM, DNS) before the cluster exists, and ensures `vela-cluster-core` is running on the spoke. `clusterInit` runs on the spoke: `vela-cluster-core` installs the foundational layer the planes depend on, such as Kubernetes controllers, operators, Helm charts, and CRDs. `planeProvisioning` also runs on the spoke: once the blueprint is dispatched, `vela-cluster-core` reconciles every plane into the local `Cluster` on top of that foundation and keeps it converged. `healthValidation` gates readiness with acceptance and smoke checks; the hub reads the verdict by probing the spoke on demand.
 
 ```yaml
+# Hub: the SpokeCluster owns the hub-reconciled infraProvisioning and dispatches
+# the blueprint. It does not carry the spoke-reconciled phases.
 apiVersion: core.oam.dev/v1beta1
 kind: SpokeCluster
 metadata:
@@ -4274,33 +4278,40 @@ metadata:
     environment: production
 spec:
   mode: provision
-  provider:
+  credential:
     type: aws
-    credentialRef:
-      name: aws-production
-    region: us-east-1
+    aws:
+      authMode: podIdentity
+      clusterName: prod-us-east-1-a
+      region: us-east-1
 
-  # infraProvisioning (hub): shared cloud infrastructure, before the cluster exists.
-  # If another SpokeCluster already reconciled this blueprint, its outputs are
-  # consumed without re-creation (same semantics as scope: shared planes).
+  # infraProvisioning (hub): shared cloud infrastructure and cluster creation,
+  # reconciled on the hub (shared with other SpokeClusters via scope: shared).
   infraProvisioning:
     blueprintRef:
       name: shared-infrastructure-us-east # VPC, IAM, DNS
 
-  # clusterInit (spoke): foundational layer the planes depend on, reconciled by
-  # vela-cluster-core (controllers, operators, Helm charts, base CRDs).
-  clusterInit:
+  # Blueprint dispatched to the spoke; the spoke reconciles it locally.
+  blueprintRef:
+    name: production-eks
+---
+# Spoke: vela-cluster-core reconciles these phases locally from the dispatched
+# blueprint. The hub reads their status by pull; it is never pushed up.
+apiVersion: core.oam.dev/v1beta1
+kind: Cluster
+metadata:
+  name: prod-us-east-1-a
+  namespace: vela-system
+spec:
+  clusterInit: # foundational layer the planes depend on
     blueprintRef:
       name: cluster-foundation # CNI, base controllers/operators, Helm runtime, CRDs
-
-  # planeProvisioning (spoke): the blueprint the spoke reconciles into its Cluster.
-  blueprintRef:
-    name: production-eks # control plane, node pools, Cilium, cert-manager, monitoring
-
-  # healthValidation (hub/both): acceptance and health gate, read by probing the spoke.
-  healthValidation:
+  planeProvisioning: # the cluster planes, on top of clusterInit
     blueprintRef:
-      name: cluster-validation # smoke tests, readiness checks
+      name: production-eks # control plane, node pools, Cilium, cert-manager, monitoring
+  healthValidation: # acceptance and smoke checks; verdict read by the hub via pull
+    blueprintRef:
+      name: cluster-validation
 ```
 
 **Lifecycle Phases:**
@@ -4323,12 +4334,12 @@ planeProvisioning  (Spoke)
   - The hub dispatches blueprintRef to the spoke.
   - vela-cluster-core reconciles every plane into the local Cluster and keeps
     it converged. Consumes infraProvisioning outputs (vpcId, subnetIds, ...).
-  - On mode: provision, the cluster itself is provisioned here before the
-    planes are applied.
+  - For mode: provision the cluster was already created during infraProvisioning
+    on the hub; planeProvisioning only reconciles the planes onto it.
 
-healthValidation  (Hub / both)
-  - Runs after the spoke reports all planes healthy (read on demand).
-  - Acceptance apps, smoke tests, and readiness checks gate the ready state.
+healthValidation  (Spoke; hub reads the verdict by pull)
+  - vela-cluster-core runs acceptance apps, smoke tests, and readiness checks on
+    the spoke; the hub reads the health verdict on demand and never receives a push.
 
 For mode: adopt / connect
   - infraProvisioning can prepare pre-adoption setup (IAM roles, RBAC) on the hub.
