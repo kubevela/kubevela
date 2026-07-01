@@ -5539,9 +5539,9 @@ rules:
 
 ### Health Checking and Observability
 
-A critical requirement is understanding the health of clusters at multiple levels - from the overall cluster down to individual resources. The health model must support:
+A critical requirement is understanding the health of clusters at multiple levels, from the overall cluster down to individual resources. Health is local truth on the spoke `Cluster`, aggregated there by `vela-cluster-core`; the hub reads it on demand (pull) and records a snapshot on `SpokeCluster.status.health`, so the spoke never pushes health to the hub. The health model must support:
 
-1. **Hierarchical health aggregation** - Cluster health rolls up from planes, planes from components, components from resources
+1. **Hierarchical health aggregation** - the spoke `Cluster` rolls health up from planes, planes from components, components from resources
 2. **Pluggable observability providers** - Support Prometheus, Datadog, New Relic, Dynatrace, CloudWatch, and custom providers
 3. **Drill-down capability** - Quickly isolate issues by navigating the health hierarchy
 4. **Multiple health dimensions** - Availability, performance, saturation, errors
@@ -5794,9 +5794,9 @@ spec:
     checkInterval: "30s"
 ```
 
-#### Health Status in Cluster CRD
+#### Health Status on the spoke Cluster CRD
 
-The Cluster status provides comprehensive health at all levels:
+The spoke `Cluster` status is the local source of truth for health at all levels. The hub reads it on demand and mirrors a summary onto `SpokeCluster.status.health`; the example below is the spoke-side `Cluster`:
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -6069,7 +6069,7 @@ Dashboards:
 
 #### Health-Based Rollout Integration
 
-The `ClusterRolloutStrategy` uses health status for wave progression:
+The `ClusterRolloutStrategy` uses health for wave progression. It reads the health the hub pulled onto `SpokeCluster.status.health` (the spoke is never asked to push):
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -6187,7 +6187,9 @@ metadata:
   name: production-eu-west-1-replica-exception
   namespace: platform-clusters
 spec:
+  # References the hub SpokeCluster; drift is detected on the spoke, read by the hub.
   clusterRef:
+    kind: SpokeCluster
     name: production-eu-west-1
   exceptions:
     - resource:
@@ -6204,7 +6206,7 @@ spec:
 
 #### ClusterDriftReport CRD
 
-Drift detection results are persisted as `ClusterDriftReport` resources:
+Drift detection results are persisted hub-side as `ClusterDriftReport` resources, derived from the spoke `Cluster`'s local `status.drift`:
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -6213,7 +6215,9 @@ metadata:
   name: production-us-east-1-drift-2024-12-24
   namespace: platform-clusters
 spec:
+  # The hub SpokeCluster this report is about (drift observed on its spoke).
   clusterRef:
+    kind: SpokeCluster
     name: production-us-east-1
   blueprintRef:
     name: production-standard
