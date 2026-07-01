@@ -6316,7 +6316,7 @@ spec:
 ```yaml
 # 1. Register new cluster using the Cluster CRD (connect mode)
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: production-ap-south-1
   labels:
@@ -6334,8 +6334,8 @@ spec:
     name: production-standard
 
 ---
-# 2. ClusterController detects new cluster and applies the blueprint via workflow
-# (ClusterController owns status.blueprint, not spec.blueprintRef)
+# 2. The hub SpokeClusterController dispatches the blueprint; vela-cluster-core on the spoke reconciles it
+# (the spoke Cluster's status.blueprint is the applied state; SpokeCluster.spec.blueprintRef is desired)
 
 # 3. Status shows onboarding progress
 status:
@@ -6653,7 +6653,7 @@ spec:
         fieldPath: outputs.oidc_provider_arn
 ```
 
-**Step 3: Blueprint for Shared VPC (preCreate)**
+**Step 3: Blueprint for Shared VPC (infraProvisioning)**
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -6698,12 +6698,12 @@ spec:
       dependsOn: [networking]
 ```
 
-**Step 5: Create Clusters Using preCreate + Blueprint**
+**Step 5: Create Clusters Using infraProvisioning + Blueprint**
 
 ```yaml
 # Cluster A
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: production-us-east-1-a
   labels:
@@ -6711,7 +6711,7 @@ metadata:
     environment: production
 spec:
   mode: provision
-  preCreate:
+  infraProvisioning:
     blueprintRef:
       name: shared-vpc-us-east-1-blueprint # Shared VPC, created once
   blueprintRef:
@@ -6719,7 +6719,7 @@ spec:
 ---
 # Cluster B
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: production-us-east-1-b
   labels:
@@ -6727,7 +6727,7 @@ metadata:
     environment: production
 spec:
   mode: provision
-  preCreate:
+  infraProvisioning:
     blueprintRef:
       name: shared-vpc-us-east-1-blueprint
   blueprintRef:
@@ -6735,7 +6735,7 @@ spec:
 ---
 # Cluster C
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: production-us-east-1-c
   labels:
@@ -6743,7 +6743,7 @@ metadata:
     environment: production
 spec:
   mode: provision
-  preCreate:
+  infraProvisioning:
     blueprintRef:
       name: shared-vpc-us-east-1-blueprint
   blueprintRef:
@@ -6754,7 +6754,7 @@ spec:
 
 When these clusters are created:
 
-1. **Phase: preCreate** — The first Cluster to reconcile triggers creation of the `shared-vpc-us-east-1` plane (VPC, subnets, NAT Gateways). Subsequent Clusters find it already reconciled and consume its outputs (no-op).
+1. **Phase: infraProvisioning**. The first SpokeCluster to reconcile triggers creation of the `shared-vpc-us-east-1` plane (VPC, subnets, NAT Gateways). Subsequent SpokeClusters find it already reconciled and consume its outputs (no-op).
 
 2. **Phase: blueprintRef** — Each Cluster gets its own `eks-cluster` plane instance, consuming VPC outputs via `{{ inputs.vpcId }}`. Each gets a unique EKS cluster name from `${context.cluster.name}` with its own node groups. Networking and observability planes are then dispatched to the spoke.
 
@@ -6774,9 +6774,9 @@ CONSUMERS: 3
 
 CONSUMERS:
   CLUSTER                      REFERENCED VIA             SINCE
-  production-us-east-1-a       preCreate                  2025-01-03T10:00:00Z
-  production-us-east-1-b       preCreate                  2025-01-03T10:15:00Z
-  production-us-east-1-c       preCreate                  2025-01-03T10:30:00Z
+  production-us-east-1-a       infraProvisioning                  2025-01-03T10:00:00Z
+  production-us-east-1-b       infraProvisioning                  2025-01-03T10:15:00Z
+  production-us-east-1-c       infraProvisioning                  2025-01-03T10:30:00Z
 
 OUTPUTS:
   vpcId: vpc-0abc123def456
@@ -6796,7 +6796,7 @@ Error from server: Cannot delete shared ClusterPlane "shared-vpc-us-east-1"
 
   To delete safely:
   1. Delete or migrate clusters: production-us-east-1-a, production-us-east-1-b, production-us-east-1-c
-  2. Or update their preCreate references to not use this plane
+  2. Or update their infraProvisioning references to not use this plane
 
 # Delete a cluster - per-cluster EKS is destroyed, shared VPC remains
 $ kubectl delete cluster production-us-east-1-a
@@ -6804,7 +6804,7 @@ $ kubectl delete cluster production-us-east-1-a
 cluster.core.oam.dev "production-us-east-1-a" deleted
 
 # Cluster A's EKS, networking, observability planes are cleaned up
-# preCreate consumer count decremented: shared-vpc-us-east-1 now shows 2 consumers
+# infraProvisioning consumer count decremented: shared-vpc-us-east-1 now shows 2 consumers
 ```
 
 **Key Benefits of This Approach:**
@@ -6847,54 +6847,48 @@ cluster.core.oam.dev "production-us-east-1-a" deleted
 
 ## API Reference
 
+### SpokeCluster
+
+The hub-side fleet object: how to reach the spoke, the hub-reconciled `infraProvisioning`, the dispatched blueprint, rollout, and maintenance windows. Listed with `kubectl get spokeclusters`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `spec.mode` | string | Lifecycle mode: `provision`, `adopt`, or `connect` |
+| `spec.credential.type` | string | Auth method: `kubeconfig`, `aws`, `azure`, `gcp` |
+| `spec.credential.<type>` | object | Provider-scoped auth: for `aws`, `authMode` (podIdentity or irsa), `clusterName`, `region`, `roleArn`; for a supplied kubeconfig, `kubeconfig.secretRef` |
+| `spec.infraProvisioning.blueprintRef` | BlueprintRef | Hub-reconciled shared cloud infrastructure (VPC, IAM, DNS) and cluster creation, before the spoke reconciles. Shared across SpokeClusters; consumed without re-creation if already reconciled |
+| `spec.blueprintRef` | BlueprintRef | Blueprint the hub dispatches to the spoke (desired state) |
+| `spec.patches` | []PlanePatch | Per-cluster overrides applied on top of the dispatched blueprint |
+| `spec.rolloutStrategyRef` | StrategyRef | ClusterRolloutStrategy that gates when a new revision is dispatched |
+| `spec.rolloutStrategyRef.overrides` | OverrideSpec | Per-cluster rollout overrides |
+| `spec.maintenance` | MaintenanceSpec | Windows that gate when a new revision is dispatched |
+| `spec.maintenance.windows[]` | []MaintenanceWindow | Scheduled windows (`name`, `start`, `end`, `timezone`, `days`, `dstPolicy`) |
+| `spec.maintenance.enforceWindow` | bool | Block dispatch outside the window |
+| `spec.maintenance.allowEmergencyUpdates` | bool | Allow forced dispatch with `--force` |
+| `status.connection` | string | Connection observed by an on-demand probe: `Connected`, `Disconnected` |
+| `status.dispatchedRevision` | string | Blueprint revision last dispatched to the spoke |
+| `status.provisioningStatus` | ProvisioningStatus | Infrastructure provisioning progress (provision mode) |
+| `status.adoptionStatus` | AdoptionStatus | Adoption discovery and reconciliation status (adopt mode) |
+| `status.clusterInfo` | ClusterInfo | Cluster info pulled from the spoke on demand |
+| `status.health` | HealthStatus | Health snapshot pulled from the spoke `Cluster` while connected |
+| `status.maintenance` | MaintenanceStatus | Computed window state (`inWindow`, `currentWindow`, `nextWindow`, `lastEvaluatedAt`, `timezoneInfo`) |
+
 ### Cluster
 
-| Field                                               | Type                | Description                                                                                                                                                                                                                                               |
-| --------------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `spec.mode`                                         | string              | Cluster mode: `provision`, `adopt`, or `connect`                                                                                                                                                                                                          |
-| `spec.provider.type`                                | string              | Cloud provider: `aws`, `gcp`, `azure`, `kind`, `k3s`                                                                                                                                                                                                      |
-| `spec.provider.credentialRef`                       | SecretRef           | Reference to cloud credentials secret                                                                                                                                                                                                                     |
-| `spec.provider.region`                              | string              | Cloud region for provisioning                                                                                                                                                                                                                             |
-| `spec.credential.secretRef`                         | SecretRef           | Kubeconfig secret reference (for adopt/connect)                                                                                                                                                                                                           |
-| `spec.preCreate.blueprintRef`                       | BlueprintRef        | Blueprint to reconcile before cluster creation (optional). Shared cloud infra (VPC, IAM, DNS) that must exist before the cluster is provisioned. If the blueprint is already reconciled by another Cluster, its outputs are consumed without re-creation. |
-| `spec.blueprintRef`                                 | BlueprintRef        | Blueprint to apply to the cluster                                                                                                                                                                                                                         |
-| `spec.postCreate.blueprintRef`                      | BlueprintRef        | Blueprint to reconcile after all `blueprintRef` planes are healthy (optional). Used for deploying validation apps, running smoke tests, and performing readiness checks on the spoke cluster.                                                             |
-| `spec.adoption`                                     | AdoptionSpec        | Adoption configuration (adopt mode)                                                                                                                                                                                                                       |
-| `spec.patches`                                      | []PlanePatch        | Cluster-specific blueprint overrides                                                                                                                                                                                                                      |
-| `spec.rolloutStrategyRef`                           | StrategyRef         | Reference to ClusterRolloutStrategy                                                                                                                                                                                                                       |
-| `spec.rolloutStrategyRef.overrides`                 | OverrideSpec        | Cluster-specific rollout overrides                                                                                                                                                                                                                        |
-| `spec.maintenance`                                  | MaintenanceSpec     | Maintenance windows                                                                                                                                                                                                                                       |
-| `spec.maintenance.windows`                          | []MaintenanceWindow | Scheduled maintenance windows                                                                                                                                                                                                                             |
-| `spec.maintenance.windows[].name`                   | string              | Window identifier                                                                                                                                                                                                                                         |
-| `spec.maintenance.windows[].start`                  | string              | Start time (HH:MM format)                                                                                                                                                                                                                                 |
-| `spec.maintenance.windows[].end`                    | string              | End time (HH:MM format)                                                                                                                                                                                                                                   |
-| `spec.maintenance.windows[].timezone`               | string              | IANA timezone name (e.g., `America/New_York`)                                                                                                                                                                                                             |
-| `spec.maintenance.windows[].days`                   | []string            | Days of week: `Mon`, `Tue`, `Wed`, `Thu`, `Fri`, `Sat`, `Sun`                                                                                                                                                                                             |
-| `spec.maintenance.windows[].dstPolicy`              | string              | DST handling: `extend` (default), `shrink`, `skip`                                                                                                                                                                                                        |
-| `spec.maintenance.enforceWindow`                    | bool                | Block updates outside maintenance window                                                                                                                                                                                                                  |
-| `spec.maintenance.allowEmergencyUpdates`            | bool                | Allow forced updates with `--force` flag                                                                                                                                                                                                                  |
-| `status.mode`                                       | string              | Active mode                                                                                                                                                                                                                                               |
-| `status.connectionStatus`                           | string              | Connection status: `Connected`, `Disconnected`                                                                                                                                                                                                            |
-| `status.provisioningStatus`                         | ProvisioningStatus  | Infrastructure provisioning progress                                                                                                                                                                                                                      |
-| `status.adoptionStatus`                             | AdoptionStatus      | Adoption discovery and reconciliation status                                                                                                                                                                                                              |
-| `status.clusterInfo`                                | ClusterInfo         | Discovered cluster information                                                                                                                                                                                                                            |
-| `status.blueprint`                                  | BlueprintStatus     | Applied blueprint status                                                                                                                                                                                                                                  |
-| `status.planes`                                     | []PlaneInventory    | Full inventory of planes and components                                                                                                                                                                                                                   |
-| `status.health`                                     | HealthStatus        | Aggregated health status                                                                                                                                                                                                                                  |
-| `status.drift`                                      | DriftStatus         | Drift detection results                                                                                                                                                                                                                                   |
-| `status.maintenance`                                | MaintenanceStatus   | Computed maintenance window state                                                                                                                                                                                                                         |
-| `status.maintenance.inWindow`                       | bool                | Currently within a maintenance window                                                                                                                                                                                                                     |
-| `status.maintenance.currentWindow`                  | WindowInfo          | Current active window details (if inWindow)                                                                                                                                                                                                               |
-| `status.maintenance.currentWindow.name`             | string              | Window name                                                                                                                                                                                                                                               |
-| `status.maintenance.currentWindow.endsAt`           | Time                | When current window ends (UTC)                                                                                                                                                                                                                            |
-| `status.maintenance.currentWindow.remainingMinutes` | int                 | Minutes remaining in window                                                                                                                                                                                                                               |
-| `status.maintenance.nextWindow`                     | WindowInfo          | Next scheduled window                                                                                                                                                                                                                                     |
-| `status.maintenance.nextWindow.startsAt`            | Time                | When next window starts (UTC)                                                                                                                                                                                                                             |
-| `status.maintenance.nextWindow.startsInMinutes`     | int                 | Minutes until next window                                                                                                                                                                                                                                 |
-| `status.maintenance.lastEvaluatedAt`                | Time                | Last window evaluation time                                                                                                                                                                                                                               |
-| `status.maintenance.timezoneInfo`                   | TimezoneInfo        | Timezone details with DST info                                                                                                                                                                                                                            |
-| `status.resources`                                  | ResourceUsage       | CPU, memory, pod usage                                                                                                                                                                                                                                    |
-| `status.history`                                    | []HistoryEntry      | Blueprint application history                                                                                                                                                                                                                             |
+The spoke-side, self-reconciling representation. `vela-cluster-core` reconciles these phases locally from the dispatched blueprint; the hub reads status by pull, never by push.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `spec.clusterInit.blueprintRef` | BlueprintRef | Foundational layer the planes depend on (CNI, base controllers/operators, Helm runtime, CRDs), reconciled on the spoke |
+| `spec.planeProvisioning.blueprintRef` | BlueprintRef | The dispatched blueprint's cluster planes, reconciled on the spoke on top of clusterInit |
+| `spec.healthValidation.blueprintRef` | BlueprintRef | Acceptance and smoke checks; the verdict is read by the hub on demand |
+| `status.blueprint` | BlueprintStatus | Applied blueprint revision and sync state |
+| `status.planes` | []PlaneInventory | Full inventory of planes and components |
+| `status.health` | HealthStatus | Aggregated local health (planes, components, resources) |
+| `status.drift` | DriftStatus | Local drift detection results |
+| `status.conditions` | []Condition | Conditions such as BlueprintApplied, Healthy, DriftFree |
+| `status.resources` | ResourceUsage | CPU, memory, pod usage |
+| `status.history` | []HistoryEntry | Blueprint application history |
 
 ### ClusterPlane
 
