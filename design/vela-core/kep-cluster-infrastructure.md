@@ -2597,10 +2597,10 @@ A `ClusterBlueprint` composes multiple `ClusterPlanes` into a complete cluster s
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Template, not live state**      | ClusterBlueprint defines _what_ a cluster should look like. It is a template, not a live configuration.                                                  |
 | **Immutable versioning**          | Once a blueprint version is created, it never changes. Modifications create new versions.                                                                |
-| **Pull model**                    | Individual `Cluster` resources declare which blueprint they follow via `spec.blueprintRef`. Clusters pull blueprints; blueprints don't push to clusters. |
+| **Blueprint dispatch**            | Each hub `SpokeCluster` declares the blueprint it follows via `spec.blueprintRef`; the hub dispatches that revision to the spoke, which reconciles it locally. |
 | **Never modified by controllers** | No controller (including `ClusterRolloutController`) ever modifies a `ClusterBlueprint`. Only users or GitOps automation create/update blueprints.       |
 
-**Important**: The `spec.blueprintRef` in a `Cluster` is the **desired state** owned by users/GitOps. The `status.blueprint` is the **actual state** owned by `ClusterController`. This separation prevents circular references—see [Controller Ownership Model](#controller-ownership-model-circular-reference-prevention).
+**Important**: The `spec.blueprintRef` on a `SpokeCluster` is the **desired state** owned by users/GitOps. The applied `status.blueprint` on the spoke `Cluster` is the **actual state**, reconciled by `vela-cluster-core`. This separation prevents circular references; see [Controller Ownership Model](#controller-ownership-model-circular-reference-prevention).
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -2799,7 +2799,7 @@ status:
 
   revisionHistoryLimit: 10
 
-  # List of clusters using this blueprint (computed from Cluster CRs)
+  # List of SpokeClusters using this blueprint (computed from SpokeCluster CRs)
   clusters:
     total: 5
     byRevision:
@@ -2916,7 +2916,7 @@ version "2.3.0" already published with different content. Use a new version (e.g
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: production-us-east-1
 spec:
@@ -3244,9 +3244,9 @@ vela blueprint diff <name> --from v1 --to v2       # Compare revisions
 vela blueprint rollback-plan <name> --to-revision <rev>  # Preview rollback
 ```
 
-**Cluster ← Blueprint Relationship:**
+**SpokeCluster ← Blueprint Relationship:**
 
-Multiple Clusters can reference the same ClusterBlueprint. The Blueprint defines WHAT (planes to deploy), Clusters declare WHICH blueprint to use. The Cluster controller reconciles the actual state.
+Multiple SpokeClusters can reference the same ClusterBlueprint. The Blueprint defines WHAT (planes to deploy); each SpokeCluster declares WHICH blueprint the hub dispatches. On the spoke, vela-cluster-core reconciles the actual state.
 
 #### 4. ClusterRollout (Optional - For Emergency/Manual Overrides)
 
@@ -3256,7 +3256,7 @@ Multiple Clusters can reference the same ClusterBlueprint. The Blueprint defines
 > - **Manual overrides** for specific clusters or cluster groups
 > - **One-time operations** that don't follow the standard strategy
 >
-> For normal operations, clusters reference a `ClusterRolloutStrategy` via `rolloutStrategyRef`. The strategy controller automatically progresses through waves when **users or GitOps automation update `Cluster.spec.blueprintRef`** to point to a new blueprint version. The `ClusterRolloutController` never modifies `spec.blueprintRef` itself—it only gates WHEN the `ClusterController` can apply the user-requested update.
+> For normal operations, SpokeClusters reference a `ClusterRolloutStrategy` via `rolloutStrategyRef`. The strategy controller automatically progresses through waves when **users or GitOps automation update `SpokeCluster.spec.blueprintRef`** to point to a new blueprint version. The `ClusterRolloutController` never modifies `spec.blueprintRef` itself; it only gates WHEN the `SpokeClusterController` dispatches the user-requested update.
 
 A `ClusterRollout` manages **imperative/emergency** progressive delivery of `ClusterBlueprint` changes, overriding the normal `ClusterRolloutStrategy` behavior.
 
@@ -3424,10 +3424,10 @@ A `ClusterRolloutStrategy` defines **when and how blueprint updates are rolled o
 | Aspect             | Who Controls                                           | Description                                          |
 | ------------------ | ------------------------------------------------------ | ---------------------------------------------------- |
 | **WHAT** to deploy | User/GitOps → `Cluster.spec.blueprintRef`              | Desired blueprint version                            |
-| **WHEN** to deploy | `ClusterRolloutController` → gates `ClusterController` | Wave progression, maintenance windows, health checks |
+| **WHEN** to deploy | `ClusterRolloutController` → gates `SpokeClusterController` dispatch | Wave progression, maintenance windows, health checks |
 | **HOW** to deploy  | `ClusterRolloutStrategy.spec`                          | Waves, batching, pauses, approvals                   |
 
-The `ClusterRolloutController` **never modifies** `Cluster.spec.blueprintRef` or `ClusterBlueprint`. It only gates the timing of when `ClusterController` can apply user-requested updates. See [Controller Ownership Model](#controller-ownership-model-circular-reference-prevention) for why this separation matters.
+The `ClusterRolloutController` **never modifies** `SpokeCluster.spec.blueprintRef` or `ClusterBlueprint`. It only gates the timing of when the `SpokeClusterController` dispatches user-requested updates. See [Controller Ownership Model](#controller-ownership-model-circular-reference-prevention) for why this separation matters.
 
 This design eliminates conflicts between per-cluster update policies and fleet-wide rollouts by having a **single source of truth** for rollout behavior.
 
@@ -3513,8 +3513,8 @@ spec:
         interval: "2h"
 
   # Maintenance window behavior
-  # ClusterRolloutController checks cluster.status.maintenance.inWindow
-  # (computed by ClusterController) before proceeding with updates
+  # ClusterRolloutController checks SpokeCluster.status.maintenance.inWindow
+  # (computed by SpokeClusterController) before permitting a dispatch
   maintenanceWindows:
     # Respect individual cluster maintenance windows
     respectClusterWindows: true
@@ -3668,64 +3668,30 @@ status:
       message: "Rolling out production-standard-v2.4.0, wave 2/4 in progress"
 ```
 
-**Relationship: Cluster → ClusterRolloutStrategy → ClusterBlueprint**
+**Relationship: SpokeCluster → ClusterRolloutStrategy → ClusterBlueprint**
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│              CLUSTER-DRIVEN ROLLOUT WITH SHARED STRATEGY                    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ClusterBlueprint                ClusterRolloutStrategy                     │
-│  ─────────────────                ───────────────────────                   │
-│  "What to deploy"                 "How to roll out"                         │
-│                                                                             │
-│  ┌─────────────────┐              ┌─────────────────────┐                   │
-│  │ production-     │              │ production-rollout  │                   │
-│  │ standard        │              │                     │                   │
-│  │                 │              │ waves:              │                   │
-│  │ revision: v2.4  │              │  1. canary          │                   │
-│  │                 │              │  2. staging         │                   │
-│  │ planes:         │              │  3. non-critical    │                   │
-│  │  - networking   │              │  4. critical        │                   │
-│  │  - security     │              │                     │                   │
-│  │  - observability│              │ analysis:           │                   │
-│  └────────┬────────┘              │  - error-rate < 1%  │                   │
-│           │                       │  - p99 < 500ms      │                   │
-│           │                       └──────────┬──────────┘                   │
-│           │                                  │                              │
-│           │              ┌───────────────────┼───────────────────┐          │
-│           │              │                   │                   │          │
-│           │              ▼                   ▼                   ▼          │
-│           │     ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ │
-│           │     │ cluster-canary  │ │ cluster-staging │ │ cluster-prod-1  │ │
-│           │     │                 │ │                 │ │                 │ │
-│           │     │ tier: canary    │ │ tier: staging   │ │ tier: critical  │ │
-│           │     │                 │ │                 │ │                 │ │
-│           └────►│ blueprintRef:   │ │ blueprintRef:   │ │ blueprintRef:   │ │
-│                 │   production-   │ │   production-   │ │   production-   │ │
-│                 │   standard      │ │   standard      │ │   standard      │ │
-│                 │                 │ │                 │ │                 │ │
-│                 │ rolloutStrategy │ │ rolloutStrategy │ │ rolloutStrategy │ │
-│                 │ Ref: production │ │ Ref: production │ │ Ref: production │ │
-│                 │ -rollout        │ │ -rollout        │ │ -rollout        │ │
-│                 │                 │ │                 │ │                 │ │
-│                 │ maintenance:    │ │ maintenance:    │ │ maintenance:    │ │
-│                 │  anytime        │ │  weekends       │ │  Sat 2-6am      │ │
-│                 └─────────────────┘ └─────────────────┘ └─────────────────┘ │
-│                         │                   │                   │           │
-│                         │                   │                   │           │
-│  WAVE 1 ───────────────►│                   │                   │           │
-│  Updates immediately    │                   │                   │           │
-│                         │                   │                   │           │
-│  WAVE 2 ────────────────┼──────────────────►│                   │           │
-│  Waits 4h after canary  │                   │                   │           │
-│  is healthy             │                   │                   │           │
-│                         │                   │                   │           │
-│  WAVE 4 ────────────────┼───────────────────┼──────────────────►│           │
-│  Waits for approval     │                   │                   │           │
-│  + maintenance window   │                   │                   │           │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+CLUSTER-DRIVEN ROLLOUT WITH SHARED STRATEGY
+
+ClusterBlueprint "production-standard" (revision v2.4) = "what to deploy"
+  planes: networking, security, observability
+
+ClusterRolloutStrategy "production-rollout" = "how to roll out"
+  waves: 1. canary, 2. staging, 3. non-critical, 4. critical
+  analysis: error-rate < 1%, p99 < 500ms
+
+SpokeClusters selected by the strategy (each references both):
+  SpokeCluster cluster-canary  (tier: canary)    blueprintRef: production-standard,
+    rolloutStrategyRef: production-rollout, maintenance: anytime
+  SpokeCluster cluster-staging (tier: staging)   blueprintRef: production-standard,
+    rolloutStrategyRef: production-rollout, maintenance: weekends
+  SpokeCluster cluster-prod-1  (tier: critical)  blueprintRef: production-standard,
+    rolloutStrategyRef: production-rollout, maintenance: Sat 2-6am
+
+Wave order:
+  WAVE 1 → cluster-canary  dispatched immediately
+  WAVE 2 → cluster-staging waits 4h after canary is healthy
+  WAVE 4 → cluster-prod-1  waits for approval + maintenance window
 ```
 
 ---
@@ -3770,11 +3736,11 @@ spec:
                   fieldPath: metadata.labels['shard-id']
 ```
 
-Clusters are assigned to shards via consistent hashing or explicit labels:
+SpokeClusters are assigned to shards via consistent hashing or explicit labels:
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: prod-us-east-1
   labels:
@@ -3838,7 +3804,7 @@ These controls leverage **existing Kubernetes primitives**—no custom implement
 | Max concurrency | controller-runtime's `MaxConcurrentReconciles`          |
 | Jitter          | Random delay before requeue (`time.Sleep` + jitter)     |
 
-For fleets >500 clusters, consider **status aggregation** to reduce the volume of status updates written to the hub:
+For fleets >500 clusters, consider **status aggregation** to reduce how much spoke state the hub pulls and records on each SpokeCluster:
 
 ```yaml
 spec:
@@ -3855,11 +3821,11 @@ spec:
 
 ### Maintenance Window Enforcement
 
-Maintenance windows control **when** cluster updates can occur. The ClusterController computes and exposes window state (`status.maintenance.inWindow`), while ClusterRolloutController checks this before updates.
+Maintenance windows control **when** a SpokeCluster's updates are dispatched. The SpokeClusterController computes and exposes the window state (`SpokeCluster.status.maintenance.inWindow`), which the ClusterRolloutController checks before permitting a dispatch.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: production-us-east-1
 spec:
