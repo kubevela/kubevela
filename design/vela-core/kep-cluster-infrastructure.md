@@ -3875,55 +3875,28 @@ The `Cluster` CRD supports the full cluster lifecycle, from provisioning new clu
 #### Cluster Modes
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         CLUSTER LIFECYCLE MODES                             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  MODE 1: PROVISION                MODE 2: ADOPT                             │
-│  ─────────────────                ────────────────                          │
-│  "Create a new cluster            "Take over an existing                    │
-│   from scratch"                    cluster created elsewhere"               │
-│                                                                             │
-│  ┌─────────────────┐              ┌─────────────────┐                       │
-│  │ Cloud Creds     │              │ Kubeconfig OR   │                       │
-│  │ + Region        │              │ Terraform State │                       │
-│  │ + Blueprint     │              │ + Blueprint     │                       │
-│  └────────┬────────┘              └────────┬────────┘                       │
-│           │                                │                                │
-│           ▼                                ▼                                │
-│  ┌─────────────────┐              ┌─────────────────┐                       │
-│  │ preCreate (opt) │              │ preCreate (opt) │                       │
-│  │ → VPC, IAM, DNS │              │ → IAM, RBAC     │                       │
-│  │ blueprintRef    │              │ Discovery &     │                       │
-│  │ → EKS, Nodes    │              │ State Import    │                       │
-│  │ postCreate (opt)│              │ postCreate (opt)│                       │
-│  │ → Validation    │              │ → Validation    │                       │
-│  └────────┬────────┘              └────────┬────────┘                       │
-│           │                                │                                │
-│           ▼                                ▼                                │
-│  ┌─────────────────┐              ┌─────────────────┐                       │
-│  │ Cluster Ready   │              │ Blueprint       │                       │
-│  │ All Phases Done │              │ Reconciled      │                       │
-│  └─────────────────┘              └─────────────────┘                       │
-│                                                                             │
-│  MODE 3: CONNECT                                                            │
-│  ───────────────                                                            │
-│  "Just manage what's in the                                                 │
-│   cluster, no provisioning"                                                 │
-│                                                                             │
-│  ┌─────────────────┐                                                        │
-│  │ Kubeconfig      │              All modes support optional preCreate      │
-│  │ + Blueprint     │              and postCreate blueprint phases.          │
-│  │ (optional)      │              Shared preCreate blueprints are           │
-│  └────────┬────────┘              reconciled once and reused across         │
-│           │                       clusters (see Lifecycle Phases).          │
-│           ▼                                                                 │
-│  ┌─────────────────┐                                                        │
-│  │ postCreate (opt)│                                                        │
-│  │ → Validation    │                                                        │
-│  └─────────────────┘                                                        │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+CLUSTER LIFECYCLE MODES (set on SpokeCluster.spec.mode)
+
+MODE 1: PROVISION  -  "create a new cluster from scratch"
+  input: cloud credential + region + blueprint
+  flow:  infraProvisioning (hub: VPC, IAM, DNS, cluster creation)
+         → clusterInit + planeProvisioning (spoke reconciles the dispatched blueprint)
+         → healthValidation (spoke; hub reads by pull)  → Cluster ready
+
+MODE 2: ADOPT  -  "take over an existing cluster created elsewhere"
+  input: kubeconfig or Terraform state + blueprint
+  flow:  infraProvisioning (hub: IAM, RBAC, discovery / state import)
+         → clusterInit + planeProvisioning (spoke)
+         → healthValidation (spoke; hub reads by pull)
+
+MODE 3: CONNECT  -  "just manage what is already in the cluster"
+  input: kubeconfig (+ optional blueprint)
+  flow:  healthValidation only (spoke; hub reads by pull)
+
+infraProvisioning runs on the hub; clusterInit, planeProvisioning, and
+healthValidation are reconciled by vela-cluster-core on the spoke. Shared
+infraProvisioning blueprints are reconciled once and reused across
+SpokeClusters (see Lifecycle Phases).
 ```
 
 **Component Execution Model**
@@ -3950,7 +3923,7 @@ Create a brand new cluster with minimal input. The Cluster CRD is intentionally 
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: production-us-east-1
   namespace: vela-system
@@ -4064,7 +4037,7 @@ Infrastructure configuration belongs in ClusterPlanes, not the Cluster CRD:
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: dev-cluster
 spec:
@@ -4082,7 +4055,7 @@ spec:
 
 #### Mode 2: Adopt - Connect to Existing Cluster
 
-Connect to an existing cluster and bring it under management. The ClusterController manages connectivity directly.
+Connect to an existing cluster and bring it under management. The SpokeClusterController manages connectivity through cluster-gateway (hub-initiated).
 
 **Connectivity Options:**
 
@@ -4096,7 +4069,7 @@ Connect to an existing cluster and bring it under management. The ClusterControl
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: new-partner-cluster
 spec:
@@ -4118,7 +4091,7 @@ spec:
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: production-us-east-1
 spec:
@@ -4139,7 +4112,7 @@ spec:
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: eks-production
 spec:
@@ -4152,7 +4125,7 @@ spec:
       clusterName: my-eks-cluster
       region: us-east-1
       # Uses workload identity / IRSA - no credentials stored
-      # ClusterController assumes IAM role to get temporary credentials
+      # SpokeClusterController assumes the per-cluster IAM role (EKS Pod Identity)
 
   blueprintRef:
     name: production-standard
@@ -4163,7 +4136,7 @@ spec:
 ```yaml
 # Step 1: Create Cluster CRD with credentials (no CLI needed)
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: legacy-production
   namespace: vela-system
@@ -4183,7 +4156,7 @@ spec:
 # Step 2: After reviewing status.adoptionStatus.discoveredComponents:
 
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: legacy-production
 spec:
@@ -4215,7 +4188,7 @@ Connect to an existing cluster without adopting infrastructure management. Uses 
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: partner-cluster
   namespace: vela-system
@@ -4674,9 +4647,9 @@ vela cluster import-terraform production-us-east-1 \
 │                                                                             │
 │  After Provisioning:                                                        │
 │  ──────────────────                                                         │
-│  1. ClusterController obtains kubeconfig                                    │
-│  2. Updates Cluster status with connection info                             │
-│  3. ClusterController applies planes from referenced Blueprint              │
+│  1. SpokeClusterController obtains kubeconfig                               │
+│  2. Updates SpokeCluster status with connection info                        │
+│  3. Dispatches the blueprint; the spoke reconciles it                       │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -4717,7 +4690,7 @@ Safe, reversible cluster removal with rollback checkpoints. Decommissioning is a
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: prod-us-east-1
 spec:
@@ -4810,7 +4783,7 @@ Before decommissioning, the controller checks if other clusters reference this c
 ```yaml
 # Example: prod-us-west-2 depends on prod-us-east-1
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: prod-us-west-2
 spec:
@@ -4861,7 +4834,7 @@ When a Cluster is deleted, ClusterPlanes and their components must be cleaned up
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: prod-us-east-1
 spec:
@@ -4919,7 +4892,7 @@ spec:
 │                                                                             │
 │  1. VALIDATE DELETION                                                       │
 │     ✓ Check cross-cluster dependencies (fail if consumers exist)            │
-│     ✓ Check shared plane consumers (preCreate blueprint references)         │
+│     ✓ Check shared plane consumers (infraProvisioning blueprint references) │
 │                                                                             │
 │  2. DELETE PLANES (reverse dependency order)                                │
 │     ┌──────────────────────────────────────────────────────────────┐        │
@@ -4953,7 +4926,7 @@ spec:
 │     ✓ Scan for LoadBalancers, EBS volumes, DNS records                      │
 │     ✓ Delete according to orphanedCloudResources policy                     │
 │                                                                             │
-│  4. REMOVE FINALIZERS AND DELETE CLUSTER CR                                 │
+│  4. REMOVE FINALIZERS AND DELETE SPOKECLUSTER CR                            │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -4990,10 +4963,10 @@ $ kubectl delete clusterplane shared-vpc-us-east-1
 Error from server (Forbidden): admission webhook denied the request:
   Cannot delete shared ClusterPlane "shared-vpc-us-east-1"
 
-  3 clusters are consuming this plane's outputs:
-    - prod-us-east-1-a (via preCreate)
-    - prod-us-east-1-b (via preCreate)
-    - prod-us-east-1-c (via preCreate)
+  3 SpokeClusters are consuming this plane's outputs:
+    - prod-us-east-1-a (via infraProvisioning)
+    - prod-us-east-1-b (via infraProvisioning)
+    - prod-us-east-1-c (via infraProvisioning)
 
   This is protected by finalizer: cluster.oam.dev/shared-plane-consumer-check
 
@@ -5061,7 +5034,7 @@ For in-place cluster upgrades, use decommissioning with a replacement cluster:
 ```yaml
 # Step 1: Create replacement cluster with same blueprint
 apiVersion: core.oam.dev/v1beta1
-kind: Cluster
+kind: SpokeCluster
 metadata:
   name: prod-us-east-1-v2
 spec:
