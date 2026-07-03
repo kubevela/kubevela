@@ -11,9 +11,9 @@
 	}
 }
 
-#GetPlacementsFromTmulticlusterologyPolicies: {
+#GetPlacementsFromTopologyPolicies: {
 	#provider: "multicluster"
-	#do:       "get-placements-from-tmulticlusterology-policies"
+	#do:       "get-placements-from-topology-policies"
 
 	$params: {
 		policies: [...string]
