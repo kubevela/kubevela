@@ -285,9 +285,9 @@ func TestParser_ValidateComponentParams(t *testing.T) {
 			params:  map[string]interface{}{},
 			wantErr: "",
 			setup: func(t *testing.T) {
-				prev := upgrade.EnableCUEVersionCompatibility
-				upgrade.EnableCUEVersionCompatibility = true
-				t.Cleanup(func() { upgrade.EnableCUEVersionCompatibility = prev })
+				prev := *upgrade.EnableCUEVersionCompatibility
+				*upgrade.EnableCUEVersionCompatibility = true
+				t.Cleanup(func() { *upgrade.EnableCUEVersionCompatibility = prev })
 			},
 		},
 	}
@@ -1549,18 +1549,18 @@ func TestValidateCUESchematicAppfile_LegacySyntax(t *testing.T) {
 	}
 
 	t.Run("legacy list-arithmetic is accepted when flag enabled", func(t *testing.T) {
-		original := upgrade.EnableCUEVersionCompatibility
-		upgrade.EnableCUEVersionCompatibility = true
-		t.Cleanup(func() { upgrade.EnableCUEVersionCompatibility = original })
+		original := *upgrade.EnableCUEVersionCompatibility
+		*upgrade.EnableCUEVersionCompatibility = true
+		t.Cleanup(func() { *upgrade.EnableCUEVersionCompatibility = original })
 
 		err := (&Parser{}).ValidateCUESchematicAppfile(newAppfile(legacyTemplate))
 		assert.NoError(t, err)
 	})
 
 	t.Run("legacy list-arithmetic is rejected when flag disabled", func(t *testing.T) {
-		original := upgrade.EnableCUEVersionCompatibility
-		upgrade.EnableCUEVersionCompatibility = false
-		t.Cleanup(func() { upgrade.EnableCUEVersionCompatibility = original })
+		original := *upgrade.EnableCUEVersionCompatibility
+		*upgrade.EnableCUEVersionCompatibility = false
+		t.Cleanup(func() { *upgrade.EnableCUEVersionCompatibility = original })
 
 		err := (&Parser{}).ValidateCUESchematicAppfile(newAppfile(legacyTemplate))
 		assert.Error(t, err)

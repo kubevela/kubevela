@@ -39,7 +39,7 @@ func NewCUEConfig() *CUEConfig {
 	return &CUEConfig{
 		EnableExternalPackage:         cuex.EnableExternalPackageForDefaultCompiler,
 		EnableExternalPackageWatch:    cuex.EnableExternalPackageWatchForDefaultCompiler,
-		EnableCUEVersionCompatibility: upgrade.EnableCUEVersionCompatibility,
+		EnableCUEVersionCompatibility: *upgrade.EnableCUEVersionCompatibility,
 		CUECompatibilityCacheSize:     upgrade.CompatibilityCacheSize,
 	}
 }
@@ -76,7 +76,7 @@ func (c *CUEConfig) AddFlags(fs *pflag.FlagSet) {
 func (c *CUEConfig) SyncToCUEGlobals(ctx context.Context) {
 	cuex.EnableExternalPackageForDefaultCompiler = c.EnableExternalPackage
 	cuex.EnableExternalPackageWatchForDefaultCompiler = c.EnableExternalPackageWatch
-	upgrade.EnableCUEVersionCompatibility = c.EnableCUEVersionCompatibility
+	*upgrade.EnableCUEVersionCompatibility = c.EnableCUEVersionCompatibility
 	if c.CUECompatibilityCacheSize < 0 {
 		klog.Warningf("cue-compatibility-cache-size %d is invalid (must be >= 0); caching disabled", c.CUECompatibilityCacheSize)
 		c.CUECompatibilityCacheSize = 0

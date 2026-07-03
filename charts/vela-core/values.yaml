@@ -26,6 +26,8 @@ controllerArgs:
 ## @param workflow.enableSuspendOnFailure Enable suspend on workflow failure
 ## @param workflow.enableExternalPackageForDefaultCompiler Enable external package for default cuex compiler
 ## @param workflow.enableExternalPackageWatchForDefaultCompiler Enable external package watch for default cuex compiler
+## @param workflow.enableCUEVersionCompatibility Automatically rewrite legacy CUE syntax in stored definitions at render time
+## @param workflow.cueCompatibilityCacheSize Maximum number of CUE templates to cache after version compatibility rewriting (0 disables caching)
 ## @param workflow.backoff.maxTime.waitState The max backoff time of workflow in a wait condition
 ## @param workflow.backoff.maxTime.failedState The max backoff time of workflow in a failed condition
 ## @param workflow.step.errorRetryTimes The max retry times of a failed workflow step
@@ -33,6 +35,8 @@ workflow:
   enableSuspendOnFailure: false
   enableExternalPackageForDefaultCompiler: true
   enableExternalPackageWatchForDefaultCompiler: false
+  enableCUEVersionCompatibility: true
+  cueCompatibilityCacheSize: 512
   backoff:
     maxTime:
       waitState: 60
