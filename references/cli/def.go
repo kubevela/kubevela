@@ -1557,7 +1557,7 @@ func defApplyOne(ctx context.Context, c common.Args, namespace, defpath string, 
 		return []string{fmt.Sprintf("%s %s in namespace %s %s.\n", def.GetKind(), def.GetName(), def.GetNamespace(), op)}, nil
 	default:
 		var results []string
-		if upgrade.EnableCUEVersionCompatibility {
+		if *upgrade.EnableCUEVersionCompatibility {
 			if needsUpgrade, reasons, err := upgrade.RequiresUpgrade(string(defBytes)); err == nil && needsUpgrade {
 				relpath := defpath
 				if rel, err := filepath.Rel(".", defpath); err == nil {

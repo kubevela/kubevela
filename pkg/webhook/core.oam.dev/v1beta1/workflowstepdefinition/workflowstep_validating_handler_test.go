@@ -37,6 +37,7 @@ import (
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 )
 
 var handler ValidatingHandler
@@ -45,6 +46,7 @@ var decoder admission.Decoder
 var td v1beta1.WorkflowStepDefinition
 var validCueTemplate string
 var inValidCueTemplate string
+var legacyCueTemplate string
 var cfg *rest.Config
 var testScheme = runtime.NewScheme()
 var testEnv *envtest.Environment
@@ -58,6 +60,13 @@ var _ = BeforeSuite(func() {
 
 	validCueTemplate = "{hello: 'world'}"
 	inValidCueTemplate = "{hello: world}"
+	legacyCueTemplate = `
+parameter: {
+	items: [...string]
+	extra: [...string]
+}
+combined: parameter.items + parameter.extra
+`
 
 	var yamlPath string
 	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
@@ -228,6 +237,35 @@ var _ = Describe("Test workflowstepdefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeTrue())
+		})
+
+		It("Test workflowstepdefinition with legacy CUE syntax emits a compatibility warning", func() {
+			original := *upgrade.EnableCUEVersionCompatibility
+			*upgrade.EnableCUEVersionCompatibility = true
+			DeferCleanup(func() { *upgrade.EnableCUEVersionCompatibility = original })
+
+			wsd := v1beta1.WorkflowStepDefinition{}
+			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wsd.SetName("legacy-wsd")
+			wsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: legacyCueTemplate,
+					},
+				},
+			}
+			wsdRaw, _ := json.Marshal(wsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
+			Expect(resp.Warnings).Should(HaveLen(1))
+			Expect(resp.Warnings[0]).Should(ContainSubstring("legacy syntax"))
 		})
 	})
 })

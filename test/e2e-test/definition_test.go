@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	oamv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	testdef "github.com/kubevela/pkg/util/test/definition"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -227,6 +228,98 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 			newTd.Spec.Schematic.CUE.Template = exposeV2Template
 			Expect(k8sClient.Create(ctx, newTd)).Should(HaveOccurred())
 		})
+	})
+
+	It("Test workflow step with legacy CUE syntax creates a ConfigMap via auto-upgrade", func() {
+		By("Install apply-object step definition")
+		_, file, _, _ := runtime.Caller(0)
+		Expect(testdef.InstallDefinitionFromYAML(ctx, k8sClient, filepath.Join(file, "../../../charts/vela-core/templates/defwithtemplate/apply-object.yaml"), func(s string) string {
+			return strings.ReplaceAll(s, `{{ include "systemDefinitionNamespace" . }}`, namespace)
+		})).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+
+		By("Create a WorkflowStepDefinition using legacy list-concatenation syntax")
+		wsd := &v1beta1.WorkflowStepDefinition{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "WorkflowStepDefinition",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "legacy-list-step",
+				Namespace: namespace,
+			},
+			Spec: v1beta1.WorkflowStepDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						// Legacy syntax: list1 + list2 was removed in CUE v0.6.
+						// The upgrade engine rewrites it to list.Concat([list1, list2]) at render
+						// time. If the upgrade did not run, CUE compilation would fail here and
+						// the ConfigMap would never be created.
+						Template: `
+import (
+	"vela/kube"
+	"encoding/json"
+)
+list1: ["a", "b"]
+list2: ["c", "d"]
+combined: list1 + list2
+apply: kube.#Apply & {
+	$params: {
+		value: {
+			apiVersion: "v1"
+			kind:        "ConfigMap"
+			metadata: {
+				name:      "legacy-step-result"
+				namespace: parameter.namespace
+			}
+			data: result: json.Marshal(combined)
+		}
+	}
+}
+parameter: {
+	namespace: string
+}
+`,
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, wsd)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+
+		By("Create an application whose workflow runs the legacy step")
+		app := &v1beta1.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1beta1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "app-legacy-list-step",
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []common.ApplicationComponent{},
+				Workflow: &v1beta1.Workflow{
+					Steps: []oamv1alpha1.WorkflowStep{
+						{
+							WorkflowStepBase: oamv1alpha1.WorkflowStepBase{
+								Name: "run-legacy-step",
+								Type: "legacy-list-step",
+								Properties: &pkgruntime.RawExtension{
+									Raw: []byte(`{"namespace":"` + namespace + `"}`),
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		By("Verify the ConfigMap was created, proving the step executed successfully")
+		cm := &corev1.ConfigMap{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "legacy-step-result", Namespace: namespace}, cm)
+		}, 60*time.Second, time.Second).Should(Succeed())
+		Expect(cm.Data["result"]).To(Equal(`["a","b","c","d"]`))
 	})
 
 	It("Test notification step definition", func() {

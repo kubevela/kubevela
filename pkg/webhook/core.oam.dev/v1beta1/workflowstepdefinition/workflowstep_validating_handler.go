@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
@@ -103,15 +104,25 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		"hasSchematic", obj.Spec.Schematic != nil,
 		"version", obj.Spec.Version)
 
-	// Validate output resources
+	// Validate CUE template
+	var warnings []string
 	if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
-		logger.WithStep("validate-output-resources").Info("Validating output resources referenced in WorkflowStepDefinition CUE template")
+		logger.WithStep("validate-cue").Info("Validating CUE template for WorkflowStepDefinition schematic")
 
-		if err := webhookutils.ValidateOutputResourcesExist(obj.Spec.Schematic.CUE.Template, h.Client.RESTMapper(), obj); err != nil {
-			logger.WithStep("validate-output-resources").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
+		cueTemplate := obj.Spec.Schematic.CUE.Template
+		if *upgrade.EnableCUEVersionCompatibility {
+			upgraded, wasUpgraded := upgrade.EnsureCueVersionCompatibility(cueTemplate, obj.Name, upgrade.WorkflowStepKind, upgrade.TemplateAreaMain)
+			if wasUpgraded {
+				warnings = append(warnings, "CUE template uses legacy syntax that will be auto-upgraded at render time. Run `vela def compat definitions` to scan all definitions for legacy syntax.")
+				cueTemplate = upgraded
+			}
+		}
+
+		if err := webhookutils.ValidateOutputResourcesExist(cueTemplate, h.Client.RESTMapper(), obj); err != nil {
+			logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
 			return admission.Denied(fmt.Sprintf("output resource validation failed: %s (requestUID=%s)", err.Error(), req.UID))
 		}
-		logger.WithStep("validate-output-resources").WithSuccess(true).Info("Output resources validation completed successfully - all referenced resources exist in cluster")
+		logger.WithStep("validate-cue").WithSuccess(true).Info("CUE template validation completed successfully - all referenced resources exist in cluster")
 	}
 
 	// Validate semantic version
@@ -131,6 +142,9 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	logger.WithStep("complete").WithSuccess(true, startTime).Info("WorkflowStepDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
+	if len(warnings) > 0 {
+		return admission.ValidationResponse(true, "").WithWarnings(warnings...)
+	}
 	return admission.ValidationResponse(true, "Validation passed")
 }
 

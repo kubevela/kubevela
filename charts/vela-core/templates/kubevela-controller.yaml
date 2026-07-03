@@ -298,6 +298,8 @@ spec:
             - "--max-workflow-step-error-retry-times={{ .Values.workflow.step.errorRetryTimes }}"
             - "--enable-external-package-for-default-compiler={{ .Values.workflow.enableExternalPackageForDefaultCompiler }}"
             - "--enable-external-package-watch-for-default-compiler={{ .Values.workflow.enableExternalPackageWatchForDefaultCompiler }}"
+            - "--enable-cue-version-compatibility={{ .Values.workflow.enableCUEVersionCompatibility }}"
+            - "--cue-compatibility-cache-size={{ .Values.workflow.cueCompatibilityCacheSize }}"
             - "--feature-gates=EnableSuspendOnFailure={{- .Values.workflow.enableSuspendOnFailure | toString -}}"
             - "--feature-gates=GzipResourceTracker={{- .Values.featureGates.gzipResourceTracker | toString -}}"
             - "--feature-gates=AuthenticateApplication={{- .Values.authentication.enabled | toString -}}"

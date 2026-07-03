@@ -32,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 )
 
 var (
@@ -72,7 +73,8 @@ func (loader *WorkflowStepLoader) LoadTemplate(ctx context.Context, name string)
 	}
 	schematic := templ.WorkflowStepDefinition.Spec.Schematic
 	if schematic != nil && schematic.CUE != nil {
-		return schematic.CUE.Template, nil
+		tmpl, _ := upgrade.EnsureCueVersionCompatibility(schematic.CUE.Template, name, upgrade.WorkflowStepKind, upgrade.TemplateAreaMain)
+		return tmpl, nil
 	}
 
 	return "", errors.New("custom workflowStep only support cue")
