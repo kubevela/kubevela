@@ -27,6 +27,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
@@ -262,12 +263,15 @@ func (h *AppHandler) collectTraitHealthStatus(comp *appfile.Component, tr *appfi
 		return common.ApplicationTraitStatus{}, nil, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appName, comp.Name, tr.Name)
 	}
 	statusResult, err := tr.EvalStatus(templateContext)
-	if err == nil && statusResult != nil {
+	if err != nil {
+		klog.Warningf("app=%s, comp=%s, trait=%s, evaluate trait status error (best-effort): %v", appName, comp.Name, tr.Name, err)
+	}
+	if statusResult != nil {
 		traitStatus.Healthy = statusResult.Healthy
 		traitStatus.Message = statusResult.Message
 		traitStatus.Details = statusResult.Details
 	}
-	return traitStatus, extractOutputs(templateContext), err
+	return traitStatus, extractOutputs(templateContext), nil
 }
 
 // collectWorkloadHealthStatus collect workload health status
@@ -302,7 +306,7 @@ func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, comp *appf
 		}
 		statusResult, err := comp.EvalStatus(templateContext)
 		if err != nil {
-			return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appName, comp.Name)
+			klog.Warningf("app=%s, comp=%s, evaluate workload status error (best-effort): %v", appName, comp.Name, err)
 		}
 		if statusResult != nil {
 			status.Healthy = statusResult.Healthy
