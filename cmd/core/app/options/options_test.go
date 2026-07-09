@@ -22,12 +22,14 @@ import (
 	"time"
 
 	"github.com/kubevela/pkg/cue/cuex"
+	wfupgrade "github.com/kubevela/workflow/pkg/cue/upgrade"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 )
@@ -755,7 +757,7 @@ func TestCoreOptions_AllConfigModulesHaveFlags(t *testing.T) {
 		"observability": {"metrics-addr", "log-debug", "log-file-path"},
 		"kubernetes":    {"informer-sync-period", "kube-api-qps", "kube-api-burst"},
 		"multicluster":  {"enable-cluster-gateway", "enable-cluster-metrics"},
-		"cue":           {"enable-external-package-for-default-compiler"},
+		"cue":           {"enable-external-package-for-default-compiler", "cue-upgrade-list-concat-enabled", "cue-upgrade-error-field-label-enabled", "cue-upgrade-bool-default-guard-enabled", "cue-upgrade-generic-default-guard-enabled", "cue-upgrade-keepvalidators-singleton-enabled", "cue-upgrade-evalv3-selfref-guard-enabled"},
 		"application":   {"application-re-sync-period"},
 		"oam":           {"system-definition-namespace"},
 		"controller":    {"revision-limit", "application-revision-limit", "definition-revision-limit"},
@@ -773,6 +775,65 @@ func TestCoreOptions_AllConfigModulesHaveFlags(t *testing.T) {
 			assert.NotNil(t, flag, "Flag %s should exist in flagset %s", flagName, setName)
 		}
 	}
+}
+
+func TestCoreOptions_CUEUpgradeFlagsSyncToGlobals(t *testing.T) {
+	origList := upgrade.EnableListConcatUpgrade
+	origError := upgrade.EnableErrorFieldLabelUpgrade
+	origBool := upgrade.EnableBoolDefaultGuardUpgrade
+	origGeneric := upgrade.EnableGenericDefaultGuardUpgrade
+	origKeep := upgrade.EnableKeepValidatorsSingletonUpgrade
+	origEvalv3 := upgrade.EnableEvalv3SelfRefGuardUpgrade
+	origWFList := wfupgrade.EnableListConcatUpgrade
+	origWFError := wfupgrade.EnableErrorFieldLabelUpgrade
+	origWFBool := wfupgrade.EnableBoolDefaultGuardUpgrade
+	origWFGeneric := wfupgrade.EnableGenericDefaultGuardUpgrade
+	origWFKeep := wfupgrade.EnableKeepValidatorsSingletonUpgrade
+	origWFEvalv3 := wfupgrade.EnableEvalv3SelfRefGuardUpgrade
+	defer func() {
+		upgrade.EnableListConcatUpgrade = origList
+		upgrade.EnableErrorFieldLabelUpgrade = origError
+		upgrade.EnableBoolDefaultGuardUpgrade = origBool
+		upgrade.EnableGenericDefaultGuardUpgrade = origGeneric
+		upgrade.EnableKeepValidatorsSingletonUpgrade = origKeep
+		upgrade.EnableEvalv3SelfRefGuardUpgrade = origEvalv3
+		wfupgrade.EnableListConcatUpgrade = origWFList
+		wfupgrade.EnableErrorFieldLabelUpgrade = origWFError
+		wfupgrade.EnableBoolDefaultGuardUpgrade = origWFBool
+		wfupgrade.EnableGenericDefaultGuardUpgrade = origWFGeneric
+		wfupgrade.EnableKeepValidatorsSingletonUpgrade = origWFKeep
+		wfupgrade.EnableEvalv3SelfRefGuardUpgrade = origWFEvalv3
+	}()
+
+	opt := NewCoreOptions()
+	fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
+	for _, f := range opt.Flags().FlagSets {
+		fs.AddFlagSet(f)
+	}
+	err := fs.Parse([]string{
+		"--cue-upgrade-list-concat-enabled=false",
+		"--cue-upgrade-error-field-label-enabled=false",
+		"--cue-upgrade-bool-default-guard-enabled=false",
+		"--cue-upgrade-generic-default-guard-enabled=false",
+		"--cue-upgrade-keepvalidators-singleton-enabled=false",
+		"--cue-upgrade-evalv3-selfref-guard-enabled=false",
+	})
+	require.NoError(t, err)
+
+	opt.CUE.SyncToCUEGlobals(context.Background())
+
+	assert.False(t, upgrade.EnableListConcatUpgrade)
+	assert.False(t, upgrade.EnableErrorFieldLabelUpgrade)
+	assert.False(t, upgrade.EnableBoolDefaultGuardUpgrade)
+	assert.False(t, upgrade.EnableGenericDefaultGuardUpgrade)
+	assert.False(t, upgrade.EnableKeepValidatorsSingletonUpgrade)
+	assert.False(t, upgrade.EnableEvalv3SelfRefGuardUpgrade)
+	assert.False(t, wfupgrade.EnableListConcatUpgrade)
+	assert.False(t, wfupgrade.EnableErrorFieldLabelUpgrade)
+	assert.False(t, wfupgrade.EnableBoolDefaultGuardUpgrade)
+	assert.False(t, wfupgrade.EnableGenericDefaultGuardUpgrade)
+	assert.False(t, wfupgrade.EnableKeepValidatorsSingletonUpgrade)
+	assert.False(t, wfupgrade.EnableEvalv3SelfRefGuardUpgrade)
 }
 
 func TestCoreOptions_CLIOverridesWork(t *testing.T) {

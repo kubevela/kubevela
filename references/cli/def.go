@@ -30,6 +30,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"cuelang.org/go/cue/cuecontext"
@@ -74,6 +75,8 @@ const (
 	// HelmChartFormatEnvName is the name of the environment variable to enable render helm chart format YAML
 	HelmChartFormatEnvName = "AS_HELM_CHART"
 )
+
+var definitionUpgradePassesMu sync.Mutex
 
 // DefinitionCommandGroup create the command group for `vela def` command to manage definitions
 func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
@@ -2018,6 +2021,7 @@ func NewDefinitionUpgradeCommand(c common.Args, ioStreams util.IOStreams) *cobra
 		targetVersion string
 		checkOnly     bool
 		quiet         bool
+		enableAll     bool
 	)
 
 	cmd := &cobra.Command{
@@ -2047,6 +2051,12 @@ func NewDefinitionUpgradeCommand(c common.Args, ioStreams util.IOStreams) *cobra
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sourceFile := args[0]
+			definitionUpgradePassesMu.Lock()
+			restoreFlags := enableAllUpgradePasses(enableAll)
+			defer func() {
+				restoreFlags()
+				definitionUpgradePassesMu.Unlock()
+			}()
 
 			// Read the source file
 			content, err := os.ReadFile(sourceFile) //nolint:gosec
@@ -2123,6 +2133,35 @@ func NewDefinitionUpgradeCommand(c common.Args, ioStreams util.IOStreams) *cobra
 	cmd.Flags().StringVar(&targetVersion, "target-version", "", "Target KubeVela version (e.g., --target-version=v1.11). If not specified, uses current CLI version.")
 	cmd.Flags().BoolVar(&checkOnly, "validate", false, "Validate if definition needs upgrading without making changes (exit code 1 if upgrade required)")
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Suppress output in validate mode, only return exit code")
+	cmd.Flags().BoolVar(&enableAll, "enable-all", false, "Enable all upgrade passes for this command invocation.")
 
 	return cmd
+}
+
+func enableAllUpgradePasses(enableAll bool) func() {
+	if !enableAll {
+		return func() {}
+	}
+	origList := upgrade.EnableListConcatUpgrade
+	origErr := upgrade.EnableErrorFieldLabelUpgrade
+	origBool := upgrade.EnableBoolDefaultGuardUpgrade
+	origGeneric := upgrade.EnableGenericDefaultGuardUpgrade
+	origKeep := upgrade.EnableKeepValidatorsSingletonUpgrade
+	origEval := upgrade.EnableEvalv3SelfRefGuardUpgrade
+
+	upgrade.EnableListConcatUpgrade = true
+	upgrade.EnableErrorFieldLabelUpgrade = true
+	upgrade.EnableBoolDefaultGuardUpgrade = true
+	upgrade.EnableGenericDefaultGuardUpgrade = true
+	upgrade.EnableKeepValidatorsSingletonUpgrade = true
+	upgrade.EnableEvalv3SelfRefGuardUpgrade = true
+
+	return func() {
+		upgrade.EnableListConcatUpgrade = origList
+		upgrade.EnableErrorFieldLabelUpgrade = origErr
+		upgrade.EnableBoolDefaultGuardUpgrade = origBool
+		upgrade.EnableGenericDefaultGuardUpgrade = origGeneric
+		upgrade.EnableKeepValidatorsSingletonUpgrade = origKeep
+		upgrade.EnableEvalv3SelfRefGuardUpgrade = origEval
+	}
 }

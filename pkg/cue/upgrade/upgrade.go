@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The KubeVela Authors.
+Copyright 2026 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ package upgrade
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	pkgupgrade "github.com/kubevela/pkg/cue/upgrade"
@@ -28,25 +29,13 @@ import (
 	velaversion "github.com/oam-dev/kubevela/version"
 )
 
-// Version is a release version for upgrade ordering.
 type Version = pkgupgrade.Version
-
-// DefinitionKind identifies the type of definition for metrics and compatibility reports.
 type DefinitionKind = pkgupgrade.DefinitionKind
-
-// TemplateArea identifies which part of a definition's CUE template a rewrite was applied to.
 type TemplateArea = pkgupgrade.TemplateArea
-
-// KubeVelaUpgradeFunc is a CUE compatibility fix triggered by a KubeVela version.
 type KubeVelaUpgradeFunc = pkgupgrade.KubeVelaUpgradeFunc
-
-// CUEUpgradeFunc is a CUE compatibility fix triggered by the CUE language version.
 type CUEUpgradeFunc = pkgupgrade.CUEUpgradeFunc
-
-// UpgradeFunc is a backward-compatible alias for KubeVelaUpgradeFunc.
 type UpgradeFunc = pkgupgrade.UpgradeFunc //nolint:revive
 
-// KubeVela-specific DefinitionKind constants.
 const (
 	ComponentKind    DefinitionKind = "Component"
 	TraitKind        DefinitionKind = "Trait"
@@ -54,7 +43,6 @@ const (
 	WorkflowStepKind DefinitionKind = "WorkflowStep"
 )
 
-// KubeVela-specific TemplateArea constants.
 const (
 	TemplateAreaMain         TemplateArea = "template"
 	TemplateAreaHealth       TemplateArea = "health"
@@ -62,53 +50,66 @@ const (
 	TemplateAreaStatusDetail TemplateArea = "status_detail"
 )
 
-// EnableCUEVersionCompatibility is a pointer alias for pkgupgrade.EnableCUEVersionCompatibility.
-// Writing to it (via dereference) updates the engine directly with no additional synchronization.
 var EnableCUEVersionCompatibility = &pkgupgrade.EnableCUEVersionCompatibility
-
-// CompatibilityCacheSize mirrors pkgupgrade.CompatibilityCacheSize.
 var CompatibilityCacheSize = pkgupgrade.CompatibilityCacheSize
 
-// Re-export functions.
+var (
+	// EnableListConcatUpgrade controls the list-arithmetic compatibility rewrite pass.
+	EnableListConcatUpgrade = true
+	// EnableErrorFieldLabelUpgrade controls quoting of legacy unquoted error labels.
+	EnableErrorFieldLabelUpgrade = true
+	// EnableBoolDefaultGuardUpgrade controls the bool default-guard hazard rewrite pass.
+	EnableBoolDefaultGuardUpgrade = false
+	// EnableGenericDefaultGuardUpgrade controls generic (non-bool) default-guard hazard rewrites.
+	EnableGenericDefaultGuardUpgrade = false
+	// EnableKeepValidatorsSingletonUpgrade controls singleton keepvalidators concretization rewrites.
+	EnableKeepValidatorsSingletonUpgrade = false
+	// EnableEvalv3SelfRefGuardUpgrade controls evalv3 self-reference default-guard rewrites.
+	EnableEvalv3SelfRefGuardUpgrade = false
+)
+
+var syncLocalFlagsMu sync.Mutex
+
 var (
 	ParseVersion         = pkgupgrade.ParseVersion
 	RegisterUpgrade      = pkgupgrade.RegisterUpgrade
 	GetSupportedVersions = pkgupgrade.GetSupportedVersions
 )
 
-// SetCacheEntryTTL sets how long an unaccessed cache entry lives before eviction.
-// Must be called before InitCompatibilityCache to take effect.
 func SetCacheEntryTTL(d time.Duration) {
 	pkgupgrade.CacheEntryTTL = d
 }
 
-// Upgrade applies all registered upgrades to cueStr.
 func Upgrade(cueStr string, targetVersion ...Version) (string, error) {
+	syncLocalFlagsMu.Lock()
+	defer syncLocalFlagsMu.Unlock()
+	syncLocalFlagsLocked()
 	return pkgupgrade.Upgrade(cueStr, targetVersion...)
 }
 
-// RequiresUpgrade checks whether cueStr needs upgrading.
 func RequiresUpgrade(cueStr string, targetVersion ...Version) (bool, []string, error) {
+	syncLocalFlagsMu.Lock()
+	defer syncLocalFlagsMu.Unlock()
+	syncLocalFlagsLocked()
 	return pkgupgrade.RequiresUpgrade(cueStr, targetVersion...)
 }
 
-// EnsureCueVersionCompatibility applies all upgrades for the running KubeVela version.
 func EnsureCueVersionCompatibility(cueStr, defName string, defKind DefinitionKind, area TemplateArea) (string, bool) {
+	syncLocalFlagsMu.Lock()
+	defer syncLocalFlagsMu.Unlock()
+	syncLocalFlagsLocked()
 	return pkgupgrade.EnsureCueVersionCompatibility(cueStr, defName, defKind, area)
 }
 
-// InitCompatibilityCache reinitialises the LRU cache.
 func InitCompatibilityCache(ctx context.Context, size int) {
 	pkgupgrade.InitCompatibilityCache(ctx, size)
 }
 
 func init() {
-	// Wire the KubeVela version provider.
+	syncLocalFlags()
 	pkgupgrade.GetCurrentVersion = func() string {
 		return velaversion.VelaVersion
 	}
-
-	// Wire Prometheus metrics callbacks into the engine hooks.
 	pkgupgrade.OnRewrite = func(fixID, fixVersion string, defKind pkgupgrade.DefinitionKind, area pkgupgrade.TemplateArea) {
 		CUECompatRewriteTotal.WithLabelValues(fixID, fixVersion, string(defKind), string(area)).Inc()
 	}
@@ -118,4 +119,19 @@ func init() {
 	pkgupgrade.OnCacheEviction = func(reason string) {
 		CUECompatCacheEvictionsTotal.WithLabelValues(reason).Inc()
 	}
+}
+
+func syncLocalFlags() {
+	syncLocalFlagsMu.Lock()
+	defer syncLocalFlagsMu.Unlock()
+	syncLocalFlagsLocked()
+}
+
+func syncLocalFlagsLocked() {
+	pkgupgrade.EnableListArithmeticUpgrade = EnableListConcatUpgrade
+	pkgupgrade.EnableErrorFieldLabelUpgrade = EnableErrorFieldLabelUpgrade
+	pkgupgrade.EnableBoolDefaultNegationUpgrade = EnableBoolDefaultGuardUpgrade
+	pkgupgrade.EnableGenericDefaultGuardUpgrade = EnableGenericDefaultGuardUpgrade
+	pkgupgrade.EnableKeepValidatorsSingletonUpgrade = EnableKeepValidatorsSingletonUpgrade
+	pkgupgrade.EnableEvalv3SelfRefGuardUpgrade = EnableEvalv3SelfRefGuardUpgrade
 }

@@ -28,6 +28,12 @@ controllerArgs:
 ## @param workflow.enableExternalPackageWatchForDefaultCompiler Enable external package watch for default cuex compiler
 ## @param workflow.enableCUEVersionCompatibility Automatically rewrite legacy CUE syntax in stored definitions at render time
 ## @param workflow.cueCompatibilityCacheSize Maximum number of CUE templates to cache after version compatibility rewriting (0 disables caching)
+## @param workflow.cueUpgradeListConcatEnabled Enable list concat/list arithmetic compatibility rewrite pass
+## @param workflow.cueUpgradeErrorFieldLabelEnabled Enable error field-label compatibility rewrite pass
+## @param workflow.cueUpgradeBoolDefaultGuardEnabled Enable bool default-guard hazard compatibility rewrite pass
+## @param workflow.cueUpgradeGenericDefaultGuardEnabled Enable generic default-guard hazard compatibility rewrite pass
+## @param workflow.cueUpgradeKeepValidatorsSingletonEnabled Enable keepvalidators singleton concretization compatibility pass
+## @param workflow.cueUpgradeEvalv3SelfRefGuardEnabled Enable evalv3 self-reference default-guard compatibility rewrite pass
 ## @param workflow.backoff.maxTime.waitState The max backoff time of workflow in a wait condition
 ## @param workflow.backoff.maxTime.failedState The max backoff time of workflow in a failed condition
 ## @param workflow.step.errorRetryTimes The max retry times of a failed workflow step
@@ -37,6 +43,12 @@ workflow:
   enableExternalPackageWatchForDefaultCompiler: false
   enableCUEVersionCompatibility: true
   cueCompatibilityCacheSize: 512
+  cueUpgradeListConcatEnabled: true
+  cueUpgradeErrorFieldLabelEnabled: true
+  cueUpgradeBoolDefaultGuardEnabled: false
+  cueUpgradeGenericDefaultGuardEnabled: false
+  cueUpgradeKeepValidatorsSingletonEnabled: false
+  cueUpgradeEvalv3SelfRefGuardEnabled: false
   backoff:
     maxTime:
       waitState: 60
