@@ -335,6 +335,16 @@ spec:
             - "--dev-logs={{ .Values.devLogs }}"
           image: {{ .Values.imageRegistry }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
+          {{- if or .Values.extraEnvs .Values.featureGates.enableCueExpVariable }}
+          env:
+          {{- with .Values.extraEnvs }}
+          {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.featureGates.enableCueExpVariable }}
+            - name: CUE_EXPERIMENT
+              value: "evalv3=0,keepvalidators=0"
+          {{- end }}
+          {{- end }}
           resources:
           {{- toYaml .Values.resources | nindent 12 }}
           {{ if .Values.admissionWebhooks.enabled }}

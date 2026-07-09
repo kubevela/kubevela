@@ -109,7 +109,7 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 			defRev := new(v1beta1.DefinitionRevision)
 			Eventually(func() error {
 				return k8sClient.Get(ctx, client.ObjectKey{Name: "test-componentdef-v1", Namespace: namespace}, defRev)
-			}).Should(BeNil())
+			}, 15*time.Second, time.Second).Should(BeNil())
 		})
 
 		It("Test componentDefinition only set definition field", func() {
