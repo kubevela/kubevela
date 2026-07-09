@@ -55,6 +55,12 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `workflow.enableExternalPackageWatchForDefaultCompiler` | Enable external package watch for default cuex compiler                                             | `false` |
 | `workflow.enableCUEVersionCompatibility`                | Automatically rewrite legacy CUE syntax in stored definitions at render time                        | `true`  |
 | `workflow.cueCompatibilityCacheSize`                    | Maximum number of CUE templates to cache after version compatibility rewriting (0 disables caching) | `512`   |
+| `workflow.cueUpgradeListConcatEnabled`                  | Enable list concat/list arithmetic compatibility rewrite pass                                       | `true`  |
+| `workflow.cueUpgradeErrorFieldLabelEnabled`             | Enable error field-label compatibility rewrite pass                                                 | `true`  |
+| `workflow.cueUpgradeBoolDefaultGuardEnabled`            | Enable bool default-guard hazard compatibility rewrite pass                                         | `false` |
+| `workflow.cueUpgradeGenericDefaultGuardEnabled`         | Enable generic default-guard hazard compatibility rewrite pass                                      | `false` |
+| `workflow.cueUpgradeKeepValidatorsSingletonEnabled`     | Enable keepvalidators singleton concretization compatibility pass                                   | `false` |
+| `workflow.cueUpgradeEvalv3SelfRefGuardEnabled`          | Enable evalv3 self-reference default-guard compatibility rewrite pass                               | `false` |
 | `workflow.backoff.maxTime.waitState`                    | The max backoff time of workflow in a wait condition                                                | `60`    |
 | `workflow.backoff.maxTime.failedState`                  | The max backoff time of workflow in a failed condition                                              | `300`   |
 | `workflow.step.errorRetryTimes`                         | The max retry times of a failed workflow step                                                       | `10`    |

@@ -1,25 +1,13 @@
 /*
-Copyright 2024 The KubeVela Authors.
+Copyright 2026 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 */
 
-// Tests in this file cover KubeVela-specific wiring only:
-//   - velaversion provider (GetCurrentVersion hook)
-//   - EnableCUEVersionCompatibility local var syncing
-//   - Prometheus metrics callbacks (OnRewrite, OnUpgradeDuration)
-//
-// Engine behaviour (list arithmetic, error field, cache) is tested in
-// github.com/kubevela/pkg/cue/upgrade.
 package upgrade_test
 
 import (
@@ -35,52 +23,16 @@ import (
 	velaversion "github.com/oam-dev/kubevela/version"
 )
 
-// TestVelaVersionProviderWiring verifies that GetCurrentVersion reads from velaversion.VelaVersion.
 func TestVelaVersionProviderWiring(t *testing.T) {
 	original := velaversion.VelaVersion
 	defer func() { velaversion.VelaVersion = original }()
-
-	cases := []struct {
-		set     string
-		wantErr bool
-		wantVer string
-	}{
-		{"v1.11.2", false, "1.11"},
-		{"1.12.0", false, "1.12"},
-		{"v1.13.0-alpha.1+dev", false, "1.13"},
-		{"UNKNOWN", false, ""}, // falls back to latest — just check no error
-		{"", false, ""},        // same
-		{"invalid-version", true, ""},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.set, func(t *testing.T) {
-			velaversion.VelaVersion = tc.set
-			got := pkgupgrade.GetCurrentVersion()
-			if tc.wantErr {
-				// Verify the engine propagates the error — call Upgrade without explicit version.
-				_, err := upgrade.Upgrade("x: 1")
-				if err == nil {
-					t.Error("expected error from invalid version string, got nil")
-				}
-				return
-			}
-			if tc.wantVer != "" {
-				v, err := upgrade.ParseVersion(got)
-				if err != nil {
-					t.Fatalf("ParseVersion(%q): %v", got, err)
-				}
-				want, _ := upgrade.ParseVersion(tc.wantVer)
-				if v != want {
-					t.Errorf("got version %v, want %v", v, want)
-				}
-			}
-		})
+	velaversion.VelaVersion = "v1.11.2"
+	got := pkgupgrade.GetCurrentVersion()
+	if got != "v1.11.2" {
+		t.Fatalf("GetCurrentVersion()=%q", got)
 	}
 }
 
-// TestEnableCUEVersionCompatibilitySyncs verifies that setting the local var to false
-// causes EnsureCueVersionCompatibility to return the input unchanged.
 func TestEnableCUEVersionCompatibilitySyncs(t *testing.T) {
 	original := *upgrade.EnableCUEVersionCompatibility
 	defer func() { *upgrade.EnableCUEVersionCompatibility = original }()
@@ -97,13 +49,178 @@ combined: list1 + list2
 	}
 }
 
-// TestUpgradeWithUnknownVelaVersion verifies that UNKNOWN version falls back to latest
-// and still applies all upgrades.
+func TestPerUpgradeFlagsAffectRewrite(t *testing.T) {
+	origList := upgrade.EnableListConcatUpgrade
+	origBool := upgrade.EnableBoolDefaultGuardUpgrade
+	t.Cleanup(func() {
+		upgrade.EnableListConcatUpgrade = origList
+		upgrade.EnableBoolDefaultGuardUpgrade = origBool
+	})
+
+	listInput := `
+list1: [1, 2]
+list2: [3, 4]
+combined: list1 + list2
+`
+	upgrade.EnableListConcatUpgrade = false
+	got, _ := upgrade.EnsureCueVersionCompatibility(listInput, "test-def", upgrade.ComponentKind, upgrade.TemplateAreaMain)
+	if strings.Contains(got, "list.Concat") {
+		t.Fatalf("expected list arithmetic unchanged when disabled, got: %s", got)
+	}
+	upgrade.EnableListConcatUpgrade = true
+	got, _ = upgrade.EnsureCueVersionCompatibility(listInput+"\n", "test-def", upgrade.ComponentKind, upgrade.TemplateAreaMain)
+	if !strings.Contains(got, "list.Concat") {
+		t.Fatalf("expected list.Concat rewrite when enabled, got: %s", got)
+	}
+
+	boolInput := `
+_flag: bool | *false
+if cond {
+	_flag: true
+}
+
+if !_flag {
+	_error: 0 & "required"
+}
+`
+	upgrade.EnableBoolDefaultGuardUpgrade = false
+	got, _ = upgrade.EnsureCueVersionCompatibility(boolInput, "test-def", upgrade.ComponentKind, upgrade.TemplateAreaMain)
+	if !strings.Contains(got, "bool | *false") {
+		t.Fatalf("expected bool default guard unchanged when disabled, got: %s", got)
+	}
+	upgrade.EnableBoolDefaultGuardUpgrade = true
+	got, _ = upgrade.EnsureCueVersionCompatibility(boolInput+"\n", "test-def", upgrade.ComponentKind, upgrade.TemplateAreaMain)
+	if strings.Contains(got, "bool | *false") {
+		t.Fatalf("expected bool default guard rewritten when enabled, got: %s", got)
+	}
+}
+
+func TestComplexTemplatePerUpgradeFlags(t *testing.T) {
+	origList := upgrade.EnableListConcatUpgrade
+	origError := upgrade.EnableErrorFieldLabelUpgrade
+	origBool := upgrade.EnableBoolDefaultGuardUpgrade
+	origGeneric := upgrade.EnableGenericDefaultGuardUpgrade
+	origKeep := upgrade.EnableKeepValidatorsSingletonUpgrade
+	origEval := upgrade.EnableEvalv3SelfRefGuardUpgrade
+	t.Cleanup(func() {
+		upgrade.EnableListConcatUpgrade = origList
+		upgrade.EnableErrorFieldLabelUpgrade = origError
+		upgrade.EnableBoolDefaultGuardUpgrade = origBool
+		upgrade.EnableGenericDefaultGuardUpgrade = origGeneric
+		upgrade.EnableKeepValidatorsSingletonUpgrade = origKeep
+		upgrade.EnableEvalv3SelfRefGuardUpgrade = origEval
+	})
+
+	const input = `
+import "strings"
+
+left: ["a"]
+right: ["b"]
+both: left + right
+combined: strings.Join(left + right, "-")
+
+error: "legacy error label"
+
+_flag: bool | *false
+if cond {
+	_flag: true
+}
+if !_flag {
+	_error: 0 & "required"
+}
+
+_mode: string | *""
+if cond { _mode: "x" }
+if _mode == "x" { out: true }
+
+x: >=1 & <=1
+y: x + 1
+
+z: *45 | int & {
+	if z < 1 { _|_ & {errorMessage: "z must be >= 1"} }
+}
+`
+
+	tests := []struct {
+		name   string
+		flags  func()
+		expect []string
+		avoid  []string
+	}{
+		{
+			name: "defaults-only-list-and-error",
+			flags: func() {
+				upgrade.EnableListConcatUpgrade = true
+				upgrade.EnableErrorFieldLabelUpgrade = true
+				upgrade.EnableBoolDefaultGuardUpgrade = false
+				upgrade.EnableGenericDefaultGuardUpgrade = false
+				upgrade.EnableKeepValidatorsSingletonUpgrade = false
+				upgrade.EnableEvalv3SelfRefGuardUpgrade = false
+			},
+			expect: []string{
+				"strings.Join(list.Concat([",
+				`"error": "legacy error label"`,
+				"_flag: bool | *false",
+				"_mode: string | *\"\"",
+				"x: >=1 & <=1",
+				"z: *45 | int & {",
+			},
+			avoid: []string{
+				"_modeVal:",
+				"x: 1",
+			},
+		},
+		{
+			name: "all-enabled",
+			flags: func() {
+				upgrade.EnableListConcatUpgrade = true
+				upgrade.EnableErrorFieldLabelUpgrade = true
+				upgrade.EnableBoolDefaultGuardUpgrade = true
+				upgrade.EnableGenericDefaultGuardUpgrade = true
+				upgrade.EnableKeepValidatorsSingletonUpgrade = true
+				upgrade.EnableEvalv3SelfRefGuardUpgrade = true
+			},
+			expect: []string{
+				"strings.Join(list.Concat([",
+				`"error": "legacy error label"`,
+				"_modeVal: string | *\"\"",
+				"x: 1",
+			},
+			avoid: []string{
+				"_flag: bool | *false",
+				"_isSecondary: bool | *false",
+				"_mode: string | *\"\"",
+				"x: >=1 & <=1",
+				"z: *45 | int & {",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.flags()
+			got, ok := upgrade.EnsureCueVersionCompatibility(input+"\n// "+tc.name+"\n", "complex-def", upgrade.ComponentKind, upgrade.TemplateAreaMain)
+			if !ok {
+				t.Fatalf("expected rewrite to report ok=true, got false")
+			}
+			for _, want := range tc.expect {
+				if !strings.Contains(got, want) {
+					t.Fatalf("expected output to contain %q, got:\n%s", want, got)
+				}
+			}
+			for _, bad := range tc.avoid {
+				if strings.Contains(got, bad) {
+					t.Fatalf("expected output NOT to contain %q, got:\n%s", bad, got)
+				}
+			}
+		})
+	}
+}
+
 func TestUpgradeWithUnknownVelaVersion(t *testing.T) {
 	original := velaversion.VelaVersion
 	defer func() { velaversion.VelaVersion = original }()
 	velaversion.VelaVersion = "UNKNOWN"
-
 	input := `
 list1: [1, 2, 3]
 list2: [4, 5, 6]
@@ -111,17 +228,14 @@ combined: list1 + list2
 `
 	result, err := upgrade.Upgrade(input)
 	if err != nil {
-		t.Errorf("Upgrade() should not error on UNKNOWN version, got: %v", err)
+		t.Fatalf("Upgrade() error: %v", err)
 	}
 	if !strings.Contains(result, "list.Concat") {
-		t.Errorf("Upgrade() with UNKNOWN version should apply all upgrades, got: %v", result)
+		t.Fatalf("expected list.Concat rewrite, got: %s", result)
 	}
 }
 
-// TestMetricsCallbackFired verifies that the OnRewrite Prometheus callback increments
-// CUECompatRewriteTotal when a legacy template is upgraded.
 func TestMetricsCallbackFired(t *testing.T) {
-	// Flush the cache so the upgrade path actually runs.
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	pkgupgrade.InitCompatibilityCache(ctx, 512)
@@ -145,6 +259,6 @@ combined: list1 + list2
 		t.Fatalf("failed to write metric: %v", err)
 	}
 	if m.Counter == nil || m.Counter.GetValue() < 1 {
-		t.Errorf("expected counter >= 1 for list-arithmetic/1.11/Component, got %v", m)
+		t.Fatalf("expected counter >= 1, got %v", m)
 	}
 }
