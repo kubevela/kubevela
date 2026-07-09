@@ -30,6 +30,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"cuelang.org/go/cue/cuecontext"
@@ -74,6 +75,8 @@ const (
 	// HelmChartFormatEnvName is the name of the environment variable to enable render helm chart format YAML
 	HelmChartFormatEnvName = "AS_HELM_CHART"
 )
+
+var definitionUpgradePassesMu sync.Mutex
 
 // DefinitionCommandGroup create the command group for `vela def` command to manage definitions
 func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStreams) *cobra.Command {
@@ -2048,8 +2051,12 @@ func NewDefinitionUpgradeCommand(c common.Args, ioStreams util.IOStreams) *cobra
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sourceFile := args[0]
+			definitionUpgradePassesMu.Lock()
 			restoreFlags := enableAllUpgradePasses(enableAll)
-			defer restoreFlags()
+			defer func() {
+				restoreFlags()
+				definitionUpgradePassesMu.Unlock()
+			}()
 
 			// Read the source file
 			content, err := os.ReadFile(sourceFile) //nolint:gosec

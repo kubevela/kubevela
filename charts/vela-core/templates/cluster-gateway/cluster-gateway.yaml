@@ -162,9 +162,18 @@ spec:
   versionPriority: 10
   insecureSkipTLSVerify: {{ not .Values.multicluster.clusterGateway.secureTLS.enabled }}
   {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
-  caBundle: Cg==
+  {{- /* Preserve an already-valid caBundle on upgrade so we don't reset it to the
+         Cg== placeholder before the patch Job re-runs 
+         $apiSvc is the existing APIService looked up above; fall back to the
+         placeholder only on fresh install or when it still holds the placeholder. */}}
+  {{- $caBundle := "Cg==" }}
+  {{- if and $apiSvc $apiSvc.spec (hasKey $apiSvc.spec "caBundle") (ne $apiSvc.spec.caBundle "Cg==") }}
+  {{- $caBundle = $apiSvc.spec.caBundle }}
+  {{- end }}
+  caBundle: {{ $caBundle }}
   {{ end }}
 {{ end }}
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

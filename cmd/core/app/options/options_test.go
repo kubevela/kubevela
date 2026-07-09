@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/kubevela/pkg/cue/cuex"
+	wfupgrade "github.com/kubevela/workflow/pkg/cue/upgrade"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
@@ -783,6 +784,12 @@ func TestCoreOptions_CUEUpgradeFlagsSyncToGlobals(t *testing.T) {
 	origGeneric := upgrade.EnableGenericDefaultGuardUpgrade
 	origKeep := upgrade.EnableKeepValidatorsSingletonUpgrade
 	origEvalv3 := upgrade.EnableEvalv3SelfRefGuardUpgrade
+	origWFList := wfupgrade.EnableListConcatUpgrade
+	origWFError := wfupgrade.EnableErrorFieldLabelUpgrade
+	origWFBool := wfupgrade.EnableBoolDefaultGuardUpgrade
+	origWFGeneric := wfupgrade.EnableGenericDefaultGuardUpgrade
+	origWFKeep := wfupgrade.EnableKeepValidatorsSingletonUpgrade
+	origWFEvalv3 := wfupgrade.EnableEvalv3SelfRefGuardUpgrade
 	defer func() {
 		upgrade.EnableListConcatUpgrade = origList
 		upgrade.EnableErrorFieldLabelUpgrade = origError
@@ -790,6 +797,12 @@ func TestCoreOptions_CUEUpgradeFlagsSyncToGlobals(t *testing.T) {
 		upgrade.EnableGenericDefaultGuardUpgrade = origGeneric
 		upgrade.EnableKeepValidatorsSingletonUpgrade = origKeep
 		upgrade.EnableEvalv3SelfRefGuardUpgrade = origEvalv3
+		wfupgrade.EnableListConcatUpgrade = origWFList
+		wfupgrade.EnableErrorFieldLabelUpgrade = origWFError
+		wfupgrade.EnableBoolDefaultGuardUpgrade = origWFBool
+		wfupgrade.EnableGenericDefaultGuardUpgrade = origWFGeneric
+		wfupgrade.EnableKeepValidatorsSingletonUpgrade = origWFKeep
+		wfupgrade.EnableEvalv3SelfRefGuardUpgrade = origWFEvalv3
 	}()
 
 	opt := NewCoreOptions()
@@ -815,6 +828,12 @@ func TestCoreOptions_CUEUpgradeFlagsSyncToGlobals(t *testing.T) {
 	assert.False(t, upgrade.EnableGenericDefaultGuardUpgrade)
 	assert.False(t, upgrade.EnableKeepValidatorsSingletonUpgrade)
 	assert.False(t, upgrade.EnableEvalv3SelfRefGuardUpgrade)
+	assert.False(t, wfupgrade.EnableListConcatUpgrade)
+	assert.False(t, wfupgrade.EnableErrorFieldLabelUpgrade)
+	assert.False(t, wfupgrade.EnableBoolDefaultGuardUpgrade)
+	assert.False(t, wfupgrade.EnableGenericDefaultGuardUpgrade)
+	assert.False(t, wfupgrade.EnableKeepValidatorsSingletonUpgrade)
+	assert.False(t, wfupgrade.EnableEvalv3SelfRefGuardUpgrade)
 }
 
 func TestCoreOptions_CLIOverridesWork(t *testing.T) {

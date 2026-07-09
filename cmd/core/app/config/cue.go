@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/kubevela/pkg/cue/cuex"
+	wfupgrade "github.com/kubevela/workflow/pkg/cue/upgrade"
 	"github.com/spf13/pflag"
 	"k8s.io/klog/v2"
 
@@ -113,15 +114,23 @@ func (c *CUEConfig) SyncToCUEGlobals(ctx context.Context) {
 	cuex.EnableExternalPackageForDefaultCompiler = c.EnableExternalPackage
 	cuex.EnableExternalPackageWatchForDefaultCompiler = c.EnableExternalPackageWatch
 	*upgrade.EnableCUEVersionCompatibility = c.EnableCUEVersionCompatibility
+	*wfupgrade.EnableCUEVersionCompatibility = c.EnableCUEVersionCompatibility
 	upgrade.EnableListConcatUpgrade = c.CUEUpgradeListConcatEnabled
 	upgrade.EnableErrorFieldLabelUpgrade = c.CUEUpgradeErrorFieldEnabled
 	upgrade.EnableBoolDefaultGuardUpgrade = c.CUEUpgradeBoolDefaultGuard
 	upgrade.EnableGenericDefaultGuardUpgrade = c.CUEUpgradeGenericDefaultGuard
 	upgrade.EnableKeepValidatorsSingletonUpgrade = c.CUEUpgradeKeepValidators
 	upgrade.EnableEvalv3SelfRefGuardUpgrade = c.CUEUpgradeEvalv3SelfRefGuard
+	wfupgrade.EnableListConcatUpgrade = c.CUEUpgradeListConcatEnabled
+	wfupgrade.EnableErrorFieldLabelUpgrade = c.CUEUpgradeErrorFieldEnabled
+	wfupgrade.EnableBoolDefaultGuardUpgrade = c.CUEUpgradeBoolDefaultGuard
+	wfupgrade.EnableGenericDefaultGuardUpgrade = c.CUEUpgradeGenericDefaultGuard
+	wfupgrade.EnableKeepValidatorsSingletonUpgrade = c.CUEUpgradeKeepValidators
+	wfupgrade.EnableEvalv3SelfRefGuardUpgrade = c.CUEUpgradeEvalv3SelfRefGuard
 	if c.CUECompatibilityCacheSize < 0 {
 		klog.Warningf("cue-compatibility-cache-size %d is invalid (must be >= 0); caching disabled", c.CUECompatibilityCacheSize)
 		c.CUECompatibilityCacheSize = 0
 	}
 	upgrade.InitCompatibilityCache(ctx, c.CUECompatibilityCacheSize)
+	wfupgrade.InitCompatibilityCache(ctx, c.CUECompatibilityCacheSize)
 }
