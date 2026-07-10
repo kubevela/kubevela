@@ -253,6 +253,11 @@ func ValidateTraitParams(ctxData velaprocess.ContextData, tr *Trait) error {
 
 	templateStr, _ := upgrade.EnsureCueVersionCompatibility(tr.FullTemplate.TemplateStr, tr.Name, upgrade.TraitKind, upgrade.TemplateAreaMain)
 
+	// Compile template-only first (no user params) to distinguish provider-import
+	// errors (expected in standalone validation) from user-param type errors.
+	templateOnlySrc := strings.Join([]string{renderTemplate(templateStr), baseCtx}, "\n")
+	_, templateCompileErr := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), templateOnlySrc)
+
 	cueSrc := strings.Join([]string{
 		renderTemplate(templateStr),
 		paramSnippet,
@@ -261,17 +266,51 @@ func ValidateTraitParams(ctxData velaprocess.ContextData, tr *Trait) error {
 
 	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), cueSrc)
 	if err != nil {
-		// Compile errors may be caused by provider imports not available during
-		// standalone compilation; log and skip rather than blocking admission.
+		if templateCompileErr == nil {
+			// Template compiled fine without user params, so the error originates
+			// from a type conflict in the supplied parameter values.
+			return errors.WithMessagef(err, "trait %q: invalid parameter value", tr.Name)
+		}
+		// Template itself had compile errors regardless of user params (e.g. a missing
+		// provider import); log and skip to avoid false positives.
 		klog.V(4).Infof("trait %q: CUE compile error during param validation (skipping): %v", tr.Name, err)
 		return nil
 	}
 
 	paramVal := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
+
+	// Check for required params (no default, not optional) that are absent from
+	// the supplied values — cue.Concrete(false) alone does not catch these.
+	if err := enforceTraitRequiredParams(paramVal, tr.Params, tr.Name); err != nil {
+		return err
+	}
+
 	if err := paramVal.Validate(cue.Concrete(false)); err != nil {
 		return errors.WithMessagef(err, "trait %q: parameter constraint violation", tr.Name)
 	}
 
+	return nil
+}
+
+// enforceTraitRequiredParams reports any non-optional, non-defaulted fields in the
+// trait's parameter schema that are absent from the supplied params map.
+func enforceTraitRequiredParams(paramVal cue.Value, params map[string]any, traitName string) error {
+	reqFields, err := requiredFields(paramVal)
+	if err != nil || len(reqFields) == 0 {
+		return nil
+	}
+	var missing []string
+	for _, f := range reqFields {
+		if _, ok := params[f]; !ok {
+			missing = append(missing, f)
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		return errors.WithMessagef(
+			fmt.Errorf("missing required parameters: %s", strings.Join(missing, ", ")),
+			"trait %q", traitName)
+	}
 	return nil
 }
 
