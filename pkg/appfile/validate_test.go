@@ -320,6 +320,99 @@ func TestParser_ValidateComponentParams(t *testing.T) {
 	}
 }
 
+
+func TestValidateTraitParams(t *testing.T) {
+	testCases := []struct {
+		name     string
+		traitName string
+		template string
+		params   map[string]interface{}
+		wantErr  string
+	}{
+		{
+			name:      "valid trait params",
+			traitName: "scaler",
+			template: `
+			parameter: {
+				maxReplicas: int | *10
+			}
+			patch: {
+				spec: replicas: parameter.maxReplicas
+			}
+			`,
+			params: map[string]interface{}{
+				"maxReplicas": 5,
+			},
+			wantErr: "",
+		},
+		{
+			name:      "wrong type for int parameter",
+			traitName: "scaler",
+			template: `
+			parameter: {
+				maxReplicas: int
+			}
+			patch: {
+				spec: replicas: parameter.maxReplicas
+			}
+			`,
+			params: map[string]interface{}{
+				"maxReplicas": "ten",
+			},
+			wantErr: "parameter constraint violation",
+		},
+		{
+			name:      "constraint violation negative int",
+			traitName: "scaler",
+			template: `
+			parameter: {
+				maxReplicas: int & >0
+			}
+			patch: {
+				spec: replicas: parameter.maxReplicas
+			}
+			`,
+			params: map[string]interface{}{
+				"maxReplicas": -1,
+			},
+			wantErr: "parameter constraint violation",
+		},
+		{
+			name:      "nil FullTemplate is skipped",
+			traitName: "empty-trait",
+			template:  "",
+			params:    map[string]interface{}{},
+			wantErr:   "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := &Appfile{
+				Name:      "myapp",
+				Namespace: "test-ns",
+			}
+			ctxData := GenerateContextDataFromAppFile(app, "mycomp")
+			var fullTemplate *Template
+			if tc.template != "" {
+				fullTemplate = &Template{TemplateStr: tc.template}
+			}
+			tr := &Trait{
+				Name:         tc.traitName,
+				FullTemplate: fullTemplate,
+				Params:       tc.params,
+			}
+			err := ValidateTraitParams(ctxData, tr)
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestValidationHelpers(t *testing.T) {
 	t.Run("renderTemplate", func(t *testing.T) {
 		tmpl := "output: {}"
