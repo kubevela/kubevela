@@ -122,6 +122,9 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 				// references to fields that are populated/injected during runtime only
 				continue
 			}
+			if err := ValidateTraitParams(ctxData, tr); err != nil {
+				return err
+			}
 			// The same identity baseGenerateComponent pushes on the real path.
 			// Trait.Name is the TraitDefinition's name - the trait's type.
 			pCtx.PushData(velaprocess.ContextTraitType, tr.Name)
@@ -277,6 +280,51 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 					"component %q", wl.Name)
 			}
 		}
+	}
+
+	return nil
+}
+
+
+// ValidateTraitParams validates a Trait's parameter values against the CUE schema
+// before EvalContext is called, surfacing clear messages like
+// `trait "foo": parameter constraint violation: parameter.maxReplicas: conflicting values "ten" and int`
+// instead of the cryptic CUE disjunction errors produced by EvalContext.
+func ValidateTraitParams(ctxData velaprocess.ContextData, tr *Trait) error {
+	if tr.FullTemplate == nil || tr.FullTemplate.TemplateStr == "" {
+		return nil
+	}
+
+	ctx := velaprocess.NewContext(ctxData)
+	baseCtx, err := ctx.BaseContextFile()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	paramSnippet, err := cueParamBlock(tr.Params)
+	if err != nil {
+		return errors.WithMessagef(err, "trait %q: invalid params", tr.Name)
+	}
+
+	templateStr, _ := upgrade.EnsureCueVersionCompatibility(tr.FullTemplate.TemplateStr, tr.Name, upgrade.TraitKind, upgrade.TemplateAreaMain)
+
+	cueSrc := strings.Join([]string{
+		renderTemplate(templateStr),
+		paramSnippet,
+		baseCtx,
+	}, "\n")
+
+	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), cueSrc)
+	if err != nil {
+		// Compile errors may be caused by provider imports not available during
+		// standalone compilation; log and skip rather than blocking admission.
+		klog.V(4).Infof("trait %q: CUE compile error during param validation (skipping): %v", tr.Name, err)
+		return nil
+	}
+
+	paramVal := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
+	if err := paramVal.Validate(cue.Concrete(false)); err != nil {
+		return errors.WithMessagef(err, "trait %q: parameter constraint violation", tr.Name)
 	}
 
 	return nil
