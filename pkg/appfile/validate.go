@@ -231,7 +231,6 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 	return nil
 }
 
-
 // ValidateTraitParams validates a Trait's parameter values against the CUE schema
 // before EvalContext is called, surfacing clear messages like
 // `trait "foo": parameter constraint violation: parameter.maxReplicas: conflicting values "ten" and int`

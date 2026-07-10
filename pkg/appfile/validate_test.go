@@ -320,14 +320,13 @@ func TestParser_ValidateComponentParams(t *testing.T) {
 	}
 }
 
-
 func TestValidateTraitParams(t *testing.T) {
 	testCases := []struct {
-		name     string
+		name      string
 		traitName string
-		template string
-		params   map[string]interface{}
-		wantErr  string
+		template  string
+		params    map[string]interface{}
+		wantErr   string
 	}{
 		{
 			name:      "valid trait params",
