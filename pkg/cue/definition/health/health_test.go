@@ -460,6 +460,7 @@ func TestContextPassing(t *testing.T) {
 		request     StatusRequest
 		expMessage  string
 		expDetails  map[string]string
+		expErr      bool
 		validateCtx func(t *testing.T, ctx map[string]interface{})
 	}{
 		"basic-context-passing": {
@@ -622,6 +623,26 @@ func TestContextPassing(t *testing.T) {
 				assert.Equal(t, "my-app", details["appName"])
 				assert.Equal(t, "production", details["appEnv"])
 				assert.Equal(t, "my-app-production", details["appFullName"])
+			},
+		},
+		"status-message-error-propagation": {
+			initialCtx: map[string]interface{}{},
+			request: StatusRequest{
+				Parameter: map[string]interface{}{},
+				Details: strings.TrimSpace(`
+					stringValue: "example"
+				`),
+				Custom: strings.TrimSpace(`
+					message: {invalid cue
+				`),
+			},
+			expErr:     true,
+			expMessage: "",
+			expDetails: map[string]string{
+				"stringValue": "example",
+			},
+			validateCtx: func(t *testing.T, ctx map[string]interface{}) {
+				assert.NotNil(t, ctx["status"])
 			},
 		},
 		"existing-status-preserved": {
@@ -814,7 +835,11 @@ func TestContextPassing(t *testing.T) {
 			}
 
 			result, err := GetStatus(ctx, &tc.request)
-			assert.NoError(t, err)
+			if tc.expErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 			assert.Equal(t, tc.expMessage, result.Message)
 			assert.Equal(t, tc.expDetails, result.Details)
 

@@ -27,6 +27,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
@@ -302,7 +303,7 @@ func (h *AppHandler) collectWorkloadHealthStatus(ctx context.Context, comp *appf
 		}
 		statusResult, err := comp.EvalStatus(templateContext)
 		if err != nil {
-			return false, nil, nil, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appName, comp.Name)
+			klog.Warningf("app=%s, comp=%s, evaluate workload status message error: %v, will continue with best-effort status", appName, comp.Name, err)
 		}
 		if statusResult != nil {
 			status.Healthy = statusResult.Healthy
