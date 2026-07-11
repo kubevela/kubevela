@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -80,5 +81,46 @@ template: {
 			return got.Status.Phase
 		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseError))
 		Expect(got.Status.GetCondition(condition.TypeSynced).Message).ShouldNot(BeEmpty())
+	})
+
+	It("should do nothing (no-op) when DeletionTimestamp is set", func() {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       "ct-deleting",
+				Namespace:  "default",
+				Finalizers: []string{"test.oam.dev/protect"},
+			},
+			Spec: configv1alpha1.ConfigTemplateSpec{
+				Template: `
+template: {
+	parameter: { username: string }
+	output: { apiVersion: "v1", kind: "Secret", stringData: { username: parameter.username } }
+}
+`,
+			},
+		}
+		Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+
+		Eventually(func() configv1alpha1.ConfigTemplatePhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
+			return ct.Status.Phase
+		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
+
+		// Delete triggers reconcile with DeletionTimestamp set; controller returns immediately.
+		Expect(k8sClient.Delete(ctx, ct)).Should(Succeed())
+		Eventually(func() bool {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
+			return ct.DeletionTimestamp != nil
+		}, 15*time.Second, time.Second).Should(BeTrue())
+		// Status must be unchanged: the DeletionTimestamp path is a pure no-op.
+		Expect(ct.Status.Phase).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
+
+		// Remove the finalizer so the object can be GC'd.
+		patch := client.MergeFrom(ct.DeepCopy())
+		ct.Finalizers = nil
+		Expect(k8sClient.Patch(ctx, ct, patch)).Should(Succeed())
+		Eventually(func() bool {
+			return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct))
+		}, 15*time.Second, time.Second).Should(BeTrue())
 	})
 })
