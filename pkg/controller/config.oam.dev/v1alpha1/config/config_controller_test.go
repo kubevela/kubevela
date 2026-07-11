@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -141,6 +142,163 @@ var _ = Describe("Config controller", func() {
 		var gotCfg configv1alpha1.Config
 		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseError))
 		Expect(gotCfg.Status.GetCondition("Synced").Message).Should(ContainSubstring("mutually exclusive"))
+	})
+
+	It("does nothing (no-op) when Config has DeletionTimestamp set", func() {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "tmpl-del-cfg", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: testCUETemplate},
+		}
+		Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+		Eventually(func() configv1alpha1.ConfigTemplatePhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
+			return ct.Status.Phase
+		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
+
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:       "cfg-deleting",
+				Namespace:  "default",
+				Finalizers: []string{"test.oam.dev/protect"},
+			},
+			Spec: configv1alpha1.ConfigSpec{
+				TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "tmpl-del-cfg", Namespace: "default"},
+				Properties:  rawExtension(map[string]string{"username": "alice"}),
+			},
+		}
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+		var gotCfg configv1alpha1.Config
+		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+
+		// Delete; the finalizer keeps the object alive so DeletionTimestamp is set.
+		Expect(k8sClient.Delete(ctx, cfg)).Should(Succeed())
+		Eventually(func() bool {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Succeed())
+			return gotCfg.DeletionTimestamp != nil
+		}, 15*time.Second, time.Second).Should(BeTrue())
+		// The DeletionTimestamp path is a no-op; status must remain Available.
+		Expect(gotCfg.Status.Phase).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+
+		patch := client.MergeFrom(gotCfg.DeepCopy())
+		gotCfg.Finalizers = nil
+		Expect(k8sClient.Patch(ctx, &gotCfg, patch)).Should(Succeed())
+		Eventually(func() bool {
+			return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &gotCfg))
+		}, 15*time.Second, time.Second).Should(BeTrue())
+	})
+
+	It("transitions through waiting then Available when ConfigTemplate is initially not ready", func() {
+		// Start with an invalid ConfigTemplate so it is in Error phase (not Available).
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "tmpl-waiting", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: `this is not valid cue {{{`},
+		}
+		Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+		Eventually(func() configv1alpha1.ConfigTemplatePhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
+			return ct.Status.Phase
+		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseError))
+
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "cfg-waiting", Namespace: "default"},
+			Spec: configv1alpha1.ConfigSpec{
+				TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "tmpl-waiting", Namespace: "default"},
+				Properties:  rawExtension(map[string]string{"username": "eve"}),
+			},
+		}
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		// Config must report the template is not Available yet.
+		var gotCfg configv1alpha1.Config
+		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseError))
+		Expect(gotCfg.Status.GetCondition("Synced").Message).Should(ContainSubstring("not Available yet"))
+
+		// Fix the ConfigTemplate; the Watch on ConfigTemplate re-queues the Config.
+		patch := client.MergeFrom(ct.DeepCopy())
+		ct.Spec.Template = testCUETemplate
+		Expect(k8sClient.Patch(ctx, ct, patch)).Should(Succeed())
+
+		Eventually(func() configv1alpha1.ConfigTemplatePhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
+			return ct.Status.Phase
+		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
+
+		// Config must become Available once the template is ready (via findConfigsForTemplate watch).
+		Eventually(func() configv1alpha1.ConfigPhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Succeed())
+			return gotCfg.Status.Phase
+		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+	})
+
+	It("creates a minimal Secret when no TemplateRef is set", func() {
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "cfg-notmpl", Namespace: "default"},
+			Spec: configv1alpha1.ConfigSpec{
+				// no TemplateRef — the renderSecret else-branch runs
+				Properties: rawExtension(map[string]string{"key": "value"}),
+			},
+		}
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		var gotCfg configv1alpha1.Config
+		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+
+		var secret corev1.Secret
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cfg-notmpl"}, &secret)).Should(Succeed())
+		// Catalog label and input-properties key must be present even without a template.
+		Expect(secret.Labels["config.oam.dev/catalog"]).Should(Equal("velacore-config"))
+		Expect(secret.Data["input-properties"]).ShouldNot(BeEmpty())
+	})
+
+	It("sets Phase=Error when the referenced ConfigTemplate and ConfigMap do not exist", func() {
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "cfg-notfound", Namespace: "default"},
+			Spec: configv1alpha1.ConfigSpec{
+				TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "nonexistent-tmpl", Namespace: "default"},
+				Properties:  rawExtension(map[string]string{"username": "alice"}),
+			},
+		}
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		var gotCfg configv1alpha1.Config
+		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseError))
+	})
+
+	It("reads properties from a Secret using an explicit key in spec.propertiesFrom.secretRef", func() {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "tmpl-custkey", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: testCUETemplate},
+		}
+		Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+		Eventually(func() configv1alpha1.ConfigTemplatePhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
+			return ct.Status.Phase
+		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
+
+		propsSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "creds-custkey", Namespace: "default"},
+			// stored under a non-default key
+			Data: map[string][]byte{"my-key": []byte(`{"username":"frank"}`)},
+		}
+		Expect(k8sClient.Create(ctx, propsSecret)).Should(Succeed())
+
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "cfg-custkey", Namespace: "default"},
+			Spec: configv1alpha1.ConfigSpec{
+				TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "tmpl-custkey", Namespace: "default"},
+				PropertiesFrom: &configv1alpha1.PropertiesReference{
+					SecretRef: configv1alpha1.SecretKeySelector{Name: "creds-custkey", Key: "my-key"},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		var gotCfg configv1alpha1.Config
+		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+
+		var secret corev1.Secret
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cfg-custkey"}, &secret)).Should(Succeed())
+		Expect(string(secret.Data["username"])).Should(Equal("frank"))
 	})
 
 	It("falls back to a legacy config-template-* ConfigMap when no ConfigTemplate CRD exists", func() {
