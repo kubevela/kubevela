@@ -19,8 +19,8 @@ package cli
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/stretchr/testify/require"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
