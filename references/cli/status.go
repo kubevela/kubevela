@@ -493,6 +493,36 @@ func getAppPhaseColor(appPhase commontypes.ApplicationPhase) *color.Color {
 }
 
 func getAppHealth(app *v1beta1.Application) bool {
+	// Terminal / unhealthy application phases must never report as healthy.
+	// This includes cases where no component services were recorded yet (e.g. CUE
+	// parameter errors fail the workflow before any service status is written).
+	// Previously empty Services made this function return true (vacuous truth),
+	// so `vela status` incorrectly showed Healthy: ✅ on workflowFailed apps.
+	switch app.Status.Phase {
+	case commontypes.ApplicationWorkflowFailed,
+		commontypes.ApplicationWorkflowTerminated,
+		commontypes.ApplicationUnhealthy,
+		commontypes.ApplicationDeleting:
+		return false
+	}
+
+	// A failed workflow step means the app is not healthy, even while the
+	// controller is still retrying (phase may still be runningWorkflow).
+	if app.Status.Workflow != nil {
+		for _, step := range app.Status.Workflow.Steps {
+			if step.Phase == workflowv1alpha1.WorkflowStepPhaseFailed {
+				return false
+			}
+		}
+	}
+
+	// No service status yet: cannot claim the application is healthy.
+	// This covers intermediate phases and edge cases where phase is running
+	// but services were never populated.
+	if len(app.Status.Services) == 0 {
+		return false
+	}
+
 	for _, s := range app.Status.Services {
 		if !s.Healthy {
 			return false
