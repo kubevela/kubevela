@@ -155,6 +155,27 @@ func TestGetAppHealth(t *testing.T) {
 			}},
 			want: true,
 		},
+		{
+			name: "failed substep in step-group must not be healthy even if services healthy",
+			app: &v1beta1.Application{Status: common.AppStatus{
+				Phase:    common.ApplicationRunningWorkflow,
+				Services: []common.ApplicationComponentStatus{healthyService},
+				Workflow: &common.WorkflowStatus{
+					Steps: []workflowv1alpha1.WorkflowStepStatus{{
+						StepStatus: workflowv1alpha1.StepStatus{
+							Name:  "group",
+							Type:  "step-group",
+							Phase: workflowv1alpha1.WorkflowStepPhaseRunning,
+						},
+						SubStepsStatus: []workflowv1alpha1.StepStatus{{
+							Name:  "child",
+							Phase: workflowv1alpha1.WorkflowStepPhaseFailed,
+						}},
+					}},
+				},
+			}},
+			want: false,
+		},
 	}
 
 	for _, tt := range tests {

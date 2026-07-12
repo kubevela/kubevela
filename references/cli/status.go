@@ -506,12 +506,19 @@ func getAppHealth(app *v1beta1.Application) bool {
 		return false
 	}
 
-	// A failed workflow step means the app is not healthy, even while the
-	// controller is still retrying (phase may still be runningWorkflow).
+	// A failed workflow step (or substep in a step-group) means the app is not
+	// healthy, even while the controller is still retrying (phase may still be
+	// runningWorkflow).
 	if app.Status.Workflow != nil {
-		for _, step := range app.Status.Workflow.Steps {
+		for i := range app.Status.Workflow.Steps {
+			step := &app.Status.Workflow.Steps[i]
 			if step.Phase == workflowv1alpha1.WorkflowStepPhaseFailed {
 				return false
+			}
+			for j := range step.SubStepsStatus {
+				if step.SubStepsStatus[j].Phase == workflowv1alpha1.WorkflowStepPhaseFailed {
+					return false
+				}
 			}
 		}
 	}
