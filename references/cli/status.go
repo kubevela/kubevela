@@ -504,6 +504,9 @@ func getAppHealth(app *v1beta1.Application) bool {
 		commontypes.ApplicationUnhealthy,
 		commontypes.ApplicationDeleting:
 		return false
+	default:
+		// Other phases (starting/rendering/runningWorkflow/running/...) continue
+		// with service and workflow-step health checks below.
 	}
 
 	// A failed workflow step (or substep in a step-group) means the app is not
