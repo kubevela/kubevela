@@ -18,6 +18,7 @@ package health
 
 import (
 	"encoding/json"
+	goerrors "errors"
 	"slices"
 	"strings"
 
@@ -95,7 +96,7 @@ func GetStatus(templateContext map[string]interface{}, request *StatusRequest) (
 		Healthy: healthy,
 		Message: message,
 		Details: statusMap,
-	}, nil
+	}, goerrors.Join(mapErr, healthErr, msgErr)
 }
 
 func getStatusMessage(templateContext map[string]interface{}, customStatusTemplate string, parameter interface{}) (string, error) {
