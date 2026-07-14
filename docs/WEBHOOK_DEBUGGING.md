@@ -186,6 +186,4 @@ make k3d-delete
 
 ## Related Documentation
 
-- [KubeVela Webhook Implementation](../pkg/webhook/README.md)
-- [CUE Template Validation](../pkg/webhook/utils/README.md)
 - [Admission Webhooks](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/)
