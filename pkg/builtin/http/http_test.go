@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -97,6 +98,110 @@ func TestHTTPCmdRun(t *testing.T) {
 
 	assert.Equal(t, "{\"token\":\"test-token-no-header\"}", body)
 
+}
+
+func TestHTTPCmdRunWithCustomTimeout(t *testing.T) {
+	// Start a slow server that takes 200ms to respond
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	}))
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to listen on ephemeral port: %v", err)
+	}
+	ts.Listener.Close()
+	ts.Listener = l
+	ts.Start()
+	defer ts.Close()
+
+	// Derive the server URL from the listener address
+	serverURL := fmt.Sprintf("http://%s/api/v1/slow", l.Addr().String())
+
+	// Without custom timeout (default 3s) — should succeed since server responds in 200ms
+	reqDefault := cuecontext.New().CompileString(fmt.Sprintf(`{
+		method: "GET"
+		url: "%s"
+	}`, serverURL))
+	runner, _ := newHTTPCmd(cue.Value{})
+	got, err := runner.Run(&registry.Meta{Obj: reqDefault.Value()})
+	assert.NoError(t, err)
+	body := (got.(map[string]interface{}))["body"].(string)
+	assert.Equal(t, `{"status":"ok"}`, body)
+
+	// With explicit timeout of 1s — should also succeed
+	reqCustom := cuecontext.New().CompileString(fmt.Sprintf(`{
+		method: "GET"
+		url: "%s"
+		request: {
+			timeout: "1s"
+		}
+	}`, serverURL))
+	got, err = runner.Run(&registry.Meta{Obj: reqCustom.Value()})
+	assert.NoError(t, err)
+	body = (got.(map[string]interface{}))["body"].(string)
+	assert.Equal(t, `{"status":"ok"}`, body)
+
+	// With a very short timeout of 50ms — should fail
+	reqShort := cuecontext.New().CompileString(fmt.Sprintf(`{
+		method: "GET"
+		url: "%s"
+		request: {
+			timeout: "50ms"
+		}
+	}`, serverURL))
+	_, err = runner.Run(&registry.Meta{Obj: reqShort.Value()})
+	assert.Error(t, err, "expected timeout error with 50ms deadline on a 200ms server")
+}
+
+func TestHTTPCmdRunWithInvalidTimeout(t *testing.T) {
+	s := NewMock()
+	defer s.Close()
+
+	runner, _ := newHTTPCmd(cue.Value{})
+
+	// Invalid timeout value should be silently ignored and use the default 3s
+	reqInvalid := cuecontext.New().CompileString(`{
+		method: "GET"
+		url: "http://127.0.0.1:8090/api/v1/token?val=test-token"
+		request: {
+			timeout: "not-a-duration"
+			header: {
+				"Accept-Language": "en,nl"
+			}
+		}
+	}`)
+	got, err := runner.Run(&registry.Meta{Obj: reqInvalid.Value()})
+	assert.NoError(t, err)
+	body := (got.(map[string]interface{}))["body"].(string)
+	assert.Equal(t, `{"token":"test-token"}`, body)
+
+	// Zero timeout should be rejected and fall back to default 3s
+	reqZero := cuecontext.New().CompileString(`{
+		method: "GET"
+		url: "http://127.0.0.1:8090/api/v1/token?val=test-zero"
+		request: {
+			timeout: "0s"
+		}
+	}`)
+	got, err = runner.Run(&registry.Meta{Obj: reqZero.Value()})
+	assert.NoError(t, err)
+	body = (got.(map[string]interface{}))["body"].(string)
+	assert.Equal(t, `{"token":"test-zero"}`, body)
+
+	// Negative timeout should be rejected and fall back to default 3s
+	reqNegative := cuecontext.New().CompileString(`{
+		method: "GET"
+		url: "http://127.0.0.1:8090/api/v1/token?val=test-negative"
+		request: {
+			timeout: "-5s"
+		}
+	}`)
+	got, err = runner.Run(&registry.Meta{Obj: reqNegative.Value()})
+	assert.NoError(t, err)
+	body = (got.(map[string]interface{}))["body"].(string)
+	assert.Equal(t, `{"token":"test-negative"}`, body)
 }
 
 func TestHTTPSRun(t *testing.T) {
