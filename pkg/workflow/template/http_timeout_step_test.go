@@ -7,7 +7,7 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 
-    15|Unless required by applicable law or agreed to in writing, software
+Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
@@ -46,17 +46,29 @@ func readWorkflowStepCue(t *testing.T, name string) string {
 
 func assertTimeoutPlumbing(t *testing.T, content, step string) {
 	t.Helper()
-	assert.Contains(t, content, "timeout?: string",
-		"%s should expose optional timeout parameter", step)
-	assert.Contains(t, content, "if parameter.timeout != _|_",
-		"%s should only set request.timeout when parameter.timeout is provided (default 3s otherwise)", step)
-	assert.Contains(t, content, "timeout: parameter.timeout",
-		"%s should forward timeout to http.#HTTPDo as request.timeout", step)
+	assert.Contains(t, content, `timeout?: string & =~"^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"`,
+		"%s should expose optional timeout parameter with duration validation", step)
+	assert.Contains(t, content, "Invalid values fail when the step runs",
+		"%s should document runtime failure for invalid timeout values", step)
+}
+
+func assertSharedHTTPRequestOpts(t *testing.T, content, step string, mergeCount int) {
+	t.Helper()
+	assert.Contains(t, content, "httpRequestOpts:",
+		"%s should define shared httpRequestOpts for timeout forwarding", step)
+	assert.Equal(t, 1, strings.Count(content, "if parameter.timeout != _|_"),
+		"%s should forward timeout in one shared httpRequestOpts block", step)
+	assert.Equal(t, mergeCount, strings.Count(content, "& httpRequestOpts"),
+		"%s should merge httpRequestOpts into each HTTPDo request block", step)
 }
 
 func TestRequestStepExposesHTTPTimeout(t *testing.T) {
 	content := readWorkflowStepCue(t, "request.cue")
 	assertTimeoutPlumbing(t, content, "request")
+	assert.Contains(t, content, "if parameter.timeout != _|_",
+		"request should forward timeout in its HTTPDo request block")
+	assert.Contains(t, content, "timeout: parameter.timeout",
+		"request should forward timeout to http.#HTTPDo as request.timeout")
 	assert.Equal(t, 1, strings.Count(content, "if parameter.timeout != _|_"),
 		"request should forward timeout in a single HTTPDo request block")
 }
@@ -64,19 +76,17 @@ func TestRequestStepExposesHTTPTimeout(t *testing.T) {
 func TestWebhookStepExposesHTTPTimeout(t *testing.T) {
 	content := readWorkflowStepCue(t, "webhook.cue")
 	assertTimeoutPlumbing(t, content, "webhook")
-	assert.Equal(t, 2, strings.Count(content, "if parameter.timeout != _|_"),
-		"webhook should forward timeout for both url.value and url.secretRef HTTPDo paths")
+	assertSharedHTTPRequestOpts(t, content, "webhook", 2)
 }
 
 func TestNotificationStepExposesHTTPTimeout(t *testing.T) {
 	content := readWorkflowStepCue(t, "notification.cue")
 	assertTimeoutPlumbing(t, content, "notification")
-	assert.Equal(t, 6, strings.Count(content, "if parameter.timeout != _|_"),
-		"notification should forward timeout for dingding/lark/slack value and secretRef HTTPDo paths")
-	// Email uses email.#SendEmail and must not get HTTP timeout wiring beyond the shared parameter.
+	assertSharedHTTPRequestOpts(t, content, "notification", 6)
+	// Email uses email.#SendEmail and must not merge HTTP timeout opts.
 	emailIdx := strings.Index(content, "email0:")
 	require.Greater(t, emailIdx, 0)
 	emailSection := content[emailIdx:]
-	assert.NotContains(t, emailSection, "if parameter.timeout != _|_",
-		"email path should not forward HTTP timeout")
+	assert.NotContains(t, emailSection, "& httpRequestOpts",
+		"email path should not merge HTTP timeout opts")
 }
