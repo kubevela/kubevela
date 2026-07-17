@@ -12,6 +12,7 @@ spec:
       type: request
       properties:
         url: https://api.github.com/repos/kubevela/workflow
+        timeout: 30s
       outputs:
         - name: stars
           valueFrom: |

@@ -22,6 +22,7 @@ spec:
       - name: dingtalk-message
         type: notification
         properties:
+          timeout: 30s
           dingding:
             # the DingTalk webhook address, please refer to: https://developers.dingtalk.com/document/robots/custom-robot-access
             url: 
@@ -35,6 +36,7 @@ spec:
       - name: slack-message
         type: notification
         properties:
+          timeout: 30s
           slack:
             # the Slack webhook address, please refer to: https://api.slack.com/messaging/webhooks
             url:

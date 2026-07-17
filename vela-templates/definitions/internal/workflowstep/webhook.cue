@@ -44,6 +44,9 @@ template: {
 					request: {
 						body: data.value
 						header: "Content-Type": "application/json"
+						if parameter.timeout != _|_ {
+							timeout: parameter.timeout
+						}
 					}
 				}
 			}
@@ -70,6 +73,9 @@ template: {
 					request: {
 						body: data.value
 						header: "Content-Type": "application/json"
+						if parameter.timeout != _|_ {
+							timeout: parameter.timeout
+						}
 					}
 				}
 			}
@@ -90,5 +96,7 @@ template: {
 		})
 		// +usage=Specify the data you want to send
 		data?: {...}
+		// +usage=The timeout of this request (Go duration string, e.g. "30s", "2m", "500ms"). Defaults to 3s when omitted.
+		timeout?: string
 	}
 }

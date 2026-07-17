@@ -21,6 +21,7 @@ spec:
       - name: notification
         type: notification
         properties:
+          timeout: 30s
           dingding:
             # directly specify the webhook url
             url:
