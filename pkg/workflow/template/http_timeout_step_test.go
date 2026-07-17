@@ -46,8 +46,8 @@ func readWorkflowStepCue(t *testing.T, name string) string {
 
 func assertTimeoutPlumbing(t *testing.T, content, step string) {
 	t.Helper()
-	assert.Contains(t, content, `timeout?: string & =~"^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"`,
-		"%s should expose optional timeout parameter with duration validation", step)
+	assert.Contains(t, content, `timeout?: string & =~"^(0|(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$"`,
+		"%s should expose optional timeout parameter with Go ParseDuration-compatible validation", step)
 	assert.Contains(t, content, "Invalid values fail when the step runs",
 		"%s should document runtime failure for invalid timeout values", step)
 }
