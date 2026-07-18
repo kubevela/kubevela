@@ -383,6 +383,36 @@ func TestValidateTraitParams(t *testing.T) {
 			params:    map[string]interface{}{},
 			wantErr:   "",
 		},
+		{
+			name:      "required param with no default left out",
+			traitName: "scaler",
+			template: `
+			parameter: {
+				maxReplicas: int
+			}
+			patch: {
+				spec: replicas: parameter.maxReplicas
+			}
+			`,
+			params:  map[string]interface{}{},
+			wantErr: "missing required parameters",
+		},
+		{
+			name:      "wrong type for defaulted parameter",
+			traitName: "scaler",
+			template: `
+			parameter: {
+				maxReplicas: int | *2
+			}
+			patch: {
+				spec: replicas: parameter.maxReplicas
+			}
+			`,
+			params: map[string]interface{}{
+				"maxReplicas": "not-an-int",
+			},
+			wantErr: "parameter constraint violation",
+		},
 	}
 
 	for _, tc := range testCases {
