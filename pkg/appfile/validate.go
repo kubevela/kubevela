@@ -296,7 +296,10 @@ func ValidateTraitParams(ctxData velaprocess.ContextData, tr *Trait) error {
 // trait's parameter schema that are absent from the supplied params map.
 func enforceTraitRequiredParams(paramVal cue.Value, params map[string]any, traitName string) error {
 	reqFields, err := requiredFields(paramVal)
-	if err != nil || len(reqFields) == 0 {
+	if err != nil {
+		return err
+	}
+	if len(reqFields) == 0 {
 		return nil
 	}
 	var missing []string
