@@ -176,6 +176,7 @@ template: {
 
 		containers: [{
 			// +patchKey=name
+			// +patchStrategy=retainKeys
 			env: envList
 			// +patchKey=name
 			volumeDevices: volumeDevicesList
