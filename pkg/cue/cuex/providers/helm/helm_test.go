@@ -43,6 +43,7 @@ var _ = Describe("Helm Provider", func() {
 	Describe("Render function (via provider)", func() {
 		It("should exercise dry-run render path with pre-cached chart", func() {
 			p := NewProviderWithConfig(nil)
+			defer p.Close()
 
 			// Pre-seed a chart in cache so fetchChart succeeds
 			testChart := &chart.Chart{
