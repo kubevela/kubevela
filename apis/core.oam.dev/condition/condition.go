@@ -122,8 +122,8 @@ func NewConditionedStatus(c ...Condition) *ConditionedStatus {
 	return s
 }
 
-// GetCondition returns the condition for the given ConditionType if exists,
-// otherwise returns nil
+// GetCondition returns the condition for the given ConditionType if it exists,
+// otherwise it returns a Condition of that type with status Unknown.
 func (s *ConditionedStatus) GetCondition(ct ConditionType) Condition {
 	for _, c := range s.Conditions {
 		if c.Type == ct {
