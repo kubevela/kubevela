@@ -1449,6 +1449,114 @@ var _ = Describe("CUEGenerator", func() {
 			// Plain string (optional)
 			Expect(cue).To(ContainSubstring("name?: string"))
 		})
+
+		// Table-driven tests for StringParam enum edge cases via writeStringParam.
+		DescribeTable("StringParam enum edge cases",
+			func(buildComp func() defkit.Param, contains []string, notContains []string) {
+				comp := defkit.NewComponent("test-string-enum-edge").
+					Workload("v1", "Pod").
+					Params(buildComp()).
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("v1", "Pod"))
+					})
+				cue := defkit.NewCUEGenerator().GenerateParameterSchema(comp)
+				for _, s := range contains {
+					Expect(cue).To(ContainSubstring(s))
+				}
+				for _, s := range notContains {
+					Expect(cue).NotTo(ContainSubstring(s))
+				}
+			},
+			Entry("empty Values and no default produces plain string",
+				func() defkit.Param {
+					return defkit.String("fieldName")
+				},
+				[]string{"fieldName: string"},
+				[]string{`fieldName: "`, "fieldName?: "},
+			),
+			Entry("single value no default required produces quoted literal",
+				func() defkit.Param {
+					return defkit.String("fieldName").Values("v1")
+				},
+				[]string{`fieldName: "v1"`},
+				[]string{"fieldName?: ", "fieldName: string"},
+			),
+			Entry("single value optional produces optional quoted literal",
+				func() defkit.Param {
+					return defkit.String("fieldName").Values("v1").Optional()
+				},
+				[]string{`fieldName?: "v1"`},
+				[]string{"fieldName: string"},
+			),
+			Entry("default not in Values list: default appears first with asterisk",
+				func() defkit.Param {
+					return defkit.String("fieldName").Default("x").Values("v1", "v2")
+				},
+				[]string{`fieldName: *"x" | "v1" | "v2"`},
+				[]string{"fieldName?: ", "fieldName: string"},
+			),
+			Entry("OpenEnum with values appends | string",
+				func() defkit.Param {
+					return defkit.String("fieldName").Values("v1", "v2").OpenEnum()
+				},
+				[]string{`fieldName: "v1" | "v2" | string`},
+				[]string{"fieldName?: "},
+			),
+			Entry("OpenEnum with no values produces plain string",
+				func() defkit.Param {
+					return defkit.String("fieldName").OpenEnum()
+				},
+				[]string{"fieldName: string"},
+				[]string{"fieldName?: "},
+			),
+		)
+
+		// Table-driven tests for EnumParam edge cases via writeEnumParam.
+		DescribeTable("EnumParam edge cases",
+			func(buildComp func() defkit.Param, contains []string, notContains []string) {
+				comp := defkit.NewComponent("test-enum-param-edge").
+					Workload("v1", "Pod").
+					Params(buildComp()).
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("v1", "Pod"))
+					})
+				cue := defkit.NewCUEGenerator().GenerateParameterSchema(comp)
+				for _, s := range contains {
+					Expect(cue).To(ContainSubstring(s))
+				}
+				for _, s := range notContains {
+					Expect(cue).NotTo(ContainSubstring(s))
+				}
+			},
+			Entry("required enum with multiple values — ! marker present",
+				func() defkit.Param {
+					return defkit.Enum("fieldName").Values("a", "b", "c").Required()
+				},
+				[]string{`fieldName!: "a" | "b" | "c"`},
+				[]string{"fieldName?: ", "fieldName: string"},
+			),
+			Entry("optional enum with multiple values — ? marker present",
+				func() defkit.Param {
+					return defkit.Enum("fieldName").Values("a", "b", "c").Optional()
+				},
+				[]string{`fieldName?: "a" | "b" | "c"`},
+				[]string{"fieldName: string"},
+			),
+			Entry("EnumParam with single value only",
+				func() defkit.Param {
+					return defkit.Enum("fieldName").Values("only")
+				},
+				[]string{`fieldName: "only"`},
+				[]string{"fieldName?: ", "fieldName: string"},
+			),
+			Entry("EnumParam with no values produces plain string",
+				func() defkit.Param {
+					return defkit.Enum("fieldName")
+				},
+				[]string{"fieldName: string"},
+				[]string{"fieldName?: "},
+			),
+		)
 	})
 
 	Describe("GenerateParameterSchema with ClosedUnion parameters", func() {
