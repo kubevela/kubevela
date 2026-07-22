@@ -18,7 +18,7 @@ permissions:
 
 env:
   # Common versions
-  GO_VERSION: '1.23.8'
+  GO_VERSION: '1.25.12'
   # Every suite job loads the same image, built once by build-image. Suite jobs
   # do not wait for that job: they set up their cluster meanwhile and wait for
   # the artifact just before installing the chart.

@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 env:
-  GO_VERSION: '1.23.8'
+  GO_VERSION: '1.25.12'
 
 jobs:
   detect-noop:
@@ -50,9 +50,9 @@ jobs:
 
       - name: Setup KinD
         run: |
-          go install sigs.k8s.io/kind@v0.29.0
+          go install sigs.k8s.io/kind@v0.32.0
           kind delete cluster || true
-          kind create cluster --image=kindest/node:v1.31.9
+          kind create cluster --image=kindest/node:v1.35.5
 
       - name: Install KubeVela CLI
         run: curl -fsSL https://kubevela.io/script/install.sh | bash
