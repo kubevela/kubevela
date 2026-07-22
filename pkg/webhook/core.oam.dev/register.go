@@ -38,5 +38,5 @@ func Register(mgr manager.Manager, args controller.Args) {
 	policydefinition.RegisterValidatingHandler(mgr)
 	workflowstepdefinition.RegisterValidatingHandler(mgr)
 	server := mgr.GetWebhookServer()
-	server.Register("/convert", conversion.NewWebhookHandler(mgr.GetScheme()))
+	server.Register("/convert", conversion.NewWebhookHandler(mgr.GetScheme(), conversion.NewRegistry()))
 }
