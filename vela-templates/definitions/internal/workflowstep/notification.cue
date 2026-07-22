@@ -158,6 +158,14 @@ template: {
 				body: string
 			}
 		}
+		// +usage=The timeout of HTTP notifications (Go duration string, e.g. "30s", "2m", "500ms"). Defaults to 3s when omitted. Invalid values fail when the step runs.
+		timeout?: string & =~"^(0|(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$"
+	}
+
+	httpRequestOpts: {
+		if parameter.timeout != _|_ {
+			timeout: parameter.timeout
+		}
 	}
 
 	block: {
@@ -219,7 +227,7 @@ template: {
 						request: {
 							body: json.Marshal(parameter.dingding.message)
 							header: "Content-Type": "application/json"
-						}
+						} & httpRequestOpts
 					}
 				}
 			}
@@ -245,7 +253,7 @@ template: {
 						request: {
 							body: json.Marshal(parameter.dingding.message)
 							header: "Content-Type": "application/json"
-						}
+						} & httpRequestOpts
 					}
 				}
 			}
@@ -262,7 +270,7 @@ template: {
 						request: {
 							body: json.Marshal(parameter.lark.message)
 							header: "Content-Type": "application/json"
-						}
+						} & httpRequestOpts
 					}
 				}
 			}
@@ -288,7 +296,7 @@ template: {
 						request: {
 							body: json.Marshal(parameter.lark.message)
 							header: "Content-Type": "application/json"
-						}
+						} & httpRequestOpts
 					}
 				}
 
@@ -306,7 +314,7 @@ template: {
 						request: {
 							body: json.Marshal(parameter.slack.message)
 							header: "Content-Type": "application/json"
-						}
+						} & httpRequestOpts
 					}
 				}
 			}
@@ -332,7 +340,7 @@ template: {
 						request: {
 							body: json.Marshal(parameter.slack.message)
 							header: "Content-Type": "application/json"
-						}
+						} & httpRequestOpts
 					}
 				}
 			}

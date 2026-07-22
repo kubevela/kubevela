@@ -20,4 +20,5 @@ spec:
         properties:
           url:
             value: <your webhook url>
+          timeout: 30s
 ```
