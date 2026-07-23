@@ -163,6 +163,79 @@ func TestPolicyContext_SensitiveCtxNotInConfigMap(t *testing.T) {
 	}
 }
 
+// TestPolicyContext_SensitiveCtxClearedWhenEmpty verifies that once sensitive
+// context stops being produced (sensitiveCtx removed / policy disabled), the
+// previously stored credentials are cleared from the owned Secret rather than
+// lingering indefinitely.
+func TestPolicyContext_SensitiveCtxClearedWhenEmpty(t *testing.T) {
+	cli := secretLeakTestClient(t)
+	h := &AppHandler{Client: cli}
+	app := secretLeakTestApp()
+
+	// First reconcile: policy contributes a secret → Secret is populated.
+	withSensitive := []RenderedPolicyResult{{
+		PolicyName:       "read-db-secret",
+		Enabled:          true,
+		Transforms:       &PolicyOutput{SensitiveCtx: map[string]interface{}{"dbPassword": leakedSecretValue}},
+		SensitiveContext: map[string]interface{}{"dbPassword": leakedSecretValue},
+	}}
+	monCtx := monitorContext.NewTraceContext(context.Background(), "clear-1")
+	h.writePolicyObservabilityConfigMap(monCtx, app, withSensitive, &v1beta1.ApplicationSpec{}, nil, false, false)
+
+	secret := &corev1.Secret{}
+	key := client.ObjectKey{Name: policySecretName(app.Namespace, app.Name), Namespace: app.Namespace}
+	if err := cli.Get(context.Background(), key, secret); err != nil {
+		t.Fatalf("expected Secret to exist after first reconcile: %v", err)
+	}
+	if !secretContains(secret, leakedSecretValue) {
+		t.Fatalf("expected sensitive value stored after first reconcile")
+	}
+
+	// Second reconcile: policy no longer contributes sensitive context.
+	noSensitive := []RenderedPolicyResult{{
+		PolicyName: "read-db-secret",
+		Enabled:    true,
+		Transforms: &PolicyOutput{Ctx: map[string]interface{}{"dbHost": "db.internal"}},
+	}}
+	monCtx = monitorContext.NewTraceContext(context.Background(), "clear-2")
+	h.writePolicyObservabilityConfigMap(monCtx, app, noSensitive, &v1beta1.ApplicationSpec{}, nil, false, false)
+
+	if err := cli.Get(context.Background(), key, secret); err != nil {
+		t.Fatalf("expected Secret to still exist (cleared, not deleted): %v", err)
+	}
+	if len(secret.Data) != 0 {
+		t.Fatalf("expected Secret Data to be cleared, still had %d entries", len(secret.Data))
+	}
+}
+
+// TestPolicyContext_DoesNotOverwriteForeignSecret verifies the controller refuses
+// to clobber a Secret it does not own even on a name collision.
+func TestPolicyContext_DoesNotOverwriteForeignSecret(t *testing.T) {
+	app := secretLeakTestApp()
+	foreign := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      policySecretName(app.Namespace, app.Name),
+			Namespace: app.Namespace,
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{"unrelated": []byte("keep-me")},
+	}
+	cli := secretLeakTestClient(t, foreign)
+
+	err := reconcilePolicySecret(context.Background(), cli, app, map[string][]byte{"001-p": []byte("new")})
+	if err == nil {
+		t.Fatalf("expected reconcile to refuse overwriting a non-owned Secret")
+	}
+
+	got := &corev1.Secret{}
+	if getErr := cli.Get(context.Background(), client.ObjectKey{Name: foreign.Name, Namespace: foreign.Namespace}, got); getErr != nil {
+		t.Fatalf("foreign Secret should still exist: %v", getErr)
+	}
+	if string(got.Data["unrelated"]) != "keep-me" {
+		t.Fatalf("foreign Secret data must be untouched")
+	}
+}
+
 // TestPolicyContext_NoSecretWhenNoSensitiveData ensures we don't create empty
 // Secrets when no policy contributes sensitive context (no needless RBAC use).
 func TestPolicyContext_NoSecretWhenNoSensitiveData(t *testing.T) {

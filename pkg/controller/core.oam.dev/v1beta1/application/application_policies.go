@@ -325,12 +325,12 @@ func (h *AppHandler) writePolicyObservabilityConfigMap(ctx monitorContext.Contex
 	// Sensitive policy context (values a policy derived from Secrets and routed
 	// through output.sensitiveCtx) is persisted to an Application-owned Secret so
 	// it never lands in the plaintext observability ConfigMap. See kubevela#6840.
-	// This write is fail-safe: on error the sensitive data is simply not persisted
-	// anywhere — it is never written to the ConfigMap as a fallback.
-	if secretData := collectSensitivePolicyContext(results); len(secretData) > 0 {
-		if err := createOrUpdatePolicySecret(ctx, h.Client, app, secretData); err != nil {
-			ctx.Info("Failed to store sensitive policy Secret; sensitive context omitted from persistence", "error", err)
-		}
+	// Always reconcile (even when empty) so that removing sensitiveCtx, disabling a
+	// policy, or deleting the last policy CLEARS previously stored credentials
+	// instead of leaving them behind. Fail-safe: on error sensitive data is simply
+	// not persisted — it is never written to the ConfigMap as a fallback.
+	if err := reconcilePolicySecret(ctx, h.Client, app, collectSensitivePolicyContext(results)); err != nil {
+		ctx.Info("Failed to reconcile sensitive policy Secret; sensitive context not persisted", "error", err)
 	}
 }
 
@@ -1335,70 +1335,94 @@ func policySecretName(namespace, appName string) string {
 	return prefix + truncated + "-" + hash
 }
 
-// createOrUpdatePolicySecret persists sensitive policy context to an
-// Application-owned Secret. The Secret carries an owner reference to the
-// Application so it is garbage-collected when the Application is deleted, and the
-// same labels as the observability ConfigMap for discoverability. It mirrors
-// createOrUpdateDiffsConfigMap but writes an Opaque Secret instead of a ConfigMap.
-func createOrUpdatePolicySecret(ctx context.Context, cli client.Client, app *v1beta1.Application, data map[string][]byte) error {
-	secretName := policySecretName(app.Namespace, app.Name)
-
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: app.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					// Use hardcoded values since TypeMeta is cleared by k8s client after Create/Get
-					APIVersion:         v1beta1.SchemeGroupVersion.String(),
-					Kind:               v1beta1.ApplicationKind,
-					Name:               app.Name,
-					UID:                app.UID,
-					Controller:         ptrBool(true),
-					BlockOwnerDeletion: ptrBool(true),
-				},
-			},
+// policySecretOwnerRefs returns the owner reference tying the sensitive-context
+// Secret to its Application so the Secret is garbage-collected on delete.
+func policySecretOwnerRefs(app *v1beta1.Application) []metav1.OwnerReference {
+	return []metav1.OwnerReference{
+		{
+			// Use hardcoded values since TypeMeta is cleared by k8s client after Create/Get
+			APIVersion:         v1beta1.SchemeGroupVersion.String(),
+			Kind:               v1beta1.ApplicationKind,
+			Name:               app.Name,
+			UID:                app.UID,
+			Controller:         ptrBool(true),
+			BlockOwnerDeletion: ptrBool(true),
 		},
-		Type: corev1.SecretTypeOpaque,
-		Data: data,
 	}
+}
 
-	meta.AddLabels(secret, map[string]string{
-		oam.LabelAppName:                   app.Name,
-		oam.LabelAppNamespace:              app.Namespace,
-		oam.LabelAppUID:                    string(app.UID),
-		"app.oam.dev/application-policies": "true",
-	})
-	meta.AddAnnotations(secret, map[string]string{
-		oam.AnnotationLastAppliedTime: time.Now().Format(time.RFC3339),
-	})
-
-	err := cli.Create(ctx, secret)
-	if err != nil {
-		if client.IgnoreAlreadyExists(err) == nil {
-			existing := &corev1.Secret{}
-			if getErr := cli.Get(ctx, client.ObjectKey{Name: secretName, Namespace: app.Namespace}, existing); getErr != nil {
-				return errors.Wrap(getErr, "failed to get existing Secret")
-			}
-
-			existing.Data = data
-			existing.Type = corev1.SecretTypeOpaque
-			existing.OwnerReferences = secret.OwnerReferences
-			meta.AddLabels(existing, map[string]string{
-				oam.LabelAppUID: string(app.UID),
-			})
-			meta.AddAnnotations(existing, map[string]string{
-				oam.AnnotationLastAppliedTime: time.Now().Format(time.RFC3339),
-			})
-			if updateErr := cli.Update(ctx, existing); updateErr != nil {
-				return errors.Wrap(updateErr, "failed to update Secret")
-			}
-		} else {
-			return errors.Wrap(err, "failed to create Secret")
+// appOwnsSecret reports whether the given owner references include a controller
+// reference to this Application (matched by UID so a stale name cannot spoof it).
+func appOwnsSecret(refs []metav1.OwnerReference, app *v1beta1.Application) bool {
+	for _, ref := range refs {
+		if ref.Kind == v1beta1.ApplicationKind && ref.UID == app.UID {
+			return true
 		}
 	}
+	return false
+}
 
-	return nil
+// reconcilePolicySecret makes the Application-owned sensitive-context Secret
+// reflect the CURRENT policy output. It mirrors createOrUpdateDiffsConfigMap but
+// for an Opaque Secret, with two safety properties beyond it:
+//
+//   - When data is empty (no policy contributes sensitive context anymore, e.g.
+//     sensitiveCtx was removed or the last policy was deleted) it clears an
+//     existing Secret's Data instead of leaving stale credentials behind, and
+//     does NOT create a new empty Secret.
+//   - It refuses to mutate a Secret that this Application does not own, so the
+//     controller's broad secret-write permission cannot be leveraged to overwrite
+//     an unrelated Secret that happens to share the deterministic name.
+func reconcilePolicySecret(ctx context.Context, cli client.Client, app *v1beta1.Application, data map[string][]byte) error {
+	secretName := policySecretName(app.Namespace, app.Name)
+
+	existing := &corev1.Secret{}
+	err := cli.Get(ctx, client.ObjectKey{Name: secretName, Namespace: app.Namespace}, existing)
+	if kerrors.IsNotFound(err) {
+		if len(data) == 0 {
+			// Nothing sensitive to persist and no Secret to clean up.
+			return nil
+		}
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            secretName,
+				Namespace:       app.Namespace,
+				OwnerReferences: policySecretOwnerRefs(app),
+			},
+			Type: corev1.SecretTypeOpaque,
+			Data: data,
+		}
+		meta.AddLabels(secret, map[string]string{
+			oam.LabelAppName:                   app.Name,
+			oam.LabelAppNamespace:              app.Namespace,
+			oam.LabelAppUID:                    string(app.UID),
+			"app.oam.dev/application-policies": "true",
+		})
+		meta.AddAnnotations(secret, map[string]string{
+			oam.AnnotationLastAppliedTime: time.Now().Format(time.RFC3339),
+		})
+		return errors.Wrap(cli.Create(ctx, secret), "failed to create sensitive policy Secret")
+	}
+	if err != nil {
+		return errors.Wrap(err, "failed to get sensitive policy Secret")
+	}
+
+	if !appOwnsSecret(existing.OwnerReferences, app) {
+		return errors.Errorf("refusing to overwrite Secret %s/%s not owned by Application %s", app.Namespace, secretName, app.Name)
+	}
+
+	// data may be empty here: assigning it clears previously stored credentials
+	// when the current policy output no longer contributes any sensitive context.
+	existing.Data = data
+	existing.Type = corev1.SecretTypeOpaque
+	existing.OwnerReferences = policySecretOwnerRefs(app)
+	meta.AddLabels(existing, map[string]string{
+		oam.LabelAppUID: string(app.UID),
+	})
+	meta.AddAnnotations(existing, map[string]string{
+		oam.AnnotationLastAppliedTime: time.Now().Format(time.RFC3339),
+	})
+	return errors.Wrap(cli.Update(ctx, existing), "failed to update sensitive policy Secret")
 }
 
 func ptrBool(b bool) *bool { return &b }
