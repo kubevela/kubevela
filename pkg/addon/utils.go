@@ -269,6 +269,12 @@ func IsVersionRegistry(r Registry) bool {
 	return r.Helm != nil
 }
 
+// IsOCIRegistry check the registry is an OCI-type registry (addon stored as an
+// OCI Helm chart, e.g. in ECR/GHCR).
+func IsOCIRegistry(r Registry) bool {
+	return r.OCI != nil
+}
+
 // InstallOption define additional option for installation
 type InstallOption func(installer *Installer)
 

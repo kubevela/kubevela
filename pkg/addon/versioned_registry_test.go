@@ -218,7 +218,25 @@ func TestToVersionedRegistry(t *testing.T) {
 	}
 	assert.Equal(t, expected, actual)
 
-	// Test case 2: when converting a git-based registry, return error
+	// Test case 2: convert an OCI-based registry
+	registry = Registry{
+		Name: "oci-based-registry",
+		OCI: &OCIAddonSource{
+			URL:      "oci://repo.example/addon",
+			Username: "example-user",
+			Token:    "example-token",
+		},
+	}
+	actual, err = ToVersionedRegistry(registry)
+	assert.NoError(t, err)
+	ociActual, ok := actual.(*ociRegistry)
+	require.True(t, ok)
+	assert.Equal(t, registry.Name, ociActual.name)
+	assert.Equal(t, registry.OCI.URL, ociActual.url)
+	assert.Equal(t, registry.OCI.Username, ociActual.username)
+	assert.Equal(t, registry.OCI.Token, ociActual.token)
+
+	// Test case 3: when converting a git-based registry, return error
 	registry = Registry{
 		Name: "git-based-registry",
 		Git: &GitAddonSource{

@@ -181,6 +181,51 @@ func (g *GitlabAddonSource) SafeCopy() *GitlabAddonSource {
 	}
 }
 
+// OCIAddonSource defines the information about an OCI registry as an addon
+// source. The addon is stored as an OCI Helm chart (pushed via `helm push
+// oci://...`). Auth is a static bearer/basic credential: for ECR the Username
+// is "AWS" and Token is the output of `aws ecr get-login-password`.
+type OCIAddonSource struct {
+	URL            string `json:"url,omitempty" validate:"required"`
+	Username       string `json:"username,omitempty"`
+	Token          string `json:"token,omitempty"`
+	TokenSecretRef string `json:"tokenSecretRef,omitempty"`
+}
+
+// GetToken returns the token of the source
+func (o *OCIAddonSource) GetToken() string {
+	return o.Token
+}
+
+// SetToken sets the token of the source and clears any secret ref
+func (o *OCIAddonSource) SetToken(token string) {
+	o.Token = token
+	o.TokenSecretRef = ""
+}
+
+// SetTokenSecretRef sets the token secret ref and clears the inline token
+func (o *OCIAddonSource) SetTokenSecretRef(secretName string) {
+	o.Token = ""
+	o.TokenSecretRef = secretName
+}
+
+// GetTokenSecretRef returns the token secret ref of the source
+func (o *OCIAddonSource) GetTokenSecretRef() string {
+	return o.TokenSecretRef
+}
+
+// SafeCopy hides field Token
+func (o *OCIAddonSource) SafeCopy() *OCIAddonSource {
+	if o == nil {
+		return nil
+	}
+	return &OCIAddonSource{
+		URL:            o.URL,
+		Username:       o.Username,
+		TokenSecretRef: o.TokenSecretRef,
+	}
+}
+
 // HelmSource  defines the information about the helm repo addon source
 type HelmSource struct {
 	URL             string `json:"url,omitempty" validate:"required"`
@@ -432,8 +477,7 @@ func (r *Registry) ListAddonInfo() (map[string]ItemInfo, error) {
 	if IsLocalRegistry(*r) {
 		return addonInfoMap, nil
 	}
-
-	if IsVersionRegistry(*r) {
+	if IsVersionRegistry(*r) || IsOCIRegistry(*r) {
 		versionedRegistry, err := ToVersionedRegistry(*r)
 		if err != nil {
 			return nil, err

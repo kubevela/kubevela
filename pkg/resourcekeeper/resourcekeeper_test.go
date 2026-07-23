@@ -25,10 +25,12 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -99,6 +101,36 @@ func TestNewResourceKeeper(t *testing.T) {
 	r.NoError(err)
 	r.NotNil(currentRT)
 	r.Equal(3, len(rk._historyRTs))
+}
+
+func TestAddonExplicitDisabledApplyOnceKeepsRawResourceData(t *testing.T) {
+	r := require.New(t)
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	app := &v1beta1.Application{ObjectMeta: v1.ObjectMeta{
+		Name: "addon-component-test", Namespace: "default", Generation: 1,
+		Labels: map[string]string{oam.LabelAddonName: "test-addon"},
+	}}
+	app.Spec.Policies = []v1beta1.AppPolicy{{
+		Name: "addon-component-state-keep", Type: v1alpha1.ApplyOncePolicyType,
+		Properties: &runtime.RawExtension{Raw: []byte(`{"enable":false}`)},
+	}}
+
+	keeper, err := NewResourceKeeper(context.Background(), cli, app)
+	r.NoError(err)
+	rk := keeper.(*resourceKeeper)
+	r.NotNil(rk.applyOncePolicy)
+	r.False(rk.applyOncePolicy.Enable)
+
+	cm := &unstructured.Unstructured{Object: map[string]interface{}{}}
+	cm.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
+	cm.SetName("statekeep-data-test")
+	cm.SetNamespace("default")
+	cm.Object["data"] = map[string]interface{}{"expected": "retained"}
+
+	r.NoError(rk.Dispatch(context.Background(), []*unstructured.Unstructured{cm}, nil))
+	r.NotNil(rk._currentRT)
+	r.Len(rk._currentRT.Spec.ManagedResources, 1)
+	r.NotNil(rk._currentRT.Spec.ManagedResources[0].Data)
 }
 
 func TestGetAppliedResources(t *testing.T) {

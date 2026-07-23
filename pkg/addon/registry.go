@@ -59,6 +59,9 @@ func (r *Registry) GetTokenSource() TokenSource {
 	if r.Gitlab != nil {
 		return r.Gitlab
 	}
+	if r.OCI != nil {
+		return r.OCI
+	}
 	return nil
 }
 
@@ -71,6 +74,7 @@ type Registry struct {
 	OSS    *OSSAddonSource    `json:"oss,omitempty"`
 	Gitee  *GiteeAddonSource  `json:"gitee,omitempty"`
 	Gitlab *GitlabAddonSource `json:"gitlab,omitempty"`
+	OCI    *OCIAddonSource    `json:"oci,omitempty"`
 }
 
 // RegistryDataStore CRUD addon registry data in configmap

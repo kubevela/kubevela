@@ -63,6 +63,9 @@ func BuildVersionedRegistry(name, repoURL string, opts *common.HTTPOption) Versi
 
 // ToVersionedRegistry converts registry to versioned registry
 func ToVersionedRegistry(registry Registry) (VersionedRegistry, error) {
+	if IsOCIRegistry(registry) {
+		return BuildOCIRegistry(registry.Name, registry.OCI.URL, registry.OCI.Username, registry.OCI.Token), nil
+	}
 	if !IsVersionRegistry(registry) {
 		return nil, errors.Errorf("registry '%s' is not a versioned registry", registry.Name)
 	}

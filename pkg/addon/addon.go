@@ -977,7 +977,16 @@ func (h *Installer) enableAddon(ctx context.Context, addon *InstallPackage) (str
 func (h *Installer) loadInstallPackage(name, version string) (*InstallPackage, error) {
 	var installPackage *InstallPackage
 	var err error
-	if !IsVersionRegistry(*h.r) {
+	if IsOCIRegistry(*h.r) || IsVersionRegistry(*h.r) {
+		versionedRegistry, convertErr := ToVersionedRegistry(*h.r)
+		if convertErr != nil {
+			return nil, convertErr
+		}
+		installPackage, err = versionedRegistry.GetAddonInstallPackage(h.ctx, name, version)
+		if err != nil {
+			return nil, err
+		}
+	} else {
 		metas, err := h.getAddonMeta()
 		if err != nil {
 			return nil, errors.Wrap(err, "fail to get addon meta")
@@ -996,16 +1005,6 @@ func (h *Installer) loadInstallPackage(name, version string) (*InstallPackage, e
 		installPackage, err = h.r.GetInstallPackage(&meta, uiData)
 		if err != nil {
 			return nil, errors.Wrap(err, "fail to find dependent addon in source repository")
-		}
-	} else {
-		versionedRegistry := BuildVersionedRegistry(h.r.Name, h.r.Helm.URL, &common.HTTPOption{
-			Username:        h.r.Helm.Username,
-			Password:        h.r.Helm.Password,
-			InsecureSkipTLS: h.r.Helm.InsecureSkipTLS,
-		})
-		installPackage, err = versionedRegistry.GetAddonInstallPackage(context.Background(), name, version)
-		if err != nil {
-			return nil, err
 		}
 	}
 
@@ -1092,7 +1091,7 @@ func (h *Installer) installDependency(ctx context.Context, addon *InstallPackage
 		for _, registry := range h.registries {
 			// try to install dependent addon from other registries
 			depHandler.r = &Registry{
-				Name: registry.Name, Helm: registry.Helm, OSS: registry.OSS, Git: registry.Git, Gitee: registry.Gitee, Gitlab: registry.Gitlab,
+				Name: registry.Name, Helm: registry.Helm, OCI: registry.OCI, OSS: registry.OSS, Git: registry.Git, Gitee: registry.Gitee, Gitlab: registry.Gitlab,
 			}
 			depAddon, err = depHandler.loadInstallPackage(dep.Name, depVersion)
 			if err == nil {

@@ -484,10 +484,26 @@ func (af *Appfile) filterAndSetAnnotations(obj *unstructured.Unstructured) {
 		allFilterAnnotation = append(allFilterAnnotation, strings.Split(passedFilterAnnotation, ",")...)
 	}
 
+	// A component may set app.oam.dev/last-applied-configuration to the "-"/"skip"
+	// sentinel on its own output to opt out of three-way-merge recording (see
+	// pkg/utils/apply). DefaultFilterAnnots strips this key so the parent
+	// Application's copy is not inherited by children; preserve the sentinel here
+	// so a component's explicit opt-out still survives.
+	keepLAC := ""
+	if ann := obj.GetAnnotations(); ann != nil {
+		if v := ann[oam.AnnotationLastAppliedConfig]; v == "-" || v == "skip" {
+			keepLAC = v
+		}
+	}
+
 	// pass application's all annotations
 	util.AddAnnotations(obj, af.AppAnnotations)
 	// remove useless annotations for workload/trait
 	util.RemoveAnnotations(obj, allFilterAnnotation)
+
+	if keepLAC != "" {
+		util.AddAnnotations(obj, map[string]string{oam.AnnotationLastAppliedConfig: keepLAC})
+	}
 }
 
 func (af *Appfile) setNamespace(obj *unstructured.Unstructured) {

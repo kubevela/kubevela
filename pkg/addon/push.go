@@ -17,6 +17,7 @@ limitations under the License.
 package addon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -31,6 +32,8 @@ import (
 	cm "github.com/chartmuseum/helm-push/pkg/chartmuseum"
 	cmhelm "github.com/chartmuseum/helm-push/pkg/helm"
 	"github.com/fatih/color"
+	"github.com/pkg/errors"
+	"helm.sh/helm/v3/pkg/chart/loader"
 	helmrepo "helm.sh/helm/v3/pkg/repo"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -63,6 +66,35 @@ type PushCmd struct {
 // Push pushes addons (i.e. Helm Charts) to ChartMuseum.
 // It will package the addon into a Helm Chart if necessary.
 func (p *PushCmd) Push(ctx context.Context) error {
+	if strings.HasPrefix(p.RepoName, "oci://") {
+		token := p.Password
+		if p.AccessToken != "" {
+			token = p.AccessToken
+		}
+		return p.pushOCI(ctx, &OCIAddonSource{
+			URL:      p.RepoName,
+			Username: p.Username,
+			Token:    token,
+		})
+	}
+	if p.Client != nil {
+		reg, lookupErr := NewRegistryDataStore(p.Client).GetRegistry(ctx, p.RepoName)
+		if lookupErr == nil && IsOCIRegistry(reg) {
+			source := reg.OCI.SafeCopy()
+			source.Token = reg.OCI.Token
+			if p.Username != "" {
+				source.Username = p.Username
+			}
+			if p.Password != "" {
+				source.Token = p.Password
+			}
+			if p.AccessToken != "" {
+				source.Token = p.AccessToken
+			}
+			return p.pushOCI(ctx, source)
+		}
+	}
+
 	var repo *cmhelm.Repo
 	var err error
 
@@ -171,6 +203,57 @@ func (p *PushCmd) Push(ctx context.Context) error {
 		_ = resp.Body.Close()
 	}()
 	return handlePushResponse(resp)
+}
+
+func (p *PushCmd) pushOCI(ctx context.Context, source *OCIAddonSource) error {
+	if err := MakeChartCompatible(p.ChartName, !p.KeepChartMetadata); err != nil && !strings.Contains(err.Error(), "is not a directory") {
+		return err
+	}
+	addonChart, err := cmhelm.GetChartByName(p.ChartName)
+	if err != nil {
+		return err
+	}
+	if p.ChartVersion != "" {
+		addonChart.SetVersion(p.ChartVersion)
+	}
+	if p.AppVersion != "" {
+		addonChart.SetAppVersion(p.AppVersion)
+	}
+
+	tmp, err := os.MkdirTemp("", "helm-push-oci-")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = os.RemoveAll(tmp)
+	}()
+	archivePath, err := cmhelm.CreateChartPackage(addonChart, tmp)
+	if err != nil {
+		return err
+	}
+	archive, err := os.ReadFile(filepath.Clean(archivePath))
+	if err != nil {
+		return err
+	}
+	loadedChart, err := loader.LoadArchive(bytes.NewReader(archive))
+	if err != nil {
+		return err
+	}
+
+	repoRef, host := ociRepoRef(source.URL, loadedChart.Metadata.Name)
+	ociClient, err := newOCIClient(host, source.Username, source.Token)
+	if err != nil {
+		return err
+	}
+	ref := repoRef + ":" + loadedChart.Metadata.Version
+	_, _ = fmt.Fprintf(p.Out, "Pushing %s to %s\n", filepath.Base(archivePath), ref)
+	if _, err := ociClient.Push(archive, ref); err != nil {
+		return errors.Wrapf(err, "failed to push OCI addon %s", ref)
+	}
+	if err := updateOCIAddonCatalog(ctx, ociClient, source, loadedChart.Metadata); err != nil {
+		return errors.Wrap(err, "addon was pushed, but the portable OCI catalog update failed")
+	}
+	return nil
 }
 
 // GetHelmRepo searches for a Helm repo by name.

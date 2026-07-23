@@ -493,15 +493,15 @@ func NewAddonInitCommand() *cobra.Command {
 	return cmd
 }
 
-// NewAddonPushCommand pushes an addon dir/package to a ChartMuseum
+// NewAddonPushCommand pushes an addon dir/package to a Helm or OCI registry.
 func NewAddonPushCommand(c common.Args) *cobra.Command {
 	p := &pkgaddon.PushCmd{}
 	cmd := &cobra.Command{
 		Use:   "push",
-		Short: "uploads an addon package to ChartMuseum",
-		Long: `Uploads an addon package to ChartMuseum.
+		Short: "uploads an addon package to a Helm or OCI registry",
+		Long: `Uploads an addon package to a Helm or OCI registry.
 
-Two arguments are needed ` + "`<addon directory/package>`" + ` and ` + "`<name/URL of ChartMuseum>`" + `.
+Two arguments are needed ` + "`<addon directory/package>`" + ` and ` + "`<registry name/URL>`" + `.
 
 The first argument ` + "`<addon directory/package>`" + ` can be:
 	- your conventional addon directory (containing metadata.yaml). We will package it for you.
@@ -509,7 +509,9 @@ The first argument ` + "`<addon directory/package>`" + ` can be:
 
 The second argument ` + "`<name/URL of ChartMuseum>`" + ` can be:
 	- registry name (helm type). You can add your ChartMuseum registry using 'vela addon registry add'.
-	- ChartMuseum URL, e.g. http://localhost:8080`,
+	- registry name (oci type). OCI pushes also update the portable addon catalog.
+	- ChartMuseum URL, e.g. http://localhost:8080
+	- OCI URL, e.g. oci://registry.example.com/addons`,
 		Example: `# Push the addon in directory <your-addon> to a ChartMuseum registry named <localcm>
 $ vela addon push your-addon localcm
 
@@ -997,24 +999,34 @@ func listAddons(ctx context.Context, clt client.Client, registry string) (*uitab
 			continue
 		}
 		var addonList []*pkgaddon.UIData
-		var err error
-		if !pkgaddon.IsVersionRegistry(r) {
+		if !pkgaddon.IsVersionRegistry(r) && !pkgaddon.IsOCIRegistry(r) {
 			meta, err := r.ListAddonMeta()
 			if err != nil {
+				if registry != "" {
+					return nil, err
+				}
 				continue
 			}
 			addonList, err = r.ListUIData(meta, pkgaddon.CLIMetaOptions)
 			if err != nil {
+				if registry != "" {
+					return nil, err
+				}
 				continue
 			}
 		} else {
-			versionedRegistry := pkgaddon.BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
-				Username:        r.Helm.Username,
-				Password:        r.Helm.Password,
-				InsecureSkipTLS: r.Helm.InsecureSkipTLS,
-			})
+			versionedRegistry, err := pkgaddon.ToVersionedRegistry(r)
+			if err != nil {
+				if registry != "" {
+					return nil, err
+				}
+				continue
+			}
 			addonList, err = versionedRegistry.ListAddon()
 			if err != nil {
+				if registry != "" {
+					return nil, err
+				}
 				continue
 			}
 		}
