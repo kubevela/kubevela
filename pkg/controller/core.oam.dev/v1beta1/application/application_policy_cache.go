@@ -53,6 +53,7 @@ type RenderedPolicyResult struct {
 	Source            string                 // PolicySourceGlobal or PolicySourceExplicit
 	Transforms        interface{}            // *PolicyOutput
 	AdditionalContext map[string]interface{} // output.ctx
+	SensitiveContext  map[string]interface{} // output.sensitiveCtx; persisted to an Application-owned Secret, never the ConfigMap
 	SkipReason        string
 	IsError           bool // true when SkipReason is due to an error, false for config.enabled=false
 
