@@ -75,21 +75,28 @@ func TestCreateOrUpdateObjects(t *testing.T) {
 	scheme := runtime.NewScheme()
 	assert.NoError(t, corev1.AddToScheme(scheme))
 
-	cm := &corev1.ConfigMap{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "ConfigMap",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-cm",
-			Namespace: "default",
-		},
-		Data: map[string]string{
-			"initial": "true",
-		},
+	// newConfigMap returns a fresh object for each subtest: the fake client's
+	// Create() clears TypeMeta on the object passed to it (matching real
+	// client-go/controller-runtime behavior), so subtests must not share a
+	// single ConfigMap that a prior subtest may have passed to Create().
+	newConfigMap := func() *corev1.ConfigMap {
+		return &corev1.ConfigMap{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1",
+				Kind:       "ConfigMap",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-cm",
+				Namespace: "default",
+			},
+			Data: map[string]string{
+				"initial": "true",
+			},
+		}
 	}
 
 	t.Run("create object", func(t *testing.T) {
+		cm := newConfigMap()
 		builder := fake.NewClientBuilder().WithScheme(scheme)
 		fakeClient := builder.Build()
 		objects := []oam.Object{cm}
@@ -104,6 +111,7 @@ func TestCreateOrUpdateObjects(t *testing.T) {
 	})
 
 	t.Run("update object", func(t *testing.T) {
+		cm := newConfigMap()
 		cmToUpdate := cm.DeepCopy()
 		cmToUpdate.Data["initial"] = "false"
 
