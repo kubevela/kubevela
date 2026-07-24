@@ -18,6 +18,7 @@ package rollout
 
 import (
 	"context"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -84,6 +85,55 @@ var _ = Describe("Kruise rollout test", func() {
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
 		Expect(r.Spec.Strategy.Paused).Should(BeEquivalentTo(false))
 		Expect(r.Status.CanaryStatus.CurrentStepState).Should(BeEquivalentTo(kruisev1alpha1.CanaryStepStateReady))
+	})
+
+	It("Rollback rollout with writer covers log output path", func() {
+		r := kruisev1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
+		r.Spec.Strategy.Paused = true
+		Expect(k8sClient.Update(ctx, &r)).Should(BeNil())
+		r.Status.CanaryStatus = &kruisev1alpha1.CanaryStatus{
+			CurrentStepState: kruisev1alpha1.CanaryStepStatePaused,
+		}
+		Expect(k8sClient.Status().Update(ctx, &r)).Should(BeNil())
+
+		buf := &strings.Builder{}
+		modified, err := RollbackRollout(ctx, k8sClient, &app, buf)
+		Expect(err).Should(BeNil())
+		Expect(modified).Should(BeTrue())
+		Expect(buf.String()).Should(ContainSubstring("rollback"))
+	})
+
+	It("Resume rollout with only CanaryStatus paused (spec not paused)", func() {
+		r := kruisev1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
+		// spec is NOT paused, only canaryStatus is paused
+		r.Spec.Strategy.Paused = false
+		Expect(k8sClient.Update(ctx, &r)).Should(BeNil())
+		r.Status.CanaryStatus = &kruisev1alpha1.CanaryStatus{
+			CurrentStepState: kruisev1alpha1.CanaryStepStatePaused,
+		}
+		Expect(k8sClient.Status().Update(ctx, &r)).Should(BeNil())
+
+		modified, err := ResumeRollout(ctx, k8sClient, &app, nil)
+		Expect(err).Should(BeNil())
+		Expect(modified).Should(BeTrue())
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
+		Expect(r.Status.CanaryStatus.CurrentStepState).Should(BeEquivalentTo(kruisev1alpha1.CanaryStepStateReady))
+	})
+
+	It("Resume rollout that is already not paused returns modified=false", func() {
+		r := kruisev1alpha1.Rollout{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
+		r.Spec.Strategy.Paused = false
+		Expect(k8sClient.Update(ctx, &r)).Should(BeNil())
+		// no canary status set — fully unpaused
+		r.Status.CanaryStatus = nil
+		Expect(k8sClient.Status().Update(ctx, &r)).Should(BeNil())
+
+		modified, err := ResumeRollout(ctx, k8sClient, &app, nil)
+		Expect(err).Should(BeNil())
+		Expect(modified).Should(BeFalse())
 	})
 
 	It("test get associated rollout deduplication", func() {
