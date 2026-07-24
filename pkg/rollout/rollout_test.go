@@ -219,7 +219,6 @@ var rt = v1beta1.ResourceTracker{
 	},
 }
 
-
 var rollout = kruisev1alpha1.Rollout{
 	TypeMeta: metav1.TypeMeta{
 		APIVersion: "rollouts.kruise.io/v1alpha1",
