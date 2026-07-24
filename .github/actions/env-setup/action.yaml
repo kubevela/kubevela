@@ -5,7 +5,7 @@ inputs:
   go-version:
     description: 'Go version to use for testing'
     required: false
-    default: '1.23.8'
+    default: '1.25.12'
   install-ginkgo:
     description: 'Install Ginkgo testing framework'
     required: false

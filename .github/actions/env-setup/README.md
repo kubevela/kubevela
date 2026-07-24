@@ -16,7 +16,7 @@ A GitHub Actions composite action that sets up a complete testing environment fo
 - name: Setup Kubevela Test Environment
   uses: ./path/to/this/action
   with:
-    go-version: '1.23.8'      # Optional: Go version (default: 1.23.8)
+    go-version: '1.25.12'      # Optional: Go version (default: 1.25.12)
 ```
 
 ### Example Workflow
@@ -45,7 +45,7 @@ jobs:
 
 | Input | Description | Required | Default | Usage |
 |-------|-------------|----------|---------|-------|
-| `go-version` | Go version to install and use | No | `1.23.8` | Specify Go version for your project |
+| `go-version` | Go version to install and use | No | `1.25.12` | Specify Go version for your project |
 
 ## What This Action Installs
 
