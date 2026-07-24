@@ -37,6 +37,9 @@ template: {
 			if parameter["readinessProbe"] != _|_ {
 				readinessProbe: parameter.readinessProbe
 			}
+			if parameter["ports"] != _|_ {
+				ports: parameter.ports
+			}
 		}]
 	}
 	parameter: {
@@ -93,6 +96,18 @@ template: {
 
 		// +usage=Instructions for assessing whether the container is in a suitable state to serve traffic.
 		readinessProbe?: #HealthProbe
+
+		// +usage=Specify the ports of the sidecar container
+		ports?: [...{
+			// +usage=The port that the container exposes
+			containerPort: int & >0 & <=65535
+			// +usage=The protocol for the port
+			protocol: *"TCP" | "UDP" | "SCTP"
+			// +usage=The name for the port
+			name?: string
+			// +usage=The host port to map to the container port
+			hostPort?: int & >0 & <=65535
+		}]
 	}
 
 	#HealthProbe: {
