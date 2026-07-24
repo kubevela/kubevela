@@ -46,4 +46,12 @@ jobs:
         run: |
           cd kubevela-go-sdk
           go mod tidy
-          golangci-lint run --timeout 5m -e "exported:" -e "dot-imports" ./...
+          cat > .golangci.yml <<'EOF'
+          version: "2"
+          linters:
+            exclusions:
+              rules:
+                - text: "exported:"
+                - text: "dot-imports"
+          EOF
+          golangci-lint run --timeout 5m ./...
