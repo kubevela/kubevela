@@ -19,7 +19,7 @@ package application
 import (
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"

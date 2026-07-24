@@ -22,7 +22,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"

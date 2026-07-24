@@ -28,7 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
 
 	"cuelang.org/go/cue"
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
 	"github.com/kubevela/pkg/util/slices"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"
 	"github.com/pkg/errors"

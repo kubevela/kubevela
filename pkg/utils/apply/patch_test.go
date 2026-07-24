@@ -24,7 +24,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/oam"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

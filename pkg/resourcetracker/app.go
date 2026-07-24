@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/util/compression"
 	"github.com/pkg/errors"
