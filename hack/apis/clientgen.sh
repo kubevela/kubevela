@@ -80,7 +80,7 @@ clientGen() {
   fi
 }
 
-EXPECTED_CONTROLLER_GEN_VERSION=v0.16.5
+EXPECTED_CONTROLLER_GEN_VERSION=v0.20.0
 CONTROLLER_GEN="$(go env GOPATH)"/bin/controller-gen
 
 deepcopyGen() {
