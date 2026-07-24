@@ -73,9 +73,21 @@ var _ = Describe("Kruise rollout test", func() {
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
 		r.Spec.Strategy.Paused = true
 		Expect(k8sClient.Update(ctx, &r)).Should(BeNil())
+		r.Status.CanaryStatus = &kruisev1alpha1.CanaryStatus{
+			CurrentStepState: kruisev1alpha1.CanaryStepStatePaused,
+		}
+		Expect(k8sClient.Status().Update(ctx, &r)).Should(BeNil())
+
 		Expect(RollbackRollout(ctx, k8sClient, &app, nil))
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r))
 		Expect(r.Spec.Strategy.Paused).Should(BeEquivalentTo(false))
+		Expect(r.Status.CanaryStatus.CurrentStepState).Should(BeEquivalentTo(kruisev1alpha1.CanaryStepStateReady))
+	})
+
+	It("test get associated rollout deduplication", func() {
+		rollouts, err := getAssociatedRollouts(ctx, k8sClient, &app, true)
+		Expect(err).Should(BeNil())
+		Expect(len(rollouts)).Should(BeEquivalentTo(1))
 	})
 })
 

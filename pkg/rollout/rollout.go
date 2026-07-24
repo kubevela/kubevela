@@ -51,12 +51,18 @@ func getAssociatedRollouts(ctx context.Context, cli client.Client, app *v1beta1.
 		historyRTs = []*v1beta1.ResourceTracker{}
 	}
 	var rollouts []*ClusterRollout
+	seen := make(map[string]bool)
 	for _, rt := range append(historyRTs, rootRT, currentRT) {
 		if rt == nil {
 			continue
 		}
 		for _, mr := range rt.Spec.ManagedResources {
 			if mr.APIVersion == kruisev1alpha1.SchemeGroupVersion.String() && mr.Kind == "Rollout" {
+				key := fmt.Sprintf("%s/%s/%s", mr.Cluster, mr.Namespace, mr.Name)
+				if seen[key] {
+					continue
+				}
+				seen[key] = true
 				rollout := &kruisev1alpha1.Rollout{}
 				if err = cli.Get(multicluster.ContextWithClusterName(ctx, mr.Cluster), k8stypes.NamespacedName{Namespace: mr.Namespace, Name: mr.Name}, rollout); err != nil {
 					if multicluster.IsNotFoundOrClusterNotExists(err) || velaerrors.IsCRDNotExists(err) {
@@ -184,6 +190,22 @@ func RollbackRollout(ctx context.Context, cli client.Client, app *v1beta1.Applic
 				if rollout.Spec.Strategy.Paused {
 					rollout.Spec.Strategy.Paused = false
 					if err = cli.Update(_ctx, rollout.Rollout); err != nil {
+						return err
+					}
+					resumed = true
+					return nil
+				}
+				return nil
+			}); err != nil {
+				return false, errors.Wrapf(err, "failed to rollback rollout %s/%s in cluster %s", rollout.Namespace, rollout.Name, rollout.Cluster)
+			}
+			if err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				if err = cli.Get(_ctx, rolloutKey, rollout.Rollout); err != nil {
+					return err
+				}
+				if rollout.Status.CanaryStatus != nil && rollout.Status.CanaryStatus.CurrentStepState == kruisev1alpha1.CanaryStepStatePaused {
+					rollout.Status.CanaryStatus.CurrentStepState = kruisev1alpha1.CanaryStepStateReady
+					if err = cli.Status().Update(_ctx, rollout.Rollout); err != nil {
 						return err
 					}
 					resumed = true
