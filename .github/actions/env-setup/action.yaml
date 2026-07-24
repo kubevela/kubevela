@@ -90,7 +90,7 @@ runs:
       shell: bash
       run: |
         echo "Installing Ginkgo testing framework..."
-        go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
+        go install github.com/onsi/ginkgo/v2/ginkgo@v2.27.2
         echo "Ginkgo installed successfully"
 
     - name: Install setup-envtest
