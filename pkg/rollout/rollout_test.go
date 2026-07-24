@@ -188,6 +188,20 @@ var rt = v1beta1.ResourceTracker{
 					Component: "my-rollout",
 				},
 			},
+			// Duplicate entry for my-rollout to exercise the seen[key] deduplication branch
+			{
+				ClusterObjectReference: common.ClusterObjectReference{
+					ObjectReference: v1.ObjectReference{
+						APIVersion: "rollouts.kruise.io/v1alpha1",
+						Kind:       "Rollout",
+						Name:       "my-rollout",
+						Namespace:  "default",
+					},
+				},
+				OAMObjectReference: common.OAMObjectReference{
+					Component: "my-rollout",
+				},
+			},
 			{
 				ClusterObjectReference: common.ClusterObjectReference{
 					ObjectReference: v1.ObjectReference{
@@ -204,6 +218,7 @@ var rt = v1beta1.ResourceTracker{
 		},
 	},
 }
+
 
 var rollout = kruisev1alpha1.Rollout{
 	TypeMeta: metav1.TypeMeta{
