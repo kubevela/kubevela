@@ -78,8 +78,10 @@ var _ = Describe("Kruise rollout test", func() {
 		}
 		Expect(k8sClient.Status().Update(ctx, &r)).Should(BeNil())
 
-		Expect(RollbackRollout(ctx, k8sClient, &app, nil))
-		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r))
+		modified, err := RollbackRollout(ctx, k8sClient, &app, nil)
+		Expect(err).Should(BeNil())
+		Expect(modified).Should(BeTrue())
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "my-rollout"}, &r)).Should(BeNil())
 		Expect(r.Spec.Strategy.Paused).Should(BeEquivalentTo(false))
 		Expect(r.Status.CanaryStatus.CurrentStepState).Should(BeEquivalentTo(kruisev1alpha1.CanaryStepStateReady))
 	})
