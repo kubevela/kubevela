@@ -114,7 +114,7 @@ func SuspendRollout(ctx context.Context, cli client.Client, app *v1beta1.Applica
 	return nil
 }
 
-func resumeOrRollbackRollout(ctx context.Context, cli client.Client, app *v1beta1.Application, writer io.Writer, action string) (bool, error) {
+func resumeOrRollbackRollout(ctx context.Context, cli client.Client, app *v1beta1.Application, writer io.Writer, action string, logVerb string) (bool, error) {
 	rollouts, err := getAssociatedRollouts(ctx, cli, app, false)
 	if err != nil {
 		return false, err
@@ -161,7 +161,7 @@ func resumeOrRollbackRollout(ctx context.Context, cli client.Client, app *v1beta
 			if resumed {
 				modified = true
 				if writer != nil {
-					_, _ = fmt.Fprintf(writer, "Rollout %s/%s in cluster %s %s.\n", rollout.Namespace, rollout.Name, rollout.Cluster, action)
+					_, _ = fmt.Fprintf(writer, "Rollout %s/%s in cluster %s %s.\n", rollout.Namespace, rollout.Name, rollout.Cluster, logVerb)
 				}
 			}
 		}
@@ -171,10 +171,10 @@ func resumeOrRollbackRollout(ctx context.Context, cli client.Client, app *v1beta
 
 // ResumeRollout find all rollouts associated with the application (in the current RT) and resume them
 func ResumeRollout(ctx context.Context, cli client.Client, app *v1beta1.Application, writer io.Writer) (bool, error) {
-	return resumeOrRollbackRollout(ctx, cli, app, writer, "resumed")
+	return resumeOrRollbackRollout(ctx, cli, app, writer, "resume", "resumed")
 }
 
 // RollbackRollout find all rollouts associated with the application (in the current RT) and disable the pause field.
 func RollbackRollout(ctx context.Context, cli client.Client, app *v1beta1.Application, writer io.Writer) (bool, error) {
-	return resumeOrRollbackRollout(ctx, cli, app, writer, "rollback")
+	return resumeOrRollbackRollout(ctx, cli, app, writer, "rollback", "rollback")
 }
