@@ -51,7 +51,6 @@ metadata:
       from customers.
     meta.helm.sh/release-name: kubevela
     meta.helm.sh/release-namespace: vela-system
-  creationTimestamp: null
   labels:
     app.kubernetes.io/managed-by: Helm
   name: webservice
