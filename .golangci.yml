@@ -36,7 +36,7 @@ linters:
     # TODO(golangci-lint v2 upgrade): these newly-available/newly-stricter linters
     # surface a large amount of pre-existing debt across the repo. Disabled for now
     # to keep CI green after the v1.60.1 -> v2.12.2 upgrade; re-enable and fix the
-    # findings in a follow-up cleanup PR.
+    # findings in a follow-up cleanup PR
     - goconst
     - gosec
     - noctx
