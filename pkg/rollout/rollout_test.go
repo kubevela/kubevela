@@ -75,8 +75,6 @@ var _ = Describe("Kruise rollout test", func() {
 		Expect(k8sClient.Update(ctx, &r)).Should(BeNil())
 		r.Status.CanaryStatus = &kruisev1alpha1.CanaryStatus{
 			CurrentStepState: kruisev1alpha1.CanaryStepStatePaused,
-			CanaryRevision:   "v1",
-			PodTemplateHash:  "hash",
 		}
 		Expect(k8sClient.Status().Update(ctx, &r)).Should(BeNil())
 
