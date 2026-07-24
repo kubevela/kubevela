@@ -383,53 +383,22 @@ var _ = Describe("Application Normal tests", func() {
 			g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(&newApp), &newApp)).Should(Satisfy(errors.IsNotFound))
 		}, 15*time.Second).Should(Succeed())
 	})
-
 	It("Test app with ServiceAccount which has no permission for the component", func() {
-		By("Creating a ServiceAccount")
-		const saName = "dummy-service-account"
-		createServiceAccount(ctx, namespaceName, saName)
-
-		By("Creating an application")
-		var newApp v1beta1.Application
-		Expect(common.ReadYamlToObject("testdata/app/app11.yaml", &newApp)).Should(BeNil())
-		newApp.Namespace = namespaceName
-		annotations := newApp.GetAnnotations()
-		annotations[oam.AnnotationApplicationServiceAccountName] = saName
-		newApp.SetAnnotations(annotations)
-		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
-
-		By("Checking an application status")
-		verifyApplicationPhase(ctx, newApp.Namespace, newApp.Name, oamcomm.ApplicationWorkflowFailed)
+		// Since #7139's security fix, the app.oam.dev/service-account-name annotation is
+		// actively stripped by the mutating webhook (and never honored by the reconciler)
+		// unless the AuthenticateApplication feature gate is enabled on the controller.
+		// The default e2e cluster deploys with this feature disabled (see chart's
+		// SECURITY RECOMMENDATION notice), so this test's premise -- that the annotated
+		// ServiceAccount's permissions are actually used, causing a failure due to
+		// insufficient RBAC -- no longer holds. Skipping until CI has a dedicated job
+		// that deploys with --set authentication.enabled=true --set authentication.withUser=true.
+		Skip("requires AuthenticateApplication feature gate enabled on the cluster; not covered by current CI jobs")
 	})
 
 	It("Test app with non-existence ServiceAccount", func() {
-		By("Ensuring that given service account doesn't exists")
-		const saName = "not-existing-service-account"
-		sa := corev1.ServiceAccount{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespaceName,
-				Name:      saName,
-			},
-		}
-		Eventually(
-			func() error {
-				return k8sClient.Delete(ctx, &sa)
-			},
-			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
-
-		By("Creating an application")
-		var newApp v1beta1.Application
-		Expect(common.ReadYamlToObject("testdata/app/app11.yaml", &newApp)).Should(BeNil())
-		newApp.Namespace = namespaceName
-		annotations := newApp.GetAnnotations()
-		annotations[oam.AnnotationApplicationServiceAccountName] = saName
-		newApp.SetAnnotations(annotations)
-		Expect(k8sClient.Create(ctx, &newApp)).Should(BeNil())
-
-		By("Checking an application status")
-		verifyApplicationPhase(ctx, newApp.Namespace, newApp.Name, oamcomm.ApplicationWorkflowFailed)
+		// See comment on the previous test -- same reasoning applies.
+		Skip("requires AuthenticateApplication feature gate enabled on the cluster; not covered by current CI jobs")
 	})
-
 	It("Test app with replication policy", func() {
 		By("Apply replica-webservice definition")
 		var compDef v1beta1.ComponentDefinition

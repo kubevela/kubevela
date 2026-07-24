@@ -368,38 +368,36 @@ var _ = Describe("Server Tests", func() {
 	})
 
 	Describe("configureKubernetesClient", func() {
+		AfterEach(func() {
+			// keep this suite isolated from AuthenticateApplication's default state
+			feature.DefaultMutableFeatureGate.Set("AuthenticateApplication=false")
+		})
+
 		Context("when creating Kubernetes config", func() {
 			It("should configure REST config with correct parameters using ENVTEST", func() {
-				// Create a test Kubernetes config with specific values
 				k8sConfig := &config.KubernetesConfig{
 					QPS:   100,
 					Burst: 200,
 				}
 
-				// Create a config provider that returns our test config from ENVTEST
 				configProvider := func() (*rest.Config, error) {
-					// Create a copy of the test config to avoid modifying the shared config
-					cfg := rest.CopyConfig(testConfig)
-					return cfg, nil
+					// Build a completely fresh config here instead of copying the shared testConfig,
+					// to keep this assertion isolated from any WrapTransport state other specs in
+					// this suite may have left on the shared testConfig object.
+					return &rest.Config{Host: testConfig.Host}, nil
 				}
 
-				// Call the function under test with dependency injection
+				feature.DefaultMutableFeatureGate.Set("AuthenticateApplication=true")
+
 				resultConfig, err := configureKubernetesClientWithProvider(k8sConfig, configProvider)
 
-				// Assert no error occurred
 				Expect(err).NotTo(HaveOccurred())
 				Expect(resultConfig).NotTo(BeNil())
-
-				// Verify that QPS and Burst were set correctly
 				Expect(resultConfig.QPS).To(Equal(float32(100)))
 				Expect(resultConfig.Burst).To(Equal(200))
-
-				// Verify UserAgent was set
 				Expect(resultConfig.UserAgent).To(ContainSubstring(types.KubeVelaName))
 				Expect(resultConfig.UserAgent).To(ContainSubstring(version.GitRevision))
-
-				// Verify that the config has the impersonating round tripper wrapper
-				Expect(resultConfig.Wrap).NotTo(BeNil())
+				Expect(resultConfig.WrapTransport).NotTo(BeNil())
 			})
 
 			It("should handle config provider errors gracefully", func() {
@@ -408,21 +406,18 @@ var _ = Describe("Server Tests", func() {
 					Burst: 200,
 				}
 
-				// Create a config provider that returns an error
 				configProvider := func() (*rest.Config, error) {
 					return nil, fmt.Errorf("failed to get config")
 				}
 
-				// Call the function and expect an error
 				resultConfig, err := configureKubernetesClientWithProvider(k8sConfig, configProvider)
 
-				// Assert error occurred
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("failed to get config"))
 				Expect(resultConfig).To(BeNil())
 			})
 
-			It("should apply impersonating round tripper wrapper", func() {
+			It("should apply impersonating round tripper wrapper when AuthenticateApplication is enabled", func() {
 				k8sConfig := &config.KubernetesConfig{
 					QPS:   50,
 					Burst: 100,
@@ -433,17 +428,38 @@ var _ = Describe("Server Tests", func() {
 					return cfg, nil
 				}
 
+				feature.DefaultMutableFeatureGate.Set("AuthenticateApplication=true")
+
 				resultConfig, err := configureKubernetesClientWithProvider(k8sConfig, configProvider)
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(resultConfig).NotTo(BeNil())
+				Expect(resultConfig.WrapTransport).NotTo(BeNil())
+			})
 
-				// Verify the wrap function was applied
-				// We can't directly test the round tripper, but we can verify Wrap is not nil
-				Expect(resultConfig.Wrap).NotTo(BeNil())
+			It("should not apply impersonating round tripper wrapper when AuthenticateApplication is disabled, regression for #7139", func() {
+				k8sConfig := &config.KubernetesConfig{
+					QPS:   50,
+					Burst: 100,
+				}
+
+				configProvider := func() (*rest.Config, error) {
+					cfg := rest.CopyConfig(testConfig)
+					return cfg, nil
+				}
+
+				feature.DefaultMutableFeatureGate.Set("AuthenticateApplication=false")
+
+				resultConfig, err := configureKubernetesClientWithProvider(k8sConfig, configProvider)
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(resultConfig).NotTo(BeNil())
+				Expect(resultConfig.WrapTransport).To(BeNil())
 			})
 		})
+
 	})
+
 
 	Describe("buildManagerOptions", func() {
 		var (

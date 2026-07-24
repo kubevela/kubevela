@@ -80,7 +80,12 @@ func SetUserInfoInAnnotation(obj *metav1.ObjectMeta, userInfo authv1.UserInfo) {
 
 // GetUserInfoInAnnotation extract user info from annotations
 // support compatibility for serviceAccount when name is empty
+
 func GetUserInfoInAnnotation(obj *metav1.ObjectMeta) user.Info {
+	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) {
+		return &user.DefaultInfo{}
+	}
+
 	annotations := obj.GetAnnotations()
 	if annotations == nil {
 		annotations = map[string]string{}
@@ -91,7 +96,7 @@ func GetUserInfoInAnnotation(obj *metav1.ObjectMeta) user.Info {
 		name = fmt.Sprintf("system:serviceaccount:%s:%s", obj.GetNamespace(), serviceAccountName)
 	}
 
-	if name == "" && utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) {
+	if name == "" {
 		name = AuthenticationDefaultUser
 	}
 

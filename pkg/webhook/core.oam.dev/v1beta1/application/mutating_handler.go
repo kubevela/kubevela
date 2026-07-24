@@ -51,7 +51,11 @@ type appMutator func(ctx context.Context, req admission.Request, oldApp *v1beta1
 
 func (h *MutatingHandler) handleIdentity(_ context.Context, req admission.Request, _ *v1beta1.Application, app *v1beta1.Application) (bool, error) {
 	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) {
-		return false, nil
+		// Authentication is disabled: any identity-related annotations on the incoming
+		// object are untrusted user input (they were never verified against req.UserInfo)
+		// and must not be allowed to reach the reconciler, which would otherwise use them
+		// as impersonation identity. Strip them rather than silently leaving them in place.
+		return stripIdentityAnnotations(app), nil
 	}
 
 	if slices.Contains(h.skipUsers, req.UserInfo.Username) {
@@ -64,6 +68,29 @@ func (h *MutatingHandler) handleIdentity(_ context.Context, req admission.Reques
 	klog.Infof("[ApplicationMutatingHandler] Setting UserInfo into Application, UserInfo: %v, Application: %s/%s", req.UserInfo, app.GetNamespace(), app.GetName())
 	auth.SetUserInfoInAnnotation(&app.ObjectMeta, req.UserInfo)
 	return true, nil
+}
+
+// identityAnnotations are the Application annotations that carry impersonation identity.
+// They must never be trusted unless they were set by this webhook itself (which only
+// happens when AuthenticateApplication is enabled and req.UserInfo has been verified by
+// the API server's own authentication layer).
+var identityAnnotations = []string{
+	oam.AnnotationApplicationUsername,
+	oam.AnnotationApplicationGroup,
+	oam.AnnotationApplicationServiceAccountName,
+}
+
+// stripIdentityAnnotations removes any user-writable identity annotations from the
+// Application. Returns true if the object was modified.
+func stripIdentityAnnotations(app *v1beta1.Application) bool {
+	modified := false
+	for _, ann := range identityAnnotations {
+		if metav1.HasAnnotation(app.ObjectMeta, ann) {
+			delete(app.ObjectMeta.Annotations, ann)
+			modified = true
+		}
+	}
+	return modified
 }
 
 func (h *MutatingHandler) handleWorkflow(_ context.Context, _ admission.Request, _ *v1beta1.Application, app *v1beta1.Application) (modified bool, err error) {

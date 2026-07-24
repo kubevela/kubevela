@@ -31,6 +31,20 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
+func TestGetUserInfoInAnnotationIgnoresForgedAnnotationsWhenDisabled(t *testing.T) {
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.AuthenticateApplication, false)
+	r := require.New(t)
+
+	app := &v1beta1.Application{}
+	app.SetNamespace("default")
+	metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationApplicationUsername, "forged-admin")
+	metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationApplicationGroup, "system:masters")
+
+	info := GetUserInfoInAnnotation(&app.ObjectMeta)
+	r.Empty(info.GetName())
+	r.Empty(info.GetGroups())
+}
+
 func TestContextWithUserInfo(t *testing.T) {
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.AuthenticateApplication, true)
 	AuthenticationWithUser = true

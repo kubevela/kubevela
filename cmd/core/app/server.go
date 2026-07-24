@@ -271,7 +271,9 @@ func configureKubernetesClientWithProvider(kubernetesConfig *config.KubernetesCo
 	kubeConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
 	kubeConfig.QPS = float32(kubernetesConfig.QPS)
 	kubeConfig.Burst = kubernetesConfig.Burst
-	kubeConfig.Wrap(auth.NewImpersonatingRoundTripper)
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) {
+		kubeConfig.Wrap(auth.NewImpersonatingRoundTripper)
+	}
 
 	klog.InfoS("Kubernetes Config Loaded",
 		"UserAgent", kubeConfig.UserAgent,
