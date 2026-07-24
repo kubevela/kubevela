@@ -4,7 +4,7 @@ inputs:
   k8s-version:
     description: 'Kubernetes version for the kind cluster'
     required: false
-    default: 'v1.31.9'
+    default: 'v1.35.5'
   name:
     description: 'Name of the kind cluster'
     required: false
@@ -16,7 +16,7 @@ runs:
     # ========================================================================
     - name: Setup KinD
       run: |
-        go install sigs.k8s.io/kind@v0.29.0
+        go install sigs.k8s.io/kind@v0.32.0
         if [ -n "${{ inputs.name }}" ]; then
           kind delete cluster --name="${{ inputs.name }}" || true
           kind create cluster --name="${{ inputs.name }}" --image=kindest/node:${{ inputs.k8s-version }}

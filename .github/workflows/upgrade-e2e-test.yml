@@ -56,7 +56,7 @@ jobs:
     strategy:
       fail-fast: false  # Continue testing other versions if one fails
       matrix:
-        k8s-version: ['v1.31.9']
+        k8s-version: ['v1.35.5']
 
     # ==========================================================================
     # Concurrency Control - Prevent overlapping runs
