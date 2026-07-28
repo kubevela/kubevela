@@ -34,7 +34,7 @@ RUN GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
 # You can replace distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 # Overwrite `BASE_IMAGE` by passing `--build-arg=BASE_IMAGE=gcr.io/distroless/static:nonroot`
-FROM ${BASE_IMAGE:-alpine:3.18}
+FROM ${BASE_IMAGE:-alpine:3.21}
 # This is required by daemon connecting with cri
 RUN apk add --no-cache ca-certificates bash expat
 

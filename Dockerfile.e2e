@@ -33,7 +33,7 @@ RUN  apk add gcc musl-dev libc-dev ;\
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 # Overwrite `BASE_IMAGE` by passing `--build-arg=BASE_IMAGE=gcr.io/distroless/static:nonroot`
 
-FROM ${BASE_IMAGE:-alpine:3.15@sha256:cf34c62ee8eb3fe8aa24c1fab45d7e9d12768d945c3f5a6fd6a63d901e898479}
+FROM ${BASE_IMAGE:-alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d}
 # This is required by daemon connecting with cri
 RUN apk add --no-cache ca-certificates bash expat
 
