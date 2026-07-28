@@ -581,7 +581,7 @@ func (r *Reconciler) writeStatusByMethod(ctx context.Context, method method, app
 		panic("unknown method")
 	}
 	if err := f(); err != nil {
-		executor.StepStatusCache.Store(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1)
+		executor.StepStatusCache.Put(fmt.Sprintf("%s-%s", app.Name, app.Namespace), -1, time.Minute*5)
 		return err
 	}
 	if feature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationStatusMetrics) {
@@ -743,6 +743,12 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 	// Register application status metrics after feature gates are initialized
 	metrics.RegisterApplicationStatusMetrics()
 
+	// Initialize the workflow StepStatusCache after manager starts
+	// This ensures that the cache is ready before any workflow execution occurs
+	if err := mgr.Add(&stepStatusCacheInitializer{}); err != nil {
+		return err
+	}
+
 	// Add a runnable to initialize PolicyScopeIndex after manager starts
 	// This ensures the cache is ready before we try to list PolicyDefinitions
 	if err := mgr.Add(&policyScopeIndexInitializer{client: mgr.GetClient()}); err != nil {
@@ -756,6 +762,13 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 		options:  parseOptions(args),
 	}
 	return reconciler.SetupWithManager(mgr)
+}
+
+type stepStatusCacheInitializer struct{}
+
+func (r *stepStatusCacheInitializer) Start(ctx context.Context) error {
+	executor.InitStepStatusCache(ctx)
+	return nil
 }
 
 // policyScopeIndexInitializer is a Runnable that initializes the PolicyScopeIndex

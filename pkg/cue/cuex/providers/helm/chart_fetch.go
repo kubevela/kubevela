@@ -143,7 +143,7 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 	// a missing or malformed Secret immediately, with the same RFC-cited
 	// errors the cache-miss path would surface, instead of returning a
 	// confusing cache-hit chart for a misconfigured request.
-	if cached := p.cache.Get(cacheKey); cached != nil {
+	if cached, found := p.cache.Get(cacheKey); found && cached != nil {
 		if ch, ok := cached.(*chart.Chart); ok {
 			if params.Auth != nil && params.Auth.SecretRef != nil {
 				if _, _, err := resolveHTTPOptions(ctx, params, appNamespace, releaseNamespace, sourceType); err != nil {

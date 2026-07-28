@@ -24,12 +24,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kubevela/pkg/cache"
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/client-go/kubernetes"
-
-	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // dryRunContextKey is used to signal the helm provider that it should perform
@@ -78,7 +77,7 @@ func DefaultCacheTTLConfig() *CacheTTLConfig {
 
 // Provider is the Helm chart provider
 type Provider struct {
-	cache               *utils.MemoryCacheStore
+	cache               cache.Cache[string]
 	helmClient          *cli.EnvSettings
 	cacheTTL            *CacheTTLConfig
 	releaseMu           sync.Mutex        // serializes install/upgrade/uninstall calls
@@ -109,7 +108,7 @@ var (
 func NewProvider() *Provider {
 	providerOnce.Do(func() {
 		globalProvider = &Provider{
-			cache:               utils.NewMemoryCacheStore(context.Background()),
+			cache:               cache.NewMemoryCacheStore[string](context.Background()),
 			helmClient:          cli.New(),
 			cacheTTL:            DefaultCacheTTLConfig(),
 			releaseFingerprints: make(map[string]string),
@@ -128,7 +127,7 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 		ttlConfig = DefaultCacheTTLConfig()
 	}
 	p := &Provider{
-		cache:               utils.NewMemoryCacheStore(context.Background()),
+		cache:               cache.NewMemoryCacheStore[string](context.Background()),
 		helmClient:          cli.New(),
 		cacheTTL:            ttlConfig,
 		releaseFingerprints: make(map[string]string),

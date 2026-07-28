@@ -40,6 +40,7 @@ import (
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/pkg/executor"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -107,6 +108,7 @@ var _ = Describe("Test Workflow", func() {
 		setupFooCRD(ctx)
 		setupNamespace(ctx, namespace)
 		setupTestDefinitions(ctx, testDefinitions, namespace)
+		executor.InitStepStatusCache(context.Background())
 		By("[TEST] Set up definitions before integration test")
 	})
 
@@ -1138,6 +1140,41 @@ var _ = Describe("Test workflow restart annotation functionality", func() {
 		reconciler.checkWorkflowRestart(logCtx, app, handler)
 		Expect(app.Status.WorkflowRestartScheduledAt).NotTo(BeNil())
 		Expect(app.Status.Workflow.AppRevision).To(Equal("app-v1"))
+	})
+
+	It("should initialize StepStatusCache via stepStatusCacheInitializer", func() {
+		initializer := &stepStatusCacheInitializer{}
+		err := initializer.Start(context.Background())
+		Expect(err).ShouldNot(HaveOccurred())
+	})
+
+	It("should store -1 in StepStatusCache when status write fails", func() {
+		app := &oamcore.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "status-fail-app",
+				Namespace: namespace,
+			},
+			Spec: oamcore.ApplicationSpec{
+				Components: []common.ApplicationComponent{{
+					Name:       "status-fail-comp",
+					Type:       "worker",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1"],"image":"busybox"}`)},
+				}},
+			},
+		}
+		Expect(reconciler.Client.Create(ctx, app)).Should(Succeed())
+
+		Expect(reconciler.Client.Delete(ctx, app)).Should(Succeed())
+
+		Eventually(func() bool {
+			err := reconciler.writeStatusByMethod(ctx, update, app, common.ApplicationRunning)
+			return err != nil
+		}, 10*time.Second, time.Second).Should(BeTrue())
+
+		cacheKey := fmt.Sprintf("%s-%s", app.Name, app.Namespace)
+		val, ok := executor.StepStatusCache.Get(cacheKey)
+		Expect(ok).Should(BeTrue())
+		Expect(val).Should(Equal(-1))
 	})
 
 	It("Test workflow restart ignored when workflow not finished", func() {

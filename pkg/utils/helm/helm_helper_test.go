@@ -130,6 +130,27 @@ var _ = Describe("Test helm helper", func() {
 		Expect(values).ShouldNot(BeNil())
 	})
 
+	It("Test GetIndexInfo cache hit", func() {
+		helper := NewHelperWithCache()
+		Expect(helper.cache).ShouldNot(BeNil())
+		idx1, err := helper.GetIndexInfo("./testdata", false, nil)
+		Expect(err).Should(BeNil())
+		Expect(idx1).ShouldNot(BeNil())
+		idx2, err := helper.GetIndexInfo("./testdata", false, nil)
+		Expect(err).Should(BeNil())
+		Expect(idx2).Should(Equal(idx1))
+	})
+
+	It("Test GetValuesFromChart cache hit", func() {
+		helper := NewHelperWithCache()
+		values1, err := helper.GetValuesFromChart("./testdata", "autoscalertrait", "0.2.0", false, "helm", nil)
+		Expect(err).Should(BeNil())
+		Expect(values1).ShouldNot(BeNil())
+		values2, err := helper.GetValuesFromChart("./testdata", "autoscalertrait", "0.2.0", false, "helm", nil)
+		Expect(err).Should(BeNil())
+		Expect(values2).Should(Equal(values1))
+	})
+
 	It("Test validate helm repo", func() {
 		helper := NewHelper()
 		helmRepo := &Repository{

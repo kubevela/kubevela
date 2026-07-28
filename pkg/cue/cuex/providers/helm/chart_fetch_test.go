@@ -467,7 +467,8 @@ entries:
 			Expect(ch.Metadata.Name).To(Equal("cache-miss"))
 
 			// Verify it's now cached
-			cached := p.cache.Get("repo/cache-miss/1.0.0")
+			cached, found := p.cache.Get("repo/cache-miss/1.0.0")
+			Expect(found).To(BeTrue())
 			Expect(cached).ToNot(BeNil())
 		})
 

@@ -37,8 +37,8 @@ require (
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.16
 	github.com/jeremywohl/flatten/v2 v2.0.0-20211013061545-07e4a09fb8e4
-	github.com/kubevela/pkg v1.11.1
-	github.com/kubevela/workflow v0.7.2
+	github.com/kubevela/pkg v1.11.1-0.20260722232534-455842713731
+	github.com/kubevela/workflow v0.7.3-0.20260724135823-5e2a5c1ecb21
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/magiconair/properties v1.8.7
 	github.com/mattn/go-runewidth v0.0.15
@@ -282,7 +282,6 @@ require (
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/time v0.10.0 // indirect
 	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
-	google.golang.org/genproto v0.0.0-20240227224415-6ceb2ff114de // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240814211410-ddb44dafa142 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240814211410-ddb44dafa142 // indirect
 	google.golang.org/grpc v1.67.1 // indirect
