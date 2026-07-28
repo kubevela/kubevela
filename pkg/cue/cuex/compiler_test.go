@@ -48,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 )
 
 var testCtx = struct {
@@ -70,6 +71,10 @@ var testCtx = struct {
 }
 
 func TestMain(m *testing.M) {
+	// Guard against the silent os.Exit(1) from the kubevela/pkg singleton config
+	// loader when no kubeconfig is present. See testutil.RequireKubeConfig.
+	testutil.RequireKubeConfig()
+
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "charts", "vela-core", "crds"),
