@@ -18,6 +18,7 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -33,6 +34,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
@@ -233,6 +235,82 @@ func TestPolicyContext_DoesNotOverwriteForeignSecret(t *testing.T) {
 	}
 	if string(got.Data["unrelated"]) != "keep-me" {
 		t.Fatalf("foreign Secret data must be untouched")
+	}
+}
+
+// TestPolicyContext_SensitiveValueRedactedFromSpecSnapshots covers the second
+// leak channel: a policy templates a sensitiveCtx value into the spec itself, so
+// the rendered_spec/applied_spec snapshots in the observability ConfigMap would
+// carry it. The redaction pass must scrub it from every ConfigMap payload while
+// the Secret keeps the real value.
+func TestPolicyContext_SensitiveValueRedactedFromSpecSnapshots(t *testing.T) {
+	cli := secretLeakTestClient(t)
+	h := &AppHandler{Client: cli}
+	app := secretLeakTestApp()
+
+	// Simulate the policy having injected the secret into component properties.
+	renderedSpec := &v1beta1.ApplicationSpec{
+		Components: []common.ApplicationComponent{{
+			Name: "web",
+			Type: "webservice",
+			Properties: &runtime.RawExtension{
+				Raw: []byte(`{"env":[{"name":"DB_PASSWORD","value":"` + leakedSecretValue + `"}]}`),
+			},
+		}},
+	}
+	app.Spec = *renderedSpec.DeepCopy()
+
+	results := []RenderedPolicyResult{{
+		PolicyName: "inject-db-secret",
+		Enabled:    true,
+		Transforms: &PolicyOutput{
+			SensitiveCtx: map[string]interface{}{
+				"dbPassword": leakedSecretValue,
+				"nested":     map[string]interface{}{"token": leakedSecretValue},
+				"tiny":       "ok", // below redaction length, must not mangle JSON
+			},
+		},
+		SensitiveContext: map[string]interface{}{
+			"dbPassword": leakedSecretValue,
+			"nested":     map[string]interface{}{"token": leakedSecretValue},
+			"tiny":       "ok",
+		},
+	}}
+
+	monCtx := monitorContext.NewTraceContext(context.Background(), "redact-spec")
+	h.writePolicyObservabilityConfigMap(monCtx, app, results, renderedSpec, nil, false, false)
+
+	cm := &corev1.ConfigMap{}
+	if err := cli.Get(context.Background(), client.ObjectKey{
+		Name:      policyConfigMapName(app.Namespace, app.Name),
+		Namespace: app.Namespace,
+	}, cm); err != nil {
+		t.Fatalf("expected observability ConfigMap to exist: %v", err)
+	}
+	if configMapContains(cm, leakedSecretValue) {
+		t.Fatalf("SECURITY REGRESSION: sensitive value leaked into spec snapshots in ConfigMap %q", cm.Name)
+	}
+	if !configMapContains(cm, sensitiveRedactionPlaceholder) {
+		t.Fatalf("expected redaction placeholder in spec snapshots")
+	}
+	// Redaction must not corrupt the JSON payloads.
+	for key, payload := range cm.Data {
+		var decoded interface{}
+		if err := json.Unmarshal([]byte(payload), &decoded); err != nil {
+			t.Fatalf("ConfigMap key %q no longer valid JSON after redaction: %v", key, err)
+		}
+	}
+
+	// The Secret still holds the real value.
+	secret := &corev1.Secret{}
+	if err := cli.Get(context.Background(), client.ObjectKey{
+		Name:      policySecretName(app.Namespace, app.Name),
+		Namespace: app.Namespace,
+	}, secret); err != nil {
+		t.Fatalf("expected sensitive-context Secret to exist: %v", err)
+	}
+	if !secretContains(secret, leakedSecretValue) {
+		t.Fatalf("expected Secret to keep the unredacted sensitive value")
 	}
 }
 

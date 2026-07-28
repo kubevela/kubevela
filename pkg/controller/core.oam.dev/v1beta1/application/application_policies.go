@@ -314,6 +314,12 @@ func (h *AppHandler) writePolicyObservabilityConfigMap(ctx monitorContext.Contex
 		configMapData["info"] = string(infoJSON)
 	}
 
+	// A policy may template a sensitiveCtx value into the spec itself (component
+	// properties, workflow inputs, ...). The spec snapshots above (rendered_spec,
+	// applied_spec, per-policy spec diffs) would then leak it, so scrub every
+	// value marked sensitive from all ConfigMap payloads before persisting.
+	redactSensitiveValues(configMapData, results)
+
 	if len(configMapData) > 0 {
 		if err := createOrUpdateDiffsConfigMap(ctx, h.Client, app, configMapData); err != nil {
 			ctx.Info("Failed to store policy ConfigMap", "error", err)
@@ -331,6 +337,64 @@ func (h *AppHandler) writePolicyObservabilityConfigMap(ctx monitorContext.Contex
 	// not persisted — it is never written to the ConfigMap as a fallback.
 	if err := reconcilePolicySecret(ctx, h.Client, app, collectSensitivePolicyContext(results)); err != nil {
 		ctx.Info("Failed to reconcile sensitive policy Secret; sensitive context not persisted", "error", err)
+	}
+}
+
+// sensitiveRedactionPlaceholder replaces sensitiveCtx-derived values in
+// observability ConfigMap payloads.
+const sensitiveRedactionPlaceholder = "[redacted:sensitiveCtx]"
+
+// minSensitiveRedactionLen guards against mangling the surrounding JSON: leaf
+// values shorter than this (e.g. "1", "on") are too generic to substring-match
+// safely and are left alone. Real credentials are comfortably longer.
+const minSensitiveRedactionLen = 4
+
+// collectSensitiveLeafStrings walks a sensitiveCtx map and returns every string
+// leaf long enough to redact, including nested maps and slices.
+func collectSensitiveLeafStrings(v interface{}, out *[]string) {
+	switch val := v.(type) {
+	case string:
+		if len(val) >= minSensitiveRedactionLen {
+			*out = append(*out, val)
+		}
+	case map[string]interface{}:
+		for _, nested := range val {
+			collectSensitiveLeafStrings(nested, out)
+		}
+	case []interface{}:
+		for _, nested := range val {
+			collectSensitiveLeafStrings(nested, out)
+		}
+	}
+}
+
+// redactSensitiveValues removes every sensitiveCtx-marked string from the
+// ConfigMap payloads. Values are matched both raw and JSON-escaped, since the
+// payloads are JSON documents and a secret containing quotes or backslashes
+// appears escaped there.
+func redactSensitiveValues(configMapData map[string]string, results []RenderedPolicyResult) {
+	var sensitive []string
+	for _, result := range results {
+		if result.Enabled && len(result.SensitiveContext) > 0 {
+			collectSensitiveLeafStrings(result.SensitiveContext, &sensitive)
+		}
+	}
+	if len(sensitive) == 0 {
+		return
+	}
+
+	for key, payload := range configMapData {
+		for _, s := range sensitive {
+			payload = strings.ReplaceAll(payload, s, sensitiveRedactionPlaceholder)
+			if escaped, err := json.Marshal(s); err == nil {
+				// Trim the surrounding quotes json.Marshal adds to a bare string.
+				escapedBody := string(escaped[1 : len(escaped)-1])
+				if escapedBody != s {
+					payload = strings.ReplaceAll(payload, escapedBody, sensitiveRedactionPlaceholder)
+				}
+			}
+		}
+		configMapData[key] = payload
 	}
 }
 
