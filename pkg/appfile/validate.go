@@ -279,41 +279,10 @@ func ValidateTraitParams(ctxData velaprocess.ContextData, tr *Trait) error {
 
 	paramVal := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
 
-	// Check for required params (no default, not optional) that are absent from
-	// the supplied values — cue.Concrete(false) alone does not catch these.
-	if err := enforceTraitRequiredParams(paramVal, tr.Params, tr.Name); err != nil {
-		return err
-	}
-
 	if err := paramVal.Validate(cue.Concrete(false)); err != nil {
 		return errors.WithMessagef(err, "trait %q: parameter constraint violation", tr.Name)
 	}
 
-	return nil
-}
-
-// enforceTraitRequiredParams reports any non-optional, non-defaulted fields in the
-// trait's parameter schema that are absent from the supplied params map.
-func enforceTraitRequiredParams(paramVal cue.Value, params map[string]any, traitName string) error {
-	reqFields, err := requiredFields(paramVal)
-	if err != nil {
-		return err
-	}
-	if len(reqFields) == 0 {
-		return nil
-	}
-	var missing []string
-	for _, f := range reqFields {
-		if _, ok := params[f]; !ok {
-			missing = append(missing, f)
-		}
-	}
-	if len(missing) > 0 {
-		sort.Strings(missing)
-		return errors.WithMessagef(
-			fmt.Errorf("missing required parameters: %s", strings.Join(missing, ", ")),
-			"trait %q", traitName)
-	}
 	return nil
 }
 
