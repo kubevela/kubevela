@@ -37,7 +37,7 @@ require (
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.16
 	github.com/jeremywohl/flatten/v2 v2.0.0-20211013061545-07e4a09fb8e4
-	github.com/kubevela/pkg v1.11.1-0.20260722232534-455842713731
+	github.com/kubevela/pkg v1.11.1
 	github.com/kubevela/workflow v0.7.3-0.20260724135823-5e2a5c1ecb21
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/magiconair/properties v1.8.7
@@ -181,6 +181,7 @@ require (
 	github.com/go-openapi/swag/stringutils v0.27.0 // indirect
 	github.com/go-openapi/swag/typeutils v0.27.0 // indirect
 	github.com/go-openapi/swag/yamlutils v0.27.0 // indirect
+	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/gobuffalo/flect v1.0.3 // indirect
@@ -225,6 +226,7 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.23 // indirect
+	github.com/mattn/go-sqlite3 v1.14.23 // indirect
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -295,7 +297,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260316180232-0b37fe3546d5 // indirect
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
-	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // 
+	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -307,12 +309,10 @@ require (
 	k8s.io/component-helpers v0.35.6 // indirect
 	k8s.io/gengo/v2 v2.0.0-20251215205346-5ee0d033ba5b // indirect
 	k8s.io/klog v1.0.0 // indirect
-	k8s.io/kms v0.35.6 // indirect
 	k8s.io/kube-openapi v0.0.0-20260706235625-cdb1db5517a0 // indirect
 	oras.land/oras-go v1.2.5 // indirect
 	sigs.k8s.io/apiserver-network-proxy v0.31.4 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
-	sigs.k8s.io/apiserver-runtime v1.1.2-0.20250117204231-9282f514a674 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/kustomize/api v0.20.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.20.1 // indirect
@@ -325,13 +325,12 @@ replace (
 	github.com/docker/cli => github.com/docker/cli v24.0.9+incompatible
 	github.com/docker/docker => github.com/docker/docker v28.3.3+incompatible
 	github.com/docker/docker-credential-helpers => github.com/docker/docker-credential-helpers v0.7.0
-	github.com/kubevela/pkg => github.com/anishbista60/pkg v0.0.0-20260722123526-34480bf014a5
-	github.com/kubevela/workflow => github.com/anishbista60/workflow v0.0.0-20260724073335-b571dbc1074f
-	github.com/oam-dev/cluster-gateway => github.com/anishbista60/cluster-gateway v0.0.0-20260722123514-9f9fb7c6e81d
+	github.com/kubevela/pkg => github.com/anishbista60/pkg v0.0.0-20260730094223-842bcaf4ccbc
+	github.com/kubevela/workflow => github.com/anishbista60/workflow v0.0.0-20260730100700-e7e13c2f45b1
+	github.com/oam-dev/cluster-gateway => github.com/anishbista60/cluster-gateway v0.0.0-20260730082011-06bb4f3031ff
 	github.com/oam-dev/cluster-register => github.com/anishbista60/cluster-register v0.0.0-20260716193514-cf3997226f84
 	github.com/oam-dev/terraform-config-inspect => github.com/anishbista60/terraform-config-inspect v0.0.0-20260716193920-444f734cf8ca
 	github.com/oam-dev/terraform-controller => github.com/anishbista60/terraform-controller v0.0.0-20260717172336-85acea9b461b
 	github.com/wercker/stern => github.com/anishbista60/stern v0.0.0-20260716201616-e009e4ac1325
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
-	sigs.k8s.io/apiserver-runtime => github.com/anishbista60/apiserver-runtime v1.1.2-0.20260722123624-38ed2f9bdeb6
 )
