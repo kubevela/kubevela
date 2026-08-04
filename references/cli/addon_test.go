@@ -19,6 +19,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
@@ -478,4 +480,183 @@ func TestCheckSpecifyRegistry(t *testing.T) {
 		assert.Equal(t, r, testCase.registry)
 		assert.Equal(t, n, testCase.addonName)
 	}
+}
+
+func TestSetPushPasswordFromStdin(t *testing.T) {
+	newCommand := func(input string) *cobra.Command {
+		cmd := &cobra.Command{}
+		cmd.Flags().String("password", "", "")
+		cmd.SetIn(strings.NewReader(input))
+		return cmd
+	}
+
+	t.Run("reads password and removes only line endings", func(t *testing.T) {
+		cmd := newCommand(" secret with spaces \r\n")
+		pushCmd := &pkgaddon.PushCmd{PasswordStdin: true}
+
+		err := setPushPasswordFromStdin(cmd, pushCmd)
+
+		assert.NoError(t, err)
+		assert.Equal(t, " secret with spaces ", pushCmd.Password)
+	})
+
+	t.Run("stdin overrides an environment-derived password", func(t *testing.T) {
+		cmd := newCommand("stdin-password\n")
+		pushCmd := &pkgaddon.PushCmd{
+			PasswordStdin: true,
+			Password:      "environment-password",
+		}
+
+		err := setPushPasswordFromStdin(cmd, pushCmd)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "stdin-password", pushCmd.Password)
+	})
+
+	t.Run("rejects password flag with password stdin", func(t *testing.T) {
+		cmd := newCommand("stdin-password\n")
+		assert.NoError(t, cmd.Flags().Set("password", "flag-password"))
+		pushCmd := &pkgaddon.PushCmd{PasswordStdin: true}
+
+		err := setPushPasswordFromStdin(cmd, pushCmd)
+
+		assert.ErrorContains(t, err, "cannot be used together")
+	})
+
+	t.Run("rejects an empty stdin password", func(t *testing.T) {
+		cmd := newCommand("\r\n")
+		pushCmd := &pkgaddon.PushCmd{PasswordStdin: true}
+
+		err := setPushPasswordFromStdin(cmd, pushCmd)
+
+		assert.ErrorContains(t, err, "is empty")
+	})
+
+	t.Run("does not consume stdin when disabled", func(t *testing.T) {
+		cmd := newCommand("unused")
+		pushCmd := &pkgaddon.PushCmd{Password: "existing"}
+
+		err := setPushPasswordFromStdin(cmd, pushCmd)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "existing", pushCmd.Password)
+	})
+}
+
+func TestAddonPushDirectOCIDoesNotRequireKubeClient(t *testing.T) {
+	cmd := NewAddonPushCommand(common.Args{})
+	cmd.SetArgs([]string{"/path/that/does/not/exist", "oci://registry.example.com/addons"})
+
+	err := cmd.Execute()
+
+	assert.Error(t, err)
+	assert.NotContains(t, err.Error(), "kubeconfig")
+	assert.NotContains(t, err.Error(), "Kubernetes")
+}
+
+func TestGetOCIRegistryFromArgsUsesPassword(t *testing.T) {
+	parse := func(flags ...string) (*pkgaddon.Registry, error) {
+		cmd := &cobra.Command{}
+		parseArgsFromFlag(cmd)
+		if err := cmd.Flags().Parse(flags); err != nil {
+			return nil, err
+		}
+		return getRegistryFromArgs(cmd, []string{"private"})
+	}
+
+	t.Run("username and password", func(t *testing.T) {
+		registry, err := parse(
+			"--type=oci",
+			"--endpoint=oci://registry.example.com/addons",
+			"--username=robot",
+			"--password=secret",
+		)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "robot", registry.OCI.Username)
+		assert.Equal(t, "secret", registry.OCI.Token)
+	})
+
+	t.Run("anonymous", func(t *testing.T) {
+		registry, err := parse(
+			"--type=oci",
+			"--endpoint=oci://registry.example.com/addons",
+		)
+
+		assert.NoError(t, err)
+		assert.Empty(t, registry.OCI.Username)
+		assert.Empty(t, registry.OCI.Token)
+	})
+
+	t.Run("deprecated token remains compatible", func(t *testing.T) {
+		registry, err := parse(
+			"--type=oci",
+			"--endpoint=oci://registry.example.com/addons",
+			"--username=robot",
+			"--token=legacy-secret",
+		)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "legacy-secret", registry.OCI.Token)
+	})
+
+	t.Run("password and deprecated token conflict", func(t *testing.T) {
+		_, err := parse(
+			"--type=oci",
+			"--endpoint=oci://registry.example.com/addons",
+			"--username=robot",
+			"--password=secret",
+			"--token=legacy-secret",
+		)
+
+		assert.ErrorContains(t, err, "cannot be used together")
+	})
+
+	t.Run("partial basic authentication is rejected", func(t *testing.T) {
+		_, err := parse(
+			"--type=oci",
+			"--endpoint=oci://registry.example.com/addons",
+			"--username=robot",
+		)
+
+		assert.ErrorContains(t, err, "must be supplied together")
+	})
+}
+
+func TestSetRegistryPasswordFromStdin(t *testing.T) {
+	newCommand := func(input string) *cobra.Command {
+		cmd := &cobra.Command{}
+		parseArgsFromFlag(cmd)
+		cmd.SetIn(strings.NewReader(input))
+		assert.NoError(t, cmd.Flags().Set(addonPasswordStdin, "true"))
+		return cmd
+	}
+
+	t.Run("sets the shared password flag", func(t *testing.T) {
+		cmd := newCommand("registry-password\n")
+
+		err := setRegistryPasswordFromStdin(cmd)
+
+		assert.NoError(t, err)
+		password, getErr := cmd.Flags().GetString(addonPassword)
+		assert.NoError(t, getErr)
+		assert.Equal(t, "registry-password", password)
+	})
+
+	t.Run("rejects password flag with password stdin", func(t *testing.T) {
+		cmd := newCommand("stdin-password\n")
+		assert.NoError(t, cmd.Flags().Set(addonPassword, "flag-password"))
+
+		err := setRegistryPasswordFromStdin(cmd)
+
+		assert.ErrorContains(t, err, "cannot be used together")
+	})
+
+	t.Run("rejects empty input", func(t *testing.T) {
+		cmd := newCommand("\n")
+
+		err := setRegistryPasswordFromStdin(cmd)
+
+		assert.ErrorContains(t, err, "is empty")
+	})
 }

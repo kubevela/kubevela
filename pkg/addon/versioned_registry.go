@@ -156,7 +156,7 @@ func (i *versionedRegistry) resolveAddonListFromIndex(repoName string, index *re
 func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) (*WholeAddonPackage, error) {
 	versions, err := i.h.ListVersions(i.url, name, false, i.Opts)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(ErrFetch, "registry %s: %v", i.name, err)
 	}
 	if len(versions) == 0 {
 		return nil, ErrNotExist

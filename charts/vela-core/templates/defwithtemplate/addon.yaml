@@ -34,7 +34,10 @@ spec:
         	// Registry name; empty means the configured default.
         	registry: *"" | string
         	// The addon's own parameters, passed through to its templates.
-        	properties: *{} | {...}
+        	// An open struct (defaults to empty) so any addon-specific parameters
+        	// are accepted; kept as a plain struct (not a "*{} | {...}" union) so
+        	// the SDK generator produces valid code.
+        	properties: {...}
         	// Skip the addon's vela/kubernetes SystemRequirements check (mirrors the
         	// imperative skipVersionValidate escape hatch). Defaults to enforcing it.
         	skipVersionValidate: *false | bool

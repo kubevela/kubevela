@@ -38,7 +38,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// PushCmd is the command object to initiate a push command to ChartMuseum
+var chartMuseumURLPattern = regexp.MustCompile(`^https?://`)
+
+// PushCmd is the command object to initiate a push command to ChartMuseum or an OCI registry.
 type PushCmd struct {
 	ChartName          string
 	AppVersion         string
@@ -46,6 +48,7 @@ type PushCmd struct {
 	RepoName           string
 	Username           string
 	Password           string
+	PasswordStdin      bool
 	AccessToken        string
 	AuthHeader         string
 	ContextPath        string
@@ -61,20 +64,26 @@ type PushCmd struct {
 	// We need it to search in addon registries.
 	// If you use URL, instead of registry names, then it is not needed.
 	Client client.Client
+
+	// ociPushFn is a test seam for verifying target and credential resolution
+	// without contacting an OCI registry.
+	ociPushFn func(context.Context, *OCIAddonSource) error
 }
 
-// Push pushes addons (i.e. Helm Charts) to ChartMuseum.
+// IsDirectAddonPushTarget reports whether target can be used without resolving
+// a configured addon registry from Kubernetes.
+func IsDirectAddonPushTarget(target string) bool {
+	return strings.HasPrefix(target, "oci://") || chartMuseumURLPattern.MatchString(target)
+}
+
+// Push pushes addons (i.e. Helm Charts) to ChartMuseum or an OCI registry.
 // It will package the addon into a Helm Chart if necessary.
 func (p *PushCmd) Push(ctx context.Context) error {
 	if strings.HasPrefix(p.RepoName, "oci://") {
-		token := p.Password
-		if p.AccessToken != "" {
-			token = p.AccessToken
-		}
-		return p.pushOCI(ctx, &OCIAddonSource{
+		return p.pushToOCI(ctx, &OCIAddonSource{
 			URL:      p.RepoName,
 			Username: p.Username,
-			Token:    token,
+			Token:    p.Password,
 		})
 	}
 	if p.Client != nil {
@@ -88,10 +97,7 @@ func (p *PushCmd) Push(ctx context.Context) error {
 			if p.Password != "" {
 				source.Token = p.Password
 			}
-			if p.AccessToken != "" {
-				source.Token = p.AccessToken
-			}
-			return p.pushOCI(ctx, source)
+			return p.pushToOCI(ctx, source)
 		}
 	}
 
@@ -205,6 +211,19 @@ func (p *PushCmd) Push(ctx context.Context) error {
 	return handlePushResponse(resp)
 }
 
+func (p *PushCmd) pushToOCI(ctx context.Context, source *OCIAddonSource) error {
+	if p.AccessToken != "" {
+		return errors.New("--access-token is only supported for ChartMuseum; use --password or --password-stdin for OCI registries")
+	}
+	if (source.Username == "") != (source.Token == "") {
+		return errors.New("OCI registry username and password must be supplied together; omit both to use anonymous access or configured Helm/Docker credentials")
+	}
+	if p.ociPushFn != nil {
+		return p.ociPushFn(ctx, source)
+	}
+	return p.pushOCI(ctx, source)
+}
+
 func (p *PushCmd) pushOCI(ctx context.Context, source *OCIAddonSource) error {
 	if err := MakeChartCompatible(p.ChartName, !p.KeepChartMetadata); err != nil && !strings.Contains(err.Error(), "is not a directory") {
 		return err
@@ -266,7 +285,7 @@ func GetHelmRepo(ctx context.Context, c client.Client, repoName string) (*cmhelm
 
 	// If RepoName looks like a URL (https / http), just create a temp repo object.
 	// We do not look for it in local addon registries.
-	if regexp.MustCompile(`^https?://`).MatchString(repoName) {
+	if chartMuseumURLPattern.MatchString(repoName) {
 		repo, err = cmhelm.TempRepoFromURL(repoName)
 		if err != nil {
 			return nil, err
@@ -372,7 +391,7 @@ func getChartMuseumError(b []byte, code int) error {
 }
 
 func formatRepoNameAndURL(name, url string) string {
-	if name == "" || regexp.MustCompile(`^https?://`).MatchString(name) {
+	if name == "" || chartMuseumURLPattern.MatchString(name) {
 		return color.BlueString(url)
 	}
 

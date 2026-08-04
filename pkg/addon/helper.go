@@ -287,7 +287,8 @@ func FindAddonPackagesDetailFromRegistry(ctx context.Context, k8sClient client.C
 
 	// Find matched addons in registries
 	for _, r := range registries {
-		if IsVersionRegistry(r) {
+		switch {
+		case IsVersionRegistry(r):
 			vr := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
 				Username:        r.Helm.Username,
 				Password:        r.Helm.Password,
@@ -300,7 +301,7 @@ func FindAddonPackagesDetailFromRegistry(ctx context.Context, k8sClient client.C
 				}
 				merge(wholePackage)
 			}
-		} else if IsOCIRegistry(r) {
+		case IsOCIRegistry(r):
 			or := BuildOCIRegistry(r.Name, r.OCI.URL, r.OCI.Username, r.OCI.Token)
 			for _, addonName := range addonNames {
 				wholePackage, err := or.GetDetailedAddon(ctx, addonName, "")
@@ -313,7 +314,7 @@ func FindAddonPackagesDetailFromRegistry(ctx context.Context, k8sClient client.C
 				}
 				merge(wholePackage)
 			}
-		} else {
+		default:
 			meta, err := r.ListAddonMeta()
 			if err != nil {
 				continue

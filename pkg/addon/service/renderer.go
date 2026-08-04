@@ -47,12 +47,10 @@ type rendererImpl struct {
 	cli    client.Client
 	config *rest.Config
 
-	// cache is the in-process half of "resolve once": it maps a cacheKey built
-	// from every render input to the rendered *api.AddonResult, so repeat
-	// requests skip registry I/O and CUE rendering. The durable pin is the
-	// rendered manifests captured in the ApplicationRevision by the existing
-	// Application controller. No invalidation is needed: the key already
-	// includes every input, so a version/property change is simply a new key.
+	// cache maps explicitly versioned requests to their rendered
+	// *api.AddonResult, so repeat requests skip registry I/O and CUE rendering.
+	// Unpinned requests are deliberately not cached: their empty version means
+	// "latest", whose resolution can change without any request input changing.
 	cache sync.Map
 
 	// resolveFn is a seam for tests: it defaults to r.resolveAndRender and is
@@ -115,17 +113,21 @@ func hashProperties(properties map[string]interface{}) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// RenderAddon resolves and renders an addon, caching the result by cacheKey so
-// identical requests avoid repeat registry I/O and rendering.
+// RenderAddon resolves and renders an addon. Explicit versions are immutable
+// cache keys; an empty version is resolved every time so a newly published
+// registry version is not hidden by a stale in-process result.
 func (r *rendererImpl) RenderAddon(ctx context.Context, req api.AddonRequest) (*api.AddonResult, error) {
-	key := cacheKey(req)
-	if cached, ok := r.cache.Load(key); ok {
-		return cached.(*api.AddonResult), nil
-	}
-
 	resolve := r.resolveFn
 	if resolve == nil {
 		resolve = r.resolveAndRender
+	}
+	if req.Version == "" {
+		return resolve(ctx, req)
+	}
+
+	key := cacheKey(req)
+	if cached, ok := r.cache.Load(key); ok {
+		return cached.(*api.AddonResult), nil
 	}
 	res, err := resolve(ctx, req)
 	if err != nil {

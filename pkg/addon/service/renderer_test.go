@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +28,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/addon/service/api"
@@ -97,6 +98,25 @@ func TestRenderAddonCachesByKey(t *testing.T) {
 	_, err = r.RenderAddon(context.Background(), api.AddonRequest{Name: "example", Version: "1.0.0", Properties: map[string]interface{}{"replicas": 2}})
 	require.NoError(t, err)
 	assert.Equal(t, 3, calls, "distinct requests must each resolve")
+}
+
+func TestRenderAddonDoesNotCacheLatest(t *testing.T) {
+	r := &rendererImpl{cli: fakeClientWithRegistry(t)}
+	var calls int
+	r.resolveFn = func(_ context.Context, _ api.AddonRequest) (*api.AddonResult, error) {
+		calls++
+		return &api.AddonResult{ResolvedVersion: fmt.Sprintf("3.0.%d", calls+1)}, nil
+	}
+
+	req := api.AddonRequest{Name: "example"}
+	first, err := r.RenderAddon(context.Background(), req)
+	require.NoError(t, err)
+	second, err := r.RenderAddon(context.Background(), req)
+	require.NoError(t, err)
+
+	assert.Equal(t, 2, calls, "latest must be resolved for every request")
+	assert.Equal(t, "3.0.2", first.ResolvedVersion)
+	assert.Equal(t, "3.0.3", second.ResolvedVersion)
 }
 
 func TestHashPropertiesStable(t *testing.T) {

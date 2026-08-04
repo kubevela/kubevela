@@ -14,20 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Prerequisites for running this suite (it exercises a live cluster, so it is
-// run manually, not in CI):
+// This suite is hermetic: it serves the "example" addon straight off disk from
+// the existing e2e/addon/mock/testdata fixture (the same fixture the
+// e2e/addon mock server uses) via an in-process httptest.Server (see
+// addon_mock_registry_test.go), and registers that server as an OSS-type addon
+// registry directly through the RegistryDataStore, in a BeforeEach/AfterEach
+// scoped to this Describe block. It does not depend on any externally started
+// process (e2e/addon/mock is a `package main` and cannot be imported, and
+// running it as a subprocess would reintroduce a process-lifetime dependency),
+// so there is no cross-step process-lifetime or ordering concern in CI, and it
+// does not reach any external registry.
 //
-//   - A vela-core controller BUILT FROM THE feat/addon-component BRANCH is
-//     running against the target cluster with the addon renderer wired in and
-//     the ZstdResourceTracker feature gate enabled:
-//     --feature-gates=ZstdResourceTracker=true
-//   - The real addon registry ConfigMap (e.g. vela-addon-registry) is
-//     installed in vela-system so "fluxcd" can be resolved from the registry.
-//   - The "addon" ComponentDefinition (vela-templates/definitions/internal/
-//     component/addon.cue) is installed in vela-system.
-//   - "skipVersionValidate: true" is set on the component properties because
-//     when vela-core runs out-of-cluster its reported version cannot satisfy
-//     the addon's SystemRequirements check; skipping it mirrors the imperative
+//   - The registry is added under its own name (not "KubeVela") so this test
+//     never touches the chart-default "KubeVela" registry that other specs in
+//     this suite may rely on.
+//   - It installs the "example" addon (served by the mock registry): it is
+//     renderable (namespace + resources) and, being absent from the
+//     imperative pre-enable in the e2e setup, avoids a child-Application name
+//     collision on addon-<name>.
+//   - "skipVersionValidate: true" is set on the component properties so the
+//     addon's SystemRequirements check does not fail when the controller's
+//     reported version cannot satisfy it; this mirrors the imperative
 //     "vela addon enable --skip-version-validating" escape hatch.
 
 package controllers_test
@@ -35,6 +42,7 @@ package controllers_test
 import (
 	"context"
 	"fmt"
+	"net/http/httptest"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -47,22 +55,35 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Addon as component e2e", func() {
 	ctx := context.Background()
+	var mockServer *httptest.Server
 
 	const (
 		systemNamespace = "vela-system"
 		// wrapping Application that declares the addon as a component.
-		wrappingAppName = "comp-fluxcd"
+		wrappingAppName = "comp-example"
+		// addonRegistry is registered against an in-process mock OSS server in
+		// BeforeEach below (see addon_mock_registry_test.go), not the
+		// chart-default "KubeVela" registry, so this test never depends on or
+		// mutates that shared registry.
+		addonRegistry = "e2e-mock-oss"
+		// addonMockTestdataDir is the real e2e/addon/mock testdata fixture tree,
+		// served directly off disk by our own in-process mock OSS server; the
+		// addon lives at addonMockTestdataDir/addonName. Reusing this directory
+		// (rather than a copy) means there is only one "example" fixture to keep
+		// in sync.
+		addonMockTestdataDir = "../../e2e/addon/mock/testdata"
 		// the addon's own name and the child Application RenderApp produces
 		// (RenderApp forces the name to addon-<name> in vela-system).
-		addonName    = "fluxcd"
-		childAppName = "addon-fluxcd"
-		// an auxiliary the fluxcd addon renders: the helm ComponentDefinition.
-		helmCompDefName = "helm"
+		addonName    = "example"
+		childAppName = "addon-example"
+		// an auxiliary the example addon renders: the helm-example ComponentDefinition.
+		helmCompDefName = "helm-example"
 
 		waitTimeout = 300 * time.Second
 		pollPeriod  = 5 * time.Second
@@ -70,7 +91,7 @@ var _ = Describe("Addon as component e2e", func() {
 
 	// buildWrappingApp constructs the wrapping Application with a single
 	// type: addon component. Properties are carried as a RawExtension so the
-	// version and the skipVersionValidate escape hatch are threaded through to
+	// registry and the skipVersionValidate escape hatch are threaded through to
 	// the addon renderer.
 	buildWrappingApp := func() *v1beta1.Application {
 		return &v1beta1.Application{
@@ -81,14 +102,33 @@ var _ = Describe("Addon as component e2e", func() {
 			Spec: v1beta1.ApplicationSpec{
 				Components: []common.ApplicationComponent{
 					{
-						Name:       addonName,
-						Type:       "addon",
-						Properties: &runtime.RawExtension{Raw: []byte(`{"version":"3.0.2","skipVersionValidate":true}`)},
+						Name: addonName,
+						Type: "addon",
+						// properties.example is the "example" addon's own required
+						// parameter, threaded through the addon component's
+						// pass-through properties field.
+						Properties: &runtime.RawExtension{Raw: []byte(`{"registry":"` + addonRegistry + `","skipVersionValidate":true,"properties":{"example":"e2e"}}`)},
 					},
 				},
 			},
 		}
 	}
+
+	BeforeEach(func() {
+		By("Starting the in-process mock OSS addon server")
+		server, err := newMockOSSAddonServer(addonMockTestdataDir)
+		Expect(err).NotTo(HaveOccurred())
+		mockServer = server
+
+		By("Registering the mock server as an OSS addon registry")
+		registryDS := pkgaddon.NewRegistryDataStore(k8sClient)
+		Expect(registryDS.AddRegistry(ctx, pkgaddon.Registry{
+			Name: addonRegistry,
+			OSS: &pkgaddon.OSSAddonSource{
+				Endpoint: mockServer.URL,
+			},
+		})).To(Succeed())
+	})
 
 	AfterEach(func() {
 		By("Deleting the wrapping application")
@@ -109,6 +149,11 @@ var _ = Describe("Addon as component e2e", func() {
 			}
 			return nil
 		}, waitTimeout, pollPeriod).Should(BeNil())
+
+		By("Removing the mock OSS addon registry and stopping its server")
+		registryDS := pkgaddon.NewRegistryDataStore(k8sClient)
+		Expect(registryDS.DeleteRegistry(ctx, addonRegistry)).To(Succeed())
+		mockServer.Close()
 	})
 
 	It("installs an addon declared as a component, tracks it, and heals its auxiliaries", func() {

@@ -48,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
+	httpoption "github.com/oam-dev/kubevela/pkg/utils/common"
 	version2 "github.com/oam-dev/kubevela/version"
 )
 
@@ -1497,9 +1498,8 @@ func TestListAvailableAddons(t *testing.T) {
 			},
 		},
 	}
-	res, err := listAvailableAddons(registries)
+	res := listAvailableAddons(registries)
 
-	assert.NoError(t, err)
 	expected := itemInfoMap{
 		// addon1 versions are merged
 		"addon1": {
@@ -1516,6 +1516,84 @@ func TestListAvailableAddons(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, res)
+}
+
+func TestIsSkippableRegistryError(t *testing.T) {
+	assert.True(t, isSkippableRegistryError(ErrNotExist))
+	assert.True(t, isSkippableRegistryError(ErrFetch))
+	assert.True(t, isSkippableRegistryError(fmt.Errorf("wrapped: %w", ErrFetch)))
+	assert.False(t, isSkippableRegistryError(errors.New("some addon-specific failure")))
+	assert.False(t, isSkippableRegistryError(nil))
+}
+
+func TestGetAddonMetaClassifiesBrokenRegistryAsFetchError(t *testing.T) {
+	h := &Installer{
+		r: &Registry{
+			Name: "mygit",
+			Git:  &GitAddonSource{URL: "https://github.com/", Path: ""},
+		},
+	}
+	_, err := h.getAddonMeta()
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrFetch), "expected error to be classified as ErrFetch, got: %v", err)
+}
+
+func TestVersionedRegistryLoadAddonClassifiesBrokenRegistryAsFetchError(t *testing.T) {
+	registry := BuildVersionedRegistry("myhelm", "/path/does/not/exist", &httpoption.HTTPOption{})
+	_, err := registry.GetAddonInstallPackage(context.Background(), "some-addon", "")
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, ErrFetch), "expected error to be classified as ErrFetch, got: %v", err)
+}
+
+func TestInstallDependencySkipsRegistryScanWhenNoDependencies(t *testing.T) {
+	h := &Installer{
+		ctx: context.Background(),
+		// h.cli and h.r are left nil on purpose: if installDependency lists
+		// installed addons or scans registries even though the addon has no
+		// dependencies, calling List/ListAddonInfo on a nil client/registry
+		// pointer panics.
+	}
+	addon := &InstallPackage{Meta: Meta{Name: "velaux"}}
+
+	assert.NotPanics(t, func() {
+		err := h.installDependency(context.Background(), addon)
+		assert.NoError(t, err)
+	})
+}
+
+func TestListAvailableAddonsSkipsFailingRegistry(t *testing.T) {
+	registries := []ItemInfoLister{
+		&AddonInfoListerMock{
+			expectedErr: fmt.Errorf("invalid format: registry path is empty"),
+		},
+		&AddonInfoListerMock{
+			expectedData: itemInfoMap{
+				"velaux": {
+					Name:              "velaux",
+					AvailableVersions: []string{"1.0.0"},
+				},
+			},
+		},
+	}
+	res := listAvailableAddons(registries)
+
+	expected := itemInfoMap{
+		"velaux": {
+			Name:              "velaux",
+			AvailableVersions: []string{"1.0.0"},
+		},
+	}
+	assert.Equal(t, expected, res)
+}
+
+func TestListAvailableAddonsAllRegistriesFail(t *testing.T) {
+	registries := []ItemInfoLister{
+		&AddonInfoListerMock{expectedErr: fmt.Errorf("401 Bad credentials")},
+		&AddonInfoListerMock{expectedErr: fmt.Errorf("invalid format: registry path is empty")},
+	}
+	res := listAvailableAddons(registries)
+
+	assert.Equal(t, itemInfoMap{}, res)
 }
 
 type AddonInfoListerMock struct {

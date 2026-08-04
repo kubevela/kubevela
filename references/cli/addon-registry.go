@@ -19,7 +19,9 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
+	"strings"
 
 	"github.com/gosuri/uitable"
 	"github.com/pkg/errors"
@@ -31,20 +33,21 @@ import (
 )
 
 const (
-	addonRegistryType = "type"
-	addonEndpoint     = "endpoint"
-	addonOssBucket    = "bucket"
-	addonPath         = "path"
-	addonGitToken     = "gitToken"
-	addonOssType      = "OSS"
-	addonGitType      = "git"
-	addonGiteeType    = "gitee"
-	addonGitlabType   = "gitlab"
-	addonHelmType     = "helm"
-	addonOCIType      = "oci"
-	addonToken        = "token"
-	addonUsername     = "username"
-	addonPassword     = "password"
+	addonRegistryType  = "type"
+	addonEndpoint      = "endpoint"
+	addonOssBucket     = "bucket"
+	addonPath          = "path"
+	addonGitToken      = "gitToken"
+	addonOssType       = "OSS"
+	addonGitType       = "git"
+	addonGiteeType     = "gitee"
+	addonGitlabType    = "gitlab"
+	addonHelmType      = "helm"
+	addonOCIType       = "oci"
+	addonToken         = "token"
+	addonUsername      = "username"
+	addonPassword      = "password"
+	addonPasswordStdin = "password-stdin"
 	// only gitlab registry need set this flag
 	addonRepoName            = "gitlabRepoName"
 	addonHelmInsecureSkipTLS = "insecureSkipTLS"
@@ -78,9 +81,12 @@ add a github registry: vela addon registry add my-repo --type git --endpoint=<UR
 add a specified github registry: vela addon registry add my-repo --type git --endpoint=https://github.com/kubevela/catalog --path=addons --gitToken=<git token>
 add a gitlab registry: vela addon registry add my-repo --type gitlab --endpoint=<URL> --gitlabRepoName=<repoName> --path=<path> --gitToken=<git token>
 add a specified gitlab registry: vela addon registry add my-repo --type gitlab --endpoint=http://gitlab.xxx.com/xxx/catalog --path=addons --gitlabRepoName=catalog --gitToken=<git token>
-add an OCI registry: vela addon registry add my-repo --type oci --endpoint=oci://<registry>/<repo> --username=<user> --token=<token>
-add a private ECR registry: vela addon registry add ecr --type oci --endpoint=oci://<acct>.dkr.ecr.<region>.amazonaws.com/addon --username=AWS --token=$(aws ecr get-login-password --region <region>)`,
+add an OCI registry: printf '%s' "$REGISTRY_PASSWORD" | vela addon registry add my-repo --type oci --endpoint=oci://<registry>/<repo> --username=<user> --password-stdin
+add a private ECR registry: aws ecr get-login-password --region <region> | vela addon registry add ecr --type oci --endpoint=oci://<acct>.dkr.ecr.<region>.amazonaws.com/addon --username=AWS --password-stdin`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := setRegistryPasswordFromStdin(cmd); err != nil {
+				return err
+			}
 			registry, err := getRegistryFromArgs(cmd, args)
 			if err != nil {
 				return err
@@ -145,6 +151,9 @@ func NewUpdateAddonRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Co
 		Long:    "Update an addon registry.",
 		Example: "vela addon registry update <registry-name> --type OSS --endpoint=<URL> --bucket=<bucket name>",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := setRegistryPasswordFromStdin(cmd); err != nil {
+				return err
+			}
 			registry, err := getRegistryFromArgs(cmd, args)
 			if err != nil {
 				return err
@@ -310,12 +319,36 @@ func parseArgsFromFlag(cmd *cobra.Command) {
 	cmd.Flags().StringP(addonOssBucket, "", "", "specify the OSS bucket name")
 	cmd.Flags().StringP(addonPath, "", "", "specify the addon registry path, must be set when addons are not in root of registry")
 	cmd.Flags().StringP(addonGitToken, "", "", "specify the github repo token")
-	cmd.Flags().StringP(addonToken, "", "", "specify the OCI registry auth token/password")
+	cmd.Flags().StringP(addonToken, "", "", "deprecated alias for the OCI registry password")
 	cmd.Flags().StringP(addonUsername, "", "", "specify the Helm addon registry username")
-	cmd.Flags().StringP(addonPassword, "", "", "specify the Helm addon registry password")
+	cmd.Flags().StringP(addonPassword, "", "", "specify the Helm or OCI addon registry password")
+	cmd.Flags().Bool(addonPasswordStdin, false, "read the Helm or OCI addon registry password from stdin")
 	cmd.Flags().StringP(addonRepoName, "", "", "specify the gitlab addon registry repoName, must be set when registry is gitlab")
 	cmd.Flags().BoolP(addonHelmInsecureSkipTLS, "", false,
 		"specify the Helm addon registry skip tls verify")
+	_ = cmd.Flags().MarkDeprecated(addonToken, "use --password instead")
+}
+
+func setRegistryPasswordFromStdin(cmd *cobra.Command) error {
+	passwordStdin, err := cmd.Flags().GetBool(addonPasswordStdin)
+	if err != nil {
+		return err
+	}
+	if !passwordStdin {
+		return nil
+	}
+	if cmd.Flags().Changed(addonPassword) {
+		return errors.New("--password and --password-stdin cannot be used together")
+	}
+	password, err := io.ReadAll(cmd.InOrStdin())
+	if err != nil {
+		return errors.Wrap(err, "failed to read addon registry password from stdin")
+	}
+	value := strings.TrimRight(string(password), "\r\n")
+	if value == "" {
+		return errors.New("addon registry password read from stdin is empty")
+	}
+	return cmd.Flags().Set(addonPassword, value)
 }
 
 func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry, error) {
@@ -419,9 +452,22 @@ func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry,
 		if err != nil {
 			return nil, err
 		}
-		r.OCI.Token, err = cmd.Flags().GetString(addonToken)
+		r.OCI.Token, err = cmd.Flags().GetString(addonPassword)
 		if err != nil {
 			return nil, err
+		}
+		legacyToken, err := cmd.Flags().GetString(addonToken)
+		if err != nil {
+			return nil, err
+		}
+		if r.OCI.Token != "" && legacyToken != "" {
+			return nil, errors.New("--password and deprecated --token cannot be used together")
+		}
+		if r.OCI.Token == "" {
+			r.OCI.Token = legacyToken
+		}
+		if (r.OCI.Username == "") != (r.OCI.Token == "") {
+			return nil, errors.New("OCI registry username and password must be supplied together; omit both for anonymous access")
 		}
 
 	default:
