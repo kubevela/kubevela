@@ -2516,6 +2516,16 @@ func (g *CUEGenerator) arrayBuilderToCUE(ab *ArrayBuilder, depth int) string {
 	return sb.String()
 }
 
+// itemFieldLabel converts a dot-separated field path into CUE nested-field
+// shorthand. Dots inside brackets are preserved as part of the key.
+func itemFieldLabel(field string) string {
+	parts := splitPath(field)
+	if len(parts) < 2 {
+		return field
+	}
+	return strings.Join(parts, ": ")
+}
+
 // writeItemBuilderOps writes the CUE for ItemBuilder operations.
 func (g *CUEGenerator) writeItemBuilderOps(sb *strings.Builder, ops []itemOp, depth int) {
 	indent := strings.Repeat(g.indent, depth)
@@ -2524,7 +2534,7 @@ func (g *CUEGenerator) writeItemBuilderOps(sb *strings.Builder, ops []itemOp, de
 		switch o := op.(type) {
 		case setOp:
 			valStr := g.valueToCUE(o.value)
-			sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, o.field, valStr))
+			sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, itemFieldLabel(o.field), valStr))
 
 		case ifBlockOp:
 			condStr := g.conditionToCUE(o.cond)
@@ -2538,7 +2548,7 @@ func (g *CUEGenerator) writeItemBuilderOps(sb *strings.Builder, ops []itemOp, de
 
 		case setDefaultOp:
 			defStr := g.valueToCUE(o.defValue)
-			sb.WriteString(fmt.Sprintf("%s%s: *%s | %s\n", indent, o.field, defStr, o.typeName))
+			sb.WriteString(fmt.Sprintf("%s%s: *%s | %s\n", indent, itemFieldLabel(o.field), defStr, o.typeName))
 		}
 	}
 }
