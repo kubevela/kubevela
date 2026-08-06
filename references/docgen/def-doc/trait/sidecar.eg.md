@@ -33,4 +33,8 @@ spec:
             volumes:
               - name: varlog
                 path: /var/log
+            ports:
+              - containerPort: 8080
+                protocol: TCP
+                name: http
 ```

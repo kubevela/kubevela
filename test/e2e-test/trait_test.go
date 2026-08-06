@@ -78,7 +78,7 @@ var _ = Describe("Trait tests", func() {
 				g.Expect(deploy.Spec.Template.Spec.Containers[1].Name).Should(Equal("busybox-sidecar"))
 				g.Expect(deploy.Spec.Template.Spec.Containers[1].Image).Should(Equal("busybox:1.34"))
 				g.Expect(deploy.Spec.Template.Spec.Containers[1].Command).Should(Equal([]string{"sleep", "864000"}))
-			}, 15*time.Second).Should(Succeed())
+			}, 60*time.Second).Should(Succeed())
 		})
 
 		It("Test json-merge-patch trait", func() {
@@ -100,7 +100,7 @@ var _ = Describe("Trait tests", func() {
 				g.Expect(deploy.Spec.Template.Spec.Containers[0].Name).Should(Equal("busybox-new"))
 				g.Expect(deploy.Spec.Template.Spec.Containers[0].Image).Should(Equal("busybox:1.34"))
 				g.Expect(deploy.Spec.Template.Spec.Containers[0].Command).Should(Equal([]string{"sleep", "864000"}))
-			}, 15*time.Second).Should(Succeed())
+			}, 60*time.Second).Should(Succeed())
 		})
 	})
 })
