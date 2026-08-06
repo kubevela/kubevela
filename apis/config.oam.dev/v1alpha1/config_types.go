@@ -41,7 +41,6 @@ type ConfigTemplateReference struct {
 
 // SecretKeySelector selects a key of a Secret in the Config's own namespace.
 type SecretKeySelector struct {
-	// Name of the secret.
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
 
