@@ -416,3 +416,84 @@ func TestValidateAnnotations(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateTraitConflicts(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = v1beta1.AddToScheme(scheme)
+
+	traitA := &v1beta1.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "conflict-a", Namespace: "default"},
+		Spec: v1beta1.TraitDefinitionSpec{
+			ConflictsWith: []string{"conflict-b"},
+		},
+	}
+	traitB := &v1beta1.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "conflict-b", Namespace: "default"},
+		Spec: v1beta1.TraitDefinitionSpec{
+			ConflictsWith: []string{"conflict-a"},
+		},
+	}
+	traitC := &v1beta1.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "scaler", Namespace: "default"},
+		Spec:       v1beta1.TraitDefinitionSpec{},
+	}
+
+	testCases := []struct {
+		name               string
+		traits             []common.ApplicationTrait
+		expectedErrorCount int
+	}{
+		{
+			name: "conflicting traits on same component are rejected",
+			traits: []common.ApplicationTrait{
+				{Type: "conflict-a"},
+				{Type: "conflict-b"},
+			},
+			expectedErrorCount: 1,
+		},
+		{
+			name: "non-conflicting traits are allowed",
+			traits: []common.ApplicationTrait{
+				{Type: "conflict-a"},
+				{Type: "scaler"},
+			},
+			expectedErrorCount: 0,
+		},
+		{
+			name: "single trait cannot conflict",
+			traits: []common.ApplicationTrait{
+				{Type: "conflict-a"},
+			},
+			expectedErrorCount: 0,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := &ValidatingHandler{
+				Client: fake.NewClientBuilder().WithScheme(scheme).
+					WithObjects(traitA.DeepCopy(), traitB.DeepCopy(), traitC.DeepCopy()).Build(),
+			}
+
+			app := &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-app",
+					Namespace: "default",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{
+						{
+							Name:   "comp1",
+							Type:   "webservice",
+							Traits: tc.traits,
+						},
+					},
+				},
+			}
+
+			errs := handler.ValidateTraitConflicts(context.Background(), app)
+			assert.Equal(t, tc.expectedErrorCount, len(errs),
+				"Expected %d errors, got %d: %v", tc.expectedErrorCount, len(errs), errs)
+		})
+	}
+}
