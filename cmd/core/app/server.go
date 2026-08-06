@@ -64,6 +64,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	configwebhook "github.com/oam-dev/kubevela/pkg/webhook/config.oam.dev/v1alpha1"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -461,6 +462,7 @@ func prepareRun(ctx context.Context, manager manager.Manager, coreOptions *optio
 			"port", coreOptions.Webhook.WebhookPort,
 			"certDir", coreOptions.Webhook.CertDir)
 		oamwebhook.Register(manager, coreOptions.Controller.Args)
+		configwebhook.Register(manager)
 		klog.V(2).InfoS("Waiting for webhook secret volume",
 			"timeout", waitSecretTimeout,
 			"checkInterval", waitSecretInterval)
