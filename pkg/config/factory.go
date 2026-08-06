@@ -442,8 +442,9 @@ func (k *kubeConfigFactory) LoadTemplate(ctx context.Context, name, ns string) (
 	switch err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: ns, Name: name}, &ct); {
 	case err == nil:
 		return configTemplateCRDToTemplate(ctx, &ct)
-	case apierrors.IsNotFound(err), meta.IsNoMatchError(err):
-		// fall back to the legacy ConfigMap convention
+	case apierrors.IsNotFound(err), meta.IsNoMatchError(err), runtime.IsNotRegisteredError(err):
+		// fall back to the legacy ConfigMap convention; NotRegistered covers callers
+		// whose client scheme doesn't have config.oam.dev/v1alpha1 added
 	default:
 		return nil, err
 	}
