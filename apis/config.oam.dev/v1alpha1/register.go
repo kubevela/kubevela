@@ -26,9 +26,7 @@ import (
 
 // Package type metadata.
 const (
-	// Group is the API group for config management types.
-	Group = "config.oam.dev"
-	// Version is the API version for config management types.
+	Group   = "config.oam.dev"
 	Version = "v1alpha1"
 )
 

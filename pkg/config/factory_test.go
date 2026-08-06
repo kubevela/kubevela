@@ -18,16 +18,20 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"testing"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
+	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/types"
 	nacosmock "github.com/oam-dev/kubevela/test/mock/nacos"
 )
@@ -43,6 +47,75 @@ func TestParseConfigTemplate(t *testing.T) {
 	r.Equal(template.Name, "default")
 	r.NotEqual(template.Schema, nil)
 	r.Equal(len(template.Schema.Properties), 4)
+}
+
+const configTemplateCRDCueScript = `
+metadata: { name: "from-crd" }
+template: {
+	parameter: {
+		key: string
+	}
+	output: {
+		apiVersion: "v1"
+		kind:       "Secret"
+		stringData: {
+			key: parameter.key
+		}
+	}
+}
+`
+
+func TestConfigTemplateCRDToTemplate(t *testing.T) {
+	r := require.New(t)
+
+	t.Run("without status schema, schema is parsed from the template", func(t *testing.T) {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "from-crd", Namespace: "default"},
+			Spec: configv1alpha1.ConfigTemplateSpec{
+				Template: configTemplateCRDCueScript,
+				Alias:    "alias",
+				Scope:    configv1alpha1.ConfigTemplateScopeNamespace,
+			},
+		}
+		template, err := configTemplateCRDToTemplate(context.Background(), ct)
+		r.NoError(err)
+		r.NotNil(template)
+		r.Equal("from-crd", template.Name)
+		r.Equal("alias", template.Alias)
+		r.NotNil(template.Schema)
+		r.Contains(template.Schema.Properties, "key")
+	})
+
+	t.Run("with a status schema, it is decoded directly", func(t *testing.T) {
+		schema := &openapi3.Schema{Type: &openapi3.Types{openapi3.TypeObject}}
+		raw, err := json.Marshal(schema)
+		r.NoError(err)
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "from-crd", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: configTemplateCRDCueScript},
+			Status: configv1alpha1.ConfigTemplateStatus{
+				Schema: &runtime.RawExtension{Raw: raw},
+			},
+		}
+		template, err := configTemplateCRDToTemplate(context.Background(), ct)
+		r.NoError(err)
+		r.NotNil(template.Schema)
+		r.True(template.Schema.Type.Includes(openapi3.TypeObject))
+	})
+
+	t.Run("with an invalid status schema, it fails to parse", func(t *testing.T) {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "from-crd", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: configTemplateCRDCueScript},
+			Status: configv1alpha1.ConfigTemplateStatus{
+				Schema: &runtime.RawExtension{Raw: []byte("not-json")},
+			},
+		}
+		_, err := configTemplateCRDToTemplate(context.Background(), ct)
+		r.Error(err)
+		r.Contains(err.Error(), "fail to parse the schema")
+	})
+
 }
 
 var _ = Describe("test config factory", func() {
@@ -183,6 +256,18 @@ var _ = Describe("test config factory", func() {
 		_, err := fac.ParseTemplate(context.Background(), "missing-template", []byte(`metadata: { name: "t" }`))
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("template"))
+	})
+
+	It("should load a template from a ConfigTemplate CRD before falling back to the ConfigMap convention", func() {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "crd-template", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: configTemplateCRDCueScript},
+		}
+		Expect(k8sClient.Create(context.TODO(), ct)).Should(BeNil())
+
+		template, err := fac.LoadTemplate(context.TODO(), "crd-template", "default")
+		Expect(err).Should(BeNil())
+		Expect(template.Name).Should(Equal("crd-template"))
 	})
 
 	It("should fail to parse config when template not found", func() {

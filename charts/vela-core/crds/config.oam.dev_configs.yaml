@@ -31,9 +31,8 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: |-
-          Config is the schema for the configs API. It is the CRD-native replacement for
-          the legacy labeled-Secret config convention.
+        description: Config is the CRD-native replacement for the legacy labeled-Secret
+          config convention.
         properties:
           apiVersion:
             description: |-
@@ -56,31 +55,25 @@ spec:
             description: ConfigSpec defines the desired state of Config.
             properties:
               alias:
-                description: Alias is a human-readable name for the config.
                 type: string
               description:
-                description: Description documents what the config is for.
                 type: string
               properties:
-                description: |-
-                  Properties are inline, non-sensitive properties. Mutually exclusive with
-                  PropertiesFrom.
+                description: Properties and PropertiesFrom are mutually exclusive.
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
               propertiesFrom:
-                description: |-
-                  PropertiesFrom sources properties from a Secret, for sensitive values that must
-                  not be stored inline in the Config. Mutually exclusive with Properties.
+                description: PropertiesReference sources properties from a Secret
+                  instead of storing them inline.
                 properties:
                   secretRef:
-                    description: SecretRef points at a Secret containing the JSON-encoded
-                      properties.
+                    description: SecretKeySelector selects a key of a Secret in the
+                      Config's own namespace.
                     properties:
                       key:
-                        description: Key within the secret's data. Defaults to "properties".
+                        description: Key defaults to "properties".
                         type: string
                       name:
-                        description: Name of the secret.
                         type: string
                     required:
                     - name
@@ -90,19 +83,13 @@ spec:
                 type: object
               templateRef:
                 description: |-
-                  TemplateRef is the ConfigTemplate (or legacy ConfigMap) this Config is rendered
-                  from. If empty, the Config's properties are materialized as-is with no template
-                  evaluation.
+                  TemplateRef is the ConfigTemplate (or legacy ConfigMap) to render against. If
+                  empty, Properties are materialized as-is with no template evaluation.
                 properties:
                   name:
-                    description: |-
-                      Name of the ConfigTemplate (or the suffix of the legacy config-template-<name>
-                      ConfigMap).
                     type: string
                   namespace:
-                    description: |-
-                      Namespace to look up the template in. Defaults to "vela-system" if empty,
-                      matching the legacy CLI/factory lookup behavior.
+                    description: Namespace defaults to "vela-system" if empty.
                     type: string
                 required:
                 - name
@@ -148,11 +135,12 @@ spec:
                   type: object
                 type: array
               phase:
-                description: Phase is the current lifecycle phase of the Config.
+                description: ConfigPhase describes the lifecycle phase of a Config.
                 type: string
               secretRef:
-                description: SecretRef is the materialized output Secret, owned by
-                  this Config.
+                description: |-
+                  LocalObjectReference contains enough information to let you locate the
+                  referenced object inside the same namespace.
                 properties:
                   name:
                     default: ""

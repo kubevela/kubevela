@@ -22,13 +22,11 @@ import (
 	"net/http"
 
 	admissionv1 "k8s.io/api/admission/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
 
 var configTemplateGVR = configv1alpha1.ConfigTemplateGVR
@@ -36,12 +34,10 @@ var configTemplateGVR = configv1alpha1.ConfigTemplateGVR
 // ValidatingHandler validates ConfigTemplate resources.
 type ValidatingHandler struct {
 	Decoder admission.Decoder
-	Client  client.Client
 }
 
 var _ admission.Handler = &ValidatingHandler{}
 
-// Handle validates the ConfigTemplate's CUE template syntax.
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	if req.Resource.String() != configTemplateGVR.String() {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", configTemplateGVR))
@@ -55,10 +51,6 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	if _, err := script.CUE(obj.Spec.Template).ParseToTemplateValueWithCueX(ctx); err != nil {
-		return admission.Denied(fmt.Sprintf("invalid template: %s (requestUID=%s)", err.Error(), req.UID))
-	}
-
 	return admission.ValidationResponse(true, "")
 }
 
@@ -66,7 +58,6 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 func RegisterValidatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
 	server.Register("/validating-config-oam-dev-v1alpha1-configtemplates", &webhook.Admission{Handler: &ValidatingHandler{
-		Client:  mgr.GetClient(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}})
 }

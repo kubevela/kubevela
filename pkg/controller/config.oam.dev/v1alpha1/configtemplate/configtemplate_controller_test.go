@@ -106,16 +106,13 @@ template: {
 			return ct.Status.Phase
 		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
 
-		// Delete triggers reconcile with DeletionTimestamp set; controller returns immediately.
 		Expect(k8sClient.Delete(ctx, ct)).Should(Succeed())
 		Eventually(func() bool {
 			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
 			return ct.DeletionTimestamp != nil
 		}, 15*time.Second, time.Second).Should(BeTrue())
-		// Status must be unchanged: the DeletionTimestamp path is a pure no-op.
 		Expect(ct.Status.Phase).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
 
-		// Remove the finalizer so the object can be GC'd.
 		patch := client.MergeFrom(ct.DeepCopy())
 		ct.Finalizers = nil
 		Expect(k8sClient.Patch(ctx, ct, patch)).Should(Succeed())

@@ -54,9 +54,7 @@ func rawExtension(v interface{}) *runtime.RawExtension {
 	return &runtime.RawExtension{Raw: data}
 }
 
-// eventuallyConfigPhase polls the Config until its status phase is observed, driving
-// the assertion off the live background manager rather than a synchronous Reconcile
-// call (which would race the manager's own informer cache).
+// eventuallyConfigPhase polls the Config until a terminal status phase is observed.
 func eventuallyConfigPhase(ctx context.Context, key client.ObjectKey, got *configv1alpha1.Config) configv1alpha1.ConfigPhase {
 	var phase configv1alpha1.ConfigPhase
 	Eventually(func() configv1alpha1.ConfigPhase {
@@ -170,13 +168,11 @@ var _ = Describe("Config controller", func() {
 		var gotCfg configv1alpha1.Config
 		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
 
-		// Delete; the finalizer keeps the object alive so DeletionTimestamp is set.
 		Expect(k8sClient.Delete(ctx, cfg)).Should(Succeed())
 		Eventually(func() bool {
 			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Succeed())
 			return gotCfg.DeletionTimestamp != nil
 		}, 15*time.Second, time.Second).Should(BeTrue())
-		// The DeletionTimestamp path is a no-op; status must remain Available.
 		Expect(gotCfg.Status.Phase).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
 
 		patch := client.MergeFrom(gotCfg.DeepCopy())
@@ -188,7 +184,6 @@ var _ = Describe("Config controller", func() {
 	})
 
 	It("transitions through waiting then Available when ConfigTemplate is initially not ready", func() {
-		// Start with an invalid ConfigTemplate so it is in Error phase (not Available).
 		ct := &configv1alpha1.ConfigTemplate{
 			ObjectMeta: metav1.ObjectMeta{Name: "tmpl-waiting", Namespace: "default"},
 			Spec:       configv1alpha1.ConfigTemplateSpec{Template: `this is not valid cue {{{`},
@@ -208,12 +203,10 @@ var _ = Describe("Config controller", func() {
 		}
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
 
-		// Config must report the template is not Available yet.
 		var gotCfg configv1alpha1.Config
 		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseError))
 		Expect(gotCfg.Status.GetCondition("Synced").Message).Should(ContainSubstring("not Available yet"))
 
-		// Fix the ConfigTemplate; the Watch on ConfigTemplate re-queues the Config.
 		patch := client.MergeFrom(ct.DeepCopy())
 		ct.Spec.Template = testCUETemplate
 		Expect(k8sClient.Patch(ctx, ct, patch)).Should(Succeed())
@@ -223,7 +216,6 @@ var _ = Describe("Config controller", func() {
 			return ct.Status.Phase
 		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
 
-		// Config must become Available once the template is ready (via findConfigsForTemplate watch).
 		Eventually(func() configv1alpha1.ConfigPhase {
 			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Succeed())
 			return gotCfg.Status.Phase
@@ -234,7 +226,6 @@ var _ = Describe("Config controller", func() {
 		cfg := &configv1alpha1.Config{
 			ObjectMeta: metav1.ObjectMeta{Name: "cfg-notmpl", Namespace: "default"},
 			Spec: configv1alpha1.ConfigSpec{
-				// no TemplateRef — the renderSecret else-branch runs
 				Properties: rawExtension(map[string]string{"key": "value"}),
 			},
 		}
@@ -245,7 +236,6 @@ var _ = Describe("Config controller", func() {
 
 		var secret corev1.Secret
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cfg-notmpl"}, &secret)).Should(Succeed())
-		// Catalog label and input-properties key must be present even without a template.
 		Expect(secret.Labels["config.oam.dev/catalog"]).Should(Equal("velacore-config"))
 		Expect(secret.Data["input-properties"]).ShouldNot(BeEmpty())
 	})
@@ -277,8 +267,7 @@ var _ = Describe("Config controller", func() {
 
 		propsSecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "creds-custkey", Namespace: "default"},
-			// stored under a non-default key
-			Data: map[string][]byte{"my-key": []byte(`{"username":"frank"}`)},
+			Data:       map[string][]byte{"my-key": []byte(`{"username":"frank"}`)},
 		}
 		Expect(k8sClient.Create(ctx, propsSecret)).Should(Succeed())
 

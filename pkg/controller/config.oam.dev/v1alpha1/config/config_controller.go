@@ -21,11 +21,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"cuelang.org/go/cue"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
@@ -46,16 +48,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
 
-// ErrMutuallyExclusiveProperties is returned when both spec.properties and
-// spec.propertiesFrom are set on a Config.
+// ErrMutuallyExclusiveProperties is returned when both spec.properties and spec.propertiesFrom are set.
 var ErrMutuallyExclusiveProperties = errors.New("spec.properties and spec.propertiesFrom are mutually exclusive")
 
-// defaultPropertiesSecretKey is the key read from spec.propertiesFrom.secretRef when
-// no key is specified.
 const defaultPropertiesSecretKey = "properties"
 
-// resolvedTemplate is the template resolved for a Config, whether sourced from a
-// ConfigTemplate CRD or a legacy config-template-* ConfigMap.
+// resolvedTemplate is the template resolved for a Config, from a ConfigTemplate CRD
+// or a legacy config-template-* ConfigMap.
 type resolvedTemplate struct {
 	name      string
 	namespace string
@@ -64,10 +63,7 @@ type resolvedTemplate struct {
 	sensitive bool
 }
 
-// Reconciler reconciles a Config object. It resolves the referenced template
-// (ConfigTemplate CRD first, falling back to a legacy config-template-* ConfigMap)
-// and properties (inline or from a Secret), evaluates the CUE template, and
-// materializes the result as a Secret owned by the Config.
+// Reconciler reconciles a Config object.
 type Reconciler struct {
 	client.Client
 	Scheme               *runtime.Scheme
@@ -84,8 +80,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// no finalizer: the materialized Secret is owned by the Config and is garbage
-	// collected natively by Kubernetes when the Config is deleted.
+	// the materialized Secret is owned by the Config, so no finalizer is needed
 	if cfg.DeletionTimestamp != nil {
 		return ctrl.Result{}, nil
 	}
@@ -101,8 +96,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.markError(ctx, &cfg, err)
 		}
 		if waiting {
-			// the ConfigTemplate exists but hasn't finished reconciling its schema yet;
-			// the Watches on ConfigTemplate below re-triggers us once it becomes Available.
 			return r.markError(ctx, &cfg, fmt.Errorf("config template %s/%s is not Available yet", cfg.Spec.TemplateRef.Namespace, cfg.Spec.TemplateRef.Name))
 		}
 		tmpl = resolved
@@ -122,7 +115,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.markError(ctx, &cfg, err)
 	}
 
-	if err := r.applySecret(ctx, secret); err != nil {
+	if err := r.applySecret(ctx, &cfg, secret); err != nil {
 		return r.markError(ctx, &cfg, err)
 	}
 
@@ -133,8 +126,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 // resolveTemplate looks up the referenced template, CRD first, falling back to a
-// legacy config-template-<name> ConfigMap. waiting is true if a ConfigTemplate CRD
-// was found but has not finished reconciling its schema.
+// legacy ConfigMap. waiting is true if the ConfigTemplate CRD exists but its schema
+// hasn't reconciled yet.
 func (r *Reconciler) resolveTemplate(ctx context.Context, ref *configv1alpha1.ConfigTemplateReference) (*resolvedTemplate, bool, error) {
 	ns := ref.Namespace
 	if ns == "" {
@@ -156,7 +149,6 @@ func (r *Reconciler) resolveTemplate(ctx context.Context, ref *configv1alpha1.Co
 			sensitive: ct.Spec.Sensitive,
 		}, false, nil
 	case apierrors.IsNotFound(err):
-		// fall back to the legacy ConfigMap convention
 	default:
 		return nil, false, err
 	}
@@ -178,8 +170,6 @@ func (r *Reconciler) resolveTemplate(ctx context.Context, ref *configv1alpha1.Co
 	}, false, nil
 }
 
-// resolveProperties reads the Config's properties, either inline or from the
-// referenced Secret.
 func (r *Reconciler) resolveProperties(ctx context.Context, cfg *configv1alpha1.Config) (map[string]interface{}, error) {
 	props := map[string]interface{}{}
 	switch {
@@ -198,7 +188,10 @@ func (r *Reconciler) resolveProperties(ctx context.Context, cfg *configv1alpha1.
 		if err := r.Get(ctx, client.ObjectKey{Namespace: cfg.Namespace, Name: cfg.Spec.PropertiesFrom.SecretRef.Name}, &secret); err != nil {
 			return nil, fmt.Errorf("failed to load spec.propertiesFrom secret: %w", err)
 		}
-		raw := secret.Data[key]
+		raw, ok := secret.Data[key]
+		if !ok {
+			return nil, fmt.Errorf("secret %s/%s has no key %q", secret.Namespace, secret.Name, key)
+		}
 		if len(raw) > 0 {
 			if err := json.Unmarshal(raw, &props); err != nil {
 				return nil, fmt.Errorf("failed to decode properties from secret key %s: %w", key, err)
@@ -208,8 +201,6 @@ func (r *Reconciler) resolveProperties(ctx context.Context, cfg *configv1alpha1.
 	return props, nil
 }
 
-// renderSecret evaluates the resolved template (if any) against the properties and
-// builds the output Secret to materialize.
 func (r *Reconciler) renderSecret(ctx context.Context, cfg *configv1alpha1.Config, tmpl *resolvedTemplate, props map[string]interface{}) (*corev1.Secret, error) {
 	secret := &corev1.Secret{}
 
@@ -271,18 +262,22 @@ func (r *Reconciler) renderSecret(ctx context.Context, cfg *configv1alpha1.Confi
 	if secret.Data == nil {
 		secret.Data = map[string][]byte{}
 	}
-	// keep the input properties readable under the same key the legacy
-	// Factory.ReadConfig/ListConfigs use, so CRD-materialized Secrets remain
-	// discoverable through the existing read paths.
+	// matches the key the legacy Factory.ReadConfig/ListConfigs read
 	secret.Data[legacyconfig.SaveInputPropertiesKey] = propsJSON
 
 	return secret, nil
 }
 
-// applySecret creates or updates the materialized output Secret.
-func (r *Reconciler) applySecret(ctx context.Context, secret *corev1.Secret) error {
+// applySecret creates or updates the materialized output Secret. It refuses to
+// adopt a pre-existing Secret not already controlled by this Config, so a user who
+// can only create Configs can't use the manager's Secret RBAC to overwrite an
+// unrelated Secret via a name collision.
+func (r *Reconciler) applySecret(ctx context.Context, cfg *configv1alpha1.Config, secret *corev1.Secret) error {
 	existing := &corev1.Secret{ObjectMeta: secret.ObjectMeta}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, existing, func() error {
+		if existing.UID != "" && !metav1.IsControlledBy(existing, cfg) {
+			return fmt.Errorf("secret %s/%s already exists and is not owned by this Config", existing.Namespace, existing.Name)
+		}
 		existing.Labels = secret.Labels
 		existing.Annotations = secret.Annotations
 		existing.Data = secret.Data
@@ -294,10 +289,8 @@ func (r *Reconciler) applySecret(ctx context.Context, secret *corev1.Secret) err
 	return err
 }
 
-// markError records a reconcile failure on the Config status. Spec-level errors
-// (bad template ref, mutually exclusive properties, invalid properties) are not
-// propagated to the controller so they don't hot-loop; only the status update
-// itself can trigger a requeue via the returned error.
+// markError records a reconcile failure on the status without propagating the
+// error to the controller, so spec-level errors don't hot-loop.
 func (r *Reconciler) markError(ctx context.Context, cfg *configv1alpha1.Config, err error) (ctrl.Result, error) {
 	cfg.Status.Phase = configv1alpha1.ConfigPhaseError
 	cfg.Status.SetConditions(condition.ReconcileError(err))
@@ -319,8 +312,7 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, cfg *configv1alpha1.Confi
 	})
 }
 
-// findConfigsForTemplate re-triggers Configs that reference a ConfigTemplate whose
-// status just changed (e.g. it just became Available).
+// findConfigsForTemplate re-triggers Configs when their ConfigTemplate's status changes.
 func (r *Reconciler) findConfigsForTemplate(ctx context.Context, obj client.Object) []reconcile.Request {
 	ct, ok := obj.(*configv1alpha1.ConfigTemplate)
 	if !ok {
@@ -350,6 +342,60 @@ func (r *Reconciler) findConfigsForTemplate(ctx context.Context, obj client.Obje
 	return requests
 }
 
+// findConfigsForSecret re-triggers Configs when their spec.propertiesFrom Secret changes.
+func (r *Reconciler) findConfigsForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		return nil
+	}
+	var list configv1alpha1.ConfigList
+	if err := r.List(ctx, &list, client.InNamespace(secret.Namespace)); err != nil {
+		klog.ErrorS(err, "failed to list Configs for Secret watch", "secret", klog.KObj(secret))
+		return nil
+	}
+	var requests []reconcile.Request
+	for i := range list.Items {
+		cfg := &list.Items[i]
+		ref := cfg.Spec.PropertiesFrom
+		if ref == nil || ref.SecretRef.Name != secret.Name {
+			continue
+		}
+		requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(cfg)})
+	}
+	return requests
+}
+
+// findConfigsForLegacyTemplateConfigMap re-triggers Configs when their legacy template ConfigMap changes.
+func (r *Reconciler) findConfigsForLegacyTemplateConfigMap(ctx context.Context, obj client.Object) []reconcile.Request {
+	cm, ok := obj.(*corev1.ConfigMap)
+	if !ok || !strings.HasPrefix(cm.Name, legacyconfig.TemplateConfigMapNamePrefix) {
+		return nil
+	}
+	name := strings.TrimPrefix(cm.Name, legacyconfig.TemplateConfigMapNamePrefix)
+	var list configv1alpha1.ConfigList
+	if err := r.List(ctx, &list); err != nil {
+		klog.ErrorS(err, "failed to list Configs for legacy template ConfigMap watch", "configMap", klog.KObj(cm))
+		return nil
+	}
+	var requests []reconcile.Request
+	for i := range list.Items {
+		cfg := &list.Items[i]
+		ref := cfg.Spec.TemplateRef
+		if ref == nil || ref.Name != name {
+			continue
+		}
+		ns := ref.Namespace
+		if ns == "" {
+			ns = apitypes.DefaultKubeVelaNS
+		}
+		if ns != cm.Namespace {
+			continue
+		}
+		requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(cfg)})
+	}
+	return requests
+}
+
 // SetupWithManager will setup with event recorder
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("Config")).
@@ -363,6 +409,12 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&configv1alpha1.ConfigTemplate{},
 			ctrlHandler.EnqueueRequestsFromMapFunc(r.findConfigsForTemplate)).
+		Watches(
+			&corev1.Secret{},
+			ctrlHandler.EnqueueRequestsFromMapFunc(r.findConfigsForSecret)).
+		Watches(
+			&corev1.ConfigMap{},
+			ctrlHandler.EnqueueRequestsFromMapFunc(r.findConfigsForLegacyTemplateConfigMap)).
 		Complete(r)
 }
 
