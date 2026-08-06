@@ -477,6 +477,11 @@ func configTemplateCRDToTemplate(ctx context.Context, ct *configv1alpha1.ConfigT
 		}
 		schema = parsed
 	}
+	value, err := cueScript.ParseToTemplateValueWithCueX(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("the cue script is invalid:%w", err)
+	}
+	templateValue := value.LookupPath(cue.ParsePath("template"))
 	return &Template{
 		NamespacedName: NamespacedName{Name: ct.Name, Namespace: ct.Namespace},
 		Alias:          ct.Spec.Alias,
@@ -486,6 +491,7 @@ func configTemplateCRDToTemplate(ctx context.Context, ct *configv1alpha1.ConfigT
 		CreateTime:     ct.CreationTimestamp.Time,
 		Template:       cueScript,
 		Schema:         schema,
+		ExpandedWriter: writer.ParseExpandedWriterConfig(templateValue),
 	}, nil
 }
 

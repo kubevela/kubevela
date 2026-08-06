@@ -367,7 +367,11 @@ func NewListConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Comm
 				for _, c := range items {
 					tmplRef := ""
 					if c.Spec.TemplateRef != nil {
-						tmplRef = fmt.Sprintf("%s/%s", c.Spec.TemplateRef.Namespace, c.Spec.TemplateRef.Name)
+						tmplNs := c.Spec.TemplateRef.Namespace
+						if tmplNs == "" {
+							tmplNs = types.DefaultKubeVelaNS
+						}
+						tmplRef = fmt.Sprintf("%s/%s", tmplNs, c.Spec.TemplateRef.Name)
 					}
 					row := []interface{}{c.Name, c.Spec.Alias, c.Status.Phase, tmplRef, c.CreationTimestamp.Time, c.Spec.Description}
 					if options.AllNamespace {
@@ -509,12 +513,21 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				_, err = streams.Out.Write(outBuilder.Bytes())
 				return err
 			}
-			if configCRDAvailable(f) {
-				if err := createConfigCRD(cmd.Context(), f.Client(), options.Namespace, options.Name, name, namespace, options.Properties, options.Alias, options.Description); err != nil {
+			// the Config CRD controller only materializes template.output; templates using
+			// template.outputs (extra objects) or an expanded writer still need the legacy
+			// Factory path so those side effects aren't silently dropped.
+			usesUnsupportedCRDFeatures := len(configItem.OutputObjects) > 0 || configItem.Template.ExpandedWriter.Nacos != nil
+			if configCRDAvailable(f) && !usesUnsupportedCRDFeatures {
+				if err := createConfigCRD(cmd.Context(), f.Client(), options.Namespace, options.Name, name, namespace, configItem.Template.Sensitive, options.Properties, options.Alias, options.Description); err != nil {
 					return err
 				}
-			} else if err := inf.CreateOrUpdateConfig(context.Background(), configItem, options.Namespace); err != nil {
-				return err
+			} else {
+				if configCRDAvailable(f) {
+					streams.Infof("the config template uses outputs or an expanded writer, which the Config CRD controller doesn't yet support; falling back to the legacy config storage\n")
+				}
+				if err := inf.CreateOrUpdateConfig(context.Background(), configItem, options.Namespace); err != nil {
+					return err
+				}
 			}
 			if len(options.Targets) > 0 {
 				ads := &config.CreateDistributionSpec{

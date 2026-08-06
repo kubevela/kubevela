@@ -44,6 +44,7 @@ type ConfigTemplateSpec struct {
 
 	// Scope is "system" or "namespace". Defaults to "namespace".
 	// +kubebuilder:validation:Enum=system;namespace
+	// +kubebuilder:default=namespace
 	Scope ConfigTemplateScope `json:"scope,omitempty"`
 
 	// Sensitive marks Configs created from this template as not safe to read back

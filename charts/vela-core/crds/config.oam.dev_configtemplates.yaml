@@ -62,6 +62,7 @@ spec:
                 description: Description documents what the template is for.
                 type: string
               scope:
+                default: namespace
                 description: Scope is "system" or "namespace". Defaults to "namespace".
                 enum:
                 - system

@@ -22,7 +22,6 @@ import (
 	"net/http"
 
 	admissionv1 "k8s.io/api/admission/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -36,7 +35,6 @@ var configTemplateGVR = configv1alpha1.ConfigTemplateGVR
 // ValidatingHandler validates ConfigTemplate resources.
 type ValidatingHandler struct {
 	Decoder admission.Decoder
-	Client  client.Client
 }
 
 var _ admission.Handler = &ValidatingHandler{}
@@ -66,7 +64,6 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 func RegisterValidatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
 	server.Register("/validating-config-oam-dev-v1alpha1-configtemplates", &webhook.Admission{Handler: &ValidatingHandler{
-		Client:  mgr.GetClient(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 	}})
 }

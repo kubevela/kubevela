@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,6 +32,10 @@ import (
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/config"
 )
+
+// defaultPropertiesSecretKey matches the key ConfigTemplateReference.PropertiesFrom
+// defaults to when spec.propertiesFrom.secretRef.key is omitted.
+const defaultPropertiesSecretKey = "properties"
 
 // configCRDAvailable reports whether the config.oam.dev CRDs are installed on the
 // cluster. Callers fall back to the legacy ConfigMap/Secret-based Factory when they
@@ -119,7 +124,12 @@ func listConfigCRDs(ctx context.Context, cli client.Client, ns, template string)
 }
 
 // createConfigCRD creates or updates a Config CRD from the `vela config create` options.
-func createConfigCRD(ctx context.Context, cli client.Client, ns, name, templateName, templateNamespace string, properties map[string]interface{}, alias, description string) error {
+// If the resolved template is Sensitive, properties are written to a companion
+// Secret and referenced via spec.propertiesFrom instead of being embedded inline in
+// the Config, matching the CRD design (spec.properties is documented as
+// non-sensitive; propertiesFrom exists precisely so secret material never lands in
+// a plainly-readable object).
+func createConfigCRD(ctx context.Context, cli client.Client, ns, name, templateName, templateNamespace string, sensitive bool, properties map[string]interface{}, alias, description string) error {
 	spec := configv1alpha1.ConfigSpec{
 		Alias:       alias,
 		Description: description,
@@ -132,7 +142,21 @@ func createConfigCRD(ctx context.Context, cli client.Client, ns, name, templateN
 		if err != nil {
 			return err
 		}
-		spec.Properties = &runtime.RawExtension{Raw: raw}
+		if sensitive {
+			secretName := name + "-properties"
+			secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: secretName, Namespace: ns}}
+			if _, err := controllerutil.CreateOrUpdate(ctx, cli, secret, func() error {
+				secret.Data = map[string][]byte{defaultPropertiesSecretKey: raw}
+				return nil
+			}); err != nil {
+				return err
+			}
+			spec.PropertiesFrom = &configv1alpha1.PropertiesReference{
+				SecretRef: configv1alpha1.SecretKeySelector{Name: secretName},
+			}
+		} else {
+			spec.Properties = &runtime.RawExtension{Raw: raw}
+		}
 	}
 
 	cfg := &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}

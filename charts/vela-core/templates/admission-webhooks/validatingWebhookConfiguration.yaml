@@ -2,13 +2,15 @@
 {{- /* Preserve existing caBundle on upgrade to avoid breaking admission if hooks fail. */}}
 {{- $vName := printf "%s-admission" (include "kubevela.fullname" .) -}}
 {{- $existing := (lookup "admissionregistration.k8s.io/v1" "ValidatingWebhookConfiguration" "" $vName) -}}
-{{- $vals := dict "traits" "" "apps" "" "comps" "" "policies" "" -}}
+{{- $vals := dict "traits" "" "apps" "" "comps" "" "policies" "" "configtemplates" "" "configs" "" -}}
 {{- if $existing -}}
 {{- range $existing.webhooks -}}
 {{- if eq .name "validating.core.oam.dev.v1beta1.traitdefinitions" -}}{{- $_ := set $vals "traits" .clientConfig.caBundle -}}{{- end -}}
 {{- if eq .name "validating.core.oam.dev.v1beta1.applications" -}}{{- $_ := set $vals "apps" .clientConfig.caBundle -}}{{- end -}}
 {{- if eq .name "validating.core.oam-dev.v1beta1.componentdefinitions" -}}{{- $_ := set $vals "comps" .clientConfig.caBundle -}}{{- end -}}
 {{- if eq .name "validating.core.oam-dev.v1beta1.policydefinitions" -}}{{- $_ := set $vals "policies" .clientConfig.caBundle -}}{{- end -}}
+{{- if eq .name "validating.config.oam.dev.v1alpha1.configtemplates" -}}{{- $_ := set $vals "configtemplates" .clientConfig.caBundle -}}{{- end -}}
+{{- if eq .name "validating.config.oam.dev.v1alpha1.configs" -}}{{- $_ := set $vals "configs" .clientConfig.caBundle -}}{{- end -}}
 {{- end -}}
 {{- end -}}
 apiVersion: admissionregistration.k8s.io/v1
@@ -157,7 +159,7 @@ webhooks:
           - workflowstepdefinitions
     timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
   - clientConfig:
-      caBundle: Cg==
+      caBundle: {{ default "Cg==" (get $vals "configtemplates") }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
@@ -184,7 +186,7 @@ webhooks:
           - configtemplates
     timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
   - clientConfig:
-      caBundle: Cg==
+      caBundle: {{ default "Cg==" (get $vals "configs") }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}

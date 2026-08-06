@@ -109,6 +109,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", validation.Message, req.UID))
 		}
 	}
+	if output := val.LookupPath(cue.ParsePath(legacyconfig.TemplateOutput)); output.Exists() {
+		var secret corev1.Secret
+		if err := output.Decode(&secret); err != nil {
+			return admission.Denied(fmt.Sprintf("template.output format must be a secret: %s (requestUID=%s)", err.Error(), req.UID))
+		}
+	}
 
 	return admission.ValidationResponse(true, "")
 }
@@ -165,7 +171,10 @@ func (h *ValidatingHandler) resolveProperties(ctx context.Context, cfg *configv1
 		if err := h.Client.Get(ctx, client.ObjectKey{Namespace: cfg.Namespace, Name: cfg.Spec.PropertiesFrom.SecretRef.Name}, &secret); err != nil {
 			return nil, fmt.Errorf("failed to load spec.propertiesFrom secret: %w", err)
 		}
-		raw := secret.Data[key]
+		raw, ok := secret.Data[key]
+		if !ok {
+			return nil, fmt.Errorf("secret %s/%s has no key %q", secret.Namespace, secret.Name, key)
+		}
 		if len(raw) > 0 {
 			if err := json.Unmarshal(raw, &props); err != nil {
 				return nil, fmt.Errorf("failed to decode properties from secret key %s: %w", key, err)
