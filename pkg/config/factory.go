@@ -28,6 +28,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -39,6 +40,7 @@ import (
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
+	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -436,6 +438,16 @@ func (k *kubeConfigFactory) ListTemplates(ctx context.Context, ns, scope string)
 
 // LoadTemplate load the template
 func (k *kubeConfigFactory) LoadTemplate(ctx context.Context, name, ns string) (*Template, error) {
+	var ct configv1alpha1.ConfigTemplate
+	switch err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: ns, Name: name}, &ct); {
+	case err == nil:
+		return configTemplateCRDToTemplate(ctx, &ct)
+	case apierrors.IsNotFound(err), meta.IsNoMatchError(err):
+		// fall back to the legacy ConfigMap convention
+	default:
+		return nil, err
+	}
+
 	var cm v1.ConfigMap
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: ns, Name: TemplateConfigMapNamePrefix + name}, &cm); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -444,6 +456,36 @@ func (k *kubeConfigFactory) LoadTemplate(ctx context.Context, name, ns string) (
 		return nil, err
 	}
 	return convertConfigMap2Template(cm)
+}
+
+// configTemplateCRDToTemplate converts a ConfigTemplate CRD to the legacy Template
+// model. The schema is read from status.schema when the controller has already
+// reconciled it, and computed on the fly from spec.template otherwise, so callers
+// don't have to wait on controller reconciliation.
+func configTemplateCRDToTemplate(ctx context.Context, ct *configv1alpha1.ConfigTemplate) (*Template, error) {
+	cueScript := script.CUE(ct.Spec.Template)
+	schema := &openapi3.Schema{}
+	if ct.Status.Schema != nil {
+		if err := json.Unmarshal(ct.Status.Schema.Raw, schema); err != nil {
+			return nil, fmt.Errorf("fail to parse the schema: %w", err)
+		}
+	} else {
+		parsed, err := cueScript.ParsePropertiesToSchemaWithCueX(ctx, "template")
+		if err != nil {
+			return nil, fmt.Errorf("the properties of the cue script is invalid:%w", err)
+		}
+		schema = parsed
+	}
+	return &Template{
+		NamespacedName: NamespacedName{Name: ct.Name, Namespace: ct.Namespace},
+		Alias:          ct.Spec.Alias,
+		Description:    ct.Spec.Description,
+		Sensitive:      ct.Spec.Sensitive,
+		Scope:          string(ct.Spec.Scope),
+		CreateTime:     ct.CreationTimestamp.Time,
+		Template:       cueScript,
+		Schema:         schema,
+	}, nil
 }
 
 // ParseConfig merge the properties to template and build a config instance
