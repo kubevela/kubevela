@@ -19,7 +19,25 @@ env:
   GO_VERSION: '1.23.8'
 
 jobs:
+  detect-noop:
+    permissions:
+      actions: write # for fkirc/skip-duplicate-actions to skip or stop workflow runs
+    runs-on: ubuntu-22.04
+    outputs:
+      noop: ${{ steps.noop.outputs.should_skip }}
+    steps:
+      - name: Detect No-op Changes
+        id: noop
+        uses: fkirc/skip-duplicate-actions@f75f66ce1886f00957d99748a42c724f4330bdcf
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          paths_ignore: '["**.md", "**.mdx", "**.png", "**.jpg"]'
+          do_not_skip: '["workflow_dispatch", "schedule", "push"]'
+        continue-on-error: true
+
   definition-doc:
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
     runs-on: ubuntu-22.04
     steps:
       - name: Setup Go
