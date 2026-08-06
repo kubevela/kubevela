@@ -513,9 +513,7 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				_, err = streams.Out.Write(outBuilder.Bytes())
 				return err
 			}
-			// the Config CRD controller only materializes template.output; templates using
-			// template.outputs (extra objects) or an expanded writer still need the legacy
-			// Factory path so those side effects aren't silently dropped.
+			// the Config controller only materializes template.output, not outputs/expandedWriter
 			usesUnsupportedCRDFeatures := len(configItem.OutputObjects) > 0 || configItem.Template.ExpandedWriter.Nacos != nil
 			if configCRDAvailable(f) && !usesUnsupportedCRDFeatures {
 				if err := createConfigCRD(cmd.Context(), f.Client(), options.Namespace, options.Name, name, namespace, configItem.Template.Sensitive, options.Properties, options.Alias, options.Description); err != nil {

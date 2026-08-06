@@ -33,22 +33,16 @@ import (
 	"github.com/oam-dev/kubevela/pkg/config"
 )
 
-// defaultPropertiesSecretKey matches the key ConfigTemplateReference.PropertiesFrom
-// defaults to when spec.propertiesFrom.secretRef.key is omitted.
 const defaultPropertiesSecretKey = "properties"
 
-// configCRDAvailable reports whether the config.oam.dev CRDs are installed on the
-// cluster. Callers fall back to the legacy ConfigMap/Secret-based Factory when they
-// aren't, so old clusters/addons keep working unmodified.
+// configCRDAvailable reports whether the config.oam.dev CRDs are installed.
 func configCRDAvailable(f velacmd.Factory) bool {
 	_, err := f.Client().RESTMapper().RESTMapping(configv1alpha1.ConfigGroupVersionKind.GroupKind(), configv1alpha1.Version)
 	return err == nil
 }
 
 func applyConfigTemplateCRD(ctx context.Context, cli client.Client, ns string, t *config.Template) error {
-	// the legacy convention allows any scope string (e.g. "project"), but the CRD's
-	// spec.scope only accepts "system"/"namespace"; only "system" carries distinct
-	// meaning, so anything else maps to "namespace".
+	// legacy scope strings (e.g. "project") map to "namespace"; only "system" carries distinct meaning
 	scope := configv1alpha1.ConfigTemplateScopeNamespace
 	if t.Scope == string(configv1alpha1.ConfigTemplateScopeSystem) {
 		scope = configv1alpha1.ConfigTemplateScopeSystem
@@ -123,12 +117,9 @@ func listConfigCRDs(ctx context.Context, cli client.Client, ns, template string)
 	return filtered, nil
 }
 
-// createConfigCRD creates or updates a Config CRD from the `vela config create` options.
-// If the resolved template is Sensitive, properties are written to a companion
-// Secret and referenced via spec.propertiesFrom instead of being embedded inline in
-// the Config, matching the CRD design (spec.properties is documented as
-// non-sensitive; propertiesFrom exists precisely so secret material never lands in
-// a plainly-readable object).
+// createConfigCRD creates or updates a Config CRD. Sensitive template properties are
+// written to a companion Secret and referenced via spec.propertiesFrom instead of
+// being embedded inline.
 func createConfigCRD(ctx context.Context, cli client.Client, ns, name, templateName, templateNamespace string, sensitive bool, properties map[string]interface{}, alias, description string) error {
 	spec := configv1alpha1.ConfigSpec{
 		Alias:       alias,

@@ -51,12 +51,8 @@ type ValidatingHandler struct {
 
 var _ admission.Handler = &ValidatingHandler{}
 
-// Handle validates spec.properties/spec.propertiesFrom mutual exclusivity and, when
-// the referenced template can be resolved, that the properties match its CUE schema
-// and satisfy any template.validation.$returns check. If the template can't be
-// resolved yet (not found, or a ConfigTemplate CRD not yet Available), validation is
-// skipped here and left to the Config controller, which re-reconciles once the
-// template becomes available.
+// Handle validates properties/propertiesFrom mutual exclusivity and, when the
+// referenced template can already be resolved, that properties match its schema.
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	if req.Resource.String() != configGVR.String() {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", configGVR))
@@ -119,8 +115,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	return admission.ValidationResponse(true, "")
 }
 
-// resolveTemplate looks up the referenced template, CRD first, falling back to the
-// legacy config-template-<name> ConfigMap, the same way the Config controller does.
+// resolveTemplate mirrors the Config controller's CRD-first, ConfigMap-fallback lookup.
 func (h *ValidatingHandler) resolveTemplate(ctx context.Context, ref *configv1alpha1.ConfigTemplateReference) (script.CUE, bool, error) {
 	ns := ref.Namespace
 	if ns == "" {
@@ -151,8 +146,7 @@ func (h *ValidatingHandler) resolveTemplate(ctx context.Context, ref *configv1al
 	}
 }
 
-// resolveProperties reads the Config's properties, either inline or from the
-// referenced Secret, the same way the Config controller does.
+// resolveProperties mirrors the Config controller's inline/Secret property resolution.
 func (h *ValidatingHandler) resolveProperties(ctx context.Context, cfg *configv1alpha1.Config) (map[string]interface{}, error) {
 	props := map[string]interface{}{}
 	switch {

@@ -443,8 +443,7 @@ func (k *kubeConfigFactory) LoadTemplate(ctx context.Context, name, ns string) (
 	case err == nil:
 		return configTemplateCRDToTemplate(ctx, &ct)
 	case apierrors.IsNotFound(err), meta.IsNoMatchError(err), runtime.IsNotRegisteredError(err):
-		// fall back to the legacy ConfigMap convention; NotRegistered covers callers
-		// whose client scheme doesn't have config.oam.dev/v1alpha1 added
+		// fall back to the legacy ConfigMap convention
 	default:
 		return nil, err
 	}
@@ -459,10 +458,7 @@ func (k *kubeConfigFactory) LoadTemplate(ctx context.Context, name, ns string) (
 	return convertConfigMap2Template(cm)
 }
 
-// configTemplateCRDToTemplate converts a ConfigTemplate CRD to the legacy Template
-// model. The schema is read from status.schema when the controller has already
-// reconciled it, and computed on the fly from spec.template otherwise, so callers
-// don't have to wait on controller reconciliation.
+// configTemplateCRDToTemplate converts a ConfigTemplate CRD to the legacy Template model.
 func configTemplateCRDToTemplate(ctx context.Context, ct *configv1alpha1.ConfigTemplate) (*Template, error) {
 	cueScript := script.CUE(ct.Spec.Template)
 	schema := &openapi3.Schema{}

@@ -34,9 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
 
-// Reconciler reconciles a ConfigTemplate object. It parses the CUE template and
-// extracts its OpenAPI schema into status.schema, matching the behavior of the
-// legacy config-template-* ConfigMap convention (pkg/config.Factory.ParseTemplate).
+// Reconciler reconciles a ConfigTemplate object.
 type Reconciler struct {
 	client.Client
 	Scheme               *runtime.Scheme
@@ -78,9 +76,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	return ctrl.Result{}, r.UpdateStatus(ctx, &ct)
 }
 
-// markError records a parse/schema-extraction failure on the ConfigTemplate status.
-// It does not propagate the original error to the controller, since the template is
-// only re-evaluated when its spec changes (event-driven, not a transient condition).
+// markError records a parse/schema-extraction failure on the status.
 func (r *Reconciler) markError(ctx context.Context, ct *configv1alpha1.ConfigTemplate, err error) (ctrl.Result, error) {
 	ct.Status.Phase = configv1alpha1.ConfigTemplatePhaseError
 	ct.Status.SetConditions(condition.ReconcileError(err))
