@@ -393,6 +393,14 @@ func TestConditionExprHandlesMissingStatus(t *testing.T) {
 			}}},
 			want: true,
 		},
+		{
+			name: "matched condition without status",
+			output: map[string]interface{}{"status": map[string]interface{}{"conditions": []interface{}{
+				map[string]interface{}{"type": "Ready"},
+				map[string]interface{}{"type": "Synced", "status": "True"},
+			}}},
+			want: false,
+		},
 	}
 
 	for _, c := range cases {

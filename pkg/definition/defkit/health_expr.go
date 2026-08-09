@@ -105,12 +105,14 @@ func (c *ConditionExpr) ToCUE() string {
 	}
 	// Filter rather than index %s[0]: && does not short-circuit in CUE, so an
 	// out-of-range index on an empty list would propagate as bottom even when
-	// len(%s) > 0 is false.
+	// len(%s) > 0 is false. c.status/c.reason are guarded with != _|_ for the
+	// same reason c.type is guarded in Preamble: a condition entry missing
+	// that field would otherwise make the comparison bottom instead of false.
 	if c.expectedReason != "" {
-		return fmt.Sprintf(`len([ for c in %s if c.status == "%s" if c.reason == "%s" { c } ]) > 0`,
+		return fmt.Sprintf(`len([ for c in %s if c.status != _|_ if c.status == "%s" if c.reason != _|_ if c.reason == "%s" { c } ]) > 0`,
 			varName, c.expectedStatus, c.expectedReason)
 	}
-	return fmt.Sprintf(`len([ for c in %s if c.status == "%s" { c } ]) > 0`,
+	return fmt.Sprintf(`len([ for c in %s if c.status != _|_ if c.status == "%s" { c } ]) > 0`,
 		varName, c.expectedStatus)
 }
 
