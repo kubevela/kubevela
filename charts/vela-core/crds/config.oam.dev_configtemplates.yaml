@@ -31,9 +31,8 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: |-
-          ConfigTemplate is the schema for the configtemplates API. It is the CRD-native
-          replacement for the legacy `config-template-*` ConfigMap convention.
+        description: ConfigTemplate is the CRD-native replacement for the legacy `config-template-*`
+          ConfigMap convention.
         properties:
           apiVersion:
             description: |-
@@ -56,14 +55,13 @@ spec:
             description: ConfigTemplateSpec defines the desired state of ConfigTemplate.
             properties:
               alias:
-                description: Alias is a human-readable name for the template.
                 type: string
               description:
-                description: Description documents what the template is for.
                 type: string
               scope:
                 default: namespace
-                description: Scope is "system" or "namespace". Defaults to "namespace".
+                description: ConfigTemplateScope defines where Configs created from
+                  this template default to.
                 enum:
                 - system
                 - namespace
@@ -121,11 +119,11 @@ spec:
                   type: object
                 type: array
               phase:
-                description: Phase is the current lifecycle phase of the template.
+                description: ConfigTemplatePhase describes the lifecycle phase of
+                  a ConfigTemplate.
                 type: string
               schema:
-                description: Schema is the OpenAPI v3 schema extracted from template.parameter,
-                  JSON-encoded.
+                description: Schema is the OpenAPI v3 schema extracted from template.parameter.
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
             type: object
