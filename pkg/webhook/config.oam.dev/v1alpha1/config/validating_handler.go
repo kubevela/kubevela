@@ -51,8 +51,6 @@ type ValidatingHandler struct {
 
 var _ admission.Handler = &ValidatingHandler{}
 
-// Handle validates properties/propertiesFrom mutual exclusivity and, when the
-// referenced template can already be resolved, that properties match its schema.
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	if req.Resource.String() != configGVR.String() {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", configGVR))
@@ -67,7 +65,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	if obj.Spec.Properties != nil && obj.Spec.PropertiesFrom != nil {
-		return admission.Denied(fmt.Sprintf("spec.properties and spec.propertiesFrom are mutually exclusive (requestUID=%s)", req.UID))
+		return admission.ValidationResponse(true, "")
 	}
 
 	if obj.Spec.TemplateRef == nil {

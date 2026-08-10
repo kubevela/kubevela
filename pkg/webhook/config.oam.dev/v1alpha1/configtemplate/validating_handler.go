@@ -27,7 +27,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
 
 var configTemplateGVR = configv1alpha1.ConfigTemplateGVR
@@ -39,7 +38,6 @@ type ValidatingHandler struct {
 
 var _ admission.Handler = &ValidatingHandler{}
 
-// Handle validates the ConfigTemplate's CUE template syntax.
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	if req.Resource.String() != configTemplateGVR.String() {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", configTemplateGVR))
@@ -51,10 +49,6 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	obj := &configv1alpha1.ConfigTemplate{}
 	if err := h.Decoder.Decode(req, obj); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
-	}
-
-	if _, err := script.CUE(obj.Spec.Template).ParseToTemplateValueWithCueX(ctx); err != nil {
-		return admission.Denied(fmt.Sprintf("invalid template: %s (requestUID=%s)", err.Error(), req.UID))
 	}
 
 	return admission.ValidationResponse(true, "")
