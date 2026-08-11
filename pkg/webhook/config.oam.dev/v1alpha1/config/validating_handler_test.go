@@ -19,10 +19,12 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +32,7 @@ import (
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
@@ -239,4 +242,247 @@ func TestHandle_FallsBackToLegacyConfigMapTemplate(t *testing.T) {
 func rawExtension(v interface{}) *runtime.RawExtension {
 	data, _ := json.Marshal(v)
 	return &runtime.RawExtension{Raw: data}
+}
+
+func newInterceptedHandler(funcs interceptor.Funcs, objs ...client.Object) *ValidatingHandler {
+	base := fake.NewClientBuilder().WithScheme(k8sscheme.Scheme).WithObjects(objs...).Build()
+	return &ValidatingHandler{
+		Decoder: admission.NewDecoder(k8sscheme.Scheme),
+		Client:  interceptor.NewClient(base, funcs),
+	}
+}
+
+func TestHandle_ResolveTemplateGetErrorIsInternalError(t *testing.T) {
+	h := newInterceptedHandler(interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, ok := obj.(*configv1alpha1.ConfigTemplate); ok {
+				return errors.New("boom")
+			}
+			return c.Get(ctx, key, obj, opts...)
+		},
+	})
+	cfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "whatever", Namespace: "default"},
+			Properties:  rawExtension(map[string]string{"username": "alice"}),
+		},
+	}
+	req := newRequest(t, admissionv1.Create, metav1.GroupVersionResource(configGVR), cfg)
+	resp := h.Handle(context.TODO(), req)
+	assert.False(t, resp.Allowed)
+	assert.Equal(t, int32(http.StatusInternalServerError), resp.Result.Code)
+}
+
+func TestResolveTemplate_DefaultsEmptyNamespace(t *testing.T) {
+	ct := &configv1alpha1.ConfigTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "tmpl-ns", Namespace: "vela-system"},
+		Spec:       configv1alpha1.ConfigTemplateSpec{Template: templateWithRequiredUsername},
+		Status:     configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+	}
+	h := newHandler(ct)
+	_, resolved, err := h.resolveTemplate(context.TODO(), &configv1alpha1.ConfigTemplateReference{Name: "tmpl-ns"})
+	require.NoError(t, err)
+	assert.True(t, resolved)
+}
+
+func TestResolveTemplate_LegacyConfigMapGetErrorPropagates(t *testing.T) {
+	h := newInterceptedHandler(interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, ok := obj.(*corev1.ConfigMap); ok {
+				return errors.New("configmap boom")
+			}
+			return c.Get(ctx, key, obj, opts...)
+		},
+	})
+	_, _, err := h.resolveTemplate(context.TODO(), &configv1alpha1.ConfigTemplateReference{Name: "whatever", Namespace: "default"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "configmap boom")
+}
+
+func TestHandle_TemplateRunErrorIsDenied(t *testing.T) {
+	ct := &configv1alpha1.ConfigTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "ct-runerr", Namespace: "default"},
+		Spec: configv1alpha1.ConfigTemplateSpec{
+			Template: `
+template: {
+	parameter: {
+		username: string
+	}
+	output: {
+		apiVersion: "v1"
+		kind:       "Secret"
+		stringData: {
+			username: parameter.username
+			bad:      1 & "x"
+		}
+	}
+}
+`,
+		},
+		Status: configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+	}
+	h := newHandler(ct)
+	cfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "ct-runerr", Namespace: "default"},
+			Properties:  rawExtension(map[string]string{"username": "alice"}),
+		},
+	}
+	req := newRequest(t, admissionv1.Create, metav1.GroupVersionResource(configGVR), cfg)
+	resp := h.Handle(context.TODO(), req)
+	assert.False(t, resp.Allowed)
+	assert.Contains(t, string(resp.Result.Message), "failed to render config template")
+}
+
+func TestHandle_ValidationReturnsDecodeErrorIsDenied(t *testing.T) {
+	ct := &configv1alpha1.ConfigTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "ct-baddecode", Namespace: "default"},
+		Spec: configv1alpha1.ConfigTemplateSpec{
+			Template: `
+template: {
+	parameter: {
+		username: string
+	}
+	validation: $returns: "not-a-validation-object"
+	output: {
+		apiVersion: "v1"
+		kind:       "Secret"
+		stringData: {
+			username: parameter.username
+		}
+	}
+}
+`,
+		},
+		Status: configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+	}
+	h := newHandler(ct)
+	cfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "ct-baddecode", Namespace: "default"},
+			Properties:  rawExtension(map[string]string{"username": "alice"}),
+		},
+	}
+	req := newRequest(t, admissionv1.Create, metav1.GroupVersionResource(configGVR), cfg)
+	resp := h.Handle(context.TODO(), req)
+	assert.False(t, resp.Allowed)
+	assert.Contains(t, string(resp.Result.Message), "template.validation.$returns format must be a validation object")
+}
+
+func TestHandle_ValidationMessageIsDenied(t *testing.T) {
+	ct := &configv1alpha1.ConfigTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "ct-rejects", Namespace: "default"},
+		Spec: configv1alpha1.ConfigTemplateSpec{
+			Template: `
+template: {
+	parameter: {
+		username: string
+	}
+	validation: $returns: {
+		result:  false
+		message: "custom validation failure"
+	}
+	output: {
+		apiVersion: "v1"
+		kind:       "Secret"
+		stringData: {
+			username: parameter.username
+		}
+	}
+}
+`,
+		},
+		Status: configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+	}
+	h := newHandler(ct)
+	cfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "ct-rejects", Namespace: "default"},
+			Properties:  rawExtension(map[string]string{"username": "alice"}),
+		},
+	}
+	req := newRequest(t, admissionv1.Create, metav1.GroupVersionResource(configGVR), cfg)
+	resp := h.Handle(context.TODO(), req)
+	assert.False(t, resp.Allowed)
+	assert.Contains(t, string(resp.Result.Message), "custom validation failure")
+}
+
+func TestHandle_OutputDecodeErrorIsDenied(t *testing.T) {
+	ct := &configv1alpha1.ConfigTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "ct-badoutput", Namespace: "default"},
+		Spec: configv1alpha1.ConfigTemplateSpec{
+			Template: `
+template: {
+	parameter: {
+		username: string
+	}
+	output: "just-a-string"
+}
+`,
+		},
+		Status: configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+	}
+	h := newHandler(ct)
+	cfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "ct-badoutput", Namespace: "default"},
+			Properties:  rawExtension(map[string]string{"username": "alice"}),
+		},
+	}
+	req := newRequest(t, admissionv1.Create, metav1.GroupVersionResource(configGVR), cfg)
+	resp := h.Handle(context.TODO(), req)
+	assert.False(t, resp.Allowed)
+	assert.Contains(t, string(resp.Result.Message), "template.output format must be a secret")
+}
+
+func TestResolveProperties_PropertiesInvalidJSON(t *testing.T) {
+	h := newHandler()
+	cfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			Properties: &runtime.RawExtension{Raw: []byte("5")},
+		},
+	}
+	_, err := h.resolveProperties(context.TODO(), cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decode spec.properties")
+}
+
+func TestResolveProperties_SecretMissingKey(t *testing.T) {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "default"},
+		Data:       map[string][]byte{"other-key": []byte("x")},
+	}
+	h := newHandler(secret)
+	cfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			PropertiesFrom: &configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "creds"}},
+		},
+	}
+	_, err := h.resolveProperties(context.TODO(), cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "has no key")
+}
+
+func TestResolveProperties_SecretInvalidJSON(t *testing.T) {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "default"},
+		Data:       map[string][]byte{"properties": []byte("not-json")},
+	}
+	h := newHandler(secret)
+	cfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			PropertiesFrom: &configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "creds"}},
+		},
+	}
+	_, err := h.resolveProperties(context.TODO(), cfg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decode properties from secret key")
 }
