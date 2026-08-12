@@ -72,16 +72,16 @@ var _ = Describe("Trait conflict validation", func() {
 
 	Describe("ValidateTraitConflicts", func() {
 		var (
-			scheme         *runtime.Scheme
-			conflictA      *v1beta1.TraitDefinition
-			conflictB      *v1beta1.TraitDefinition
-			scaler         *v1beta1.TraitDefinition
-			service        *v1beta1.TraitDefinition
-			ingress        *v1beta1.TraitDefinition
-			gateway        *v1beta1.TraitDefinition
-			labelConflict  *v1beta1.TraitDefinition
-			nsConflictA    *v1beta1.TraitDefinition
-			baseObjects    []runtime.Object
+			scheme        *runtime.Scheme
+			conflictA     *v1beta1.TraitDefinition
+			conflictB     *v1beta1.TraitDefinition
+			scaler        *v1beta1.TraitDefinition
+			service       *v1beta1.TraitDefinition
+			ingress       *v1beta1.TraitDefinition
+			gateway       *v1beta1.TraitDefinition
+			labelConflict *v1beta1.TraitDefinition
+			nsConflictA   *v1beta1.TraitDefinition
+			baseObjects   []runtime.Object
 		)
 
 		BeforeEach(func() {
