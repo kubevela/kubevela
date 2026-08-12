@@ -13,27 +13,74 @@ jobs:
   bot:
     runs-on: ubuntu-22.04
     permissions:
+      contents: read
       pull-requests: write
       issues: write
     steps:
       - name: Checkout Actions
         uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608
         with:
-          repository: "oam-dev/kubevela-github-actions"
+          repository: "kubevela/kubevela-github-actions"
           path: ./actions
           ref: v0.4.2
+      # GH_KUBEVELA_COMMAND_WORKFLOW has been invalid since ~2026-04-24 (401 Bad
+      # credentials on GET /user). Prefer a still-valid override secret when present,
+      # otherwise use the workflow GITHUB_TOKEN which already has issues/PR write.
+      - name: Resolve bot token
+        id: token
+        env:
+          OVERRIDE_TOKEN: ${{ secrets.GH_KUBEVELA_COMMAND_WORKFLOW }}
+          FALLBACK_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          token="${OVERRIDE_TOKEN:-}"
+          if [ -n "${token}" ]; then
+            code=$(curl -sS -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer ${token}" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/user || true)
+            if [ "${code}" != "200" ]; then
+              echo "Override token rejected (HTTP ${code}); falling back to github.token" >&2
+              token="${FALLBACK_TOKEN}"
+            fi
+          else
+            echo "Override token unset; using github.token" >&2
+            token="${FALLBACK_TOKEN}"
+          fi
+          echo "::add-mask::${token}"
+          echo "token=${token}" >> "${GITHUB_OUTPUT}"
+      # Action constructor always calls users.getAuthenticated(); GITHUB_TOKEN is not a
+      # user PAT so that call 401/403s. Patch to a static actor name for error reporting.
+      - name: Patch commands action for github.token
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          path = Path("actions/common/Action.js")
+          text = path.read_text()
+          pattern = re.compile(
+              r"this\.username\s*=\s*new github_1\.GitHub\(this\.token\)\.users\.getAuthenticated\(\)\.then\(\(v\)\s*=>\s*v\.data\.name\);"
+          )
+          new = "this.username = Promise.resolve(process.env.GITHUB_ACTOR || 'github-actions[bot]');"
+          updated, n = pattern.subn(new, text, count=1)
+          if n != 1:
+              raise SystemExit(f"expected getAuthenticated() assignment not found in {path}")
+          path.write_text(updated)
+          print(f"patched {path}")
+          PY
+      # Node 14 matches the vintage package-lock in kubevela-github-actions@v0.4.2.
+      # Newer npm (Node 20+) rejects npm ci because that lockfile is out of sync.
       - name: Setup Node.js
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
         with:
           node-version: "14"
-          cache: "npm"
-          cache-dependency-path: ./actions/package-lock.json
       - name: Install Dependencies
         run: npm ci --production --prefix ./actions
       - name: Run Commands
         uses: ./actions/commands
         with:
-          token: ${{ secrets.GH_KUBEVELA_COMMAND_WORKFLOW }}
+          token: ${{ steps.token.outputs.token }}
           configPath: issue-commands
 
   backport:
@@ -124,18 +171,33 @@ jobs:
                 head_sha: pr.head.sha,
               })
               console.log("runs for " + workflow_id + ": ", JSON.stringify(runs))
-              runs.workflow_runs.forEach((workflow_run) => {
-                if (workflow_run.status === "in_progress") return
-                let handler = github.rest.actions.reRunWorkflow
-                if (action === "/retest-failed") handler = github.rest.actions.reRunWorkflowFailedJobs
-                handler({
+              // Only consider the newest completed run per workflow. Skip queued/
+              // in_progress/requested/waiting/pending so we do not call re-run APIs
+              // on unfinished runs (4xx, now swallowed) and still fall back to an
+              // older completed failed run. Soft-fail "cannot be retried" so a
+              // stale/success run does not fail the whole issue-commands workflow.
+              const candidates = runs.workflow_runs
+                .filter((workflow_run) => workflow_run.status === "completed")
+                .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+              const workflow_run = candidates[0]
+              if (!workflow_run) {
+                console.log("no retriable runs for " + workflow_id)
+                continue
+              }
+              let handler = github.rest.actions.reRunWorkflow
+              if (action === "/retest-failed") handler = github.rest.actions.reRunWorkflowFailedJobs
+              try {
+                await handler({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   run_id: workflow_run.id
                 })
-              })
+                console.log("re-ran " + workflow_id + " run " + workflow_run.id)
+              } catch (err) {
+                console.log("skip re-run of " + workflow_id + " run " + workflow_run.id + ": " + err.message)
+              }
             }
-            github.rest.reactions.createForIssueComment({
+            await github.rest.reactions.createForIssueComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               comment_id: comment_id,
