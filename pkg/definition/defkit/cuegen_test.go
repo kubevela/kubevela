@@ -19,6 +19,7 @@ package defkit_test
 import (
 	"strings"
 
+	"cuelang.org/go/cue/parser"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -30,6 +31,24 @@ var _ = Describe("CUEGenerator", func() {
 
 	BeforeEach(func() {
 		gen = defkit.NewCUEGenerator()
+	})
+
+	It("should render structured literal values as valid CUE", func() {
+		comp := defkit.NewComponent("structured-literal").
+			Workload("v1", "ConfigMap").
+			Template(func(tpl *defkit.Template) {
+				tpl.Output(defkit.NewResource("v1", "ConfigMap").
+					Set("data.config", defkit.Lit([]map[string]any{
+						{
+							"encryption": []map[string]any{{"algorithm": "AES256"}},
+							"enabled":    true,
+						},
+					})))
+			})
+
+		cue := gen.GenerateFullDefinition(comp)
+		_, err := parser.ParseFile("structured-literal.cue", cue)
+		Expect(err).NotTo(HaveOccurred(), cue)
 	})
 
 	Describe("GenerateParameterSchema", func() {

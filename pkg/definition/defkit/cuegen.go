@@ -20,6 +20,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"cuelang.org/go/cue/cuecontext"
+	"cuelang.org/go/cue/format"
 )
 
 // sortedKeys returns the keys of a map[string]V in sorted order.
@@ -4014,7 +4017,13 @@ func formatCUEValue(v any) string {
 		return fmt.Sprintf("%v", val)
 	case bool:
 		return fmt.Sprintf("%v", val)
-	default:
-		return fmt.Sprintf("%v", val)
 	}
+
+	value := cuecontext.New().Encode(v)
+	if value.Err() == nil {
+		if encoded, err := format.Node(value.Syntax()); err == nil {
+			return string(encoded)
+		}
+	}
+	return fmt.Sprintf("%v", v)
 }
