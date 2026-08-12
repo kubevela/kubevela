@@ -2406,8 +2406,7 @@ func (g *CUEGenerator) arrayElementToCUEWithDepth(elem *ArrayElement, depth int)
 		if setIf, ok := op.(*SetIfOp); ok {
 			condStr := g.conditionToCUE(setIf.Cond())
 			valStr := indentMultilineValue(g.valueToCUE(setIf.Value()), innerIndent+"\t")
-			// Convert dot-separated path to CUE shorthand syntax: "a.b.c" -> "a: b: c"
-			cuePath := strings.ReplaceAll(setIf.Path(), ".", ": ")
+			cuePath := itemFieldLabel(setIf.Path())
 			sb.WriteString(fmt.Sprintf("%sif %s {\n", innerIndent, condStr))
 			sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", innerIndent, cuePath, valStr))
 			sb.WriteString(fmt.Sprintf("%s}\n", innerIndent))
@@ -2487,7 +2486,7 @@ func (g *CUEGenerator) arrayBuilderToCUE(ab *ArrayBuilder, depth int) string {
 				if setIf, ok := op.(*SetIfOp); ok {
 					condStr := g.conditionToCUE(setIf.Cond())
 					valStr := g.valueToCUE(setIf.Value())
-					cuePath := strings.ReplaceAll(setIf.Path(), ".", ": ")
+					cuePath := itemFieldLabel(setIf.Path())
 					sb.WriteString(fmt.Sprintf("%sif %s {\n", extraIndent, condStr))
 					sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", extraIndent, cuePath, valStr))
 					sb.WriteString(fmt.Sprintf("%s}\n", extraIndent))

@@ -2835,6 +2835,31 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring(`annotations["example.com/owner"]: v.value`))
 			Expect(cue).NotTo(ContainSubstring(`example: com/owner`))
 		})
+
+		It("ArrayElement.SetIf preserves dots inside bracketed keys", func() {
+			enabled := defkit.Bool("enabled").Optional()
+			items := defkit.Array("items").WithFields(
+				defkit.String("value"),
+			).Optional()
+
+			c := defkit.NewComponent("annotated").
+				Workload("v1", "ConfigMap").
+				Params(enabled, items).
+				Template(func(tpl *defkit.Template) {
+					const path = `labels["app.kubernetes.io/name"]`
+					arr := defkit.NewArray().
+						Item(defkit.NewArrayElement().
+							SetIf(enabled.IsSet(), path, defkit.Lit("static"))).
+						ForEach(items, defkit.NewArrayElement().
+							SetIf(enabled.IsSet(), path, defkit.Reference("m.value")))
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("spec.items", arr))
+				})
+
+			cue := c.ToCue()
+			Expect(strings.Count(cue, `labels["app.kubernetes.io/name"]:`)).To(Equal(2))
+			Expect(cue).NotTo(ContainSubstring(`labels["app: kubernetes: io/name"]:`))
+		})
 	})
 
 	Describe("From().Filter().Map().Dedupe() pipeline", func() {
