@@ -84,21 +84,20 @@ template: {
 			$params: continue: read.$returns.value.status.state == "ready"
 		}
 	}
-	providerBasic: {
+	#AlibabaProvider: {
 		accessKey!: string
 		secretKey!: string
 		region!:    string
-	}
-	#AlibabaProvider: {
-		providerBasic
-		type: "alibaba"
-		name: *"alibaba-provider" | string
+		type:       "alibaba"
+		name:       *"alibaba-provider" | string
 	}
 	#AWSProvider: {
-		providerBasic
-		token: *"" | string
-		type:  "aws"
-		name:  *"aws-provider" | string
+		accessKey!: string
+		secretKey!: string
+		region!:    string
+		token:      *"" | string
+		type:       "aws"
+		name:       *"aws-provider" | string
 	}
 	#AzureProvider: {
 		subscriptionID: string
@@ -108,9 +107,11 @@ template: {
 		name:           *"azure-provider" | string
 	}
 	#BaiduProvider: {
-		providerBasic
-		type: "baidu"
-		name: *"baidu-provider" | string
+		accessKey!: string
+		secretKey!: string
+		region!:    string
+		type:       "baidu"
+		name:       *"baidu-provider" | string
 	}
 	#ECProvider: {
 		type:   "ec"
