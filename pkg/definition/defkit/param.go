@@ -766,11 +766,28 @@ func (p *ArrayParam) GetMaxItems() *int {
 
 // RequiredImports returns the CUE imports needed by this parameter's constraints.
 // MinItems/MaxItems generate list.MinItems()/list.MaxItems() which require "list".
+// Nested element fields are walked too, so an element constraint such as
+// String("name").MinLen(3) still pulls in "strings".
 func (p *ArrayParam) RequiredImports() []string {
+	var imports []string
 	if p.minItems != nil || p.maxItems != nil {
-		return []string{"list"}
+		imports = append(imports, "list")
 	}
-	return nil
+	return append(imports, nestedParamImports(p.fields)...)
+}
+
+// nestedParamImports collects the imports declared by nested field parameters.
+// Only top-level parameters are scanned by the generator, so container params
+// (maps, arrays) have to surface what their children need or the generated CUE
+// references a package it never imports.
+func nestedParamImports(params []Param) []string {
+	var imports []string
+	for _, param := range params {
+		if ir, ok := param.(ImportRequirer); ok {
+			imports = append(imports, ir.RequiredImports()...)
+		}
+	}
+	return imports
 }
 
 // --- ArrayParam Runtime Condition Methods ---
@@ -838,6 +855,8 @@ type MapParam struct {
 	keyType           ParamType
 	valueType         ParamType
 	fields            []Param              // fields for structured map values
+	valueFields       []Param              // schema for values under dynamic keys ([string]: {...})
+	valueSchemaRef    string               // helper definition for values under dynamic keys ([string]: #Ref)
 	schema            string               // raw CUE schema for the map structure
 	schemaRef         string               // reference to a helper definition (e.g., "HealthProbe")
 	closed            bool                 // when true, wraps struct output in close({...})
@@ -903,6 +922,68 @@ func (p *MapParam) WithFields(fields ...Param) *MapParam {
 // GetFields returns the field definitions for map values.
 func (p *MapParam) GetFields() []Param {
 	return p.fields
+}
+
+// OfObject sets a structured schema for the values held under dynamic keys,
+// the Go equivalent of map[string]SomeStruct.
+//
+// This differs from WithFields, which describes a fixed object on the map
+// parameter itself. OfObject describes what each value looks like:
+//
+//	Map("accessPoints").OfObject(
+//		String("path").Required(),
+//		Int("ownerUID").Default(1000),
+//	).Optional()
+//
+// generates:
+//
+//	accessPoints?: [string]: {
+//		path!:     string
+//		ownerUID:  *1000 | int
+//	}
+//
+// Fields keep the defaults, constraints and nesting they would have as
+// ordinary object parameters. Closed() applies to the value struct when
+// OfObject is used, emitting [string]: close({...}).
+func (p *MapParam) OfObject(fields ...Param) *MapParam {
+	p.valueFields = append(p.valueFields, fields...)
+	return p
+}
+
+// GetValueFields returns the schema for values under dynamic keys.
+func (p *MapParam) GetValueFields() []Param {
+	return p.valueFields
+}
+
+// OfSchemaRef points the values under dynamic keys at a reusable helper
+// definition, giving [string]: #Ref.
+//
+//	Map("accessPoints").OfSchemaRef("AccessPointConfig").Optional()
+//
+// generates:
+//
+//	accessPoints?: [string]: #AccessPointConfig
+//
+// This differs from WithSchemaRef, which applies the reference to the whole
+// parameter and yields accessPoints?: #AccessPointConfig instead.
+func (p *MapParam) OfSchemaRef(ref string) *MapParam {
+	p.valueSchemaRef = ref
+	return p
+}
+
+// GetValueSchemaRef returns the helper definition used for values under
+// dynamic keys.
+func (p *MapParam) GetValueSchemaRef() string {
+	return p.valueSchemaRef
+}
+
+// RequiredImports returns the CUE imports needed by this parameter's nested
+// fields, covering both the fixed-object form (WithFields) and the
+// dynamic-key value form (OfObject). Without this a nested constraint such as
+// String("name").MinLen(3) renders strings.MinRunes(3) with no import.
+func (p *MapParam) RequiredImports() []string {
+	imports := nestedParamImports(p.fields)
+	return append(imports, nestedParamImports(p.valueFields)...)
 }
 
 // WithSchema sets a raw CUE schema for the map structure.

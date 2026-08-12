@@ -253,6 +253,43 @@ var _ = Describe("Parameters", func() {
 			Expect(p.IsOptional()).To(BeTrue())
 			Expect(p.ValueType()).To(Equal(defkit.ParamTypeString))
 		})
+
+		It("should store a structured value schema via OfObject", func() {
+			p := defkit.Map("accessPoints").OfObject(
+				defkit.String("path").Required(),
+				defkit.Int("ownerUID").Default(1000),
+			).Optional()
+			Expect(p.GetValueFields()).To(HaveLen(2))
+			Expect(p.GetValueFields()[0].Name()).To(Equal("path"))
+			Expect(p.GetValueFields()[1].Name()).To(Equal("ownerUID"))
+			// OfObject describes the value, not a fixed object on the map itself.
+			Expect(p.GetFields()).To(BeEmpty())
+			Expect(p.IsOptional()).To(BeTrue())
+		})
+
+		It("should store a value schema reference via OfSchemaRef", func() {
+			p := defkit.Map("accessPoints").OfSchemaRef("AccessPointConfig").Optional()
+			Expect(p.GetValueSchemaRef()).To(Equal("AccessPointConfig"))
+			// WithSchemaRef applies to the whole parameter and stays separate.
+			Expect(p.GetSchemaRef()).To(BeEmpty())
+		})
+
+		It("should surface nested field imports from both WithFields and OfObject", func() {
+			// Only top-level params are scanned for imports, so a map has to
+			// report what its children need.
+			Expect(defkit.Map("m").WithFields(
+				defkit.String("name").MinLen(3),
+			).RequiredImports()).To(ContainElement("strings"))
+
+			Expect(defkit.Map("m").OfObject(
+				defkit.String("name").MaxLen(63),
+			).RequiredImports()).To(ContainElement("strings"))
+
+			// No constraints means no imports.
+			Expect(defkit.Map("m").OfObject(
+				defkit.String("name"),
+			).RequiredImports()).To(BeEmpty())
+		})
 	})
 
 	Context("StructParam", func() {

@@ -3898,7 +3898,11 @@ func (g *CUEGenerator) formatArrayDefault(val any) string {
 
 // writeMapParam writes a map/object parameter.
 func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, name, optional string, depth int) {
-	// Priority: schemaRef > schema > fields > generic
+	// Priority: schemaRef > schema > value schema (dynamic keys) > fields > generic.
+	// The whole-parameter forms (schemaRef/schema) win over the value forms
+	// (OfSchemaRef/OfObject), which in turn win over the fixed-object form
+	// (WithFields). Setting both a value form and WithFields is contradictory;
+	// the value form is what gets emitted.
 	if schemaRef := p.GetSchemaRef(); schemaRef != "" {
 		// Reference to a helper definition like #HealthProbe
 		sb.WriteString(fmt.Sprintf("%s%s%s: #%s\n", indent, name, optional, schemaRef))
@@ -3908,6 +3912,32 @@ func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, n
 	if schema := p.GetSchema(); schema != "" {
 		// Raw CUE schema - output directly
 		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, schema))
+		return
+	}
+
+	// Values under dynamic keys pointing at a helper definition:
+	// name?: [string]: #Ref
+	if valueSchemaRef := p.GetValueSchemaRef(); valueSchemaRef != "" {
+		sb.WriteString(fmt.Sprintf("%s%s%s: [string]: #%s\n", indent, name, optional, valueSchemaRef))
+		return
+	}
+
+	// Values under dynamic keys with a structured schema:
+	// name?: [string]: { ... }
+	if valueFields := p.GetValueFields(); len(valueFields) > 0 {
+		if p.IsClosed() {
+			sb.WriteString(fmt.Sprintf("%s%s%s: [string]: close({\n", indent, name, optional))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s%s: [string]: {\n", indent, name, optional))
+		}
+		for _, field := range valueFields {
+			g.writeParam(sb, field, depth+1)
+		}
+		if p.IsClosed() {
+			sb.WriteString(fmt.Sprintf("%s})\n", indent))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		}
 		return
 	}
 
