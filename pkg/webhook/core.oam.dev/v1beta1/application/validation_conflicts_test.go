@@ -164,15 +164,19 @@ func TestValidateTraitConflicts(t *testing.T) {
 		},
 		{
 			name: "crd name conflict is rejected",
-			objects: []runtime.Object{
-				func() runtime.Object {
-					td := conflictA.DeepCopy()
-					td.Spec.ConflictsWith = []string{"services.k8s.io"}
-					return td
-				}(),
-				conflictB.DeepCopy(), scaler.DeepCopy(), service.DeepCopy(),
-				ingress.DeepCopy(), gateway.DeepCopy(), labelConflict.DeepCopy(),
-			},
+			objects: func() []runtime.Object {
+				objects := make([]runtime.Object, 0, len(baseObjects))
+				for _, o := range baseObjects {
+					if td, ok := o.(*v1beta1.TraitDefinition); ok && td.Name == "conflict-a" {
+						td = td.DeepCopy()
+						td.Spec.ConflictsWith = []string{"services.k8s.io"}
+						objects = append(objects, td)
+						continue
+					}
+					objects = append(objects, o.DeepCopyObject())
+				}
+				return objects
+			}(),
 			traits: []common.ApplicationTrait{
 				{Type: "conflict-a"},
 				{Type: "service"},
