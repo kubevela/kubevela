@@ -18,10 +18,9 @@ package application
 
 import (
 	"context"
-	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -31,199 +30,115 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-func TestTraitConflictRuleMatches(t *testing.T) {
-	cueTrait := &v1beta1.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   "scaler",
-			Labels: map[string]string{"team": "platform"},
-		},
-	}
-	crdTrait := &v1beta1.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "service"},
-		Spec: v1beta1.TraitDefinitionSpec{
-			Reference: common.DefinitionReference{Name: "services.k8s.io"},
-		},
-	}
-	nestedGroupTrait := &v1beta1.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "ingress"},
-		Spec: v1beta1.TraitDefinitionSpec{
-			Reference: common.DefinitionReference{Name: "ingresses.networking.k8s.io"},
-		},
-	}
+var _ = Describe("Trait conflict validation", func() {
+	Describe("traitConflictRuleMatches", func() {
+		cueTrait := &v1beta1.TraitDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "scaler",
+				Labels: map[string]string{"team": "platform"},
+			},
+		}
+		crdTrait := &v1beta1.TraitDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "service"},
+			Spec: v1beta1.TraitDefinitionSpec{
+				Reference: common.DefinitionReference{Name: "services.k8s.io"},
+			},
+		}
+		nestedGroupTrait := &v1beta1.TraitDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "ingress"},
+			Spec: v1beta1.TraitDefinitionSpec{
+				Reference: common.DefinitionReference{Name: "ingresses.networking.k8s.io"},
+			},
+		}
 
-	testCases := []struct {
-		name   string
-		rule   string
-		target *v1beta1.TraitDefinition
-		want   bool
-	}{
-		{name: "wildcard", rule: "*", target: cueTrait, want: true},
-		{name: "definition name match", rule: "scaler", target: cueTrait, want: true},
-		{name: "definition name miss", rule: "ingress", target: cueTrait, want: false},
-		{name: "crd name match", rule: "services.k8s.io", target: crdTrait, want: true},
-		{name: "crd name ignored for empty reference", rule: "services.k8s.io", target: cueTrait, want: false},
-		{name: "group wildcard match", rule: "*.k8s.io", target: crdTrait, want: true},
-		{name: "group wildcard does not match nested group suffix", rule: "*.k8s.io", target: nestedGroupTrait, want: false},
-		{name: "group wildcard miss", rule: "*.networking.k8s.io", target: crdTrait, want: false},
-		{name: "group wildcard ignored for empty reference", rule: "*.k8s.io", target: cueTrait, want: false},
-		{name: "label selector match", rule: "labelSelector:team=platform", target: cueTrait, want: true},
-		{name: "label selector miss", rule: "labelSelector:team=edge", target: cueTrait, want: false},
-		{name: "invalid label selector", rule: "labelSelector:@@@", target: cueTrait, want: false},
-	}
+		DescribeTable("rule matching",
+			func(rule string, target *v1beta1.TraitDefinition, want bool) {
+				Expect(traitConflictRuleMatches(rule, target)).To(Equal(want))
+			},
+			Entry("wildcard", "*", cueTrait, true),
+			Entry("definition name match", "scaler", cueTrait, true),
+			Entry("definition name miss", "ingress", cueTrait, false),
+			Entry("crd name match", "services.k8s.io", crdTrait, true),
+			Entry("crd name ignored for empty reference", "services.k8s.io", cueTrait, false),
+			Entry("group wildcard match", "*.k8s.io", crdTrait, true),
+			Entry("group wildcard does not match nested group suffix", "*.k8s.io", nestedGroupTrait, false),
+			Entry("group wildcard miss", "*.networking.k8s.io", crdTrait, false),
+			Entry("group wildcard ignored for empty reference", "*.k8s.io", cueTrait, false),
+			Entry("label selector match", "labelSelector:team=platform", cueTrait, true),
+			Entry("label selector miss", "labelSelector:team=edge", cueTrait, false),
+			Entry("invalid label selector", "labelSelector:@@@", cueTrait, false),
+		)
+	})
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, traitConflictRuleMatches(tc.rule, tc.target))
-		})
-	}
-}
+	Describe("ValidateTraitConflicts", func() {
+		var (
+			scheme         *runtime.Scheme
+			conflictA      *v1beta1.TraitDefinition
+			conflictB      *v1beta1.TraitDefinition
+			scaler         *v1beta1.TraitDefinition
+			service        *v1beta1.TraitDefinition
+			ingress        *v1beta1.TraitDefinition
+			gateway        *v1beta1.TraitDefinition
+			labelConflict  *v1beta1.TraitDefinition
+			nsConflictA    *v1beta1.TraitDefinition
+			baseObjects    []runtime.Object
+		)
 
-func TestValidateTraitConflicts(t *testing.T) {
-	scheme := runtime.NewScheme()
-	require.NoError(t, v1beta1.AddToScheme(scheme))
+		BeforeEach(func() {
+			scheme = runtime.NewScheme()
+			Expect(v1beta1.AddToScheme(scheme)).To(Succeed())
 
-	conflictA := &v1beta1.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "conflict-a", Namespace: oam.SystemDefinitionNamespace},
-		Spec:       v1beta1.TraitDefinitionSpec{ConflictsWith: []string{"conflict-b"}},
-	}
-	conflictB := &v1beta1.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "conflict-b", Namespace: oam.SystemDefinitionNamespace},
-		Spec:       v1beta1.TraitDefinitionSpec{},
-	}
-	scaler := &v1beta1.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "scaler", Namespace: oam.SystemDefinitionNamespace},
-		Spec:       v1beta1.TraitDefinitionSpec{},
-	}
-	service := &v1beta1.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "service", Namespace: oam.SystemDefinitionNamespace},
-		Spec: v1beta1.TraitDefinitionSpec{
-			Reference: common.DefinitionReference{Name: "services.k8s.io"},
-		},
-	}
-	ingress := &v1beta1.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "ingress",
-			Namespace: oam.SystemDefinitionNamespace,
-			Labels:    map[string]string{"feature": "expose"},
-		},
-		Spec: v1beta1.TraitDefinitionSpec{
-			Reference:     common.DefinitionReference{Name: "ingresses.networking.k8s.io"},
-			ConflictsWith: []string{"*.networking.k8s.io"},
-		},
-	}
-	gateway := &v1beta1.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "gateway", Namespace: oam.SystemDefinitionNamespace},
-		Spec: v1beta1.TraitDefinitionSpec{
-			Reference: common.DefinitionReference{Name: "gateways.networking.k8s.io"},
-		},
-	}
-	labelConflict := &v1beta1.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "label-conflict", Namespace: oam.SystemDefinitionNamespace},
-		Spec:       v1beta1.TraitDefinitionSpec{ConflictsWith: []string{"labelSelector:feature=expose"}},
-	}
-	// Namespaced override of conflict-a declares a conflict; the system one does not.
-	nsConflictA := &v1beta1.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "conflict-a", Namespace: "default"},
-		Spec:       v1beta1.TraitDefinitionSpec{ConflictsWith: []string{"scaler"}},
-	}
-
-	baseObjects := []runtime.Object{
-		conflictA.DeepCopy(), conflictB.DeepCopy(), scaler.DeepCopy(),
-		service.DeepCopy(), ingress.DeepCopy(), gateway.DeepCopy(), labelConflict.DeepCopy(),
-	}
-
-	testCases := []struct {
-		name               string
-		objects            []runtime.Object
-		extraObjects       []runtime.Object
-		traits             []common.ApplicationTrait
-		expectedErrorCount int
-	}{
-		{
-			name: "unidirectional definition-name conflict is rejected",
-			traits: []common.ApplicationTrait{
-				{Type: "conflict-a"},
-				{Type: "conflict-b"},
-			},
-			expectedErrorCount: 1,
-		},
-		{
-			name: "non-conflicting traits are allowed",
-			traits: []common.ApplicationTrait{
-				{Type: "conflict-a"},
-				{Type: "scaler"},
-			},
-			expectedErrorCount: 0,
-		},
-		{
-			name: "single trait cannot conflict",
-			traits: []common.ApplicationTrait{
-				{Type: "conflict-a"},
-			},
-			expectedErrorCount: 0,
-		},
-		{
-			name: "crd name conflict is rejected",
-			objects: func() []runtime.Object {
-				objects := make([]runtime.Object, 0, len(baseObjects))
-				for _, o := range baseObjects {
-					if td, ok := o.(*v1beta1.TraitDefinition); ok && td.Name == "conflict-a" {
-						td = td.DeepCopy()
-						td.Spec.ConflictsWith = []string{"services.k8s.io"}
-						objects = append(objects, td)
-						continue
-					}
-					objects = append(objects, o.DeepCopyObject())
-				}
-				return objects
-			}(),
-			traits: []common.ApplicationTrait{
-				{Type: "conflict-a"},
-				{Type: "service"},
-			},
-			expectedErrorCount: 1,
-		},
-		{
-			name: "group wildcard conflict is rejected",
-			traits: []common.ApplicationTrait{
-				{Type: "ingress"},
-				{Type: "gateway"},
-			},
-			expectedErrorCount: 1,
-		},
-		{
-			name: "labelSelector conflict is rejected",
-			traits: []common.ApplicationTrait{
-				{Type: "label-conflict"},
-				{Type: "ingress"},
-			},
-			expectedErrorCount: 1,
-		},
-		{
-			name: "namespaced TraitDefinition overrides system definition",
-			extraObjects: []runtime.Object{
-				nsConflictA.DeepCopy(),
-			},
-			traits: []common.ApplicationTrait{
-				{Type: "conflict-a"},
-				{Type: "scaler"},
-			},
-			// System conflict-a only conflicts with conflict-b. The namespaced
-			// override conflicts with scaler and must win the lookup.
-			expectedErrorCount: 1,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			objects := tc.objects
-			if objects == nil {
-				objects = append([]runtime.Object{}, baseObjects...)
-				if tc.extraObjects != nil {
-					objects = append(objects, tc.extraObjects...)
-				}
+			conflictA = &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "conflict-a", Namespace: oam.SystemDefinitionNamespace},
+				Spec:       v1beta1.TraitDefinitionSpec{ConflictsWith: []string{"conflict-b"}},
+			}
+			conflictB = &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "conflict-b", Namespace: oam.SystemDefinitionNamespace},
+				Spec:       v1beta1.TraitDefinitionSpec{},
+			}
+			scaler = &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "scaler", Namespace: oam.SystemDefinitionNamespace},
+				Spec:       v1beta1.TraitDefinitionSpec{},
+			}
+			service = &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "service", Namespace: oam.SystemDefinitionNamespace},
+				Spec: v1beta1.TraitDefinitionSpec{
+					Reference: common.DefinitionReference{Name: "services.k8s.io"},
+				},
+			}
+			ingress = &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "ingress",
+					Namespace: oam.SystemDefinitionNamespace,
+					Labels:    map[string]string{"feature": "expose"},
+				},
+				Spec: v1beta1.TraitDefinitionSpec{
+					Reference:     common.DefinitionReference{Name: "ingresses.networking.k8s.io"},
+					ConflictsWith: []string{"*.networking.k8s.io"},
+				},
+			}
+			gateway = &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "gateway", Namespace: oam.SystemDefinitionNamespace},
+				Spec: v1beta1.TraitDefinitionSpec{
+					Reference: common.DefinitionReference{Name: "gateways.networking.k8s.io"},
+				},
+			}
+			labelConflict = &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "label-conflict", Namespace: oam.SystemDefinitionNamespace},
+				Spec:       v1beta1.TraitDefinitionSpec{ConflictsWith: []string{"labelSelector:feature=expose"}},
+			}
+			nsConflictA = &v1beta1.TraitDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: "conflict-a", Namespace: "default"},
+				Spec:       v1beta1.TraitDefinitionSpec{ConflictsWith: []string{"scaler"}},
 			}
 
+			baseObjects = []runtime.Object{
+				conflictA.DeepCopy(), conflictB.DeepCopy(), scaler.DeepCopy(),
+				service.DeepCopy(), ingress.DeepCopy(), gateway.DeepCopy(), labelConflict.DeepCopy(),
+			}
+		})
+
+		validateWith := func(objects []runtime.Object, traits []common.ApplicationTrait) int {
 			handler := &ValidatingHandler{
 				Client: fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(objects...).Build(),
 			}
@@ -233,13 +148,73 @@ func TestValidateTraitConflicts(t *testing.T) {
 					Components: []common.ApplicationComponent{{
 						Name:   "web",
 						Type:   "webservice",
-						Traits: tc.traits,
+						Traits: traits,
 					}},
 				},
 			}
+			return len(handler.ValidateTraitConflicts(context.Background(), app))
+		}
 
-			errs := handler.ValidateTraitConflicts(context.Background(), app)
-			assert.Equal(t, tc.expectedErrorCount, len(errs), "errs=%v", errs)
+		It("rejects unidirectional definition-name conflict", func() {
+			Expect(validateWith(baseObjects, []common.ApplicationTrait{
+				{Type: "conflict-a"},
+				{Type: "conflict-b"},
+			})).To(Equal(1))
 		})
-	}
-}
+
+		It("allows non-conflicting traits", func() {
+			Expect(validateWith(baseObjects, []common.ApplicationTrait{
+				{Type: "conflict-a"},
+				{Type: "scaler"},
+			})).To(Equal(0))
+		})
+
+		It("allows a single trait", func() {
+			Expect(validateWith(baseObjects, []common.ApplicationTrait{
+				{Type: "conflict-a"},
+			})).To(Equal(0))
+		})
+
+		It("rejects crd name conflict", func() {
+			objects := make([]runtime.Object, 0, len(baseObjects))
+			for _, o := range baseObjects {
+				if td, ok := o.(*v1beta1.TraitDefinition); ok && td.Name == "conflict-a" {
+					td = td.DeepCopy()
+					td.Spec.ConflictsWith = []string{"services.k8s.io"}
+					objects = append(objects, td)
+					continue
+				}
+				objects = append(objects, o.DeepCopyObject())
+			}
+			Expect(validateWith(objects, []common.ApplicationTrait{
+				{Type: "conflict-a"},
+				{Type: "service"},
+			})).To(Equal(1))
+		})
+
+		It("rejects group wildcard conflict", func() {
+			Expect(validateWith(baseObjects, []common.ApplicationTrait{
+				{Type: "ingress"},
+				{Type: "gateway"},
+			})).To(Equal(1))
+		})
+
+		It("rejects labelSelector conflict", func() {
+			Expect(validateWith(baseObjects, []common.ApplicationTrait{
+				{Type: "label-conflict"},
+				{Type: "ingress"},
+			})).To(Equal(1))
+		})
+
+		It("prefers namespaced TraitDefinition over system definition", func() {
+			objects := append([]runtime.Object{}, baseObjects...)
+			objects = append(objects, nsConflictA.DeepCopy())
+			// System conflict-a only conflicts with conflict-b. The namespaced
+			// override conflicts with scaler and must win the lookup.
+			Expect(validateWith(objects, []common.ApplicationTrait{
+				{Type: "conflict-a"},
+				{Type: "scaler"},
+			})).To(Equal(1))
+		})
+	})
+})

@@ -494,6 +494,9 @@ func (h *ValidatingHandler) ValidateTraitConflicts(ctx context.Context, app *v1b
 		for i, trait := range comp.Traits {
 			def, err := getTraitDefinition(trait.Type)
 			if err != nil {
+				// Fail closed so unresolved definitions cannot bypass conflict checks, but
+				// log so operators can distinguish transient API/cache failures from policy rejects.
+				klog.Errorf("Failed to resolve TraitDefinition %q for conflict validation: %v", trait.Type, err)
 				errs = append(errs, field.InternalError(
 					field.NewPath("spec", "components").Index(compIdx).Child("traits").Index(i).Child("type"),
 					err))
