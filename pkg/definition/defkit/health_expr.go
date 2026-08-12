@@ -89,7 +89,12 @@ func (c *ConditionExpr) varName() string {
 
 func (c *ConditionExpr) Preamble() string {
 	varName := c.varName()
-	return fmt.Sprintf(`%s: [ for c in context.output.status.conditions if c.type == "%s" { c } ]`,
+	// context.output.status.conditions may not exist yet (e.g. right after creation),
+	// which would make the comprehension source bottom. The `*X | []` disjunction
+	// discards that bottom disjunct and falls back to an empty list instead of
+	// propagating the error. c.type is filtered defensively for the same reason:
+	// a condition entry without a type would otherwise make the comparison bottom.
+	return fmt.Sprintf(`%s: [ for c in *context.output.status.conditions | [] if c.type != _|_ if c.type == "%s" { c } ]`,
 		varName, c.condType)
 }
 
@@ -98,12 +103,17 @@ func (c *ConditionExpr) ToCUE() string {
 	if c.checkExists {
 		return fmt.Sprintf("len(%s) > 0", varName)
 	}
+	// Filter rather than index %s[0]: && does not short-circuit in CUE, so an
+	// out-of-range index on an empty list would propagate as bottom even when
+	// len(%s) > 0 is false. c.status/c.reason are guarded with != _|_ for the
+	// same reason c.type is guarded in Preamble: a condition entry missing
+	// that field would otherwise make the comparison bottom instead of false.
 	if c.expectedReason != "" {
-		return fmt.Sprintf(`len(%s) > 0 && %s[0].status == "%s" && %s[0].reason == "%s"`,
-			varName, varName, c.expectedStatus, varName, c.expectedReason)
+		return fmt.Sprintf(`len([ for c in %s if c.status != _|_ if c.status == "%s" if c.reason != _|_ if c.reason == "%s" { c } ]) > 0`,
+			varName, c.expectedStatus, c.expectedReason)
 	}
-	return fmt.Sprintf(`len(%s) > 0 && %s[0].status == "%s"`,
-		varName, varName, c.expectedStatus)
+	return fmt.Sprintf(`len([ for c in %s if c.status != _|_ if c.status == "%s" { c } ]) > 0`,
+		varName, c.expectedStatus)
 }
 
 // --- Phase Expressions ---

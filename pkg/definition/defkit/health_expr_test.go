@@ -19,6 +19,8 @@ package defkit
 import (
 	"strings"
 	"testing"
+
+	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
 )
 
 func TestConditionIsTrue(t *testing.T) {
@@ -336,6 +338,82 @@ func TestComplexComposition(t *testing.T) {
 	}
 	if !strings.Contains(policy, "!(") {
 		t.Errorf("Missing Not() expression")
+	}
+}
+
+// TestConditionExprHandlesMissingStatus reproduces the fixtures from the
+// GitHub issue: a health policy built with AllTrue must evaluate to false
+// (not a CUE evaluation error) when status or status.conditions is absent,
+// and must skip condition entries that have no type instead of erroring.
+func TestConditionExprHandlesMissingStatus(t *testing.T) {
+	h := Health()
+	policy := h.Policy(h.And(
+		h.Exists("status"),
+		h.Exists("status.conditions"),
+		h.AllTrue("Ready", "Synced"),
+	))
+
+	cases := []struct {
+		name   string
+		output map[string]interface{}
+		want   bool
+	}{
+		{
+			name:   "no status",
+			output: map[string]interface{}{},
+			want:   false,
+		},
+		{
+			name:   "empty status",
+			output: map[string]interface{}{"status": map[string]interface{}{}},
+			want:   false,
+		},
+		{
+			name: "ready and synced",
+			output: map[string]interface{}{"status": map[string]interface{}{"conditions": []interface{}{
+				map[string]interface{}{"type": "Ready", "status": "True"},
+				map[string]interface{}{"type": "Synced", "status": "True"},
+			}}},
+			want: true,
+		},
+		{
+			name: "ready false",
+			output: map[string]interface{}{"status": map[string]interface{}{"conditions": []interface{}{
+				map[string]interface{}{"type": "Ready", "status": "False"},
+				map[string]interface{}{"type": "Synced", "status": "True"},
+			}}},
+			want: false,
+		},
+		{
+			name: "condition entry without type",
+			output: map[string]interface{}{"status": map[string]interface{}{"conditions": []interface{}{
+				map[string]interface{}{"type": "Ready", "status": "True"},
+				map[string]interface{}{"type": "Synced", "status": "True"},
+				map[string]interface{}{"status": "True"},
+			}}},
+			want: true,
+		},
+		{
+			name: "matched condition without status",
+			output: map[string]interface{}{"status": map[string]interface{}{"conditions": []interface{}{
+				map[string]interface{}{"type": "Ready"},
+				map[string]interface{}{"type": "Synced", "status": "True"},
+			}}},
+			want: false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			templateContext := map[string]interface{}{"output": c.output}
+			got, err := health.CheckHealth(templateContext, policy, nil)
+			if err != nil {
+				t.Fatalf("CheckHealth returned an error instead of a health verdict: %v", err)
+			}
+			if got != c.want {
+				t.Errorf("expected healthy=%v, got %v", c.want, got)
+			}
+		})
 	}
 }
 
