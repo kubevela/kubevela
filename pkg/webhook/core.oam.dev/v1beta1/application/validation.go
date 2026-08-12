@@ -464,18 +464,21 @@ func (h *ValidatingHandler) ValidateTraitConflicts(ctx context.Context, app *v1b
 
 	// Cache resolved TraitDefinitions across components so each trait type is fetched once.
 	defCache := make(map[string]*v1beta1.TraitDefinition)
-	getTraitDefinition := func(traitType string) *v1beta1.TraitDefinition {
+	getTraitDefinition := func(traitType string) (*v1beta1.TraitDefinition, error) {
 		if def, ok := defCache[traitType]; ok {
-			return def
+			return def, nil
 		}
 		def := &v1beta1.TraitDefinition{}
 		if err := oamutil.GetCapabilityDefinition(defCtx, h.Client, def, traitType, app.GetAnnotations()); err != nil {
-			// Existence/permission are validated elsewhere; unresolved defs are skipped here.
-			defCache[traitType] = nil
-			return nil
+			if errors.IsNotFound(err) {
+				// Existence is validated elsewhere; missing defs are skipped here.
+				defCache[traitType] = nil
+				return nil, nil
+			}
+			return nil, err
 		}
 		defCache[traitType] = def
-		return def
+		return def, nil
 	}
 
 	for compIdx, comp := range app.Spec.Components {
@@ -489,7 +492,14 @@ func (h *ValidatingHandler) ValidateTraitConflicts(ctx context.Context, app *v1b
 		}
 		var attached []attachedTrait
 		for i, trait := range comp.Traits {
-			if def := getTraitDefinition(trait.Type); def != nil {
+			def, err := getTraitDefinition(trait.Type)
+			if err != nil {
+				errs = append(errs, field.InternalError(
+					field.NewPath("spec", "components").Index(compIdx).Child("traits").Index(i).Child("type"),
+					err))
+				continue
+			}
+			if def != nil {
 				attached = append(attached, attachedTrait{traitIdx: i, def: def})
 			}
 		}
@@ -545,7 +555,13 @@ func traitConflictRuleMatches(rule string, target *v1beta1.TraitDefinition) bool
 	case strings.HasPrefix(rule, "*."):
 		group := strings.TrimPrefix(rule, "*.")
 		refName := target.Spec.Reference.Name
-		return refName != "" && strings.HasSuffix(refName, "."+group)
+		if refName == "" {
+			return false
+		}
+		if dot := strings.Index(refName, "."); dot >= 0 {
+			return refName[dot+1:] == group
+		}
+		return false
 	default:
 		return false
 	}

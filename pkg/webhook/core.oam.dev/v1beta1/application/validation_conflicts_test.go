@@ -44,6 +44,12 @@ func TestTraitConflictRuleMatches(t *testing.T) {
 			Reference: common.DefinitionReference{Name: "services.k8s.io"},
 		},
 	}
+	nestedGroupTrait := &v1beta1.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "ingress"},
+		Spec: v1beta1.TraitDefinitionSpec{
+			Reference: common.DefinitionReference{Name: "ingresses.networking.k8s.io"},
+		},
+	}
 
 	testCases := []struct {
 		name   string
@@ -57,6 +63,7 @@ func TestTraitConflictRuleMatches(t *testing.T) {
 		{name: "crd name match", rule: "services.k8s.io", target: crdTrait, want: true},
 		{name: "crd name ignored for empty reference", rule: "services.k8s.io", target: cueTrait, want: false},
 		{name: "group wildcard match", rule: "*.k8s.io", target: crdTrait, want: true},
+		{name: "group wildcard does not match nested group suffix", rule: "*.k8s.io", target: nestedGroupTrait, want: false},
 		{name: "group wildcard miss", rule: "*.networking.k8s.io", target: crdTrait, want: false},
 		{name: "group wildcard ignored for empty reference", rule: "*.k8s.io", target: cueTrait, want: false},
 		{name: "label selector match", rule: "labelSelector:team=platform", target: cueTrait, want: true},
@@ -127,6 +134,7 @@ func TestValidateTraitConflicts(t *testing.T) {
 
 	testCases := []struct {
 		name               string
+		objects            []runtime.Object
 		extraObjects       []runtime.Object
 		traits             []common.ApplicationTrait
 		expectedErrorCount int
@@ -156,12 +164,14 @@ func TestValidateTraitConflicts(t *testing.T) {
 		},
 		{
 			name: "crd name conflict is rejected",
-			extraObjects: []runtime.Object{
+			objects: []runtime.Object{
 				func() runtime.Object {
 					td := conflictA.DeepCopy()
 					td.Spec.ConflictsWith = []string{"services.k8s.io"}
 					return td
 				}(),
+				conflictB.DeepCopy(), scaler.DeepCopy(), service.DeepCopy(),
+				ingress.DeepCopy(), gateway.DeepCopy(), labelConflict.DeepCopy(),
 			},
 			traits: []common.ApplicationTrait{
 				{Type: "conflict-a"},
@@ -202,15 +212,12 @@ func TestValidateTraitConflicts(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			objects := append([]runtime.Object{}, baseObjects...)
-			if tc.name == "crd name conflict is rejected" {
-				objects = []runtime.Object{
-					conflictB.DeepCopy(), scaler.DeepCopy(), service.DeepCopy(),
-					ingress.DeepCopy(), gateway.DeepCopy(), labelConflict.DeepCopy(),
+			objects := tc.objects
+			if objects == nil {
+				objects = append([]runtime.Object{}, baseObjects...)
+				if tc.extraObjects != nil {
+					objects = append(objects, tc.extraObjects...)
 				}
-			}
-			if tc.extraObjects != nil {
-				objects = append(objects, tc.extraObjects...)
 			}
 
 			handler := &ValidatingHandler{
@@ -231,39 +238,4 @@ func TestValidateTraitConflicts(t *testing.T) {
 			assert.Equal(t, tc.expectedErrorCount, len(errs), "errs=%v", errs)
 		})
 	}
-}
-
-func TestValidateTraitConflictsRunsOutsideValidateComponents(t *testing.T) {
-	scheme := runtime.NewScheme()
-	require.NoError(t, v1beta1.AddToScheme(scheme))
-
-	conflictA := &v1beta1.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "conflict-a", Namespace: oam.SystemDefinitionNamespace},
-		Spec:       v1beta1.TraitDefinitionSpec{ConflictsWith: []string{"conflict-b"}},
-	}
-	conflictB := &v1beta1.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "conflict-b", Namespace: oam.SystemDefinitionNamespace},
-	}
-
-	handler := &ValidatingHandler{
-		Client: fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(conflictA, conflictB).Build(),
-	}
-	app := &v1beta1.Application{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-app", Namespace: "default"},
-		Spec: v1beta1.ApplicationSpec{
-			Components: []common.ApplicationComponent{{
-				Name: "web",
-				Type: "webservice",
-				Traits: []common.ApplicationTrait{
-					{Type: "conflict-a"},
-					{Type: "conflict-b"},
-				},
-			}},
-		},
-	}
-
-	// ValidateTraitConflicts itself must report the conflict even when component
-	// schematic validation would be skipped under sharding.
-	errs := handler.ValidateTraitConflicts(context.Background(), app)
-	require.Len(t, errs, 1)
 }
