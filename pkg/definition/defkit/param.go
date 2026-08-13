@@ -773,7 +773,7 @@ func (p *ArrayParam) RequiredImports() []string {
 	if p.minItems != nil || p.maxItems != nil {
 		imports = append(imports, "list")
 	}
-	return append(imports, nestedParamImports(p.fields)...)
+	return dedupeImports(append(imports, nestedParamImports(p.fields)...))
 }
 
 // nestedParamImports collects the imports declared by nested field parameters.
@@ -788,6 +788,26 @@ func nestedParamImports(params []Param) []string {
 		}
 	}
 	return imports
+}
+
+// dedupeImports drops repeated entries while keeping first-occurrence order.
+// Sibling fields commonly need the same package (e.g. two String fields with
+// MinLen both need "strings"), and RequiredImports() is a public API asserted
+// with exact slice equality in existing tests, so callers normalize before
+// returning rather than relying on downstream import collection to dedupe.
+func dedupeImports(imports []string) []string {
+	if len(imports) == 0 {
+		return imports
+	}
+	var deduped []string
+	seen := make(map[string]bool, len(imports))
+	for _, imp := range imports {
+		if !seen[imp] {
+			seen[imp] = true
+			deduped = append(deduped, imp)
+		}
+	}
+	return deduped
 }
 
 // --- ArrayParam Runtime Condition Methods ---
@@ -983,7 +1003,8 @@ func (p *MapParam) GetValueSchemaRef() string {
 // String("name").MinLen(3) renders strings.MinRunes(3) with no import.
 func (p *MapParam) RequiredImports() []string {
 	imports := nestedParamImports(p.fields)
-	return append(imports, nestedParamImports(p.valueFields)...)
+	imports = append(imports, nestedParamImports(p.valueFields)...)
+	return dedupeImports(imports)
 }
 
 // WithSchema sets a raw CUE schema for the map structure.

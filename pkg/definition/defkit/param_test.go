@@ -290,6 +290,30 @@ var _ = Describe("Parameters", func() {
 				defkit.String("name"),
 			).RequiredImports()).To(BeEmpty())
 		})
+
+		It("should not duplicate an import needed by more than one nested field", func() {
+			Expect(defkit.Map("m").WithFields(
+				defkit.String("first").MinLen(3),
+				defkit.String("second").MinLen(3),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+
+			Expect(defkit.Map("m").OfObject(
+				defkit.String("first").MinLen(3),
+				defkit.String("second").MaxLen(63),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+
+			// Same package needed by both WithFields and OfObject on the same map.
+			Expect(defkit.Map("m").WithFields(
+				defkit.String("fixed").MinLen(3),
+			).OfObject(
+				defkit.String("dynamic").MaxLen(63),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+
+			Expect(defkit.Array("labels").WithFields(
+				defkit.String("first").MinLen(3),
+				defkit.String("second").MinLen(3),
+			).MinItems(1).RequiredImports()).To(Equal([]string{"list", "strings"}))
+		})
 	})
 
 	Context("StructParam", func() {
