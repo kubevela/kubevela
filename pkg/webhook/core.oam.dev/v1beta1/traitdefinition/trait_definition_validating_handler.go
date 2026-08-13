@@ -20,10 +20,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 	admissionv1 "k8s.io/api/admission/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -175,9 +177,23 @@ func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 		Validators: []TraitDefValidator{
 			TraitDefValidatorFn(ValidateDefinitionReference),
+			TraitDefValidatorFn(ValidateConflictsWith),
 			// add more validators here
 		},
 	}})
+}
+
+// ValidateConflictsWith validates label selector rules in spec.conflictsWith.
+func ValidateConflictsWith(_ context.Context, td v1beta1.TraitDefinition) error {
+	for _, rule := range td.Spec.ConflictsWith {
+		if !strings.HasPrefix(rule, "labelSelector:") {
+			continue
+		}
+		if _, err := labels.Parse(strings.TrimPrefix(rule, "labelSelector:")); err != nil {
+			return fmt.Errorf("invalid spec.conflictsWith rule %q: %w", rule, err)
+		}
+	}
+	return nil
 }
 
 // ValidateDefinitionReference validates whether the trait definition is valid if
