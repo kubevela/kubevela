@@ -282,7 +282,11 @@ spec:
             {{ if .Values.multicluster.clusterGateway.direct }}
             - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:9443"
             {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+            {{ if .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
+            - "--cluster-gateway-ca-file=/cluster-gateway-tls-cert/ca.crt"
+            {{ else }}
             - "--cluster-gateway-ca-file=/cluster-gateway-tls-cert/ca"
+            {{ end }}
             {{ end }}
             {{ end }}
             {{ end }}
@@ -353,6 +357,8 @@ spec:
           {{- end }}
           resources:
           {{- toYaml .Values.resources | nindent 12 }}
+          {{- $needAdmissionTLS := .Values.admissionWebhooks.enabled }}
+          {{- $needClusterGatewayTLS := and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
           {{ if .Values.admissionWebhooks.enabled }}
           ports:
             - containerPort: {{ .Values.webhookService.port }}
@@ -379,23 +385,29 @@ spec:
             timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
             failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
             successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          {{ end }}
+          {{ if or $needAdmissionTLS $needClusterGatewayTLS }}
           volumeMounts:
+            {{ if $needAdmissionTLS }}
             - mountPath: {{ .Values.admissionWebhooks.certificate.mountPath }}
               name: tls-cert-vol
               readOnly: true
-          {{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+            {{ end }}
+            {{ if $needClusterGatewayTLS }}
             - mountPath: /cluster-gateway-tls-cert
               name: tls-cert-vol-cg
               readOnly: true
+            {{ end }}
           {{ end }}
-          {{ end }}
-      {{ if .Values.admissionWebhooks.enabled }}
+      {{ if or $needAdmissionTLS $needClusterGatewayTLS }}
       volumes:
+        {{ if $needAdmissionTLS }}
         - name: tls-cert-vol
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-admission
-      {{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+        {{ end }}
+        {{ if $needClusterGatewayTLS }}
         - name: tls-cert-vol-cg
           secret:
             defaultMode: 420
