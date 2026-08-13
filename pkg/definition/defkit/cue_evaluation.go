@@ -21,7 +21,6 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"cuelang.org/go/cue/parser"
 )
 
 // EvaluatedOutputs contains the concrete resources produced by evaluating a
@@ -31,11 +30,28 @@ type EvaluatedOutputs struct {
 	Auxiliary map[string]map[string]any
 }
 
+// compileWithContextShim compiles generated CUE with a placeholder `context`
+// declaration. KubeVela injects the runtime `context` field at render time,
+// so a definition referencing context.* does not compile standalone; the
+// shim matches how the field is actually supplied. Shared by
+// ValidateGeneratedCUE and EvaluateCUE so both stay compiled the same way.
+func compileWithContextShim(src string) cue.Value {
+	return cuecontext.New().CompileString(src + "\ncontext: _\n")
+}
+
+// ValidateGeneratedCUE compiles a definition's generated CUE and returns CUE
+// syntax and structural errors with their source positions. It does not
+// evaluate the template, so no parameter fixtures are needed.
+//
+// This deliberately compiles rather than merely parses: cuelang.org/go's
+// parser package documents itself as accepting a larger language than the
+// CUE spec permits, for parser robustness, so a bare parse is not a
+// reliable validity check. Compilation is the authoritative one.
 func ValidateGeneratedCUE(def Definition) error {
 	if def == nil {
 		return fmt.Errorf("defkit: cannot validate a nil definition")
 	}
-	if _, err := parser.ParseFile(def.DefName()+".cue", def.ToCue(), parser.ParseComments); err != nil {
+	if err := compileWithContextShim(def.ToCue()).Err(); err != nil {
 		return fmt.Errorf("defkit: generated CUE for %s %q: %w", def.DefType(), def.DefName(), err)
 	}
 	return nil
@@ -53,7 +69,7 @@ func (c *ComponentDefinition) EvaluateCUE(ctx *TestContextBuilder) (*EvaluatedOu
 	}
 
 	runtime := ctx.Build()
-	value := cuecontext.New().CompileString(c.ToCue() + "\ncontext: _\n")
+	value := compileWithContextShim(c.ToCue())
 
 	value = value.FillPath(cue.ParsePath("context"), cueContextFixture(runtime))
 	value = value.FillPath(cue.ParsePath("template.parameter"), runtime.params)

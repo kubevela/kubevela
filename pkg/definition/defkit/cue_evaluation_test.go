@@ -58,9 +58,13 @@ var _ = Describe("Generated CUE helpers", func() {
 		Expect(err.Error()).To(ContainSubstring("expected"))
 	})
 
-	It("detects dotted ItemBuilder labels that Render cannot execute", func() {
+	It("validates and evaluates a dotted ItemBuilder path through to a concrete value", func() {
+		// ItemBuilder.Set previously emitted a dotted path verbatim as a
+		// single field label (e.g. "metadata.name: v"), which is invalid CUE.
+		// The generator now expands it into nested fields; ValidateGeneratedCUE
+		// and EvaluateCUE must both accept the result and evaluate it.
 		items := defkit.Array("items").Of(defkit.ParamTypeString)
-		component := defkit.NewComponent("broken-items").
+		component := defkit.NewComponent("named-items").
 			Workload("v1", "ConfigMap").
 			Params(items).
 			Template(func(tpl *defkit.Template) {
@@ -70,9 +74,16 @@ var _ = Describe("Generated CUE helpers", func() {
 					})))
 			})
 
-		err := defkit.ValidateGeneratedCUE(component)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("generated CUE for component \"broken-items\""))
+		Expect(defkit.ValidateGeneratedCUE(component)).To(Succeed())
+
+		outputs, err := component.EvaluateCUE(defkit.TestContext().WithParam("items", []any{"a", "b"}))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(outputs.Primary["data"]).To(Equal(map[string]any{
+			"items": []any{
+				map[string]any{"metadata": map[string]any{"name": "a"}},
+				map[string]any{"metadata": map[string]any{"name": "b"}},
+			},
+		}))
 	})
 
 	It("evaluates CUE defaults, fixtures, and context references", func() {
