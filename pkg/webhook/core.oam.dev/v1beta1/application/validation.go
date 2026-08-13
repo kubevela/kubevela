@@ -20,12 +20,14 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/util/singleton"
 	authv1 "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
@@ -36,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // ValidateWorkflow validates the Application workflow
@@ -452,6 +455,121 @@ func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app *v1beta1.
 	return annotationsErrs
 }
 
+// ValidateTraitConflicts validates TraitDefinition.spec.conflictsWith for traits
+// attached to the same component. Kept outside ValidateComponents so it still
+// runs when sharding skips component schematic validation.
+func (h *ValidatingHandler) ValidateTraitConflicts(ctx context.Context, app *v1beta1.Application) field.ErrorList {
+	var errs field.ErrorList
+	defCtx := oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+
+	// Cache resolved TraitDefinitions across components so each trait type is fetched once.
+	defCache := make(map[string]*v1beta1.TraitDefinition)
+	getTraitDefinition := func(traitType string) (*v1beta1.TraitDefinition, error) {
+		if def, ok := defCache[traitType]; ok {
+			return def, nil
+		}
+		def := &v1beta1.TraitDefinition{}
+		if err := oamutil.GetCapabilityDefinition(defCtx, h.Client, def, traitType, app.GetAnnotations()); err != nil {
+			if errors.IsNotFound(err) {
+				// Existence is validated elsewhere; missing defs are skipped here.
+				defCache[traitType] = nil
+				return nil, nil
+			}
+			return nil, err
+		}
+		defCache[traitType] = def
+		return def, nil
+	}
+
+	for compIdx, comp := range app.Spec.Components {
+		if len(comp.Traits) < 2 {
+			continue
+		}
+
+		type attachedTrait struct {
+			traitIdx int
+			def      *v1beta1.TraitDefinition
+		}
+		var attached []attachedTrait
+		for i, trait := range comp.Traits {
+			def, err := getTraitDefinition(trait.Type)
+			if err != nil {
+				// Fail closed so unresolved definitions cannot bypass conflict checks, but
+				// log so operators can distinguish transient API/cache failures from policy rejects.
+				klog.Errorf("Failed to resolve TraitDefinition %q for conflict validation: %v", trait.Type, err)
+				errs = append(errs, field.InternalError(
+					field.NewPath("spec", "components").Index(compIdx).Child("traits").Index(i).Child("type"),
+					err))
+				continue
+			}
+			if def != nil {
+				attached = append(attached, attachedTrait{traitIdx: i, def: def})
+			}
+		}
+
+		for i := 0; i < len(attached); i++ {
+			for j := i + 1; j < len(attached); j++ {
+				first, second := attached[i], attached[j]
+				// Matching is unidirectional: either side declaring the other is enough.
+				if traitConflictsWith(first.def, second.def) || traitConflictsWith(second.def, first.def) {
+					errs = append(errs, field.Invalid(
+						field.NewPath("spec", "components").Index(compIdx).Child("traits").Index(second.traitIdx).Child("type"),
+						second.def.Name,
+						fmt.Sprintf("trait %q conflicts with trait %q on component %q", first.def.Name, second.def.Name, comp.Name)))
+				}
+			}
+		}
+	}
+
+	return errs
+}
+
+// traitConflictsWith reports whether def's conflictsWith rules match target.
+func traitConflictsWith(def, target *v1beta1.TraitDefinition) bool {
+	for _, rule := range def.Spec.ConflictsWith {
+		if traitConflictRuleMatches(rule, target) {
+			return true
+		}
+	}
+	return false
+}
+
+// traitConflictRuleMatches checks a single conflictsWith rule against a TraitDefinition.
+// Supported rule forms (see TraitDefinitionSpec.ConflictsWith docs):
+//   - "*"                    matches any trait
+//   - "<definition-name>"    matches the trait definition's name
+//   - "<crd-name>"           matches the trait's referenced CRD name (definitionRef.name)
+//   - "*.<group>"            matches any CRD in the given API group
+//   - "labelSelector:<expr>" matches the trait definition's labels against a label selector
+func traitConflictRuleMatches(rule string, target *v1beta1.TraitDefinition) bool {
+	switch {
+	case rule == "*":
+		return true
+	case strings.HasPrefix(rule, "labelSelector:"):
+		selector, err := labels.Parse(strings.TrimPrefix(rule, "labelSelector:"))
+		if err != nil {
+			return false
+		}
+		return selector.Matches(labels.Set(target.GetLabels()))
+	case rule == target.Name:
+		return true
+	case target.Spec.Reference.Name != "" && rule == target.Spec.Reference.Name:
+		return true
+	case strings.HasPrefix(rule, "*."):
+		group := strings.TrimPrefix(rule, "*.")
+		refName := target.Spec.Reference.Name
+		if refName == "" {
+			return false
+		}
+		if dot := strings.Index(refName, "."); dot >= 0 {
+			return refName[dot+1:] == group
+		}
+		return false
+	default:
+		return false
+	}
+}
+
 // ValidateCreate validates the Application on creation
 func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application, req admission.Request) field.ErrorList {
 	var errs field.ErrorList
@@ -460,6 +578,7 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 	errs = append(errs, h.ValidateDefinitionPermissions(ctx, app, req)...)
 	errs = append(errs, h.ValidateWorkflow(ctx, app)...)
 	errs = append(errs, h.ValidateComponents(ctx, app)...)
+	errs = append(errs, h.ValidateTraitConflicts(ctx, app)...)
 	return errs
 }
 
