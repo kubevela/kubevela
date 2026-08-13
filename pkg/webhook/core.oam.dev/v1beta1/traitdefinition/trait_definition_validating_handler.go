@@ -20,10 +20,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 	admissionv1 "k8s.io/api/admission/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -42,6 +44,11 @@ const (
 	errValidateDefRef = "error occurs when validating definition reference"
 
 	failInfoDefRefOmitted = "if definition reference is omitted, patch or output with GVK is required"
+
+	// conflictsWithLabelSelectorPrefix is the prefix for label-selector rules in
+	// TraitDefinition.spec.conflictsWith. Must stay in sync with Application
+	// admission matching (traitConflictRuleMatches).
+	conflictsWithLabelSelectorPrefix = "labelSelector:"
 )
 
 var traitDefGVR = v1beta1.TraitDefinitionGVR
@@ -175,6 +182,7 @@ func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 		Validators: []TraitDefValidator{
 			TraitDefValidatorFn(ValidateDefinitionReference),
+			TraitDefValidatorFn(ValidateConflictsWith),
 			// add more validators here
 		},
 	}})
@@ -199,6 +207,22 @@ func ValidateDefinitionReference(_ context.Context, td v1beta1.TraitDefinition) 
 	if capability.CueTemplate == "" {
 		return errors.New(failInfoDefRefOmitted)
 
+	}
+	return nil
+}
+
+// ValidateConflictsWith validates TraitDefinition.spec.conflictsWith rules.
+// labelSelector: values must be parseable by labels.Parse so a typo cannot become
+// a silent no-op at Application admission (see #7315).
+func ValidateConflictsWith(_ context.Context, td v1beta1.TraitDefinition) error {
+	for i, rule := range td.Spec.ConflictsWith {
+		if !strings.HasPrefix(rule, conflictsWithLabelSelectorPrefix) {
+			continue
+		}
+		selector := strings.TrimPrefix(rule, conflictsWithLabelSelectorPrefix)
+		if _, err := labels.Parse(selector); err != nil {
+			return fmt.Errorf("spec.conflictsWith[%d]: invalid labelSelector %q: %w", i, selector, err)
+		}
 	}
 	return nil
 }

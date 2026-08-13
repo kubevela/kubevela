@@ -19,12 +19,14 @@ package traitdefinition
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -82,4 +84,69 @@ metadata:
   name: scaler
 spec:
 %s`, t)
+}
+
+func TestValidateConflictsWith(t *testing.T) {
+	cases := map[string]struct {
+		conflictsWith []string
+		wantErr       bool
+		errContains   string
+	}{
+		"Empty": {
+			conflictsWith: nil,
+			wantErr:       false,
+		},
+		"NonSelectorRules": {
+			// name / CRD / group rules are not validated here
+			conflictsWith: []string{"service", "services.k8s.io", "*.networking.k8s.io", "*"},
+			wantErr:       false,
+		},
+		"ValidLabelSelector": {
+			conflictsWith: []string{"labelSelector:feature=expose"},
+			wantErr:       false,
+		},
+		"ValidLabelSelectorWithSpaces": {
+			conflictsWith: []string{"labelSelector: team in (platform, sre)"},
+			wantErr:       false,
+		},
+		"InvalidLabelSelector": {
+			conflictsWith: []string{"labelSelector:@@@"},
+			wantErr:       true,
+			errContains:   `spec.conflictsWith[0]: invalid labelSelector "@@@"`,
+		},
+		"InvalidAmongValid": {
+			conflictsWith: []string{
+				"scaler",
+				"labelSelector:feature=expose",
+				"labelSelector:!!!bad",
+			},
+			wantErr:     true,
+			errContains: `spec.conflictsWith[2]: invalid labelSelector "!!!bad"`,
+		},
+		"EmptySelectorExpression": {
+			// empty selector is valid (matches everything) per labels.Parse
+			conflictsWith: []string{"labelSelector:"},
+			wantErr:       false,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			td := v1beta1.TraitDefinition{}
+			td.Spec.ConflictsWith = tc.conflictsWith
+			err := ValidateConflictsWith(context.Background(), td)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tc.errContains)
+				}
+				if !strings.Contains(err.Error(), tc.errContains) {
+					t.Fatalf("error %q does not contain %q", err.Error(), tc.errContains)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
 }
