@@ -2749,6 +2749,117 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring("name: e.name"))
 			Expect(cue).To(ContainSubstring("value: e.value"))
 		})
+
+		It("ItemBuilder.Set expands a dotted path into nested fields", func() {
+			maxRead := defkit.Int("maxReadRequestUnits").Optional()
+			indexes := defkit.Array("indexes").WithFields(
+				defkit.String("name"),
+			).Optional()
+
+			c := defkit.NewComponent("table").
+				Workload("v1", "ConfigMap").
+				Params(indexes, maxRead).
+				Template(func(tpl *defkit.Template) {
+					arr := defkit.NewArray().ForEachWith(indexes,
+						func(item *defkit.ItemBuilder) {
+							v := item.Var()
+							item.Set("name", v.Field("name"))
+							item.Set("onDemandThroughput.maxReadRequestUnits", maxRead)
+						})
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("spec.indexes", arr))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring("onDemandThroughput: maxReadRequestUnits: parameter.maxReadRequestUnits"))
+			// The unexpanded label is not valid CUE and must not reappear.
+			Expect(cue).NotTo(ContainSubstring("onDemandThroughput.maxReadRequestUnits:"))
+			// A single-segment field is unaffected.
+			Expect(cue).To(ContainSubstring("name: v.name"))
+			Expect(parseCUE(cue)).To(Succeed())
+		})
+
+		It("ItemBuilder.Set expands a dotted path inside a conditional block", func() {
+			maxRead := defkit.Int("maxReadRequestUnits").Optional()
+			maxWrite := defkit.Int("maxWriteRequestUnits").Optional()
+			indexes := defkit.Array("indexes").WithFields(
+				defkit.String("name"),
+			).Optional()
+
+			c := defkit.NewComponent("table").
+				Workload("v1", "ConfigMap").
+				Params(indexes, maxRead, maxWrite).
+				Template(func(tpl *defkit.Template) {
+					arr := defkit.NewArray().ForEachWith(indexes,
+						func(item *defkit.ItemBuilder) {
+							item.If(maxRead.IsSet(), func() {
+								item.Set("onDemandThroughput.maxReadRequestUnits", maxRead)
+							})
+							item.If(maxWrite.IsSet(), func() {
+								item.Set("onDemandThroughput.maxWriteRequestUnits", maxWrite)
+							})
+						})
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("spec.indexes", arr))
+				})
+
+			cue := c.ToCue()
+			// Sibling writes to the same parent unify into one struct.
+			Expect(cue).To(ContainSubstring("onDemandThroughput: maxReadRequestUnits: parameter.maxReadRequestUnits"))
+			Expect(cue).To(ContainSubstring("onDemandThroughput: maxWriteRequestUnits: parameter.maxWriteRequestUnits"))
+			Expect(parseCUE(cue)).To(Succeed())
+		})
+
+		It("ItemBuilder.Set does not split on a dot inside a bracketed key", func() {
+			items := defkit.Array("items").WithFields(
+				defkit.String("value"),
+			).Optional()
+
+			c := defkit.NewComponent("annotated").
+				Workload("v1", "ConfigMap").
+				Params(items).
+				Template(func(tpl *defkit.Template) {
+					arr := defkit.NewArray().ForEachWith(items,
+						func(item *defkit.ItemBuilder) {
+							v := item.Var()
+							item.Set(`metadata.annotations["example.com/owner"]`, v.Field("value"))
+						})
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("spec.items", arr))
+				})
+
+			cue := c.ToCue()
+			// The dot inside the brackets is part of the key, not a separator.
+			// Bracketed keys are not otherwise supported here; this only guards
+			// against one being split apart.
+			Expect(cue).To(ContainSubstring(`annotations["example.com/owner"]: v.value`))
+			Expect(cue).NotTo(ContainSubstring(`example: com/owner`))
+		})
+
+		It("ArrayElement.SetIf preserves dots inside bracketed keys", func() {
+			enabled := defkit.Bool("enabled").Optional()
+			items := defkit.Array("items").WithFields(
+				defkit.String("value"),
+			).Optional()
+
+			c := defkit.NewComponent("annotated").
+				Workload("v1", "ConfigMap").
+				Params(enabled, items).
+				Template(func(tpl *defkit.Template) {
+					const path = `labels["app.kubernetes.io/name"]`
+					arr := defkit.NewArray().
+						Item(defkit.NewArrayElement().
+							SetIf(enabled.IsSet(), path, defkit.Lit("static"))).
+						ForEach(items, defkit.NewArrayElement().
+							SetIf(enabled.IsSet(), path, defkit.Reference("m.value")))
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("spec.items", arr))
+				})
+
+			cue := c.ToCue()
+			Expect(strings.Count(cue, `labels["app.kubernetes.io/name"]:`)).To(Equal(2))
+			Expect(cue).NotTo(ContainSubstring(`labels["app: kubernetes: io/name"]:`))
+		})
 	})
 
 	Describe("From().Filter().Map().Dedupe() pipeline", func() {
