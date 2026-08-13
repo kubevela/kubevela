@@ -765,15 +765,22 @@ func (p *ArrayParam) GetMaxItems() *int {
 }
 
 // RequiredImports returns the CUE imports needed by this parameter's constraints.
-// MinItems/MaxItems generate list.MinItems()/list.MaxItems() which require "list".
-// Nested element fields are walked too, so an element constraint such as
-// String("name").MinLen(3) still pulls in "strings".
+// MinItems/MaxItems generate list.MinItems()/list.MaxItems() which require "list",
+// and those are emitted whichever body form wins, so "list" is unconditional.
+//
+// Nested element fields are only reported when they are actually rendered.
+// writeArrayParam ranks schemaRef > schema > fields, so a schema form silences
+// the fields; reporting their imports anyway emits a package the output never
+// references, which CUE rejects as "imported and not used".
 func (p *ArrayParam) RequiredImports() []string {
 	var imports []string
 	if p.minItems != nil || p.maxItems != nil {
 		imports = append(imports, "list")
 	}
-	return dedupeImports(append(imports, nestedParamImports(p.fields)...))
+	if p.schemaRef == "" && p.schema == "" {
+		imports = append(imports, nestedParamImports(p.fields)...)
+	}
+	return dedupeImports(imports)
 }
 
 // nestedParamImports collects the imports declared by nested field parameters.
@@ -786,6 +793,18 @@ func nestedParamImports(params []Param) []string {
 		if ir, ok := param.(ImportRequirer); ok {
 			imports = append(imports, ir.RequiredImports()...)
 		}
+	}
+	return imports
+}
+
+// nestedBranchImports collects the imports declared by params inside conditional
+// branches. Branch bodies are rendered into the struct like ordinary fields, so
+// a constraint such as String("secret").MinLen(3) inside a branch needs its
+// package imported just the same.
+func nestedBranchImports(branches []*ConditionalBranch) []string {
+	var imports []string
+	for _, branch := range branches {
+		imports = append(imports, nestedParamImports(branch.GetParams())...)
 	}
 	return imports
 }
@@ -998,12 +1017,23 @@ func (p *MapParam) GetValueSchemaRef() string {
 }
 
 // RequiredImports returns the CUE imports needed by this parameter's nested
-// fields, covering both the fixed-object form (WithFields) and the
-// dynamic-key value form (OfObject). Without this a nested constraint such as
-// String("name").MinLen(3) renders strings.MinRunes(3) with no import.
+// fields. Without it a nested constraint such as String("name").MinLen(3)
+// renders strings.MinRunes(3) with no import and the definition won't compile.
+//
+// The walk mirrors writeMapParam's priority (schemaRef > schema >
+// valueSchemaRef > valueFields > fields/validators/conditionalFields) and stops
+// at whichever form wins, because only that form's body is rendered. Reporting
+// a losing form's imports emits a package the output never references, which
+// CUE rejects as "imported and not used".
 func (p *MapParam) RequiredImports() []string {
+	if p.schemaRef != "" || p.schema != "" || p.valueSchemaRef != "" {
+		return nil
+	}
+	if len(p.valueFields) > 0 {
+		return dedupeImports(nestedParamImports(p.valueFields))
+	}
 	imports := nestedParamImports(p.fields)
-	imports = append(imports, nestedParamImports(p.valueFields)...)
+	imports = append(imports, nestedBranchImports(p.conditionalFields)...)
 	return dedupeImports(imports)
 }
 

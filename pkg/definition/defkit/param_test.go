@@ -314,6 +314,57 @@ var _ = Describe("Parameters", func() {
 				defkit.String("second").MinLen(3),
 			).MinItems(1).RequiredImports()).To(Equal([]string{"list", "strings"}))
 		})
+
+		It("should not report imports for a form the generator will not render", func() {
+			// writeMapParam ranks schemaRef > schema > valueSchemaRef > valueFields >
+			// fields, and returns early. Reporting a losing form's import emits a
+			// package the output never references: "imported and not used".
+			Expect(defkit.Map("m").WithSchemaRef("Ref").OfObject(
+				defkit.String("y").MinLen(3),
+			).RequiredImports()).To(BeEmpty())
+
+			Expect(defkit.Map("m").WithSchema("{...}").WithFields(
+				defkit.String("y").MinLen(3),
+			).RequiredImports()).To(BeEmpty())
+
+			Expect(defkit.Map("m").OfSchemaRef("Ref").OfObject(
+				defkit.String("y").MinLen(3),
+			).RequiredImports()).To(BeEmpty())
+
+			// valueFields wins over fields, so only valueFields is walked.
+			Expect(defkit.Map("m").WithFields(
+				defkit.String("fixed").MinLen(3),
+			).OfObject(
+				defkit.String("dynamic"),
+			).RequiredImports()).To(BeEmpty())
+
+			// list is still needed: MinItems renders whichever array form wins.
+			Expect(defkit.Array("a").WithSchema("[...int]").WithFields(
+				defkit.String("y").MinLen(3),
+			).MinItems(1).RequiredImports()).To(Equal([]string{"list"}))
+
+			Expect(defkit.Array("a").WithSchemaRef("Ref").WithFields(
+				defkit.String("y").MinLen(3),
+			).RequiredImports()).To(BeEmpty())
+		})
+
+		It("should report imports needed by conditional branch params", func() {
+			// Branch bodies are rendered into the struct like ordinary fields.
+			Expect(defkit.Map("cfg").ConditionalFields(
+				defkit.WhenParam(defkit.Bool("flag").Eq(true)).Params(
+					defkit.String("secret").MinLen(3),
+				),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+
+			// deduped against fields needing the same package
+			Expect(defkit.Map("cfg").WithFields(
+				defkit.String("plain").MinLen(3),
+			).ConditionalFields(
+				defkit.WhenParam(defkit.Bool("flag").Eq(true)).Params(
+					defkit.String("secret").MinLen(3),
+				),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+		})
 	})
 
 	Context("StructParam", func() {
