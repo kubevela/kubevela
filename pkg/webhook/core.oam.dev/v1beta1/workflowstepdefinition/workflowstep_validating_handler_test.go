@@ -34,7 +34,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/kubevela/pkg/util/singleton"
+
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
@@ -47,6 +50,8 @@ var td v1beta1.WorkflowStepDefinition
 var validCueTemplate string
 var inValidCueTemplate string
 var legacyCueTemplate string
+var unusedImportCueTemplate string
+var velaOpCueTemplate string
 var cfg *rest.Config
 var testScheme = runtime.NewScheme()
 var testEnv *envtest.Environment
@@ -67,6 +72,8 @@ parameter: {
 }
 combined: parameter.items + parameter.extra
 `
+	unusedImportCueTemplate = "import \"vela/kube\"\n\nparameter: {\n\tname: string\n}\n"
+	velaOpCueTemplate = "import \"vela/op\"\n\nwait: op.#ConditionalWait & {\n\tcontinue: true\n}\n"
 
 	var yamlPath string
 	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
@@ -89,6 +96,14 @@ combined: parameter.items + parameter.extra
 	Expect(cfg).ToNot(BeNil())
 	decoder = admission.NewDecoder(testScheme)
 	Expect(err).Should(BeNil())
+
+	// CUE template validation builds the workflow compiler on first use, which
+	// otherwise lists external Package CRDs through singleton.KubeConfig ->
+	// config.GetConfigOrDie(). That call terminates the process with os.Exit(1)
+	// when no ambient kubeconfig is present, since envtest hands back a
+	// *rest.Config rather than writing one to disk. Point the singleton at the
+	// envtest config so the lookup resolves instead of exiting.
+	singleton.KubeConfig.Set(cfg)
 
 	td = v1beta1.WorkflowStepDefinition{}
 	td.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
@@ -185,6 +200,83 @@ var _ = Describe("Test workflowstepdefinition validating handler", func() {
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeFalse())
 			Expect(string(resp.Result.Message)).Should(ContainSubstring("Only one can be present"))
+		})
+
+		It("Test WorkflowStepDefinition with an invalid CUE template is denied", func() {
+			wsd := v1beta1.WorkflowStepDefinition{}
+			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wsd.SetName("wsd-invalid-cue")
+			wsd.SetNamespace("default")
+			wsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: inValidCueTemplate,
+					},
+				},
+			}
+			wsdRaw, _ := json.Marshal(wsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+		})
+
+		// The case from the issue: an unused import is invalid CUE. An identically
+		// broken ComponentDefinition was already rejected; this one was admitted.
+		It("Test WorkflowStepDefinition with an unused import is denied", func() {
+			wsd := v1beta1.WorkflowStepDefinition{}
+			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wsd.SetName("wsd-unused-import")
+			wsd.SetNamespace("default")
+			wsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: unusedImportCueTemplate,
+					},
+				},
+			}
+			wsdRaw, _ := json.Marshal(wsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeFalse())
+			Expect(resp.Result.Message).Should(ContainSubstring("imported and not used"))
+		})
+
+		// Step templates import workflow-only packages. The workload compiler this
+		// validator used to run on rejects these outright.
+		It("Test WorkflowStepDefinition importing vela/op is admitted", func() {
+			wsd := v1beta1.WorkflowStepDefinition{}
+			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
+			wsd.SetName("wsd-vela-op")
+			wsd.SetNamespace("default")
+			wsd.Spec = v1beta1.WorkflowStepDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: velaOpCueTemplate,
+					},
+				},
+			}
+			wsdRaw, _ := json.Marshal(wsd)
+			req := admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: wsdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue())
 		})
 
 		It("Test workflowstepdefinition without spec.version and with revision name annotation", func() {
