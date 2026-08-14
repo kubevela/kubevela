@@ -19,11 +19,13 @@ package utils
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"cuelang.org/go/cue/errors"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/stretchr/testify/assert"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +36,18 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
 )
+
+// TestMain keeps the validation tests hermetic. Building the compiler otherwise
+// loads external Package CRDs from the cluster, and that path reaches
+// singleton.KubeConfig -> config.GetConfigOrDie(), which terminates the process
+// with os.Exit(1) when no kubeconfig is reachable rather than returning an
+// error. Admission itself still loads external packages in a real deployment;
+// only the tests opt out so they can run without a cluster.
+func TestMain(m *testing.M) {
+	cuex.EnableExternalPackageForDefaultCompiler = false
+	cuex.EnableExternalPackageWatchForDefaultCompiler = false
+	os.Exit(m.Run())
+}
 
 func TestValidateDefinitionRevision(t *testing.T) {
 	t.Parallel()
@@ -227,15 +241,11 @@ func TestValidateCuexTemplate(t *testing.T) {
 		},
 		// The upstream `withCuexPackageImports` case relied on
 		// cuex.DefaultCompiler.Reload picking up a fake-client-served
-		// Package CRD. Since ValidateCuexTemplate now uses
-		// velacuex.WorkloadCompiler (which carries internal provider
-		// packages like vela/helm), the same fake-client setup does not
-		// surface the test/ext external package via WorkloadCompiler's
-		// LoadExternalPackages on this branch's test environment. Dropped
-		// for now: the dry-run helm.WithDryRun gate added in this PR
-		// already exercises the WorkloadCompiler path on every CD/Trait
-		// admission, so internal-package import resolution is covered
-		// transitively by the helm provider unit tests and the e2e suite.
+		// Package CRD. External package loading is disabled outright in
+		// TestMain so these tests can run without a cluster, so that case
+		// cannot be expressed here. Internal-package import resolution is
+		// covered instead by TestValidateCuexTemplate_WorkflowStepTemplates,
+		// which compiles templates importing vela/op and vela/kube.
 		"inValidCueTemp": {
 			cueTemplate: `
 				output: {
@@ -332,4 +342,209 @@ func TestValidateMultipleDefVersionsNotPresent(t *testing.T) {
 
 		})
 	}
+}
+
+// TestValidateCuexTemplate_WorkflowStepTemplates covers the behaviour this
+// validator gained when it moved from the workload compiler to the workflow
+// one. The workload compiler rejected any template importing a workflow-only
+// builtin package, which is most of the bundled step definitions.
+func TestValidateWorkflowStepCuexTemplate(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		cueTemplate string
+		wantErr     string
+	}{
+		"velaOpImportIsAccepted": {
+			cueTemplate: `
+import "vela/op"
+
+wait: op.#ConditionalWait & {
+	continue: true
+}`,
+		},
+		"velaKubeImportIsAccepted": {
+			cueTemplate: `
+import "vela/kube"
+
+output: kube.#Read & {
+	$params: value: {
+		apiVersion: "v1"
+		kind:       "ConfigMap"
+		metadata: {
+			name:      "cm"
+			namespace: "default"
+		}
+	}
+}`,
+		},
+		// The problem reported in the issue: an unused import is invalid CUE,
+		// and a WorkflowStepDefinition carrying one used to be admitted.
+		"unusedImportIsRejected": {
+			cueTemplate: `
+import "vela/kube"
+
+parameter: {
+	name: string
+}`,
+			wantErr: `imported and not used: "vela/kube"`,
+		},
+		"unknownPackageIsRejected": {
+			cueTemplate: `
+import "vela/doesnotexist"
+
+output: doesnotexist.#Foo`,
+			wantErr: `builtin package "vela/doesnotexist" undefined`,
+		},
+		// Provider function arguments are still checked even though the
+		// functions are never executed, because imports and package schemas
+		// resolve during BuildInstance.
+		"badProviderArgIsRejected": {
+			cueTemplate: `
+import "vela/kube"
+
+output: kube.#Read & {
+	$params: value: 12345
+}`,
+			wantErr: "output.$params.value: conflicting values 12345 and {...} (mismatched types int and struct)",
+		},
+		// Guarding on an unresolved provider result must not fail validation.
+		// depends-on-app does exactly this, and with resolution disabled the
+		// comprehension simply stays unevaluated.
+		"returnsGuardStaysIncomplete": {
+			cueTemplate: `
+import "vela/kube"
+
+dependsOn: kube.#Read & {
+	$params: value: {
+		apiVersion: "core.oam.dev/v1beta1"
+		kind:       "Application"
+		metadata: {
+			name:      "app"
+			namespace: "default"
+		}
+	}
+}
+load: {
+	if dependsOn.$returns.err != _|_ {
+		found: true
+	}
+}`,
+		},
+	}
+
+	for caseName, cs := range cases {
+		t.Run(caseName, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateWorkflowStepCuexTemplate(context.Background(), cs.cueTemplate)
+			if cs.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), cs.wantErr)
+		})
+	}
+}
+
+// TestValidateCuexTemplate_DoesNotExecuteProviders asserts the safety property
+// the DisableResolveProviderFunctions option buys. A template supplying fully
+// concrete arguments to a provider must be type-checked without the provider
+// ever running, since admission must not perform cluster reads or chart
+// fetches as a side effect of submitting a definition.
+func TestValidateWorkflowStepCuexTemplate_DoesNotExecuteProviders(t *testing.T) {
+	t.Parallel()
+	// kube.#Read against a cluster that is not reachable from this test
+	// process. If resolution ran, this would attempt a real read and fail
+	// (or terminate the process via GetConfigOrDie).
+	concrete := `
+import "vela/kube"
+
+output: kube.#Read & {
+	$params: {
+		cluster: "some-remote-cluster"
+		value: {
+			apiVersion: "v1"
+			kind:       "Secret"
+			metadata: {
+				name:      "does-not-exist"
+				namespace: "does-not-exist"
+			}
+		}
+	}
+}`
+	assert.NoError(t, ValidateWorkflowStepCuexTemplate(context.Background(), concrete))
+}
+
+// TestCuexTemplateValidators_AreNotInterchangeable pins the reason there are two
+// validators rather than one shared "superset" compiler.
+//
+// "vela/kube", "vela/http" and "vela/config" are registered by both compilers
+// but resolve to different packages with different selectors and different
+// $params schemas. Using the wrong one does not error. The selector is silently
+// accepted and the $params schema check vanishes with it, turning a checked
+// template into an unchecked one.
+//
+// No bundled ComponentDefinition or TraitDefinition imports those three paths,
+// so a suite that only walks the bundled definitions reports everything green
+// under either compiler. These cases use the clashing imports directly so the
+// regression is actually observable.
+func TestCuexTemplateValidators_AreNotInterchangeable(t *testing.T) {
+	t.Parallel()
+
+	// kube.#Get is workload-flavor; $params.resource belongs to it.
+	workloadFlavor := `
+import "vela/kube"
+
+output: kube.#Get & {
+	$params: {
+		resource: {
+			apiVersion: "v1"
+			kind:       "ConfigMap"
+		}
+		totallyBogusField: "x"
+	}
+}`
+
+	// kube.#Read is workflow-flavor; $params.value belongs to it.
+	workflowFlavor := `
+import "vela/kube"
+
+output: kube.#Read & {
+	$params: {
+		value: {
+			apiVersion: "v1"
+			kind:       "ConfigMap"
+		}
+		totallyBogusField: "x"
+	}
+}`
+
+	t.Run("component validator catches a bogus workload-flavor param", func(t *testing.T) {
+		t.Parallel()
+		err := ValidateCuexTemplate(context.Background(), workloadFlavor)
+		assert.Error(t, err, "workload compiler must type-check its own $params schema")
+		assert.Contains(t, err.Error(), "field not allowed")
+	})
+
+	t.Run("step validator catches a bogus workflow-flavor param", func(t *testing.T) {
+		t.Parallel()
+		err := ValidateWorkflowStepCuexTemplate(context.Background(), workflowFlavor)
+		assert.Error(t, err, "workflow compiler must type-check its own $params schema")
+		assert.Contains(t, err.Error(), "field not allowed")
+	})
+
+	// The two below document the silent-loss behaviour that makes routing matter.
+	// They are not asserting desirable behaviour, they are pinning the hazard so
+	// that collapsing these validators back into one fails loudly here.
+	t.Run("step validator does not catch a workload-flavor param", func(t *testing.T) {
+		t.Parallel()
+		assert.NoError(t, ValidateWorkflowStepCuexTemplate(context.Background(), workloadFlavor),
+			"if this now errors, the flavors converged and the split may be revisitable")
+	})
+
+	t.Run("component validator does not catch a workflow-flavor param", func(t *testing.T) {
+		t.Parallel()
+		assert.NoError(t, ValidateCuexTemplate(context.Background(), workflowFlavor),
+			"if this now errors, the flavors converged and the split may be revisitable")
+	})
 }
