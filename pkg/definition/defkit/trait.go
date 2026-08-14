@@ -496,16 +496,7 @@ func (g *TraitCUEGenerator) addImportIfMissing(imp string) {
 // allImports returns the explicit imports followed by the ones detected for the
 // trait currently being generated, preserving order and dropping repeats.
 func (g *TraitCUEGenerator) allImports() []string {
-	all := make([]string, 0, len(g.imports)+len(g.detected))
-	seen := make(map[string]bool, len(g.imports)+len(g.detected))
-	for _, imp := range append(append([]string{}, g.imports...), g.detected...) {
-		if seen[imp] {
-			continue
-		}
-		seen[imp] = true
-		all = append(all, imp)
-	}
-	return all
+	return mergeImports(g.imports, g.detected)
 }
 
 // detectRequiredImports analyzes the trait template and adds any CUE standard

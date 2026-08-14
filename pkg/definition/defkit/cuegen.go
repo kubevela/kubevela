@@ -190,9 +190,16 @@ func (g *CUEGenerator) addImportIfMissing(imp string) {
 // allImports returns the explicit imports followed by the ones detected for the
 // definition currently being generated, preserving order and dropping repeats.
 func (g *CUEGenerator) allImports() []string {
-	all := make([]string, 0, len(g.imports)+len(g.detected))
-	seen := make(map[string]bool, len(g.imports)+len(g.detected))
-	for _, imp := range append(append([]string{}, g.imports...), g.detected...) {
+	return mergeImports(g.imports, g.detected)
+}
+
+// mergeImports combines explicit and detected imports, preserving order (explicit
+// first) and dropping repeats. Shared by CUEGenerator and TraitCUEGenerator so the
+// two generators' import-ordering behavior cannot drift apart.
+func mergeImports(explicit, detected []string) []string {
+	all := make([]string, 0, len(explicit)+len(detected))
+	seen := make(map[string]bool, len(explicit)+len(detected))
+	for _, imp := range append(append([]string{}, explicit...), detected...) {
 		if seen[imp] {
 			continue
 		}
