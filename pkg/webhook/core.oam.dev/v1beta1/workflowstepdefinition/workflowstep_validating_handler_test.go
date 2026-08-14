@@ -118,6 +118,10 @@ var _ = AfterSuite(func() {
 	// the exact os.Exit(1)-on-no-kubeconfig call this file works around in the
 	// first place.
 	singleton.KubeConfig.Set(nil)
+
+	By("tearing down the test environment")
+	err := testEnv.Stop()
+	Expect(err).ToNot(HaveOccurred())
 })
 
 var _ = Describe("Test workflowstepdefinition validating handler", func() {
