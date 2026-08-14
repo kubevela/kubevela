@@ -109,6 +109,17 @@ combined: parameter.items + parameter.extra
 	td.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
 })
 
+var _ = AfterSuite(func() {
+	// Undo the singleton.KubeConfig mutation from BeforeSuite so it doesn't
+	// leak past this suite as a package-global. Reset to nil rather than
+	// capturing and restoring whatever value predates it: reading the prior
+	// value with singleton.KubeConfig.Get() would trigger its loader on a
+	// singleton that has never been touched, which is config.GetConfigOrDie(),
+	// the exact os.Exit(1)-on-no-kubeconfig call this file works around in the
+	// first place.
+	singleton.KubeConfig.Set(nil)
+})
+
 var _ = Describe("Test workflowstepdefinition validating handler", func() {
 	BeforeEach(func() {
 		cli, err := client.New(cfg, client.Options{})
