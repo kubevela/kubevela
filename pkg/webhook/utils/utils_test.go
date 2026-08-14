@@ -27,6 +27,7 @@ import (
 	"cuelang.org/go/cue/errors"
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -244,8 +245,8 @@ func TestValidateCuexTemplate(t *testing.T) {
 		// Package CRD. External package loading is disabled outright in
 		// TestMain so these tests can run without a cluster, so that case
 		// cannot be expressed here. Internal-package import resolution is
-		// covered instead by TestValidateCuexTemplate_WorkflowStepTemplates,
-		// which compiles templates importing vela/op and vela/kube.
+		// covered instead by TestValidateWorkflowStepCuexTemplate, which
+		// compiles templates importing vela/op and vela/kube.
 		"inValidCueTemp": {
 			cueTemplate: `
 				output: {
@@ -344,10 +345,11 @@ func TestValidateMultipleDefVersionsNotPresent(t *testing.T) {
 	}
 }
 
-// TestValidateCuexTemplate_WorkflowStepTemplates covers the behaviour this
-// validator gained when it moved from the workload compiler to the workflow
-// one. The workload compiler rejected any template importing a workflow-only
-// builtin package, which is most of the bundled step definitions.
+// TestValidateWorkflowStepCuexTemplate covers ValidateWorkflowStepCuexTemplate,
+// which compiles against the workflow provider compiler rather than the
+// workload one that ValidateCuexTemplate uses. The workload compiler rejects
+// any template importing a workflow-only builtin package, which is most of
+// the bundled step definitions.
 func TestValidateWorkflowStepCuexTemplate(t *testing.T) {
 	t.Parallel()
 	cases := map[string]struct {
@@ -440,7 +442,11 @@ load: {
 				assert.NoError(t, err)
 				return
 			}
-			assert.Error(t, err)
+			// require, not assert: if the validator wrongly returns nil here,
+			// err.Error() below would panic on a nil receiver and the panic
+			// message would replace the real "expected an error" failure,
+			// making the test output misleading about what actually failed.
+			require.Error(t, err)
 			assert.Contains(t, err.Error(), cs.wantErr)
 		})
 	}
