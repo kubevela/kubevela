@@ -33,6 +33,7 @@ import (
 	"github.com/kubevela/workflow/pkg/providers/time"
 	"github.com/kubevela/workflow/pkg/providers/util"
 
+	"github.com/oam-dev/kubevela/pkg/utils/kubeconfig"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/config"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/helm"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy"
@@ -79,6 +80,18 @@ var compiler = singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, e
 // DefaultCompiler compiler for cuex to compile
 var DefaultCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compiler {
 	c := compiler.Get()
+	// Both calls below reach the shared client singletons, which resolve their
+	// REST config through config.GetConfigOrDie. Without a kubeconfig that
+	// exits the process rather than returning an error, so the error handling
+	// here would never run. Checking first keeps it reachable, and keeps
+	// cluster-free callers (vela def render, unit tests, make manifests) alive
+	// with external packages simply absent.
+	if cuex.EnableExternalPackageForDefaultCompiler || cuex.EnableExternalPackageWatchForDefaultCompiler {
+		if err := kubeconfig.Check(); err != nil {
+			klog.Warningf("skipping external CUE packages for cuex default compiler, no usable kubeconfig: %v", err)
+			return c
+		}
+	}
 	if cuex.EnableExternalPackageForDefaultCompiler {
 		if err := c.LoadExternalPackages(context.Background()); err != nil {
 			klog.Errorf("failed to load external packages for cuex default compiler: %v", err.Error())
