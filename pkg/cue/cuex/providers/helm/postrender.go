@@ -21,13 +21,14 @@ package helm
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	stderrors "errors"
 	"io"
 	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/kubevela/pkg/cue/util"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/action"
@@ -176,6 +177,42 @@ func velaOwnerLabels(velaCtx *ContextParams) map[string]string {
 	return labels
 }
 
+// postRenderHashLabel records a digest of the post-render configuration on the
+// Helm release Secret.
+const postRenderHashLabel = "app.oam.dev/postRenderHash"
+
+// postRenderFingerprint digests the post-render configuration so a change to it
+// can be detected on a later reconcile.
+//
+// The release dedup check in installOrUpgradeChart compares the desired chart
+// and values against those recorded on the live release, but post-render
+// configuration is not part of either: it never reaches Helm's stored values.
+// Editing only a post-render template would therefore leave both sides of that
+// comparison identical and the upgrade would be skipped, leaving the previously
+// rendered manifests in place. Stamping this digest onto the release lets the
+// dedup check see the change, in the same way the publishVersion pin is carried.
+//
+// Returns "" when nothing is configured, so releases that use no post-rendering
+// keep matching the absent label on releases installed before this existed.
+func postRenderFingerprint(postRender *PostRenderParams) string {
+	if postRender == nil {
+		return ""
+	}
+	data, err := json.Marshal(postRender)
+	if err != nil {
+		// A params struct that will not marshal cannot be fingerprinted; return
+		// a sentinel rather than "" so it never compares equal to "unset" and
+		// the upgrade goes ahead instead of being wrongly skipped.
+		klog.Warningf("Helm provider: failed to fingerprint post-render config, forcing upgrade: %v", err)
+		return "unfingerprintable"
+	}
+	if string(data) == "{}" {
+		return ""
+	}
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:])
+}
+
 // helmPostRenderer is satisfied by any post-renderer in this package. It matches
 // helm.sh/helm/v3/pkg/postrender.PostRenderer structurally, so values can be
 // assigned to action.Install.PostRenderer without importing that package here.
@@ -209,6 +246,26 @@ func (r *cuePostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buffer, e
 		return renderedManifests, nil
 	}
 
+	// A post-render template is evaluated as plain CUE rather than through a
+	// cuex compiler. It is a pure data transform over an already-rendered
+	// resource, so it needs no vela provider packages, and reaching for one
+	// would both re-enter the helm provider that is mid-render and drag in the
+	// kube client singleton, which hard-exits the process when no kubeconfig is
+	// present. The full CUE standard library (strings, list, regexp, ...)
+	// remains available.
+	//
+	// The template is parsed and compiled once for the whole bundle, then bound
+	// to each resource in turn below. Charts routinely render dozens of
+	// resources, and compiling per resource made this scale linearly in parse
+	// work for a template that never changes between them. `context` is declared
+	// as a hole here so the template's references to it resolve at compile time;
+	// each resource fills it with a concrete value.
+	cctx := cuecontext.New()
+	tmpl := cctx.CompileString(strings.Join([]string{r.params.Template, "context: _"}, "\n"))
+	if err := tmpl.Err(); err != nil {
+		return nil, errors.Wrap(err, "cue post-renderer: invalid template")
+	}
+
 	out := &bytes.Buffer{}
 	decoder := kyaml.NewYAMLOrJSONDecoder(bytes.NewReader(renderedManifests.Bytes()), 4096)
 
@@ -224,7 +281,7 @@ func (r *cuePostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buffer, e
 			continue
 		}
 
-		patched, err := r.patchResource(obj.Object)
+		patched, err := r.patchResource(cctx, tmpl, obj.Object)
 		if err != nil {
 			return nil, err
 		}
@@ -243,27 +300,14 @@ func (r *cuePostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buffer, e
 // patchResource evaluates the user template against a single resource and
 // returns the merged result, or the resource unchanged when the template
 // produces no patch for it.
-func (r *cuePostRenderer) patchResource(resource map[string]interface{}) (map[string]interface{}, error) {
+func (r *cuePostRenderer) patchResource(cctx *cue.Context, tmpl cue.Value, resource map[string]interface{}) (map[string]interface{}, error) {
 	kind, _ := resource["kind"].(string)
 
 	if err := r.ctx.Err(); err != nil {
 		return nil, errors.Wrap(err, "cue post-renderer: cancelled")
 	}
 
-	// A post-render template is evaluated as plain CUE rather than through a
-	// cuex compiler. It is a pure data transform over an already-rendered
-	// resource, so it needs no vela provider packages — and reaching for one
-	// would both re-enter the helm provider that is mid-render and drag in the
-	// kube client singleton, which hard-exits the process when no kubeconfig is
-	// present. The full CUE standard library (strings, list, regexp, ...)
-	// remains available.
-	cctx := cuecontext.New()
-	ctxData, err := util.ToString(cctx.CompileString("").FillPath(cue.ParsePath("context"), r.templateContext(resource)))
-	if err != nil {
-		return nil, errors.Wrapf(err, "cue post-renderer: failed to bind context for %s", kind)
-	}
-
-	val := cctx.CompileString(strings.Join([]string{r.params.Template, ctxData}, "\n"))
+	val := tmpl.FillPath(cue.ParsePath("context"), r.templateContext(resource))
 	if err := val.Err(); err != nil {
 		return nil, errors.Wrapf(err, "cue post-renderer: invalid template for %s", kind)
 	}

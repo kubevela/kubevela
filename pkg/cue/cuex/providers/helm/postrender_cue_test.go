@@ -332,6 +332,36 @@ var _ = Describe("compositePostRenderer", func() {
 	})
 })
 
+var _ = Describe("postRenderFingerprint", func() {
+
+	It("should be empty when nothing is configured", func() {
+		// An empty digest must equal the absent label on releases installed
+		// before post-rendering existed, so they are not upgraded needlessly.
+		Expect(postRenderFingerprint(nil)).To(BeEmpty())
+		Expect(postRenderFingerprint(&PostRenderParams{})).To(BeEmpty())
+	})
+
+	It("should be stable for identical configuration", func() {
+		a := postRenderFingerprint(&PostRenderParams{CUE: &CUEParams{Template: `patch: metadata: labels: a: "1"`}})
+		b := postRenderFingerprint(&PostRenderParams{CUE: &CUEParams{Template: `patch: metadata: labels: a: "1"`}})
+		Expect(a).ToNot(BeEmpty())
+		Expect(a).To(Equal(b))
+	})
+
+	It("should change when the template changes", func() {
+		// This is the property that makes a template edit trigger a re-apply:
+		// the chart and values are untouched, so the digest is the only signal.
+		a := postRenderFingerprint(&PostRenderParams{CUE: &CUEParams{Template: `patch: metadata: labels: a: "1"`}})
+		b := postRenderFingerprint(&PostRenderParams{CUE: &CUEParams{Template: `patch: metadata: labels: a: "2"`}})
+		Expect(a).ToNot(Equal(b))
+	})
+
+	It("should change when post-rendering is added to an existing release", func() {
+		Expect(postRenderFingerprint(&PostRenderParams{CUE: &CUEParams{Template: `patch: {}`}})).
+			ToNot(Equal(postRenderFingerprint(nil)))
+	})
+})
+
 var _ = Describe("newPostRenderer", func() {
 
 	It("should return the bare vela renderer when no post-rendering is configured", func() {

@@ -93,6 +93,17 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 	// delete it via the ResourceTracker when the Application is deleted.
 	releaseLabels := velaOwnerLabels(velaCtx)
 
+	// Post-render configuration never reaches Helm's stored values, so the
+	// fingerprint below cannot see a change to it. Carry a digest on the release
+	// instead and compare it alongside the fingerprint.
+	postRenderHash := postRenderFingerprint(postRender)
+	if postRenderHash != "" {
+		if releaseLabels == nil {
+			releaseLabels = map[string]string{}
+		}
+		releaseLabels[postRenderHashLabel] = postRenderHash
+	}
+
 	// Always check the live release in the cluster before using cached data.
 	// This prevents stale cache entries from masking externally-deleted releases
 	// (e.g., helm uninstall, deleted secrets, namespace deletion).
@@ -181,7 +192,7 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 		// Release exists — check if it is already deployed with the same fingerprint
 		if !needsAdoption && existingRelease.Info != nil && existingRelease.Info.Status == release.StatusDeployed {
 			clusterFingerprint := computeReleaseFingerprint(existingRelease.Chart, existingRelease.Config)
-			if clusterFingerprint == fingerprint {
+			if clusterFingerprint == fingerprint && existingRelease.Labels[postRenderHashLabel] == postRenderHash {
 				klog.V(3).Infof("Helm provider [%s]: Release %s already deployed and unchanged (cluster fingerprint match), skipping upgrade", velaContextStr(velaCtx), releaseName)
 				p.releaseFingerprints[cacheKey] = fingerprint
 				p.releaseManifests[cacheKey] = existingRelease.Manifest
