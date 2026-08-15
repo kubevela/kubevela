@@ -181,6 +181,32 @@ func velaOwnerLabels(velaCtx *ContextParams) map[string]string {
 // Helm release Secret.
 const postRenderHashLabel = "app.oam.dev/postRenderHash"
 
+// helmLabelDelete is Helm's sentinel for removing a release label on upgrade.
+// action.Upgrade merges the supplied labels over the previous release's, so an
+// omitted key is carried forward rather than dropped; only this value deletes.
+// action.Install stores labels verbatim and does not honor it, which is why it
+// must never appear on the install path.
+const helmLabelDelete = "null"
+
+// effectivePostRender returns the post-render configuration that will actually
+// change the rendered output, or nil when post-rendering would be a no-op.
+//
+// newPostRenderer and postRenderFingerprint both go through this, so the
+// renderer and the change detection can never disagree about what is active.
+// Fingerprinting configuration that no renderer acts on would bump the release
+// fingerprint and force an upgrade that produces byte-identical manifests,
+// which is the spurious revision bump the dedup check exists to prevent.
+func effectivePostRender(postRender *PostRenderParams) *PostRenderParams {
+	if postRender == nil || postRender.CUE == nil || strings.TrimSpace(postRender.CUE.Template) == "" {
+		return nil
+	}
+	// Only the CUE flavor is wired into newPostRenderer. Kustomize and Exec are
+	// declared in the params but reach no renderer, so including them here would
+	// fingerprint settings that cannot affect the output. Extend this alongside
+	// newPostRenderer when another flavor is implemented.
+	return &PostRenderParams{CUE: postRender.CUE}
+}
+
 // postRenderFingerprint digests the post-render configuration so a change to it
 // can be detected on a later reconcile.
 //
@@ -192,22 +218,20 @@ const postRenderHashLabel = "app.oam.dev/postRenderHash"
 // rendered manifests in place. Stamping this digest onto the release lets the
 // dedup check see the change, in the same way the publishVersion pin is carried.
 //
-// Returns "" when nothing is configured, so releases that use no post-rendering
-// keep matching the absent label on releases installed before this existed.
+// Returns "" when post-rendering is a no-op, so releases that use none keep
+// matching the absent label on releases installed before this existed.
 func postRenderFingerprint(postRender *PostRenderParams) string {
-	if postRender == nil {
+	effective := effectivePostRender(postRender)
+	if effective == nil {
 		return ""
 	}
-	data, err := json.Marshal(postRender)
+	data, err := json.Marshal(effective)
 	if err != nil {
 		// A params struct that will not marshal cannot be fingerprinted; return
 		// a sentinel rather than "" so it never compares equal to "unset" and
 		// the upgrade goes ahead instead of being wrongly skipped.
 		klog.Warningf("Helm provider: failed to fingerprint post-render config, forcing upgrade: %v", err)
 		return "unfingerprintable"
-	}
-	if string(data) == "{}" {
-		return ""
 	}
 	h := sha256.Sum256(data)
 	return hex.EncodeToString(h[:])
@@ -244,6 +268,13 @@ type cuePostRenderer struct {
 func (r *cuePostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buffer, error) {
 	if r.params == nil || strings.TrimSpace(r.params.Template) == "" || renderedManifests.Len() == 0 {
 		return renderedManifests, nil
+	}
+
+	// Checked before compiling, not just per resource below: compilation is the
+	// most expensive single step here, and a webhook request that has already
+	// been cancelled should not pay for it.
+	if err := r.ctx.Err(); err != nil {
+		return nil, errors.Wrap(err, "cue post-renderer: cancelled")
 	}
 
 	// A post-render template is evaluated as plain CUE rather than through a
@@ -388,12 +419,13 @@ func newPostRenderer(ctx context.Context, postRender *PostRenderParams, velaCtx 
 		releaseName:      releaseName,
 		releaseNamespace: releaseNamespace,
 	}
-	if postRender == nil || postRender.CUE == nil {
+	effective := effectivePostRender(postRender)
+	if effective == nil {
 		return velaRenderer
 	}
 	return &compositePostRenderer{
 		renderers: []helmPostRenderer{
-			&cuePostRenderer{ctx: ctx, params: postRender.CUE, velaCtx: velaCtx},
+			&cuePostRenderer{ctx: ctx, params: effective.CUE, velaCtx: velaCtx},
 			velaRenderer,
 		},
 	}
