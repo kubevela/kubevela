@@ -17,6 +17,8 @@ limitations under the License.
 package helm
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"helm.sh/helm/v3/pkg/chart"
@@ -47,7 +49,7 @@ spec:
 				},
 			}
 
-			manifest, _, err := p.dryRunRender(ch, "test-release", "test-ns",
+			manifest, _, err := p.dryRunRender(context.Background(), ch, "test-release", "test-ns",
 				map[string]interface{}{"key": "value"}, nil, nil)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(manifest).To(ContainSubstring("kind: Deployment"))
@@ -91,7 +93,7 @@ data:
 				Name:         "my-comp",
 				Namespace:    "test-ns",
 			}
-			manifest, _, err := p.dryRunRender(ch, "my-rel", "test-ns",
+			manifest, _, err := p.dryRunRender(context.Background(), ch, "my-rel", "test-ns",
 				map[string]interface{}{}, nil, velaCtx)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(manifest).To(ContainSubstring("kind: ConfigMap"))
@@ -100,7 +102,7 @@ data:
 
 		It("should apply skipHooks option", func() {
 			skipHooks := true
-			manifest, _, err := p.dryRunRender(ch, "my-rel", "test-ns",
+			manifest, _, err := p.dryRunRender(context.Background(), ch, "my-rel", "test-ns",
 				map[string]interface{}{}, &RenderOptionsParams{SkipHooks: &skipHooks}, nil)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(manifest).To(ContainSubstring("kind: ConfigMap"))
@@ -119,7 +121,7 @@ spec:
     - port: 80
 `),
 			})
-			manifest, _, err := p.dryRunRender(ch, "my-rel", "test-ns",
+			manifest, _, err := p.dryRunRender(context.Background(), ch, "my-rel", "test-ns",
 				map[string]interface{}{}, nil, nil)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(manifest).To(ContainSubstring("kind: ConfigMap"))
@@ -136,7 +138,7 @@ spec:
 					},
 				},
 			}
-			_, _, err := p.dryRunRender(badChart, "rel", "ns",
+			_, _, err := p.dryRunRender(context.Background(), badChart, "rel", "ns",
 				map[string]interface{}{}, nil, nil)
 			Expect(err).Should(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("dry-run render failed"))

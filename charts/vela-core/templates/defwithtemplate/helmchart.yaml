@@ -147,14 +147,22 @@ spec:
         			mutableTTL?:   string | *"5m"  // TTL for mutable tags (latest, dev, main)
         		}
 
-        		// Post-rendering - Future enhancement
-        		// Planned: CUE-based post-rendering for resource transformation
-        		// Would allow users to write CUE templates to modify rendered resources
-        		// with full access to KubeVela context (appName, namespace, etc.)
-        		// Requires CUE-in-CUE runtime execution capability
-        		// postRender?: {
-        		// 	template: string  // CUE template for transforming resources
-        		// }
+        		// Post-rendering transformations applied after Helm renders the
+        		// manifests but before KubeVela stamps its ownership labels, so a
+        		// template cannot patch away the labels KubeVela tracks the release by.
+        		postRender?: {
+        			// +usage=CUE template evaluated once per rendered resource. The
+        			// resource under evaluation is bound to context.resource, and the
+        			// template's `patch` field is merged back into it using the same
+        			// strategy-unify semantics traits use to patch workloads: a
+        			// patchKey annotation merges into a list by key, and a
+        			// patchStrategy=retainKeys annotation overrides a value the chart
+        			// already rendered. Producing no `patch` field leaves the resource
+        			// untouched, which is how a template scopes itself to some kinds.
+        			cue?: {
+        				template: string
+        			}
+        		}
         	}
         }
 

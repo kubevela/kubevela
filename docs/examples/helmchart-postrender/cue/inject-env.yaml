@@ -1,0 +1,35 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: podinfo-inject-env
+spec:
+  components:
+    - name: podinfo
+      type: helmchart
+      properties:
+        chart:
+          source: podinfo
+          repoURL: https://stefanprodan.github.io/podinfo
+          version: 6.5.0
+        options:
+          postRender:
+            cue:
+              # Add an env var to the "podinfo" container, without disturbing the
+              # env vars the chart already renders. patchKey=name matches list
+              # entries by their name field instead of by position.
+              template: |
+                patch: {
+                	if context.resource.kind == "Deployment" {
+                		spec: template: spec: {
+                			// +patchKey=name
+                			containers: [{
+                				name: "podinfo"
+                				// +patchKey=name
+                				env: [{
+                					name:  "DEPLOY_ENV"
+                					value: "prod"
+                				}]
+                			}]
+                		}
+                	}
+                }
