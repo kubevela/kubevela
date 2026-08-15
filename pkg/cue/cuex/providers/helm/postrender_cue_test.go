@@ -301,6 +301,22 @@ patch: {
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("cancelled"))
 	})
+
+	It("should not compile the template when already cancelled", func() {
+		// The template below does not parse. If cancellation is detected before
+		// compilation, as it should be, the error names the cancellation; if the
+		// compile ran first it would report the syntax error instead.
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		renderer := &cuePostRenderer{
+			ctx:    ctx,
+			params: &CUEParams{Template: `patch: {this is not cue`},
+		}
+		_, err := renderer.Run(bytes.NewBufferString(twoResourceManifest))
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("cancelled"))
+		Expect(err.Error()).ToNot(ContainSubstring("invalid template"))
+	})
 })
 
 var _ = Describe("compositePostRenderer", func() {
@@ -339,6 +355,46 @@ var _ = Describe("postRenderFingerprint", func() {
 		// before post-rendering existed, so they are not upgraded needlessly.
 		Expect(postRenderFingerprint(nil)).To(BeEmpty())
 		Expect(postRenderFingerprint(&PostRenderParams{})).To(BeEmpty())
+	})
+
+	It("should be empty for configuration that reaches no renderer", func() {
+		// Kustomize and Exec are declared in the params but wired to nothing.
+		// Fingerprinting them would force an upgrade that renders identical
+		// manifests, which is the spurious revision bump dedup exists to avoid.
+		Expect(postRenderFingerprint(&PostRenderParams{
+			Kustomize: &KustomizeParams{Patches: []interface{}{"anything"}},
+		})).To(BeEmpty())
+		Expect(postRenderFingerprint(&PostRenderParams{
+			Exec: &ExecParams{Command: "cat"},
+		})).To(BeEmpty())
+	})
+
+	It("should be empty for a blank CUE template", func() {
+		// A blank template produces a no-op renderer, so it must not register
+		// as a configuration change.
+		for _, tmpl := range []string{"", "   ", "\n\t "} {
+			Expect(postRenderFingerprint(&PostRenderParams{CUE: &CUEParams{Template: tmpl}})).
+				To(BeEmpty(), "template %q should not be fingerprinted", tmpl)
+		}
+	})
+
+	It("should agree with newPostRenderer about what is active", func() {
+		// The renderer and the change detection must never disagree: a config
+		// that yields a bare vela renderer must fingerprint empty, and one that
+		// yields a chain must fingerprint non-empty.
+		cases := []*PostRenderParams{
+			nil,
+			{},
+			{CUE: &CUEParams{Template: "  "}},
+			{Kustomize: &KustomizeParams{Patches: []interface{}{"x"}}},
+			{CUE: &CUEParams{Template: `patch: metadata: labels: a: "1"`}},
+		}
+		for _, c := range cases {
+			renderer := newPostRenderer(context.Background(), c, &ContextParams{AppName: "app"}, "rel", "ns")
+			_, chained := renderer.(*compositePostRenderer)
+			Expect(postRenderFingerprint(c) != "").To(Equal(chained),
+				"fingerprint and renderer disagree for %+v", c)
+		}
 	})
 
 	It("should be stable for identical configuration", func() {
