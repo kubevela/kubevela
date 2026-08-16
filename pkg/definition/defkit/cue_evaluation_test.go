@@ -168,4 +168,85 @@ var _ = Describe("Generated CUE helpers", func() {
 		_, err = component.EvaluateCUE(defkit.TestContext().WithParam("items", []any{}))
 		Expect(err).To(MatchError(ContainSubstring("items must not be empty")))
 	})
+
+	It("rejects a nil definition and a nil or receiverless evaluation request", func() {
+		Expect(defkit.ValidateGeneratedCUE(nil)).To(MatchError(ContainSubstring("cannot validate a nil definition")))
+
+		var nilComponent *defkit.ComponentDefinition
+		_, err := nilComponent.EvaluateCUE(defkit.TestContext())
+		Expect(err).To(MatchError(ContainSubstring("cannot evaluate a nil component")))
+
+		component := defkit.NewComponent("web").Workload("apps/v1", "Deployment")
+		_, err = component.EvaluateCUE(nil)
+		Expect(err).To(MatchError(ContainSubstring(`cannot evaluate component "web" with a nil test context`)))
+	})
+
+	It("reports an error when the primary output is not concrete", func() {
+		component := defkit.NewComponent("web").RawCUE(`template: {
+	parameter: {}
+	output: {
+		apiVersion: "v1"
+		kind: "ConfigMap"
+		spec: replicas: int
+	}
+}`)
+
+		_, err := component.EvaluateCUE(defkit.TestContext())
+		Expect(err).To(MatchError(ContainSubstring(`evaluate primary output for component "web"`)))
+	})
+
+	It("reports an error when an auxiliary output cannot be decoded", func() {
+		component := defkit.NewComponent("web").RawCUE(`template: {
+	parameter: {}
+	output: {
+		apiVersion: "v1"
+		kind: "ConfigMap"
+	}
+	outputs: {
+		svc: [1, 2, 3]
+	}
+}`)
+
+		_, err := component.EvaluateCUE(defkit.TestContext())
+		Expect(err).To(MatchError(ContainSubstring(`evaluate auxiliary output "svc" for component "web"`)))
+	})
+
+	It("reports an error when auxiliary outputs is not a struct of resources", func() {
+		component := defkit.NewComponent("web").RawCUE(`template: {
+	parameter: {}
+	output: {
+		apiVersion: "v1"
+		kind: "ConfigMap"
+	}
+	outputs: [1, 2, 3]
+}`)
+
+		_, err := component.EvaluateCUE(defkit.TestContext())
+		Expect(err).To(MatchError(ContainSubstring(`enumerate auxiliary outputs for component "web"`)))
+	})
+
+	It("exposes simulated output and auxiliary output status through the context fixture", func() {
+		component := defkit.NewComponent("web").RawCUE(`template: {
+	parameter: {}
+	output: {
+		apiVersion: "v1"
+		kind: "ConfigMap"
+		status: context.output.status
+	}
+	outputs: {
+		svc: {
+			apiVersion: "v1"
+			kind: "Service"
+			status: context.outputs.svc.status
+		}
+	}
+}`)
+
+		outputs, err := component.EvaluateCUE(defkit.TestContext().
+			WithOutputStatus(map[string]any{"ready": true}).
+			WithOutputsStatus("svc", map[string]any{"ready": false}))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(outputs.Primary["status"]).To(Equal(map[string]any{"ready": true}))
+		Expect(outputs.Auxiliary["svc"]["status"]).To(Equal(map[string]any{"ready": false}))
+	})
 })
