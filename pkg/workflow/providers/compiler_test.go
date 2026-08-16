@@ -76,6 +76,14 @@ func TestDefaultCompilerWithoutKubeConfig(t *testing.T) {
 // takes the whole test binary down with it, and the ordering means the clearer
 // failure from the subprocess test is already in the output when it happens.
 func TestDefaultCompilerInProcess(t *testing.T) {
+	// Registered before the environment is scrubbed so it runs last, once
+	// t.Setenv has put the environment back. Get below caches a compiler built
+	// without external packages into the package-global singleton, and it is
+	// only the sole in-process consumer today: the next test added to this
+	// package that needs them would otherwise fail depending on declaration
+	// order, which is a confusing way to find this out.
+	t.Cleanup(func() { DefaultCompiler.Reload() })
+
 	t.Setenv("KUBECONFIG", filepath.Join(t.TempDir(), "does-not-exist"))
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("KUBERNETES_SERVICE_HOST", "")
