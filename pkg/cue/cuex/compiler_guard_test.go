@@ -35,7 +35,17 @@ func TestWorkloadCompilerWithoutKubeConfig(t *testing.T) {
 	// TestMain vouches for the envtest config it supplied. Withdraw that, and
 	// hide the environment, so the guard takes its skip path. Reinstated
 	// afterwards so the rest of the suite still reaches its control plane.
-	t.Cleanup(kubeconfig.AssumeUnavailable())
+	restoreAssumption := kubeconfig.AssumeUnavailable()
+	// Registered before the environment is scrubbed so it runs last, once
+	// t.Setenv has put the environment back. Reload below caches a compiler
+	// built without external packages into the package-global singleton, and
+	// this file sorts ahead of compiler_test.go, so any later test that reads
+	// the singleton without reloading it first would inherit the degraded one
+	// and fail with `builtin package "cuex/ext" undefined`.
+	t.Cleanup(func() {
+		restoreAssumption()
+		velacuex.WorkloadCompiler.Reload()
+	})
 
 	t.Setenv("KUBECONFIG", filepath.Join(t.TempDir(), "does-not-exist"))
 	t.Setenv("HOME", t.TempDir())
