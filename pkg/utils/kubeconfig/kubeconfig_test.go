@@ -109,6 +109,39 @@ func TestAssumeAvailable(t *testing.T) {
 	}
 }
 
+// TestAssumeNesting covers what makes the restore functions safe to defer: an
+// inner scope ending must leave an outer one intact. A restore that cleared
+// the flag outright would drop the outer assumption for the rest of the
+// process, and a suite that assumes once in TestMain would then silently skip
+// the work this package guards.
+func TestAssumeNesting(t *testing.T) {
+	isolateFromAmbientConfig(t)
+	t.Setenv("KUBECONFIG", filepath.Join(t.TempDir(), "does-not-exist"))
+
+	outer := AssumeAvailable()
+	t.Cleanup(outer)
+
+	inner := AssumeAvailable()
+	inner()
+	if !Available() {
+		t.Fatal("expected the outer assumption to survive the inner one being restored")
+	}
+
+	withdraw := AssumeUnavailable()
+	if Available() {
+		t.Fatal("expected AssumeUnavailable to withdraw the outstanding assumption")
+	}
+	withdraw()
+	if !Available() {
+		t.Fatal("expected restoring AssumeUnavailable to reinstate the outer assumption")
+	}
+
+	outer()
+	if Available() {
+		t.Fatal("expected the environment to decide again once every assumption is restored")
+	}
+}
+
 // TestCheckDoesNotExit is the point of this package. The resolver underneath
 // config.GetConfigOrDie terminates the process when it fails; Check must hand
 // the failure back instead. If this ever regresses, the test binary dies here

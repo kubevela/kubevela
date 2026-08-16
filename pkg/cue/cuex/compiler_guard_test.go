@@ -32,12 +32,10 @@ import (
 // If this regresses, the symptom is the test binary vanishing here with no
 // failure reported, the same thing that happens to `vela def render`.
 func TestWorkloadCompilerWithoutKubeConfig(t *testing.T) {
-	// TestMain vouches for the envtest config it supplied. Drop that, and hide
-	// the environment, so the guard takes its skip path. Restored afterwards so
-	// the rest of the suite still reaches its control plane.
-	clearAssumption := kubeconfig.AssumeAvailable()
-	clearAssumption()
-	t.Cleanup(func() { kubeconfig.AssumeAvailable() })
+	// TestMain vouches for the envtest config it supplied. Withdraw that, and
+	// hide the environment, so the guard takes its skip path. Reinstated
+	// afterwards so the rest of the suite still reaches its control plane.
+	t.Cleanup(kubeconfig.AssumeUnavailable())
 
 	t.Setenv("KUBECONFIG", filepath.Join(t.TempDir(), "does-not-exist"))
 	t.Setenv("HOME", t.TempDir())

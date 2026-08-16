@@ -47,12 +47,30 @@ var assumed atomic.Bool
 // config would still be told to skip, and would silently lose behaviour that
 // depends on cluster access, such as loading external CUE packages.
 //
-// The returned function clears the assumption, and should be called once the
-// supplied configuration is no longer valid, typically when the harness tears
-// its control plane down.
+// The returned function restores the state the call displaced rather than
+// clearing the assumption outright, so calls nest. Call it once the supplied
+// configuration is no longer valid, typically when the harness tears its
+// control plane down.
 func AssumeAvailable() (restore func()) {
-	assumed.Store(true)
-	return func() { assumed.Store(false) }
+	return restoreAssumption(assumed.Swap(true))
+}
+
+// AssumeUnavailable withdraws any outstanding assumption until the returned
+// function is called, so Check consults the environment again. It is the
+// inverse of AssumeAvailable, for tests that exercise the skip path from
+// inside a suite that has already supplied a config. Without it such a test
+// has to clear the suite-wide assumption and remember to reinstate it by hand.
+func AssumeUnavailable() (restore func()) {
+	return restoreAssumption(assumed.Swap(false))
+}
+
+// restoreAssumption puts back the value an Assume call displaced. Restoring
+// the previous value rather than a fixed one is what lets the calls nest: an
+// inner scope ending must not cancel an outer scope that is still open. A
+// restore that stored false unconditionally would leave a suite which assumed
+// once in TestMain silently skipping the work this package guards.
+func restoreAssumption(previous bool) func() {
+	return func() { assumed.Store(previous) }
 }
 
 // Check returns nil when using the shared client singletons is safe: either a
