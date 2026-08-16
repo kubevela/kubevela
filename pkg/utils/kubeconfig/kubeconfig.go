@@ -26,12 +26,40 @@ limitations under the License.
 package kubeconfig
 
 import (
+	"sync/atomic"
+
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
-// Check returns nil when a Kubernetes REST config can be resolved from the
-// ambient environment (--kubeconfig, $KUBECONFIG, ~/.kube/config, or in-cluster
-// service account), and the resolution error otherwise.
+// assumed records that a client configuration was supplied out of band. See
+// AssumeAvailable.
+var assumed atomic.Bool
+
+// AssumeAvailable records that a Kubernetes client configuration has been
+// supplied directly, bypassing the environment. Call it alongside
+// singleton.KubeConfig.Set, as the envtest harnesses do: a singleton that has
+// already been populated never reaches GetConfigOrDie, so it cannot exit the
+// process, and the work this package guards is safe to attempt.
+//
+// This has to be recorded explicitly because the singleton exposes no way to
+// ask whether it has been set. Without it, a suite that supplies an envtest
+// config would still be told to skip, and would silently lose behaviour that
+// depends on cluster access, such as loading external CUE packages.
+//
+// The returned function clears the assumption, and should be called once the
+// supplied configuration is no longer valid, typically when the harness tears
+// its control plane down.
+func AssumeAvailable() (restore func()) {
+	assumed.Store(true)
+	return func() { assumed.Store(false) }
+}
+
+// Check returns nil when using the shared client singletons is safe: either a
+// configuration was supplied out of band (see AssumeAvailable) or a REST config
+// can be resolved from the ambient environment (--kubeconfig, $KUBECONFIG,
+// ~/.kube/config, or in-cluster service account). Otherwise it returns the
+// resolution error.
 //
 // It resolves the config exactly the way config.GetConfigOrDie does, but hands
 // back the failure instead of exiting, so callers can decide what to do. A nil
@@ -39,6 +67,9 @@ import (
 // exists to describe it. Reachability still surfaces as an ordinary error on
 // the first request.
 func Check() error {
+	if assumed.Load() {
+		return nil
+	}
 	_, err := config.GetConfig()
 	return err
 }
@@ -47,4 +78,22 @@ func Check() error {
 // that only branch on the outcome and do not log the reason.
 func Available() bool {
 	return Check() == nil
+}
+
+// AvailableFor reports whether Check succeeds, logging a warning that names the
+// work being skipped when it does not. Degrading silently would leave an
+// operator with no explanation for why, say, external CUE packages are missing.
+//
+// Note that this inspects the ambient environment, not the client singletons.
+// A process that populates singleton.KubeConfig directly, as the envtest suites
+// do, has a working client even though nothing resolvable exists on disk, and
+// will be told to skip. That is the safe direction to be wrong in: the singleton
+// offers no way to ask whether it has already been set, and guessing wrong the
+// other way exits the process.
+func AvailableFor(purpose string) bool {
+	if err := Check(); err != nil {
+		klog.Warningf("no usable kubeconfig, skipping %s: %v", purpose, err)
+		return false
+	}
+	return true
 }

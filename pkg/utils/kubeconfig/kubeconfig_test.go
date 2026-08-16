@@ -59,6 +59,9 @@ func TestCheckWithoutKubeConfig(t *testing.T) {
 	if Available() {
 		t.Fatal("expected Available to report false when no kubeconfig can be resolved")
 	}
+	if AvailableFor("some work") {
+		t.Fatal("expected AvailableFor to report false when no kubeconfig can be resolved")
+	}
 }
 
 func TestCheckWithKubeConfig(t *testing.T) {
@@ -74,6 +77,35 @@ func TestCheckWithKubeConfig(t *testing.T) {
 	}
 	if !Available() {
 		t.Fatal("expected Available to report true for a resolvable kubeconfig")
+	}
+	if !AvailableFor("some work") {
+		t.Fatal("expected AvailableFor to report true for a resolvable kubeconfig")
+	}
+}
+
+// TestAssumeAvailable covers the case a harness hits when it supplies a config
+// directly: nothing is resolvable from the environment, but the client
+// singletons have already been populated, so the work this package guards is
+// safe to attempt.
+func TestAssumeAvailable(t *testing.T) {
+	isolateFromAmbientConfig(t)
+	t.Setenv("KUBECONFIG", filepath.Join(t.TempDir(), "does-not-exist"))
+
+	if Available() {
+		t.Fatal("precondition failed: expected no resolvable kubeconfig")
+	}
+
+	restore := AssumeAvailable()
+	if err := Check(); err != nil {
+		t.Fatalf("expected Check to succeed once a config is assumed, got %v", err)
+	}
+	if !Available() || !AvailableFor("some work") {
+		t.Fatal("expected the assumption to be visible to every accessor")
+	}
+
+	restore()
+	if Available() {
+		t.Fatal("expected the assumption to be cleared, so the environment decides again")
 	}
 }
 

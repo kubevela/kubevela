@@ -67,3 +67,21 @@ func TestDefaultCompilerWithoutKubeConfig(t *testing.T) {
 		t.Fatalf("child did not reach the end of the test\noutput:\n%s", out)
 	}
 }
+
+// TestDefaultCompilerInProcess repeats the check in this process so the guard
+// is recorded as covered; the subprocess test above cannot contribute coverage,
+// since the toolchain does not collect it from a child.
+//
+// It deliberately runs after that test. If the guard ever regresses this call
+// takes the whole test binary down with it, and the ordering means the clearer
+// failure from the subprocess test is already in the output when it happens.
+func TestDefaultCompilerInProcess(t *testing.T) {
+	t.Setenv("KUBECONFIG", filepath.Join(t.TempDir(), "does-not-exist"))
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("KUBERNETES_SERVICE_HOST", "")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
+
+	if c := DefaultCompiler.Get(); c == nil {
+		t.Fatal("expected a usable compiler when no kubeconfig is available")
+	}
+}
