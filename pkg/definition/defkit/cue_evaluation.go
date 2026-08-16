@@ -18,6 +18,7 @@ package defkit
 
 import (
 	"fmt"
+	"reflect"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -48,13 +49,26 @@ func compileWithContextShim(src string) cue.Value {
 // CUE spec permits, for parser robustness, so a bare parse is not a
 // reliable validity check. Compilation is the authoritative one.
 func ValidateGeneratedCUE(def Definition) error {
-	if def == nil {
+	if isNilDefinition(def) {
 		return fmt.Errorf("defkit: cannot validate a nil definition")
 	}
 	if err := compileWithContextShim(def.ToCue()).Err(); err != nil {
 		return fmt.Errorf("defkit: generated CUE for %s %q: %w", def.DefType(), def.DefName(), err)
 	}
 	return nil
+}
+
+// isNilDefinition reports whether def is nil, including a typed nil pointer
+// (e.g. a nil *ComponentDefinition) boxed in the Definition interface. A
+// plain `def == nil` check misses that case, since the interface value
+// itself is non-nil even though the underlying pointer is, which would
+// otherwise panic inside ToCue().
+func isNilDefinition(def Definition) bool {
+	if def == nil {
+		return true
+	}
+	v := reflect.ValueOf(def)
+	return v.Kind() == reflect.Ptr && v.IsNil()
 }
 
 // EvaluateCUE evaluates the generated CUE for a component using the supplied
@@ -78,9 +92,6 @@ func (c *ComponentDefinition) EvaluateCUE(ctx *TestContextBuilder) (*EvaluatedOu
 	}
 
 	template := value.LookupPath(cue.ParsePath("template"))
-	if err := template.Err(); err != nil {
-		return nil, fmt.Errorf("defkit: evaluate template for component %q: %w", c.DefName(), err)
-	}
 
 	outputs := &EvaluatedOutputs{Auxiliary: make(map[string]map[string]any)}
 	if primary := template.LookupPath(cue.ParsePath("output")); primary.Exists() {
@@ -110,6 +121,12 @@ func (c *ComponentDefinition) EvaluateCUE(ctx *TestContextBuilder) (*EvaluatedOu
 	return outputs, nil
 }
 
+// cueContextFixture builds the context fixture EvaluateCUE injects. It
+// covers the context fields TestContextBuilder exposes: name, namespace,
+// appName, appRevision, and clusterVersion.{major,minor}. VelaContext
+// references with no corresponding TestContextBuilder setter — AppRevisionNum,
+// Revision, and ClusterVersion.{Patch,GitVersion} — are not populated here
+// and will fail EvaluateCUE with an "undefined field" error if referenced.
 func cueContextFixture(ctx *TestRuntimeContext) map[string]any {
 	context := map[string]any{
 		"name":        ctx.name,

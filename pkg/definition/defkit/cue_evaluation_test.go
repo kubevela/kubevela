@@ -172,7 +172,13 @@ var _ = Describe("Generated CUE helpers", func() {
 	It("rejects a nil definition and a nil or receiverless evaluation request", func() {
 		Expect(defkit.ValidateGeneratedCUE(nil)).To(MatchError(ContainSubstring("cannot validate a nil definition")))
 
+		// A typed nil *ComponentDefinition boxed in the Definition interface
+		// is a non-nil interface value, so `def == nil` alone would miss it
+		// and panic inside ToCue() instead of returning the nil-definition
+		// error.
 		var nilComponent *defkit.ComponentDefinition
+		Expect(defkit.ValidateGeneratedCUE(nilComponent)).To(MatchError(ContainSubstring("cannot validate a nil definition")))
+
 		_, err := nilComponent.EvaluateCUE(defkit.TestContext())
 		Expect(err).To(MatchError(ContainSubstring("cannot evaluate a nil component")))
 
