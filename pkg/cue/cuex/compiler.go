@@ -54,7 +54,7 @@ var WorkloadCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compi
 	// reaches config.GetConfigOrDie, which exits the process instead of
 	// returning an error when no kubeconfig exists.
 	if cuex.EnableExternalPackageForDefaultCompiler {
-		if !kubeconfig.AvailableFor("external CUE packages for the workload compiler") {
+		if err := kubeconfig.CheckFor("external CUE packages for the workload compiler"); err != nil {
 			return compiler
 		}
 		if err := compiler.LoadExternalPackages(context.Background()); err != nil {

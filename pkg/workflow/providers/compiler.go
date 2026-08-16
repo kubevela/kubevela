@@ -87,7 +87,7 @@ var DefaultCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compil
 	// cluster-free callers (vela def render, unit tests, make manifests) alive
 	// with external packages simply absent.
 	if cuex.EnableExternalPackageForDefaultCompiler || cuex.EnableExternalPackageWatchForDefaultCompiler {
-		if !kubeconfig.AvailableFor("external CUE packages for the cuex default compiler") {
+		if err := kubeconfig.CheckFor("external CUE packages for the cuex default compiler"); err != nil {
 			return c
 		}
 	}

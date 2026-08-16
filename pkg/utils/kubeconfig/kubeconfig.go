@@ -98,20 +98,30 @@ func Available() bool {
 	return Check() == nil
 }
 
-// AvailableFor reports whether Check succeeds, logging a warning that names the
-// work being skipped when it does not. Degrading silently would leave an
-// operator with no explanation for why, say, external CUE packages are missing.
+// CheckFor returns the reason the shared client singletons are unsafe to use,
+// naming the work about to be skipped, or nil when a configuration is
+// available. It hands the reason back as well as reporting it, so a caller
+// able to surface the failure in its own terms is not forced to re-derive it.
+//
+// The report goes through klog.ErrorS rather than klog.Warningf because the
+// vela CLI installs a klog sink (references/cli/log) whose Info path raises
+// level 0 to 1 and gates on V(1), so a warning is dropped at the default
+// verbosity. The CLI is the main consumer of this degraded path, and degrading
+// silently would leave an operator with no explanation for why, say, external
+// CUE packages are missing. The sink's Error path is not level-gated and
+// writes to stderr, so the reason is visible without disturbing whatever the
+// command prints on stdout.
 //
 // Note that this inspects the ambient environment, not the client singletons.
 // A process that populates singleton.KubeConfig directly, as the envtest suites
 // do, has a working client even though nothing resolvable exists on disk, and
-// will be told to skip. That is the safe direction to be wrong in: the singleton
-// offers no way to ask whether it has already been set, and guessing wrong the
-// other way exits the process.
-func AvailableFor(purpose string) bool {
-	if err := Check(); err != nil {
-		klog.Warningf("no usable kubeconfig, skipping %s: %v", purpose, err)
-		return false
+// will be told to skip unless it also calls AssumeAvailable. That is the safe
+// direction to be wrong in: the singleton offers no way to ask whether it has
+// already been set, and guessing wrong the other way exits the process.
+func CheckFor(purpose string) error {
+	err := Check()
+	if err != nil {
+		klog.ErrorS(err, "No usable kubeconfig, continuing without it", "skipped", purpose)
 	}
-	return true
+	return err
 }

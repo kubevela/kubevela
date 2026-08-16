@@ -59,8 +59,8 @@ func TestCheckWithoutKubeConfig(t *testing.T) {
 	if Available() {
 		t.Fatal("expected Available to report false when no kubeconfig can be resolved")
 	}
-	if AvailableFor("some work") {
-		t.Fatal("expected AvailableFor to report false when no kubeconfig can be resolved")
+	if err := CheckFor("some work"); err == nil {
+		t.Fatal("expected CheckFor to return the reason when no kubeconfig can be resolved")
 	}
 }
 
@@ -78,8 +78,8 @@ func TestCheckWithKubeConfig(t *testing.T) {
 	if !Available() {
 		t.Fatal("expected Available to report true for a resolvable kubeconfig")
 	}
-	if !AvailableFor("some work") {
-		t.Fatal("expected AvailableFor to report true for a resolvable kubeconfig")
+	if err := CheckFor("some work"); err != nil {
+		t.Fatalf("expected CheckFor to succeed for a resolvable kubeconfig, got %v", err)
 	}
 }
 
@@ -99,7 +99,7 @@ func TestAssumeAvailable(t *testing.T) {
 	if err := Check(); err != nil {
 		t.Fatalf("expected Check to succeed once a config is assumed, got %v", err)
 	}
-	if !Available() || !AvailableFor("some work") {
+	if !Available() || CheckFor("some work") != nil {
 		t.Fatal("expected the assumption to be visible to every accessor")
 	}
 
