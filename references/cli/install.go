@@ -111,6 +111,9 @@ func NewInstallCommand(c common.Args, order string, ioStreams util.IOStreams) *c
 		RunE: func(cmd *cobra.Command, args []string) error {
 			v, err := version.NewVersion(installArgs.Version)
 			if err != nil {
+				if cmd.Flags().Changed("version") {
+					return fmt.Errorf("invalid KubeVela version %q: %w", installArgs.Version, err)
+				}
 				return fmt.Errorf("invalid KubeVela version %q: %w\nIf you built the vela CLI from source, the binary was likely built without setting VELA_VERSION to a release version, e.g. run `make build VELA_VERSION=v1.10.7` or pass an explicit `--version` flag", installArgs.Version, err)
 			}
 			// Step1: Download Helm Chart

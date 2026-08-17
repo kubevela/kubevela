@@ -26,6 +26,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	innerVersion "github.com/oam-dev/kubevela/version"
 )
 
 func TestGetKubeVelaHelmChartRepoURL(t *testing.T) {
@@ -56,11 +57,24 @@ func TestGetKubeVelaHelmChartRepoURL(t *testing.T) {
 }
 
 func TestInstallCommandRejectsNonSemverVersion(t *testing.T) {
-	cmd := NewInstallCommand(common.Args{}, "1", util.IOStreams{})
-	assert.Nil(t, cmd.Flags().Set("version", "master"))
-	err := cmd.RunE(cmd, []string{})
-	assert.NotNil(t, err)
-	assert.Contains(t, err.Error(), "VELA_VERSION")
+	t.Run("default version baked in at build time", func(t *testing.T) {
+		origVersion := innerVersion.VelaVersion
+		innerVersion.VelaVersion = "master"
+		defer func() { innerVersion.VelaVersion = origVersion }()
+
+		cmd := NewInstallCommand(common.Args{}, "1", util.IOStreams{})
+		err := cmd.RunE(cmd, []string{})
+		assert.NotNil(t, err)
+		assert.Contains(t, err.Error(), "VELA_VERSION")
+	})
+
+	t.Run("explicit invalid --version flag", func(t *testing.T) {
+		cmd := NewInstallCommand(common.Args{}, "1", util.IOStreams{})
+		assert.Nil(t, cmd.Flags().Set("version", "not-a-version"))
+		err := cmd.RunE(cmd, []string{})
+		assert.NotNil(t, err)
+		assert.NotContains(t, err.Error(), "VELA_VERSION")
+	})
 }
 
 var _ = Describe("Test Install Command", func() {
