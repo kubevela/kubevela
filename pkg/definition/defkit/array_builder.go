@@ -20,20 +20,23 @@ package defkit
 type entryKind int
 
 const (
-	entryStatic      entryKind = iota // always-present item
-	entryConditional                  // conditional item (if cond { item })
-	entryForEach                      // iterated item (for v in source { item })
+	entryStatic         entryKind = iota // always-present item
+	entryConditional                     // conditional item (if cond { item })
+	entryForEach                         // iterated item (for v in source { item })
+	entryForEachWith                     // iterated item using an ItemBuilder
+	entryForEachMapWith                  // map-to-list item using a MapEntryBuilder
 )
 
 // arrayEntry is a single entry in an ArrayBuilder.
 type arrayEntry struct {
-	kind        entryKind
-	element     *ArrayElement // the item fields (for static, conditional, forEach)
-	cond        Condition     // for conditional entries
-	source      Value         // for forEach entries (iteration source)
-	guard       Condition     // for forEach entries (optional guard: if source != _|_)
-	filter      Predicate     // for forEach entries (optional filter: if v.field == value)
-	itemBuilder *ItemBuilder  // for forEachWith entries (complex per-item logic)
+	kind            entryKind
+	element         *ArrayElement    // the item fields (for static, conditional, forEach)
+	cond            Condition        // for conditional entries
+	source          Value            // for forEach entries (iteration source)
+	guard           Condition        // for forEach entries (optional guard: if source != _|_)
+	filter          Predicate        // for forEach entries (optional filter: if v.field == value)
+	itemBuilder     *ItemBuilder     // for forEachWith entries (complex per-item logic)
+	mapEntryBuilder *MapEntryBuilder // for map-to-list entries
 }
 
 // ArrayBuilder builds CUE arrays with static items, conditional items, and for-each items.
@@ -108,9 +111,6 @@ func (a *ArrayBuilder) ForEachGuarded(guard Condition, source Value, elem *Array
 // Entries returns all entries in the array builder.
 func (a *ArrayBuilder) Entries() []arrayEntry { return a.entries }
 
-// entryForEachWith indicates a complex iterated item using an ItemBuilder.
-const entryForEachWith entryKind = 3
-
 // ForEachWith adds a complex iterated item to the array, using an ItemBuilder
 // callback for per-item operations like conditionals, let bindings, and defaults.
 // Uses "v" as the default iteration variable name.
@@ -147,6 +147,34 @@ func (a *ArrayBuilder) ForEachWithGuardedFilteredVar(varName string, guard Condi
 		guard:       guard,
 		filter:      filter,
 		itemBuilder: ib,
+	})
+	return a
+}
+
+// ForEachMapWith adds one array item for every entry in a map-valued source.
+func (a *ArrayBuilder) ForEachMapWith(source Value, fn func(entry *MapEntryBuilder)) *ArrayBuilder {
+	return a.forEachMapWith(nil, source, fn)
+}
+
+// ForEachMapWithGuarded is like ForEachMapWith but only iterates when guard is true.
+func (a *ArrayBuilder) ForEachMapWithGuarded(guard Condition, source Value, fn func(entry *MapEntryBuilder)) *ArrayBuilder {
+	return a.forEachMapWith(guard, source, fn)
+}
+
+func (a *ArrayBuilder) forEachMapWith(guard Condition, source Value, fn func(entry *MapEntryBuilder)) *ArrayBuilder {
+	entryBuilder := &MapEntryBuilder{
+		keyVarName: "k",
+		valueBuilder: ItemBuilder{
+			varName: "v",
+			ops:     make([]itemOp, 0),
+		},
+	}
+	fn(entryBuilder)
+	a.entries = append(a.entries, arrayEntry{
+		kind:            entryForEachMapWith,
+		source:          source,
+		guard:           guard,
+		mapEntryBuilder: entryBuilder,
 	})
 	return a
 }
@@ -263,6 +291,67 @@ func (b *ItemBuilder) Ops() []itemOp { return b.ops }
 
 // VarName returns the iteration variable name.
 func (b *ItemBuilder) VarName() string { return b.varName }
+
+// MapEntryBuilder records operations for an item produced from a map entry.
+// Key and Value expose the two variables bound by the CUE comprehension.
+type MapEntryBuilder struct {
+	keyVarName   string
+	valueBuilder ItemBuilder
+}
+
+// Key returns a reference to the current map key.
+func (b *MapEntryBuilder) Key() *IterVarRef {
+	return &IterVarRef{varName: b.keyVarName}
+}
+
+// Value returns a builder for the current map value.
+func (b *MapEntryBuilder) Value() *IterVarBuilder {
+	return b.valueBuilder.Var()
+}
+
+// Set records an unconditional field assignment.
+func (b *MapEntryBuilder) Set(field string, value Value) {
+	b.valueBuilder.Set(field, value)
+}
+
+// If records a conditional block of operations.
+func (b *MapEntryBuilder) If(cond Condition, fn func()) {
+	b.valueBuilder.If(cond, fn)
+}
+
+// IfSet records a block that runs when a field on the map value is set.
+func (b *MapEntryBuilder) IfSet(field string, fn func()) {
+	b.valueBuilder.IfSet(field, fn)
+}
+
+// IfNotSet records a block that runs when a field on the map value is absent.
+func (b *MapEntryBuilder) IfNotSet(field string, fn func()) {
+	b.valueBuilder.IfNotSet(field, fn)
+}
+
+// Let records a private field binding and returns a reference to it.
+func (b *MapEntryBuilder) Let(name string, value Value) Value {
+	return b.valueBuilder.Let(name, value)
+}
+
+// SetDefault records a CUE default value assignment.
+func (b *MapEntryBuilder) SetDefault(field string, defValue Value, typeName string) {
+	b.valueBuilder.SetDefault(field, defValue, typeName)
+}
+
+// FieldExists returns a condition that checks whether a field on the map value is set.
+func (b *MapEntryBuilder) FieldExists(field string) Condition {
+	return b.valueBuilder.FieldExists(field)
+}
+
+// FieldNotExists returns a condition that checks whether a field on the map value is absent.
+func (b *MapEntryBuilder) FieldNotExists(field string) Condition {
+	return b.valueBuilder.FieldNotExists(field)
+}
+
+func (b *MapEntryBuilder) ops() []itemOp {
+	return b.valueBuilder.Ops()
+}
 
 // IterVarBuilder provides access to iteration variable fields.
 type IterVarBuilder struct {
