@@ -205,6 +205,8 @@ func (g *CUEGenerator) collectImportsFromValue(v interface{}) {
 	case *ArrayBuilder:
 		for _, entry := range val.Entries() {
 			if entry.itemBuilder != nil {
+				g.collectImportsFromValue(entry.source)
+				g.collectImportsFromValue(entry.guard)
 				g.collectImportsFromItemOps(entry.itemBuilder.Ops())
 			}
 			if entry.mapEntryBuilder != nil {

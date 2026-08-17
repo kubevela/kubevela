@@ -1909,6 +1909,67 @@ var _ = Describe("CUEGenerator", func() {
 		})
 	})
 
+	Describe("ArrayBuilder ForEachWith import collection", func() {
+		It("should collect imports from the iteration source", func() {
+			left := defkit.Array("left").WithFields(
+				defkit.String("name"),
+			)
+			right := defkit.Array("right").WithFields(
+				defkit.String("name"),
+			)
+			comp := defkit.NewComponent("test").
+				Params(left, right).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					items := defkit.NewArray().ForEachWith(
+						defkit.ArrayConcat(left, right),
+						func(item *defkit.ItemBuilder) {
+							item.Set("name", item.Var().Field("name"))
+						},
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.items", items))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"list"`))
+			Expect(generated).To(ContainSubstring(
+				"for v in list.Concat([parameter.left, parameter.right]) {",
+			))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
+		})
+
+		It("should collect imports from the iteration guard", func() {
+			tags := defkit.Array("tags")
+			ports := defkit.Array("ports").WithFields(
+				defkit.String("name"),
+				defkit.Bool("enabled"),
+			)
+			comp := defkit.NewComponent("test").
+				Params(tags, ports).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					items := defkit.NewArray().ForEachWithGuardedFiltered(
+						tags.Contains("enabled"),
+						defkit.FieldEquals("enabled", true),
+						ports,
+						func(item *defkit.ItemBuilder) {
+							item.Set("name", item.Var().Field("name"))
+						},
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.items", items))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"list"`))
+			Expect(generated).To(ContainSubstring(
+				`if list.Contains(parameter["tags"], "enabled")`,
+			))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
+		})
+	})
+
 	Describe("Dedupe from Reference source", func() {
 		It("should generate dedup pattern when source is a Reference", func() {
 			ws := defkit.NewWorkflowStep("test").
