@@ -17,11 +17,11 @@ limitations under the License.
 package application
 
 import (
+	"context"
 	"fmt"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
-	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 	"github.com/pkg/errors"
@@ -46,7 +46,7 @@ func (r *PolicyValidationResult) IsValid() bool {
 
 // ValidatePolicyDefinition validates a PolicyDefinition
 // Returns validation result with errors (blocking) and warnings (informational)
-func ValidatePolicyDefinition(policy *v1beta1.PolicyDefinition) *PolicyValidationResult {
+func ValidatePolicyDefinition(ctx context.Context, policy *v1beta1.PolicyDefinition) *PolicyValidationResult {
 	result := &PolicyValidationResult{
 		Errors:   []string{},
 		Warnings: []string{},
@@ -61,7 +61,7 @@ func ValidatePolicyDefinition(policy *v1beta1.PolicyDefinition) *PolicyValidatio
 	// Validate global policies have specific requirements
 	if policy.Spec.Global {
 		// No required parameters
-		if err := validateNoRequiredParameters(policy); err != nil {
+		if err := validateNoRequiredParameters(ctx, policy); err != nil {
 			result.Errors = append(result.Errors, err.Error())
 		}
 
@@ -89,7 +89,7 @@ func ValidatePolicyDefinition(policy *v1beta1.PolicyDefinition) *PolicyValidatio
 	// Upgrade legacy syntax before validating so definitions using deprecated constructs
 	// are accepted and auto-upgraded at render time.
 	cueTemplate, _ := upgrade.EnsureCueVersionCompatibility(policy.Spec.Schematic.CUE.Template, policy.Name, upgrade.PolicyKind, upgrade.TemplateAreaMain)
-	if err := webhookutils.ValidateCueTemplate(cueTemplate); err != nil {
+	if err := webhookutils.ValidateCuexTemplate(ctx, cueTemplate); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 	} else if err := validateEnabledFieldType(cueTemplate); err != nil {
 		result.Errors = append(result.Errors, err.Error())
@@ -154,11 +154,13 @@ func isASTBoolExpr(expr ast.Expr) bool {
 
 // validateNoRequiredParameters checks that all parameters have default values
 // For global policies, ALL parameters must have defaults since users can't provide values
-func validateNoRequiredParameters(policy *v1beta1.PolicyDefinition) error {
+func validateNoRequiredParameters(ctx context.Context, policy *v1beta1.PolicyDefinition) error {
 	cueTemplate, _ := upgrade.EnsureCueVersionCompatibility(policy.Spec.Schematic.CUE.Template, policy.Name, upgrade.PolicyKind, upgrade.TemplateAreaMain)
 
-	ctx := cuecontext.New()
-	value := ctx.CompileString(cueTemplate)
+	value, err := webhookutils.CompileCuexTemplate(ctx, cueTemplate)
+	if err != nil {
+		return errors.Wrap(err, "failed to compile CUE template")
+	}
 	if value.Err() != nil {
 		return errors.Wrap(value.Err(), "failed to compile CUE template")
 	}

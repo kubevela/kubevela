@@ -17,6 +17,7 @@ limitations under the License.
 package application
 
 import (
+	"context"
 	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -54,7 +55,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := ValidatePolicyDefinition(context.TODO(), policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Errors).Should(BeEmpty())
 	})
@@ -83,7 +84,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := ValidatePolicyDefinition(context.TODO(), policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(HaveLen(1))
 		Expect(result.Errors[0]).Should(ContainSubstring("without default values"))
@@ -114,7 +115,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := ValidatePolicyDefinition(context.TODO(), policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(HaveLen(1))
 		Expect(result.Errors[0]).Should(ContainSubstring("without default values"))
@@ -147,7 +148,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := ValidatePolicyDefinition(context.TODO(), policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Errors).Should(BeEmpty())
 	})
@@ -174,7 +175,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := ValidatePolicyDefinition(context.TODO(), policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Errors).Should(BeEmpty())
 	})
@@ -195,7 +196,7 @@ parameter: {}
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := ValidatePolicyDefinition(context.TODO(), policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("scope='Application'")))
 	})
@@ -218,7 +219,7 @@ parameter: {}
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := ValidatePolicyDefinition(context.TODO(), policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Warnings).Should(HaveLen(1))
 		Expect(result.Warnings[0]).Should(ContainSubstring("explicit priority"))
@@ -238,7 +239,7 @@ parameter: {}
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := ValidatePolicyDefinition(context.TODO(), policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Warnings).Should(ContainElement(ContainSubstring("unusually high")))
 	})
@@ -261,7 +262,7 @@ parameter: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := ValidatePolicyDefinition(context.TODO(), policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("expected label")))
 	})
@@ -282,7 +283,7 @@ enabled: "true"  // Invalid! Should be bool, not string
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := ValidatePolicyDefinition(context.TODO(), policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("'enabled' field must be of type bool")))
 	})
@@ -311,7 +312,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := ValidatePolicyDefinition(context.TODO(), policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Errors).Should(BeEmpty())
 	})
@@ -330,7 +331,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := ValidatePolicyDefinition(context.TODO(), policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Warnings).Should(ContainElement(ContainSubstring("EnableApplicationScopedPolicies feature gate is disabled")))
 	})
@@ -351,7 +352,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := ValidatePolicyDefinition(context.TODO(), policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Warnings).Should(ContainElement(ContainSubstring("EnableGlobalPolicies feature gate is disabled")))
 	})
@@ -366,7 +367,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := ValidatePolicyDefinition(context.TODO(), policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("must have a CUE schematic")))
 	})

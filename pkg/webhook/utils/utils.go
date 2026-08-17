@@ -26,6 +26,7 @@ import (
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	cueErrors "cuelang.org/go/cue/errors"
 	"github.com/pkg/errors"
@@ -74,6 +75,17 @@ func ValidateCueTemplate(cueTemplate string) error {
 	return checkError(err)
 }
 
+// CompileCuexTemplate compiles cueTemplate with the cuex workload compiler and
+// returns the resulting value, so callers that need to inspect the template
+// rather than just accept or reject it resolve the same package set.
+//
+// The compile runs under helm.WithDryRun for the reason described on
+// ValidateCuexTemplate.
+func CompileCuexTemplate(ctx context.Context, cueTemplate string) (cue.Value, error) {
+	ctx = helm.WithDryRun(ctx)
+	return velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx, cueTemplate)
+}
+
 // ValidateCuexTemplate validate cueTemplate with CueX for types utilising it.
 // Uses WorkloadCompiler so that templates referencing internal provider
 // packages (e.g. "vela/helm") parse during admission validation.
@@ -84,8 +96,7 @@ func ValidateCueTemplate(cueTemplate string) error {
 // arguments to helm.#Render could trigger a real chart fetch and helm
 // install during admission.
 func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
-	ctx = helm.WithDryRun(ctx)
-	val, err := velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx, cueTemplate)
+	val, err := CompileCuexTemplate(ctx, cueTemplate)
 	if err != nil {
 		return err
 	}

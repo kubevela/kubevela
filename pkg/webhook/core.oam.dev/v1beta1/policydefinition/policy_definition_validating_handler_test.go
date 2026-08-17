@@ -27,6 +27,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
+	"github.com/kubevela/pkg/util/singleton"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -48,6 +49,7 @@ var scheme = runtime.NewScheme()
 var testEnv *envtest.Environment
 var validCueTemplate string
 var inValidCueTemplate string
+var cuexCueTemplate string
 var cfg *rest.Config
 
 func TestPolicydefinition(t *testing.T) {
@@ -59,6 +61,15 @@ var _ = BeforeSuite(func() {
 
 	validCueTemplate = "{hello: 'world'}"
 	inValidCueTemplate = "{hello: world}"
+	// Imports one of the internal cuex provider packages. Plain CUE cannot
+	// resolve "vela/base64", so this only validates through the cuex compiler,
+	// which is the compiler the policy render path uses at runtime.
+	cuexCueTemplate = `import "vela/base64"
+
+encoded: base64.#Encode & {
+	$params: "hello"
+}
+`
 
 	pd = v1beta1.PolicyDefinition{}
 	pd.SetGroupVersionKind(v1beta1.PolicyDefinitionGroupVersionKind)
@@ -78,6 +89,15 @@ var _ = BeforeSuite(func() {
 	cfg, err = testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
+	// Validating a policy template now goes through the cuex compiler, which
+	// resolves a client through the shared singletons. Those fall back to
+	// config.GetConfigOrDie, which exits the process rather than returning an
+	// error when nothing is resolvable, so hand them this suite's config.
+	singleton.KubeConfig.Set(cfg)
+})
+
+var _ = AfterSuite(func() {
+	Expect(testEnv.Stop()).ToNot(HaveOccurred())
 })
 
 var _ = Describe("Test PolicyDefinition validating handler", func() {
@@ -143,6 +163,31 @@ var _ = Describe("Test PolicyDefinition validating handler", func() {
 			}
 			resp := handler.Handle(context.TODO(), req)
 			Expect(resp.Allowed).Should(BeTrue())
+		})
+		It("Test cue template importing a cuex provider package is accepted", func() {
+			// Regression: this handler validated with ValidateCueTemplate, which
+			// compiles with plain CUE and has no knowledge of the cuex package
+			// set, so a policy importing "vela/base64" was rejected at admission
+			// even though the render path compiles it happily. ComponentDefinition
+			// and TraitDefinition already validated with the cuex compiler.
+			pd.Spec = v1beta1.PolicyDefinitionSpec{
+				Schematic: &common.Schematic{
+					CUE: &common.CUE{
+						Template: cuexCueTemplate,
+					},
+				},
+			}
+			pdRaw, _ = json.Marshal(pd)
+
+			req = admission.Request{
+				AdmissionRequest: admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource:  reqResource,
+					Object:    runtime.RawExtension{Raw: pdRaw},
+				},
+			}
+			resp := handler.Handle(context.TODO(), req)
+			Expect(resp.Allowed).Should(BeTrue(), "denied: %s", resp.Result.Message)
 		})
 		It("Test cue template validation failed", func() {
 			pd.Spec = v1beta1.PolicyDefinitionSpec{
