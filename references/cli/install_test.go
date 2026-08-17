@@ -23,6 +23,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 func TestGetKubeVelaHelmChartRepoURL(t *testing.T) {
@@ -50,6 +53,14 @@ func TestGetKubeVelaHelmChartRepoURL(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, getKubeVelaHelmChartRepoURL(v), c.url)
 	}
+}
+
+func TestInstallCommandRejectsNonSemverVersion(t *testing.T) {
+	cmd := NewInstallCommand(common.Args{}, "1", util.IOStreams{})
+	assert.Nil(t, cmd.Flags().Set("version", "master"))
+	err := cmd.RunE(cmd, []string{})
+	assert.NotNil(t, err)
+	assert.Contains(t, err.Error(), "VELA_VERSION")
 }
 
 var _ = Describe("Test Install Command", func() {
