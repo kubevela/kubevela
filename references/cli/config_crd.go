@@ -35,10 +35,21 @@ import (
 
 const defaultPropertiesSecretKey = "properties"
 
-// configCRDAvailable reports whether the config.oam.dev CRDs are installed.
+// configCRDAvailable reports whether the config.oam.dev CRDs should be used.
+// It respects the global --config-mode flag:
+//   - "legacy": always returns false (use ConfigMaps/Secrets)
+//   - "crd": always returns true (use ConfigTemplate/Config CRDs)
+//   - "auto" (default): auto-detect by probing the API server for the CRDs
 func configCRDAvailable(f velacmd.Factory) bool {
-	_, err := f.Client().RESTMapper().RESTMapping(configv1alpha1.ConfigGroupVersionKind.GroupKind(), configv1alpha1.Version)
-	return err == nil
+	switch configMode {
+	case "legacy":
+		return false
+	case "crd":
+		return true
+	default:
+		_, err := f.Client().RESTMapper().RESTMapping(configv1alpha1.ConfigGroupVersionKind.GroupKind(), configv1alpha1.Version)
+		return err == nil
+	}
 }
 
 func applyConfigTemplateCRD(ctx context.Context, cli client.Client, ns string, t *config.Template) error {
