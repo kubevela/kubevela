@@ -1,28 +1,13 @@
 name: "🚀 Feature request"
-description: Suggest a new feature or an improvement to an existing one
+description: Suggest a brand new capability that doesn't exist yet
 title: ""
 labels: ["type/feature"]
 body:
-  - type: dropdown
-    id: kind
-    attributes:
-      label: What kind of request is this?
-      options:
-        - New feature
-        - Enhancement to an existing feature
-    validations:
-      required: true
-  - type: input
-    id: affected
-    attributes:
-      label: Affected feature or component
-      description: For an enhancement, name what you want improved. Leave blank for a brand new feature.
-      placeholder: e.g. Application rollout, vela CLI output, CUE template rendering
   - type: textarea
     id: problem
     attributes:
       label: What problem or limitation does this address?
-      description: "A clear and concise description of the problem. Ex. I'm always frustrated when [...] / The current limitation with [existing feature] is [...]"
+      description: "A clear and concise description of the problem. Ex. I'm always frustrated when [...]"
     validations:
       required: true
   - type: textarea
