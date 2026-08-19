@@ -3,6 +3,14 @@ description: Suggest a brand new capability that doesn't exist yet
 title: ""
 labels: ["type/feature"]
 body:
+  - type: checkboxes
+    id: existing-search
+    attributes:
+      label: Is there an existing issue for this?
+      description: Please search to see if an issue already exists for the feature you're requesting.
+      options:
+        - label: I have searched the existing issues
+          required: true
   - type: textarea
     id: problem
     attributes:
