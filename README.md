@@ -79,7 +79,7 @@ Official blog is available on [KubeVela blog](https://kubevela.io/blog).
 
 We want your contributions and suggestions!
 One of the easiest ways to contribute is to participate in discussions on the Github Issues/Discussion, chat on IM or the community calls.
-See [COMMUNITY.md](./COMMUNITY.md) for Slack, DingTalk, WeChat, and the current meeting schedule, and the [KubeVela community repo](https://github.com/kubevela/community) for developer and contributing guidelines.
+See [COMMUNITY.md](./COMMUNITY.md) for Slack, DingTalk, WeChat, and meeting info, and the [KubeVela community repo](https://github.com/kubevela/community) for joining links, the current meeting schedule, and developer and contributing guidelines.
 
 ## Talks and Conferences
 

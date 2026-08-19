@@ -25,7 +25,7 @@ additions and bug fixes can go straight to a pull request, see
 
 ## Membership
 
-KubeVela has three levels of membership beyond contributor, Reviewer,
+KubeVela has three levels of membership beyond contributor: Reviewer,
 Approver, and Maintainer, each with more responsibility than the last. See
 [community membership](https://github.com/kubevela/community/blob/main/community-membership.md)
 for what each level requires, and

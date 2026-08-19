@@ -11,6 +11,6 @@ to `kubevela/kubevela`, so it now just points at the one canonical copy
 instead.
 
 If you're looking to help with triage rather than run it, see
-[COMMUNITY.md](./COMMUNITY.md) for how to get involved, and the `type/*`,
-`area/*`, and `priority/*` labels described in that document for how issues
-get categorized.
+[COMMUNITY.md](./COMMUNITY.md) for how to get involved, and the canonical
+[ISSUE_TRIAGE.md](https://github.com/kubevela/community/blob/main/ISSUE_TRIAGE.md)
+linked above for how the `type/*`, `area/*`, and `priority/*` labels work.
