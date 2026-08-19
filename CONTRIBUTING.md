@@ -36,4 +36,4 @@ how to fix commits you already pushed, see
 - **Full Contributor Guide**: [kubevela.io/docs/contributor/overview](https://kubevela.io/docs/contributor/overview), covering development setup, testing, and the pull request process.
 - **Governance**: [GOVERNANCE.md](./GOVERNANCE.md) explains roles, responsibilities, and how decisions get made.
 - **Security**: do not open a public issue for a vulnerability. Follow [SECURITY.md](./SECURITY.md).
-- **Communication**: Slack, community meetings, and how to get involved are covered in [community.md](./community.md).
+- **Communication**: Slack, community meetings, and how to get involved are covered in [COMMUNITY.md](./COMMUNITY.md).
