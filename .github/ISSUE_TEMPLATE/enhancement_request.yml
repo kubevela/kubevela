@@ -1,0 +1,45 @@
+name: "✨ Enhancement request"
+description: Suggest an improvement to an existing feature or component
+title: ""
+labels: ["type/enhancement"]
+body:
+  - type: checkboxes
+    id: existing-search
+    attributes:
+      label: Is there an existing issue for this?
+      description: Please search to see if an issue already exists for the enhancement you're requesting.
+      options:
+        - label: I have searched the existing issues
+          required: true
+  - type: input
+    id: affected
+    attributes:
+      label: Affected feature or component
+      description: Name the feature, component, or API this enhancement targets.
+      placeholder: e.g. Application rollout, vela CLI output, CUE template rendering
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is the current limitation or pain point?
+      description: A clear and concise description of what is missing or frustrating today.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Describe the improvement you'd like
+      description: A clear and concise description of what you want to happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: A clear and concise description of any alternative solutions you've considered.
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add any other context or screenshots here.

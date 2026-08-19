@@ -14,7 +14,7 @@ Comment commands:
 * Write the word `/area/*` in a comment, and the bot will add the corresponding label `/area/*`.
 * Write the word `/priority/*` in a comment, and the bot will add the corresponding label `/priority/*`.
 
-The `*` mention above represent a specific word. Please read the details about label category in [ISSUE_TRIAGE.md](https://github.com/kubevela/kubevela/blob/master/ISSUE_TRIAGE.md)  
+The `*` mention above represent a specific word. Please read the details about label category in [ISSUE_TRIAGE.md](https://github.com/kubevela/community/blob/main/ISSUE_TRIAGE.md)  
 
 Label commands:
 
