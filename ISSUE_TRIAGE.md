@@ -3,10 +3,10 @@
 The main goal of issue triage is to categorize all incoming KubeVela issues and make sure each issue has all basic
 information needed for anyone else to understand and be able to start working on it.
 
-> **Note:** This information is for OAM/KubeVela project Maintainers, Owners, and Admins.
+> **Note:** This information is for KubeVela project Maintainers, Owners, and Admins.
 >  If you are a Contributor, then you will not be able to perform most of the tasks in this topic.
 
-The core maintainers of the OAM/KubeVela project are responsible for categorizing all incoming issues and delegating
+The core maintainers of the KubeVela project are responsible for categorizing all incoming issues and delegating
 any critical or important issue to other maintainers. Currently one maintainer each week is responsible.
 Besides that part, triage provides an important way to contribute to an open source project.
 
@@ -300,7 +300,7 @@ In general, requesting help from the community means that a contribution has a g
 ## Investigation of issues
 
 When an issue has all basic information provided, but the triage responsible haven't been able to reproduce the reported
-problem at a first glance, the issue is labeled [Needs investigation](https://github.com/oam-dev/kubevela/labels/needs%20investigation).
+problem at a first glance, the issue is labeled [Needs investigation](https://github.com/kubevela/kubevela/labels/needs%20investigation).
 Depending on the perceived severity and/or number of [upvotes](https://help.github.com/en/articles/about-conversations-on-github#reacting-to-ideas-in-comments),
 the investigation will either be delegated to another maintainer for further investigation or put on hold until someone else (maintainer or contributor)
 picks it up and eventually starts investigating it.
@@ -315,9 +315,9 @@ please provide as much information as possible.
 ## Automation
 
 We have some automation that triggers on comments or labels being added to issues.
-Many of these automated behaviors are defined in [issue-commands.json](https://github.com/oam-dev/kubevela/blob/master/.github/issue-commands.json).
+Many of these automated behaviors are defined in [issue-commands.json](https://github.com/kubevela/kubevela/blob/master/.github/issue-commands.json).
 
 * Add comment `/duplicate #<number>` to have `type/duplicate` label, the issue number is required for remind where is the other issue.
 * Add label `bot/no new info` for bot to close an issue where we asked for more info but has not received any updates in at least 14 days.
 
-Read more bot actions on [bot.md](https://github.com/oam-dev/kubevela/blob/master/.github/bot.md)
+Read more bot actions on [bot.md](https://github.com/kubevela/kubevela/blob/master/.github/bot.md)

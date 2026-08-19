@@ -1,0 +1,85 @@
+name: "🐛 Bug report"
+description: Create a report to help us improve
+title: ""
+labels: ["type/bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report. Please search [existing issues](https://github.com/kubevela/kubevela/issues) first to avoid duplicates.
+  - type: checkboxes
+    id: existing-search
+    attributes:
+      label: Is there an existing issue for this?
+      description: Please search to see if an issue already exists for the bug you encountered.
+      options:
+        - label: I have searched the existing issues
+          required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Which part of KubeVela does this affect? Pick the closest match.
+      options:
+        - Application controller
+        - Component / ComponentDefinition
+        - Trait / TraitDefinition
+        - Workflow / WorkflowStepDefinition
+        - Policy
+        - CUE templating
+        - CLI (vela)
+        - Addon
+        - Multi-cluster
+        - Helm chart / installation
+        - Other / not sure
+    validations:
+      required: true
+  - type: input
+    id: kubevela-version
+    attributes:
+      label: KubeVela version
+      description: Output of `vela version`, covering both the CLI and the controller.
+      placeholder: e.g. v1.9.0
+    validations:
+      required: true
+  - type: input
+    id: k8s-version
+    attributes:
+      label: Kubernetes version and distribution
+      description: The Kubernetes version and where it runs.
+      placeholder: e.g. v1.28.3, EKS
+    validations:
+      required: true
+  - type: textarea
+    id: describe-bug
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: To reproduce
+      description: Steps to reproduce the behavior. Include the YAML of any Application, Component, or Trait you used.
+      placeholder: |
+        1. Applied this Application YAML: ...
+        2. Ran this command: ...
+        3. Observed: ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen.
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or logs
+      description: If applicable, add screenshots or relevant controller logs to help explain the problem.
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here.
