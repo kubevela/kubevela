@@ -13,7 +13,7 @@ repo.
 - Weekly community meetings, alternating between English and Chinese
 
 See [community communication](https://github.com/kubevela/community#communication)
-for joining links, group IDs, and the current meeting schedule, those change
+for joining links, group IDs, and the current meeting schedule. Those change
 often enough that duplicating them here would just go stale.
 
 ## How can I get involved?
