@@ -126,6 +126,11 @@ var _ = BeforeSuite(func() {
 	singleton.KubeClient.Set(k8sClient)
 	fakeDynamicClient := fake.NewSimpleDynamicClient(testScheme)
 	singleton.DynamicClient.Set(fakeDynamicClient)
+	// PolicyDefinition validation compiles through the cuex workload compiler,
+	// which resolves a client through this same singleton. Feed it the envtest
+	// config, matching the policydefinition webhook suite's setup, so building
+	// the compiler exercises the external-package path instead of skipping it.
+	singleton.KubeConfig.Set(cfg)
 	appParser = appfile.NewApplicationParser(k8sClient)
 
 	reconciler = &Reconciler{
