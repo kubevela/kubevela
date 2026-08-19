@@ -32,6 +32,22 @@ These assume the prerequisites (Go, kustomize, CUE, and friends) are already
 installed. See the [code contribution guide](https://kubevela.io/docs/contributor/code-contribute)
 for installing those, running `vela-core` and VelaUX locally, and end-to-end tests.
 
+## Commit messages
+
+Commits follow `<Type>[optional scope]: <subject>`, with the type capitalized:
+
+```
+Fix: correct minor typos in code
+Feat(cli): add polish language
+Docs: changed url to URL in all documentation files
+```
+
+`<Type>` is one of Feat, Fix, Docs, Build, Style, Refactor, Perf, Test, or
+Chore. Pull requests are squash-merged, so the PR title becomes the commit
+message, use the same format there too. See
+[Formatting guidelines](https://kubevela.io/docs/contributor/code-contribute#formatting-guidelines)
+for the full convention, including scopes and areas.
+
 ## Sign your commits (DCO)
 
 Every commit must carry a `Signed-off-by` line certifying you wrote the code and can
