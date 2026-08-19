@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"time"
 
+	"cuelang.org/go/cue"
 	admissionv1 "k8s.io/api/admission/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -80,11 +81,17 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			"hasSchematic", obj.Spec.Schematic != nil,
 			"version", obj.Spec.Version)
 
+		// Compiled once here, and reused below by ValidatePolicyDefinition rather
+		// than each check recompiling the same template. cueVal stays the zero
+		// Value when there is no schematic to compile; ValidatePolicyDefinition
+		// rejects that case before it would ever look at it.
+		var cueTemplate string
+		var cueVal cue.Value
 		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
 			logger.WithStep("validate-cue").Info("Validating CUE template syntax and semantics for PolicyDefinition schematic")
 
 			// Validate against the effective template; with auto-upgrade is enabled
-			cueTemplate := obj.Spec.Schematic.CUE.Template
+			cueTemplate = obj.Spec.Schematic.CUE.Template
 			if *upgrade.EnableCUEVersionCompatibility {
 				upgraded, wasUpgraded := upgrade.EnsureCueVersionCompatibility(cueTemplate, obj.Name, upgrade.PolicyKind, upgrade.TemplateAreaMain)
 				if wasUpgraded {
@@ -93,7 +100,13 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				}
 			}
 
-			if err := webhookutils.ValidateCuexTemplate(ctx, cueTemplate); err != nil {
+			var err error
+			cueVal, err = webhookutils.CompileCuexTemplate(ctx, cueTemplate)
+			if err != nil {
+				logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template contains syntax errors or invalid constructs - template compilation failed")
+				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+			}
+			if err := webhookutils.ValidateCompiledCuexTemplate(cueVal); err != nil {
 				logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template contains syntax errors or invalid constructs - template compilation failed")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
@@ -128,7 +141,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		}
 
 		// Validate Application-scoped policy constraints (global=true rules, scope consistency)
-		validationResult := applicationcontroller.ValidatePolicyDefinition(ctx, obj)
+		validationResult := applicationcontroller.ValidatePolicyDefinition(obj, cueTemplate, cueVal)
 		validationResult.Warnings = append(validationResult.Warnings, cueWarnings...)
 		if !validationResult.IsValid() {
 			logger.WithStep("validate-policy-definition").Error(nil, "PolicyDefinition failed Application-scoped policy validation", "errors", validationResult.Errors)
