@@ -18,6 +18,20 @@ See [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 - **Answer questions**: help other users in [GitHub Discussions](https://github.com/kubevela/kubevela/discussions) and on Slack.
 - **Everything else**: blog posts, talks, case studies, and translations all count. See the [non-code contribution guide](https://kubevela.io/docs/contributor/non-code-contribute).
 
+## Quick start
+
+Build the CLI, run the unit tests, and lint before opening a pull request:
+
+```bash
+make             # build the vela CLI to bin/vela
+make test        # run unit tests
+make reviewable  # lint, generate, and get the PR ready for review
+```
+
+These assume the prerequisites (Go, kustomize, CUE, and friends) are already
+installed. See the [code contribution guide](https://kubevela.io/docs/contributor/code-contribute)
+for installing those, running `vela-core` and VelaUX locally, and end-to-end tests.
+
 ## Sign your commits (DCO)
 
 Every commit must carry a `Signed-off-by` line certifying you wrote the code and can
