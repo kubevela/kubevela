@@ -23,8 +23,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kubevela/pkg/cue/cuex"
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
-	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -76,35 +76,39 @@ func ValidateCueTemplate(cueTemplate string) error {
 }
 
 // CompileCuexTemplate compiles cueTemplate with the cuex workload compiler and
-// returns the resulting value, so callers that need to inspect the template
-// rather than just accept or reject it resolve the same package set.
+// returns the resulting value, so callers that need to inspect the template,
+// or that run more than one check against it, compile it once and share the
+// result rather than each compiling their own copy.
 //
-// The compile runs under helm.WithDryRun for the reason described on
-// ValidateCuexTemplate.
+// The compile runs with DisableResolveProviderFunctions, so a provider call
+// with fully concrete arguments is parsed and type-checked but never invoked.
+// Without that, a template landing on this path during admission could reach
+// the cluster or the network: kube.#Get and http.#Do have no dry-run mode of
+// their own the way helm.#Render does, so gating only helm would leave them
+// free to run for real while validating.
 func CompileCuexTemplate(ctx context.Context, cueTemplate string) (cue.Value, error) {
-	ctx = helm.WithDryRun(ctx)
-	return velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx, cueTemplate)
+	return velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx, cueTemplate, cuex.DisableResolveProviderFunctions{})
+}
+
+// ValidateCompiledCuexTemplate checks a value already produced by
+// CompileCuexTemplate for syntax and type errors, so a caller sharing one
+// compiled value across several checks does not repeat this logic per check.
+func ValidateCompiledCuexTemplate(val cue.Value) error {
+	if e := checkError(val.Err()); e != nil {
+		return e
+	}
+	return checkError(val.Validate())
 }
 
 // ValidateCuexTemplate validate cueTemplate with CueX for types utilising it.
 // Uses WorkloadCompiler so that templates referencing internal provider
 // packages (e.g. "vela/helm") parse during admission validation.
-//
-// The compile runs under helm.WithDryRun so that any provider package that
-// honors the dry-run signal short-circuits to a side-effect-free path.
-// Without this, a ComponentDefinition whose CUE supplies fully concrete
-// arguments to helm.#Render could trigger a real chart fetch and helm
-// install during admission.
 func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
 	val, err := CompileCuexTemplate(ctx, cueTemplate)
 	if err != nil {
 		return err
 	}
-	if e := checkError(val.Err()); e != nil {
-		return e
-	}
-	err = val.Validate()
-	return checkError(err)
+	return ValidateCompiledCuexTemplate(val)
 }
 
 func checkError(err error) error {
