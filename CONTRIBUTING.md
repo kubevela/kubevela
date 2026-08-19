@@ -12,7 +12,7 @@ See [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
 ## Ways to contribute
 
-- **Code**: pick up a [good first issue](https://github.com/kubevela/kubevela/labels/good%20first%20issue), or see the [code contribution guide](https://kubevela.io/docs/contributor/code-contribute).
+- **Code**: pick up a [good first issue](https://github.com/kubevela/kubevela/labels/good%20first%20issue), follow the [code conventions](https://kubevela.io/docs/contributor/code-conventions) and [test principles](https://kubevela.io/docs/contributor/principle-of-test), then see the [code contribution guide](https://kubevela.io/docs/contributor/code-contribute) for local setup and the pull request process.
 - **Docs**: the docs live in [kubevela/kubevela.io](https://github.com/kubevela/kubevela.io). See its [developer guide](https://github.com/kubevela/kubevela.io/blob/main/README.md) for how to write and preview them.
 - **Issue triage**: help reproduce, label, and narrow down reported bugs. See [ISSUE_TRIAGE.md](https://github.com/kubevela/community/blob/main/ISSUE_TRIAGE.md).
 - **Answer questions**: help other users in [GitHub Discussions](https://github.com/kubevela/kubevela/discussions) and on Slack.
