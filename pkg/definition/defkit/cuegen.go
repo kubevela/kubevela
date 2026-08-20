@@ -282,15 +282,7 @@ func (g *CUEGenerator) collectImportsFromOps(ops []ResourceOp) {
 			g.collectImportsFromValue(o.Cond())
 		case *IfBlock:
 			g.collectImportsFromValue(o.Cond())
-			for _, innerOp := range o.Ops() {
-				switch inner := innerOp.(type) {
-				case *SetOp:
-					g.collectImportsFromValue(inner.Value())
-				case *SetIfOp:
-					g.collectImportsFromValue(inner.Value())
-					g.collectImportsFromValue(inner.Cond())
-				}
-			}
+			g.collectImportsFromOps(o.Ops())
 		case *PatchKeyOp:
 			for _, elem := range o.Elements() {
 				g.collectImportsFromValue(elem)

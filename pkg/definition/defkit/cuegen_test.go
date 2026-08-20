@@ -1858,6 +1858,36 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(generated).To(ContainSubstring("name: strings.ToLower(key)"))
 			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
 		})
+
+		It("should collect imports from nested body operations", func() {
+			labels := defkit.StringKeyMap("labels")
+			metadata := defkit.StringKeyMap("metadata")
+			features := defkit.StringList("features")
+			enabled := defkit.Bool("enabled")
+			body := defkit.NewResource("", "").
+				If(enabled.IsTrue()).
+				Set("metadata.fixed", defkit.Lit("fixed")).
+				SpreadIf(features.Contains("metadata"), "metadata", metadata).
+				EndIf().
+				Ops()
+			comp := defkit.NewComponent("test").
+				Params(labels, metadata, features, enabled).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					content := defkit.ForEachMap().
+						Over("parameter.labels").
+						WithBody(body...)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.content", content))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"list"`))
+			Expect(generated).To(ContainSubstring(
+				`list.Contains(parameter["features"], "metadata")`,
+			))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
+		})
 	})
 
 	Describe("Dedupe from Reference source", func() {
