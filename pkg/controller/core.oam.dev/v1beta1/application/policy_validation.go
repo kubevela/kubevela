@@ -63,9 +63,13 @@ func ValidatePolicyDefinition(policy *v1beta1.PolicyDefinition, cueTemplate stri
 
 	// Validate global policies have specific requirements
 	if policy.Spec.Global {
-		// No required parameters
-		if err := validateNoRequiredParameters(policy, val); err != nil {
-			result.Errors = append(result.Errors, err.Error())
+		// No required parameters. Skipped when the template did not compile,
+		// since the CUE validation below reports that once already and its
+		// parameters cannot be inspected meaningfully either way.
+		if val.Err() == nil {
+			if err := validateNoRequiredParameters(policy, val); err != nil {
+				result.Errors = append(result.Errors, err.Error())
+			}
 		}
 
 		// Scope must be Application
@@ -154,14 +158,10 @@ func isASTBoolExpr(expr ast.Expr) bool {
 
 // validateNoRequiredParameters checks that all parameters have default values
 // For global policies, ALL parameters must have defaults since users can't provide values.
-// val is the already-compiled template; a compile failure is reported once by
-// the caller's own CUE validation, so a broken val is skipped here rather than
-// re-reported.
+// val is the already-compiled template, and is expected to have compiled
+// cleanly: the caller skips this check otherwise, so a compile failure is
+// reported once by the CUE validation rather than twice.
 func validateNoRequiredParameters(policy *v1beta1.PolicyDefinition, val cue.Value) error {
-	if val.Err() != nil {
-		return nil
-	}
-
 	paramField := val.LookupPath(cue.ParsePath("parameter"))
 	if !paramField.Exists() {
 		return nil

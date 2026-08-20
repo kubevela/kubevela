@@ -23,12 +23,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kubevela/pkg/cue/cuex"
-	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	cueErrors "cuelang.org/go/cue/errors"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,6 +35,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
+	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 )
 
 // ContextRegex to match '**: reference "context" not found'
