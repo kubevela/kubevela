@@ -24,6 +24,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -61,6 +62,10 @@ type rendererImpl struct {
 	// findPackagesFn lets unit tests supply a package without registry I/O.
 	// Production uses pkgaddon.FindAddonPackagesDetailFromRegistry.
 	findPackagesFn func(context.Context, client.Client, []string, []string) ([]*pkgaddon.WholeAddonPackage, error)
+
+	// fetchExactFn lets unit tests resolve a pinned version without registry I/O.
+	// Production uses pkgaddon.GetAddonInstallPackageFromRegistry.
+	fetchExactFn func(ctx context.Context, registryName, addonName, version string) (*pkgaddon.InstallPackage, error)
 }
 
 // NewRenderer builds a render-only addon service. It reads the Kubernetes
@@ -70,10 +75,13 @@ func NewRenderer() api.Renderer {
 	return &rendererImpl{}
 }
 
-// init registers the default renderer so a blank import of this package
-// (from cmd/core) wires the addon CueX provider, instead of injecting it in
-// server.go.
-func init() { api.SetDefaultRenderer(NewRenderer()) }
+// Register installs the render-only addon service as the process-wide renderer
+// used by the vela/addon CueX provider.
+//
+// Deliberately not an init(): package initialisation runs before cobra parses
+// flags, so an init() could not be gated on the EnableAddonComponent feature
+// gate. cmd/core calls this from run(), once the gates are known.
+func Register() { api.SetDefaultRenderer(NewRenderer()) }
 
 // client returns the injected client (tests) or the shared singleton (production).
 func (r *rendererImpl) client() client.Client {
@@ -94,23 +102,30 @@ func (r *rendererImpl) restConfig() *rest.Config {
 // cacheKey builds the resolve-once cache key from every input that can change
 // the rendered output, including SkipVersionValidate so a validated request and
 // a skipped request never alias to the same cached result.
-func cacheKey(req api.AddonRequest) string {
-	return fmt.Sprintf("%s|%s|%s|%t|%s", req.Name, req.Version, req.Registry, req.SkipVersionValidate, hashProperties(req.Properties))
+//
+// It reports false when the properties cannot be hashed, in which case the
+// request must not participate in the cache at all: any placeholder key would be
+// shared by every unhashable request and serve one caller another's render.
+func cacheKey(req api.AddonRequest) (string, bool) {
+	hash, ok := hashProperties(req.Properties)
+	if !ok {
+		return "", false
+	}
+	return fmt.Sprintf("%s|%s|%s|%t|%s", req.Name, req.Version, req.Registry, req.SkipVersionValidate, hash), true
 }
 
 // hashProperties returns a stable SHA-256 hex digest of the properties map.
 // json.Marshal sorts map keys, so the marshaled bytes are canonical and the
-// digest is order-independent.
-func hashProperties(properties map[string]interface{}) string {
+// digest is order-independent. It reports false if the map cannot be marshaled,
+// because there is then no value that distinguishes this request from any other
+// unhashable one.
+func hashProperties(properties map[string]interface{}) (string, bool) {
 	b, err := json.Marshal(properties)
 	if err != nil {
-		// A non-marshalable value cannot produce a stable key; fall back to a
-		// sentinel that is distinct from any real digest so such requests are
-		// never served a stale cache entry.
-		return "unhashable"
+		return "", false
 	}
 	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:])
+	return hex.EncodeToString(sum[:]), true
 }
 
 // RenderAddon resolves and renders an addon. Explicit versions are immutable
@@ -125,7 +140,10 @@ func (r *rendererImpl) RenderAddon(ctx context.Context, req api.AddonRequest) (*
 		return resolve(ctx, req)
 	}
 
-	key := cacheKey(req)
+	key, cacheable := cacheKey(req)
+	if !cacheable {
+		return resolve(ctx, req)
+	}
 	if cached, ok := r.cache.Load(key); ok {
 		return cached.(*api.AddonResult), nil
 	}
@@ -146,29 +164,31 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	if findPackages == nil {
 		findPackages = pkgaddon.FindAddonPackagesDetailFromRegistry
 	}
-	pkgs, err := findPackages(ctx, r.client(), []string{req.Name}, regs)
-	if err != nil {
-		return nil, fmt.Errorf("addon %q not found in registries %v: %w", req.Name, regs, err)
-	}
-	if len(pkgs) == 0 {
-		return nil, fmt.Errorf("addon %q not found in registries %v", req.Name, regs)
-	}
-	whole := pkgs[0]
-	installPkg := &whole.InstallPackage
-	registryName := whole.RegistryName
+	var installPkg *pkgaddon.InstallPackage
+	var registryName string
 
-	// FindAddonPackagesDetailFromRegistry loads a concrete package (the latest for
-	// versioned registries). If the caller pinned an exact version that differs,
-	// fetch that specific version.
-	resolved := installPkg.Version
-	if req.Version != "" && req.Version != resolved {
-		exact, err := r.fetchExactVersion(ctx, registryName, req.Name, req.Version)
+	if req.Version != "" {
+		// Resolve the pin directly. Going through the latest package first would
+		// make a valid pin depend on two unrelated things: that the latest release
+		// loads at all, and that the registry holding the latest also holds the
+		// pinned version.
+		pkg, reg, err := r.resolvePinnedVersion(ctx, req.Name, req.Version, regs)
 		if err != nil {
-			return nil, fmt.Errorf("fetch addon %q version %q: %w", req.Name, req.Version, err)
+			return nil, err
 		}
-		installPkg = exact
-		resolved = exact.Version
+		installPkg, registryName = pkg, reg
+	} else {
+		pkgs, err := findPackages(ctx, r.client(), []string{req.Name}, regs)
+		if err != nil {
+			return nil, fmt.Errorf("addon %q not found in registries %v: %w", req.Name, regs, err)
+		}
+		if len(pkgs) == 0 {
+			return nil, fmt.Errorf("addon %q not found in registries %v", req.Name, regs)
+		}
+		installPkg = &pkgs[0].InstallPackage
+		registryName = pkgs[0].RegistryName
 	}
+	resolved := installPkg.Version
 
 	if !req.SkipVersionValidate {
 		if err := r.validateSystemRequirements(ctx, req.Name, installPkg); err != nil {
@@ -325,6 +345,9 @@ func (r *rendererImpl) validateSystemRequirements(ctx context.Context, name stri
 
 // fetchExactVersion resolves a specific addon version from the named registry.
 func (r *rendererImpl) fetchExactVersion(ctx context.Context, registryName, addonName, version string) (*pkgaddon.InstallPackage, error) {
+	if r.fetchExactFn != nil {
+		return r.fetchExactFn(ctx, registryName, addonName, version)
+	}
 	return pkgaddon.GetAddonInstallPackageFromRegistry(ctx, r.client(), registryName, addonName, version)
 }
 
@@ -380,6 +403,22 @@ func appendAuxComponents(appMap map[string]interface{}, groups []auxComponent) {
 		appMap["spec"] = spec
 	}
 	comps, _ := spec["components"].([]interface{})
+
+	// The auxiliary names below are fixed, so an addon whose own template happens
+	// to author a component with one of those names would produce a duplicate and
+	// fail Application validation. Reserve whatever the addon already used and
+	// suffix around it.
+	used := make(map[string]bool, len(comps))
+	for _, item := range comps {
+		comp, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if name, _ := comp["name"].(string); name != "" {
+			used[name] = true
+		}
+	}
+
 	for _, g := range groups {
 		objs := make([]interface{}, 0, len(g.objects))
 		for _, o := range g.objects {
@@ -392,11 +431,62 @@ func appendAuxComponents(appMap map[string]interface{}, groups []auxComponent) {
 		if len(objs) == 0 {
 			continue // omit empty categories
 		}
+		name := uniqueComponentName(g.name, used)
+		used[name] = true
 		comps = append(comps, map[string]interface{}{
-			"name":       g.name,
+			"name":       name,
 			"type":       "k8s-objects",
 			"properties": map[string]interface{}{"objects": objs},
 		})
 	}
 	spec["components"] = comps
+}
+
+// uniqueComponentName returns base, or base with the lowest numeric suffix that is
+// not already taken. Mirrors the name de-duplication ensureAddonComponentStateKeepPolicy
+// does for policies.
+func uniqueComponentName(base string, used map[string]bool) string {
+	if !used[base] {
+		return base
+	}
+	for suffix := 2; ; suffix++ {
+		candidate := fmt.Sprintf("%s-%d", base, suffix)
+		if !used[candidate] {
+			return candidate
+		}
+	}
+}
+
+// resolvePinnedVersion loads an exact addon version, trying each candidate registry
+// in order and returning the first that serves it. An empty candidate list means
+// every configured registry.
+//
+// Registries that do not have the version are skipped rather than fatal, so an
+// addon present in several registries resolves from whichever one actually
+// publishes the pin.
+func (r *rendererImpl) resolvePinnedVersion(ctx context.Context, addonName, version string, candidates []string) (*pkgaddon.InstallPackage, string, error) {
+	if len(candidates) == 0 {
+		regs, err := pkgaddon.NewRegistryDataStore(r.client()).ListRegistries(ctx)
+		if err != nil {
+			return nil, "", fmt.Errorf("list addon registries: %w", err)
+		}
+		for _, reg := range regs {
+			candidates = append(candidates, reg.Name)
+		}
+	}
+	if len(candidates) == 0 {
+		return nil, "", fmt.Errorf("addon %q version %q cannot be resolved: no addon registries are configured", addonName, version)
+	}
+
+	var errs []error
+	for _, regName := range candidates {
+		pkg, err := r.fetchExactVersion(ctx, regName, addonName, version)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("registry %q: %w", regName, err))
+			continue
+		}
+		return pkg, regName, nil
+	}
+	return nil, "", fmt.Errorf("addon %q version %q not found in registries %v: %w",
+		addonName, version, candidates, errors.Join(errs...))
 }

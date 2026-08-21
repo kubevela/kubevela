@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -121,8 +122,25 @@ func (r registryImpl) ListRegistries(ctx context.Context) ([]Registry, error) {
 		return nil, err
 	}
 
-	var res []Registry
-	for _, registry := range registries {
+	// getRegistries decodes a map, so iterating it directly hands callers a
+	// randomly ordered slice. Callers treat the order as a priority -- the first
+	// registry holding an addon wins in FindAddonPackagesDetailFromRegistry, and
+	// mergeAddonInfoMaps folds later registries onto earlier ones -- so an addon
+	// present in two registries would otherwise resolve differently call to call.
+	//
+	// By name, because that is the order the data is already stored in: the
+	// registries live in a JSON object, which loses insertion order, and
+	// encoding/json sorts map keys when AddRegistry marshals it back. So this
+	// reproduces the ConfigMap's own order rather than inventing a priority.
+	names := make([]string, 0, len(registries))
+	for name := range registries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	res := make([]Registry, 0, len(names))
+	for _, name := range names {
+		registry := registries[name]
 		if err := loadTokenFromSecret(ctx, r.client, &registry); err != nil {
 			return nil, err
 		}

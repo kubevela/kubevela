@@ -1038,7 +1038,10 @@ func (h *Installer) installDependency(ctx context.Context, addon *InstallPackage
 		r := registry
 		registries = append(registries, &r)
 	}
-	availableAddons := listAvailableAddons(registries)
+	availableAddons, err := listAvailableAddons(registries)
+	if err != nil {
+		return err
+	}
 
 	err = validateAddonDependencies(addon, installedAddons, availableAddons)
 	if err != nil {
@@ -1231,15 +1234,21 @@ type ItemInfoLister interface {
 // as opposed to a fatal, addon-specific failure that should stop dependency
 // resolution outright.
 func isSkippableRegistryError(err error) bool {
-	return errors.Is(err, ErrNotExist) || errors.Is(err, ErrFetch)
+	// ErrOCICatalogAbsent belongs here: an OCI registry that has not had its first
+	// addon pushed yet simply has nothing to offer, which is the same situation as
+	// ErrNotExist for the other registry kinds.
+	return errors.Is(err, ErrNotExist) || errors.Is(err, ErrFetch) || errors.Is(err, ErrOCICatalogAbsent)
 }
 
-// listAvailableAddons fetches a collection of addons available in a list of
-// registries. Returns a map of ItemInfo grouped by addon name.
-// listAvailableAddons aggregates addon info across registries. A registry that
-// fails to list is skipped (logged) rather than aborting the whole listing, so
-// this never returns an error.
-func listAvailableAddons(registries []ItemInfoLister) itemInfoMap {
+// listAvailableAddons aggregates addon info across registries, grouped by addon
+// name.
+//
+// A registry that merely cannot serve an addon -- missing, unreachable, anything
+// isSkippableRegistryError recognises -- is skipped and logged, so one broken
+// registry does not break the whole listing. Any other failure (bad credentials,
+// a malformed registry record) is returned, because swallowing it would surface
+// later as a misleading "addon ... cannot be found" instead of the real cause.
+func listAvailableAddons(registries []ItemInfoLister) (itemInfoMap, error) {
 	availableAddons := make(itemInfoMap)
 
 	for _, registry := range registries {
@@ -1249,12 +1258,15 @@ func listAvailableAddons(registries []ItemInfoLister) itemInfoMap {
 			if r, ok := registry.(*Registry); ok {
 				name = r.Name
 			}
+			if !isSkippableRegistryError(err) {
+				return nil, errors.Wrapf(err, "failed to list addons in registry %s", name)
+			}
 			klog.Warningf("skip registry %s: failed to list addons: %v", name, err)
 			continue
 		}
 		availableAddons = mergeAddonInfoMaps(availableAddons, addons)
 	}
-	return availableAddons
+	return availableAddons, nil
 }
 
 func mergeAddonInfoMaps(existingAddons itemInfoMap, newAddons itemInfoMap) itemInfoMap {
@@ -1774,7 +1786,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("vela cli/ux version: %s  require: %s", version2.VelaVersion, require.VelaVersion)
+			return fmt.Errorf("%w: vela cli/ux version: %s  require: %s", ErrVersionMismatch, version2.VelaVersion, require.VelaVersion)
 		}
 	}
 
@@ -1791,7 +1803,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("the vela core controller: %s require: %s", imageVersion, require.VelaVersion)
+			return fmt.Errorf("%w: the vela core controller: %s require: %s", ErrVersionMismatch, imageVersion, require.VelaVersion)
 		}
 	}
 
@@ -1812,7 +1824,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 		}
 
 		if !res {
-			return fmt.Errorf("the kubernetes version %s require: %s", k8sVersion.GitVersion, require.KubernetesVersion)
+			return fmt.Errorf("%w: the kubernetes version %s require: %s", ErrVersionMismatch, k8sVersion.GitVersion, require.KubernetesVersion)
 		}
 	}
 

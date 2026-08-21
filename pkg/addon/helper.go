@@ -277,11 +277,20 @@ func FindAddonPackagesDetailFromRegistry(ctx context.Context, k8sClient client.C
 	}
 
 	// Found addons, for deduplication purposes
+	// Registries are searched in order, so the first one holding an addon wins.
+	// Appending a second copy from a later registry would leave callers that take
+	// addons[0] resolving against one registry while the duplicate advertises
+	// another.
+	//
+	// That makes the result only as stable as the registry order, which is why
+	// RegistryDataStore.ListRegistries sorts rather than iterating its decoded
+	// map -- otherwise addons[0] would switch registries between calls.
 	foundAddons := make(map[string]bool)
 	merge := func(addon *WholeAddonPackage) {
-		if _, ok := foundAddons[addon.Name]; !ok {
-			foundAddons[addon.Name] = true
+		if foundAddons[addon.Name] {
+			return
 		}
+		foundAddons[addon.Name] = true
 		addons = append(addons, addon)
 	}
 
@@ -399,7 +408,14 @@ func GetAddonInstallPackageFromRegistry(ctx context.Context, cli client.Client, 
 	if err != nil {
 		return nil, err
 	}
-	return reg.GetInstallPackage(&meta, uiData)
+	pkg, err := reg.GetInstallPackage(&meta, uiData)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkVersionPinSupported(registryName, addonName, version, pkg.Version); err != nil {
+		return nil, err
+	}
+	return pkg, nil
 }
 
 // Status contain addon phase and related app status
@@ -412,4 +428,24 @@ type Status struct {
 	Parameters       map[string]interface{}
 	// Where the addon is from. Can be empty if not installed.
 	InstalledRegistry string
+}
+
+// checkVersionPinSupported rejects a version pin that a non-versioned registry
+// cannot honor. git/OSS-backed registries serve a single revision of each addon,
+// so there is nothing to resolve a pin against; returning the current content
+// would silently install something other than what was asked for.
+//
+// An empty requested version means "whatever the registry serves" and always
+// passes. A requested version equal to the available one also passes, so a pin
+// that happens to match is not an error.
+func checkVersionPinSupported(registryName, addonName, requested, available string) error {
+	if requested == "" || requested == available {
+		return nil
+	}
+	if available == "" {
+		return fmt.Errorf("registry %q does not support version pinning: addon %q reports no version, requested %q",
+			registryName, addonName, requested)
+	}
+	return fmt.Errorf("registry %q does not support version pinning: addon %q is available at version %q, requested %q",
+		registryName, addonName, available, requested)
 }

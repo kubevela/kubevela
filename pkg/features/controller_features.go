@@ -138,6 +138,14 @@ const (
 	// CUE definition schema. When enabled, any parameter field not present in the template's
 	// parameter stanza will cause a validation error at admission time.
 	ValidateUndeclaredParameters = "ValidateUndeclaredParameters"
+
+	// EnableAddonComponent enables installing an addon as an Application component via the
+	// type: addon ComponentDefinition. The ComponentDefinition and its vela/addon CueX
+	// package always ship, because the definition cannot compile without the package; this
+	// gate controls whether the render service is wired up and whether the addon admission
+	// webhook is registered. When disabled, nothing addon-specific runs and an Application
+	// using type: addon fails at render with an actionable message.
+	EnableAddonComponent featuregate.Feature = "EnableAddonComponent"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -169,6 +177,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	EnableGlobalPolicies:                          {Default: false, PreRelease: featuregate.Alpha},
 	EnableApplicationScopedPolicies:               {Default: false, PreRelease: featuregate.Alpha},
 	ValidateUndeclaredParameters:                  {Default: false, PreRelease: featuregate.Alpha},
+	EnableAddonComponent:                          {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

@@ -33,6 +33,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-github/v32/github"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/multierr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -1498,7 +1499,8 @@ func TestListAvailableAddons(t *testing.T) {
 			},
 		},
 	}
-	res := listAvailableAddons(registries)
+	res, err := listAvailableAddons(registries)
+	require.NoError(t, err)
 
 	expected := itemInfoMap{
 		// addon1 versions are merged
@@ -1522,15 +1524,23 @@ func TestIsSkippableRegistryError(t *testing.T) {
 	assert.True(t, isSkippableRegistryError(ErrNotExist))
 	assert.True(t, isSkippableRegistryError(ErrFetch))
 	assert.True(t, isSkippableRegistryError(fmt.Errorf("wrapped: %w", ErrFetch)))
+	// An OCI registry with no catalog yet has nothing to offer, which is the same
+	// situation as ErrNotExist elsewhere: skip it and try the next registry.
+	assert.True(t, isSkippableRegistryError(ErrOCICatalogAbsent))
+	assert.True(t, isSkippableRegistryError(fmt.Errorf("wrapped: %w", ErrOCICatalogAbsent)))
 	assert.False(t, isSkippableRegistryError(errors.New("some addon-specific failure")))
 	assert.False(t, isSkippableRegistryError(nil))
 }
 
 func TestGetAddonMetaClassifiesBrokenRegistryAsFetchError(t *testing.T) {
+	// Port 1 on loopback refuses immediately, so the classification is exercised
+	// without reaching the network. Pointing this at github.com made a unit test
+	// depend on live connectivity, and a slow or blocked fetch would still have
+	// satisfied the assertion -- for the wrong reason.
 	h := &Installer{
 		r: &Registry{
 			Name: "mygit",
-			Git:  &GitAddonSource{URL: "https://github.com/", Path: ""},
+			Git:  &GitAddonSource{URL: "http://127.0.0.1:1/owner/repo", Path: ""},
 		},
 	}
 	_, err := h.getAddonMeta()
@@ -1563,8 +1573,11 @@ func TestInstallDependencySkipsRegistryScanWhenNoDependencies(t *testing.T) {
 
 func TestListAvailableAddonsSkipsFailingRegistry(t *testing.T) {
 	registries := []ItemInfoLister{
+		// A registry that simply cannot serve the addon is skipped so one broken
+		// registry does not break the whole listing. It has to be a skippable
+		// error: anything else is a real misconfiguration and must surface.
 		&AddonInfoListerMock{
-			expectedErr: fmt.Errorf("invalid format: registry path is empty"),
+			expectedErr: fmt.Errorf("registry unreachable: %w", ErrFetch),
 		},
 		&AddonInfoListerMock{
 			expectedData: itemInfoMap{
@@ -1575,7 +1588,8 @@ func TestListAvailableAddonsSkipsFailingRegistry(t *testing.T) {
 			},
 		},
 	}
-	res := listAvailableAddons(registries)
+	res, err := listAvailableAddons(registries)
+	require.NoError(t, err)
 
 	expected := itemInfoMap{
 		"velaux": {
@@ -1586,13 +1600,31 @@ func TestListAvailableAddonsSkipsFailingRegistry(t *testing.T) {
 	assert.Equal(t, expected, res)
 }
 
-func TestListAvailableAddonsAllRegistriesFail(t *testing.T) {
+func TestListAvailableAddonsPropagatesFatalError(t *testing.T) {
+	// Bad credentials is not a "this registry cannot serve the addon" condition.
+	// Swallowing it made dependency resolution report "addon ... cannot be found"
+	// instead of the real 401, so it has to reach the caller.
 	registries := []ItemInfoLister{
 		&AddonInfoListerMock{expectedErr: fmt.Errorf("401 Bad credentials")},
-		&AddonInfoListerMock{expectedErr: fmt.Errorf("invalid format: registry path is empty")},
+		&AddonInfoListerMock{expectedData: itemInfoMap{"velaux": {Name: "velaux"}}},
 	}
-	res := listAvailableAddons(registries)
+	res, err := listAvailableAddons(registries)
 
+	require.Error(t, err)
+	assert.Nil(t, res)
+	assert.Contains(t, err.Error(), "401 Bad credentials")
+}
+
+func TestListAvailableAddonsSkipsEveryUnreachableRegistry(t *testing.T) {
+	// All registries unreachable is still not fatal: the caller gets an empty set
+	// and decides, which is what keeps one bad registry from breaking listing.
+	registries := []ItemInfoLister{
+		&AddonInfoListerMock{expectedErr: fmt.Errorf("down: %w", ErrFetch)},
+		&AddonInfoListerMock{expectedErr: fmt.Errorf("absent: %w", ErrNotExist)},
+	}
+	res, err := listAvailableAddons(registries)
+
+	require.NoError(t, err)
 	assert.Equal(t, itemInfoMap{}, res)
 }
 

@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 
@@ -475,35 +476,60 @@ func (af *Appfile) generateAndFilterCommonLabels(compName string) map[string]str
 }
 
 // workload and trait both have these annotations
+//
+// The annotation map is read once and written once. util.AddAnnotations and
+// util.RemoveAnnotations would each fetch and set it again, and GetAnnotations
+// deep-copies on every call, so doing the merge and the filtering in one pass here
+// halves the allocations per rendered object.
 func (af *Appfile) filterAndSetAnnotations(obj *unstructured.Unstructured) {
-	var allFilterAnnotation []string
-	allFilterAnnotation = append(allFilterAnnotation, types.DefaultFilterAnnots...)
-
-	passedFilterAnnotation, ok := af.AppAnnotations[oam.AnnotationFilterAnnotationKeys]
-	if ok {
-		allFilterAnnotation = append(allFilterAnnotation, strings.Split(passedFilterAnnotation, ",")...)
+	ann := obj.GetAnnotations()
+	if ann == nil && af.AppAnnotations == nil {
+		// Nothing to merge and nothing to filter. Matches util.AddAnnotations, whose
+		// MergeMapOverrideWithDst returns nil when both sides are nil, so the
+		// metadata.annotations field stays absent rather than becoming an empty map.
+		return
+	}
+	if ann == nil {
+		ann = map[string]string{}
 	}
 
-	// A component may set app.oam.dev/last-applied-configuration to the "-"/"skip"
-	// sentinel on its own output to opt out of three-way-merge recording (see
-	// pkg/utils/apply). DefaultFilterAnnots strips this key so the parent
-	// Application's copy is not inherited by children; preserve the sentinel here
-	// so a component's explicit opt-out still survives.
-	keepLAC := ""
-	if ann := obj.GetAnnotations(); ann != nil {
-		if v := ann[oam.AnnotationLastAppliedConfig]; v == "-" || v == "skip" {
-			keepLAC = v
+	// The "-"/"skip" value of app.oam.dev/last-applied-configuration is a statement
+	// an object makes about itself (see pkg/utils/apply), so it must not be
+	// inherited. The addon-as-component flow sets it on the Application it renders
+	// because that single object can exceed Kubernetes' annotation size limit;
+	// letting it pass down would disable three-way merge for every resource inside
+	// the addon and break `vela status --tree --format raw`, which feeds this value
+	// to a JSON parser (pkg/resourcetracker/tree.go).
+	//
+	// Read before the merge below, because the Application's value would otherwise
+	// overwrite the component's own.
+	own := ann[oam.AnnotationLastAppliedConfig]
+
+	// pass application's all annotations
+	maps.Copy(ann, af.AppAnnotations)
+	// remove useless annotations for workload/trait
+	for _, k := range types.DefaultFilterAnnots {
+		delete(ann, k)
+	}
+	if passed, ok := af.AppAnnotations[oam.AnnotationFilterAnnotationKeys]; ok {
+		for _, k := range strings.Split(passed, ",") {
+			delete(ann, k)
 		}
 	}
 
-	// pass application's all annotations
-	util.AddAnnotations(obj, af.AppAnnotations)
-	// remove useless annotations for workload/trait
-	util.RemoveAnnotations(obj, allFilterAnnotation)
-
-	if keepLAC != "" {
-		util.AddAnnotations(obj, map[string]string{oam.AnnotationLastAppliedConfig: keepLAC})
+	switch {
+	case own != "":
+		// The component set this key on its own output. Whatever it says, it is a
+		// statement about the component's own resource, so it wins over the copy
+		// inherited from the Application above -- including a recorded
+		// configuration, not just the "-"/"skip" opt-out.
+		ann[oam.AnnotationLastAppliedConfig] = own
+	case oam.IsSkipLastAppliedConfig(ann[oam.AnnotationLastAppliedConfig]):
+		// inherited from the parent Application; drop it
+		delete(ann, oam.AnnotationLastAppliedConfig)
 	}
+
+	obj.SetAnnotations(ann)
 }
 
 func (af *Appfile) setNamespace(obj *unstructured.Unstructured) {

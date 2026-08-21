@@ -148,6 +148,7 @@ optimize:
 ##@param featureGates.enableApplicationScopedPolicies enable Application-scoped PolicyDefinitions that transform Application CR before rendering (Alpha)
 ##@param featureGates.enableGlobalPolicies enable automatic discovery and application of global PolicyDefinitions to all Applications (Alpha)
 ##@param featureGates.enableCueExpVariable inject the CUE_EXPERIMENT env var (evalv3=0,keepvalidators=0) into the controller to disable experimental CUE features during the v0.14.x migration window
+##@param featureGates.enableAddonComponent enable installing an addon as an Application component via the type: addon ComponentDefinition (Alpha)
 ##@param
 featureGates:
   gzipResourceTracker: false
@@ -169,6 +170,7 @@ featureGates:
   enableApplicationScopedPolicies: false
   enableGlobalPolicies: false
   enableCueExpVariable: true
+  enableAddonComponent: false
 
 ## @section MultiCluster parameters
 

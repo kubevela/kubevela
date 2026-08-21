@@ -477,7 +477,7 @@ func (r *Registry) ListAddonInfo() (map[string]ItemInfo, error) {
 	if IsLocalRegistry(*r) {
 		return addonInfoMap, nil
 	}
-	if IsVersionRegistry(*r) || IsOCIRegistry(*r) {
+	if isVersionCapableRegistry(*r) {
 		versionedRegistry, err := ToVersionedRegistry(*r)
 		if err != nil {
 			return nil, err

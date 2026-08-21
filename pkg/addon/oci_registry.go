@@ -105,9 +105,12 @@ func ociRepoRef(url, addon string) (repoRef, host string) {
 
 // resolveVersion returns the tag to pull. A pinned version is used as-is; an
 // empty version is resolved to the highest semver tag published in the repo.
-func (i *ociRegistry) resolveVersion(ctx context.Context, repoRef, host, version string) (string, error) {
+// resolveVersion picks the tag to pull and also reports the tags it saw getting
+// there, so callers can fill in AvailableVersions without a second round trip.
+// A pinned version needs no listing and returns no tag list.
+func (i *ociRegistry) resolveVersion(ctx context.Context, repoRef, host, version string) (string, []string, error) {
 	if version != "" {
-		return version, nil
+		return version, nil, nil
 	}
 	list := i.tagsFn
 	if list == nil {
@@ -115,13 +118,13 @@ func (i *ociRegistry) resolveVersion(ctx context.Context, repoRef, host, version
 	}
 	tags, err := list(ctx, repoRef, host, i.username, i.token)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to list tags for OCI addon %s", repoRef)
+		return "", nil, errors.Wrapf(err, "failed to list tags for OCI addon %s", repoRef)
 	}
 	if len(tags) == 0 {
-		return "", errors.Errorf("no semver tags found for OCI addon %s; push a versioned tag or pin an explicit version", repoRef)
+		return "", nil, errors.Wrapf(ErrNotExist, "no semver tags found for OCI addon %s; push a versioned tag or pin an explicit version", repoRef)
 	}
 	// helm's Tags returns semver-filtered, highest-first.
-	return tags[0], nil
+	return tags[0], tags, nil
 }
 
 // newOCIClient builds an authenticated Helm OCI registry client.
@@ -165,6 +168,33 @@ func listOCITags(_ context.Context, repoRef, host, username, password string) ([
 	return client.Tags(repoRef)
 }
 
+// ociErrCodeNameUnknown is how the OCI distribution spec reports a repository
+// that does not exist. oras-go renders the code by lowercasing it and turning
+// underscores into spaces (NAME_UNKNOWN -> "name unknown").
+const ociErrCodeNameUnknown = "name unknown"
+
+// isOCIRepositoryAbsentError reports whether err is a registry answer confirming
+// "this repository does not exist", as opposed to "this repository could not be
+// read". Only the first lets the caller publish a catalog, because there is
+// nothing to preserve; misreading the second rebuilds the catalog from an empty
+// list and drops every addon already published.
+//
+// The test is the NAME_UNKNOWN error code, not the 404 status. A bare 404 is
+// ambiguous -- a proxy, a gateway, or a registry that does not serve the
+// tag-list route answers the same way for a repository that does exist -- so it
+// stays on the conservative branch.
+//
+// The code has to be read out of the message: oras-go v1.2.5 builds these errors
+// with fmt.Errorf and keeps its error types in the unexported
+// pkg/registry/remote/internal/errutil. A miss is safe in the same direction --
+// callers refuse to rewrite the catalog.
+func isOCIRepositoryAbsentError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), ociErrCodeNameUnknown)
+}
+
 // listOCIRepositories enumerates the OCI distribution catalog and returns
 // repository names relative to the configured registry prefix. The catalog API
 // is paginated through RFC 5988 Link headers.
@@ -198,6 +228,13 @@ func listOCIRepositories(ctx context.Context, registryURL, username, password st
 		decodeErr := json.NewDecoder(resp.Body).Decode(&page)
 		closeErr := resp.Body.Close()
 		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+			// Not every registry implements /v2/_catalog (ECR does not). Treat those
+			// answers as "no catalog to enumerate" rather than a read failure, so a
+			// push can still bootstrap a portable catalog there.
+			switch resp.StatusCode {
+			case http.StatusNotFound, http.StatusMethodNotAllowed, http.StatusNotImplemented:
+				return nil, errors.Wrapf(ErrOCICatalogAbsent, "OCI catalog enumeration is unsupported at %s: server returned %s", host, resp.Status)
+			}
 			return nil, errors.Errorf("failed to list OCI catalog at %s: server returned %s", host, resp.Status)
 		}
 		if decodeErr != nil {
@@ -225,10 +262,19 @@ func listOCIRepositories(ctx context.Context, registryURL, username, password st
 		next = nil
 		link := resp.Header.Get("Link")
 		if start, end := strings.Index(link, "<"), strings.Index(link, ">"); start >= 0 && end > start && strings.Contains(link[end:], `rel="next"`) {
-			next, err = req.URL.Parse(link[start+1 : end])
-			if err != nil {
-				return nil, errors.Wrap(err, "failed to parse OCI catalog pagination link")
+			candidate, parseErr := req.URL.Parse(link[start+1 : end])
+			if parseErr != nil {
+				return nil, errors.Wrap(parseErr, "failed to parse OCI catalog pagination link")
 			}
+			// The Link header is registry-supplied and url.Parse resolves an
+			// absolute URL by replacing scheme and host outright. Every request in
+			// this loop attaches the registry's BasicAuth credentials, so following
+			// such a link would hand them to a host we were never configured to
+			// talk to. Accept only links that stay on the original https host.
+			if candidate.Scheme != "https" || candidate.Host != host {
+				return nil, errors.Errorf("refusing OCI catalog pagination link %q: expected an https link on host %s", candidate.Redacted(), host)
+			}
+			next = candidate
 		}
 	}
 
@@ -238,9 +284,21 @@ func listOCIRepositories(ctx context.Context, registryURL, username, password st
 
 // loadAddon pulls the addon's OCI chart and turns it into a WholeAddonPackage,
 // reusing the shared archive -> InstallPackage pipeline.
-func (i *ociRegistry) loadAddon(ctx context.Context, name, version string) (*WholeAddonPackage, error) {
+func (i *ociRegistry) loadAddon(ctx context.Context, name, version string) (pkg *WholeAddonPackage, err error) {
+	// Classify failures as registry-level so callers can tell "this registry
+	// cannot provide this addon" from "stop everything". installDependency uses
+	// isSkippableRegistryError to decide whether to try the next registry; without
+	// this, any OCI error (missing tag, auth failure, unreachable host) aborts
+	// dependency resolution instead of falling through. Mirrors the ErrFetch
+	// wrapping already done in Installer.getAddonMeta.
+	defer func() {
+		if err != nil && !errors.Is(err, ErrNotExist) && !errors.Is(err, ErrFetch) {
+			err = errors.Wrapf(ErrFetch, "OCI registry %s: %v", i.name, err)
+		}
+	}()
+
 	repoRef, host := ociRepoRef(i.url, name)
-	resolved, err := i.resolveVersion(ctx, repoRef, host, version)
+	resolved, available, err := i.resolveVersion(ctx, repoRef, host, version)
 	if err != nil {
 		return nil, err
 	}
@@ -257,11 +315,17 @@ func (i *ociRegistry) loadAddon(ctx context.Context, name, version string) (*Who
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to load addon chart archive %s", ref)
 	}
-	pkg, err := loadAddonPackage(name, files)
+	pkg, err = loadAddonPackage(name, files)
 	if err != nil {
 		return nil, err
 	}
 	pkg.RegistryName = i.name
+	// loadAddonPackage builds the package from the chart archive, which knows
+	// nothing about sibling tags, so AvailableVersions would otherwise stay empty
+	// and the UI would show the addon as having a single version. versionedRegistry
+	// attaches its version list the same way. A pinned request lists no tags and
+	// so carries no list -- the caller asked about one version.
+	pkg.AvailableVersions = available
 	klog.V(5).Infof("Addon '%s' loaded from OCI registry '%s' (%s)", name, i.name, ref)
 	return pkg, nil
 }
@@ -286,10 +350,16 @@ func (i *ociRegistry) GetAddonUIData(ctx context.Context, addonName, version str
 	if err != nil {
 		return nil, err
 	}
+	// Mirror versionedRegistry.GetAddonUIData: dropping these leaves UI and cache
+	// consumers with metadata that is incomplete compared with an HTTP registry.
 	return &UIData{
-		Meta:      pkg.Meta,
-		APISchema: pkg.APISchema,
-		Detail:    pkg.Detail,
+		Meta:              pkg.Meta,
+		APISchema:         pkg.APISchema,
+		Parameters:        pkg.Parameters,
+		Detail:            pkg.Detail,
+		Definitions:       pkg.Definitions,
+		AvailableVersions: pkg.AvailableVersions,
+		CUEDefinitions:    pkg.CUEDefinitions,
 	}, nil
 }
 
@@ -317,6 +387,12 @@ func (i *ociRegistry) ListAddon() ([]*UIData, error) {
 	names, err := list(ctx, i.url, i.username, i.token)
 	if err != nil {
 		if indexErr != nil {
+			// Only a genuine absence on BOTH sides means there is no catalog. If
+			// either failure was a read error, callers must not treat the result as
+			// an empty catalog.
+			if errors.Is(indexErr, ErrOCICatalogAbsent) && errors.Is(err, ErrOCICatalogAbsent) {
+				return nil, errors.Wrapf(ErrOCICatalogAbsent, "no OCI addon catalog at portable location (%v) or registry catalog (%v)", indexErr, err)
+			}
 			return nil, errors.Errorf("failed to list OCI addons from portable catalog (%v) and registry catalog (%v)", indexErr, err)
 		}
 		return nil, err

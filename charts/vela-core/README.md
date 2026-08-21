@@ -113,6 +113,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.enableApplicationScopedPolicies`               | enable Application-scoped PolicyDefinitions that transform Application CR before rendering (Alpha)                                                                                                                               | `false` |
 | `featureGates.enableGlobalPolicies`                          | enable automatic discovery and application of global PolicyDefinitions to all Applications (Alpha)                                                                                                                               | `false` |
 | `featureGates.enableCueExpVariable`                          | inject the CUE_EXPERIMENT env var (evalv3=0,keepvalidators=0) into the controller to disable experimental CUE features during the v0.14.x migration window                                                                       | `true`  |
+| `featureGates.enableAddonComponent`                          | enable installing an addon as an Application component via the type: addon ComponentDefinition (Alpha)                                                                                                                           | `false` |
 
 ### MultiCluster parameters
 

@@ -17,11 +17,14 @@ limitations under the License.
 package addon
 
 import (
+	"context"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"helm.sh/helm/v3/pkg/repo"
 )
 
 func TestPutVersionedUIData2cache(t *testing.T) {
@@ -126,4 +129,53 @@ func TestGetCachedAddonMeta(t *testing.T) {
 	u.putAddonMeta2Cache(name, addonMeta)
 
 	assert.Equal(t, u.getCachedAddonMeta(name), addonMeta)
+}
+
+// registryStub serves a fixed listing and per-version data, standing in for a
+// versioned registry without any network.
+type registryStub struct {
+	list    []*UIData
+	perCall func(name, version string) *UIData
+}
+
+func (s *registryStub) ListAddon() ([]*UIData, error) { return s.list, nil }
+func (s *registryStub) GetAddonUIData(_ context.Context, name, version string) (*UIData, error) {
+	return s.perCall(name, version), nil
+}
+func (s *registryStub) GetAddonInstallPackage(context.Context, string, string) (*InstallPackage, error) {
+	return nil, nil
+}
+func (s *registryStub) GetDetailedAddon(context.Context, string, string) (*WholeAddonPackage, error) {
+	return nil, nil
+}
+func (s *registryStub) GetAddonAvailableVersion(string) ([]*repo.ChartVersion, error) {
+	return nil, nil
+}
+
+// TestCacheVersionedUIDataKeepsAvailableVersions covers what the UI reads to
+// offer version choices. The listing carries every version, but the per-version
+// fetch it drives is pinned and need not, so caching the fetch result verbatim
+// showed the addon as having a single version.
+func TestCacheVersionedUIDataKeepsAvailableVersions(t *testing.T) {
+	u := NewCache(nil)
+	stub := &registryStub{
+		list: []*UIData{{
+			Meta:              Meta{Name: "fluxcd", Version: "3.0.2"},
+			AvailableVersions: []string{"3.0.2", "3.0.1", "2.0.0"},
+		}},
+		perCall: func(name, version string) *UIData {
+			// A pinned fetch: no version list, matching ociRegistry.loadAddon.
+			return &UIData{Meta: Meta{Name: name, Version: version}}
+		},
+	}
+
+	u.cacheVersionedUIData("ecr", stub, stub.list)
+
+	cached := u.getCachedUIData(Registry{Name: "ecr", OCI: &OCIAddonSource{URL: "oci://reg/addon"}}, "fluxcd", "3.0.2")
+	require.NotNil(t, cached)
+	assert.Equal(t, []string{"3.0.2", "3.0.1", "2.0.0"}, cached.AvailableVersions)
+
+	latest := u.getCachedUIData(Registry{Name: "ecr", OCI: &OCIAddonSource{URL: "oci://reg/addon"}}, "fluxcd", "")
+	require.NotNil(t, latest)
+	assert.Equal(t, []string{"3.0.2", "3.0.1", "2.0.0"}, latest.AvailableVersions)
 }

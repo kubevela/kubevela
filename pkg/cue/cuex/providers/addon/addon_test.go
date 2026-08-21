@@ -23,9 +23,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 
 	"github.com/oam-dev/kubevela/pkg/addon/service/api"
+	"github.com/oam-dev/kubevela/pkg/features"
 )
+
+// enableAddonComponent turns the gate on for tests that exercise the happy path.
+// Feature gates default to false, and Render refuses outright when the gate is off.
+func enableAddonComponent(t *testing.T) {
+	t.Helper()
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate,
+		features.EnableAddonComponent, true)
+}
 
 type fakeRenderer struct {
 	req api.AddonRequest
@@ -39,6 +50,8 @@ func (f *fakeRenderer) RenderAddon(_ context.Context, req api.AddonRequest) (*ap
 }
 
 func TestRenderPassesThrough(t *testing.T) {
+	enableAddonComponent(t)
+
 	prev := api.DefaultRenderer()
 	t.Cleanup(func() { api.SetDefaultRenderer(prev) })
 
@@ -80,6 +93,8 @@ func TestRenderPassesThrough(t *testing.T) {
 }
 
 func TestRenderPropagatesError(t *testing.T) {
+	enableAddonComponent(t)
+
 	prev := api.DefaultRenderer()
 	t.Cleanup(func() { api.SetDefaultRenderer(prev) })
 
@@ -93,6 +108,8 @@ func TestRenderPropagatesError(t *testing.T) {
 }
 
 func TestRenderErrorsWhenRendererNil(t *testing.T) {
+	enableAddonComponent(t)
+
 	prev := api.DefaultRenderer()
 	t.Cleanup(func() { api.SetDefaultRenderer(prev) })
 
@@ -103,4 +120,24 @@ func TestRenderErrorsWhenRendererNil(t *testing.T) {
 	_, err := Render(context.Background(), params)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
+}
+
+func TestRenderIsRefusedWhenTheGateIsDisabled(t *testing.T) {
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate,
+		features.EnableAddonComponent, false)
+
+	prev := api.DefaultRenderer()
+	t.Cleanup(func() { api.SetDefaultRenderer(prev) })
+
+	// A working renderer is installed, so any failure here can only come from the gate.
+	fake := &fakeRenderer{res: &api.AddonResult{ResolvedVersion: "1.0.0"}}
+	api.SetDefaultRenderer(fake)
+
+	params := &RenderParams{}
+	params.Params = RenderVars{Addon: "velaux"}
+	_, err := Render(context.Background(), params)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EnableAddonComponent")
+	assert.Equal(t, api.AddonRequest{}, fake.req, "the renderer must not be reached when the gate is off")
 }

@@ -46,6 +46,21 @@ var (
 
 	// ErrFetch means fetch addon package error(package not exist or parse archive error and so on)
 	ErrFetch = NewAddonError("cannot fetch addon package")
+
+	// ErrOCICatalogAbsent means an OCI registry has no addon catalog to read yet:
+	// the portable catalog chart has never been pushed and the registry does not
+	// implement /v2/_catalog enumeration (ECR, for one). It is distinct from a
+	// catalog that exists but could not be read, so a push can bootstrap a fresh
+	// catalog without a transient read failure silently discarding the real one.
+	ErrOCICatalogAbsent = NewAddonError("OCI addon catalog does not exist")
+
+	// ErrVersionMismatch means the addon's SystemRequirements were positively
+	// evaluated and NOT met. It is deliberately distinct from the operational
+	// errors checkAddonVersionMeetRequired can also return (reading the vela-core
+	// image tag, querying the discovery API, parsing a malformed constraint), so
+	// callers such as the addon admission webhook can deny on a real mismatch and
+	// fail open on a lookup failure.
+	ErrVersionMismatch = NewAddonError("addon system requirement not met")
 )
 
 // WrapErrRateLimit return ErrRateLimit if is the situation, or return error directly

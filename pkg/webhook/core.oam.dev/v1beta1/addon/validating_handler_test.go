@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package application
+package addon
 
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,7 +38,7 @@ func rawProps(t *testing.T, m map[string]interface{}) *runtime.RawExtension {
 	return &runtime.RawExtension{Raw: b}
 }
 
-func TestValidateAddonComponents(t *testing.T) {
+func TestValidateComponents(t *testing.T) {
 	testCases := map[string]struct {
 		components   []common.ApplicationComponent
 		checker      func(calls *int) func(ctx context.Context, addon, version, registry string) *field.Error
@@ -47,7 +48,7 @@ func TestValidateAddonComponents(t *testing.T) {
 	}{
 		"compatible addon component produces no error": {
 			components: []common.ApplicationComponent{
-				{Name: "fluxcd", Type: addonComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "version": "1.0.0"})},
+				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "version": "1.0.0"})},
 			},
 			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
 				return func(_ context.Context, _, _, _ string) *field.Error { *calls++; return nil }
@@ -58,7 +59,7 @@ func TestValidateAddonComponents(t *testing.T) {
 		"incompatible addon component yields one field error on the properties path": {
 			components: []common.ApplicationComponent{
 				{Name: "webservice-comp", Type: "webservice"},
-				{Name: "fluxcd", Type: addonComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd"})},
+				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd"})},
 			},
 			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
 				return func(_ context.Context, _, _, _ string) *field.Error {
@@ -72,7 +73,7 @@ func TestValidateAddonComponents(t *testing.T) {
 		},
 		"skipVersionValidate short-circuits before the checker": {
 			components: []common.ApplicationComponent{
-				{Name: "fluxcd", Type: addonComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "skipVersionValidate": true})},
+				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "skipVersionValidate": true})},
 			},
 			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
 				return func(_ context.Context, _, _, _ string) *field.Error {
@@ -85,7 +86,7 @@ func TestValidateAddonComponents(t *testing.T) {
 		},
 		"fail-open checker (registry error) yields no denial": {
 			components: []common.ApplicationComponent{
-				{Name: "fluxcd", Type: addonComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd"})},
+				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd"})},
 			},
 			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
 				return func(_ context.Context, _, _, _ string) *field.Error { *calls++; return nil }
@@ -109,7 +110,7 @@ func TestValidateAddonComponents(t *testing.T) {
 		},
 		"addon name defaults to component name when addon field empty": {
 			components: []common.ApplicationComponent{
-				{Name: "velaux", Type: addonComponentType},
+				{Name: "velaux", Type: ComponentType},
 			},
 			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
 				return func(_ context.Context, addon, _, _ string) *field.Error {
@@ -128,10 +129,10 @@ func TestValidateAddonComponents(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			calls := 0
-			h := &ValidatingHandler{addonCompatChecker: tc.checker(&calls)}
+			h := &ValidatingHandler{compatChecker: tc.checker(&calls)}
 			app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: tc.components}}
 
-			errs := h.validateAddonComponents(context.Background(), app)
+			errs := h.ValidateComponents(context.Background(), app)
 
 			assert.Len(t, errs, tc.wantErrCount)
 			assert.Equal(t, tc.wantCalls, calls, "unexpected checker invocation count")
@@ -141,4 +142,30 @@ func TestValidateAddonComponents(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestWebhookPathMatchesChart guards the one drift that fails silently: if the route
+// the handler registers and the path the ValidatingWebhookConfiguration points at
+// disagree, the API server calls an unregistered path and the check never runs.
+//
+// It also asserts the webhook name appears in the caBundle-preservation lookup block.
+// An entry missing from that block renders with the placeholder caBundle on every
+// upgrade, which breaks admission rather than failing loudly at install.
+func TestWebhookPathMatchesChart(t *testing.T) {
+	const chart = "../../../../../charts/vela-core/templates/admission-webhooks/validatingWebhookConfiguration.yaml"
+
+	raw, err := os.ReadFile(chart)
+	require.NoError(t, err, "chart template must be readable from the test's working directory")
+	body := string(raw)
+
+	assert.Contains(t, body, "path: "+ValidationWebhookPath,
+		"the chart must point at the route RegisterValidatingHandler serves")
+
+	const webhookName = "validating.core.oam.dev.v1beta1.addoncomponents"
+	assert.Contains(t, body, "name: "+webhookName)
+	assert.Contains(t, body, `set $vals "addoncomponents"`,
+		"the webhook name must be in the caBundle-preservation lookup, or upgrades render a placeholder CA")
+
+	assert.Contains(t, body, ".Values.featureGates.enableAddonComponent",
+		"the entry must be gated so it is not installed when the feature is off")
 }

@@ -18,7 +18,6 @@ package application
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -31,32 +30,16 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/client-go/discovery"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
-
-// addonComponentType is the ComponentDefinition name used by the
-// addon-as-component feature (an Application component of this type installs an
-// addon).
-const addonComponentType = "addon"
-
-// addonComponentProperties is the subset of a type: addon component's properties
-// relevant to admission-time compatibility validation.
-type addonComponentProperties struct {
-	Addon               string `json:"addon"`
-	Version             string `json:"version"`
-	Registry            string `json:"registry"`
-	SkipVersionValidate bool   `json:"skipVersionValidate"`
-}
 
 // ValidateWorkflow validates the Application workflow
 func (h *ValidatingHandler) ValidateWorkflow(_ context.Context, app *v1beta1.Application) field.ErrorList {
@@ -110,14 +93,10 @@ func (in *appRevBypassCacheClient) Get(ctx context.Context, key client.ObjectKey
 
 // ValidateComponents validates the Application components
 func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1.Application) field.ErrorList {
-	var componentErrs field.ErrorList
-	// Addon-as-component compatibility is validated regardless of sharding, since
-	// it is a lightweight meta lookup and does not depend on generating an appfile.
-	componentErrs = append(componentErrs, h.validateAddonComponents(ctx, app)...)
-
 	if sharding.EnableSharding && !utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateComponentWhenSharding) {
-		return componentErrs
+		return nil
 	}
+	var componentErrs field.ErrorList
 	// try to generate an app file
 	cli := &appRevBypassCacheClient{Client: h.Client}
 	appParser := appfile.NewApplicationParser(cli)
@@ -135,116 +114,6 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, err.Error()))
 	}
 	return componentErrs
-}
-
-// validateAddonComponents rejects type: addon components whose addon is
-// incompatible with the current environment (its vela/kubernetes
-// SystemRequirements are not satisfied).
-//
-// It FAILS OPEN: any registry/resolve error (registry down, addon not found,
-// timeout, discovery-client build failure) results in no denial and is only
-// logged, so a registry outage never blocks Application applies. Admission is
-// denied only on a concrete compatibility mismatch. The render-time check in
-// pkg/addon/service remains the backstop for the fail-open case and for paths
-// that bypass the webhook.
-func (h *ValidatingHandler) validateAddonComponents(ctx context.Context, app *v1beta1.Application) field.ErrorList {
-	check := h.addonCompatChecker
-	if check == nil {
-		check = h.defaultAddonCompatChecker
-	}
-
-	var errs field.ErrorList
-	for i, comp := range app.Spec.Components {
-		if comp.Type != addonComponentType {
-			continue
-		}
-
-		props := addonComponentProperties{}
-		if comp.Properties != nil && len(comp.Properties.Raw) > 0 {
-			if err := json.Unmarshal(comp.Properties.Raw, &props); err != nil {
-				// Malformed properties are surfaced by CUE schema validation; skip
-				// the compatibility check rather than deny for a decode error.
-				klog.V(4).Infof("skip addon compatibility check for component %q: cannot decode properties: %v", comp.Name, err)
-				continue
-			}
-		}
-
-		if props.SkipVersionValidate {
-			continue
-		}
-
-		addonName := props.Addon
-		if addonName == "" {
-			// Matches the ComponentDefinition default: addon name falls back to the
-			// component name when the addon field is empty.
-			addonName = comp.Name
-		}
-
-		if fe := check(ctx, addonName, props.Version, props.Registry); fe != nil {
-			errs = append(errs, field.Invalid(
-				field.NewPath("spec", "components").Index(i).Child("properties"),
-				comp.Name, fe.Detail))
-		}
-	}
-	return errs
-}
-
-// defaultAddonCompatChecker is the production compatibility check. It resolves
-// the addon meta from the registry and validates its SystemRequirements. It
-// returns nil (allow) on any resolve/registry error (fail open) and returns a
-// non-nil *field.Error only on a concrete compatibility mismatch.
-func (h *ValidatingHandler) defaultAddonCompatChecker(ctx context.Context, addonName, version, registry string) *field.Error {
-	var registries []string
-	if registry != "" {
-		registries = []string{registry}
-	}
-
-	cli := singleton.KubeClient.Get()
-
-	pkgs, err := pkgaddon.FindAddonPackagesDetailFromRegistry(ctx, cli, []string{addonName}, registries)
-	if err != nil {
-		klog.Infof("skip addon %q compatibility check (fail-open): resolve from registry failed: %v", addonName, err)
-		return nil
-	}
-	if len(pkgs) == 0 {
-		klog.Infof("skip addon %q compatibility check (fail-open): addon not found in registries %v", addonName, registries)
-		return nil
-	}
-
-	// FindAddonPackagesDetailFromRegistry returns the latest version. When the
-	// component pins a specific version, validate that version's requirements
-	// instead of the latest, so a valid pin is not falsely rejected (and an
-	// incompatible pin is rejected at admission, not only at render time).
-	require := pkgs[0].InstallPackage.SystemRequirements
-	if version != "" && version != pkgs[0].InstallPackage.Version {
-		exact, err := pkgaddon.GetAddonInstallPackageFromRegistry(ctx, cli, pkgs[0].RegistryName, addonName, version)
-		if err != nil {
-			klog.Infof("skip addon %q version %q compatibility check (fail-open): resolve version failed: %v", addonName, version, err)
-			return nil
-		}
-		require = exact.SystemRequirements
-	}
-	if require == nil {
-		return nil
-	}
-
-	var dc *discovery.DiscoveryClient
-	if cfg := singleton.KubeConfig.Get(); cfg != nil {
-		d, err := discovery.NewDiscoveryClientForConfig(cfg)
-		if err != nil {
-			// Fail open on the kubernetes-version portion: without a discovery
-			// client ValidateSystemRequirements still checks the vela versions.
-			klog.Infof("addon %q kubernetes version check skipped (fail-open): build discovery client failed: %v", addonName, err)
-		} else {
-			dc = d
-		}
-	}
-
-	if err := pkgaddon.ValidateSystemRequirements(ctx, require, cli, dc); err != nil {
-		return field.Invalid(field.NewPath("spec", "components"), addonName,
-			fmt.Sprintf("addon %q is incompatible with the current environment: %v", addonName, err))
-	}
-	return nil
 }
 
 // checkDefinitionPermission checks if user has permission to access a definition in either system namespace or app namespace

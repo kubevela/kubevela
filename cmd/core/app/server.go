@@ -51,7 +51,7 @@ import (
 	"github.com/oam-dev/kubevela/cmd/core/app/hooks"
 	"github.com/oam-dev/kubevela/cmd/core/app/hooks/crdvalidation"
 	"github.com/oam-dev/kubevela/cmd/core/app/options"
-	_ "github.com/oam-dev/kubevela/pkg/addon/service" // register the addon CueX renderer
+	addonservice "github.com/oam-dev/kubevela/pkg/addon/service"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/cache"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
@@ -129,6 +129,15 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 	if err != nil {
 		klog.ErrorS(err, "Failed to configure Kubernetes client")
 		return fmt.Errorf("failed to configure Kubernetes client: %w", err)
+	}
+
+	// The vela/addon CueX provider is registered on the compilers unconditionally
+	// (the addon ComponentDefinition imports it and could not compile otherwise), but
+	// it only does anything once a renderer is installed. Wire that up here, after
+	// flags have been parsed, so it can be gated.
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableAddonComponent) {
+		addonservice.Register()
+		klog.InfoS("Addon-as-component enabled, registered the addon render service")
 	}
 
 	// Start profiling server

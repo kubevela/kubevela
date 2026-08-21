@@ -39,9 +39,6 @@ _x: addon.#Render & {$params: {addon: "x"}}
 `
 	_, err := compiler.CompileStringWithOptions(ctx, template, cuex.DisableResolveProviderFunctions{})
 	assert.NoError(t, err, "compiling a template importing vela/addon should not fail with functions disabled")
-	if err != nil {
-		assert.NotContains(t, err.Error(), `builtin package "vela/addon" undefined`)
-	}
 }
 
 // TestDefaultCompilerResolvesInternalPackages is a regression guard: registering
@@ -69,10 +66,12 @@ func TestDefaultCompilerResolvesInternalPackages(t *testing.T) {
 		t.Run(pkg, func(t *testing.T) {
 			template := fmt.Sprintf("import \"vela/%s\"\n_ref: %s\n", pkg, pkg)
 			_, err := compiler.CompileStringWithOptions(ctx, template, cuex.DisableResolveProviderFunctions{})
-			if err != nil {
-				assert.NotContains(t, err.Error(), fmt.Sprintf(`builtin package "vela/%s" undefined`, pkg),
-					"package vela/%s must be resolvable by DefaultCompiler", pkg)
-			}
+			// Assert success outright. Asserting only that the message lacks
+			// `builtin package undefined` made this a false green: any other
+			// failure -- a parse error, an unresolved reference, a reworded CUE
+			// message -- passed silently, which is exactly what this guard exists
+			// to catch.
+			assert.NoError(t, err, "package vela/%s must be resolvable by DefaultCompiler", pkg)
 		})
 	}
 }

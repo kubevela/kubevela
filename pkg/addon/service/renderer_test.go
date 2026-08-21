@@ -122,12 +122,22 @@ func TestRenderAddonDoesNotCacheLatest(t *testing.T) {
 func TestHashPropertiesStable(t *testing.T) {
 	a := map[string]interface{}{"b": 2, "a": 1, "nested": map[string]interface{}{"x": "y"}}
 	b := map[string]interface{}{"a": 1, "nested": map[string]interface{}{"x": "y"}, "b": 2}
-	assert.Equal(t, hashProperties(a), hashProperties(b), "same map (any order) must hash equally")
+	ha, okA := hashProperties(a)
+	hb, okB := hashProperties(b)
+	require.True(t, okA)
+	require.True(t, okB)
+	assert.Equal(t, ha, hb, "same map (any order) must hash equally")
 
 	c := map[string]interface{}{"a": 1, "b": 3}
-	assert.NotEqual(t, hashProperties(a), hashProperties(c), "different maps must hash differently")
+	hc, okC := hashProperties(c)
+	require.True(t, okC)
+	assert.NotEqual(t, ha, hc, "different maps must hash differently")
 
-	assert.Equal(t, hashProperties(nil), hashProperties(nil), "nil must hash stably")
+	hn1, ok1 := hashProperties(nil)
+	hn2, ok2 := hashProperties(nil)
+	require.True(t, ok1)
+	require.True(t, ok2)
+	assert.Equal(t, hn1, hn2, "nil must hash stably")
 }
 
 func TestSanitizeManifest(t *testing.T) {
@@ -458,7 +468,19 @@ func TestResolveAndRenderFinalizesApplication(t *testing.T) {
 	require.True(t, ok, "Application.spec must be a map[string]interface{}")
 	comps, ok := spec["components"].([]interface{})
 	require.True(t, ok, "spec.components must be a []interface{}")
-	assert.NotEmpty(t, comps)
+	// Name the components explicitly rather than asserting NotEmpty. This fixture's
+	// AppTemplate carries no components and no YAML/CUE templates, so the only
+	// component is the args Secret that RenderArgsSecret always emits; a bare
+	// NotEmpty would pass on that alone and assert nothing about the grouping.
+	compNames := make([]string, 0, len(comps))
+	for _, item := range comps {
+		comp, isMap := item.(map[string]interface{})
+		require.True(t, isMap, "each component must be a map[string]interface{}")
+		name, _ := comp["name"].(string)
+		compNames = append(compNames, name)
+		assert.Equal(t, "k8s-objects", comp["type"], "auxiliaries are wrapped as k8s-objects")
+	}
+	assert.Equal(t, []string{"addon-secret"}, compNames)
 
 	policies, ok := spec["policies"].([]interface{})
 	require.True(t, ok, "spec.policies must be a []interface{}")
@@ -471,4 +493,160 @@ func TestResolveAndRenderFinalizesApplication(t *testing.T) {
 		}
 	}
 	assert.True(t, foundDisabledApplyOnce, "resolveAndRender must disable implicit apply-once")
+}
+
+// TestAppendAuxComponentsAvoidsNameCollisions covers an addon whose own template
+// authors a component named like one of the fixed auxiliary categories. Emitting
+// the auxiliary under the same name would produce a duplicate component and fail
+// Application validation.
+func TestAppendAuxComponentsAvoidsNameCollisions(t *testing.T) {
+	obj := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "v1", "kind": "ConfigMap",
+		"metadata": map[string]interface{}{"name": "cm"},
+	}}
+
+	appMap := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"components": []interface{}{
+				map[string]interface{}{"name": "addon-definitions", "type": "k8s-objects"},
+				map[string]interface{}{"name": "addon-definitions-2", "type": "k8s-objects"},
+			},
+		},
+	}
+
+	appendAuxComponents(appMap, []auxComponent{{name: "addon-definitions", objects: []*unstructured.Unstructured{obj}}})
+
+	comps := appMap["spec"].(map[string]interface{})["components"].([]interface{})
+	names := make([]string, 0, len(comps))
+	seen := map[string]bool{}
+	for _, c := range comps {
+		name := c.(map[string]interface{})["name"].(string)
+		assert.False(t, seen[name], "duplicate component name %q", name)
+		seen[name] = true
+		names = append(names, name)
+	}
+	assert.Equal(t, []string{"addon-definitions", "addon-definitions-2", "addon-definitions-3"}, names,
+		"the auxiliary must skip past every name the addon already used")
+}
+
+// TestUniqueComponentName pins the suffixing behavior directly.
+func TestUniqueComponentName(t *testing.T) {
+	assert.Equal(t, "addon-views", uniqueComponentName("addon-views", map[string]bool{}))
+	assert.Equal(t, "addon-views-2", uniqueComponentName("addon-views", map[string]bool{"addon-views": true}))
+	assert.Equal(t, "addon-views-3", uniqueComponentName("addon-views",
+		map[string]bool{"addon-views": true, "addon-views-2": true}))
+}
+
+// TestUnhashablePropertiesBypassTheCache covers the collision the placeholder key
+// used to allow: two requests whose properties cannot be marshaled would share one
+// key and be served each other's render. Such requests must skip the cache instead.
+func TestUnhashablePropertiesBypassTheCache(t *testing.T) {
+	unhashable := map[string]interface{}{"fn": func() {}}
+
+	_, ok := hashProperties(unhashable)
+	assert.False(t, ok, "a non-marshalable map must not yield a usable hash")
+
+	_, cacheable := cacheKey(api.AddonRequest{Name: "a", Version: "1.0.0", Properties: unhashable})
+	assert.False(t, cacheable, "an unhashable request must not be cacheable")
+
+	// Two distinct unhashable requests must each get their own render rather than
+	// sharing one cache entry.
+	calls := 0
+	r := &rendererImpl{resolveFn: func(_ context.Context, req api.AddonRequest) (*api.AddonResult, error) {
+		calls++
+		return &api.AddonResult{ResolvedVersion: req.Version, Registry: fmt.Sprint(calls)}, nil
+	}}
+
+	first, err := r.RenderAddon(context.Background(), api.AddonRequest{
+		Name: "a", Version: "1.0.0", Properties: map[string]interface{}{"fn": func() {}, "x": 1},
+	})
+	require.NoError(t, err)
+	second, err := r.RenderAddon(context.Background(), api.AddonRequest{
+		Name: "a", Version: "1.0.0", Properties: map[string]interface{}{"fn": func() {}, "x": 2},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 2, calls, "each unhashable request must be resolved on its own")
+	assert.NotEqual(t, first.Registry, second.Registry, "the second request must not be served the first result")
+}
+
+// TestResolvePinnedVersionTriesEveryCandidateRegistry covers the two symptoms of
+// the old latest-first resolution: an addon present in several registries where
+// only a later one publishes the pin, and a pin that must not depend on the
+// latest release loading at all.
+func TestResolvePinnedVersionTriesEveryCandidateRegistry(t *testing.T) {
+	t.Run("falls through to the registry that has the version", func(t *testing.T) {
+		var tried []string
+		r := &rendererImpl{
+			fetchExactFn: func(_ context.Context, registryName, addonName, version string) (*pkgaddon.InstallPackage, error) {
+				tried = append(tried, registryName)
+				if registryName != "second" {
+					return nil, pkgaddon.ErrNotExist
+				}
+				return &pkgaddon.InstallPackage{Meta: pkgaddon.Meta{Name: addonName, Version: version}}, nil
+			},
+		}
+
+		pkg, reg, err := r.resolvePinnedVersion(context.Background(), "example", "2.0.0", []string{"first", "second"})
+		require.NoError(t, err)
+		assert.Equal(t, "second", reg)
+		assert.Equal(t, "2.0.0", pkg.Version)
+		assert.Equal(t, []string{"first", "second"}, tried, "every candidate must be tried in order")
+	})
+
+	t.Run("stops at the first registry that serves the pin", func(t *testing.T) {
+		var tried []string
+		r := &rendererImpl{
+			fetchExactFn: func(_ context.Context, registryName, addonName, version string) (*pkgaddon.InstallPackage, error) {
+				tried = append(tried, registryName)
+				return &pkgaddon.InstallPackage{Meta: pkgaddon.Meta{Name: addonName, Version: version}}, nil
+			},
+		}
+
+		_, reg, err := r.resolvePinnedVersion(context.Background(), "example", "1.0.0", []string{"first", "second"})
+		require.NoError(t, err)
+		assert.Equal(t, "first", reg)
+		assert.Equal(t, []string{"first"}, tried)
+	})
+
+	t.Run("reports every registry's reason when none has the pin", func(t *testing.T) {
+		r := &rendererImpl{
+			fetchExactFn: func(_ context.Context, registryName, _, _ string) (*pkgaddon.InstallPackage, error) {
+				return nil, fmt.Errorf("boom in %s", registryName)
+			},
+		}
+
+		_, _, err := r.resolvePinnedVersion(context.Background(), "example", "9.9.9", []string{"first", "second"})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "boom in first")
+		assert.Contains(t, err.Error(), "boom in second", "the error must not hide later registries' reasons")
+	})
+}
+
+// TestResolveAndRenderPinnedVersionDoesNotNeedLatest is the regression guard for
+// #25: a broken latest release must not block a valid pin, so the pinned path must
+// not consult the latest-package lookup at all.
+func TestResolveAndRenderPinnedVersionDoesNotNeedLatest(t *testing.T) {
+	latestCalls := 0
+	r := &rendererImpl{
+		cli: fakeClientWithRegistry(t),
+		findPackagesFn: func(context.Context, client.Client, []string, []string) ([]*pkgaddon.WholeAddonPackage, error) {
+			latestCalls++
+			return nil, fmt.Errorf("latest release is broken")
+		},
+		fetchExactFn: func(_ context.Context, registryName, addonName, version string) (*pkgaddon.InstallPackage, error) {
+			return &pkgaddon.InstallPackage{
+				Meta:        pkgaddon.Meta{Name: addonName, Version: version},
+				AppTemplate: &v1beta1.Application{},
+			}, nil
+		},
+	}
+
+	res, err := r.resolveAndRender(context.Background(), api.AddonRequest{
+		Name: "example", Version: "1.0.0", Registry: "fixture", SkipVersionValidate: true,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "1.0.0", res.ResolvedVersion)
+	assert.Equal(t, "fixture", res.Registry)
+	assert.Zero(t, latestCalls, "a pinned request must not depend on resolving latest")
 }

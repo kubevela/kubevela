@@ -43,11 +43,6 @@ type ValidatingHandler struct {
 	Client client.Client
 	// Decoder decodes objects
 	Decoder admission.Decoder
-	// addonCompatChecker is an injectable seam for the addon-as-component
-	// compatibility check. It returns nil to allow and a non-nil *field.Error
-	// (carrying the mismatch detail) to deny. When nil, defaultAddonCompatChecker
-	// is used. Unit tests inject a fake to stay hermetic (no live registry).
-	addonCompatChecker func(ctx context.Context, addon, version, registry string) *field.Error
 }
 
 func simplifyError(err error) error {

@@ -266,6 +266,9 @@ func getAddonRegistry(ctx context.Context, c common.Args, name string) error {
 	case registry.Git != nil:
 		table.AddRow("NAME", "Type", "ENDPOINT", "PATH")
 		table.AddRow(registry.Name, "Git", registry.Git.URL, registry.Git.Path)
+	case registry.OCI != nil:
+		table.AddRow("NAME", "Type", "ENDPOINT")
+		table.AddRow(registry.Name, "OCI", registry.OCI.URL)
 	default:
 		table.AddRow("Name")
 		table.AddRow(registry.Name)

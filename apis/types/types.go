@@ -168,7 +168,6 @@ var DefaultFilterAnnots = []string{
 	oam.AnnotationFilterLabelKeys,
 	oam.AnnotationFilterAnnotationKeys,
 	oam.AnnotationLastAppliedConfiguration,
-	oam.AnnotationLastAppliedConfig,
 }
 
 // ConfigType is the type of config

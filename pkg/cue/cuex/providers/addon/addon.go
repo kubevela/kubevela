@@ -26,8 +26,10 @@ import (
 	"github.com/kubevela/pkg/cue/cuex/providers"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/oam-dev/kubevela/pkg/addon/service/api"
+	"github.com/oam-dev/kubevela/pkg/features"
 )
 
 // ProviderName is the CUE #provider value.
@@ -60,6 +62,14 @@ type RenderReturns providers.Returns[ResultVars]
 
 // Render resolves and renders an addon via the injected render-only service.
 func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
+	// This package is registered on the compilers unconditionally, because the addon
+	// ComponentDefinition imports vela/addon and could not compile otherwise. The
+	// gate is therefore checked here rather than at registration. When it is off no
+	// renderer is wired up either, but the nil-renderer error below does not say what
+	// to do about it, so report the gate explicitly.
+	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableAddonComponent) {
+		return nil, fmt.Errorf("addon-as-component is disabled; enable the EnableAddonComponent feature gate to use type: addon components")
+	}
 	r := api.DefaultRenderer()
 	if r == nil {
 		return nil, fmt.Errorf("addon renderer not initialized")

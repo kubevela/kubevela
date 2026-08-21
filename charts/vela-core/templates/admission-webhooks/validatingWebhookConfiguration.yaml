@@ -2,13 +2,14 @@
 {{- /* Preserve existing caBundle on upgrade to avoid breaking admission if hooks fail. */}}
 {{- $vName := printf "%s-admission" (include "kubevela.fullname" .) -}}
 {{- $existing := (lookup "admissionregistration.k8s.io/v1" "ValidatingWebhookConfiguration" "" $vName) -}}
-{{- $vals := dict "traits" "" "apps" "" "comps" "" "policies" "" -}}
+{{- $vals := dict "traits" "" "apps" "" "comps" "" "policies" "" "addoncomponents" "" -}}
 {{- if $existing -}}
 {{- range $existing.webhooks -}}
 {{- if eq .name "validating.core.oam.dev.v1beta1.traitdefinitions" -}}{{- $_ := set $vals "traits" .clientConfig.caBundle -}}{{- end -}}
 {{- if eq .name "validating.core.oam.dev.v1beta1.applications" -}}{{- $_ := set $vals "apps" .clientConfig.caBundle -}}{{- end -}}
 {{- if eq .name "validating.core.oam-dev.v1beta1.componentdefinitions" -}}{{- $_ := set $vals "comps" .clientConfig.caBundle -}}{{- end -}}
 {{- if eq .name "validating.core.oam-dev.v1beta1.policydefinitions" -}}{{- $_ := set $vals "policies" .clientConfig.caBundle -}}{{- end -}}
+{{- if eq .name "validating.core.oam.dev.v1beta1.addoncomponents" -}}{{- $_ := set $vals "addoncomponents" .clientConfig.caBundle -}}{{- end -}}
 {{- end -}}
 {{- end -}}
 apiVersion: admissionregistration.k8s.io/v1
@@ -156,4 +157,63 @@ webhooks:
         resources:
           - workflowstepdefinitions
     timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
+{{- if .Values.featureGates.enableAddonComponent }}
+  {{- /*
+    Addon-as-component validation lives in its own webhook rather than inside the
+    shared applications validator, so that its failurePolicy can be reasoned about
+    independently and so it adds no admission work to Applications that have no
+    addon component. matchConditions is what makes the second condition true: the
+    API server evaluates the CEL locally and only forwards Applications carrying a
+    type: addon component. It is omitted below Kubernetes 1.28, where the field is
+    unknown and would be silently dropped; the webhook then sees every Application,
+    which costs an extra round trip but changes nothing about availability, since
+    the applications validator above already matches all of them.
+
+    KNOWN LIMITATION: on the default install path (admissionWebhooks.patch.enabled,
+    kube-webhook-certgen) matchConditions does NOT survive. The certgen job runs as a
+    post-install/post-upgrade hook and round-trips this whole object through a typed
+    client older than the field, so it is dropped every time. Verified on Kubernetes
+    1.31 against certgen v2.4.1 and v2.4.2; the API server itself accepts the field
+    when it is applied directly. Consequence when stripped: the webhook receives every
+    Application instead of only addon ones, which is one extra admission round trip per
+    Application apply and no change to the reconcile path. It survives when
+    admissionWebhooks.certManager.enabled=true, since cert-manager's ca-injector
+    patches only caBundle. Removing the block would make the default path no better and
+    the cert-manager path worse, so it stays.
+  */}}
+  - clientConfig:
+      caBundle: {{ default "Cg==" (get $vals "addoncomponents") }}
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validating-core-oam-dev-v1beta1-addon-components
+    {{- if .Values.admissionWebhooks.patch.enabled }}
+    failurePolicy: Ignore
+    {{- else }}
+    failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
+    {{- end }}
+    name: validating.core.oam.dev.v1beta1.addoncomponents
+    sideEffects: None
+    admissionReviewVersions:
+      - v1beta1
+      - v1
+    {{- if semverCompare ">=1.28-0" .Capabilities.KubeVersion.Version }}
+    matchConditions:
+      - name: has-addon-component
+        expression: >-
+          has(object.spec.components) && object.spec.components != null &&
+          object.spec.components.exists(c, has(c.type) && c.type == 'addon')
+    {{- end }}
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1beta1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - applications
+    timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
+{{- end }}
 {{- end -}}

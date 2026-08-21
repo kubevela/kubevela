@@ -35,6 +35,7 @@ import (
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	helmrepo "helm.sh/helm/v3/pkg/repo"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -265,12 +266,25 @@ func (p *PushCmd) pushOCI(ctx context.Context, source *OCIAddonSource) error {
 		return err
 	}
 	ref := repoRef + ":" + loadedChart.Metadata.Version
-	_, _ = fmt.Fprintf(p.Out, "Pushing %s to %s\n", filepath.Base(archivePath), ref)
+	// Out is optional: the existing Push API works with a zero-value PushCmd, so
+	// writing status must not panic when a caller left it unset.
+	if p.Out != nil {
+		_, _ = fmt.Fprintf(p.Out, "Pushing %s to %s\n", filepath.Base(archivePath), ref)
+	}
 	if _, err := ociClient.Push(archive, ref); err != nil {
 		return errors.Wrapf(err, "failed to push OCI addon %s", ref)
 	}
+	// The chart is published at this point. The portable catalog is a discovery
+	// convenience on top of that, and plenty of registries cannot support it (no
+	// /v2/_catalog, no tag listing, or no permission to push the catalog repo).
+	// Reporting a hard error here would tell the user their push failed when it
+	// did not, inviting a retry that publishes a duplicate. Warn instead.
 	if err := updateOCIAddonCatalog(ctx, ociClient, source, loadedChart.Metadata); err != nil {
-		return errors.Wrap(err, "addon was pushed, but the portable OCI catalog update failed")
+		klog.Warningf("addon %s:%s was pushed successfully, but the portable OCI catalog was not updated: %v",
+			loadedChart.Metadata.Name, loadedChart.Metadata.Version, err)
+		if p.Out != nil {
+			_, _ = fmt.Fprintf(p.Out, "Warning: %s was pushed, but the portable addon catalog was not updated: %v\n", ref, err)
+		}
 	}
 	return nil
 }

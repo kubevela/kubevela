@@ -63,7 +63,10 @@ func BuildVersionedRegistry(name, repoURL string, opts *common.HTTPOption) Versi
 
 // ToVersionedRegistry converts registry to versioned registry
 func ToVersionedRegistry(registry Registry) (VersionedRegistry, error) {
-	if IsOCIRegistry(registry) {
+	// Helm keeps precedence: a record carrying both blocks behaved as Helm before
+	// OCI support existed, and silently switching it to OCI would change where an
+	// existing registry resolves from.
+	if IsOCIRegistry(registry) && !IsVersionRegistry(registry) {
 		return BuildOCIRegistry(registry.Name, registry.OCI.URL, registry.OCI.Username, registry.OCI.Token), nil
 	}
 	if !IsVersionRegistry(registry) {

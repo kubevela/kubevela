@@ -641,3 +641,44 @@ func TestCreateOrUpdateTokenSecret(t *testing.T) {
 		})
 	}
 }
+
+// TestListRegistriesIsDeterministicallyOrdered pins the registry order callers
+// treat as a priority. The registries live in a JSON map inside a ConfigMap, so
+// iterating the decoded map hands out a randomly ordered slice, and
+// FindAddonPackagesDetailFromRegistry -- which takes the first registry holding
+// an addon -- would resolve a duplicated addon differently call to call.
+func TestListRegistriesIsDeterministicallyOrdered(t *testing.T) {
+	ctx := context.Background()
+	registries := map[string]Registry{}
+	for _, name := range []string{"zulu", "alpha", "mike", "bravo", "yankee"} {
+		registries[name] = Registry{
+			Name: name,
+			Helm: &HelmSource{URL: "https://" + name + ".example.com"},
+		}
+	}
+	registriesBytes, err := json.Marshal(registries)
+	assert.NoError(t, err)
+
+	cm := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      registryConfigMapName,
+			Namespace: velatypes.DefaultKubeVelaNS,
+		},
+		Data: map[string]string{registriesKey: string(registriesBytes)},
+	}
+	scheme := runtime.NewScheme()
+	assert.NoError(t, v1.AddToScheme(scheme))
+	ds := NewRegistryDataStore(fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build())
+
+	want := []string{"alpha", "bravo", "mike", "yankee", "zulu"}
+	// Repeat: one pass can match a random order by luck, five cannot.
+	for i := 0; i < 5; i++ {
+		listed, err := ds.ListRegistries(ctx)
+		assert.NoError(t, err)
+		var got []string
+		for _, r := range listed {
+			got = append(got, r.Name)
+		}
+		assert.Equal(t, want, got)
+	}
+}

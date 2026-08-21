@@ -26,7 +26,6 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // We have three addon layer here
@@ -98,7 +97,7 @@ func (u *Cache) GetUIData(r Registry, addonName, version string) (*UIData, error
 		return addon, nil
 	}
 	var err error
-	if !IsVersionRegistry(r) {
+	if !isVersionCapableRegistry(r) {
 		registryMeta, err := u.ListAddonMeta(r)
 		if err != nil {
 			return nil, err
@@ -112,11 +111,10 @@ func (u *Cache) GetUIData(r Registry, addonName, version string) (*UIData, error
 			return nil, err
 		}
 	} else {
-		versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
-			Username:        r.Helm.Username,
-			Password:        r.Helm.Password,
-			InsecureSkipTLS: r.Helm.InsecureSkipTLS,
-		})
+		versionedRegistry, buildErr := ToVersionedRegistry(r)
+		if buildErr != nil {
+			return nil, buildErr
+		}
 		addon, err = versionedRegistry.GetAddonUIData(context.Background(), addonName, version)
 		if err != nil {
 			klog.Errorf("fail to get addons from registry %s for cache updating, %v", utils.Sanitize(r.Name), err)
@@ -131,7 +129,7 @@ func (u *Cache) GetUIData(r Registry, addonName, version string) (*UIData, error
 func (u *Cache) ListUIData(r Registry) ([]*UIData, error) {
 	var err error
 	var listAddons []*UIData
-	if !IsVersionRegistry(r) {
+	if !isVersionCapableRegistry(r) {
 		listAddons = u.listCachedUIData(r.Name)
 		if listAddons != nil {
 			return listAddons, nil
@@ -155,7 +153,7 @@ func (u *Cache) ListUIData(r Registry) ([]*UIData, error) {
 }
 
 func (u *Cache) getCachedUIData(registry Registry, addonName, version string) *UIData {
-	if !IsVersionRegistry(registry) {
+	if !isVersionCapableRegistry(registry) {
 		addons := u.listCachedUIData(registry.Name)
 		for _, a := range addons {
 			if a.Name == addonName {
@@ -290,7 +288,7 @@ func (u *Cache) discoverAndRefreshRegistry() {
 	u.putRegistry2Cache(registries)
 
 	for _, r := range registries {
-		if !IsVersionRegistry(r) {
+		if !isVersionCapableRegistry(r) {
 			_, err = u.listUIDataAndCache(r)
 			if err != nil {
 				continue
@@ -321,20 +319,26 @@ func (u *Cache) listUIDataAndCache(r Registry) ([]*UIData, error) {
 }
 
 func (u *Cache) listVersionRegistryUIDataAndCache(r Registry) ([]*UIData, error) {
-	versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
-		Username:        r.Helm.Username,
-		Password:        r.Helm.Password,
-		InsecureSkipTLS: r.Helm.InsecureSkipTLS,
-	})
+	versionedRegistry, err := ToVersionedRegistry(r)
+	if err != nil {
+		return nil, err
+	}
 	uiDatas, err := versionedRegistry.ListAddon()
 	if err != nil {
 		klog.Errorf("fail to get addons from registry %s for cache updating, %v", r.Name, err)
 		return nil, err
 	}
+	u.cacheVersionedUIData(r.Name, versionedRegistry, uiDatas)
+	return uiDatas, nil
+}
+
+// cacheVersionedUIData fills the versioned cache from a registry listing and
+// drops entries for addons the listing no longer reports.
+func (u *Cache) cacheVersionedUIData(registryName string, versionedRegistry VersionedRegistry, uiDatas []*UIData) {
 	for _, addon := range uiDatas {
 		uiData, err := versionedRegistry.GetAddonUIData(context.Background(), addon.Name, addon.Version)
 		if err != nil {
-			klog.Errorf("fail to get addon from versioned registry %s, addon %s version %s for cache updating, %v", r.Name, addon.Name, addon.Version, err)
+			klog.Errorf("fail to get addon from versioned registry %s, addon %s version %s for cache updating, %v", registryName, addon.Name, addon.Version, err)
 			continue
 		}
 		// identity an addon from helm chart structure
@@ -342,12 +346,18 @@ func (u *Cache) listVersionRegistryUIDataAndCache(r Registry) ([]*UIData, error)
 			addon.Name = ""
 			continue
 		}
-		u.putVersionedUIData2Cache(r.Name, addon.Name, addon.Version, uiData)
+		// The listing knows every version; the per-version fetch above is pinned
+		// and so need not. Carry the list over rather than caching an entry that
+		// reports the addon as having only the version it was fetched at.
+		if len(uiData.AvailableVersions) == 0 {
+			uiData.AvailableVersions = addon.AvailableVersions
+		}
+		u.putVersionedUIData2Cache(registryName, addon.Name, addon.Version, uiData)
 		// we also no version key, if use get addonUIData without version will return this vale as latest data.
-		u.putVersionedUIData2Cache(r.Name, addon.Name, "latest", uiData)
+		u.putVersionedUIData2Cache(registryName, addon.Name, "latest", uiData)
 	}
 	// delete the addon which has been deleted from the addonRegistryCache
-	if addonUIData, ok := u.versionedUIData[r.Name]; ok {
+	if addonUIData, ok := u.versionedUIData[registryName]; ok {
 		for k := range addonUIData {
 			lastInd := strings.LastIndex(k, "-")
 			var needDelete = true
@@ -362,5 +372,13 @@ func (u *Cache) listVersionRegistryUIDataAndCache(r Registry) ([]*UIData, error)
 			}
 		}
 	}
-	return uiDatas, nil
+}
+
+// isVersionCapableRegistry reports whether a registry can serve multiple versions
+// of an addon and must therefore be read through a VersionedRegistry rather than
+// an AsyncReader. OCI registries qualify: BuildReader has no OCI branch, so
+// sending them down the non-versioned path fails with "registry don't have enough
+// info to build a reader". Registry.ListAddonInfo makes the same distinction.
+func isVersionCapableRegistry(r Registry) bool {
+	return IsVersionRegistry(r) || IsOCIRegistry(r)
 }

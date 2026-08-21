@@ -14,35 +14,34 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This suite is hermetic: it serves the "example" addon straight off disk from
-// the existing e2e/addon/mock/testdata fixture (the same fixture the
-// e2e/addon mock server uses) via an in-process httptest.Server (see
-// addon_mock_registry_test.go), and registers that server as an OSS-type addon
-// registry directly through the RegistryDataStore, in a BeforeEach/AfterEach
-// scoped to this Describe block. It does not depend on any externally started
-// process (e2e/addon/mock is a `package main` and cannot be imported, and
-// running it as a subprocess would reintroduce a process-lifetime dependency),
-// so there is no cross-step process-lifetime or ordering concern in CI, and it
-// does not reach any external registry.
+// This suite lives in e2e/addon-component so it runs as part of
+// `make e2e-api-test`'s `ginkgo -v -skipPackage capability,setup,application -r
+// e2e` (the "Run API e2e tests" step of .github/actions/e2e-test/action.yaml),
+// at the point in the CI pipeline where `make e2e-setup-core` has already
+// started the e2e/addon/mock server and pointed the real "KubeVela" addon
+// registry at it. That server's embedded testdata includes the "example"
+// addon this suite installs; e2e/addon/addon_test.go's `vela addon ls` output
+// in that same step lists "example ... KubeVela ..." successfully, confirming
+// the registry is live by the time suites in this step run.
 //
-//   - The registry is added under its own name (not "KubeVela") so this test
-//     never touches the chart-default "KubeVela" registry that other specs in
-//     this suite may rely on.
-//   - It installs the "example" addon (served by the mock registry): it is
-//     renderable (namespace + resources) and, being absent from the
-//     imperative pre-enable in the e2e setup, avoids a child-Application name
-//     collision on addon-<name>.
+// BeforeEach only sanity-checks that "KubeVela" resolves to a reachable OSS
+// endpoint before proceeding, failing fast with a clear message if not,
+// rather than trying to start or manage the mock server itself.
+//
+//   - It installs the "example" addon: it is renderable (namespace +
+//     resources) and, being absent from the imperative pre-enable in the e2e
+//     setup, avoids a child-Application name collision on addon-<name>.
 //   - "skipVersionValidate: true" is set on the component properties so the
 //     addon's SystemRequirements check does not fail when the controller's
 //     reported version cannot satisfy it; this mirrors the imperative
 //     "vela addon enable --skip-version-validating" escape hatch.
 
-package controllers_test
+package e2e
 
 import (
 	"context"
 	"fmt"
-	"net/http/httptest"
+	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -53,31 +52,28 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var _ = Describe("Addon as component e2e", func() {
+	args := common.Args{Schema: common.Scheme}
+	k8sClient, err := args.GetClient()
+	Expect(err).Should(BeNil())
+
 	ctx := context.Background()
-	var mockServer *httptest.Server
 
 	const (
 		systemNamespace = "vela-system"
 		// wrapping Application that declares the addon as a component.
 		wrappingAppName = "comp-example"
-		// addonRegistry is registered against an in-process mock OSS server in
-		// BeforeEach below (see addon_mock_registry_test.go), not the
-		// chart-default "KubeVela" registry, so this test never depends on or
-		// mutates that shared registry.
-		addonRegistry = "e2e-mock-oss"
-		// addonMockTestdataDir is the real e2e/addon/mock testdata fixture tree,
-		// served directly off disk by our own in-process mock OSS server; the
-		// addon lives at addonMockTestdataDir/addonName. Reusing this directory
-		// (rather than a copy) means there is only one "example" fixture to keep
-		// in sync.
-		addonMockTestdataDir = "../../e2e/addon/mock/testdata"
+		// addonRegistry is the real, chart-default registry that
+		// e2e/addon/mock's main() points at itself when it starts (see
+		// e2e/addon/mock/utils.ApplyMockServerConfig).
+		addonRegistry = "KubeVela"
 		// the addon's own name and the child Application RenderApp produces
 		// (RenderApp forces the name to addon-<name> in vela-system).
 		addonName    = "example"
@@ -100,7 +96,7 @@ var _ = Describe("Addon as component e2e", func() {
 				Namespace: systemNamespace,
 			},
 			Spec: v1beta1.ApplicationSpec{
-				Components: []common.ApplicationComponent{
+				Components: []oamcommon.ApplicationComponent{
 					{
 						Name: addonName,
 						Type: "addon",
@@ -115,19 +111,36 @@ var _ = Describe("Addon as component e2e", func() {
 	}
 
 	BeforeEach(func() {
-		By("Starting the in-process mock OSS addon server")
-		server, err := newMockOSSAddonServer(addonMockTestdataDir)
-		Expect(err).NotTo(HaveOccurred())
-		mockServer = server
-
-		By("Registering the mock server as an OSS addon registry")
-		registryDS := pkgaddon.NewRegistryDataStore(k8sClient)
-		Expect(registryDS.AddRegistry(ctx, pkgaddon.Registry{
-			Name: addonRegistry,
-			OSS: &pkgaddon.OSSAddonSource{
-				Endpoint: mockServer.URL,
-			},
-		})).To(Succeed())
+		By("Confirming the KubeVela addon registry resolves to a reachable mock server")
+		Eventually(func() error {
+			reg, err := pkgaddon.NewRegistryDataStore(k8sClient).GetRegistry(ctx, addonRegistry)
+			if err != nil {
+				return err
+			}
+			if reg.OSS == nil {
+				return fmt.Errorf("registry %q is not OSS-backed (got %+v); expected the e2e/addon/mock server", addonRegistry, reg)
+			}
+			// An explicit timeout matters here: Eventually cannot preempt a
+			// function that is already running, so a hung dial on the default
+			// client would block past the 30s deadline and stall the suite
+			// instead of failing it.
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, reg.OSS.Endpoint, nil)
+			if err != nil {
+				return err
+			}
+			resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+			if err != nil {
+				return fmt.Errorf("mock addon server at %q is not reachable: %w (has `make e2e-setup-core` run yet?)", reg.OSS.Endpoint, err)
+			}
+			defer resp.Body.Close()
+			// A completed connection is not a working server: without this the
+			// probe passes against anything that answers, including a 404 from an
+			// unrelated service on the port.
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("mock addon server at %q answered %s; expected 200", reg.OSS.Endpoint, resp.Status)
+			}
+			return nil
+		}, 30*time.Second, time.Second).Should(Succeed())
 	})
 
 	AfterEach(func() {
@@ -149,11 +162,6 @@ var _ = Describe("Addon as component e2e", func() {
 			}
 			return nil
 		}, waitTimeout, pollPeriod).Should(BeNil())
-
-		By("Removing the mock OSS addon registry and stopping its server")
-		registryDS := pkgaddon.NewRegistryDataStore(k8sClient)
-		Expect(registryDS.DeleteRegistry(ctx, addonRegistry)).To(Succeed())
-		mockServer.Close()
 	})
 
 	It("installs an addon declared as a component, tracks it, and heals its auxiliaries", func() {
@@ -169,8 +177,8 @@ var _ = Describe("Addon as component e2e", func() {
 			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: systemNamespace, Name: wrappingAppName}, wrapping); err != nil {
 				return err
 			}
-			if wrapping.Status.Phase != common.ApplicationRunning {
-				return fmt.Errorf("wrapping application phase is %q, want %q", wrapping.Status.Phase, common.ApplicationRunning)
+			if wrapping.Status.Phase != oamcommon.ApplicationRunning {
+				return fmt.Errorf("wrapping application phase is %q, want %q", wrapping.Status.Phase, oamcommon.ApplicationRunning)
 			}
 			return nil
 		}, waitTimeout, pollPeriod).Should(BeNil())
@@ -181,8 +189,8 @@ var _ = Describe("Addon as component e2e", func() {
 			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: systemNamespace, Name: childAppName}, childApp); err != nil {
 				return err
 			}
-			if childApp.Status.Phase != common.ApplicationRunning {
-				return fmt.Errorf("child application phase is %q, want %q", childApp.Status.Phase, common.ApplicationRunning)
+			if childApp.Status.Phase != oamcommon.ApplicationRunning {
+				return fmt.Errorf("child application phase is %q, want %q", childApp.Status.Phase, oamcommon.ApplicationRunning)
 			}
 			return nil
 		}, waitTimeout, pollPeriod).Should(BeNil())
@@ -242,3 +250,11 @@ var _ = Describe("Addon as component e2e", func() {
 		}, waitTimeout, pollPeriod).Should(BeNil())
 	})
 })
+
+// generateResourceTrackerKey builds the deterministic ResourceTracker name
+// KubeVela generates for a given Application revision: "<app>-v<rev>-<ns>".
+// Duplicated locally from test/e2e-test/app_resourcetracker_test.go, which is
+// a different package this suite no longer depends on.
+func generateResourceTrackerKey(namespace, appName string, revision int) types.NamespacedName {
+	return types.NamespacedName{Name: fmt.Sprintf("%s-v%d-%s", appName, revision, namespace)}
+}
