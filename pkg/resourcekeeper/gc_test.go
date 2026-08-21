@@ -446,6 +446,88 @@ func TestResourceKeeperGarbageCollectWithoutCurrentRT(t *testing.T) {
 	r.False(cmExists(cli))
 }
 
+func TestResourceKeeperGarbageCollectKeepsNewestMatchingHistoryRT(t *testing.T) {
+	MarkWithProbability = 1.0
+	r := require.New(t)
+	ctx := context.Background()
+
+	// two history RTs carry the same revision label after repeated spec flips;
+	// only the one with the highest application generation tracks the live
+	// resources and must be protected
+	setup := func() client.Client {
+		cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+		for _, tt := range []struct {
+			name string
+			gen  int64
+			cm   string
+		}{
+			{"app-v1-gen1", 1, "cm-old"},
+			{"app-v1-gen2", 2, "cm-new"},
+		} {
+			rt := &v1beta1.ResourceTracker{
+				ObjectMeta: metav1.ObjectMeta{Name: tt.name, Labels: map[string]string{
+					oam.LabelAppName:      "app",
+					oam.LabelAppNamespace: "default",
+					oam.LabelAppUID:       "uid",
+					oam.LabelAppRevision:  "app-v1",
+				}, Finalizers: []string{resourcetracker.Finalizer}},
+				Spec: v1beta1.ResourceTrackerSpec{
+					Type:                  v1beta1.ResourceTrackerTypeVersioned,
+					ApplicationGeneration: tt.gen,
+				},
+			}
+			r.NoError(cli.Create(ctx, rt))
+			cm := &unstructured.Unstructured{}
+			cm.SetName(tt.cm)
+			cm.SetNamespace("default")
+			cm.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
+			cm.SetLabels(map[string]string{
+				oam.LabelAppName:      "app",
+				oam.LabelAppNamespace: "default",
+			})
+			r.NoError(cli.Create(ctx, cm))
+			r.NoError(resourcetracker.RecordManifestsInResourceTracker(ctx, cli, rt, []*unstructured.Unstructured{cm}, true, false, ""))
+		}
+		return cli
+	}
+
+	gc := func(cli client.Client) (bool, error) {
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default", UID: "uid", Generation: 3},
+		}
+		app.Status.LatestRevision = &apicommon.Revision{Name: "app-v1"}
+		_rk, err := NewResourceKeeper(ctx, cli, app)
+		r.NoError(err)
+		finished, _, err := _rk.(*resourceKeeper).GarbageCollect(ctx)
+		return finished, err
+	}
+	exists := func(cli client.Client, name string) bool {
+		rt := &v1beta1.ResourceTracker{}
+		return cli.Get(ctx, client.ObjectKey{Name: name}, rt) == nil
+	}
+	cmExists := func(cli client.Client, name string) bool {
+		cm := &unstructured.Unstructured{}
+		cm.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
+		return cli.Get(ctx, client.ObjectKey{Namespace: "default", Name: name}, cm) == nil
+	}
+
+	cli := setup()
+	finished, err := gc(cli)
+	r.NoError(err)
+	r.False(finished)
+	// the newer matching RT and its resources are protected
+	r.True(exists(cli, "app-v1-gen2"))
+	r.True(cmExists(cli, "cm-new"))
+	// the older RT sharing the same revision label is recycled
+	r.False(cmExists(cli, "cm-old"))
+	finished, err = gc(cli)
+	r.NoError(err)
+	r.True(finished)
+	r.False(exists(cli, "app-v1-gen1"))
+	r.True(exists(cli, "app-v1-gen2"))
+	r.True(cmExists(cli, "cm-new"))
+}
+
 func TestUpdateSharedManagedResourceOwner(t *testing.T) {
 	ctx := context.Background()
 

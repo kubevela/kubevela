@@ -250,9 +250,19 @@ func (h *gcHandler) scan(ctx context.Context) (inactiveRTs []*v1beta1.ResourceTr
 			// and the newest historyRT of the current revision still tracks the live
 			// resources. Keep it instead of recycling live resources.
 			if h._currentRT == nil && h.app.Status.LatestRevision != nil {
+				// Multiple history RTs can carry the current revision label after
+				// repeated spec flips. Protect the one with the highest application
+				// generation (the same ordering used for currentRT selection) and
+				// never pick an RT that is already being deleted.
 				keep := -1
 				for i, rt := range inactiveRTs {
-					if rt != nil && rt.GetLabels()[oam.LabelAppRevision] == h.app.Status.LatestRevision.Name {
+					if rt == nil || rt.GetDeletionTimestamp() != nil {
+						continue
+					}
+					if rt.GetLabels()[oam.LabelAppRevision] != h.app.Status.LatestRevision.Name {
+						continue
+					}
+					if keep < 0 || rt.Spec.ApplicationGeneration > inactiveRTs[keep].Spec.ApplicationGeneration {
 						keep = i
 					}
 				}
