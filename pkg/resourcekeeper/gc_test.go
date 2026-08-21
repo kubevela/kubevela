@@ -349,6 +349,103 @@ func TestEnableMarkStageGCOnWorkflowFailure(t *testing.T) {
 	require.False(t, cfg.disableMark)
 }
 
+func TestResourceKeeperGarbageCollectWithoutCurrentRT(t *testing.T) {
+	MarkWithProbability = 1.0
+	r := require.New(t)
+	ctx := context.Background()
+
+	// app reconciled spec at generation 1, then a rapid A -> B -> A spec flip
+	// advanced the generation to 3 without a workflow restart, so no RT was
+	// created for generation 3 and the generation-1 RT became history while
+	// still tracking the live resources of the current revision.
+	setup := func() client.Client {
+		cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+		rt := &v1beta1.ResourceTracker{
+			ObjectMeta: metav1.ObjectMeta{Name: "app-v1", Labels: map[string]string{
+				oam.LabelAppName:      "app",
+				oam.LabelAppNamespace: "default",
+				oam.LabelAppUID:       "uid",
+				oam.LabelAppRevision:  "app-v1",
+			}, Finalizers: []string{resourcetracker.Finalizer}},
+			Spec: v1beta1.ResourceTrackerSpec{
+				Type:                  v1beta1.ResourceTrackerTypeVersioned,
+				ApplicationGeneration: 1,
+			},
+		}
+		r.NoError(cli.Create(ctx, rt))
+		cm := &unstructured.Unstructured{}
+		cm.SetName("cm-1")
+		cm.SetNamespace("default")
+		cm.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
+		cm.SetLabels(map[string]string{
+			oam.LabelAppName:      "app",
+			oam.LabelAppNamespace: "default",
+		})
+		r.NoError(cli.Create(ctx, cm))
+		r.NoError(resourcetracker.RecordManifestsInResourceTracker(ctx, cli, rt, []*unstructured.Unstructured{cm}, true, false, ""))
+		return cli
+	}
+
+	gc := func(cli client.Client, latestRevision string) (bool, error) {
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default", UID: "uid", Generation: 3},
+		}
+		if latestRevision != "" {
+			app.Status.LatestRevision = &apicommon.Revision{Name: latestRevision}
+		}
+		_rk, err := NewResourceKeeper(ctx, cli, app)
+		r.NoError(err)
+		finished, _, err := _rk.(*resourceKeeper).GarbageCollect(ctx)
+		return finished, err
+	}
+	rtExists := func(cli client.Client) (*v1beta1.ResourceTracker, bool) {
+		rt := &v1beta1.ResourceTracker{}
+		err := cli.Get(ctx, client.ObjectKey{Namespace: "", Name: "app-v1"}, rt)
+		return rt, err == nil
+	}
+	cmExists := func(cli client.Client) bool {
+		cm := &unstructured.Unstructured{}
+		cm.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
+		return cli.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cm-1"}, cm) == nil
+	}
+
+	// the history RT of the current revision is kept along with its resources
+	cli := setup()
+	finished, err := gc(cli, "app-v1")
+	r.NoError(err)
+	r.True(finished)
+	rt, ok := rtExists(cli)
+	r.True(ok)
+	r.Nil(rt.GetDeletionTimestamp())
+	r.True(cmExists(cli))
+	finished, err = gc(cli, "app-v1")
+	r.NoError(err)
+	r.True(finished)
+	_, ok = rtExists(cli)
+	r.True(ok)
+	r.True(cmExists(cli))
+
+	// a history RT of an outdated revision is still collected when no
+	// current RT exists (e.g. all components removed from the spec)
+	cli = setup()
+	finished, err = gc(cli, "app-v2")
+	r.NoError(err)
+	r.False(finished)
+	r.False(cmExists(cli))
+	finished, err = gc(cli, "app-v2")
+	r.NoError(err)
+	r.True(finished)
+	_, ok = rtExists(cli)
+	r.False(ok)
+
+	// no revision recorded at all: keep the previous behavior
+	cli = setup()
+	finished, err = gc(cli, "")
+	r.NoError(err)
+	r.False(finished)
+	r.False(cmExists(cli))
+}
+
 func TestUpdateSharedManagedResourceOwner(t *testing.T) {
 	ctx := context.Background()
 
