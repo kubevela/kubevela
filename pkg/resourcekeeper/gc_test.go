@@ -451,18 +451,25 @@ func TestResourceKeeperGarbageCollectKeepsNewestMatchingHistoryRT(t *testing.T) 
 	r := require.New(t)
 	ctx := context.Background()
 
-	// two history RTs carry the same revision label after repeated spec flips;
-	// only the one with the highest application generation tracks the live
-	// resources and must be protected
+	// history RTs carry the same revision label after repeated spec flips.
+	// The newest live one tracks the live resources and must be protected,
+	// while an older RT and an RT that is already being deleted must be
+	// recycled. historyRTs come back sorted by application generation
+	// ascending (SortResourceTrackersByVersion), so slice order always agrees
+	// with generation order here: the deleting RT is what discriminates the
+	// fix from the old keep-the-last-matching logic, which would protect
+	// app-v1-gen3 and recycle the live cm-new instead.
 	setup := func() client.Client {
 		cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
 		for _, tt := range []struct {
-			name string
-			gen  int64
-			cm   string
+			name     string
+			gen      int64
+			cm       string
+			deleting bool
 		}{
-			{"app-v1-gen1", 1, "cm-old"},
-			{"app-v1-gen2", 2, "cm-new"},
+			{"app-v1-gen1", 1, "cm-old", false},
+			{"app-v1-gen2", 2, "cm-new", false},
+			{"app-v1-gen3", 3, "cm-dying", true},
 		} {
 			rt := &v1beta1.ResourceTracker{
 				ObjectMeta: metav1.ObjectMeta{Name: tt.name, Labels: map[string]string{
@@ -487,13 +494,18 @@ func TestResourceKeeperGarbageCollectKeepsNewestMatchingHistoryRT(t *testing.T) 
 			})
 			r.NoError(cli.Create(ctx, cm))
 			r.NoError(resourcetracker.RecordManifestsInResourceTracker(ctx, cli, rt, []*unstructured.Unstructured{cm}, true, false, ""))
+			if tt.deleting {
+				// the finalizer keeps the RT around with a deletion timestamp,
+				// as after a previous GC round already marked it
+				r.NoError(cli.Delete(ctx, rt))
+			}
 		}
 		return cli
 	}
 
 	gc := func(cli client.Client) (bool, error) {
 		app := &v1beta1.Application{
-			ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default", UID: "uid", Generation: 3},
+			ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default", UID: "uid", Generation: 4},
 		}
 		app.Status.LatestRevision = &apicommon.Revision{Name: "app-v1"}
 		_rk, err := NewResourceKeeper(ctx, cli, app)
@@ -515,15 +527,18 @@ func TestResourceKeeperGarbageCollectKeepsNewestMatchingHistoryRT(t *testing.T) 
 	finished, err := gc(cli)
 	r.NoError(err)
 	r.False(finished)
-	// the newer matching RT and its resources are protected
+	// the newest live matching RT and its resources are protected
 	r.True(exists(cli, "app-v1-gen2"))
 	r.True(cmExists(cli, "cm-new"))
 	// the older RT sharing the same revision label is recycled
 	r.False(cmExists(cli, "cm-old"))
+	// the RT already being deleted is not protected either
+	r.False(cmExists(cli, "cm-dying"))
 	finished, err = gc(cli)
 	r.NoError(err)
 	r.True(finished)
 	r.False(exists(cli, "app-v1-gen1"))
+	r.False(exists(cli, "app-v1-gen3"))
 	r.True(exists(cli, "app-v1-gen2"))
 	r.True(cmExists(cli, "cm-new"))
 }
