@@ -32,13 +32,16 @@ func resolveRoot(root string) string {
 	return root
 }
 
-// sanitizeIdent keeps only ASCII alphanumerics, yielding a valid CUE identifier fragment.
+// sanitizeIdent maps s to a valid CUE identifier fragment. Alphanumerics pass through; other bytes become "_"+hex.
 func sanitizeIdent(s string) string {
 	var b strings.Builder
-	for _, r := range s {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+			b.WriteByte(c)
+			continue
 		}
+		fmt.Fprintf(&b, "_%02x", c)
 	}
 	return b.String()
 }
@@ -491,7 +494,8 @@ func (e *EveryExpr) itemsVar() string {
 
 func (e *EveryExpr) Preamble() string {
 	// Built-in =~, not strings.HasPrefix: health CUE compiles without imports. QuoteMeta makes the anchored prefix a literal match.
-	return fmt.Sprintf(`%s: [ for k, v in context.outputs if k =~ %q { v } ]`,
+	// (*context.outputs | {}) defaults a missing outputs map to empty; getTemplateContext omits it when there are no auxiliary outputs.
+	return fmt.Sprintf(`%s: [ for k, v in (*context.outputs | {}) if k =~ %q { v } ]`,
 		e.itemsVar(), "^"+regexp.QuoteMeta(e.prefix))
 }
 

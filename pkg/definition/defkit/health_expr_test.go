@@ -594,7 +594,7 @@ func TestEveryGolden(t *testing.T) {
 		return item.Condition("Ready").IsTrue()
 	})
 	policy := HealthPolicy(expr)
-	expected := "_accessPointItems: [ for k, v in context.outputs if k =~ \"^accessPoint\" { v } ]\n" +
+	expected := "_accessPointItems: [ for k, v in (*context.outputs | {}) if k =~ \"^accessPoint\" { v } ]\n" +
 		"isHealth: len(_accessPointItems) > 0 && len([ for _accessPointItem in _accessPointItems " +
 		"if len([ for c in *_accessPointItem.status.conditions | [] if c.type != _|_ if c.type == \"Ready\" " +
 		"if c.status != _|_ if c.status == \"True\" { c } ]) > 0 { _accessPointItem } ]) == len(_accessPointItems)"
@@ -609,7 +609,7 @@ func TestEveryPrefixPreamble(t *testing.T) {
 		return item.Exists("status.id")
 	})
 	preamble := expr.Preamble()
-	expected := `_accessPointItems: [ for k, v in context.outputs if k =~ "^accessPoint" { v } ]`
+	expected := `_accessPointItems: [ for k, v in (*context.outputs | {}) if k =~ "^accessPoint" { v } ]`
 	if preamble != expected {
 		t.Errorf("got %q, want %q", preamble, expected)
 	}
@@ -844,10 +844,6 @@ func TestConditionReasonEvaluates(t *testing.T) {
 	}
 }
 
-// TestEveryPrefixQuoteMetaEvaluates proves QuoteMeta makes the prefix a LITERAL
-// match: the decoy output "axb1" would match an unescaped "^a.b" regex (dot as
-// wildcard) but must NOT match the escaped "^a\.b". With QuoteMeta the match set
-// is empty, so AllowEmpty => healthy; without it, "axb1" (no status.id) => false.
 func TestEveryPrefixQuoteMetaEvaluates(t *testing.T) {
 	h := Health()
 	policy := HealthPolicy(
@@ -864,6 +860,56 @@ func TestEveryPrefixQuoteMetaEvaluates(t *testing.T) {
 	}
 	if !got {
 		t.Errorf("expected healthy=true (decoy axb1 must not match literal ^a\\.b), got false\npolicy:\n%s", policy)
+	}
+}
+
+func TestEveryNoOutputsContext(t *testing.T) {
+	h := Health()
+	item := func(item *HealthScope) HealthExpression { return item.Condition("Ready").IsTrue() }
+	allowEmpty := HealthPolicy(h.Every(OutputsWithPrefix("replica"), item).AllowEmpty())
+	required := HealthPolicy(h.Every(OutputsWithPrefix("replica"), item))
+
+	// No "outputs" key: mirrors getTemplateContext when a component has no auxiliary outputs.
+	ctx := map[string]interface{}{"output": readyObj()}
+
+	got, err := health.CheckHealth(ctx, allowEmpty, nil)
+	if err != nil {
+		t.Fatalf("AllowEmpty errored with no outputs in context: %v\npolicy:\n%s", err, allowEmpty)
+	}
+	if !got {
+		t.Errorf("AllowEmpty with no outputs should be healthy, got false\npolicy:\n%s", allowEmpty)
+	}
+
+	got, err = health.CheckHealth(ctx, required, nil)
+	if err != nil {
+		t.Fatalf("required Every errored with no outputs in context: %v\npolicy:\n%s", err, required)
+	}
+	if got {
+		t.Errorf("required Every with no outputs should be unhealthy, got true\npolicy:\n%s", required)
+	}
+}
+
+func TestEveryPrefixNoNameCollision(t *testing.T) {
+	h := Health()
+	exists := func(item *HealthScope) HealthExpression { return item.Exists("status.id") }
+	dash := h.Every(OutputsWithPrefix("foo-bar"), exists)
+	plain := h.Every(OutputsWithPrefix("foobar"), exists)
+
+	if dash.itemsVar() == plain.itemsVar() {
+		t.Fatalf("prefixes foo-bar and foobar collided on helper var %q", dash.itemsVar())
+	}
+
+	policy := HealthPolicy(h.And(dash, plain))
+	ctx := map[string]interface{}{"outputs": map[string]interface{}{
+		"foo-bar1": map[string]interface{}{"status": map[string]interface{}{"id": "a"}},
+		"foobar1":  map[string]interface{}{"status": map[string]interface{}{"id": "b"}},
+	}}
+	got, err := health.CheckHealth(ctx, policy, nil)
+	if err != nil {
+		t.Fatalf("colliding-prefix policy errored: %v\npolicy:\n%s", err, policy)
+	}
+	if !got {
+		t.Errorf("expected healthy=true, got false\npolicy:\n%s", policy)
 	}
 }
 
