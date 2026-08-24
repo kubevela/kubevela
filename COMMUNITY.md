@@ -36,3 +36,4 @@ for the Reviewer, Approver, and Maintainer ladder.
 ## Code of Conduct
 
 KubeVela follows the CNCF Code of Conduct. See [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
+

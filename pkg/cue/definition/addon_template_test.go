@@ -139,9 +139,10 @@ func TestAddonComponentDefinitionRenders(t *testing.T) {
 
 	wt := NewWorkloadAbstractEngine("addon")
 	err := wt.Complete(ctx, abstractTemplate, map[string]interface{}{
-		"addon":      "example",
-		"version":    "1.0.0",
-		"properties": map[string]interface{}{"foo": "bar"},
+		"addon":                 "example",
+		"version":               "1.0.0",
+		"properties":            map[string]interface{}{"foo": "bar"},
+		"skipVersionValidation": true,
 	})
 	require.NoError(t, err)
 
@@ -149,6 +150,7 @@ func TestAddonComponentDefinitionRenders(t *testing.T) {
 	assert.Equal(t, "example", fake.req.Name)
 	assert.Equal(t, "1.0.0", fake.req.Version)
 	assert.Equal(t, map[string]interface{}{"foo": "bar"}, fake.req.Properties)
+	assert.True(t, fake.req.SkipVersionValidate)
 
 	base, assists := ctx.Output()
 	require.NotNil(t, base)

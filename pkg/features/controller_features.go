@@ -142,9 +142,10 @@ const (
 	// EnableAddonComponent enables installing an addon as an Application component via the
 	// type: addon ComponentDefinition. The ComponentDefinition and its vela/addon CueX
 	// package always ship, because the definition cannot compile without the package; this
-	// gate controls whether the render service is wired up and whether the addon admission
-	// webhook is registered. When disabled, nothing addon-specific runs and an Application
-	// using type: addon fails at render with an actionable message.
+	// gate controls whether the render service is wired up and whether the shared Application
+	// webhook runs its addon-specific compatibility-validation branch. The shared Application
+	// webhook is always registered. When disabled, nothing addon-specific runs and an
+	// Application using type: addon fails at render with an actionable message.
 	EnableAddonComponent featuregate.Feature = "EnableAddonComponent"
 )
 

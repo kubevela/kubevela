@@ -19,7 +19,6 @@ package addon
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -84,7 +83,20 @@ func TestValidateComponents(t *testing.T) {
 			wantErrCount: 0,
 			wantCalls:    0,
 		},
-		"fail-open checker (registry error) yields no denial": {
+		"malformed properties skip compatibility validation": {
+			components: []common.ApplicationComponent{
+				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": map[string]interface{}{"not": "a string"}})},
+			},
+			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
+				return func(_ context.Context, _, _, _ string) *field.Error {
+					*calls++
+					return field.Invalid(field.NewPath("x"), "fluxcd", "should never be reached")
+				}
+			},
+			wantErrCount: 0,
+			wantCalls:    0,
+		},
+		"fail-open checker registry error yields no denial": {
 			components: []common.ApplicationComponent{
 				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd"})},
 			},
@@ -124,15 +136,26 @@ func TestValidateComponents(t *testing.T) {
 			wantErrCount: 0,
 			wantCalls:    1,
 		},
+		"multiple addon components are checked independently": {
+			components: []common.ApplicationComponent{
+				{Name: "first", Type: ComponentType},
+				{Name: "second", Type: ComponentType},
+			},
+			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
+				return func(_ context.Context, _, _, _ string) *field.Error { *calls++; return nil }
+			},
+			wantErrCount: 0,
+			wantCalls:    2,
+		},
 	}
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			calls := 0
-			h := &ValidatingHandler{compatChecker: tc.checker(&calls)}
+			validator := &Validator{compatChecker: tc.checker(&calls)}
 			app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: tc.components}}
 
-			errs := h.ValidateComponents(context.Background(), app)
+			errs := validator.ValidateComponents(context.Background(), app)
 
 			assert.Len(t, errs, tc.wantErrCount)
 			assert.Equal(t, tc.wantCalls, calls, "unexpected checker invocation count")
@@ -144,28 +167,24 @@ func TestValidateComponents(t *testing.T) {
 	}
 }
 
-// TestWebhookPathMatchesChart guards the one drift that fails silently: if the route
-// the handler registers and the path the ValidatingWebhookConfiguration points at
-// disagree, the API server calls an unregistered path and the check never runs.
-//
-// It also asserts the webhook name appears in the caBundle-preservation lookup block.
-// An entry missing from that block renders with the placeholder caBundle on every
-// upgrade, which breaks admission rather than failing loudly at install.
-func TestWebhookPathMatchesChart(t *testing.T) {
-	const chart = "../../../../../charts/vela-core/templates/admission-webhooks/validatingWebhookConfiguration.yaml"
+func TestValidateComponentsForwardsProperties(t *testing.T) {
+	calls := 0
+	validator := &Validator{compatChecker: func(_ context.Context, addonName, version, registry string) *field.Error {
+		calls++
+		assert.Equal(t, "fluxcd", addonName)
+		assert.Equal(t, "2.0.0", version)
+		assert.Equal(t, "KubeVela", registry)
+		return field.Invalid(field.NewPath("requirements"), addonName, "incompatible")
+	}}
+	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
+		{Name: "api", Type: "webservice"},
+		{Name: "installer", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{
+			"addon": "fluxcd", "version": "2.0.0", "registry": "KubeVela",
+		})},
+	}}}
 
-	raw, err := os.ReadFile(chart)
-	require.NoError(t, err, "chart template must be readable from the test's working directory")
-	body := string(raw)
-
-	assert.Contains(t, body, "path: "+ValidationWebhookPath,
-		"the chart must point at the route RegisterValidatingHandler serves")
-
-	const webhookName = "validating.core.oam.dev.v1beta1.addoncomponents"
-	assert.Contains(t, body, "name: "+webhookName)
-	assert.Contains(t, body, `set $vals "addoncomponents"`,
-		"the webhook name must be in the caBundle-preservation lookup, or upgrades render a placeholder CA")
-
-	assert.Contains(t, body, ".Values.featureGates.enableAddonComponent",
-		"the entry must be gated so it is not installed when the feature is off")
+	errs := validator.ValidateComponents(context.Background(), app)
+	require.Len(t, errs, 1)
+	assert.Equal(t, 1, calls)
+	assert.Equal(t, "spec.components[1].properties", errs[0].Field)
 }

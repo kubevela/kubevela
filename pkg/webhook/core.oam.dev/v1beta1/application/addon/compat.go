@@ -24,16 +24,20 @@ import (
 	"github.com/kubevela/pkg/util/singleton"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/discovery"
-	"k8s.io/klog/v2"
 
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
+	"github.com/oam-dev/kubevela/pkg/logging"
 )
 
 // defaultCompatChecker is the production compatibility check. It resolves the addon
 // meta from the registry and validates its SystemRequirements. It returns nil to
 // allow on any resolve or registry error (fail open) and a non-nil *field.Error only
 // on a concrete compatibility mismatch.
-func (h *ValidatingHandler) defaultCompatChecker(ctx context.Context, addonName, version, registry string) *field.Error {
+func defaultCompatChecker(ctx context.Context, addonName, version, registry string) *field.Error {
+	logger := logging.WithContext(ctx).
+		WithStep("validate-addon-compatibility").
+		WithValues("addon", addonName, "version", version, "registry", registry)
+
 	var registries []string
 	if registry != "" {
 		registries = []string{registry}
@@ -43,11 +47,11 @@ func (h *ValidatingHandler) defaultCompatChecker(ctx context.Context, addonName,
 
 	pkgs, err := pkgaddon.FindAddonPackagesDetailFromRegistry(ctx, cli, []string{addonName}, registries)
 	if err != nil {
-		klog.Infof("skip addon %q compatibility check (fail-open): resolve from registry failed: %v", addonName, err)
+		logger.Info("Skipping addon compatibility validation", "reason", "registry-resolution-failed", "error", err)
 		return nil
 	}
 	if len(pkgs) == 0 {
-		klog.Infof("skip addon %q compatibility check (fail-open): addon not found in registries %v", addonName, registries)
+		logger.Info("Skipping addon compatibility validation", "reason", "addon-not-found")
 		return nil
 	}
 
@@ -59,7 +63,7 @@ func (h *ValidatingHandler) defaultCompatChecker(ctx context.Context, addonName,
 	if version != "" && version != pkgs[0].InstallPackage.Version {
 		exact, err := pkgaddon.GetAddonInstallPackageFromRegistry(ctx, cli, pkgs[0].RegistryName, addonName, version)
 		if err != nil {
-			klog.Infof("skip addon %q version %q compatibility check (fail-open): resolve version failed: %v", addonName, version, err)
+			logger.Info("Skipping addon compatibility validation", "reason", "version-resolution-failed", "error", err)
 			return nil
 		}
 		require = exact.SystemRequirements
@@ -74,7 +78,7 @@ func (h *ValidatingHandler) defaultCompatChecker(ctx context.Context, addonName,
 		if err != nil {
 			// Fail open on the kubernetes-version portion: without a discovery client
 			// ValidateSystemRequirements still checks the vela versions.
-			klog.Infof("addon %q kubernetes version check skipped (fail-open): build discovery client failed: %v", addonName, err)
+			logger.Info("Skipping addon Kubernetes compatibility validation", "reason", "discovery-client-failed", "error", err)
 		} else {
 			dc = d
 		}
@@ -88,7 +92,7 @@ func (h *ValidatingHandler) defaultCompatChecker(ctx context.Context, addonName,
 		// a reason to deny; denying on the latter would let an API blip block
 		// applies, and this webhook runs with failurePolicy: Fail.
 		if !errors.Is(err, pkgaddon.ErrVersionMismatch) {
-			klog.Infof("skip addon %q compatibility check (fail-open): requirement lookup failed: %v", addonName, err)
+			logger.Info("Skipping addon compatibility validation", "reason", "requirement-lookup-failed", "error", err)
 			return nil
 		}
 		return field.Invalid(field.NewPath("spec", "components"), addonName,

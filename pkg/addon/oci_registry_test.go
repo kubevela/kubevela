@@ -26,10 +26,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
-
-	"github.com/pkg/errors"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/chart"
@@ -160,6 +159,69 @@ func TestDecodeOCIAddonCatalog(t *testing.T) {
 	// versioned UIData by it, so an empty value writes a dead "<name>-" entry.
 	assert.Equal(t, "3.0.2", addons[0].Version)
 	assert.Equal(t, "1.0.0", addons[1].Version)
+}
+
+func TestDecodeOCIAddonCatalogErrors(t *testing.T) {
+	buildArchive := func(t *testing.T, fileName string, fileData []byte) []byte {
+		t.Helper()
+		tmp := t.TempDir()
+		archivePath, err := chartutil.Save(&chart.Chart{
+			Metadata: &chart.Metadata{
+				APIVersion: chart.APIVersionV2,
+				Name:       ociCatalogChartName,
+				Version:    "1.0.0",
+			},
+			Files: []*chart.File{{Name: fileName, Data: fileData}},
+		}, tmp)
+		require.NoError(t, err)
+		archive, err := os.ReadFile(filepath.Clean(archivePath))
+		require.NoError(t, err)
+		return archive
+	}
+
+	t.Run("archive decode failure", func(t *testing.T) {
+		_, err := decodeOCIAddonCatalog([]byte("not-a-chart-archive"))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to load portable OCI addon catalog archive")
+	})
+
+	t.Run("missing catalog file", func(t *testing.T) {
+		archive := buildArchive(t, "README.md", []byte("no catalog here"))
+		_, err := decodeOCIAddonCatalog(archive)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "does not contain "+ociCatalogFileName)
+	})
+
+	t.Run("invalid catalog JSON", func(t *testing.T) {
+		archive := buildArchive(t, ociCatalogFileName, []byte("{"))
+		_, err := decodeOCIAddonCatalog(archive)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to decode portable OCI addon catalog")
+	})
+
+	t.Run("unsupported api version", func(t *testing.T) {
+		catalogData, err := json.Marshal(OCIAddonCatalog{APIVersion: "addons.kubevela.io/v9", Addons: nil})
+		require.NoError(t, err)
+		archive := buildArchive(t, ociCatalogFileName, catalogData)
+		_, err = decodeOCIAddonCatalog(archive)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported OCI addon catalog API version")
+	})
+
+	t.Run("addon entry without a name", func(t *testing.T) {
+		catalogData, err := json.Marshal(OCIAddonCatalog{
+			APIVersion: ociCatalogAPIVersion,
+			Addons: []OCIAddonCatalogEntry{{
+				Name:     "   ",
+				Versions: []string{"1.0.0"},
+			}},
+		})
+		require.NoError(t, err)
+		archive := buildArchive(t, ociCatalogFileName, catalogData)
+		_, err = decodeOCIAddonCatalog(archive)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "without a name")
+	})
 }
 
 func TestNewestOCICatalogVersion(t *testing.T) {

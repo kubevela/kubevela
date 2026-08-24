@@ -31,7 +31,7 @@ limitations under the License.
 //   - It installs the "example" addon: it is renderable (namespace +
 //     resources) and, being absent from the imperative pre-enable in the e2e
 //     setup, avoids a child-Application name collision on addon-<name>.
-//   - "skipVersionValidate: true" is set on the component properties so the
+//   - "skipVersionValidation: true" is set on the component properties so the
 //     addon's SystemRequirements check does not fail when the controller's
 //     reported version cannot satisfy it; this mirrors the imperative
 //     "vela addon enable --skip-version-validating" escape hatch.
@@ -87,7 +87,7 @@ var _ = Describe("Addon as component e2e", func() {
 
 	// buildWrappingApp constructs the wrapping Application with a single
 	// type: addon component. Properties are carried as a RawExtension so the
-	// registry and the skipVersionValidate escape hatch are threaded through to
+	// registry and the skipVersionValidation escape hatch are threaded through to
 	// the addon renderer.
 	buildWrappingApp := func() *v1beta1.Application {
 		return &v1beta1.Application{
@@ -103,7 +103,7 @@ var _ = Describe("Addon as component e2e", func() {
 						// properties.example is the "example" addon's own required
 						// parameter, threaded through the addon component's
 						// pass-through properties field.
-						Properties: &runtime.RawExtension{Raw: []byte(`{"registry":"` + addonRegistry + `","skipVersionValidate":true,"properties":{"example":"e2e"}}`)},
+						Properties: &runtime.RawExtension{Raw: []byte(`{"registry":"` + addonRegistry + `","skipVersionValidation":true,"properties":{"example":"e2e"}}`)},
 					},
 				},
 			},

@@ -34,6 +34,7 @@ import (
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	addonvalidation "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application/addon"
 )
 
 var _ admission.Handler = &ValidatingHandler{}
@@ -43,6 +44,8 @@ type ValidatingHandler struct {
 	Client client.Client
 	// Decoder decodes objects
 	Decoder admission.Decoder
+
+	addonValidator addonComponentValidator
 }
 
 func simplifyError(err error) error {
@@ -82,6 +85,8 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	logger = logger.WithValues(logging.FieldGeneration, app.Generation)
+	ctx = logger.IntoContext(ctx)
+	ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 
 	workflowSteps := 0
 	if app.Spec.Workflow != nil {
@@ -94,8 +99,6 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		"componentCount", len(app.Spec.Components),
 		"policyCount", len(app.Spec.Policies),
 		"workflowSteps", workflowSteps)
-
-	ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 
 	switch req.Operation {
 	case admissionv1.Create:
@@ -143,7 +146,8 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	server := mgr.GetWebhookServer()
 	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: &ValidatingHandler{
-		Client:  mgr.GetClient(),
-		Decoder: admission.NewDecoder(mgr.GetScheme()),
+		Client:         mgr.GetClient(),
+		Decoder:        admission.NewDecoder(mgr.GetScheme()),
+		addonValidator: addonvalidation.NewValidator(),
 	}})
 }

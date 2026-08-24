@@ -17,7 +17,7 @@ template: {
 			version:             parameter.version
 			registry:            parameter.registry
 			properties:          parameter.properties
-			skipVersionValidate: parameter.skipVersionValidate
+			skipVersionValidate: parameter.skipVersionValidation
 		}
 	}
 
@@ -37,6 +37,6 @@ template: {
 		properties: {...}
 		// Skip the addon's vela/kubernetes SystemRequirements check (mirrors the
 		// imperative skipVersionValidate escape hatch). Defaults to enforcing it.
-		skipVersionValidate: *false | bool
+		skipVersionValidation: *false | bool
 	}
 }

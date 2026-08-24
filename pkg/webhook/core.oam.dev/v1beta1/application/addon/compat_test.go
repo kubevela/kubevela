@@ -83,7 +83,6 @@ func TestDefaultCompatCheckerFailsOpenWithoutRegistry(t *testing.T) {
 	singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme.Scheme).Build())
 	defer singleton.KubeClient.Reload()
 
-	h := &ValidatingHandler{}
-	assert.Nil(t, h.defaultCompatChecker(context.Background(), "some-addon", "", ""),
+	assert.Nil(t, defaultCompatChecker(context.Background(), "some-addon", "", ""),
 		"an addon that cannot be resolved must never produce a denial")
 }

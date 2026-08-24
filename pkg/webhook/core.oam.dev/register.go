@@ -17,13 +17,10 @@ limitations under the License.
 package core_oam_dev
 
 import (
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/features"
-	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/addon"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/componentdefinition"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/policydefinition"
@@ -40,12 +37,6 @@ func Register(mgr manager.Manager, args controller.Args) {
 	traitdefinition.RegisterValidatingHandler(mgr, args)
 	policydefinition.RegisterValidatingHandler(mgr)
 	workflowstepdefinition.RegisterValidatingHandler(mgr)
-	// Registered only when the feature is on, so an Application with no addon
-	// component never reaches addon code at admission. The chart installs the
-	// matching ValidatingWebhookConfiguration entry under the same condition.
-	if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableAddonComponent) {
-		addon.RegisterValidatingHandler(mgr)
-	}
 	server := mgr.GetWebhookServer()
 	server.Register("/convert", conversion.NewWebhookHandler(mgr.GetScheme()))
 }
