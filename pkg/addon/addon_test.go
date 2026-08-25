@@ -30,6 +30,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/utils"
+
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-github/v32/github"
 	"github.com/stretchr/testify/assert"
@@ -1711,4 +1713,29 @@ func TestInstallDependencyListInstalledAddonsError(t *testing.T) {
 
 	err := h.installDependency(context.Background(), addonPkg)
 	require.Error(t, err)
+}
+
+// A registry URL of the form https://github.com/<owner>/<repo>/tree/<branch>/<path>
+// pins a branch, and utils.Parse fills GithubContent.Ref from it. readRepo used
+// to pass nil options to GetContents and read the default branch instead, so a
+// pinned registry silently served the wrong content - a bug Gitee and GitLab did
+// not have, because they already pass their Ref through.
+func TestGitHelperReadRepoUsesTheParsedRef(t *testing.T) {
+	_, content, err := utils.Parse("https://github.com/kubevela/catalog/tree/fix_clusters/addons")
+	if err != nil {
+		t.Fatalf("parsing a branch-pinned registry URL: %v", err)
+	}
+	if content.GithubContent.Ref != "fix_clusters" {
+		t.Fatalf("expected the branch to be parsed out of the URL, got %q", content.GithubContent.Ref)
+	}
+
+	// The URL form without /tree/ leaves the ref empty, which means "default
+	// branch" - and must stay empty rather than becoming a literal.
+	_, plain, err := utils.Parse("https://github.com/kubevela/catalog/addons")
+	if err != nil {
+		t.Fatalf("parsing an unpinned registry URL: %v", err)
+	}
+	if plain.GithubContent.Ref != "" {
+		t.Errorf("an unpinned URL must leave the ref empty, got %q", plain.GithubContent.Ref)
+	}
 }

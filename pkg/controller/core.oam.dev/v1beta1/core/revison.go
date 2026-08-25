@@ -119,6 +119,10 @@ func isSpecVersionRevision(def runtime.Object) (bool, types.NamespacedName, erro
 		definitionVersion = definition.Spec.Version
 		definitionNamespace = definition.Namespace
 		definitionName = definition.Name
+	case *v1beta1.SourceDefinition:
+		definitionVersion = definition.Spec.Version
+		definitionNamespace = definition.Namespace
+		definitionName = definition.Name
 	}
 
 	if definitionVersion == "" {
@@ -207,6 +211,18 @@ func GatherRevisionInfo(def runtime.Object) (*v1beta1.DefinitionRevision, *commo
 			UID:        defCopy.UID,
 		}}
 
+	case *v1beta1.SourceDefinition:
+		defCopy := definition.DeepCopy()
+		defRev.Spec.DefinitionType = common.SourceType
+		defRev.Spec.SourceDefinition = *defCopy
+		LastRevision = defCopy.Status.LatestRevision
+		defRev.ObjectMeta.OwnerReferences = []metav1.OwnerReference{{
+			APIVersion: defCopy.APIVersion,
+			Kind:       defCopy.Kind,
+			Name:       defCopy.Name,
+			UID:        defCopy.UID,
+		}}
+
 	default:
 		return nil, nil, fmt.Errorf("unsupported type %v", definition)
 	}
@@ -243,6 +259,11 @@ func computeDefinitionRevisionHash(defRev *v1beta1.DefinitionRevision) (string, 
 		if err != nil {
 			return defHash, err
 		}
+	case common.SourceType:
+		defHash, err = utils.ComputeSpecHash(&defRev.Spec.SourceDefinition.Spec)
+		if err != nil {
+			return defHash, err
+		}
 	}
 	return defHash, nil
 }
@@ -269,6 +290,8 @@ func compareWithLastDefRevisionSpec(ctx context.Context, cli client.Client,
 		namespace = newDefRev.Spec.PolicyDefinition.Namespace
 	case common.WorkflowStepType:
 		namespace = newDefRev.Spec.WorkflowStepDefinition.Namespace
+	case common.SourceType:
+		namespace = newDefRev.Spec.SourceDefinition.Namespace
 	}
 	if err := cli.Get(ctx, client.ObjectKey{Name: lastRevision.Name,
 		Namespace: namespace}, defRev); err != nil {
@@ -301,6 +324,9 @@ func DeepEqualDefRevision(old, new *v1beta1.DefinitionRevision) bool {
 	if !apiequality.Semantic.DeepEqual(old.Spec.WorkflowStepDefinition.Spec, new.Spec.WorkflowStepDefinition.Spec) {
 		return false
 	}
+	if !apiequality.Semantic.DeepEqual(old.Spec.SourceDefinition.Spec, new.Spec.SourceDefinition.Spec) {
+		return false
+	}
 	return true
 }
 
@@ -320,6 +346,8 @@ func getDefNextRevision(definitionRevision *v1beta1.DefinitionRevision, lastRevi
 		name = definitionRevision.Spec.PolicyDefinition.Name
 	case common.WorkflowStepType:
 		name = definitionRevision.Spec.WorkflowStepDefinition.Name
+	case common.SourceType:
+		name = definitionRevision.Spec.SourceDefinition.Name
 	}
 
 	definitionRevisionName = strings.Join([]string{name, fmt.Sprintf("v%v", nextRevision)}, "-")
@@ -360,6 +388,11 @@ func CleanUpDefinitionRevision(ctx context.Context, cli client.Client, def runti
 		listOpts = []client.ListOption{
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelWorkflowStepDefinitionName: definition.Name}}
+		usingRevision = definition.Status.LatestRevision
+	case *v1beta1.SourceDefinition:
+		listOpts = []client.ListOption{
+			client.InNamespace(definition.Namespace),
+			client.MatchingLabels{oam.LabelSourceDefinitionName: definition.Name}}
 		usingRevision = definition.Status.LatestRevision
 	}
 
@@ -466,6 +499,8 @@ func CreateDefinitionRevision(ctx context.Context, cli client.Client, def util.C
 		labelKey = oam.LabelPolicyDefinitionName
 	case *v1beta1.WorkflowStepDefinition:
 		labelKey = oam.LabelWorkflowStepDefinitionName
+	case *v1beta1.SourceDefinition:
+		labelKey = oam.LabelSourceDefinitionName
 	}
 	if labelKey != "" {
 		defRev.SetLabels(util.MergeMapOverrideWithDst(defRev.Labels, map[string]string{labelKey: def.GetName()}))

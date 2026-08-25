@@ -1,0 +1,31 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: configmap-example
+  namespace: source-library-demo
+  annotations: {app.oam.dev/cel-expressions: "true"}
+spec:
+  sources:
+    # configmap-local takes a name and nothing else: it reads the Application's
+    # own namespace on the cluster being rendered for, and cannot be pointed
+    # anywhere else. A platform that needs to read across namespaces authors
+    # that definition itself, using this one as the starting point.
+    - name: app
+      type: configmap-local
+      properties: {name: app-config}
+  components:
+    - name: probe
+      type: webservice
+      properties:
+        image: nginx:1.25.0
+        port: 80
+        env:
+          # An open map, so each read carries a default.
+          - name: TIER
+            value: '$("tier" in source.app.data ? source.app.data["tier"] : "unset")'
+          # A key that is not there falls back rather than failing.
+          - name: MISSING
+            value: '$("nope" in source.app.data ? source.app.data["nope"] : "absent")'
+          # ConfigMap values are strings - so this concatenates, not adds.
+          - name: REPLICAS_STR
+            value: '$("replicas" in source.app.data ? source.app.data["replicas"] : "0")'

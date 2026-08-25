@@ -19,6 +19,11 @@ package docgen
 import (
 	"context"
 	"fmt"
+	"os"
+
+	"github.com/kubevela/pkg/cue/cuex"
+
+	"github.com/fatih/color"
 
 	"github.com/olekukonko/tablewriter"
 
@@ -57,6 +62,12 @@ type ConsoleReference struct {
 	ParseReference
 	TableName   string             `json:"tableName"`
 	TableObject *tablewriter.Table `json:"tableObject"`
+	// Compiler overrides the default cuex compiler used to extract CUE parameter
+	// values. Set it to providers.DefaultCompiler.Get() for definitions that
+	// import vela-specific packages (vela/registry, vela/velaconfig and the
+	// rest); the upstream default knows none of them and the extraction fails
+	// with "parameter not exist". MarkdownReference carries the same field.
+	Compiler *cuex.Compiler
 }
 
 // BaseOpenAPIV3Template is Standard OpenAPIV3 Template
@@ -97,7 +108,7 @@ func (ref *ConsoleReference) GenerateCUETemplateProperties(capability *types.Cap
 
 	// TODO: Accept context parameter for proper cancellation/timeout support
 	// Currently using Background() to avoid breaking changes to function
-	cueValue, err := common.GetCUExParameterValue(context.Background(), capability.CueTemplate)
+	cueValue, err := common.GetCUExParameterValue(context.Background(), capability.CueTemplate, ref.Compiler)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", capName, err)
 	}
@@ -153,6 +164,53 @@ func (ref *ConsoleReference) Show(ctx context.Context, c common.Args, ioStreams 
 		ioStreams.Info(p.TableName)
 		p.TableObject.Render()
 		ioStreams.Info("\n")
+	}
+
+	// For SourceDefinitions, also show what data the source returns (the output
+	// contract) and how it is cached, so users know what they can consume.
+	if capability.Type == types.TypeSource {
+		if len(capability.SourceOutputs) > 0 {
+			var outputs []ReferenceParameter
+			for _, o := range capability.SourceOutputs {
+				rp := ReferenceParameter{Parameter: o, PrintableType: o.Type.String()}
+				outputs = append(outputs, rp)
+			}
+			out := ref.prepareConsoleParameter("# Outputs", outputs, types.CUECategory)
+			ioStreams.Info(out.TableName)
+			out.TableObject.Render()
+			ioStreams.Info("\n")
+		}
+		if len(capability.SourceStorage) > 0 {
+			ioStreams.Info("# Cache")
+			table := tablewriter.NewWriter(os.Stdout)
+			table.SetColWidth(100)
+			table.SetHeader([]string{ref.I18N.Get("Name"), ref.I18N.Get("Value")})
+			for _, f := range capability.SourceStorage {
+				table.Append([]string{f.Name, f.Value})
+			}
+			table.Render()
+			ioStreams.Info("\n")
+		}
+		// Where the source may be consumed. Derived from the context its template
+		// reads, so an author sees the restriction here rather than discovering it
+		// when an Application is rejected.
+		if len(capability.SourceSurfaces) > 0 {
+			ioStreams.Info("# Consumable from")
+			table := tablewriter.NewWriter(os.Stdout)
+			table.SetColWidth(100)
+			table.SetHeader([]string{ref.I18N.Get("Surface"), ref.I18N.Get("Consumable"), ref.I18N.Get("Reason")})
+			for _, sfc := range capability.SourceSurfaces {
+				// Matches the glyphs and colours `vela addon list` already uses,
+				// so a tick means the same thing across the CLI.
+				mark := color.RedString("✘")
+				if sfc.Consumable {
+					mark = color.GreenString("✔")
+				}
+				table.Append([]string{sfc.Name, mark, sfc.Reason})
+			}
+			table.Render()
+			ioStreams.Info("\n")
+		}
 	}
 	return nil
 }

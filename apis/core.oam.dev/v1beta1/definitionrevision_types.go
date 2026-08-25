@@ -44,6 +44,9 @@ type DefinitionRevisionSpec struct {
 
 	// WorkflowStepDefinition records the snapshot of the created/modified WorkflowStepDefinition
 	WorkflowStepDefinition WorkflowStepDefinition `json:"workflowStepDefinition,omitempty"`
+
+	// SourceDefinition records the snapshot of the created/modified SourceDefinition
+	SourceDefinition SourceDefinition `json:"sourceDefinition,omitempty"`
 }
 
 // +kubebuilder:object:root=true

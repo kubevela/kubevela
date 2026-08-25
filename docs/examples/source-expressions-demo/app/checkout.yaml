@@ -1,0 +1,107 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: checkout
+  namespace: checkout-prod
+  labels:
+  annotations:
+    app.oam.dev/cel-expressions: "true"
+    owner: payments-oncall
+spec:
+  # The author names the data they need. They do not say how it is fetched, where
+  # it comes from, or how long it is cached.
+  sources:
+    - name: registry
+      type: platform-registry
+      properties: {}
+
+    - name: tenant
+      type: tenant-profile
+      properties: {}
+
+    # A derived source, fed from the two above. Chaining is where a platform
+    # encodes a rule once instead of asking every Application to repeat it.
+    - name: catalog
+      type: service-catalog
+      properties:
+        registryHost: '$(source.registry.host)'
+        project:      '$(source.registry.project)'
+        team:         '$(source.tenant.team)'
+        environment:  '$(source.tenant.environment)'
+        component:    nginx
+
+  components:
+    - name: api
+      type: webservice
+      properties:
+        # Concatenation - the source yields a value and the expression composes
+        # it with a tag.
+        image: '$(source.catalog.image + ":1.25.0")'
+
+        # A plain scalar read, and an int that stays an int rather than
+        # becoming the string "8080".
+        imagePullPolicy: '$(source.registry.pullPolicy)'
+        port:            '$(source.catalog.httpPort)'
+
+        # A struct and a list, each substituted whole into a parameter of the
+        # same shape.
+        labels:           '$(source.catalog.standardLabels)'
+        imagePullSecrets: '$(source.catalog.pullSecrets)'
+
+        env:
+          # Interpolation across two sources.
+          - name: SERVICE_NAME
+            value: '$(source.catalog.serviceName)'
+          # An optional schema field this tenant has not opted into. Without
+          # the default, admission refuses it.
+          - name: MESH_DOMAIN
+            value: '$(has(source.tenant.meshDomain) ? source.tenant.meshDomain : "no-mesh")'
+          # Context, with a default: a label may be rewritten by a policy before
+          # this renders, so admission requires the fallback.
+          - name: OWNER
+            value: '$("owner" in context.appLabels ? context.appLabels["owner"] : "unassigned")'
+          - name: WHERE
+            value: '$(context.appName + "." + context.namespace)'
+          # An optional schema field the platform has not published for this
+          # cluster. Without the default, admission refuses it.
+          - name: MIRROR
+            value: '$(has(source.registry.mirror) ? source.registry.mirror : "none")'
+
+      traits:
+        - type: scaler
+          properties:
+            # Integer arithmetic: half the tenant's granted quota.
+            replicas: '$(source.tenant.maxReplicas / 2)'
+
+  policies:
+    # Application-scoped policies render before the appfile exists, so they can
+    # read context but not sources. They get the half of the feature that works
+    # there rather than being excluded from it.
+    - name: cost-tagging
+      type: cost-tag
+      properties:
+        owner: '$("owner" in context.appLabels ? context.appLabels["owner"] : "unassigned")'
+        app:   '$(context.appName + "--" + context.namespace)'
+
+  workflow:
+    steps:
+      # A custom workflow replaces the default one, so the components have to be
+      # applied explicitly before anything that reports on them.
+      - name: deploy
+        type: apply-application
+
+      - name: publish-summary
+        type: apply-object
+        properties:
+          value:
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: checkout-deployment-summary
+              namespace: checkout-prod
+            data:
+              image:       '$(source.catalog.image + ":1.25.0")'
+              service:     '$(source.catalog.serviceName)'
+              tier:        '$(source.catalog.tier)'
+              costCentre:  '$(source.tenant.costCentre)'
+              replicas:    '$(string(source.tenant.maxReplicas / 2))'

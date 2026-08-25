@@ -33,10 +33,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -1038,4 +1041,364 @@ func TestParseComponentFromRevisionAndClient(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestValidateExpressionSurfaces covers the render-time backstop.
+//
+// The admission webhook rejects reading a source on a surface that cannot
+// resolve one, but admission can be disabled (--use-webhook=false). Unlike the
+// other source checks, skipping this one fails silently: the read never reaches
+// a resolver, so the expression's own text survives into the consumer rather
+// than erroring.
+func TestValidateExpressionSurfaces(t *testing.T) {
+	raw := func(s string) *runtime.RawExtension { return &runtime.RawExtension{Raw: []byte(s)} }
+	step := func(name string, props *runtime.RawExtension) wfTypesv1alpha1.WorkflowStep {
+		return wfTypesv1alpha1.WorkflowStep{
+			WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{Name: name, Type: "notification", Properties: props},
+		}
+	}
+
+	cases := []struct {
+		name    string
+		af      *Appfile
+		wantErr string
+	}{
+		{
+			name: "policy reading a source is rejected",
+			af: &Appfile{Policies: []v1beta1.AppPolicy{
+				{Name: "override-image", Type: "override", Properties: raw(`{"image":"$(source.img.image)"}`)},
+			}},
+			wantErr: `"source" cannot be read here`,
+		},
+		{
+			// Workflow steps resolve via a pre-pass in generateWorkflowInstance
+			// that substitutes before the workflow engine sees the properties.
+			name: "workflow step reading a source is accepted",
+			af:   &Appfile{WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{step("notify", raw(`{"url":"$(source.cfg.webhook)"}`))}},
+		},
+		{
+			name: "sub-step reading a source is accepted",
+			af: &Appfile{WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{{
+				WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{Name: "group", Type: "step-group"},
+				SubSteps: []wfTypesv1alpha1.WorkflowStepBase{
+					{Name: "inner", Type: "notification", Properties: raw(`{"url":"$(source.cfg.webhook)"}`)},
+				},
+			}}},
+		},
+		{
+			// An expression is valid at any depth, so the walk must be recursive
+			// through both objects and arrays.
+			name: "a nested read is found",
+			af: &Appfile{Policies: []v1beta1.AppPolicy{
+				{Name: "p", Type: "override", Properties: raw(`{"a":{"b":[{"c":"$(source.x.y)"}]}}`)},
+			}},
+			wantErr: `"source" cannot be read here`,
+		},
+		{
+			name: "the offending policy is named",
+			af: &Appfile{Policies: []v1beta1.AppPolicy{
+				{Name: "my-policy", Type: "override", Properties: raw(`{"image":"$(source.img.image)"}`)},
+			}},
+			wantErr: `"my-policy"`,
+		},
+		{
+			name: "properties without expressions are accepted",
+			af: &Appfile{
+				Policies:      []v1beta1.AppPolicy{{Name: "p", Type: "override", Properties: raw(`{"image":"nginx"}`)}},
+				WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{step("notify", raw(`{"url":"https://example.com"}`))},
+			},
+		},
+		{
+			// A field merely *named* source-ish must not trip the check.
+			name: "similarly named fields are accepted",
+			af: &Appfile{Policies: []v1beta1.AppPolicy{
+				{Name: "p", Type: "override", Properties: raw(`{"fromSourceUrl":"https://example.com","notFromSource":true}`)},
+			}},
+		},
+		{
+			name: "absent and empty properties are accepted",
+			af: &Appfile{
+				Policies:      []v1beta1.AppPolicy{{Name: "p", Type: "override"}},
+				WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{step("s", raw(`{}`))},
+			},
+		},
+		{
+			// Malformed JSON is the consumer's problem to report, not this check's.
+			name: "malformed properties are passed through",
+			af: &Appfile{Policies: []v1beta1.AppPolicy{
+				{Name: "p", Type: "override", Properties: raw(`{not json`)},
+			}},
+		},
+		{
+			name: "an empty appfile is accepted",
+			af:   &Appfile{},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := (&Parser{}).validateExpressionSurfaces(context.Background(), tc.af)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("expected acceptance, got: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("expected error containing %q, got nil", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected error containing %q, got: %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
+// A context expression in any policy has to be substituted before af.Policies
+// reaches a consumer.
+//
+// This is a regression test for a failure that admission could not catch:
+// expressions were accepted in every policy's properties but only substituted
+// for Application-scoped ones, so a topology policy written
+// `namespace: '$(context.namespace)'` applied cleanly and then failed at deploy
+// with `namespaces "$(context.namespace)" not found` - the literal used as a
+// name.
+func TestResolvePolicyExpressions(t *testing.T) {
+	newApp := func() *v1beta1.Application {
+		return &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "checkout",
+				Namespace: "prod",
+				Labels:    map[string]string{"owner": "payments"},
+			},
+		}
+	}
+
+	t.Run("substitutes context in a non-scoped policy", func(t *testing.T) {
+		af := &Appfile{
+			Name:      "checkout",
+			Namespace: "prod",
+			app:       newApp(),
+			Policies: []v1beta1.AppPolicy{{
+				Name:       "place",
+				Type:       "topology",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"namespace":"$(context.namespace)","clusters":["local"]}`)},
+			}},
+		}
+		if err := (&Parser{}).resolvePolicyExpressions(context.Background(), af); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		got := string(af.Policies[0].Properties.Raw)
+		if strings.Contains(got, "$(") {
+			t.Fatalf("expression survived into the consumer: %s", got)
+		}
+		if !strings.Contains(got, `"namespace":"prod"`) {
+			t.Fatalf("expected namespace to resolve to prod, got %s", got)
+		}
+	})
+
+	t.Run("reads app labels and policy identity", func(t *testing.T) {
+		af := &Appfile{
+			Name:      "checkout",
+			Namespace: "prod",
+			app:       newApp(),
+			Policies: []v1beta1.AppPolicy{{
+				Name: "tagger",
+				Type: "override",
+				Properties: &runtime.RawExtension{Raw: []byte(
+					`{"owner":"$(\"owner\" in context.appLabels ? context.appLabels[\"owner\"] : \"none\")","who":"$(context.policyName)"}`)},
+			}},
+		}
+		if err := (&Parser{}).resolvePolicyExpressions(context.Background(), af); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		got := string(af.Policies[0].Properties.Raw)
+		if !strings.Contains(got, `"owner":"payments"`) || !strings.Contains(got, `"who":"tagger"`) {
+			t.Fatalf("got %s", got)
+		}
+	})
+
+	// The Application spec is the author's text and a round-trip must not
+	// rewrite it, so the appfile gets a new RawExtension rather than a write
+	// into the one the spec shares.
+	t.Run("does not rewrite the Application spec", func(t *testing.T) {
+		shared := &runtime.RawExtension{Raw: []byte(`{"namespace":"$(context.namespace)"}`)}
+		app := newApp()
+		app.Spec.Policies = []v1beta1.AppPolicy{{Name: "place", Type: "topology", Properties: shared}}
+		af := &Appfile{
+			Name:      "checkout",
+			Namespace: "prod",
+			app:       app,
+			Policies:  []v1beta1.AppPolicy{{Name: "place", Type: "topology", Properties: shared}},
+		}
+		if err := (&Parser{}).resolvePolicyExpressions(context.Background(), af); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(string(app.Spec.Policies[0].Properties.Raw), "$(context.namespace)") {
+			t.Fatal("the Application spec was rewritten; it must keep the author's expression")
+		}
+	})
+
+	// Idempotent: already-resolved properties contain no expression, so a second
+	// pass is a no-op rather than an error.
+	t.Run("is idempotent", func(t *testing.T) {
+		af := &Appfile{
+			Name: "checkout", Namespace: "prod", app: newApp(),
+			Policies: []v1beta1.AppPolicy{{
+				Name: "place", Type: "topology",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"namespace":"$(context.namespace)"}`)},
+			}},
+		}
+		for i := 0; i < 2; i++ {
+			if err := (&Parser{}).resolvePolicyExpressions(context.Background(), af); err != nil {
+				t.Fatalf("pass %d: %v", i, err)
+			}
+		}
+		if got := string(af.Policies[0].Properties.Raw); !strings.Contains(got, `"namespace":"prod"`) {
+			t.Fatalf("got %s", got)
+		}
+	})
+
+	// `source` is not offered on this surface, so a policy reading one fails
+	// here rather than resolving to nothing.
+	t.Run("refuses source", func(t *testing.T) {
+		af := &Appfile{
+			Name: "checkout", Namespace: "prod", app: newApp(),
+			Policies: []v1beta1.AppPolicy{{
+				Name: "place", Type: "topology",
+				Properties: &runtime.RawExtension{Raw: []byte(`{"namespace":"$(source.cfg.namespace)"}`)},
+			}},
+		}
+		if err := (&Parser{}).resolvePolicyExpressions(context.Background(), af); err == nil {
+			t.Fatal("expected reading a source in a policy to fail")
+		}
+	})
+}
+
+// The values this pass supplies must be exactly what PolicyContext declares.
+//
+// Regression test for a mismatch that failed in both directions at once. The
+// pass supplied seven fields while declaring ScopedPolicyContext's twelve, so
+// context.appRevisionNum passed admission and died here as an undefined field;
+// meanwhile policyName was supplied here but refused at admission, which typed
+// policies against the component's context.
+//
+// Comparing the two directly is what stops them drifting again: a field added to
+// the registry without being supplied, or supplied without being declared, fails
+// here rather than in someone's Application.
+func TestPolicyExpressionValuesMatchPolicyContext(t *testing.T) {
+	af := &Appfile{
+		Name:            "checkout",
+		Namespace:       "prod",
+		AppRevisionName: "checkout-v3",
+		app: &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "checkout", Namespace: "prod",
+				Labels: map[string]string{"owner": "payments"},
+			},
+		},
+		Policies: []v1beta1.AppPolicy{{
+			Name: "place", Type: "topology",
+			// Reading every declared field proves each is genuinely supplied,
+			// rather than merely declared.
+			// Embedded in text, so each fragment renders as a string - no
+			// interpolation syntax, which is not a legal JSON escape.
+			Properties: &runtime.RawExtension{Raw: []byte(`{"probe":"` +
+				`$(context.appName)|$(context.namespace)|$(context.appRevision)|` +
+				`$(context.appRevisionNum)|$(\"owner\" in context.appLabels ? context.appLabels[\"owner\"] : \"none\")|` +
+				`$(\"note\" in context.appAnnotations ? context.appAnnotations[\"note\"] : \"none\")|` +
+				`$(context.policyName)|$(context.policyType)"}`)},
+		}},
+	}
+
+	if err := (&Parser{}).resolvePolicyExpressions(context.Background(), af); err != nil {
+		t.Fatalf("every field PolicyContext declares must be supplied: %v", err)
+	}
+	got := string(af.Policies[0].Properties.Raw)
+	if strings.Contains(got, "$(") {
+		t.Fatalf("an expression survived: %s", got)
+	}
+	for _, want := range []string{"checkout", "prod", "checkout-v3", "3", "payments", "place", "topology"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("expected %q in the resolved properties; got %s", want, got)
+		}
+	}
+
+	// And the reverse: nothing declared may be missing from the supply.
+	for _, field := range propexpr.PolicyContext.ReadableFields() {
+		probe := &Appfile{
+			Name: "checkout", Namespace: "prod", AppRevisionName: "checkout-v3",
+			app:      af.app,
+			Policies: []v1beta1.AppPolicy{{Name: "place", Type: "topology"}},
+		}
+		read := "$(context." + field + ")"
+		if field == "appLabels" || field == "appAnnotations" {
+			read = `$("k" in context.` + field + ` ? context.` + field + `["k"] : "none")`
+		}
+		probe.Policies[0].Properties = &runtime.RawExtension{
+			Raw: []byte(`{"x":"` + strings.ReplaceAll(read, `"`, `\"`) + `"}`),
+		}
+		if err := (&Parser{}).resolvePolicyExpressions(context.Background(), probe); err != nil {
+			t.Errorf("PolicyContext declares %q but the pass does not supply it: %v", field, err)
+		}
+	}
+}
+
+// The appfile-time pass supplied one context for every policy that reaches it,
+// but an Application-scoped policy advertises more than a built-in one:
+// clusterVersion, and the policyRevision fields the scoped render produces.
+// A scoped policy reading any of them failed here, before the render that could
+// have answered it ever ran.
+//
+// The render-time fields are left for that render. Substituting them here is not
+// possible, and failing on them turns an expression the surface advertises into
+// a reconciliation error.
+func TestResolvePolicyExpressionsOnAnApplicationScopedPolicy(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, v1beta1.AddToScheme(scheme))
+
+	scoped := &v1beta1.PolicyDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "tagger", Namespace: "vela-system"},
+		Spec:       v1beta1.PolicyDefinitionSpec{Scope: v1beta1.ApplicationScope},
+	}
+	parser := &Parser{client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(scoped).Build()}
+
+	af := func(props string) *Appfile {
+		return &Appfile{
+			Name:      "checkout",
+			Namespace: "prod",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "checkout", Namespace: "prod",
+					Labels: map[string]string{"owner": "payments"},
+				},
+			},
+			Policies: []v1beta1.AppPolicy{{
+				Name: "tag", Type: "tagger",
+				Properties: &runtime.RawExtension{Raw: []byte(props)},
+			}},
+		}
+	}
+
+	t.Run("a field this pass can supply is substituted", func(t *testing.T) {
+		a := af(`{"where":"$(context.appName + \"--\" + context.namespace)"}`)
+		require.NoError(t, parser.resolvePolicyExpressions(context.Background(), a))
+		require.Contains(t, string(a.Policies[0].Properties.Raw), `"where":"checkout--prod"`)
+	})
+
+	t.Run("clusterVersion is supplied, since the surface advertises it", func(t *testing.T) {
+		a := af(`{"major":"$(context.clusterVersion.major)"}`)
+		require.NoError(t, parser.resolvePolicyExpressions(context.Background(), a))
+		require.NotContains(t, string(a.Policies[0].Properties.Raw), "$(")
+	})
+
+	t.Run("a render-time field is left for the render", func(t *testing.T) {
+		a := af(`{"rev":"$(context.policyRevision)","where":"$(context.namespace)"}`)
+		require.NoError(t, parser.resolvePolicyExpressions(context.Background(), a))
+		got := string(a.Policies[0].Properties.Raw)
+		require.Contains(t, got, `"rev":"$(context.policyRevision)"`,
+			"the scoped render is what knows the revision")
+		require.Contains(t, got, `"where":"prod"`,
+			"a leaf this pass can answer is still answered")
+	})
 }

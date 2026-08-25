@@ -26,6 +26,7 @@ import (
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -49,11 +50,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application/assemble"
 	ctrlutil "github.com/oam-dev/kubevela/pkg/controller/utils"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/sources"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
@@ -106,7 +109,15 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		KubeClient: h.Client,
 	})
 	ctx.SetContext(ctxWithRuntimeParams)
-	instance := generateWorkflowInstance(af, app)
+	instance, err := generateWorkflowInstance(af, app,
+		func(name, stepType string, resolved map[string]sources.SourceResolutionStatus) {
+			// Cluster and namespace are empty: a workflow step is not placed the way
+			// a component is, so its reads are not per-placement.
+			h.recordSourceResolution(sourceKindWorkflowStep, name, stepType, "", "", resolved)
+		})
+	if err != nil {
+		return nil, nil, err
+	}
 	executor.InitializeWorkflowInstance(instance)
 	runners, err := generator.GenerateRunners(ctx, instance, wfTypes.StepGeneratorOptions{
 		Compiler:       providers.DefaultCompiler.Get(),
@@ -153,7 +164,8 @@ func copyWorkflowStatusToInstance(app *v1beta1.Application, mode *wfTypesv1alpha
 	return status
 }
 
-func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application) *wfTypes.WorkflowInstance {
+func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application,
+	recordSources func(name, stepType string, resolved map[string]sources.SourceResolutionStatus)) (*wfTypes.WorkflowInstance, error) {
 	instance := &wfTypes.WorkflowInstance{
 		WorkflowMeta: wfTypes.WorkflowMeta{
 			Name:        af.Name,
@@ -175,6 +187,19 @@ func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application) *wf
 		Steps: af.WorkflowSteps,
 		Mode:  af.WorkflowMode,
 	}
+	// Substitute expressions in step properties before the workflow engine ever
+	// sees them, so supporting workflow steps needs no change to the
+	// kubevela/workflow module - only a pre-pass here.
+	//
+	// The error is returned, not swallowed. Returning the instance unsubstituted
+	// left the expression's own text in the rendered resource: a step reading a
+	// source that could not resolve wrote the literal "$(source.x.y)" into a
+	// ConfigMap and the Application reported running. A failure to resolve has to
+	// fail the render.
+	if err := resolveWorkflowStepSources(af, instance.Steps, recordSources); err != nil {
+		return nil, err
+	}
+
 	instance.Status = copyWorkflowStatusToInstance(app, af.WorkflowMode)
 	switch app.Status.Phase {
 	case common.ApplicationRunning:
@@ -186,7 +211,7 @@ func generateWorkflowInstance(af *appfile.Appfile, app *v1beta1.Application) *wf
 	default:
 		instance.Status.Phase = workflowv1alpha1.WorkflowStateExecuting
 	}
-	return instance
+	return instance, nil
 }
 
 func convertStepProperties(step *wfTypesv1alpha1.WorkflowStep, app *v1beta1.Application) error {
@@ -327,7 +352,8 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.A
 
 		isHealth := true
 		if utilfeature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
-			manifestDispatchers, err := h.generateDispatcher(appRev, h.latestAppRev, readyWorkload, readyTraits, overrideNamespace, af.AppAnnotations)
+			manifestDispatchers, err := h.generateDispatcher(appRev, h.latestAppRev, readyWorkload, readyTraits, overrideNamespace, af.AppAnnotations,
+				autoUpdatingSources(af.Sources, sourceAutoUpdateDefault()))
 			if err != nil {
 				return nil, nil, false, errors.WithMessage(err, "generateDispatcher")
 			}
@@ -563,4 +589,65 @@ func generateContextDataFromApp(goCtx context.Context, app *v1beta1.Application,
 		data.AppAnnotations = app.Annotations
 	}
 	return data
+}
+
+// resolveWorkflowStepSources substitutes $(...) expressions in workflow step
+// properties, using the same resolver the component and trait paths use.
+//
+// This runs entirely inside kubevela: the workflow engine receives ordinary data
+// and does not know sources exist.
+// record is called with what each step resolved. Without it the whole thing is
+// computed and discarded: the resolver writes consumed values, the backing cache
+// entry, the expiry and any failure into pCtx below, and pCtx is local to
+// substitute. A step reading a source left no trace of what it received.
+func resolveWorkflowStepSources(af *appfile.Appfile, steps []wfTypesv1alpha1.WorkflowStep,
+	record func(name, stepType string, resolved map[string]sources.SourceResolutionStatus)) error {
+	substitute := func(name, stepType string, raw *runtime.RawExtension) error {
+		if raw == nil || len(raw.Raw) == 0 {
+			return nil
+		}
+		var decoded interface{}
+		if err := json.Unmarshal(raw.Raw, &decoded); err != nil {
+			// Malformed properties are reported by the step's own parsing.
+			//nolint:nilerr // reported elsewhere, deliberately not twice
+			return nil
+		}
+		if !propexpr.HasExpression(decoded) {
+			return nil
+		}
+		ctxData := appfile.GenerateContextDataFromAppFile(af, name)
+		pCtx := velaprocess.NewContext(ctxData)
+		// The step's own identity. context.name is the step here too, but only by
+		// coincidence of how the context is built - stepName says what it is, and
+		// is what a source resolving on this surface can rely on.
+		pCtx.PushData(velaprocess.ContextStepName, name)
+		pCtx.PushData(velaprocess.ContextStepType, stepType)
+		resolved, err := sources.ResolveSourceExpressions(pCtx, decoded, sources.SurfaceWorkflowStep)
+		if err != nil {
+			return err
+		}
+		out, err := json.Marshal(resolved)
+		if err != nil {
+			return err
+		}
+		raw.Raw = out
+		if record != nil {
+			statuses, _ := pCtx.GetData(sources.SourceResolutionStatusKey).(map[string]sources.SourceResolutionStatus)
+			record(name, stepType, statuses)
+		}
+		return nil
+	}
+
+	for i := range steps {
+		if err := substitute(steps[i].Name, steps[i].Type, steps[i].Properties); err != nil {
+			return err
+		}
+		for j := range steps[i].SubSteps {
+			if err := substitute(steps[i].SubSteps[j].Name, steps[i].SubSteps[j].Type,
+				steps[i].SubSteps[j].Properties); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

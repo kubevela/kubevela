@@ -20,6 +20,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/kubevela/workflow/pkg/cue/process"
 
@@ -42,16 +43,68 @@ type ContextData struct {
 	PublishVersion  string
 	ReplicaKey      string
 
-	Ctx            context.Context
-	BaseHooks      []process.BaseHook
-	AuxiliaryHooks []process.AuxiliaryHook
-	Components     []common.ApplicationComponent
+	Ctx             context.Context
+	BaseHooks       []process.BaseHook
+	AuxiliaryHooks  []process.AuxiliaryHook
+	Components      []common.ApplicationComponent
+	Sources         map[string]map[string]interface{}
+	SourceTypes     map[string]string
+	SourceTemplates map[string]string
+	// SourceSensitivePaths maps source definition type to non-overridable sensitive field paths.
+	SourceSensitivePaths map[string][]string
+	// SourceCacheStore is used for persistent source cache read/write operations.
+	SourceCacheStore SourceCacheStore
 
 	AppLabels      map[string]string
 	AppAnnotations map[string]string
 
 	ClusterVersion types.ClusterVersion
 	Output         interface{}
+}
+
+// SourceCacheWriteMeta carries identity and lifetime metadata stamped onto a
+// persisted source cache entry so a context-free garbage-collection sweep can
+// reason about it without re-evaluating the source CUE.
+type SourceCacheWriteMeta struct {
+	// TTL is the effective cache TTL resolved for this entry.
+	TTL time.Duration
+	// SourceDefName / SourceDefNamespace identify the owning SourceDefinition.
+	SourceDefName      string
+	SourceDefNamespace string
+	// TemplateName is the ConfigTemplate the entry was rendered against, if any.
+	TemplateName string
+
+	// The fields below are the entry's identity inputs, recorded onto the object
+	// so an operator can find an entry and see why it is distinct from its
+	// neighbours.
+	//
+	// Only identity inputs are safe to record. A cache entry is shared by every
+	// binding that resolves to it, so anything outside the identity - the
+	// consuming application, say - differs between those sharers, and recording
+	// it would describe whichever one happened to write the entry first.
+
+	// KeyInputs names the context values that formed the identity.
+	KeyInputs []string
+	// Context holds those values.
+	Context map[string]interface{}
+	// Properties holds the binding's inputs.
+	Properties map[string]interface{}
+	// TemplateHash fingerprints the definition that produced the entry.
+	TemplateHash string
+}
+
+// SourceCacheStore abstracts source cache persistence operations.
+type SourceCacheStore interface {
+	Read(ctx context.Context, cacheKey string, ttl time.Duration) (map[string]interface{}, bool, bool, time.Time, error)
+	Write(ctx context.Context, cacheKey, sourceType string, data map[string]interface{}, meta SourceCacheWriteMeta) error
+}
+
+// SourceCacheToucher is optionally implemented by a SourceCacheStore to record
+// that a stale entry was served. It advances a last-accessed marker only while
+// an entry is still in use but no longer being refreshed, which is exactly the
+// window the GC sweep must respect. Stores that cannot record this may omit it.
+type SourceCacheToucher interface {
+	Touch(ctx context.Context, cacheKey string) error
 }
 
 // policyAdditionalContextKey is the shared Go context key for policy output.ctx data
@@ -88,6 +141,25 @@ func NewContext(data ContextData) process.Context {
 	ctx.PushData(ContextAppRevision, data.AppRevisionName)
 	ctx.PushData(ContextCompRevisionName, data.CompRevision)
 	ctx.PushData(ContextComponents, data.Components)
+	if data.Sources == nil {
+		data.Sources = map[string]map[string]interface{}{}
+	}
+	ctx.PushData(ContextAppSources, data.Sources)
+	if data.SourceTypes == nil {
+		data.SourceTypes = map[string]string{}
+	}
+	ctx.PushData(ContextAppSourceTypes, data.SourceTypes)
+	if data.SourceTemplates == nil {
+		data.SourceTemplates = map[string]string{}
+	}
+	ctx.PushData(ContextAppSourceTemplates, data.SourceTemplates)
+	if data.SourceSensitivePaths == nil {
+		data.SourceSensitivePaths = map[string][]string{}
+	}
+	ctx.PushData(ContextAppSourceSensitivePaths, data.SourceSensitivePaths)
+	if data.SourceCacheStore != nil {
+		ctx.PushData(ContextAppSourceCacheStore, data.SourceCacheStore)
+	}
 	appLabels := data.AppLabels
 	if appLabels == nil {
 		appLabels = map[string]string{}

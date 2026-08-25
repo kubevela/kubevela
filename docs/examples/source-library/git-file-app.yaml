@@ -1,0 +1,40 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: git-file-example
+  namespace: source-library-demo
+  annotations: {app.oam.dev/cel-expressions: "true"}
+spec:
+  sources:
+    # Same registry for all three - only the ref differs.
+    - name: dflt
+      type: git-file
+      properties: {registry: catalog, path: velaux/metadata.yaml}
+    - name: onMaster
+      type: git-file
+      properties: {registry: catalog, path: velaux/metadata.yaml, ref: master}
+    - name: onBranch
+      type: git-file
+      properties: {registry: catalog, path: velaux/metadata.yaml, ref: fix_clusters}
+    # required: false reads a file that may not be there. It resolves with
+    # found: false and content: null rather than failing the Application, which
+    # is what an optional per-environment override wants. Leave required at its
+    # default and a missing file fails resolution instead.
+    - name: override
+      type: git-file
+      properties: {registry: catalog, path: velaux/override.yaml, required: false}
+  components:
+    - name: probe
+      type: webservice
+      properties:
+        image: nginx:1.25.0
+        port: 80
+        env:
+          - name: DEFAULT_REF
+            value: '$(string(source.dflt.content.version))'
+          - name: MASTER
+            value: '$(string(source.onMaster.content.version))'
+          - name: BRANCH
+            value: '$(string(source.onBranch.content.version))'
+          - name: HAS_OVERRIDE
+            value: '$(string(source.override.found))'

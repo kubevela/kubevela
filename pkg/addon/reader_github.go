@@ -86,7 +86,7 @@ func (g *gitReader) listAddonMeta(dirPath string) ([]Item, error) {
 func (g *gitReader) ReadFile(relativePath string) (content string, err error) {
 	file, _, err := g.h.readRepo(relativePath)
 	if err != nil {
-		return
+		return "", asNotFound(err, relativePath)
 	}
 	if file == nil {
 		return "", fmt.Errorf("path %s is not a file", relativePath)

@@ -29,7 +29,9 @@ import (
 	"github.com/kubevela/pkg/util/singleton"
 	authv1 "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
@@ -93,7 +95,28 @@ func (in *appRevBypassCacheClient) Get(ctx context.Context, key client.ObjectKey
 	return in.Client.Get(ctx, key, obj)
 }
 
-// ValidateComponents validates the Application components
+// ValidateComponentNames reports duplicated component names.
+//
+// It reads only the Application, so it belongs to the soundness phase rather
+// than behind appfile generation, where it would be reported only once every
+// expression already type-checked.
+func (h *ValidatingHandler) ValidateComponentNames(_ context.Context, app *v1beta1.Application) field.ErrorList {
+	appParser := appfile.NewApplicationParser(&appRevBypassCacheClient{Client: h.Client})
+	if i, err := appParser.ValidateComponentNames(app); err != nil {
+		return field.ErrorList{field.Invalid(
+			field.NewPath(fmt.Sprintf("components[%d].name", i)), app, err.Error())}
+	}
+	return nil
+}
+
+// ValidateComponents generates the appfile and renders it, which is the only way
+// to learn what no static check can tell: that the templates evaluate, the traits
+// apply, and the sources actually resolve.
+//
+// It is the expensive half of validation and the destructive-adjacent one - source
+// resolution here issues whatever HTTP, git or Kubernetes reads the definitions
+// perform - so ValidateCreate does not call it until everything cheaper has
+// passed.
 func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1.Application) field.ErrorList {
 	if sharding.EnableSharding && !utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateComponentWhenSharding) {
 		return nil
@@ -108,9 +131,6 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), app, err.Error()))
 		// cannot generate appfile, no need to validate further
 		return componentErrs
-	}
-	if i, err := appParser.ValidateComponentNames(app); err != nil {
-		componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].name", i)), app, err.Error()))
 	}
 	if err := appParser.ValidateCUESchematicAppfile(af); err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, conciseSchematicError(err)))
@@ -128,6 +148,12 @@ func conciseSchematicError(err error) string {
 
 // checkDefinitionPermission checks if user has permission to access a definition in either system namespace or app namespace
 func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req admission.Request, resource, definitionType, appNamespace string) (bool, error) {
+	// A pinned type names a definition and the revision to render it from -
+	// webservice@v1. The definition is the object RBAC is written against, and
+	// the revision is a DefinitionRevision under a different name entirely, so
+	// asking for an object called "webservice@v1" denies every pinned binding.
+	definitionType = baseDefinitionName(definitionType)
+
 	// Check permission in vela-system namespace first since most definitions are there
 	// This optimizes for the common case and reduces API calls
 	systemNsSar := &authv1.SubjectAccessReview{
@@ -207,6 +233,15 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 	return false, nil
 }
 
+// baseDefinitionName strips the revision a type may pin, leaving the definition
+// name. Types carrying no version are returned unchanged.
+func baseDefinitionName(definitionType string) string {
+	if base, _, found := strings.Cut(definitionType, "@"); found {
+		return base
+	}
+	return definitionType
+}
+
 // definitionExistsInNamespace checks if a definition actually exists in the specified namespace
 func (h *ValidatingHandler) definitionExistsInNamespace(ctx context.Context, resource, name, namespace string) (bool, error) {
 	// Determine the object type based on the resource
@@ -220,6 +255,14 @@ func (h *ValidatingHandler) definitionExistsInNamespace(ctx context.Context, res
 		obj = &v1beta1.PolicyDefinition{}
 	case "workflowstepdefinitions":
 		obj = &v1beta1.WorkflowStepDefinition{}
+	case "sourcedefinitions":
+		u := &unstructured.Unstructured{}
+		u.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   v1beta1.Group,
+			Version: v1beta1.Version,
+			Kind:    "SourceDefinition",
+		})
+		obj = u
 	default:
 		return false, fmt.Errorf("unknown resource type: %s", resource)
 	}
@@ -252,6 +295,7 @@ type definitionUsage struct {
 	traitTypes        map[string][][2]int
 	policyTypes       map[string][]int
 	workflowStepTypes map[string][]workflowStepLocation
+	sourceTypes       map[string][]int
 }
 
 // collectDefinitionUsage collects all unique definition types and their locations in the application
@@ -261,6 +305,7 @@ func collectDefinitionUsage(app *v1beta1.Application) *definitionUsage {
 		traitTypes:        make(map[string][][2]int),
 		policyTypes:       make(map[string][]int),
 		workflowStepTypes: make(map[string][]workflowStepLocation),
+		sourceTypes:       make(map[string][]int),
 	}
 
 	// Collect component and trait types
@@ -297,6 +342,9 @@ func collectDefinitionUsage(app *v1beta1.Application) *definitionUsage {
 				usage.workflowStepTypes[subStep.Type] = append(usage.workflowStepTypes[subStep.Type], subLocation)
 			}
 		}
+	}
+	for i, source := range app.Spec.Sources {
+		usage.sourceTypes[source.Type] = append(usage.sourceTypes[source.Type], i)
 	}
 
 	return usage
@@ -438,6 +486,15 @@ func (h *ValidatingHandler) ValidateDefinitionPermissions(ctx context.Context, a
 			}
 			return paths
 		})...)
+	for sourceType, indices := range usage.sourceTypes {
+		allowed, err := h.checkDefinitionPermission(ctx, req, "sourcedefinitions", sourceType, app.Namespace)
+		fieldPaths := make([]*field.Path, 0, len(indices))
+		for _, idx := range indices {
+			fieldPaths = append(fieldPaths, field.NewPath("spec", "sources").Index(idx).Child("type"))
+		}
+		errs = append(errs, h.processDefinitionPermissionCheck(
+			allowed, err, req, "SourceDefinition", sourceType, app.Namespace, fieldPaths)...)
+	}
 
 	return errs
 }
@@ -580,22 +637,63 @@ func traitConflictRuleMatches(rule string, target *v1beta1.TraitDefinition) bool
 	}
 }
 
-// ValidateCreate validates the Application on creation
+// ValidateCreate validates the Application on creation.
+//
+// Validation runs in two phases, and the second is not attempted when the first
+// finds anything:
+//
+//	soundness   is the Application well-formed?  expressions compile, their types
+//	            fit the parameters they feed, sources are declared and ordered,
+//	            names are unique, permissions hold
+//	rendering   does it actually render?  generate the appfile, evaluate every
+//	            template and trait, resolve every source for real
+//
+// The gate earns its place twice. Rendering restates soundness failures in the
+// evaluator's words and against a coarser field path, so the same mistake would
+// be reported twice and the second telling is the worse one. And rendering is
+// not free of consequence: resolving a source at admission issues whatever HTTP,
+// git or Kubernetes reads its definition performs, so an Application already
+// known to be invalid would still reach out to the world before being refused.
+//
+// The cost is that a soundness failure hides any rendering failure until it is
+// fixed - the usual compiler trade, fewer and more precise errors per round, and
+// the reason the phases are named in the errors they produce.
 func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application, req admission.Request) field.ErrorList {
+	if errs := h.validateSoundness(ctx, app, req); len(errs) > 0 {
+		return errs
+	}
+	errs := h.ValidateComponents(ctx, app)
+	return append(errs, h.ValidateAddonComponents(ctx, app)...)
+}
+
+// validateSoundness runs every check that can be made without rendering: whether
+// the Application is well-formed, its expressions compile, their types fit the
+// parameters they feed, its sources are declared and ordered, its names unique.
+//
+// Nothing here evaluates a template or resolves a source, so it is cheap and has
+// no side effects.
+func (h *ValidatingHandler) validateSoundness(ctx context.Context, app *v1beta1.Application, req admission.Request) field.ErrorList {
 	var errs field.ErrorList
 
 	errs = append(errs, h.ValidateAnnotations(ctx, app)...)
 	errs = append(errs, h.ValidateDefinitionPermissions(ctx, app, req)...)
+	errs = append(errs, h.ValidateSources(ctx, app)...)
 	errs = append(errs, h.ValidateWorkflow(ctx, app)...)
-	errs = append(errs, h.ValidateComponents(ctx, app)...)
-	errs = append(errs, h.ValidateAddonComponents(ctx, app)...)
+	errs = append(errs, h.ValidateComponentNames(ctx, app)...)
 	errs = append(errs, h.ValidateTraitConflicts(ctx, app)...)
 	return errs
 }
 
 // ValidateUpdate validates the Application on update
+//
+// The immutable-field check is soundness, not rendering, so it gates the render
+// alongside the rest rather than being reported after it.
 func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
-	errs := h.ValidateCreate(ctx, newApp, req)
+	errs := h.validateSoundness(ctx, newApp, req)
 	errs = append(errs, h.ValidateImmutableFields(ctx, newApp, oldApp)...)
-	return errs
+	if len(errs) > 0 {
+		return errs
+	}
+	errs = append(errs, h.ValidateComponents(ctx, newApp)...)
+	return append(errs, h.ValidateAddonComponents(ctx, newApp)...)
 }

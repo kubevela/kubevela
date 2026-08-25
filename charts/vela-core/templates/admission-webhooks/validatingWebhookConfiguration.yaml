@@ -156,4 +156,31 @@ webhooks:
         resources:
           - workflowstepdefinitions
     timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validating-core-oam-dev-v1beta1-sourcedefinitions
+    {{- if .Values.admissionWebhooks.patch.enabled  }}
+    failurePolicy: Ignore
+    {{- else }}
+    failurePolicy: Fail
+    {{- end }}
+    name: validating.core.oam-dev.v1beta1.sourcedefinitions
+    sideEffects: None
+    admissionReviewVersions:
+      - v1beta1
+      - v1
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1beta1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - sourcedefinitions
+    timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
 {{- end -}}
