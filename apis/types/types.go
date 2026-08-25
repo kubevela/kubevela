@@ -98,6 +98,45 @@ const (
 	AnnotationConfigAlias = "config.oam.dev/alias"
 	// AnnotationConfigDistributionSpec is the annotation key of the application that distributes the configs
 	AnnotationConfigDistributionSpec = "config.oam.dev/distribution-spec"
+	// AnnotationConfigLastSyncAt is the annotation recording when a source cache entry was last refreshed (RFC3339).
+	AnnotationConfigLastSyncAt = "config.oam.dev/last-sync-at"
+	// AnnotationConfigLastAccessed is the annotation recording when a stale source cache entry was last served (RFC3339).
+	// It is stamped only on the stale-serve path, so it advances only while an entry is still in use but no longer being refreshed.
+	AnnotationConfigLastAccessed = "config.oam.dev/last-accessed"
+	// AnnotationConfigTTL is the annotation recording the effective cache TTL (a Go duration string) for a source cache entry.
+	// It is stamped at write time so a context-free sweeper can compute the collection deadline without re-evaluating the source CUE.
+	AnnotationConfigTTL = "config.oam.dev/ttl"
+	// AnnotationConfigTemplate is the annotation recording the ConfigTemplate name a source cache entry was rendered against.
+	AnnotationConfigTemplate = "config.oam.dev/template"
+	// LabelSourceDefinitionName is the label recording the name of the SourceDefinition that owns a ConfigTemplate or cache entry.
+	LabelSourceDefinitionName = "sourcedefinition.oam.dev/name"
+	// LabelSourceDefinitionNamespace is the label recording the namespace of the owning SourceDefinition.
+	LabelSourceDefinitionNamespace = "sourcedefinition.oam.dev/namespace"
+
+	// LabelSourceContextPrefix prefixes one label per context value that both
+	// contributed to a cache entry's identity and is expressible as a label
+	// value, e.g. "sourcedefinition.oam.dev/ctx.cluster: prod-cluster". These
+	// exist to be selected on; the full context is in AnnotationSourceContext.
+	LabelSourceContextPrefix = "sourcedefinition.oam.dev/ctx."
+
+	// AnnotationSourceKeyInputs records which context values formed the entry's
+	// identity, as a JSON array - the answer to "why is this entry distinct?".
+	AnnotationSourceKeyInputs = "sourcedefinition.oam.dev/key-inputs"
+	// AnnotationSourceContext records those values as a JSON object, including
+	// the ones no label could hold: a struct, or a label value containing
+	// characters legal there and illegal in a label value.
+	AnnotationSourceContext = "sourcedefinition.oam.dev/context"
+	// AnnotationSourceProperties records the binding's properties as JSON. They
+	// are already plaintext in the Application spec, so recording them here
+	// exposes nothing new - unlike the resolved output, which stays in the
+	// Secret's data where encryption-at-rest covers it.
+	AnnotationSourceProperties = "sourcedefinition.oam.dev/properties"
+	// AnnotationSourcePropertiesTruncated marks properties too large to record
+	// whole, so a reader does not mistake a clipped value for the real one.
+	AnnotationSourcePropertiesTruncated = "sourcedefinition.oam.dev/properties-truncated"
+	// AnnotationSourceTemplateHash fingerprints the definition that produced the
+	// entry, so entries orphaned by an edit can be told from live ones.
+	AnnotationSourceTemplateHash = "sourcedefinition.oam.dev/template-hash"
 )
 
 const (

@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -42,11 +44,14 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
+	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
+	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	policypkg "github.com/oam-dev/kubevela/pkg/policy"
+	"github.com/oam-dev/kubevela/pkg/sources"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	utilscommon "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/workflow/step"
@@ -110,6 +115,10 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 	}
 
 	appFile := newAppFile(app)
+	appFile.KubeClient = p.client
+	if err := p.parseSources(ctx, appFile); err != nil {
+		return nil, errors.Wrap(err, "failed to parseSources")
+	}
 	if app.Status.LatestRevision != nil {
 		appFile.AppRevisionName = app.Status.LatestRevision.Name
 	}
@@ -133,6 +142,9 @@ func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Applic
 	if err = p.parseReferredObjects(ctx, appFile); err != nil {
 		return nil, errors.Wrap(err, "failed to parseReferredObjects")
 	}
+	if err = p.validateExpressionSurfaces(ctx, appFile); err != nil {
+		return nil, err
+	}
 
 	return appFile, nil
 }
@@ -147,8 +159,10 @@ func newAppFile(app *v1beta1.Application) *Appfile {
 		RelatedTraitDefinitions:        make(map[string]*v1beta1.TraitDefinition),
 		RelatedComponentDefinitions:    make(map[string]*v1beta1.ComponentDefinition),
 		RelatedWorkflowStepDefinitions: make(map[string]*v1beta1.WorkflowStepDefinition),
+		RelatedSourceDefinitions:       make(map[string]*v1beta1.SourceDefinition),
 
 		ExternalPolicies: make(map[string]*v1alpha1.Policy),
+		Sources:          app.Spec.Sources,
 
 		app: app,
 	}
@@ -218,6 +232,7 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 
 	ctx := context.Background()
 	appfile := newAppFile(appRev.Spec.Application.DeepCopy())
+	appfile.KubeClient = p.client
 	appfile.AppRevision = appRev
 	appfile.AppRevisionName = appRev.Name
 	appfile.AppRevisionHash = appRev.Labels[oam.LabelAppRevisionHash]
@@ -235,6 +250,9 @@ func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision
 	}
 	if err := p.parsePoliciesFromRevision(ctx, appfile); err != nil {
 		return nil, errors.Wrap(err, "failed to parsePolicies")
+	}
+	if err := p.parseSourcesFromRevision(appfile); err != nil {
+		return nil, errors.Wrap(err, "failed to parseSourcesFromRevision")
 	}
 	if err := p.parseReferredObjectsFromRevision(appfile); err != nil {
 		return nil, errors.Wrap(err, "failed to parseReferredObjects")
@@ -331,6 +349,9 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 	if err != nil {
 		return err
 	}
+	if err := p.resolvePolicyExpressions(ctx, af); err != nil {
+		return err
+	}
 	for _, policy := range af.Policies {
 		if af.AppRevision != nil && af.AppRevision.Spec.PolicyDefinitions != nil {
 			if policyDef, ok := af.AppRevision.Spec.PolicyDefinitions[policy.Type]; ok {
@@ -369,6 +390,9 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 	af.Policies, err = step.LoadExternalPoliciesForWorkflow(ctx, af.PolicyClient(p.client), af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies)
 	if err != nil {
+		return err
+	}
+	if err := p.resolvePolicyExpressions(ctx, af); err != nil {
 		return err
 	}
 	for _, policy := range af.Policies {
@@ -477,6 +501,36 @@ func (p *Parser) parseWorkflowStepsFromRevision(ctx context.Context, af *Appfile
 	return nil
 }
 
+func (p *Parser) parseSources(ctx context.Context, af *Appfile) error {
+	for _, source := range af.Sources {
+		if source.Type == "" {
+			continue
+		}
+		if _, found := af.RelatedSourceDefinitions[source.Type]; found {
+			continue
+		}
+		def := &v1beta1.SourceDefinition{}
+		if err := util.GetCapabilityDefinition(ctx, p.client, def, source.Type, af.app.Annotations); err != nil {
+			return errors.Wrapf(err, "failed to get source definition %s", source.Type)
+		}
+		sd := def.DeepCopy()
+		sd.Status = v1beta1.SourceDefinitionStatus{}
+		af.RelatedSourceDefinitions[source.Type] = sd
+	}
+	return nil
+}
+
+//nolint:unparam // matches the other parse* stages, which the caller invokes uniformly
+func (p *Parser) parseSourcesFromRevision(af *Appfile) error {
+	if af.AppRevision == nil || af.AppRevision.Spec.SourceDefinitions == nil {
+		return nil
+	}
+	for k, v := range af.AppRevision.Spec.SourceDefinitions {
+		af.RelatedSourceDefinitions[k] = v.DeepCopy()
+	}
+	return nil
+}
+
 func (p *Parser) parseWorkflowSteps(ctx context.Context, af *Appfile) error {
 	if err := p.loadWorkflowToAppfile(ctx, af); err != nil {
 		return err
@@ -519,7 +573,7 @@ func (p *Parser) makeComponent(ctx context.Context, name, typ string, capType ty
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fetch component/policy type of %s", name)
 	}
-	return p.convertTemplate2Component(name, typ, props, templ)
+	return p.convertTemplate2Component(name, typ, capType, props, templ)
 }
 
 func (p *Parser) makeComponentFromRevision(name, typ string, capType types.CapType, props *runtime.RawExtension, appRev *v1beta1.ApplicationRevision) (*Component, error) {
@@ -528,10 +582,10 @@ func (p *Parser) makeComponentFromRevision(name, typ string, capType types.CapTy
 		return nil, errors.WithMessagef(err, "fetch component/policy type of %s from revision", name)
 	}
 
-	return p.convertTemplate2Component(name, typ, props, templ)
+	return p.convertTemplate2Component(name, typ, capType, props, templ)
 }
 
-func (p *Parser) convertTemplate2Component(name, typ string, props *runtime.RawExtension, templ *Template) (*Component, error) {
+func (p *Parser) convertTemplate2Component(name, typ string, capType types.CapType, props *runtime.RawExtension, templ *Template) (*Component, error) {
 	settings, err := util.RawExtension2Map(props)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", name)
@@ -547,7 +601,7 @@ func (p *Parser) convertTemplate2Component(name, typ string, props *runtime.RawE
 		CapabilityCategory: templ.CapabilityCategory,
 		FullTemplate:       templ,
 		Params:             settings,
-		engine:             definition.NewWorkloadAbstractEngine(name),
+		engine:             newEngineFor(capType, name),
 	}, nil
 }
 
@@ -755,4 +809,244 @@ func (p *Parser) ValidateComponentNames(app *v1beta1.Application) (int, error) {
 		compNames[comp.Name] = struct{}{}
 	}
 	return 0, nil
+}
+
+// validateExpressionSurfaces rejects an expression that reads a `source` on a
+// surface where no source can be resolved.
+//
+// The admission webhook performs the same check and reports richer field paths,
+// but admission can be disabled (--use-webhook=false). Unlike the other source
+// checks, skipping this one fails silently rather than loudly: the read never
+// reaches a resolver, so the expression's own text survives into the consumer
+// instead of erroring. This is the backstop for that.
+//
+// The rule itself lives in pkg/cue/definition, next to the resolver that
+// implements it, so the two enforcement points cannot drift apart.
+func (p *Parser) validateExpressionSurfaces(ctx context.Context, af *Appfile) error {
+	check := func(raw *runtime.RawExtension, surface, name string) error {
+		if raw == nil || len(raw.Raw) == 0 {
+			return nil
+		}
+		var decoded interface{}
+		if err := json.Unmarshal(raw.Raw, &decoded); err != nil {
+			// Malformed properties are reported by the consumer's own parsing.
+			//nolint:nilerr // reported elsewhere, deliberately not twice
+			return nil
+		}
+		if !propexpr.HasExpression(decoded) {
+			return nil
+		}
+		if sources.SurfaceReadsSource(surface) {
+			return nil
+		}
+		// The surface cannot resolve a source, so only `context` is offered.
+		// ValidateTree reports reading anything else, which is what catches a
+		// `source` read here.
+		if err := celexpr.ValidateTree(decoded, propexpr.ContextIdent); err != nil {
+			return fmt.Errorf("%s %q: %w", surface, name, err)
+		}
+		return nil
+	}
+
+	for _, policy := range af.Policies {
+		if err := check(policy.Properties, PolicySurface(policy.Type, p.policyAppScoped(ctx, af, policy.Type)), policy.Name); err != nil {
+			return err
+		}
+	}
+	for _, step := range af.WorkflowSteps {
+		if err := check(step.Properties, sources.SurfaceWorkflowStep, step.Name); err != nil {
+			return err
+		}
+		for _, sub := range step.SubSteps {
+			if err := check(sub.Properties, sources.SurfaceWorkflowStep, sub.Name); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// resolvePolicyExpressions substitutes $(context...) expressions in policy
+// properties, once, where every consumer of af.Policies will see the result.
+//
+// Admission permits `context` expressions in any policy's properties, but only
+// Application-scoped policies were substituting them. Everywhere else the
+// literal survived into the consumer: a topology policy written
+//
+//	namespace: '$(context.namespace)'
+//
+// was accepted at apply and then failed at deploy with
+// `namespaces "$(context.namespace)" not found` - the expression used verbatim
+// as a name. Resolving here closes that gap, because af.Policies is what the
+// deploy provider, the placement lookup and override configuration all read.
+//
+// `source` stays unavailable, matching what admission allows. Policy properties
+// are consumed outside any component render, so there is no resolver to reach a
+// source through; permitting context alone is what the surface can actually
+// honour.
+//
+// The context is PolicyContext, not ScopedPolicyContext: this pass runs while the
+// appfile is built, so it has no cluster and no policy revision metadata. The
+// wider schema would declare fields it cannot supply, and a read of one would
+// pass admission and fail here as an undefined field.
+// evalWhatIsKnown substitutes the leaves this pass can answer and leaves the
+// rest as the author wrote them.
+//
+// An Application-scoped policy's surface advertises fields only its own render
+// produces - the policyRevision trio, and custom. Failing on those would turn an
+// expression the surface promises into a reconciliation error, and substituting
+// them is not possible from here. Leaving them alone hands them to
+// substituteScopedPolicyExpressions, which has the render's context.
+func evalWhatIsKnown(node interface{}, values map[string]interface{}) (interface{}, error) {
+	env, err := celexpr.DynEnv()
+	if err != nil {
+		return nil, err
+	}
+	return propexpr.Map(node, "", func(_, raw string) (interface{}, error) {
+		parsed, perr := propexpr.Parse(raw)
+		if perr != nil || !parsed.HasExpr() {
+			//nolint:nilerr // an unparseable value is reported by the policy's own parsing
+			return raw, nil
+		}
+		for _, fragment := range parsed.Fragments {
+			if !fragment.IsExpr() {
+				continue
+			}
+			refs, rerr := celexpr.PropertyReferences(fragment.Expr)
+			if rerr != nil {
+				//nolint:nilerr // reported by admission, with a better message
+				return raw, nil
+			}
+			for _, ref := range refs {
+				if ref.IsSource() || len(ref.Path) == 0 {
+					continue
+				}
+				if _, known := values[ref.Path[0]]; !known {
+					return raw, nil
+				}
+			}
+		}
+		return celexpr.EvalProperty(env, raw, map[string]interface{}{
+			"context": values,
+			"source":  map[string]interface{}{},
+		})
+	})
+}
+
+// controlPlaneClusterVersion is what context.clusterVersion reads for a policy
+// that targets no cluster of its own.
+func controlPlaneClusterVersion() map[string]interface{} {
+	cv := types.ControlPlaneClusterVersion
+	minor, _ := strconv.ParseInt(strings.TrimRight(strings.TrimSpace(cv.Minor), ".+-/?!"), 10, 64)
+	return map[string]interface{}{
+		"major":      cv.Major,
+		"gitVersion": cv.GitVersion,
+		"platform":   cv.Platform,
+		"minor":      minor,
+	}
+}
+
+func (p *Parser) resolvePolicyExpressions(ctx context.Context, af *Appfile) error {
+	// Exactly what PolicyContext declares. The registry is what admission types
+	// these expressions against, so supplying less would accept a read here and
+	// fail it at render.
+	revisionNum, _ := util.ExtractRevisionNum(af.AppRevisionName, "-")
+	base := map[string]interface{}{
+		"appName":        af.Name,
+		"namespace":      af.Namespace,
+		"appRevision":    af.AppRevisionName,
+		"appRevisionNum": revisionNum,
+	}
+	if af.app != nil {
+		base["appLabels"] = nonNilStrings(af.app.GetLabels())
+		base["appAnnotations"] = nonNilStrings(af.app.GetAnnotations())
+	}
+
+	for i := range af.Policies {
+		// A policy that renders through the workload engine substitutes its own
+		// expressions, with a resolver in hand. Doing it here as well would
+		// substitute context twice and would refuse the source reads that render
+		// can satisfy.
+		//
+		// Built-in and Application-scoped policies both need this pass: neither
+		// reaches that engine, so this is the only place their context is
+		// substituted. Their surfaces differ, though, so each is evaluated
+		// against its own schema rather than a shared one.
+		surface := PolicySurface(af.Policies[i].Type, p.policyAppScoped(ctx, af, af.Policies[i].Type))
+		if surface == sources.SurfacePolicyRendered {
+			continue
+		}
+		raw := af.Policies[i].Properties
+		if raw == nil || len(raw.Raw) == 0 {
+			continue
+		}
+		var decoded interface{}
+		if err := json.Unmarshal(raw.Raw, &decoded); err != nil {
+			// Malformed properties are reported by the policy's own parsing,
+			// which gives a better message than anything available here.
+			continue
+		}
+		if !propexpr.HasExpression(decoded) {
+			continue
+		}
+
+		values := make(map[string]interface{}, len(base)+3)
+		for k, v := range base {
+			values[k] = v
+		}
+		values["policyName"] = af.Policies[i].Name
+		values["policyType"] = af.Policies[i].Type
+		// An Application-scoped policy reads a wider context than a built-in
+		// one. clusterVersion is knowable here - a scoped policy targets no
+		// cluster, so it is the control plane's - while the policyRevision
+		// fields and custom are produced by the scoped render itself.
+		if surface == sources.SurfacePolicyApp {
+			values["clusterVersion"] = controlPlaneClusterVersion()
+		}
+
+		resolved, err := evalWhatIsKnown(decoded, values)
+		if err != nil {
+			return fmt.Errorf("policy %q: %w", af.Policies[i].Name, err)
+		}
+		out, err := json.Marshal(resolved)
+		if err != nil {
+			return fmt.Errorf("policy %q: %w", af.Policies[i].Name, err)
+		}
+		// A fresh RawExtension rather than a write into the existing one:
+		// af.Policies may share pointers with the Application spec, which has to
+		// keep the author's text so a round-trip does not rewrite their source.
+		af.Policies[i].Properties = &runtime.RawExtension{Raw: out}
+	}
+	return nil
+}
+
+func nonNilStrings(in map[string]string) map[string]string {
+	if in == nil {
+		return map[string]string{}
+	}
+	return in
+}
+
+// newEngineFor picks the render engine for a capability. A PolicyDefinition with
+// a CUE template renders through the same machinery as a component but on its own
+// surface, so its expressions see the context a policy render actually has.
+func newEngineFor(capType types.CapType, name string) definition.AbstractEngine {
+	if capType == types.TypePolicy {
+		return definition.NewPolicyAbstractEngine(name)
+	}
+	return definition.NewWorkloadAbstractEngine(name)
+}
+
+// policyAppScoped reports whether a policy type is an Application-scoped
+// PolicyDefinition.
+//
+// Guards the lookup rather than making each caller do it: a built-in type never
+// has a definition to fetch, and both passes run against appfiles built without
+// an Application or a client - unit fixtures, and the dry-run paths. Answering
+// false there is the fail-open every other surface check uses.
+func (p *Parser) policyAppScoped(ctx context.Context, af *Appfile, policyType string) bool {
+	if IsBuiltinPolicyType(policyType) || p == nil || p.client == nil || af == nil || af.app == nil {
+		return false
+	}
+	return p.isApplicationScopedPolicy(ctx, policyType, af.app.Annotations)
 }

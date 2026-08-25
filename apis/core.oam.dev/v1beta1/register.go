@@ -87,6 +87,15 @@ var (
 	WorkflowStepDefinitionGVR              = SchemeGroupVersion.WithResource("workflowstepdefinitions")
 )
 
+// SourceDefinition type metadata.
+var (
+	SourceDefinitionKind             = "SourceDefinition"
+	SourceDefinitionGroupKind        = schema.GroupKind{Group: Group, Kind: SourceDefinitionKind}.String()
+	SourceDefinitionKindAPIVersion   = SourceDefinitionKind + "." + SchemeGroupVersion.String()
+	SourceDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(SourceDefinitionKind)
+	SourceDefinitionGVR              = SchemeGroupVersion.WithResource("sourcedefinitions")
+)
+
 // DefinitionRevision type metadata.
 var (
 	DefinitionRevisionKind             = reflect.TypeOf(DefinitionRevision{}).Name()
@@ -131,6 +140,7 @@ var DefinitionTypeMap = map[reflect.Type]DefinitionTypeInfo{
 	reflect.TypeOf(TraitDefinition{}):        {GVR: TraitDefinitionGVR, Kind: TraitDefinitionKind},
 	reflect.TypeOf(PolicyDefinition{}):       {GVR: PolicyDefinitionGVR, Kind: PolicyDefinitionKind},
 	reflect.TypeOf(WorkflowStepDefinition{}): {GVR: WorkflowStepDefinitionGVR, Kind: WorkflowStepDefinitionKind},
+	reflect.TypeOf(SourceDefinition{}):       {GVR: SourceDefinitionGVR, Kind: SourceDefinitionKind},
 }
 
 func init() {
@@ -139,6 +149,7 @@ func init() {
 	SchemeBuilder.Register(&TraitDefinition{}, &TraitDefinitionList{})
 	SchemeBuilder.Register(&PolicyDefinition{}, &PolicyDefinitionList{})
 	SchemeBuilder.Register(&WorkflowStepDefinition{}, &WorkflowStepDefinitionList{})
+	SchemeBuilder.Register(&SourceDefinition{}, &SourceDefinitionList{})
 	SchemeBuilder.Register(&DefinitionRevision{}, &DefinitionRevisionList{})
 	SchemeBuilder.Register(&Application{}, &ApplicationList{})
 	SchemeBuilder.Register(&ApplicationRevision{}, &ApplicationRevisionList{})

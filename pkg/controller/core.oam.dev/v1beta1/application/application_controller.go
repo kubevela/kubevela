@@ -18,8 +18,10 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
@@ -29,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
@@ -59,6 +62,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -184,6 +188,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Parsed", err), common.ApplicationRendering)
 	}
+	appFile.SourceCacheStore = newConfigAPISourceCacheStore(r.Client, sourceTemplateRefsByType(logCtx, r.Client, appFile))
 	app.Status.SetConditions(condition.ReadyCondition("Parsed"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonParsed, velatypes.MessageParsed))
 
@@ -248,6 +253,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	handler.addAppliedResource(true, app.Status.AppliedResources...)
 	app.Status.AppliedResources = handler.appliedResources
+
+	// One row per declared binding, gathered from every surface that resolved one
+	// so far. Set here because the suspending and terminated paths return before
+	// evalStatus, and the workflow's own apply-component steps have already
+	// rendered by this point.
+	app.Status.Sources = handler.sourceStatusList()
 
 	// Remove services[] entries for components that no longer exist in spec
 	filteredServices, componentsRemoved := filterRemovedComponentsFromStatus(
@@ -326,6 +337,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	var phase = common.ApplicationRunning
 	isHealthy := evalStatus(logCtx, handler, appFile, appParser)
+	// Again, now evalStatus has re-rendered every component for its health check.
+	// On a succeeded workflow that render is the only one this reconcile performs,
+	// so the earlier call above saw an empty accumulator and reported every
+	// binding Unused.
+	app.Status.Sources = handler.sourceStatusList()
 	if !isHealthy {
 		phase = common.ApplicationUnhealthy
 	}
@@ -334,6 +350,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := applyPostDispatchTraits(); err != nil {
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), phase)
 	}
+
+	// Re-resolve source values and refresh the ResourceTracker for opted-in
+	// components whose sources changed. The workflow does not re-run once it has
+	// succeeded, so without this a re-resolved source value never reaches the
+	// stored manifest and StateKeep below would keep re-applying the stale one.
+	r.refreshSourceDrivenComponents(logCtx, handler, appParser, appFile, app)
 
 	r.stateKeep(logCtx, handler, app)
 
@@ -362,6 +384,172 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
 	// Use Update instead of Patch when components were removed to properly clear status arrays
 	return r.gcResourceTrackers(logCtx, handler, phase, true, componentsRemoved)
+}
+
+// refreshSourceDrivenComponents re-resolves source values and re-dispatches
+// components whose consumed source values changed, so the ResourceTracker holds
+// the current desired state before StateKeep enforces it.
+//
+// It exists because a succeeded workflow short-circuits: the apply-component
+// step does not run again, so nothing re-dispatches and StateKeep keeps pushing
+// the manifest that was stored when the workflow last ran. Note that the
+// component is nonetheless re-rendered on every reconcile - evalStatus above
+// runs checkComponentHealth, which renders through the same
+// prepareWorkloadAndManifests and resolves the same sources. What is missing is
+// the dispatch, not the render, so this repeats a render already performed a
+// few lines earlier. Reusing that result would make the refresh close to free
+// and is worth doing; the one case it would not cover is an Application whose
+// policy manages its own health checks, where evalStatus returns early and
+// renders nothing at all.
+//
+// A no-op unless the Application declares sources, at least one binding has
+// autoUpdate on, and no publishVersion pin freezes it. The per-source-hash gate
+// inside the component dispatcher then suppresses the re-apply when nothing
+// actually changed.
+func (r *Reconciler) refreshSourceDrivenComponents(logCtx monitorContext.Context, handler *AppHandler, appParser *appfile.Parser, af *appfile.Appfile, app *v1beta1.Application) {
+	if ok, reason := sourceRefreshEnabled(app, sourceAutoUpdateDefault()); !ok {
+		klog.V(2).InfoS("skipping source refresh", "app", klog.KObj(app), "reason", reason)
+		return
+	}
+	// Which components read a source (by name).
+	compByName := make(map[string]common.ApplicationComponent, len(app.Spec.Components))
+	for _, comp := range app.Spec.Components {
+		if componentConsumesSource(comp) {
+			compByName[comp.Name] = comp
+		}
+	}
+	if len(compByName) == 0 {
+		return
+	}
+	apply := handler.applyComponentFunc(appParser, af)
+	// Re-apply per placed instance: status.Services carries the resolved cluster
+	// and namespace for each component (honouring topology / override policies).
+	// The per-source-hash gate in the dispatcher makes this a no-op unless a
+	// consumed value actually changed.
+	seen := map[string]struct{}{}
+	// rendered accumulates what each component renders across every placement, so
+	// a component placed in two clusters is judged on the union rather than on
+	// whichever placement happened to come last.
+	rendered := map[string][]*unstructured.Unstructured{}
+	incomplete := map[string]struct{}{}
+	for _, svc := range app.Status.Services {
+		comp, ok := compByName[svc.Name]
+		if !ok {
+			continue
+		}
+		key := svc.Name + "/" + svc.Cluster + "/" + svc.Namespace
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		workload, traits, _, err := apply(logCtx, comp, nil, svc.Cluster, svc.Namespace)
+		if err != nil {
+			logCtx.Error(err, "failed to refresh source-driven component", "component", comp.Name, "cluster", svc.Cluster)
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
+			incomplete[comp.Name] = struct{}{}
+			continue
+		}
+		if workload != nil {
+			rendered[comp.Name] = append(rendered[comp.Name], workload)
+		}
+		rendered[comp.Name] = append(rendered[comp.Name], traits...)
+	}
+
+	// Reap what a component no longer renders. Garbage collection cannot: it
+	// recycles whole ResourceTrackers, and a tracker is retired only when a new
+	// ApplicationRevision supersedes it. Refresh deliberately mints no revision,
+	// so a component whose rendered set shrank - most visibly when a source value
+	// feeds a resource name - would otherwise leave the difference running.
+	//
+	// All-or-nothing per component. A partial view of what a component renders
+	// would make a transient render error look like a deletion, so a component
+	// with any failed placement is skipped entirely and retried next reconcile.
+	for name, keep := range rendered {
+		if _, partial := incomplete[name]; partial {
+			logCtx.Info("skipping prune, the rendered set is incomplete", "component", name)
+			continue
+		}
+		pruned, err := handler.resourceKeeper.PruneComponentResources(logCtx, name, keep)
+		if err != nil {
+			logCtx.Error(err, "failed to prune resources the component no longer renders", "component", name)
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
+			continue
+		}
+		for _, mr := range pruned {
+			logCtx.Info("pruned a resource the component no longer renders",
+				"component", name, "kind", mr.Kind, "name", mr.Name, "namespace", mr.Namespace, "cluster", mr.Cluster)
+			r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied,
+				fmt.Sprintf("pruned %s %s/%s, no longer rendered by component %s", mr.Kind, mr.Namespace, mr.Name, name)))
+		}
+	}
+}
+
+// sourceAutoUpdateDefault is the controller-wide default applied to an
+// Application that says nothing about source-driven re-dispatch.
+func sourceAutoUpdateDefault() bool {
+	return feature.DefaultMutableFeatureGate.Enabled(features.EnableSourceAutoUpdate)
+}
+
+// sourceRefreshEnabled reports whether out-of-band source refresh should run for
+// this Application, and says why when it should not.
+//
+// defaultOn is the controller-wide default applied to an Application that
+// expresses no opinion of its own.
+func sourceRefreshEnabled(app *v1beta1.Application, defaultOn bool) (bool, string) {
+	if len(app.Spec.Sources) == 0 {
+		return false, "no sources declared"
+	}
+	if len(autoUpdatingSources(app.Spec.Sources, defaultOn)) == 0 {
+		return false, "no source has autoUpdate enabled"
+	}
+	// A publishVersion pin is hard. A source value changing must not move what
+	// is deployed until the user bumps the pin, exactly as an edit to a
+	// referenced ConfigMap does not move a pinned helmchart valuesFrom revision
+	// (see the fingerprint gate in workflow.go). Sources and valuesFrom are both
+	// external data feeding a render, so they must answer this the same way, or
+	// pinning means one thing for one feature and something else for the other.
+	//
+	// The pin wins over an explicit opt-in rather than the reverse: an
+	// Application carrying both has asked for two incompatible things, and
+	// freezing is the safe reading. Nothing surfaces that contradiction yet -
+	// admission is the right place for it, but warnings would have to be
+	// threaded through the field.ErrorList the validators return.
+	if metav1.HasAnnotation(app.ObjectMeta, oam.AnnotationPublishVersion) {
+		return false, "publishVersion is set, so the Application is pinned"
+	}
+	return true, ""
+}
+
+// componentConsumesSource reports whether a component or any of its traits reads
+// a source in its properties.
+func componentConsumesSource(comp common.ApplicationComponent) bool {
+	if rawReadsSource(comp.Properties) {
+		return true
+	}
+	for _, tr := range comp.Traits {
+		if rawReadsSource(tr.Properties) {
+			return true
+		}
+	}
+	return false
+}
+
+func rawReadsSource(raw *runtime.RawExtension) bool {
+	if raw == nil || len(raw.Raw) == 0 {
+		return false
+	}
+	// A substring check on the delimiter is a cheap pre-filter; anything that
+	// carries it is decoded and walked properly below. The escape `$$(` is a
+	// literal, not an expression, so the pre-filter over-selects rather than
+	// under-selects - which is the safe direction for a refresh gate.
+	if !strings.Contains(string(raw.Raw), "$(") {
+		return false
+	}
+	var decoded interface{}
+	if err := json.Unmarshal(raw.Raw, &decoded); err != nil {
+		return false
+	}
+	return propexpr.HasExpression(decoded)
 }
 
 func (r *Reconciler) stateKeep(logCtx monitorContext.Context, handler *AppHandler, app *v1beta1.Application) {
