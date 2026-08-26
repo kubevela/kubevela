@@ -534,6 +534,12 @@ func (g *CUEGenerator) generateParameterBlock(c *ComponentDefinition, depth int)
 	return sb.String()
 }
 
+// validatorMessageVar is the CUE let binding holding a computed validator
+// message. It is declared inside the validator block rather than beside it, so
+// each validator gets its own binding and several validators can share a
+// struct without their message bindings colliding.
+const validatorMessageVar = "_message"
+
 // writeValidator writes a CUE _validate* block.
 // Example output:
 //
@@ -543,6 +549,9 @@ func (g *CUEGenerator) generateParameterBlock(c *ComponentDefinition, depth int)
 //	        "tenantName must not end with a hyphen": false
 //	    }
 //	}
+//
+// Validators built with ValidateValue carry an expression message instead, and
+// the two branches share a computed key. See validatorMessageKey.
 func (g *CUEGenerator) writeValidator(sb *strings.Builder, v *Validator, depth int) {
 	indent := strings.Repeat(g.indent, depth)
 	inner := strings.Repeat(g.indent, depth+1)
@@ -555,12 +564,17 @@ func (g *CUEGenerator) writeValidator(sb *strings.Builder, v *Validator, depth i
 		name = "_validate"
 	}
 
+	letDecl, key := g.validatorMessageKey(v)
+
 	writeBody := func(bodyIndent, innerBodyIndent string) {
 		sb.WriteString(fmt.Sprintf("%s%s: {\n", bodyIndent, name))
-		sb.WriteString(fmt.Sprintf("%s%q: true\n", innerBodyIndent, v.Message()))
+		if letDecl != "" {
+			sb.WriteString(fmt.Sprintf("%s%s\n", innerBodyIndent, letDecl))
+		}
+		sb.WriteString(fmt.Sprintf("%s%s: true\n", innerBodyIndent, key))
 		if v.FailCondition() != nil {
 			g.writeIfBlocksForCond(sb, v.FailCondition(), innerBodyIndent, func() {
-				sb.WriteString(fmt.Sprintf("%s\t%q: false\n", innerBodyIndent, v.Message()))
+				sb.WriteString(fmt.Sprintf("%s\t%s: false\n", innerBodyIndent, key))
 			})
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", bodyIndent))
@@ -574,6 +588,38 @@ func (g *CUEGenerator) writeValidator(sb *strings.Builder, v *Validator, depth i
 	} else {
 		writeBody(indent, inner)
 	}
+}
+
+// validatorMessageKey returns the optional `let` declaration a validator needs
+// and the CUE field label its two branches share.
+//
+// A fixed string message is emitted as a quoted label directly. An expression
+// message is bound to a let and both branches use the computed label
+// (_message). Going through the let is what keeps the two labels identical:
+// they have to unify into one field for the validator to conflict, and reaching
+// for the same binding twice guarantees that in a way repeating the expression
+// does not. It also keeps a long message out of the generated CUE twice over.
+func (g *CUEGenerator) validatorMessageKey(v *Validator) (letDecl, key string) {
+	expr := v.MessageValue()
+	if expr == nil {
+		return "", fmt.Sprintf("%q", v.Message())
+	}
+	// A literal string needs no indirection: emit the label the fixed-string
+	// form would have produced.
+	if lit, ok := expr.(*Literal); ok {
+		if s, ok := lit.Val().(string); ok {
+			return "", fmt.Sprintf("%q", s)
+		}
+	}
+	rendered := g.valueToCUE(expr)
+	if rendered == "" || rendered == "_" {
+		// valueToCUE has no rendering for this Value, so it fell through to its
+		// placeholder. Binding that would produce a label CUE never resolves and
+		// a validator that silently never fires, which is the one outcome worth
+		// avoiding here, so fail in the generated CUE instead.
+		rendered = "_|_ // defkit: validator message expression cannot be rendered"
+	}
+	return fmt.Sprintf("let %s = %s", validatorMessageVar, rendered), fmt.Sprintf("(%s)", validatorMessageVar)
 }
 
 // writeIfBlocksForCond writes one or more `if cond { body }` blocks. For

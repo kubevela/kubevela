@@ -19,6 +19,7 @@ package defkit_test
 import (
 	"strings"
 
+	"cuelang.org/go/cue/cuecontext"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -252,6 +253,166 @@ var _ = Describe("Validator", func() {
 			cue := gen.GenerateParameterSchema(comp)
 
 			Expect(cue).To(ContainSubstring("len(allowedMethods) == 0"))
+		})
+	})
+
+	// --- Expression-based validator messages ---
+
+	Context("Expression Message Validators", func() {
+		// The message expression used throughout: "region '<region>' must not
+		// match the primary region".
+		regionMessage := func() defkit.Value {
+			return defkit.Interpolation(
+				defkit.Lit("region '"),
+				defkit.LocalField("region"),
+				defkit.Lit("' must not match the primary region"),
+			)
+		}
+
+		It("should keep the expression on the validator and leave Message empty", func() {
+			msg := regionMessage()
+			v := defkit.ValidateValue(msg)
+
+			Expect(v.MessageValue()).To(Equal(msg))
+			Expect(v.Message()).To(BeEmpty())
+		})
+
+		It("should report no expression for a fixed string validator", func() {
+			Expect(defkit.Validate("msg").MessageValue()).To(BeNil())
+		})
+
+		It("should bind the message to a let and use it as the key in both branches", func() {
+			comp := defkit.NewComponent("test").
+				Params(defkit.String("primaryRegion"), defkit.String("region")).
+				Validators(
+					defkit.ValidateValue(regionMessage()).
+						FailWhen(defkit.Eq(defkit.LocalField("region"), defkit.Reference("parameter.primaryRegion"))).
+						WithName("_validateRegion"),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring(`_validateRegion: {
+		let _message = "region '\(region)' must not match the primary region"
+		(_message): true
+		if region == parameter.primaryRegion {
+			(_message): false
+		}
+	}`))
+			// Both branches have to reach for the binding rather than repeat the
+			// expression, otherwise they are not guaranteed to be one field.
+			Expect(strings.Count(cue, "(_message)")).To(Equal(2))
+			Expect(strings.Count(cue, "let _message")).To(Equal(1))
+		})
+
+		It("should emit the expression message inside an array element struct", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.String("primaryRegion"),
+					defkit.Array("replicas").WithFields(defkit.String("region")).Validators(
+						defkit.ValidateValue(regionMessage()).
+							FailWhen(defkit.Eq(defkit.LocalField("region"), defkit.Reference("parameter.primaryRegion"))).
+							WithName("_validateReplicaRegion"),
+					),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("replicas: [...{"))
+			Expect(cue).To(ContainSubstring(`let _message = "region '\(region)' must not match the primary region"`))
+			Expect(strings.Count(cue, "(_message)")).To(Equal(2))
+		})
+
+		It("should scope the let per validator so two can share a struct", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.Object("gov").WithFields(
+						defkit.String("tenant"),
+						defkit.String("dept"),
+					).Validators(
+						defkit.ValidateValue(defkit.Interpolation(
+							defkit.Lit("tenant '"), defkit.LocalField("tenant"), defkit.Lit("' is reserved"),
+						)).FailWhen(defkit.LocalField("tenant").Eq("system")).WithName("_validateTenant"),
+						defkit.ValidateValue(defkit.Interpolation(
+							defkit.Lit("dept '"), defkit.LocalField("dept"), defkit.Lit("' is reserved"),
+						)).FailWhen(defkit.LocalField("dept").Eq("root")).WithName("_validateDept"),
+					),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring(`let _message = "tenant '\(tenant)' is reserved"`))
+			Expect(cue).To(ContainSubstring(`let _message = "dept '\(dept)' is reserved"`))
+			Expect(strings.Count(cue, "let _message")).To(Equal(2))
+			Expect(strings.Count(cue, "(_message)")).To(Equal(4))
+		})
+
+		It("should put the let inside the validator block when the validator is guarded", func() {
+			comp := defkit.NewComponent("test").
+				Params(defkit.Bool("strict"), defkit.String("name")).
+				Validators(
+					defkit.ValidateValue(defkit.Interpolation(
+						defkit.Lit("name '"), defkit.LocalField("name"), defkit.Lit("' must not end with a hyphen"),
+					)).
+						OnlyWhen(defkit.LocalField("strict").Eq(true)).
+						FailWhen(defkit.LocalField("name").Matches(".*-$")).
+						WithName("_validateName"),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring(`if strict == true {
+		_validateName: {
+			let _message = "name '\(name)' must not end with a hyphen"
+			(_message): true`))
+		})
+
+		It("should emit a literal string message as a plain key, same as Validate", func() {
+			build := func(v *defkit.Validator) string {
+				return defkit.NewCUEGenerator().GenerateParameterSchema(
+					defkit.NewComponent("test").Params(defkit.String("name")).Validators(v),
+				)
+			}
+
+			expr := build(defkit.ValidateValue(defkit.Lit("name must not be empty")).
+				FailWhen(defkit.LocalField("name").Eq("")).WithName("_validateName"))
+			fixed := build(defkit.Validate("name must not be empty").
+				FailWhen(defkit.LocalField("name").Eq("")).WithName("_validateName"))
+
+			Expect(expr).To(Equal(fixed))
+			Expect(expr).NotTo(ContainSubstring("let _message"))
+			Expect(expr).To(ContainSubstring(`"name must not be empty": true`))
+		})
+
+		It("should compile, and name the offending value when the rule is broken", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.String("primaryRegion"),
+					defkit.Array("replicas").WithFields(defkit.String("region")).Validators(
+						defkit.ValidateValue(regionMessage()).
+							FailWhen(defkit.Eq(defkit.LocalField("region"), defkit.Reference("parameter.primaryRegion"))).
+							WithName("_validateReplicaRegion"),
+					),
+				)
+
+			schema := gen.GenerateParameterSchema(comp)
+			compile := func(input string) error {
+				v := cuecontext.New().CompileString(schema + "\n" + input)
+				if err := v.Err(); err != nil {
+					return err
+				}
+				return v.Validate()
+			}
+
+			Expect(compile(`parameter: {primaryRegion: "us-west-2", replicas: [{region: "us-east-1"}]}`)).
+				To(Succeed())
+
+			err := compile(`parameter: {primaryRegion: "us-west-2", replicas: [{region: "us-east-1"}, {region: "us-west-2"}]}`)
+			Expect(err).To(HaveOccurred())
+			// The whole point of the feature: the message names the value that
+			// broke the rule, and CUE's path names the element it came from.
+			Expect(err.Error()).To(ContainSubstring("region 'us-west-2' must not match the primary region"))
+			Expect(err.Error()).To(ContainSubstring("replicas.1"))
 		})
 	})
 
