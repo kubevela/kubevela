@@ -1,6 +1,6 @@
 name: "🚀 Feature request"
 description: Suggest a brand new capability that doesn't exist yet
-title: ""
+title: "[Feature]"
 labels: ["type/feature"]
 body:
   - type: checkboxes
