@@ -1,6 +1,6 @@
 name: "✨ Enhancement request"
 description: Suggest an improvement to an existing feature or component
-title: ""
+title: "[Enhancement]"
 labels: ["type/enhancement"]
 body:
   - type: checkboxes
