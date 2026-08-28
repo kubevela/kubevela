@@ -18,6 +18,7 @@ package addon
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -136,10 +137,14 @@ func TestGetCachedAddonMeta(t *testing.T) {
 type registryStub struct {
 	list    []*UIData
 	perCall func(name, version string) *UIData
+	err     error
 }
 
 func (s *registryStub) ListAddon() ([]*UIData, error) { return s.list, nil }
 func (s *registryStub) GetAddonUIData(_ context.Context, name, version string) (*UIData, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
 	return s.perCall(name, version), nil
 }
 func (s *registryStub) GetAddonInstallPackage(context.Context, string, string) (*InstallPackage, error) {
@@ -178,4 +183,70 @@ func TestCacheVersionedUIDataKeepsAvailableVersions(t *testing.T) {
 	latest := u.getCachedUIData(Registry{Name: "ecr", OCI: &OCIAddonSource{URL: "oci://reg/addon"}}, "fluxcd", "")
 	require.NotNil(t, latest)
 	assert.Equal(t, []string{"3.0.2", "3.0.1", "2.0.0"}, latest.AvailableVersions)
+}
+
+func TestCacheVersionedUIDataEdgeCases(t *testing.T) {
+	t.Run("skips addon on fetch error", func(t *testing.T) {
+		u := NewCache(nil)
+		stub := &registryStub{
+			list: []*UIData{{Meta: Meta{Name: "fluxcd", Version: "1.0.0"}}},
+			err:  errors.New("network error"),
+		}
+
+		u.cacheVersionedUIData("test-reg", stub, stub.list)
+		assert.Empty(t, u.versionedUIData["test-reg"])
+	})
+
+	t.Run("skips addon with empty name from chart", func(t *testing.T) {
+		u := NewCache(nil)
+		stub := &registryStub{
+			list: []*UIData{{Meta: Meta{Name: "badchart", Version: "1.0.0"}}},
+			perCall: func(_, version string) *UIData {
+				return &UIData{Meta: Meta{Name: "", Version: version}}
+			},
+		}
+
+		u.cacheVersionedUIData("test-reg", stub, stub.list)
+		assert.Empty(t, u.versionedUIData["test-reg"])
+	})
+
+	t.Run("deletes stale entries no longer in listing", func(t *testing.T) {
+		u := NewCache(nil)
+		// Pre-populate with an addon that won't appear in the new listing.
+		u.putVersionedUIData2Cache("test-reg", "old-addon", "1.0.0", &UIData{Meta: Meta{Name: "old-addon", Version: "1.0.0"}})
+		u.putVersionedUIData2Cache("test-reg", "old-addon", "latest", &UIData{Meta: Meta{Name: "old-addon", Version: "1.0.0"}})
+		require.NotNil(t, u.versionedUIData["test-reg"]["old-addon-1.0.0"])
+
+		stub := &registryStub{
+			list: []*UIData{{Meta: Meta{Name: "fluxcd", Version: "1.0.0"}}},
+			perCall: func(name, version string) *UIData {
+				return &UIData{Meta: Meta{Name: name, Version: version}}
+			},
+		}
+
+		u.cacheVersionedUIData("test-reg", stub, stub.list)
+
+		assert.NotNil(t, u.versionedUIData["test-reg"]["fluxcd-1.0.0"], "new addon must be cached")
+		assert.Nil(t, u.versionedUIData["test-reg"]["old-addon-1.0.0"], "stale addon must be deleted")
+	})
+
+	t.Run("preserves available versions when fetch already has them", func(t *testing.T) {
+		u := NewCache(nil)
+		stub := &registryStub{
+			list: []*UIData{{
+				Meta:              Meta{Name: "fluxcd", Version: "1.0.0"},
+				AvailableVersions: []string{"1.0.0", "0.9.0"},
+			}},
+			perCall: func(name, version string) *UIData {
+				return &UIData{Meta: Meta{Name: name, Version: version}, AvailableVersions: []string{"1.0.0"}}
+			},
+		}
+
+		u.cacheVersionedUIData("test-reg", stub, stub.list)
+
+		cached := u.versionedUIData["test-reg"]["fluxcd-1.0.0"]
+		require.NotNil(t, cached)
+		// The fetch already carried versions, so the listing's list must not override it.
+		assert.Equal(t, []string{"1.0.0"}, cached.AvailableVersions)
+	})
 }

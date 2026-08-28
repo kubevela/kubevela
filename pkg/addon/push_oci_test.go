@@ -36,13 +36,16 @@ func TestIsDirectAddonPushTarget(t *testing.T) {
 
 func TestPushCmdRoutesDirectOCI(t *testing.T) {
 	var captured *OCIAddonSource
+	var capturedPlainHTTP bool
 	p := &PushCmd{
 		RepoName:  "oci://registry.example.com/addons",
 		Username:  "robot",
 		Password:  "secret",
 		ChartName: "unused-by-test-seam",
-		ociPushFn: func(_ context.Context, source *OCIAddonSource) error {
+		UseHTTP:   true,
+		ociPushFn: func(_ context.Context, source *OCIAddonSource, plainHTTP bool) error {
 			captured = source
+			capturedPlainHTTP = plainHTTP
 			return nil
 		},
 	}
@@ -52,6 +55,7 @@ func TestPushCmdRoutesDirectOCI(t *testing.T) {
 	assert.Equal(t, "oci://registry.example.com/addons", captured.URL)
 	assert.Equal(t, "robot", captured.Username)
 	assert.Equal(t, "secret", captured.Token)
+	assert.True(t, capturedPlainHTTP)
 }
 
 func TestPushCmdRoutesConfiguredOCI(t *testing.T) {
@@ -74,7 +78,7 @@ func TestPushCmdRoutesConfiguredOCI(t *testing.T) {
 			RepoName:  "private",
 			Client:    kubeClient,
 			ChartName: "unused-by-test-seam",
-			ociPushFn: func(_ context.Context, source *OCIAddonSource) error {
+			ociPushFn: func(_ context.Context, source *OCIAddonSource, _ bool) error {
 				captured = source
 				return nil
 			},
@@ -94,7 +98,7 @@ func TestPushCmdRoutesConfiguredOCI(t *testing.T) {
 			ChartName: "unused-by-test-seam",
 			Username:  "override-user",
 			Password:  "override-password",
-			ociPushFn: func(_ context.Context, source *OCIAddonSource) error {
+			ociPushFn: func(_ context.Context, source *OCIAddonSource, _ bool) error {
 				captured = source
 				return nil
 			},
@@ -117,7 +121,7 @@ func TestPushCmdRoutesConfiguredOCI(t *testing.T) {
 			Client:    kubeClient,
 			ChartName: "unused-by-test-seam",
 			Password:  "rotated-password",
-			ociPushFn: func(_ context.Context, source *OCIAddonSource) error {
+			ociPushFn: func(_ context.Context, source *OCIAddonSource, _ bool) error {
 				captured = source
 				return nil
 			},
@@ -149,7 +153,7 @@ func TestPushCmdRejectsOCIAuthAmbiguity(t *testing.T) {
 	for name, pushCmd := range tests {
 		t.Run(name, func(t *testing.T) {
 			pushCmd.ChartName = "unused-by-test-seam"
-			pushCmd.ociPushFn = func(_ context.Context, _ *OCIAddonSource) error {
+			pushCmd.ociPushFn = func(_ context.Context, _ *OCIAddonSource, _ bool) error {
 				t.Fatal("OCI push must not run when authentication is invalid")
 				return nil
 			}

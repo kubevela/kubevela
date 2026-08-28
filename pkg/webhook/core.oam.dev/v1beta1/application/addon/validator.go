@@ -46,10 +46,10 @@ func NewValidator() *Validator {
 // componentProperties is the subset of a type: addon component's properties
 // relevant to admission-time compatibility validation.
 type componentProperties struct {
-	Addon               string `json:"addon"`
-	Version             string `json:"version"`
-	Registry            string `json:"registry"`
-	SkipVersionValidate bool   `json:"skipVersionValidate"`
+	Addon                 string `json:"addon"`
+	Version               string `json:"version"`
+	Registry              string `json:"registry"`
+	SkipVersionValidation bool   `json:"skipVersionValidation"`
 }
 
 // ValidateComponents rejects type: addon components whose addon is incompatible
@@ -80,7 +80,7 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 				continue
 			}
 		}
-		if properties.SkipVersionValidate {
+		if properties.SkipVersionValidation {
 			logger.Debug("Skipping addon compatibility validation",
 				"component", component.Name, "reason", "version-validation-disabled")
 			continue

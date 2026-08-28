@@ -127,9 +127,12 @@ func (i *ociRegistry) resolveVersion(ctx context.Context, repoRef, host, version
 	return tags[0], tags, nil
 }
 
-// newOCIClient builds an authenticated Helm OCI registry client.
-func newOCIClient(host, username, password string) (*registry.Client, error) {
-	client, err := registry.NewClient()
+func newOCIClientWithPlainHTTP(host, username, password string, plainHTTP bool) (*registry.Client, error) {
+	var opts []registry.ClientOption
+	if plainHTTP {
+		opts = append(opts, registry.ClientOptPlainHTTP())
+	}
+	client, err := registry.NewClient(opts...)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create OCI registry client")
 	}
@@ -144,7 +147,15 @@ func newOCIClient(host, username, password string) (*registry.Client, error) {
 // pullOCIChart is the production puller: it logs in (when credentials are set)
 // and pulls the chart layer from the OCI registry via the Helm registry client.
 func pullOCIChart(_ context.Context, ref, host, username, password string) ([]byte, error) {
-	client, err := newOCIClient(host, username, password)
+	return pullOCIChartWithTransport(ref, host, username, password, false)
+}
+
+func pullOCIChartWithPlainHTTP(_ context.Context, ref, host, username, password string) ([]byte, error) {
+	return pullOCIChartWithTransport(ref, host, username, password, true)
+}
+
+func pullOCIChartWithTransport(ref, host, username, password string, plainHTTP bool) ([]byte, error) {
+	client, err := newOCIClientWithPlainHTTP(host, username, password, plainHTTP)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +172,15 @@ func pullOCIChart(_ context.Context, ref, host, username, password string) ([]by
 // listOCITags lists the repository's semver tags (highest first) via the Helm
 // registry client, which filters non-semver tags and sorts descending.
 func listOCITags(_ context.Context, repoRef, host, username, password string) ([]string, error) {
-	client, err := newOCIClient(host, username, password)
+	return listOCITagsWithTransport(repoRef, host, username, password, false)
+}
+
+func listOCITagsWithPlainHTTP(_ context.Context, repoRef, host, username, password string) ([]string, error) {
+	return listOCITagsWithTransport(repoRef, host, username, password, true)
+}
+
+func listOCITagsWithTransport(repoRef, host, username, password string, plainHTTP bool) ([]string, error) {
+	client, err := newOCIClientWithPlainHTTP(host, username, password, plainHTTP)
 	if err != nil {
 		return nil, err
 	}
@@ -199,9 +218,17 @@ func isOCIRepositoryAbsentError(err error) bool {
 // repository names relative to the configured registry prefix. The catalog API
 // is paginated through RFC 5988 Link headers.
 func listOCIRepositories(ctx context.Context, registryURL, username, password string) ([]string, error) {
+	return listOCIRepositoriesWithScheme(ctx, registryURL, username, password, "https")
+}
+
+func listOCIRepositoriesWithPlainHTTP(ctx context.Context, registryURL, username, password string) ([]string, error) {
+	return listOCIRepositoriesWithScheme(ctx, registryURL, username, password, "http")
+}
+
+func listOCIRepositoriesWithScheme(ctx context.Context, registryURL, username, password, scheme string) ([]string, error) {
 	host, prefix := ociRegistryLocation(registryURL)
 	next := &url.URL{
-		Scheme:   "https",
+		Scheme:   scheme,
 		Host:     host,
 		Path:     "/v2/_catalog",
 		RawQuery: "n=1000",
@@ -270,9 +297,9 @@ func listOCIRepositories(ctx context.Context, registryURL, username, password st
 			// absolute URL by replacing scheme and host outright. Every request in
 			// this loop attaches the registry's BasicAuth credentials, so following
 			// such a link would hand them to a host we were never configured to
-			// talk to. Accept only links that stay on the original https host.
-			if candidate.Scheme != "https" || candidate.Host != host {
-				return nil, errors.Errorf("refusing OCI catalog pagination link %q: expected an https link on host %s", candidate.Redacted(), host)
+			// talk to. Accept only links that stay on the original scheme and host.
+			if candidate.Scheme != scheme || candidate.Host != host {
+				return nil, errors.Errorf("refusing OCI catalog pagination link %q: expected an %s link on host %s", candidate.Redacted(), scheme, host)
 			}
 			next = candidate
 		}

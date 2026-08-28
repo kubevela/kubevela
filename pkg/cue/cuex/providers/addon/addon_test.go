@@ -141,3 +141,11 @@ func TestRenderIsRefusedWhenTheGateIsDisabled(t *testing.T) {
 	assert.Contains(t, err.Error(), "EnableAddonComponent")
 	assert.Equal(t, api.AddonRequest{}, fake.req, "the renderer must not be reached when the gate is off")
 }
+
+func TestPackageInputs(t *testing.T) {
+	require.NotNil(t, Package)
+	assert.NotEmpty(t, GetTemplate())
+	providers := GetProviders()
+	require.Contains(t, providers, "render")
+	assert.NotNil(t, providers["render"])
+}

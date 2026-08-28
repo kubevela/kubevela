@@ -92,7 +92,17 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 	}}, nil
 }
 
+// GetTemplate returns the CUE template.
+func GetTemplate() string {
+	return template
+}
+
+// GetProviders returns the CUE providers.
+func GetProviders() map[string]cuexruntime.ProviderFn {
+	return map[string]cuexruntime.ProviderFn{
+		"render": cuexruntime.GenericProviderFn[RenderParams, RenderReturns](Render),
+	}
+}
+
 // Package is the internal CueX package registered on the WorkloadCompiler.
-var Package = runtime.Must(cuexruntime.NewInternalPackage(ProviderName, template, map[string]cuexruntime.ProviderFn{
-	"render": cuexruntime.GenericProviderFn[RenderParams, RenderReturns](Render),
-}))
+var Package = runtime.Must(cuexruntime.NewInternalPackage(ProviderName, GetTemplate(), GetProviders()))

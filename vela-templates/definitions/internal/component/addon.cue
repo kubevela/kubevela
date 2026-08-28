@@ -5,7 +5,7 @@ import (
 "addon": {
 	annotations: {}
 	attributes: workload: type: "autodetects.core.oam.dev"
-	description: "Install an addon as a component; the addon's Application (with its auxiliaries) is tracked by this Application."
+	description: "Install an addon as a component; the addon's Application is tracked by this Application."
 	labels: {}
 	type: "component"
 }

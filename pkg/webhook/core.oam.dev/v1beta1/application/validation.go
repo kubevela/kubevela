@@ -18,12 +18,14 @@ package application
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"time"
 
 	"github.com/kubevela/pkg/controller/sharding"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/pkg/util/singleton"
 	authv1 "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -111,9 +113,17 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath(fmt.Sprintf("components[%d].name", i)), app, err.Error()))
 	}
 	if err := appParser.ValidateCUESchematicAppfile(af); err != nil {
-		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, err.Error()))
+		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, conciseSchematicError(err)))
 	}
 	return componentErrs
+}
+
+func conciseSchematicError(err error) string {
+	var callErr cuex.FunctionCallError
+	if stderrors.As(err, &callErr) && callErr.Err != nil {
+		return callErr.Err.Error()
+	}
+	return err.Error()
 }
 
 // checkDefinitionPermission checks if user has permission to access a definition in either system namespace or app namespace

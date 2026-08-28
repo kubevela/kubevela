@@ -44,7 +44,6 @@ const (
 	addonGitlabType    = "gitlab"
 	addonHelmType      = "helm"
 	addonOCIType       = "oci"
-	addonToken         = "token"
 	addonUsername      = "username"
 	addonPassword      = "password"
 	addonPasswordStdin = "password-stdin"
@@ -322,14 +321,12 @@ func parseArgsFromFlag(cmd *cobra.Command) {
 	cmd.Flags().StringP(addonOssBucket, "", "", "specify the OSS bucket name")
 	cmd.Flags().StringP(addonPath, "", "", "specify the addon registry path, must be set when addons are not in root of registry")
 	cmd.Flags().StringP(addonGitToken, "", "", "specify the github repo token")
-	cmd.Flags().StringP(addonToken, "", "", "deprecated alias for the OCI registry password")
 	cmd.Flags().StringP(addonUsername, "", "", "specify the Helm addon registry username")
 	cmd.Flags().StringP(addonPassword, "", "", "specify the Helm or OCI addon registry password")
 	cmd.Flags().Bool(addonPasswordStdin, false, "read the Helm or OCI addon registry password from stdin")
 	cmd.Flags().StringP(addonRepoName, "", "", "specify the gitlab addon registry repoName, must be set when registry is gitlab")
 	cmd.Flags().BoolP(addonHelmInsecureSkipTLS, "", false,
 		"specify the Helm addon registry skip tls verify")
-	_ = cmd.Flags().MarkDeprecated(addonToken, "use --password instead")
 }
 
 func setRegistryPasswordFromStdin(cmd *cobra.Command) error {
@@ -458,16 +455,6 @@ func getRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry,
 		r.OCI.Token, err = cmd.Flags().GetString(addonPassword)
 		if err != nil {
 			return nil, err
-		}
-		legacyToken, err := cmd.Flags().GetString(addonToken)
-		if err != nil {
-			return nil, err
-		}
-		if r.OCI.Token != "" && legacyToken != "" {
-			return nil, errors.New("--password and deprecated --token cannot be used together")
-		}
-		if r.OCI.Token == "" {
-			r.OCI.Token = legacyToken
 		}
 		if (r.OCI.Username == "") != (r.OCI.Token == "") {
 			return nil, errors.New("OCI registry username and password must be supplied together; omit both for anonymous access")

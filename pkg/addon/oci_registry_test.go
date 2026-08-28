@@ -124,6 +124,19 @@ func TestListOCIRepositories(t *testing.T) {
 	assert.Equal(t, []string{"fluxcd", "velaux"}, addons)
 }
 
+func TestListOCIRepositoriesWithPlainHTTP(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		assert.Equal(t, "/v2/_catalog", req.URL.Path)
+		_, _ = rw.Write([]byte(`{"repositories":["addon/sample"]}`))
+	}))
+	defer server.Close()
+
+	registryURL := "oci://" + strings.TrimPrefix(server.URL, "http://") + "/addon"
+	addons, err := listOCIRepositoriesWithPlainHTTP(context.Background(), registryURL, "", "")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"sample"}, addons)
+}
+
 func TestDecodeOCIAddonCatalog(t *testing.T) {
 	catalog, err := json.Marshal(OCIAddonCatalog{
 		APIVersion: ociCatalogAPIVersion,
@@ -609,6 +622,108 @@ func TestClassifyCatalogAbsenceProbe(t *testing.T) {
 		err := classifyCatalogAbsenceProbe(repo, nil, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "exposes no semver-tagged catalog")
+	})
+}
+
+// TestNewOCIClientWithPlainHTTP covers client construction for both transports.
+// Empty credentials skip Login, so this exercises the constructor without any
+// network call.
+func TestNewOCIClientWithPlainHTTP(t *testing.T) {
+	for _, plainHTTP := range []bool{true, false} {
+		client, err := newOCIClientWithPlainHTTP("reg.example.com", "", "", plainHTTP)
+		require.NoError(t, err)
+		assert.NotNil(t, client)
+	}
+}
+
+// TestNewOCIClientWithPlainHTTPLoginFailure covers the credentialed branch:
+// non-empty credentials trigger a real Login call, which fails fast and
+// deterministically against a closed loopback port.
+func TestNewOCIClientWithPlainHTTPLoginFailure(t *testing.T) {
+	_, err := newOCIClientWithPlainHTTP(closedPortHost, "AWS", "secret", false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to login to OCI registry")
+}
+
+// closedPortRepoRef and closedPortHost point at a loopback port nothing is
+// listening on, so the dial fails immediately and deterministically without
+// any real network dependency.
+const (
+	closedPortHost    = "127.0.0.1:1"
+	closedPortRepoRef = "127.0.0.1:1/addon/fluxcd"
+)
+
+// TestPullOCIChartWithTransportDialFailure exercises the real Helm registry
+// client against a closed port for both transports, pinning the wrap text
+// callers rely on.
+func TestPullOCIChartWithTransportDialFailure(t *testing.T) {
+	for _, plainHTTP := range []bool{true, false} {
+		_, err := pullOCIChartWithTransport(closedPortRepoRef+":1.0.0", closedPortHost, "", "", plainHTTP)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to pull addon chart")
+	}
+}
+
+// TestPullOCIChartWrappers covers pullOCIChart and pullOCIChartWithPlainHTTP,
+// which only select a transport before delegating.
+func TestPullOCIChartWrappers(t *testing.T) {
+	_, err := pullOCIChart(context.Background(), closedPortRepoRef+":1.0.0", closedPortHost, "", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to pull addon chart")
+
+	_, err = pullOCIChartWithPlainHTTP(context.Background(), closedPortRepoRef+":1.0.0", closedPortHost, "", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to pull addon chart")
+}
+
+// TestListOCITagsWithTransportDialFailure exercises the real Helm registry
+// client against a closed port for both transports.
+func TestListOCITagsWithTransportDialFailure(t *testing.T) {
+	for _, plainHTTP := range []bool{true, false} {
+		_, err := listOCITagsWithTransport(closedPortRepoRef, closedPortHost, "", "", plainHTTP)
+		require.Error(t, err)
+	}
+}
+
+// TestListOCITagsWrappers covers listOCITags and listOCITagsWithPlainHTTP.
+func TestListOCITagsWrappers(t *testing.T) {
+	_, err := listOCITags(context.Background(), closedPortRepoRef, closedPortHost, "", "")
+	require.Error(t, err)
+
+	_, err = listOCITagsWithPlainHTTP(context.Background(), closedPortRepoRef, closedPortHost, "", "")
+	require.Error(t, err)
+}
+
+// TestGetAddonAvailableVersion covers both the success path (a real tagsFn
+// producing chart versions) and the tagsFn-error passthrough.
+func TestGetAddonAvailableVersion(t *testing.T) {
+	t.Run("returns a chart version per tag", func(t *testing.T) {
+		reg := &ociRegistry{
+			url: "oci://reg.example.com/addon",
+			tagsFn: func(_ context.Context, repoRef, host, _, _ string) ([]string, error) {
+				assert.Equal(t, "reg.example.com/addon/fluxcd", repoRef)
+				assert.Equal(t, "reg.example.com", host)
+				return []string{"2.0.0", "1.0.0"}, nil
+			},
+		}
+		versions, err := reg.GetAddonAvailableVersion("fluxcd")
+		require.NoError(t, err)
+		require.Len(t, versions, 2)
+		assert.Equal(t, "fluxcd", versions[0].Name)
+		assert.Equal(t, "2.0.0", versions[0].Version)
+		assert.Equal(t, "1.0.0", versions[1].Version)
+	})
+
+	t.Run("propagates a tag listing failure", func(t *testing.T) {
+		reg := &ociRegistry{
+			url: "oci://reg.example.com/addon",
+			tagsFn: func(context.Context, string, string, string, string) ([]string, error) {
+				return nil, errors.New("dial tcp: i/o timeout")
+			},
+		}
+		_, err := reg.GetAddonAvailableVersion("fluxcd")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "i/o timeout")
 	})
 }
 

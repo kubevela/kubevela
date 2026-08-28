@@ -70,9 +70,9 @@ func TestValidateComponents(t *testing.T) {
 			wantField:    "spec.components[1].properties",
 			wantCalls:    1,
 		},
-		"skipVersionValidate short-circuits before the checker": {
+		"skipVersionValidation short-circuits before the checker": {
 			components: []common.ApplicationComponent{
-				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "skipVersionValidate": true})},
+				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "skipVersionValidation": true})},
 			},
 			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
 				return func(_ context.Context, _, _, _ string) *field.Error {

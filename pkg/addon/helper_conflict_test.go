@@ -50,3 +50,21 @@ func TestRemoveConflictingDefinitions(t *testing.T) {
 		assert.Equal(t, defs, filtered)
 	})
 }
+
+// TestDefinitionConflictDetectionMatchesRemoval pins the full pipeline
+// DetectDefinitionConflicts -> removeConflictingDefinitions relies on: both
+// stages must extract the same name for the same file, or a real conflict is
+// flagged but never removed. extractDefinitionName (godef.go) and
+// extractDefinitionNameFromFile (helper.go) used to disagree on directory
+// prefixes, so a CUE file under "definitions/" could never collide with a
+// compiled Go definition.
+func TestDefinitionConflictDetectionMatchesRemoval(t *testing.T) {
+	cueDefs := []ElementFile{{Name: "definitions/webservice.cue", Data: "cue-source"}}
+	goDefs := []ElementFile{{Name: "component-webservice.cue", Data: "go-compiled"}}
+
+	conflicts := DetectDefinitionConflicts(cueDefs, goDefs)
+	assert.Equal(t, []string{"webservice"}, conflicts)
+
+	filtered := removeConflictingDefinitions(cueDefs, conflicts)
+	assert.Empty(t, filtered, "the definitions/-prefixed CUE file must be removed once its extracted name conflicts")
+}

@@ -588,28 +588,15 @@ func TestGetOCIRegistryFromArgsUsesPassword(t *testing.T) {
 		assert.Empty(t, registry.OCI.Token)
 	})
 
-	t.Run("deprecated token remains compatible", func(t *testing.T) {
-		registry, err := parse(
-			"--type=oci",
-			"--endpoint=oci://registry.example.com/addons",
-			"--username=robot",
-			"--token=legacy-secret",
-		)
-
-		assert.NoError(t, err)
-		assert.Equal(t, "legacy-secret", registry.OCI.Token)
-	})
-
-	t.Run("password and deprecated token conflict", func(t *testing.T) {
+	t.Run("token flag is rejected", func(t *testing.T) {
 		_, err := parse(
 			"--type=oci",
 			"--endpoint=oci://registry.example.com/addons",
 			"--username=robot",
-			"--password=secret",
 			"--token=legacy-secret",
 		)
 
-		assert.ErrorContains(t, err, "cannot be used together")
+		assert.ErrorContains(t, err, "unknown flag: --token")
 	})
 
 	t.Run("partial basic authentication is rejected", func(t *testing.T) {

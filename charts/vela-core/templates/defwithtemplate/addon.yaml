@@ -4,7 +4,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: Install an addon as a component; the addon's Application (with its auxiliaries) is tracked by this Application.
+    definition.oam.dev/description: Install an addon as a component; the addon's Application is tracked by this Application.
   name: addon
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
