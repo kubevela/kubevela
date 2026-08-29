@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/hashicorp/go-version"
 	"github.com/kubevela/pkg/util/slices"
 	"github.com/pkg/errors"

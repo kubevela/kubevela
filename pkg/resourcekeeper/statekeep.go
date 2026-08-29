@@ -20,7 +20,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
 	"github.com/kubevela/pkg/util/maps"
 	"github.com/kubevela/pkg/util/slices"
 	"github.com/pkg/errors"

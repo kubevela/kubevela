@@ -5,7 +5,7 @@ inputs:
   go-version:
     description: 'Go version to use for testing'
     required: false
-    default: '1.23.8'
+    default: '1.25.12'
   install-ginkgo:
     description: 'Install Ginkgo testing framework'
     required: false
@@ -90,7 +90,7 @@ runs:
       shell: bash
       run: |
         echo "Installing Ginkgo testing framework..."
-        go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
+        go install github.com/onsi/ginkgo/v2/ginkgo@v2.27.2
         echo "Ginkgo installed successfully"
 
     - name: Install setup-envtest

@@ -37,7 +37,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	"cuelang.org/go/cue/load"
-	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )

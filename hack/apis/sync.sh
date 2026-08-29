@@ -36,7 +36,13 @@ clearRepo() {
     then
         git clone --single-branch --depth 1 git@github.com:oam-dev/kubevela-core-api.git kubevela-core-api
     else
-        git clone --single-branch --depth 1 https://github.com/kubevela/kubevela-core-api.git kubevela-core-api
+        # TODO: kubevela/kubevela-core-api's go.mod is missing module replacements
+        # needed to resolve cleanly after the crossplane-runtime v2 / k8s.io v0.35.x
+        # bump on this branch, which breaks `go mod tidy` in the test build below.
+        # Point at a fork commit with the fixed go.mod until upstream picks up the
+        # same fix, then revert to the upstream repo.
+        git clone --depth 1 https://github.com/anishbista60/kubevela-core-api.git kubevela-core-api
+        (cd kubevela-core-api && git fetch --depth 1 origin af55713f466f5ce4e69ff2665970c5f18beddb5c && git checkout af55713f466f5ce4e69ff2665970c5f18beddb5c)
     fi
 
     echo "clear kubevela-core-api apis/"

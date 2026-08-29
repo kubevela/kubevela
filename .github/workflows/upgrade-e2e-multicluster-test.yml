@@ -36,7 +36,7 @@ permissions:
 # Global Environment Variables
 # =============================================================================
 env:
-  GO_VERSION: '1.23.8'  # Go version for building and testing
+  GO_VERSION: '1.25.12'  # Go version for building and testing
 
 # =============================================================================
 # Job Definitions
@@ -54,7 +54,7 @@ jobs:
     strategy:
       fail-fast: false  # Continue testing other versions if one fails
       matrix:
-        k8s-version: ['v1.31.9']
+        k8s-version: ['v1.35.5']
 
     # ==========================================================================
     # Concurrency Control - Prevent overlapping runs

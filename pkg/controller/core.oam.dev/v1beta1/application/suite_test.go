@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	cuexv1alpha1 "github.com/kubevela/pkg/apis/cue/v1alpha1"
 	"github.com/kubevela/pkg/util/singleton"
 	terraformv1beta2 "github.com/oam-dev/terraform-controller/api/v1beta2"

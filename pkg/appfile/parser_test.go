@@ -23,7 +23,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"

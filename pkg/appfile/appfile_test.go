@@ -23,8 +23,8 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta2"

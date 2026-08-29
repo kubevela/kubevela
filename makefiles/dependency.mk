@@ -1,7 +1,7 @@
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
-GOLANGCILINT_VERSION ?= 1.60.1
+GOLANGCILINT_VERSION ?= 2.12.2
 GLOBAL_GOLANGCILINT := $(shell which golangci-lint)
 GOBIN_GOLANGCILINT:= $(shell which $(GOBIN)/golangci-lint)
 ENVTEST_K8S_VERSION = 1.31.0
@@ -19,7 +19,7 @@ else
 	@{ \
 	set -e ;\
 	echo 'installing golangci-lint-$(GOLANGCILINT_VERSION)' ;\
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOBIN) v$(GOLANGCILINT_VERSION) ;\
+	GOBIN=$(GOBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCILINT_VERSION) ;\
 	echo 'Successfully installed' ;\
 	}
 GOLANGCILINT=$(GOBIN)/golangci-lint

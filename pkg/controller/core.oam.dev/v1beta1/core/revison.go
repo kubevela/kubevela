@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver"
-	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	"github.com/pkg/errors"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
