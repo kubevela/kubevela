@@ -271,7 +271,12 @@ func configureKubernetesClientWithProvider(kubernetesConfig *config.KubernetesCo
 	kubeConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
 	kubeConfig.QPS = float32(kubernetesConfig.QPS)
 	kubeConfig.Burst = kubernetesConfig.Burst
-	kubeConfig.Wrap(auth.NewImpersonatingRoundTripper)
+	// Only wire the impersonating round tripper when application authentication is
+	// enabled. When disabled, identity annotations are stripped by the mutating
+	// webhook and must never be honored as impersonation identity. See issue #7139.
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.AuthenticateApplication) {
+		kubeConfig.Wrap(auth.NewImpersonatingRoundTripper)
+	}
 
 	klog.InfoS("Kubernetes Config Loaded",
 		"UserAgent", kubeConfig.UserAgent,
