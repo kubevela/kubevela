@@ -175,7 +175,7 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, pre
 				if err != nil {
 					return false, errors.WithMessage(err, "CollectHealthStatus")
 				}
-				if options.Stage < DefaultDispatch {
+				if options.Stage > DefaultDispatch {
 					status.Healthy = false
 					if status.Message == "" {
 						status.Message = "waiting for previous stage healthy"
