@@ -1,5 +1,4 @@
 /*
- /*
 Copyright 2022 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -124,4 +123,80 @@ var _ = Describe("Test Application Mutator", func() {
 			Value:     "step-0",
 		}))
 	})
+
+	It("Test Application Mutator [CREATE stamps traceID annotation]", func() {
+		Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.AuthenticateApplication))).Should(Succeed())
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				UID:       "trace-uid-create",
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: v1beta1.Group, Version: v1beta1.Version, Resource: "applications"},
+				Object:    runtime.RawExtension{Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"example"}}`)},
+			},
+		}
+		resp := mutatingHandler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+		Expect(resp.Patches).Should(ContainElement(jsonpatch.JsonPatchOperation{
+			Operation: "add",
+			Path:      "/metadata/annotations",
+			Value: map[string]interface{}{
+				oam.AnnotationTraceID: "trace-uid-create",
+			},
+		}))
+	})
+
+	It("Test Application Mutator [UPDATE stamps traceID when annotation missing]", func() {
+		Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.AuthenticateApplication))).Should(Succeed())
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				UID:       "trace-uid-update",
+				Operation: admissionv1.Update,
+				Resource:  metav1.GroupVersionResource{Group: v1beta1.Group, Version: v1beta1.Version, Resource: "applications"},
+				Object:    runtime.RawExtension{Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"example","annotations":{"keep":"me"}}}`)},
+				OldObject: runtime.RawExtension{Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"example","annotations":{"keep":"me"}}}`)},
+			},
+		}
+		resp := mutatingHandler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+		Expect(resp.Patches).Should(ContainElement(jsonpatch.JsonPatchOperation{
+			Operation: "add",
+			Path:      "/metadata/annotations/" + jsonPointerEscape(oam.AnnotationTraceID),
+			Value:     "trace-uid-update",
+		}))
+	})
+
+	It("Test Application Mutator [UPDATE preserves existing traceID annotation]", func() {
+		Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.AuthenticateApplication))).Should(Succeed())
+		existing := `{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"example","annotations":{"app.oam.dev/traceID":"original-trace"}}}`
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				UID:       "fresh-uid-must-not-overwrite",
+				Operation: admissionv1.Update,
+				Resource:  metav1.GroupVersionResource{Group: v1beta1.Group, Version: v1beta1.Version, Resource: "applications"},
+				Object:    runtime.RawExtension{Raw: []byte(existing)},
+				OldObject: runtime.RawExtension{Raw: []byte(existing)},
+			},
+		}
+		resp := mutatingHandler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+		for _, p := range resp.Patches {
+			Expect(p.Path).ShouldNot(ContainSubstring("traceID"))
+		}
+	})
 })
+
+// jsonPointerEscape escapes a JSON pointer path segment per RFC 6901: "~" -> "~0", "/" -> "~1".
+func jsonPointerEscape(s string) string {
+	out := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '~':
+			out = append(out, '~', '0')
+		case '/':
+			out = append(out, '~', '1')
+		default:
+			out = append(out, s[i])
+		}
+	}
+	return string(out)
+}

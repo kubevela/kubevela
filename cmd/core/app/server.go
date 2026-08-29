@@ -118,7 +118,8 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 		"debug", coreOptions.Observability.LogDebug,
 		"devLogs", coreOptions.Observability.DevLogs,
 		"logFilePath", coreOptions.Observability.LogFilePath)
-	setupLogging(coreOptions.Observability)
+	loggingCleanup := setupLogging(coreOptions.Observability)
+	defer loggingCleanup()
 
 	// Configure Kubernetes client
 	klog.InfoS("Configuring Kubernetes client",
@@ -227,8 +228,11 @@ func syncConfigurations(ctx context.Context, coreOptions *options.CoreOptions) {
 	}
 }
 
-// setupLogging configures klog based on parsed observability settings
-func setupLogging(observabilityConfig *config.ObservabilityConfig) {
+// setupLogging configures klog based on parsed observability settings.
+// Returns a cleanup function the caller must defer; the cleanup flushes any
+// buffered partial-line writes and drains the stderr-pipe goroutine so the
+// last bytes of stderr survive shutdown.
+func setupLogging(observabilityConfig *config.ObservabilityConfig) func() {
 	// Configure klog verbosity
 	if observabilityConfig.LogDebug {
 		_ = flag.Set("v", strconv.Itoa(int(commonconfig.LogDebug)))
@@ -241,14 +245,72 @@ func setupLogging(observabilityConfig *config.ObservabilityConfig) {
 		_ = flag.Set("log_file_max_size", strconv.FormatUint(observabilityConfig.LogFileMaxSize, 10))
 	}
 
-	// Set logger (use --dev-logs=true for local development)
-	if observabilityConfig.DevLogs {
-		logOutput := logging.NewColorWriter(os.Stdout)
-		klog.LogToStderr(false)
-		klog.SetOutput(logOutput)
-		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig(textlogger.Output(logOutput))))
+	// Set logger. In both dev-logs and default modes the requestID is hoisted
+	// into the log header (between PID and file:line) so reconcile log lines
+	// are correlatable without scanning the trailing key/value list.
+	//
+	// klog's stderrthreshold=ERROR (default) routes ERROR/WARN lines directly
+	// to stderr in addition to klog.SetOutput, which would bypass our
+	// formatters and emit unhoisted duplicates. The stderrthreshold flag is
+	// registered on a private cobra flagset we can't mutate from here, so we
+	// redirect os.Stderr through the formatter via a pipe instead. This
+	// catches klog's threshold copies, runtime panics, and any third-party
+	// library that writes to stderr directly.
+	realStderr := os.Stderr
+	stderrFormatter := func(dst io.Writer) logging.LineFormatter {
+		if observabilityConfig.DevLogs {
+			return logging.NewColorWriter(dst)
+		}
+		return logging.NewRequestIDInjector(dst)
+	}
+
+	var stderrSink logging.LineFormatter
+	pipeDone := make(chan struct{})
+	var pipeW *os.File
+	if pr, pw, err := os.Pipe(); err == nil {
+		os.Stderr = pw
+		pipeW = pw
+		stderrSink = stderrFormatter(realStderr)
+		go func() {
+			defer close(pipeDone)
+			_, _ = io.Copy(stderrSink, pr)
+		}()
 	} else {
-		ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig()))
+		// If we can't redirect stderr, klog's threshold copies will bypass
+		// the formatter. Warn but keep running — log lines from klog.SetOutput
+		// will still be hoisted; only the side-channel stderr writes won't be.
+		klog.Warningf("setupLogging: failed to create stderr redirection pipe (%v); klog stderrthreshold copies will not be formatted", err)
+		close(pipeDone)
+	}
+
+	var sink logging.LineFormatter
+	if observabilityConfig.DevLogs {
+		// colorWriter colourises and hoists requestID for human-readable terminals.
+		sink = logging.NewColorWriter(os.Stdout)
+	} else {
+		// Default mode: requestIDInjector hoists requestID without ANSI codes,
+		// preserving klog native format for log aggregators (Loki/ES/CloudWatch).
+		sink = logging.NewRequestIDInjector(realStderr)
+	}
+	klog.LogToStderr(false)
+	klog.SetOutput(sink)
+	ctrl.SetLogger(textlogger.NewLogger(textlogger.NewConfig(textlogger.Output(sink))))
+
+	return func() {
+		// Flush any in-progress partial line in the writer-side formatter
+		// before signalling the pipe goroutine.
+		if sink != nil {
+			_ = sink.Flush()
+		}
+		if pipeW != nil {
+			_ = pipeW.Close()
+			// Wait for the io.Copy goroutine to drain any bytes still in the
+			// pipe and exit cleanly. Bounded by the OS pipe buffer size.
+			<-pipeDone
+		}
+		if stderrSink != nil {
+			_ = stderrSink.Flush()
+		}
 	}
 }
 

@@ -18,17 +18,18 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog/v2"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -70,16 +71,16 @@ func (r *Reconciler) handleWorkflowRestartAnnotation(ctx context.Context, app *v
 		statusFieldNeedsUpdate = app.Status.WorkflowRestartScheduledAt == nil ||
 			!app.Status.WorkflowRestartScheduledAt.Time.Equal(scheduledTime)
 	} else {
-		klog.Warningf("Invalid workflow restart annotation value for Application %s/%s: %q. Expected 'true', RFC3339 timestamp, or duration (e.g., '5m', '1h')",
-			app.Namespace, app.Name, restartValue)
+		logging.FromContext(ctx).Info(fmt.Sprintf("Invalid workflow restart annotation value for Application %s/%s: %q. Expected 'true', RFC3339 timestamp, or duration (e.g., '5m', '1h')",
+			app.Namespace, app.Name, restartValue))
 		return
 	}
 
 	if statusFieldNeedsUpdate {
 		app.Status.WorkflowRestartScheduledAt = &metav1.Time{Time: scheduledTime}
 		if err := r.Status().Update(ctx, app); err != nil {
-			klog.Errorf("Failed to update workflow restart status for Application %s/%s: %v. Will retry on next reconcile.",
-				app.Namespace, app.Name, err)
+			logging.FromContext(ctx).Error(err, "Failed to update workflow restart status; will retry on next reconcile",
+				logging.FieldName, app.Name, logging.FieldNamespace, app.Namespace)
 			// Don't fail reconciliation - will retry naturally on next reconcile
 		}
 	}
@@ -89,8 +90,8 @@ func (r *Reconciler) handleWorkflowRestartAnnotation(ctx context.Context, app *v
 	if !isDuration {
 		delete(app.Annotations, oam.AnnotationWorkflowRestart)
 		if err := r.Client.Update(ctx, app); err != nil {
-			klog.Errorf("Failed to remove workflow restart annotation for Application %s/%s: %v. Will retry on next reconcile.",
-				app.Namespace, app.Name, err)
+			logging.FromContext(ctx).Error(err, "Failed to remove workflow restart annotation; will retry on next reconcile",
+				logging.FieldName, app.Name, logging.FieldNamespace, app.Namespace)
 			// Don't fail reconciliation - will retry naturally on next reconcile
 		}
 	}
@@ -193,8 +194,11 @@ func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1bet
 	// the next Render() with a clearer error than could be produced here.
 	if !publishVersionPinned {
 		if vfFp, err := computeValuesFromContentFingerprint(ctx, app); err != nil {
-			klog.V(2).InfoS("failed to compute valuesFrom fingerprint; falling back to spec-only workflow gate",
-				"err", err, "appName", app.Name, "namespace", app.Namespace)
+			// V(2) is intentional: a persistent failure (e.g. RBAC change deleting CM read)
+			// must not produce alert-storms; the user-visible failure surfaces on the next
+			// Render() with a clearer error.
+			logging.FromContext(ctx).V(2).Info("failed to compute valuesFrom fingerprint; falling back to spec-only workflow gate",
+				"err", err, logging.FieldName, app.Name, logging.FieldNamespace, app.Namespace)
 			if currentRev != "" && strings.HasPrefix(currentRev, desiredRev+valuesFromSuffixSeparator) {
 				desiredRev = currentRev
 			}

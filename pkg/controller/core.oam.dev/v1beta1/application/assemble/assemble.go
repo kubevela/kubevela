@@ -17,11 +17,13 @@ limitations under the License.
 package assemble
 
 import (
+	"context"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -33,8 +35,9 @@ func checkAutoDetectComponent(wl *unstructured.Unstructured) bool {
 	return wl == nil || (len(wl.GetAPIVersion()) == 0 && len(wl.GetKind()) == 0)
 }
 
-// PrepareBeforeApply will prepare for some necessary info before apply
-func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, disableAllComponentRevision bool) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+// PrepareBeforeApply will prepare for some necessary info before apply.
+// ctx is used only for reconcile-trace logging; passing context.Background() is safe.
+func PrepareBeforeApply(ctx context.Context, comp *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, disableAllComponentRevision bool) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
 	if checkAutoDetectComponent(comp.ComponentOutput) {
 		return nil, nil, nil
 	}
@@ -48,7 +51,7 @@ func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.Applicati
 	if !disableAllComponentRevision {
 		additionalLabel[oam.LabelAppComponentRevision] = compRevisionName
 	}
-	wl := assembleWorkload(compName, comp.ComponentOutput, additionalLabel)
+	wl := assembleWorkload(ctx, compName, comp.ComponentOutput, additionalLabel)
 
 	assembledTraits := make([]*unstructured.Unstructured, len(comp.ComponentOutputsAndTraits))
 
@@ -62,7 +65,7 @@ func PrepareBeforeApply(comp *types.ComponentManifest, appRev *v1beta1.Applicati
 	return wl, assembledTraits, nil
 }
 
-func assembleWorkload(compName string, wl *unstructured.Unstructured, labels map[string]string) *unstructured.Unstructured {
+func assembleWorkload(ctx context.Context, compName string, wl *unstructured.Unstructured, labels map[string]string) *unstructured.Unstructured {
 	// use component name as workload name if workload name is not specified
 	// don't override the name set in render phase if exist
 	if len(wl.GetName()) == 0 {
@@ -70,7 +73,10 @@ func assembleWorkload(compName string, wl *unstructured.Unstructured, labels map
 	}
 	setWorkloadLabels(wl, labels)
 
-	klog.InfoS("Successfully assemble a workload", "workload", klog.KObj(wl), "APIVersion", wl.GetAPIVersion(), "Kind", wl.GetKind())
+	logging.FromContext(ctx).Info("Successfully assemble a workload",
+		"workload", wl.GetNamespace()+"/"+wl.GetName(),
+		"APIVersion", wl.GetAPIVersion(),
+		"Kind", wl.GetKind())
 	return wl
 }
 

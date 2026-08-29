@@ -17,6 +17,8 @@ limitations under the License.
 package assemble
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -113,7 +115,7 @@ var _ = Describe("Test PrepareBeforeApply", func() {
 		})
 
 		It("should add component revision label when disableAllComponentRevision is false", func() {
-			wl, traits, err := PrepareBeforeApply(comp, appRev, false)
+			wl, traits, err := PrepareBeforeApply(context.Background(), comp, appRev, false)
 			Expect(err).To(BeNil())
 			Expect(wl).NotTo(BeNil())
 			Expect(traits).To(HaveLen(1))
@@ -130,7 +132,7 @@ var _ = Describe("Test PrepareBeforeApply", func() {
 		})
 
 		It("should not add component revision label when disableAllComponentRevision is true", func() {
-			wl, traits, err := PrepareBeforeApply(comp, appRev, true)
+			wl, traits, err := PrepareBeforeApply(context.Background(), comp, appRev, true)
 			Expect(err).To(BeNil())
 			Expect(wl).NotTo(BeNil())
 			Expect(traits).To(HaveLen(1))
@@ -148,7 +150,7 @@ var _ = Describe("Test PrepareBeforeApply", func() {
 
 		It("should return nil when component output is nil", func() {
 			comp.ComponentOutput = nil
-			wl, traits, err := PrepareBeforeApply(comp, appRev, false)
+			wl, traits, err := PrepareBeforeApply(context.Background(), comp, appRev, false)
 			Expect(err).To(BeNil())
 			Expect(wl).To(BeNil())
 			Expect(traits).To(BeNil())
@@ -162,7 +164,7 @@ var _ = Describe("Test PrepareBeforeApply", func() {
 					},
 				},
 			}
-			wl, traits, err := PrepareBeforeApply(comp, appRev, false)
+			wl, traits, err := PrepareBeforeApply(context.Background(), comp, appRev, false)
 			Expect(err).To(BeNil())
 			Expect(wl).To(BeNil())
 			Expect(traits).To(BeNil())
@@ -170,7 +172,7 @@ var _ = Describe("Test PrepareBeforeApply", func() {
 
 		It("should handle empty component revision name", func() {
 			comp.RevisionName = ""
-			wl, traits, err := PrepareBeforeApply(comp, appRev, false)
+			wl, traits, err := PrepareBeforeApply(context.Background(), comp, appRev, false)
 			Expect(err).To(BeNil())
 			Expect(wl).NotTo(BeNil())
 			Expect(traits).To(HaveLen(1))

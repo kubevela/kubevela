@@ -49,6 +49,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -99,7 +100,7 @@ func (h *AppHandler) PrepareCurrentAppRevision(ctx context.Context, af *appfile.
 		return nil
 	}
 
-	appRev, appRevisionHash, err := h.gatherRevisionSpec(af)
+	appRev, appRevisionHash, err := h.gatherRevisionSpec(ctx, af)
 	if err != nil {
 		return err
 	}
@@ -127,7 +128,7 @@ func (h *AppHandler) PrepareCurrentAppRevision(ctx context.Context, af *appfile.
 
 // gatherRevisionSpec will gather all revision spec without metadata and rendered result.
 // the gathered Revision spec will be enough to calculate the hash and compare with the old revision
-func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.ApplicationRevision, string, error) {
+func (h *AppHandler) gatherRevisionSpec(ctx context.Context, af *appfile.Appfile) (*v1beta1.ApplicationRevision, string, error) {
 	copiedApp := h.app.DeepCopy()
 	// We better to remove all object status in the appRevision
 	copiedApp.Status = common.AppStatus{}
@@ -234,9 +235,9 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 		for name, versionInfo := range h.policyVersions {
 			appRev.Spec.PolicyVersions[name] = versionInfo
 		}
-		klog.InfoS("Stored PolicyVersions in ApplicationRevision", "count", len(h.policyVersions), "policies", h.policyVersions)
+		logging.FromContext(ctx).Info("Stored PolicyVersions in ApplicationRevision", "count", len(h.policyVersions), "policies", h.policyVersions)
 	} else {
-		klog.InfoS("No PolicyVersions to store in ApplicationRevision", "policyVersionsNil", h.policyVersions == nil, "count", len(h.policyVersions))
+		logging.FromContext(ctx).Info("No PolicyVersions to store in ApplicationRevision", "policyVersionsNil", h.policyVersions == nil, "count", len(h.policyVersions))
 	}
 
 	var err error
@@ -247,7 +248,7 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 
 	appRevisionHash, err := ComputeAppRevisionHash(appRev)
 	if err != nil {
-		klog.ErrorS(err, "Failed to compute hash of appRevision for application", "application", klog.KObj(h.app))
+		logging.FromContext(ctx).Error(err, "Failed to compute hash of appRevision for application", "application", klog.KObj(h.app))
 		return appRev, "", errors.Wrapf(err, "failed to compute app revision hash")
 	}
 	return appRev, appRevisionHash, nil
@@ -263,7 +264,7 @@ func (h *AppHandler) getLatestAppRevision(ctx context.Context) error {
 	latestRevName := h.app.Status.LatestRevision.Name
 	latestAppRev := &v1beta1.ApplicationRevision{}
 	if err := h.Get(ctx, client.ObjectKey{Name: latestRevName, Namespace: h.app.Namespace}, latestAppRev); err != nil {
-		klog.ErrorS(err, "Failed to get latest app revision", "appRevisionName", latestRevName)
+		logging.FromContext(ctx).Error(err, "Failed to get latest app revision", "appRevisionName", latestRevName)
 		return errors.Wrapf(err, "fail to get latest app revision %s", latestRevName)
 	}
 	h.latestAppRev = latestAppRev
@@ -389,7 +390,7 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 
 	revs, err := GetAppRevisions(ctx, h.Client, h.app.Name, h.app.Namespace)
 	if err != nil {
-		klog.ErrorS(err, "Failed to list app revision", "appName", h.app.Name)
+		logging.FromContext(ctx).Error(err, "Failed to list app revision", "appName", h.app.Name)
 		return false, false, errors.Wrap(err, "failed to list app revision")
 	}
 
@@ -581,7 +582,7 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context, patchSta
 	savedSpec := h.app.Spec.DeepCopy()
 
 	if err := patchStatus(ctx, h.app, common.ApplicationRendering); err != nil {
-		klog.InfoS("Failed to update the latest appConfig revision to status", "application", klog.KObj(h.app),
+		logging.FromContext(ctx).Info("Failed to update the latest appConfig revision to status", "application", klog.KObj(h.app),
 			"latest revision", revName, "err", err)
 		return err
 	}
@@ -589,7 +590,7 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context, patchSta
 	// Restore the spec after patchStatus to preserve policy modifications
 	h.app.Spec = *savedSpec
 
-	klog.InfoS("Successfully update application latest revision status", "application", klog.KObj(h.app),
+	logging.FromContext(ctx).Info("Successfully update application latest revision status", "application", klog.KObj(h.app),
 		"latest revision", revName)
 
 	return nil
@@ -607,17 +608,13 @@ func (h *AppHandler) UpdateApplicationRevisionStatus(ctx context.Context, appRev
 	if wfStatus.ContextBackend != nil {
 		var cm corev1.ConfigMap
 		if err := h.Client.Get(ctx, ktypes.NamespacedName{Namespace: wfStatus.ContextBackend.Namespace, Name: wfStatus.ContextBackend.Name}, &cm); err != nil {
-			klog.Error(err, "[UpdateApplicationRevisionStatus] failed to load the context values", "ApplicationRevision", appRev.Name)
+			logging.FromContext(ctx).Error(err, "[UpdateApplicationRevisionStatus] failed to load the context values", "ApplicationRevision", appRev.Name)
 		}
 		appRev.Status.WorkflowContext = cm.Data
 	}
 
 	if err := h.Client.Status().Update(ctx, appRev); err != nil {
-		if logCtx, ok := ctx.(monitorContext.Context); ok {
-			logCtx.Error(err, "[UpdateApplicationRevisionStatus] failed to update application revision status", "ApplicationRevision", appRev.Name)
-		} else {
-			klog.Error(err, "[UpdateApplicationRevisionStatus] failed to update application revision status", "ApplicationRevision", appRev.Name)
-		}
+		logging.FromContext(ctx).Error(err, "[UpdateApplicationRevisionStatus] failed to update application revision status", "ApplicationRevision", appRev.Name)
 	}
 }
 

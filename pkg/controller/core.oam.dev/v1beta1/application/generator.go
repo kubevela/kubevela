@@ -264,7 +264,7 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, af *appfile.
 		if err != nil {
 			return nil, nil, err
 		}
-		return renderComponentsAndTraits(manifest, h.currentAppRev, clusterName, overrideNamespace)
+		return renderComponentsAndTraits(ctx, manifest, h.currentAppRev, clusterName, overrideNamespace)
 	}
 }
 
@@ -280,7 +280,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 		}
 		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, h.currentAppRev, clusterName, overrideNamespace)
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(ctx, manifest, h.currentAppRev, clusterName, overrideNamespace)
 		if err != nil {
 			return false, nil, nil, nil, err
 		}
@@ -319,7 +319,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.A
 		}
 		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
 
-		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, appRev, clusterName, overrideNamespace)
+		readyWorkload, readyTraits, err := renderComponentsAndTraits(ctx, manifest, appRev, clusterName, overrideNamespace)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -462,8 +462,8 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 	return wl, manifest, nil
 }
 
-func renderComponentsAndTraits(manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
-	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(manifest, appRev, DisableAllComponentRevision)
+func renderComponentsAndTraits(ctx context.Context, manifest *types.ComponentManifest, appRev *v1beta1.ApplicationRevision, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+	readyWorkload, readyTraits, err := assemble.PrepareBeforeApply(ctx, manifest, appRev, DisableAllComponentRevision)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "assemble resources before apply fail")
 	}

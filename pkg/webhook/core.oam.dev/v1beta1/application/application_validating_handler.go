@@ -65,17 +65,26 @@ func mergeErrors(errs field.ErrorList) error {
 // Handle validate Application Spec here
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	startTime := time.Now()
-	ctx = logging.WithRequestID(ctx, string(req.UID))
-	logger := logging.NewHandlerLogger(ctx, req, "ApplicationValidator")
 
-	logger.WithStep("start").Info("Starting admission validation for Application resource", "operation", req.Operation, "applicationName", req.Name, "namespace", req.Namespace)
-
-	// Decode the application
+	// Decode first so we can read the trace ID annotation stamped by the
+	// mutating webhook. Fall back to the admission UID when the annotation
+	// is absent (webhooks disabled, failurePolicy=Ignore, or mutator skipped).
 	app := &v1beta1.Application{}
 	if err := h.Decoder.Decode(req, app); err != nil {
+		ctx = logging.WithRequestID(ctx, string(req.UID))
+		logger := logging.NewHandlerLogger(ctx, req, "ApplicationValidator")
 		logger.WithStep("decode").WithError(err).Error(err, "Unable to decode admission request payload into Application object - malformed request")
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("failed to decode: %w (requestUID=%s)", err, req.UID))
 	}
+
+	traceID := string(req.UID)
+	if existing, ok := logging.TraceIDFromObject(app); ok {
+		traceID = existing
+	}
+	ctx = logging.WithRequestID(ctx, traceID)
+	logger := logging.NewHandlerLogger(ctx, req, "ApplicationValidator")
+
+	logger.WithStep("start").Info("Starting admission validation for Application resource", "operation", req.Operation, "applicationName", req.Name, "namespace", req.Namespace)
 
 	if req.Namespace != "" {
 		app.Namespace = req.Namespace
