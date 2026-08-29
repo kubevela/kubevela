@@ -29,6 +29,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/config"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
+	"github.com/oam-dev/kubevela/pkg/utils/kubeconfig"
 )
 
 // ConfigCompiler ...
@@ -49,7 +50,13 @@ var WorkloadCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compi
 		kube.Package,
 		cueext.Package,
 	)
+	// See the note in pkg/workflow/providers/compiler.go: LoadExternalPackages
+	// reaches config.GetConfigOrDie, which exits the process instead of
+	// returning an error when no kubeconfig exists.
 	if cuex.EnableExternalPackageForDefaultCompiler {
+		if err := kubeconfig.CheckFor("external CUE packages for the workload compiler"); err != nil {
+			return compiler
+		}
 		if err := compiler.LoadExternalPackages(context.Background()); err != nil {
 			klog.Errorf("failed to load external packages for workload compiler: %v", err.Error())
 		}
