@@ -148,6 +148,6 @@ func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: &ValidatingHandler{
 		Client:         mgr.GetClient(),
 		Decoder:        admission.NewDecoder(mgr.GetScheme()),
-		addonValidator: addonvalidation.NewValidator(),
+		addonValidator: addonvalidation.NewValidator(mgr.GetClient(), mgr.GetConfig()),
 	}})
 }

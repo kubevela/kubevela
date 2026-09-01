@@ -682,3 +682,36 @@ func TestListRegistriesIsDeterministicallyOrdered(t *testing.T) {
 		assert.Equal(t, want, got)
 	}
 }
+
+func TestGetTokenSourceHelmOCI(t *testing.T) {
+	ociSource := &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS", Token: "tok"}
+	httpSource := &HelmSource{URL: "https://charts.kubevela.net/addons", Username: "u", Password: "pw"}
+
+	testCases := []struct {
+		name           string
+		registry       *Registry
+		expectedSource TokenSource
+	}{
+		{
+			name:           "oci helm source is secret backed",
+			registry:       &Registry{Helm: ociSource},
+			expectedSource: ociSource,
+		},
+		{
+			name:           "http helm source keeps its password in the configmap",
+			registry:       &Registry{Helm: httpSource},
+			expectedSource: nil,
+		},
+		{
+			name:           "git wins over an oci helm block",
+			registry:       &Registry{Git: &GitAddonSource{URL: "https://github.com/kubevela/catalog.git"}, Helm: ociSource},
+			expectedSource: &GitAddonSource{URL: "https://github.com/kubevela/catalog.git"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expectedSource, tc.registry.GetTokenSource())
+		})
+	}
+}

@@ -72,7 +72,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/velaql"
 	version2 "github.com/oam-dev/kubevela/version"
 )
@@ -977,7 +976,7 @@ func (h *Installer) enableAddon(ctx context.Context, addon *InstallPackage) (str
 func (h *Installer) loadInstallPackage(name, version string) (*InstallPackage, error) {
 	var installPackage *InstallPackage
 	var err error
-	if IsOCIRegistry(*h.r) || IsVersionRegistry(*h.r) {
+	if IsVersionRegistry(*h.r) {
 		versionedRegistry, convertErr := ToVersionedRegistry(*h.r)
 		if convertErr != nil {
 			return nil, convertErr
@@ -1095,7 +1094,7 @@ func (h *Installer) installDependency(ctx context.Context, addon *InstallPackage
 		for _, registry := range h.registries {
 			// try to install dependent addon from other registries
 			depHandler.r = &Registry{
-				Name: registry.Name, Helm: registry.Helm, OCI: registry.OCI, OSS: registry.OSS, Git: registry.Git, Gitee: registry.Gitee, Gitlab: registry.Gitlab,
+				Name: registry.Name, Helm: registry.Helm, OSS: registry.OSS, Git: registry.Git, Gitee: registry.Gitee, Gitlab: registry.Gitlab,
 			}
 			depAddon, err = depHandler.loadInstallPackage(dep.Name, depVersion)
 			if err == nil {
@@ -1716,22 +1715,41 @@ func (h *Installer) continueOrRestartWorkflow() error {
 	return nil
 }
 
+// versionRequirementAware is implemented by a versioned registry that can say
+// whether its version list carries system-requirement metadata at all.
+type versionRequirementAware interface {
+	supportsVersionRequirements() bool
+}
+
 // getAddonVersionMeetSystemRequirement return the addon's latest version which meet the system requirements
 func (h *Installer) getAddonVersionMeetSystemRequirement(addonName string) string {
-	if h.r != nil && IsVersionRegistry(*h.r) {
-		versionedRegistry := BuildVersionedRegistry(h.r.Name, h.r.Helm.URL, &common.HTTPOption{
-			Username: h.r.Helm.Username,
-			Password: h.r.Helm.Password,
-		})
-		versions, err := versionedRegistry.GetAddonAvailableVersion(addonName)
-		if err != nil {
-			return ""
-		}
-		for _, version := range versions {
-			req := LoadSystemRequirements(version.Annotations)
-			if checkAddonVersionMeetRequired(h.ctx, req, h.cli, h.dc) == nil {
-				return version.Version
-			}
+	if h.r == nil || !IsVersionRegistry(*h.r) {
+		return ""
+	}
+	versionedRegistry, err := ToVersionedRegistry(*h.r)
+	if err != nil {
+		return ""
+	}
+	return h.compatibleVersionFrom(versionedRegistry, addonName)
+}
+
+// compatibleVersionFrom picks the newest version the running environment
+// satisfies, or an empty string when it cannot answer.
+func (h *Installer) compatibleVersionFrom(versionedRegistry VersionedRegistry, addonName string) string {
+	// A transport whose versions carry no requirement annotations would report
+	// every version as meeting every requirement, because LoadSystemRequirements
+	// reads nil and a nil requirement passes. No suggestion beats a wrong one.
+	if aware, ok := versionedRegistry.(versionRequirementAware); ok && !aware.supportsVersionRequirements() {
+		return ""
+	}
+	versions, err := versionedRegistry.GetAddonAvailableVersion(addonName)
+	if err != nil {
+		return ""
+	}
+	for _, version := range versions {
+		req := LoadSystemRequirements(version.Annotations)
+		if checkAddonVersionMeetRequired(h.ctx, req, h.cli, h.dc) == nil {
+			return version.Version
 		}
 	}
 	return ""

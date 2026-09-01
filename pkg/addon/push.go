@@ -68,20 +68,30 @@ type PushCmd struct {
 
 	// ociPushFn is a test seam for verifying target and credential resolution
 	// without contacting an OCI registry.
-	ociPushFn func(context.Context, *OCIAddonSource, bool) error
+	ociPushFn func(context.Context, *HelmSource, bool) error
+}
+
+// ociPushSource returns the OCI chart source a configured registry pushes to, or
+// nil when the registry is not OCI-backed. The inline token is carried over
+// explicitly because a safe copy deliberately drops it.
+func ociPushSource(reg Registry) *HelmSource {
+	if reg.Helm == nil || !IsOCIURL(reg.Helm.URL) {
+		return nil
+	}
+	return &HelmSource{URL: reg.Helm.URL, Username: reg.Helm.Username, Token: reg.Helm.Token}
 }
 
 // IsDirectAddonPushTarget reports whether target can be used without resolving
 // a configured addon registry from Kubernetes.
 func IsDirectAddonPushTarget(target string) bool {
-	return strings.HasPrefix(target, "oci://") || chartMuseumURLPattern.MatchString(target)
+	return IsOCIURL(target) || chartMuseumURLPattern.MatchString(target)
 }
 
 // Push pushes addons (i.e. Helm Charts) to ChartMuseum or an OCI registry.
 // It will package the addon into a Helm Chart if necessary.
 func (p *PushCmd) Push(ctx context.Context) error {
-	if strings.HasPrefix(p.RepoName, "oci://") {
-		return p.pushToOCI(ctx, &OCIAddonSource{
+	if IsOCIURL(p.RepoName) {
+		return p.pushToOCI(ctx, &HelmSource{
 			URL:      p.RepoName,
 			Username: p.Username,
 			Token:    p.Password,
@@ -89,16 +99,16 @@ func (p *PushCmd) Push(ctx context.Context) error {
 	}
 	if p.Client != nil {
 		reg, lookupErr := NewRegistryDataStore(p.Client).GetRegistry(ctx, p.RepoName)
-		if lookupErr == nil && IsOCIRegistry(reg) {
-			source := reg.OCI.SafeCopy()
-			source.Token = reg.OCI.Token
-			if p.Username != "" {
-				source.Username = p.Username
+		if lookupErr == nil {
+			if source := ociPushSource(reg); source != nil {
+				if p.Username != "" {
+					source.Username = p.Username
+				}
+				if p.Password != "" {
+					source.Token = p.Password
+				}
+				return p.pushToOCI(ctx, source)
 			}
-			if p.Password != "" {
-				source.Token = p.Password
-			}
-			return p.pushToOCI(ctx, source)
 		}
 	}
 
@@ -212,9 +222,15 @@ func (p *PushCmd) Push(ctx context.Context) error {
 	return handlePushResponse(resp)
 }
 
-func (p *PushCmd) pushToOCI(ctx context.Context, source *OCIAddonSource) error {
-	if p.AccessToken != "" {
-		return errors.New("--access-token is only supported for ChartMuseum; use --password or --password-stdin for OCI registries")
+func (p *PushCmd) pushToOCI(ctx context.Context, source *HelmSource) error {
+	if p.AccessToken != "" || p.AuthHeader != "" {
+		return errors.New("--access-token and --auth-header are only supported for ChartMuseum; use --username/--password (or --password-stdin) or configured Helm/Docker credentials for OCI registries")
+	}
+	if p.CaFile != "" || p.CertFile != "" || p.KeyFile != "" || p.InsecureSkipVerify {
+		// The OCI client built by newOCIClientWithPlainHTTP has no seam for a
+		// custom transport, so these silently had no effect. Reject rather than
+		// let a caller believe a custom CA or client cert was applied.
+		return errors.New("--ca-file, --cert-file, --key-file, and --insecure are only supported for ChartMuseum; OCI registries use the ambient Docker/Helm TLS configuration")
 	}
 	if (source.Username == "") != (source.Token == "") {
 		return errors.New("OCI registry username and password must be supplied together; omit both to use anonymous access or configured Helm/Docker credentials")
@@ -225,7 +241,7 @@ func (p *PushCmd) pushToOCI(ctx context.Context, source *OCIAddonSource) error {
 	return p.pushOCI(source)
 }
 
-func (p *PushCmd) pushOCI(source *OCIAddonSource) error {
+func (p *PushCmd) pushOCI(source *HelmSource) error {
 	if err := MakeChartCompatible(p.ChartName, !p.KeepChartMetadata); err != nil && !strings.Contains(err.Error(), "is not a directory") {
 		return err
 	}
@@ -318,8 +334,10 @@ func GetHelmRepo(ctx context.Context, c client.Client, repoName string) (*cmhelm
 
 	// Search for the target repo name in addon registries
 	for _, reg := range registries {
-		// We are only interested in Helm registries.
-		if reg.Helm == nil {
+		// We are only interested in ChartMuseum-style Helm repositories. An
+		// oci:// URL is a Helm registry too, but it is pushed through the OCI
+		// client and the ChartMuseum client cannot speak to it.
+		if reg.Helm == nil || IsOCIURL(reg.Helm.URL) {
 			continue
 		}
 

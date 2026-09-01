@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -40,7 +42,7 @@ func rawProps(t *testing.T, m map[string]interface{}) *runtime.RawExtension {
 func TestValidateComponents(t *testing.T) {
 	testCases := map[string]struct {
 		components   []common.ApplicationComponent
-		checker      func(calls *int) func(ctx context.Context, addon, version, registry string) *field.Error
+		checker      func(calls *int) func(ctx context.Context, cli client.Client, restConfig *rest.Config, addon, version, registry string) *field.Error
 		wantErrCount int
 		wantField    string
 		wantCalls    int
@@ -49,8 +51,11 @@ func TestValidateComponents(t *testing.T) {
 			components: []common.ApplicationComponent{
 				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "version": "1.0.0"})},
 			},
-			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
-				return func(_ context.Context, _, _, _ string) *field.Error { *calls++; return nil }
+			checker: func(calls *int) func(context.Context, client.Client, *rest.Config, string, string, string) *field.Error {
+				return func(_ context.Context, _ client.Client, _ *rest.Config, _, _, _ string) *field.Error {
+					*calls++
+					return nil
+				}
 			},
 			wantErrCount: 0,
 			wantCalls:    1,
@@ -60,8 +65,8 @@ func TestValidateComponents(t *testing.T) {
 				{Name: "webservice-comp", Type: "webservice"},
 				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd"})},
 			},
-			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
-				return func(_ context.Context, _, _, _ string) *field.Error {
+			checker: func(calls *int) func(context.Context, client.Client, *rest.Config, string, string, string) *field.Error {
+				return func(_ context.Context, _ client.Client, _ *rest.Config, _, _, _ string) *field.Error {
 					*calls++
 					return field.Invalid(field.NewPath("x"), "fluxcd", "requires kubernetes >= 1.30")
 				}
@@ -74,8 +79,8 @@ func TestValidateComponents(t *testing.T) {
 			components: []common.ApplicationComponent{
 				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "skipVersionValidation": true})},
 			},
-			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
-				return func(_ context.Context, _, _, _ string) *field.Error {
+			checker: func(calls *int) func(context.Context, client.Client, *rest.Config, string, string, string) *field.Error {
+				return func(_ context.Context, _ client.Client, _ *rest.Config, _, _, _ string) *field.Error {
 					*calls++
 					return field.Invalid(field.NewPath("x"), "fluxcd", "should never be reached")
 				}
@@ -87,8 +92,8 @@ func TestValidateComponents(t *testing.T) {
 			components: []common.ApplicationComponent{
 				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": map[string]interface{}{"not": "a string"}})},
 			},
-			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
-				return func(_ context.Context, _, _, _ string) *field.Error {
+			checker: func(calls *int) func(context.Context, client.Client, *rest.Config, string, string, string) *field.Error {
+				return func(_ context.Context, _ client.Client, _ *rest.Config, _, _, _ string) *field.Error {
 					*calls++
 					return field.Invalid(field.NewPath("x"), "fluxcd", "should never be reached")
 				}
@@ -100,8 +105,11 @@ func TestValidateComponents(t *testing.T) {
 			components: []common.ApplicationComponent{
 				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd"})},
 			},
-			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
-				return func(_ context.Context, _, _, _ string) *field.Error { *calls++; return nil }
+			checker: func(calls *int) func(context.Context, client.Client, *rest.Config, string, string, string) *field.Error {
+				return func(_ context.Context, _ client.Client, _ *rest.Config, _, _, _ string) *field.Error {
+					*calls++
+					return nil
+				}
 			},
 			wantErrCount: 0,
 			wantCalls:    1,
@@ -111,8 +119,8 @@ func TestValidateComponents(t *testing.T) {
 				{Name: "comp1", Type: "webservice"},
 				{Name: "comp2", Type: "worker"},
 			},
-			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
-				return func(_ context.Context, _, _, _ string) *field.Error {
+			checker: func(calls *int) func(context.Context, client.Client, *rest.Config, string, string, string) *field.Error {
+				return func(_ context.Context, _ client.Client, _ *rest.Config, _, _, _ string) *field.Error {
 					*calls++
 					return field.Invalid(field.NewPath("x"), "x", "should never be reached")
 				}
@@ -124,8 +132,8 @@ func TestValidateComponents(t *testing.T) {
 			components: []common.ApplicationComponent{
 				{Name: "velaux", Type: ComponentType},
 			},
-			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
-				return func(_ context.Context, addon, _, _ string) *field.Error {
+			checker: func(calls *int) func(context.Context, client.Client, *rest.Config, string, string, string) *field.Error {
+				return func(_ context.Context, _ client.Client, _ *rest.Config, addon, _, _ string) *field.Error {
 					*calls++
 					if addon != "velaux" {
 						return field.Invalid(field.NewPath("x"), addon, "unexpected addon name")
@@ -141,8 +149,11 @@ func TestValidateComponents(t *testing.T) {
 				{Name: "first", Type: ComponentType},
 				{Name: "second", Type: ComponentType},
 			},
-			checker: func(calls *int) func(context.Context, string, string, string) *field.Error {
-				return func(_ context.Context, _, _, _ string) *field.Error { *calls++; return nil }
+			checker: func(calls *int) func(context.Context, client.Client, *rest.Config, string, string, string) *field.Error {
+				return func(_ context.Context, _ client.Client, _ *rest.Config, _, _, _ string) *field.Error {
+					*calls++
+					return nil
+				}
 			},
 			wantErrCount: 0,
 			wantCalls:    2,
@@ -169,7 +180,7 @@ func TestValidateComponents(t *testing.T) {
 
 func TestValidateComponentsForwardsProperties(t *testing.T) {
 	calls := 0
-	validator := &Validator{compatChecker: func(_ context.Context, addonName, version, registry string) *field.Error {
+	validator := &Validator{compatChecker: func(_ context.Context, _ client.Client, _ *rest.Config, addonName, version, registry string) *field.Error {
 		calls++
 		assert.Equal(t, "fluxcd", addonName)
 		assert.Equal(t, "2.0.0", version)
@@ -187,4 +198,7 @@ func TestValidateComponentsForwardsProperties(t *testing.T) {
 	require.Len(t, errs, 1)
 	assert.Equal(t, 1, calls)
 	assert.Equal(t, "spec.components[1].properties", errs[0].Field)
+	// The component is named "installer" but properties.addon is "fluxcd";
+	// the rejection must name the addon being validated, not the component.
+	assert.Equal(t, "fluxcd", errs[0].BadValue)
 }

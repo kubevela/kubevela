@@ -60,8 +60,12 @@ func (r *Registry) GetTokenSource() TokenSource {
 	if r.Gitlab != nil {
 		return r.Gitlab
 	}
-	if r.OCI != nil {
-		return r.OCI
+	// Only an oci:// Helm source is secret backed. An http(s):// Helm repository
+	// keeps its password in the ConfigMap, which is the behaviour released
+	// versions already have; returning it here would start rewriting those
+	// records into Secrets as a side effect of this refactor.
+	if r.Helm != nil && IsOCIURL(r.Helm.URL) {
+		return r.Helm
 	}
 	return nil
 }
@@ -75,7 +79,6 @@ type Registry struct {
 	OSS    *OSSAddonSource    `json:"oss,omitempty"`
 	Gitee  *GiteeAddonSource  `json:"gitee,omitempty"`
 	Gitlab *GitlabAddonSource `json:"gitlab,omitempty"`
-	OCI    *OCIAddonSource    `json:"oci,omitempty"`
 }
 
 // RegistryDataStore CRUD addon registry data in configmap

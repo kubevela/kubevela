@@ -203,8 +203,12 @@ var _ = Describe("Addon as component e2e", func() {
 
 		By("Asserting the wrapping application's ResourceTracker records ONLY the child addon Application")
 		Eventually(func() error {
+			wrapping := new(v1beta1.Application)
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: systemNamespace, Name: wrappingAppName}, wrapping); err != nil {
+				return err
+			}
 			rt := new(v1beta1.ResourceTracker)
-			if err := k8sClient.Get(ctx, generateResourceTrackerKey(systemNamespace, wrappingAppName, 1), rt); err != nil {
+			if err := k8sClient.Get(ctx, generateResourceTrackerKey(systemNamespace, wrappingAppName, wrapping.GetGeneration()), rt); err != nil {
 				return err
 			}
 			var recordsChild, recordsHelm bool
@@ -227,8 +231,12 @@ var _ = Describe("Addon as component e2e", func() {
 
 		By("Asserting the child addon Application's ResourceTracker records the helm auxiliary")
 		Eventually(func() error {
+			childApp := new(v1beta1.Application)
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: systemNamespace, Name: childAppName}, childApp); err != nil {
+				return err
+			}
 			rt := new(v1beta1.ResourceTracker)
-			if err := k8sClient.Get(ctx, generateResourceTrackerKey(systemNamespace, childAppName, 1), rt); err != nil {
+			if err := k8sClient.Get(ctx, generateResourceTrackerKey(systemNamespace, childAppName, childApp.GetGeneration()), rt); err != nil {
 				return err
 			}
 			for _, mr := range rt.Spec.ManagedResources {
@@ -255,6 +263,12 @@ var _ = Describe("Addon as component e2e", func() {
 // KubeVela generates for a given Application revision: "<app>-v<rev>-<ns>".
 // Duplicated locally from test/e2e-test/app_resourcetracker_test.go, which is
 // a different package this suite no longer depends on.
-func generateResourceTrackerKey(namespace, appName string, revision int) types.NamespacedName {
+//
+// revision is int64 (matching ObjectMeta.Generation) rather than a hardcoded
+// int literal at the call site: this suite's Applications are created once
+// and normally sit at generation 1, but a re-apply or a slow-cleaning
+// previous run bumps generation past 1, and a hardcoded "-v1-" name would
+// then fail the lookup instead of tracking the Application's real revision.
+func generateResourceTrackerKey(namespace, appName string, revision int64) types.NamespacedName {
 	return types.NamespacedName{Name: fmt.Sprintf("%s-v%d-%s", appName, revision, namespace)}
 }

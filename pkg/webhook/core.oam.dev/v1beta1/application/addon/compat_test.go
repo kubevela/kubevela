@@ -27,7 +27,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kubevela/pkg/util/singleton"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -85,17 +84,10 @@ func TestVersionMismatchIsDistinguishable(t *testing.T) {
 // TestDefaultCompatCheckerFailsOpenWithoutRegistry covers the production checker
 // when the addon cannot be resolved: the result must be nil (allow) rather than a
 // denial.
-//
-// The client is injected rather than left to the singleton's lazy loader. That
-// loader builds a client from whatever kubeconfig happens to be on the machine,
-// so the outcome would otherwise depend on ambient state -- and on a machine with
-// a reachable cluster the checker would take a different path than the one under
-// test.
 func TestDefaultCompatCheckerFailsOpenWithoutRegistry(t *testing.T) {
-	singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme.Scheme).Build())
-	defer singleton.KubeClient.Reload()
+	cli := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
 
-	assert.Nil(t, defaultCompatChecker(context.Background(), "some-addon", "", ""),
+	assert.Nil(t, defaultCompatChecker(context.Background(), cli, nil, "some-addon", "", ""),
 		"an addon that cannot be resolved must never produce a denial")
 }
 
@@ -104,18 +96,9 @@ func TestDefaultCompatCheckerFailsOpenWithoutRegistry(t *testing.T) {
 // FindAddonPackagesDetailFromRegistry, and a name that matches nothing still
 // fails open exactly like the unscoped ("") case.
 func TestDefaultCompatCheckerRegistryNameFiltersRegistries(t *testing.T) {
-	// Snapshot and restore rather than KubeClient.Reload: Reload rebuilds the
-	// client from singleton.KubeConfig, used elsewhere in this package, panics
-	// on a nil *rest.Config.
-	originalKubeClient := singleton.KubeClient.Get()
-	defer singleton.KubeClient.Set(originalKubeClient)
-	singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme.Scheme).Build())
+	cli := fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
 
-	originalKubeConfig := singleton.KubeConfig.Get()
-	singleton.KubeConfig.Set(nil)
-	defer singleton.KubeConfig.Set(originalKubeConfig)
-
-	assert.Nil(t, defaultCompatChecker(context.Background(), "some-addon", "", "a-registry-that-does-not-exist"),
+	assert.Nil(t, defaultCompatChecker(context.Background(), cli, nil, "some-addon", "", "a-registry-that-does-not-exist"),
 		"a named registry that cannot be found must never produce a denial")
 }
 
@@ -197,21 +180,6 @@ func newCompatCheckerFakeClient(t *testing.T, registryURL, velaCoreImage string)
 func TestDefaultCompatCheckerAgainstResolvedAddon(t *testing.T) {
 	registryURL := newFluxRegistryServer(t)
 
-	// Snapshot whatever KubeConfig already resolved to (real value or nil) so
-	// each subtest can restore it afterward. KubeClient.Reload, used by other
-	// tests in this package, calls client.New(KubeConfig.Get(), ...), which
-	// panics on a nil config -- so leaving a subtest's nil or broken
-	// *rest.Config behind would break whichever test runs next.
-	originalKubeConfig := singleton.KubeConfig.Get()
-
-	// Likewise snapshot KubeClient: each subtest sets its own fake client, and
-	// the last one set stays until this whole test's newFluxRegistryServer(t)
-	// cleanup closes its backing server -- leaving that fake behind would hand
-	// a later test in this package a stale client pointed at a closed server
-	// instead of the lazy default.
-	originalKubeClient := singleton.KubeClient.Get()
-	t.Cleanup(func() { singleton.KubeClient.Set(originalKubeClient) })
-
 	// Neither config is ever actually dialed: every case below that supplies
 	// one also denies on the vela-core version check first, which returns
 	// before checkAddonVersionMeetRequired ever looks at the discovery
@@ -284,12 +252,9 @@ func TestDefaultCompatCheckerAgainstResolvedAddon(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			t.Cleanup(func() { singleton.KubeConfig.Set(originalKubeConfig) })
+			cli := newCompatCheckerFakeClient(t, registryURL, tc.velaCoreImage)
 
-			singleton.KubeClient.Set(newCompatCheckerFakeClient(t, registryURL, tc.velaCoreImage))
-			singleton.KubeConfig.Set(tc.kubeConfig)
-
-			err := defaultCompatChecker(context.Background(), tc.addonName, tc.version, "flux")
+			err := defaultCompatChecker(context.Background(), cli, tc.kubeConfig, tc.addonName, tc.version, "flux")
 			if !tc.wantDeny {
 				assert.Nil(t, err)
 				return

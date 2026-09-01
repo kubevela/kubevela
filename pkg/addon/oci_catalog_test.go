@@ -20,6 +20,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/chart"
@@ -54,7 +55,7 @@ func TestListPortableOCICatalogWrappers(t *testing.T) {
 // absence, so it must be refused.
 func TestConfirmPortableCatalogAbsent(t *testing.T) {
 	for _, plainHTTP := range []bool{true, false} {
-		err := confirmPortableCatalogAbsent(&OCIAddonSource{URL: closedPortRegistryURL}, plainHTTP)
+		err := confirmPortableCatalogAbsent(&HelmSource{URL: closedPortRegistryURL}, plainHTTP)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot confirm whether")
 	}
@@ -69,7 +70,7 @@ func TestUpdateOCIAddonCatalog(t *testing.T) {
 	addonMeta := &chart.Metadata{Name: "fluxcd", Description: "Flux"}
 
 	for _, plainHTTP := range []bool{true, false} {
-		err := updateOCIAddonCatalog(nil, &OCIAddonSource{URL: closedPortRegistryURL}, addonMeta, plainHTTP)
+		err := updateOCIAddonCatalog(nil, &HelmSource{URL: closedPortRegistryURL}, addonMeta, plainHTTP)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "refusing to rewrite the OCI addon catalog: cannot read the existing catalog")
 	}
@@ -97,25 +98,25 @@ func TestUpdateOCIAddonCatalogRetriesOnConflict(t *testing.T) {
 
 	t.Run("retries until a later attempt succeeds", func(t *testing.T) {
 		var calls int
-		updateOCIAddonCatalogOnceFn = func(*registry.Client, *OCIAddonSource, *chart.Metadata, bool) (bool, error) {
+		updateOCIAddonCatalogOnceFn = func(*registry.Client, *HelmSource, *chart.Metadata, bool) (bool, error) {
 			calls++
 			if calls < 3 {
 				return true, assert.AnError
 			}
 			return false, nil
 		}
-		err := updateOCIAddonCatalog(nil, &OCIAddonSource{URL: closedPortRegistryURL}, &chart.Metadata{Name: "fluxcd"}, false)
+		err := updateOCIAddonCatalog(nil, &HelmSource{URL: closedPortRegistryURL}, &chart.Metadata{Name: "fluxcd"}, false)
 		require.NoError(t, err)
 		assert.Equal(t, 3, calls, "must stop retrying as soon as an attempt succeeds")
 	})
 
 	t.Run("gives up after maxCatalogPublishAttempts and reports the last conflict", func(t *testing.T) {
 		var calls int
-		updateOCIAddonCatalogOnceFn = func(*registry.Client, *OCIAddonSource, *chart.Metadata, bool) (bool, error) {
+		updateOCIAddonCatalogOnceFn = func(*registry.Client, *HelmSource, *chart.Metadata, bool) (bool, error) {
 			calls++
 			return true, assert.AnError
 		}
-		err := updateOCIAddonCatalog(nil, &OCIAddonSource{URL: closedPortRegistryURL}, &chart.Metadata{Name: "fluxcd"}, false)
+		err := updateOCIAddonCatalog(nil, &HelmSource{URL: closedPortRegistryURL}, &chart.Metadata{Name: "fluxcd"}, false)
 		require.Error(t, err)
 		assert.Equal(t, maxCatalogPublishAttempts, calls)
 		assert.Contains(t, err.Error(), "a concurrent publisher kept winning the race")
@@ -123,11 +124,11 @@ func TestUpdateOCIAddonCatalogRetriesOnConflict(t *testing.T) {
 
 	t.Run("a non-conflict error returns immediately without retrying", func(t *testing.T) {
 		var calls int
-		updateOCIAddonCatalogOnceFn = func(*registry.Client, *OCIAddonSource, *chart.Metadata, bool) (bool, error) {
+		updateOCIAddonCatalogOnceFn = func(*registry.Client, *HelmSource, *chart.Metadata, bool) (bool, error) {
 			calls++
 			return false, assert.AnError
 		}
-		err := updateOCIAddonCatalog(nil, &OCIAddonSource{URL: closedPortRegistryURL}, &chart.Metadata{Name: "fluxcd"}, false)
+		err := updateOCIAddonCatalog(nil, &HelmSource{URL: closedPortRegistryURL}, &chart.Metadata{Name: "fluxcd"}, false)
 		require.Error(t, err)
 		assert.Equal(t, 1, calls, "a definitive failure must not be retried")
 		assert.Same(t, assert.AnError, err)
@@ -168,7 +169,7 @@ func TestPublishCatalogEntryDetectsConflict(t *testing.T) {
 			return []string{"0.0.1"}, nil // a concurrent publisher landed one before the push
 		}
 
-		conflict, err := publishCatalogEntry(nil, &OCIAddonSource{URL: closedPortRegistryURL}, addonMeta, nil, false)
+		conflict, err := publishCatalogEntry(nil, &HelmSource{URL: closedPortRegistryURL}, addonMeta, nil, false)
 		require.Error(t, err)
 		assert.True(t, conflict, "a tag appearing mid-attempt must be reported as a conflict, not a hard failure")
 		assert.Contains(t, err.Error(), "a concurrent publisher updated the portable OCI addon catalog")
@@ -183,7 +184,7 @@ func TestPublishCatalogEntryDetectsConflict(t *testing.T) {
 		// client is nil, so a real push would panic; reaching client.Push proves
 		// the conflict check let this attempt through instead of retrying.
 		assert.Panics(t, func() {
-			_, _ = publishCatalogEntry(nil, &OCIAddonSource{URL: closedPortRegistryURL}, addonMeta, nil, false)
+			_, _ = publishCatalogEntry(nil, &HelmSource{URL: closedPortRegistryURL}, addonMeta, nil, false)
 		}, "an unchanged tag must proceed to publish rather than report a conflict")
 	})
 }
@@ -213,7 +214,7 @@ func TestPublishCatalogEntryRefusesOnTagListError(t *testing.T) {
 			return nil, assert.AnError
 		}
 
-		conflict, err := publishCatalogEntry(nil, &OCIAddonSource{URL: closedPortRegistryURL}, addonMeta, nil, false)
+		conflict, err := publishCatalogEntry(nil, &HelmSource{URL: closedPortRegistryURL}, addonMeta, nil, false)
 		require.Error(t, err)
 		assert.True(t, conflict, "a failed listing must be retried, not treated as an empty catalog")
 		assert.Contains(t, err.Error(), "cannot confirm the portable OCI addon catalog's current tag")
@@ -230,10 +231,46 @@ func TestPublishCatalogEntryRefusesOnTagListError(t *testing.T) {
 			return nil, assert.AnError
 		}
 
-		conflict, err := publishCatalogEntry(nil, &OCIAddonSource{URL: closedPortRegistryURL}, addonMeta, nil, false)
+		conflict, err := publishCatalogEntry(nil, &HelmSource{URL: closedPortRegistryURL}, addonMeta, nil, false)
 		require.Error(t, err)
 		assert.True(t, conflict, "a failed re-check must be retried, not treated as unchanged")
 		assert.Contains(t, err.Error(), "cannot confirm the portable OCI addon catalog tag is still unchanged")
 		assert.Equal(t, 2, calls, "must not push once the re-check fails")
 	})
+}
+
+// TestPublishCatalogEntryBootstrapsFirstCatalog pins the case
+// TestPublishCatalogEntryRefusesOnTagListError's fix regressed: on the very
+// first push to a registry, the catalog repository does not exist yet, so
+// both catalog-tag listings answer NAME_UNKNOWN. That is not an
+// unconfirmable failure -- it is the registry stating there is nothing
+// there -- so it must let the attempt proceed and bootstrap the catalog,
+// not be treated the same as a genuine listing failure and retried forever.
+func TestPublishCatalogEntryBootstrapsFirstCatalog(t *testing.T) {
+	originalCatalogTags := catalogRepoTagsFn
+	originalAddonTags := addonVersionsTagsFn
+	defer func() {
+		catalogRepoTagsFn = originalCatalogTags
+		addonVersionsTagsFn = originalAddonTags
+	}()
+	addonVersionsTagsFn = func(_, _, _, _ string, _ bool) ([]string, error) {
+		return nil, nil
+	}
+
+	nameUnknown := errors.New(`unexpected status code 404: name unknown: repository name not known to registry`)
+	var calls int
+	catalogRepoTagsFn = func(_, _, _, _ string, _ bool) ([]string, error) {
+		calls++
+		return nil, nameUnknown
+	}
+
+	addonMeta := &chart.Metadata{Name: "fluxcd", Description: "Flux"}
+
+	// client is nil, so a real push would panic; reaching client.Push proves
+	// the confirmed-absent repository let this attempt through to bootstrap
+	// the catalog instead of reporting a conflict.
+	assert.Panics(t, func() {
+		_, _ = publishCatalogEntry(nil, &HelmSource{URL: closedPortRegistryURL}, addonMeta, nil, false)
+	}, "a confirmed-absent catalog repository must bootstrap, not retry forever")
+	assert.Equal(t, 2, calls, "both the initial read and the pre-push re-check must see the same confirmed-absent answer")
 }

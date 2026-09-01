@@ -221,6 +221,46 @@ func TestRenderAddonConcurrentMissesResolveOnce(t *testing.T) {
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls), "concurrent misses on the same key must resolve exactly once")
 }
 
+// TestRenderAddonSurvivesLeaderContextCancellation pins the fix for the
+// singleflight leader's ctx controlling every waiter's outcome: the shared
+// resolve call must run decoupled from whichever caller happened to become
+// the leader, so that caller canceling its own context does not fail
+// concurrent callers whose contexts are still valid.
+func TestRenderAddonSurvivesLeaderContextCancellation(t *testing.T) {
+	r := &rendererImpl{cli: fakeClientWithRegistry(t)}
+	entered := make(chan struct{})
+	proceed := make(chan struct{})
+	r.resolveFn = func(ctx context.Context, req api.AddonRequest) (*api.AddonResult, error) {
+		close(entered)
+		<-proceed
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return &api.AddonResult{ResolvedVersion: req.Version}, nil
+	}
+
+	req := api.AddonRequest{Name: "example", Version: "1.0.0", Properties: map[string]interface{}{"replicas": 1}}
+	leaderCtx, cancel := context.WithCancel(context.Background())
+
+	type outcome struct {
+		res *api.AddonResult
+		err error
+	}
+	leaderDone := make(chan outcome, 1)
+	go func() {
+		res, err := r.RenderAddon(leaderCtx, req)
+		leaderDone <- outcome{res, err}
+	}()
+
+	<-entered
+	cancel()
+	close(proceed)
+
+	o := <-leaderDone
+	require.NoError(t, o.err, "the leader's own render must not fail just because its own context was canceled after the shared work started")
+	assert.Equal(t, "1.0.0", o.res.ResolvedVersion)
+}
+
 func TestRenderAddonDoesNotCacheLatest(t *testing.T) {
 	r := &rendererImpl{cli: fakeClientWithRegistry(t)}
 	var calls int
@@ -807,10 +847,17 @@ func TestResolveAndRenderPinnedVersionDoesNotNeedLatest(t *testing.T) {
 // TestClientAndRestConfigFallBackToSingleton covers the production path where
 // no client/config was injected, so client() and restConfig() must read the
 // kubevela-pkg singletons. It sets those process-wide singletons via Set (not
-// the real loader, which would dial a live cluster), so it must stay the last
-// test in this file: every earlier test relies on a zero-value rendererImpl
-// falling through this branch to a still-nil singleton.
+// the real loader, which would dial a live cluster), and restores them
+// afterward: leaving them set would hand any later test in this package a
+// stale fake client/config instead of the nil every other test here assumes.
 func TestClientAndRestConfigFallBackToSingleton(t *testing.T) {
+	originalKubeClient := singleton.KubeClient.Get()
+	originalKubeConfig := singleton.KubeConfig.Get()
+	t.Cleanup(func() {
+		singleton.KubeClient.Set(originalKubeClient)
+		singleton.KubeConfig.Set(originalKubeConfig)
+	})
+
 	fakeCli := fakeClientWithRegistry(t)
 	singleton.KubeClient.Set(fakeCli)
 	cfg := &rest.Config{Host: "https://example.invalid"}

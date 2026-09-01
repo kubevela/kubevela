@@ -34,9 +34,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -298,27 +298,18 @@ func FindAddonPackagesDetailFromRegistry(ctx context.Context, k8sClient client.C
 	for _, r := range registries {
 		switch {
 		case IsVersionRegistry(r):
-			vr := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
-				Username:        r.Helm.Username,
-				Password:        r.Helm.Password,
-				InsecureSkipTLS: r.Helm.InsecureSkipTLS,
-			})
+			vr, err := ToVersionedRegistry(r)
+			if err != nil {
+				klog.Warningf("cannot read addon registry %q: %v", r.Name, err)
+				continue
+			}
 			for _, addonName := range addonNames {
 				wholePackage, err := vr.GetDetailedAddon(ctx, addonName, "")
 				if err != nil {
-					continue
-				}
-				merge(wholePackage)
-			}
-		case IsOCIRegistry(r):
-			or := BuildOCIRegistry(r.Name, r.OCI.URL, r.OCI.Username, r.OCI.Token)
-			for _, addonName := range addonNames {
-				wholePackage, err := or.GetDetailedAddon(ctx, addonName, "")
-				if err != nil {
-					// Log rather than silently swallow: an OCI pull failure
-					// (missing tag, auth, media type) otherwise surfaces to the
-					// caller only as the misleading "addon not exist".
-					klog.Warningf("failed to load addon %q from OCI registry %q: %v", addonName, r.Name, err)
+					// Log rather than silently swallow: a chart pull failure
+					// (missing version, auth, media type) otherwise surfaces to
+					// the caller only as the misleading "addon not exist".
+					klog.Warningf("failed to load addon %q from registry %q: %v", addonName, r.Name, err)
 					continue
 				}
 				merge(wholePackage)
@@ -383,17 +374,11 @@ func GetAddonInstallPackageFromRegistry(ctx context.Context, cli client.Client, 
 	}
 
 	if IsVersionRegistry(reg) {
-		vr := BuildVersionedRegistry(reg.Name, reg.Helm.URL, &common.HTTPOption{
-			Username:        reg.Helm.Username,
-			Password:        reg.Helm.Password,
-			InsecureSkipTLS: reg.Helm.InsecureSkipTLS,
-		})
+		vr, err := ToVersionedRegistry(reg)
+		if err != nil {
+			return nil, err
+		}
 		return vr.GetAddonInstallPackage(ctx, addonName, version)
-	}
-
-	if IsOCIRegistry(reg) {
-		or := BuildOCIRegistry(reg.Name, reg.OCI.URL, reg.OCI.Username, reg.OCI.Token)
-		return or.GetAddonInstallPackage(ctx, addonName, version)
 	}
 
 	metas, err := reg.ListAddonMeta()
@@ -439,7 +424,10 @@ type Status struct {
 // passes. A requested version equal to the available one also passes, so a pin
 // that happens to match is not an error.
 func checkVersionPinSupported(registryName, addonName, requested, available string) error {
-	if requested == "" || requested == available {
+	// A "v" prefix is cosmetic: chooseVersion (versioned_registry.go) already
+	// ignores it when resolving versions, so comparing the raw strings here
+	// would reject a pin that matches in every way that matters.
+	if requested == "" || utils.IgnoreVPrefix(requested) == utils.IgnoreVPrefix(available) {
 		return nil
 	}
 	if available == "" {

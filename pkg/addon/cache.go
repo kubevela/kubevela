@@ -97,7 +97,7 @@ func (u *Cache) GetUIData(r Registry, addonName, version string) (*UIData, error
 		return addon, nil
 	}
 	var err error
-	if !isVersionCapableRegistry(r) {
+	if !IsVersionRegistry(r) {
 		registryMeta, err := u.ListAddonMeta(r)
 		if err != nil {
 			return nil, err
@@ -129,7 +129,7 @@ func (u *Cache) GetUIData(r Registry, addonName, version string) (*UIData, error
 func (u *Cache) ListUIData(r Registry) ([]*UIData, error) {
 	var err error
 	var listAddons []*UIData
-	if !isVersionCapableRegistry(r) {
+	if !IsVersionRegistry(r) {
 		listAddons = u.listCachedUIData(r.Name)
 		if listAddons != nil {
 			return listAddons, nil
@@ -153,7 +153,7 @@ func (u *Cache) ListUIData(r Registry) ([]*UIData, error) {
 }
 
 func (u *Cache) getCachedUIData(registry Registry, addonName, version string) *UIData {
-	if !isVersionCapableRegistry(registry) {
+	if !IsVersionRegistry(registry) {
 		addons := u.listCachedUIData(registry.Name)
 		for _, a := range addons {
 			if a.Name == addonName {
@@ -258,6 +258,7 @@ func (u *Cache) putRegistry2Cache(registry []Registry) {
 			delete(u.registry, k)
 			delete(u.registryMeta, k)
 			delete(u.uiData, k)
+			delete(u.versionedUIData, k)
 		}
 	}
 	for _, r := range registry {
@@ -288,7 +289,7 @@ func (u *Cache) discoverAndRefreshRegistry() {
 	u.putRegistry2Cache(registries)
 
 	for _, r := range registries {
-		if !isVersionCapableRegistry(r) {
+		if !IsVersionRegistry(r) {
 			_, err = u.listUIDataAndCache(r)
 			if err != nil {
 				continue
@@ -372,13 +373,4 @@ func (u *Cache) cacheVersionedUIData(registryName string, versionedRegistry Vers
 			}
 		}
 	}
-}
-
-// isVersionCapableRegistry reports whether a registry can serve multiple versions
-// of an addon and must therefore be read through a VersionedRegistry rather than
-// an AsyncReader. OCI registries qualify: BuildReader has no OCI branch, so
-// sending them down the non-versioned path fails with "registry don't have enough
-// info to build a reader". Registry.ListAddonInfo makes the same distinction.
-func isVersionCapableRegistry(r Registry) bool {
-	return IsVersionRegistry(r) || IsOCIRegistry(r)
 }

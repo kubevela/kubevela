@@ -589,18 +589,30 @@ func setPushPasswordFromStdin(cmd *cobra.Command, p *pkgaddon.PushCmd) error {
 	if !p.PasswordStdin {
 		return nil
 	}
-	if cmd.Flags().Changed("password") {
-		return errors.New("--password and --password-stdin cannot be used together")
+	password, err := readPasswordFromStdin(cmd, cmd.Flags().Changed("password"), "registry")
+	if err != nil {
+		return err
+	}
+	p.Password = password
+	return nil
+}
+
+// readPasswordFromStdin reads and validates a password piped via --password-stdin,
+// rejecting it if --password was also set. label names the credential in error
+// messages (e.g. "registry", "addon registry").
+func readPasswordFromStdin(cmd *cobra.Command, passwordFlagChanged bool, label string) (string, error) {
+	if passwordFlagChanged {
+		return "", errors.New("--password and --password-stdin cannot be used together")
 	}
 	password, err := io.ReadAll(cmd.InOrStdin())
 	if err != nil {
-		return errors.Wrap(err, "failed to read registry password from stdin")
+		return "", errors.Wrapf(err, "failed to read %s password from stdin", label)
 	}
-	p.Password = strings.TrimRight(string(password), "\r\n")
-	if p.Password == "" {
-		return errors.New("registry password read from stdin is empty")
+	value := strings.TrimRight(string(password), "\r\n")
+	if value == "" {
+		return "", errors.Errorf("%s password read from stdin is empty", label)
 	}
-	return nil
+	return value, nil
 }
 
 func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.DiscoveryClient, config *rest.Config, name string, version string, args map[string]interface{}) (string, error) {
@@ -1042,7 +1054,7 @@ func listAddons(ctx context.Context, clt client.Client, registry string) (*uitab
 			continue
 		}
 		var addonList []*pkgaddon.UIData
-		if !pkgaddon.IsVersionRegistry(r) && !pkgaddon.IsOCIRegistry(r) {
+		if !pkgaddon.IsVersionRegistry(r) {
 			meta, err := r.ListAddonMeta()
 			if err != nil {
 				if registry != "" {

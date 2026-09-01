@@ -24,12 +24,17 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"testing"
 
-	v1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/yaml"
-
+	"github.com/crossplane/crossplane-runtime/pkg/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/yaml"
 )
 
 func setupMockServer() *httptest.Server {
@@ -168,7 +173,7 @@ var _ = Describe("test FindAddonPackagesDetailFromRegistry", func() {
 		BeforeEach(func() {
 			// Prepare local non-versioned registry
 			server = httptest.NewServer(ossHandler)
-			cm := v1.ConfigMap{}
+			cm := corev1.ConfigMap{}
 			cmYaml := strings.ReplaceAll(registryCmYaml, "TEST_SERVER_URL", server.URL)
 			cmYaml = strings.ReplaceAll(cmYaml, "KubeVela", "testreg")
 			Expect(yaml.Unmarshal([]byte(cmYaml), &cm)).Should(BeNil())
@@ -227,3 +232,147 @@ var _ = Describe("test FindAddonPackagesDetailFromRegistry", func() {
 		})
 	})
 })
+
+func TestExtractDefinitionNameFromFile(t *testing.T) {
+	assert.Equal(t, "component", extractDefinitionNameFromFile(ElementFile{Name: "definitions/component.cue"}))
+	assert.Equal(t, "trait", extractDefinitionNameFromFile(ElementFile{Name: "trait.yaml"}))
+	assert.Equal(t, "my-policy", extractDefinitionNameFromFile(ElementFile{Name: "/tmp/my-policy.json"}))
+}
+
+func TestRemoveConflictingDefinitions(t *testing.T) {
+	defs := []ElementFile{
+		{Name: "definitions/comp.cue", Data: "comp"},
+		{Name: "definitions/trait.cue", Data: "trait"},
+		{Name: "definitions/policy.cue", Data: "policy"},
+	}
+
+	t.Run("removes all conflicting names", func(t *testing.T) {
+		filtered := removeConflictingDefinitions(defs, []string{"trait", "policy"})
+		assert.Equal(t, []ElementFile{{Name: "definitions/comp.cue", Data: "comp"}}, filtered)
+	})
+
+	t.Run("no conflicts keeps all definitions", func(t *testing.T) {
+		filtered := removeConflictingDefinitions(defs, []string{"non-existent"})
+		assert.Equal(t, defs, filtered)
+	})
+
+	t.Run("empty conflict list keeps all definitions", func(t *testing.T) {
+		filtered := removeConflictingDefinitions(defs, nil)
+		assert.Equal(t, defs, filtered)
+	})
+}
+
+// TestDefinitionConflictDetectionMatchesRemoval pins the full pipeline
+// DetectDefinitionConflicts -> removeConflictingDefinitions relies on: both
+// stages must extract the same name for the same file, or a real conflict is
+// flagged but never removed. extractDefinitionName (godef.go) and
+// extractDefinitionNameFromFile (helper.go) used to disagree on directory
+// prefixes, so a CUE file under "definitions/" could never collide with a
+// compiled Go definition.
+func TestDefinitionConflictDetectionMatchesRemoval(t *testing.T) {
+	cueDefs := []ElementFile{{Name: "definitions/webservice.cue", Data: "cue-source"}}
+	goDefs := []ElementFile{{Name: "component-webservice.cue", Data: "go-compiled"}}
+
+	conflicts := DetectDefinitionConflicts(cueDefs, goDefs)
+	assert.Equal(t, []string{"webservice"}, conflicts)
+
+	filtered := removeConflictingDefinitions(cueDefs, conflicts)
+	assert.Empty(t, filtered, "the definitions/-prefixed CUE file must be removed once its extracted name conflicts")
+}
+
+func TestValidateSystemRequirements(t *testing.T) {
+	t.Run("nil requirement always passes without touching the cluster", func(t *testing.T) {
+		assert.NoError(t, ValidateSystemRequirements(context.Background(), nil, nil, nil))
+	})
+
+	t.Run("non-nil requirement delegates to checkAddonVersionMeetRequired", func(t *testing.T) {
+		listErr := errors.New("boom")
+		k8sClient := &test.MockClient{MockList: test.NewMockListFn(listErr)}
+
+		err := ValidateSystemRequirements(context.Background(), &SystemRequirements{VelaVersion: ">=1.0.0"}, k8sClient, nil)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, listErr)
+	})
+}
+
+func TestGetAddonInstallPackageFromRegistry(t *testing.T) {
+	newFakeClient := func() *fake.ClientBuilder {
+		scheme := runtime.NewScheme()
+		require.NoError(t, corev1.AddToScheme(scheme))
+		return fake.NewClientBuilder().WithScheme(scheme)
+	}
+
+	t.Run("registry not found is wrapped with its name", func(t *testing.T) {
+		kubeClient := newFakeClient().Build()
+		_, err := GetAddonInstallPackageFromRegistry(context.Background(), kubeClient, "missing-registry", "fluxcd", "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `get registry "missing-registry"`)
+	})
+
+	t.Run("OCI registry resolves through the versioned OCI path and fails fast against an unreachable host", func(t *testing.T) {
+		kubeClient := newFakeClient().Build()
+		store := NewRegistryDataStore(kubeClient)
+		require.NoError(t, store.AddRegistry(context.Background(), Registry{
+			Name: "ecr",
+			Helm: &HelmSource{URL: "oci://127.0.0.1:1/addon"},
+		}))
+
+		_, err := GetAddonInstallPackageFromRegistry(context.Background(), kubeClient, "ecr", "fluxcd", "1.0.0")
+		require.Error(t, err)
+	})
+
+	t.Run("Helm registry resolves through the versioned Helm path and fails fast against an unreachable host", func(t *testing.T) {
+		kubeClient := newFakeClient().Build()
+		store := NewRegistryDataStore(kubeClient)
+		require.NoError(t, store.AddRegistry(context.Background(), Registry{
+			Name: "helm-reg",
+			Helm: &HelmSource{URL: "http://127.0.0.1:1"},
+		}))
+
+		_, err := GetAddonInstallPackageFromRegistry(context.Background(), kubeClient, "helm-reg", "fluxcd", "1.0.0")
+		require.Error(t, err)
+	})
+
+	t.Run("registry with no source info fails building a reader for the fallback path", func(t *testing.T) {
+		kubeClient := newFakeClient().Build()
+		store := NewRegistryDataStore(kubeClient)
+		require.NoError(t, store.AddRegistry(context.Background(), Registry{Name: "bare"}))
+
+		_, err := GetAddonInstallPackageFromRegistry(context.Background(), kubeClient, "bare", "fluxcd", "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "enough info")
+	})
+}
+
+func TestCheckVersionPinSupported(t *testing.T) {
+	cases := map[string]struct {
+		requested string
+		available string
+		wantErr   bool
+	}{
+		"no pin is always fine":                                    {requested: "", available: "1.0.0", wantErr: false},
+		"no pin and no version is fine":                            {requested: "", available: "", wantErr: false},
+		"a pin matching what is served is fine":                    {requested: "1.0.0", available: "1.0.0", wantErr: false},
+		"a pin the registry cannot honor is an err":                {requested: "2.0.0", available: "1.0.0", wantErr: true},
+		"a pin against an unversioned addon errors":                {requested: "2.0.0", available: "", wantErr: true},
+		"a v-prefixed available version matches an unprefixed pin": {requested: "1.0.0", available: "v1.0.0", wantErr: false},
+		"an unprefixed available version matches a v-prefixed pin": {requested: "v1.0.0", available: "1.0.0", wantErr: false},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := checkVersionPinSupported("my-git-registry", "fluxcd", tc.requested, tc.available)
+			if !tc.wantErr {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			// The message has to name the registry, the addon and both versions, so
+			// the Application status says why the pin was refused.
+			assert.Contains(t, err.Error(), "my-git-registry")
+			assert.Contains(t, err.Error(), "fluxcd")
+			assert.Contains(t, err.Error(), tc.requested)
+			assert.Contains(t, err.Error(), "does not support version pinning")
+		})
+	}
+}

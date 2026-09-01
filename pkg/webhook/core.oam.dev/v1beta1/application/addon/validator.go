@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/logging"
@@ -31,16 +33,25 @@ import (
 // feature: an Application component of this type installs an addon.
 const ComponentType = "addon"
 
-type compatibilityChecker func(context.Context, string, string, string) *field.Error
+type compatibilityChecker func(context.Context, client.Client, *rest.Config, string, string, string) *field.Error
 
 // Validator validates addon-specific Application components.
 type Validator struct {
+	// Client and RestConfig come from the manager registering this webhook.
+	// They are threaded through to the compatibility checker explicitly
+	// instead of read from a process-wide singleton: the webhook process
+	// never initializes that singleton, so relying on it means every call
+	// falls back to its lazy loader, which builds a brand-new, uncached
+	// client from ambient kubeconfig state (and panics outright with none).
+	Client        client.Client
+	RestConfig    *rest.Config
 	compatChecker compatibilityChecker
 }
 
-// NewValidator creates a Validator with the production compatibility checker.
-func NewValidator() *Validator {
-	return &Validator{}
+// NewValidator creates a Validator with the production compatibility checker,
+// using cli and restConfig for registry lookups and Kubernetes-version discovery.
+func NewValidator(cli client.Client, restConfig *rest.Config) *Validator {
+	return &Validator{Client: cli, RestConfig: restConfig}
 }
 
 // componentProperties is the subset of a type: addon component's properties
@@ -90,10 +101,10 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 		if addonName == "" {
 			addonName = component.Name
 		}
-		if compatibilityErr := check(ctx, addonName, properties.Version, properties.Registry); compatibilityErr != nil {
+		if compatibilityErr := check(ctx, v.Client, v.RestConfig, addonName, properties.Version, properties.Registry); compatibilityErr != nil {
 			errs = append(errs, field.Invalid(
 				field.NewPath("spec", "components").Index(i).Child("properties"),
-				component.Name,
+				addonName,
 				compatibilityErr.Detail,
 			))
 		}

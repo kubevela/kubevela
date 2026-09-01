@@ -17,10 +17,7 @@ limitations under the License.
 package addon
 
 import (
-	"bytes"
 	"context"
-	"fmt"
-	"sort"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/pkg/errors"
@@ -48,170 +45,226 @@ type VersionedRegistry interface {
 	GetAddonUIData(ctx context.Context, addonName, version string) (*UIData, error)
 	GetAddonInstallPackage(ctx context.Context, addonName, version string) (*InstallPackage, error)
 	GetDetailedAddon(ctx context.Context, addonName, version string) (*WholeAddonPackage, error)
+	// GetAddonAvailableVersion returns the addon's versions, newest first.
 	GetAddonAvailableVersion(addonName string) ([]*repo.ChartVersion, error)
 }
 
-// BuildVersionedRegistry is build versioned addon registry
-func BuildVersionedRegistry(name, repoURL string, opts *common.HTTPOption) VersionedRegistry {
-	return &versionedRegistry{
-		name: name,
-		url:  repoURL,
-		h:    helm.NewHelperWithCache(),
-		Opts: opts,
-	}
+// chartBackend is the transport half of a chart-backed addon registry. Only
+// discovery, version enumeration, and archive retrieval differ between an
+// indexed HTTP Helm repository and an OCI registry; everything after the
+// archive is shared and lives on helmRegistry.
+type chartBackend interface {
+	// ListUIData enumerates the registry: index entries over HTTP, the portable
+	// catalog (or the distribution catalog) over OCI.
+	listUIData(ctx context.Context) ([]*UIData, error)
+	// Versions enumerates one addon's versions, newest first.
+	versions(ctx context.Context, addonName string) ([]*repo.ChartVersion, error)
+	// Resolve selects a version and returns its decoded chart files.
+	resolve(ctx context.Context, addonName, version string) (*resolvedChart, error)
+	// supportsVersionRequirements reports whether the values from Versions carry
+	// the annotations SystemRequirements are read from. A backend that answers
+	// false must not be asked which version meets a requirement: it would answer
+	// "the newest one" for every requirement.
+	supportsVersionRequirements() bool
 }
 
-// ToVersionedRegistry converts registry to versioned registry
-func ToVersionedRegistry(registry Registry) (VersionedRegistry, error) {
-	// Helm keeps precedence: a record carrying both blocks behaved as Helm before
-	// OCI support existed, and silently switching it to OCI would change where an
-	// existing registry resolves from.
-	if IsOCIRegistry(registry) && !IsVersionRegistry(registry) {
-		return BuildOCIRegistry(registry.Name, registry.OCI.URL, registry.OCI.Username, registry.OCI.Token), nil
-	}
-	if !IsVersionRegistry(registry) {
-		return nil, errors.Errorf("registry '%s' is not a versioned registry", registry.Name)
-	}
-	return BuildVersionedRegistry(registry.Name, registry.Helm.URL, &common.HTTPOption{
-		Username:        registry.Helm.Username,
-		Password:        registry.Helm.Password,
-		InsecureSkipTLS: registry.Helm.InsecureSkipTLS,
-	}), nil
+// errorClassifier is an optional chartBackend capability. A backend implements
+// it when its load failures need translating into the shared error vocabulary,
+// which is how installDependency decides whether to try the next registry. The
+// two transports deliberately differ here, so this is opt-in rather than part
+// of chartBackend.
+type errorClassifier interface {
+	classify(error) error
 }
 
-type versionedRegistry struct {
-	url  string
-	name string
-	h    *helm.Helper
-	// username and password for registry needs basic auth
-	Opts *common.HTTPOption
+// resolvedChart is one addon version fetched from a backend, described in terms
+// the facade can act on without knowing how it arrived.
+type resolvedChart struct {
+	// files is the decoded chart archive. Decoding belongs to the backend
+	// because the HTTP backend walks several candidate chart URLs and treats a
+	// file that will not decode as a reason to try the next one.
+	files []*loader.BufferedFile
+	// version is the version actually selected, which differs from the version
+	// asked for whenever the caller asked for the latest.
+	version string
+	// availableVersions is every version the backend saw while resolving. It may
+	// be empty when a backend resolved a pinned version without enumerating, as
+	// the OCI backend does.
+	availableVersions []string
+	// requirements is applied only when requirementsSet is true, so a backend
+	// that reads requirements from transport metadata can say "none declared"
+	// without being confused with a backend that has no such metadata at all.
+	requirements    *SystemRequirements
+	requirementsSet bool
 }
 
-func (i *versionedRegistry) ListAddon() ([]*UIData, error) {
-	chartIndex, err := i.h.GetIndexInfo(i.url, false, i.Opts)
+// helmRegistry serves addons packaged as Helm charts, over whichever transport
+// its backend speaks. Package decoding, UIData projection, and the registry and
+// version stamping happen here once rather than once per transport.
+type helmRegistry struct {
+	name    string
+	backend chartBackend
+}
+
+// ListAddon lists every addon the registry advertises.
+func (r *helmRegistry) ListAddon() ([]*UIData, error) {
+	addons, err := r.backend.listUIData(context.Background())
 	if err != nil {
 		return nil, err
 	}
-	return i.resolveAddonListFromIndex(i.name, chartIndex), nil
+	for _, addon := range addons {
+		addon.RegistryName = r.name
+	}
+	return addons, nil
 }
 
-func (i *versionedRegistry) GetAddonUIData(ctx context.Context, addonName, version string) (*UIData, error) {
-	wholePackage, err := i.loadAddon(ctx, addonName, version)
+// GetAddonUIData returns the addon's UI-facing metadata.
+func (r *helmRegistry) GetAddonUIData(ctx context.Context, addonName, version string) (*UIData, error) {
+	wholePackage, err := r.loadAddon(ctx, addonName, version)
 	if err != nil {
 		return nil, err
 	}
+	return uiDataFromPackage(wholePackage), nil
+}
+
+// uiDataFromPackage projects the UI-facing subset of a loaded addon package.
+// A backend that has to build a listing entry from a real chart uses this too,
+// so the projection has one definition rather than one per caller.
+func uiDataFromPackage(pkg *WholeAddonPackage) *UIData {
 	return &UIData{
-		Meta:              wholePackage.Meta,
-		APISchema:         wholePackage.APISchema,
-		Parameters:        wholePackage.Parameters,
-		Detail:            wholePackage.Detail,
-		Definitions:       wholePackage.Definitions,
-		AvailableVersions: wholePackage.AvailableVersions,
-		CUEDefinitions:    wholePackage.CUEDefinitions,
-	}, nil
+		Meta:              pkg.Meta,
+		APISchema:         pkg.APISchema,
+		Parameters:        pkg.Parameters,
+		Detail:            pkg.Detail,
+		Definitions:       pkg.Definitions,
+		AvailableVersions: pkg.AvailableVersions,
+		CUEDefinitions:    pkg.CUEDefinitions,
+	}
 }
 
-func (i *versionedRegistry) GetAddonInstallPackage(ctx context.Context, addonName, version string) (*InstallPackage, error) {
-	wholePackage, err := i.loadAddon(ctx, addonName, version)
+// GetAddonInstallPackage returns the addon's install package.
+func (r *helmRegistry) GetAddonInstallPackage(ctx context.Context, addonName, version string) (*InstallPackage, error) {
+	wholePackage, err := r.loadAddon(ctx, addonName, version)
 	if err != nil {
 		return nil, err
 	}
 	return &wholePackage.InstallPackage, nil
 }
 
-func (i *versionedRegistry) GetDetailedAddon(ctx context.Context, addonName, version string) (*WholeAddonPackage, error) {
-	wholePackage, err := i.loadAddon(ctx, addonName, version)
-	if err != nil {
-		return nil, err
-	}
-	return wholePackage, nil
+// GetDetailedAddon returns the whole addon package.
+func (r *helmRegistry) GetDetailedAddon(ctx context.Context, addonName, version string) (*WholeAddonPackage, error) {
+	return r.loadAddon(ctx, addonName, version)
 }
 
-// GetAddonAvailableVersion will return all available versions of the addon which is loaded from the registry, and the version are sorted from last to first
-func (i versionedRegistry) GetAddonAvailableVersion(addonName string) ([]*repo.ChartVersion, error) {
-	return i.loadAddonVersions(addonName)
+// GetAddonAvailableVersion lists the addon's versions, newest first.
+func (r *helmRegistry) GetAddonAvailableVersion(addonName string) ([]*repo.ChartVersion, error) {
+	return r.backend.versions(context.Background(), addonName)
 }
 
-func (i *versionedRegistry) resolveAddonListFromIndex(repoName string, index *repo.IndexFile) []*UIData {
-	var res []*UIData
-	for addonName, versions := range index.Entries {
-		if len(versions) == 0 {
-			continue
-		}
-		sort.Sort(sort.Reverse(versions))
-		latestVersion := versions[0]
-		var availableVersions []string
-		for _, version := range versions {
-			availableVersions = append(availableVersions, version.Version)
-		}
-		o := UIData{Meta: Meta{
-			Name:        addonName,
-			Icon:        latestVersion.Icon,
-			Tags:        latestVersion.Keywords,
-			Description: latestVersion.Description,
-			Version:     latestVersion.Version,
-		}, RegistryName: repoName, AvailableVersions: availableVersions}
-		res = append(res, &o)
-	}
-	return res
+// supportsVersionRequirements exposes the backend capability to callers that
+// pick a version by system requirement.
+func (r *helmRegistry) supportsVersionRequirements() bool {
+	return r.backend.supportsVersionRequirements()
 }
 
-func (i versionedRegistry) loadAddon(ctx context.Context, name, version string) (*WholeAddonPackage, error) {
-	versions, err := i.h.ListVersions(i.url, name, false, i.Opts)
-	if err != nil {
-		return nil, errors.Wrapf(ErrFetch, "registry %s: %v", i.name, err)
-	}
-	if len(versions) == 0 {
-		return nil, ErrNotExist
-	}
-	sort.Sort(sort.Reverse(versions))
-	addonVersion, availableVersions := chooseVersion(version, versions)
-	if addonVersion == nil {
-		return nil, errors.Errorf("specified version %s for addon %s not exist", utils.Sanitize(version), name)
-	}
-	for _, chartURL := range addonVersion.URLs {
-		if !utils.IsValidURL(chartURL) {
-			chartURL, err = utils.JoinURL(i.url, chartURL)
+func (r *helmRegistry) loadAddon(ctx context.Context, addonName, version string) (pkg *WholeAddonPackage, err error) {
+	if classifier, ok := r.backend.(errorClassifier); ok {
+		defer func() {
 			if err != nil {
-				return nil, fmt.Errorf("cannot join versionedRegistryURL %s and chartURL %s, %w", i.url, chartURL, err)
+				err = classifier.classify(err)
 			}
-		}
-		archive, err := common.HTTPGetWithOption(ctx, chartURL, i.Opts)
-		if err != nil {
-			klog.Warningf("failed to download the addon package %s:%s", chartURL, err.Error())
-			continue
-		}
-		bufferedFile, err := loader.LoadArchiveFiles(bytes.NewReader(archive))
-		if err != nil {
-			klog.Warningf("failed to load the addon package:%s", err.Error())
-			continue
-		}
-		addonPkg, err := loadAddonPackage(name, bufferedFile)
-		if err != nil {
-			return nil, err
-		}
-		addonPkg.AvailableVersions = availableVersions
-		addonPkg.RegistryName = i.name
-		addonPkg.Meta.SystemRequirements = LoadSystemRequirements(addonVersion.Annotations)
-		if addonPkg.Name != "" {
-			klog.V(5).Infof("Addon '%s' with version '%s' loaded successfully from registry '%s'", addonVersion.Name, addonVersion.Version, i.name)
-		}
-		return addonPkg, nil
+		}()
 	}
-	return nil, ErrFetch
-}
 
-// loadAddonVersions Load all available versions of the addon
-func (i versionedRegistry) loadAddonVersions(addonName string) ([]*repo.ChartVersion, error) {
-	versions, err := i.h.ListVersions(i.url, addonName, false, i.Opts)
+	resolved, err := r.backend.resolve(ctx, addonName, version)
 	if err != nil {
 		return nil, err
 	}
-	if len(versions) == 0 {
-		return nil, ErrNotExist
+	pkg, err = loadAddonPackage(addonName, resolved.files)
+	if err != nil {
+		return nil, err
 	}
-	sort.Sort(sort.Reverse(versions))
-	return versions, nil
+	pkg.RegistryName = r.name
+	// The archive knows nothing about its sibling versions, so without this the
+	// UI would show every addon as having exactly one version.
+	pkg.AvailableVersions = resolved.availableVersions
+	if resolved.requirementsSet {
+		pkg.SystemRequirements = resolved.requirements
+	}
+	if pkg.Name != "" {
+		klog.V(5).Infof("Addon '%s' with version '%s' loaded successfully from registry '%s'", addonName, resolved.version, r.name)
+	}
+	return pkg, nil
+}
+
+// BuildVersionedRegistry builds a versioned addon registry backed by an indexed
+// HTTP Helm repository.
+func BuildVersionedRegistry(name, repoURL string, opts *common.HTTPOption) VersionedRegistry {
+	return &helmRegistry{
+		name: name,
+		backend: &httpHelmBackend{
+			name: name,
+			url:  repoURL,
+			h:    helm.NewHelperWithCache(),
+			opts: opts,
+		},
+	}
+}
+
+// NewVersionedRegistry builds a chart-backed addon registry from a Helm source,
+// selecting the transport from the URL scheme.
+//
+// Only oci:// is dispatched specially. Everything else keeps the indexed HTTP
+// path, because the scheme is not a reliable allowlist here: registries are
+// stored with cm:// as well as http(s)://, and rejecting an unrecognised scheme
+// would break records that work today.
+func NewVersionedRegistry(name string, source *HelmSource) (VersionedRegistry, error) {
+	if source == nil {
+		return nil, errors.Errorf("addon registry %s has no chart repository configured", name)
+	}
+	if err := source.validateCredential(); err != nil {
+		// Wrapped as ErrFetch so isSkippableRegistryError treats it as "this one
+		// registry cannot serve addons". Without that, one hand-edited record
+		// aborts listAvailableAddons and installDependency for every registry.
+		return nil, errors.Wrapf(ErrFetch, "addon registry %s: %v", name, err)
+	}
+	username, secret := source.credential()
+	if IsOCIURL(source.URL) {
+		return &helmRegistry{
+			name: name,
+			backend: &ociHelmBackend{
+				name:           name,
+				url:            source.URL,
+				username:       username,
+				token:          secret,
+				pullFn:         pullOCIChart,
+				tagsFn:         listOCITags,
+				catalogFn:      listOCIRepositories,
+				catalogIndexFn: listPortableOCICatalog,
+			},
+		}, nil
+	}
+	return &helmRegistry{
+		name: name,
+		backend: &httpHelmBackend{
+			name: name,
+			url:  source.URL,
+			h:    helm.NewHelperWithCache(),
+			opts: &common.HTTPOption{
+				Username:        username,
+				Password:        secret,
+				InsecureSkipTLS: source.InsecureSkipTLS,
+			},
+		},
+	}, nil
+}
+
+// ToVersionedRegistry converts registry to versioned registry
+func ToVersionedRegistry(registry Registry) (VersionedRegistry, error) {
+	if !IsVersionRegistry(registry) {
+		return nil, errors.Errorf("registry '%s' is not a versioned registry", registry.Name)
+	}
+	return NewVersionedRegistry(registry.Name, registry.Helm)
 }
 
 func loadAddonPackage(addonName string, files []*loader.BufferedFile) (*WholeAddonPackage, error) {

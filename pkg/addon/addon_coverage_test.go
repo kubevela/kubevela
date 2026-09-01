@@ -47,49 +47,14 @@ func TestIsSkippableRegistryErrorClassification(t *testing.T) {
 	}
 }
 
-// stubInfoLister implements ItemInfoLister for tests.
-type stubInfoLister struct {
-	addons map[string]ItemInfo
-	err    error
-}
-
-func (s *stubInfoLister) ListAddonInfo() (map[string]ItemInfo, error) {
-	return s.addons, s.err
-}
-
-func TestListAvailableAddonsSkipsSkippableErrors(t *testing.T) {
-	good := &stubInfoLister{
-		addons: map[string]ItemInfo{
-			"fluxcd": {Name: "fluxcd", AvailableVersions: []string{"1.0.0"}},
-		},
-	}
-
-	t.Run("skippable error is skipped, good registry still counted", func(t *testing.T) {
-		broken := &stubInfoLister{err: ErrNotExist}
-		result, err := listAvailableAddons([]ItemInfoLister{broken, good})
-		require.NoError(t, err)
-		assert.Contains(t, result, "fluxcd")
-	})
-
-	t.Run("ErrFetch is skipped", func(t *testing.T) {
-		broken := &stubInfoLister{err: errors.Wrap(ErrFetch, "OCI registry ecr")}
-		result, err := listAvailableAddons([]ItemInfoLister{broken, good})
-		require.NoError(t, err)
-		assert.Contains(t, result, "fluxcd")
-	})
-
-	t.Run("non-skippable error stops the listing", func(t *testing.T) {
-		broken := &stubInfoLister{err: errors.New("401 unauthorized")}
-		_, err := listAvailableAddons([]ItemInfoLister{broken, good})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to list addons")
-	})
-
-	t.Run("empty registries returns empty map", func(t *testing.T) {
-		result, err := listAvailableAddons(nil)
-		require.NoError(t, err)
-		assert.Empty(t, result)
-	})
+// TestListAvailableAddonsWithNilRegistries pins the nil-slice edge case; the
+// skippable-error and fatal-error branches are covered by
+// TestListAvailableAddonsSkipsFailingRegistry, TestListAvailableAddonsPropagatesFatalError
+// and TestListAvailableAddonsSkipsEveryUnreachableRegistry in addon_test.go.
+func TestListAvailableAddonsWithNilRegistries(t *testing.T) {
+	result, err := listAvailableAddons(nil)
+	require.NoError(t, err)
+	assert.Empty(t, result)
 }
 
 func TestVersionUnMatchError(t *testing.T) {
@@ -117,40 +82,6 @@ func TestVersionUnMatchError(t *testing.T) {
 		assert.NotContains(t, e.Error(), "Install fluxcd")
 		_, err := e.GetAvailableVersion()
 		require.Error(t, err)
-	})
-}
-
-func TestToVersionedRegistryConversion(t *testing.T) {
-	t.Run("OCI-only registry converts to OCI versioned registry", func(t *testing.T) {
-		r := Registry{Name: "ecr", OCI: &OCIAddonSource{URL: "oci://reg.example.com/addon"}}
-		vr, err := ToVersionedRegistry(r)
-		require.NoError(t, err)
-		assert.NotNil(t, vr)
-	})
-
-	t.Run("Helm registry converts to Helm versioned registry", func(t *testing.T) {
-		r := Registry{Name: "helm", Helm: &HelmSource{URL: "https://charts.example.com"}}
-		vr, err := ToVersionedRegistry(r)
-		require.NoError(t, err)
-		assert.NotNil(t, vr)
-	})
-
-	t.Run("Helm+OCI keeps Helm precedence", func(t *testing.T) {
-		r := Registry{
-			Name: "both",
-			Helm: &HelmSource{URL: "https://charts.example.com"},
-			OCI:  &OCIAddonSource{URL: "oci://reg.example.com/addon"},
-		}
-		vr, err := ToVersionedRegistry(r)
-		require.NoError(t, err)
-		assert.IsType(t, &versionedRegistry{}, vr, "Helm must take precedence over OCI")
-	})
-
-	t.Run("git-only registry is not versioned", func(t *testing.T) {
-		r := Registry{Name: "git", Git: &GitAddonSource{URL: "https://github.com/x/y"}}
-		_, err := ToVersionedRegistry(r)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not a versioned registry")
 	})
 }
 

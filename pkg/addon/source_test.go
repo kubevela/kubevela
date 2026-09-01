@@ -296,3 +296,142 @@ func TestTokenSource(t *testing.T) {
 		assert.Equal(t, "", source.GetToken())
 	})
 }
+
+func TestIsOCIURL(t *testing.T) {
+	testCases := map[string]struct {
+		url  string
+		want bool
+	}{
+		"oci scheme":                  {url: "oci://ghcr.io/kubevela/addons", want: true},
+		"oci scheme uppercase":        {url: "OCI://ghcr.io/kubevela/addons", want: true},
+		"oci scheme mixed case":       {url: "Oci://ghcr.io/kubevela/addons", want: true},
+		"oci registry without prefix": {url: "oci://registry:5000", want: true},
+		"https helm repo":             {url: "https://charts.kubevela.net/addons", want: false},
+		"http helm repo":              {url: "http://127.0.0.1:8080/addons", want: false},
+		"chartmuseum scheme":          {url: "cm://charts.example.com", want: false},
+		"empty":                       {url: "", want: false},
+		"host only, no scheme":        {url: "ghcr.io/kubevela/addons", want: false},
+		"scheme substring not scheme": {url: "https://oci.example.com/addons", want: false},
+		"malformed":                   {url: "oci://%zz", want: false},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, IsOCIURL(tc.url))
+		})
+	}
+}
+
+func TestHelmSourceTokenSource(t *testing.T) {
+	h := &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS"}
+
+	assert.Equal(t, "", h.GetToken())
+	assert.Equal(t, "", h.GetTokenSecretRef())
+
+	h.SetToken("ecr-password")
+	assert.Equal(t, "ecr-password", h.GetToken())
+	assert.Equal(t, "", h.GetTokenSecretRef())
+
+	h.SetTokenSecretRef("addon-registry-ecr")
+	assert.Equal(t, "", h.GetToken(), "moving the token to a secret must clear the inline value")
+	assert.Equal(t, "addon-registry-ecr", h.GetTokenSecretRef())
+
+	h.SetToken("rotated")
+	assert.Equal(t, "rotated", h.GetToken())
+	assert.Equal(t, "", h.GetTokenSecretRef(), "setting an inline token must clear a stale secret ref")
+
+	assert.Equal(t, "AWS", h.Username, "the token lifecycle must not disturb the username")
+}
+
+func TestHelmSourceCredential(t *testing.T) {
+	testCases := map[string]struct {
+		source       *HelmSource
+		wantUsername string
+		wantSecret   string
+	}{
+		"oci reads token": {
+			source:       &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS", Token: "tok"},
+			wantUsername: "AWS",
+			wantSecret:   "tok",
+		},
+		"https reads password": {
+			source:       &HelmSource{URL: "https://charts.kubevela.net/addons", Username: "u", Password: "pw"},
+			wantUsername: "u",
+			wantSecret:   "pw",
+		},
+		"oci ignores a stray password": {
+			source:       &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS", Password: "pw"},
+			wantUsername: "AWS",
+			wantSecret:   "",
+		},
+		"https ignores a stray token": {
+			source:       &HelmSource{URL: "https://charts.kubevela.net/addons", Username: "u", Token: "tok"},
+			wantUsername: "u",
+			wantSecret:   "",
+		},
+		"anonymous": {
+			source:       &HelmSource{URL: "oci://registry:5000"},
+			wantUsername: "",
+			wantSecret:   "",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			username, secret := tc.source.credential()
+			assert.Equal(t, tc.wantUsername, username)
+			assert.Equal(t, tc.wantSecret, secret)
+		})
+	}
+}
+
+func TestValidateHelmSourceCredential(t *testing.T) {
+	testCases := map[string]struct {
+		source  *HelmSource
+		wantErr string
+	}{
+		"oci with token": {
+			source: &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS", Token: "tok"},
+		},
+		"oci with token secret ref": {
+			source: &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS", TokenSecretRef: "s"},
+		},
+		"https with password": {
+			source: &HelmSource{URL: "https://charts.kubevela.net/addons", Username: "u", Password: "pw"},
+		},
+		"anonymous oci": {
+			source: &HelmSource{URL: "oci://registry:5000"},
+		},
+		"anonymous https": {
+			source: &HelmSource{URL: "https://charts.kubevela.net/addons"},
+		},
+		"password on an oci url": {
+			source:  &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS", Password: "pw"},
+			wantErr: "password",
+		},
+		"token on an https url": {
+			source:  &HelmSource{URL: "https://charts.kubevela.net/addons", Username: "u", Token: "tok"},
+			wantErr: "token",
+		},
+		"token secret ref on an https url": {
+			source:  &HelmSource{URL: "https://charts.kubevela.net/addons", TokenSecretRef: "s"},
+			wantErr: "tokenSecretRef",
+		},
+		"insecureSkipTLS on an oci url": {
+			source:  &HelmSource{URL: "oci://registry:5000", InsecureSkipTLS: true},
+			wantErr: "insecureSkipTLS",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			err := tc.source.validateCredential()
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}

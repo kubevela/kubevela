@@ -171,22 +171,22 @@ func TestLoadSystemRequirements(t *testing.T) {
 func TestLoadAddonVersions(t *testing.T) {
 	server := httptest.NewServer(multiVersionHandler)
 	defer server.Close()
-	mr := &versionedRegistry{
+	mr := &httpHelmBackend{
 		name: "multiversion-helm-repo",
 		url:  server.URL,
 		h:    helm.NewHelperWithCache(),
-		Opts: nil,
+		opts: nil,
 	}
 	versions, err := mr.loadAddonVersions("not-exist")
 	assert.Error(t, err)
 	assert.Equal(t, err, ErrNotExist)
 	assert.Equal(t, len(versions), 0)
 
-	mr = &versionedRegistry{
+	mr = &httpHelmBackend{
 		name: "multiversion-helm-repo",
 		url:  server.URL,
 		h:    helm.NewHelperWithCache(),
-		Opts: nil,
+		opts: nil,
 	}
 	versions, err = mr.loadAddonVersions("not-exist")
 	assert.Error(t, err)
@@ -207,13 +207,16 @@ func TestToVersionedRegistry(t *testing.T) {
 	actual, err := ToVersionedRegistry(registry)
 
 	assert.NoError(t, err)
-	expected := &versionedRegistry{
+	expected := &helmRegistry{
 		name: registry.Name,
-		url:  registry.Helm.URL,
-		h:    helm.NewHelperWithCache(),
-		Opts: &common.HTTPOption{
-			Username: registry.Helm.Username,
-			Password: registry.Helm.Password,
+		backend: &httpHelmBackend{
+			name: registry.Name,
+			url:  registry.Helm.URL,
+			h:    helm.NewHelperWithCache(),
+			opts: &common.HTTPOption{
+				Username: registry.Helm.Username,
+				Password: registry.Helm.Password,
+			},
 		},
 	}
 	assert.Equal(t, expected, actual)
@@ -221,7 +224,7 @@ func TestToVersionedRegistry(t *testing.T) {
 	// Test case 2: convert an OCI-based registry
 	registry = Registry{
 		Name: "oci-based-registry",
-		OCI: &OCIAddonSource{
+		Helm: &HelmSource{
 			URL:      "oci://repo.example/addon",
 			Username: "example-user",
 			Token:    "example-token",
@@ -229,12 +232,14 @@ func TestToVersionedRegistry(t *testing.T) {
 	}
 	actual, err = ToVersionedRegistry(registry)
 	assert.NoError(t, err)
-	ociActual, ok := actual.(*ociRegistry)
+	ociReg, ok := actual.(*helmRegistry)
+	require.True(t, ok)
+	ociActual, ok := ociReg.backend.(*ociHelmBackend)
 	require.True(t, ok)
 	assert.Equal(t, registry.Name, ociActual.name)
-	assert.Equal(t, registry.OCI.URL, ociActual.url)
-	assert.Equal(t, registry.OCI.Username, ociActual.username)
-	assert.Equal(t, registry.OCI.Token, ociActual.token)
+	assert.Equal(t, registry.Helm.URL, ociActual.url)
+	assert.Equal(t, registry.Helm.Username, ociActual.username)
+	assert.Equal(t, registry.Helm.Token, ociActual.token)
 
 	// Test case 3: when converting a git-based registry, return error
 	registry = Registry{
@@ -246,10 +251,37 @@ func TestToVersionedRegistry(t *testing.T) {
 	actual, err = ToVersionedRegistry(registry)
 	assert.EqualError(t, err, "registry 'git-based-registry' is not a versioned registry")
 	assert.Nil(t, actual)
+
+	// Test case 4: a cm:// url stays on the HTTP backend. ChartMuseum registries
+	// are stored with a cm:// URL, which push.go rewrites to http(s) later.
+	// Rejecting the scheme here, or routing it to OCI, would break those records.
+	registry = Registry{Name: "cm", Helm: &HelmSource{URL: "cm://charts.example.com"}}
+	actual, err = ToVersionedRegistry(registry)
+	require.NoError(t, err)
+	cmReg, ok := actual.(*helmRegistry)
+	require.True(t, ok)
+	assert.IsType(t, &httpHelmBackend{}, cmReg.backend)
+
+	// Test case 5: mismatched credentials are rejected at construction.
+	registry = Registry{Name: "bad", Helm: &HelmSource{URL: "https://charts.example.com", Token: "tok"}}
+	_, err = ToVersionedRegistry(registry)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "token")
+
+	// Test case 6: an oci registry never reaches BuildReader. The defect this
+	// guards: an OCI registry used to fall through to BuildReader, which has no
+	// chart-registry branch and fails with "registry don't have enough info to
+	// build a reader".
+	registry = Registry{Name: "ecr", Helm: &HelmSource{URL: "oci://reg.example.com/addon"}}
+	_, err = registry.BuildReader()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "don't have enough info")
+	assert.True(t, IsVersionRegistry(registry),
+		"chart-backed registries must be classified as version capable")
 }
 
 func TestResolveAddonListFromIndex(t *testing.T) {
-	r := &versionedRegistry{name: "test-repo"}
+	r := &httpHelmBackend{name: "test-repo"}
 	indexFile := &repo.IndexFile{
 		Entries: map[string]repo.ChartVersions{
 			"addon-good": {
@@ -264,7 +296,7 @@ func TestResolveAddonListFromIndex(t *testing.T) {
 		},
 	}
 
-	result := r.resolveAddonListFromIndex(r.name, indexFile)
+	result := r.resolveAddonListFromIndex(indexFile)
 
 	assert.Equal(t, 2, len(result))
 
@@ -280,7 +312,8 @@ func TestResolveAddonListFromIndex(t *testing.T) {
 
 	require.NotNil(t, addonGood)
 	assert.Equal(t, "addon-good", addonGood.Name)
-	assert.Equal(t, "test-repo", addonGood.RegistryName)
+	assert.Empty(t, addonGood.RegistryName,
+		"the backend leaves RegistryName unset; helmRegistry.ListAddon stamps it")
 	assert.Equal(t, "1.2.0", addonGood.Version)
 	assert.Equal(t, "latest desc", addonGood.Description)
 	assert.Equal(t, "latest_icon", addonGood.Icon)
@@ -379,11 +412,14 @@ func TestLoadAddon(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			serverURL := setupAddonTestServer(t, tc.handlerType)
-			reg := &versionedRegistry{
+			reg := &helmRegistry{
 				name: "test-registry",
-				url:  serverURL,
-				h:    helm.NewHelperWithCache(),
-				Opts: nil,
+				backend: &httpHelmBackend{
+					name: "test-registry",
+					url:  serverURL,
+					h:    helm.NewHelperWithCache(),
+					opts: nil,
+				},
 			}
 
 			pkg, err := reg.loadAddon(context.Background(), tc.addonName, tc.addonVersion)

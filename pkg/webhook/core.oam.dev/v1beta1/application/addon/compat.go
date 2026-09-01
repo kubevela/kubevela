@@ -21,9 +21,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/kubevela/pkg/util/singleton"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/logging"
@@ -32,8 +33,9 @@ import (
 // defaultCompatChecker is the production compatibility check. It resolves the addon
 // meta from the registry and validates its SystemRequirements. It returns nil to
 // allow on any resolve or registry error (fail open) and a non-nil *field.Error only
-// on a concrete compatibility mismatch.
-func defaultCompatChecker(ctx context.Context, addonName, version, registry string) *field.Error {
+// on a concrete compatibility mismatch. cli and restConfig come from the manager
+// registering the webhook, not a process-wide singleton.
+func defaultCompatChecker(ctx context.Context, cli client.Client, restConfig *rest.Config, addonName, version, registry string) *field.Error {
 	logger := logging.WithContext(ctx).
 		WithStep("validate-addon-compatibility").
 		WithValues("addon", addonName, "version", version, "registry", registry)
@@ -42,8 +44,6 @@ func defaultCompatChecker(ctx context.Context, addonName, version, registry stri
 	if registry != "" {
 		registries = []string{registry}
 	}
-
-	cli := singleton.KubeClient.Get()
 
 	pkgs, err := pkgaddon.FindAddonPackagesDetailFromRegistry(ctx, cli, []string{addonName}, registries)
 	if err != nil {
@@ -73,8 +73,8 @@ func defaultCompatChecker(ctx context.Context, addonName, version, registry stri
 	}
 
 	var dc *discovery.DiscoveryClient
-	if cfg := singleton.KubeConfig.Get(); cfg != nil {
-		d, err := discovery.NewDiscoveryClientForConfig(cfg)
+	if restConfig != nil {
+		d, err := discovery.NewDiscoveryClientForConfig(restConfig)
 		if err != nil {
 			// Fail open on the kubernetes-version portion: without a discovery client
 			// ValidateSystemRequirements still checks the vela versions.

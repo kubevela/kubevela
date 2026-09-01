@@ -25,6 +25,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/pkg/errors"
 	gitlab "gitlab.com/gitlab-org/api/client-go"
+	helmregistry "helm.sh/helm/v3/pkg/registry"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
 )
@@ -181,57 +182,103 @@ func (g *GitlabAddonSource) SafeCopy() *GitlabAddonSource {
 	}
 }
 
-// OCIAddonSource defines the information about an OCI registry as an addon
-// source. The addon is stored as an OCI Helm chart (pushed via `helm push
-// oci://...`). Auth is a static bearer/basic credential: for ECR the Username
-// is "AWS" and Token is the output of `aws ecr get-login-password`.
-type OCIAddonSource struct {
-	URL            string `json:"url,omitempty" validate:"required"`
-	Username       string `json:"username,omitempty"`
-	Token          string `json:"token,omitempty"`
-	TokenSecretRef string `json:"tokenSecretRef,omitempty"`
-}
-
-// GetToken returns the token of the source
-func (o *OCIAddonSource) GetToken() string {
-	return o.Token
-}
-
-// SetToken sets the token of the source and clears any secret ref
-func (o *OCIAddonSource) SetToken(token string) {
-	o.Token = token
-	o.TokenSecretRef = ""
-}
-
-// SetTokenSecretRef sets the token secret ref and clears the inline token
-func (o *OCIAddonSource) SetTokenSecretRef(secretName string) {
-	o.Token = ""
-	o.TokenSecretRef = secretName
-}
-
-// GetTokenSecretRef returns the token secret ref of the source
-func (o *OCIAddonSource) GetTokenSecretRef() string {
-	return o.TokenSecretRef
-}
-
-// SafeCopy hides field Token
-func (o *OCIAddonSource) SafeCopy() *OCIAddonSource {
-	if o == nil {
-		return nil
-	}
-	return &OCIAddonSource{
-		URL:            o.URL,
-		Username:       o.Username,
-		TokenSecretRef: o.TokenSecretRef,
-	}
-}
-
-// HelmSource  defines the information about the helm repo addon source
+// HelmSource defines the information about a Helm chart repository as an addon
+// source. The URL scheme decides the transport: an http(s):// URL is an indexed
+// Helm repository, an oci:// URL is an OCI registry holding the addon as a Helm
+// chart (pushed via `helm push oci://...`).
+//
+// The two transports authenticate through different fields. An http(s):// URL
+// uses Password, which stays in the registry ConfigMap. An oci:// URL uses
+// Token, which is moved into a Secret and referenced by TokenSecretRef. Setting
+// the field belonging to the other scheme is a misconfiguration rather than a
+// fallback, because it would otherwise reach the registry as anonymous access
+// and fail as an opaque 401.
 type HelmSource struct {
 	URL             string `json:"url,omitempty" validate:"required"`
 	InsecureSkipTLS bool   `json:"insecureSkipTLS,omitempty"`
 	Username        string `json:"username,omitempty"`
-	Password        string `json:"password,omitempty"`
+	// Password authenticates an http(s):// Helm repository.
+	Password string `json:"password,omitempty"`
+	// Token authenticates an oci:// registry. For ECR the Username is "AWS" and
+	// the Token is the output of `aws ecr get-login-password`.
+	Token string `json:"token,omitempty"`
+	// TokenSecretRef names the Secret holding Token once it has been moved out
+	// of the ConfigMap.
+	TokenSecretRef string `json:"tokenSecretRef,omitempty"`
+}
+
+// GetToken returns the token of the source
+func (h *HelmSource) GetToken() string {
+	return h.Token
+}
+
+// SetToken sets the token of the source and clears any secret ref
+func (h *HelmSource) SetToken(token string) {
+	h.Token = token
+	h.TokenSecretRef = ""
+}
+
+// SetTokenSecretRef sets the token secret ref and clears the inline token
+func (h *HelmSource) SetTokenSecretRef(secretName string) {
+	h.Token = ""
+	h.TokenSecretRef = secretName
+}
+
+// GetTokenSecretRef returns the token secret ref of the source
+func (h *HelmSource) GetTokenSecretRef() string {
+	return h.TokenSecretRef
+}
+
+// credential returns the username and secret the transport should authenticate
+// with, chosen by URL scheme. Callers read credentials through this rather than
+// reaching for Password or Token directly, so neither backend has to know which
+// field the other one uses.
+func (h *HelmSource) credential() (username, secret string) {
+	if IsOCIURL(h.URL) {
+		return h.Username, h.Token
+	}
+	return h.Username, h.Password
+}
+
+// validateCredential rejects a source whose credential fields do not match its
+// URL scheme, and options the scheme cannot honour. Without this the mismatch
+// surfaces far from its cause: the transport reads the field it knows about,
+// finds it empty, and authenticates anonymously.
+func (h *HelmSource) validateCredential() error {
+	if IsOCIURL(h.URL) {
+		if h.Password != "" {
+			return errors.New("an oci:// addon registry authenticates with token, not password")
+		}
+		if h.InsecureSkipTLS {
+			// The OCI client built by newOCIClientWithPlainHTTP has no seam for a
+			// custom transport, so honouring this would be a lie.
+			return errors.New("insecureSkipTLS is not supported for an oci:// addon registry")
+		}
+		return nil
+	}
+	if h.Token != "" {
+		return errors.New("an http(s):// addon registry authenticates with password, not token")
+	}
+	if h.TokenSecretRef != "" {
+		return errors.New("tokenSecretRef is only supported for an oci:// addon registry")
+	}
+	return nil
+}
+
+// IsOCIURL reports whether a repository URL addresses an OCI registry rather
+// than an indexed HTTP Helm repository. The scheme is the whole signal: it
+// decides which transport reads the chart, which credential field carries the
+// password, and whether the credential is moved into a Secret.
+//
+// It parses rather than matching a prefix, so a repository merely hosted at
+// oci.example.com over https is not mistaken for an OCI registry, and a URL
+// that cannot be parsed classifies as not-OCI instead of guessing.
+func IsOCIURL(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(u.Scheme, helmregistry.OCIScheme)
 }
 
 // SafeCopier is an interface to copy struct without sensitive fields, such as Token, Username, Password
@@ -240,6 +287,12 @@ type SafeCopier interface {
 }
 
 // SafeCopy hides field Username, Password
+//
+// This keeps only the URL, which is narrower than the OCI source it replaces:
+// that one also carried Username and TokenSecretRef. Widening it would change
+// released behaviour that TestSafeCopy pins, and no caller needs the identity
+// fields, so the narrower contract stands. The push path builds its own source
+// explicitly instead (see ociPushSource in push.go).
 func (h *HelmSource) SafeCopy() *HelmSource {
 	if h == nil {
 		return nil
@@ -477,7 +530,7 @@ func (r *Registry) ListAddonInfo() (map[string]ItemInfo, error) {
 	if IsLocalRegistry(*r) {
 		return addonInfoMap, nil
 	}
-	if isVersionCapableRegistry(*r) {
+	if IsVersionRegistry(*r) {
 		versionedRegistry, err := ToVersionedRegistry(*r)
 		if err != nil {
 			return nil, err

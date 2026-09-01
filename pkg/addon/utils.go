@@ -39,7 +39,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/addon"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -187,6 +186,9 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 	for i, registry := range registries {
 		if registry.Name == registryName {
 			var uiData *UIData
+			// Chart-backed registries have no AsyncReader. Sending one down the
+			// reader path fails with "registry don't have enough info to build a
+			// reader", which would block disabling an addon installed from it.
 			if !IsVersionRegistry(registry) {
 				installer := NewAddonInstaller(ctx, k8sClient, nil, nil, config, &registries[i], nil, nil, nil)
 				metas, err := installer.getAddonMeta()
@@ -200,11 +202,10 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 					return errors.Wrapf(err, "cannot fetch addon difinition files from registry")
 				}
 			} else {
-				versionedRegistry := BuildVersionedRegistry(registry.Name, registry.Helm.URL, &common.HTTPOption{
-					Username:        registry.Helm.Username,
-					Password:        registry.Helm.Password,
-					InsecureSkipTLS: registry.Helm.InsecureSkipTLS,
-				})
+				versionedRegistry, err := ToVersionedRegistry(registry)
+				if err != nil {
+					return errors.Wrapf(err, "cannot read addon registry")
+				}
 				uiData, err = versionedRegistry.GetAddonUIData(ctx, addonName, "")
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon difinition files from registry")
@@ -264,15 +265,11 @@ func IsLocalRegistry(r Registry) bool {
 	return r.Name == LocalAddonRegistryName
 }
 
-// IsVersionRegistry  check the repo source if support multi-version addon
+// IsVersionRegistry check the repo source if support multi-version addon. Both
+// an indexed HTTP Helm repository and an OCI registry are Helm sources; the URL
+// scheme decides which transport reads it.
 func IsVersionRegistry(r Registry) bool {
 	return r.Helm != nil
-}
-
-// IsOCIRegistry check the registry is an OCI-type registry (addon stored as an
-// OCI Helm chart, e.g. in ECR/GHCR).
-func IsOCIRegistry(r Registry) bool {
-	return r.OCI != nil
 }
 
 // InstallOption define additional option for installation

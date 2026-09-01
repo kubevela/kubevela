@@ -39,6 +39,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -1520,18 +1521,6 @@ func TestListAvailableAddons(t *testing.T) {
 	assert.Equal(t, expected, res)
 }
 
-func TestIsSkippableRegistryError(t *testing.T) {
-	assert.True(t, isSkippableRegistryError(ErrNotExist))
-	assert.True(t, isSkippableRegistryError(ErrFetch))
-	assert.True(t, isSkippableRegistryError(fmt.Errorf("wrapped: %w", ErrFetch)))
-	// An OCI registry with no catalog yet has nothing to offer, which is the same
-	// situation as ErrNotExist elsewhere: skip it and try the next registry.
-	assert.True(t, isSkippableRegistryError(ErrOCICatalogAbsent))
-	assert.True(t, isSkippableRegistryError(fmt.Errorf("wrapped: %w", ErrOCICatalogAbsent)))
-	assert.False(t, isSkippableRegistryError(errors.New("some addon-specific failure")))
-	assert.False(t, isSkippableRegistryError(nil))
-}
-
 func TestGetAddonMetaClassifiesBrokenRegistryAsFetchError(t *testing.T) {
 	// Port 1 on loopback refuses immediately, so the classification is exercised
 	// without reaching the network. Pointing this at github.com made a unit test
@@ -1682,4 +1671,44 @@ func TestListInstalledAddons(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expected, res)
+}
+
+// TestLoadInstallPackage covers the branch loadInstallPackage now takes: OCI
+// and Helm registries are resolved through ToVersionedRegistry, everything
+// else keeps going through the registry-meta + reader path.
+func TestLoadInstallPackage(t *testing.T) {
+	t.Run("OCI registry takes the versioned path and fails fast against an unreachable host", func(t *testing.T) {
+		h := &Installer{
+			ctx: context.Background(),
+			r:   &Registry{Name: "ecr", Helm: &HelmSource{URL: "oci://127.0.0.1:1/addon"}},
+		}
+		_, err := h.loadInstallPackage("fluxcd", "1.0.0")
+		require.Error(t, err)
+	})
+
+	t.Run("non-versioned registry with no source info fails getting addon meta", func(t *testing.T) {
+		h := &Installer{
+			ctx:   context.Background(),
+			r:     &Registry{Name: "bare"},
+			cache: NewCache(nil),
+		}
+		_, err := h.loadInstallPackage("fluxcd", "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "fail to get addon meta")
+	})
+}
+
+// TestInstallDependencyListInstalledAddonsError covers the first step past the
+// no-dependencies early return: a listInstalledAddons failure for an addon
+// that does declare a dependency must be propagated as-is.
+func TestInstallDependencyListInstalledAddonsError(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	kubeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+	h := &Installer{ctx: context.Background(), cli: kubeClient}
+	addonPkg := &InstallPackage{Meta: Meta{Name: "demo", Dependencies: []*Dependency{{Name: "dep-addon"}}}}
+
+	err := h.installDependency(context.Background(), addonPkg)
+	require.Error(t, err)
 }

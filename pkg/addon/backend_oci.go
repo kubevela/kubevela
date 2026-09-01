@@ -19,14 +19,17 @@ package addon
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/pkg/errors"
+	"golang.org/x/sync/singleflight"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/registry"
@@ -46,11 +49,15 @@ type ociTagLister func(ctx context.Context, repoRef, host, username, password st
 // It is a seam so unit tests can avoid the network.
 type ociCatalogLister func(ctx context.Context, registryURL, username, password string) ([]string, error)
 
-// ociRegistry resolves addons stored as OCI Helm charts (e.g. in ECR/GHCR).
-// It satisfies VersionedRegistry: OCI tags are the addon versions. An empty
-// version resolves to the highest semver tag (there is no reliance on a
-// floating "latest" tag, which `helm push` does not create).
-type ociRegistry struct {
+// ociHelmBackend resolves addons stored as OCI Helm charts (e.g. in ECR/GHCR).
+// OCI tags are the addon versions. An empty version resolves to the highest
+// semver tag; there is no reliance on a floating "latest" tag, which `helm push`
+// does not create.
+//
+// An OCI registry has no index.yaml, so cross-addon discovery needs a catalog of
+// its own and version enumeration is a tag listing. That is what this backend
+// supplies; everything downstream of the chart archive is shared.
+type ociHelmBackend struct {
 	name     string
 	url      string
 	username string
@@ -64,23 +71,19 @@ type ociRegistry struct {
 	catalogIndexFn ociCatalogIndexLister
 }
 
-// BuildOCIRegistry builds an OCI addon registry reader.
-func BuildOCIRegistry(name, url, username, token string) VersionedRegistry {
-	return &ociRegistry{
-		name:           name,
-		url:            url,
-		username:       username,
-		token:          token,
-		pullFn:         pullOCIChart,
-		tagsFn:         listOCITags,
-		catalogFn:      listOCIRepositories,
-		catalogIndexFn: listPortableOCICatalog,
-	}
-}
+// ociScheme is the URL scheme prefix this file strips before building a
+// registry host and repository reference. IsOCIURL classifies the scheme
+// case-insensitively, so parsing here has to match, or a registry stored as
+// "OCI://..." would classify as OCI but build a malformed host such as "OCI:".
+const ociScheme = "oci://"
 
 // ociRegistryLocation returns the registry host and repository prefix.
 func ociRegistryLocation(rawURL string) (host, prefix string) {
-	base := strings.Trim(strings.TrimPrefix(rawURL, "oci://"), "/")
+	trimmed := rawURL
+	if len(rawURL) >= len(ociScheme) && strings.EqualFold(rawURL[:len(ociScheme)], ociScheme) {
+		trimmed = rawURL[len(ociScheme):]
+	}
+	base := strings.Trim(trimmed, "/")
 	host = base
 	if i := strings.Index(base, "/"); i >= 0 {
 		host = base[:i]
@@ -108,15 +111,15 @@ func ociRepoRef(url, addon string) (repoRef, host string) {
 // resolveVersion picks the tag to pull and also reports the tags it saw getting
 // there, so callers can fill in AvailableVersions without a second round trip.
 // A pinned version needs no listing and returns no tag list.
-func (i *ociRegistry) resolveVersion(ctx context.Context, repoRef, host, version string) (string, []string, error) {
+func (b *ociHelmBackend) resolveVersion(ctx context.Context, repoRef, host, version string) (string, []string, error) {
 	if version != "" {
 		return version, nil, nil
 	}
-	list := i.tagsFn
+	list := b.tagsFn
 	if list == nil {
 		list = listOCITags
 	}
-	tags, err := list(ctx, repoRef, host, i.username, i.token)
+	tags, err := list(ctx, repoRef, host, b.username, b.token)
 	if err != nil {
 		return "", nil, errors.Wrapf(err, "failed to list tags for OCI addon %s", repoRef)
 	}
@@ -127,21 +130,94 @@ func (i *ociRegistry) resolveVersion(ctx context.Context, repoRef, host, version
 	return tags[0], tags, nil
 }
 
-func newOCIClientWithPlainHTTP(host, username, password string, plainHTTP bool) (*registry.Client, error) {
-	var opts []registry.ClientOption
-	if plainHTTP {
-		opts = append(opts, registry.ClientOptPlainHTTP())
-	}
-	client, err := registry.NewClient(opts...)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create OCI registry client")
-	}
-	if username != "" || password != "" {
-		if err := client.Login(host, registry.LoginOptBasicAuth(username, password)); err != nil {
-			return nil, errors.Wrapf(err, "failed to login to OCI registry %s", host)
+// ociClientCache reuses a logged-in registry client across calls.
+//
+// Every OCI operation funnels through newOCIClientWithPlainHTTP, so without
+// this a single listing costs one TLS handshake and one login per addon: the
+// catalog is enumerated, then each entry is resolved and its versions listed.
+// Against a real registry that fails once the catalog holds more than a couple
+// of addons, with connection resets and TLS handshake timeouts, and it gets
+// worse as more addons are published.
+//
+// The key includes the credentials, so a rotated password (an ECR login token
+// lasts 12 hours) yields a new client rather than reusing a stale one.
+var ociClientCache = struct {
+	sync.Mutex
+	clients map[string]*registry.Client
+}{clients: map[string]*registry.Client{}}
+
+// ociClientCacheLimit bounds the cache. Entries are keyed by credentials, so the
+// live set is small; the cap only stops unbounded growth as tokens rotate.
+const ociClientCacheLimit = 16
+
+// ociClientCreation coordinates concurrent creation of the same cache entry so
+// two goroutines resolving the same registry at once do not both dial and log
+// in. Keying it by cache key, rather than using ociClientCache's own lock for
+// this, keeps unrelated keys from blocking on each other's network I/O.
+var ociClientCreation singleflight.Group
+
+func ociClientCacheKey(host, username, password string, plainHTTP bool) string {
+	sum := sha256.Sum256([]byte(username + "\x00" + password))
+	return fmt.Sprintf("%s|%t|%x", host, plainHTTP, sum[:8])
+}
+
+func cachedOCIClient(key string) (*registry.Client, bool) {
+	ociClientCache.Lock()
+	defer ociClientCache.Unlock()
+	client, ok := ociClientCache.clients[key]
+	return client, ok
+}
+
+func storeOCIClient(key string, client *registry.Client) {
+	ociClientCache.Lock()
+	defer ociClientCache.Unlock()
+	if len(ociClientCache.clients) >= ociClientCacheLimit {
+		// Cheap eviction: the entries are interchangeable, and a dropped one is
+		// only re-logged-in on next use.
+		for k := range ociClientCache.clients {
+			delete(ociClientCache.clients, k)
+			break
 		}
 	}
-	return client, nil
+	ociClientCache.clients[key] = client
+}
+
+func newOCIClientWithPlainHTTP(host, username, password string, plainHTTP bool) (*registry.Client, error) {
+	key := ociClientCacheKey(host, username, password, plainHTTP)
+
+	if client, ok := cachedOCIClient(key); ok {
+		return client, nil
+	}
+
+	// The dial and login below run outside ociClientCache's lock: only the map
+	// reads and writes hold it, so a slow or unreachable registry blocks
+	// nothing but callers asking for this same key.
+	result, err, _ := ociClientCreation.Do(key, func() (interface{}, error) {
+		if client, ok := cachedOCIClient(key); ok {
+			return client, nil
+		}
+
+		var opts []registry.ClientOption
+		if plainHTTP {
+			opts = append(opts, registry.ClientOptPlainHTTP())
+		}
+		client, err := registry.NewClient(opts...)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create OCI registry client")
+		}
+		if username != "" || password != "" {
+			if err := client.Login(host, registry.LoginOptBasicAuth(username, password)); err != nil {
+				return nil, errors.Wrapf(err, "failed to login to OCI registry %s", host)
+			}
+		}
+
+		storeOCIClient(key, client)
+		return client, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.(*registry.Client), nil
 }
 
 // pullOCIChart is the production puller: it logs in (when credentials are set)
@@ -255,9 +331,12 @@ func listOCIRepositoriesWithScheme(ctx context.Context, registryURL, username, p
 		decodeErr := json.NewDecoder(resp.Body).Decode(&page)
 		closeErr := resp.Body.Close()
 		if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-			// Not every registry implements /v2/_catalog (ECR does not). Treat those
-			// answers as "no catalog to enumerate" rather than a read failure, so a
-			// push can still bootstrap a portable catalog there.
+			// Not every registry implements /v2/_catalog. Treat a refusal that
+			// names the route as unsupported as "no catalog to enumerate" rather
+			// than a read failure, so a push can still bootstrap a portable
+			// catalog there. Anything else stays a read failure, because
+			// rebuilding the catalog from a misread empty list would drop every
+			// entry already published.
 			switch resp.StatusCode {
 			case http.StatusNotFound, http.StatusMethodNotAllowed, http.StatusNotImplemented:
 				return nil, errors.Wrapf(ErrOCICatalogAbsent, "OCI catalog enumeration is unsupported at %s: server returned %s", host, resp.Status)
@@ -309,32 +388,38 @@ func listOCIRepositoriesWithScheme(ctx context.Context, registryURL, username, p
 	return addons, nil
 }
 
-// loadAddon pulls the addon's OCI chart and turns it into a WholeAddonPackage,
-// reusing the shared archive -> InstallPackage pipeline.
-func (i *ociRegistry) loadAddon(ctx context.Context, name, version string) (pkg *WholeAddonPackage, err error) {
-	// Classify failures as registry-level so callers can tell "this registry
-	// cannot provide this addon" from "stop everything". installDependency uses
-	// isSkippableRegistryError to decide whether to try the next registry; without
-	// this, any OCI error (missing tag, auth failure, unreachable host) aborts
-	// dependency resolution instead of falling through. Mirrors the ErrFetch
-	// wrapping already done in Installer.getAddonMeta.
-	defer func() {
-		if err != nil && !errors.Is(err, ErrNotExist) && !errors.Is(err, ErrFetch) {
-			err = errors.Wrapf(ErrFetch, "OCI registry %s: %v", i.name, err)
-		}
-	}()
+// classify translates a load failure into the shared error vocabulary.
+// installDependency uses isSkippableRegistryError to decide whether to try the
+// next registry; without this, any OCI error (a missing tag, an auth failure, an
+// unreachable host) would abort dependency resolution instead of falling
+// through. The HTTP backend deliberately does not do this, which is why it is an
+// optional capability rather than part of chartBackend.
+func (b *ociHelmBackend) classify(err error) error {
+	if err == nil || errors.Is(err, ErrNotExist) || errors.Is(err, ErrFetch) {
+		return err
+	}
+	return errors.Wrapf(ErrFetch, "OCI registry %s: %v", b.name, err)
+}
 
-	repoRef, host := ociRepoRef(i.url, name)
-	resolved, available, err := i.resolveVersion(ctx, repoRef, host, version)
+// supportsVersionRequirements reports false. Versions here are synthesized from
+// repository tags and carry no annotations, so LoadSystemRequirements would read
+// nil for every one of them and report the newest tag as meeting any
+// requirement. Answering "no opinion" is the honest result.
+func (b *ociHelmBackend) supportsVersionRequirements() bool { return false }
+
+// Resolve pulls the addon's OCI chart and decodes the archive.
+func (b *ociHelmBackend) resolve(ctx context.Context, addonName, version string) (*resolvedChart, error) {
+	repoRef, host := ociRepoRef(b.url, addonName)
+	resolved, available, err := b.resolveVersion(ctx, repoRef, host, version)
 	if err != nil {
 		return nil, err
 	}
 	ref := fmt.Sprintf("%s:%s", repoRef, resolved)
-	pull := i.pullFn
+	pull := b.pullFn
 	if pull == nil {
 		pull = pullOCIChart
 	}
-	archive, err := pull(ctx, ref, host, i.username, i.token)
+	archive, err := pull(ctx, ref, host, b.username, b.token)
 	if err != nil {
 		return nil, err
 	}
@@ -342,76 +427,77 @@ func (i *ociRegistry) loadAddon(ctx context.Context, name, version string) (pkg 
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to load addon chart archive %s", ref)
 	}
-	pkg, err = loadAddonPackage(name, files)
-	if err != nil {
-		return nil, err
-	}
-	pkg.RegistryName = i.name
-	// loadAddonPackage builds the package from the chart archive, which knows
-	// nothing about sibling tags, so AvailableVersions would otherwise stay empty
-	// and the UI would show the addon as having a single version. versionedRegistry
-	// attaches its version list the same way. A pinned request lists no tags and
-	// so carries no list -- the caller asked about one version.
-	pkg.AvailableVersions = available
-	klog.V(5).Infof("Addon '%s' loaded from OCI registry '%s' (%s)", name, i.name, ref)
-	return pkg, nil
-}
-
-// GetAddonInstallPackage returns the addon's install package from the OCI registry.
-func (i *ociRegistry) GetAddonInstallPackage(ctx context.Context, addonName, version string) (*InstallPackage, error) {
-	pkg, err := i.loadAddon(ctx, addonName, version)
-	if err != nil {
-		return nil, err
-	}
-	return &pkg.InstallPackage, nil
-}
-
-// GetDetailedAddon returns the whole addon package from the OCI registry.
-func (i *ociRegistry) GetDetailedAddon(ctx context.Context, addonName, version string) (*WholeAddonPackage, error) {
-	return i.loadAddon(ctx, addonName, version)
-}
-
-// GetAddonUIData returns the addon's UI data from the OCI registry.
-func (i *ociRegistry) GetAddonUIData(ctx context.Context, addonName, version string) (*UIData, error) {
-	pkg, err := i.loadAddon(ctx, addonName, version)
-	if err != nil {
-		return nil, err
-	}
-	// Mirror versionedRegistry.GetAddonUIData: dropping these leaves UI and cache
-	// consumers with metadata that is incomplete compared with an HTTP registry.
-	return &UIData{
-		Meta:              pkg.Meta,
-		APISchema:         pkg.APISchema,
-		Parameters:        pkg.Parameters,
-		Detail:            pkg.Detail,
-		Definitions:       pkg.Definitions,
-		AvailableVersions: pkg.AvailableVersions,
-		CUEDefinitions:    pkg.CUEDefinitions,
+	klog.V(5).Infof("Addon '%s' loaded from OCI registry '%s' (%s)", addonName, b.name, ref)
+	return &resolvedChart{
+		files:   files,
+		version: resolved,
+		// A pinned request lists no tags and so carries no list: the caller asked
+		// about one version.
+		availableVersions: available,
+		// The chart's own metadata.yaml is the only source of requirements here.
+		// Unlike an index entry, a tag carries no annotations to override it with.
+		requirementsSet: false,
 	}, nil
 }
 
-// ListAddon enumerates repositories below the configured OCI prefix and loads
+// Versions lists the semver tags of an OCI addon, highest first.
+func (b *ociHelmBackend) versions(ctx context.Context, addonName string) ([]*repo.ChartVersion, error) {
+	repoRef, host := ociRepoRef(b.url, addonName)
+	list := b.tagsFn
+	if list == nil {
+		list = listOCITags
+	}
+	tags, err := list(ctx, repoRef, host, b.username, b.token)
+	if err != nil {
+		return nil, err
+	}
+	versions := make([]*repo.ChartVersion, 0, len(tags))
+	for _, tag := range tags {
+		versions = append(versions, &repo.ChartVersion{
+			Metadata: &chart.Metadata{Name: addonName, Version: tag},
+		})
+	}
+	return versions, nil
+}
+
+// loadUIData builds one listing entry from a real chart, for the discovery path
+// that has only repository names to work with.
+func (b *ociHelmBackend) loadUIData(ctx context.Context, addonName, version string) (data *UIData, err error) {
+	defer func() {
+		if err != nil {
+			err = b.classify(err)
+		}
+	}()
+	resolved, err := b.resolve(ctx, addonName, version)
+	if err != nil {
+		return nil, err
+	}
+	pkg, err := loadAddonPackage(addonName, resolved.files)
+	if err != nil {
+		return nil, err
+	}
+	pkg.AvailableVersions = resolved.availableVersions
+	return uiDataFromPackage(pkg), nil
+}
+
+// ListUIData enumerates repositories below the configured OCI prefix and loads
 // the latest semver-tagged addon metadata for each repository.
-func (i *ociRegistry) ListAddon() ([]*UIData, error) {
-	ctx := context.Background()
+func (b *ociHelmBackend) listUIData(ctx context.Context) ([]*UIData, error) {
 	var indexErr error
-	if i.catalogIndexFn != nil {
-		addons, err := i.catalogIndexFn(ctx, i.url, i.username, i.token)
+	if b.catalogIndexFn != nil {
+		addons, err := b.catalogIndexFn(ctx, b.url, b.username, b.token)
 		if err == nil {
-			for _, addon := range addons {
-				addon.RegistryName = i.name
-			}
 			return addons, nil
 		}
 		indexErr = err
-		klog.V(4).Infof("Portable OCI addon catalog is unavailable for registry %q, falling back to registry catalog discovery: %v", i.name, err)
+		klog.V(4).Infof("Portable OCI addon catalog is unavailable for registry %q, falling back to registry catalog discovery: %v", b.name, err)
 	}
 
-	list := i.catalogFn
+	list := b.catalogFn
 	if list == nil {
 		list = listOCIRepositories
 	}
-	names, err := list(ctx, i.url, i.username, i.token)
+	names, err := list(ctx, b.url, b.username, b.token)
 	if err != nil {
 		if indexErr != nil {
 			// Only a genuine absence on BOTH sides means there is no catalog. If
@@ -427,45 +513,24 @@ func (i *ociRegistry) ListAddon() ([]*UIData, error) {
 
 	var addons []*UIData
 	for _, name := range names {
-		repoRef, host := ociRepoRef(i.url, name)
-		tags := i.tagsFn
+		repoRef, host := ociRepoRef(b.url, name)
+		tags := b.tagsFn
 		if tags == nil {
 			tags = listOCITags
 		}
-		versions, err := tags(ctx, repoRef, host, i.username, i.token)
+		versions, err := tags(ctx, repoRef, host, b.username, b.token)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to list versions for OCI addon %s", name)
 		}
 		if len(versions) == 0 {
 			continue
 		}
-		addon, err := i.GetAddonUIData(ctx, name, versions[0])
+		addon, err := b.loadUIData(ctx, name, versions[0])
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to load metadata for OCI addon %s", name)
 		}
-		addon.RegistryName = i.name
 		addon.AvailableVersions = versions
 		addons = append(addons, addon)
 	}
 	return addons, nil
-}
-
-// GetAddonAvailableVersion lists semver tags for an OCI addon.
-func (i *ociRegistry) GetAddonAvailableVersion(addonName string) ([]*repo.ChartVersion, error) {
-	repoRef, host := ociRepoRef(i.url, addonName)
-	list := i.tagsFn
-	if list == nil {
-		list = listOCITags
-	}
-	tags, err := list(context.Background(), repoRef, host, i.username, i.token)
-	if err != nil {
-		return nil, err
-	}
-	versions := make([]*repo.ChartVersion, 0, len(tags))
-	for _, tag := range tags {
-		versions = append(versions, &repo.ChartVersion{
-			Metadata: &chart.Metadata{Name: addonName, Version: tag},
-		})
-	}
-	return versions, nil
 }
