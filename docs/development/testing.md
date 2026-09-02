@@ -64,13 +64,22 @@ Scope to one package while iterating on a specific change:
 go test ./pkg/<subpath>/... -count=1
 ```
 
-> **A few unit test packages depend on external network access or a
-> Linux Docker daemon** (registry-auth tests, and the OpenAPI-generator-based
-> SDK codegen tests). If you're running in a sandboxed or offline
-> environment, or via Docker-outside-of-Docker where bind-mounted paths
-> don't line up with the host, expect those specific packages to fail for
-> environmental reasons. They pass in CI, where those conditions don't
-> apply.
+> **Three packages depend on external network access or a Linux Docker
+> daemon, and fail for environmental reasons in a sandboxed or
+> Docker-outside-of-Docker setup:**
+>
+> - `pkg/utils/registries` (`TestAuthn`) and `pkg/cue/cuex/providers/config`
+>   (`TestImageRegistry`) reach real registries (`index.docker.io` and
+>   similar); with egress blocked they time out after 30s.
+> - `pkg/definition/gen_sdk` (`TestGenSdk`) shells out to `docker run -v
+>   /tmp:/local/input openapitools/openapi-generator-cli`. Under
+>   Docker-outside-of-Docker the daemon is the host's, so `/tmp` resolves to
+>   the host's `/tmp`, not the container's, and the generator can't find its
+>   input spec.
+>
+> All three pass in CI, where egress is open and the Docker daemon is local.
+> If exactly these three fail and everything else is green, that's this, not
+> a regression.
 
 ## Controller e2e tests
 
@@ -158,6 +167,12 @@ GO111MODULE=on CGO_ENABLED=0 go build -o bin/vela ./references/cmd/cli/main.go
 make e2e-application-test-local   # self-provisions a cluster, runs the suite, deletes the cluster afterward
 ```
 
+This self-provisions a cluster and Helm-installs into it the same way
+`e2e-test-local` does, so it's exposed to the same container-networking
+reachability issue; see the troubleshooting note in
+[`k3d-workflow.md`](./k3d-workflow.md#troubleshooting) if the Helm step
+can't reach the cluster.
+
 To run just the test phase against a cluster you already have vela-core
 running on:
 
@@ -187,6 +202,12 @@ code coverage can be collected:
 ```bash
 make e2e-test-main-local
 ```
+
+Same caveat as the other self-provisioning targets: it force-creates its own
+`kubevela-e2e-main` cluster and Helm-installs into it, so a container-based
+dev environment needs the same networking fix from
+[`k3d-workflow.md`](./k3d-workflow.md#troubleshooting) before the install
+step will succeed.
 
 Success looks like a `1/1 Running` controller pod that's reconciling
 definitions without panics. Check with:

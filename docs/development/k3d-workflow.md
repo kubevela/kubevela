@@ -171,13 +171,24 @@ k3d cluster delete vela-dev               # delete the cluster entirely
 > runner-in-a-container, etc.)?** k3d writes the cluster's API server address
 > into your kubeconfig using an address that's only reachable from the Docker
 > host, not necessarily from inside another container. If `helm install`
-> fails with a connection-refused or timeout error right after cluster
-> creation, check that your shell can actually reach the address in
-> `kubectl config view`. You may need to join your container to the k3d
-> Docker network and point the kubeconfig at the k3d server container's
-> network IP instead of the address k3d wrote by default.
-
-> **TLS certificate errors after rewriting the kubeconfig server address**:
-> use the k3d server node's own container IP, not a load balancer/proxy
-> container's IP. The server's TLS certificate only lists the former as a
-> valid SAN.
+> fails right after cluster creation with something like `dial tcp
+> 0.0.0.0:<port>: connect: connection refused`, that's this. Join your
+> container to the cluster's Docker network and rewrite the kubeconfig to
+> point at the k3d server node's own container IP:
+>
+> ```bash
+> CLUSTER=vela-dev
+> docker network connect "k3d-${CLUSTER}" "$(hostname)"
+>
+> SERVER_IP=$(docker inspect "k3d-${CLUSTER}-server-0" \
+>   --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' | head -1)
+> sed -i -E "s#server: https://[0-9.]+:[0-9]+#server: https://${SERVER_IP}:6443#g" \
+>   "$KUBECONFIG"
+>
+> kubectl get nodes   # confirm it's reachable before retrying helm install
+> ```
+>
+> Use the **server-0 container's own IP**, not the load balancer/proxy
+> container's (`k3d-<cluster>-serverlb`). The server's TLS certificate only
+> lists the former as a valid SAN, a serverlb IP fails with `x509:
+> certificate is valid for ..., not <ip>`.
