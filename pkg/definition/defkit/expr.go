@@ -218,9 +218,9 @@ func (c *StringContainsCondition) ParamName() string { return c.paramName }
 // Substr returns the substring to check for.
 func (c *StringContainsCondition) Substr() string { return c.substr }
 
-// RegexMatchCondition checks if any Value matches a regex pattern.
-// Generates: <value> =~ "pattern"
-// Used by both LocalFieldRef.Matches() and StringParam.Matches().
+// RegexMatchCondition checks if any Value matches or does not match a regex pattern.
+// Generates: <value> =~ "pattern" or <value> !~ "pattern"
+// Used by LocalFieldRef.Matches(), StringParam.Matches(), LocalFieldRef.NotMatches() and StringParam.NotMatches().
 type RegexMatchCondition struct {
 	baseCondition
 	source  Value
@@ -238,8 +238,13 @@ func (c *RegexMatchCondition) Pattern() string { return c.pattern }
 func (c *RegexMatchCondition) IsNegated() bool { return c.negate }
 
 // RegexMatch creates a condition that checks if a value matches a regex pattern.
-func RegexMatch(source Value, pattern string, negate bool) *RegexMatchCondition {
-	return &RegexMatchCondition{source: source, pattern: pattern, negate: negate}
+func RegexMatch(source Value, pattern string) *RegexMatchCondition {
+	return &RegexMatchCondition{source: source, pattern: pattern, negate: false}
+}
+
+// RegexNotMatch creates a condition that checks if a value does not match a regex pattern.
+func RegexNotMatch(source Value, pattern string) *RegexMatchCondition {
+	return &RegexMatchCondition{source: source, pattern: pattern, negate: true}
 }
 
 // StringStartsWithCondition checks if a string parameter starts with a prefix.

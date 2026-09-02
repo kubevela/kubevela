@@ -106,14 +106,14 @@ func (s *LocalFieldRef) Name() string { return s.fieldName }
 // Example: LocalField("tenantName").Matches(".*-$") generates: tenantName =~ ".*-$"
 // Reuses upstream RegexMatchCondition.
 func (s *LocalFieldRef) Matches(pattern string) Condition {
-	return RegexMatch(s, pattern, false)
+	return RegexMatch(s, pattern)
 }
 
 // NotMatches creates a condition that checks if this field does not match a regex pattern.
 // Example: LocalField("tenantName").NotMatches(".*-$") generates: tenantName !~ ".*-$"
 // Reuses upstream RegexMatchCondition.
 func (s *LocalFieldRef) NotMatches(pattern string) Condition {
-	return RegexMatch(s, pattern, true)
+	return RegexNotMatch(s, pattern)
 }
 
 // Eq creates a condition comparing this field to a value.

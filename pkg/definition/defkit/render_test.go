@@ -716,6 +716,98 @@ var _ = Describe("Render", func() {
 		})
 	})
 
+	Context("RegexMatch condition", func() {
+		// regexComp builds a ConfigMap whose data.marked field is set only when
+		// cond holds, so a nil Get means the condition evaluated to false.
+		regexComp := func(param defkit.Param, cond defkit.Condition) *defkit.ComponentDefinition {
+			return defkit.NewComponent("test").
+				Workload("v1", "ConfigMap").
+				Params(param).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("v1", "ConfigMap").
+							SetIf(cond, "data.marked", defkit.Lit("yes")),
+					)
+				})
+		}
+
+		It("should apply Matches when the value matches the pattern", func() {
+			name := defkit.String("name")
+			rendered := regexComp(name, name.Matches("^prod-")).Render(
+				defkit.TestContext().WithParam("name", "prod-web"),
+			)
+			Expect(rendered.Get("data.marked")).To(Equal("yes"))
+		})
+
+		It("should skip Matches when the value does not match the pattern", func() {
+			name := defkit.String("name")
+			rendered := regexComp(name, name.Matches("^prod-")).Render(
+				defkit.TestContext().WithParam("name", "dev-web"),
+			)
+			Expect(rendered.Get("data.marked")).To(BeNil())
+		})
+
+		It("should apply NotMatches when the value does not match the pattern", func() {
+			name := defkit.String("name")
+			rendered := regexComp(name, name.NotMatches("^prod-")).Render(
+				defkit.TestContext().WithParam("name", "dev-web"),
+			)
+			Expect(rendered.Get("data.marked")).To(Equal("yes"))
+		})
+
+		It("should skip NotMatches when the value matches the pattern", func() {
+			name := defkit.String("name")
+			rendered := regexComp(name, name.NotMatches("^prod-")).Render(
+				defkit.TestContext().WithParam("name", "prod-web"),
+			)
+			Expect(rendered.Get("data.marked")).To(BeNil())
+		})
+
+		It("should anchor NotMatches on a suffix pattern", func() {
+			tenant := defkit.String("tenant")
+			comp := regexComp(tenant, tenant.NotMatches(".*-$"))
+
+			Expect(comp.Render(defkit.TestContext().WithParam("tenant", "acme")).
+				Get("data.marked")).To(Equal("yes"))
+			Expect(comp.Render(defkit.TestContext().WithParam("tenant", "acme-")).
+				Get("data.marked")).To(BeNil())
+		})
+
+		It("should skip both forms when the optional source is absent", func() {
+			positive := defkit.String("name").Optional()
+			negative := defkit.String("name").Optional()
+
+			Expect(regexComp(positive, positive.Matches("^prod-")).
+				Render(defkit.TestContext()).Get("data.marked")).To(BeNil())
+			Expect(regexComp(negative, negative.NotMatches("^prod-")).
+				Render(defkit.TestContext()).Get("data.marked")).To(BeNil())
+		})
+
+		It("should skip both forms for a non-string source", func() {
+			positive := defkit.Int("port")
+			negative := defkit.Int("port")
+
+			Expect(regexComp(positive, defkit.RegexMatch(positive, "^80")).
+				Render(defkit.TestContext().WithParam("port", 8080)).
+				Get("data.marked")).To(BeNil())
+			Expect(regexComp(negative, defkit.RegexNotMatch(negative, "^80")).
+				Render(defkit.TestContext().WithParam("port", 8080)).
+				Get("data.marked")).To(BeNil())
+		})
+
+		It("should skip both forms for an invalid pattern", func() {
+			positive := defkit.String("name")
+			negative := defkit.String("name")
+
+			Expect(regexComp(positive, positive.Matches("[")).
+				Render(defkit.TestContext().WithParam("name", "prod-web")).
+				Get("data.marked")).To(BeNil())
+			Expect(regexComp(negative, negative.NotMatches("[")).
+				Render(defkit.TestContext().WithParam("name", "prod-web")).
+				Get("data.marked")).To(BeNil())
+		})
+	})
+
 	Context("evaluateCondition with NotExpr", func() {
 		It("should negate IsSet via NotExpr (ParamNotSet)", func() {
 			comp := defkit.NewComponent("test").
