@@ -32,7 +32,10 @@ verbosity/log options, [`testing.md`](./testing.md) for running the unit and
 e2e test suites, [`webhook-debugging.md`](./webhook-debugging.md) for the
 admission-webhook-specific workflow (definition/application validation), and
 [`ide-remote-cluster-debugging.md`](./ide-remote-cluster-debugging.md) for attaching
-an IDE debugger to a process already running in a cluster (local or remote).
+an IDE debugger to a process already running in a cluster (local or remote),
+and [`ide-multi-cluster-debugging.md`](./ide-multi-cluster-debugging.md) for
+debugging KubeVela's multi-cluster feature (a controller running in your IDE
+against a master/slave cluster pair) from your IDE.
 
 ## Repository layout (development-relevant paths)
 
