@@ -128,15 +128,21 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 	}
 
 	// Build cache key:
-	// <cache_key_prefix>/<source_type>/<source>/repo-<tag>/<version>[/auth-<tag>]
-	// The repo-<tag> segment keeps charts with the same name and version but
-	// different repository URLs (or no URL at all) isolated from each other.
-	repoTag := "repo-" + repoCacheTag(params.RepoURL)
-	cacheKey := fmt.Sprintf("%s/%s/%s/%s",
-		sourceType,
-		strings.ReplaceAll(strings.ReplaceAll(params.Source, "://", "-"), "/", "-"),
-		repoTag,
-		params.Version)
+	// <cache_key_prefix>/<source_type>/<source>[/repo-<tag>]/<version>[/auth-<tag>]
+	// The repo-<tag> segment isolates repository-based charts with the same
+	// name and version that are served by different repositories. Only
+	// repository sources need it: for OCI and direct-URL sources the source
+	// string already pins the registry or file location, and any
+	// credential-dependent variation is covered by the auth-<tag> suffix.
+	sanitizedSource := strings.ReplaceAll(strings.ReplaceAll(params.Source, "://", "-"), "/", "-")
+	cacheKey := fmt.Sprintf("%s/%s/%s", sourceType, sanitizedSource, params.Version)
+	if sourceType == sourceTypeRepo {
+		cacheKey = fmt.Sprintf("%s/%s/repo-%s/%s",
+			sourceType,
+			sanitizedSource,
+			repoCacheTag(params.RepoURL),
+			params.Version)
+	}
 	if options != nil && options.Cache != nil && options.Cache.Key != "" {
 		// User provided cache key prefix
 		cacheKey = options.Cache.Key + "/" + cacheKey

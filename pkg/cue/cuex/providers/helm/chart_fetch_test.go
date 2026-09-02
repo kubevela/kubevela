@@ -226,7 +226,9 @@ var _ = Describe("chart_fetch", func() {
 			}
 			// OCI source: oci://ghcr.io/example/chart
 			// After replacing "://" with "-" and "/" with "-": oci-ghcr.io-example-chart
-			cacheKey := "oci/oci-ghcr.io-example-chart/repo-none/3.0.0"
+			// OCI sources are keyed without a repo tag: the source already
+			// pins the registry location.
+			cacheKey := "oci/oci-ghcr.io-example-chart/3.0.0"
 			p.cache.Put(cacheKey, testChart, 1*time.Hour)
 
 			result, err := p.fetchChart(context.Background(),
@@ -242,7 +244,9 @@ var _ = Describe("chart_fetch", func() {
 			}
 			// URL source: https://example.com/chart.tgz
 			// After replacing "://" with "-" and "/" with "-": https-example.com-chart.tgz
-			cacheKey := "url/https-example.com-chart.tgz/repo-none/1.0.0"
+			// URL sources are keyed without a repo tag: the source already
+			// pins the file location.
+			cacheKey := "url/https-example.com-chart.tgz/1.0.0"
 			p.cache.Put(cacheKey, testChart, 1*time.Hour)
 
 			result, err := p.fetchChart(context.Background(),
@@ -250,6 +254,26 @@ var _ = Describe("chart_fetch", func() {
 				nil, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("url-chart"))
+		})
+
+		It("does not fragment cache entries of OCI sources by repoURL", func() {
+			// For OCI and direct-URL sources the source string already pins
+			// the chart location, so the cache key must not change when a
+			// repoURL is also supplied.
+			testChart := &chart.Chart{
+				Metadata: &chart.Metadata{Name: "oci-chart", Version: "3.0.0"},
+			}
+			p.cache.Put("oci/oci-ghcr.io-example-chart/3.0.0", testChart, 1*time.Hour)
+
+			result, err := p.fetchChart(context.Background(),
+				&ChartSourceParams{
+					Source:  "oci://ghcr.io/example/chart",
+					RepoURL: "https://ghcr.io",
+					Version: "3.0.0",
+				},
+				nil, "", "")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(result.Metadata.Name).To(Equal("oci-chart"))
 		})
 	})
 
