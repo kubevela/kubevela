@@ -10,7 +10,7 @@ and cluster-auth commands.
 
 To interactively debug a process already running on a remote (or local)
 cluster once it's deployed, see
-[`remote-cluster-debugging.md`](./remote-cluster-debugging.md).
+[`ide-remote-cluster-debugging.md`](./ide-remote-cluster-debugging.md).
 
 ## Prerequisites
 

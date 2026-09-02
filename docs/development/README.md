@@ -31,7 +31,7 @@ Once you have something running, see [`logging.md`](./logging.md) for
 verbosity/log options, [`testing.md`](./testing.md) for running the unit and
 e2e test suites, [`webhook-debugging.md`](./webhook-debugging.md) for the
 admission-webhook-specific workflow (definition/application validation), and
-[`remote-cluster-debugging.md`](./remote-cluster-debugging.md) for attaching
+[`ide-remote-cluster-debugging.md`](./ide-remote-cluster-debugging.md) for attaching
 an IDE debugger to a process already running in a cluster (local or remote).
 
 ## Repository layout (development-relevant paths)
