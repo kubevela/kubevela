@@ -19,6 +19,8 @@ package defkit_test
 import (
 	"strings"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -1748,6 +1750,143 @@ var _ = Describe("CUEGenerator", func() {
 			// Inner braces should contain both the field and the conditional
 			Expect(cue).To(ContainSubstring("name: m.name"))
 			Expect(cue).To(ContainSubstring("if m.subPath != _|_"))
+		})
+	})
+
+	Describe("ForEachMap body generation", func() {
+		It("should preserve the default map comprehension", func() {
+			labels := defkit.StringKeyMap("labels")
+			comp := defkit.NewComponent("test").
+				Params(labels).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					tpl.AddLetBinding(
+						"_content",
+						defkit.ForEachMap().Over("parameter.labels"),
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.content", defkit.LetVariable("_content")))
+				})
+
+			Expect(comp.ToCue()).To(ContainSubstring(
+				"let _content = {for k, v in parameter.labels { (k): v }}",
+			))
+		})
+
+		It("should render and evaluate body operations for every map entry", func() {
+			labels := defkit.StringKeyMap("labels")
+			body := defkit.NewResource("", "").
+				Set("name", defkit.Reference("key")).
+				Set("value", defkit.Reference("val")).
+				Set("metadata.owner", defkit.Reference("key")).
+				Ops()
+			comp := defkit.NewComponent("test").
+				Params(labels).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					content := defkit.ForEachMap().
+						Over("parameter.labels").
+						WithVars("key", "val").
+						WithBody(body...)
+					tpl.AddLetBinding("_content", content)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.content", defkit.LetVariable("_content")))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`let _content = {for key, val in parameter.labels {
+	(key): {
+		name: key
+		value: val
+		metadata: {
+			owner: key
+		}
+	}
+}}`))
+
+			base := cuecontext.New().CompileString(generated)
+			Expect(base.Err()).NotTo(HaveOccurred())
+			value := base.FillPath(
+				cue.ParsePath("template.parameter.labels"),
+				map[string]string{
+					"alpha": "one",
+					"beta":  "two",
+				},
+			)
+			Expect(value.Err()).NotTo(HaveOccurred())
+
+			var content map[string]struct {
+				Name     string `json:"name"`
+				Value    string `json:"value"`
+				Metadata struct {
+					Owner string `json:"owner"`
+				} `json:"metadata"`
+			}
+			err := value.LookupPath(
+				cue.ParsePath("template.output.data.content"),
+			).Decode(&content)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(content).To(HaveLen(2))
+			Expect(content["alpha"].Name).To(Equal("alpha"))
+			Expect(content["alpha"].Value).To(Equal("one"))
+			Expect(content["alpha"].Metadata.Owner).To(Equal("alpha"))
+			Expect(content["beta"].Name).To(Equal("beta"))
+			Expect(content["beta"].Value).To(Equal("two"))
+			Expect(content["beta"].Metadata.Owner).To(Equal("beta"))
+		})
+
+		It("should collect imports required by body values", func() {
+			labels := defkit.StringKeyMap("labels")
+			body := defkit.NewResource("", "").
+				Set("name", defkit.StringsToLower(defkit.Reference("key"))).
+				Set("value", defkit.Reference("val")).
+				Ops()
+			comp := defkit.NewComponent("test").
+				Params(labels).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					content := defkit.ForEachMap().
+						Over("parameter.labels").
+						WithVars("key", "val").
+						WithBody(body...)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.content", content))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"strings"`))
+			Expect(generated).To(ContainSubstring("name: strings.ToLower(key)"))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
+		})
+
+		It("should collect imports from nested body operations", func() {
+			labels := defkit.StringKeyMap("labels")
+			metadata := defkit.StringKeyMap("metadata")
+			features := defkit.StringList("features")
+			enabled := defkit.Bool("enabled")
+			body := defkit.NewResource("", "").
+				If(enabled.IsTrue()).
+				Set("metadata.fixed", defkit.Lit("fixed")).
+				SpreadIf(features.Contains("metadata"), "metadata", metadata).
+				EndIf().
+				Ops()
+			comp := defkit.NewComponent("test").
+				Params(labels, metadata, features, enabled).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					content := defkit.ForEachMap().
+						Over("parameter.labels").
+						WithBody(body...)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.content", content))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"list"`))
+			Expect(generated).To(ContainSubstring(
+				`list.Contains(parameter["features"], "metadata")`,
+			))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
 		})
 	})
 

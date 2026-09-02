@@ -208,6 +208,8 @@ func (g *CUEGenerator) collectImportsFromValue(v interface{}) {
 				g.collectImportsFromItemOps(entry.itemBuilder.Ops())
 			}
 		}
+	case *ForEachMapOp:
+		g.collectImportsFromOps(val.Body())
 	case *PlusExpr:
 		for _, part := range val.Parts() {
 			g.collectImportsFromValue(part)
@@ -280,15 +282,7 @@ func (g *CUEGenerator) collectImportsFromOps(ops []ResourceOp) {
 			g.collectImportsFromValue(o.Cond())
 		case *IfBlock:
 			g.collectImportsFromValue(o.Cond())
-			for _, innerOp := range o.Ops() {
-				switch inner := innerOp.(type) {
-				case *SetOp:
-					g.collectImportsFromValue(inner.Value())
-				case *SetIfOp:
-					g.collectImportsFromValue(inner.Value())
-					g.collectImportsFromValue(inner.Cond())
-				}
-			}
+			g.collectImportsFromOps(o.Ops())
 		case *PatchKeyOp:
 			for _, elem := range o.Elements() {
 				g.collectImportsFromValue(elem)
@@ -2313,7 +2307,8 @@ func (g *CUEGenerator) iterRefToCUE(v Value) string {
 }
 
 // forEachMapOpToCUE converts a ForEachMapOp to CUE map comprehension syntax.
-// Generates: {for k, v in source { (keyExpr): valExpr }}.
+// Without body operations it generates {for k, v in source { (keyExpr): valExpr }}.
+// Body operations replace valExpr with a struct rendered under each output key.
 func (g *CUEGenerator) forEachMapOpToCUE(op *ForEachMapOp) string {
 	keyVar := op.KeyVar()
 	if keyVar == "" {
@@ -2335,7 +2330,16 @@ func (g *CUEGenerator) forEachMapOpToCUE(op *ForEachMapOp) string {
 		valExpr = valVar
 	}
 
-	return fmt.Sprintf("{for %s, %s in %s { (%s): %s }}", keyVar, valVar, op.Source(), keyExpr, valExpr)
+	if len(op.Body()) == 0 {
+		return fmt.Sprintf("{for %s, %s in %s { (%s): %s }}", keyVar, valVar, op.Source(), keyExpr, valExpr)
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "{for %s, %s in %s {\n", keyVar, valVar, op.Source())
+	fmt.Fprintf(&sb, "%s(%s): {\n", g.indent, keyExpr)
+	g.writeFieldTree(&sb, g.buildFieldTree(op.Body()), 2)
+	fmt.Fprintf(&sb, "%s}\n}}", g.indent)
+	return sb.String()
 }
 
 // cueFuncToCUE converts a CUE function call to CUE syntax.
