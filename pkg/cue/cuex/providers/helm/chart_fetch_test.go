@@ -183,8 +183,8 @@ var _ = Describe("chart_fetch", func() {
 			testChart := &chart.Chart{
 				Metadata: &chart.Metadata{Name: "cached-chart", Version: "1.0.0"},
 			}
-			// Pre-seed the cache with the expected key format: <sourceType>/<source>/<version>
-			cacheKey := "repo/nginx/1.0.0"
+			// Pre-seed the cache with the expected key format: <sourceType>/<source>/repo-<tag>/<version>
+			cacheKey := "repo/nginx/repo-none/1.0.0"
 			p.cache.Put(cacheKey, testChart, 1*time.Hour)
 
 			result, err := p.fetchChart(context.Background(),
@@ -198,8 +198,8 @@ var _ = Describe("chart_fetch", func() {
 			testChart := &chart.Chart{
 				Metadata: &chart.Metadata{Name: "custom-cached", Version: "2.0.0"},
 			}
-			// With custom cache key: <cache_key_prefix>/<sourceType>/<source>/<version>
-			cacheKey := "my-prefix/repo/myapp/2.0.0"
+			// With custom cache key: <cache_key_prefix>/<sourceType>/<source>/repo-<tag>/<version>
+			cacheKey := "my-prefix/repo/myapp/repo-none/2.0.0"
 			p.cache.Put(cacheKey, testChart, 1*time.Hour)
 
 			result, err := p.fetchChart(context.Background(),
@@ -226,6 +226,8 @@ var _ = Describe("chart_fetch", func() {
 			}
 			// OCI source: oci://ghcr.io/example/chart
 			// After replacing "://" with "-" and "/" with "-": oci-ghcr.io-example-chart
+			// OCI sources are keyed without a repo tag: the source already
+			// pins the registry location.
 			cacheKey := "oci/oci-ghcr.io-example-chart/3.0.0"
 			p.cache.Put(cacheKey, testChart, 1*time.Hour)
 
@@ -242,6 +244,8 @@ var _ = Describe("chart_fetch", func() {
 			}
 			// URL source: https://example.com/chart.tgz
 			// After replacing "://" with "-" and "/" with "-": https-example.com-chart.tgz
+			// URL sources are keyed without a repo tag: the source already
+			// pins the file location.
 			cacheKey := "url/https-example.com-chart.tgz/1.0.0"
 			p.cache.Put(cacheKey, testChart, 1*time.Hour)
 
@@ -250,6 +254,26 @@ var _ = Describe("chart_fetch", func() {
 				nil, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("url-chart"))
+		})
+
+		It("does not fragment cache entries of OCI sources by repoURL", func() {
+			// For OCI and direct-URL sources the source string already pins
+			// the chart location, so the cache key must not change when a
+			// repoURL is also supplied.
+			testChart := &chart.Chart{
+				Metadata: &chart.Metadata{Name: "oci-chart", Version: "3.0.0"},
+			}
+			p.cache.Put("oci/oci-ghcr.io-example-chart/3.0.0", testChart, 1*time.Hour)
+
+			result, err := p.fetchChart(context.Background(),
+				&ChartSourceParams{
+					Source:  "oci://ghcr.io/example/chart",
+					RepoURL: "https://ghcr.io",
+					Version: "3.0.0",
+				},
+				nil, "", "")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(result.Metadata.Name).To(Equal("oci-chart"))
 		})
 	})
 
@@ -466,8 +490,8 @@ entries:
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch.Metadata.Name).To(Equal("cache-miss"))
 
-			// Verify it's now cached
-			cached, found := p.cache.Get("repo/cache-miss/1.0.0")
+			// Verify it's now cached under the repo-tagged key
+			cached, found := p.cache.Get("repo/cache-miss/repo-" + repoCacheTag(server.URL) + "/1.0.0")
 			Expect(found).To(BeTrue())
 			Expect(cached).ToNot(BeNil())
 		})
@@ -487,6 +511,75 @@ entries:
 			}, nil, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch.Metadata.Name).To(Equal("url-cache"))
+		})
+
+		It("isolates cached charts by repoURL for public charts", func() {
+			// Regression for https://github.com/kubevela/kubevela/issues/7338.
+			// Two repositories publish a chart with the same name and version
+			// but different contents. With no auth.secretRef, the cache key
+			// used to ignore repoURL entirely, so the second fetch hit the
+			// first repository's cached bytes without ever contacting repo B.
+			type repoServer struct {
+				url       string
+				chartName string
+				requests  int
+			}
+			var servers []*httptest.Server
+			defer func() {
+				for _, s := range servers {
+					s.Close()
+				}
+			}()
+			newRepo := func(chartName string) *repoServer {
+				srv := &repoServer{chartName: chartName}
+				archive := createMinimalChartArchive(chartName, "1.0.0")
+				httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					srv.requests++
+					switch r.URL.Path {
+					case "/index.yaml":
+						_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  demo:
+    - name: demo
+      version: 1.0.0
+      urls:
+        - demo-1.0.0.tgz
+`))
+					case "/demo-1.0.0.tgz":
+						_, _ = w.Write(archive)
+					default:
+						http.NotFound(w, r)
+					}
+				}))
+				srv.url = httpSrv.URL
+				servers = append(servers, httpSrv)
+				return srv
+			}
+
+			repoA := newRepo("first-chart")
+			repoB := newRepo("second-chart")
+			p := NewProviderWithConfig(nil)
+
+			first, err := p.fetchChart(context.Background(), &ChartSourceParams{
+				Source:  "demo",
+				RepoURL: repoA.url,
+				Version: "1.0.0",
+			}, nil, "", "")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(first.Metadata.Name).To(Equal("first-chart"))
+
+			second, err := p.fetchChart(context.Background(), &ChartSourceParams{
+				Source:  "demo",
+				RepoURL: repoB.url,
+				Version: "1.0.0",
+			}, nil, "", "")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(second.Metadata.Name).To(Equal("second-chart"))
+
+			// repo B must have been contacted: the second request is a
+			// different cache entry, not a hit on repo A's cached chart.
+			Expect(repoA.requests).To(BeNumerically(">=", 1))
+			Expect(repoB.requests).To(BeNumerically(">=", 1))
 		})
 
 		It("re-runs the auth resolver on a cache hit when the source declares auth.secretRef", func() {

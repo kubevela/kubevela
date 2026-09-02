@@ -21,6 +21,8 @@ package helm
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -94,6 +96,20 @@ func isMutableVersion(version string) bool {
 	return true
 }
 
+// repoCacheTag folds the repository URL into the chart cache key. The public
+// path mirrors computeAuthCacheTag's hashed suffix so that charts fetched
+// from different repositories never collide on the same chart name and
+// version, and the tag itself stays free of '/' so it cannot shift the
+// slash-separated namespace of the key. An empty URL (a chart supplied as a
+// bare source) maps to a fixed tag rather than an empty segment.
+func repoCacheTag(repoURL string) string {
+	if repoURL == "" {
+		return "none"
+	}
+	sum := sha256.Sum256([]byte(repoURL))
+	return hex.EncodeToString(sum[:])[:16]
+}
+
 // fetchChart fetches a Helm chart from the specified source
 func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, options *RenderOptionsParams, appNamespace, releaseNamespace string) (*chart.Chart, error) {
 	sourceType := detectChartSourceType(params.Source)
@@ -111,21 +127,25 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 		return nil, err
 	}
 
-	// Build cache key: <cache_key_prefix>/<source_type>/<source>/<version>[/auth-<tag>]
-	var cacheKey string
+	// Build cache key:
+	// <cache_key_prefix>/<source_type>/<source>[/repo-<tag>]/<version>[/auth-<tag>]
+	// The repo-<tag> segment isolates repository-based charts with the same
+	// name and version that are served by different repositories. Only
+	// repository sources need it: for OCI and direct-URL sources the source
+	// string already pins the registry or file location, and any
+	// credential-dependent variation is covered by the auth-<tag> suffix.
+	sanitizedSource := strings.ReplaceAll(strings.ReplaceAll(params.Source, "://", "-"), "/", "-")
+	cacheKey := fmt.Sprintf("%s/%s/%s", sourceType, sanitizedSource, params.Version)
+	if sourceType == sourceTypeRepo {
+		cacheKey = fmt.Sprintf("%s/%s/repo-%s/%s",
+			sourceType,
+			sanitizedSource,
+			repoCacheTag(params.RepoURL),
+			params.Version)
+	}
 	if options != nil && options.Cache != nil && options.Cache.Key != "" {
-		// User provided cache key
-		cacheKey = fmt.Sprintf("%s/%s/%s/%s",
-			options.Cache.Key,
-			sourceType,
-			strings.ReplaceAll(strings.ReplaceAll(params.Source, "://", "-"), "/", "-"),
-			params.Version)
-	} else {
-		// No cache key provided - use source-based key
-		cacheKey = fmt.Sprintf("%s/%s/%s",
-			sourceType,
-			strings.ReplaceAll(strings.ReplaceAll(params.Source, "://", "-"), "/", "-"),
-			params.Version)
+		// User provided cache key prefix
+		cacheKey = options.Cache.Key + "/" + cacheKey
 	}
 	if authTag != "" {
 		cacheKey = cacheKey + "/auth-" + authTag
