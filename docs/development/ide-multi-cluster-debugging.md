@@ -14,6 +14,169 @@ k3d, kubectl, Helm v3, Go, and the `vela` CLI built from this repo
 (`make vela-cli`, which puts it at `bin/vela`; the steps below assume it's on
 your `PATH` or invoked as `./bin/vela`).
 
+## Quick start: automate the cluster setup
+
+Steps 1-2 and 5-7 below (create both clusters, patch their kubeconfigs,
+install, join) are mechanical and don't change based on what you're
+debugging. A script that does all of it in one shot:
+
+```bash
+#!/usr/bin/env bash
+# Create a master/slave KubeVela multi-cluster lab on k3d: creates both
+# clusters, patches both kubeconfigs for cross-cluster reachability, installs
+# KubeVela on master, and joins slave into it.
+#
+# Usage: bash setup-k3d-multicluster.sh
+#
+# Optional environment variables:
+#   MASTER_NAME=master
+#   SLAVE_NAME=slave
+#   KUBECONFIG_DIR="$HOME/.kube"
+#   HOST_ADDRESS=192.168.1.10   # auto-detected if unset
+#   VELA_BIN=./bin/vela
+#   VELA_INSTALL_TIMEOUT=300s
+#   CLUSTER_READY_TIMEOUT=120s
+
+set -euo pipefail
+
+MASTER_NAME="${MASTER_NAME:-master}"
+SLAVE_NAME="${SLAVE_NAME:-slave}"
+KUBECONFIG_DIR="${KUBECONFIG_DIR:-$HOME/.kube}"
+MASTER_KUBECONFIG="${MASTER_KUBECONFIG:-$KUBECONFIG_DIR/$MASTER_NAME.yaml}"
+SLAVE_KUBECONFIG="${SLAVE_KUBECONFIG:-$KUBECONFIG_DIR/$SLAVE_NAME.yaml}"
+VELA_INSTALL_TIMEOUT="${VELA_INSTALL_TIMEOUT:-300s}"
+CLUSTER_READY_TIMEOUT="${CLUSTER_READY_TIMEOUT:-120s}"
+
+if [[ -x "${VELA_BIN:-}" ]]; then
+    VELA="${VELA_BIN}"
+elif [[ -x "./bin/vela" ]]; then
+    VELA="./bin/vela"
+else
+    VELA="vela"
+fi
+
+info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
+die() { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
+require_cmd() { command -v "$1" >/dev/null 2>&1 || die "$1 is required but was not found in PATH"; }
+
+detect_host_address() {
+    if [[ -n "${HOST_ADDRESS:-}" ]]; then
+        printf '%s\n' "$HOST_ADDRESS"
+        return
+    fi
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        ipconfig getifaddr en0 2>/dev/null && return
+        ipconfig getifaddr en1 2>/dev/null && return
+    fi
+    if command -v ip >/dev/null 2>&1; then
+        ip route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i == "src") {print $(i+1); exit}}' && return
+    fi
+    die "could not detect host address; set HOST_ADDRESS explicitly"
+}
+
+wait_for_cluster() {
+    KUBECONFIG="$1" kubectl wait --for=condition=Ready nodes --all --timeout="$CLUSTER_READY_TIMEOUT"
+}
+
+api_port_from_kubeconfig() {
+    kubectl --kubeconfig "$1" config view --raw -o jsonpath='{.clusters[0].cluster.server}' \
+        | sed -E 's#^https://[^:/]+:([0-9]+).*$#\1#'
+}
+
+cluster_entry_from_kubeconfig() {
+    kubectl --kubeconfig "$1" config view --raw -o jsonpath='{.clusters[0].name}'
+}
+
+patch_kubeconfig_server() {
+    local kubeconfig="$1" cluster_name="$2" host_address="$3" port="$4"
+    info "Patching $kubeconfig server to https://$host_address:$port"
+    kubectl --kubeconfig "$kubeconfig" config set-cluster "$cluster_name" \
+        --server="https://$host_address:$port" --insecure-skip-tls-verify=true >/dev/null
+    kubectl --kubeconfig "$kubeconfig" config unset "clusters.$cluster_name.certificate-authority-data" >/dev/null 2>&1 || true
+}
+
+join_slave_to_master() {
+    info "Joining slave cluster into master"
+    KUBECONFIG="$MASTER_KUBECONFIG" "$VELA" cluster join "$SLAVE_KUBECONFIG"
+    local deadline=$((SECONDS + 180)) joined="k3d-$SLAVE_NAME" status
+    while (( SECONDS < deadline )); do
+        status="$(KUBECONFIG="$MASTER_KUBECONFIG" "$VELA" cluster list 2>/dev/null || true)"
+        printf '%s\n' "$status"
+        printf '%s\n' "$status" | awk -v name="$joined" '$1 == name && $0 ~ /true/ {found=1} END {exit found ? 0 : 1}' && return
+        sleep 5
+    done
+    die "slave cluster was not accepted within 180s"
+}
+
+require_cmd k3d; require_cmd kubectl; require_cmd "$VELA"
+mkdir -p "$KUBECONFIG_DIR"
+
+info "Creating master cluster: $MASTER_NAME"
+k3d cluster create "$MASTER_NAME" --wait
+k3d kubeconfig get "$MASTER_NAME" > "$MASTER_KUBECONFIG"
+
+info "Creating slave cluster: $SLAVE_NAME"
+k3d cluster create "$SLAVE_NAME" --wait
+k3d kubeconfig get "$SLAVE_NAME" > "$SLAVE_KUBECONFIG"
+
+host_address="$(detect_host_address)"
+patch_kubeconfig_server "$MASTER_KUBECONFIG" "$(cluster_entry_from_kubeconfig "$MASTER_KUBECONFIG")" "$host_address" "$(api_port_from_kubeconfig "$MASTER_KUBECONFIG")"
+patch_kubeconfig_server "$SLAVE_KUBECONFIG" "$(cluster_entry_from_kubeconfig "$SLAVE_KUBECONFIG")" "$host_address" "$(api_port_from_kubeconfig "$SLAVE_KUBECONFIG")"
+
+wait_for_cluster "$MASTER_KUBECONFIG"
+wait_for_cluster "$SLAVE_KUBECONFIG"
+
+info "Installing KubeVela on master"
+KUBECONFIG="$MASTER_KUBECONFIG" "$VELA" install
+KUBECONFIG="$MASTER_KUBECONFIG" kubectl wait deployment -n vela-system --all --for=condition=Available --timeout="$VELA_INSTALL_TIMEOUT"
+
+join_slave_to_master
+
+cat <<EOF
+
+Done.
+Master kubeconfig: $MASTER_KUBECONFIG
+Slave kubeconfig:  $SLAVE_KUBECONFIG
+
+Use:
+  export KUBECONFIG=$MASTER_KUBECONFIG
+  $VELA cluster list
+EOF
+```
+
+A few things to know before running it:
+
+- **It patches both kubeconfigs, not just the slave's**, unlike the more
+  conservative "only the slave needs it" reasoning in step 6 below. That's
+  the safer default: on some Docker/network setups (see the devcontainer
+  note in [`k3d-workflow.md`](./k3d-workflow.md#troubleshooting)) even the
+  host itself can't reach k3d's `0.0.0.0`/`127.0.0.1` server address, so
+  patching only the slave isn't always enough.
+- **`vela install` pulls the last released chart from KubeVela's chart repo,
+  not your local `./charts/vela-core`.** This script gets you a working
+  master/slave topology to test joins, `topology` policies, or Cluster
+  Gateway behavior against a stock release. It does **not** run your local
+  code. If you also want to debug the controller from your IDE, follow
+  steps 3-4 below (strip the `Deployment`, install with the local chart)
+  instead of, or in addition to, this script's `vela install` step.
+- **It's your own script to adapt.** Unlike `hack/debug-webhook-setup.sh`,
+  this isn't wired into the Makefile, drop it wherever's convenient and run
+  it with `bash`.
+
+Cleanup:
+
+```bash
+k3d cluster delete slave master
+rm -f ~/.kube/master.yaml ~/.kube/slave.yaml
+```
+
+> The original version of this script also deletes *every* existing k3d
+> cluster on the host before creating master/slave, as a "start clean"
+> convenience. That's a sharp edge if you have unrelated k3d clusters
+> around, it's been left out of the version above; add it back deliberately
+> (`k3d cluster delete --all` before the create steps) only if you actually
+> want a fully clean slate.
+
 ## 1. Create the master cluster
 
 ```bash

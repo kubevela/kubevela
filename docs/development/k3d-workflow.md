@@ -118,6 +118,46 @@ go test ./pkg/... -count=1
 go test ./test/e2e-test/ -v -count=1 -timeout=30m -ginkgo.focus=Helmchart
 ```
 
+## Alternative: push to ttl.sh instead of importing
+
+Steps 2-4 skip a registry entirely by importing straight into k3d's
+containerd. That's the fastest loop, but it doesn't exercise the actual pull
+path (`imagePullPolicy: Always`, a registry the cluster has to reach), and it
+doesn't give you an image reference you could hand to someone else. For
+those cases, push to [ttl.sh](https://ttl.sh) instead, an anonymous registry
+that needs no login and expires images automatically:
+
+```bash
+IMAGE_REF="ttl.sh/vela-core-$(git rev-parse --short HEAD):1h"   # expires in 1h
+
+# Build with the real multi-stage Dockerfile (not Dockerfile.local), since
+# there's no local binary to COPY in this flow:
+docker build \
+  --build-arg VERSION="$(git rev-parse --abbrev-ref HEAD)" \
+  --build-arg GITVERSION="$(git rev-parse HEAD)" \
+  -t "$IMAGE_REF" -f Dockerfile .
+
+docker push "$IMAGE_REF"
+
+helm upgrade --install vela-core ./charts/vela-core \
+  --namespace vela-system --create-namespace \
+  --set image.repository="${IMAGE_REF%:*}" \
+  --set image.tag="${IMAGE_REF##*:}" \
+  --set image.pullPolicy=Always \
+  --wait --timeout 6m
+```
+
+`pullPolicy=Always` means a `kubectl rollout restart deployment vela-core -n
+vela-system` after pushing an updated image is enough to pick up the change,
+unlike step 7's `Never`-policy flow, which needs the pod deleted outright.
+
+> Don't reach for `k3d cluster delete --all` if you're scripting this
+> end-to-end. It deletes every k3d cluster on the host, including unrelated
+> ones, for example the master/slave pair from
+> [`ide-multi-cluster-debugging.md`](./ide-multi-cluster-debugging.md).
+> Delete only the cluster this workflow created (`k3d cluster delete
+> vela-dev`), the same as the teardown step below.
+
 ## Tearing down
 
 ```bash

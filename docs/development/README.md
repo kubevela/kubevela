@@ -19,23 +19,21 @@ with concrete, in-repo steps.
 | [Delve](https://github.com/go-delve/delve) (optional, only for CLI-based debugging) | a release supporting Go 1.23+ | `dlv version` |
 | VS Code + [Go extension](https://marketplace.visualstudio.com/items?itemName=golang.Go), **or** IntelliJ IDEA / GoLand with the Go plugin | latest | n/a |
 
-## Three ways to run KubeVela
+## Guides in this folder
 
-| Approach | What it tests | When to use |
+Roughly in the order you'd reach for them, from first getting something
+running to debugging specific pieces of it:
+
+| Guide | Covers | Reach for it when |
 |---|---|---|
-| [IDE debugger](./ide-debugging.md) | The binary, running on your host | Fastest inner loop: step through code with breakpoints, no image build. Needs a reachable cluster (local k3d or remote) with CRDs installed. |
-| [Local k3d cluster](./k3d-workflow.md) | The real container image | You want to test the image the way it will actually ship, with a fast rebuild-and-reload loop. |
-| [Remote cluster (e.g. EKS)](./remote-cluster-deployment.md) | The image under production-like conditions | Validating behavior against real etcd, real node counts, or provider-specific quirks that a local cluster can't reproduce. |
-
-Once you have something running, see [`logging.md`](./logging.md) for
-verbosity/log options, [`testing.md`](./testing.md) for running the unit and
-e2e test suites, [`webhook-debugging.md`](./webhook-debugging.md) for the
-admission-webhook-specific workflow (definition/application validation), and
-[`ide-remote-cluster-debugging.md`](./ide-remote-cluster-debugging.md) for attaching
-an IDE debugger to a process already running in a cluster (local or remote),
-and [`ide-multi-cluster-debugging.md`](./ide-multi-cluster-debugging.md) for
-debugging KubeVela's multi-cluster feature (a controller running in your IDE
-against a master/slave cluster pair) from your IDE.
+| [`ide-debugging.md`](./ide-debugging.md) | Running the controller from your IDE, against any cluster your kubeconfig can reach | You want the fastest inner loop: breakpoints, no image build |
+| [`k3d-workflow.md`](./k3d-workflow.md) | Building the real controller image and running it in a local k3d cluster (plus a `ttl.sh`-push alternative) | You want to test the image the way it actually ships, with a fast rebuild/reload loop |
+| [`remote-cluster-deployment.md`](./remote-cluster-deployment.md) | Deploying to a real remote cluster (EKS as the worked example, but generic) | You need production-like conditions a local single-node cluster can't reproduce |
+| [`ide-remote-cluster-debugging.md`](./ide-remote-cluster-debugging.md) | Attaching Delve to a manager process already running in a pod (local or remote) | You're chasing a bug that only shows up under real cluster conditions |
+| [`ide-multi-cluster-debugging.md`](./ide-multi-cluster-debugging.md) | A master/slave k3d cluster pair plus Cluster Gateway, with the controller running from your IDE | You're debugging multi-cluster scheduling/dispatch code, e.g. the `topology` policy |
+| [`webhook-debugging.md`](./webhook-debugging.md) | Running and debugging the admission webhook (validating/mutating handlers) locally | You're touching `ComponentDefinition`/`Application` validation or defaulting logic |
+| [`testing.md`](./testing.md) | The unit and e2e `make` targets | You're running or adding to the test suites |
+| [`logging.md`](./logging.md) | Verbosity and log-format flags | You need more detail out of a running controller |
 
 ## Repository layout (development-relevant paths)
 
