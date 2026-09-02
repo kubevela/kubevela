@@ -52,4 +52,49 @@ var _ = ginkgo.Describe("Validator message rendering", func() {
 		v := cuecontext.New().CompileString(cue)
 		gomega.Expect(v.Err()).To(gomega.HaveOccurred())
 	})
+
+	// Checking the rendered message as a whole is not enough. Nested inside an
+	// interpolation the "_" placeholder does not stand out: "region '\(_)' bad"
+	// is an ordinary non-concrete string, so CUE leaves it alone and the
+	// validator never fires. These are the cases that have to fail loudly.
+	ginkgo.DescribeTable("should fail when an unrenderable value is nested in the message",
+		func(message Value) {
+			comp := NewComponent("test").
+				Params(String("region")).
+				Validators(
+					ValidateValue(message).
+						FailWhen(LocalField("region").Eq("x")).
+						WithName("_v"),
+				)
+
+			cue := NewCUEGenerator().GenerateParameterSchema(comp)
+			gomega.Expect(cue).To(gomega.ContainSubstring("let _message = _|_"))
+
+			v := cuecontext.New().CompileString(cue + "\nparameter: region: \"x\"")
+			gomega.Expect(v.Err()).To(gomega.HaveOccurred())
+		},
+		ginkgo.Entry("in an interpolation",
+			Interpolation(Lit("region '"), unrenderableValue{}, Lit("' bad"))),
+		ginkgo.Entry("in a plus expression",
+			Plus(Lit("region "), unrenderableValue{})),
+		ginkgo.Entry("nested two deep",
+			Interpolation(Lit("a "), Plus(Lit("b"), unrenderableValue{}), Lit(" c"))),
+	)
+
+	ginkgo.It("should still render a message whose parts are all known", func() {
+		comp := NewComponent("test").
+			Params(String("region")).
+			Validators(
+				ValidateValue(Interpolation(Lit("region '"), LocalField("region"), Lit("' bad"))).
+					FailWhen(LocalField("region").Eq("x")).
+					WithName("_v"),
+			)
+
+		cue := NewCUEGenerator().GenerateParameterSchema(comp)
+		gomega.Expect(cue).NotTo(gomega.ContainSubstring("_|_"))
+
+		v := cuecontext.New().CompileString(cue + "\nparameter: region: \"x\"")
+		gomega.Expect(v.Err()).To(gomega.HaveOccurred())
+		gomega.Expect(v.Err().Error()).To(gomega.ContainSubstring("region 'x' bad"))
+	})
 })

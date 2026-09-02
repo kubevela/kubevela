@@ -414,6 +414,85 @@ var _ = Describe("Validator", func() {
 			Expect(err.Error()).To(ContainSubstring("region 'us-west-2' must not match the primary region"))
 			Expect(err.Error()).To(ContainSubstring("replicas.1"))
 		})
+
+		// A message is assembled by hand rather than through %q, so the literal
+		// segments between the \(...) parts have to be escaped here. Left
+		// unescaped, a quote ends the CUE string early and the definition does
+		// not compile at all, and a backslash silently becomes an escape
+		// sequence (C:\temp turning into a tab).
+		DescribeTable("should escape characters in literal message parts",
+			func(literal, wantInCUE, wantInErr string) {
+				comp := defkit.NewComponent("test").
+					Params(defkit.String("name")).
+					Validators(
+						defkit.ValidateValue(defkit.Interpolation(
+							defkit.Lit(literal), defkit.LocalField("name"),
+						)).FailWhen(defkit.LocalField("name").Eq("x")).WithName("_v"),
+					)
+
+				schema := gen.GenerateParameterSchema(comp)
+				Expect(schema).To(ContainSubstring(wantInCUE))
+
+				v := cuecontext.New().CompileString(schema + "\nparameter: name: \"x\"")
+				err := v.Err()
+				Expect(err).To(HaveOccurred(), "validator should still fire")
+				Expect(err.Error()).To(ContainSubstring(wantInErr))
+			},
+			Entry("double quote", `say "hi" `, `let _message = "say \"hi\" \(name)"`, `say \"hi\" x`),
+			Entry("backslash", `C:\temp `, `let _message = "C:\\temp \(name)"`, `C:\\temp x`),
+			Entry("newline", "line one\nline two ", `let _message = "line one\nline two \(name)"`, `line one\nline two x`),
+		)
+
+		It("should add the CUE import a message expression needs", func() {
+			comp := defkit.NewComponent("test").
+				Params(defkit.String("region")).
+				Validators(
+					defkit.ValidateValue(defkit.Interpolation(
+						defkit.Lit("region '"),
+						defkit.StringsToLower(defkit.LocalField("region")),
+						defkit.Lit("' is not allowed"),
+					)).FailWhen(defkit.LocalField("region").Eq("X")).WithName("_v"),
+				)
+
+			full := defkit.NewCUEGenerator().GenerateFullDefinition(comp)
+
+			// Without the import the reference is emitted anyway and the
+			// definition does not compile.
+			Expect(full).To(ContainSubstring("strings.ToLower(region)"))
+			Expect(full).To(ContainSubstring(`"strings"`))
+		})
+
+		It("should add imports for a message on a validator nested in a param", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.Array("replicas").WithFields(defkit.String("region")).Validators(
+						defkit.ValidateValue(defkit.Interpolation(
+							defkit.Lit("region '"),
+							defkit.StringsToUpper(defkit.LocalField("region")),
+							defkit.Lit("' is not allowed"),
+						)).FailWhen(defkit.LocalField("region").Eq("x")).WithName("_v"),
+					),
+				)
+
+			full := defkit.NewCUEGenerator().GenerateFullDefinition(comp)
+
+			Expect(full).To(ContainSubstring("strings.ToUpper(region)"))
+			Expect(full).To(ContainSubstring(`"strings"`))
+		})
+
+		It("should not add imports for a fixed string validator", func() {
+			comp := defkit.NewComponent("test").
+				Params(defkit.String("name")).
+				Validators(
+					defkit.Validate("name is required").
+						FailWhen(defkit.LocalField("name").Eq("")).WithName("_v"),
+				)
+
+			// Validate carries no message expression, so scanning validators
+			// must not change what an existing definition generates.
+			Expect(defkit.NewCUEGenerator().GenerateFullDefinition(comp)).
+				NotTo(ContainSubstring("import"))
+		})
 	})
 
 	// --- LocalFieldRef ---

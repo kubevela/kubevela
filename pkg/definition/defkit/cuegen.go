@@ -19,6 +19,7 @@ package defkit
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -149,6 +150,12 @@ func (g *CUEGenerator) detectRequiredImports(c *ComponentDefinition) {
 		}
 	}
 
+	// Check validator message expressions, at the top level and inside params.
+	g.collectImportsFromValidators(c.GetValidators())
+	for _, param := range c.GetParams() {
+		g.collectImportsFromParamValidators(param)
+	}
+
 	// Check resource operations in output
 	if output := tpl.GetOutput(); output != nil {
 		g.collectImportsFromResource(output)
@@ -157,6 +164,42 @@ func (g *CUEGenerator) detectRequiredImports(c *ComponentDefinition) {
 	// Check resource operations in outputs
 	for _, res := range tpl.GetOutputs() {
 		g.collectImportsFromResource(res)
+	}
+}
+
+// collectImportsFromValidators adds the imports needed by validator message
+// expressions.
+//
+// A message can hold any Value, including a CUE standard library call such as
+// strings.ToLower, and the reference is emitted whether or not the import is
+// there. Only the message is walked: a validator built with Validate carries no
+// expression and contributes nothing, so this cannot change what any existing
+// definition generates.
+func (g *CUEGenerator) collectImportsFromValidators(validators []*Validator) {
+	for _, v := range validators {
+		if v == nil {
+			continue
+		}
+		if msg := v.MessageValue(); msg != nil {
+			g.collectImportsFromValue(msg)
+		}
+	}
+}
+
+// collectImportsFromParamValidators walks a parameter for validators, including
+// the ones attached to nested fields of maps and array elements.
+func (g *CUEGenerator) collectImportsFromParamValidators(param Param) {
+	switch p := param.(type) {
+	case *MapParam:
+		g.collectImportsFromValidators(p.GetValidators())
+		for _, field := range p.GetFields() {
+			g.collectImportsFromParamValidators(field)
+		}
+	case *ArrayParam:
+		g.collectImportsFromValidators(p.GetValidators())
+		for _, field := range p.GetFields() {
+			g.collectImportsFromParamValidators(field)
+		}
 	}
 }
 
@@ -211,6 +254,14 @@ func (g *CUEGenerator) collectImportsFromValue(v interface{}) {
 	case *PlusExpr:
 		for _, part := range val.Parts() {
 			g.collectImportsFromValue(part)
+		}
+	case *InterpolatedString:
+		for _, part := range val.Parts() {
+			g.collectImportsFromValue(part)
+		}
+	case *CUEFunc:
+		for _, arg := range val.Args() {
+			g.collectImportsFromValue(arg)
 		}
 	}
 }
@@ -612,14 +663,48 @@ func (g *CUEGenerator) validatorMessageKey(v *Validator) (letDecl, key string) {
 		}
 	}
 	rendered := g.valueToCUE(expr)
-	if rendered == "" || rendered == "_" {
-		// valueToCUE has no rendering for this Value, so it fell through to its
-		// placeholder. Binding that would produce a label CUE never resolves and
-		// a validator that silently never fires, which is the one outcome worth
-		// avoiding here, so fail in the generated CUE instead.
+	if !g.messageRenderable(expr) {
+		// Some part of the message has no rendering and fell through to
+		// valueToCUE's placeholder. Binding that would produce a label CUE
+		// never resolves and a validator that silently never fires, which is
+		// the one outcome worth avoiding here, so fail in the generated CUE
+		// instead.
 		rendered = "_|_ // defkit: validator message expression cannot be rendered"
 	}
 	return fmt.Sprintf("let %s = %s", validatorMessageVar, rendered), fmt.Sprintf("(%s)", validatorMessageVar)
+}
+
+// messageRenderable reports whether every leaf of a validator message
+// expression has a rendering.
+//
+// Checking the rendered string as a whole is not enough. valueToCUE falls back
+// to "_" for values it does not know, and nested inside an interpolation that
+// placeholder does not stand out: "region '\(_)' bad" is a perfectly ordinary
+// non-concrete string, so CUE leaves it alone and the validator never fires.
+// Walking the parts is what lets the whole message fail loudly instead.
+func (g *CUEGenerator) messageRenderable(v Value) bool {
+	switch val := v.(type) {
+	case *InterpolatedString:
+		return g.partsRenderable(val.Parts())
+	case *PlusExpr:
+		return g.partsRenderable(val.Parts())
+	case *CUEFunc:
+		return g.partsRenderable(val.Args())
+	default:
+		rendered := g.valueToCUE(v)
+		return rendered != "" && rendered != "_"
+	}
+}
+
+// partsRenderable reports whether every part of a compound message value has a
+// rendering.
+func (g *CUEGenerator) partsRenderable(parts []Value) bool {
+	for _, part := range parts {
+		if !g.messageRenderable(part) {
+			return false
+		}
+	}
+	return true
 }
 
 // writeIfBlocksForCond writes one or more `if cond { body }` blocks. For
@@ -2393,6 +2478,19 @@ func (g *CUEGenerator) cueFuncToCUE(fn *CUEFunc) string {
 	return fmt.Sprintf("%s.%s(%s)", fn.Package(), fn.Function(), strings.Join(args, ", "))
 }
 
+// cueStringContent escapes s for use inside a CUE double-quoted string and
+// returns the content only, without the surrounding quotes.
+//
+// Interpolated strings are assembled by hand rather than through %q, because
+// the \(...) segments have to stay live. That means the literal segments
+// between them still need escaping: an unescaped quote ends the string early
+// and breaks the definition, and an unescaped backslash silently turns
+// something like a Windows path into an escape sequence.
+func cueStringContent(s string) string {
+	quoted := strconv.Quote(s)
+	return quoted[1 : len(quoted)-1]
+}
+
 // interpolatedStringToCUE converts an InterpolatedString to CUE string interpolation.
 // Literal string values are inlined directly. All other values are wrapped in \(...).
 // Example: Interpolation(vela.Namespace(), Lit(":"), name) → "\(context.namespace):\(parameter.name)"
@@ -2402,7 +2500,7 @@ func (g *CUEGenerator) interpolatedStringToCUE(is *InterpolatedString) string {
 	for _, part := range is.Parts() {
 		if lit, ok := part.(*Literal); ok {
 			if s, ok := lit.Val().(string); ok {
-				sb.WriteString(s)
+				sb.WriteString(cueStringContent(s))
 				continue
 			}
 		}
