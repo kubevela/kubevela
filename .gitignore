@@ -66,3 +66,7 @@ dist/
 .claude/
 .devcontainer/
 .mcp.json
+
+# Local-only Dockerfile used by docs/development/k3d-workflow.md for fast
+# local image builds; not part of the shipped build.
+Dockerfile.local
