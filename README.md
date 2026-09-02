@@ -70,6 +70,8 @@ and share the large growing community [addons](https://kubevela.io/docs/referenc
 ## Documentation
 
 Full documentation is available on the [KubeVela website](https://kubevela.io/).
+For building, running, and debugging `vela-core` locally, see
+[`docs/development/`](./docs/development/README.md).
 
 ## Blog
 
