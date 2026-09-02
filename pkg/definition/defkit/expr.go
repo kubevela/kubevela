@@ -225,6 +225,7 @@ type RegexMatchCondition struct {
 	baseCondition
 	source  Value
 	pattern string
+	negate  bool
 }
 
 // Source returns the value being matched.
@@ -233,9 +234,12 @@ func (c *RegexMatchCondition) Source() Value { return c.source }
 // Pattern returns the regex pattern.
 func (c *RegexMatchCondition) Pattern() string { return c.pattern }
 
+// IsNegated returns whether it is a positive or negative match.
+func (c *RegexMatchCondition) IsNegated() bool { return c.negate }
+
 // RegexMatch creates a condition that checks if a value matches a regex pattern.
-func RegexMatch(source Value, pattern string) *RegexMatchCondition {
-	return &RegexMatchCondition{source: source, pattern: pattern}
+func RegexMatch(source Value, pattern string, negate bool) *RegexMatchCondition {
+	return &RegexMatchCondition{source: source, pattern: pattern, negate: negate}
 }
 
 // StringStartsWithCondition checks if a string parameter starts with a prefix.
