@@ -31,6 +31,12 @@ convenience for "give me *a* k3d cluster" when you don't care about the name
 or node count. Use whichever fits: your own `k3d cluster create <name>` for
 full control, or `make k3d-create` when the defaults are fine.
 
+> **Pick one and stick with it.** Steps 4-7 below use the literal name
+> `vela-dev` (`k3d image import ... -c vela-dev`, `k3d cluster delete
+> vela-dev`). If you use `make k3d-create` instead, its cluster is named
+> `kubevela-debug`, not `vela-dev`, so substitute that name in every later
+> command, or override it once: `make k3d-create K3D_CLUSTER_NAME=vela-dev`.
+
 ## 2. Build the manager binary
 
 Cross-compile for Linux even if you're on macOS or Windows, since the image
@@ -164,31 +170,3 @@ unlike step 7's `Never`-policy flow, which needs the pod deleted outright.
 helm uninstall vela-core -n vela-system   # keep the cluster, drop KubeVela
 k3d cluster delete vela-dev               # delete the cluster entirely
 ```
-
-## Troubleshooting
-
-> **Running inside a container-based dev environment (devcontainer, CI
-> runner-in-a-container, etc.)?** k3d writes the cluster's API server address
-> into your kubeconfig using an address that's only reachable from the Docker
-> host, not necessarily from inside another container. If `helm install`
-> fails right after cluster creation with something like `dial tcp
-> 0.0.0.0:<port>: connect: connection refused`, that's this. Join your
-> container to the cluster's Docker network and rewrite the kubeconfig to
-> point at the k3d server node's own container IP:
->
-> ```bash
-> CLUSTER=vela-dev
-> docker network connect "k3d-${CLUSTER}" "$(hostname)"
->
-> SERVER_IP=$(docker inspect "k3d-${CLUSTER}-server-0" \
->   --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' | head -1)
-> sed -i -E "s#server: https://[0-9.]+:[0-9]+#server: https://${SERVER_IP}:6443#g" \
->   "$KUBECONFIG"
->
-> kubectl get nodes   # confirm it's reachable before retrying helm install
-> ```
->
-> Use the **server-0 container's own IP**, not the load balancer/proxy
-> container's (`k3d-<cluster>-serverlb`). The server's TLS certificate only
-> lists the former as a valid SAN, a serverlb IP fails with `x509:
-> certificate is valid for ..., not <ip>`.

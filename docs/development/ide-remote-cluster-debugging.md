@@ -95,13 +95,19 @@ helm upgrade --install vela-core ./charts/vela-core \
   --set image.repository="<your-registry>/vela-core" \
   --set image.tag=debug \
   --set image.pullPolicy=Always \
+  --set securityContext.capabilities.add[0]=SYS_PTRACE \
   --wait --timeout 5m
 ```
 
-> If your cluster enforces a restricted Pod Security Standard or you've
-> customized `securityContext`/`podSecurityContext` (both empty by default in
-> `values.yaml`) to drop capabilities, `dlv attach` needs `ptrace` access and
-> will fail with a permission error under a hardened profile.
+`securityContext` is `{}` by default (`values.yaml`), so without
+`SYS_PTRACE` the container has no `ptrace` access and `dlv attach` in step 4
+fails immediately with a permission error, before your IDE ever gets a
+chance to connect.
+
+> If your cluster enforces a restricted Pod Security Standard (or your own
+> `securityContext`/`podSecurityContext` customization drops capabilities),
+> it may reject `SYS_PTRACE` outright regardless of this flag. That's a
+> cluster-policy problem, not something this chart setting can work around.
 
 ## 4. Attach Delve to the running pod
 
@@ -136,9 +142,18 @@ kubectl port-forward pod/<pod-name> -n vela-system 40000:40000
     "type": "go",
     "request": "attach",
     "mode": "remote",
-    "port": 40000
+    "port": 40000,
+    "substitutePath": [
+        { "from": "${workspaceFolder}", "to": "/workspace" }
+    ]
 }
 ```
+
+The image was built with `WORKDIR /workspace` (see the Dockerfile in step
+1), so the binary's embedded source paths start with `/workspace/...`, not
+your local checkout's path. Without `substitutePath` mapping the two, VS
+Code can't match the debugger's paths to your local files and breakpoints
+won't bind.
 
 **IntelliJ IDEA / GoLand**: Run → Edit Configurations → + → **Go Remote** →
 Host `localhost`, Port `40000` → Apply → Debug.
@@ -162,8 +177,14 @@ kubectl apply -f your-componentdefinition.yaml
 
 ```bash
 helm uninstall vela-core -n vela-system
-# the trap from step 2 restores charts/vela-core/templates/kubevela-controller.yaml
+mv charts/vela-core/templates/kubevela-controller.yaml.bak charts/vela-core/templates/kubevela-controller.yaml
 ```
+
+Restore the chart file explicitly here rather than relying on the step 2
+trap alone. The trap only fires when the shell itself exits, so if you keep
+this terminal open and `helm install` something else in the meantime, it
+would silently pick up the debug-only chart (no leader election, no
+probes) instead of the real one.
 
 ## References
 

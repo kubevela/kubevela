@@ -148,10 +148,9 @@ A few things to know before running it:
 
 - **It patches both kubeconfigs, not just the slave's**, unlike the more
   conservative "only the slave needs it" reasoning in step 6 below. That's
-  the safer default: on some Docker/network setups (see the devcontainer
-  note in [`k3d-workflow.md`](./k3d-workflow.md#troubleshooting)) even the
-  host itself can't reach k3d's `0.0.0.0`/`127.0.0.1` server address, so
-  patching only the slave isn't always enough.
+  the safer default: on some Docker/network setups the host itself can't
+  reach k3d's `0.0.0.0`/`127.0.0.1` server address either, so patching only
+  the slave isn't always enough.
 - **`vela install` pulls the last released chart from KubeVela's chart repo,
   not your local `./charts/vela-core`.** This script gets you a working
   master/slave topology to test joins, `topology` policies, or Cluster
@@ -291,10 +290,8 @@ clusters:
 ```
 
 If your host itself can't reach `k3d-master`'s or `k3d-slave`'s API server
-(for example, running inside a devcontainer), see the networking
-troubleshooting note in
-[`k3d-workflow.md`](./k3d-workflow.md#troubleshooting) first; the same
-container-vs-host address mismatch applies here.
+at all, the cluster's own kubeconfig may need the same server-address fix
+before this step will work.
 
 ## 7. Join the slave cluster
 

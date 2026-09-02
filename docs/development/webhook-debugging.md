@@ -70,13 +70,28 @@ the certs/config:
 ```bash
 make k3d-create                                     # or use an existing cluster
 make manifests && kubectl apply -f charts/vela-core/crds/ --validate=false
-make webhook-setup                                  # runs hack/debug-webhook-setup.sh [port], default port 9445
+make webhook-setup                                  # runs hack/debug-webhook-setup.sh with no arguments (port 9445)
 ```
 
-`hack/debug-webhook-setup.sh` accepts the webhook port as its only argument
-(`./hack/debug-webhook-setup.sh 9445`). Default is `9445`, not `9443`: if
-you're using Rancher Desktop, it already binds `9443` on your host, so a
-webhook server configured to listen on that port will fail to start.
+`make webhook-setup`'s recipe calls the script with no arguments, so it
+can't forward a custom port. For a non-default port, call the script
+directly instead of through `make`:
+
+```bash
+./hack/debug-webhook-setup.sh 9446
+```
+
+Default is `9445`, not `9443`: if you're using Rancher Desktop, it already
+binds `9443` on your host, so a webhook server configured to listen on that
+port will fail to start.
+
+> If your cluster isn't k3d, the script's host-address auto-detection falls
+> back to a hardcoded `192.168.5.2`, which is almost certainly not reachable
+> from that cluster. There's no flag or environment variable to override
+> it, the script only takes the port as an argument, so on a non-k3d
+> cluster you'll need to edit the `HOST_IP="192.168.5.2"` fallback in
+> `hack/debug-webhook-setup.sh` to your actual reachable address before
+> running it.
 
 ## Recommended breakpoints
 
@@ -99,8 +114,14 @@ server isn't running/reachable" from "the cluster isn't calling it" as two
 separate failure modes:
 
 ```bash
-curl -sk -X POST "https://<detected-host>:<port>/mutating-core-oam-dev-v1beta1-componentdefinitions?timeout=10s"
+curl -s --cacert k8s-webhook-server/serving-certs/ca.crt \
+  -X POST "https://<detected-host>:<port>/mutating-core-oam-dev-v1beta1-componentdefinitions?timeout=10s"
 ```
+
+Use `--cacert` with the CA `hack/debug-webhook-setup.sh` generated, not
+`-k`. `-k` skips certificate validation entirely, so it can "succeed" even
+with a cert the API server would actually reject (wrong SAN, wrong CA),
+which defeats the point of this check.
 
 A correctly running server responds with something like:
 

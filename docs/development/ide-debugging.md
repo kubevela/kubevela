@@ -54,7 +54,6 @@ make def-install     # installs default ComponentDefinitions/TraitDefinitions
                    "--use-webhook=true",
                    "--webhook-port=9445",
                    "--webhook-cert-dir=${workspaceFolder}/k8s-webhook-server/serving-certs",
-                   "--webhook-timeout=30s",
                    "--application-re-sync-period=1m"
                ],
                "env": {
@@ -74,6 +73,12 @@ The first configuration runs the controller with no webhook server. That's the
 common case for day-to-day reconciler work. The second additionally starts
 the webhook server on `:9445`; see [`webhook-debugging.md`](./webhook-debugging.md)
 for the certificate and cluster-side setup it needs.
+
+There's no `--webhook-timeout` flag on the controller side, don't add one,
+`pflag` rejects unregistered flags and the process won't start at all. The
+webhook call's timeout is a cluster-side setting: `timeoutSeconds` on each
+rule in the `ValidatingWebhookConfiguration`/`MutatingWebhookConfiguration`
+objects that `hack/debug-webhook-setup.sh` creates.
 
 ## IntelliJ IDEA / GoLand
 

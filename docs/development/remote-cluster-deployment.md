@@ -14,9 +14,9 @@ cluster once it's deployed, see
 
 ## Prerequisites
 
-Docker with buildx, kubectl, Helm v3, Go, and your cloud provider's CLI (e.g.
-`aws`, `gcloud`, `az`) authenticated with push access to a container registry
-and admin access to the target cluster.
+Docker with buildx, kubectl, Helm v3, Go, `jq`, and your cloud provider's CLI
+(e.g. `aws`, `gcloud`, `az`) authenticated with push access to a container
+registry and admin access to the target cluster.
 
 ## 1. Detect the target node architecture
 

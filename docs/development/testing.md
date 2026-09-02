@@ -47,15 +47,19 @@ This chains three targets:
 2. `unit-test-core`: runs `go test` over `./pkg/... ./cmd/... ./apis/...`
    and `./references/...` (excluding `apiserver` and
    `applicationconfiguration`), using `KUBEBUILDER_ASSETS` from step 1.
-3. `test-cli-gen`: regenerates and tests the CLI docs.
+3. `test-cli-gen`: regenerates the CLI docs (it doesn't test them).
 
 `make test` stops at the first failing stage. To run the equivalent
-`unit-test-core` command standalone (useful when iterating, or to see every
-package's result instead of stopping early):
+`unit-test-core` commands standalone (useful when iterating, or to see every
+package's result instead of stopping early), both `go test` invocations,
+matching the Makefile exactly:
 
 ```bash
 KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.31.0 -p path)" \
   go test $(go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
+
+KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.31.0 -p path)" \
+  go test $(go list ./references/... | grep -v apiserver)
 ```
 
 Scope to one package while iterating on a specific change:
@@ -95,11 +99,6 @@ runs `./test/e2e-test`:
 ```bash
 make e2e-test-local
 ```
-
-If cluster creation succeeds but the Helm install can't reach the cluster's
-API server, see the networking troubleshooting note in
-[`k3d-workflow.md`](./k3d-workflow.md#troubleshooting). The same k3d
-reachability issue that affects manual setup can affect this target too.
 
 > **Known gap**: `e2e-test-local`'s Helm install only enables the
 > `enableCueValidation` and `validateResourcesExist` feature gates. The
@@ -167,12 +166,6 @@ GO111MODULE=on CGO_ENABLED=0 go build -o bin/vela ./references/cmd/cli/main.go
 make e2e-application-test-local   # self-provisions a cluster, runs the suite, deletes the cluster afterward
 ```
 
-This self-provisions a cluster and Helm-installs into it the same way
-`e2e-test-local` does, so it's exposed to the same container-networking
-reachability issue; see the troubleshooting note in
-[`k3d-workflow.md`](./k3d-workflow.md#troubleshooting) if the Helm step
-can't reach the cluster.
-
 To run just the test phase against a cluster you already have vela-core
 running on:
 
@@ -202,12 +195,6 @@ code coverage can be collected:
 ```bash
 make e2e-test-main-local
 ```
-
-Same caveat as the other self-provisioning targets: it force-creates its own
-`kubevela-e2e-main` cluster and Helm-installs into it, so a container-based
-dev environment needs the same networking fix from
-[`k3d-workflow.md`](./k3d-workflow.md#troubleshooting) before the install
-step will succeed.
 
 Success looks like a `1/1 Running` controller pod that's reconciling
 definitions without panics. Check with:
@@ -244,7 +231,7 @@ k3d cluster delete kubevela-debug
 
 ## Related
 
-- [`k3d-workflow.md`](./k3d-workflow.md): manual cluster setup and the
-  devcontainer/container-based networking caveat referenced above.
+- [`k3d-workflow.md`](./k3d-workflow.md): manual cluster setup, building the
+  controller image, and installing the chart.
 - [`webhook-debugging.md`](./webhook-debugging.md): debugging the admission
   webhook specifically, if an e2e failure points there.
