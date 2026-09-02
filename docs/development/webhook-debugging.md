@@ -3,14 +3,16 @@
 KubeVela's admission webhook validates `ComponentDefinition`, `TraitDefinition`,
 `PolicyDefinition`, `WorkflowStepDefinition`, and `Application` resources at
 create/update time. For example, it checks that a CUE template only
-references Kubernetes resources that actually exist on the cluster. This
-guide covers debugging that validation logic specifically. For general
-controller debugging, see [`ide-debugging.md`](./ide-debugging.md).
+references Kubernetes resources that actually exist on the cluster. It also
+mutates (defaults/normalizes) `Application` and `ComponentDefinition`
+resources before validation runs. This guide covers debugging both the
+validating and mutating handlers. For general controller debugging, see
+[`ide-debugging.md`](./ide-debugging.md).
 
-The webhook needs a TLS-serving certificate the API server trusts, and a
-`ValidatingWebhookConfiguration` pointing at wherever the webhook server is
-running. Locally, that means running the webhook server on your host (via
-your IDE) and pointing the cluster's webhook config back at your machine.
+The webhook needs a TLS-serving certificate the API server trusts, and
+webhook configurations pointing at wherever the webhook server is running.
+Locally, that means running the webhook server on your host (via your IDE)
+and pointing the cluster's webhook config back at your machine.
 
 Run `make webhook-help` at any time for a quick cheat-sheet of the commands
 below, printed straight from the Makefile.
@@ -54,6 +56,10 @@ Then start the **"Debug Webhook Validation"** configuration from your IDE
      traitdefinitions, policydefinitions, workflowstepdefinitions, and
      applications, each pointing at `https://<detected-host>:<port>/...`
      with `failurePolicy: Fail`.
+   - Creates a `MutatingWebhookConfiguration`, also named
+     `kubevela-vela-core-admission`, covering applications and
+     componentdefinitions (the only two resource kinds the controller
+     mutates), same host/port/CA bundle as the validating config.
 
 ## Manual / step-by-step equivalent
 
@@ -68,15 +74,44 @@ make webhook-setup                                  # runs hack/debug-webhook-se
 ```
 
 `hack/debug-webhook-setup.sh` accepts the webhook port as its only argument
-(`./hack/debug-webhook-setup.sh 9445`).
+(`./hack/debug-webhook-setup.sh 9445`). Default is `9445`, not `9443`: if
+you're using Rancher Desktop, it already binds `9443` on your host, so a
+webhook server configured to listen on that port will fail to start.
 
 ## Recommended breakpoints
 
+**Validating handlers:**
 - `pkg/webhook/core.oam.dev/v1beta1/application/validating_handler.go`
 - `pkg/webhook/core.oam.dev/v1beta1/componentdefinition/component_definition_validating_handler.go`
 - `pkg/webhook/core.oam.dev/v1beta1/traitdefinition/validating_handler.go`
 - `pkg/webhook/core.oam.dev/v1beta1/policydefinition/validating_handler.go`
 - `pkg/webhook/core.oam.dev/v1beta1/workflowstepdefinition/workflowstep_validating_handler.go`
+
+**Mutating handlers:**
+- `pkg/webhook/core.oam.dev/v1beta1/application/mutating_handler.go`
+- `pkg/webhook/core.oam.dev/v1beta1/componentdefinition/mutating_handler.go`
+
+## Verifying the webhook server is listening
+
+Before applying a real resource, confirm the webhook server itself is up and
+reachable at the address the cluster will call. This isolates "my webhook
+server isn't running/reachable" from "the cluster isn't calling it" as two
+separate failure modes:
+
+```bash
+curl -sk -X POST "https://<detected-host>:<port>/mutating-core-oam-dev-v1beta1-componentdefinitions?timeout=10s"
+```
+
+A correctly running server responds with something like:
+
+```json
+{"response":{"uid":"","allowed":false,"status":{"metadata":{},"message":"request body is empty","code":400}}}
+```
+
+Getting a response at all (even this "rejected" one) confirms the server is
+listening and its TLS certificate is valid. A connection error or timeout
+here means the problem is in the server/network setup, not in your
+breakpoint or the resource you're about to apply.
 
 ## Triggering a breakpoint
 
@@ -93,7 +128,7 @@ your local webhook server.
 ## Cleaning up
 
 ```bash
-make webhook-clean    # removes local certs, the Secret, and the ValidatingWebhookConfiguration
+make webhook-clean    # removes local certs, the Secret, and both webhook configurations
 make k3d-delete        # deletes the k3d cluster entirely
 ```
 
@@ -101,12 +136,14 @@ make k3d-delete        # deletes the k3d cluster entirely
 
 - **Connection refused / webhook never triggers**: confirm the debugger is
   actually running and listening on the configured port, and that the
-  `ValidatingWebhookConfiguration`'s URL matches an address reachable from
-  inside the cluster (`kubectl get validatingwebhookconfigurations
-  kubevela-vela-core-admission -o yaml`). The auto-detected address can be
-  wrong in less common Docker/network setups. Rerun
-  `hack/debug-webhook-setup.sh` after adjusting your setup, or edit the
-  generated webhook config directly.
+  webhook configuration's URL matches an address reachable from inside the
+  cluster (`kubectl get validatingwebhookconfigurations
+  kubevela-vela-core-admission -o yaml`, or `mutatingwebhookconfigurations`
+  for the mutating side). The auto-detected address can be wrong in less
+  common Docker/network setups. Rerun `hack/debug-webhook-setup.sh` after
+  adjusting your setup, or edit the generated webhook config directly. Use
+  the curl check above to confirm the server side before suspecting the
+  cluster-side config.
 - **TLS errors**: regenerate certificates (`make webhook-setup`) and restart
   the debugger. Stale certs are a common cause after switching networks or
   Docker runtimes.

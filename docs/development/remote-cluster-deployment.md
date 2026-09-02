@@ -1,12 +1,16 @@
-# Testing Against a Remote Cluster
+# Deploying to a Remote Cluster
 
-Once local testing looks good, validate against a real cluster. This catches
-issues a local single-node k3d cluster won't reproduce, like real etcd
-behavior, multiple nodes, or provider-specific networking and IAM. The
-pattern below is generic; **Amazon EKS** is used as the worked example since
-it's what this repo's tooling currently automates, but the same steps apply
-to any managed Kubernetes offering (GKE, AKS, self-managed) by swapping the
-registry-login and cluster-auth commands.
+Once local testing looks good, deploy to a real cluster to validate behavior
+a local single-node k3d cluster won't reproduce, like real etcd behavior,
+multiple nodes, or provider-specific networking and IAM. The pattern below is
+generic; **Amazon EKS** is used as the worked example since it's what this
+repo's tooling currently automates, but the same steps apply to any managed
+Kubernetes offering (GKE, AKS, self-managed) by swapping the registry-login
+and cluster-auth commands.
+
+To interactively debug a process already running on a remote (or local)
+cluster once it's deployed, see
+[`remote-cluster-debugging.md`](./remote-cluster-debugging.md).
 
 ## Prerequisites
 
