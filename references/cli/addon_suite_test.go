@@ -38,6 +38,7 @@ import (
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 const (
@@ -543,5 +544,37 @@ var _ = Describe("Addon push command", func() {
 			err := cmd.RunE(cmd, args)
 			Expect(err).Should(Succeed())
 		})
+	})
+})
+
+var _ = Describe("Addon upgrade command with a registry-prefixed addon name", func() {
+	var c common.Args
+	fluxcd := v1beta1.Application{}
+	Expect(yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)).To(Succeed())
+
+	BeforeEach(func() {
+		c.SetClient(k8sClient)
+		c.SetConfig(cfg)
+
+		Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+	})
+
+	AfterEach(func() {
+		Expect(k8sClient.Delete(context.Background(), &fluxcd)).To(Succeed())
+	})
+
+	It("should strip the registry prefix instead of using it to build the addon's k8s resource name", func() {
+		args := []string{"myregistry/fluxcd"}
+		cmd := NewAddonUpgradeCommand(c, cmdutil.IOStreams{})
+		cmd.SetArgs(args)
+		err := cmd.RunE(cmd, args)
+		Expect(err).ShouldNot(Succeed())
+		// Before the fix, the un-split "myregistry/fluxcd" was used to build the
+		// addon's k8s resource name, which fails fast with an invalid name error.
+		Expect(err.Error()).ToNot(ContainSubstring("may not contain '/'"))
+		Expect(err.Error()).ToNot(ContainSubstring("cannot fetch addon related addon"))
+		// After the fix, lookups use the plain addon name, so the command proceeds
+		// to resolving the registry, which legitimately fails since "myregistry" is unregistered.
+		Expect(err.Error()).To(ContainSubstring("specified registry myregistry not exist"))
 	})
 })
