@@ -549,13 +549,14 @@ var _ = Describe("Addon push command", func() {
 
 var _ = Describe("Addon upgrade command with a registry-prefixed addon name", func() {
 	var c common.Args
-	fluxcd := v1beta1.Application{}
-	Expect(yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)).To(Succeed())
+	var fluxcd v1beta1.Application
 
 	BeforeEach(func() {
 		c.SetClient(k8sClient)
 		c.SetConfig(cfg)
 
+		fluxcd = v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)).To(Succeed())
 		Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
 	})
 
