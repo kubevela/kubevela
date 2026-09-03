@@ -203,14 +203,57 @@ template: {
 				mutableTTL?:   string | *"5m"  // TTL for mutable tags (latest, dev, main)
 			}
 
-			// Post-rendering - Future enhancement
-			// Planned: CUE-based post-rendering for resource transformation
-			// Would allow users to write CUE templates to modify rendered resources
-			// with full access to KubeVela context (appName, namespace, etc.)
-			// Requires CUE-in-CUE runtime execution capability
-			// postRender?: {
-			// 	template: string  // CUE template for transforming resources
-			// }
+			// Post-rendering transformations applied after Helm renders manifests
+			// but before KubeVela stamps its ownership labels (user patches → vela labels).
+			// Currently only the kustomize flavor is supported; a CUE flavor is planned.
+			postRender?: {
+				// +usage=Kustomize patches applied to rendered manifests.
+				// All sub-fields are optional; set only what you need.
+				kustomize?: {
+					// +usage=JSON 6902 or strategic-merge patches (preferred).
+					// Each entry requires an inline patch string; target is optional
+					// (strategic-merge patches embed resource identity in the patch itself).
+					patches?: [...{
+						target?: {
+							kind?:               string
+							name?:               string
+							namespace?:          string
+							group?:              string
+							version?:            string
+							annotationSelector?: string
+							labelSelector?:      string
+						}
+						patch: string
+					}]
+					// +usage=Strategic-merge patches. Each item is a map object shaped
+					// like the resource to be patched. String-form patches should use
+					// the `patches` field instead (kustomize deprecates this field).
+					patchesStrategicMerge?: [...{...}]
+					// +usage=RFC 6902 JSON Patch operations (deprecated; prefer `patches`).
+					patchesJson6902?: [...{
+						target: {
+							kind?:      string
+							name?:      string
+							namespace?: string
+							group?:     string
+							version?:   string
+						}
+						patch: string
+					}]
+					// +usage=Image tag and/or digest replacements.
+					images?: [...{
+						name:     string
+						newName?: string
+						newTag?:  string
+						digest?:  string
+					}]
+					// +usage=Override replica counts by workload name.
+					replicas?: [...{
+						name:  string
+						count: int
+					}]
+				}
+			}
 		}
 	}
 
