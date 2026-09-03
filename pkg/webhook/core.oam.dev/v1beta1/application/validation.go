@@ -548,7 +548,9 @@ func traitConflictRuleMatches(rule string, target *v1beta1.TraitDefinition) bool
 	case strings.HasPrefix(rule, "labelSelector:"):
 		selector, err := labels.Parse(strings.TrimPrefix(rule, "labelSelector:"))
 		if err != nil {
-			return false
+			// TraitDefinition admission rejects malformed selectors. Fail closed
+			// here in case a legacy invalid definition is already stored.
+			return true
 		}
 		return selector.Matches(labels.Set(target.GetLabels()))
 	case rule == target.Name:
