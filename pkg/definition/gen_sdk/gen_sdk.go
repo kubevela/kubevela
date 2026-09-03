@@ -125,7 +125,7 @@ func NewLanguageArgs(lang string, langArgs []string) (LanguageArgs, error) {
 	availableArgs := LangArgsRegistry[lang]
 	res := languageArgs{}
 	for _, arg := range langArgs {
-		parts := strings.Split(arg, "=")
+		parts := strings.SplitN(arg, "=", 2)
 		if len(parts) != 2 {
 			return nil, errors.Errorf("argument %s is not in the format of key=value", arg)
 		}
