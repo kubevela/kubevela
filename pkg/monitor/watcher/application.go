@@ -86,12 +86,13 @@ func (watcher *applicationMetricsWatcher) report() {
 
 func (watcher *applicationMetricsWatcher) run() {
 	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-watcher.stopCh:
 				return
-			default:
-				time.Sleep(time.Second)
+			case <-ticker.C:
 				watcher.report()
 			}
 		}
