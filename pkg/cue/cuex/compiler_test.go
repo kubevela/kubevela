@@ -124,6 +124,7 @@ func TestMain(m *testing.M) {
 func TestWorkloadCompiler(t *testing.T) {
 	testCases := map[string]struct {
 		cuexEnabled            bool
+		watchEnabled           bool
 		workloadTemplate       string
 		params                 map[string]interface{}
 		expectedObj            runtime.Object
@@ -166,10 +167,20 @@ func TestWorkloadCompiler(t *testing.T) {
 			expectedAdditionalObjs: make(map[string]runtime.Object),
 			hasCompileErr:          false,
 		},
+		"cuex enabled with external packages and watch enabled": {
+			cuexEnabled:            true,
+			watchEnabled:           true,
+			workloadTemplate:       getWorkloadTemplate(true),
+			params:                 make(map[string]interface{}),
+			expectedObj:            getExpectedObj(true),
+			expectedAdditionalObjs: make(map[string]runtime.Object),
+			hasCompileErr:          false,
+		},
 	}
 
 	for _, tc := range testCases {
 		cuex.EnableExternalPackageForDefaultCompiler = tc.cuexEnabled
+		cuex.EnableExternalPackageWatchForDefaultCompiler = tc.watchEnabled
 		velacuex.WorkloadCompiler.Reload()
 
 		ctx := process.NewContext(process.ContextData{
