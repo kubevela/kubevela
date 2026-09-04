@@ -209,13 +209,17 @@ func TestWorkloadCompilerExternalPackageWatch(t *testing.T) {
 	mockServer := createMockServer()
 	defer mockServer.Close()
 
+	origExternal := cuex.EnableExternalPackageForDefaultCompiler
+	origWatch := cuex.EnableExternalPackageWatchForDefaultCompiler
 	cuex.EnableExternalPackageForDefaultCompiler = true
 	cuex.EnableExternalPackageWatchForDefaultCompiler = true
 	velacuex.WorkloadCompiler.Reload()
 	defer func() {
-		close(velacuex.WorkloadCompiler.Get().StopCh)
-		cuex.EnableExternalPackageWatchForDefaultCompiler = false
-		cuex.EnableExternalPackageForDefaultCompiler = false
+		if stopCh := velacuex.WorkloadCompiler.Get().StopCh; stopCh != nil {
+			close(stopCh)
+		}
+		cuex.EnableExternalPackageForDefaultCompiler = origExternal
+		cuex.EnableExternalPackageWatchForDefaultCompiler = origWatch
 		velacuex.WorkloadCompiler.Reload()
 	}()
 
