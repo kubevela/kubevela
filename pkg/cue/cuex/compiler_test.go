@@ -124,7 +124,6 @@ func TestMain(m *testing.M) {
 func TestWorkloadCompiler(t *testing.T) {
 	testCases := map[string]struct {
 		cuexEnabled            bool
-		watchEnabled           bool
 		workloadTemplate       string
 		params                 map[string]interface{}
 		expectedObj            runtime.Object
@@ -167,20 +166,10 @@ func TestWorkloadCompiler(t *testing.T) {
 			expectedAdditionalObjs: make(map[string]runtime.Object),
 			hasCompileErr:          false,
 		},
-		"cuex enabled with external packages and watch enabled": {
-			cuexEnabled:            true,
-			watchEnabled:           true,
-			workloadTemplate:       getWorkloadTemplate(true),
-			params:                 make(map[string]interface{}),
-			expectedObj:            getExpectedObj(true),
-			expectedAdditionalObjs: make(map[string]runtime.Object),
-			hasCompileErr:          false,
-		},
 	}
 
 	for _, tc := range testCases {
 		cuex.EnableExternalPackageForDefaultCompiler = tc.cuexEnabled
-		cuex.EnableExternalPackageWatchForDefaultCompiler = tc.watchEnabled
 		velacuex.WorkloadCompiler.Reload()
 
 		ctx := process.NewContext(process.ContextData{
@@ -208,6 +197,74 @@ func TestWorkloadCompiler(t *testing.T) {
 	}
 }
 
+// TestWorkloadCompilerExternalPackageWatch verifies that, once the watch is
+// enabled, a Package CR created after the compiler has already started is
+// picked up by the background informer, without another explicit Reload.
+func TestWorkloadCompilerExternalPackageWatch(t *testing.T) {
+	const (
+		watchTestPackage = "cuex-test-package-watch"
+		watchTestPath    = "cuex/ext-watch"
+	)
+
+	mockServer := createMockServer()
+	defer mockServer.Close()
+
+	cuex.EnableExternalPackageForDefaultCompiler = true
+	cuex.EnableExternalPackageWatchForDefaultCompiler = true
+	velacuex.WorkloadCompiler.Reload()
+	defer func() {
+		close(velacuex.WorkloadCompiler.Get().StopCh)
+		cuex.EnableExternalPackageWatchForDefaultCompiler = false
+		cuex.EnableExternalPackageForDefaultCompiler = false
+		velacuex.WorkloadCompiler.Reload()
+	}()
+
+	if err := createExternalPackage(watchTestPackage, watchTestPath, mockServer.URL); err != nil {
+		t.Fatalf("failed to create package after compiler startup: %v", err)
+	}
+	defer func() {
+		if err := deleteExternalPackage(watchTestPackage); err != nil {
+			t.Errorf("failed to delete watch test package: %v", err)
+		}
+	}()
+
+	workloadTemplate := strings.TrimSpace(fmt.Sprintf(`
+		import (
+			extwatch "%s"
+		)
+
+		external: extwatch.#ExternalFunction & {
+			$params: {
+				%s: "external"
+			}
+		}
+
+		output: {
+			apiVersion: "apps/v1"
+			kind: "Deployment"
+			metadata: name: "test-deployment-\(external.$returns.output)"
+			spec: replicas: 1
+		}
+	`, watchTestPath, testCtx.InputParamName))
+
+	var lastErr error
+	err := wait.PollImmediate(500*time.Millisecond, 10*time.Second, func() (bool, error) {
+		ctx := process.NewContext(process.ContextData{
+			AppName:         "test-app",
+			CompName:        "test-component",
+			Namespace:       testCtx.Namespace,
+			AppRevisionName: "test-app-v1",
+			ClusterVersion:  types.ClusterVersion{Minor: "19+"},
+		})
+		wt := definition.NewWorkloadAbstractEngine("test-workload")
+		lastErr = wt.Complete(ctx, workloadTemplate, make(map[string]interface{}))
+		return lastErr == nil, nil
+	})
+	if err != nil {
+		t.Fatalf("watch did not pick up package created after startup without a Reload: %v", lastErr)
+	}
+}
+
 func createMockServer() *httptest.Server {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/"+testCtx.ExternalFnName {
@@ -224,6 +281,14 @@ func createMockServer() *httptest.Server {
 }
 
 func createTestPackage(url string) error {
+	return createExternalPackage(testCtx.CueXTestPackage, testCtx.CueXPath, url)
+}
+
+func deleteTestPackage() error {
+	return deleteExternalPackage(testCtx.CueXTestPackage)
+}
+
+func createExternalPackage(name, path, url string) error {
 	ctx := context.Background()
 
 	packageObj := &unstructured.Unstructured{
@@ -231,11 +296,11 @@ func createTestPackage(url string) error {
 			"apiVersion": "cue.oam.dev/v1alpha1",
 			"kind":       "Package",
 			"metadata": map[string]interface{}{
-				"name":      testCtx.CueXTestPackage,
+				"name":      name,
 				"namespace": testCtx.Namespace,
 			},
 			"spec": map[string]interface{}{
-				"path": testCtx.CueXPath,
+				"path": path,
 				"provider": map[string]interface{}{
 					"endpoint": url,
 					"protocol": "http",
@@ -254,7 +319,7 @@ func createTestPackage(url string) error {
                                 %s: string
                             }
                         }
-                    `, testCtx.ExternalFnName, testCtx.CueXTestPackage, testCtx.InputParamName, testCtx.OutputParamName)),
+                    `, testCtx.ExternalFnName, name, testCtx.InputParamName, testCtx.OutputParamName)),
 				},
 			},
 		},
@@ -264,7 +329,7 @@ func createTestPackage(url string) error {
 
 	err = wait.PollImmediate(time.Second, 10*time.Second, func() (bool, error) {
 		err = testCtx.K8sClient.Get(ctx, client.ObjectKey{
-			Name:      testCtx.CueXTestPackage,
+			Name:      name,
 			Namespace: testCtx.Namespace,
 		}, packageObj)
 		if err != nil {
@@ -273,12 +338,12 @@ func createTestPackage(url string) error {
 		return true, nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed to create test package: %w", err)
+		return fmt.Errorf("failed to create package %s: %w", name, err)
 	}
 	return nil
 }
 
-func deleteTestPackage() error {
+func deleteExternalPackage(name string) error {
 	ctx := context.Background()
 
 	testPkg := &unstructured.Unstructured{}
@@ -287,16 +352,16 @@ func deleteTestPackage() error {
 		Version: "v1alpha1",
 		Kind:    "Package",
 	})
-	testPkg.SetName(testCtx.CueXTestPackage)
+	testPkg.SetName(name)
 	testPkg.SetNamespace(testCtx.Namespace)
 
 	err := testCtx.K8sClient.Delete(ctx, testPkg)
 	if err != nil {
-		return fmt.Errorf("failed to delete test package: %w", err)
+		return fmt.Errorf("failed to delete package %s: %w", name, err)
 	}
 	err = wait.PollImmediate(time.Second, 10*time.Second, func() (bool, error) {
 		err := testCtx.K8sClient.Get(ctx, client.ObjectKey{
-			Name:      testCtx.CueXTestPackage,
+			Name:      name,
 			Namespace: testCtx.Namespace,
 		}, testPkg)
 		if err != nil {
@@ -308,7 +373,7 @@ func deleteTestPackage() error {
 		return false, nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed to delete test package: %w", err)
+		return fmt.Errorf("failed to delete package %s: %w", name, err)
 	}
 	return nil
 }
