@@ -102,7 +102,7 @@ func HelmRepository(ctx context.Context, validationParams *HelmRepositoryParams)
 	ok, err := helmHelper.ValidateRepo(ctx, helmRepository)
 	if err != nil {
 		message = err.Error()
-		klog.Warningf("validate helm-repository %s failed, err: %v", helmRepository, err)
+		klog.Warningf("validate helm-repository url %q failed, err: %v", helmRepository.URL, err)
 	}
 	return &ValidationReturns{
 		Returns: ResponseVars{
