@@ -29,6 +29,8 @@ import (
 type HelmConfig struct {
 	ChartCacheMaxBytes      int64
 	ChartCacheSweepInterval time.Duration
+	ChartCacheImmutableTTL  time.Duration
+	ChartCacheMutableTTL    time.Duration
 }
 
 // NewHelmConfig creates a new HelmConfig with defaults.
@@ -36,6 +38,8 @@ func NewHelmConfig() *HelmConfig {
 	return &HelmConfig{
 		ChartCacheMaxBytes:      helm.DefaultChartCacheMaxBytes,
 		ChartCacheSweepInterval: helm.DefaultChartCacheSweepInterval,
+		ChartCacheImmutableTTL:  helm.DefaultImmutableVersionTTL,
+		ChartCacheMutableTTL:    helm.DefaultMutableVersionTTL,
 	}
 }
 
@@ -49,6 +53,14 @@ func (c *HelmConfig) AddFlags(fs *pflag.FlagSet) {
 		"helm-cache-sweep-interval",
 		c.ChartCacheSweepInterval,
 		"How often the Helm chart cache sweeps expired entries. Set to 0 to use the default.")
+	fs.DurationVar(&c.ChartCacheImmutableTTL,
+		"helm-cache-immutable-ttl",
+		c.ChartCacheImmutableTTL,
+		"Default cache TTL for immutable (semver) chart versions, used when a component does not set options.cache.immutableTTL. Set to 0 to use the default.")
+	fs.DurationVar(&c.ChartCacheMutableTTL,
+		"helm-cache-mutable-ttl",
+		c.ChartCacheMutableTTL,
+		"Default cache TTL for mutable chart tags, used when a component does not set options.cache.mutableTTL. Set to 0 to use the default.")
 }
 
 // SyncToHelmGlobals syncs the parsed configuration values to the Helm provider
@@ -59,4 +71,5 @@ func (c *HelmConfig) AddFlags(fs *pflag.FlagSet) {
 // tied to its lifetime.
 func (c *HelmConfig) SyncToHelmGlobals(ctx context.Context) {
 	helm.InitChartCache(ctx, c.ChartCacheMaxBytes, c.ChartCacheSweepInterval)
+	helm.InitCacheTTL(c.ChartCacheImmutableTTL, c.ChartCacheMutableTTL)
 }

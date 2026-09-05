@@ -21,6 +21,8 @@ package helm
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -55,6 +57,19 @@ func detectChartSourceType(source string) string {
 
 	// Default to repository-based chart
 	return "repo"
+}
+
+// repoCacheTag returns a short, stable discriminator for the chart repository
+// a repo-type source resolves against, or "" when the source string already
+// identifies its own origin (oci:// and direct .tgz URLs).
+func repoCacheTag(sourceType, repoURL string) string {
+	if sourceType != sourceTypeRepo || repoURL == "" {
+		return ""
+	}
+	// Trailing slashes are insignificant to the index.yaml fetch, so
+	// normalise them away to avoid two entries for one repository.
+	sum := sha256.Sum256([]byte(strings.TrimRight(repoURL, "/")))
+	return hex.EncodeToString(sum[:])[:16]
 }
 
 // isMutableVersion determines if a version string represents a mutable tag
@@ -129,19 +144,29 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 	}
 
 	// Build cache key: <cache_key_prefix>/<source_type>/<source>/<version>[/auth-<tag>]
+	// For repo sources, Source is a bare chart name, so a hash-derived tag of
+	// RepoURL is folded into the key to prevent charts of the same name and
+	// version from colliding across different repositories. OCI (oci://) and
+	// direct URL (.tgz/http) sources already carry their origin inside Source
+	// and thus need no extra discriminator.
+	sourceID := strings.ReplaceAll(strings.ReplaceAll(params.Source, "://", "-"), "/", "-")
+	if repoTag := repoCacheTag(sourceType, params.RepoURL); repoTag != "" {
+		sourceID = sourceID + "/repo-" + repoTag
+	}
+
 	var cacheKey string
 	if options != nil && options.Cache != nil && options.Cache.Key != "" {
 		// User provided cache key
 		cacheKey = fmt.Sprintf("%s/%s/%s/%s",
 			options.Cache.Key,
 			sourceType,
-			strings.ReplaceAll(strings.ReplaceAll(params.Source, "://", "-"), "/", "-"),
+			sourceID,
 			params.Version)
 	} else {
 		// No cache key provided - use source-based key
 		cacheKey = fmt.Sprintf("%s/%s/%s",
 			sourceType,
-			strings.ReplaceAll(strings.ReplaceAll(params.Source, "://", "-"), "/", "-"),
+			sourceID,
 			params.Version)
 	}
 	if authTag != "" {

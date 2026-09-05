@@ -69,11 +69,31 @@ func releaseCacheKey(namespace, name string) string {
 	return namespace + "/" + name
 }
 
-// DefaultCacheTTLConfig returns the default cache TTL configuration
+// InitCacheTTL configures the cluster-wide chart cache TTL defaults before any
+// provider is constructed. These apply only when a component does not pin an
+// explicit TTL through options.cache (the helmchart.cue template leaves those
+// fields optional so per-component values still win when set). Non-positive
+// values fall back to the defaults so a partial flag set cannot wipe the cache.
+func InitCacheTTL(immutableTTL, mutableTTL time.Duration) {
+	if immutableTTL <= 0 {
+		klog.Warningf("helm cache immutable TTL %v is invalid (must be > 0); using default %v", immutableTTL, DefaultImmutableVersionTTL)
+		immutableTTL = DefaultImmutableVersionTTL
+	}
+	if mutableTTL <= 0 {
+		klog.Warningf("helm cache mutable TTL %v is invalid (must be > 0); using default %v", mutableTTL, DefaultMutableVersionTTL)
+		mutableTTL = DefaultMutableVersionTTL
+	}
+	cacheTTLImmutableVersion = immutableTTL
+	cacheTTLMutableVersion = mutableTTL
+	klog.Infof("Helm cache TTL configured: immutable=%v mutable=%v", immutableTTL, mutableTTL)
+}
+
+// DefaultCacheTTLConfig returns the effective cache TTL configuration, honoring
+// the cluster-wide defaults configured via InitCacheTTL.
 func DefaultCacheTTLConfig() *CacheTTLConfig {
 	return &CacheTTLConfig{
-		ImmutableVersionTTL: 24 * time.Hour,  // 24 hours for fixed versions
-		MutableVersionTTL:   5 * time.Minute, // 5 minutes for mutable tags
+		ImmutableVersionTTL: cacheTTLImmutableVersion,
+		MutableVersionTTL:   cacheTTLMutableVersion,
 	}
 }
 
@@ -152,6 +172,14 @@ const (
 	// The sweep takes the same lock as Get and Put and scans every key, so
 	// this trades reclaim latency against lock contention.
 	DefaultChartCacheSweepInterval = 60 * time.Second
+	// DefaultImmutableVersionTTL is the default cache TTL for immutable
+	// (semver) chart versions. The helmchart.cue template deliberately leaves
+	// options.cache.immutableTTL a plain optional field, so this default is
+	// what actually applies for components that omit an explicit TTL.
+	DefaultImmutableVersionTTL = 24 * time.Hour
+	// DefaultMutableVersionTTL is the default cache TTL for mutable chart tags
+	// (latest, dev, main, etc.).
+	DefaultMutableVersionTTL = 5 * time.Minute
 )
 
 var (
@@ -162,6 +190,12 @@ var (
 	chartCacheSweepInterval = DefaultChartCacheSweepInterval
 	// chartCacheCtx bounds the lifetime of the singleton cache's sweeper.
 	chartCacheCtx context.Context = context.Background()
+	// cacheTTLImmutableVersion and cacheTTLMutableVersion hold the effective
+	// cluster-wide TTL defaults. InitCacheTTL overwrites them from the
+	// controller flags before any provider is constructed. They are only used
+	// when a component does not pin an explicit TTL via options.cache.
+	cacheTTLImmutableVersion = DefaultImmutableVersionTTL
+	cacheTTLMutableVersion   = DefaultMutableVersionTTL
 )
 
 // InitChartCache configures the chart cache before the provider singleton is
@@ -172,8 +206,8 @@ func InitChartCache(ctx context.Context, maxBytes int64, sweepInterval time.Dura
 	if ctx != nil {
 		chartCacheCtx = ctx
 	}
-	if maxBytes < 0 {
-		klog.Warningf("helm chart cache max bytes %d is invalid (must be >= 0); using default %d", maxBytes, DefaultChartCacheMaxBytes)
+	if maxBytes <= 0 {
+		klog.Warningf("helm chart cache max bytes %d is invalid (must be > 0); using default %d", maxBytes, DefaultChartCacheMaxBytes)
 		maxBytes = DefaultChartCacheMaxBytes
 	}
 	if sweepInterval <= 0 {

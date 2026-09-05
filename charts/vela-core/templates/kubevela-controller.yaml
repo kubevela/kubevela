@@ -312,6 +312,8 @@ spec:
             - "--cue-upgrade-evalv3-selfref-guard-enabled={{ .Values.workflow.cueUpgradeEvalv3SelfRefGuardEnabled }}"
             - "--helm-cache-max-bytes={{ .Values.helmCache.maxBytes | int64 }}"
             - "--helm-cache-sweep-interval={{ .Values.helmCache.sweepInterval }}"
+            - "--helm-cache-immutable-ttl={{ .Values.helmCache.immutableTTL }}"
+            - "--helm-cache-mutable-ttl={{ .Values.helmCache.mutableTTL }}"
             - "--feature-gates=EnableSuspendOnFailure={{- .Values.workflow.enableSuspendOnFailure | toString -}}"
             - "--feature-gates=GzipResourceTracker={{- .Values.featureGates.gzipResourceTracker | toString -}}"
             - "--feature-gates=AuthenticateApplication={{- .Values.authentication.enabled | toString -}}"

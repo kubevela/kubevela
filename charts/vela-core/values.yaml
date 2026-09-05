@@ -61,9 +61,13 @@ workflow:
 
 ## @param helmCache.maxBytes Maximum number of bytes to keep in the Helm chart cache. Tune this down on memory-constrained deployments (the default 256MiB can be a quarter of a 1Gi container). Set to 0 to use the built-in default.
 ## @param helmCache.sweepInterval How often the Helm chart cache sweeps expired entries (e.g. "60s"). The sweep shares the lock with Get and Put, so a very small interval raises lock contention. Set to 0 to use the built-in default.
+## @param helmCache.immutableTTL Cluster-wide default cache TTL for immutable (semver) chart versions. Used only when a component does not set options.cache.immutableTTL. Set to 0 to use the built-in default (24h).
+## @param helmCache.mutableTTL Cluster-wide default cache TTL for mutable chart tags. Used only when a component does not set options.cache.mutableTTL. Set to 0 to use the built-in default (5m).
 helmCache:
   maxBytes: 268435456
   sweepInterval: "60s"
+  immutableTTL: "24h"
+  mutableTTL: "5m"
 
 
 ## @section KubeVela controller parameters

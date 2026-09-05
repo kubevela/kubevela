@@ -54,6 +54,36 @@ var _ = Describe("provider", func() {
 		})
 	})
 
+	Describe("InitCacheTTL", func() {
+		It("should update the cluster-wide TTL defaults", func() {
+			prevImmutable := cacheTTLImmutableVersion
+			prevMutable := cacheTTLMutableVersion
+			defer func() {
+				cacheTTLImmutableVersion = prevImmutable
+				cacheTTLMutableVersion = prevMutable
+			}()
+
+			InitCacheTTL(2*time.Hour, 30*time.Minute)
+			config := DefaultCacheTTLConfig()
+			Expect(config.ImmutableVersionTTL).To(Equal(2 * time.Hour))
+			Expect(config.MutableVersionTTL).To(Equal(30 * time.Minute))
+		})
+
+		It("should fall back to defaults for non-positive values", func() {
+			prevImmutable := cacheTTLImmutableVersion
+			prevMutable := cacheTTLMutableVersion
+			defer func() {
+				cacheTTLImmutableVersion = prevImmutable
+				cacheTTLMutableVersion = prevMutable
+			}()
+
+			InitCacheTTL(-time.Hour, 0)
+			config := DefaultCacheTTLConfig()
+			Expect(config.ImmutableVersionTTL).To(Equal(24 * time.Hour))
+			Expect(config.MutableVersionTTL).To(Equal(5 * time.Minute))
+		})
+	})
+
 	Describe("NewProviderWithConfig", func() {
 		It("should use defaults when config is nil", func() {
 			p := NewProviderWithConfig(nil)
