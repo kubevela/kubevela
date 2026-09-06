@@ -97,12 +97,10 @@ combined: parameter.items + parameter.extra
 	decoder = admission.NewDecoder(testScheme)
 	Expect(err).Should(BeNil())
 
-	// CUE template validation builds the workflow compiler on first use, which
-	// otherwise lists external Package CRDs through singleton.KubeConfig ->
-	// config.GetConfigOrDie(). That call terminates the process with os.Exit(1)
-	// when no ambient kubeconfig is present, since envtest hands back a
-	// *rest.Config rather than writing one to disk. Point the singleton at the
-	// envtest config so the lookup resolves instead of exiting.
+	// Building the workflow compiler lists external Package CRDs through
+	// singleton.KubeConfig -> config.GetConfigOrDie(), which os.Exit(1)s with no
+	// ambient kubeconfig, and envtest hands back a *rest.Config rather than
+	// writing one to disk. Point the singleton at it so the lookup resolves.
 	singleton.KubeConfig.Set(cfg)
 
 	td = v1beta1.WorkflowStepDefinition{}
@@ -110,13 +108,10 @@ combined: parameter.items + parameter.extra
 })
 
 var _ = AfterSuite(func() {
-	// Undo the singleton.KubeConfig mutation from BeforeSuite so it doesn't
-	// leak past this suite as a package-global. Reset to nil rather than
-	// capturing and restoring whatever value predates it: reading the prior
-	// value with singleton.KubeConfig.Get() would trigger its loader on a
-	// singleton that has never been touched, which is config.GetConfigOrDie(),
-	// the exact os.Exit(1)-on-no-kubeconfig call this file works around in the
-	// first place.
+	// Undo the BeforeSuite mutation so it doesn't leak out of this suite. Reset
+	// to nil rather than restoring the prior value: reading it back with
+	// singleton.KubeConfig.Get() would fire the very GetConfigOrDie() loader
+	// this file works around.
 	singleton.KubeConfig.Set(nil)
 
 	By("tearing down the test environment")
@@ -241,8 +236,8 @@ var _ = Describe("Test workflowstepdefinition validating handler", func() {
 			Expect(resp.Allowed).Should(BeFalse())
 		})
 
-		// The case from the issue: an unused import is invalid CUE. An identically
-		// broken ComponentDefinition was already rejected; this one was admitted.
+		// An identically broken ComponentDefinition was already rejected; issue
+		// #7277 is that this one was admitted.
 		It("Test WorkflowStepDefinition with an unused import is denied", func() {
 			wsd := v1beta1.WorkflowStepDefinition{}
 			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
@@ -268,8 +263,6 @@ var _ = Describe("Test workflowstepdefinition validating handler", func() {
 			Expect(resp.Result.Message).Should(ContainSubstring("imported and not used"))
 		})
 
-		// Step templates import workflow-only packages. The workload compiler this
-		// validator used to run on rejects these outright.
 		It("Test WorkflowStepDefinition importing vela/op is admitted", func() {
 			wsd := v1beta1.WorkflowStepDefinition{}
 			wsd.SetGroupVersionKind(v1beta1.WorkflowStepDefinitionGroupVersionKind)
