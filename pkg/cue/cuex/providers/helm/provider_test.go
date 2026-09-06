@@ -23,6 +23,7 @@ import (
 	"github.com/kubevela/pkg/cache"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 var _ = Describe("provider", func() {
@@ -131,11 +132,12 @@ var _ = Describe("provider", func() {
 	Describe("cache eviction handler", func() {
 		It("should record evictions triggered by a delete on the singleton provider", func() {
 			p := NewProvider()
-			// Populate the cache then delete it: the package-level OnEvict
-			// closure must fire for the EvictDelete reason without panicking.
 			key := "evict-delete"
 			p.cache.Put(key, []byte("data"), time.Minute)
-			Expect(func() { p.cache.Delete(key) }).ShouldNot(Panic())
+			before := testutil.ToFloat64(HelmChartCacheEvictionsTotal.WithLabelValues("delete"))
+			p.cache.Delete(key)
+			after := testutil.ToFloat64(HelmChartCacheEvictionsTotal.WithLabelValues("delete"))
+			Expect(after - before).To(BeNumerically("==", 1))
 		})
 
 		It("should record evictions triggered by a replace on a config provider", func() {
@@ -145,8 +147,10 @@ var _ = Describe("provider", func() {
 			})
 			key := "evict-replace"
 			p.cache.Put(key, []byte("old"), time.Minute)
-			// Overwriting an existing key evicts the previous value (EvictReplace).
-			Expect(func() { p.cache.Put(key, []byte("new"), time.Minute) }).ShouldNot(Panic())
+			before := testutil.ToFloat64(HelmChartCacheEvictionsTotal.WithLabelValues("replace"))
+			p.cache.Put(key, []byte("new"), time.Minute)
+			after := testutil.ToFloat64(HelmChartCacheEvictionsTotal.WithLabelValues("replace"))
+			Expect(after - before).To(BeNumerically("==", 1))
 		})
 	})
 

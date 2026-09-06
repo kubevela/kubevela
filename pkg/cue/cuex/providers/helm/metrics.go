@@ -42,7 +42,7 @@ var HelmChartCacheMissesTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 //   - reason: "capacity" (LRU eviction when the byte budget is full) or "ttl" (expired entry removed)
 var HelmChartCacheEvictionsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Name: "kubevela_helm_chart_cache_evictions_total",
-	Help: "Total number of helm chart cache evictions, by reason (capacity or ttl).",
+	Help: "Total number of helm chart cache evictions, by reason (capacity, ttl, delete, replace, purge or unknown).",
 }, []string{"reason"})
 
 // HelmChartCacheBytes is the current number of bytes held by the helm chart cache.

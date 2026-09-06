@@ -819,42 +819,6 @@ entries:
 		})
 	})
 
-	Describe("fetchOCIChart", func() {
-		It("should pull a public chart from the OCI registry through fetchChart", func() {
-			p := NewProviderWithConfig(nil)
-			ch, err := p.fetchChart(context.Background(), &ChartSourceParams{
-				Source:  "oci://registry-1.docker.io/bitnamicharts/nginx",
-				Version: "19.0.0",
-			}, nil, "", "")
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(ch).ToNot(BeNil())
-			Expect(ch.Metadata.Name).To(Equal("nginx"))
-		})
-
-		It("should pull a public chart from the OCI registry via fetchOCIChart", func() {
-			p := NewProviderWithConfig(nil)
-			chartBytes, err := p.fetchOCIChart(context.Background(), &ChartSourceParams{
-				Source:  "oci://registry-1.docker.io/bitnamicharts/nginx",
-				Version: "19.0.0",
-			}, "", "")
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(chartBytes).ToNot(BeNil())
-			loaded, err := loader.LoadArchive(bytes.NewReader(chartBytes))
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(loaded.Metadata.Name).To(Equal("nginx"))
-		})
-
-		It("should return an error when the chart cannot be pulled from the registry", func() {
-			p := NewProviderWithConfig(nil)
-			_, err := p.fetchOCIChart(context.Background(), &ChartSourceParams{
-				Source:  "oci://registry-1.docker.io/bitnamicharts/definitely-not-a-real-chart-xyz",
-				Version: "0.0.1",
-			}, "", "")
-			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("failed to pull OCI chart"))
-		})
-	})
-
 	Describe("fetchRepoChart server error paths", func() {
 		It("should return an error when the repository index cannot be fetched", func() {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

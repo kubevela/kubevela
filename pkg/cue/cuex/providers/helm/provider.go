@@ -134,6 +134,7 @@ func evictionReasonLabel(reason cache.EvictionReason) string {
 // Provider is the Helm chart provider
 type Provider struct {
 	cache                *cache.LRUStore[string, []byte]
+	cancel               context.CancelFunc // cancels the provider's context, stopping background operations
 	chartFlight          singleflight.Group
 	helmClient           *cli.EnvSettings
 	cacheTTL             *CacheTTLConfig
@@ -188,7 +189,10 @@ var (
 	// any provider is constructed.
 	chartCacheMaxBytes      = DefaultChartCacheMaxBytes
 	chartCacheSweepInterval = DefaultChartCacheSweepInterval
-	// chartCacheCtx bounds the lifetime of the singleton cache's sweeper.
+	// chartCacheCtx is the root context for every provider cache's sweeper. It
+	// stays at context.Background() until InitChartCache wires the controller's
+	// root context; each provider derives its own cancellable child so Close can
+	// always stop the sweeper regardless.
 	chartCacheCtx context.Context = context.Background()
 	// cacheTTLImmutableVersion and cacheTTLMutableVersion hold the effective
 	// cluster-wide TTL defaults. InitCacheTTL overwrites them from the
@@ -236,8 +240,10 @@ func chartCacheOptions() cache.Options[string, []byte] {
 func NewProvider() *Provider {
 	providerOnce.Do(func() {
 		cacheRecentEvictions := &sync.Map{}
-		lruCache, err := cache.NewLRUStore[string, []byte](chartCacheCtx, chartCacheOptions())
+		ctx, cancel := context.WithCancel(chartCacheCtx)
+		lruCache, err := cache.NewLRUStore[string, []byte](ctx, chartCacheOptions())
 		if err != nil {
+			cancel()
 			klog.Fatalf("Failed to create chart LRU cache: %v", err)
 		}
 		lruCache.OnEvict = func(key string, value []byte, reason cache.EvictionReason) {
@@ -249,6 +255,7 @@ func NewProvider() *Provider {
 		}
 		globalProvider = &Provider{
 			cache:                lruCache,
+			cancel:               cancel,
 			helmClient:           cli.New(),
 			cacheTTL:             DefaultCacheTTLConfig(),
 			cacheRecentEvictions: cacheRecentEvictions,
@@ -268,8 +275,10 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 		ttlConfig = DefaultCacheTTLConfig()
 	}
 	cacheRecentEvictions := &sync.Map{}
-	lruCache, err := cache.NewLRUStore[string, []byte](chartCacheCtx, chartCacheOptions())
+	ctx, cancel := context.WithCancel(chartCacheCtx)
+	lruCache, err := cache.NewLRUStore[string, []byte](ctx, chartCacheOptions())
 	if err != nil {
+		cancel()
 		klog.Fatalf("Failed to create chart LRU cache: %v", err)
 	}
 	lruCache.OnEvict = func(key string, value []byte, reason cache.EvictionReason) {
@@ -281,6 +290,7 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 	}
 	p := &Provider{
 		cache:                lruCache,
+		cancel:               cancel,
 		helmClient:           cli.New(),
 		cacheTTL:             ttlConfig,
 		cacheRecentEvictions: cacheRecentEvictions,
@@ -291,6 +301,13 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 	p.actionConfigFactory = p.getActionConfig
 	p.kubeClientFactory = p.getKubeClientset
 	return p
+}
+
+// Close releases any resources held by the provider, including cancelling the context.
+func (p *Provider) Close() {
+	if p != nil && p.cancel != nil {
+		p.cancel()
+	}
 }
 
 // getKubeClientset is the default kubeClientFactory: builds a typed Kubernetes
