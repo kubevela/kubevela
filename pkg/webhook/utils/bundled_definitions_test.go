@@ -33,27 +33,19 @@ import (
 // valid YAML, so they are replaced with a scalar before parsing.
 var helmTemplateExpr = regexp.MustCompile(`\{\{[^}]*\}\}`)
 
-// TestValidateCuexTemplate_BundledDefinitions guards the per-kind validator
-// routing: ComponentDefinition and TraitDefinition through ValidateCuexTemplate
-// (WorkloadCompiler), WorkflowStepDefinition through
-// ValidateWorkflowStepCuexTemplate (the workflow provider compiler). The
-// bundled definitions are the regression surface for that routing and for the
-// compilers themselves: if either compiler ever loses a package one of them
-// imports, or a kind gets routed through the wrong validator, this fails
-// before anyone ships it.
-//
-// The workload compiler rejects 26 of the 36 bundled WorkflowStepDefinition
-// templates with `builtin package "vela/op" undefined`, which is why step
-// definitions cannot go through ValidateCuexTemplate.
+// Walks every definition vela-core ships and validates it through the validator
+// its kind is routed to. This is the regression surface for the routing itself:
+// the workload compiler rejects 26 of the 36 bundled WorkflowStepDefinitions
+// with `builtin package "vela/op" undefined`, so a kind sent to the wrong
+// validator, or a compiler that loses a package, breaks admission for templates
+// that ship in the chart. Failing here is cheaper than failing on a user's
+// cluster after upgrade.
 func TestValidateCuexTemplate_BundledDefinitions(t *testing.T) {
 	t.Parallel()
 
 	dir := filepath.Join("..", "..", "..", "charts", "vela-core", "templates", "defwithtemplate")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		// This test exists to catch a regression before it ships; a fixture
-		// directory that has gone missing or moved is exactly that kind of
-		// regression, not something to quietly skip past.
 		t.Fatalf("bundled definitions not readable at %s: %v", dir, err)
 	}
 
@@ -78,13 +70,9 @@ func TestValidateCuexTemplate_BundledDefinitions(t *testing.T) {
 			} `json:"spec"`
 		}
 		if err := yaml.Unmarshal(helmTemplateExpr.ReplaceAll(raw, []byte("placeholder")), &def); err != nil {
-			// A manifest that isn't a CUE-schematic definition still unmarshals
-			// cleanly, it just leaves Kind/Template at their zero values, so a
-			// genuine unmarshal error here means helmTemplateExpr failed to
-			// neutralize the Helm templating in this file (e.g. nested braces,
-			// a multi-line {{- if }} block) and the file silently dropped out of
-			// coverage below. That is the regression this test exists to catch,
-			// so it must fail loudly rather than be treated as an expected case.
+			// A non-CUE manifest unmarshals cleanly with zero values, so an error
+			// here means helmTemplateExpr missed some Helm templating and this
+			// file silently dropped out of the coverage below.
 			t.Errorf("%s: not valid YAML after stripping Helm templating: %v", entry.Name(), err)
 			continue
 		}
@@ -92,9 +80,8 @@ func TestValidateCuexTemplate_BundledDefinitions(t *testing.T) {
 			continue
 		}
 
-		// Each kind must be validated by the compiler that renders it. Routing a
-		// kind through the other validator is precisely the mistake this test
-		// exists to catch, so the mapping is explicit rather than a default.
+		// Explicit rather than defaulted: routing a kind to the other validator
+		// is the mistake this test exists to catch.
 		var validate func(context.Context, string) error
 		switch def.Kind {
 		case "WorkflowStepDefinition":
@@ -102,8 +89,7 @@ func TestValidateCuexTemplate_BundledDefinitions(t *testing.T) {
 		case "ComponentDefinition", "TraitDefinition":
 			validate = ValidateCuexTemplate
 		default:
-			// PolicyDefinition still goes through the plain ValidateCueTemplate
-			// in its handler, so it is out of scope here.
+			// PolicyDefinition still uses the plain ValidateCueTemplate.
 			continue
 		}
 
