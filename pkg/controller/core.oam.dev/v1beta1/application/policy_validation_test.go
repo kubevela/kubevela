@@ -17,8 +17,10 @@ limitations under the License.
 package application
 
 import (
+	"context"
 	"fmt"
 
+	"cuelang.org/go/cue"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -26,7 +28,24 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/features"
+	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
+
+// validatePolicy mirrors what the webhook handler does: compile the template
+// once and hand the result to ValidatePolicyDefinition, rather than each spec
+// re-deriving that plumbing. A compile failure short-circuits here exactly as
+// it does in the handler, which never reaches ValidatePolicyDefinition either.
+func validatePolicy(policy *v1beta1.PolicyDefinition) *PolicyValidationResult {
+	if policy.Spec.Schematic == nil || policy.Spec.Schematic.CUE == nil {
+		return ValidatePolicyDefinition(policy, "", cue.Value{})
+	}
+	cueTemplate := policy.Spec.Schematic.CUE.Template
+	val, err := webhookutils.CompileCuexTemplate(context.TODO(), cueTemplate)
+	if err != nil {
+		return &PolicyValidationResult{Errors: []string{err.Error()}}
+	}
+	return ValidatePolicyDefinition(policy, cueTemplate, val)
+}
 
 var _ = Describe("Test PolicyDefinition Validation", func() {
 
@@ -54,7 +73,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Errors).Should(BeEmpty())
 	})
@@ -83,7 +102,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(HaveLen(1))
 		Expect(result.Errors[0]).Should(ContainSubstring("without default values"))
@@ -114,7 +133,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(HaveLen(1))
 		Expect(result.Errors[0]).Should(ContainSubstring("without default values"))
@@ -147,7 +166,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Errors).Should(BeEmpty())
 	})
@@ -174,7 +193,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Errors).Should(BeEmpty())
 	})
@@ -195,7 +214,7 @@ parameter: {}
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("scope='Application'")))
 	})
@@ -218,7 +237,7 @@ parameter: {}
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Warnings).Should(HaveLen(1))
 		Expect(result.Warnings[0]).Should(ContainSubstring("explicit priority"))
@@ -238,7 +257,7 @@ parameter: {}
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Warnings).Should(ContainElement(ContainSubstring("unusually high")))
 	})
@@ -261,7 +280,7 @@ parameter: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("expected label")))
 	})
@@ -282,7 +301,7 @@ enabled: "true"  // Invalid! Should be bool, not string
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("'enabled' field must be of type bool")))
 	})
@@ -311,7 +330,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Errors).Should(BeEmpty())
 	})
@@ -330,7 +349,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Warnings).Should(ContainElement(ContainSubstring("EnableApplicationScopedPolicies feature gate is disabled")))
 	})
@@ -351,7 +370,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeTrue())
 		Expect(result.Warnings).Should(ContainElement(ContainSubstring("EnableGlobalPolicies feature gate is disabled")))
 	})
@@ -366,7 +385,7 @@ output: {
 			},
 		}
 
-		result := ValidatePolicyDefinition(policy)
+		result := validatePolicy(policy)
 		Expect(result.IsValid()).Should(BeFalse())
 		Expect(result.Errors).Should(ContainElement(ContainSubstring("must have a CUE schematic")))
 	})
