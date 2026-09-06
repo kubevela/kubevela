@@ -32,11 +32,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-// The unit tests for this run against the validator directly and the handler
-// suite runs it under envtest, neither of which proves the check survives the
-// deployed webhook: a real cluster compiles the template inside vela-core, with
-// the workflow provider compiler built from the packages that pod actually has.
-// These cases go through the live admission path for that reason.
+// The unit and envtest suites compile templates in the test binary. Only here is
+// the compiler the one vela-core itself builds, from the packages that pod ships.
 var _ = Describe("WorkflowStepDefinition CUE template validation E2E tests", func() {
 	ctx := context.Background()
 
@@ -100,9 +97,8 @@ output: doesnotexist.#Foo`))
 		Expect(err.Error()).To(ContainSubstring(`builtin package "vela/doesnotexist" undefined`))
 	})
 
-	// vela/op only exists in the workflow provider compiler. Validating step
-	// templates with the workload compiler that ComponentDefinition uses would
-	// reject this, and with it most of the definitions vela-core ships.
+	// vela/op exists only in the workflow compiler. The workload compiler that
+	// ComponentDefinition uses rejects this, and most of the bundled step defs.
 	It("Should admit a WorkflowStepDefinition importing vela/op", func() {
 		stepDef := newStepDef("wsd-vela-op", `
 import "vela/op"
@@ -114,9 +110,7 @@ wait: op.#ConditionalWait & {
 		Expect(k8sClient.Delete(ctx, stepDef)).Should(Succeed())
 	})
 
-	// Admission is a type check. A template naming a cluster this deployment
-	// cannot reach must still be admitted, because the provider function is
-	// never executed to find that out.
+	// The cluster named here is unreachable, which admission never finds out.
 	It("Should admit a WorkflowStepDefinition with concrete provider arguments without executing the provider", func() {
 		stepDef := newStepDef("wsd-concrete-provider-args", `
 import "vela/kube"
