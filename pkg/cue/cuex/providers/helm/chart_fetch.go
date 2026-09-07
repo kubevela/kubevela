@@ -59,6 +59,14 @@ func detectChartSourceType(source string) string {
 	return "repo"
 }
 
+// sourceCacheID returns a short, collision-free id for a chart source string.
+// Replacing "/" with "-" is not enough: oci://host/charts/app and
+// oci://host/charts-app would otherwise share one cache entry.
+func sourceCacheID(source string) string {
+	sum := sha256.Sum256([]byte(source))
+	return hex.EncodeToString(sum[:])[:16]
+}
+
 // repoCacheTag returns a short, stable discriminator for the chart repository
 // a repo-type source resolves against, or "" when the source string already
 // identifies its own origin (oci:// and direct .tgz URLs).
@@ -149,7 +157,7 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 	// version from colliding across different repositories. OCI (oci://) and
 	// direct URL (.tgz/http) sources already carry their origin inside Source
 	// and thus need no extra discriminator.
-	sourceID := strings.ReplaceAll(strings.ReplaceAll(params.Source, "://", "-"), "/", "-")
+	sourceID := sourceCacheID(params.Source)
 	if repoTag := repoCacheTag(sourceType, params.RepoURL); repoTag != "" {
 		sourceID = sourceID + "/repo-" + repoTag
 	}
@@ -211,8 +219,9 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 			missReason = missReasonCorrupt
 		} else {
 			// Set reason for cache miss
-			if reason, ok := p.cacheRecentEvictions.LoadAndDelete(cacheKey); ok {
-				missReason = reason.(string)
+			if reason, ok := p.cacheRecentEvictions.Get(cacheKey); ok {
+				p.cacheRecentEvictions.Delete(cacheKey)
+				missReason = reason
 			}
 		}
 

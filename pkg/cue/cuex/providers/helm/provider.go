@@ -138,11 +138,11 @@ type Provider struct {
 	chartFlight          singleflight.Group
 	helmClient           *cli.EnvSettings
 	cacheTTL             *CacheTTLConfig
-	cacheRecentEvictions *sync.Map         // cache key → miss-reason label (populated by OnEvict)
-	releaseMu            sync.Mutex        // serializes install/upgrade/uninstall calls
-	releaseFingerprints  map[string]string // namespace/releaseName → fingerprint (chartVersion|valuesHash)
-	releaseManifests     map[string]string // namespace/releaseName → last successful manifest
-	releaseVersions      map[string]int    // namespace/releaseName → current release version number
+	cacheRecentEvictions *cache.LRUStore[string, string] // bounded ledger of recently-evicted keys → miss reason
+	releaseMu            sync.Mutex                      // serializes install/upgrade/uninstall calls
+	releaseFingerprints  map[string]string               // namespace/releaseName → fingerprint (chartVersion|valuesHash)
+	releaseManifests     map[string]string               // namespace/releaseName → last successful manifest
+	releaseVersions      map[string]int                  // namespace/releaseName → current release version number
 	// actionConfigFactory builds a helm action.Configuration for a given
 	// namespace. Defaults to getActionConfig (a real cluster client). Tests
 	// override this to inject a fake KubeClient + memory storage driver so
@@ -164,6 +164,10 @@ var (
 )
 
 const (
+	// chartCacheEvictionLedgerSize caps the recently-evicted key ledger used
+	// to attribute cache misses. Without a bound, keys that are never
+	// re-fetched would accumulate forever under capacity pressure.
+	chartCacheEvictionLedgerSize = 4096
 	// DefaultChartCacheMaxBytes is the default byte budget for the chart
 	// cache. Keep it well below the container memory limit: cached archives
 	// are only part of the footprint, since each render also decompresses a
@@ -236,11 +240,24 @@ func chartCacheOptions() cache.Options[string, []byte] {
 	}
 }
 
+// newEvictionLedger returns a count-bounded LRU used only to attribute miss
+// reasons after capacity/TTL eviction. Shares the provider's cancelable ctx
+// so Close stops its sweeper with the chart cache.
+func newEvictionLedger(ctx context.Context) *cache.LRUStore[string, string] {
+	store, err := cache.NewLRUStore[string, string](ctx, cache.Options[string, string]{
+		MaxSize: chartCacheEvictionLedgerSize,
+	})
+	if err != nil {
+		klog.Fatalf("Failed to create chart eviction ledger: %v", err)
+	}
+	return store
+}
+
 // NewProvider creates a new Helm provider (returns singleton)
 func NewProvider() *Provider {
 	providerOnce.Do(func() {
-		cacheRecentEvictions := &sync.Map{}
 		ctx, cancel := context.WithCancel(chartCacheCtx)
+		cacheRecentEvictions := newEvictionLedger(ctx)
 		lruCache, err := cache.NewLRUStore[string, []byte](ctx, chartCacheOptions())
 		if err != nil {
 			cancel()
@@ -250,7 +267,7 @@ func NewProvider() *Provider {
 			HelmChartCacheEvictionsTotal.WithLabelValues(evictionReasonLabel(reason)).Inc()
 			HelmChartCacheBytes.Set(float64(lruCache.CurrentBytes()))
 			if mr, ok := missReasonLabel(reason); ok {
-				cacheRecentEvictions.Store(key, mr)
+				cacheRecentEvictions.Put(key, mr, 0)
 			}
 		}
 		globalProvider = &Provider{
@@ -274,8 +291,8 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 	if ttlConfig == nil {
 		ttlConfig = DefaultCacheTTLConfig()
 	}
-	cacheRecentEvictions := &sync.Map{}
 	ctx, cancel := context.WithCancel(chartCacheCtx)
+	cacheRecentEvictions := newEvictionLedger(ctx)
 	lruCache, err := cache.NewLRUStore[string, []byte](ctx, chartCacheOptions())
 	if err != nil {
 		cancel()
@@ -285,7 +302,7 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 		HelmChartCacheEvictionsTotal.WithLabelValues(evictionReasonLabel(reason)).Inc()
 		HelmChartCacheBytes.Set(float64(lruCache.CurrentBytes()))
 		if mr, ok := missReasonLabel(reason); ok {
-			cacheRecentEvictions.Store(key, mr)
+			cacheRecentEvictions.Put(key, mr, 0)
 		}
 	}
 	p := &Provider{

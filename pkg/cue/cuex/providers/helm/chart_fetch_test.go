@@ -57,6 +57,23 @@ var _ = Describe("chart_fetch", func() {
 		)
 	})
 
+	Describe("sourceCacheID", func() {
+		It("produces a stable 16-hex-char id", func() {
+			id := sourceCacheID("oci://ghcr.io/org/charts/app")
+			Expect(id).To(HaveLen(16))
+			Expect(sourceCacheID("oci://ghcr.io/org/charts/app")).To(Equal(id))
+		})
+
+		It("does not collide when slash is replaced by hyphen in the source path", func() {
+			Expect(sourceCacheID("oci://ghcr.io/org/charts/app")).
+				ToNot(Equal(sourceCacheID("oci://ghcr.io/org/charts-app")))
+			Expect(sourceCacheID("https://example.com/charts/app.tgz")).
+				ToNot(Equal(sourceCacheID("https://example.com/charts-app.tgz")))
+			Expect(sourceCacheID("stable/postgresql")).
+				ToNot(Equal(sourceCacheID("stable-postgresql")))
+		})
+	})
+
 	Describe("repoCacheTag", func() {
 		It("returns an empty tag for non-repo source types", func() {
 			Expect(repoCacheTag(sourceTypeOCI, "https://example.com")).To(Equal(""))
@@ -231,7 +248,8 @@ var _ = Describe("chart_fetch", func() {
 			// Pre-seed the cache with the expected key format:
 			// <sourceType>/<source>/repo-<tag>/<version>
 			repoURL := "https://repo-a.example.com"
-			cacheKey := "repo/nginx/repo-" + repoCacheTag(sourceTypeRepo, repoURL) + "/1.0.0"
+			cacheKey := "repo/" + sourceCacheID("nginx") + "/repo-" + repoCacheTag(sourceTypeRepo, repoURL) + "/1.0.0"
+
 			p.cache.Put(cacheKey, createMinimalChartArchive("cached-chart", "1.0.0"), 1*time.Hour)
 
 			result, err := p.fetchChart(context.Background(),
@@ -244,7 +262,8 @@ var _ = Describe("chart_fetch", func() {
 		It("should return a cached chart with custom cache key prefix", func() {
 			// With custom cache key: <cache_key_prefix>/<sourceType>/<source>/repo-<tag>/<version>
 			repoURL := "https://repo-b.example.com"
-			cacheKey := "my-prefix/repo/myapp/repo-" + repoCacheTag(sourceTypeRepo, repoURL) + "/2.0.0"
+			cacheKey := "my-prefix/repo/" + sourceCacheID("myapp") + "/repo-" + repoCacheTag(sourceTypeRepo, repoURL) + "/2.0.0"
+
 			p.cache.Put(cacheKey, createMinimalChartArchive("custom-cached", "2.0.0"), 1*time.Hour)
 
 			result, err := p.fetchChart(context.Background(),
@@ -266,9 +285,9 @@ var _ = Describe("chart_fetch", func() {
 		})
 
 		It("should build correct cache key for OCI sources", func() {
-			// OCI source: oci://ghcr.io/example/chart
-			// After replacing "://" with "-" and "/" with "-": oci-ghcr.io-example-chart
-			cacheKey := "oci/oci-ghcr.io-example-chart/3.0.0"
+
+			cacheKey := "oci/" + sourceCacheID("oci://ghcr.io/example/chart") + "/3.0.0"
+
 			p.cache.Put(cacheKey, createMinimalChartArchive("oci-chart", "3.0.0"), 1*time.Hour)
 
 			result, err := p.fetchChart(context.Background(),
@@ -279,9 +298,8 @@ var _ = Describe("chart_fetch", func() {
 		})
 
 		It("should build correct cache key for URL sources", func() {
-			// URL source: https://example.com/chart.tgz
-			// After replacing "://" with "-" and "/" with "-": https-example.com-chart.tgz
-			cacheKey := "url/https-example.com-chart.tgz/1.0.0"
+
+			cacheKey := "url/" + sourceCacheID("https://example.com/chart.tgz") + "/1.0.0"
 			p.cache.Put(cacheKey, createMinimalChartArchive("url-chart", "1.0.0"), 1*time.Hour)
 
 			result, err := p.fetchChart(context.Background(),
@@ -289,6 +307,25 @@ var _ = Describe("chart_fetch", func() {
 				nil, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("url-chart"))
+		})
+
+		It("should not serve one OCI chart for another whose path only differs by slash vs hyphen", func() {
+			p := NewProviderWithConfig(nil)
+			aKey := "oci/" + sourceCacheID("oci://ghcr.io/org/charts/app") + "/1.0.0"
+			bKey := "oci/" + sourceCacheID("oci://ghcr.io/org/charts-app") + "/1.0.0"
+			Expect(aKey).ToNot(Equal(bKey))
+			p.cache.Put(aKey, createMinimalChartArchive("charts-slash", "1.0.0"), time.Hour)
+			p.cache.Put(bKey, createMinimalChartArchive("charts-hyphen", "1.0.0"), time.Hour)
+
+			a, err := p.fetchChart(context.Background(),
+				&ChartSourceParams{Source: "oci://ghcr.io/org/charts/app", Version: "1.0.0"}, nil, "", "")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(a.Metadata.Name).To(Equal("charts-slash"))
+
+			b, err := p.fetchChart(context.Background(),
+				&ChartSourceParams{Source: "oci://ghcr.io/org/charts-app", Version: "1.0.0"}, nil, "", "")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(b.Metadata.Name).To(Equal("charts-hyphen"))
 		})
 
 		It("should NOT serve a chart from one repository into another for the same name and version", func() {
@@ -568,7 +605,8 @@ entries:
 			Expect(ch.Metadata.Name).To(Equal("cache-miss"))
 
 			// Verify it's now cached under the repo-discriminated key
-			cacheKey := "repo/cache-miss/repo-" + repoCacheTag(sourceTypeRepo, server.URL) + "/1.0.0"
+			cacheKey := "repo/" + sourceCacheID("cache-miss") + "/repo-" + repoCacheTag(sourceTypeRepo, server.URL) + "/1.0.0"
+
 			cached, found := p.cache.Get(cacheKey)
 			Expect(found).To(BeTrue())
 			Expect(cached).ToNot(BeNil())
@@ -716,7 +754,7 @@ entries:
 			}
 			tag, err := computeAuthCacheTag(context.Background(), params, "app-ns", "rel-ns")
 			Expect(err).ShouldNot(HaveOccurred())
-			cacheKey := "repo/nginx/1.0.0/auth-" + tag
+			cacheKey := "repo/" + sourceCacheID("nginx") + "/1.0.0/auth-" + tag
 			p.cache.Put(cacheKey, createMinimalChartArchive("auth-ok", "1.0.0"), time.Hour)
 
 			ch, err := p.fetchChart(context.Background(), params, nil, "app-ns", "rel-ns")
@@ -745,7 +783,7 @@ entries:
 			}
 			tag, err := computeAuthCacheTag(context.Background(), params, "app-ns", "rel-ns")
 			Expect(err).ShouldNot(HaveOccurred())
-			cacheKey := "repo/hit-chart/1.0.0/auth-" + tag
+			cacheKey := "repo/" + sourceCacheID("hit-chart") + "/1.0.0/auth-" + tag
 			p.cache.Put(cacheKey, createMinimalChartArchive("hit-chart", "1.0.0"), time.Hour)
 
 			ch, err := p.fetchChart(context.Background(), params, nil, "app-ns", "rel-ns")
@@ -777,7 +815,8 @@ entries:
 			p := NewProviderWithConfig(nil)
 			// Seed the cache with corrupt bytes so the cached-archive load fails,
 			// triggering eviction and a fresh fetch.
-			p.cache.Put("repo/bad-cache/repo-"+repoCacheTag(sourceTypeRepo, server.URL)+"/1.0.0", []byte("not a valid chart"), time.Hour)
+			cacheKey := "repo/" + sourceCacheID("bad-cache") + "/repo-" + repoCacheTag(sourceTypeRepo, server.URL) + "/1.0.0"
+			p.cache.Put(cacheKey, []byte("not a valid chart"), time.Hour)
 
 			ch, err := p.fetchChart(context.Background(), &ChartSourceParams{
 				Source:  "bad-cache",
