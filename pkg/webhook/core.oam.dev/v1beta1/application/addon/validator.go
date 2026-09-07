@@ -86,8 +86,19 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 		properties := componentProperties{}
 		if component.Properties != nil && len(component.Properties.Raw) > 0 {
 			if err := json.Unmarshal(component.Properties.Raw, &properties); err != nil {
-				logger.Debug("Skipping malformed addon component properties",
-					"component", component.Name, "error", err)
+				// Reject rather than skip. This is not the deliberate fail-open
+				// in compat.go, which passes an Application through when the
+				// registry cannot answer: here the Application itself is
+				// malformed (a non-string addon, a numeric version), the render
+				// will fail later anyway, and admitting it silently is the one
+				// outcome that leaves the author with no idea why.
+				logger.Error(err, "Rejecting malformed addon component properties",
+					"component", component.Name)
+				errs = append(errs, field.Invalid(
+					field.NewPath("spec", "components").Index(i).Child("properties"),
+					string(component.Properties.Raw),
+					"cannot be decoded as addon component properties: "+err.Error(),
+				))
 				continue
 			}
 		}

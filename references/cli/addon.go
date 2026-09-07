@@ -90,7 +90,7 @@ func NewAddonCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) *
 		NewAddonUpgradeCommand(c, ioStreams),
 		NewAddonPackageCommand(c),
 		NewAddonInitCommand(),
-		NewAddonPushCommand(c),
+		NewAddonPushCommand(c, ioStreams),
 	)
 	return cmd
 }
@@ -496,7 +496,7 @@ func NewAddonInitCommand() *cobra.Command {
 }
 
 // NewAddonPushCommand pushes an addon dir/package to a Helm or OCI registry.
-func NewAddonPushCommand(c common.Args) *cobra.Command {
+func NewAddonPushCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	p := &pkgaddon.PushCmd{}
 	cmd := &cobra.Command{
 		Use:   "push",
@@ -582,6 +582,7 @@ $ HELM_REPO_USERNAME=name HELM_REPO_PASSWORD=pswd vela addon push mongo-1.0.0.tg
 	f.BoolVarP(&p.KeepChartMetadata, "keep-chartmeta", "", false, "do not update Chart.yaml automatically according to addon metadata (only when addon dir provided)")
 	f.Int64VarP(&p.Timeout, "timeout", "t", 30, "The duration (in seconds) vela cli will wait to get response from ChartMuseum")
 
+	useIOStreamsInput(cmd, ioStreams)
 	return cmd
 }
 
@@ -638,6 +639,10 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 			return "", fmt.Errorf("specified registry %s not exist", registryName)
 		}
 	}
+	// Registries that could not be read at all, kept apart from the ones that
+	// answered "no such addon". Only the latter justifies telling the user the
+	// addon does not exist.
+	var unreadable []string
 	for i, registry := range registries {
 		opts := addonOptions()
 		if len(registryName) != 0 && registryName != registry.Name {
@@ -646,6 +651,7 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 		additionalInfo, err = pkgaddon.EnableAddon(ctx, addonName, version, k8sClient, dc, apply.NewAPIApplicator(k8sClient), config, registry, args, nil, pkgaddon.FilterDependencyRegistries(i, registries), opts...)
 		if errors.Is(err, pkgaddon.ErrFetch) {
 			klog.Warningf("skip registry %s: %v", registry.Name, err)
+			unreadable = append(unreadable, fmt.Sprintf("%s: %v", registry.Name, err))
 			continue
 		}
 		if errors.Is(err, pkgaddon.ErrNotExist) {
@@ -672,11 +678,17 @@ func enableAddon(ctx context.Context, k8sClient client.Client, dc *discovery.Dis
 		}
 		return additionalInfo, nil
 	}
-	if len(registryName) != 0 {
-		return "", fmt.Errorf("addon: %s not found in registry %s: %w", addonName, registryName, err)
+	// A registry that could not be read never said the addon is absent, so
+	// folding its failure into a "not found" message points the user at the
+	// addon name when the actual cause is an unreachable registry, a rejected
+	// credential, or a malformed package -- none of which appear in that
+	// message. Report those registries as what they are.
+	if len(unreadable) > 0 {
+		return "", fmt.Errorf("addon: %s was not found in the registries that answered, and %d could not be read, so it may exist in one of those: %s",
+			addonName, len(unreadable), strings.Join(unreadable, "; "))
 	}
-	if err != nil {
-		return "", fmt.Errorf("addon: %s not found in all candidate registries: %w", addonName, err)
+	if len(registryName) != 0 {
+		return "", fmt.Errorf("addon: %s not found in registry %s", addonName, registryName)
 	}
 	return "", fmt.Errorf("addon: %s not found in all candidate registries", addonName)
 }

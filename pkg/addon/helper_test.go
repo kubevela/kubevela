@@ -233,12 +233,6 @@ var _ = Describe("test FindAddonPackagesDetailFromRegistry", func() {
 	})
 })
 
-func TestExtractDefinitionNameFromFile(t *testing.T) {
-	assert.Equal(t, "component", extractDefinitionNameFromFile(ElementFile{Name: "definitions/component.cue"}))
-	assert.Equal(t, "trait", extractDefinitionNameFromFile(ElementFile{Name: "trait.yaml"}))
-	assert.Equal(t, "my-policy", extractDefinitionNameFromFile(ElementFile{Name: "/tmp/my-policy.json"}))
-}
-
 func TestRemoveConflictingDefinitions(t *testing.T) {
 	defs := []ElementFile{
 		{Name: "definitions/comp.cue", Data: "comp"},
@@ -265,19 +259,42 @@ func TestRemoveConflictingDefinitions(t *testing.T) {
 // TestDefinitionConflictDetectionMatchesRemoval pins the full pipeline
 // DetectDefinitionConflicts -> removeConflictingDefinitions relies on: both
 // stages must extract the same name for the same file, or a real conflict is
-// flagged but never removed. extractDefinitionName (godef.go) and
-// extractDefinitionNameFromFile (helper.go) used to disagree on directory
-// prefixes, so a CUE file under "definitions/" could never collide with a
-// compiled Go definition.
+// flagged but never removed. Both now call extractDefinitionName; helper.go
+// used to keep a second copy that stripped only the extension, so a
+// type-prefixed CUE file was flagged under its bare name and then looked up
+// under its prefixed one.
 func TestDefinitionConflictDetectionMatchesRemoval(t *testing.T) {
-	cueDefs := []ElementFile{{Name: "definitions/webservice.cue", Data: "cue-source"}}
-	goDefs := []ElementFile{{Name: "component-webservice.cue", Data: "go-compiled"}}
+	cases := []struct {
+		name         string
+		cueDef       ElementFile
+		goDef        ElementFile
+		wantConflict string
+	}{
+		{
+			name:         "directory-prefixed CUE file collides with a compiled Go definition",
+			cueDef:       ElementFile{Name: "definitions/webservice.cue", Data: "cue-source"},
+			goDef:        ElementFile{Name: "component-webservice.cue", Data: "go-compiled"},
+			wantConflict: "webservice",
+		},
+		{
+			name:         "type-prefixed CUE file collides under its stripped name",
+			cueDef:       ElementFile{Name: "definitions/trait-fluxcd.cue", Data: "cue-source"},
+			goDef:        ElementFile{Name: "trait-fluxcd.cue", Data: "go-compiled"},
+			wantConflict: "fluxcd",
+		},
+	}
 
-	conflicts := DetectDefinitionConflicts(cueDefs, goDefs)
-	assert.Equal(t, []string{"webservice"}, conflicts)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cueDefs := []ElementFile{tc.cueDef}
 
-	filtered := removeConflictingDefinitions(cueDefs, conflicts)
-	assert.Empty(t, filtered, "the definitions/-prefixed CUE file must be removed once its extracted name conflicts")
+			conflicts := DetectDefinitionConflicts(cueDefs, []ElementFile{tc.goDef})
+			assert.Equal(t, []string{tc.wantConflict}, conflicts)
+
+			filtered := removeConflictingDefinitions(cueDefs, conflicts)
+			assert.Empty(t, filtered, "the CUE file must be removed once its extracted name conflicts")
+		})
+	}
 }
 
 func TestValidateSystemRequirements(t *testing.T) {
@@ -309,6 +326,11 @@ func TestGetAddonInstallPackageFromRegistry(t *testing.T) {
 		assert.Contains(t, err.Error(), `get registry "missing-registry"`)
 	})
 
+	// The two subtests below both point at an unreachable host, so "it errored"
+	// on its own would pass whichever backend ran. Each asserts on text only
+	// its own backend emits -- the OCI chart reference the puller built, and
+	// the index.yaml fetch the indexed HTTP path performs -- so a URL dispatched
+	// to the wrong transport fails the test rather than passing it.
 	t.Run("OCI registry resolves through the versioned OCI path and fails fast against an unreachable host", func(t *testing.T) {
 		kubeClient := newFakeClient().Build()
 		store := NewRegistryDataStore(kubeClient)
@@ -319,6 +341,11 @@ func TestGetAddonInstallPackageFromRegistry(t *testing.T) {
 
 		_, err := GetAddonInstallPackageFromRegistry(context.Background(), kubeClient, "ecr", "fluxcd", "1.0.0")
 		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrFetch, "an unreachable registry must stay skippable")
+		assert.Contains(t, err.Error(), "OCI registry ecr")
+		// The pinned version reached the puller as a tag on the repository the
+		// registry prefix and addon name compose, without a tag listing first.
+		assert.Contains(t, err.Error(), "127.0.0.1:1/addon/fluxcd:1.0.0")
 	})
 
 	t.Run("Helm registry resolves through the versioned Helm path and fails fast against an unreachable host", func(t *testing.T) {
@@ -331,6 +358,11 @@ func TestGetAddonInstallPackageFromRegistry(t *testing.T) {
 
 		_, err := GetAddonInstallPackageFromRegistry(context.Background(), kubeClient, "helm-reg", "fluxcd", "1.0.0")
 		require.Error(t, err)
+		assert.ErrorIs(t, err, ErrFetch, "an unreachable registry must stay skippable")
+		assert.Contains(t, err.Error(), "registry helm-reg")
+		// Only the indexed HTTP backend reads index.yaml; the OCI backend never
+		// asks for one.
+		assert.Contains(t, err.Error(), "download index file from http://127.0.0.1:1")
 	})
 
 	t.Run("registry with no source info fails building a reader for the fallback path", func(t *testing.T) {

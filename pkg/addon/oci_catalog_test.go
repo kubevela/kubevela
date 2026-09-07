@@ -18,6 +18,9 @@ package addon
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -27,38 +30,85 @@ import (
 	"helm.sh/helm/v3/pkg/registry"
 )
 
-// closedPortRegistryURL points listPortableOCICatalog* at a loopback port
-// nothing listens on, so listOCITagsWithTransport fails to dial rather than
-// answering "repository does not exist" -- exercising the "unavailable" branch
-// deterministically without any real network dependency.
-const closedPortRegistryURL = "127.0.0.1:1/addon"
+// unreachableRegistryURL is the registry URL these tests name. Nothing dials
+// it: stubUnreachableTransport below replaces the transport, so the URL only
+// has to be well-formed.
+const unreachableRegistryURL = "registry.example.invalid/addon"
+
+// errRegistryUnreachable is the transport-level failure the stubs return. It
+// is deliberately not a NAME_UNKNOWN answer, so isOCIRepositoryAbsentError
+// reads it as "could not be read" rather than "does not exist" -- the
+// distinction every branch under test turns on.
+var errRegistryUnreachable = errors.New("dial tcp registry.example.invalid:443: connect: connection refused")
+
+// stubUnreachableTransport makes every portable-catalog transport call fail
+// with errRegistryUnreachable for the duration of the test, and restores the
+// real functions afterward.
+//
+// Previously these tests pointed the real transport at a closed loopback port
+// and relied on the kernel refusing the connection instantly. That is not a
+// property of the code under test: a sandbox that blocks or proxies loopback
+// traffic turns the same call into a timeout or a different error, making the
+// tests slow or flaky for reasons unrelated to the branches they cover.
+func stubUnreachableTransport(t *testing.T) {
+	t.Helper()
+	originalTags, originalPull := portableCatalogTagsFn, portableCatalogPullFn
+	t.Cleanup(func() {
+		portableCatalogTagsFn, portableCatalogPullFn = originalTags, originalPull
+	})
+	portableCatalogTagsFn = func(string, string, string, string, bool) ([]string, error) {
+		return nil, errRegistryUnreachable
+	}
+	portableCatalogPullFn = func(string, string, string, string, bool) ([]byte, error) {
+		return nil, errRegistryUnreachable
+	}
+}
 
 // TestListPortableOCICatalogWrappers covers listPortableOCICatalog and
 // listPortableOCICatalogWithPlainHTTP, which only select a transport before
 // delegating to listPortableOCICatalogWithTransport.
 func TestListPortableOCICatalogWrappers(t *testing.T) {
+	stubUnreachableTransport(t)
+
 	t.Run("https", func(t *testing.T) {
-		_, err := listPortableOCICatalog(context.Background(), closedPortRegistryURL, "", "")
+		_, err := listPortableOCICatalog(context.Background(), unreachableRegistryURL, "", "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "portable OCI addon catalog is unavailable")
+		assert.NotErrorIs(t, err, ErrOCICatalogAbsent, "a read failure must never read as a confirmed absence")
 	})
 
 	t.Run("plain http", func(t *testing.T) {
-		_, err := listPortableOCICatalogWithPlainHTTP(context.Background(), closedPortRegistryURL, "", "")
+		_, err := listPortableOCICatalogWithPlainHTTP(context.Background(), unreachableRegistryURL, "", "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "portable OCI addon catalog is unavailable")
+		assert.NotErrorIs(t, err, ErrOCICatalogAbsent, "a read failure must never read as a confirmed absence")
 	})
 }
 
 // TestConfirmPortableCatalogAbsent covers the wrapper that re-probes the
-// catalog repository before a rewrite. A dial failure is not a confirmed
-// absence, so it must be refused.
+// catalog repository before a rewrite. A read failure is not a confirmed
+// absence, so it must be refused; only the registry stating that the
+// repository does not exist confirms it.
 func TestConfirmPortableCatalogAbsent(t *testing.T) {
-	for _, plainHTTP := range []bool{true, false} {
-		err := confirmPortableCatalogAbsent(&HelmSource{URL: closedPortRegistryURL}, plainHTTP)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot confirm whether")
-	}
+	t.Run("a read failure is refused", func(t *testing.T) {
+		stubUnreachableTransport(t)
+
+		for _, plainHTTP := range []bool{true, false} {
+			err := confirmPortableCatalogAbsent(&HelmSource{URL: unreachableRegistryURL}, plainHTTP)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "cannot confirm whether")
+		}
+	})
+
+	t.Run("a missing repository confirms the absence", func(t *testing.T) {
+		originalTags := portableCatalogTagsFn
+		t.Cleanup(func() { portableCatalogTagsFn = originalTags })
+		portableCatalogTagsFn = func(string, string, string, string, bool) ([]string, error) {
+			return nil, errors.New("fluxcd: not found: " + ociErrCodeNameUnknown)
+		}
+
+		assert.NoError(t, confirmPortableCatalogAbsent(&HelmSource{URL: unreachableRegistryURL}, false))
+	})
 }
 
 // TestUpdateOCIAddonCatalog pins the early error branch: when the existing
@@ -67,14 +117,29 @@ func TestConfirmPortableCatalogAbsent(t *testing.T) {
 // silently rebuild the catalog from an empty list. A nil *registry.Client is
 // safe here because the function never reaches client.Push on this path.
 func TestUpdateOCIAddonCatalog(t *testing.T) {
+	stubUnreachableTransport(t)
+	originalCatalogClient := ociCatalogHTTPClient
+	t.Cleanup(func() { ociCatalogHTTPClient = originalCatalogClient })
+	// The registry-catalog fallback must fail too, so that neither source can
+	// read the existing catalog.
+	ociCatalogHTTPClient = &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errRegistryUnreachable
+	})}
+
 	addonMeta := &chart.Metadata{Name: "fluxcd", Description: "Flux"}
 
 	for _, plainHTTP := range []bool{true, false} {
-		err := updateOCIAddonCatalog(nil, &HelmSource{URL: closedPortRegistryURL}, addonMeta, plainHTTP)
+		err := updateOCIAddonCatalog(nil, &HelmSource{URL: unreachableRegistryURL}, addonMeta, plainHTTP)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "refusing to rewrite the OCI addon catalog: cannot read the existing catalog")
 	}
 }
+
+// roundTripperFunc adapts a function to http.RoundTripper so a test can
+// supply an HTTP client that never leaves the process.
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
 // TestCatalogTagHead pins the comparison publishCatalogEntry's conflict check
 // depends on: no tags reads as absent, and the highest tag identifies a
@@ -105,7 +170,7 @@ func TestUpdateOCIAddonCatalogRetriesOnConflict(t *testing.T) {
 			}
 			return false, nil
 		}
-		err := updateOCIAddonCatalog(nil, &HelmSource{URL: closedPortRegistryURL}, &chart.Metadata{Name: "fluxcd"}, false)
+		err := updateOCIAddonCatalog(nil, &HelmSource{URL: unreachableRegistryURL}, &chart.Metadata{Name: "fluxcd"}, false)
 		require.NoError(t, err)
 		assert.Equal(t, 3, calls, "must stop retrying as soon as an attempt succeeds")
 	})
@@ -116,7 +181,7 @@ func TestUpdateOCIAddonCatalogRetriesOnConflict(t *testing.T) {
 			calls++
 			return true, assert.AnError
 		}
-		err := updateOCIAddonCatalog(nil, &HelmSource{URL: closedPortRegistryURL}, &chart.Metadata{Name: "fluxcd"}, false)
+		err := updateOCIAddonCatalog(nil, &HelmSource{URL: unreachableRegistryURL}, &chart.Metadata{Name: "fluxcd"}, false)
 		require.Error(t, err)
 		assert.Equal(t, maxCatalogPublishAttempts, calls)
 		assert.Contains(t, err.Error(), "a concurrent publisher kept winning the race")
@@ -128,7 +193,7 @@ func TestUpdateOCIAddonCatalogRetriesOnConflict(t *testing.T) {
 			calls++
 			return false, assert.AnError
 		}
-		err := updateOCIAddonCatalog(nil, &HelmSource{URL: closedPortRegistryURL}, &chart.Metadata{Name: "fluxcd"}, false)
+		err := updateOCIAddonCatalog(nil, &HelmSource{URL: unreachableRegistryURL}, &chart.Metadata{Name: "fluxcd"}, false)
 		require.Error(t, err)
 		assert.Equal(t, 1, calls, "a definitive failure must not be retried")
 		assert.Same(t, assert.AnError, err)
@@ -169,7 +234,7 @@ func TestPublishCatalogEntryDetectsConflict(t *testing.T) {
 			return []string{"0.0.1"}, nil // a concurrent publisher landed one before the push
 		}
 
-		conflict, err := publishCatalogEntry(nil, &HelmSource{URL: closedPortRegistryURL}, addonMeta, nil, false)
+		conflict, err := publishCatalogEntry(nil, &HelmSource{URL: unreachableRegistryURL}, addonMeta, nil, false)
 		require.Error(t, err)
 		assert.True(t, conflict, "a tag appearing mid-attempt must be reported as a conflict, not a hard failure")
 		assert.Contains(t, err.Error(), "a concurrent publisher updated the portable OCI addon catalog")
@@ -184,7 +249,7 @@ func TestPublishCatalogEntryDetectsConflict(t *testing.T) {
 		// client is nil, so a real push would panic; reaching client.Push proves
 		// the conflict check let this attempt through instead of retrying.
 		assert.Panics(t, func() {
-			_, _ = publishCatalogEntry(nil, &HelmSource{URL: closedPortRegistryURL}, addonMeta, nil, false)
+			_, _ = publishCatalogEntry(nil, &HelmSource{URL: unreachableRegistryURL}, addonMeta, nil, false)
 		}, "an unchanged tag must proceed to publish rather than report a conflict")
 	})
 }
@@ -214,7 +279,7 @@ func TestPublishCatalogEntryRefusesOnTagListError(t *testing.T) {
 			return nil, assert.AnError
 		}
 
-		conflict, err := publishCatalogEntry(nil, &HelmSource{URL: closedPortRegistryURL}, addonMeta, nil, false)
+		conflict, err := publishCatalogEntry(nil, &HelmSource{URL: unreachableRegistryURL}, addonMeta, nil, false)
 		require.Error(t, err)
 		assert.True(t, conflict, "a failed listing must be retried, not treated as an empty catalog")
 		assert.Contains(t, err.Error(), "cannot confirm the portable OCI addon catalog's current tag")
@@ -231,7 +296,7 @@ func TestPublishCatalogEntryRefusesOnTagListError(t *testing.T) {
 			return nil, assert.AnError
 		}
 
-		conflict, err := publishCatalogEntry(nil, &HelmSource{URL: closedPortRegistryURL}, addonMeta, nil, false)
+		conflict, err := publishCatalogEntry(nil, &HelmSource{URL: unreachableRegistryURL}, addonMeta, nil, false)
 		require.Error(t, err)
 		assert.True(t, conflict, "a failed re-check must be retried, not treated as unchanged")
 		assert.Contains(t, err.Error(), "cannot confirm the portable OCI addon catalog tag is still unchanged")
@@ -270,7 +335,91 @@ func TestPublishCatalogEntryBootstrapsFirstCatalog(t *testing.T) {
 	// the confirmed-absent repository let this attempt through to bootstrap
 	// the catalog instead of reporting a conflict.
 	assert.Panics(t, func() {
-		_, _ = publishCatalogEntry(nil, &HelmSource{URL: closedPortRegistryURL}, addonMeta, nil, false)
+		_, _ = publishCatalogEntry(nil, &HelmSource{URL: unreachableRegistryURL}, addonMeta, nil, false)
 	}, "a confirmed-absent catalog repository must bootstrap, not retry forever")
 	assert.Equal(t, 2, calls, "both the initial read and the pre-push re-check must see the same confirmed-absent answer")
+}
+
+// TestValidateOCIAddonName pins the reserved-name rejection. The catalog is
+// published to a fixed repository name so discovery stays portable across
+// registries, which means an addon of that name shares its repository and tag
+// namespace: pushing it would overwrite catalog tags with addon archives and
+// leave both unreadable.
+func TestValidateOCIAddonName(t *testing.T) {
+	assert.NoError(t, validateOCIAddonName("fluxcd"))
+	assert.NoError(t, validateOCIAddonName("kubevela-addon-catalog-extra"))
+
+	for _, name := range []string{ociCatalogChartName, " " + ociCatalogChartName + " ", "KubeVela-Addon-Catalog"} {
+		err := validateOCIAddonName(name)
+		require.Error(t, err, "name %q must be refused", name)
+		assert.Contains(t, err.Error(), "is reserved for the portable OCI addon catalog")
+	}
+}
+
+// TestPublishCatalogEntryRefusesReservedAddonName is the same rule at the
+// publisher, so no caller can reach the point of writing an addon's versions
+// into the repository that holds the catalog itself.
+func TestPublishCatalogEntryRefusesReservedAddonName(t *testing.T) {
+	originalAddonTags := addonVersionsTagsFn
+	t.Cleanup(func() { addonVersionsTagsFn = originalAddonTags })
+	addonVersionsTagsFn = func(_, _, _, _ string, _ bool) ([]string, error) {
+		t.Fatal("must refuse the reserved name before listing any tags")
+		return nil, nil
+	}
+
+	conflict, err := publishCatalogEntry(nil, &HelmSource{URL: unreachableRegistryURL},
+		&chart.Metadata{Name: ociCatalogChartName}, nil, false)
+	require.Error(t, err)
+	assert.False(t, conflict, "a reserved name is not a race worth retrying")
+	assert.Contains(t, err.Error(), "is reserved for the portable OCI addon catalog")
+}
+
+// TestUpdateOCIAddonCatalogOnceRequiresConfirmedAbsence covers the gap between
+// "the portable catalog said nothing" and "nothing is published there".
+//
+// When the portable catalog cannot be read, listUIData falls back to
+// enumerating the registry. A successful enumeration says nothing about what
+// the portable catalog holds, and an empty one says even less: a registry that
+// answers /v2/_catalog with no repositories (a proxy, a namespace-scoped
+// token, a cache) would otherwise authorize replacing a populated catalog with
+// just the addon being pushed.
+func TestUpdateOCIAddonCatalogOnceRequiresConfirmedAbsence(t *testing.T) {
+	originalCatalogClient := ociCatalogHTTPClient
+	originalPortableTags, originalPortablePull := portableCatalogTagsFn, portableCatalogPullFn
+	originalAddonTags, originalCatalogTags := addonVersionsTagsFn, catalogRepoTagsFn
+	t.Cleanup(func() {
+		ociCatalogHTTPClient = originalCatalogClient
+		portableCatalogTagsFn, portableCatalogPullFn = originalPortableTags, originalPortablePull
+		addonVersionsTagsFn, catalogRepoTagsFn = originalAddonTags, originalCatalogTags
+	})
+
+	// The registry enumerates cleanly, and reports nothing.
+	ociCatalogHTTPClient = &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{},
+			Body:       io.NopCloser(strings.NewReader(`{"repositories":[]}`)),
+		}, nil
+	})}
+	// The portable catalog itself is unreadable: its tag listing fails with
+	// something that is not a missing-repository answer.
+	portableCatalogTagsFn = func(string, string, string, string, bool) ([]string, error) {
+		return nil, errRegistryUnreachable
+	}
+	portableCatalogPullFn = func(string, string, string, string, bool) ([]byte, error) {
+		return nil, errRegistryUnreachable
+	}
+	addonVersionsTagsFn = func(_, _, _, _ string, _ bool) ([]string, error) {
+		return []string{"1.0.0"}, nil
+	}
+	catalogRepoTagsFn = func(_, _, _, _ string, _ bool) ([]string, error) {
+		t.Fatal("must refuse before computing the next catalog version")
+		return nil, nil
+	}
+
+	conflict, err := updateOCIAddonCatalogOnce(nil, &HelmSource{URL: unreachableRegistryURL},
+		&chart.Metadata{Name: "fluxcd"}, false)
+	require.Error(t, err)
+	assert.False(t, conflict)
+	assert.Contains(t, err.Error(), "refusing to rewrite the OCI addon catalog")
 }

@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"golang.org/x/sync/singleflight"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,6 +36,7 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/lru"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/pkg/util/singleton"
@@ -53,18 +55,18 @@ type rendererImpl struct {
 	// *api.AddonResult, so repeat requests skip registry I/O and CUE rendering.
 	// Unpinned requests are deliberately not cached: their empty version means
 	// "latest", whose resolution can change without any request input changing.
-	cache sync.Map
+	cache renderCache
 
 	// resolveGroup collapses concurrent cache misses for the same key into a
 	// single resolve+render call. Without it, N concurrent requests for the
 	// same not-yet-cached pinned addon each pay the full registry/CUE cost
 	// before any of them observes the others' write to cache.
 	//
-	// The shared call runs with context.WithoutCancel(ctx) (see RenderAddon):
+	// The shared call is detached from the leader's context (see RenderAddon):
 	// it is not scoped to whichever caller happened to become the leader, so
 	// one caller's cancellation or timeout cannot fail every other concurrent
-	// waiter's still-valid request. It also means no caller's own deadline is
-	// enforced on the shared work itself.
+	// waiter's still-valid request. renderTimeout takes over from the callers'
+	// own deadlines there.
 	resolveGroup singleflight.Group
 
 	// resolveFn is a seam for tests: it defaults to r.resolveAndRender and is
@@ -79,6 +81,55 @@ type rendererImpl struct {
 	// fetchExactFn lets unit tests resolve a pinned version without registry I/O.
 	// Production uses pkgaddon.GetAddonInstallPackageFromRegistry.
 	fetchExactFn func(ctx context.Context, registryName, addonName, version string) (*pkgaddon.InstallPackage, error)
+}
+
+// renderTimeout bounds one shared resolve+render. It has to be generous: the
+// work behind it is a registry fetch plus a full CUE render, and exceeding it
+// fails the request. It exists to stop a hung registry from pinning a
+// singleflight key open forever, not to express a latency target.
+const renderTimeout = 5 * time.Minute
+
+// renderCacheSize caps how many rendered addons are retained. Entries are
+// keyed on the addon, version, registry, skip-flag, and a hash of the full
+// property set, so the key space is effectively unbounded -- one Application
+// per tenant with per-tenant parameters mints a distinct key each -- while
+// each entry holds a fully rendered Application. The cap trades the tail of
+// that history, which is re-derivable, for a bounded footprint.
+const renderCacheSize = 128
+
+// renderCache is the bounded store behind rendererImpl.cache. A plain sync.Map
+// has no eviction: every key ever rendered would be retained for the lifetime
+// of the process. An LRU keeps the repeat-lookup benefit the cache exists for
+// while bounding what it holds.
+//
+// Its zero value is usable, so rendererImpl remains constructible as a plain
+// struct literal.
+type renderCache struct {
+	mu  sync.Mutex
+	lru *lru.Cache
+}
+
+func (c *renderCache) load(key string) (*api.AddonResult, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.lru == nil {
+		return nil, false
+	}
+	value, ok := c.lru.Get(key)
+	if !ok {
+		return nil, false
+	}
+	res, ok := value.(*api.AddonResult)
+	return res, ok
+}
+
+func (c *renderCache) store(key string, res *api.AddonResult) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.lru == nil {
+		c.lru = lru.New(renderCacheSize)
+	}
+	c.lru.Add(key, res)
 }
 
 // NewRenderer builds a render-only addon service. It reads the Kubernetes
@@ -157,26 +208,31 @@ func (r *rendererImpl) RenderAddon(ctx context.Context, req api.AddonRequest) (*
 	if !cacheable {
 		return resolve(ctx, req)
 	}
-	if cached, ok := r.cache.Load(key); ok {
-		return cached.(*api.AddonResult), nil
+	if cached, ok := r.cache.load(key); ok {
+		return cached, nil
 	}
 
 	// singleflight collapses concurrent misses on the same key into one
 	// resolve+render call; every waiter receives the same *api.AddonResult
 	// value, not a copy, so callers must treat it as immutable.
 	v, err, _ := r.resolveGroup.Do(key, func() (any, error) {
-		if cached, ok := r.cache.Load(key); ok {
-			return cached.(*api.AddonResult), nil
+		if cached, ok := r.cache.load(key); ok {
+			return cached, nil
 		}
-		// Decoupled from ctx: this call is shared by every concurrent waiter on
-		// this key, not just the caller that happened to become the leader. A
-		// leader whose own ctx is canceled must not cancel every other
-		// follower's still-valid render.
-		res, err := resolve(context.WithoutCancel(ctx), req)
+		// Detached from ctx, then given a deadline of its own. Detached because
+		// this call is shared by every concurrent waiter on the key, not just
+		// the caller that happened to become the leader: a leader whose own ctx
+		// is canceled must not cancel every follower's still-valid render.
+		// Bounded because detaching also drops the leader's deadline, and a
+		// resolve that then blocks holds the singleflight slot open, so every
+		// later request for this key would queue behind it indefinitely.
+		renderCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), renderTimeout)
+		defer cancel()
+		res, err := resolve(renderCtx, req)
 		if err != nil {
 			return nil, err
 		}
-		r.cache.Store(key, res)
+		r.cache.store(key, res)
 		return res, nil
 	})
 	if err != nil {
@@ -409,9 +465,15 @@ func (r *rendererImpl) auxComponents(ctx context.Context, installPkg *pkgaddon.I
 	if err != nil {
 		return nil, err
 	}
+	// Only render the args Secret when there are arguments to remember, matching
+	// the install path, which applies the Secret for a parameterized addon and
+	// deletes it for an unparameterized one. Rendering it unconditionally would
+	// leave every addon component carrying a Secret holding the literal "{}".
 	var secretObjs []*unstructured.Unstructured
-	if secret := pkgaddon.RenderArgsSecret(installPkg, properties); secret != nil {
-		secretObjs = []*unstructured.Unstructured{secret}
+	if len(properties) > 0 {
+		if secret := pkgaddon.RenderArgsSecret(installPkg, properties); secret != nil {
+			secretObjs = []*unstructured.Unstructured{secret}
+		}
 	}
 	return []auxComponent{
 		{name: "addon-definitions", objects: defs},

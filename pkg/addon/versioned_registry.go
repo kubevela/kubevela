@@ -186,8 +186,13 @@ func (r *helmRegistry) loadAddon(ctx context.Context, addonName, version string)
 	}
 	pkg.RegistryName = r.name
 	// The archive knows nothing about its sibling versions, so without this the
-	// UI would show every addon as having exactly one version.
-	pkg.AvailableVersions = resolved.availableVersions
+	// UI would show every addon as having exactly one version. A pinned request
+	// needs no tag listing to resolve, so backends that only learn the version
+	// list while searching for one report none here: keep whatever the package
+	// itself carried rather than replacing one version with zero.
+	if len(resolved.availableVersions) > 0 {
+		pkg.AvailableVersions = resolved.availableVersions
+	}
 	if resolved.requirementsSet {
 		pkg.SystemRequirements = resolved.requirements
 	}

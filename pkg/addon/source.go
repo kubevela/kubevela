@@ -254,6 +254,16 @@ func (h *HelmSource) validateCredential() error {
 			// custom transport, so honouring this would be a lie.
 			return errors.New("insecureSkipTLS is not supported for an oci:// addon registry")
 		}
+		// The token may not be inline: once a registry is saved, the token is
+		// moved into a Secret and only TokenSecretRef remains, so either field
+		// counts as the credential being configured.
+		hasToken := h.Token != "" || h.TokenSecretRef != ""
+		if (h.Username != "") != hasToken {
+			// Otherwise the registry client attempts BasicAuth with an empty
+			// counterpart, which registries answer with a 401 that names neither
+			// field. Anonymous access is spelled by leaving both empty.
+			return errors.New("an oci:// addon registry needs username and token together; omit both for anonymous access")
+		}
 		return nil
 	}
 	if h.Token != "" {

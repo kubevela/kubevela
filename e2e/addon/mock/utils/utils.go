@@ -23,6 +23,7 @@ import (
 	"net"
 	"os/exec"
 	"strings"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -34,6 +35,11 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
+
+// dockerInspectTimeout bounds the `docker network inspect` call in
+// hostGatewayAddress. Generous enough for a healthy daemon on a loaded CI
+// runner, short enough that an unresponsive one does not stall e2e setup.
+const dockerInspectTimeout = 5 * time.Second
 
 var (
 	// Port is mock server's exposed port
@@ -61,8 +67,16 @@ metadata:
 // here before. Falls back to "127.0.0.1" if the network can't be inspected or
 // has no IPv4 gateway (e.g. Docker/kind not present) -- that fallback is only
 // reachable from the host itself, matching this function's original behavior.
+//
+// The inspect is bounded by dockerInspectTimeout. This runs from the mock
+// server's main() during e2e setup, so an unresponsive Docker daemon (present,
+// so the command starts, but never answering) would otherwise hang the whole
+// e2e run with no output; the timeout turns that into the same 127.0.0.1
+// fallback as a missing daemon.
 func hostGatewayAddress() string {
-	out, err := exec.Command("docker", "network", "inspect", "kind", "--format", "{{range .IPAM.Config}}{{.Gateway}}{{\"\\n\"}}{{end}}").Output() // #nosec G204 -- fixed command and args, not user input
+	ctx, cancel := context.WithTimeout(context.Background(), dockerInspectTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "docker", "network", "inspect", "kind", "--format", "{{range .IPAM.Config}}{{.Gateway}}{{\"\\n\"}}{{end}}").Output() // #nosec G204 -- fixed command and args, not user input
 	if err != nil {
 		log.Printf("could not resolve kind network gateway, falling back to 127.0.0.1 (unreachable from in-cluster pods): %v", err)
 		return "127.0.0.1"

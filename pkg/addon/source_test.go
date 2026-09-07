@@ -421,6 +421,21 @@ func TestValidateHelmSourceCredential(t *testing.T) {
 			source:  &HelmSource{URL: "oci://registry:5000", InsecureSkipTLS: true},
 			wantErr: "insecureSkipTLS",
 		},
+		// A half-configured OCI credential would otherwise reach the registry
+		// client as BasicAuth with an empty counterpart, which registries answer
+		// with a 401 naming neither field.
+		"oci username without a token": {
+			source:  &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS"},
+			wantErr: "username and token together",
+		},
+		"oci token without a username": {
+			source:  &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Token: "tok"},
+			wantErr: "username and token together",
+		},
+		"oci token secret ref without a username": {
+			source:  &HelmSource{URL: "oci://ghcr.io/kubevela/addons", TokenSecretRef: "s"},
+			wantErr: "username and token together",
+		},
 	}
 
 	for name, tc := range testCases {

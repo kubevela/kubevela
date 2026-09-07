@@ -82,6 +82,12 @@ func TestFetchExactVersionDefaultsToRegistryLookup(t *testing.T) {
 
 func TestValidateSystemRequirements(t *testing.T) {
 	t.Run("skips when rest config is unavailable", func(t *testing.T) {
+		// restConfig() falls back to the process-wide singleton, whose loader is
+		// config.GetConfigOrDie: left unset, this subtest exits the whole test
+		// binary on a machine with no kubeconfig instead of exercising the
+		// no-config branch. Set the singleton to the value the branch is about.
+		singleton.KubeConfig.Set(nil)
+
 		r := &rendererImpl{cli: fakeClientWithRegistry(t)}
 		err := r.validateSystemRequirements(context.Background(), "example", &pkgaddon.InstallPackage{})
 		assert.NoError(t, err)
@@ -589,6 +595,41 @@ func TestAppendAuxComponentsGroupsAndOmitsEmpty(t *testing.T) {
 	assert.False(t, hasCT, "aux object creationTimestamp must be stripped")
 }
 
+// TestResolveAndRenderOmitsArgsSecretWithoutProperties pins the args Secret to
+// the same rule the install path follows: applied when the addon was given
+// arguments, absent when it was not. Rendering it unconditionally left every
+// unparameterized addon component carrying a Secret whose only content was an
+// empty JSON object, which the install path would have deleted.
+func TestResolveAndRenderOmitsArgsSecretWithoutProperties(t *testing.T) {
+	r := &rendererImpl{
+		cli: fakeClientWithRegistry(t),
+		findPackagesFn: func(_ context.Context, _ client.Client, _, _ []string) ([]*pkgaddon.WholeAddonPackage, error) {
+			return []*pkgaddon.WholeAddonPackage{{
+				InstallPackage: pkgaddon.InstallPackage{
+					Meta:        pkgaddon.Meta{Name: "example", Version: "1.0.0"},
+					AppTemplate: &v1beta1.Application{},
+				},
+				RegistryName: "fixture",
+			}}, nil
+		},
+	}
+
+	res, err := r.resolveAndRender(context.Background(), api.AddonRequest{
+		Name:                "example",
+		SkipVersionValidate: true,
+	})
+	require.NoError(t, err)
+
+	spec, ok := res.Application["spec"].(map[string]interface{})
+	require.True(t, ok, "Application.spec must be a map[string]interface{}")
+	comps, _ := spec["components"].([]interface{})
+	for _, item := range comps {
+		comp, isMap := item.(map[string]interface{})
+		require.True(t, isMap, "each component must be a map[string]interface{}")
+		assert.NotEqual(t, "addon-secret", comp["name"], "no arguments means no args Secret")
+	}
+}
+
 func TestResolveAndRenderFinalizesApplication(t *testing.T) {
 	r := &rendererImpl{
 		cli: fakeClientWithRegistry(t),
@@ -610,6 +651,9 @@ func TestResolveAndRenderFinalizesApplication(t *testing.T) {
 	res, err := r.resolveAndRender(context.Background(), api.AddonRequest{
 		Name:                "example",
 		SkipVersionValidate: true,
+		// Properties are what the args Secret exists to remember, so the
+		// component-name assertion below needs them to have something to hold.
+		Properties: map[string]interface{}{"replicas": 2},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "1.0.0", res.ResolvedVersion)
@@ -631,7 +675,7 @@ func TestResolveAndRenderFinalizesApplication(t *testing.T) {
 	require.True(t, ok, "spec.components must be a []interface{}")
 	// Name the components explicitly rather than asserting NotEmpty. This fixture's
 	// AppTemplate carries no components and no YAML/CUE templates, so the only
-	// component is the args Secret that RenderArgsSecret always emits; a bare
+	// component is the args Secret rendered for the request's properties; a bare
 	// NotEmpty would pass on that alone and assert nothing about the grouping.
 	compNames := make([]string, 0, len(comps))
 	for _, item := range comps {
@@ -847,15 +891,18 @@ func TestResolveAndRenderPinnedVersionDoesNotNeedLatest(t *testing.T) {
 // TestClientAndRestConfigFallBackToSingleton covers the production path where
 // no client/config was injected, so client() and restConfig() must read the
 // kubevela-pkg singletons. It sets those process-wide singletons via Set (not
-// the real loader, which would dial a live cluster), and restores them
+// the real loader, which would dial a live cluster), and clears them
 // afterward: leaving them set would hand any later test in this package a
 // stale fake client/config instead of the nil every other test here assumes.
+//
+// The cleanup restores nil rather than a saved previous value on purpose.
+// Reading the previous value with Get() would run the singleton's loader,
+// which is config.GetConfigOrDie: on a machine with no kubeconfig that ends
+// the whole test binary before this test has asserted anything.
 func TestClientAndRestConfigFallBackToSingleton(t *testing.T) {
-	originalKubeClient := singleton.KubeClient.Get()
-	originalKubeConfig := singleton.KubeConfig.Get()
 	t.Cleanup(func() {
-		singleton.KubeClient.Set(originalKubeClient)
-		singleton.KubeConfig.Set(originalKubeConfig)
+		singleton.KubeClient.Set(nil)
+		singleton.KubeConfig.Set(nil)
 	})
 
 	fakeCli := fakeClientWithRegistry(t)

@@ -27,6 +27,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sync/singleflight"
@@ -35,6 +36,7 @@ import (
 	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/repo"
 	"k8s.io/klog/v2"
+	registryauth "oras.land/oras-go/pkg/registry/remote/auth"
 )
 
 // ociPuller pulls a Helm-chart artifact from an OCI registry and returns the raw
@@ -197,7 +199,11 @@ func newOCIClientWithPlainHTTP(host, username, password string, plainHTTP bool) 
 			return client, nil
 		}
 
-		var opts []registry.ClientOption
+		// The client's own HTTP timeout is what actually terminates a request
+		// abandoned by awaitOCICall; without it a hung registry would keep the
+		// orphaned goroutine, its connection, and its buffered result alive for
+		// as long as the process runs.
+		opts := []registry.ClientOption{registry.ClientOptHTTPClient(&http.Client{Timeout: ociCallTimeout})}
 		if plainHTTP {
 			opts = append(opts, registry.ClientOptPlainHTTP())
 		}
@@ -220,14 +226,57 @@ func newOCIClientWithPlainHTTP(host, username, password string, plainHTTP bool) 
 	return result.(*registry.Client), nil
 }
 
-// pullOCIChart is the production puller: it logs in (when credentials are set)
-// and pulls the chart layer from the OCI registry via the Helm registry client.
-func pullOCIChart(_ context.Context, ref, host, username, password string) ([]byte, error) {
-	return pullOCIChartWithTransport(ref, host, username, password, false)
+// ociCallTimeout bounds one helm-registry-client call. helm's *registry.Client
+// takes no context, so awaitOCICall below releases a cancelled caller while
+// the call itself keeps running on its own goroutine; this timeout is what
+// stops that goroutine from outliving the process's interest in it.
+//
+// It is deliberately generous. helm's own client sets no timeout at all, and
+// this bound applies to a whole chart pull including the body, so anything
+// tight would start failing large addons on slow links. Its job is to stop an
+// abandoned request from living for the lifetime of the process, not to
+// express a latency target.
+const ociCallTimeout = 5 * time.Minute
+
+// awaitOCICall runs a blocking helm registry operation and returns as soon as
+// either it finishes or ctx is done.
+//
+// helm's Pull and Tags take no context, so without this a cancelled reconcile
+// stays blocked until the registry answers or the connection breaks -- exactly
+// the case where the caller no longer wants the result. The operation cannot
+// be aborted from outside, so it is left to finish into a buffered channel
+// whose result is dropped; the client's ociCallTimeout keeps that bounded.
+func awaitOCICall[T any](ctx context.Context, op func() (T, error)) (T, error) {
+	type outcome struct {
+		value T
+		err   error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		value, err := op()
+		done <- outcome{value: value, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		var zero T
+		return zero, ctx.Err()
+	case res := <-done:
+		return res.value, res.err
+	}
 }
 
-func pullOCIChartWithPlainHTTP(_ context.Context, ref, host, username, password string) ([]byte, error) {
-	return pullOCIChartWithTransport(ref, host, username, password, true)
+// pullOCIChart is the production puller: it logs in (when credentials are set)
+// and pulls the chart layer from the OCI registry via the Helm registry client.
+func pullOCIChart(ctx context.Context, ref, host, username, password string) ([]byte, error) {
+	return awaitOCICall(ctx, func() ([]byte, error) {
+		return pullOCIChartWithTransport(ref, host, username, password, false)
+	})
+}
+
+func pullOCIChartWithPlainHTTP(ctx context.Context, ref, host, username, password string) ([]byte, error) {
+	return awaitOCICall(ctx, func() ([]byte, error) {
+		return pullOCIChartWithTransport(ref, host, username, password, true)
+	})
 }
 
 func pullOCIChartWithTransport(ref, host, username, password string, plainHTTP bool) ([]byte, error) {
@@ -247,12 +296,16 @@ func pullOCIChartWithTransport(ref, host, username, password string, plainHTTP b
 
 // listOCITags lists the repository's semver tags (highest first) via the Helm
 // registry client, which filters non-semver tags and sorts descending.
-func listOCITags(_ context.Context, repoRef, host, username, password string) ([]string, error) {
-	return listOCITagsWithTransport(repoRef, host, username, password, false)
+func listOCITags(ctx context.Context, repoRef, host, username, password string) ([]string, error) {
+	return awaitOCICall(ctx, func() ([]string, error) {
+		return listOCITagsWithTransport(repoRef, host, username, password, false)
+	})
 }
 
-func listOCITagsWithPlainHTTP(_ context.Context, repoRef, host, username, password string) ([]string, error) {
-	return listOCITagsWithTransport(repoRef, host, username, password, true)
+func listOCITagsWithPlainHTTP(ctx context.Context, repoRef, host, username, password string) ([]string, error) {
+	return awaitOCICall(ctx, func() ([]string, error) {
+		return listOCITagsWithTransport(repoRef, host, username, password, true)
+	})
 }
 
 func listOCITagsWithTransport(repoRef, host, username, password string, plainHTTP bool) ([]string, error) {
@@ -344,6 +397,38 @@ func listOCIRepositoriesWithPlainHTTP(ctx context.Context, registryURL, username
 	return listOCIRepositoriesWithScheme(ctx, registryURL, username, password, "http")
 }
 
+// ociCatalogHTTPClient supplies the HTTP client the /v2/_catalog probe runs
+// on. It is a seam so tests can point the probe at an httptest server without
+// mutating http.DefaultClient, which is process-global and shared with every
+// other caller in the binary. Production leaves it nil, meaning
+// http.DefaultClient.
+var ociCatalogHTTPClient *http.Client
+
+// newOCICatalogAuthClient wraps the catalog HTTP client in the same authorizer
+// helm and ORAS use, so the probe completes whichever challenge the registry
+// issues.
+//
+// /v2/_catalog is a plain HTTP call rather than a helm registry-client
+// operation, so it has to do its own auth. Sending BasicAuth unconditionally
+// only works on registries that accept it: a token-auth registry (Docker
+// Hub, GHCR, ECR, Harbor) answers 401 with a Bearer challenge and expects the
+// caller to exchange it at the challenge's realm for a
+// registry:catalog:*-scoped token. Reusing ORAS's auth client gets both
+// schemes, and the anonymous exchange for a registry that issues a Bearer
+// challenge without credentials.
+func newOCICatalogAuthClient(username, password string) *registryauth.Client {
+	client := &registryauth.Client{
+		Client: ociCatalogHTTPClient,
+		Cache:  registryauth.NewCache(),
+	}
+	if username != "" || password != "" {
+		client.Credential = func(context.Context, string) (registryauth.Credential, error) {
+			return registryauth.Credential{Username: username, Password: password}, nil
+		}
+	}
+	return client
+}
+
 func listOCIRepositoriesWithScheme(ctx context.Context, registryURL, username, password, scheme string) ([]string, error) {
 	host, prefix := ociRegistryLocation(registryURL)
 	next := &url.URL{
@@ -355,15 +440,17 @@ func listOCIRepositoriesWithScheme(ctx context.Context, registryURL, username, p
 	seen := map[string]bool{}
 	var addons []string
 
+	authClient := newOCICatalogAuthClient(username, password)
+	// The scope the token exchange asks for. Without it a token-auth registry
+	// mints a token that carries no catalog permission and answers 401 again.
+	ctx = registryauth.WithScopes(ctx, registryauth.ScopeRegistryCatalog)
+
 	for next != nil {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, next.String(), nil)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to build OCI catalog request")
 		}
-		if username != "" || password != "" {
-			req.SetBasicAuth(username, password)
-		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := authClient.Do(req)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to list OCI catalog at %s", host)
 		}
@@ -413,9 +500,9 @@ func listOCIRepositoriesWithScheme(ctx context.Context, registryURL, username, p
 			}
 			// The Link header is registry-supplied and url.Parse resolves an
 			// absolute URL by replacing scheme and host outright. Every request in
-			// this loop attaches the registry's BasicAuth credentials, so following
-			// such a link would hand them to a host we were never configured to
-			// talk to. Accept only links that stay on the original scheme and host.
+			// this loop carries this registry's credentials, so following such a
+			// link would hand them to a host we were never configured to talk to.
+			// Accept only links that stay on the original scheme and host.
 			if candidate.Scheme != scheme || candidate.Host != host {
 				return nil, errors.Errorf("refusing OCI catalog pagination link %q: expected an %s link on host %s", candidate.Redacted(), scheme, host)
 			}
@@ -427,15 +514,61 @@ func listOCIRepositoriesWithScheme(ctx context.Context, registryURL, username, p
 	return addons, nil
 }
 
+// ociFatalErrorMarkers are the substrings that identify a failure this
+// backend must not present as "this registry cannot serve the addon".
+//
+// The first group is the registry refusing the caller: oras-go v1 renders the
+// distribution spec's UNAUTHORIZED and DENIED codes into the message, and
+// docker credential lookup and token exchange failures surface as their own
+// text. The second is an artifact that was fetched but is not a usable chart.
+// Both mean the operator has something to fix here, and neither gets better by
+// trying the next registry.
+var ociFatalErrorMarkers = []string{
+	"unauthorized",
+	"denied",
+	"authentication required",
+	"forbidden",
+	"failed to login to OCI registry",
+	"has no chart layer",
+}
+
+// isOCIFatalError reports whether err names a cause that another registry
+// cannot substitute for.
+//
+// The test is on the message because oras-go v1.2.5 keeps its error types in
+// the unexported pkg/registry/remote/internal/errutil and builds these with
+// fmt.Errorf, so there is nothing to match with errors.As. A miss is not
+// silent: the error text still reaches the log line that records the skipped
+// registry.
+func isOCIFatalError(err error) bool {
+	msg := strings.ToLower(err.Error())
+	for _, marker := range ociFatalErrorMarkers {
+		if strings.Contains(msg, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 // classify translates a load failure into the shared error vocabulary.
 // installDependency uses isSkippableRegistryError to decide whether to try the
-// next registry; without this, any OCI error (a missing tag, an auth failure, an
-// unreachable host) would abort dependency resolution instead of falling
-// through. The HTTP backend deliberately does not do this, which is why it is an
-// optional capability rather than part of chartBackend.
+// next registry; without this, a missing tag or an unreachable host would abort
+// dependency resolution instead of falling through. The HTTP backend
+// deliberately does not do this, which is why it is an optional capability
+// rather than part of chartBackend.
+//
+// Not every OCI failure earns that fallthrough. A rejected credential or an
+// artifact that is not a chart is a fault in this registry's configuration or
+// contents, and reporting either as ErrFetch spends the remaining registries
+// on a request that cannot succeed and then tells the operator the addon does
+// not exist anywhere -- with the 401 or the malformed archive nowhere in the
+// message. Those surface as themselves.
 func (b *ociHelmBackend) classify(err error) error {
 	if err == nil || errors.Is(err, ErrNotExist) || errors.Is(err, ErrFetch) {
 		return err
+	}
+	if isOCIFatalError(err) {
+		return errors.Wrapf(err, "OCI registry %s", b.name)
 	}
 	return errors.Wrapf(ErrFetch, "OCI registry %s: %v", b.name, err)
 }
@@ -521,12 +654,37 @@ func (b *ociHelmBackend) loadUIData(ctx context.Context, addonName, version stri
 
 // ListUIData enumerates repositories below the configured OCI prefix and loads
 // the latest semver-tagged addon metadata for each repository.
+// catalogOrigin records which discovery path produced a listUIData result.
+// The publisher in oci_catalog.go needs the distinction: only the portable
+// catalog artifact is authoritative about what is already published there, so
+// a listing rebuilt by registry enumeration -- including an empty one -- is
+// not evidence that the portable catalog holds nothing.
+type catalogOrigin int
+
+const (
+	// catalogOriginPortable means the result was decoded from the portable
+	// kubevela-addon-catalog artifact.
+	catalogOriginPortable catalogOrigin = iota
+	// catalogOriginRegistryEnumeration means the portable catalog could not be
+	// read and the result was rebuilt by enumerating the registry's catalog.
+	catalogOriginRegistryEnumeration
+)
+
 func (b *ociHelmBackend) listUIData(ctx context.Context) ([]*UIData, error) {
+	addons, _, err := b.listUIDataWithOrigin(ctx)
+	return addons, err
+}
+
+// listUIDataWithOrigin lists the registry's addons and reports where the
+// listing came from. Readers can ignore the origin; the catalog publisher
+// cannot, because rewriting the portable catalog from an enumeration-derived
+// list would drop entries the portable catalog holds but this read never saw.
+func (b *ociHelmBackend) listUIDataWithOrigin(ctx context.Context) ([]*UIData, catalogOrigin, error) {
 	var indexErr error
 	if b.catalogIndexFn != nil {
 		addons, err := b.catalogIndexFn(ctx, b.url, b.username, b.token)
 		if err == nil {
-			return addons, nil
+			return addons, catalogOriginPortable, nil
 		}
 		indexErr = err
 		klog.V(4).Infof("Portable OCI addon catalog is unavailable for registry %q, falling back to registry catalog discovery: %v", b.name, err)
@@ -543,11 +701,11 @@ func (b *ociHelmBackend) listUIData(ctx context.Context) ([]*UIData, error) {
 			// either failure was a read error, callers must not treat the result as
 			// an empty catalog.
 			if errors.Is(indexErr, ErrOCICatalogAbsent) && errors.Is(err, ErrOCICatalogAbsent) {
-				return nil, errors.Wrapf(ErrOCICatalogAbsent, "no OCI addon catalog at portable location (%v) or registry catalog (%v)", indexErr, err)
+				return nil, catalogOriginRegistryEnumeration, errors.Wrapf(ErrOCICatalogAbsent, "no OCI addon catalog at portable location (%v) or registry catalog (%v)", indexErr, err)
 			}
-			return nil, errors.Errorf("failed to list OCI addons from portable catalog (%v) and registry catalog (%v)", indexErr, err)
+			return nil, catalogOriginRegistryEnumeration, errors.Errorf("failed to list OCI addons from portable catalog (%v) and registry catalog (%v)", indexErr, err)
 		}
-		return nil, err
+		return nil, catalogOriginRegistryEnumeration, err
 	}
 
 	var addons []*UIData
@@ -559,17 +717,17 @@ func (b *ociHelmBackend) listUIData(ctx context.Context) ([]*UIData, error) {
 		}
 		versions, err := tags(ctx, repoRef, host, b.username, b.token)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to list versions for OCI addon %s", name)
+			return nil, catalogOriginRegistryEnumeration, errors.Wrapf(err, "failed to list versions for OCI addon %s", name)
 		}
 		if len(versions) == 0 {
 			continue
 		}
 		addon, err := b.loadUIData(ctx, name, versions[0])
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to load metadata for OCI addon %s", name)
+			return nil, catalogOriginRegistryEnumeration, errors.Wrapf(err, "failed to load metadata for OCI addon %s", name)
 		}
 		addon.AvailableVersions = versions
 		addons = append(addons, addon)
 	}
-	return addons, nil
+	return addons, catalogOriginRegistryEnumeration, nil
 }

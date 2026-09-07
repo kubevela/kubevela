@@ -20,9 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"net/url"
 	"sort"
-	"strings"
 
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -118,16 +116,16 @@ func (b *httpHelmBackend) resolve(ctx context.Context, addonName, version string
 	return nil, ErrFetch
 }
 
-// sameHost reports whether two URLs share a scheme and a host, so the caller
-// can decide whether it is safe to send this registry's credentials to a URL
-// the index supplied. The scheme has to match too: an https:// repository
-// whose index lists an http:// URL on the same host must not reuse
+// sameHost reports whether two URLs share an origin, so the caller can decide
+// whether it is safe to send this registry's credentials to a URL the index
+// supplied. It compares normalized origins: the host case-insensitively and
+// the port with the scheme's default filled in, so a repository configured as
+// https://example.com keeps its credentials for an index entry that spells the
+// same origin https://example.com:443. The scheme has to match too: an https://
+// repository whose index lists an http:// URL on the same host must not reuse
 // credentials there, since that would put them on the wire in cleartext.
 func sameHost(a, b string) bool {
-	ua, errA := url.Parse(a)
-	ub, errB := url.Parse(b)
-	return errA == nil && errB == nil &&
-		strings.EqualFold(ua.Scheme, ub.Scheme) && strings.EqualFold(ua.Host, ub.Host)
+	return common.SameOrigin(a, b)
 }
 
 // withoutCredentials returns a copy of opts with authentication removed, for

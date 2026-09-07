@@ -73,12 +73,20 @@ type PushCmd struct {
 
 // ociPushSource returns the OCI chart source a configured registry pushes to, or
 // nil when the registry is not OCI-backed. The inline token is carried over
-// explicitly because a safe copy deliberately drops it.
+// explicitly because a safe copy deliberately drops it. InsecureSkipTLS is
+// carried over too, even though the OCI transport cannot honour it, so that
+// pushToOCI's validation rejects a record that sets it rather than pushing
+// with TLS verification silently left on.
 func ociPushSource(reg Registry) *HelmSource {
 	if reg.Helm == nil || !IsOCIURL(reg.Helm.URL) {
 		return nil
 	}
-	return &HelmSource{URL: reg.Helm.URL, Username: reg.Helm.Username, Token: reg.Helm.Token}
+	return &HelmSource{
+		URL:             reg.Helm.URL,
+		Username:        reg.Helm.Username,
+		Token:           reg.Helm.Token,
+		InsecureSkipTLS: reg.Helm.InsecureSkipTLS,
+	}
 }
 
 // IsDirectAddonPushTarget reports whether target can be used without resolving
@@ -232,8 +240,10 @@ func (p *PushCmd) pushToOCI(ctx context.Context, source *HelmSource) error {
 		// let a caller believe a custom CA or client cert was applied.
 		return errors.New("--ca-file, --cert-file, --key-file, and --insecure are only supported for ChartMuseum; OCI registries use the ambient Docker/Helm TLS configuration")
 	}
-	if (source.Username == "") != (source.Token == "") {
-		return errors.New("OCI registry username and password must be supplied together; omit both to use anonymous access or configured Helm/Docker credentials")
+	// One rule for what an oci:// source may say, shared with the read path in
+	// NewVersionedRegistry, so a record the reader rejects cannot be pushed to.
+	if err := source.validateCredential(); err != nil {
+		return err
 	}
 	if p.ociPushFn != nil {
 		return p.ociPushFn(ctx, source, p.UseHTTP)
@@ -273,6 +283,10 @@ func (p *PushCmd) pushOCI(source *HelmSource) error {
 	}
 	loadedChart, err := loader.LoadArchive(bytes.NewReader(archive))
 	if err != nil {
+		return err
+	}
+
+	if err := validateOCIAddonName(loadedChart.Metadata.Name); err != nil {
 		return err
 	}
 

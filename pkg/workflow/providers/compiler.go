@@ -75,7 +75,10 @@ var compiler = singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, e
 		runtime.Must(cuexruntime.NewInternalPackage("query", query.GetTemplate(), query.GetProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage("terraform", terraform.GetTemplate(), terraform.GetProviders())),
 
-		runtime.Must(cuexruntime.NewInternalPackage("addon", addonprovider.GetTemplate(), addonprovider.GetProviders())),
+		// Reuse the package the provider already exports rather than rebuilding
+		// it here: the name would otherwise be spelled in two places and the
+		// provider's own ProviderName in a third.
+		addonprovider.Package,
 	), nil
 })
 

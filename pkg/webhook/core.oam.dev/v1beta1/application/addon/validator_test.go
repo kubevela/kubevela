@@ -88,7 +88,11 @@ func TestValidateComponents(t *testing.T) {
 			wantErrCount: 0,
 			wantCalls:    0,
 		},
-		"malformed properties skip compatibility validation": {
+		// Malformed properties are the Application's own fault, not a registry
+		// that could not answer, so they are denied rather than admitted. The
+		// deliberate fail-open lives in defaultCompatChecker and is covered in
+		// compat_test.go.
+		"malformed properties are rejected without reaching the checker": {
 			components: []common.ApplicationComponent{
 				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": map[string]interface{}{"not": "a string"}})},
 			},
@@ -98,12 +102,13 @@ func TestValidateComponents(t *testing.T) {
 					return field.Invalid(field.NewPath("x"), "fluxcd", "should never be reached")
 				}
 			},
-			wantErrCount: 0,
+			wantErrCount: 1,
+			wantField:    "spec.components[0].properties",
 			wantCalls:    0,
 		},
-		"fail-open checker registry error yields no denial": {
+		"a numeric version is rejected as malformed": {
 			components: []common.ApplicationComponent{
-				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd"})},
+				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "version": 2})},
 			},
 			checker: func(calls *int) func(context.Context, client.Client, *rest.Config, string, string, string) *field.Error {
 				return func(_ context.Context, _ client.Client, _ *rest.Config, _, _, _ string) *field.Error {
@@ -111,8 +116,9 @@ func TestValidateComponents(t *testing.T) {
 					return nil
 				}
 			},
-			wantErrCount: 0,
-			wantCalls:    1,
+			wantErrCount: 1,
+			wantField:    "spec.components[0].properties",
+			wantCalls:    0,
 		},
 		"non-addon components are ignored": {
 			components: []common.ApplicationComponent{
@@ -144,18 +150,25 @@ func TestValidateComponents(t *testing.T) {
 			wantErrCount: 0,
 			wantCalls:    1,
 		},
+		// Both components are checked, and only the one the checker rejects
+		// produces an error -- reported against its own index, not the first
+		// addon component's.
 		"multiple addon components are checked independently": {
 			components: []common.ApplicationComponent{
 				{Name: "first", Type: ComponentType},
 				{Name: "second", Type: ComponentType},
 			},
 			checker: func(calls *int) func(context.Context, client.Client, *rest.Config, string, string, string) *field.Error {
-				return func(_ context.Context, _ client.Client, _ *rest.Config, _, _, _ string) *field.Error {
+				return func(_ context.Context, _ client.Client, _ *rest.Config, addon, _, _ string) *field.Error {
 					*calls++
+					if addon == "second" {
+						return field.Invalid(field.NewPath("x"), addon, "requires kubernetes >= 1.30")
+					}
 					return nil
 				}
 			},
-			wantErrCount: 0,
+			wantErrCount: 1,
+			wantField:    "spec.components[1].properties",
 			wantCalls:    2,
 		},
 	}

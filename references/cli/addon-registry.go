@@ -104,15 +104,23 @@ add a private ECR registry: aws ecr get-login-password --region <region> | vela 
 			return addAddonRegistry(context.Background(), c, *registry)
 		},
 	}
-	// --password-stdin reads via cmd.InOrStdin(), which falls back to the
-	// process's os.Stdin unless the command has its own reader set. Without
-	// this, a caller that supplies input only through ioStreams.In (rather
-	// than real OS-level stdin, e.g. an in-process test or embedding tool)
-	// would have that input silently ignored, and io.ReadAll would block
-	// waiting on a stdin that never receives it.
-	cmd.SetIn(ioStreams.In)
+	useIOStreamsInput(cmd, ioStreams)
 	parseArgsFromFlag(cmd)
 	return cmd
+}
+
+// useIOStreamsInput points the command's input at the caller's stream.
+//
+// --password-stdin reads via cmd.InOrStdin(), which falls back to the
+// process's os.Stdin unless the command has its own reader set. Without this,
+// a caller that supplies input only through ioStreams.In (rather than real
+// OS-level stdin, e.g. an in-process test or an embedding tool) would have
+// that input silently ignored, and io.ReadAll would block waiting on a stdin
+// that never receives it.
+func useIOStreamsInput(cmd *cobra.Command, ioStreams cmdutil.IOStreams) {
+	if ioStreams.In != nil {
+		cmd.SetIn(ioStreams.In)
+	}
 }
 
 // NewGetAddonRegistryCommand return an addon registry get command
@@ -150,7 +158,7 @@ func NewListAddonRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Comm
 }
 
 // NewUpdateAddonRegistryCommand return an addon registry update command
-func NewUpdateAddonRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
+func NewUpdateAddonRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "update",
 		Short:   "Update an addon registry.",
@@ -167,6 +175,7 @@ func NewUpdateAddonRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Co
 			return updateAddonRegistry(context.Background(), c, *registry)
 		},
 	}
+	useIOStreamsInput(cmd, ioStreams)
 	parseArgsFromFlag(cmd)
 	return cmd
 }
@@ -344,6 +353,19 @@ func setRegistryPasswordFromStdin(cmd *cobra.Command) error {
 	}
 	if !passwordStdin {
 		return nil
+	}
+	registryType, err := cmd.Flags().GetString(addonRegistryType)
+	if err != nil {
+		return err
+	}
+	// Only the Helm and OCI record types have a password field. For every other
+	// type getRegistryFromArgs never reads the password flag, so reading stdin
+	// here would consume the caller's piped secret and throw it away -- with the
+	// registry created, unauthenticated, and no indication why. git and gitlab
+	// registries authenticate with --gitToken instead.
+	if registryType != addonHelmType && registryType != addonOCIType {
+		return errors.Errorf("--%s is only supported for --type %s and --type %s; a %q registry has no password (use --%s)",
+			addonPasswordStdin, addonHelmType, addonOCIType, registryType, addonGitToken)
 	}
 	value, err := readPasswordFromStdin(cmd, cmd.Flags().Changed(addonPassword), "addon registry")
 	if err != nil {

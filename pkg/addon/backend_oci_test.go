@@ -18,6 +18,8 @@ package addon
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -25,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -34,7 +37,48 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/registry"
+	registryauth "oras.land/oras-go/pkg/registry/remote/auth"
 )
+
+// useCatalogHTTPClient points the /v2/_catalog probe at a test HTTP client for
+// the duration of the test.
+//
+// These tests used to swap http.DefaultClient instead. That is process-global
+// state shared with every other caller in the binary: it happens to work while
+// no test in this package calls t.Parallel, but it makes the probe's transport
+// an implicit dependency on test ordering rather than an injected one.
+func useCatalogHTTPClient(t *testing.T, client *http.Client) {
+	t.Helper()
+	original := ociCatalogHTTPClient
+	t.Cleanup(func() { ociCatalogHTTPClient = original })
+	ociCatalogHTTPClient = client
+}
+
+// resetOCIClientCache empties the process-wide OCI client cache for one test,
+// and empties it again afterward so the clients this test created are not left
+// for the next one to reuse.
+func resetOCIClientCache(t *testing.T) {
+	t.Helper()
+	clear := func() {
+		ociClientCache.Lock()
+		defer ociClientCache.Unlock()
+		ociClientCache.clients = map[string]*registry.Client{}
+	}
+	clear()
+	t.Cleanup(clear)
+}
+
+// clientTrusting builds an HTTP client that trusts exactly the given httptest
+// TLS servers, so a test can let a request reach more than one of them.
+func clientTrusting(servers ...*httptest.Server) *http.Client {
+	pool := x509.NewCertPool()
+	for _, server := range servers {
+		pool.AddCert(server.Certificate())
+	}
+	return &http.Client{Transport: &http.Transport{
+		TLSClientConfig: &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12},
+	}}
+}
 
 // ociFacade wraps a backend in the shared registry facade, which is what
 // production callers hold. The tests below drive real VersionedRegistry calls
@@ -70,14 +114,23 @@ func TestOCIRepoRef(t *testing.T) {
 	}
 }
 
+// TestListOCIRepositories covers the basic-auth challenge flow and pagination.
+// The probe sends no credentials until the registry asks for them, so the
+// server answers the unauthenticated request with a Basic challenge and only
+// then serves the catalog.
 func TestListOCIRepositories(t *testing.T) {
 	var server *httptest.Server
 	server = httptest.NewTLSServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		assert.Equal(t, "/v2/_catalog", req.URL.Path)
+
 		user, pass, ok := req.BasicAuth()
-		assert.True(t, ok)
+		if !ok {
+			rw.Header().Set("WWW-Authenticate", `Basic realm="registry"`)
+			rw.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 		assert.Equal(t, "AWS", user)
 		assert.Equal(t, "secret", pass)
-		assert.Equal(t, "/v2/_catalog", req.URL.Path)
 
 		if req.URL.Query().Get("last") == "" {
 			rw.Header().Set("Link", fmt.Sprintf(`<%s/v2/_catalog?n=1000&last=addon%%2Ffluxcd>; rel="next"`, server.URL))
@@ -88,16 +141,55 @@ func TestListOCIRepositories(t *testing.T) {
 	}))
 	defer server.Close()
 
-	originalClient := http.DefaultClient
-	http.DefaultClient = server.Client()
-	defer func() {
-		http.DefaultClient = originalClient
-	}()
+	useCatalogHTTPClient(t, server.Client())
 
 	registryURL := "oci://" + strings.TrimPrefix(server.URL, "https://") + "/addon"
 	addons, err := listOCIRepositories(context.Background(), registryURL, "AWS", "secret")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"fluxcd", "velaux"}, addons)
+}
+
+// TestListOCIRepositoriesCompletesBearerChallenge covers the token-auth
+// registries (Docker Hub, GHCR, ECR, Harbor): they answer /v2/_catalog with
+// 401 and a Bearer challenge, and expect the caller to exchange it at the
+// challenge's realm for a registry:catalog:*-scoped token. Sending BasicAuth
+// unconditionally, as this probe used to, gets a second 401 and reports the
+// catalog as unreadable.
+func TestListOCIRepositoriesCompletesBearerChallenge(t *testing.T) {
+	const issuedToken = "issued-catalog-token"
+
+	var tokenRequests int32
+	tokenServer := httptest.NewTLSServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		atomic.AddInt32(&tokenRequests, 1)
+		user, pass, ok := req.BasicAuth()
+		assert.True(t, ok, "the token exchange must present the registry credentials")
+		assert.Equal(t, "AWS", user)
+		assert.Equal(t, "secret", pass)
+		assert.Equal(t, registryauth.ScopeRegistryCatalog, req.URL.Query().Get("scope"),
+			"the exchange must ask for catalog scope, or the minted token cannot list the catalog")
+		_, _ = rw.Write([]byte(`{"token":"` + issuedToken + `"}`))
+	}))
+	defer tokenServer.Close()
+
+	registryServer := httptest.NewTLSServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		assert.Equal(t, "/v2/_catalog", req.URL.Path)
+		if req.Header.Get("Authorization") != "Bearer "+issuedToken {
+			assert.Empty(t, req.Header.Get("Authorization"), "basic auth must not be sent to a bearer registry")
+			rw.Header().Set("WWW-Authenticate", fmt.Sprintf(`Bearer realm="%s/token",service="registry"`, tokenServer.URL))
+			rw.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		_, _ = rw.Write([]byte(`{"repositories":["addon/fluxcd"]}`))
+	}))
+	defer registryServer.Close()
+
+	useCatalogHTTPClient(t, clientTrusting(registryServer, tokenServer))
+
+	registryURL := "oci://" + strings.TrimPrefix(registryServer.URL, "https://") + "/addon"
+	addons, err := listOCIRepositories(context.Background(), registryURL, "AWS", "secret")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"fluxcd"}, addons)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&tokenRequests), "the challenge must be exchanged exactly once")
 }
 
 func TestListOCIRepositoriesWithPlainHTTP(t *testing.T) {
@@ -378,21 +470,32 @@ func TestListOCIRepositoriesRefusesForeignPaginationLink(t *testing.T) {
 	defer attacker.Close()
 
 	registry := httptest.NewTLSServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		user, pass, ok := req.BasicAuth()
+		if !ok {
+			rw.Header().Set("WWW-Authenticate", `Basic realm="registry"`)
+			rw.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		assert.Equal(t, "AWS", user)
+		assert.Equal(t, "secret", pass)
 		rw.Header().Set("Link", fmt.Sprintf(`<%s/v2/_catalog?n=1000&last=x>; rel="next"`, attacker.URL))
 		_, _ = rw.Write([]byte(`{"repositories":["addon/fluxcd"]}`))
 	}))
 	defer registry.Close()
 
-	originalClient := http.DefaultClient
-	http.DefaultClient = registry.Client()
-	defer func() { http.DefaultClient = originalClient }()
+	// Trust the attacker's certificate as well as the registry's. With only the
+	// registry's CA trusted, a link-following implementation would fail the TLS
+	// handshake before sending anything, so attackerHits would stay zero
+	// whether or not the link was refused -- the assertion below could not
+	// catch the leak it is written to catch.
+	useCatalogHTTPClient(t, clientTrusting(registry, attacker))
 
 	registryURL := "oci://" + strings.TrimPrefix(registry.URL, "https://") + "/addon"
 	_, err := listOCIRepositories(context.Background(), registryURL, "AWS", "secret")
 
 	require.Error(t, err, "a pagination link pointing at another host must be refused")
 	assert.Contains(t, err.Error(), "refusing OCI catalog pagination link")
-	assert.Zero(t, atomic.LoadInt32(&attackerHits), "credentials must never be sent to the foreign host")
+	assert.Zero(t, atomic.LoadInt32(&attackerHits), "the foreign host must never be contacted")
 }
 
 // TestListOCIRepositoriesRefusesPlaintextPaginationLink covers the downgrade
@@ -407,9 +510,7 @@ func TestListOCIRepositoriesRefusesPlaintextPaginationLink(t *testing.T) {
 	}))
 	defer server.Close()
 
-	originalClient := http.DefaultClient
-	http.DefaultClient = server.Client()
-	defer func() { http.DefaultClient = originalClient }()
+	useCatalogHTTPClient(t, server.Client())
 
 	registryURL := "oci://" + strings.TrimPrefix(server.URL, "https://") + "/addon"
 	_, err := listOCIRepositories(context.Background(), registryURL, "AWS", "secret")
@@ -423,12 +524,12 @@ func TestListOCIRepositoriesRefusesPlaintextPaginationLink(t *testing.T) {
 // missing from an OCI registry aborts resolution instead of falling through to
 // the remaining registries.
 func TestOCILoadFailuresAreSkippable(t *testing.T) {
-	t.Run("a pull failure is a fetch error", func(t *testing.T) {
+	t.Run("an unreachable-registry pull failure is a fetch error", func(t *testing.T) {
 		reg := &ociHelmBackend{
 			name: "ecr",
 			url:  "oci://registry.example.com/addon",
 			pullFn: func(context.Context, string, string, string, string) ([]byte, error) {
-				return nil, errors.New("unauthorized: authentication required")
+				return nil, errors.New("dial tcp: i/o timeout")
 			},
 			tagsFn: func(context.Context, string, string, string, string) ([]string, error) {
 				return []string{"1.0.0"}, nil
@@ -437,7 +538,37 @@ func TestOCILoadFailuresAreSkippable(t *testing.T) {
 		_, err := ociFacade(reg).GetAddonInstallPackage(context.Background(), "fluxcd", "")
 		require.Error(t, err)
 		assert.True(t, isSkippableRegistryError(err), "got %v", err)
-		assert.Contains(t, err.Error(), "unauthorized", "the underlying cause must stay visible")
+		assert.Contains(t, err.Error(), "i/o timeout", "the underlying cause must stay visible")
+	})
+
+	// The complement of the case above, and the reason classify does not wrap
+	// everything: a rejected credential or an artifact that is not a chart is a
+	// fault in this registry that no other registry can substitute for.
+	// Reporting it as ErrFetch spends the remaining registries on a request
+	// that cannot succeed and then tells the operator the addon does not
+	// exist anywhere, with the 401 nowhere in the message.
+	t.Run("a rejected credential is not skippable", func(t *testing.T) {
+		for _, cause := range []string{
+			"unauthorized: authentication required",
+			"denied: requested access to the resource is denied",
+			"addon chart registry.example.com/addon/fluxcd:1.0.0 has no chart layer",
+		} {
+			reg := &ociHelmBackend{
+				name: "ecr",
+				url:  "oci://registry.example.com/addon",
+				pullFn: func(context.Context, string, string, string, string) ([]byte, error) {
+					return nil, errors.New(cause)
+				},
+				tagsFn: func(context.Context, string, string, string, string) ([]string, error) {
+					return []string{"1.0.0"}, nil
+				},
+			}
+			_, err := ociFacade(reg).GetAddonInstallPackage(context.Background(), "fluxcd", "")
+			require.Error(t, err)
+			assert.False(t, isSkippableRegistryError(err), "got %v", err)
+			assert.Contains(t, err.Error(), cause, "the underlying cause must stay visible")
+			assert.Contains(t, err.Error(), "OCI registry ecr", "the failing registry must be named")
+		}
 	})
 
 	t.Run("no semver tags means the addon does not exist here", func(t *testing.T) {
@@ -497,9 +628,7 @@ func TestOCICatalogAbsenceIsDistinguishable(t *testing.T) {
 			server := newServer(tc.status, `{}`)
 			defer server.Close()
 
-			originalClient := http.DefaultClient
-			http.DefaultClient = server.Client()
-			defer func() { http.DefaultClient = originalClient }()
+			useCatalogHTTPClient(t, server.Client())
 
 			registryURL := "oci://" + strings.TrimPrefix(server.URL, "https://") + "/addon"
 			_, err := listOCIRepositories(context.Background(), registryURL, "AWS", "secret")
@@ -733,9 +862,7 @@ func TestOCIRegistryGetAddonUIDataCarriesAvailableVersions(t *testing.T) {
 // client and logged in again, which real registries reject once the catalog
 // holds more than a couple of addons.
 func TestOCIClientCacheReusesLogin(t *testing.T) {
-	ociClientCache.Lock()
-	ociClientCache.clients = map[string]*registry.Client{}
-	ociClientCache.Unlock()
+	resetOCIClientCache(t)
 
 	first, err := newOCIClientWithPlainHTTP("reg.example.com", "", "", false)
 	require.NoError(t, err)
@@ -765,9 +892,7 @@ func TestOCIClientCacheReusesLogin(t *testing.T) {
 }
 
 func TestOCIClientCacheIsBounded(t *testing.T) {
-	ociClientCache.Lock()
-	ociClientCache.clients = map[string]*registry.Client{}
-	ociClientCache.Unlock()
+	resetOCIClientCache(t)
 
 	for i := 0; i < ociClientCacheLimit*2; i++ {
 		_, err := newOCIClientWithPlainHTTP(fmt.Sprintf("reg%d.example.com", i), "", "", false)
@@ -778,4 +903,44 @@ func TestOCIClientCacheIsBounded(t *testing.T) {
 	size := len(ociClientCache.clients)
 	ociClientCache.Unlock()
 	assert.LessOrEqual(t, size, ociClientCacheLimit, "the cache must stay bounded as credentials rotate")
+}
+
+// TestOCIPullNormalizesBuildMetadataTag pins the tag round-trip for versions
+// carrying SemVer build metadata.
+//
+// OCI tags cannot contain "+", so Helm stores such a version with "_" and
+// Client.Tags converts it back to "+" when listing. That makes the version this
+// code carries around ("1.0.0+build.5") differ from the tag actually published
+// ("1.0.0_build.5"), which would pull a nonexistent tag if the reference were
+// used verbatim. Client.Pull applies the same substitution as Client.Push, so
+// the reference is normalized on the way out and both directions agree. This
+// test fails if that ever stops being true.
+func TestOCIPullNormalizesBuildMetadataTag(t *testing.T) {
+	resetOCIClientCache(t)
+
+	var requested []string
+	var mu sync.Mutex
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		mu.Lock()
+		requested = append(requested, req.URL.Path)
+		mu.Unlock()
+		rw.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	host := strings.TrimPrefix(server.URL, "http://")
+	// The pull fails: the point is the reference the client puts on the wire,
+	// not the response.
+	_, err := pullOCIChartWithTransport(host+"/addon/fluxcd:1.0.0+build.5", host, "", "", true)
+	require.Error(t, err)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.NotEmpty(t, requested, "the client must have reached the registry")
+	for _, path := range requested {
+		assert.NotContains(t, path, "+", "a plus sign is not a legal OCI tag character")
+		assert.NotContains(t, path, "%2B", "the plus must be substituted, not percent-encoded")
+	}
+	assert.Contains(t, strings.Join(requested, " "), "1.0.0_build.5",
+		"the published tag spelling must be what is requested")
 }

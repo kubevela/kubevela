@@ -255,3 +255,52 @@ func TestHelmRegistryListAddonStampsRegistryName(t *testing.T) {
 		assert.Equal(t, "my-registry", addon.RegistryName)
 	}
 }
+
+// TestHelmRegistryKeepsPackageVersionsWhenBackendEnumeratesNone pins the
+// version list a pinned lookup ends up with.
+//
+// A pinned request needs no tag listing to resolve, so a backend that only
+// learns the sibling versions while searching for one (the OCI backend)
+// reports none. Overwriting the package's own list with that empty answer left
+// a direct or cold-cache pinned lookup reporting the addon as having no
+// versions at all, including the one just resolved.
+func TestHelmRegistryKeepsPackageVersionsWhenBackendEnumeratesNone(t *testing.T) {
+	files := testChartFiles(t)
+
+	resolveWith := func(t *testing.T, available []string) []string {
+		t.Helper()
+		r := &helmRegistry{
+			name: "my-registry",
+			backend: &fakeBackend{
+				resolveFn: func(_ context.Context, _, _ string) (*resolvedChart, error) {
+					return &resolvedChart{files: files, version: "1.0.0", availableVersions: available}, nil
+				},
+			},
+		}
+		pkg, err := r.GetDetailedAddon(context.Background(), "fluxcd", "1.0.0")
+		require.NoError(t, err)
+		return pkg.AvailableVersions
+	}
+
+	t.Run("an enumerated list is used", func(t *testing.T) {
+		assert.Equal(t, []string{"2.0.0", "1.0.0"}, resolveWith(t, []string{"2.0.0", "1.0.0"}))
+	})
+
+	t.Run("no enumeration keeps whatever the package carried", func(t *testing.T) {
+		// Whatever loadAddonPackage read from the archive, both spellings of
+		// "the backend enumerated nothing" must leave it alone rather than
+		// replacing it with the empty answer.
+		fromPackage := packageAvailableVersions(t, files)
+		assert.Equal(t, fromPackage, resolveWith(t, nil))
+		assert.Equal(t, fromPackage, resolveWith(t, []string{}))
+	})
+}
+
+// packageAvailableVersions reports the version list the addon archive itself
+// carries, which is the baseline a pinned lookup must not lose.
+func packageAvailableVersions(t *testing.T, files []*loader.BufferedFile) []string {
+	t.Helper()
+	pkg, err := loadAddonPackage("fluxcd", files)
+	require.NoError(t, err)
+	return pkg.AvailableVersions
+}

@@ -203,11 +203,11 @@ func DetectDefinitionConflicts(cueDefinitions, goDefinitions []ElementFile) []st
 // For compiled Go definitions, the name is typically in the format "type-name.cue"
 func extractDefinitionName(def ElementFile) string {
 	// filepath.Base first: def.Name can carry a directory prefix (e.g. a CUE
-	// file under "definitions/"), and extractDefinitionNameFromFile in
-	// helper.go -- which DetectDefinitionConflicts' caller uses to remove the
-	// names this function flags -- already strips it. Without this, a
-	// directory-prefixed name here never matches removeConflictingDefinitions'
-	// basename-only lookup, so the conflict is detected but never removed.
+	// file under "definitions/"), while a compiled Go definition is a bare
+	// filename. Without this, "definitions/webservice.cue" extracted as
+	// "definitions/webservice" and could never collide with the compiled
+	// "component-webservice.cue", so an override of a definition kept in a
+	// subdirectory went undetected.
 	name := filepath.Base(def.Name)
 
 	// For compiled Go definitions, the filename format is "type-name.cue"

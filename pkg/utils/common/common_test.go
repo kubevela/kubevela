@@ -18,6 +18,7 @@ package common
 
 import (
 	"context"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
@@ -249,6 +250,86 @@ func TestHttpGetCaFile(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSameOrigin pins the origin comparison the addon registry uses to decide
+// whether an index-supplied chart URL may carry the registry's credentials.
+// The default port has to normalize, or a repository configured without one
+// loses its credentials for an index entry that spells the same origin with
+// it; the scheme has to match, or credentials configured for https reach an
+// http URL in the clear.
+func TestSameOrigin(t *testing.T) {
+	cases := map[string]struct {
+		a, b string
+		want bool
+	}{
+		"identical":                          {"https://example.com/charts", "https://example.com", true},
+		"implicit and explicit 443":          {"https://example.com", "https://example.com:443/x", true},
+		"implicit and explicit 80":           {"http://example.com/x", "http://example.com:80", true},
+		"host case is insignificant":         {"https://Example.COM", "https://example.com", true},
+		"different port":                     {"https://example.com:8443", "https://example.com", false},
+		"different host":                     {"https://example.com", "https://mirror.example.com", false},
+		"scheme downgrade is a mismatch":     {"https://example.com", "http://example.com", false},
+		"unparseable input is never a match": {"https://example.com", "http://[::1", false},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, SameOrigin(tc.a, tc.b))
+		})
+	}
+}
+
+// TestHTTPGetRedirectHandlingWithClientCert covers the redirect guard.
+//
+// net/http drops the Authorization header when a redirect crosses to another
+// origin, but a TLS client certificate lives in the transport and is presented
+// to whatever host the chain lands on. A repository that redirects its chart
+// URLs off-origin would therefore authenticate the caller to a third party,
+// which the same-host check on the URL itself cannot prevent because the
+// crossing only happens after the request is sent.
+func TestHTTPGetRedirectHandlingWithClientCert(t *testing.T) {
+	clientCert, err := os.ReadFile("./testdata/server.crt")
+	assert.NoError(t, err)
+	clientKey, err := os.ReadFile("./testdata/server.key")
+	assert.NoError(t, err)
+
+	var followed bool
+	elsewhere := httptest.NewTLSServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		followed = true
+		_, _ = rw.Write([]byte("landed on the redirect target"))
+	}))
+	defer elsewhere.Close()
+
+	redirector := httptest.NewTLSServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		http.Redirect(rw, req, elsewhere.URL+"/index.yaml", http.StatusFound)
+	}))
+	defer redirector.Close()
+
+	// Trust both servers, so that a refusal is this code's decision rather than
+	// a TLS handshake that would have failed anyway.
+	caFile := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: redirector.Certificate().Raw})) +
+		string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: elsewhere.Certificate().Raw}))
+
+	t.Run("a cross-origin redirect is refused while a client certificate is set", func(t *testing.T) {
+		followed = false
+		_, err := HTTPGetWithOption(context.Background(), redirector.URL+"/index.yaml", &HTTPOption{
+			CaFile:   caFile,
+			CertFile: string(clientCert),
+			KeyFile:  string(clientKey),
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "refusing to follow the redirect")
+		assert.False(t, followed, "the redirect target must never be contacted")
+	})
+
+	t.Run("without a client certificate the redirect is still followed", func(t *testing.T) {
+		followed = false
+		body, err := HTTPGetWithOption(context.Background(), redirector.URL+"/index.yaml", &HTTPOption{CaFile: caFile})
+		assert.NoError(t, err)
+		assert.Equal(t, "landed on the redirect target", string(body))
+		assert.True(t, followed, "the guard must be scoped to requests that present a client certificate")
+	})
 }
 
 func TestGetCUEParameterValue(t *testing.T) {

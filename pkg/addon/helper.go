@@ -154,19 +154,17 @@ func removeConflictingDefinitions(definitions []ElementFile, conflicts []string)
 
 	var result []ElementFile
 	for _, def := range definitions {
-		name := extractDefinitionNameFromFile(def)
+		// The same extraction DetectDefinitionConflicts used to produce these
+		// names. A second, near-identical implementation lived here and skipped
+		// the type-prefix step, so "definitions/trait-fluxcd.cue" was flagged as
+		// a conflict on "fluxcd" and then looked up as "trait-fluxcd": every
+		// type-prefixed definition was detected and never removed.
+		name := extractDefinitionName(def)
 		if !conflictMap[name] {
 			result = append(result, def)
 		}
 	}
 	return result
-}
-
-// extractDefinitionNameFromFile extracts the definition name from an ElementFile (same as extractDefinitionName in godef.go)
-func extractDefinitionNameFromFile(def ElementFile) string {
-	name := filepath.Base(def.Name)
-	name = name[:len(name)-len(filepath.Ext(name))] // Remove extension
-	return name
 }
 
 // GetAddonStatus is general func for cli and apiServer get addon status

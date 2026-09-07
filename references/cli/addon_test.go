@@ -545,7 +545,7 @@ func TestSetPushPasswordFromStdin(t *testing.T) {
 }
 
 func TestAddonPushDirectOCIDoesNotRequireKubeClient(t *testing.T) {
-	cmd := NewAddonPushCommand(common.Args{})
+	cmd := NewAddonPushCommand(common.Args{}, util.IOStreams{})
 	cmd.SetArgs([]string{"/path/that/does/not/exist", "oci://registry.example.com/addons"})
 
 	err := cmd.Execute()
@@ -617,6 +617,7 @@ func TestSetRegistryPasswordFromStdin(t *testing.T) {
 		parseArgsFromFlag(cmd)
 		cmd.SetIn(strings.NewReader(input))
 		assert.NoError(t, cmd.Flags().Set(addonPasswordStdin, "true"))
+		assert.NoError(t, cmd.Flags().Set(addonRegistryType, addonOCIType))
 		return cmd
 	}
 
@@ -647,6 +648,23 @@ func TestSetRegistryPasswordFromStdin(t *testing.T) {
 
 		assert.ErrorContains(t, err, "is empty")
 	})
+
+	// Only helm and oci records have a password field. For any other type the
+	// flag would consume the piped secret and discard it, leaving an
+	// unauthenticated registry and no explanation.
+	t.Run("rejects a registry type that has no password", func(t *testing.T) {
+		for _, registryType := range []string{addonGitType, addonGitlabType, addonGiteeType, addonOssType} {
+			cmd := newCommand("registry-password\n")
+			assert.NoError(t, cmd.Flags().Set(addonRegistryType, registryType))
+
+			err := setRegistryPasswordFromStdin(cmd)
+
+			assert.ErrorContains(t, err, "--password-stdin is only supported for")
+			password, getErr := cmd.Flags().GetString(addonPassword)
+			assert.NoError(t, getErr)
+			assert.Empty(t, password, "the piped password must not be consumed for %s", registryType)
+		}
+	})
 }
 
 // TestNewAddAddonRegistryCommandWiresIOStreamsIn pins the actual command
@@ -658,12 +676,43 @@ func TestNewAddAddonRegistryCommandWiresIOStreamsIn(t *testing.T) {
 	ioStream := util.IOStreams{In: strings.NewReader("injected-password\n")}
 	cmd := NewAddAddonRegistryCommand(common.Args{}, ioStream)
 	assert.NoError(t, cmd.Flags().Set(addonPasswordStdin, "true"))
+	assert.NoError(t, cmd.Flags().Set(addonRegistryType, addonOCIType))
 
 	err := setRegistryPasswordFromStdin(cmd)
 	assert.NoError(t, err)
 	password, err := cmd.Flags().GetString(addonPassword)
 	assert.NoError(t, err)
 	assert.Equal(t, "injected-password", password)
+}
+
+// TestNewUpdateAddonRegistryCommandWiresIOStreamsIn is the same contract for
+// the update command, which discarded its IOStreams entirely and so read
+// --password-stdin from the process's os.Stdin.
+func TestNewUpdateAddonRegistryCommandWiresIOStreamsIn(t *testing.T) {
+	ioStream := util.IOStreams{In: strings.NewReader("updated-password\n")}
+	cmd := NewUpdateAddonRegistryCommand(common.Args{}, ioStream)
+	assert.NoError(t, cmd.Flags().Set(addonPasswordStdin, "true"))
+	assert.NoError(t, cmd.Flags().Set(addonRegistryType, addonOCIType))
+
+	err := setRegistryPasswordFromStdin(cmd)
+	assert.NoError(t, err)
+	password, err := cmd.Flags().GetString(addonPassword)
+	assert.NoError(t, err)
+	assert.Equal(t, "updated-password", password)
+}
+
+// TestNewAddonPushCommandWiresIOStreamsIn is the same contract for `vela addon
+// push --password-stdin`, which read the process's os.Stdin rather than the
+// IOStreams the command was constructed with.
+func TestNewAddonPushCommandWiresIOStreamsIn(t *testing.T) {
+	ioStream := util.IOStreams{In: strings.NewReader("pushed-password\n")}
+	cmd := NewAddonPushCommand(common.Args{}, ioStream)
+	pushCmd := &pkgaddon.PushCmd{PasswordStdin: true}
+
+	err := setPushPasswordFromStdin(cmd, pushCmd)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "pushed-password", pushCmd.Password)
 }
 
 func TestGetRegistryFromArgsOCIWritesHelmBlock(t *testing.T) {

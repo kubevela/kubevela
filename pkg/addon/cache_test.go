@@ -19,6 +19,7 @@ package addon
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -269,6 +270,48 @@ func TestPutRegistry2CacheClearsVersionedUIDataOnDelete(t *testing.T) {
 	u.putRegistry2Cache(nil)
 
 	assert.Nil(t, u.versionedUIData["ecr"], "versionedUIData for a deleted registry must not survive")
+}
+
+// TestVersionedUIDataConcurrentAccessIsSynchronized pins the locking around
+// versionedUIData. Registry discovery runs on its own goroutine and prunes
+// whole registries from that map, while GetUIData reads it on the request
+// path. Both the read and the prune used to be unlocked, so the two racing
+// panicked the process with "concurrent map read and map write".
+//
+// This test only detects the race under -race, which CI runs.
+func TestVersionedUIDataConcurrentAccessIsSynchronized(t *testing.T) {
+	c := NewCache(nil)
+	registry := Registry{Name: "ecr", Helm: &HelmSource{URL: "oci://reg/addon"}}
+	c.putRegistry2Cache([]Registry{registry})
+	c.putVersionedUIData2Cache("ecr", "fluxcd", "1.0.0", &UIData{Meta: Meta{Name: "fluxcd", Version: "1.0.0"}})
+
+	const rounds = 200
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	// Discovery churn: the registry disappears and comes back, so the map entry
+	// is deleted and recreated underneath the readers.
+	go func() {
+		defer wg.Done()
+		for i := 0; i < rounds; i++ {
+			c.putRegistry2Cache(nil)
+			c.putRegistry2Cache([]Registry{registry})
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < rounds; i++ {
+			c.getCachedUIData(registry, "fluxcd", "1.0.0")
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < rounds; i++ {
+			c.pruneVersionedUIData("ecr", []*UIData{{Meta: Meta{Name: "fluxcd"}}})
+		}
+	}()
+
+	wg.Wait()
 }
 
 // TestCacheGetUIData covers the three shapes GetUIData now takes since it
