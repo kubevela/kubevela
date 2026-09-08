@@ -49,7 +49,7 @@ type Module struct {
 	Version string
 	// Auxiliary holds the objects read from the module-level auxiliary/, in
 	// filename order (and document order within a multi-document file). Empty
-	//for infra-less module that ships no module-level auxiliary/.
+	// for infra-less module that ships no module-level auxiliary/.
 	Auxiliary []map[string]interface{}
 	// Lines are the module's API lines, keyed by APIVersion.
 	Lines map[string]Line

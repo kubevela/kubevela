@@ -33,7 +33,7 @@ import (
 )
 
 // Service fetches modules. It resolves registries through module.ResolveRegistry
-// over an component.RegistryDataStore — reusing that story's default
+// over a component.RegistryDataStore — reusing that story's default
 // policy, source rejection, token loading, and not-found reporting. Its
 // reader/puller seams are wired to the real addon transport by NewService and
 // overridden by tests.
@@ -165,7 +165,7 @@ func pullModuleChart(ctx context.Context, reg *component.Registry, moduleName, v
 }
 
 // ociChartFS pulls the module's Helm chart and reuses readerFS by wrapping the
-// buffered files in component.MemoryReader (itself an component.AsyncReader). No new
+// buffered files in component.MemoryReader (itself a component.AsyncReader). No new
 // adapter — the OCI blob just becomes a reader.
 func (s *Service) ociChartFS(ctx context.Context, reg *component.Registry, moduleName, version string) (fs.FS, error) {
 	bufs, err := s.pullChart(ctx, reg, moduleName, version)

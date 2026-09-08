@@ -67,7 +67,7 @@ func TestFetchModule_RoundTrip(t *testing.T) {
 	require.Contains(t, mod.Lines, "v1")
 }
 
-// fetchIntegrationFakeStore is an component.RegistryDataStore over an in-memory
+// fetchIntegrationFakeStore is a component.RegistryDataStore over an in-memory
 // slice, standing in for the ConfigMap-backed store so this test only reaches
 // a real system at the registry, not at the Kubernetes API. Unknown names
 // return a k8s NotFound, as the real store does.

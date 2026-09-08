@@ -937,57 +937,6 @@ func TestCheckAddonVersionMeetRequired(t *testing.T) {
 	assert.NoError(t, checkAddonVersionMeetRequired(ctx, &SystemRequirements{VelaVersion: ">=1.2.4"}, k8sClient, nil))
 }
 
-var testUnmarshalToContent1 = `
-{
-  "type": "file",
-  "encoding": "",
-  "size": 651,
-  "name": "metadata.yaml",
-  "path": "example/metadata.yaml",
-  "content": "name: example\r\nversion: 1.0.0\r\ndescription: Extended workload to do continuous and progressive delivery\r\nicon: https://raw.githubusercontent.com/fluxcd/flux/master/docs/_files/weave-flux.png\r\nurl: https://fluxcd.io\r\n\r\ntags:\r\n  - extended_workload\r\n  - gitops\r\n  - only_example\r\n\r\ndeployTo:\r\n  control_plane: true\r\n  runtime_cluster: false\r\n\r\ndependencies: []\r\n#- name: addon_name\r\n\r\n# set invisible means this won't be list and will be enabled when depended on\r\n# for example, terraform-alibaba depends on terraform which is invisible,\r\n# when terraform-alibaba is enabled, terraform will be enabled automatically\r\n# default: false\r\ninvisible: false\r\n"
-}`
-var testUnmarshalToContent2 = `
-[
-  {
-    "type": "dir",
-    "name": "example",
-    "path": "example"
-  },
-  {
-    "type": "dir",
-    "name": "local",
-    "path": "local"
-  },
-  {
-    "type": "dir",
-    "name": "terraform",
-    "path": "terraform"
-  },
-  {
-    "type": "dir",
-    "name": "terraform-alibaba",
-    "path": "terraform-alibaba"
-  },
-  {
-    "type": "dir",
-    "name": "test-error-addon",
-    "path": "test-error-addon"
-  }
-]`
-var testUnmarshalToContent3 = `
-[
-  {
-    "type": "dir",
-    "name": "example",
-  },
-  {
-    "type": "dir",
-    "name": "local",
-    "path": "local"
-  }
-]`
-var testUnmarshalToContent4 = ``
-
 // Test readResFile, only accept .cue and .yaml/.yml
 func TestReadResFile(t *testing.T) {
 
