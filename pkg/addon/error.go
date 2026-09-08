@@ -19,13 +19,12 @@ package addon
 import (
 	"fmt"
 
-	"github.com/google/go-github/v32/github"
-	"github.com/pkg/errors"
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 )
 
 // NewAddonError will return an
 func NewAddonError(msg string) error {
-	return errors.New(msg)
+	return component.NewError(msg)
 }
 
 var (
@@ -33,13 +32,13 @@ var (
 	ErrRenderCueTmpl = NewAddonError("fail to render cue tmpl")
 
 	// ErrRateLimit means exceed GitHub access rate limit
-	ErrRateLimit = NewAddonError("exceed github access rate limit")
+	ErrRateLimit = component.ErrRateLimit
 
 	// ErrNotExist  means addon not exists
 	ErrNotExist = NewAddonError("addon not exist")
 
 	// ErrRegistryNotExist means registry not exists
-	ErrRegistryNotExist = NewAddonError("registry does not exist")
+	ErrRegistryNotExist = component.ErrRegistryNotExist
 
 	// ErrBothCueAndYamlTmpl means yaml and cue app template are exist in addon
 	ErrBothCueAndYamlTmpl = NewAddonError("yaml and cue app template are exist in addon, should only keep one of them")
@@ -62,15 +61,6 @@ var (
 	// fail open on a lookup failure.
 	ErrVersionMismatch = NewAddonError("addon system requirement not met")
 )
-
-// WrapErrRateLimit return ErrRateLimit if is the situation, or return error directly
-func WrapErrRateLimit(err error) error {
-	errRate := &github.RateLimitError{}
-	if errors.As(err, &errRate) {
-		return ErrRateLimit
-	}
-	return err
-}
 
 // VersionUnMatchError means addon system requirement cannot meet requirement
 type VersionUnMatchError struct {

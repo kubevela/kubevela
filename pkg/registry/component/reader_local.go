@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package addon
+package component
 
 import (
 	"fmt"
@@ -23,12 +23,20 @@ import (
 	"strings"
 )
 
-type localReader struct {
+type LocalReader struct {
 	dir  string
 	name string
 }
 
-func (l localReader) ListAddonMeta() (map[string]SourceMeta, error) {
+// NewLocalReader builds a reader over a package directory on disk.
+func NewLocalReader(dir, name string) LocalReader {
+	return LocalReader{dir: dir, name: name}
+}
+
+// Name returns the package name the reader was built for.
+func (l LocalReader) Name() string { return l.name }
+
+func (l LocalReader) ListAddonMeta() (map[string]SourceMeta, error) {
 	metas := SourceMeta{Name: l.name}
 	if err := recursiveFetchFiles(l.dir, &metas); err != nil {
 		return nil, err
@@ -36,7 +44,7 @@ func (l localReader) ListAddonMeta() (map[string]SourceMeta, error) {
 	return map[string]SourceMeta{l.name: metas}, nil
 }
 
-func (l localReader) ReadFile(path string) (string, error) {
+func (l LocalReader) ReadFile(path string) (string, error) {
 	path = strings.TrimPrefix(path, l.name+"/")
 	// for windows
 	path = strings.TrimPrefix(path, l.name+"\\")
@@ -47,7 +55,7 @@ func (l localReader) ReadFile(path string) (string, error) {
 	return string(b), nil
 }
 
-func (l localReader) RelativePath(item Item) string {
+func (l LocalReader) RelativePath(item Item) string {
 	file := strings.TrimPrefix(item.GetPath(), filepath.Clean(l.dir))
 	return filepath.Join(l.name, file)
 }

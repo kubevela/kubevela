@@ -94,7 +94,7 @@ func (s *Service) FetchModule(ctx context.Context, registry, moduleName, version
 // has no tag concept and always reads its configured path off the default branch.
 func (s *Service) sourceFS(ctx context.Context, reg *component.Registry, moduleName, version string) (fs.FS, error) {
 	switch {
-	case component.OCIChartSource(*reg) != nil:
+	case reg.OCIChartSource() != nil:
 		return s.ociChartFS(ctx, reg, moduleName, version)
 	case reg.Git != nil:
 		reader, err := s.newReader(reg)

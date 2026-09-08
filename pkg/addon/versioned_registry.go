@@ -25,6 +25,7 @@ import (
 	"helm.sh/helm/v3/pkg/repo"
 	"k8s.io/klog/v2"
 
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
@@ -227,13 +228,13 @@ func NewVersionedRegistry(name string, source *HelmSource) (VersionedRegistry, e
 	if source == nil {
 		return nil, errors.Errorf("addon registry %s has no chart repository configured", name)
 	}
-	if err := source.validateCredential(); err != nil {
+	if err := source.ValidateCredential(); err != nil {
 		// Wrapped as ErrFetch so isSkippableRegistryError treats it as "this one
 		// registry cannot serve addons". Without that, one hand-edited record
 		// aborts listAvailableAddons and installDependency for every registry.
 		return nil, errors.Wrapf(ErrFetch, "addon registry %s: %v", name, err)
 	}
-	username, secret := source.credential()
+	username, secret := source.Credential()
 	if IsOCIURL(source.URL) {
 		return &helmRegistry{
 			name: name,
@@ -242,8 +243,8 @@ func NewVersionedRegistry(name string, source *HelmSource) (VersionedRegistry, e
 				url:            source.URL,
 				username:       username,
 				token:          secret,
-				pullFn:         pullOCIChart,
-				tagsFn:         listOCITags,
+				pullFn:         component.PullOCIChart,
+				tagsFn:         component.ListOCITags,
 				catalogFn:      listOCIRepositories,
 				catalogIndexFn: listPortableOCICatalog,
 			},

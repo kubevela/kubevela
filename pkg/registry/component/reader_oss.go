@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package addon
+package component
 
 import (
 	"encoding/xml"
@@ -56,6 +56,11 @@ type OSSItem struct {
 	tp   string
 	path string
 	name string
+}
+
+// NewOSSItem builds an OSS listing item of the given type, path and name.
+func NewOSSItem(tp, path, name string) *OSSItem {
+	return &OSSItem{tp: tp, path: path, name: name}
 }
 
 // GetType from OSSItem

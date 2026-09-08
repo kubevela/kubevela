@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -77,18 +78,18 @@ func listPortableOCICatalogWithPlainHTTP(_ context.Context, registryURL, usernam
 // blocks or proxies loopback traffic turns into a timeout or a different
 // error. Production always uses the real transport functions.
 var (
-	portableCatalogTagsFn = listOCITagsWithTransport
-	portableCatalogPullFn = pullOCIChartWithTransport
+	portableCatalogTagsFn = component.ListOCITagsWithTransport
+	portableCatalogPullFn = component.PullOCIChartWithTransport
 )
 
 func listPortableOCICatalogWithTransport(registryURL, username, password string, plainHTTP bool) ([]*UIData, error) {
-	repoRef, host := ociRepoRef(registryURL, ociCatalogChartName)
+	repoRef, host := component.OCIRepoRef(registryURL, ociCatalogChartName)
 	tags, err := portableCatalogTagsFn(repoRef, host, username, password, plainHTTP)
 	if err != nil {
 		// A registry that has never had a catalog pushed answers "repository does
 		// not exist". That is an absence, not a read failure, so the first push to
 		// such a registry can still bootstrap the catalog.
-		if isOCIRepositoryAbsentError(err) {
+		if component.IsOCIRepositoryAbsentError(err) {
 			return nil, errors.Wrapf(ErrOCICatalogAbsent, "portable OCI addon catalog repository %s does not exist: %v", repoRef, err)
 		}
 		return nil, errors.Wrap(err, "portable OCI addon catalog is unavailable")
@@ -154,7 +155,7 @@ func decodeOCIAddonCatalog(archive []byte) ([]*UIData, error) {
 
 // newestOCICatalogVersion returns the highest semver in versions, falling back to
 // the first entry when none of them parse. Catalog entries are written sorted by
-// listOCITags, but a hand-edited catalog need not be.
+// component.ListOCITags, but a hand-edited catalog need not be.
 func newestOCICatalogVersion(versions []string) string {
 	var newest *semver.Version
 	var newestRaw string
@@ -194,7 +195,7 @@ func validateOCIAddonName(name string) error {
 // there is genuinely no catalog to preserve, and returns an error describing why
 // it could not be confirmed otherwise.
 func confirmPortableCatalogAbsent(source *HelmSource, plainHTTP bool) error {
-	repoRef, host := ociRepoRef(source.URL, ociCatalogChartName)
+	repoRef, host := component.OCIRepoRef(source.URL, ociCatalogChartName)
 	tags, err := portableCatalogTagsFn(repoRef, host, source.Username, source.Token, plainHTTP)
 	return classifyCatalogAbsenceProbe(repoRef, tags, err)
 }
@@ -210,7 +211,7 @@ func confirmPortableCatalogAbsent(source *HelmSource, plainHTTP bool) error {
 // that the repository does not exist is a refusal.
 func classifyCatalogAbsenceProbe(repoRef string, tags []string, probeErr error) error {
 	switch {
-	case probeErr != nil && isOCIRepositoryAbsentError(probeErr):
+	case probeErr != nil && component.IsOCIRepositoryAbsentError(probeErr):
 		// The registry states the repository does not exist. Nothing to lose.
 		return nil
 	case probeErr != nil:
@@ -261,14 +262,14 @@ var updateOCIAddonCatalogOnceFn = updateOCIAddonCatalogOnce
 // seam so tests can drive updateOCIAddonCatalogOnce's conflict check directly
 // (returning a different tag list on the pre-push re-check than on the
 // initial read) without a real OCI registry. Production always uses
-// listOCITagsWithTransport.
-var catalogRepoTagsFn = listOCITagsWithTransport
+// component.ListOCITagsWithTransport.
+var catalogRepoTagsFn = component.ListOCITagsWithTransport
 
 // addonVersionsTagsFn lists the addon-under-publish's own repository tags,
 // used only to populate the catalog entry's Versions field. A separate seam
 // from catalogRepoTagsFn so tests can stub it out without affecting the
 // catalog-tag call count the conflict check depends on.
-var addonVersionsTagsFn = listOCITagsWithTransport
+var addonVersionsTagsFn = component.ListOCITagsWithTransport
 
 // updateOCIAddonCatalog upserts an addon after it has been pushed and publishes
 // a new catalog chart version. The fixed catalog repository makes discovery
@@ -301,13 +302,13 @@ func updateOCIAddonCatalog(client *registry.Client, source *HelmSource, addonMet
 // dropping whichever addon another publisher just added, or overwriting a
 // catalog this attempt never actually got to read.
 func updateOCIAddonCatalogOnce(client *registry.Client, source *HelmSource, addonMeta *chart.Metadata, plainHTTP bool) (conflict bool, err error) {
-	pullFn := pullOCIChart
-	tagsFn := listOCITags
+	pullFn := component.PullOCIChart
+	tagsFn := component.ListOCITags
 	catalogFn := listOCIRepositories
 	catalogIndexFn := listPortableOCICatalog
 	if plainHTTP {
-		pullFn = pullOCIChartWithPlainHTTP
-		tagsFn = listOCITagsWithPlainHTTP
+		pullFn = component.PullOCIChartWithPlainHTTP
+		tagsFn = component.ListOCITagsWithPlainHTTP
 		catalogFn = listOCIRepositoriesWithPlainHTTP
 		catalogIndexFn = listPortableOCICatalogWithPlainHTTP
 	}
@@ -371,7 +372,7 @@ func publishCatalogEntry(client *registry.Client, source *HelmSource, addonMeta 
 	if err := validateOCIAddonName(addonMeta.Name); err != nil {
 		return false, err
 	}
-	addonRepo, host := ociRepoRef(source.URL, addonMeta.Name)
+	addonRepo, host := component.OCIRepoRef(source.URL, addonMeta.Name)
 	versions, err := addonVersionsTagsFn(addonRepo, host, source.Username, source.Token, plainHTTP)
 	if err != nil {
 		return false, errors.Wrapf(err, "failed to list versions for OCI addon %s", addonMeta.Name)
@@ -403,9 +404,9 @@ func publishCatalogEntry(client *registry.Client, source *HelmSource, addonMeta 
 		return false, errors.Wrap(err, "failed to encode portable OCI addon catalog")
 	}
 
-	catalogRepo, _ := ociRepoRef(source.URL, ociCatalogChartName)
+	catalogRepo, _ := component.OCIRepoRef(source.URL, ociCatalogChartName)
 	catalogTags, tagErr := catalogRepoTagsFn(catalogRepo, host, source.Username, source.Token, plainHTTP)
-	if tagErr != nil && !isOCIRepositoryAbsentError(tagErr) {
+	if tagErr != nil && !component.IsOCIRepositoryAbsentError(tagErr) {
 		// A failed listing is not a confirmed-empty catalog. NAME_UNKNOWN is the
 		// one exception: it is the registry stating the catalog repository does
 		// not exist yet, which is the normal, expected state on the very first
@@ -462,7 +463,7 @@ func publishCatalogEntry(client *registry.Client, source *HelmSource, addonMeta 
 	// it is safe to publish, so both retry from a fresh read rather than risk
 	// overwriting a catalog this attempt can no longer vouch for.
 	latestTags, latestErr := catalogRepoTagsFn(catalogRepo, host, source.Username, source.Token, plainHTTP)
-	if latestErr != nil && !isOCIRepositoryAbsentError(latestErr) {
+	if latestErr != nil && !component.IsOCIRepositoryAbsentError(latestErr) {
 		return true, errors.Wrap(latestErr, "cannot confirm the portable OCI addon catalog tag is still unchanged before publishing")
 	}
 	if catalogTagHead(catalogTags) != catalogTagHead(latestTags) {

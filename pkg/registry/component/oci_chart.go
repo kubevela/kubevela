@@ -54,7 +54,7 @@ func ociURLIsPlainHTTP(rawURL string) bool {
 // "<host>[/<prefix>]/<name>:<tag>". It is exported so a caller can print the
 // target before pushing.
 func OCIChartRef(reg Registry, name, tag string) (string, error) {
-	oci := ociChartSource(reg)
+	oci := reg.OCIChartSource()
 	if oci == nil {
 		return "", errors.Errorf("registry %q is not an OCI registry", reg.Name)
 	}
@@ -67,7 +67,7 @@ func OCIChartRef(reg Registry, name, tag string) (string, error) {
 // construction and the same authenticated Helm registry client, so a module
 // published here is pulled by the module fetch unchanged.
 func PushOCIChart(_ context.Context, reg Registry, name, version string, archive []byte) error {
-	oci := ociChartSource(reg)
+	oci := reg.OCIChartSource()
 	if oci == nil {
 		return errors.Errorf("registry %q is not an OCI registry", reg.Name)
 	}
@@ -87,7 +87,7 @@ func PushOCIChart(_ context.Context, reg Registry, name, version string, archive
 // A repository that does not exist yet is reported as "no such tag" rather
 // than an error: the first publish of a module is exactly that case.
 func OCIChartTagExists(ctx context.Context, reg Registry, name, tag string) (bool, error) {
-	oci := ociChartSource(reg)
+	oci := reg.OCIChartSource()
 	if oci == nil {
 		return false, errors.Errorf("registry %q is not an OCI registry", reg.Name)
 	}

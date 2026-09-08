@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package addon
+package component
 
 import (
 	"context"
@@ -493,7 +493,7 @@ func TestGetRegistries(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			ds := registryImpl{client: tc.client}
+			ds := registryImpl{client: tc.client, cmName: registryConfigMapName}
 			registries, _, err := ds.getRegistries(ctx)
 			if tc.expectErr {
 				assert.Error(t, err)
@@ -651,45 +651,53 @@ func TestCreateOrUpdateTokenSecret(t *testing.T) {
 	}
 }
 
-// TestListRegistriesIsDeterministicallyOrdered pins the registry order callers
-// treat as a priority. The registries live in a JSON map inside a ConfigMap, so
-// iterating the decoded map hands out a randomly ordered slice, and
-// FindAddonPackagesDetailFromRegistry -- which takes the first registry holding
-// an addon -- would resolve a duplicated addon differently call to call.
-func TestListRegistriesIsDeterministicallyOrdered(t *testing.T) {
+func TestRegistryDataStoreForCustomConfigMap(t *testing.T) {
 	ctx := context.Background()
-	registries := map[string]Registry{}
-	for _, name := range []string{"zulu", "alpha", "mike", "bravo", "yankee"} {
-		registries[name] = Registry{
-			Name: name,
-			Helm: &HelmSource{URL: "https://" + name + ".example.com"},
-		}
-	}
-	registriesBytes, err := json.Marshal(registries)
-	assert.NoError(t, err)
-
-	cm := &v1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      registryConfigMapName,
-			Namespace: velatypes.DefaultKubeVelaNS,
-		},
-		Data: map[string]string{registriesKey: string(registriesBytes)},
-	}
 	scheme := runtime.NewScheme()
 	assert.NoError(t, v1.AddToScheme(scheme))
-	ds := NewRegistryDataStore(fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build())
+	cli := fake.NewClientBuilder().WithScheme(scheme).Build()
 
-	want := []string{"alpha", "bravo", "mike", "yankee", "zulu"}
-	// Repeat: one pass can match a random order by luck, five cannot.
-	for i := 0; i < 5; i++ {
-		listed, err := ds.ListRegistries(ctx)
-		assert.NoError(t, err)
-		var got []string
-		for _, r := range listed {
-			got = append(got, r.Name)
-		}
-		assert.Equal(t, want, got)
-	}
+	ds := NewRegistryDataStoreFor(cli, "vela-module-registry", "module-registry-")
+	assert.NoError(t, ds.AddRegistry(ctx, Registry{
+		Name: "catalog",
+		Git: &GitAddonSource{
+			URL:   "https://github.com/kubevela/catalog",
+			Path:  "module",
+			Token: "t0ken",
+		},
+	}))
+
+	// The entry lands in the module ConfigMap.
+	var cm v1.ConfigMap
+	assert.NoError(t, cli.Get(ctx, types.NamespacedName{
+		Name: "vela-module-registry", Namespace: velatypes.DefaultKubeVelaNS,
+	}, &cm))
+	registries := map[string]Registry{}
+	assert.NoError(t, json.Unmarshal([]byte(cm.Data[registriesKey]), &registries))
+	assert.Equal(t, 1, len(registries))
+	assert.Equal(t, "https://github.com/kubevela/catalog", registries["catalog"].Git.URL)
+	assert.Equal(t, "module", registries["catalog"].Git.Path)
+
+	// The token is not in the ConfigMap body; it is in a module-prefixed secret.
+	assert.Equal(t, "", registries["catalog"].Git.Token)
+	assert.Equal(t, "module-registry-catalog", registries["catalog"].Git.TokenSecretRef)
+	var secret v1.Secret
+	assert.NoError(t, cli.Get(ctx, types.NamespacedName{
+		Name: "module-registry-catalog", Namespace: velatypes.DefaultKubeVelaNS,
+	}, &secret))
+	assert.Equal(t, "t0ken", string(secret.Data["token"]))
+
+	// The addon ConfigMap was never created.
+	var addonCM v1.ConfigMap
+	err := cli.Get(ctx, types.NamespacedName{
+		Name: registryConfigMapName, Namespace: velatypes.DefaultKubeVelaNS,
+	}, &addonCM)
+	assert.True(t, apierrors.IsNotFound(err))
+
+	// GetRegistry loads the token back from the secret.
+	got, err := ds.GetRegistry(ctx, "catalog")
+	assert.NoError(t, err)
+	assert.Equal(t, "t0ken", got.Git.Token)
 }
 
 func TestGetTokenSourceHelmOCI(t *testing.T) {
