@@ -541,7 +541,7 @@ func TestLoadTokenFromSecret(t *testing.T) {
 			expectToken: "",
 			// TokenSecretRef must be cleared along with the empty token: a source
 			// left with a dangling TokenSecretRef and no Token reads as "a token is
-			// configured" to HelmSource.validateCredential even though nothing
+			// configured" to HelmSource.ValidateCredential even though nothing
 			// would actually be sent, which is the false assurance this guards.
 			expectSecretRefCleared: true,
 		},
