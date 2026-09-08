@@ -416,6 +416,41 @@ func TestOCIRegistryLoadAddon(t *testing.T) {
 	assert.Equal(t, []string{"3.0.1", "2.0.0", "1.0.0"}, addons[0].AvailableVersions)
 }
 
+// TestOCIRegistryLoadFiles verifies resolve returns the chart's raw buffered
+// files (chart-name-prefixed) without the addon-specific parse, the reuse the
+// module fetch (PullOCIChartFiles) depends on. Same fixture + seams.
+func TestOCIRegistryLoadFiles(t *testing.T) {
+	data, err := os.ReadFile("./testdata/helm-repo/fluxcd-1.0.0.tgz")
+	require.NoError(t, err)
+
+	reg := &ociHelmBackend{
+		name:     "ecr",
+		url:      "oci://reg.example.com/addon",
+		username: "AWS",
+		token:    "secret",
+		tagsFn: func(_ context.Context, _, _, _, _ string) ([]string, error) {
+			return []string{"1.0.0"}, nil
+		},
+		pullFn: func(_ context.Context, ref, _, _, _ string) ([]byte, error) {
+			assert.Equal(t, "reg.example.com/addon/fluxcd:1.0.0", ref)
+			return data, nil
+		},
+	}
+
+	resolved, err := reg.resolve(context.Background(), "fluxcd", "")
+	require.NoError(t, err)
+	require.NotEmpty(t, resolved.files)
+
+	var hasPrefixed bool
+	for _, f := range resolved.files {
+		if strings.HasPrefix(f.Name, "fluxcd/") {
+			hasPrefixed = true
+			break
+		}
+	}
+	assert.True(t, hasPrefixed, "chart files should be prefixed with the chart name")
+}
+
 // TestOCIRegistryExplicitVersion pins a version: no tag listing should happen,
 // the exact tag is pulled.
 func TestOCIRegistryExplicitVersion(t *testing.T) {
