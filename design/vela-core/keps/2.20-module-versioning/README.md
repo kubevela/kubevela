@@ -164,7 +164,7 @@ All module-managed definitions carry a standard label and annotation set:
 ```yaml
 labels:
   definition.oam.dev/module: aws-s3
-  definition.oam.dev/api-version: v1
+  definition.oam.dev/module-api-version: v1
   definition.oam.dev/name: bucket
   addon.oam.dev/name: aws-s3
 ```
@@ -175,7 +175,7 @@ labels:
 annotations:
   addon.oam.dev/version: v1.2.3
   addon.oam.dev/managed-by: controller
-  definition.oam.dev/full-name: aws-s3-v1-bucket
+  definition.oam.dev/module-full-name: aws-s3-v1-bucket
 ```
 
 **Lifecycle annotations** (set dynamically):
@@ -233,7 +233,7 @@ The `type` field is parsed by segment count:
 
 **Form 2** (`{apiVersion}/{definition-name}`, e.g. `v1/bucket`): the API version is
 explicit, but the module is discovered from cluster state at first admission. The webhook
-performs a global label selector (`definition.oam.dev/api-version={apiVersion},
+performs a global label selector (`definition.oam.dev/module-api-version={apiVersion},
 definition.oam.dev/name={name}`) across all installed modules. If exactly one result is
 found, its module is stored in the lock and the reference is accepted. If more than one
 result is found (that is, two or more modules both provide the same definition name at
@@ -302,7 +302,7 @@ succeeds or definitively fails, no later step is reached.
 
 **Form 2** (`{apiVersion}/{definition-name}`):
 1. Stored lock present → direct GET on (stored-module, apiVersion, name) → accept or reject. No fallback.
-2. No stored lock → global selector (`definition.oam.dev/api-version={apiVersion}, definition.oam.dev/name={name}`)
+2. No stored lock → global selector (`definition.oam.dev/module-api-version={apiVersion}, definition.oam.dev/name={name}`)
    → if more than one result: reject with ambiguity error (use Form 3); exactly one: store lock → accept.
 
 **Form 1** (`{definition-name}`):
@@ -1522,9 +1522,9 @@ ResolvedDefinition *ResolvedDefinitionRef `json:"resolvedDefinition,omitempty"`
 ```go
 const (
     LabelDefinitionModule              = "definition.oam.dev/module"
-    LabelDefinitionAPIVersion          = "definition.oam.dev/api-version"
+    LabelDefinitionModuleAPIVersion    = "definition.oam.dev/module-api-version"
     LabelDefinitionName                = "definition.oam.dev/name"
-    AnnotationDefinitionFullName       = "definition.oam.dev/full-name"
+    AnnotationDefinitionModuleFullName = "definition.oam.dev/module-full-name"
     AnnotationDefinitionDeprecated     = "definition.oam.dev/deprecated"
     AnnotationDefinitionDeprecatedAt   = "definition.oam.dev/deprecated-at"
     AnnotationDefinitionDisabled       = "definition.oam.dev/disabled"
