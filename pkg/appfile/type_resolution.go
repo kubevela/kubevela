@@ -64,7 +64,7 @@ func parseTypeRef(typeName string) (form int, module, apiVersion, name string, e
 	}
 }
 
-// resolveModuleType translates a KEP-2.20 Form 1/2/3 type string to the
+// ResolveModuleType translates a KEP-2.20 Form 1/2/3 type string to the
 // installed Kubernetes definition name. Form 1 names that already exist as
 // legacy definitions are returned unchanged so the existing
 // GetCapabilityDefinition path handles them as before.

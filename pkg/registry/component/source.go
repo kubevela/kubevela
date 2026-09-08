@@ -231,7 +231,7 @@ func (h *HelmSource) GetTokenSecretRef() string {
 	return h.TokenSecretRef
 }
 
-// credential returns the username and secret the transport should authenticate
+// Credential returns the username and secret the transport should authenticate
 // with, chosen by URL scheme. Callers read credentials through this rather than
 // reaching for Password or Token directly, so neither backend has to know which
 // field the other one uses.

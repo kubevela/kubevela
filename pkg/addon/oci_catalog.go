@@ -27,12 +27,13 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/oam-dev/kubevela/pkg/registry/component"
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	"helm.sh/helm/v3/pkg/registry"
+
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 )
 
 const (

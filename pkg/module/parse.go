@@ -236,7 +236,7 @@ func decodeYAMLDocuments(data []byte) ([]map[string]interface{}, error) {
 	for {
 		var raw map[string]interface{}
 		if err := decoder.Decode(&raw); err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, err
