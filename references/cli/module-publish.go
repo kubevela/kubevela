@@ -27,7 +27,6 @@ import (
 
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	pkgmodule "github.com/oam-dev/kubevela/pkg/module"
-	"github.com/oam-dev/kubevela/pkg/registry/component"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -64,17 +63,17 @@ type modulePublishOptions struct {
 	// dryRun prints the target reference and annotations without pushing.
 	dryRun bool
 
-	// push publishes the packaged archive. Wired to component.PushOCIChart in
+	// push publishes the packaged archive. Wired to pkgaddon.PushOCIChart in
 	// production.
 	push func(ctx context.Context, reg pkgaddon.Registry, name, version string, archive []byte) error
 	// tagExists reports whether a tag is already published. Wired to
-	// component.OCIChartTagExists in production.
+	// pkgaddon.OCIChartTagExists in production.
 	tagExists func(ctx context.Context, reg pkgaddon.Registry, name, tag string) (bool, error)
 }
 
 // NewModulePublishCommand returns the vela module publish command.
 func NewModulePublishCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
-	o := &modulePublishOptions{push: component.PushOCIChart, tagExists: component.OCIChartTagExists}
+	o := &modulePublishOptions{push: pkgaddon.PushOCIChart, tagExists: pkgaddon.OCIChartTagExists}
 	cmd := &cobra.Command{
 		Use:   "publish <dir> [oci-ref]",
 		Short: "Publish a module to an OCI or ECR registry.",
@@ -163,7 +162,7 @@ func (o *modulePublishOptions) run(ctx context.Context, cli client.Client, out i
 		return err
 	}
 
-	ref, err := component.OCIChartRef(reg, artifact.Module.Name, artifact.Tag)
+	ref, err := pkgaddon.OCIChartRef(reg, artifact.Module.Name, artifact.Tag)
 	if err != nil {
 		return err
 	}
@@ -216,7 +215,7 @@ func (o *modulePublishOptions) resolveTarget(ctx context.Context, cli client.Cli
 	if err != nil {
 		return pkgaddon.Registry{}, err
 	}
-	oci := component.OCIChartSource(reg)
+	oci := reg.OCIChartSource()
 	if oci == nil {
 		return pkgaddon.Registry{}, fmt.Errorf("module registry %q is a %s source; vela module publish supports OCI/ECR only",
 			reg.Name, pkgmodule.SourceTypeName(reg))
@@ -235,9 +234,9 @@ func (o *modulePublishOptions) resolveTarget(ctx context.Context, cli client.Cli
 // move no matter what the client asks for.
 func publishError(ref string, err error) error {
 	switch {
-	case component.IsOCIRepositoryNotFound(err):
+	case pkgaddon.IsOCIRepositoryNotFound(err):
 		return fmt.Errorf("the repository for %s does not exist; create it in the registry first (ECR does not create repositories on push): %w", ref, err)
-	case component.IsOCITagImmutable(err):
+	case pkgaddon.IsOCITagImmutable(err):
 		return fmt.Errorf("%s cannot be overwritten because the repository rejects tag changes; bump version in _module.cue and publish a new version: %w", ref, err)
 	default:
 		return fmt.Errorf("failed to publish %s: %w", ref, err)

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package addon
+package component
 
 import (
 	"encoding/json"
@@ -249,3 +249,67 @@ func TestGiteeReader_ListAddonMeta(t *testing.T) {
 		assert.Equal(t, "velaux/metadata.yaml", addon.Items[0].GetPath())
 	})
 }
+
+func TestUnmarshalToContent(t *testing.T) {
+	_, _, err1 := unmarshalToContent([]byte(testUnmarshalToContent1))
+	assert.NoError(t, err1)
+	_, _, err2 := unmarshalToContent([]byte(testUnmarshalToContent2))
+	assert.NoError(t, err2)
+	_, _, err3 := unmarshalToContent([]byte(testUnmarshalToContent3))
+	assert.Error(t, err3, "unmarshalling failed for both file and directory content: invalid character '}' looking for beginnin")
+	_, _, err4 := unmarshalToContent([]byte(testUnmarshalToContent4))
+	assert.Error(t, err4, "unmarshalling failed for both file and directory content: unexpected end of JSON input and unexpecte")
+}
+
+var testUnmarshalToContent1 = `
+{
+  "type": "file",
+  "encoding": "",
+  "size": 651,
+  "name": "metadata.yaml",
+  "path": "example/metadata.yaml",
+  "content": "name: example\r\nversion: 1.0.0\r\ndescription: Extended workload to do continuous and progressive delivery\r\nicon: https://raw.githubusercontent.com/fluxcd/flux/master/docs/_files/weave-flux.png\r\nurl: https://fluxcd.io\r\n\r\ntags:\r\n  - extended_workload\r\n  - gitops\r\n  - only_example\r\n\r\ndeployTo:\r\n  control_plane: true\r\n  runtime_cluster: false\r\n\r\ndependencies: []\r\n#- name: addon_name\r\n\r\n# set invisible means this won't be list and will be enabled when depended on\r\n# for example, terraform-alibaba depends on terraform which is invisible,\r\n# when terraform-alibaba is enabled, terraform will be enabled automatically\r\n# default: false\r\ninvisible: false\r\n"
+}`
+var testUnmarshalToContent2 = `
+[
+  {
+    "type": "dir",
+    "name": "example",
+    "path": "example"
+  },
+  {
+    "type": "dir",
+    "name": "local",
+    "path": "local"
+  },
+  {
+    "type": "dir",
+    "name": "terraform",
+    "path": "terraform"
+  },
+  {
+    "type": "dir",
+    "name": "terraform-alibaba",
+    "path": "terraform-alibaba"
+  },
+  {
+    "type": "dir",
+    "name": "test-error-addon",
+    "path": "test-error-addon"
+  }
+]`
+
+var testUnmarshalToContent3 = `
+[
+  {
+    "type": "dir",
+    "name": "example",
+  },
+  {
+    "type": "dir",
+    "name": "local",
+    "path": "local"
+  }
+]`
+
+var testUnmarshalToContent4 = ``

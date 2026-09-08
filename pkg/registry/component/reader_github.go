@@ -14,9 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package addon
+package component
 
 import (
+	"context"
 	"fmt"
 	"path"
 	"strings"
@@ -101,4 +102,22 @@ func (g *gitReader) RelativePath(item Item) string {
 	}
 	base := strings.Split(g.h.Meta.GithubContent.Path, "/")
 	return path.Join(absPath[len(base):]...)
+}
+
+// readRepo will read relative path (relative to Meta.Path)
+func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
+	file, items, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.GithubContent.Owner, h.Meta.GithubContent.Repo, path.Join(h.Meta.GithubContent.Path, relativePath), nil)
+	if err != nil {
+		return nil, nil, WrapErrRateLimit(err)
+	}
+	return file, items, nil
+}
+
+// WrapErrRateLimit return ErrRateLimit if is the situation, or return error directly
+func WrapErrRateLimit(err error) error {
+	errRate := &github.RateLimitError{}
+	if errors.As(err, &errRate) {
+		return ErrRateLimit
+	}
+	return err
 }

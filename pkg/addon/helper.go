@@ -34,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -94,12 +95,12 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 	if err != nil {
 		return "", err
 	}
-	r := localReader{dir: absDir, name: name}
+	r := component.NewLocalReader(absDir, name)
 	metas, err := r.ListAddonMeta()
 	if err != nil {
 		return "", err
 	}
-	meta := metas[r.name]
+	meta := metas[r.Name()]
 	UIData, err := GetUIDataFromReader(r, &meta, UIMetaOptions)
 	if err != nil {
 		return "", err
@@ -323,11 +324,11 @@ func FindAddonPackagesDetailFromRegistry(ctx context.Context, k8sClient client.C
 				if !ok {
 					continue
 				}
-				uiData, err := r.GetUIData(&sourceMeta, UIMetaOptions)
+				uiData, err := GetUIData(&r, &sourceMeta, UIMetaOptions)
 				if err != nil {
 					continue
 				}
-				installPackage, err := r.GetInstallPackage(&sourceMeta, uiData)
+				installPackage, err := GetInstallPackage(&r, &sourceMeta, uiData)
 				if err != nil {
 					continue
 				}
@@ -387,11 +388,11 @@ func GetAddonInstallPackageFromRegistry(ctx context.Context, cli client.Client, 
 	if !ok {
 		return nil, fmt.Errorf("addon %q not found in registry %q", addonName, registryName)
 	}
-	uiData, err := reg.GetUIData(&meta, UIMetaOptions)
+	uiData, err := GetUIData(&reg, &meta, UIMetaOptions)
 	if err != nil {
 		return nil, err
 	}
-	pkg, err := reg.GetInstallPackage(&meta, uiData)
+	pkg, err := GetInstallPackage(&reg, &meta, uiData)
 	if err != nil {
 		return nil, err
 	}

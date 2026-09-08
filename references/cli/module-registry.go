@@ -32,7 +32,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	pkgmodule "github.com/oam-dev/kubevela/pkg/module"
-	"github.com/oam-dev/kubevela/pkg/registry/component"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -495,8 +494,8 @@ func getModuleRegistry(ctx context.Context, c common.Args, name string, out io.W
 	case registry.Git != nil:
 		table.AddRow("NAME", "TYPE", "URL", "PATH")
 		table.AddRow(registry.Name, moduleGitType, registry.Git.URL, registry.Git.Path)
-	case component.OCIChartSource(registry) != nil:
-		oci := component.OCIChartSource(registry)
+	case registry.OCIChartSource() != nil:
+		oci := registry.OCIChartSource()
 		table.AddRow("NAME", "TYPE", "URL", "USERNAME")
 		table.AddRow(registry.Name, moduleOCIType, oci.URL, oci.Username)
 	default:

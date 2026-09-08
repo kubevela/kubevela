@@ -31,12 +31,12 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
-	"helm.sh/helm/v3/pkg/registry"
 	registryauth "oras.land/oras-go/pkg/registry/remote/auth"
 )
 
@@ -59,13 +59,8 @@ func useCatalogHTTPClient(t *testing.T, client *http.Client) {
 // for the next one to reuse.
 func resetOCIClientCache(t *testing.T) {
 	t.Helper()
-	clear := func() {
-		ociClientCache.Lock()
-		defer ociClientCache.Unlock()
-		ociClientCache.clients = map[string]*registry.Client{}
-	}
-	clear()
-	t.Cleanup(clear)
+	component.ResetOCIClientCache()
+	t.Cleanup(component.ResetOCIClientCache)
 }
 
 // clientTrusting builds an HTTP client that trusts exactly the given httptest
@@ -107,7 +102,7 @@ func TestOCIRepoRef(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			repo, host := ociRepoRef(tc.url, tc.addon)
+			repo, host := component.OCIRepoRef(tc.url, tc.addon)
 			assert.Equal(t, tc.wantRepo, repo)
 			assert.Equal(t, tc.wantHost, host)
 		})
@@ -326,7 +321,7 @@ func TestIsOCIRepositoryAbsentError(t *testing.T) {
 		fmt.Errorf("wrapped: %w", errors.New(`unexpected status code 404: name unknown: The repository with name 'addon/kubevela-addon-catalog' does not exist in the registry`)),
 	}
 	for _, err := range absent {
-		assert.True(t, isOCIRepositoryAbsentError(err), "expected absent for: %v", err)
+		assert.True(t, component.IsOCIRepositoryAbsentError(err), "expected absent for: %v", err)
 	}
 
 	notAbsent := []error{
@@ -341,7 +336,7 @@ func TestIsOCIRepositoryAbsentError(t *testing.T) {
 		errors.New(`unexpected status code 404: Not Found`),
 	}
 	for _, err := range notAbsent {
-		assert.False(t, isOCIRepositoryAbsentError(err), "expected not-absent for: %v", err)
+		assert.False(t, component.IsOCIRepositoryAbsentError(err), "expected not-absent for: %v", err)
 	}
 }
 
@@ -735,7 +730,7 @@ func TestClassifyCatalogAbsenceProbe(t *testing.T) {
 // network call.
 func TestNewOCIClientWithPlainHTTP(t *testing.T) {
 	for _, plainHTTP := range []bool{true, false} {
-		client, err := newOCIClientWithPlainHTTP("reg.example.com", "", "", plainHTTP)
+		client, err := component.NewOCIClientWithPlainHTTP("reg.example.com", "", "", plainHTTP)
 		require.NoError(t, err)
 		assert.NotNil(t, client)
 	}
@@ -745,7 +740,7 @@ func TestNewOCIClientWithPlainHTTP(t *testing.T) {
 // non-empty credentials trigger a real Login call, which fails fast and
 // deterministically against a closed loopback port.
 func TestNewOCIClientWithPlainHTTPLoginFailure(t *testing.T) {
-	_, err := newOCIClientWithPlainHTTP(closedPortHost, "AWS", "secret", false)
+	_, err := component.NewOCIClientWithPlainHTTP(closedPortHost, "AWS", "secret", false)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to login to OCI registry")
 }
@@ -763,20 +758,20 @@ const (
 // callers rely on.
 func TestPullOCIChartWithTransportDialFailure(t *testing.T) {
 	for _, plainHTTP := range []bool{true, false} {
-		_, err := pullOCIChartWithTransport(closedPortRepoRef+":1.0.0", closedPortHost, "", "", plainHTTP)
+		_, err := component.PullOCIChartWithTransport(closedPortRepoRef+":1.0.0", closedPortHost, "", "", plainHTTP)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to pull addon chart")
 	}
 }
 
-// TestPullOCIChartWrappers covers pullOCIChart and pullOCIChartWithPlainHTTP,
+// TestPullOCIChartWrappers covers component.PullOCIChart and component.PullOCIChartWithPlainHTTP,
 // which only select a transport before delegating.
 func TestPullOCIChartWrappers(t *testing.T) {
-	_, err := pullOCIChart(context.Background(), closedPortRepoRef+":1.0.0", closedPortHost, "", "")
+	_, err := component.PullOCIChart(context.Background(), closedPortRepoRef+":1.0.0", closedPortHost, "", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to pull addon chart")
 
-	_, err = pullOCIChartWithPlainHTTP(context.Background(), closedPortRepoRef+":1.0.0", closedPortHost, "", "")
+	_, err = component.PullOCIChartWithPlainHTTP(context.Background(), closedPortRepoRef+":1.0.0", closedPortHost, "", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to pull addon chart")
 }
@@ -785,17 +780,17 @@ func TestPullOCIChartWrappers(t *testing.T) {
 // client against a closed port for both transports.
 func TestListOCITagsWithTransportDialFailure(t *testing.T) {
 	for _, plainHTTP := range []bool{true, false} {
-		_, err := listOCITagsWithTransport(closedPortRepoRef, closedPortHost, "", "", plainHTTP)
+		_, err := component.ListOCITagsWithTransport(closedPortRepoRef, closedPortHost, "", "", plainHTTP)
 		require.Error(t, err)
 	}
 }
 
-// TestListOCITagsWrappers covers listOCITags and listOCITagsWithPlainHTTP.
+// TestListOCITagsWrappers covers component.ListOCITags and component.ListOCITagsWithPlainHTTP.
 func TestListOCITagsWrappers(t *testing.T) {
-	_, err := listOCITags(context.Background(), closedPortRepoRef, closedPortHost, "", "")
+	_, err := component.ListOCITags(context.Background(), closedPortRepoRef, closedPortHost, "", "")
 	require.Error(t, err)
 
-	_, err = listOCITagsWithPlainHTTP(context.Background(), closedPortRepoRef, closedPortHost, "", "")
+	_, err = component.ListOCITagsWithPlainHTTP(context.Background(), closedPortRepoRef, closedPortHost, "", "")
 	require.Error(t, err)
 }
 
@@ -857,54 +852,6 @@ func TestOCIRegistryGetAddonUIDataCarriesAvailableVersions(t *testing.T) {
 	assert.Equal(t, []string{"3.0.1", "2.0.0", "1.0.0"}, whole.AvailableVersions)
 }
 
-// TestOCIClientCacheReusesLogin pins the fix for the handshake storm: listing a
-// catalog resolves every addon, and without reuse each of those built a new
-// client and logged in again, which real registries reject once the catalog
-// holds more than a couple of addons.
-func TestOCIClientCacheReusesLogin(t *testing.T) {
-	resetOCIClientCache(t)
-
-	first, err := newOCIClientWithPlainHTTP("reg.example.com", "", "", false)
-	require.NoError(t, err)
-	second, err := newOCIClientWithPlainHTTP("reg.example.com", "", "", false)
-	require.NoError(t, err)
-	assert.Same(t, first, second, "the same host and credentials must reuse one client")
-
-	other, err := newOCIClientWithPlainHTTP("other.example.com", "", "", false)
-	require.NoError(t, err)
-	assert.NotSame(t, first, other, "different hosts must not share a client")
-
-	// Credentialed clients log in, so assert the keying rather than build one.
-	// A rotated credential must miss the cache: an ECR login token lasts 12
-	// hours, and reusing the client holding the stale one would fail every pull.
-	assert.NotEqual(t,
-		ociClientCacheKey("reg.example.com", "AWS", "old-token", false),
-		ociClientCacheKey("reg.example.com", "AWS", "new-token", false),
-		"a rotated credential must not reuse the client holding the stale token")
-	assert.NotEqual(t,
-		ociClientCacheKey("reg.example.com", "u", "p", false),
-		ociClientCacheKey("reg.example.com", "u", "p", true),
-		"plain HTTP and TLS clients must be keyed apart")
-	assert.Equal(t,
-		ociClientCacheKey("reg.example.com", "u", "p", false),
-		ociClientCacheKey("reg.example.com", "u", "p", false),
-		"the same inputs must produce the same key")
-}
-
-func TestOCIClientCacheIsBounded(t *testing.T) {
-	resetOCIClientCache(t)
-
-	for i := 0; i < ociClientCacheLimit*2; i++ {
-		_, err := newOCIClientWithPlainHTTP(fmt.Sprintf("reg%d.example.com", i), "", "", false)
-		require.NoError(t, err)
-	}
-
-	ociClientCache.Lock()
-	size := len(ociClientCache.clients)
-	ociClientCache.Unlock()
-	assert.LessOrEqual(t, size, ociClientCacheLimit, "the cache must stay bounded as credentials rotate")
-}
-
 // TestOCIPullNormalizesBuildMetadataTag pins the tag round-trip for versions
 // carrying SemVer build metadata.
 //
@@ -931,7 +878,7 @@ func TestOCIPullNormalizesBuildMetadataTag(t *testing.T) {
 	host := strings.TrimPrefix(server.URL, "http://")
 	// The pull fails: the point is the reference the client puts on the wire,
 	// not the response.
-	_, err := pullOCIChartWithTransport(host+"/addon/fluxcd:1.0.0+build.5", host, "", "", true)
+	_, err := component.PullOCIChartWithTransport(host+"/addon/fluxcd:1.0.0+build.5", host, "", "", true)
 	require.Error(t, err)
 
 	mu.Lock()

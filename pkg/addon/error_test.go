@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/google/go-github/v32/github"
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
@@ -46,10 +47,10 @@ func TestGetAvailableVersion(t *testing.T) {
 
 func TestWrapErrRateLimit(t *testing.T) {
 	regularErr := errors.New("regular error")
-	wrappedErr := WrapErrRateLimit(regularErr)
+	wrappedErr := component.WrapErrRateLimit(regularErr)
 	assert.Equal(t, regularErr, wrappedErr)
 
 	rateLimitErr := &github.RateLimitError{}
-	wrappedErr = WrapErrRateLimit(rateLimitErr)
+	wrappedErr = component.WrapErrRateLimit(rateLimitErr)
 	assert.Equal(t, ErrRateLimit, wrappedErr)
 }

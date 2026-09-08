@@ -197,7 +197,7 @@ func findLegacyAddonDefs(ctx context.Context, k8sClient client.Client, addonName
 				}
 				meta := metas[addonName]
 				// only fetch definition files from registry.
-				uiData, err = registry.GetUIData(&meta, UnInstallOptions)
+				uiData, err = GetUIData(&registry, &meta, UnInstallOptions)
 				if err != nil {
 					return errors.Wrapf(err, "cannot fetch addon difinition files from registry")
 				}

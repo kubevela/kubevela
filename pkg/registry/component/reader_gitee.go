@@ -14,15 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package addon
+package component
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
 	"strings"
 
+	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -119,4 +123,53 @@ func (g *giteeReader) RelativePath(item Item) string {
 	}
 	base := strings.Split(g.h.Meta.GiteeContent.Path, "/")
 	return path.Join(absPath[len(base):]...)
+}
+
+// DefaultGiteeURL is the Gitee API endpoint reads default to.
+const DefaultGiteeURL string = "https://gitee.com/api/v5/"
+
+// readRepo will read relative path (relative to Meta.Path)
+func (h *giteeHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
+	file, items, err := h.Client.GetGiteeContents(context.Background(), h.Meta.GiteeContent.Owner, h.Meta.GiteeContent.Repo, path.Join(h.Meta.GiteeContent.Path, relativePath), h.Meta.GiteeContent.Ref)
+	if err != nil {
+		return nil, nil, WrapErrRateLimit(err)
+	}
+	return file, items, nil
+}
+
+// GetGiteeContents can return either the metadata and content of a single file
+func (c *Client) GetGiteeContents(ctx context.Context, owner, repo, path, ref string) (fileContent *github.RepositoryContent, directoryContent []*github.RepositoryContent, err error) {
+	escapedPath := (&url.URL{Path: path}).String()
+	u := fmt.Sprintf(c.BaseURL.String()+"repos/%s/%s/contents/%s", owner, repo, escapedPath)
+	if ref != "" {
+		u = fmt.Sprintf(u+"?ref=%s", ref)
+	}
+
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	response, err := c.Client.Do(req.WithContext(ctx))
+	if err != nil {
+		return nil, nil, err
+	}
+	//nolint:errcheck
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, nil, err
+	}
+	return unmarshalToContent(body)
+}
+
+func unmarshalToContent(content []byte) (fileContent *github.RepositoryContent, directoryContent []*github.RepositoryContent, err error) {
+	fileUnmarshalError := json.Unmarshal(content, &fileContent)
+	if fileUnmarshalError == nil {
+		return fileContent, nil, nil
+	}
+	directoryUnmarshalError := json.Unmarshal(content, &directoryContent)
+	if directoryUnmarshalError == nil {
+		return nil, directoryContent, nil
+	}
+	return nil, nil, fmt.Errorf("unmarshalling failed for both file and directory content: %s and %w", fileUnmarshalError.Error(), directoryUnmarshalError)
 }

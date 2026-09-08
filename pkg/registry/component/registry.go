@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The KubeVela Authors.
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,78 +17,382 @@ limitations under the License.
 package component
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"sort"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/addon"
+	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 )
 
-// Registry is the addon registry model, reused verbatim so that a module
-// publishes to and is pulled from the same registries `vela addon registry`
-// already manages. Modules deliberately do not carry a registry model of their
-// own: a registry is a location, not an addon- or module-specific concept.
-type Registry = addon.Registry
+const registryConfigMapName = "vela-addon-registry"
+const registriesKey = "registries"
+const tokenSecretNamePrefix = "addon-registry-"
 
-// RegistryDataStore reads and writes registries.
-type RegistryDataStore = addon.RegistryDataStore
+// TokenSource is an interface for addon source that has token
+type TokenSource interface {
+	// GetToken return the token of the source
+	GetToken() string
+	// SetToken set the token of the source
+	SetToken(string)
+	// SetTokenSecretRef set the token secret ref to the source
+	SetTokenSecretRef(string)
+	// GetTokenSecretRef return the token secret ref of the source
+	GetTokenSecretRef() string
+}
 
-// NewRegistryDataStoreFor builds a registry store over the given ConfigMap and
-// token-secret prefix, which is how the module registry keeps its entries and
-// credentials separate from the addon registry's.
-var NewRegistryDataStoreFor = addon.NewRegistryDataStoreFor
-
-// OCIChartSource returns the source holding the OCI registry a module chart is
-// published to and pulled from, or nil when reg is not OCI-backed.
-func OCIChartSource(reg Registry) *addon.HelmSource { return ociChartSource(reg) }
-
-// The source readers are shared with the addon registry: a module and an addon
-// are fetched from the same kinds of location (git, OCI, OSS, local), so they
-// read them the same way rather than each carrying its own transport.
-type (
-	// AsyncReader reads package files from a source.
-	AsyncReader = addon.AsyncReader
-	// MemoryReader serves files from memory.
-	MemoryReader = addon.MemoryReader
-	// Item is one file or directory in a source.
-	Item = addon.Item
-	// SourceMeta is one package's file listing.
-	SourceMeta = addon.SourceMeta
-	// HelmSource is a Helm-repo or OCI-backed source.
-	HelmSource = addon.HelmSource
-	// GitAddonSource is a git-backed source.
-	GitAddonSource = addon.GitAddonSource
-)
-
-const (
-	// FileType means a file.
-	FileType = addon.FileType
-	// DirType means a directory.
-	DirType = addon.DirType
-)
-
-// NewAsyncReader builds a reader for a source.
-var NewAsyncReader = addon.NewAsyncReader
-
-// ociChartSource returns the source holding the OCI registry a module chart is
-// published to and pulled from, or nil when reg is not OCI-backed.
-//
-// A registry records OCI and plain Helm repositories in the same Helm source
-// (an oci:// URL is just another Helm URL), so being OCI-backed is a property
-// of the URL rather than of a dedicated field. Three spellings qualify:
-//
-//   - oci://, the canonical form;
-//   - http://, an in-process test registry, which is reached over plain HTTP
-//     rather than being silently downgraded from TLS;
-//   - scheme-less, how registry hosts are conventionally written, e.g.
-//     "123456789012.dkr.ecr.us-west-2.amazonaws.com/modules".
-//
-// An https:// URL is a plain Helm chart repository and is deliberately not
-// treated as OCI-backed.
-func ociChartSource(reg Registry) *addon.HelmSource {
-	if reg.Helm == nil || reg.Helm.URL == "" {
+// OCISource returns the registry's chart source when it addresses an OCI
+// registry, or nil for every other kind of entry. An OCI registry is a Helm
+// source whose URL carries the oci:// scheme -- there is no separate field for
+// it -- so callers that need to tell the two apart go through this rather than
+// repeating the scheme test.
+func (r *Registry) OCISource() *HelmSource {
+	if r.Helm == nil || !IsOCIURL(r.Helm.URL) {
 		return nil
 	}
-	if addon.IsOCIURL(reg.Helm.URL) || ociURLIsPlainHTTP(reg.Helm.URL) || !strings.Contains(reg.Helm.URL, "://") {
-		return reg.Helm
+	return r.Helm
+}
+
+// OCIChartSource returns the chart source for a registry the module chart
+// pull/push path can talk to, or nil for every other kind of entry. It widens
+// OCISource by the two spellings that path has always accepted:
+//
+//   - http://host/prefix, an OCI registry served without TLS (a local or
+//     port-forwarded test registry). IsOCIURL rejects that because for an
+//     addon registry http(s):// means a ChartMuseum repository, but modules
+//     never supported ChartMuseum, so the spelling is free here.
+//   - a bare host such as an ECR endpoint, the form `vela module publish`
+//     documents. ociRegistryLocation parses it the same either way.
+//
+// https:// is still not OCI: that one really does address a chart repository,
+// and treating it as a registry would misroute a hand-edited helm entry that
+// ResolveRegistry is supposed to reject.
+func (r *Registry) OCIChartSource() *HelmSource {
+	if oci := r.OCISource(); oci != nil {
+		return oci
 	}
+	if r.Helm == nil || r.Helm.URL == "" {
+		return nil
+	}
+	if ociURLIsPlainHTTP(r.Helm.URL) || !strings.Contains(r.Helm.URL, "://") {
+		return r.Helm
+	}
+	return nil
+}
+
+// GetTokenSource return the token source of the registry
+func (r *Registry) GetTokenSource() TokenSource {
+	if r.Git != nil {
+		return r.Git
+	}
+	if r.Gitee != nil {
+		return r.Gitee
+	}
+	if r.Gitlab != nil {
+		return r.Gitlab
+	}
+	// Only an oci:// Helm source is secret backed. An http(s):// Helm repository
+	// keeps its password in the ConfigMap, which is the behaviour released
+	// versions already have; returning it here would start rewriting those
+	// records into Secrets as a side effect of this refactor.
+	if oci := r.OCISource(); oci != nil {
+		return oci
+	}
+	return nil
+}
+
+// Registry represent a addon registry model
+type Registry struct {
+	Name string `json:"name"`
+
+	Helm   *HelmSource        `json:"helm,omitempty"`
+	Git    *GitAddonSource    `json:"git,omitempty"`
+	OSS    *OSSAddonSource    `json:"oss,omitempty"`
+	Gitee  *GiteeAddonSource  `json:"gitee,omitempty"`
+	Gitlab *GitlabAddonSource `json:"gitlab,omitempty"`
+}
+
+// RegistryDataStore CRUD addon registry data in configmap
+type RegistryDataStore interface {
+	ListRegistries(context.Context) ([]Registry, error)
+	AddRegistry(context.Context, Registry) error
+	DeleteRegistry(context.Context, string) error
+	UpdateRegistry(context.Context, Registry) error
+	GetRegistry(context.Context, string) (Registry, error)
+}
+
+// NewRegistryDataStore get RegistryDataStore operation interface
+func NewRegistryDataStore(cli client.Client) RegistryDataStore {
+	return registryImpl{cli, registryConfigMapName, tokenSecretNamePrefix}
+}
+
+// NewRegistryDataStoreFor returns a RegistryDataStore backed by the ConfigMap named
+// cmName, storing registry tokens in secrets named secretNamePrefix + registry name.
+// The module registry store uses this so its entries and credentials stay separate
+// from the addon registry store.
+func NewRegistryDataStoreFor(cli client.Client, cmName, secretNamePrefix string) RegistryDataStore {
+	return registryImpl{cli, cmName, secretNamePrefix}
+}
+
+type registryImpl struct {
+	client           client.Client
+	cmName           string
+	secretNamePrefix string
+}
+
+// getRegistries is a helper to fetch and unmarshal all registries from the ConfigMap
+func (r registryImpl) getRegistries(ctx context.Context) (map[string]Registry, *v1.ConfigMap, error) {
+	cm := &v1.ConfigMap{}
+	err := r.client.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: r.cmName}, cm)
+	if err != nil {
+		return nil, nil, err
+	}
+	if _, ok := cm.Data[registriesKey]; !ok {
+		return nil, nil, NewError("error addon registry configmap registry-key not exist")
+	}
+	registries := map[string]Registry{}
+	if err := json.Unmarshal([]byte(cm.Data[registriesKey]), &registries); err != nil {
+		return nil, cm, err
+	}
+	return registries, cm, nil
+}
+
+func (r registryImpl) ListRegistries(ctx context.Context) ([]Registry, error) {
+	registries, _, err := r.getRegistries(ctx)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return []Registry{}, nil
+		}
+		return nil, err
+	}
+
+	// getRegistries decodes a map, so iterating it directly hands callers a
+	// randomly ordered slice. Callers treat the order as a priority -- the first
+	// registry holding an addon wins in FindAddonPackagesDetailFromRegistry, and
+	// mergeAddonInfoMaps folds later registries onto earlier ones -- so an addon
+	// present in two registries would otherwise resolve differently call to call.
+	//
+	// By name, because that is the order the data is already stored in: the
+	// registries live in a JSON object, which loses insertion order, and
+	// encoding/json sorts map keys when AddRegistry marshals it back. So this
+	// reproduces the ConfigMap's own order rather than inventing a priority.
+	names := make([]string, 0, len(registries))
+	for name := range registries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	res := make([]Registry, 0, len(names))
+	for _, name := range names {
+		registry := registries[name]
+		if err := loadTokenFromSecret(ctx, r.client, &registry); err != nil {
+			return nil, err
+		}
+		res = append(res, registry)
+	}
+	return res, nil
+}
+
+func (r registryImpl) AddRegistry(ctx context.Context, registry Registry) error {
+	if err := createOrUpdateTokenSecret(ctx, r.client, &registry, r.secretNamePrefix); err != nil {
+		return err
+	}
+
+	registries, cm, err := r.getRegistries(ctx)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			b, err := json.Marshal(map[string]Registry{
+				registry.Name: registry,
+			})
+			if err != nil {
+				return err
+			}
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      r.cmName,
+					Namespace: velatypes.DefaultKubeVelaNS,
+				},
+				Data: map[string]string{
+					registriesKey: string(b),
+				},
+			}
+			return r.client.Create(ctx, cm)
+		}
+		return err
+	}
+
+	registries[registry.Name] = registry
+	b, err := json.Marshal(registries)
+	if err != nil {
+		return err
+	}
+	cm.Data[registriesKey] = string(b)
+	return r.client.Update(ctx, cm)
+}
+
+// createOrUpdateTokenSecret will create or update a secret to store registry token
+func createOrUpdateTokenSecret(ctx context.Context, cli client.Client, registry *Registry, secretNamePrefix string) error {
+	source := registry.GetTokenSource()
+	if source == nil {
+		return nil
+	}
+	token := source.GetToken()
+	if token == "" {
+		return nil
+	}
+	return migrateInlineTokenToSecret(ctx, cli, registry, source, token, secretNamePrefix)
+}
+
+// migrateInlineTokenToSecret will migrate an inline token to a secret.
+// It will take the token from the registry object, create/update a secret, and set the secret ref on the registry object.
+func migrateInlineTokenToSecret(ctx context.Context, cli client.Client, registry *Registry, source TokenSource, token, secretNamePrefix string) error {
+	log := logf.FromContext(ctx)
+	secretName := secretNamePrefix + registry.Name
+	source.SetTokenSecretRef(secretName)
+
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: velatypes.DefaultKubeVelaNS,
+		},
+		Type: v1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"token": []byte(token),
+		},
+	}
+
+	err := cli.Create(ctx, secret)
+	if err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			existingSecret := &v1.Secret{}
+			if err := cli.Get(ctx, types.NamespacedName{Name: secretName, Namespace: velatypes.DefaultKubeVelaNS}, existingSecret); err != nil {
+				return err
+			}
+			existingSecret.Data = secret.Data
+			if err := cli.Update(ctx, existingSecret); err != nil {
+				return err
+			}
+			log.Info("Successfully updated secret for addon registry token", "registry", registry.Name, "secret", secretName)
+			return nil
+		}
+		return err
+	}
+	log.Info("Successfully created secret for addon registry token", "registry", registry.Name, "secret", secretName)
+	return nil
+}
+
+func (r registryImpl) DeleteRegistry(ctx context.Context, name string) error {
+	registries, cm, err := r.getRegistries(ctx)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	reg, ok := registries[name]
+	if !ok {
+		return nil
+	}
+
+	if source := reg.GetTokenSource(); source != nil {
+		if secretName := source.GetTokenSecretRef(); secretName != "" {
+			secret := &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      secretName,
+					Namespace: velatypes.DefaultKubeVelaNS,
+				},
+			}
+			if err := r.client.Delete(ctx, secret); err != nil && !apierrors.IsNotFound(err) {
+				return err
+			}
+		}
+	}
+
+	delete(registries, name)
+	b, err := json.Marshal(registries)
+	if err != nil {
+		return err
+	}
+	cm.Data[registriesKey] = string(b)
+	return r.client.Update(ctx, cm)
+}
+
+func (r registryImpl) UpdateRegistry(ctx context.Context, registry Registry) error {
+	if err := createOrUpdateTokenSecret(ctx, r.client, &registry, r.secretNamePrefix); err != nil {
+		return err
+	}
+	registries, cm, err := r.getRegistries(ctx)
+	if err != nil {
+		return err
+	}
+	if _, ok := registries[registry.Name]; !ok {
+		return fmt.Errorf("addon registry %s not exist", registry.Name)
+	}
+	registries[registry.Name] = registry
+	b, err := json.Marshal(registries)
+	if err != nil {
+		return err
+	}
+	cm.Data[registriesKey] = string(b)
+	return r.client.Update(ctx, cm)
+}
+
+func (r registryImpl) GetRegistry(ctx context.Context, name string) (Registry, error) {
+	registries, _, err := r.getRegistries(ctx)
+	if err != nil {
+		return Registry{}, err
+	}
+	res, ok := registries[name]
+	if !ok {
+		return res, apierrors.NewNotFound(schema.GroupResource{Group: "addons.kubevela.io", Resource: "Registry"}, name)
+	}
+	if err := loadTokenFromSecret(ctx, r.client, &res); err != nil {
+		return res, err
+	}
+	return res, nil
+}
+
+// loadTokenFromSecret will load token from secret if exists
+// and set it to the source of the registry object
+func loadTokenFromSecret(ctx context.Context, cli client.Client, registry *Registry) error {
+	source := registry.GetTokenSource()
+	if source == nil {
+		return nil
+	}
+	secretName := source.GetTokenSecretRef()
+	if secretName == "" {
+		if source.GetToken() != "" {
+			// For backward compatibility, token can be stored in configmap directly.
+			// This is not secure, so we print a warning and recommend user to upgrade.
+			// The upgrade can be done by editing and saving the addon registry again.
+			fmt.Printf("Warning: addon registry %s is using an insecure token stored in ConfigMap. Please edit and save this addon registry again to migrate the token to a secret.\n", registry.Name)
+		}
+		return nil
+	}
+	secret := &v1.Secret{}
+	if err := cli.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: secretName}, secret); err != nil {
+		if apierrors.IsNotFound(err) {
+			// If the secret is not found, we consider the token is empty. Clear
+			// TokenSecretRef along with it (SetToken("") does this): otherwise the
+			// source is left with an unresolved TokenSecretRef and an empty Token,
+			// which HelmSource.ValidateCredential reads as "a token is configured"
+			// even though Credential() has nothing to actually send -- passing
+			// validation while the transport authenticates with an empty password.
+			source.SetToken("")
+			return nil
+		}
+		return err
+	}
+	source.SetToken(string(secret.Data["token"]))
 	return nil
 }
