@@ -46,6 +46,8 @@ import (
 	wfContext "github.com/kubevela/workflow/pkg/context"
 	"github.com/kubevela/workflow/pkg/executor"
 	wffeatures "github.com/kubevela/workflow/pkg/features"
+	wfhttp "github.com/kubevela/workflow/pkg/providers/http"
+	wflegacyhttp "github.com/kubevela/workflow/pkg/providers/legacy/http"
 
 	ctrlrec "github.com/kubevela/pkg/controller/reconciler"
 
@@ -743,9 +745,9 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 	// Register application status metrics after feature gates are initialized
 	metrics.RegisterApplicationStatusMetrics()
 
-	// Initialize the workflow StepStatusCache after manager starts
+	// Initialize the workflow cache after manager starts
 	// This ensures that the cache is ready before any workflow execution occurs
-	if err := mgr.Add(&stepStatusCacheInitializer{}); err != nil {
+	if err := mgr.Add(&cacheInitializer{}); err != nil {
 		return err
 	}
 
@@ -764,10 +766,12 @@ func Setup(mgr ctrl.Manager, args core.Args) error {
 	return reconciler.SetupWithManager(mgr)
 }
 
-type stepStatusCacheInitializer struct{}
+type cacheInitializer struct{}
 
-func (r *stepStatusCacheInitializer) Start(ctx context.Context) error {
+func (r *cacheInitializer) Start(ctx context.Context) error {
 	executor.InitStepStatusCache(ctx)
+	wfhttp.InitRateLimiter(ctx)
+	wflegacyhttp.InitRateLimiter(ctx)
 	return nil
 }
 

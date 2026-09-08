@@ -1142,8 +1142,8 @@ var _ = Describe("Test workflow restart annotation functionality", func() {
 		Expect(app.Status.Workflow.AppRevision).To(Equal("app-v1"))
 	})
 
-	It("should initialize StepStatusCache via stepStatusCacheInitializer", func() {
-		initializer := &stepStatusCacheInitializer{}
+	It("should initialize cache via cacheInitializer", func() {
+		initializer := &cacheInitializer{}
 		err := initializer.Start(context.Background())
 		Expect(err).ShouldNot(HaveOccurred())
 	})

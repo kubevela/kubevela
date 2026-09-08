@@ -65,6 +65,15 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `workflow.backoff.maxTime.failedState`                  | The max backoff time of workflow in a failed condition                                              | `300`   |
 | `workflow.step.errorRetryTimes`                         | The max retry times of a failed workflow step                                                       | `10`    |
 
+### KubeVela Helm cache parameters
+
+| Name                      | Description                                                                                                                                                                                               | Value       |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `helmCache.maxBytes`      | Maximum number of bytes to keep in the Helm chart cache. Tune this down on memory-constrained deployments (the default 256MiB can be a quarter of a 1Gi container). Set to 0 to use the built-in default. | `268435456` |
+| `helmCache.sweepInterval` | How often the Helm chart cache sweeps expired entries (e.g. "60s"). The sweep shares the lock with Get and Put, so a very small interval raises lock contention. Set to 0 to use the built-in default.    | `60s`       |
+| `helmCache.immutableTTL`  | Cluster-wide default cache TTL for immutable (semver) chart versions. Used only when a component does not set options.cache.immutableTTL. Set to 0 to use the built-in default (24h).                     | `24h`       |
+| `helmCache.mutableTTL`    | Cluster-wide default cache TTL for mutable chart tags. Used only when a component does not set options.cache.mutableTTL. Set to 0 to use the built-in default (5m).                                       | `5m`        |
+
 ### KubeVela controller parameters
 
 | Name                        | Description                                                                  | Value              |

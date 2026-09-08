@@ -20,8 +20,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/kubevela/pkg/cache"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 var _ = Describe("provider", func() {
@@ -47,6 +49,36 @@ var _ = Describe("provider", func() {
 
 	Describe("DefaultCacheTTLConfig", func() {
 		It("should return correct defaults", func() {
+			config := DefaultCacheTTLConfig()
+			Expect(config.ImmutableVersionTTL).To(Equal(24 * time.Hour))
+			Expect(config.MutableVersionTTL).To(Equal(5 * time.Minute))
+		})
+	})
+
+	Describe("InitCacheTTL", func() {
+		It("should update the cluster-wide TTL defaults", func() {
+			prevImmutable := cacheTTLImmutableVersion
+			prevMutable := cacheTTLMutableVersion
+			defer func() {
+				cacheTTLImmutableVersion = prevImmutable
+				cacheTTLMutableVersion = prevMutable
+			}()
+
+			InitCacheTTL(2*time.Hour, 30*time.Minute)
+			config := DefaultCacheTTLConfig()
+			Expect(config.ImmutableVersionTTL).To(Equal(2 * time.Hour))
+			Expect(config.MutableVersionTTL).To(Equal(30 * time.Minute))
+		})
+
+		It("should fall back to defaults for non-positive values", func() {
+			prevImmutable := cacheTTLImmutableVersion
+			prevMutable := cacheTTLMutableVersion
+			defer func() {
+				cacheTTLImmutableVersion = prevImmutable
+				cacheTTLMutableVersion = prevMutable
+			}()
+
+			InitCacheTTL(-time.Hour, 0)
 			config := DefaultCacheTTLConfig()
 			Expect(config.ImmutableVersionTTL).To(Equal(24 * time.Hour))
 			Expect(config.MutableVersionTTL).To(Equal(5 * time.Minute))
@@ -80,6 +112,45 @@ var _ = Describe("provider", func() {
 
 		It("should have a non-nil provider package", func() {
 			Expect(Package).ToNot(BeNil())
+		})
+	})
+
+	Describe("evictionReasonLabel", func() {
+		DescribeTable("should normalize eviction reasons into stable labels",
+			func(reason cache.EvictionReason, expected string) {
+				Expect(evictionReasonLabel(reason)).To(Equal(expected))
+			},
+			Entry("capacity", cache.EvictCapacity, "capacity"),
+			Entry("ttl", cache.EvictTTL, "ttl"),
+			Entry("delete", cache.EvictDelete, "delete"),
+			Entry("replace", cache.EvictReplace, "replace"),
+			Entry("purge", cache.EvictPurge, "purge"),
+			Entry("unknown", cache.EvictionReason("some-other"), "unknown"),
+		)
+	})
+
+	Describe("cache eviction handler", func() {
+		It("should record evictions triggered by a delete on the singleton provider", func() {
+			p := NewProvider()
+			key := "evict-delete"
+			p.cache.Put(key, []byte("data"), time.Minute)
+			before := testutil.ToFloat64(HelmChartCacheEvictionsTotal.WithLabelValues("delete"))
+			p.cache.Delete(key)
+			after := testutil.ToFloat64(HelmChartCacheEvictionsTotal.WithLabelValues("delete"))
+			Expect(after - before).To(BeNumerically("==", 1))
+		})
+
+		It("should record evictions triggered by a replace on a config provider", func() {
+			p := NewProviderWithConfig(&CacheTTLConfig{
+				ImmutableVersionTTL: 24 * time.Hour,
+				MutableVersionTTL:   5 * time.Minute,
+			})
+			key := "evict-replace"
+			p.cache.Put(key, []byte("old"), time.Minute)
+			before := testutil.ToFloat64(HelmChartCacheEvictionsTotal.WithLabelValues("replace"))
+			p.cache.Put(key, []byte("new"), time.Minute)
+			after := testutil.ToFloat64(HelmChartCacheEvictionsTotal.WithLabelValues("replace"))
+			Expect(after - before).To(BeNumerically("==", 1))
 		})
 	})
 
