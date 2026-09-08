@@ -184,6 +184,14 @@ const (
 	// has been checked for $(VAR) in env, command and args. Turning it off makes
 	// every Application eligible at once.
 	RequireCelExpressionOptIn featuregate.Feature = "RequireCelExpressionOptIn"
+
+	// EnableModuleComponent enables installing a module as an Application component via the
+	// type: module ComponentDefinition. As with EnableAddonComponent, the ComponentDefinition
+	// and its vela/module CueX package always ship, because the definition cannot compile
+	// without the package; this gate controls only whether the render service is wired up.
+	// When disabled, an Application using type: module fails at render with an actionable
+	// message.
+	EnableModuleComponent featuregate.Feature = "EnableModuleComponent"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -220,6 +228,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	EnableSourceAutoUpdate:                        {Default: false, PreRelease: featuregate.Alpha},
 	EnableCelExpressions:                          {Default: false, PreRelease: featuregate.Alpha},
 	RequireCelExpressionOptIn:                     {Default: true, PreRelease: featuregate.Alpha},
+	EnableModuleComponent:                         {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {
