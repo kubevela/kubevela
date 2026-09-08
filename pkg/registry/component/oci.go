@@ -33,15 +33,11 @@ import (
 )
 
 // ociScheme is the canonical OCI URL scheme prefix. IsOCIURL classifies the
-// scheme case-insensitively, so the stripping in ociRegistryLocation has to
+// scheme case-insensitively, so the stripping in OCIRegistryLocation has to
 // match, or a registry stored as "OCI://..." would classify as OCI but build a
 // malformed host such as "OCI:".
 const ociScheme = "oci://"
 
-// OCIRegistryLocation returns the registry host and repository prefix. Any of
-// the schemes a registry URL is written with is stripped first: without that,
-// an "http://" URL splits at the scheme's own slash and yields the host
-// "http:".
 // AwaitOCICall runs a blocking helm registry operation and returns as soon as
 // ctx is done, so a cancelled caller is released even though the helm registry
 // client itself takes no context. The operation keeps running in the
@@ -77,6 +73,10 @@ func AwaitOCICall[T any](ctx context.Context, op func() (T, error)) (T, error) {
 // ociCallTimeout bounds a single registry call.
 const ociCallTimeout = 5 * time.Minute
 
+// OCIRegistryLocation returns the registry host and repository prefix. Any of
+// the schemes a registry URL is written with is stripped first: without that,
+// an "http://" URL splits at the scheme's own slash and yields the host
+// "http:".
 func OCIRegistryLocation(rawURL string) (host, prefix string) {
 	base := rawURL
 	for _, scheme := range []string{ociScheme, "https://", "http://"} {
