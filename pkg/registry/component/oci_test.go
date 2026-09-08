@@ -17,6 +17,7 @@ limitations under the License.
 package component
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -100,4 +101,14 @@ func TestIsDockerHubHost(t *testing.T) {
 	} {
 		assert.False(t, IsDockerHubHost(host), "%q should not be Docker Hub", host)
 	}
+}
+
+// TestPullOCIChartFilesRejectsNonOCI pins that a registry which is not OCI
+// backed is refused by name rather than being dialled. Reaching the transport
+// with no OCI source would surface as a connection error naming nothing the
+// caller configured.
+func TestPullOCIChartFilesRejectsNonOCI(t *testing.T) {
+	_, err := PullOCIChartFiles(context.Background(), Registry{Name: "git-reg"}, "s3", "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "git-reg")
 }
