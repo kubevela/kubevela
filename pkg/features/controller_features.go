@@ -147,6 +147,14 @@ const (
 	// webhook is always registered. When disabled, nothing addon-specific runs and an
 	// Application using type: addon fails at render with an actionable message.
 	EnableAddonComponent featuregate.Feature = "EnableAddonComponent"
+
+	// EnableModuleComponent enables installing a module as an Application component via the
+	// type: module ComponentDefinition. As with EnableAddonComponent, the ComponentDefinition
+	// and its vela/module CueX package always ship, because the definition cannot compile
+	// without the package; this gate controls only whether the render service is wired up.
+	// When disabled, an Application using type: module fails at render with an actionable
+	// message.
+	EnableModuleComponent featuregate.Feature = "EnableModuleComponent"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -179,6 +187,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	EnableApplicationScopedPolicies:               {Default: false, PreRelease: featuregate.Alpha},
 	ValidateUndeclaredParameters:                  {Default: false, PreRelease: featuregate.Alpha},
 	EnableAddonComponent:                          {Default: false, PreRelease: featuregate.Alpha},
+	EnableModuleComponent:                         {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {
