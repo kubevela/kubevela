@@ -290,12 +290,17 @@ func TestVersionedUIDataConcurrentAccessIsSynchronized(t *testing.T) {
 	wg.Add(3)
 
 	// Discovery churn: the registry disappears and comes back, so the map entry
-	// is deleted and recreated underneath the readers.
+	// is deleted and recreated underneath the readers. putRegistry2Cache only
+	// re-adds the registry entry, not versionedUIData, so the versioned entry
+	// has to be recreated here too -- otherwise it survives only the first
+	// cycle and pruneVersionedUIData's own delete loop below never runs against
+	// a non-empty map again.
 	go func() {
 		defer wg.Done()
 		for i := 0; i < rounds; i++ {
 			c.putRegistry2Cache(nil)
 			c.putRegistry2Cache([]Registry{registry})
+			c.putVersionedUIData2Cache("ecr", "fluxcd", "1.0.0", &UIData{Meta: Meta{Name: "fluxcd", Version: "1.0.0"}})
 		}
 	}()
 	go func() {
@@ -307,7 +312,11 @@ func TestVersionedUIDataConcurrentAccessIsSynchronized(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < rounds; i++ {
-			c.pruneVersionedUIData("ecr", []*UIData{{Meta: Meta{Name: "fluxcd"}}})
+			// A survivor list that does not include "fluxcd" so needDelete stays
+			// true and the delete(addonUIData, k) branch actually executes
+			// concurrently with the two goroutines above, instead of every call
+			// matching "fluxcd" and skipping the delete entirely.
+			c.pruneVersionedUIData("ecr", []*UIData{{Meta: Meta{Name: "other-addon"}}})
 		}
 	}()
 

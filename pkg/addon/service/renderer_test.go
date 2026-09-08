@@ -85,7 +85,11 @@ func TestValidateSystemRequirements(t *testing.T) {
 		// restConfig() falls back to the process-wide singleton, whose loader is
 		// config.GetConfigOrDie: left unset, this subtest exits the whole test
 		// binary on a machine with no kubeconfig instead of exercising the
-		// no-config branch. Set the singleton to the value the branch is about.
+		// no-config branch. Set the singleton to the value the branch is about,
+		// and restore it afterward so a later test that sets KubeConfig before
+		// this one runs is not silently unset (see
+		// TestClientAndRestConfigFallBackToSingleton for the same pattern).
+		t.Cleanup(func() { singleton.KubeConfig.Set(nil) })
 		singleton.KubeConfig.Set(nil)
 
 		r := &rendererImpl{cli: fakeClientWithRegistry(t)}

@@ -516,10 +516,11 @@ func TestLoadTokenFromSecret(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		client      client.Client
-		registry    *Registry
-		expectErr   bool
-		expectToken string
+		client                 client.Client
+		registry               *Registry
+		expectErr              bool
+		expectToken            string
+		expectSecretRefCleared bool
 	}{
 		"success": {
 			client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build(),
@@ -538,6 +539,11 @@ func TestLoadTokenFromSecret(t *testing.T) {
 			},
 			expectErr:   false,
 			expectToken: "",
+			// TokenSecretRef must be cleared along with the empty token: a source
+			// left with a dangling TokenSecretRef and no Token reads as "a token is
+			// configured" to HelmSource.validateCredential even though nothing
+			// would actually be sent, which is the false assurance this guards.
+			expectSecretRefCleared: true,
 		},
 		"no token source": {
 			client:      fake.NewClientBuilder().WithScheme(scheme).Build(),
@@ -562,6 +568,9 @@ func TestLoadTokenFromSecret(t *testing.T) {
 				assert.NoError(t, err)
 				if tc.registry.Git != nil {
 					assert.Equal(t, tc.expectToken, tc.registry.Git.Token)
+					if tc.expectSecretRefCleared {
+						assert.Empty(t, tc.registry.Git.TokenSecretRef)
+					}
 				}
 			}
 		})

@@ -247,6 +247,15 @@ const ociCallTimeout = 5 * time.Minute
 // be aborted from outside, so it is left to finish into a buffered channel
 // whose result is dropped; the client's ociCallTimeout keeps that bounded.
 func awaitOCICall[T any](ctx context.Context, op func() (T, error)) (T, error) {
+	if err := ctx.Err(); err != nil {
+		// A caller that arrives already cancelled must not start a fresh
+		// goroutine that can run for up to ociCallTimeout: under frequent
+		// reconcile cancellation that accumulates orphaned goroutines and
+		// connections for no benefit, since the result would be discarded
+		// immediately below anyway.
+		var zero T
+		return zero, err
+	}
 	type outcome struct {
 		value T
 		err   error

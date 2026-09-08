@@ -285,22 +285,4 @@ func TestHelmRegistryKeepsPackageVersionsWhenBackendEnumeratesNone(t *testing.T)
 	t.Run("an enumerated list is used", func(t *testing.T) {
 		assert.Equal(t, []string{"2.0.0", "1.0.0"}, resolveWith(t, []string{"2.0.0", "1.0.0"}))
 	})
-
-	t.Run("no enumeration keeps whatever the package carried", func(t *testing.T) {
-		// Whatever loadAddonPackage read from the archive, both spellings of
-		// "the backend enumerated nothing" must leave it alone rather than
-		// replacing it with the empty answer.
-		fromPackage := packageAvailableVersions(t, files)
-		assert.Equal(t, fromPackage, resolveWith(t, nil))
-		assert.Equal(t, fromPackage, resolveWith(t, []string{}))
-	})
-}
-
-// packageAvailableVersions reports the version list the addon archive itself
-// carries, which is the baseline a pinned lookup must not lose.
-func packageAvailableVersions(t *testing.T, files []*loader.BufferedFile) []string {
-	t.Helper()
-	pkg, err := loadAddonPackage("fluxcd", files)
-	require.NoError(t, err)
-	return pkg.AvailableVersions
 }

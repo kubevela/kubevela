@@ -361,11 +361,18 @@ func setRegistryPasswordFromStdin(cmd *cobra.Command) error {
 	// Only the Helm and OCI record types have a password field. For every other
 	// type getRegistryFromArgs never reads the password flag, so reading stdin
 	// here would consume the caller's piped secret and throw it away -- with the
-	// registry created, unauthenticated, and no indication why. git and gitlab
-	// registries authenticate with --gitToken instead.
+	// registry created, unauthenticated, and no indication why. git, gitee, and
+	// gitlab registries authenticate with --gitToken instead; OSS has no
+	// credential flag at all, so it gets no such suggestion.
 	if registryType != addonHelmType && registryType != addonOCIType {
-		return errors.Errorf("--%s is only supported for --type %s and --type %s; a %q registry has no password (use --%s)",
-			addonPasswordStdin, addonHelmType, addonOCIType, registryType, addonGitToken)
+		switch registryType {
+		case addonGitType, addonGiteeType, addonGitlabType:
+			return errors.Errorf("--%s is only supported for --type %s and --type %s; a %q registry has no password (use --%s)",
+				addonPasswordStdin, addonHelmType, addonOCIType, registryType, addonGitToken)
+		default:
+			return errors.Errorf("--%s is only supported for --type %s and --type %s; a %q registry has no password",
+				addonPasswordStdin, addonHelmType, addonOCIType, registryType)
+		}
 	}
 	value, err := readPasswordFromStdin(cmd, cmd.Flags().Changed(addonPassword), "addon registry")
 	if err != nil {

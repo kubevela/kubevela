@@ -332,7 +332,13 @@ func loadTokenFromSecret(ctx context.Context, cli client.Client, registry *Regis
 	secret := &v1.Secret{}
 	if err := cli.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: secretName}, secret); err != nil {
 		if apierrors.IsNotFound(err) {
-			// If the secret is not found, we consider the token is empty
+			// If the secret is not found, we consider the token is empty. Clear
+			// TokenSecretRef along with it (SetToken("") does this): otherwise the
+			// source is left with an unresolved TokenSecretRef and an empty Token,
+			// which HelmSource.validateCredential reads as "a token is configured"
+			// even though credential() has nothing to actually send -- passing
+			// validation while the transport authenticates with an empty password.
+			source.SetToken("")
 			return nil
 		}
 		return err

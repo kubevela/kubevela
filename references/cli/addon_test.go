@@ -663,6 +663,14 @@ func TestSetRegistryPasswordFromStdin(t *testing.T) {
 			password, getErr := cmd.Flags().GetString(addonPassword)
 			assert.NoError(t, getErr)
 			assert.Empty(t, password, "the piped password must not be consumed for %s", registryType)
+
+			// git/gitee/gitlab authenticate with --gitToken, so the error may
+			// point there. OSS has no credential flag at all: telling its user
+			// to use --gitToken would send them chasing a flag getRegistryFromArgs
+			// never reads for that type.
+			if registryType == addonOssType {
+				assert.NotContains(t, err.Error(), addonGitToken, "an OSS registry has no --gitToken to suggest")
+			}
 		}
 	})
 }

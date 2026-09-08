@@ -270,7 +270,7 @@ func TestSameOrigin(t *testing.T) {
 		"different port":                     {"https://example.com:8443", "https://example.com", false},
 		"different host":                     {"https://example.com", "https://mirror.example.com", false},
 		"scheme downgrade is a mismatch":     {"https://example.com", "http://example.com", false},
-		"unparseable input is never a match": {"https://example.com", "http://[::1", false},
+		"unparseable input is never a match": {"https://[::1", "https://[::1", false},
 	}
 
 	for name, tc := range cases {
