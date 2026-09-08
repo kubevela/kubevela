@@ -242,7 +242,7 @@ func (h *HelmSource) Credential() (username, secret string) {
 	return h.Username, h.Password
 }
 
-// validateCredential rejects a source whose credential fields do not match its
+// ValidateCredential rejects a source whose credential fields do not match its
 // URL scheme, and options the scheme cannot honour. Without this the mismatch
 // surfaces far from its cause: the transport reads the field it knows about,
 // finds it empty, and authenticates anonymously.
