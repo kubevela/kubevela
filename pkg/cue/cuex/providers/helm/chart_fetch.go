@@ -21,6 +21,8 @@ package helm
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -55,6 +57,27 @@ func detectChartSourceType(source string) string {
 
 	// Default to repository-based chart
 	return "repo"
+}
+
+// sourceCacheID returns a short, collision-free id for a chart source string.
+// Replacing "/" with "-" is not enough: oci://host/charts/app and
+// oci://host/charts-app would otherwise share one cache entry.
+func sourceCacheID(source string) string {
+	sum := sha256.Sum256([]byte(source))
+	return hex.EncodeToString(sum[:])[:16]
+}
+
+// repoCacheTag returns a short, stable discriminator for the chart repository
+// a repo-type source resolves against, or "" when the source string already
+// identifies its own origin (oci:// and direct .tgz URLs).
+func repoCacheTag(sourceType, repoURL string) string {
+	if sourceType != sourceTypeRepo || repoURL == "" {
+		return ""
+	}
+	// Trailing slashes are insignificant to the index.yaml fetch, so
+	// normalise them away to avoid two entries for one repository.
+	sum := sha256.Sum256([]byte(strings.TrimRight(repoURL, "/")))
+	return hex.EncodeToString(sum[:])[:16]
 }
 
 // isMutableVersion determines if a version string represents a mutable tag
@@ -94,6 +117,23 @@ func isMutableVersion(version string) bool {
 	return true
 }
 
+// Miss-reason label values for HelmChartCacheMissesTotal.
+const (
+	missReasonAbsent  string = "absent"  // key not present in cache (first request)
+	missReasonExpired string = "expired" // TTL expired (detected via OnEvict callback)
+	missReasonEvicted string = "evicted" // evicted by LRU capacity pressure
+	missReasonCorrupt string = "corrupt" // entry existed but failed to load as a valid chart archive
+)
+
+// chartFetchResult carries the outcome of a chart fetch back to every caller
+// of the singleflight so hit/miss accounting happens per caller rather than
+// only once per deduplicated key.
+type chartFetchResult struct {
+	chart      *chart.Chart
+	cacheHit   bool
+	missReason string // populated only when cacheHit is false
+}
+
 // fetchChart fetches a Helm chart from the specified source
 func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, options *RenderOptionsParams, appNamespace, releaseNamespace string) (*chart.Chart, error) {
 	sourceType := detectChartSourceType(params.Source)
@@ -112,19 +152,29 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 	}
 
 	// Build cache key: <cache_key_prefix>/<source_type>/<source>/<version>[/auth-<tag>]
+	// For repo sources, Source is a bare chart name, so a hash-derived tag of
+	// RepoURL is folded into the key to prevent charts of the same name and
+	// version from colliding across different repositories. OCI (oci://) and
+	// direct URL (.tgz/http) sources already carry their origin inside Source
+	// and thus need no extra discriminator.
+	sourceID := sourceCacheID(params.Source)
+	if repoTag := repoCacheTag(sourceType, params.RepoURL); repoTag != "" {
+		sourceID = sourceID + "/repo-" + repoTag
+	}
+
 	var cacheKey string
 	if options != nil && options.Cache != nil && options.Cache.Key != "" {
 		// User provided cache key
 		cacheKey = fmt.Sprintf("%s/%s/%s/%s",
 			options.Cache.Key,
 			sourceType,
-			strings.ReplaceAll(strings.ReplaceAll(params.Source, "://", "-"), "/", "-"),
+			sourceID,
 			params.Version)
 	} else {
 		// No cache key provided - use source-based key
 		cacheKey = fmt.Sprintf("%s/%s/%s",
 			sourceType,
-			strings.ReplaceAll(strings.ReplaceAll(params.Source, "://", "-"), "/", "-"),
+			sourceID,
 			params.Version)
 	}
 	if authTag != "" {
@@ -134,48 +184,89 @@ func (p *Provider) fetchChart(ctx context.Context, params *ChartSourceParams, op
 	// Check if caching is disabled
 	if options != nil && options.Cache != nil && options.Cache.TTL == "0" {
 		klog.V(4).Info("Cache disabled for this chart")
-		return p.fetchChartWithoutCache(ctx, params, sourceType, appNamespace, releaseNamespace)
-	}
-
-	// Check if we have a cached chart. The auth-bound cache key above is
-	// the primary guard against stale credentials. The explicit resolver
-	// re-check below remains as a belt-and-suspenders measure: it catches
-	// a missing or malformed Secret immediately, with the same RFC-cited
-	// errors the cache-miss path would surface, instead of returning a
-	// confusing cache-hit chart for a misconfigured request.
-	if cached, found := p.cache.Get(cacheKey); found && cached != nil {
-		if ch, ok := cached.(*chart.Chart); ok {
-			if params.Auth != nil && params.Auth.SecretRef != nil {
-				if _, _, err := resolveHTTPOptions(ctx, params, appNamespace, releaseNamespace, sourceType); err != nil {
-					return nil, err
-				}
-			}
-			klog.V(3).Infof("Using cached chart with key: %s", cacheKey)
-			return ch, nil
+		chartBytes, err := p.fetchChartWithoutCache(ctx, params, sourceType, appNamespace, releaseNamespace)
+		if err != nil {
+			return nil, err
 		}
+		chart, err := loader.LoadArchive(bytes.NewReader(chartBytes))
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to load chart archive")
+		}
+
+		return chart, nil
 	}
+	v, err, _ := p.chartFlight.Do(cacheKey, func() (interface{}, error) {
+		missReason := missReasonAbsent
 
-	klog.V(4).Infof("Cache miss for key: %s, fetching chart", cacheKey)
+		// Check if we have a cached chart. The auth-bound cache key above is
+		// the primary guard against stale credentials. The explicit resolver
+		// re-check below remains as a belt-and-suspenders measure: it catches
+		// a missing or malformed Secret immediately, with the same RFC-cited
+		// errors the cache-miss path would surface, instead of returning a
+		// confusing cache-hit chart for a misconfigured request.
+		if cached, found := p.cache.Get(cacheKey); found && cached != nil {
+			if ch, err := loader.LoadArchive(bytes.NewReader(cached)); err == nil {
+				if params.Auth != nil && params.Auth.SecretRef != nil {
+					if _, _, err := resolveHTTPOptions(ctx, params, appNamespace, releaseNamespace, sourceType); err != nil {
+						return nil, err
+					}
+				}
+				klog.V(3).Infof("Using cached chart with key: %s", cacheKey)
+				return &chartFetchResult{chart: ch, cacheHit: true}, nil
+			}
+			klog.V(2).Infof("Cached chart with key %s failed to load, evicting and refetching", cacheKey)
+			p.cache.Delete(cacheKey)
+			missReason = missReasonCorrupt
+		} else {
+			// Set reason for cache miss
+			if reason, ok := p.cacheRecentEvictions.Get(cacheKey); ok {
+				p.cacheRecentEvictions.Delete(cacheKey)
+				missReason = reason
+			}
+		}
 
-	ch, err := p.fetchChartWithoutCache(ctx, params, sourceType, appNamespace, releaseNamespace)
+		klog.V(4).Infof("Cache miss for key: %s, fetching chart", cacheKey)
+
+		ch, err := p.fetchChartWithoutCache(ctx, params, sourceType, appNamespace, releaseNamespace)
+		if err != nil {
+			return nil, err
+		}
+
+		chart, err := loader.LoadArchive(bytes.NewReader(ch))
+		if err != nil {
+			p.cache.Delete(cacheKey)
+			return nil, errors.Wrap(err, "failed to load chart archive")
+		}
+		// Determine cache TTL
+		cacheTTL := p.determineCacheTTL(params.Version, options)
+
+		// Cache the chart with appropriate TTL
+		if cacheTTL > 0 {
+			p.cache.Put(cacheKey, ch, cacheTTL)
+			HelmChartCacheBytes.Set(float64(p.cache.CurrentBytes()))
+			klog.V(3).Infof("Cached chart with key: %s (TTL: %v)", cacheKey, cacheTTL)
+		}
+		return &chartFetchResult{chart: chart, cacheHit: false, missReason: missReason}, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	// Determine cache TTL
-	cacheTTL := p.determineCacheTTL(params.Version, options)
-
-	// Cache the chart with appropriate TTL
-	if cacheTTL > 0 {
-		p.cache.Put(cacheKey, ch, cacheTTL)
-		klog.V(3).Infof("Cached chart with key: %s (TTL: %v)", cacheKey, cacheTTL)
+	res, ok := v.(*chartFetchResult)
+	if !ok {
+		return nil, fmt.Errorf("unexpected type in cache for key %s: %T", cacheKey, v)
 	}
 
-	return ch, nil
+	// Update metrics based on cache hit or miss
+	if res.cacheHit {
+		HelmChartCacheHitsTotal.Inc()
+	} else {
+		HelmChartCacheMissesTotal.WithLabelValues(res.missReason).Inc()
+	}
+	return res.chart, nil
 }
 
 // fetchChartWithoutCache fetches a chart without using cache
-func (p *Provider) fetchChartWithoutCache(ctx context.Context, params *ChartSourceParams, sourceType string, appNamespace, releaseNamespace string) (*chart.Chart, error) {
+func (p *Provider) fetchChartWithoutCache(ctx context.Context, params *ChartSourceParams, sourceType string, appNamespace, releaseNamespace string) ([]byte, error) {
 	switch sourceType {
 	case "oci":
 		return p.fetchOCIChart(ctx, params, appNamespace, releaseNamespace)
@@ -235,7 +326,7 @@ func (p *Provider) determineCacheTTL(version string, options *RenderOptionsParam
 }
 
 // fetchOCIChart fetches a chart from an OCI registry.
-func (p *Provider) fetchOCIChart(ctx context.Context, params *ChartSourceParams, appNamespace, releaseNamespace string) (*chart.Chart, error) {
+func (p *Provider) fetchOCIChart(ctx context.Context, params *ChartSourceParams, appNamespace, releaseNamespace string) ([]byte, error) {
 	httpOpts, rawDockerCfg, err := resolveHTTPOptions(ctx, params, appNamespace, releaseNamespace, sourceTypeOCI)
 	if err != nil {
 		return nil, errors.Wrap(err, "auth resolution failed")
@@ -268,11 +359,12 @@ func (p *Provider) fetchOCIChart(ctx context.Context, params *ChartSourceParams,
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to pull OCI chart %s", ref)
 	}
-	return loader.LoadArchive(bytes.NewReader(result.Chart.Data))
+	// return loader.LoadArchive(bytes.NewReader(result.Chart.Data))
+	return result.Chart.Data, nil
 }
 
 // fetchURLChart fetches a chart from a direct URL.
-func (p *Provider) fetchURLChart(ctx context.Context, params *ChartSourceParams, appNamespace, releaseNamespace string) (*chart.Chart, error) {
+func (p *Provider) fetchURLChart(ctx context.Context, params *ChartSourceParams, appNamespace, releaseNamespace string) ([]byte, error) {
 	httpOpts, _, err := resolveHTTPOptions(ctx, params, appNamespace, releaseNamespace, sourceTypeURL)
 	if err != nil {
 		return nil, errors.Wrap(err, "auth resolution failed")
@@ -285,15 +377,11 @@ func (p *Provider) fetchURLChart(ctx context.Context, params *ChartSourceParams,
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to download chart from %s", params.Source)
 	}
-	ch, err := loader.LoadArchive(bytes.NewReader(chartBytes))
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to load chart archive")
-	}
-	return ch, nil
+	return chartBytes, nil
 }
 
 // fetchRepoChart fetches a chart from a Helm repository.
-func (p *Provider) fetchRepoChart(ctx context.Context, params *ChartSourceParams, appNamespace, releaseNamespace string) (*chart.Chart, error) {
+func (p *Provider) fetchRepoChart(ctx context.Context, params *ChartSourceParams, appNamespace, releaseNamespace string) ([]byte, error) {
 	if params.RepoURL == "" {
 		return nil, fmt.Errorf("repoURL is required for repository-based charts")
 	}
@@ -337,9 +425,5 @@ func (p *Provider) fetchRepoChart(ctx context.Context, params *ChartSourceParams
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to download chart from %s", downloadURL)
 	}
-	ch, err := loader.LoadArchive(bytes.NewReader(chartBytes))
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to load chart archive")
-	}
-	return ch, nil
+	return chartBytes, nil
 }

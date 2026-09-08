@@ -209,6 +209,10 @@ func syncConfigurations(ctx context.Context, coreOptions *options.CoreOptions) {
 		klog.V(3).InfoS("Syncing CUE configuration")
 		coreOptions.CUE.SyncToCUEGlobals(ctx)
 	}
+	if coreOptions.Helm != nil {
+		klog.V(3).InfoS("Syncing Helm configuration")
+		coreOptions.Helm.SyncToHelmGlobals(ctx)
+	}
 	if coreOptions.Application != nil {
 		klog.V(3).InfoS("Syncing application configuration")
 		coreOptions.Application.SyncToApplicationGlobals()

@@ -31,6 +31,7 @@ type CoreOptions struct {
 	Kubernetes    *config.KubernetesConfig
 	MultiCluster  *config.MultiClusterConfig
 	CUE           *config.CUEConfig
+	Helm          *config.HelmConfig
 	Application   *config.ApplicationConfig
 	OAM           *config.OAMConfig
 	Performance   *config.PerformanceConfig
@@ -55,6 +56,7 @@ func NewCoreOptions() *CoreOptions {
 	kubernetes := config.NewKubernetesConfig()
 	multiCluster := config.NewMultiClusterConfig()
 	cue := config.NewCUEConfig()
+	helm := config.NewHelmConfig()
 	application := config.NewApplicationConfig()
 	oam := config.NewOAMConfig()
 	performance := config.NewPerformanceConfig()
@@ -77,6 +79,7 @@ func NewCoreOptions() *CoreOptions {
 		Kubernetes:    kubernetes,
 		MultiCluster:  multiCluster,
 		CUE:           cue,
+		Helm:          helm,
 		Application:   application,
 		OAM:           oam,
 		Performance:   performance,
@@ -106,6 +109,7 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	s.Kubernetes.AddFlags(fss.FlagSet("kubernetes"))
 	s.MultiCluster.AddFlags(fss.FlagSet("multicluster"))
 	s.CUE.AddFlags(fss.FlagSet("cue"))
+	s.Helm.AddFlags(fss.FlagSet("helm"))
 	s.Application.AddFlags(fss.FlagSet("application"))
 	s.OAM.AddFlags(fss.FlagSet("oam"))
 	s.Performance.AddFlags(fss.FlagSet("performance"))
