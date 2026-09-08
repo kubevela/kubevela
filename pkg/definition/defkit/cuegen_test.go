@@ -1161,6 +1161,50 @@ var _ = Describe("CUEGenerator", func() {
 		})
 	})
 
+	Describe("Import isolation between Generate calls", func() {
+		// A generator instance must not carry one definition's detected imports
+		// into the next definition it generates.
+		newComp := func(name string, params ...defkit.Param) *defkit.ComponentDefinition {
+			return defkit.NewComponent(name).
+				Workload("apps/v1", "Deployment").
+				Params(params...).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment"))
+				})
+		}
+
+		It("should not leak a detected import into the next definition", func() {
+			needsStrings := newComp("a", defkit.String("s").MinLen(3))
+			clean := newComp("b", defkit.String("s"))
+
+			Expect(gen.GenerateFullDefinition(needsStrings)).To(ContainSubstring(`"strings"`))
+
+			second := gen.GenerateFullDefinition(clean)
+			Expect(second).NotTo(ContainSubstring(`"strings"`))
+			Expect(second).To(Equal(defkit.NewCUEGenerator().GenerateFullDefinition(clean)))
+		})
+
+		It("should keep explicit WithImports across definitions", func() {
+			gen.WithImports(defkit.CUEImports.Strconv)
+
+			first := gen.GenerateFullDefinition(newComp("a", defkit.String("s").MinLen(3)))
+			Expect(first).To(ContainSubstring(`"strconv"`))
+			Expect(first).To(ContainSubstring(`"strings"`))
+
+			second := gen.GenerateFullDefinition(newComp("b", defkit.String("s")))
+			Expect(second).To(ContainSubstring(`"strconv"`))
+			Expect(second).NotTo(ContainSubstring(`"strings"`))
+		})
+
+		It("should not duplicate an import that is both explicit and detected", func() {
+			gen.WithImports(defkit.CUEImports.Strings)
+
+			cue := gen.GenerateFullDefinition(newComp("a", defkit.String("s").MinLen(3)))
+
+			Expect(strings.Count(cue, `"strings"`)).To(Equal(1))
+		})
+	})
+
 	Describe("GenerateFullDefinition with ConditionalOrFieldRef", func() {
 		It("should generate if/else pattern for conditional field reference", func() {
 			gen := defkit.NewCUEGenerator()

@@ -251,6 +251,26 @@ parameter: #PatchParams
 			Expect(cue).To(ContainSubstring(`"strings"`))
 		})
 
+		It("should not leak a detected import into the next trait from the same generator", func() {
+			// Same class of bug as the component generator: detected imports
+			// must be rebuilt per trait, while WithImports persists.
+			newTrait := func(name string, params ...defkit.Param) *defkit.TraitDefinition {
+				return defkit.NewTrait(name).
+					Description("Trait for import isolation").
+					AppliesTo("deployments.apps").
+					Params(params...).
+					TemplateBlock(`patch: {}`)
+			}
+			gen := defkit.NewTraitCUEGenerator()
+
+			Expect(gen.GenerateFullDefinition(newTrait("a", defkit.String("s").MinLen(3)))).
+				To(ContainSubstring(`"strings"`))
+
+			second := gen.GenerateFullDefinition(newTrait("b", defkit.String("s")))
+			Expect(second).NotTo(ContainSubstring(`"strings"`))
+			Expect(second).To(Equal(defkit.NewTraitCUEGenerator().GenerateFullDefinition(newTrait("b", defkit.String("s")))))
+		})
+
 		It("should still auto-detect param imports when the trait has no Template() func", func() {
 			// Reproduces the P1 review finding: a trait that declares
 			// constraint-bearing params but no Template(func(tpl)) body
