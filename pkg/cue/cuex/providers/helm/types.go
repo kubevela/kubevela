@@ -82,7 +82,16 @@ type RenderOptionsParams struct {
 // PostRenderParams represents post-rendering configuration
 type PostRenderParams struct {
 	Kustomize *KustomizeParams `json:"kustomize,omitempty"`
+	CUE       *CUEParams       `json:"cue,omitempty"`
 	Exec      *ExecParams      `json:"exec,omitempty"`
+}
+
+// CUEParams represents CUE post-rendering options. The template is evaluated
+// once per rendered resource, with that resource bound to context.resource, and
+// the resulting patch field is merged back into the resource using KubeVela's
+// strategy-unify semantics (the same engine that powers trait patching).
+type CUEParams struct {
+	Template string `json:"template"`
 }
 
 // KustomizeParams represents Kustomize post-rendering options

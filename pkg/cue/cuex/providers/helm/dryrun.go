@@ -19,6 +19,7 @@ package helm
 // Client-only dry-run renderer used by webhook validation, plus the cluster Kubernetes-version lookup.
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -32,7 +33,7 @@ import (
 // cluster. Used during webhook validation to verify the chart can be fetched,
 // values are valid, and templates render without errors — without blocking on
 // real resource creation, hooks, or waiting.
-func (p *Provider) dryRunRender(ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, velaCtx *ContextParams) (string, string, error) {
+func (p *Provider) dryRunRender(ctx context.Context, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, velaCtx *ContextParams) (string, string, error) {
 	install := action.NewInstall(&action.Configuration{})
 	install.ReleaseName = releaseName
 	install.Namespace = releaseNamespace
@@ -47,11 +48,11 @@ func (p *Provider) dryRunRender(ch *chart.Chart, releaseName, releaseNamespace s
 		install.KubeVersion = kv
 	}
 
-	install.PostRenderer = &velaLabelPostRenderer{
-		context:          velaCtx,
-		releaseName:      releaseName,
-		releaseNamespace: releaseNamespace,
+	var postRender *PostRenderParams
+	if options != nil {
+		postRender = options.PostRender
 	}
+	install.PostRenderer = newPostRenderer(ctx, postRender, velaCtx, releaseName, releaseNamespace)
 
 	if options != nil {
 		if options.SkipHooks != nil {
