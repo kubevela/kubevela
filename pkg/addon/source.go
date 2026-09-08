@@ -370,6 +370,7 @@ func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderT
 
 	switch rdType {
 	case gitType:
+		endpoint := baseURL
 		baseURL = strings.TrimSuffix(baseURL, ".git")
 		u, err := url.Parse(baseURL)
 		if err != nil {
@@ -379,6 +380,13 @@ func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderT
 		_, content, err := utils.Parse(u.String())
 		if err != nil {
 			return nil, err
+		}
+		// utils.Parse reports an unrecognised address as (TypeUnknown, nil, nil):
+		// no error, no content. A git:// or ssh:// endpoint takes that path, since
+		// only http and https carry a host switch. Without this check the nil
+		// content becomes gitHelper.Meta, and readRepo dereferences it.
+		if content == nil {
+			return nil, fmt.Errorf("%w: %q", ErrUnsupportedGitEndpoint, endpoint)
 		}
 		gith := createGitHelper(content, token)
 		return &gitReader{
@@ -404,6 +412,7 @@ func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderT
 			client:         resty.New(),
 		}, nil
 	case giteeType:
+		endpoint := baseURL
 		baseURL = strings.TrimSuffix(baseURL, ".git")
 		u, err := url.Parse(baseURL)
 		if err != nil {
@@ -413,6 +422,10 @@ func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderT
 		_, content, err := utils.Parse(u.String())
 		if err != nil {
 			return nil, err
+		}
+		// Same nil content as the git case above; giteeHelper.Meta would take it.
+		if content == nil {
+			return nil, fmt.Errorf("%w: %q", ErrUnsupportedGiteeEndpoint, endpoint)
 		}
 		gitee := createGiteeHelper(content, token)
 		return &giteeReader{
@@ -457,6 +470,15 @@ func (h *gitlabHelper) getGitlabProject(content *utils.Content) error {
 
 	return nil
 }
+
+// ErrUnsupportedGitEndpoint is returned when a git registry's endpoint is not an
+// address the reader can use. Git registries are read through the GitHub REST API,
+// so the endpoint has to be a github.com or api.github.com HTTP(S) URL; a git://
+// or ssh:// address looks plausible for a git registry but is never dialled.
+var ErrUnsupportedGitEndpoint = errors.New("unsupported endpoint for a git addon registry: it is read through the GitHub API, so it must be an http(s) github.com or api.github.com URL")
+
+// ErrUnsupportedGiteeEndpoint is the gitee.com equivalent of ErrUnsupportedGitEndpoint.
+var ErrUnsupportedGiteeEndpoint = errors.New("unsupported endpoint for a gitee addon registry: it must be an http(s) gitee.com URL")
 
 // BuildReader will build a AsyncReader from registry, AsyncReader are needed to read addon files
 func (r *Registry) BuildReader() (AsyncReader, error) {
