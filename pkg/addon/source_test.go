@@ -116,6 +116,29 @@ func TestNewAsyncReader(t *testing.T) {
 			rdType:  gitType,
 			wantErr: true,
 		},
+		// utils.Parse reports an address it does not recognise as
+		// (TypeUnknown, nil, nil): no error, no content. Only http and https
+		// carry a host switch, so every other scheme lands there. These used to
+		// build a helper with a nil Meta, and readRepo then dereferenced it --
+		// the CLI segfaulted on `vela addon list` rather than here.
+		"git type with a git:// endpoint": {
+			baseURL: "git://127.0.0.1:9418/poc.git",
+			subPath: "addons",
+			rdType:  gitType,
+			wantErr: true,
+		},
+		"git type with an ssh:// endpoint": {
+			baseURL: "ssh://git@github.com/kubevela/catalog",
+			subPath: "addons",
+			rdType:  gitType,
+			wantErr: true,
+		},
+		"gitee type with a git:// endpoint": {
+			baseURL: "git://127.0.0.1:9418/poc.git",
+			subPath: "addons",
+			rdType:  giteeType,
+			wantErr: true,
+		},
 		"invalid type": {
 			baseURL: "https://github.com/kubevela/catalog",
 			rdType:  "invalid",
@@ -448,5 +471,47 @@ func TestValidateHelmSourceCredential(t *testing.T) {
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), tc.wantErr)
 		})
+	}
+}
+
+// TestNewAsyncReaderRejectsUnreadableGitEndpointsInsteadOfPanicking pins the
+// crash in kubevela#7364: a non-GitHub endpoint was accepted by
+// `vela addon registry add --type git` and then took down the CLI on the next
+// `vela addon list` with a nil pointer dereference in gitHelper.readRepo.
+func TestNewAsyncReaderRejectsUnreadableGitEndpointsInsteadOfPanicking(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		baseURL string
+		rdType  ReaderType
+		wantErr error
+	}{
+		{"git scheme", "git://127.0.0.1:9418/poc.git", gitType, ErrUnsupportedGitEndpoint},
+		{"ssh scheme", "ssh://git@github.com/kubevela/catalog", gitType, ErrUnsupportedGitEndpoint},
+		{"gitee, git scheme", "git://127.0.0.1:9418/poc.git", giteeType, ErrUnsupportedGiteeEndpoint},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// The point is that this returns rather than panics.
+			reader, err := NewAsyncReader(tc.baseURL, "", "", "addons", "", tc.rdType)
+			assert.Nil(t, reader)
+			assert.ErrorIs(t, err, tc.wantErr)
+			// The endpoint is quoted in the message, so the operator can see
+			// which registry of theirs is the bad one.
+			assert.Contains(t, err.Error(), tc.baseURL)
+		})
+	}
+}
+
+// A GitHub endpoint still builds a reader, so the guard above is not a
+// tightening of what already worked.
+func TestNewAsyncReaderStillAcceptsGithubEndpoints(t *testing.T) {
+	for _, tc := range []struct{ baseURL, subPath string }{
+		{"https://github.com/kubevela/catalog", "addons"},
+		{"https://github.com/kubevela/catalog/tree/master/addons", ""},
+		{"https://api.github.com/repos/kubevela/catalog/contents/addons", ""},
+		{"https://github.com/kubevela/catalog.git", "addons"},
+	} {
+		reader, err := NewAsyncReader(tc.baseURL, "", "", tc.subPath, "", gitType)
+		assert.NoError(t, err, tc.baseURL)
+		assert.IsType(t, &gitReader{}, reader)
 	}
 }
