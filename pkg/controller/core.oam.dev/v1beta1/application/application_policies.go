@@ -315,6 +315,12 @@ func (h *AppHandler) writePolicyObservabilityConfigMap(ctx monitorContext.Contex
 		configMapData["info"] = string(infoJSON)
 	}
 
+	// A policy may template a sensitiveCtx value into the spec itself (component
+	// properties, workflow inputs, ...). The spec snapshots above (rendered_spec,
+	// applied_spec, per-policy spec diffs) would then leak it, so scrub every
+	// value marked sensitive from all ConfigMap payloads before persisting.
+	redactSensitiveValues(configMapData, results)
+
 	if len(configMapData) > 0 {
 		if err := createOrUpdateDiffsConfigMap(ctx, h.Client, app, configMapData); err != nil {
 			ctx.Info("Failed to store policy ConfigMap", "error", err)
@@ -322,6 +328,95 @@ func (h *AppHandler) writePolicyObservabilityConfigMap(ctx monitorContext.Contex
 			app.Status.ApplicationPoliciesConfigMap = policyConfigMapName(app.Namespace, app.Name)
 		}
 	}
+
+	// Sensitive policy context (values a policy derived from Secrets and routed
+	// through output.sensitiveCtx) is persisted to an Application-owned Secret so
+	// it never lands in the plaintext observability ConfigMap. See kubevela#6840.
+	// Always reconcile (even when empty) so that removing sensitiveCtx, disabling a
+	// policy, or deleting the last policy CLEARS previously stored credentials
+	// instead of leaving them behind. Fail-safe: on error sensitive data is simply
+	// not persisted — it is never written to the ConfigMap as a fallback.
+	if err := reconcilePolicySecret(ctx, h.Client, app, collectSensitivePolicyContext(results)); err != nil {
+		ctx.Info("Failed to reconcile sensitive policy Secret; sensitive context not persisted", "error", err)
+	}
+}
+
+// sensitiveRedactionPlaceholder replaces sensitiveCtx-derived values in
+// observability ConfigMap payloads.
+const sensitiveRedactionPlaceholder = "[redacted:sensitiveCtx]"
+
+// minSensitiveRedactionLen guards against mangling the surrounding JSON: leaf
+// values shorter than this (e.g. "1", "on") are too generic to substring-match
+// safely and are left alone. Real credentials are comfortably longer.
+const minSensitiveRedactionLen = 4
+
+// collectSensitiveLeafStrings walks a sensitiveCtx map and returns every string
+// leaf long enough to redact, including nested maps and slices.
+func collectSensitiveLeafStrings(v interface{}, out *[]string) {
+	switch val := v.(type) {
+	case string:
+		if len(val) >= minSensitiveRedactionLen {
+			*out = append(*out, val)
+		}
+	case map[string]interface{}:
+		for _, nested := range val {
+			collectSensitiveLeafStrings(nested, out)
+		}
+	case []interface{}:
+		for _, nested := range val {
+			collectSensitiveLeafStrings(nested, out)
+		}
+	}
+}
+
+// redactSensitiveValues removes every sensitiveCtx-marked string from the
+// ConfigMap payloads. Values are matched both raw and JSON-escaped, since the
+// payloads are JSON documents and a secret containing quotes or backslashes
+// appears escaped there.
+func redactSensitiveValues(configMapData map[string]string, results []RenderedPolicyResult) {
+	var sensitive []string
+	for _, result := range results {
+		if result.Enabled && len(result.SensitiveContext) > 0 {
+			collectSensitiveLeafStrings(result.SensitiveContext, &sensitive)
+		}
+	}
+	if len(sensitive) == 0 {
+		return
+	}
+
+	for key, payload := range configMapData {
+		for _, s := range sensitive {
+			payload = strings.ReplaceAll(payload, s, sensitiveRedactionPlaceholder)
+			if escaped, err := json.Marshal(s); err == nil {
+				// Trim the surrounding quotes json.Marshal adds to a bare string.
+				escapedBody := string(escaped[1 : len(escaped)-1])
+				if escapedBody != s {
+					payload = strings.ReplaceAll(payload, escapedBody, sensitiveRedactionPlaceholder)
+				}
+			}
+		}
+		configMapData[key] = payload
+	}
+}
+
+// collectSensitivePolicyContext gathers the sensitive context contributed by each
+// enabled policy into a Secret data map, keyed to mirror the ConfigMap layout
+// (<seq>-<policyName>) so operators can correlate the two. Values are JSON blobs.
+func collectSensitivePolicyContext(results []RenderedPolicyResult) map[string][]byte {
+	secretData := make(map[string][]byte)
+	sequence := 1
+	for _, result := range results {
+		if !result.Enabled {
+			continue
+		}
+		if len(result.SensitiveContext) > 0 {
+			if sensitiveJSON, err := json.MarshalIndent(result.SensitiveContext, "", "  "); err == nil {
+				secretData[fmt.Sprintf("%03d-%s", sequence, result.PolicyName)] = sensitiveJSON
+			}
+		}
+		sequence++
+	}
+	return secretData
 }
 
 // buildPolicyObservabilityData constructs the per-policy data map written to the observability ConfigMap.
@@ -500,6 +595,7 @@ func (h *AppHandler) renderPolicy(ctx monitorContext.Context, app *v1beta1.Appli
 
 	result.Transforms = output
 	result.AdditionalContext = output.Ctx
+	result.SensitiveContext = output.SensitiveCtx
 	return result, nil
 }
 
@@ -632,6 +728,12 @@ type PolicyOutput struct {
 	Labels      map[string]string             `json:"labels,omitempty"`
 	Annotations map[string]string             `json:"annotations,omitempty"`
 	Ctx         map[string]interface{}        `json:"ctx,omitempty"`
+	// SensitiveCtx carries policy context values that were derived from Secrets
+	// (e.g. via kube.#Read of a Secret). It is the sensitivity marker described
+	// in kubevela/kubevela#6840: anything a policy routes through output.sensitiveCtx
+	// is persisted to an Application-owned Secret instead of the plaintext
+	// observability ConfigMap. Non-sensitive context continues to use output.ctx.
+	SensitiveCtx map[string]interface{} `json:"sensitiveCtx,omitempty"`
 }
 
 // extractOutput decodes the output field from rendered CUE. Returns nil if absent.
@@ -647,12 +749,13 @@ func (h *AppHandler) extractOutput(val cue.Value) (*PolicyOutput, error) {
 	}
 
 	allowedFields := map[string]bool{
-		"components":  true,
-		"workflow":    true,
-		"policies":    true,
-		"labels":      true,
-		"annotations": true,
-		"ctx":         true,
+		"components":   true,
+		"workflow":     true,
+		"policies":     true,
+		"labels":       true,
+		"annotations":  true,
+		"ctx":          true,
+		"sensitiveCtx": true,
 	}
 
 	iter, err := outputVal.Fields()
@@ -661,7 +764,7 @@ func (h *AppHandler) extractOutput(val cue.Value) (*PolicyOutput, error) {
 	}
 	for iter.Next() {
 		if fieldName := iter.Selector().String(); !allowedFields[fieldName] {
-			return nil, errors.Errorf("output.%s is not allowed; permitted fields: components, workflow, policies, labels, annotations, ctx", fieldName)
+			return nil, errors.Errorf("output.%s is not allowed; permitted fields: components, workflow, policies, labels, annotations, ctx, sensitiveCtx", fieldName)
 		}
 	}
 
@@ -1280,6 +1383,112 @@ func createOrUpdateDiffsConfigMap(ctx context.Context, cli client.Client, app *v
 	}
 
 	return nil
+}
+
+// policySecretName returns the Secret name for sensitive policy context, capped at
+// 253 chars. Uses a distinct prefix from policyConfigMapName so the two objects
+// never collide, and a hash suffix when truncation is needed.
+func policySecretName(namespace, appName string) string {
+	const prefix = "application-policies-sensitive-"
+	const maxLen = 253
+	name := prefix + namespace + "-" + appName
+	if len(name) <= maxLen {
+		return name
+	}
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(namespace+"/"+appName)))[:8]
+	available := maxLen - len(prefix) - 1 - 8
+	truncated := (namespace + "-" + appName)[:available]
+	return prefix + truncated + "-" + hash
+}
+
+// policySecretOwnerRefs returns the owner reference tying the sensitive-context
+// Secret to its Application so the Secret is garbage-collected on delete.
+func policySecretOwnerRefs(app *v1beta1.Application) []metav1.OwnerReference {
+	return []metav1.OwnerReference{
+		{
+			// Use hardcoded values since TypeMeta is cleared by k8s client after Create/Get
+			APIVersion:         v1beta1.SchemeGroupVersion.String(),
+			Kind:               v1beta1.ApplicationKind,
+			Name:               app.Name,
+			UID:                app.UID,
+			Controller:         ptrBool(true),
+			BlockOwnerDeletion: ptrBool(true),
+		},
+	}
+}
+
+// appOwnsSecret reports whether the given owner references include a controller
+// reference to this Application (matched by UID so a stale name cannot spoof it).
+func appOwnsSecret(refs []metav1.OwnerReference, app *v1beta1.Application) bool {
+	for _, ref := range refs {
+		if ref.Kind == v1beta1.ApplicationKind && ref.UID == app.UID {
+			return true
+		}
+	}
+	return false
+}
+
+// reconcilePolicySecret makes the Application-owned sensitive-context Secret
+// reflect the CURRENT policy output. It mirrors createOrUpdateDiffsConfigMap but
+// for an Opaque Secret, with two safety properties beyond it:
+//
+//   - When data is empty (no policy contributes sensitive context anymore, e.g.
+//     sensitiveCtx was removed or the last policy was deleted) it clears an
+//     existing Secret's Data instead of leaving stale credentials behind, and
+//     does NOT create a new empty Secret.
+//   - It refuses to mutate a Secret that this Application does not own, so the
+//     controller's broad secret-write permission cannot be leveraged to overwrite
+//     an unrelated Secret that happens to share the deterministic name.
+func reconcilePolicySecret(ctx context.Context, cli client.Client, app *v1beta1.Application, data map[string][]byte) error {
+	secretName := policySecretName(app.Namespace, app.Name)
+
+	existing := &corev1.Secret{}
+	err := cli.Get(ctx, client.ObjectKey{Name: secretName, Namespace: app.Namespace}, existing)
+	if kerrors.IsNotFound(err) {
+		if len(data) == 0 {
+			// Nothing sensitive to persist and no Secret to clean up.
+			return nil
+		}
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            secretName,
+				Namespace:       app.Namespace,
+				OwnerReferences: policySecretOwnerRefs(app),
+			},
+			Type: corev1.SecretTypeOpaque,
+			Data: data,
+		}
+		meta.AddLabels(secret, map[string]string{
+			oam.LabelAppName:                   app.Name,
+			oam.LabelAppNamespace:              app.Namespace,
+			oam.LabelAppUID:                    string(app.UID),
+			"app.oam.dev/application-policies": "true",
+		})
+		meta.AddAnnotations(secret, map[string]string{
+			oam.AnnotationLastAppliedTime: time.Now().Format(time.RFC3339),
+		})
+		return errors.Wrap(cli.Create(ctx, secret), "failed to create sensitive policy Secret")
+	}
+	if err != nil {
+		return errors.Wrap(err, "failed to get sensitive policy Secret")
+	}
+
+	if !appOwnsSecret(existing.OwnerReferences, app) {
+		return errors.Errorf("refusing to overwrite Secret %s/%s not owned by Application %s", app.Namespace, secretName, app.Name)
+	}
+
+	// data may be empty here: assigning it clears previously stored credentials
+	// when the current policy output no longer contributes any sensitive context.
+	existing.Data = data
+	existing.Type = corev1.SecretTypeOpaque
+	existing.OwnerReferences = policySecretOwnerRefs(app)
+	meta.AddLabels(existing, map[string]string{
+		oam.LabelAppUID: string(app.UID),
+	})
+	meta.AddAnnotations(existing, map[string]string{
+		oam.AnnotationLastAppliedTime: time.Now().Format(time.RFC3339),
+	})
+	return errors.Wrap(cli.Update(ctx, existing), "failed to update sensitive policy Secret")
 }
 
 func ptrBool(b bool) *bool { return &b }
