@@ -21,8 +21,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sync/singleflight"
@@ -40,6 +42,41 @@ const ociScheme = "oci://"
 // the schemes a registry URL is written with is stripped first: without that,
 // an "http://" URL splits at the scheme's own slash and yields the host
 // "http:".
+// AwaitOCICall runs a blocking helm registry operation and returns as soon as
+// ctx is done, so a cancelled caller is released even though the helm registry
+// client itself takes no context. The operation keeps running in the
+// background; its HTTP client timeout is what eventually reclaims it.
+func AwaitOCICall[T any](ctx context.Context, op func() (T, error)) (T, error) {
+	if err := ctx.Err(); err != nil {
+		// A caller that arrives already cancelled must not start a fresh
+		// goroutine that can run for up to ociCallTimeout: under frequent
+		// reconcile cancellation that accumulates orphaned goroutines and
+		// connections for no benefit, since the result would be discarded
+		// immediately below anyway.
+		var zero T
+		return zero, err
+	}
+	type outcome struct {
+		value T
+		err   error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		value, err := op()
+		done <- outcome{value: value, err: err}
+	}()
+	select {
+	case <-ctx.Done():
+		var zero T
+		return zero, ctx.Err()
+	case res := <-done:
+		return res.value, res.err
+	}
+}
+
+// ociCallTimeout bounds a single registry call.
+const ociCallTimeout = 5 * time.Minute
+
 func OCIRegistryLocation(rawURL string) (host, prefix string) {
 	base := rawURL
 	for _, scheme := range []string{ociScheme, "https://", "http://"} {
@@ -102,6 +139,16 @@ func ociClientCacheKey(host, username, password string, plainHTTP bool) string {
 	return fmt.Sprintf("%s|%t|%x", host, plainHTTP, sum[:8])
 }
 
+// ResetOCIClientCache empties the logged-in client cache. It exists for tests in
+// packages that drive the OCI transport from outside this one: the cache is
+// process-wide, so a test that builds clients would otherwise leak them into
+// whichever test ran next.
+func ResetOCIClientCache() {
+	ociClientCache.Lock()
+	defer ociClientCache.Unlock()
+	ociClientCache.clients = map[string]*registry.Client{}
+}
+
 func cachedOCIClient(key string) (*registry.Client, bool) {
 	ociClientCache.Lock()
 	defer ociClientCache.Unlock()
@@ -138,7 +185,11 @@ func NewOCIClientWithPlainHTTP(host, username, password string, plainHTTP bool) 
 			return client, nil
 		}
 
-		var opts []registry.ClientOption
+		// The client's own HTTP timeout is what actually terminates a request
+		// abandoned by AwaitOCICall; without it a hung registry would keep the
+		// orphaned goroutine, its connection, and its buffered result alive for
+		// as long as the process runs.
+		opts := []registry.ClientOption{registry.ClientOptHTTPClient(&http.Client{Timeout: ociCallTimeout})}
 		if plainHTTP {
 			opts = append(opts, registry.ClientOptPlainHTTP())
 		}
@@ -163,12 +214,16 @@ func NewOCIClientWithPlainHTTP(host, username, password string, plainHTTP bool) 
 
 // PullOCIChart is the production puller: it logs in (when credentials are set)
 // and pulls the chart layer from the OCI registry via the Helm registry client.
-func PullOCIChart(_ context.Context, ref, host, username, password string) ([]byte, error) {
-	return PullOCIChartWithTransport(ref, host, username, password, false)
+func PullOCIChart(ctx context.Context, ref, host, username, password string) ([]byte, error) {
+	return AwaitOCICall(ctx, func() ([]byte, error) {
+		return PullOCIChartWithTransport(ref, host, username, password, false)
+	})
 }
 
-func PullOCIChartWithPlainHTTP(_ context.Context, ref, host, username, password string) ([]byte, error) {
-	return PullOCIChartWithTransport(ref, host, username, password, true)
+func PullOCIChartWithPlainHTTP(ctx context.Context, ref, host, username, password string) ([]byte, error) {
+	return AwaitOCICall(ctx, func() ([]byte, error) {
+		return PullOCIChartWithTransport(ref, host, username, password, true)
+	})
 }
 
 func PullOCIChartWithTransport(ref, host, username, password string, plainHTTP bool) ([]byte, error) {
@@ -188,12 +243,16 @@ func PullOCIChartWithTransport(ref, host, username, password string, plainHTTP b
 
 // ListOCITags lists the repository's semver tags (highest first) via the Helm
 // registry client, which filters non-semver tags and sorts descending.
-func ListOCITags(_ context.Context, repoRef, host, username, password string) ([]string, error) {
-	return ListOCITagsWithTransport(repoRef, host, username, password, false)
+func ListOCITags(ctx context.Context, repoRef, host, username, password string) ([]string, error) {
+	return AwaitOCICall(ctx, func() ([]string, error) {
+		return ListOCITagsWithTransport(repoRef, host, username, password, false)
+	})
 }
 
-func ListOCITagsWithPlainHTTP(_ context.Context, repoRef, host, username, password string) ([]string, error) {
-	return ListOCITagsWithTransport(repoRef, host, username, password, true)
+func ListOCITagsWithPlainHTTP(ctx context.Context, repoRef, host, username, password string) ([]string, error) {
+	return AwaitOCICall(ctx, func() ([]string, error) {
+		return ListOCITagsWithTransport(repoRef, host, username, password, true)
+	})
 }
 
 func ListOCITagsWithTransport(repoRef, host, username, password string, plainHTTP bool) ([]string, error) {
@@ -273,7 +332,7 @@ func resolveOCITag(ctx context.Context, repoRef, host, username, password, versi
 // version resolves the highest semver tag) and returns its files, paths
 // prefixed by the chart name.
 func PullOCIChartFiles(ctx context.Context, reg Registry, name, version string) ([]*loader.BufferedFile, error) {
-	oci := ociChartSource(reg)
+	oci := reg.OCIChartSource()
 	if oci == nil {
 		return nil, errors.Errorf("registry %q is not an OCI registry", reg.Name)
 	}

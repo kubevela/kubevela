@@ -1,0 +1,364 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package component
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestNewAsyncReader(t *testing.T) {
+	testCases := map[string]struct {
+		baseURL  string
+		bucket   string
+		repo     string
+		subPath  string
+		token    string
+		rdType   ReaderType
+		wantType interface{}
+		wantErr  bool
+	}{
+		"git type": {
+			baseURL:  "https://github.com/kubevela/catalog",
+			subPath:  "addons",
+			rdType:   GitType,
+			wantType: &gitReader{},
+			wantErr:  false,
+		},
+		"gitee type": {
+			baseURL:  "https://gitee.com/kubevela/catalog",
+			subPath:  "addons",
+			rdType:   GiteeType,
+			wantType: &giteeReader{},
+			wantErr:  false,
+		},
+		"oss type": {
+			baseURL:  "oss-cn-hangzhou.aliyuncs.com",
+			bucket:   "kubevela-addons",
+			rdType:   OSSType,
+			wantType: &ossReader{},
+			wantErr:  false,
+		},
+		"invalid url": {
+			baseURL: "://invalid-url",
+			rdType:  GitType,
+			wantErr: true,
+		},
+		"invalid type": {
+			baseURL: "https://github.com/kubevela/catalog",
+			rdType:  "invalid",
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Note: This test does not cover the gitlab case as it requires a live API call
+			// or a complex mock setup, which is beyond the scope of this unit test.
+			if tc.rdType == GitlabType {
+				t.Skip("Skipping gitlab test in this unit test suite.")
+			}
+
+			reader, err := NewAsyncReader(tc.baseURL, tc.bucket, tc.repo, tc.subPath, tc.token, tc.rdType)
+
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.IsType(t, tc.wantType, reader)
+			}
+		})
+	}
+}
+
+func TestConvert2OssItem(t *testing.T) {
+	subPath := "sub-addons"
+	reader, err := NewAsyncReader("ep-beijing.com", "bucket", "", subPath, "", OSSType)
+
+	assert.NoError(t, err)
+
+	o, ok := reader.(*ossReader)
+	assert.Equal(t, ok, true)
+	var testFiles = []File{
+		{
+			Name: "sub-addons/fluxcd",
+			Size: 0,
+		},
+		{
+			Name: "sub-addons/fluxcd/metadata.yaml",
+			Size: 100,
+		},
+		{
+			Name: "sub-addons/fluxcd/definitions/",
+			Size: 0,
+		},
+		{
+			Name: "sub-addons/fluxcd/definitions/helm-release.yaml",
+			Size: 100,
+		},
+		{
+			Name: "sub-addons/example/resources/configmap.yaml",
+			Size: 100,
+		},
+		{
+			Name: "sub-addons/example/metadata.yaml",
+			Size: 100,
+		},
+	}
+	var expectItemCase = map[string]SourceMeta{
+		"fluxcd": {
+			Name: "fluxcd",
+			Items: []Item{
+				&OSSItem{tp: FileType, path: "fluxcd/definitions/helm-release.yaml", name: "helm-release.yaml"},
+				&OSSItem{tp: FileType, path: "fluxcd/metadata.yaml", name: "metadata.yaml"},
+			},
+		},
+		"example": {
+			Name: "example",
+			Items: []Item{
+				&OSSItem{tp: FileType, path: "example/metadata.yaml", name: "metadata.yaml"},
+				&OSSItem{tp: FileType, path: "example/resources/configmap.yaml", name: "configmap.yaml"},
+			},
+		},
+	}
+	addonMetas := o.convertOSSFiles2Addons(testFiles)
+	assert.Equal(t, expectItemCase, addonMetas)
+
+}
+
+func TestSafeCopy(t *testing.T) {
+	var git *GitAddonSource
+	sgit := git.SafeCopy()
+	assert.Nil(t, sgit)
+	git = &GitAddonSource{URL: "http://github.com/kubevela", Path: "addons", Token: "123456"}
+	sgit = git.SafeCopy()
+	assert.Empty(t, sgit.Token)
+	assert.Equal(t, "http://github.com/kubevela", sgit.URL)
+	assert.Equal(t, "addons", sgit.Path)
+
+	var gitee *GiteeAddonSource
+	sgitee := gitee.SafeCopy()
+	assert.Nil(t, sgitee)
+	gitee = &GiteeAddonSource{URL: "http://gitee.com/kubevela", Path: "addons", Token: "123456"}
+	sgitee = gitee.SafeCopy()
+	assert.Empty(t, sgitee.Token)
+	assert.Equal(t, "http://gitee.com/kubevela", sgitee.URL)
+	assert.Equal(t, "addons", sgitee.Path)
+
+	var gitlab *GitlabAddonSource
+	sgitlab := gitlab.SafeCopy()
+	assert.Nil(t, sgitlab)
+	gitlab = &GitlabAddonSource{URL: "http://gitlab.com/kubevela", Repo: "vela", Path: "addons", Token: "123456"}
+	sgitlab = gitlab.SafeCopy()
+	assert.Empty(t, sgitlab.Token)
+	assert.Equal(t, "http://gitlab.com/kubevela", sgitlab.URL)
+	assert.Equal(t, "addons", sgitlab.Path)
+	assert.Equal(t, "vela", sgitlab.Repo)
+
+	var helm *HelmSource
+	shelm := helm.SafeCopy()
+	assert.Nil(t, shelm)
+	helm = &HelmSource{URL: "https://hub.vela.com/chartrepo/addons", Username: "user123", Password: "pass456"}
+	shelm = helm.SafeCopy()
+	assert.Empty(t, shelm.Username)
+	assert.Empty(t, shelm.Password)
+	assert.Equal(t, "https://hub.vela.com/chartrepo/addons", shelm.URL)
+}
+
+func TestTokenSource(t *testing.T) {
+	t.Run("GitAddonSource", func(t *testing.T) {
+		source := &GitAddonSource{}
+		assert.Equal(t, "", source.GetToken())
+		assert.Equal(t, "", source.GetTokenSecretRef())
+
+		source.SetToken("test-token")
+		assert.Equal(t, "test-token", source.GetToken())
+		assert.Equal(t, "", source.GetTokenSecretRef())
+
+		source.SetTokenSecretRef("test-secret")
+		assert.Equal(t, "test-secret", source.GetTokenSecretRef())
+		assert.Equal(t, "", source.GetToken())
+	})
+
+	t.Run("GiteeAddonSource", func(t *testing.T) {
+		source := &GiteeAddonSource{}
+		assert.Equal(t, "", source.GetToken())
+		assert.Equal(t, "", source.GetTokenSecretRef())
+
+		source.SetToken("test-token")
+		assert.Equal(t, "test-token", source.GetToken())
+		assert.Equal(t, "", source.GetTokenSecretRef())
+
+		source.SetTokenSecretRef("test-secret")
+		assert.Equal(t, "test-secret", source.GetTokenSecretRef())
+		assert.Equal(t, "", source.GetToken())
+	})
+
+	t.Run("GitlabAddonSource", func(t *testing.T) {
+		source := &GitlabAddonSource{}
+		assert.Equal(t, "", source.GetToken())
+		assert.Equal(t, "", source.GetTokenSecretRef())
+
+		source.SetToken("test-token")
+		assert.Equal(t, "test-token", source.GetToken())
+		assert.Equal(t, "", source.GetTokenSecretRef())
+
+		source.SetTokenSecretRef("test-secret")
+		assert.Equal(t, "test-secret", source.GetTokenSecretRef())
+		assert.Equal(t, "", source.GetToken())
+	})
+}
+
+func TestIsOCIURL(t *testing.T) {
+	testCases := map[string]struct {
+		url  string
+		want bool
+	}{
+		"oci scheme":                  {url: "oci://ghcr.io/kubevela/addons", want: true},
+		"oci scheme uppercase":        {url: "OCI://ghcr.io/kubevela/addons", want: true},
+		"oci scheme mixed case":       {url: "Oci://ghcr.io/kubevela/addons", want: true},
+		"oci registry without prefix": {url: "oci://registry:5000", want: true},
+		"https helm repo":             {url: "https://charts.kubevela.net/addons", want: false},
+		"http helm repo":              {url: "http://127.0.0.1:8080/addons", want: false},
+		"chartmuseum scheme":          {url: "cm://charts.example.com", want: false},
+		"empty":                       {url: "", want: false},
+		"host only, no scheme":        {url: "ghcr.io/kubevela/addons", want: false},
+		"scheme substring not scheme": {url: "https://oci.example.com/addons", want: false},
+		"malformed":                   {url: "oci://%zz", want: false},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, IsOCIURL(tc.url))
+		})
+	}
+}
+
+func TestHelmSourceTokenSource(t *testing.T) {
+	h := &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS"}
+
+	assert.Equal(t, "", h.GetToken())
+	assert.Equal(t, "", h.GetTokenSecretRef())
+
+	h.SetToken("ecr-password")
+	assert.Equal(t, "ecr-password", h.GetToken())
+	assert.Equal(t, "", h.GetTokenSecretRef())
+
+	h.SetTokenSecretRef("addon-registry-ecr")
+	assert.Equal(t, "", h.GetToken(), "moving the token to a secret must clear the inline value")
+	assert.Equal(t, "addon-registry-ecr", h.GetTokenSecretRef())
+
+	h.SetToken("rotated")
+	assert.Equal(t, "rotated", h.GetToken())
+	assert.Equal(t, "", h.GetTokenSecretRef(), "setting an inline token must clear a stale secret ref")
+
+	assert.Equal(t, "AWS", h.Username, "the token lifecycle must not disturb the username")
+}
+
+func TestHelmSourceCredential(t *testing.T) {
+	testCases := map[string]struct {
+		source       *HelmSource
+		wantUsername string
+		wantSecret   string
+	}{
+		"oci reads token": {
+			source:       &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS", Token: "tok"},
+			wantUsername: "AWS",
+			wantSecret:   "tok",
+		},
+		"https reads password": {
+			source:       &HelmSource{URL: "https://charts.kubevela.net/addons", Username: "u", Password: "pw"},
+			wantUsername: "u",
+			wantSecret:   "pw",
+		},
+		"oci ignores a stray password": {
+			source:       &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS", Password: "pw"},
+			wantUsername: "AWS",
+			wantSecret:   "",
+		},
+		"https ignores a stray token": {
+			source:       &HelmSource{URL: "https://charts.kubevela.net/addons", Username: "u", Token: "tok"},
+			wantUsername: "u",
+			wantSecret:   "",
+		},
+		"anonymous": {
+			source:       &HelmSource{URL: "oci://registry:5000"},
+			wantUsername: "",
+			wantSecret:   "",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			username, secret := tc.source.Credential()
+			assert.Equal(t, tc.wantUsername, username)
+			assert.Equal(t, tc.wantSecret, secret)
+		})
+	}
+}
+
+func TestValidateHelmSourceCredential(t *testing.T) {
+	testCases := map[string]struct {
+		source  *HelmSource
+		wantErr string
+	}{
+		"oci with token": {
+			source: &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS", Token: "tok"},
+		},
+		"oci with token secret ref": {
+			source: &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS", TokenSecretRef: "s"},
+		},
+		"https with password": {
+			source: &HelmSource{URL: "https://charts.kubevela.net/addons", Username: "u", Password: "pw"},
+		},
+		"anonymous oci": {
+			source: &HelmSource{URL: "oci://registry:5000"},
+		},
+		"anonymous https": {
+			source: &HelmSource{URL: "https://charts.kubevela.net/addons"},
+		},
+		"password on an oci url": {
+			source:  &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS", Password: "pw"},
+			wantErr: "password",
+		},
+		"token on an https url": {
+			source:  &HelmSource{URL: "https://charts.kubevela.net/addons", Username: "u", Token: "tok"},
+			wantErr: "token",
+		},
+		"token secret ref on an https url": {
+			source:  &HelmSource{URL: "https://charts.kubevela.net/addons", TokenSecretRef: "s"},
+			wantErr: "tokenSecretRef",
+		},
+		"insecureSkipTLS on an oci url": {
+			source:  &HelmSource{URL: "oci://registry:5000", InsecureSkipTLS: true},
+			wantErr: "insecureSkipTLS",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			err := tc.source.ValidateCredential()
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}

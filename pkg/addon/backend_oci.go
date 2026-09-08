@@ -19,7 +19,6 @@ package addon
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -29,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/singleflight"
 	"helm.sh/helm/v3/pkg/chart"
@@ -79,35 +79,6 @@ type ociHelmBackend struct {
 // "OCI://..." would classify as OCI but build a malformed host such as "OCI:".
 const ociScheme = "oci://"
 
-// ociRegistryLocation returns the registry host and repository prefix.
-func ociRegistryLocation(rawURL string) (host, prefix string) {
-	trimmed := rawURL
-	if len(rawURL) >= len(ociScheme) && strings.EqualFold(rawURL[:len(ociScheme)], ociScheme) {
-		trimmed = rawURL[len(ociScheme):]
-	}
-	base := strings.Trim(trimmed, "/")
-	host = base
-	if i := strings.Index(base, "/"); i >= 0 {
-		host = base[:i]
-		prefix = strings.Trim(base[i+1:], "/")
-	}
-	return host, prefix
-}
-
-// ociRepoRef builds the OCI repository reference (no tag) and host from a
-// registry URL and addon name. The URL may carry an "oci://" scheme and/or a
-// trailing slash. The host is the registry authority (everything before the
-// first path separator), used for login.
-func ociRepoRef(url, addon string) (repoRef, host string) {
-	host, prefix := ociRegistryLocation(url)
-	repoRef = host
-	if prefix != "" {
-		repoRef += "/" + prefix
-	}
-	repoRef += "/" + strings.TrimPrefix(addon, "/")
-	return repoRef, host
-}
-
 // resolveVersion returns the tag to pull. A pinned version is used as-is; an
 // empty version is resolved to the highest semver tag published in the repo.
 // resolveVersion picks the tag to pull and also reports the tags it saw getting
@@ -119,7 +90,7 @@ func (b *ociHelmBackend) resolveVersion(ctx context.Context, repoRef, host, vers
 	}
 	list := b.tagsFn
 	if list == nil {
-		list = listOCITags
+		list = component.ListOCITags
 	}
 	tags, err := list(ctx, repoRef, host, b.username, b.token)
 	if err != nil {
@@ -158,74 +129,6 @@ const ociClientCacheLimit = 16
 // this, keeps unrelated keys from blocking on each other's network I/O.
 var ociClientCreation singleflight.Group
 
-func ociClientCacheKey(host, username, password string, plainHTTP bool) string {
-	sum := sha256.Sum256([]byte(username + "\x00" + password))
-	return fmt.Sprintf("%s|%t|%x", host, plainHTTP, sum[:8])
-}
-
-func cachedOCIClient(key string) (*registry.Client, bool) {
-	ociClientCache.Lock()
-	defer ociClientCache.Unlock()
-	client, ok := ociClientCache.clients[key]
-	return client, ok
-}
-
-func storeOCIClient(key string, client *registry.Client) {
-	ociClientCache.Lock()
-	defer ociClientCache.Unlock()
-	if len(ociClientCache.clients) >= ociClientCacheLimit {
-		// Cheap eviction: the entries are interchangeable, and a dropped one is
-		// only re-logged-in on next use.
-		for k := range ociClientCache.clients {
-			delete(ociClientCache.clients, k)
-			break
-		}
-	}
-	ociClientCache.clients[key] = client
-}
-
-func newOCIClientWithPlainHTTP(host, username, password string, plainHTTP bool) (*registry.Client, error) {
-	key := ociClientCacheKey(host, username, password, plainHTTP)
-
-	if client, ok := cachedOCIClient(key); ok {
-		return client, nil
-	}
-
-	// The dial and login below run outside ociClientCache's lock: only the map
-	// reads and writes hold it, so a slow or unreachable registry blocks
-	// nothing but callers asking for this same key.
-	result, err, _ := ociClientCreation.Do(key, func() (interface{}, error) {
-		if client, ok := cachedOCIClient(key); ok {
-			return client, nil
-		}
-
-		// The client's own HTTP timeout is what actually terminates a request
-		// abandoned by awaitOCICall; without it a hung registry would keep the
-		// orphaned goroutine, its connection, and its buffered result alive for
-		// as long as the process runs.
-		opts := []registry.ClientOption{registry.ClientOptHTTPClient(&http.Client{Timeout: ociCallTimeout})}
-		if plainHTTP {
-			opts = append(opts, registry.ClientOptPlainHTTP())
-		}
-		client, err := registry.NewClient(opts...)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to create OCI registry client")
-		}
-		if username != "" || password != "" {
-			if err := client.Login(host, registry.LoginOptBasicAuth(username, password)); err != nil {
-				return nil, errors.Wrapf(err, "failed to login to OCI registry %s", host)
-			}
-		}
-
-		storeOCIClient(key, client)
-		return client, nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return result.(*registry.Client), nil
-}
-
 // ociCallTimeout bounds one helm-registry-client call. helm's *registry.Client
 // takes no context, so awaitOCICall below releases a cancelled caller while
 // the call itself keeps running on its own goroutine; this timeout is what
@@ -238,136 +141,10 @@ func newOCIClientWithPlainHTTP(host, username, password string, plainHTTP bool) 
 // express a latency target.
 const ociCallTimeout = 5 * time.Minute
 
-// awaitOCICall runs a blocking helm registry operation and returns as soon as
-// either it finishes or ctx is done.
-//
-// helm's Pull and Tags take no context, so without this a cancelled reconcile
-// stays blocked until the registry answers or the connection breaks -- exactly
-// the case where the caller no longer wants the result. The operation cannot
-// be aborted from outside, so it is left to finish into a buffered channel
-// whose result is dropped; the client's ociCallTimeout keeps that bounded.
-func awaitOCICall[T any](ctx context.Context, op func() (T, error)) (T, error) {
-	if err := ctx.Err(); err != nil {
-		// A caller that arrives already cancelled must not start a fresh
-		// goroutine that can run for up to ociCallTimeout: under frequent
-		// reconcile cancellation that accumulates orphaned goroutines and
-		// connections for no benefit, since the result would be discarded
-		// immediately below anyway.
-		var zero T
-		return zero, err
-	}
-	type outcome struct {
-		value T
-		err   error
-	}
-	done := make(chan outcome, 1)
-	go func() {
-		value, err := op()
-		done <- outcome{value: value, err: err}
-	}()
-	select {
-	case <-ctx.Done():
-		var zero T
-		return zero, ctx.Err()
-	case res := <-done:
-		return res.value, res.err
-	}
-}
-
-// pullOCIChart is the production puller: it logs in (when credentials are set)
-// and pulls the chart layer from the OCI registry via the Helm registry client.
-func pullOCIChart(ctx context.Context, ref, host, username, password string) ([]byte, error) {
-	return awaitOCICall(ctx, func() ([]byte, error) {
-		return pullOCIChartWithTransport(ref, host, username, password, false)
-	})
-}
-
-func pullOCIChartWithPlainHTTP(ctx context.Context, ref, host, username, password string) ([]byte, error) {
-	return awaitOCICall(ctx, func() ([]byte, error) {
-		return pullOCIChartWithTransport(ref, host, username, password, true)
-	})
-}
-
-func pullOCIChartWithTransport(ref, host, username, password string, plainHTTP bool) ([]byte, error) {
-	client, err := newOCIClientWithPlainHTTP(host, username, password, plainHTTP)
-	if err != nil {
-		return nil, err
-	}
-	result, err := client.Pull(ref, registry.PullOptWithChart(true))
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to pull addon chart %s", ref)
-	}
-	if result == nil || result.Chart == nil || len(result.Chart.Data) == 0 {
-		return nil, errors.Errorf("addon chart %s has no chart layer", ref)
-	}
-	return result.Chart.Data, nil
-}
-
-// listOCITags lists the repository's semver tags (highest first) via the Helm
-// registry client, which filters non-semver tags and sorts descending.
-func listOCITags(ctx context.Context, repoRef, host, username, password string) ([]string, error) {
-	return awaitOCICall(ctx, func() ([]string, error) {
-		return listOCITagsWithTransport(repoRef, host, username, password, false)
-	})
-}
-
-func listOCITagsWithPlainHTTP(ctx context.Context, repoRef, host, username, password string) ([]string, error) {
-	return awaitOCICall(ctx, func() ([]string, error) {
-		return listOCITagsWithTransport(repoRef, host, username, password, true)
-	})
-}
-
-func listOCITagsWithTransport(repoRef, host, username, password string, plainHTTP bool) ([]string, error) {
-	client, err := newOCIClientWithPlainHTTP(host, username, password, plainHTTP)
-	if err != nil {
-		return nil, err
-	}
-	return client.Tags(repoRef)
-}
-
 // ociErrCodeNameUnknown is how the OCI distribution spec reports a repository
 // that does not exist. oras-go renders the code by lowercasing it and turning
 // underscores into spaces (NAME_UNKNOWN -> "name unknown").
 const ociErrCodeNameUnknown = "name unknown"
-
-// isOCIRepositoryAbsentError reports whether err is a registry answer confirming
-// "this repository does not exist", as opposed to "this repository could not be
-// read". Only the first lets the caller publish a catalog, because there is
-// nothing to preserve; misreading the second rebuilds the catalog from an empty
-// list and drops every addon already published.
-//
-// The test is the NAME_UNKNOWN error code, not the 404 status. A bare 404 is
-// ambiguous -- a proxy, a gateway, or a registry that does not serve the
-// tag-list route answers the same way for a repository that does exist -- so it
-// stays on the conservative branch.
-//
-// The code has to be read out of the message: oras-go v1.2.5 builds these errors
-// with fmt.Errorf and keeps its error types in the unexported
-// pkg/registry/remote/internal/errutil. A miss is safe in the same direction --
-// callers refuse to rewrite the catalog.
-func isOCIRepositoryAbsentError(err error) bool {
-	if err == nil {
-		return false
-	}
-	return strings.Contains(err.Error(), ociErrCodeNameUnknown)
-}
-
-// isDockerHubHost reports whether host is a known Docker Hub registry alias.
-// Mirrors the alias list in pkg/cue/cuex/providers/helm/auth.go's
-// normalizeDockerHubAliases; kept local rather than imported because that
-// package is a different, heavier dependency (CUE #Helm chart-fetch auth)
-// that pkg/addon does not otherwise need.
-func isDockerHubHost(host string) bool {
-	h := strings.ToLower(host)
-	if i := strings.IndexByte(h, ':'); i >= 0 {
-		h = h[:i]
-	}
-	switch h {
-	case "docker.io", "index.docker.io", "registry-1.docker.io":
-		return true
-	}
-	return false
-}
 
 // classifyCatalogListStatus turns a /v2/_catalog response status into the
 // enumeration result. Split out from listOCIRepositoriesWithScheme's HTTP
@@ -388,7 +165,7 @@ func classifyCatalogListStatus(host string, status int, statusText string) error
 	case http.StatusNotFound, http.StatusMethodNotAllowed, http.StatusNotImplemented:
 		return errors.Wrapf(ErrOCICatalogAbsent, "OCI catalog enumeration is unsupported at %s: server returned %s", host, statusText)
 	case http.StatusUnauthorized:
-		if isDockerHubHost(host) {
+		if component.IsDockerHubHost(host) {
 			return errors.Wrapf(ErrOCICatalogAbsent, "OCI catalog enumeration is unsupported at %s: Docker Hub does not grant catalog listing to any credential: server returned %s", host, statusText)
 		}
 	}
@@ -439,7 +216,7 @@ func newOCICatalogAuthClient(username, password string) *registryauth.Client {
 }
 
 func listOCIRepositoriesWithScheme(ctx context.Context, registryURL, username, password, scheme string) ([]string, error) {
-	host, prefix := ociRegistryLocation(registryURL)
+	host, prefix := component.OCIRegistryLocation(registryURL)
 	next := &url.URL{
 		Scheme:   scheme,
 		Host:     host,
@@ -590,7 +367,7 @@ func (b *ociHelmBackend) supportsVersionRequirements() bool { return false }
 
 // Resolve pulls the addon's OCI chart and decodes the archive.
 func (b *ociHelmBackend) resolve(ctx context.Context, addonName, version string) (*resolvedChart, error) {
-	repoRef, host := ociRepoRef(b.url, addonName)
+	repoRef, host := component.OCIRepoRef(b.url, addonName)
 	resolved, available, err := b.resolveVersion(ctx, repoRef, host, version)
 	if err != nil {
 		return nil, err
@@ -598,7 +375,7 @@ func (b *ociHelmBackend) resolve(ctx context.Context, addonName, version string)
 	ref := fmt.Sprintf("%s:%s", repoRef, resolved)
 	pull := b.pullFn
 	if pull == nil {
-		pull = pullOCIChart
+		pull = component.PullOCIChart
 	}
 	archive, err := pull(ctx, ref, host, b.username, b.token)
 	if err != nil {
@@ -623,10 +400,10 @@ func (b *ociHelmBackend) resolve(ctx context.Context, addonName, version string)
 
 // Versions lists the semver tags of an OCI addon, highest first.
 func (b *ociHelmBackend) versions(ctx context.Context, addonName string) ([]*repo.ChartVersion, error) {
-	repoRef, host := ociRepoRef(b.url, addonName)
+	repoRef, host := component.OCIRepoRef(b.url, addonName)
 	list := b.tagsFn
 	if list == nil {
-		list = listOCITags
+		list = component.ListOCITags
 	}
 	tags, err := list(ctx, repoRef, host, b.username, b.token)
 	if err != nil {
@@ -719,10 +496,10 @@ func (b *ociHelmBackend) listUIDataWithOrigin(ctx context.Context) ([]*UIData, c
 
 	var addons []*UIData
 	for _, name := range names {
-		repoRef, host := ociRepoRef(b.url, name)
+		repoRef, host := component.OCIRepoRef(b.url, name)
 		tags := b.tagsFn
 		if tags == nil {
-			tags = listOCITags
+			tags = component.ListOCITags
 		}
 		versions, err := tags(ctx, repoRef, host, b.username, b.token)
 		if err != nil {

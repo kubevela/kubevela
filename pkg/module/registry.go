@@ -78,7 +78,7 @@ func ResolveRegistry(ctx context.Context, store component.RegistryDataStore, nam
 	if err != nil {
 		return component.Registry{}, err
 	}
-	if reg.Git == nil && component.OCIChartSource(reg) == nil {
+	if reg.Git == nil && reg.OCIChartSource() == nil {
 		return component.Registry{}, fmt.Errorf(
 			"module registry %q is a %s source; modules support only git and OCI registries",
 			reg.Name, SourceTypeName(reg))
@@ -130,7 +130,7 @@ func SourceTypeName(reg component.Registry) string {
 	switch {
 	case reg.Git != nil:
 		return "git"
-	case component.OCIChartSource(reg) != nil:
+	case reg.OCIChartSource() != nil:
 		// An OCI registry is a Helm source with an oci:// URL, so this has to be
 		// tested before the plain helm case or every OCI entry reads as "helm".
 		return "oci"

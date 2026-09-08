@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package addon
+package component
 
 import (
 	"path/filepath"
@@ -25,7 +25,7 @@ import (
 )
 
 func TestLocalReader(t *testing.T) {
-	r := localReader{name: "local", dir: "./testdata/local"}
+	r := LocalReader{name: "local", dir: "./testdata/local"}
 
 	t.Run("ListAddonMeta", func(t *testing.T) {
 		m, err := r.ListAddonMeta()
@@ -80,7 +80,7 @@ func TestLocalReader_RelativePath(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			r := localReader{name: tc.addonName, dir: tc.dir}
+			r := LocalReader{name: tc.addonName, dir: tc.dir}
 			item := OSSItem{path: tc.itemPath}
 			result := r.RelativePath(item)
 			assert.Equal(t, tc.expected, result)

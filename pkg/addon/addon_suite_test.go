@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/references/cli/top/model"
@@ -491,11 +492,11 @@ var _ = Describe("test dry-run addon from local dir", func() {
 	It("test dry-run enable addon from local dir", func() {
 		ctx := context.Background()
 
-		r := localReader{dir: "./testdata/example", name: "addon-example"}
+		r := component.NewLocalReader("./testdata/example", "addon-example")
 		metas, err := r.ListAddonMeta()
 		Expect(err).Should(BeNil())
 
-		meta := metas[r.name]
+		meta := metas[r.Name()]
 		UIData, err := GetUIDataFromReader(r, &meta, UIMetaOptions)
 		Expect(err).Should(BeNil())
 

@@ -34,7 +34,6 @@ import (
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	pkgmodule "github.com/oam-dev/kubevela/pkg/module"
-	"github.com/oam-dev/kubevela/pkg/registry/component"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -66,7 +65,7 @@ func TestModuleRegistryFromArgs(t *testing.T) {
 			[]string{"catalog", "https://github.com/kubevela/catalog"}, "--type=git")
 		require.NoError(t, err)
 		require.NotNil(t, reg.Git)
-		assert.Nil(t, component.OCIChartSource(*reg))
+		assert.Nil(t, reg.OCIChartSource())
 		assert.Equal(t, "catalog", reg.Name)
 		assert.Equal(t, "https://github.com/kubevela/catalog", reg.Git.URL)
 		assert.Equal(t, pkgmodule.DefaultGitPath, reg.Git.Path)
@@ -91,7 +90,7 @@ func TestModuleRegistryFromArgs(t *testing.T) {
 			[]string{"ghcr", "oci://ghcr.io/org/modules"},
 			"--type=oci", "--username=robot", "--password=secret")
 		require.NoError(t, err)
-		oci := component.OCIChartSource(*reg)
+		oci := reg.OCIChartSource()
 		require.NotNil(t, oci)
 		assert.Nil(t, reg.Git)
 		assert.Equal(t, "oci://ghcr.io/org/modules", oci.URL)
@@ -112,7 +111,7 @@ func TestModuleRegistryFromArgs(t *testing.T) {
 			if wantType == moduleGitType {
 				assert.NotNil(t, reg.Git, url)
 			} else {
-				assert.NotNil(t, component.OCIChartSource(*reg), url)
+				assert.NotNil(t, reg.OCIChartSource(), url)
 			}
 		}
 	})
