@@ -191,6 +191,14 @@ const (
 	// since ignoring it would render the child's template with an unresolved
 	// `$super`.
 	EnableDefinitionInheritance featuregate.Feature = "EnableDefinitionInheritance"
+
+	// EnableModuleComponent enables installing a module as an Application component via the
+	// type: module ComponentDefinition. As with EnableAddonComponent, the ComponentDefinition
+	// and its vela/module CueX package always ship, because the definition cannot compile
+	// without the package; this gate controls only whether the render service is wired up.
+	// When disabled, an Application using type: module fails at render with an actionable
+	// message.
+	EnableModuleComponent featuregate.Feature = "EnableModuleComponent"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -228,6 +236,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	EnableCelExpressions:                          {Default: false, PreRelease: featuregate.Alpha},
 	RequireCelExpressionOptIn:                     {Default: true, PreRelease: featuregate.Alpha},
 	EnableDefinitionInheritance:                   {Default: false, PreRelease: featuregate.Alpha},
+	EnableModuleComponent:                         {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

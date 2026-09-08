@@ -133,6 +133,7 @@ spec:
 			}
 			return nil
 		},
+		MockList: test.NewMockListFn(nil),
 	}
 	var annotations = make(map[string]string)
 	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeComponentDefinition, annotations)
@@ -246,6 +247,7 @@ spec:
 			}
 			return nil
 		},
+		MockList: test.NewMockListFn(nil),
 	}
 	var annotations = make(map[string]string)
 	temp, err := LoadTemplate(context.TODO(), &tclient, "ingress", types.TypeTrait, annotations)
