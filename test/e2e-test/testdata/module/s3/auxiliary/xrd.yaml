@@ -1,0 +1,421 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xs3.objectstore.atmos.guidewire.com
+spec:
+  defaultCompositeDeletePolicy: Foreground
+  defaultCompositionRef:
+    name: s3.objectstore.atmos.guidewire.com
+  group: objectstore.atmos.guidewire.com
+  names:
+    kind: XS3
+    plural: xs3
+  claimNames:
+    kind: S3
+    plural: s3
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: "Name of the S3 bucket to create."
+                region:
+                  type: string
+                  description: "The AWS region where we need to create the resource."
+                versioningEnabled:
+                  type: boolean
+                  description: "Enable versioning in the bucket"
+                forceDestroy:
+                  type: boolean
+                  description: "Flag to enable force destroy feature which indicates all objects (including any locked objects) should be deleted from the bucket so that the bucket can be destroyed without error."
+                tags:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: "A map of tags to add to all resources"
+                managementPolicies:
+                  type: array
+                  description: "List of management policies to apply to the S3 resources."
+                  items:
+                    type: string
+                    enum:
+                      [
+                        "Create",
+                        "Delete",
+                        "Observe",
+                        "*",
+                        "Update",
+                        "LateInitialize",
+                      ]
+                bucketPolicy:
+                  type: object
+                  description: "S3 bucket policy document"
+                  properties:
+                    Version:
+                      type: string
+                      description: "policy language version"
+                      enum:
+                        - "2012-10-17"
+                        - "2008-10-17"
+                      default: "2012-10-17"
+                    Statement:
+                      type: array
+                      minItems: 1
+                      items:
+                        type: object
+                        required:
+                          - Effect
+                        properties:
+                          Sid:
+                            type: string
+                            description: "Statement ID - must be unique within the policy"
+                            minLength: 1
+                          Effect:
+                            type: string
+                            enum: [Allow, Deny]
+                            description: "Whether to allow or deny the specified actions"
+                          Principal:
+                            type: object
+                            description: "The principal(s) allowed or denied access"
+                            minProperties: 1
+                            properties:
+                              AWS:
+                                description: "AWS account ID, IAM user, role, or root ARN(s)"
+                                type: array
+                                minItems: 1
+                                items:
+                                  type: string
+                              Service:
+                                description: "AWS service principal(s)"
+                                type: array
+                                minItems: 1
+                                items:
+                                  type: string
+                              CanonicalUser:
+                                description: "S3 canonical user ID (64-char hex string)"
+                                type: array
+                                minItems: 1
+                                items:
+                                  type: string
+                          NotPrincipal:
+                            type: object
+                            description: "Exception to the Principal - all principals EXCEPT these"
+                            properties:
+                              AWS:
+                                description: "AWS account ID, IAM user, role, or root ARN(s)"
+                                type: array
+                                minItems: 1
+                                items:
+                                  type: string
+                              Service:
+                                description: "AWS service principal(s)"
+                                type: array
+                                minItems: 1
+                                items:
+                                  type: string
+                              Federated:
+                                description: "Federated user principal (SAML, OIDC, Cognito)"
+                                type: array
+                                minItems: 1
+                                items:
+                                  type: string
+                              CanonicalUser:
+                                description: "S3 canonical user ID (64-char hex string)"
+                                type: array
+                                minItems: 1
+                                items:
+                                  type: string
+                          Action:
+                            description: "S3 action(s) to allow or deny"
+                            type: array
+                            minItems: 1
+                            items:
+                              type: string
+                          NotAction:
+                            description: "All actions EXCEPT these"
+                            type: array
+                            minItems: 1
+                            items:
+                              type: string
+                          Resource:
+                            description: "S3 resource ARN(s) - typically auto-generated to this bucket"
+                            type: array
+                            minItems: 1
+                            items:
+                              type: string
+                          NotResource:
+                            description: "All resources EXCEPT these"
+                            type: array
+                            minItems: 1
+                            items:
+                              type: string
+                          Condition:
+                            type: object
+                            description: "Optional conditions for when the statement applies"
+                            x-kubernetes-preserve-unknown-fields: true
+                sseAlgorithm:
+                  type: string
+                  description: "Server-side encryption algorithm to use for the bucket. Default is AES256."
+                  enum: ["AES256", "aws:kms", "aws:kms:dsse"]
+                kmsMasterKeyId:
+                  type: string
+                  description: "AWS KMS master key ID or ARN used for the SSE-KMS encryption. This can only be used when you set the value of sseAlgorithm as 'aws:kms' or 'aws:kms:dsse'. The default aws/s3 AWS KMS master key is used if this element is absent while the sseAlgorithm is 'aws:kms' or 'aws:kms:dsse'."
+                bucketKeyEnabled:
+                  type: boolean
+                  description: "Whether or not to use Amazon S3 Bucket Keys for SSE-KMS. This can only be used when you set the value of sseAlgorithm as 'aws:kms'."
+                objectLock:
+                  type: object
+                  description: "Object lock configuration for the bucket"
+                  properties:
+                    retentionDays:
+                      type: integer
+                      description: "Number of days to retain the object lock"
+                      default: 45
+                    retentionMode:
+                      type: string
+                      description: "Mode of object lock retention. Valid values are Compliance and Governance"
+                      enum: ["COMPLIANCE", "GOVERNANCE"]
+                      default: "GOVERNANCE"
+                corsRules:
+                  type: array
+                  description: "CORS configuration rules for the bucket"
+                  items:
+                    type: object
+                    properties:
+                      allowedHeaders:
+                        type: array
+                        items:
+                          type: string
+                        description: "Headers that are allowed in a preflight OPTIONS request through the CORS interface."
+                      allowedMethods:
+                        type: array
+                        items:
+                          type: string
+                        description: "HTTP methods that are allowed to be executed by CORS clients."
+                      allowedOrigins:
+                        type: array
+                        items:
+                          type: string
+                        description: "Origins that are allowed to make requests to the bucket."
+                      exposeHeaders:
+                        type: array
+                        items:
+                          type: string
+                        description: "Headers that are exposed to CORS clients."
+                      maxAgeSeconds:
+                        type: integer
+                        description: "Maximum time in seconds that a browser can cache the preflight response for the specified resource."
+                      description:
+                        type: string
+                        description: "Description of the CORS rule."
+                replicationConfiguration:
+                  type: object
+                  description: "Replication configuration for the bucket."
+                  properties:
+                    role:
+                      type: string
+                      description: "IAM role ARN used by S3 for replication."
+                    destinationBucketRegion:
+                      type: string
+                      description: "Region of the destination bucket for replication."
+                      default: "us-east-2"
+                    destinationBucketName:
+                      type: string
+                      description: "Name of the destination bucket for replication."
+                      pattern: "^[a-z0-9.-]{3,63}$"
+                    kmsKeyArn:
+                      type: string
+                      description: "KMS key ARN for encrypting replicated objects."
+                    biDirectionalReplicationEnabled:
+                      type: boolean
+                      description: "Enable bi-directional replication between source and destination buckets."
+                    replicationTimeControlEnabled:
+                      type: boolean
+                      description: "Enabling Replication Time Control replicates 99.99% of new objects within 15 minutes and includes replication metrics. Additional fees will apply."
+                    deleteMarkerReplicationEnabled:
+                      type: boolean
+                      description: "Enable delete marker replication for objects between source and destination buckets."
+                lifecycleRules:
+                  type: array
+                  description: "Lifecycle rules for managing objects in the bucket."
+                  items:
+                    type: object
+                    required:
+                      - id
+                      - status
+                    properties:
+                      id:
+                        type: string
+                        description: "Unique identifier for the lifecycle rule."
+                      status:
+                        type: string
+                        description: "Status of the lifecycle rule."
+                        enum: ["Enabled", "Disabled"]
+                      filter:
+                        type: array
+                        description: "Filter for selecting objects to which the rule applies."
+                        items:
+                          type: object
+                          properties:
+                            prefix:
+                              type: string
+                              description: "Prefix for filtering objects."
+                            tag:
+                              type: array
+                              description: "Tags for filtering objects."
+                              items:
+                                type: object
+                                required:
+                                  - key
+                                properties:
+                                  key:
+                                    type: string
+                                    description: "Tag key."
+                                  value:
+                                    type: string
+                                    description: "Tag value."
+                      abortIncompleteMultipartUpload:
+                        type: array
+                        description: "Abort incomplete multipart uploads after a specified number of days."
+                        items:
+                          type: object
+                          properties:
+                            daysAfterInitiation:
+                              type: integer
+                              description: "Number of days after initiation to abort incomplete multipart uploads."
+                      transition:
+                        type: array
+                        description: "Transition rules for changing the storage class of objects."
+                        items:
+                          type: object
+                          required:
+                            - storageClass
+                          properties:
+                            days:
+                              type: integer
+                              description: "Number of days after object creation to transition to the specified storage class."
+                            date:
+                              type: string
+                              format: date-time
+                              description: "Specific date to transition the object, in RFC3339 format (e.g., 2023-01-13T00:00:00Z, midnight UTC)."
+                            storageClass:
+                              type: string
+                              description: "Storage class to transition the object to."
+                              enum:
+                                [
+                                  "STANDARD_IA",
+                                  "INTELLIGENT_TIERING",
+                                  "ONEZONE_IA",
+                                  "GLACIER",
+                                  "DEEP_ARCHIVE",
+                                  "GLACIER_IR",
+                                ]
+                      expiration:
+                        type: array
+                        description: "Lifecycle configuration for expiring objects."
+                        items:
+                          type: object
+                          properties:
+                            days:
+                              type: integer
+                              description: "Number of days after object creation to expire the object."
+                            date:
+                              type: string
+                              format: date-time
+                              description: "Specific date to expire the object, in RFC3339 format (e.g., 2023-01-13T00:00:00Z, midnight UTC)."
+                            expiredObjectDeleteMarker:
+                              type: boolean
+                              description: "Indicates whether Amazon S3 will remove a delete marker with no noncurrent versions. If set to true, the delete marker will be expired; if set to false the policy takes no action."
+                      noncurrentVersionExpiration:
+                        type: array
+                        description: "Lifecycle configuration for expiring noncurrent versions of objects."
+                        items:
+                          type: object
+                          properties:
+                            noncurrentDays:
+                              type: integer
+                              description: "Number of days after which noncurrent versions of the object are expired."
+                      noncurrentVersionTransition:
+                        type: array
+                        description: "Lifecycle configuration for transitioning noncurrent versions of objects."
+                        items:
+                          type: object
+                          required:
+                            - storageClass
+                            - noncurrentDays
+                          properties:
+                            noncurrentDays:
+                              type: integer
+                              description: "Number of days after which noncurrent versions of the object are transitioned."
+                            storageClass:
+                              type: string
+                              description: "Storage class to transition the object to."
+                              enum:
+                                [
+                                  "STANDARD_IA",
+                                  "INTELLIGENT_TIERING",
+                                  "ONEZONE_IA",
+                                  "GLACIER",
+                                  "DEEP_ARCHIVE",
+                                  "GLACIER_IR",
+                                ]
+              required:
+                - name
+                - region
+            status:
+              type: object
+              properties:
+                bucketStatus:
+                  type: string
+                  description: "status of s3 bucket"
+                bucketLoggingStatus:
+                  type: string
+                  description: "status of s3 bucket logging"
+                bucketVersionStatus:
+                  type: string
+                  description: "status of s3 bucket version"
+                bucketEncryptionStatus:
+                  type: string
+                  description: "status of s3 bucket encryption"
+                bucketCorsRulesStatus:
+                  type: string
+                  description: "status of s3 bucket cors rules"
+                bucketObjectLockStatus:
+                  type: string
+                  description: "status of s3 bucket object lock configuration"
+                bucketLifecycleRulesStatus:
+                  type: string
+                  description: "status of s3 bucket lifecycle rules"
+                bucketPolicyStatus:
+                  type: string
+                  description: "status of s3 bucket policy"
+                bucketReplicationStatus:
+                  type: object
+                  description: "status of s3 bucket replication configuration"
+                  properties:
+                    destinationBucketStatus:
+                      type: string
+                      description: "status of replicated s3 bucket"
+                    destinationBucketEncryptionStatus:
+                      type: string
+                      description: "status of replicated s3 bucket encryption"
+                    destinationBucketObjectLockStatus:
+                      type: string
+                      description: "status of replicated s3 bucket object lock configuration"
+                    destinationBucketVersioningStatus:
+                      type: string
+                      description: "status of replicated s3 bucket version"
+                    replicationConfigurationStatus:
+                      type: string
+                      description: "status of s3 bucket replication"
+                    destinationToSourceReplicationConfigurationStatus:
+                      type: string
+                      description: "status of s3 destination bucket to source bucket replication configuration"
