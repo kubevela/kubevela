@@ -323,15 +323,24 @@ non-empty new arg
 				if filepath.IsAbs(addonOrDir) || strings.HasPrefix(addonOrDir, ".") || strings.HasSuffix(addonOrDir, "/") {
 					return fmt.Errorf("addon directory %s not found in local", addonOrDir)
 				}
-				name = addonOrDir
-				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, addonOrDir)
+				// `enable` accepts <registry>/<addon> and splits it before resolving the
+				// Application; do the same here. Without this the registry prefix reaches
+				// FetchAddonRelatedApp and lands in the Application name, which then fails
+				// Kubernetes name validation with `may not contain '/'`.
+				_, addonName, err := splitSpecifyRegistry(addonOrDir)
 				if err != nil {
-					return errors.Wrapf(err, "cannot fetch addon related addon %s", addonOrDir)
+					return fmt.Errorf("failed to split addonName and addonRegistry: %w", err)
+				}
+				name = addonName
+				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, name)
+				if err != nil {
+					return errors.Wrapf(err, "cannot fetch addon related addon %s", name)
 				}
 				addonArgs, err := pkgaddon.MergeAddonInstallArgs(ctx, k8sClient, name, addonInputArgs)
 				if err != nil {
 					return err
 				}
+				// enableAddon splits the registry off itself, so it keeps the qualified form.
 				additionalInfo, err = enableAddon(ctx, k8sClient, dc, config, addonOrDir, addonVersion, addonArgs)
 				if err != nil {
 					return err
