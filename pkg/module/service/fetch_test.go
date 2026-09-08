@@ -73,7 +73,7 @@ func indexSlash(s string) int {
 	return len(s)
 }
 
-// fakeStore is an component.RegistryDataStore over an in-memory slice. Unknown names
+// fakeStore is a component.RegistryDataStore over an in-memory slice. Unknown names
 // return a k8s NotFound (as the real ConfigMap-backed store does), so
 // module.ResolveRegistry takes its not-found path.
 type fakeStore struct{ regs []component.Registry }

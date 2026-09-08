@@ -25,18 +25,15 @@ import (
 	"net/url"
 	"sort"
 	"strings"
-	"sync"
-	"time"
 
-	"github.com/oam-dev/kubevela/pkg/registry/component"
 	"github.com/pkg/errors"
-	"golang.org/x/sync/singleflight"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
-	"helm.sh/helm/v3/pkg/registry"
 	"helm.sh/helm/v3/pkg/repo"
 	"k8s.io/klog/v2"
 	registryauth "oras.land/oras-go/pkg/registry/remote/auth"
+
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 )
 
 // ociPuller pulls a Helm-chart artifact from an OCI registry and returns the raw
@@ -73,12 +70,6 @@ type ociHelmBackend struct {
 	catalogIndexFn ociCatalogIndexLister
 }
 
-// ociScheme is the URL scheme prefix this file strips before building a
-// registry host and repository reference. IsOCIURL classifies the scheme
-// case-insensitively, so parsing here has to match, or a registry stored as
-// "OCI://..." would classify as OCI but build a malformed host such as "OCI:".
-const ociScheme = "oci://"
-
 // resolveVersion returns the tag to pull. A pinned version is used as-is; an
 // empty version is resolved to the highest semver tag published in the repo.
 // resolveVersion picks the tag to pull and also reports the tags it saw getting
@@ -102,44 +93,6 @@ func (b *ociHelmBackend) resolveVersion(ctx context.Context, repoRef, host, vers
 	// helm's Tags returns semver-filtered, highest-first.
 	return tags[0], tags, nil
 }
-
-// ociClientCache reuses a logged-in registry client across calls.
-//
-// Every OCI operation funnels through newOCIClientWithPlainHTTP, so without
-// this a single listing costs one TLS handshake and one login per addon: the
-// catalog is enumerated, then each entry is resolved and its versions listed.
-// Against a real registry that fails once the catalog holds more than a couple
-// of addons, with connection resets and TLS handshake timeouts, and it gets
-// worse as more addons are published.
-//
-// The key includes the credentials, so a rotated password (an ECR login token
-// lasts 12 hours) yields a new client rather than reusing a stale one.
-var ociClientCache = struct {
-	sync.Mutex
-	clients map[string]*registry.Client
-}{clients: map[string]*registry.Client{}}
-
-// ociClientCacheLimit bounds the cache. Entries are keyed by credentials, so the
-// live set is small; the cap only stops unbounded growth as tokens rotate.
-const ociClientCacheLimit = 16
-
-// ociClientCreation coordinates concurrent creation of the same cache entry so
-// two goroutines resolving the same registry at once do not both dial and log
-// in. Keying it by cache key, rather than using ociClientCache's own lock for
-// this, keeps unrelated keys from blocking on each other's network I/O.
-var ociClientCreation singleflight.Group
-
-// ociCallTimeout bounds one helm-registry-client call. helm's *registry.Client
-// takes no context, so awaitOCICall below releases a cancelled caller while
-// the call itself keeps running on its own goroutine; this timeout is what
-// stops that goroutine from outliving the process's interest in it.
-//
-// It is deliberately generous. helm's own client sets no timeout at all, and
-// this bound applies to a whole chart pull including the body, so anything
-// tight would start failing large addons on slow links. Its job is to stop an
-// abandoned request from living for the lifetime of the process, not to
-// express a latency target.
-const ociCallTimeout = 5 * time.Minute
 
 // ociErrCodeNameUnknown is how the OCI distribution spec reports a repository
 // that does not exist. oras-go renders the code by lowercasing it and turning

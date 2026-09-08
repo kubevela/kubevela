@@ -71,7 +71,7 @@ func (r *Registry) OCISource() *HelmSource {
 //     addon registry http(s):// means a ChartMuseum repository, but modules
 //     never supported ChartMuseum, so the spelling is free here.
 //   - a bare host such as an ECR endpoint, the form `vela module publish`
-//     documents. ociRegistryLocation parses it the same either way.
+//     documents. OCIRegistryLocation parses it the same either way.
 //
 // https:// is still not OCI: that one really does address a chart repository,
 // and treating it as a registry would misroute a hand-edited helm entry that

@@ -258,8 +258,12 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 		}
 		switch deployApp.Status.Phase {
 		case oamcommon.ApplicationWorkflowFailed, oamcommon.ApplicationWorkflowTerminated, oamcommon.ApplicationDeleting:
-			return fmt.Errorf("Application %s/%s is in phase %s: %s",
+			return fmt.Errorf("application %s/%s is in phase %s: %s",
 				o.namespace, deployApp.Name, deployApp.Status.Phase, moduleComponentMessage(&deployApp))
+		default:
+			// Every remaining phase is a stage the Application is still moving
+			// through (rendering, generating policies, running the workflow), so
+			// the poll loop below keeps waiting rather than deciding here.
 		}
 
 		var tiers []string

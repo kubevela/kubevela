@@ -98,17 +98,17 @@ func (o *moduleInitOptions) run(out io.Writer) error {
 	files := scaffoldFiles(o.name)
 	for _, f := range files {
 		full := filepath.Join(target, f.rel)
-		if mkErr := os.MkdirAll(filepath.Dir(full), 0o755); mkErr != nil {
+		if mkErr := os.MkdirAll(filepath.Dir(full), 0o750); mkErr != nil {
 			return fmt.Errorf("create directory for %s: %w", f.rel, mkErr)
 		}
-		if wErr := os.WriteFile(full, []byte(f.content), 0o644); wErr != nil {
+		if wErr := os.WriteFile(full, []byte(f.content), 0o600); wErr != nil {
 			return fmt.Errorf("write %s: %w", f.rel, wErr)
 		}
 	}
 
 	auxDirs := moduleAuxiliaryDirs()
 	for _, d := range auxDirs {
-		if mkErr := os.MkdirAll(filepath.Join(target, d), 0o755); mkErr != nil {
+		if mkErr := os.MkdirAll(filepath.Join(target, d), 0o750); mkErr != nil {
 			return fmt.Errorf("create directory %s: %w", d, mkErr)
 		}
 	}
