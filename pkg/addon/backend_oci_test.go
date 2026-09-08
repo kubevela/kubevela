@@ -887,6 +887,32 @@ func TestOCIRegistryGetAddonUIDataCarriesAvailableVersions(t *testing.T) {
 	assert.Equal(t, []string{"3.0.1", "2.0.0", "1.0.0"}, whole.AvailableVersions)
 }
 
+// TestClassifyCatalogListStatus covers the /v2/_catalog status mapping without
+// an HTTP round trip. The 401 rows are the point: Docker Hub never grants
+// catalog scope, so its 401 must read as "no catalog" and let the portable
+// catalog take over, while a 401 anywhere else stays a hard error so a real
+// permission problem is not mistaken for an empty catalog.
+func TestClassifyCatalogListStatus(t *testing.T) {
+	for _, status := range []int{http.StatusNotFound, http.StatusMethodNotAllowed, http.StatusNotImplemented} {
+		err := classifyCatalogListStatus("ghcr.io", status, "some status")
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, ErrOCICatalogAbsent), "status %d should read as an absent catalog", status)
+	}
+
+	dockerHub := classifyCatalogListStatus("registry-1.docker.io", http.StatusUnauthorized, "401 Unauthorized")
+	require.Error(t, dockerHub)
+	assert.True(t, errors.Is(dockerHub, ErrOCICatalogAbsent), "Docker Hub's 401 should read as an absent catalog")
+	assert.Contains(t, dockerHub.Error(), "does not grant catalog listing")
+
+	other := classifyCatalogListStatus("ghcr.io", http.StatusUnauthorized, "401 Unauthorized")
+	require.Error(t, other)
+	assert.False(t, errors.Is(other, ErrOCICatalogAbsent), "a non-Docker-Hub 401 must stay a hard failure")
+
+	server := classifyCatalogListStatus("registry-1.docker.io", http.StatusInternalServerError, "500 Internal Server Error")
+	require.Error(t, server)
+	assert.False(t, errors.Is(server, ErrOCICatalogAbsent), "only 401 is relaxed for Docker Hub, not every error")
+}
+
 // TestOCIPullNormalizesBuildMetadataTag pins the tag round-trip for versions
 // carrying SemVer build metadata.
 //
