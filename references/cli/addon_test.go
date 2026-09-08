@@ -19,6 +19,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -26,7 +27,9 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -478,4 +481,299 @@ func TestCheckSpecifyRegistry(t *testing.T) {
 		assert.Equal(t, r, testCase.registry)
 		assert.Equal(t, n, testCase.addonName)
 	}
+}
+
+func TestSetPushPasswordFromStdin(t *testing.T) {
+	newCommand := func(input string) *cobra.Command {
+		cmd := &cobra.Command{}
+		cmd.Flags().String("password", "", "")
+		cmd.SetIn(strings.NewReader(input))
+		return cmd
+	}
+
+	t.Run("reads password and removes only line endings", func(t *testing.T) {
+		cmd := newCommand(" secret with spaces \r\n")
+		pushCmd := &pkgaddon.PushCmd{PasswordStdin: true}
+
+		err := setPushPasswordFromStdin(cmd, pushCmd)
+
+		assert.NoError(t, err)
+		assert.Equal(t, " secret with spaces ", pushCmd.Password)
+	})
+
+	t.Run("stdin overrides an environment-derived password", func(t *testing.T) {
+		cmd := newCommand("stdin-password\n")
+		pushCmd := &pkgaddon.PushCmd{
+			PasswordStdin: true,
+			Password:      "environment-password",
+		}
+
+		err := setPushPasswordFromStdin(cmd, pushCmd)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "stdin-password", pushCmd.Password)
+	})
+
+	t.Run("rejects password flag with password stdin", func(t *testing.T) {
+		cmd := newCommand("stdin-password\n")
+		assert.NoError(t, cmd.Flags().Set("password", "flag-password"))
+		pushCmd := &pkgaddon.PushCmd{PasswordStdin: true}
+
+		err := setPushPasswordFromStdin(cmd, pushCmd)
+
+		assert.ErrorContains(t, err, "cannot be used together")
+	})
+
+	t.Run("rejects an empty stdin password", func(t *testing.T) {
+		cmd := newCommand("\r\n")
+		pushCmd := &pkgaddon.PushCmd{PasswordStdin: true}
+
+		err := setPushPasswordFromStdin(cmd, pushCmd)
+
+		assert.ErrorContains(t, err, "is empty")
+	})
+
+	t.Run("does not consume stdin when disabled", func(t *testing.T) {
+		cmd := newCommand("unused")
+		pushCmd := &pkgaddon.PushCmd{Password: "existing"}
+
+		err := setPushPasswordFromStdin(cmd, pushCmd)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "existing", pushCmd.Password)
+	})
+}
+
+func TestAddonPushDirectOCIDoesNotRequireKubeClient(t *testing.T) {
+	cmd := NewAddonPushCommand(common.Args{}, util.IOStreams{})
+	cmd.SetArgs([]string{"/path/that/does/not/exist", "oci://registry.example.com/addons"})
+
+	err := cmd.Execute()
+
+	assert.Error(t, err)
+	assert.NotContains(t, err.Error(), "kubeconfig")
+	assert.NotContains(t, err.Error(), "Kubernetes")
+}
+
+func TestGetOCIRegistryFromArgsUsesPassword(t *testing.T) {
+	parse := func(flags ...string) (*pkgaddon.Registry, error) {
+		cmd := &cobra.Command{}
+		parseArgsFromFlag(cmd)
+		if err := cmd.Flags().Parse(flags); err != nil {
+			return nil, err
+		}
+		return getRegistryFromArgs(cmd, []string{"private"})
+	}
+
+	t.Run("username and password", func(t *testing.T) {
+		registry, err := parse(
+			"--type=oci",
+			"--endpoint=oci://registry.example.com/addons",
+			"--username=robot",
+			"--password=secret",
+		)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "robot", registry.Helm.Username)
+		assert.Equal(t, "secret", registry.Helm.Token)
+	})
+
+	t.Run("anonymous", func(t *testing.T) {
+		registry, err := parse(
+			"--type=oci",
+			"--endpoint=oci://registry.example.com/addons",
+		)
+
+		assert.NoError(t, err)
+		assert.Empty(t, registry.Helm.Username)
+		assert.Empty(t, registry.Helm.Token)
+	})
+
+	t.Run("token flag is rejected", func(t *testing.T) {
+		_, err := parse(
+			"--type=oci",
+			"--endpoint=oci://registry.example.com/addons",
+			"--username=robot",
+			"--token=legacy-secret",
+		)
+
+		assert.ErrorContains(t, err, "unknown flag: --token")
+	})
+
+	t.Run("partial basic authentication is rejected", func(t *testing.T) {
+		_, err := parse(
+			"--type=oci",
+			"--endpoint=oci://registry.example.com/addons",
+			"--username=robot",
+		)
+
+		assert.ErrorContains(t, err, "must be supplied together")
+	})
+}
+
+func TestSetRegistryPasswordFromStdin(t *testing.T) {
+	newCommand := func(input string) *cobra.Command {
+		cmd := &cobra.Command{}
+		parseArgsFromFlag(cmd)
+		cmd.SetIn(strings.NewReader(input))
+		assert.NoError(t, cmd.Flags().Set(addonPasswordStdin, "true"))
+		assert.NoError(t, cmd.Flags().Set(addonRegistryType, addonOCIType))
+		return cmd
+	}
+
+	t.Run("sets the shared password flag", func(t *testing.T) {
+		cmd := newCommand("registry-password\n")
+
+		err := setRegistryPasswordFromStdin(cmd)
+
+		assert.NoError(t, err)
+		password, getErr := cmd.Flags().GetString(addonPassword)
+		assert.NoError(t, getErr)
+		assert.Equal(t, "registry-password", password)
+	})
+
+	t.Run("rejects password flag with password stdin", func(t *testing.T) {
+		cmd := newCommand("stdin-password\n")
+		assert.NoError(t, cmd.Flags().Set(addonPassword, "flag-password"))
+
+		err := setRegistryPasswordFromStdin(cmd)
+
+		assert.ErrorContains(t, err, "cannot be used together")
+	})
+
+	t.Run("rejects empty input", func(t *testing.T) {
+		cmd := newCommand("\n")
+
+		err := setRegistryPasswordFromStdin(cmd)
+
+		assert.ErrorContains(t, err, "is empty")
+	})
+
+	// Only helm and oci records have a password field. For any other type the
+	// flag would consume the piped secret and discard it, leaving an
+	// unauthenticated registry and no explanation.
+	t.Run("rejects a registry type that has no password", func(t *testing.T) {
+		for _, registryType := range []string{addonGitType, addonGitlabType, addonGiteeType, addonOssType} {
+			cmd := newCommand("registry-password\n")
+			assert.NoError(t, cmd.Flags().Set(addonRegistryType, registryType))
+
+			err := setRegistryPasswordFromStdin(cmd)
+
+			assert.ErrorContains(t, err, "--password-stdin is only supported for")
+			password, getErr := cmd.Flags().GetString(addonPassword)
+			assert.NoError(t, getErr)
+			assert.Empty(t, password, "the piped password must not be consumed for %s", registryType)
+
+			// git/gitee/gitlab authenticate with --gitToken, so the error may
+			// point there. OSS has no credential flag at all: telling its user
+			// to use --gitToken would send them chasing a flag getRegistryFromArgs
+			// never reads for that type.
+			if registryType == addonOssType {
+				assert.NotContains(t, err.Error(), addonGitToken, "an OSS registry has no --gitToken to suggest")
+			}
+		}
+	})
+}
+
+// TestNewAddAddonRegistryCommandWiresIOStreamsIn pins the actual command
+// factory, not just setRegistryPasswordFromStdin in isolation: a caller that
+// supplies input only through IOStreams.In (not real OS-level stdin, e.g. an
+// in-process embedding of this command) must have that input reach
+// --password-stdin, not silently fall back to the process's os.Stdin.
+func TestNewAddAddonRegistryCommandWiresIOStreamsIn(t *testing.T) {
+	ioStream := util.IOStreams{In: strings.NewReader("injected-password\n")}
+	cmd := NewAddAddonRegistryCommand(common.Args{}, ioStream)
+	assert.NoError(t, cmd.Flags().Set(addonPasswordStdin, "true"))
+	assert.NoError(t, cmd.Flags().Set(addonRegistryType, addonOCIType))
+
+	err := setRegistryPasswordFromStdin(cmd)
+	assert.NoError(t, err)
+	password, err := cmd.Flags().GetString(addonPassword)
+	assert.NoError(t, err)
+	assert.Equal(t, "injected-password", password)
+}
+
+// TestNewUpdateAddonRegistryCommandWiresIOStreamsIn is the same contract for
+// the update command, which discarded its IOStreams entirely and so read
+// --password-stdin from the process's os.Stdin.
+func TestNewUpdateAddonRegistryCommandWiresIOStreamsIn(t *testing.T) {
+	ioStream := util.IOStreams{In: strings.NewReader("updated-password\n")}
+	cmd := NewUpdateAddonRegistryCommand(common.Args{}, ioStream)
+	assert.NoError(t, cmd.Flags().Set(addonPasswordStdin, "true"))
+	assert.NoError(t, cmd.Flags().Set(addonRegistryType, addonOCIType))
+
+	err := setRegistryPasswordFromStdin(cmd)
+	assert.NoError(t, err)
+	password, err := cmd.Flags().GetString(addonPassword)
+	assert.NoError(t, err)
+	assert.Equal(t, "updated-password", password)
+}
+
+// TestNewAddonPushCommandWiresIOStreamsIn is the same contract for `vela addon
+// push --password-stdin`, which read the process's os.Stdin rather than the
+// IOStreams the command was constructed with.
+func TestNewAddonPushCommandWiresIOStreamsIn(t *testing.T) {
+	ioStream := util.IOStreams{In: strings.NewReader("pushed-password\n")}
+	cmd := NewAddonPushCommand(common.Args{}, ioStream)
+	pushCmd := &pkgaddon.PushCmd{PasswordStdin: true}
+
+	err := setPushPasswordFromStdin(cmd, pushCmd)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "pushed-password", pushCmd.Password)
+}
+
+func TestGetRegistryFromArgsOCIWritesHelmBlock(t *testing.T) {
+	parse := func(flags ...string) (*pkgaddon.Registry, error) {
+		cmd := &cobra.Command{}
+		parseArgsFromFlag(cmd)
+		if err := cmd.Flags().Parse(flags); err != nil {
+			return nil, err
+		}
+		return getRegistryFromArgs(cmd, []string{"private"})
+	}
+
+	t.Run("--type oci writes a Helm block with a token", func(t *testing.T) {
+		registry, err := parse(
+			"--type=oci",
+			"--endpoint=oci://registry.example.com/addons",
+			"--username=robot",
+			"--password=secret",
+		)
+		require.NoError(t, err)
+		require.NotNil(t, registry.Helm)
+		assert.Equal(t, "oci://registry.example.com/addons", registry.Helm.URL)
+		assert.Equal(t, "secret", registry.Helm.Token)
+		assert.Empty(t, registry.Helm.Password, "an oci registry must not carry a ConfigMap password")
+	})
+
+	t.Run("--type helm with an oci endpoint produces the same record", func(t *testing.T) {
+		viaOCI, err := parse("--type=oci", "--endpoint=oci://registry.example.com/addons",
+			"--username=robot", "--password=secret")
+		require.NoError(t, err)
+		viaHelm, err := parse("--type=helm", "--endpoint=oci://registry.example.com/addons",
+			"--username=robot", "--password=secret")
+		require.NoError(t, err)
+		assert.Equal(t, viaOCI.Helm, viaHelm.Helm)
+	})
+
+	t.Run("--type helm with an https endpoint keeps using password", func(t *testing.T) {
+		registry, err := parse("--type=helm", "--endpoint=https://charts.example.com",
+			"--username=u", "--password=pw")
+		require.NoError(t, err)
+		assert.Equal(t, "pw", registry.Helm.Password)
+		assert.Empty(t, registry.Helm.Token, "an http repository must not carry a secret-backed token")
+	})
+
+	t.Run("--type oci rejects a non-oci endpoint", func(t *testing.T) {
+		_, err := parse("--type=oci", "--endpoint=https://registry.example.com/addons")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "oci://")
+	})
+
+	t.Run("credentials must be supplied together", func(t *testing.T) {
+		_, err := parse("--type=helm", "--endpoint=oci://registry.example.com/addons", "--password=secret")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "supplied together")
+	})
 }

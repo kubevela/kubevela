@@ -26,6 +26,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -33,9 +34,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -153,19 +154,17 @@ func removeConflictingDefinitions(definitions []ElementFile, conflicts []string)
 
 	var result []ElementFile
 	for _, def := range definitions {
-		name := extractDefinitionNameFromFile(def)
+		// The same extraction DetectDefinitionConflicts used to produce these
+		// names. A second, near-identical implementation lived here and skipped
+		// the type-prefix step, so "definitions/trait-fluxcd.cue" was flagged as
+		// a conflict on "fluxcd" and then looked up as "trait-fluxcd": every
+		// type-prefixed definition was detected and never removed.
+		name := extractDefinitionName(def)
 		if !conflictMap[name] {
 			result = append(result, def)
 		}
 	}
 	return result
-}
-
-// extractDefinitionNameFromFile extracts the definition name from an ElementFile (same as extractDefinitionName in godef.go)
-func extractDefinitionNameFromFile(def ElementFile) string {
-	name := filepath.Base(def.Name)
-	name = name[:len(name)-len(filepath.Ext(name))] // Remove extension
-	return name
 }
 
 // GetAddonStatus is general func for cli and apiServer get addon status
@@ -276,30 +275,44 @@ func FindAddonPackagesDetailFromRegistry(ctx context.Context, k8sClient client.C
 	}
 
 	// Found addons, for deduplication purposes
+	// Registries are searched in order, so the first one holding an addon wins.
+	// Appending a second copy from a later registry would leave callers that take
+	// addons[0] resolving against one registry while the duplicate advertises
+	// another.
+	//
+	// That makes the result only as stable as the registry order, which is why
+	// RegistryDataStore.ListRegistries sorts rather than iterating its decoded
+	// map -- otherwise addons[0] would switch registries between calls.
 	foundAddons := make(map[string]bool)
 	merge := func(addon *WholeAddonPackage) {
-		if _, ok := foundAddons[addon.Name]; !ok {
-			foundAddons[addon.Name] = true
+		if foundAddons[addon.Name] {
+			return
 		}
+		foundAddons[addon.Name] = true
 		addons = append(addons, addon)
 	}
 
 	// Find matched addons in registries
 	for _, r := range registries {
-		if IsVersionRegistry(r) {
-			vr := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
-				Username:        r.Helm.Username,
-				Password:        r.Helm.Password,
-				InsecureSkipTLS: r.Helm.InsecureSkipTLS,
-			})
+		switch {
+		case IsVersionRegistry(r):
+			vr, err := ToVersionedRegistry(r)
+			if err != nil {
+				klog.Warningf("cannot read addon registry %q: %v", r.Name, err)
+				continue
+			}
 			for _, addonName := range addonNames {
 				wholePackage, err := vr.GetDetailedAddon(ctx, addonName, "")
 				if err != nil {
+					// Log rather than silently swallow: a chart pull failure
+					// (missing version, auth, media type) otherwise surfaces to
+					// the caller only as the misleading "addon not exist".
+					klog.Warningf("failed to load addon %q from registry %q: %v", addonName, r.Name, err)
 					continue
 				}
 				merge(wholePackage)
 			}
-		} else {
+		default:
 			meta, err := r.ListAddonMeta()
 			if err != nil {
 				continue
@@ -338,6 +351,56 @@ func FindAddonPackagesDetailFromRegistry(ctx context.Context, k8sClient client.C
 	return addons, nil
 }
 
+// ValidateSystemRequirements checks an addon's SystemRequirements (vela and
+// kubernetes versions) against the running environment. nil require passes.
+func ValidateSystemRequirements(ctx context.Context, require *SystemRequirements, k8sClient client.Client, dc *discovery.DiscoveryClient) error {
+	if require == nil {
+		return nil
+	}
+	return checkAddonVersionMeetRequired(ctx, require, k8sClient, dc)
+}
+
+// GetAddonInstallPackageFromRegistry resolves a specific addon version's
+// InstallPackage from the named registry. An empty version resolves the latest.
+// It is the shared version-pinning helper used by both the render-only addon
+// service and the Application validating webhook.
+func GetAddonInstallPackageFromRegistry(ctx context.Context, cli client.Client, registryName, addonName, version string) (*InstallPackage, error) {
+	ds := NewRegistryDataStore(cli)
+	reg, err := ds.GetRegistry(ctx, registryName)
+	if err != nil {
+		return nil, fmt.Errorf("get registry %q: %w", registryName, err)
+	}
+
+	if IsVersionRegistry(reg) {
+		vr, err := ToVersionedRegistry(reg)
+		if err != nil {
+			return nil, err
+		}
+		return vr.GetAddonInstallPackage(ctx, addonName, version)
+	}
+
+	metas, err := reg.ListAddonMeta()
+	if err != nil {
+		return nil, err
+	}
+	meta, ok := metas[addonName]
+	if !ok {
+		return nil, fmt.Errorf("addon %q not found in registry %q", addonName, registryName)
+	}
+	uiData, err := reg.GetUIData(&meta, UIMetaOptions)
+	if err != nil {
+		return nil, err
+	}
+	pkg, err := reg.GetInstallPackage(&meta, uiData)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkVersionPinSupported(registryName, addonName, version, pkg.Version); err != nil {
+		return nil, err
+	}
+	return pkg, nil
+}
+
 // Status contain addon phase and related app status
 type Status struct {
 	AddonPhase string
@@ -348,4 +411,27 @@ type Status struct {
 	Parameters       map[string]interface{}
 	// Where the addon is from. Can be empty if not installed.
 	InstalledRegistry string
+}
+
+// checkVersionPinSupported rejects a version pin that a non-versioned registry
+// cannot honor. git/OSS-backed registries serve a single revision of each addon,
+// so there is nothing to resolve a pin against; returning the current content
+// would silently install something other than what was asked for.
+//
+// An empty requested version means "whatever the registry serves" and always
+// passes. A requested version equal to the available one also passes, so a pin
+// that happens to match is not an error.
+func checkVersionPinSupported(registryName, addonName, requested, available string) error {
+	// A "v" prefix is cosmetic: chooseVersion (versioned_registry.go) already
+	// ignores it when resolving versions, so comparing the raw strings here
+	// would reject a pin that matches in every way that matters.
+	if requested == "" || utils.IgnoreVPrefix(requested) == utils.IgnoreVPrefix(available) {
+		return nil
+	}
+	if available == "" {
+		return fmt.Errorf("registry %q does not support version pinning: addon %q reports no version, requested %q",
+			registryName, addonName, requested)
+	}
+	return fmt.Errorf("registry %q does not support version pinning: addon %q is available at version %q, requested %q",
+		registryName, addonName, available, requested)
 }

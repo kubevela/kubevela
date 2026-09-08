@@ -38,6 +38,7 @@ import (
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 const (
@@ -420,7 +421,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Not enough args", func() {
 			args := []string{}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with missing args, instead got nil")
@@ -428,7 +429,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Bad chart path", func() {
 			args := []string{"/this/this/not/a/chart", "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with bad chart path, instead got nil")
@@ -436,7 +437,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Bad repo name", func() {
 			args := []string{testTarballPath, "this-is-not-a-valid-repo"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with bad repo name, instead got nil")
@@ -444,7 +445,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Valid tar, repo name", func() {
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).Should(Succeed())
@@ -452,7 +453,7 @@ var _ = Describe("Addon push command", func() {
 
 		It("Valid tar, repo URL", func() {
 			args := []string{testTarballPath, ts.URL}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).Should(Succeed())
@@ -462,7 +463,7 @@ var _ = Describe("Addon push command", func() {
 			statusCode = 409
 			body = "{\"error\": \"package already exists\"}"
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with 409, instead got nil")
@@ -472,7 +473,7 @@ var _ = Describe("Addon push command", func() {
 			statusCode = 500
 			body = "duiasnhioasd"
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expecting error with bad response body, instead got nil")
@@ -527,7 +528,7 @@ var _ = Describe("Addon push command", func() {
 			_ = os.Unsetenv("HELM_REPO_CERT_FILE")
 			_ = os.Unsetenv("HELM_REPO_KEY_FILE")
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).ShouldNot(Succeed(), "expected non nil error but got nil when run cmd without certificate option")
@@ -538,7 +539,7 @@ var _ = Describe("Addon push command", func() {
 			_ = os.Setenv("HELM_REPO_CERT_FILE", testClientCertPath)
 			_ = os.Setenv("HELM_REPO_KEY_FILE", testClientKeyPath)
 			args := []string{testTarballPath, "helm-push-test"}
-			cmd := NewAddonPushCommand(c)
+			cmd := NewAddonPushCommand(c, cmdutil.IOStreams{})
 			cmd.SetArgs(args)
 			err := cmd.RunE(cmd, args)
 			Expect(err).Should(Succeed())

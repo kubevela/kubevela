@@ -72,7 +72,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/velaql"
 	version2 "github.com/oam-dev/kubevela/version"
 )
@@ -977,7 +976,16 @@ func (h *Installer) enableAddon(ctx context.Context, addon *InstallPackage) (str
 func (h *Installer) loadInstallPackage(name, version string) (*InstallPackage, error) {
 	var installPackage *InstallPackage
 	var err error
-	if !IsVersionRegistry(*h.r) {
+	if IsVersionRegistry(*h.r) {
+		versionedRegistry, convertErr := ToVersionedRegistry(*h.r)
+		if convertErr != nil {
+			return nil, convertErr
+		}
+		installPackage, err = versionedRegistry.GetAddonInstallPackage(h.ctx, name, version)
+		if err != nil {
+			return nil, err
+		}
+	} else {
 		metas, err := h.getAddonMeta()
 		if err != nil {
 			return nil, errors.Wrap(err, "fail to get addon meta")
@@ -997,16 +1005,6 @@ func (h *Installer) loadInstallPackage(name, version string) (*InstallPackage, e
 		if err != nil {
 			return nil, errors.Wrap(err, "fail to find dependent addon in source repository")
 		}
-	} else {
-		versionedRegistry := BuildVersionedRegistry(h.r.Name, h.r.Helm.URL, &common.HTTPOption{
-			Username:        h.r.Helm.Username,
-			Password:        h.r.Helm.Password,
-			InsecureSkipTLS: h.r.Helm.InsecureSkipTLS,
-		})
-		installPackage, err = versionedRegistry.GetAddonInstallPackage(context.Background(), name, version)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	return installPackage, nil
@@ -1016,7 +1014,7 @@ func (h *Installer) getAddonMeta() (map[string]SourceMeta, error) {
 	var err error
 	if h.registryMeta == nil {
 		if h.registryMeta, err = h.cache.ListAddonMeta(*h.r); err != nil {
-			return nil, err
+			return nil, errors.Wrapf(ErrFetch, "registry %s: %v", h.r.Name, err)
 		}
 	}
 	return h.registryMeta, nil
@@ -1024,6 +1022,10 @@ func (h *Installer) getAddonMeta() (map[string]SourceMeta, error) {
 
 // installDependency checks if addon's dependency and install it
 func (h *Installer) installDependency(ctx context.Context, addon *InstallPackage) error {
+	if len(addon.Dependencies) == 0 {
+		return nil
+	}
+
 	installedAddons, err := listInstalledAddons(h.ctx, h.cli)
 	if err != nil {
 		return err
@@ -1086,7 +1088,7 @@ func (h *Installer) installDependency(ctx context.Context, addon *InstallPackage
 			}
 			return nil
 		}
-		if !errors.Is(err, ErrNotExist) {
+		if !isSkippableRegistryError(err) {
 			return err
 		}
 		for _, registry := range h.registries {
@@ -1098,7 +1100,7 @@ func (h *Installer) installDependency(ctx context.Context, addon *InstallPackage
 			if err == nil {
 				break
 			}
-			if errors.Is(err, ErrNotExist) {
+			if isSkippableRegistryError(err) {
 				continue
 			}
 			return err
@@ -1226,15 +1228,40 @@ type ItemInfoLister interface {
 	ListAddonInfo() (map[string]ItemInfo, error)
 }
 
-// listAvailableAddons fetches a collection of addons available in a list of
-// registries. Returns a map of ItemInfo grouped by addon name.
+// isSkippableRegistryError reports whether err means a specific registry
+// could not provide an addon (missing there, or unreachable/misconfigured),
+// as opposed to a fatal, addon-specific failure that should stop dependency
+// resolution outright.
+func isSkippableRegistryError(err error) bool {
+	// ErrOCICatalogAbsent belongs here: an OCI registry that has not had its first
+	// addon pushed yet simply has nothing to offer, which is the same situation as
+	// ErrNotExist for the other registry kinds.
+	return errors.Is(err, ErrNotExist) || errors.Is(err, ErrFetch) || errors.Is(err, ErrOCICatalogAbsent)
+}
+
+// listAvailableAddons aggregates addon info across registries, grouped by addon
+// name.
+//
+// A registry that merely cannot serve an addon -- missing, unreachable, anything
+// isSkippableRegistryError recognises -- is skipped and logged, so one broken
+// registry does not break the whole listing. Any other failure (bad credentials,
+// a malformed registry record) is returned, because swallowing it would surface
+// later as a misleading "addon ... cannot be found" instead of the real cause.
 func listAvailableAddons(registries []ItemInfoLister) (itemInfoMap, error) {
 	availableAddons := make(itemInfoMap)
 
 	for _, registry := range registries {
 		addons, err := registry.ListAddonInfo()
 		if err != nil {
-			return nil, err
+			name := "unknown"
+			if r, ok := registry.(*Registry); ok {
+				name = r.Name
+			}
+			if !isSkippableRegistryError(err) {
+				return nil, errors.Wrapf(err, "failed to list addons in registry %s", name)
+			}
+			klog.Warningf("skip registry %s: failed to list addons: %v", name, err)
+			continue
 		}
 		availableAddons = mergeAddonInfoMaps(availableAddons, addons)
 	}
@@ -1688,22 +1715,41 @@ func (h *Installer) continueOrRestartWorkflow() error {
 	return nil
 }
 
+// versionRequirementAware is implemented by a versioned registry that can say
+// whether its version list carries system-requirement metadata at all.
+type versionRequirementAware interface {
+	supportsVersionRequirements() bool
+}
+
 // getAddonVersionMeetSystemRequirement return the addon's latest version which meet the system requirements
 func (h *Installer) getAddonVersionMeetSystemRequirement(addonName string) string {
-	if h.r != nil && IsVersionRegistry(*h.r) {
-		versionedRegistry := BuildVersionedRegistry(h.r.Name, h.r.Helm.URL, &common.HTTPOption{
-			Username: h.r.Helm.Username,
-			Password: h.r.Helm.Password,
-		})
-		versions, err := versionedRegistry.GetAddonAvailableVersion(addonName)
-		if err != nil {
-			return ""
-		}
-		for _, version := range versions {
-			req := LoadSystemRequirements(version.Annotations)
-			if checkAddonVersionMeetRequired(h.ctx, req, h.cli, h.dc) == nil {
-				return version.Version
-			}
+	if h.r == nil || !IsVersionRegistry(*h.r) {
+		return ""
+	}
+	versionedRegistry, err := ToVersionedRegistry(*h.r)
+	if err != nil {
+		return ""
+	}
+	return h.compatibleVersionFrom(versionedRegistry, addonName)
+}
+
+// compatibleVersionFrom picks the newest version the running environment
+// satisfies, or an empty string when it cannot answer.
+func (h *Installer) compatibleVersionFrom(versionedRegistry VersionedRegistry, addonName string) string {
+	// A transport whose versions carry no requirement annotations would report
+	// every version as meeting every requirement, because LoadSystemRequirements
+	// reads nil and a nil requirement passes. No suggestion beats a wrong one.
+	if aware, ok := versionedRegistry.(versionRequirementAware); ok && !aware.supportsVersionRequirements() {
+		return ""
+	}
+	versions, err := versionedRegistry.GetAddonAvailableVersion(addonName)
+	if err != nil {
+		return ""
+	}
+	for _, version := range versions {
+		req := LoadSystemRequirements(version.Annotations)
+		if checkAddonVersionMeetRequired(h.ctx, req, h.cli, h.dc) == nil {
+			return version.Version
 		}
 	}
 	return ""
@@ -1758,7 +1804,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("vela cli/ux version: %s  require: %s", version2.VelaVersion, require.VelaVersion)
+			return fmt.Errorf("%w: vela cli/ux version: %s  require: %s", ErrVersionMismatch, version2.VelaVersion, require.VelaVersion)
 		}
 	}
 
@@ -1775,7 +1821,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 			return err
 		}
 		if !res {
-			return fmt.Errorf("the vela core controller: %s require: %s", imageVersion, require.VelaVersion)
+			return fmt.Errorf("%w: the vela core controller: %s require: %s", ErrVersionMismatch, imageVersion, require.VelaVersion)
 		}
 	}
 
@@ -1796,7 +1842,7 @@ func checkAddonVersionMeetRequired(ctx context.Context, require *SystemRequireme
 		}
 
 		if !res {
-			return fmt.Errorf("the kubernetes version %s require: %s", k8sVersion.GitVersion, require.KubernetesVersion)
+			return fmt.Errorf("%w: the kubernetes version %s require: %s", ErrVersionMismatch, k8sVersion.GitVersion, require.KubernetesVersion)
 		}
 	}
 

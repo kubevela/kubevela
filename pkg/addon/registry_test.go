@@ -516,10 +516,11 @@ func TestLoadTokenFromSecret(t *testing.T) {
 	}
 
 	testCases := map[string]struct {
-		client      client.Client
-		registry    *Registry
-		expectErr   bool
-		expectToken string
+		client                 client.Client
+		registry               *Registry
+		expectErr              bool
+		expectToken            string
+		expectSecretRefCleared bool
 	}{
 		"success": {
 			client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build(),
@@ -538,6 +539,11 @@ func TestLoadTokenFromSecret(t *testing.T) {
 			},
 			expectErr:   false,
 			expectToken: "",
+			// TokenSecretRef must be cleared along with the empty token: a source
+			// left with a dangling TokenSecretRef and no Token reads as "a token is
+			// configured" to HelmSource.validateCredential even though nothing
+			// would actually be sent, which is the false assurance this guards.
+			expectSecretRefCleared: true,
 		},
 		"no token source": {
 			client:      fake.NewClientBuilder().WithScheme(scheme).Build(),
@@ -562,6 +568,9 @@ func TestLoadTokenFromSecret(t *testing.T) {
 				assert.NoError(t, err)
 				if tc.registry.Git != nil {
 					assert.Equal(t, tc.expectToken, tc.registry.Git.Token)
+					if tc.expectSecretRefCleared {
+						assert.Empty(t, tc.registry.Git.TokenSecretRef)
+					}
 				}
 			}
 		})
@@ -638,6 +647,80 @@ func TestCreateOrUpdateTokenSecret(t *testing.T) {
 					assert.True(t, apierrors.IsNotFound(err))
 				}
 			}
+		})
+	}
+}
+
+// TestListRegistriesIsDeterministicallyOrdered pins the registry order callers
+// treat as a priority. The registries live in a JSON map inside a ConfigMap, so
+// iterating the decoded map hands out a randomly ordered slice, and
+// FindAddonPackagesDetailFromRegistry -- which takes the first registry holding
+// an addon -- would resolve a duplicated addon differently call to call.
+func TestListRegistriesIsDeterministicallyOrdered(t *testing.T) {
+	ctx := context.Background()
+	registries := map[string]Registry{}
+	for _, name := range []string{"zulu", "alpha", "mike", "bravo", "yankee"} {
+		registries[name] = Registry{
+			Name: name,
+			Helm: &HelmSource{URL: "https://" + name + ".example.com"},
+		}
+	}
+	registriesBytes, err := json.Marshal(registries)
+	assert.NoError(t, err)
+
+	cm := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      registryConfigMapName,
+			Namespace: velatypes.DefaultKubeVelaNS,
+		},
+		Data: map[string]string{registriesKey: string(registriesBytes)},
+	}
+	scheme := runtime.NewScheme()
+	assert.NoError(t, v1.AddToScheme(scheme))
+	ds := NewRegistryDataStore(fake.NewClientBuilder().WithScheme(scheme).WithObjects(cm).Build())
+
+	want := []string{"alpha", "bravo", "mike", "yankee", "zulu"}
+	// Repeat: one pass can match a random order by luck, five cannot.
+	for i := 0; i < 5; i++ {
+		listed, err := ds.ListRegistries(ctx)
+		assert.NoError(t, err)
+		var got []string
+		for _, r := range listed {
+			got = append(got, r.Name)
+		}
+		assert.Equal(t, want, got)
+	}
+}
+
+func TestGetTokenSourceHelmOCI(t *testing.T) {
+	ociSource := &HelmSource{URL: "oci://ghcr.io/kubevela/addons", Username: "AWS", Token: "tok"}
+	httpSource := &HelmSource{URL: "https://charts.kubevela.net/addons", Username: "u", Password: "pw"}
+
+	testCases := []struct {
+		name           string
+		registry       *Registry
+		expectedSource TokenSource
+	}{
+		{
+			name:           "oci helm source is secret backed",
+			registry:       &Registry{Helm: ociSource},
+			expectedSource: ociSource,
+		},
+		{
+			name:           "http helm source keeps its password in the configmap",
+			registry:       &Registry{Helm: httpSource},
+			expectedSource: nil,
+		},
+		{
+			name:           "git wins over an oci helm block",
+			registry:       &Registry{Git: &GitAddonSource{URL: "https://github.com/kubevela/catalog.git"}, Helm: ociSource},
+			expectedSource: &GitAddonSource{URL: "https://github.com/kubevela/catalog.git"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expectedSource, tc.registry.GetTokenSource())
 		})
 	}
 }

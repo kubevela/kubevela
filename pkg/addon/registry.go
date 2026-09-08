@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -58,6 +59,13 @@ func (r *Registry) GetTokenSource() TokenSource {
 	}
 	if r.Gitlab != nil {
 		return r.Gitlab
+	}
+	// Only an oci:// Helm source is secret backed. An http(s):// Helm repository
+	// keeps its password in the ConfigMap, which is the behaviour released
+	// versions already have; returning it here would start rewriting those
+	// records into Secrets as a side effect of this refactor.
+	if r.Helm != nil && IsOCIURL(r.Helm.URL) {
+		return r.Helm
 	}
 	return nil
 }
@@ -117,8 +125,25 @@ func (r registryImpl) ListRegistries(ctx context.Context) ([]Registry, error) {
 		return nil, err
 	}
 
-	var res []Registry
-	for _, registry := range registries {
+	// getRegistries decodes a map, so iterating it directly hands callers a
+	// randomly ordered slice. Callers treat the order as a priority -- the first
+	// registry holding an addon wins in FindAddonPackagesDetailFromRegistry, and
+	// mergeAddonInfoMaps folds later registries onto earlier ones -- so an addon
+	// present in two registries would otherwise resolve differently call to call.
+	//
+	// By name, because that is the order the data is already stored in: the
+	// registries live in a JSON object, which loses insertion order, and
+	// encoding/json sorts map keys when AddRegistry marshals it back. So this
+	// reproduces the ConfigMap's own order rather than inventing a priority.
+	names := make([]string, 0, len(registries))
+	for name := range registries {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	res := make([]Registry, 0, len(names))
+	for _, name := range names {
+		registry := registries[name]
 		if err := loadTokenFromSecret(ctx, r.client, &registry); err != nil {
 			return nil, err
 		}
@@ -307,7 +332,13 @@ func loadTokenFromSecret(ctx context.Context, cli client.Client, registry *Regis
 	secret := &v1.Secret{}
 	if err := cli.Get(ctx, types.NamespacedName{Namespace: velatypes.DefaultKubeVelaNS, Name: secretName}, secret); err != nil {
 		if apierrors.IsNotFound(err) {
-			// If the secret is not found, we consider the token is empty
+			// If the secret is not found, we consider the token is empty. Clear
+			// TokenSecretRef along with it (SetToken("") does this): otherwise the
+			// source is left with an unresolved TokenSecretRef and an empty Token,
+			// which HelmSource.validateCredential reads as "a token is configured"
+			// even though credential() has nothing to actually send -- passing
+			// validation while the transport authenticates with an empty password.
+			source.SetToken("")
 			return nil
 		}
 		return err

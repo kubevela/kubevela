@@ -64,6 +64,7 @@ vela.json
 dist/
 
 .claude/
+.worktrees/
 .devcontainer/
 .mcp.json
 

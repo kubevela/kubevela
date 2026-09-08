@@ -1958,3 +1958,146 @@ func TestPropagatePodDisruptiveHash(t *testing.T) {
 		assert.Equal(t, hashBefore, hashAfter, "controller-injected metadata churn must not cause a spurious restart")
 	})
 }
+
+// TestFilterAndSetAnnotationsLastAppliedConfig covers how
+// app.oam.dev/last-applied-configuration flows from an Application onto the
+// workloads and traits it renders.
+//
+// The rule: a "-"/"skip" sentinel is a statement an object makes about itself, so
+// it is never inherited from the parent, but one a component set on its own output
+// survives. Any other value is a recorded configuration and is inherited unchanged,
+// exactly as it was before the addon-as-component work.
+func TestFilterAndSetAnnotationsLastAppliedConfig(t *testing.T) {
+	const recorded = `{"apiVersion":"apps/v1","kind":"Deployment"}`
+
+	cases := map[string]struct {
+		appAnnotations map[string]string
+		objAnnotations map[string]string
+		// wantValue is the expected value on the child; "" means absent.
+		wantValue string
+	}{
+		"an inherited recorded config is untouched": {
+			appAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: recorded},
+			wantValue:      recorded,
+		},
+		"an inherited skip sentinel is dropped": {
+			appAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: "skip"},
+			wantValue:      "",
+		},
+		"an inherited dash sentinel is dropped": {
+			appAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: "-"},
+			wantValue:      "",
+		},
+		"a component's own sentinel survives the parent's recorded config": {
+			appAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: recorded},
+			objAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: "skip"},
+			wantValue:      "skip",
+		},
+		"a component's own sentinel survives when the parent has none": {
+			objAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: "skip"},
+			wantValue:      "skip",
+		},
+		"a component's own recorded config is kept when the parent has none": {
+			objAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: recorded},
+			wantValue:      recorded,
+		},
+		"nothing is invented when neither side sets it": {
+			wantValue: "",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			af := &Appfile{AppAnnotations: tc.appAnnotations}
+			obj := &unstructured.Unstructured{}
+			obj.SetAnnotations(tc.objAnnotations)
+
+			af.filterAndSetAnnotations(obj)
+
+			got := obj.GetAnnotations()[oam.AnnotationLastAppliedConfig]
+			assert.Equal(t, tc.wantValue, got)
+		})
+	}
+}
+
+// TestFilterAndSetAnnotationsPreservesUnrelatedKeys guards the sentinel handling
+// against touching anything else, and covers the filter.oam.dev/annotation-keys
+// deny list which had no test coverage.
+func TestFilterAndSetAnnotationsPreservesUnrelatedKeys(t *testing.T) {
+	af := &Appfile{AppAnnotations: map[string]string{
+		"example.com/inherited":            "from-app",
+		"example.com/dropped":              "should-go",
+		oam.AnnotationLastAppliedConfig:    "skip",
+		oam.AnnotationFilterAnnotationKeys: "example.com/dropped",
+		oam.AnnotationInplaceUpgrade:       "true",
+	}}
+	obj := &unstructured.Unstructured{}
+	obj.SetAnnotations(map[string]string{"example.com/own": "from-component"})
+
+	af.filterAndSetAnnotations(obj)
+
+	ann := obj.GetAnnotations()
+	assert.Equal(t, "from-app", ann["example.com/inherited"], "app annotations must still be inherited")
+	assert.Equal(t, "from-component", ann["example.com/own"], "the component's own annotations must survive")
+	assert.NotContains(t, ann, "example.com/dropped", "filter.oam.dev/annotation-keys must be honored")
+	assert.NotContains(t, ann, oam.AnnotationFilterAnnotationKeys, "the filter key itself must not cascade")
+	assert.NotContains(t, ann, oam.AnnotationInplaceUpgrade, "DefaultFilterAnnots must still be applied")
+	assert.NotContains(t, ann, oam.AnnotationLastAppliedConfig, "an inherited sentinel must be dropped")
+}
+
+// TestFilterAndSetAnnotationsKeepsTheFieldAbsent pins the empty-map semantics of the
+// original implementation: util.AddAnnotations delegates to MergeMapOverrideWithDst,
+// which returns nil when both sides are nil, so metadata.annotations stays absent
+// rather than becoming an empty map. A stray "annotations: {}" would otherwise show
+// up in every rendered manifest and in the ResourceTracker copy of it.
+func TestFilterAndSetAnnotationsKeepsTheFieldAbsent(t *testing.T) {
+	t.Run("both sides nil leaves the field absent", func(t *testing.T) {
+		af := &Appfile{}
+		obj := &unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata":   map[string]interface{}{"name": "x"},
+		}}
+
+		af.filterAndSetAnnotations(obj)
+
+		_, found, err := unstructured.NestedMap(obj.Object, "metadata", "annotations")
+		assert.NoError(t, err)
+		assert.False(t, found, "metadata.annotations must not be created")
+	})
+
+	t.Run("an emptied map is still written, as before", func(t *testing.T) {
+		af := &Appfile{AppAnnotations: map[string]string{oam.AnnotationInplaceUpgrade: "true"}}
+		obj := &unstructured.Unstructured{}
+		obj.SetAnnotations(map[string]string{oam.AnnotationInplaceUpgrade: "true"})
+
+		af.filterAndSetAnnotations(obj)
+
+		got, found, err := unstructured.NestedMap(obj.Object, "metadata", "annotations")
+		assert.NoError(t, err)
+		assert.True(t, found, "an object that had annotations keeps the field, even when emptied")
+		assert.Empty(t, got)
+	})
+}
+
+// TestFilterAndSetAnnotationsOwnValueBeatsInheritedSentinel covers the case where
+// a component records its own configuration while the parent Application carries
+// the "-"/"skip" opt-out. The parent's value overwrites the component's during the
+// merge, and dropping the inherited sentinel must not take the component's own
+// recorded configuration with it.
+func TestFilterAndSetAnnotationsOwnValueBeatsInheritedSentinel(t *testing.T) {
+	const ownRecorded = `{"apiVersion":"v1","kind":"ConfigMap"}`
+
+	for _, parent := range []string{"skip", "-"} {
+		t.Run("parent="+parent, func(t *testing.T) {
+			af := &Appfile{AppAnnotations: map[string]string{oam.AnnotationLastAppliedConfig: parent}}
+			obj := &unstructured.Unstructured{}
+			obj.SetAnnotations(map[string]string{oam.AnnotationLastAppliedConfig: ownRecorded})
+
+			af.filterAndSetAnnotations(obj)
+
+			assert.Equal(t, ownRecorded, obj.GetAnnotations()[oam.AnnotationLastAppliedConfig],
+				"the component's own recorded configuration must survive the parent's sentinel")
+		})
+	}
+}
