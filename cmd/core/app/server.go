@@ -59,6 +59,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/logging"
+	moduleservice "github.com/oam-dev/kubevela/pkg/module/service"
 	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -138,6 +139,14 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableAddonComponent) {
 		addonservice.Register()
 		klog.InfoS("Addon-as-component enabled, registered the addon render service")
+	}
+
+	// Same shape for the vela/module CueX provider: always on the compilers,
+	// inert until a renderer is installed, so the gate decides whether type: module
+	// works rather than whether the package compiles.
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableModuleComponent) {
+		moduleservice.Register()
+		klog.InfoS("Module-as-component enabled, registered the module render service")
 	}
 
 	// Start profiling server

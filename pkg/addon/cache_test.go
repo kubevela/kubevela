@@ -22,6 +22,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
@@ -101,11 +102,7 @@ func TestPutAddonMeta2Cache(t *testing.T) {
 		"fluxcd": {
 			Name: "fluxcd",
 			Items: []Item{
-				&OSSItem{
-					tp:   FileType,
-					path: "fluxcd/definitions/helm-release.yaml",
-					name: "helm-release.yaml",
-				},
+				component.NewOSSItem(FileType, "fluxcd/definitions/helm-release.yaml", "helm-release.yaml"),
 			},
 		},
 	}
@@ -121,11 +118,7 @@ func TestGetCachedAddonMeta(t *testing.T) {
 		"fluxcd": {
 			Name: "fluxcd",
 			Items: []Item{
-				&OSSItem{
-					tp:   FileType,
-					path: "fluxcd/definitions/helm-release.yaml",
-					name: "helm-release.yaml",
-				},
+				component.NewOSSItem(FileType, "fluxcd/definitions/helm-release.yaml", "helm-release.yaml"),
 			},
 		},
 	}

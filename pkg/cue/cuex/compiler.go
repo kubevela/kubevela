@@ -30,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/addon"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/config"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/module"
 )
 
 // ConfigCompiler ...
@@ -50,6 +51,7 @@ var WorkloadCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compi
 		kube.Package,
 		cueext.Package,
 		addon.Package,
+		module.Package,
 	)
 	if cuex.EnableExternalPackageForDefaultCompiler {
 		if err := compiler.LoadExternalPackages(context.Background()); err != nil {

@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -357,31 +358,75 @@ func (h *ValidatingHandler) validateDefinitions(
 		return errs
 	}
 
+	// Set the app namespace so ResolveModuleType can search the right namespaces.
+	ctx = oamutil.SetNamespaceInCtx(ctx, appNamespace)
+	capType := capTypeFromDefinitionType(definitionType)
+
+	// resolveAndCheck resolves a Form 1/2/3 type string to its installed Kubernetes
+	// name, verifies it exists, then runs the permission check. Resolution and
+	// existence errors are reported as field validation errors so the user sees
+	// them at apply time rather than in the application status.
+	resolveAndCheck := func(defType string, fieldPaths []*field.Path) field.ErrorList {
+		toFieldErrs := func(msg string) field.ErrorList {
+			ferrs := make(field.ErrorList, len(fieldPaths))
+			for i, fp := range fieldPaths {
+				ferrs[i] = field.Invalid(fp, defType, msg)
+			}
+			return ferrs
+		}
+		resolved, err := appfile.ResolveModuleType(ctx, h.Client, defType, capType)
+		if err != nil {
+			return toFieldErrs(err.Error())
+		}
+		// Permission is checked before existence, deliberately. Resolution has to
+		// come first so the check runs against the installed name rather than the
+		// "s3/v1/bucket" spelling, but reporting existence to a caller who has no
+		// permission on the definition would hand them an existence oracle they
+		// did not have before type resolution was introduced.
+		allowed, permErr := h.checkDefinitionPermission(ctx, req, defInfo.GVR.Resource, resolved, appNamespace)
+		if permErrs := h.processDefinitionPermissionCheck(allowed, permErr, req, defInfo.Kind, resolved, appNamespace, fieldPaths); len(permErrs) > 0 {
+			return permErrs
+		}
+		// Permitted: now confirm the definition is actually installed. This is what
+		// catches a Form 3 reference, whose resolution is pure string math and never
+		// touches the cluster.
+		if err := appfile.DefinitionExists(ctx, h.Client, resolved, capType); err != nil {
+			return toFieldErrs(err.Error())
+		}
+		return nil
+	}
+
 	switch typedMap := usageMap.(type) {
 	case map[string][]int:
 		for defType, indices := range typedMap {
-			allowed, err := h.checkDefinitionPermission(ctx, req, defInfo.GVR.Resource, defType, appNamespace)
-			fieldPaths := buildFieldPaths(indices)
-			errs = append(errs, h.processDefinitionPermissionCheck(
-				allowed, err, req, defInfo.Kind, defType, appNamespace, fieldPaths)...)
+			errs = append(errs, resolveAndCheck(defType, buildFieldPaths(indices))...)
 		}
 	case map[string][][2]int:
 		for defType, locations := range typedMap {
-			allowed, err := h.checkDefinitionPermission(ctx, req, defInfo.GVR.Resource, defType, appNamespace)
-			fieldPaths := buildFieldPaths(locations)
-			errs = append(errs, h.processDefinitionPermissionCheck(
-				allowed, err, req, defInfo.Kind, defType, appNamespace, fieldPaths)...)
+			errs = append(errs, resolveAndCheck(defType, buildFieldPaths(locations))...)
 		}
 	case map[string][]workflowStepLocation:
 		for defType, locations := range typedMap {
-			allowed, err := h.checkDefinitionPermission(ctx, req, defInfo.GVR.Resource, defType, appNamespace)
-			fieldPaths := buildFieldPaths(locations)
-			errs = append(errs, h.processDefinitionPermissionCheck(
-				allowed, err, req, defInfo.Kind, defType, appNamespace, fieldPaths)...)
+			errs = append(errs, resolveAndCheck(defType, buildFieldPaths(locations))...)
 		}
 	}
 
 	return errs
+}
+
+// capTypeFromDefinitionType maps a reflect.Type for a definition struct to the
+// corresponding types.CapType used by ResolveModuleType.
+func capTypeFromDefinitionType(definitionType reflect.Type) types.CapType {
+	switch definitionType {
+	case reflect.TypeOf(v1beta1.TraitDefinition{}):
+		return types.TypeTrait
+	case reflect.TypeOf(v1beta1.PolicyDefinition{}):
+		return types.TypePolicy
+	case reflect.TypeOf(v1beta1.WorkflowStepDefinition{}):
+		return types.TypeWorkflowStep
+	default:
+		return types.TypeComponentDefinition
+	}
 }
 
 // ValidateDefinitionPermissions validates that the user has permissions to access all definition types
@@ -502,7 +547,15 @@ func (h *ValidatingHandler) ValidateTraitConflicts(ctx context.Context, app *v1b
 		}
 		var attached []attachedTrait
 		for i, trait := range comp.Traits {
-			def, err := getTraitDefinition(trait.Type)
+			// Resolve Form 1/2/3 type strings to the installed Kubernetes name before
+			// looking up the TraitDefinition. On resolution error (invalid syntax,
+			// ambiguous) we skip this trait: type existence is validated elsewhere and
+			// we must not block admission solely because conflict detection can't run.
+			resolved, err := appfile.ResolveModuleType(defCtx, h.Client, trait.Type, types.TypeTrait)
+			if err != nil {
+				continue
+			}
+			def, err := getTraitDefinition(resolved)
 			if err != nil {
 				// Fail closed so unresolved definitions cannot bypass conflict checks, but
 				// log so operators can distinguish transient API/cache failures from policy rejects.

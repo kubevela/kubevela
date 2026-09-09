@@ -21,26 +21,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/Masterminds/semver/v3"
-	"github.com/google/go-github/v32/github"
 	"github.com/imdario/mergo"
 	"github.com/pkg/errors"
-	gitlab "gitlab.com/gitlab-org/api/client-go"
 	"go.uber.org/multierr"
-	"golang.org/x/oauth2"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
 	appsv1 "k8s.io/api/apps/v1"
@@ -83,9 +76,6 @@ const (
 	// LegacyReadmeFileName is the addon readme lower case file name
 	LegacyReadmeFileName string = "readme.md"
 
-	// MetadataFileName is the addon meatadata.yaml file name
-	MetadataFileName string = "metadata.yaml"
-
 	// TemplateFileName is the addon template.yaml file name
 	TemplateFileName string = "template.yaml"
 
@@ -124,9 +114,6 @@ const (
 
 	// AddonParameterDataKey is the key of parameter in addon args secrets
 	AddonParameterDataKey string = "addonParameterDataKey"
-
-	// DefaultGiteeURL is the addon repository of gitee api
-	DefaultGiteeURL string = "https://gitee.com/api/v5/"
 
 	// InstallerRuntimeOption inject install runtime info into addon options
 	InstallerRuntimeOption string = "installerRuntimeOption"
@@ -502,98 +489,6 @@ func readReadme(a *UIData, reader AsyncReader, readPath string) error {
 	}
 	a.Detail = content
 	return nil
-}
-
-func createGitHelper(content *utils.Content, token string) *gitHelper {
-	var ts oauth2.TokenSource
-	if token != "" {
-		ts = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	}
-	tc := oauth2.NewClient(context.Background(), ts)
-	tc.Timeout = time.Second * 20
-	cli := github.NewClient(tc)
-	return &gitHelper{
-		Client: cli,
-		Meta:   content,
-	}
-}
-
-func createGiteeHelper(content *utils.Content, token string) *giteeHelper {
-	var ts oauth2.TokenSource
-	if token != "" {
-		ts = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	}
-	tc := oauth2.NewClient(context.Background(), ts)
-	tc.Timeout = time.Second * 20
-	cli := NewGiteeClient(tc, nil)
-	return &giteeHelper{
-		Client: cli,
-		Meta:   content,
-	}
-}
-
-func createGitlabHelper(content *utils.Content, token string) (*gitlabHelper, error) {
-	newClient, err := gitlab.NewClient(token, gitlab.WithBaseURL(content.GitlabContent.Host))
-
-	return &gitlabHelper{
-		Client: newClient,
-		Meta:   content,
-	}, err
-}
-
-// readRepo will read relative path (relative to Meta.Path)
-func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
-	file, items, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.GithubContent.Owner, h.Meta.GithubContent.Repo, path.Join(h.Meta.GithubContent.Path, relativePath), nil)
-	if err != nil {
-		return nil, nil, WrapErrRateLimit(err)
-	}
-	return file, items, nil
-}
-
-// readRepo will read relative path (relative to Meta.Path)
-func (h *giteeHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
-	file, items, err := h.Client.GetGiteeContents(context.Background(), h.Meta.GiteeContent.Owner, h.Meta.GiteeContent.Repo, path.Join(h.Meta.GiteeContent.Path, relativePath), h.Meta.GiteeContent.Ref)
-	if err != nil {
-		return nil, nil, WrapErrRateLimit(err)
-	}
-	return file, items, nil
-}
-
-// GetGiteeContents can return either the metadata and content of a single file
-func (c *Client) GetGiteeContents(ctx context.Context, owner, repo, path, ref string) (fileContent *github.RepositoryContent, directoryContent []*github.RepositoryContent, err error) {
-	escapedPath := (&url.URL{Path: path}).String()
-	u := fmt.Sprintf(c.BaseURL.String()+"repos/%s/%s/contents/%s", owner, repo, escapedPath)
-	if ref != "" {
-		u = fmt.Sprintf(u+"?ref=%s", ref)
-	}
-
-	req, err := http.NewRequest("GET", u, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	response, err := c.Client.Do(req.WithContext(ctx))
-	if err != nil {
-		return nil, nil, err
-	}
-	//nolint:errcheck
-	defer response.Body.Close()
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, nil, err
-	}
-	return unmarshalToContent(body)
-}
-
-func unmarshalToContent(content []byte) (fileContent *github.RepositoryContent, directoryContent []*github.RepositoryContent, err error) {
-	fileUnmarshalError := json.Unmarshal(content, &fileContent)
-	if fileUnmarshalError == nil {
-		return fileContent, nil, nil
-	}
-	directoryUnmarshalError := json.Unmarshal(content, &directoryContent)
-	if directoryUnmarshalError == nil {
-		return nil, directoryContent, nil
-	}
-	return nil, nil, fmt.Errorf("unmarshalling failed for both file and directory content: %s and %w", fileUnmarshalError.Error(), directoryUnmarshalError)
 }
 
 func genAddonAPISchema(addonRes *UIData) error {
@@ -1001,7 +896,7 @@ func (h *Installer) loadInstallPackage(name, version string) (*InstallPackage, e
 			return nil, err
 		}
 		// enable this addon if it's invisible
-		installPackage, err = h.r.GetInstallPackage(&meta, uiData)
+		installPackage, err = GetInstallPackage(h.r, &meta, uiData)
 		if err != nil {
 			return nil, errors.Wrap(err, "fail to find dependent addon in source repository")
 		}
@@ -1032,10 +927,10 @@ func (h *Installer) installDependency(ctx context.Context, addon *InstallPackage
 	}
 
 	var registries []ItemInfoLister
-	registries = append(registries, h.r)
+	registries = append(registries, registryLister{h.r})
 	for _, registry := range h.registries {
 		r := registry
-		registries = append(registries, &r)
+		registries = append(registries, registryLister{&r})
 	}
 	availableAddons, err := listAvailableAddons(registries)
 	if err != nil {
@@ -1254,8 +1149,8 @@ func listAvailableAddons(registries []ItemInfoLister) (itemInfoMap, error) {
 		addons, err := registry.ListAddonInfo()
 		if err != nil {
 			name := "unknown"
-			if r, ok := registry.(*Registry); ok {
-				name = r.Name
+			if l, ok := registry.(registryLister); ok {
+				name = l.r.Name
 			}
 			if !isSkippableRegistryError(err) {
 				return nil, errors.Wrapf(err, "failed to list addons in registry %s", name)

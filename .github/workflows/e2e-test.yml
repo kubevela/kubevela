@@ -79,3 +79,30 @@ jobs:
         run: |
           make image-cleanup
           docker image prune -f --filter "until=24h"
+
+  module-registry-integration:
+    runs-on: ubuntu-22.04
+    needs: [detect-noop]
+    if: needs.detect-noop.outputs.noop != 'true'
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
+
+    steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+      - name: Setup Env
+        uses: ./.github/actions/env-setup
+
+      - name: Run module registry integration tests
+        env:
+          CGO_ENABLED: "0"
+          MODULE_ECR_REGISTRY: http://127.0.0.1:5000/modules
+          MODULE_OCI_REGISTRY: http://127.0.0.1:5000/modules
+        run: >-
+          go test ./test/e2e-test
+          -run '^Test(PublishRoundTripECR|FetchModule_RoundTrip)$'
+          -count=1 -v

@@ -106,7 +106,7 @@ func (u *Cache) GetUIData(r Registry, addonName, version string) (*UIData, error
 		if !ok {
 			return nil, ErrNotExist
 		}
-		addon, err = r.GetUIData(&meta, UIMetaOptions)
+		addon, err = GetUIData(&r, &meta, UIMetaOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -322,7 +322,7 @@ func (u *Cache) listUIDataAndCache(r Registry) ([]*UIData, error) {
 		return nil, err
 	}
 	u.putAddonMeta2Cache(r.Name, registryMeta)
-	uiData, err := r.ListUIData(registryMeta, UIMetaOptions)
+	uiData, err := ListUIData(&r, registryMeta, UIMetaOptions)
 	if err != nil {
 		klog.Errorf("fail to get addons from registry %s for cache updating, %v", r.Name, err)
 		return nil, err
