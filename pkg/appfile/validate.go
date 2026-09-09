@@ -109,6 +109,9 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 				// references to fields that are populated/injected during runtime only
 				continue
 			}
+			if err := ValidateTraitParams(ctxData, tr); err != nil {
+				return err
+			}
 			if err := tr.EvalContext(pCtx); err != nil {
 				return errors.WithMessagef(err, "cannot evaluate trait %q", tr.Name)
 			}
@@ -223,6 +226,61 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 					"component %q", wl.Name)
 			}
 		}
+	}
+
+	return nil
+}
+
+// ValidateTraitParams validates a Trait's parameter values against the CUE schema
+// before EvalContext is called, surfacing clear messages like
+// `trait "foo": parameter constraint violation: parameter.maxReplicas: conflicting values "ten" and int`
+// instead of the cryptic CUE disjunction errors produced by EvalContext.
+func ValidateTraitParams(ctxData velaprocess.ContextData, tr *Trait) error {
+	if tr.FullTemplate == nil || tr.FullTemplate.TemplateStr == "" {
+		return nil
+	}
+
+	ctx := velaprocess.NewContext(ctxData)
+	baseCtx, err := ctx.BaseContextFile()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+
+	paramSnippet, err := cueParamBlock(tr.Params)
+	if err != nil {
+		return errors.WithMessagef(err, "trait %q: invalid params", tr.Name)
+	}
+
+	templateStr, _ := upgrade.EnsureCueVersionCompatibility(tr.FullTemplate.TemplateStr, tr.Name, upgrade.TraitKind, upgrade.TemplateAreaMain)
+
+	// Compile template-only first (no user params) to distinguish provider-import
+	// errors (expected in standalone validation) from user-param type errors.
+	templateOnlySrc := strings.Join([]string{renderTemplate(templateStr), baseCtx}, "\n")
+	_, templateCompileErr := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), templateOnlySrc)
+
+	cueSrc := strings.Join([]string{
+		renderTemplate(templateStr),
+		paramSnippet,
+		baseCtx,
+	}, "\n")
+
+	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), cueSrc)
+	if err != nil {
+		if templateCompileErr == nil {
+			// Template compiled fine without user params, so the error originates
+			// from a type conflict in the supplied parameter values.
+			return errors.WithMessagef(err, "trait %q: invalid parameter value", tr.Name)
+		}
+		// Template itself had compile errors regardless of user params (e.g. a missing
+		// provider import); log and skip to avoid false positives.
+		klog.V(4).Infof("trait %q: CUE compile error during param validation (skipping): %v", tr.Name, err)
+		return nil
+	}
+
+	paramVal := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
+
+	if err := paramVal.Validate(cue.Concrete(false)); err != nil {
+		return errors.WithMessagef(err, "trait %q: parameter constraint violation", tr.Name)
 	}
 
 	return nil
