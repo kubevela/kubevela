@@ -205,7 +205,14 @@ func (g *CUEGenerator) collectImportsFromValue(v interface{}) {
 	case *ArrayBuilder:
 		for _, entry := range val.Entries() {
 			if entry.itemBuilder != nil {
+				g.collectImportsFromValue(entry.source)
+				g.collectImportsFromValue(entry.guard)
 				g.collectImportsFromItemOps(entry.itemBuilder.Ops())
+			}
+			if entry.mapEntryBuilder != nil {
+				g.collectImportsFromValue(entry.source)
+				g.collectImportsFromValue(entry.guard)
+				g.collectImportsFromItemOps(entry.mapEntryBuilder.ops())
 			}
 		}
 	case *PlusExpr:
@@ -2507,6 +2514,23 @@ func (g *CUEGenerator) arrayBuilderToCUE(ab *ArrayBuilder, depth int) string {
 			}
 			sb.WriteString(fmt.Sprintf("%s%sfor %s in %s%s {\n", innerIndent, guardPrefix, entry.itemBuilder.VarName(), sourceStr, filterSuffix))
 			g.writeItemBuilderOps(&sb, entry.itemBuilder.Ops(), depth+2)
+			sb.WriteString(fmt.Sprintf("%s},\n", innerIndent))
+
+		case entryForEachMapWith:
+			sourceStr := g.valueToCUE(entry.source)
+			guardPrefix := ""
+			if entry.guard != nil {
+				guardPrefix = "if " + g.conditionToCUE(entry.guard) + " "
+			}
+			sb.WriteString(fmt.Sprintf(
+				"%s%sfor %s, %s in %s {\n",
+				innerIndent,
+				guardPrefix,
+				entry.mapEntryBuilder.keyVarName,
+				entry.mapEntryBuilder.valueBuilder.VarName(),
+				sourceStr,
+			))
+			g.writeItemBuilderOps(&sb, entry.mapEntryBuilder.ops(), depth+2)
 			sb.WriteString(fmt.Sprintf("%s},\n", innerIndent))
 		}
 	}
