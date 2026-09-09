@@ -474,3 +474,463 @@ func TestComponentHealthPolicyExprComplex(t *testing.T) {
 		t.Errorf("Expected !( in policy, got: %s", policy)
 	}
 }
+
+func TestHealthScopedCondition(t *testing.T) {
+	h := Health()
+	vela := VelaCtx()
+	expr := h.At(vela.Outputs("securityGroup")).Condition("Ready").IsTrue()
+
+	preamble := expr.Preamble()
+	if !strings.Contains(preamble, "context.outputs.securityGroup.status.conditions") {
+		t.Errorf("expected scoped root in preamble, got: %s", preamble)
+	}
+	if !strings.Contains(preamble, "_securityGroupReadyCond") {
+		t.Errorf("expected scoped var name, got: %s", preamble)
+	}
+}
+
+func TestHealthScopedField(t *testing.T) {
+	h := Health()
+	vela := VelaCtx()
+	cue := h.At(vela.Outputs("filesystem")).Field("status.state").Eq("available").ToCUE()
+
+	expected := `context.outputs.filesystem.status.state == "available"`
+	if cue != expected {
+		t.Errorf("got %q, want %q", cue, expected)
+	}
+}
+
+func TestHealthDefaultRootUnchanged(t *testing.T) {
+	h := Health()
+	cue := h.Field("status.phase").Eq("Running").ToCUE()
+
+	expected := `context.output.status.phase == "Running"`
+	if cue != expected {
+		t.Errorf("got %q, want %q", cue, expected)
+	}
+}
+
+func TestHealthScopedConditionNoCollision(t *testing.T) {
+	h := Health()
+	vela := VelaCtx()
+	a := h.Condition("Ready").IsTrue()
+	b := h.At(vela.Outputs("securityGroup")).Condition("Ready").IsTrue()
+
+	if a.Preamble() == b.Preamble() {
+		t.Error("scoped and default Ready conditions produced identical preambles")
+	}
+}
+
+func TestHealthAtPrimaryOutput(t *testing.T) {
+	h := Health()
+	vela := VelaCtx()
+	cue := h.At(vela.Output()).Field("status.phase").Eq("Running").ToCUE()
+
+	expected := `context.output.status.phase == "Running"`
+	if cue != expected {
+		t.Errorf("got %q, want %q", cue, expected)
+	}
+}
+
+func TestHealthAtNilRef(t *testing.T) {
+	h := Health()
+	cue := h.At(nil).Field("status.phase").Eq("Running").ToCUE()
+
+	expected := `context.output.status.phase == "Running"`
+	if cue != expected {
+		t.Errorf("got %q, want %q", cue, expected)
+	}
+}
+
+func TestEveryEmptyIsUnhealthy(t *testing.T) {
+	h := Health()
+	expr := h.Every(OutputsWithPrefix("accessPoint"), func(item *HealthScope) HealthExpression {
+		return item.Condition("Ready").IsTrue()
+	})
+	cue := expr.ToCUE()
+	if !strings.Contains(cue, "> 0 &&") {
+		t.Errorf("expected empty-match guard (len(...) > 0) in generated CUE, got: %s", cue)
+	}
+	if !strings.HasPrefix(cue, "len(_accessPointItems) > 0") {
+		t.Errorf("expected the guard to lead the expression, got: %s", cue)
+	}
+}
+
+func TestEveryItemExprHasNoPreamble(t *testing.T) {
+	scope := &HealthScope{root: "_x", inline: true}
+	if p := scope.Condition("Ready").IsTrue().Preamble(); p != "" {
+		t.Errorf("inline scope must not emit a preamble, got %q", p)
+	}
+}
+
+func TestEveryInlineConditionMergesFilters(t *testing.T) {
+	scope := &HealthScope{root: "_x", inline: true}
+	cue := scope.Condition("Ready").IsTrue().ToCUE()
+	expected := `len([ for c in *_x.status.conditions | [] if c.type != _|_ if c.type == "Ready" if c.status != _|_ if c.status == "True" { c } ]) > 0`
+	if cue != expected {
+		t.Errorf("got %q, want %q", cue, expected)
+	}
+}
+
+func TestEveryDistinctPatternsDoNotCollide(t *testing.T) {
+	h := Health()
+	a := h.Every(OutputsWithPrefix("accessPoint"), func(item *HealthScope) HealthExpression {
+		return item.Condition("Ready").IsTrue()
+	})
+	b := h.Every(OutputsWithPrefix("mountTarget"), func(item *HealthScope) HealthExpression {
+		return item.Condition("Ready").IsTrue()
+	})
+	if a.Preamble() == b.Preamble() {
+		t.Errorf("distinct patterns produced identical preambles: %s", a.Preamble())
+	}
+	if a.ToCUE() == b.ToCUE() {
+		t.Errorf("distinct patterns produced identical expressions: %s", a.ToCUE())
+	}
+}
+
+func TestEveryGolden(t *testing.T) {
+	h := Health()
+	expr := h.Every(OutputsWithPrefix("accessPoint"), func(item *HealthScope) HealthExpression {
+		return item.Condition("Ready").IsTrue()
+	})
+	policy := HealthPolicy(expr)
+	expected := "_accessPointItems: [ for k, v in (*context.outputs | {}) if k =~ \"^accessPoint\" { v } ]\n" +
+		"isHealth: len(_accessPointItems) > 0 && len([ for _accessPointItem in _accessPointItems " +
+		"if len([ for c in *_accessPointItem.status.conditions | [] if c.type != _|_ if c.type == \"Ready\" " +
+		"if c.status != _|_ if c.status == \"True\" { c } ]) > 0 { _accessPointItem } ]) == len(_accessPointItems)"
+	if policy != expected {
+		t.Errorf("golden mismatch:\n got: %s\nwant: %s", policy, expected)
+	}
+}
+
+func TestEveryPrefixPreamble(t *testing.T) {
+	h := Health()
+	expr := h.Every(OutputsWithPrefix("accessPoint"), func(item *HealthScope) HealthExpression {
+		return item.Exists("status.id")
+	})
+	preamble := expr.Preamble()
+	expected := `_accessPointItems: [ for k, v in (*context.outputs | {}) if k =~ "^accessPoint" { v } ]`
+	if preamble != expected {
+		t.Errorf("got %q, want %q", preamble, expected)
+	}
+}
+
+func TestEveryAllowEmptyIsHealthy(t *testing.T) {
+	h := Health()
+	expr := h.Every(OutputsWithPrefix("accessPoint"), func(item *HealthScope) HealthExpression {
+		return item.Condition("Ready").IsTrue()
+	}).AllowEmpty()
+	cue := expr.ToCUE()
+	if strings.Contains(cue, "> 0 &&") {
+		t.Errorf("AllowEmpty must drop the empty-match guard, got: %s", cue)
+	}
+	if !strings.HasPrefix(cue, "len([ for _accessPointItem") {
+		t.Errorf("AllowEmpty should lead with the all-match comprehension, got: %s", cue)
+	}
+}
+
+// s3filesPolicy builds the composed health policy that mirrors the real
+// s3-files component (issue #7290): primary Ready, a scoped-condition, a
+// scoped field-existence, an AllowEmpty Every over access points, and a
+// default Every over mount targets.
+func s3filesPolicy() string {
+	h := Health()
+	vela := VelaCtx()
+	expr := h.And(
+		h.Condition("Ready").IsTrue(),
+		h.At(vela.Outputs("securityGroup")).Condition("Ready").IsTrue(),
+		h.At(vela.Outputs("filesystem")).Exists("status.fileSystemID"),
+		h.Every(OutputsWithPrefix("accessPoint"), func(item *HealthScope) HealthExpression {
+			return item.Exists("status.id")
+		}).AllowEmpty(),
+		h.Every(OutputsWithPrefix("mountTarget"), func(item *HealthScope) HealthExpression {
+			return item.Condition("Ready").IsTrue()
+		}),
+	)
+	return HealthPolicy(expr)
+}
+
+func readyObj() map[string]interface{} {
+	return map[string]interface{}{"status": map[string]interface{}{"conditions": []interface{}{
+		map[string]interface{}{"type": "Ready", "status": "True"},
+	}}}
+}
+
+func notReadyObj() map[string]interface{} {
+	return map[string]interface{}{"status": map[string]interface{}{"conditions": []interface{}{
+		map[string]interface{}{"type": "Ready", "status": "False"},
+	}}}
+}
+
+// TestS3FilesPolicyEvaluates runs the composed policy through vela-core's real
+// evaluator (health.CheckHealth) across the observed cluster states. This
+// proves the generated CUE compiles AND evaluates identically to the
+// hand-written policy it replaces.
+func TestS3FilesPolicyEvaluates(t *testing.T) {
+	policy := s3filesPolicy()
+	cases := []struct {
+		name    string
+		output  map[string]interface{}
+		outputs map[string]interface{}
+		want    bool
+	}{
+		{
+			name:   "all ready",
+			output: readyObj(),
+			outputs: map[string]interface{}{
+				"securityGroup": readyObj(),
+				"filesystem":    map[string]interface{}{"status": map[string]interface{}{"fileSystemID": "fs-1"}},
+				"accessPoint1":  map[string]interface{}{"status": map[string]interface{}{"id": "ap-1"}},
+				"mountTarget1":  readyObj(),
+			},
+			want: true,
+		},
+		{
+			name:   "mount target not ready",
+			output: readyObj(),
+			outputs: map[string]interface{}{
+				"securityGroup": readyObj(),
+				"filesystem":    map[string]interface{}{"status": map[string]interface{}{"fileSystemID": "fs-1"}},
+				"mountTarget1":  readyObj(),
+				"mountTarget2":  notReadyObj(),
+			},
+			want: false,
+		},
+		{
+			name:   "filesystem missing fileSystemID",
+			output: readyObj(),
+			outputs: map[string]interface{}{
+				"securityGroup": readyObj(),
+				"filesystem":    readyObj(), // Ready, but no status.fileSystemID
+				"mountTarget1":  readyObj(),
+			},
+			want: false,
+		},
+		{
+			name:   "access point missing id",
+			output: readyObj(),
+			outputs: map[string]interface{}{
+				"securityGroup": readyObj(),
+				"filesystem":    map[string]interface{}{"status": map[string]interface{}{"fileSystemID": "fs-1"}},
+				"accessPoint1":  map[string]interface{}{}, // exists, no status.id
+				"mountTarget1":  readyObj(),
+			},
+			want: false,
+		},
+		{
+			name:   "no access points requested (AllowEmpty)",
+			output: readyObj(),
+			outputs: map[string]interface{}{
+				"securityGroup": readyObj(),
+				"filesystem":    map[string]interface{}{"status": map[string]interface{}{"fileSystemID": "fs-1"}},
+				"mountTarget1":  readyObj(),
+			},
+			want: true,
+		},
+		{
+			name:   "bucket has no status",
+			output: map[string]interface{}{},
+			outputs: map[string]interface{}{
+				"securityGroup": readyObj(),
+				"filesystem":    map[string]interface{}{"status": map[string]interface{}{"fileSystemID": "fs-1"}},
+				"mountTarget1":  readyObj(),
+			},
+			want: false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			templateContext := map[string]interface{}{"output": c.output, "outputs": c.outputs}
+			got, err := health.CheckHealth(templateContext, policy, nil)
+			if err != nil {
+				t.Fatalf("CheckHealth errored instead of returning a verdict: %v\npolicy:\n%s", err, policy)
+			}
+			if got != c.want {
+				t.Errorf("healthy=%v, want %v\npolicy:\n%s", got, c.want, policy)
+			}
+		})
+	}
+}
+
+// --- Branch coverage: ConditionExpr variants, inline branches, scoped leaves, QuoteMeta ---
+
+func TestConditionVariantsToCUE(t *testing.T) {
+	h := Health()
+	cases := []struct {
+		name string
+		expr HealthExpression
+		want string
+	}{
+		{"IsFalse", h.Condition("Ready").IsFalse(),
+			`len([ for c in _readyCond if c.status != _|_ if c.status == "False" { c } ]) > 0`},
+		{"Is custom", h.Condition("Ready").Is("Degraded"),
+			`len([ for c in _readyCond if c.status != _|_ if c.status == "Degraded" { c } ]) > 0`},
+		{"ReasonIs", h.Condition("Ready").ReasonIs("LowDisk"),
+			`len([ for c in _readyCond if c.status != _|_ if c.status == "True" if c.reason != _|_ if c.reason == "LowDisk" { c } ]) > 0`},
+		{"Exists", h.Condition("Ready").Exists(),
+			`len(_readyCond) > 0`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := c.expr.ToCUE(); got != c.want {
+				t.Errorf("got %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+func TestInlineConditionBranches(t *testing.T) {
+	scope := &HealthScope{root: "_x", inline: true}
+
+	reason := scope.Condition("Ready").ReasonIs("LowDisk").ToCUE()
+	wantReason := `len([ for c in *_x.status.conditions | [] if c.type != _|_ if c.type == "Ready" if c.status != _|_ if c.status == "True" if c.reason != _|_ if c.reason == "LowDisk" { c } ]) > 0`
+	if reason != wantReason {
+		t.Errorf("inline ReasonIs:\n got %q\nwant %q", reason, wantReason)
+	}
+
+	exists := scope.Condition("Ready").Exists().ToCUE()
+	wantExists := `len([ for c in *_x.status.conditions | [] if c.type != _|_ if c.type == "Ready" { c } ]) > 0`
+	if exists != wantExists {
+		t.Errorf("inline Exists:\n got %q\nwant %q", exists, wantExists)
+	}
+}
+
+func TestScopedLeavesToCUE(t *testing.T) {
+	h := Health()
+	vela := VelaCtx()
+	x := h.At(vela.Outputs("x"))
+	cases := []struct {
+		name string
+		got  string
+		want string
+	}{
+		{"Exists", x.Exists("status.id").ToCUE(), `context.outputs.x.status.id != _|_`},
+		{"NotExists", x.NotExists("status.err").ToCUE(), `context.outputs.x.status.err == _|_`},
+		{"Phase", x.Phase("Running").ToCUE(), `context.outputs.x.status.phase == "Running"`},
+		{"PhaseField", x.PhaseField("status.p", "A", "B").ToCUE(),
+			`context.outputs.x.status.p == "A" || context.outputs.x.status.p == "B"`},
+		{"CrossResourceFieldRef",
+			h.At(vela.Outputs("a")).Field("status.x").Eq(h.At(vela.Outputs("b")).FieldRef("status.y")).ToCUE(),
+			`context.outputs.a.status.x == context.outputs.b.status.y`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if c.got != c.want {
+				t.Errorf("got %q, want %q", c.got, c.want)
+			}
+		})
+	}
+}
+
+func TestConditionReasonEvaluates(t *testing.T) {
+	h := Health()
+	policy := HealthPolicy(h.Condition("Ready").IsTrue().(*ConditionExpr).ReasonIs("AllGood"))
+	cond := func(reason string) map[string]interface{} {
+		return map[string]interface{}{"status": map[string]interface{}{"conditions": []interface{}{
+			map[string]interface{}{"type": "Ready", "status": "True", "reason": reason},
+		}}}
+	}
+	for _, c := range []struct {
+		reason string
+		want   bool
+	}{{"AllGood", true}, {"SomethingElse", false}} {
+		got, err := health.CheckHealth(map[string]interface{}{"output": cond(c.reason)}, policy, nil)
+		if err != nil {
+			t.Fatalf("CheckHealth error: %v", err)
+		}
+		if got != c.want {
+			t.Errorf("reason=%q: got %v, want %v", c.reason, got, c.want)
+		}
+	}
+}
+
+func TestEveryPrefixQuoteMetaEvaluates(t *testing.T) {
+	h := Health()
+	policy := HealthPolicy(
+		h.Every(OutputsWithPrefix("a.b"), func(item *HealthScope) HealthExpression {
+			return item.Exists("status.id")
+		}).AllowEmpty(),
+	)
+	ctx := map[string]interface{}{"outputs": map[string]interface{}{
+		"axb1": map[string]interface{}{"status": map[string]interface{}{}}, // no status.id
+	}}
+	got, err := health.CheckHealth(ctx, policy, nil)
+	if err != nil {
+		t.Fatalf("CheckHealth error: %v\npolicy:\n%s", err, policy)
+	}
+	if !got {
+		t.Errorf("expected healthy=true (decoy axb1 must not match literal ^a\\.b), got false\npolicy:\n%s", policy)
+	}
+}
+
+func TestEveryNoOutputsContext(t *testing.T) {
+	h := Health()
+	item := func(item *HealthScope) HealthExpression { return item.Condition("Ready").IsTrue() }
+	allowEmpty := HealthPolicy(h.Every(OutputsWithPrefix("replica"), item).AllowEmpty())
+	required := HealthPolicy(h.Every(OutputsWithPrefix("replica"), item))
+
+	// No "outputs" key: mirrors getTemplateContext when a component has no auxiliary outputs.
+	ctx := map[string]interface{}{"output": readyObj()}
+
+	got, err := health.CheckHealth(ctx, allowEmpty, nil)
+	if err != nil {
+		t.Fatalf("AllowEmpty errored with no outputs in context: %v\npolicy:\n%s", err, allowEmpty)
+	}
+	if !got {
+		t.Errorf("AllowEmpty with no outputs should be healthy, got false\npolicy:\n%s", allowEmpty)
+	}
+
+	got, err = health.CheckHealth(ctx, required, nil)
+	if err != nil {
+		t.Fatalf("required Every errored with no outputs in context: %v\npolicy:\n%s", err, required)
+	}
+	if got {
+		t.Errorf("required Every with no outputs should be unhealthy, got true\npolicy:\n%s", required)
+	}
+}
+
+func TestEveryPrefixNoNameCollision(t *testing.T) {
+	h := Health()
+	exists := func(item *HealthScope) HealthExpression { return item.Exists("status.id") }
+	dash := h.Every(OutputsWithPrefix("foo-bar"), exists)
+	plain := h.Every(OutputsWithPrefix("foobar"), exists)
+
+	if dash.itemsVar() == plain.itemsVar() {
+		t.Fatalf("prefixes foo-bar and foobar collided on helper var %q", dash.itemsVar())
+	}
+
+	policy := HealthPolicy(h.And(dash, plain))
+	ctx := map[string]interface{}{"outputs": map[string]interface{}{
+		"foo-bar1": map[string]interface{}{"status": map[string]interface{}{"id": "a"}},
+		"foobar1":  map[string]interface{}{"status": map[string]interface{}{"id": "b"}},
+	}}
+	got, err := health.CheckHealth(ctx, policy, nil)
+	if err != nil {
+		t.Fatalf("colliding-prefix policy errored: %v\npolicy:\n%s", err, policy)
+	}
+	if !got {
+		t.Errorf("expected healthy=true, got false\npolicy:\n%s", policy)
+	}
+}
+
+func TestNewHealthScope(t *testing.T) {
+	s := NewHealthScope("context.outputs.securityGroup")
+	cue := s.Field("status.state").Eq("active").ToCUE()
+	expected := `context.outputs.securityGroup.status.state == "active"`
+	if cue != expected {
+		t.Errorf("got %q, want %q", cue, expected)
+	}
+	// empty root falls back to the primary output
+	if got := NewHealthScope("").Field("status.x").Eq(1).ToCUE(); got != "context.output.status.x == 1" {
+		t.Errorf("empty-root scope: got %q", got)
+	}
+}
+
+func TestUpperFirst(t *testing.T) {
+	if got := upperFirst(""); got != "" {
+		t.Errorf(`upperFirst("") = %q, want ""`, got)
+	}
+	if got := upperFirst("ready"); got != "Ready" {
+		t.Errorf(`upperFirst("ready") = %q, want "Ready"`, got)
+	}
+}
