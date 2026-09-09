@@ -691,9 +691,8 @@ func GenTraitName(componentName string, ct *unstructured.Unstructured, traitType
 	return fmt.Sprintf("%s-%s-%s", componentName, traitMiddleName, ComputeHash(ct))
 }
 
-// ComputeHash returns a hash value calculated from pod template and
-// a collisionCount to avoid hash collision. The hash will be safe encoded to
-// avoid bad words.
+// ComputeHash returns a hash value calculated from the given trait object.
+// The hash will be safe encoded to avoid bad words.
 func ComputeHash(trait *unstructured.Unstructured) string {
 	componentTraitHasher := fnv.New32a()
 	DeepHashObject(componentTraitHasher, *trait)
