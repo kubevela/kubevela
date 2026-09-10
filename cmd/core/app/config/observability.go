@@ -17,6 +17,8 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
+
 	"github.com/spf13/pflag"
 )
 
@@ -52,4 +54,15 @@ func (c *ObservabilityConfig) AddFlags(fs *pflag.FlagSet) {
 		"Enable debug logs for development purpose")
 	fs.BoolVar(&c.DevLogs, "dev-logs", c.DevLogs,
 		"Enable ANSI color formatting for console logs (ignored when log-file-path is set)")
+}
+
+// Validate ensures the observability configuration is valid.
+func (c *ObservabilityConfig) Validate() error {
+	if c.MetricsAddr == "" {
+		return fmt.Errorf("metrics-addr must not be empty")
+	}
+	if c.LogFileMaxSize == 0 {
+		return fmt.Errorf("log-file-max-size must be greater than zero")
+	}
+	return nil
 }

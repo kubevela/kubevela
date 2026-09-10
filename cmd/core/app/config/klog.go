@@ -40,3 +40,8 @@ func (c *KLogConfig) AddFlags(fs *pflag.FlagSet) {
 	// Add base klog flags
 	utillog.AddFlags(fs)
 }
+
+// Validate ensures the configuration is valid.
+func (c *KLogConfig) Validate() error {
+	return nil
+}

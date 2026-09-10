@@ -56,3 +56,8 @@ func (c *PerformanceConfig) AddFlags(fs *pflag.FlagSet) {
 func (c *PerformanceConfig) SyncToPerformanceGlobals() {
 	commonconfig.PerfEnabled = c.PerfEnabled
 }
+
+// Validate ensures the configuration is valid.
+func (c *PerformanceConfig) Validate() error {
+	return nil
+}
