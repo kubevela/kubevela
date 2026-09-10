@@ -280,6 +280,12 @@ func (p *StringParam) Matches(pattern string) Condition {
 	return RegexMatch(p, pattern)
 }
 
+// NotMatches creates a condition that checks if this string parameter does not match a regex pattern.
+// Example: name.NotMatches("^prod-") generates: parameter.name !~ "^prod-"
+func (p *StringParam) NotMatches(pattern string) Condition {
+	return RegexNotMatch(p, pattern)
+}
+
 // StartsWith creates a condition that checks if this string parameter starts with a prefix.
 // Example: name.StartsWith("prod-") generates: strings.HasPrefix(parameter.name, "prod-")
 func (p *StringParam) StartsWith(prefix string) Condition {

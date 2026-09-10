@@ -2299,6 +2299,69 @@ var _ = Describe("CUEGenerator", func() {
 			})
 		})
 
+		Context("RegexNotMatch CUE Generation", func() {
+			It("should generate regex not-match for StringParam.NotMatches", func() {
+				p := defkit.String("name")
+				comp := defkit.NewComponent("test").
+					Params(p).
+					Workload("v1", "ConfigMap").
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("v1", "ConfigMap").
+							SetIf(p.NotMatches("^prod-"), "data.env", defkit.Lit("non-production")))
+					})
+
+				cue := gen.GenerateTemplate(comp)
+				Expect(cue).To(ContainSubstring(`parameter.name !~ "^prod-"`))
+				Expect(cue).NotTo(ContainSubstring(`parameter.name =~ "^prod-"`))
+			})
+
+			It("should generate regex not-match for LocalFieldRef.NotMatches in validator", func() {
+				v := defkit.Validate("bad").
+					WithName("_v").
+					FailWhen(defkit.LocalField("host").NotMatches(`\.internal$`))
+
+				comp := defkit.NewComponent("test").Validators(v)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring(`host !~ "\\.internal$"`))
+			})
+
+			It("should keep Matches and NotMatches distinct on the same param", func() {
+				p := defkit.String("name")
+				comp := defkit.NewComponent("test").
+					Params(p).
+					Workload("v1", "ConfigMap").
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("v1", "ConfigMap").
+							SetIf(p.Matches("^prod-"), "data.env", defkit.Lit("production")).
+							SetIf(p.NotMatches("^prod-"), "data.env", defkit.Lit("non-production")))
+					})
+
+				cue := gen.GenerateTemplate(comp)
+				Expect(cue).To(ContainSubstring(`parameter.name =~ "^prod-"`))
+				Expect(cue).To(ContainSubstring(`parameter.name !~ "^prod-"`))
+			})
+
+			It("should render NotMatches inside a compound And condition", func() {
+				name := defkit.String("name")
+				env := defkit.String("env")
+				comp := defkit.NewComponent("test").
+					Params(name, env).
+					Workload("v1", "ConfigMap").
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("v1", "ConfigMap").
+							SetIf(
+								defkit.And(
+									name.NotMatches("^prod-"),
+									defkit.Eq(env, defkit.Lit("dev")),
+								),
+								"data.debug", defkit.Lit("true")))
+					})
+
+				cue := gen.GenerateTemplate(comp)
+				Expect(cue).To(ContainSubstring(`parameter.name !~ "^prod-" && parameter.env == "dev"`))
+			})
+		})
+
 		Context("LocalFieldRef NotSet CUE Generation", func() {
 			It("should generate == _|_ for LocalFieldRef.NotSet", func() {
 				v := defkit.Validate("role required").

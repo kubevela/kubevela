@@ -16,6 +16,8 @@ limitations under the License.
 
 package defkit
 
+import "regexp"
+
 // Render executes the component template with the given test context
 // and returns the rendered primary output resource.
 func (c *ComponentDefinition) Render(ctx *TestContextBuilder) *RenderedResource {
@@ -266,6 +268,8 @@ func evaluateCondition(cond Condition, ctx *TestRuntimeContext) bool {
 		// Resolve the ports value and check if any have expose=true
 		portsValue := resolveValue(c.ports, ctx)
 		return hasExposedPorts(portsValue)
+	case *RegexMatchCondition:
+		return evaluateRegexMatch(c, ctx)
 	default:
 		// For parameter-based conditions (param used as condition)
 		if v, ok := cond.(Value); ok {
@@ -274,6 +278,30 @@ func evaluateCondition(cond Condition, ctx *TestRuntimeContext) bool {
 		}
 		return true
 	}
+}
+
+// evaluateRegexMatch evaluates a RegexMatchCondition against the resolved
+// source value, honouring the condition's negation flag.
+//
+// Anything that cannot be evaluated as a regex match -- an absent or nil
+// source, a non-string source, or an invalid pattern -- yields false for both
+// the positive and the negated form. That mirrors the generated CUE, where
+// `parameter.x =~ "p"` and `parameter.x !~ "p"` both fail to select the
+// guarded field when `parameter.x` is absent, and follows hasExposedPorts,
+// which likewise returns false for a value of the wrong shape.
+func evaluateRegexMatch(c *RegexMatchCondition, ctx *TestRuntimeContext) bool {
+	str, ok := resolveValue(c.Source(), ctx).(string)
+	if !ok {
+		return false
+	}
+	matched, err := regexp.MatchString(c.Pattern(), str)
+	if err != nil {
+		return false
+	}
+	if c.IsNegated() {
+		return !matched
+	}
+	return matched
 }
 
 // hasExposedPorts checks if a ports array has any port with expose=true.
