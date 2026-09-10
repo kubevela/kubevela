@@ -344,7 +344,7 @@ func TestRewriteUnencodableReportsFieldPaths(t *testing.T) {
 			val := cuecontext.New().CompileString(tc.src)
 			require.NoError(t, val.Err())
 
-			_, dropped, err := rewriteUnencodable(val, false)
+			_, dropped, err := rewriteUnencodable(val)
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantDropped, dropped)
 		})
@@ -352,7 +352,7 @@ func TestRewriteUnencodableReportsFieldPaths(t *testing.T) {
 }
 
 func TestGenSanitizedRejectsZeroValue(t *testing.T) {
-	_, ok := genSanitized(cue.Value{}, cue.Value{}, RefineParameterValue,
+	_, ok := genSanitized(cue.Value{}, RefineParameterValue,
 		&openapi.Config{ExpandReferences: true}, assert.AnError)
 	assert.False(t, ok, "a zero cue.Value must not be rewritten")
 }
@@ -394,7 +394,7 @@ func TestGenSanitizedRecoversFromPanic(t *testing.T) {
 
 	panicking := func(cue.Value) (cue.Value, error) { panic("boom") }
 
-	out, ok := genSanitized(val, val, panicking, &openapi.Config{ExpandReferences: true}, assert.AnError)
+	out, ok := genSanitized(val, panicking, &openapi.Config{ExpandReferences: true}, assert.AnError)
 	assert.False(t, ok, "a panic in the fallback must not be reported as success")
 	assert.Nil(t, out)
 }
@@ -405,7 +405,7 @@ func TestGenSanitizedKeepsOriginalErrorWhenRefineFails(t *testing.T) {
 
 	failing := func(cue.Value) (cue.Value, error) { return cue.Value{}, assert.AnError }
 
-	out, ok := genSanitized(val, val, failing, &openapi.Config{ExpandReferences: true}, assert.AnError)
+	out, ok := genSanitized(val, failing, &openapi.Config{ExpandReferences: true}, assert.AnError)
 	assert.False(t, ok)
 	assert.Nil(t, out)
 }
@@ -414,14 +414,13 @@ func TestRewriteAndGenReportsNothingDropped(t *testing.T) {
 	val := cuecontext.New().CompileString(`parameter: { a: string }`)
 	require.NoError(t, val.Err())
 
-	_, _, err := rewriteAndGen(val, RefineParameterValue, &openapi.Config{ExpandReferences: true}, false)
+	_, _, err := rewriteAndGen(val, RefineParameterValue, &openapi.Config{ExpandReferences: true})
 	assert.ErrorIs(t, err, errNothingDropped)
 }
 
-// TestGenOpenAPIFallbackSecondTier drives templates whose full-template rewrite
-// cannot be rebuilt, so the fallback has to retry against the narrowed value with
-// references resolved.
-func TestGenOpenAPIFallbackSecondTier(t *testing.T) {
+// TestGenOpenAPIFallbackWithSurroundingDecls drives templates that carry imports
+// or hidden fields alongside the offending constraint.
+func TestGenOpenAPIFallbackWithSurroundingDecls(t *testing.T) {
 	testCases := map[string]string{
 		"imported builtin alongside a bad constraint": `import "strings"
 parameter: { a: string & !="", b: strings.MinRunes(2) }`,

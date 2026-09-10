@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -49,7 +50,7 @@ func genOpenAPIWithFallback(val cue.Value, refine refineFunc, cfg *openapi.Confi
 	if genErr == nil {
 		return b, nil
 	}
-	if out, ok := genSanitized(val, refined, refine, cfg, genErr); ok {
+	if out, ok := genSanitized(val, refine, cfg, genErr); ok {
 		return out, nil
 	}
 	return nil, genErr
@@ -58,7 +59,7 @@ func genOpenAPIWithFallback(val cue.Value, refine refineFunc, cfg *openapi.Confi
 // genSanitized never returns the sanitizer's own failure. The caller keeps the
 // original encoder error so a rewrite that cannot help leaves diagnostics intact,
 // including when cuelang panics part way through the rebuild.
-func genSanitized(val, refined cue.Value, refine refineFunc, cfg *openapi.Config, genErr error) (out []byte, ok bool) {
+func genSanitized(val cue.Value, refine refineFunc, cfg *openapi.Config, genErr error) (out []byte, ok bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			klog.V(4).Infof("OpenAPI fallback panicked, keeping original error: %v", r)
@@ -69,31 +70,21 @@ func genSanitized(val, refined cue.Value, refine refineFunc, cfg *openapi.Config
 		return nil, false
 	}
 
-	// Rewriting the whole template keeps definitions the parameter block refers to
-	// in scope, so references resolve without cue.ResolveReferences, which would
-	// discard pattern constraints and struct ellipsis on unrelated fields.
-	if b, dropped, err := rewriteAndGen(val, refine, cfg, false); err == nil {
-		logDropped(dropped, genErr)
-		return b, true
-	} else if err != errNothingDropped {
-		klog.V(4).Infof("OpenAPI fallback on full template failed: %v", err)
+	b, dropped, err := rewriteAndGen(val, refine, cfg)
+	if err != nil {
+		if !errors.Is(err, errNothingDropped) {
+			klog.V(4).Infof("OpenAPI fallback failed, keeping original error: %v", err)
+		}
+		return nil, false
 	}
-
-	// Last resort: rewrite the already-narrowed value with references resolved.
-	if b, dropped, err := rewriteAndGen(refined, nil, cfg, true); err == nil {
-		logDropped(dropped, genErr)
-		return b, true
-	} else if err != errNothingDropped {
-		klog.V(4).Infof("OpenAPI fallback on resolved value failed: %v", err)
-	}
-
-	return nil, false
+	logDropped(dropped, genErr)
+	return b, true
 }
 
-var errNothingDropped = fmt.Errorf("no unencodable constraint found")
+var errNothingDropped = errors.New("no unencodable constraint found")
 
-func rewriteAndGen(val cue.Value, refine refineFunc, cfg *openapi.Config, resolveRefs bool) ([]byte, []string, error) {
-	sanitized, dropped, err := rewriteUnencodable(val, resolveRefs)
+func rewriteAndGen(val cue.Value, refine refineFunc, cfg *openapi.Config) ([]byte, []string, error) {
+	sanitized, dropped, err := rewriteUnencodable(val)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -118,15 +109,13 @@ func logDropped(dropped []string, genErr error) {
 }
 
 // rewriteUnencodable replaces constraints that cuelang's OpenAPI encoder rejects
-// with their plain base type. CUE absorbs the base type into the constraint
+// with their plain base type. It rewrites the whole template so definitions the
+// parameter block refers to stay in scope and resolve without inlining, which
+// would discard pattern constraints and struct ellipsis on unrelated fields. CUE absorbs the base type into the constraint
 // (`string & !=""` reduces to `!=""`), so the node is substituted rather than
 // deleted, otherwise the field would be left with no type at all.
-func rewriteUnencodable(val cue.Value, resolveRefs bool) (cue.Value, []string, error) {
-	opts := []cue.Option{cue.All(), cue.Docs(true)}
-	if resolveRefs {
-		opts = append(opts, cue.ResolveReferences(true))
-	}
-	f, err := asOpenAPIFile(val.Syntax(opts...))
+func rewriteUnencodable(val cue.Value) (cue.Value, []string, error) {
+	f, err := asOpenAPIFile(val.Syntax(cue.All(), cue.Docs(true)))
 	if err != nil {
 		return cue.Value{}, nil, err
 	}
