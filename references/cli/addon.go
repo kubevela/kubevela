@@ -325,10 +325,13 @@ non-empty new arg
 				if filepath.IsAbs(addonOrDir) || strings.HasPrefix(addonOrDir, ".") || strings.HasSuffix(addonOrDir, "/") {
 					return fmt.Errorf("addon directory %s not found in local", addonOrDir)
 				}
-				name = addonOrDir
-				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, addonOrDir)
+				_, name, err = splitSpecifyRegistry(addonOrDir)
 				if err != nil {
-					return errors.Wrapf(err, "cannot fetch addon related addon %s", addonOrDir)
+					return fmt.Errorf("failed to split addonName and addonRegistry: %w", err)
+				}
+				_, err = pkgaddon.FetchAddonRelatedApp(context.Background(), k8sClient, name)
+				if err != nil {
+					return errors.Wrapf(err, "cannot fetch addon related addon %s", name)
 				}
 				addonArgs, err := pkgaddon.MergeAddonInstallArgs(ctx, k8sClient, name, addonInputArgs)
 				if err != nil {
@@ -374,7 +377,10 @@ func NewAddonDisableCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
 			}
-			name := args[0]
+			_, name, err := splitSpecifyRegistry(args[0])
+			if err != nil {
+				return fmt.Errorf("failed to split addonName and addonRegistry: %w", err)
+			}
 			k8sClient, err := c.GetClient()
 			if err != nil {
 				return err
@@ -406,8 +412,11 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
 			}
-			name := args[0]
-			err := statusAddon(name, ioStream, cmd, c)
+			_, name, err := splitSpecifyRegistry(args[0])
+			if err != nil {
+				return fmt.Errorf("failed to split addonName and addonRegistry: %w", err)
+			}
+			err = statusAddon(name, ioStream, cmd, c)
 			if err != nil {
 				return err
 			}
