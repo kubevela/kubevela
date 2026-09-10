@@ -226,6 +226,13 @@ const (
 	// "1m", "15m", "30s").  Values below 10s are ignored and fall back to the
 	// global default.  Invalid values are also ignored.
 	AnnotationReconcileInterval = "app.oam.dev/reconcile-interval"
+
+	// AnnotationTraceID carries a single correlation ID for one user-initiated
+	// admission. The mutating webhook stamps it set-if-missing; the validating
+	// webhook and Application controller read it back. Reused by log field
+	// requestID so webhook and reconciler log lines for the same kubectl apply
+	// share one trace.
+	AnnotationTraceID = "app.oam.dev/traceID"
 )
 
 const (
