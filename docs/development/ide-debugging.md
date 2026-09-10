@@ -74,11 +74,23 @@ common case for day-to-day reconciler work. The second additionally starts
 the webhook server on `:9445`; see [`webhook-debugging.md`](./webhook-debugging.md)
 for the certificate and cluster-side setup it needs.
 
-There's no `--webhook-timeout` flag on the controller side, don't add one,
-`pflag` rejects unregistered flags and the process won't start at all. The
-webhook call's timeout is a cluster-side setting: `timeoutSeconds` on each
-rule in the `ValidatingWebhookConfiguration`/`MutatingWebhookConfiguration`
-objects that `hack/debug-webhook-setup.sh` creates.
+There's no `--webhook-timeout` flag on the controller side, and adding one
+fails quietly rather than loudly. `NewCoreCommand` sets
+`FParseErrWhitelist{UnknownFlags: true}` (`cmd/core/app/server.go`) for
+backward compatibility, so an unregistered flag is accepted, ignored, and
+never reported. The controller starts normally and the setting you thought
+you applied does nothing.
+
+That applies to typos too, which is the case worth watching for here: drop a
+letter and `--use-webook=true` leaves the webhook server switched off, with
+no error to point at. Check a flag against `vela-core --help` before relying
+on it. A bad *value* on a real flag is still rejected loudly, so it's only
+the flag name that fails silently.
+
+The webhook call's timeout is a cluster-side setting anyway: `timeoutSeconds`
+on each rule in the
+`ValidatingWebhookConfiguration`/`MutatingWebhookConfiguration` objects that
+`hack/debug-webhook-setup.sh` creates.
 
 ## IntelliJ IDEA / GoLand
 
