@@ -765,12 +765,68 @@ func (p *ArrayParam) GetMaxItems() *int {
 }
 
 // RequiredImports returns the CUE imports needed by this parameter's constraints.
-// MinItems/MaxItems generate list.MinItems()/list.MaxItems() which require "list".
+// MinItems/MaxItems generate list.MinItems()/list.MaxItems() which require "list",
+// and those are emitted whichever body form wins, so "list" is unconditional.
+//
+// Nested element fields are only reported when they are actually rendered.
+// writeArrayParam ranks schemaRef > schema > fields, so a schema form silences
+// the fields; reporting their imports anyway emits a package the output never
+// references, which CUE rejects as "imported and not used".
 func (p *ArrayParam) RequiredImports() []string {
+	var imports []string
 	if p.minItems != nil || p.maxItems != nil {
-		return []string{"list"}
+		imports = append(imports, "list")
 	}
-	return nil
+	if p.schemaRef == "" && p.schema == "" {
+		imports = append(imports, nestedParamImports(p.fields)...)
+	}
+	return dedupeImports(imports)
+}
+
+// nestedParamImports collects the imports declared by nested field parameters.
+// Only top-level parameters are scanned by the generator, so container params
+// (maps, arrays) have to surface what their children need or the generated CUE
+// references a package it never imports.
+func nestedParamImports(params []Param) []string {
+	var imports []string
+	for _, param := range params {
+		if ir, ok := param.(ImportRequirer); ok {
+			imports = append(imports, ir.RequiredImports()...)
+		}
+	}
+	return imports
+}
+
+// nestedBranchImports collects the imports declared by params inside conditional
+// branches. Branch bodies are rendered into the struct like ordinary fields, so
+// a constraint such as String("secret").MinLen(3) inside a branch needs its
+// package imported just the same.
+func nestedBranchImports(branches []*ConditionalBranch) []string {
+	var imports []string
+	for _, branch := range branches {
+		imports = append(imports, nestedParamImports(branch.GetParams())...)
+	}
+	return imports
+}
+
+// dedupeImports drops repeated entries while keeping first-occurrence order.
+// Sibling fields commonly need the same package (e.g. two String fields with
+// MinLen both need "strings"), and RequiredImports() is a public API asserted
+// with exact slice equality in existing tests, so callers normalize before
+// returning rather than relying on downstream import collection to dedupe.
+func dedupeImports(imports []string) []string {
+	if len(imports) == 0 {
+		return imports
+	}
+	var deduped []string
+	seen := make(map[string]bool, len(imports))
+	for _, imp := range imports {
+		if !seen[imp] {
+			seen[imp] = true
+			deduped = append(deduped, imp)
+		}
+	}
+	return deduped
 }
 
 // --- ArrayParam Runtime Condition Methods ---
@@ -838,6 +894,8 @@ type MapParam struct {
 	keyType           ParamType
 	valueType         ParamType
 	fields            []Param              // fields for structured map values
+	valueFields       []Param              // schema for values under dynamic keys ([string]: {...})
+	valueSchemaRef    string               // helper definition for values under dynamic keys ([string]: #Ref)
 	schema            string               // raw CUE schema for the map structure
 	schemaRef         string               // reference to a helper definition (e.g., "HealthProbe")
 	closed            bool                 // when true, wraps struct output in close({...})
@@ -903,6 +961,80 @@ func (p *MapParam) WithFields(fields ...Param) *MapParam {
 // GetFields returns the field definitions for map values.
 func (p *MapParam) GetFields() []Param {
 	return p.fields
+}
+
+// OfObject sets a structured schema for the values held under dynamic keys,
+// the Go equivalent of map[string]SomeStruct.
+//
+// This differs from WithFields, which describes a fixed object on the map
+// parameter itself. OfObject describes what each value looks like:
+//
+//	Map("accessPoints").OfObject(
+//		String("path").Required(),
+//		Int("ownerUID").Default(1000),
+//	).Optional()
+//
+// generates:
+//
+//	accessPoints?: [string]: {
+//		path!:     string
+//		ownerUID:  *1000 | int
+//	}
+//
+// Fields keep the defaults, constraints and nesting they would have as
+// ordinary object parameters. Closed() applies to the value struct when
+// OfObject is used, emitting [string]: close({...}).
+func (p *MapParam) OfObject(fields ...Param) *MapParam {
+	p.valueFields = append(p.valueFields, fields...)
+	return p
+}
+
+// GetValueFields returns the schema for values under dynamic keys.
+func (p *MapParam) GetValueFields() []Param {
+	return p.valueFields
+}
+
+// OfSchemaRef points the values under dynamic keys at a reusable helper
+// definition, giving [string]: #Ref.
+//
+//	Map("accessPoints").OfSchemaRef("AccessPointConfig").Optional()
+//
+// generates:
+//
+//	accessPoints?: [string]: #AccessPointConfig
+//
+// This differs from WithSchemaRef, which applies the reference to the whole
+// parameter and yields accessPoints?: #AccessPointConfig instead.
+func (p *MapParam) OfSchemaRef(ref string) *MapParam {
+	p.valueSchemaRef = ref
+	return p
+}
+
+// GetValueSchemaRef returns the helper definition used for values under
+// dynamic keys.
+func (p *MapParam) GetValueSchemaRef() string {
+	return p.valueSchemaRef
+}
+
+// RequiredImports returns the CUE imports needed by this parameter's nested
+// fields. Without it a nested constraint such as String("name").MinLen(3)
+// renders strings.MinRunes(3) with no import and the definition won't compile.
+//
+// The walk mirrors writeMapParam's priority (schemaRef > schema >
+// valueSchemaRef > valueFields > fields/validators/conditionalFields) and stops
+// at whichever form wins, because only that form's body is rendered. Reporting
+// a losing form's imports emits a package the output never references, which
+// CUE rejects as "imported and not used".
+func (p *MapParam) RequiredImports() []string {
+	if p.schemaRef != "" || p.schema != "" || p.valueSchemaRef != "" {
+		return nil
+	}
+	if len(p.valueFields) > 0 {
+		return dedupeImports(nestedParamImports(p.valueFields))
+	}
+	imports := nestedParamImports(p.fields)
+	imports = append(imports, nestedBranchImports(p.conditionalFields)...)
+	return dedupeImports(imports)
 }
 
 // WithSchema sets a raw CUE schema for the map structure.
