@@ -1,0 +1,69 @@
+import (
+	"encoding/json"
+	"encoding/yaml"
+	"strings"
+	"vela/registry"
+)
+
+"git-file": {
+	type: "source"
+	annotations: {}
+	labels: {}
+	description: "Reads a file from a registry configured in this cluster, optionally at a given branch or tag. YAML and JSON are parsed; anything else comes back as a string."
+}
+
+template: {
+	schema: {
+		content: _
+		found:   bool
+	}
+
+	storage: {
+		storageTTL:     "30m"
+		onStaleFailure: "use-stale"
+	}
+
+	parameter: {
+		// +usage=Name of a registry configured in this cluster
+		registry: string
+		// +usage=Path of the file within that registry
+		path: string
+		// +usage=Branch, tag or commit to read at. Defaults to whatever the registry pinned.
+		ref?: string
+		// +usage=Fail resolution when the file is absent. Set false to read an optional file, which then resolves with found: false and content: null.
+		required: *true | bool
+	}
+
+	_file: registry.#ReadFile & {
+		$params: {
+			registry: parameter.registry
+			path:     parameter.path
+			if parameter.ref != _|_ {
+				ref: parameter.ref
+			}
+		}
+	}
+
+	// CUE has no error construct, so the message is carried inside the conflict:
+	// unifying it against true is what names the missing file to the user.
+	if parameter.required {
+		_mustExist: true & [
+			if _file.$returns.found {true},
+			"required file \"\(parameter.path)\" is not in registry \"\(parameter.registry)\"; set required: false to read it as an optional file",
+		][0]
+	}
+
+	_isYAML: strings.HasSuffix(parameter.path, ".yaml") || strings.HasSuffix(parameter.path, ".yml")
+	_isJSON: strings.HasSuffix(parameter.path, ".json")
+
+	// A one-element list indexed at 0 is CUE's "first case that holds".
+	output: {
+		found: _file.$returns.found
+		content: [
+			if !_file.$returns.found {null},
+			if _isYAML {yaml.Unmarshal(_file.$returns.content)},
+			if _isJSON {json.Unmarshal(_file.$returns.content)},
+			_file.$returns.content,
+		][0]
+	}
+}

@@ -154,7 +154,7 @@ func (g *gitlabReader) ReadFile(path string) (content string, err error) {
 	ref := g.GetRef()
 	getFile, _, err := g.h.Client.RepositoryFiles.GetFile(g.GetProjectID(), g.GetProjectPath()+"/"+path, &gitlab.GetFileOptions{Ref: &ref})
 	if err != nil {
-		return "", err
+		return "", asNotFound(err, path)
 	}
 	decodeString, err := base64.StdEncoding.DecodeString(getFile.Content)
 	if err != nil {

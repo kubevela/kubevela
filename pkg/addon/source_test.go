@@ -450,3 +450,71 @@ func TestValidateHelmSourceCredential(t *testing.T) {
 		})
 	}
 }
+
+// WithRef overrides the revision a registry URL pinned, so one registry can be
+// read at different branches without configuring a second.
+//
+// The override has to reach the parsed content before the helper is built,
+// which is the only place it can - the ref comes out of the URL, not the
+// reader.
+func TestWithRefOverridesTheRegistryRevision(t *testing.T) {
+	const pinned = "https://github.com/kubevela/catalog/tree/master"
+
+	// Without the option, the URL's own ref stands.
+	r, err := NewAsyncReader(pinned, "", "", "addons", "", gitType)
+	if err != nil {
+		t.Fatalf("building a reader: %v", err)
+	}
+	gr, ok := r.(*gitReader)
+	if !ok {
+		t.Fatalf("expected a git reader, got %T", r)
+	}
+	if got := gr.h.Meta.GithubContent.Ref; got != "master" {
+		t.Errorf("expected the URL's ref to stand, got %q", got)
+	}
+
+	// With it, the caller's ref wins.
+	r, err = NewAsyncReader(pinned, "", "", "addons", "", gitType, WithRef("fix_clusters"))
+	if err != nil {
+		t.Fatalf("building a reader with a ref: %v", err)
+	}
+	gr, ok = r.(*gitReader)
+	if !ok {
+		t.Fatalf("expected a git reader, got %T", r)
+	}
+	if got := gr.h.Meta.GithubContent.Ref; got != "fix_clusters" {
+		t.Errorf("expected the override to win, got %q", got)
+	}
+
+	// An empty ref is not an override - it means "whatever the registry pinned",
+	// so it must not blank out the URL's own.
+	r, err = NewAsyncReader(pinned, "", "", "addons", "", gitType, WithRef(""))
+	if err != nil {
+		t.Fatalf("building a reader: %v", err)
+	}
+	gr, _ = r.(*gitReader)
+	if got := gr.h.Meta.GithubContent.Ref; got != "master" {
+		t.Errorf("an empty ref must leave the registry's own alone, got %q", got)
+	}
+}
+
+// BuildReader forwards options, which is how a per-read ref reaches the reader
+// at all - a Registry is configured once, but read many times.
+func TestBuildReaderForwardsOptions(t *testing.T) {
+	reg := &Registry{
+		Name: "catalog",
+		Git:  &GitAddonSource{URL: "https://github.com/kubevela/catalog/tree/master", Path: "addons"},
+	}
+
+	r, err := reg.BuildReader(WithRef("fix_clusters"))
+	if err != nil {
+		t.Fatalf("building: %v", err)
+	}
+	gr, ok := r.(*gitReader)
+	if !ok {
+		t.Fatalf("expected a git reader, got %T", r)
+	}
+	if got := gr.h.Meta.GithubContent.Ref; got != "fix_clusters" {
+		t.Errorf("BuildReader must forward the option, got ref %q", got)
+	}
+}

@@ -41,6 +41,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
+	wfprocess "github.com/kubevela/workflow/pkg/cue/process"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -48,6 +50,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/config"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
+	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
+	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -545,6 +549,23 @@ func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1
 	pCtx.PushData(velaprocess.ContextPolicyRevisionName, revisionName)
 	pCtx.PushData(velaprocess.ContextPolicyRevision, revision)
 	pCtx.PushData(velaprocess.ContextPolicyRevisionHash, revisionHash)
+
+	// Substitute $(context...) expressions in the policy's properties before the
+	// template compiles.
+	//
+	// Context only, and deliberately: this render happens before the appfile
+	// exists (the controller orders ApplyApplicationScopeTransforms ahead of
+	// GenerateAppFile), so there is no parsed spec.sources[] to resolve against.
+	// Context has no such dependency - it is built right here - so the half of
+	// the feature that can work does, and reading a source is refused with a
+	// reason rather than left inert.
+	if params != nil {
+		substituted, serr := substituteScopedPolicyExpressions(pCtx, params)
+		if serr != nil {
+			return cue.Value{}, errors.Wrap(serr, "failed to resolve context expressions in policy properties")
+		}
+		params = substituted
+	}
 
 	var paramFile string
 	if params != nil {
@@ -1283,3 +1304,33 @@ func createOrUpdateDiffsConfigMap(ctx context.Context, cli client.Client, app *v
 }
 
 func ptrBool(b bool) *bool { return &b }
+
+// substituteScopedPolicyExpressions evaluates $(context...) expressions in an
+// Application-scoped policy's properties.
+//
+// The context values are pulled from the render's own process context, for
+// exactly the fields ScopedPolicyContext declares readable - so what an
+// expression can see is what this render actually carries, rather than what a
+// component render would have.
+func substituteScopedPolicyExpressions(pCtx wfprocess.Context, params map[string]interface{}) (map[string]interface{}, error) {
+	if !propexpr.HasExpression(params) {
+		return params, nil
+	}
+
+	ctxValues := map[string]interface{}{}
+	for _, field := range propexpr.ScopedPolicyContext.ReadableFields() {
+		if v := pCtx.GetData(field); v != nil {
+			ctxValues[field] = v
+		}
+	}
+
+	resolved, err := celexpr.EvalTree(params, nil, ctxValues)
+	if err != nil {
+		return nil, err
+	}
+	out, ok := resolved.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("policy properties resolved to %T, expected an object", resolved)
+	}
+	return out, nil
+}

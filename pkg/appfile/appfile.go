@@ -26,6 +26,8 @@ import (
 	"reflect"
 	"strings"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
 
 	"cuelang.org/go/cue"
@@ -55,6 +57,7 @@ import (
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
 // constant error information
@@ -176,8 +179,10 @@ type Appfile struct {
 	RelatedTraitDefinitions        map[string]*v1beta1.TraitDefinition
 	RelatedComponentDefinitions    map[string]*v1beta1.ComponentDefinition
 	RelatedWorkflowStepDefinitions map[string]*v1beta1.WorkflowStepDefinition
+	RelatedSourceDefinitions       map[string]*v1beta1.SourceDefinition
 
 	Policies      []v1beta1.AppPolicy
+	Sources       []v1beta1.ApplicationSource
 	Components    []common.ApplicationComponent
 	Artifacts     []*types.ComponentManifest
 	WorkflowSteps []wfTypesv1alpha1.WorkflowStep
@@ -192,6 +197,10 @@ type Appfile struct {
 	// Context is the reconciliation context for the current Application, populated during
 	// controller reconcile and carried into rendering
 	Context context.Context
+	// KubeClient is used by runtime resolvers that need API access during rendering.
+	KubeClient client.Client
+	// SourceCacheStore provides source cache persistence backing for rendering.
+	SourceCacheStore velaprocess.SourceCacheStore
 
 	Debug bool
 }
@@ -217,6 +226,17 @@ func (af *Appfile) GeneratePolicyManifests(ctx context.Context, cli client.Clien
 
 func (af *Appfile) generatePolicyUnstructured(workload *Component) ([]*unstructured.Unstructured, error) {
 	ctxData := GenerateContextDataFromAppFile(af, workload.Name)
+	// A policy's manifests are rendered once and dispatched to the hub - Dispatch
+	// is called with an empty cluster, which means local. GenerateContextDataFromAppFile
+	// leaves Cluster unset because it serves paths that decide placement later, so
+	// without this a policy read context.cluster as "" while the component beside
+	// it read "local" in the same reconcile.
+	//
+	// It is not cosmetic: most sources do a cluster-scoped lookup, so they read
+	// context.cluster and key on it. An unset cluster makes every such source
+	// unusable from a policy, and makes the two cache entries for one ConfigMap
+	// collide on "".
+	ctxData.Cluster = pkgmulticluster.Local
 	uns, err := generatePolicyUnstructuredFromCUEModule(workload, af.Artifacts, ctxData)
 	if err != nil {
 		return nil, err
@@ -235,6 +255,10 @@ func (af *Appfile) generatePolicyUnstructured(workload *Component) ([]*unstructu
 func generatePolicyUnstructuredFromCUEModule(comp *Component, artifacts []*types.ComponentManifest, ctxData velaprocess.ContextData) ([]*unstructured.Unstructured, error) {
 	pCtx := velaprocess.NewContext(ctxData)
 	pCtx.PushData(velaprocess.ContextDataArtifacts, prepareArtifactsData(artifacts))
+	// The policy's own identity, and the surface it renders on - its context is
+	// component-shaped but it is not a component, and context.name is the policy.
+	pCtx.PushData(velaprocess.ContextPolicyName, comp.Name)
+	pCtx.PushData(velaprocess.ContextPolicyType, comp.Type)
 	if err := comp.EvalContext(pCtx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
 	}
@@ -649,6 +673,10 @@ func PrepareProcessContext(comp *Component, ctxData velaprocess.ContextData) (pr
 	if comp.Ctx == nil {
 		comp.Ctx = NewBasicContext(ctxData, comp.Params)
 	}
+	// Before EvalContext, not after: that call runs the component's template, and
+	// a source consumed there resolves during it.
+	comp.Ctx.PushData(velaprocess.ContextComponentName, comp.Name)
+	comp.Ctx.PushData(velaprocess.ContextComponentType, comp.Type)
 	if err := comp.EvalContext(comp.Ctx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
 	}
@@ -678,8 +706,14 @@ func generateComponentFromTerraformModule(comp *Component, appName, ns string) (
 
 func baseGenerateComponent(pCtx process.Context, comp *Component, appName, ns string) (*types.ComponentManifest, error) {
 	var err error
+	// The component identity is already in place from PrepareProcessContext; a
+	// trait inherits it and adds its own type.
+	pCtx.PushData(velaprocess.ContextComponentName, comp.Name)
 	pCtx.PushData(velaprocess.ContextComponentType, comp.Type)
 	for _, tr := range comp.Traits {
+		// Trait.Name is the TraitDefinition's name - the trait's *type*. There is
+		// no instance name in the API to expose alongside it.
+		pCtx.PushData(velaprocess.ContextTraitType, tr.Name)
 		if err := tr.EvalContext(pCtx); err != nil {
 			return nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, comp.Name)
 		}
@@ -897,12 +931,45 @@ func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramVal
 // GenerateContextDataFromAppFile generates process context data from app file
 func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) velaprocess.ContextData {
 	data := velaprocess.ContextData{
-		Namespace:       appfile.Namespace,
-		AppName:         appfile.Name,
-		CompName:        wlName,
-		AppRevisionName: appfile.AppRevisionName,
-		Components:      appfile.Components,
-		Ctx:             appfile.Context,
+		// An unset cluster means the local one - multicluster.IsLocal treats "" and
+		// "local" alike, and routing relies on it. Nothing that compares or hashes
+		// the name does: ClusterObjectReference.Equal compares the string, and the
+		// source cache hashes it, so a caller that left this empty would key its
+		// sources on "" and take a second cache entry for a cluster that already
+		// has one. Callers rendering for a specific cluster overwrite this.
+		Cluster:              pkgmulticluster.Local,
+		Namespace:            appfile.Namespace,
+		AppName:              appfile.Name,
+		CompName:             wlName,
+		AppRevisionName:      appfile.AppRevisionName,
+		Components:           appfile.Components,
+		Ctx:                  appfile.Context,
+		Sources:              map[string]map[string]interface{}{},
+		SourceTypes:          map[string]string{},
+		SourceTemplates:      map[string]string{},
+		SourceSensitivePaths: map[string][]string{},
+		SourceCacheStore:     appfile.SourceCacheStore,
+	}
+	if data.SourceCacheStore == nil {
+		data.SourceCacheStore = sources.NewSecretSourceCacheStore(appfile.KubeClient)
+	}
+	// Front the persistent store (Layer 2) with the shared process-level LRU
+	// (Layer 1) so cache entries are shared across Applications and survive
+	// across reconciles. Keyed by the resolved storage.key.
+	data.SourceCacheStore = sources.NewLRUSourceCacheStore(data.SourceCacheStore)
+	for _, source := range appfile.Sources {
+		props := map[string]interface{}{}
+		if source.Properties != nil && len(source.Properties.Raw) > 0 {
+			_ = json.Unmarshal(source.Properties.Raw, &props)
+		}
+		data.Sources[source.Name] = props
+		data.SourceTypes[source.Name] = source.Type
+	}
+	for sourceType, def := range appfile.RelatedSourceDefinitions {
+		if def != nil && def.Spec.Schematic != nil && def.Spec.Schematic.CUE != nil {
+			data.SourceTemplates[sourceType] = def.Spec.Schematic.CUE.Template
+			data.SourceSensitivePaths[sourceType] = sources.ExtractSensitiveOutputPaths(def.Spec.Schematic.CUE.Template)
+		}
 	}
 	if appfile.AppAnnotations != nil {
 		data.WorkflowName = appfile.AppAnnotations[oam.AnnotationWorkflowName]
@@ -915,8 +982,6 @@ func GenerateContextDataFromAppFile(appfile *Appfile, wlName string) velaprocess
 	return data
 }
 
-// WorkflowClient cache retrieved workflow if ApplicationRevision not exists in appfile
-// else use the workflow in ApplicationRevision
 func (af *Appfile) WorkflowClient(cli client.Client) client.Client {
 	return velaclient.DelegatingHandlerClient{
 		Client: cli,

@@ -28,6 +28,7 @@ import (
 	authv1 "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
@@ -69,6 +70,9 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 					Namespace: "test-ns",
 				},
 				Spec: v1beta1.ApplicationSpec{
+					Sources: []v1beta1.ApplicationSource{
+						{Name: "cluster-info", Type: "cluster-config-reader"},
+					},
 					Components: []common.ApplicationComponent{
 						{
 							Name: "comp1",
@@ -98,16 +102,52 @@ func TestValidateDefinitionPermissions(t *testing.T) {
 				Groups:   []string{"test-group"},
 			},
 			allowedDefinitions: map[string]bool{
-				"componentdefinitions/vela-system/webservice": true,
-				"traitdefinitions/vela-system/scaler":         true,
-				"policydefinitions/vela-system/topology":      true,
-				"workflowstepdefinitions/vela-system/deploy":  true,
+				"componentdefinitions/vela-system/webservice":         true,
+				"traitdefinitions/vela-system/scaler":                 true,
+				"policydefinitions/vela-system/topology":              true,
+				"workflowstepdefinitions/vela-system/deploy":          true,
+				"sourcedefinitions/vela-system/cluster-config-reader": true,
 			},
 			existingDefinitions: map[string]bool{
-				"vela-system/webservice": true,
-				"vela-system/scaler":     true,
-				"vela-system/topology":   true,
-				"vela-system/deploy":     true,
+				"vela-system/webservice":            true,
+				"vela-system/scaler":                true,
+				"vela-system/topology":              true,
+				"vela-system/deploy":                true,
+				"vela-system/cluster-config-reader": true,
+			},
+			expectedErrorCount: 0,
+		},
+		{
+			// A pinned type - webservice@v1, atlas@v2 - names a definition and
+			// the revision to render it from. The permission check asked for an
+			// object called "webservice@v1", which never exists, so every pinned
+			// binding was denied.
+			name: "a version-pinned type is checked against its definition",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-app",
+					Namespace: "test-ns",
+				},
+				Spec: v1beta1.ApplicationSpec{
+					Sources: []v1beta1.ApplicationSource{
+						{Name: "cluster-info", Type: "cluster-config-reader@v1"},
+					},
+					Components: []common.ApplicationComponent{
+						{Name: "comp1", Type: "webservice@v2"},
+					},
+				},
+			},
+			userInfo: authenticationv1.UserInfo{
+				Username: "test-user",
+				Groups:   []string{"test-group"},
+			},
+			allowedDefinitions: map[string]bool{
+				"componentdefinitions/vela-system/webservice":         true,
+				"sourcedefinitions/vela-system/cluster-config-reader": true,
+			},
+			existingDefinitions: map[string]bool{
+				"vela-system/webservice":            true,
+				"vela-system/cluster-config-reader": true,
 			},
 			expectedErrorCount: 0,
 		},
@@ -775,6 +815,9 @@ func TestValidateDefinitionPermissions_FeatureDisabled(t *testing.T) {
 			Namespace: "test-ns",
 		},
 		Spec: v1beta1.ApplicationSpec{
+			Sources: []v1beta1.ApplicationSource{
+				{Name: "source1", Type: "cluster-config-reader"},
+			},
 			Components: []common.ApplicationComponent{
 				{
 					Name: "comp1",
@@ -883,6 +926,9 @@ func TestCollectDefinitionUsage(t *testing.T) {
 				{Name: "policy2", Type: "override"},
 				{Name: "policy3", Type: "topology"}, // Duplicate
 			},
+			Sources: []v1beta1.ApplicationSource{
+				{Name: "cluster-info", Type: "cluster-config-reader"},
+			},
 			Workflow: &v1beta1.Workflow{
 				Steps: []wfTypesv1alpha1.WorkflowStep{
 					{
@@ -924,6 +970,7 @@ func TestCollectDefinitionUsage(t *testing.T) {
 	// Check workflow step types
 	assert.Equal(t, 2, len(usage.workflowStepTypes["deploy"]))
 	assert.Equal(t, 1, len(usage.workflowStepTypes["suspend"]))
+	assert.Equal(t, 1, len(usage.sourceTypes["cluster-config-reader"]))
 
 	// Check that substeps are properly marked
 	for _, loc := range usage.workflowStepTypes["suspend"] {
@@ -1049,6 +1096,8 @@ func (m *mockSARClient) Get(ctx context.Context, key client.ObjectKey, obj clien
 		resource = "policydefinitions"
 	case *v1beta1.WorkflowStepDefinition:
 		resource = "workflowstepdefinitions"
+	case *unstructured.Unstructured:
+		resource = "sourcedefinitions"
 	default:
 		return m.Client.Get(ctx, key, obj, opts...)
 	}

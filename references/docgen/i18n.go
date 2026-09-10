@@ -176,6 +176,10 @@ var i18nDoc = map[string]map[Language]string{
 		LangZh: "类型",
 		LangEn: "Type",
 	},
+	"Value": {
+		LangZh: "值",
+		LangEn: "Value",
+	},
 	"Required": {
 		LangZh: "是否必须",
 		LangEn: "Required",

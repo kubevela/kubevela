@@ -1,0 +1,11 @@
+# Prerequisite: the cluster-info ConfigMap that the cluster-lookup
+# SourceDefinition reads. Apply before the Application.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-info
+  namespace: kube-system
+data:
+  region: us-east-1
+  zone: us-east-1a
+  provider: aws

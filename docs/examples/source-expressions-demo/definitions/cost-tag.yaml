@@ -1,0 +1,17 @@
+apiVersion: core.oam.dev/v1beta1
+kind: PolicyDefinition
+metadata:
+  name: cost-tag
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Tags an Application with ownership metadata. Application-scoped, so it renders before the appfile exists and reads context only."
+spec:
+  scope: Application
+  schematic:
+    cue:
+      template: |
+        parameter: {owner: string, app: string}
+        output: labels: {
+          "platform.io/owner": parameter.owner
+          "platform.io/app":   parameter.app
+        }

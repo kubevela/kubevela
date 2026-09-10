@@ -1,0 +1,117 @@
+import (
+	"strings"
+	"vela/kube"
+)
+
+"vela-component": {
+	type: "source"
+	annotations: {}
+	labels: {}
+	description: "The status of one placement of one component of a KubeVela Application - health, message, details and traits keyed by type, the first of each type where a component carries more than one. Status only; never its spec."
+}
+
+template: {
+	schema: {
+		name:            string
+		healthy:         bool
+		workloadHealthy: bool
+		message:         string
+		details: [string]: string
+		cluster:   string
+		namespace: string
+		traits: [string]: {
+			healthy: bool
+			pending: bool
+			message: string
+			details: [string]: string
+		}
+	}
+
+	storage: {
+		storageTTL:     "1m"
+		onStaleFailure: "fail"
+	}
+
+	parameter: {
+		// +usage=Name of the Application
+		app: string
+		// +usage=Name of the component within it
+		component: string
+		// +usage=Namespace the Application lives in. Defaults to the consumer's own.
+		namespace?: string
+		// +usage=Which placement of the component to read. Defaults to local, the hub.
+		cluster?: string
+	}
+
+	_ns: [
+		if parameter.namespace != _|_ {parameter.namespace},
+		context.namespace,
+	][0]
+
+	_app: kube.#Get & {
+		$params: resource: {
+			apiVersion: "core.oam.dev/v1beta1"
+			kind:       "Application"
+			metadata: {
+				name:      parameter.app
+				namespace: _ns
+			}
+		}
+	}
+
+	_cluster: [
+		if parameter.cluster != _|_ {parameter.cluster},
+		"local",
+	][0]
+
+	_services: *_app.$returns.status.services | []
+
+	_placed: [for s in _services {
+		cluster: [if (*s.cluster | "") != "" {*s.cluster | ""}, "local"][0]
+		svc: s
+	}]
+
+	_named: [for p in _placed if p.svc.name == parameter.component {p}]
+	_matches: [for p in _named if p.cluster == _cluster {p}]
+
+	errs: [
+		if len(_named) == 0 {
+			"application \(_ns)/\(parameter.app) reports no component \(parameter.component)"
+		},
+		if len(_named) > 0 && len(_matches) == 0 {
+			"component \(parameter.component) of application \(_ns)/\(parameter.app) is not placed in cluster \(_cluster); it is in: " +
+			strings.Join([for p in _named {p.cluster}], ", ")
+		},
+	]
+
+	_svc: [
+		if len(_matches) > 0 {_matches[0].svc},
+		{},
+	][0]
+
+	_traits: *_svc.traits | []
+
+	output: {
+		name:            parameter.component
+		healthy:         *_svc.healthy | false
+		workloadHealthy: *_svc.workloadHealthy | false
+		message:         *_svc.message | ""
+		details: *_svc.details | {}
+		cluster:   _cluster
+		namespace: *_svc.namespace | _ns
+		// Keyed by type, so a component carrying two traits of one type - which
+		// an Application may declare - would unify two different statuses at one
+		// key and fail the source. The first wins instead, and deterministically:
+		// the guard emits an entry only at the first index of its type.
+		traits: {
+			for i, t in _traits if [for j, u in _traits if u.type == t.type {j}][0] == i {
+				"\(t.type)": {
+					healthy: t.healthy
+					pending: *t.pending | false
+					message: *t.message | ""
+					details: *t.details | {}
+				}
+			}
+		}
+	}
+}

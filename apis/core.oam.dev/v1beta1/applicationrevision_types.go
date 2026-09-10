@@ -64,6 +64,9 @@ type ApplicationRevisionCompressibleFields struct {
 	// WorkflowStepDefinitions records the snapshot of the WorkflowStepDefinitions related with the created/modified Application
 	WorkflowStepDefinitions map[string]*WorkflowStepDefinition `json:"workflowStepDefinitions,omitempty"`
 
+	// SourceDefinitions records the snapshot of the SourceDefinitions related with the created/modified Application
+	SourceDefinitions map[string]*SourceDefinition `json:"sourceDefinitions,omitempty"`
+
 	// Policies records the external policies
 	Policies map[string]v1alpha1.Policy `json:"policies,omitempty"`
 

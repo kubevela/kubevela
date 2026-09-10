@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/sources"
+
 	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
@@ -451,3 +453,44 @@ var _ = Describe("Test Application health check", func() {
 		})
 	})
 })
+
+// A +sensitive marker has to cover what sits under it, not just the exact path.
+//
+// The marker can only be written where a schema declares a field, so a source
+// exposing an open struct - `properties: _`, whose shape is whatever
+// ConfigTemplate produced it - has nowhere to put one except on the struct
+// itself. Matching exactly would mask a read of `properties` and then publish
+// `properties.token` in the status beside it.
+func TestMaskedPath(t *testing.T) {
+	masks := map[string]struct{}{
+		"properties": {},
+		"auth.token": {},
+	}
+
+	for _, tc := range []struct {
+		path   string
+		masked bool
+		why    string
+	}{
+		{"properties", true, "the marked path itself"},
+		{"properties.token", true, "a field under the marked struct"},
+		{"properties.nested.deep.secret", true, "however deep"},
+		{"auth.token", true, "an exactly marked leaf"},
+		{"template.name", false, "an unmarked sibling"},
+		{"auth.username", false, "a sibling of a marked leaf"},
+		// The prefix is a path segment, not a string prefix: a field whose name
+		// merely starts with a marked one is a different field.
+		{"propertiesExtra", false, "a name that only starts the same"},
+		{"propertiesExtra.token", false, "and its children"},
+	} {
+		if got := sources.MaskedPath(tc.path, masks); got != tc.masked {
+			t.Errorf("sources.MaskedPath(%q) = %v, want %v (%s)", tc.path, got, tc.masked, tc.why)
+		}
+	}
+
+	// No masks means nothing is masked, including paths that would match under
+	// one - the guard runs on every source, most of which declare none.
+	if sources.MaskedPath("properties.token", map[string]struct{}{}) {
+		t.Error("nothing should be masked when no marker is set")
+	}
+}

@@ -1374,3 +1374,14 @@ var componentDefinitionRevision = v1beta1.DefinitionRevision{
 		},
 	},
 }
+
+// The revision search label was written as a literal rather than taken from the
+// constant, and the literal did not match: revisions are labelled
+// sourcedefinition.oam.dev/name, so a search for source.oam.dev/name found
+// none and source version selection returned nothing at all.
+func TestDefinitionKindToNameLabelMatchesWhatRevisionsCarry(t *testing.T) {
+	assert.Equal(t, oam.LabelSourceDefinitionName, util.DefinitionKindToNameLabel[common.SourceType])
+	for kind, label := range util.DefinitionKindToNameLabel {
+		assert.NotEmpty(t, label, "definition kind %q has no search label", kind)
+	}
+}

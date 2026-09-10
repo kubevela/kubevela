@@ -90,6 +90,20 @@ var (
 	}
 )
 
+// SupportedDefinitionKind reports whether the generator models a definition
+// kind.
+//
+// The kind decides the base struct, the API type and the registration call, so
+// one absent from those maps yields `Base apis .` - Go that does not compile -
+// rather than an SDK that is merely incomplete. SourceDefinition is the current
+// case: the SDK cannot model it until kubevela-core-api carries
+// ApplicationSource, so generation skips it instead of breaking every other
+// kind.
+func SupportedDefinitionKind(kind string) bool {
+	_, ok := DefinitionKindToBaseType[kind]
+	return ok
+}
+
 // GoDefModifier is the Modifier for golang, modify code for each definition
 type GoDefModifier struct {
 	*GenMeta

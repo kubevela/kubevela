@@ -51,6 +51,9 @@ const (
 
 	// LabelComponentDefinitionName records the name of ComponentDefinition
 	LabelComponentDefinitionName = "componentdefinition.oam.dev/name"
+
+	// LabelSourceDefinitionName records the name of SourceDefinition
+	LabelSourceDefinitionName = "sourcedefinition.oam.dev/name"
 	// LabelTraitDefinitionName records the name of TraitDefinition
 	LabelTraitDefinitionName = "trait.oam.dev/name"
 	// LabelManageWorkloadTrait indicates if the trait will manage the lifecycle of the workload
@@ -161,10 +164,32 @@ const (
 	// AnnotationAutoUpdate is annotation that let application auto update when it finds definition changes
 	AnnotationAutoUpdate = "app.oam.dev/autoUpdate"
 
+	// AnnotationCelExpressions opts one Application in to $( ) property
+	// expressions while RequireCelExpressionOptIn is on. Any value other than
+	// "true" leaves the Application as it was.
+	//
+	// Per-Application rather than per-namespace because the thing being opted in
+	// to is a reading of the Application's own property values: a $(VAR) that used
+	// to reach the container verbatim now has to be written $$(VAR). Whoever owns
+	// the Application is who can answer for that.
+	//
+	// Named for the expressions and not for sources: $(context.appName) needs no
+	// SourceDefinition, and what an Application opts in to here is having its
+	// properties read for $( ) at all. Sources are the first thing expressions
+	// made worth having, not the boundary of what they will be used for.
+	AnnotationCelExpressions = "app.oam.dev/cel-expressions"
+
 	// AnnotationAutoRevision controls whether policy-rendered spec changes create new ApplicationRevisions.
 	// When set to "true", policies can modify Application.Spec and trigger new revisions.
 	// This is orthogonal to AnnotationAutoUpdate which controls definition version updates.
 	AnnotationAutoRevision = "policy.oam.dev/auto-revision"
+
+	// AnnotationSourceResolvedHash records per-source hashes of the source
+	// values a component consumed at dispatch time (JSON map of source name ->
+	// hash). It is stamped on the dispatched workload so a later reconcile can
+	// detect that a source re-resolved to a different value (which the raw spec
+	// comparison cannot see) and re-dispatch.
+	AnnotationSourceResolvedHash = "source.oam.dev/resolved-hash"
 
 	// AnnotationSkipGlobalPolicies controls whether global (vela-system) policies are skipped for an Application.
 	// When set to "true", only explicitly declared spec.policies are evaluated.

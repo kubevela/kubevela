@@ -196,6 +196,62 @@ spec:
                           - type
                           type: object
                         type: array
+                      sources:
+                        description: Sources defines external sources that properties
+                          can read with $(source...).
+                        items:
+                          description: ApplicationSource defines a source binding
+                            under spec.sources.
+                          properties:
+                            autoUpdate:
+                              description: |-
+                                AutoUpdate controls whether a change to this source's resolved value
+                                re-dispatches the components and traits that read it, without waiting for
+                                the workflow to run again.
+
+                                Unset defers to the EnableSourceAutoUpdate feature gate, so a platform can
+                                set the fleet-wide default and an Application can disagree per binding: a
+                                registry address worth picking up immediately and a feature flag that
+                                should wait for the next rollout can sit side by side.
+
+                                A publishVersion pin overrides this in both directions. An explicit pin is
+                                hard, so nothing re-dispatches until the pin is bumped.
+                              type: boolean
+                            name:
+                              type: string
+                            properties:
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
+                            statusPolicy:
+                              description: StatusPolicy controls what source resolution
+                                details are exposed on Application status.
+                              properties:
+                                exposeConsumedValues:
+                                  description: |-
+                                    ExposeConsumedValues controls whether the values a reader took from this
+                                    source are written to status. When false the properties that read it are
+                                    still listed, without their values.
+
+                                    Unset means expose, so the knobs in this struct stay independent: asking
+                                    for one path to be masked is a narrower request than asking for silence,
+                                    and must not be read as the wider one.
+                                  type: boolean
+                                maskPaths:
+                                  description: |-
+                                    MaskPaths redacts source attributes before they are written to status, in
+                                    addition to those the definition marks +sensitive. Paths are dot-delimited,
+                                    for example "nested.token".
+                                  items:
+                                    type: string
+                                  type: array
+                              type: object
+                            type:
+                              type: string
+                          required:
+                          - name
+                          - type
+                          type: object
+                        type: array
                       workflow:
                         description: |-
                           Workflow defines how to customize the control logic.
@@ -719,6 +775,180 @@ spec:
                               type: boolean
                           required:
                           - healthy
+                          - name
+                          type: object
+                        type: array
+                      sources:
+                        description: |-
+                          Sources reports each spec.sources[] binding: whether it resolved, what
+                          backs it, when that expires, whether it auto-updates, and who read it.
+
+                          Application-level because a binding is declared once for the whole
+                          Application. The per-component list under Services says only what that
+                          component consumed.
+                        items:
+                          description: ApplicationSourceStatus records source resolution
+                            status.
+                          properties:
+                            autoUpdate:
+                              description: |-
+                                AutoUpdate reports whether a change to this binding re-dispatches the
+                                components reading it, after the feature gate, the binding's own setting and
+                                any publishVersion pin have all been resolved. When it is false and the
+                                binding asked for true, Message says which of them won.
+                              type: boolean
+                            consumedBy:
+                              description: |-
+                                ConsumedBy records who read this source and what each of them got.
+
+                                Consumption hangs off the source rather than off each consumer because the
+                                consumers do not all have somewhere to put it: a workflow step's status is
+                                workflowv1alpha1.WorkflowStepStatus, owned by the workflow repo, and that
+                                engine is deliberately unaware sources exist - properties are substituted
+                                before it ever sees them.
+                              items:
+                                description: SourceConsumer records one reader of
+                                  a source and the values it received.
+                                properties:
+                                  cluster:
+                                    description: |-
+                                      Cluster and Namespace place the read. The same binding resolves separately
+                                      per cluster when its cache key varies by one, so two entries here may
+                                      legitimately hold different values, and an override policy can put the same
+                                      component in two namespaces of one cluster.
+                                    type: string
+                                  definitionKind:
+                                    description: |-
+                                      DefinitionKind is the kind of definition that read it: component, trait,
+                                      workflowstep or policy.
+                                    type: string
+                                  name:
+                                    description: |-
+                                      Name identifies the reader within its kind - the component, the step, the
+                                      policy. A trait is named "<component>/<trait>", since a trait has no
+                                      identity apart from the component it is attached to.
+                                    type: string
+                                  namespace:
+                                    type: string
+                                  type:
+                                    description: |-
+                                      Type is the reader's own definition type, e.g. "webservice", so a reader can
+                                      be understood without cross-referencing the spec.
+                                    type: string
+                                  values:
+                                    description: |-
+                                      Values are what this reader took, each saying which source attribute was
+                                      read and which of the reader's properties received it. A list rather than a
+                                      map because one source attribute can feed several properties, and one
+                                      property can be assembled from several attributes -
+                                      "host: $(source.db.addr):$(source.db.port)" is two values into one
+                                      property, which a map cannot express.
+
+                                      Attributes the definition marks sensitive, and any the binding's
+                                      statusPolicy masks, are redacted here exactly as they are elsewhere.
+                                    items:
+                                      description: 'SourceValue is one value taken
+                                        from a source: what was read and where it
+                                        went.'
+                                      properties:
+                                        property:
+                                          description: |-
+                                            Property is the reader's property that received it, e.g. "image" or
+                                            "env[0].value".
+                                          type: string
+                                        sourceAttr:
+                                          description: SourceAttr is the attribute
+                                            of the source that was read, e.g. "data.image".
+                                          type: string
+                                        value:
+                                          description: |-
+                                            Value is what was read, redacted where the attribute is sensitive or masked.
+
+                                            Schemaless because a source value is whatever the source returns - a string,
+                                            a number, a list, a struct. RawExtension alone generates "type: object",
+                                            which rejects every scalar and takes the whole status write down with it.
+                                          x-kubernetes-preserve-unknown-fields: true
+                                      required:
+                                      - sourceAttr
+                                      type: object
+                                    type: array
+                                required:
+                                - definitionKind
+                                - name
+                                type: object
+                              type: array
+                            message:
+                              description: |-
+                                Message explains a result about the binding as a whole - most often why
+                                AutoUpdate is false on a binding that asked for true. A failure to resolve
+                                belongs to the entry that failed, and is reported on that Resolution.
+                              type: string
+                            name:
+                              description: Name is the spec.sources[] binding this
+                                reports on.
+                              type: string
+                            phase:
+                              description: |-
+                                Phase is Resolved, Stale, Failed or Unused. Stale means a refresh failed and
+                                the previous value is still being served, which is a working Application
+                                with data that has stopped moving - the case a bare healthy/unhealthy cannot
+                                express.
+                              type: string
+                            resolutions:
+                              description: |-
+                                Resolutions are the cache entries backing this binding.
+
+                                More than one when the binding's cache key varies by something that varies -
+                                most often the cluster, since a source keying on context.cluster resolves
+                                separately in each. Collapsing them into a single config and expiry meant
+                                status named one entry when there were three, and named it arbitrarily.
+                              items:
+                                description: |-
+                                  SourceResolution is one stored entry backing a binding, and the state of it.
+
+                                  Keyed by the storage key rather than by cluster because the key is what a
+                                  resolution is. A source keyed on the cluster has an entry per cluster; one
+                                  keyed on the component has an entry per component within a single cluster; one
+                                  keyed on nothing has a single entry serving everything. Cluster is only ever
+                                  one of the things a key may vary by.
+                                properties:
+                                  clusters:
+                                    description: |-
+                                      Clusters this entry served, as context. Not the identity: a cache key may
+                                      vary by namespace, appName, componentName or a label just as readily as by
+                                      cluster, so two entries can serve one cluster and one entry can serve
+                                      several.
+                                    items:
+                                      type: string
+                                    type: array
+                                  expiresAt:
+                                    description: ExpiresAt is the RFC3339 timestamp
+                                      when this entry's value expires.
+                                    type: string
+                                  message:
+                                    description: Message carries the failure when
+                                      this entry is Failed or Stale.
+                                    type: string
+                                  phase:
+                                    description: |-
+                                      Phase is Resolved, Stale or Failed for this entry specifically. The binding's
+                                      own Phase is the worst of these.
+                                    type: string
+                                  storageKey:
+                                    description: |-
+                                      StorageKey identifies the entry, and is the name of the object holding it -
+                                      inspect that directly to see when it last synced. Named for the storage.key
+                                      a SourceDefinition author writes and vela def show reports, rather than for
+                                      the store it happens to live in.
+                                    type: string
+                                type: object
+                              type: array
+                            type:
+                              description: |-
+                                Type is the SourceDefinition that resolved it, carrying the pinned revision
+                                where one was requested, e.g. "configmap@v2".
+                              type: string
+                          required:
                           - name
                           type: object
                         type: array
@@ -1520,6 +1750,223 @@ spec:
                   x-kubernetes-preserve-unknown-fields: true
                 type: array
                 x-kubernetes-preserve-unknown-fields: true
+              sourceDefinitions:
+                additionalProperties:
+                  description: SourceDefinition is the Schema for sourcedefinitions
+                    API.
+                  properties:
+                    apiVersion:
+                      description: |-
+                        APIVersion defines the versioned schema of this representation of an object.
+                        Servers should convert recognized schemas to the latest internal value, and
+                        may reject unrecognized values.
+                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+                      type: string
+                    kind:
+                      description: |-
+                        Kind is a string value representing the REST resource this object represents.
+                        Servers may infer this from the endpoint the client submits requests to.
+                        Cannot be updated.
+                        In CamelCase.
+                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+                      type: string
+                    metadata:
+                      properties:
+                        annotations:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        finalizers:
+                          items:
+                            type: string
+                          type: array
+                        labels:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        name:
+                          type: string
+                        namespace:
+                          type: string
+                      type: object
+                    spec:
+                      description: SourceDefinitionSpec defines the desired state
+                        of SourceDefinition.
+                      properties:
+                        schematic:
+                          description: Schematic defines source resolution logic.
+                          properties:
+                            cue:
+                              description: CUE defines the encapsulation in CUE format
+                              properties:
+                                template:
+                                  description: |-
+                                    Template defines the abstraction template data of the capability, it will replace the old CUE template in extension field.
+                                    Template is a required field if CUE is defined in Capability Definition.
+                                  type: string
+                              required:
+                              - template
+                              type: object
+                            terraform:
+                              description: Terraform is the struct to describe cloud
+                                resources managed by Hashicorp Terraform
+                              properties:
+                                configuration:
+                                  description: Configuration is Terraform Configuration
+                                  type: string
+                                customRegion:
+                                  description: Region is cloud provider's region.
+                                    It will override the region in the region field
+                                    of ProviderReference
+                                  type: string
+                                deleteResource:
+                                  default: true
+                                  description: DeleteResource will determine whether
+                                    provisioned cloud resources will be deleted when
+                                    CR is deleted
+                                  type: boolean
+                                gitCredentialsSecretReference:
+                                  description: GitCredentialsSecretReference specifies
+                                    the reference to the secret containing the git
+                                    credentials
+                                  properties:
+                                    name:
+                                      description: name is unique within a namespace
+                                        to reference a secret resource.
+                                      type: string
+                                    namespace:
+                                      description: namespace defines the space within
+                                        which the secret name must be unique.
+                                      type: string
+                                  type: object
+                                  x-kubernetes-map-type: atomic
+                                path:
+                                  description: Path is the sub-directory of remote
+                                    git repository. It's valid when remote is set
+                                  type: string
+                                providerRef:
+                                  description: ProviderReference specifies the reference
+                                    to Provider
+                                  properties:
+                                    name:
+                                      description: Name of the referenced object.
+                                      type: string
+                                    namespace:
+                                      default: default
+                                      description: Namespace of the referenced object.
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                                type:
+                                  default: hcl
+                                  description: Type specifies which Terraform configuration
+                                    it is, HCL or JSON syntax
+                                  enum:
+                                  - hcl
+                                  - json
+                                  - remote
+                                  type: string
+                                writeConnectionSecretToRef:
+                                  description: |-
+                                    WriteConnectionSecretToReference specifies the namespace and name of a
+                                    Secret to which any connection details for this managed resource should
+                                    be written. Connection details frequently include the endpoint, username,
+                                    and password required to connect to the managed resource.
+                                  properties:
+                                    name:
+                                      description: Name of the secret.
+                                      type: string
+                                    namespace:
+                                      description: Namespace of the secret.
+                                      type: string
+                                  required:
+                                  - name
+                                  type: object
+                              required:
+                              - configuration
+                              type: object
+                          type: object
+                        version:
+                          description: |-
+                            Version is the semantic version of this definition. Setting it makes each
+                            version a distinct DefinitionRevision, so a binding can pin one with
+                            `type: my-source@v1` and stop tracking whatever is newest.
+                          type: string
+                      type: object
+                    status:
+                      description: SourceDefinitionStatus defines the observed state
+                        of SourceDefinition.
+                      properties:
+                        conditions:
+                          description: Conditions of the resource.
+                          items:
+                            description: A Condition that may apply to a resource.
+                            properties:
+                              lastTransitionTime:
+                                description: |-
+                                  LastTransitionTime is the last time this condition transitioned from one
+                                  status to another.
+                                format: date-time
+                                type: string
+                              message:
+                                description: |-
+                                  A Message containing details about this condition's last transition from
+                                  one status to another, if any.
+                                type: string
+                              reason:
+                                description: A Reason for this condition's last transition
+                                  from one status to another.
+                                type: string
+                              status:
+                                description: Status of this condition; is it currently
+                                  True, False, or Unknown?
+                                type: string
+                              type:
+                                description: |-
+                                  Type of this condition. At most one of each condition type may apply to
+                                  a resource at any point in time.
+                                type: string
+                            required:
+                            - lastTransitionTime
+                            - reason
+                            - status
+                            - type
+                            type: object
+                          type: array
+                        configTemplateRef:
+                          description: ConfigTemplateRef references the ConfigTemplate
+                            generated from this SourceDefinition schema.
+                          properties:
+                            name:
+                              description: Name is the deterministic template name.
+                              type: string
+                            schemaHash:
+                              description: SchemaHash is the sha256 hash (hex) of
+                                the canonical schema cue snippet.
+                              type: string
+                          type: object
+                        latestRevision:
+                          description: LatestRevision of this source definition.
+                          properties:
+                            name:
+                              type: string
+                            revision:
+                              format: int64
+                              type: integer
+                            revisionHash:
+                              description: RevisionHash record the hash value of the
+                                spec of ApplicationRevision object.
+                              type: string
+                          required:
+                          - name
+                          - revision
+                          type: object
+                      type: object
+                  type: object
+                description: SourceDefinitions records the snapshot of the SourceDefinitions
+                  related with the created/modified Application
+                type: object
               traitDefinitions:
                 additionalProperties:
                   description: |-

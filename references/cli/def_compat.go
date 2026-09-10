@@ -169,6 +169,7 @@ type AppIssueEntry struct {
 	Traits        []string `json:"traits,omitempty"         yaml:"traits,omitempty"`
 	Policies      []string `json:"policies,omitempty"       yaml:"policies,omitempty"`
 	WorkflowSteps []string `json:"workflowSteps,omitempty"  yaml:"workflowSteps,omitempty"`
+	Sources       []string `json:"sources,omitempty"        yaml:"sources,omitempty"`
 }
 
 // --- Command group ---
@@ -205,7 +206,7 @@ func NewDefinitionCompatibilityDefinitionsCommand(c common.Args, ioStreams util.
 		annotationSelector string
 	)
 
-	allTypes := []string{"component", "trait", "workflow-step", "policy"}
+	allTypes := []string{"component", "trait", "workflow-step", "policy", "source"}
 
 	cmd := &cobra.Command{
 		Use:   "definitions",
@@ -280,6 +281,8 @@ func normaliseDefKind(kind string) string {
 		return v1beta1.WorkflowStepDefinitionKind
 	case "Policy":
 		return v1beta1.PolicyDefinitionKind
+	case "Source":
+		return v1beta1.SourceDefinitionKind
 	}
 	return kind
 }
@@ -356,6 +359,7 @@ func scanDefRevisions(
 		"trait":         oamcommon.TraitType,
 		"workflow-step": oamcommon.WorkflowStepType,
 		"policy":        oamcommon.PolicyType,
+		"source":        oamcommon.SourceType,
 	}
 	for _, t := range opts.allTypes {
 		defRevs, err := pkgdef.SearchDefinitionRevisions(ctx, k8sClient, opts.namespace, "", typeMap[t], 0)
@@ -578,6 +582,23 @@ func scanApplications(ctx context.Context, k8sClient client.Client, opts scanApp
 	return report, nil
 }
 
+// collectSchematics feeds every CUE template of one definition kind to collect,
+// when that kind is in scope. Generic over the map's value type because an
+// ApplicationRevision holds policies by value and everything else by pointer.
+func collectSchematics[T any](typeSet map[string]bool, kind string, defs map[string]T,
+	collect func(name, kind, template string), schematic func(T) *oamcommon.Schematic) {
+	if !typeSet[kind] {
+		return
+	}
+	for name, def := range defs {
+		sch := schematic(def)
+		if sch == nil || sch.CUE == nil {
+			continue
+		}
+		collect(name, kind, sch.CUE.Template)
+	}
+}
+
 func scanAppRevision(rev *v1beta1.ApplicationRevision, typeSet map[string]bool) []AppIssueEntry {
 	type rawDefEntry struct {
 		name    string
@@ -590,26 +611,36 @@ func scanAppRevision(rev *v1beta1.ApplicationRevision, typeSet map[string]bool) 
 			rawDefs = append(rawDefs, rawDefEntry{name: name, kind: kind, reasons: parseHints(reasons)})
 		}
 	}
-	for defName, def := range rev.Spec.ComponentDefinitions {
-		if typeSet["component"] && def != nil && def.Spec.Schematic != nil && def.Spec.Schematic.CUE != nil {
-			collect(defName, "component", def.Spec.Schematic.CUE.Template)
-		}
-	}
-	for defName, def := range rev.Spec.TraitDefinitions {
-		if typeSet["trait"] && def != nil && def.Spec.Schematic != nil && def.Spec.Schematic.CUE != nil {
-			collect(defName, "trait", def.Spec.Schematic.CUE.Template)
-		}
-	}
-	for defName, def := range rev.Spec.WorkflowStepDefinitions {
-		if typeSet["workflow-step"] && def != nil && def.Spec.Schematic != nil && def.Spec.Schematic.CUE != nil {
-			collect(defName, "workflow-step", def.Spec.Schematic.CUE.Template)
-		}
-	}
-	for defName, def := range rev.Spec.PolicyDefinitions {
-		if typeSet["policy"] && def.Spec.Schematic != nil && def.Spec.Schematic.CUE != nil {
-			collect(defName, "policy", def.Spec.Schematic.CUE.Template)
-		}
-	}
+	collectSchematics(typeSet, "component", rev.Spec.ComponentDefinitions, collect,
+		func(d *v1beta1.ComponentDefinition) *oamcommon.Schematic {
+			if d == nil {
+				return nil
+			}
+			return d.Spec.Schematic
+		})
+	collectSchematics(typeSet, "trait", rev.Spec.TraitDefinitions, collect,
+		func(d *v1beta1.TraitDefinition) *oamcommon.Schematic {
+			if d == nil {
+				return nil
+			}
+			return d.Spec.Schematic
+		})
+	collectSchematics(typeSet, "workflow-step", rev.Spec.WorkflowStepDefinitions, collect,
+		func(d *v1beta1.WorkflowStepDefinition) *oamcommon.Schematic {
+			if d == nil {
+				return nil
+			}
+			return d.Spec.Schematic
+		})
+	collectSchematics(typeSet, "policy", rev.Spec.PolicyDefinitions, collect,
+		func(d v1beta1.PolicyDefinition) *oamcommon.Schematic { return d.Spec.Schematic })
+	collectSchematics(typeSet, "source", rev.Spec.SourceDefinitions, collect,
+		func(d *v1beta1.SourceDefinition) *oamcommon.Schematic {
+			if d == nil {
+				return nil
+			}
+			return d.Spec.Schematic
+		})
 	if len(rawDefs) == 0 {
 		return nil
 	}
@@ -621,7 +652,7 @@ func scanAppRevision(rev *v1beta1.ApplicationRevision, typeSet map[string]bool) 
 	})
 
 	type hintKey struct{ introduced, id, reason string }
-	type kindBuckets struct{ components, traits, policies, workflowSteps []string }
+	type kindBuckets struct{ components, traits, policies, workflowSteps, sources []string }
 	issueMap := map[hintKey]*kindBuckets{}
 	var issueOrder []hintKey
 	seenIssue := map[hintKey]bool{}
@@ -642,6 +673,8 @@ func scanAppRevision(rev *v1beta1.ApplicationRevision, typeSet map[string]bool) 
 				issueMap[k].policies = append(issueMap[k].policies, rd.name)
 			case "workflow-step":
 				issueMap[k].workflowSteps = append(issueMap[k].workflowSteps, rd.name)
+			case "source":
+				issueMap[k].sources = append(issueMap[k].sources, rd.name)
 			}
 		}
 	}
@@ -656,6 +689,7 @@ func scanAppRevision(rev *v1beta1.ApplicationRevision, typeSet map[string]bool) 
 			Traits:        b.traits,
 			Policies:      b.policies,
 			WorkflowSteps: b.workflowSteps,
+			Sources:       b.sources,
 		})
 	}
 	return appIssues
@@ -672,7 +706,7 @@ func NewDefinitionCompatibilityApplicationsCommand(c common.Args, ioStreams util
 		annotationSelector string
 	)
 
-	allTypes := []string{"component", "trait", "workflow-step", "policy"}
+	allTypes := []string{"component", "trait", "workflow-step", "policy", "source"}
 
 	cmd := &cobra.Command{
 		Use:   "applications",
@@ -802,6 +836,10 @@ func extractDefRevTemplate(dr v1beta1.DefinitionRevision) string {
 	case oamcommon.PolicyType:
 		if dr.Spec.PolicyDefinition.Spec.Schematic != nil && dr.Spec.PolicyDefinition.Spec.Schematic.CUE != nil {
 			return dr.Spec.PolicyDefinition.Spec.Schematic.CUE.Template
+		}
+	case oamcommon.SourceType:
+		if dr.Spec.SourceDefinition.Spec.Schematic != nil && dr.Spec.SourceDefinition.Spec.Schematic.CUE != nil {
+			return dr.Spec.SourceDefinition.Spec.Schematic.CUE.Template
 		}
 	}
 	return ""

@@ -134,6 +134,13 @@ const (
 	// separately control global policy discovery.
 	EnableApplicationScopedPolicies featuregate.Feature = "EnableApplicationScopedPolicies"
 
+	// EnableSourceAutoUpdate is the controller-wide default for source-driven
+	// re-dispatch: whether a component is re-applied when a value it read from a
+	// SourceDefinition changes. It decides only what happens to an Application
+	// carrying no opinion of its own - spec.sources[].autoUpdate overrides it in
+	// both directions, and a publishVersion pin suppresses the refresh regardless.
+	EnableSourceAutoUpdate featuregate.Feature = "EnableSourceAutoUpdate"
+
 	// ValidateUndeclaredParameters enables validation that rejects parameters not declared in the
 	// CUE definition schema. When enabled, any parameter field not present in the template's
 	// parameter stanza will cause a validation error at admission time.
@@ -147,6 +154,31 @@ const (
 	// webhook is always registered. When disabled, nothing addon-specific runs and an
 	// Application using type: addon fails at render with an actionable message.
 	EnableAddonComponent featuregate.Feature = "EnableAddonComponent"
+	// EnableCelExpressions turns on $( ) property expressions, and with them
+	// SourceDefinition, which cannot be used without them. The dependency runs one
+	// way: an expression reading $(context.namespace) needs no source at all, so
+	// this gate is named for the mechanism rather than for its first consumer.
+	//
+	// Off by default because the delimiter is Kubernetes' own: $(VAR_NAME) is the
+	// documented syntax for a dependent environment variable, and is ordinary in
+	// env, command and args. With the pass running, such a value is read as an
+	// expression and refused - at admission and again at render. An installed base
+	// that has never heard of this feature must not have to escape anything, so
+	// the pass does not run until an operator asks for it.
+	//
+	// When enabled, an Application still opts in individually unless
+	// RequireCelExpressionOptIn is turned off. See there for why.
+	EnableCelExpressions featuregate.Feature = "EnableCelExpressions"
+
+	// RequireCelExpressionOptIn keeps expressions to Applications that ask for
+	// them by annotation, so enabling the feature is not itself a fleet-wide
+	// change.
+	//
+	// Defaults on, so the safe path is the default one: switch the feature on,
+	// annotate the Applications that want it, and only relax this once the fleet
+	// has been checked for $(VAR) in env, command and args. Turning it off makes
+	// every Application eligible at once.
+	RequireCelExpressionOptIn featuregate.Feature = "RequireCelExpressionOptIn"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -179,6 +211,9 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	EnableApplicationScopedPolicies:               {Default: false, PreRelease: featuregate.Alpha},
 	ValidateUndeclaredParameters:                  {Default: false, PreRelease: featuregate.Alpha},
 	EnableAddonComponent:                          {Default: false, PreRelease: featuregate.Alpha},
+	EnableSourceAutoUpdate:                        {Default: false, PreRelease: featuregate.Alpha},
+	EnableCelExpressions:                          {Default: false, PreRelease: featuregate.Alpha},
+	RequireCelExpressionOptIn:                     {Default: true, PreRelease: featuregate.Alpha},
 }
 
 func init() {
