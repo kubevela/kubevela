@@ -55,6 +55,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/cache"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
+	configv1alpha1 "github.com/oam-dev/kubevela/pkg/controller/config.oam.dev/v1alpha1"
 	oamv1beta1 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -64,6 +65,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	configwebhook "github.com/oam-dev/kubevela/pkg/webhook/config.oam.dev/v1alpha1"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -474,6 +476,7 @@ func prepareRun(ctx context.Context, manager manager.Manager, coreOptions *optio
 			"port", coreOptions.Webhook.WebhookPort,
 			"certDir", coreOptions.Webhook.CertDir)
 		oamwebhook.Register(manager, coreOptions.Controller.Args)
+		configwebhook.Register(manager)
 		klog.V(2).InfoS("Waiting for webhook secret volume",
 			"timeout", waitSecretTimeout,
 			"checkInterval", waitSecretInterval)
@@ -490,6 +493,13 @@ func prepareRun(ctx context.Context, manager manager.Manager, coreOptions *optio
 		return err
 	}
 	klog.InfoS("OAM controllers setup completed successfully")
+
+	klog.InfoS("Setting up config controllers")
+	if err := configv1alpha1.Setup(manager, coreOptions.Controller.Args); err != nil {
+		klog.ErrorS(err, "Unable to setup the config controller")
+		return err
+	}
+	klog.InfoS("Config controllers setup completed successfully")
 
 	klog.V(2).InfoS("Initializing control plane cluster info")
 	if err := multicluster.InitClusterInfo(manager.GetConfig()); err != nil {
