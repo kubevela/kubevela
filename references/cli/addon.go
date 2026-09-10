@@ -375,7 +375,10 @@ func NewAddonDisableCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
 			}
-			name := args[0]
+			_, name, err := splitSpecifyRegistry(args[0])
+			if err != nil {
+				return fmt.Errorf("failed to split addonName and addonRegistry: %w", err)
+			}
 			k8sClient, err := c.GetClient()
 			if err != nil {
 				return err
@@ -407,8 +410,11 @@ func NewAddonStatusCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Com
 			if len(args) < 1 {
 				return fmt.Errorf("must specify addon name")
 			}
-			name := args[0]
-			err := statusAddon(name, ioStream, cmd, c)
+			_, name, err := splitSpecifyRegistry(args[0])
+			if err != nil {
+				return fmt.Errorf("failed to split addonName and addonRegistry: %w", err)
+			}
+			err = statusAddon(name, ioStream, cmd, c)
 			if err != nil {
 				return err
 			}

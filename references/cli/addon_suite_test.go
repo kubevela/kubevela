@@ -579,3 +579,63 @@ var _ = Describe("Addon upgrade command with a registry-prefixed addon name", fu
 		Expect(err.Error()).To(ContainSubstring("specified registry myregistry not exist"))
 	})
 })
+
+var _ = Describe("Addon status command with a registry-prefixed addon name", func() {
+	var c common.Args
+	var fluxcd v1beta1.Application
+
+	BeforeEach(func() {
+		c.SetClient(k8sClient)
+		c.SetConfig(cfg)
+
+		fluxcd = v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)).To(Succeed())
+		Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+	})
+
+	AfterEach(func() {
+		Expect(k8sClient.Delete(context.Background(), &fluxcd)).To(Succeed())
+	})
+
+	It("should strip the registry prefix instead of using it to build the addon's k8s resource name", func() {
+		args := []string{"myregistry/fluxcd"}
+		cmd := NewAddonStatusCommand(c, cmdutil.IOStreams{})
+		cmd.SetArgs(args)
+		err := cmd.RunE(cmd, args)
+		// Before the fix, the un-split "myregistry/fluxcd" was used to build the
+		// addon's k8s resource name, which fails fast with an invalid name error.
+		if err != nil {
+			Expect(err.Error()).ToNot(ContainSubstring("may not contain '/'"))
+		}
+	})
+})
+
+var _ = Describe("Addon disable command with a registry-prefixed addon name", func() {
+	var c common.Args
+	var fluxcd v1beta1.Application
+
+	BeforeEach(func() {
+		c.SetClient(k8sClient)
+		c.SetConfig(cfg)
+
+		fluxcd = v1beta1.Application{}
+		Expect(yaml.Unmarshal([]byte(fluxcdYaml), &fluxcd)).To(Succeed())
+		Expect(k8sClient.Create(context.Background(), &fluxcd)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+	})
+
+	AfterEach(func() {
+		Expect(k8sClient.Delete(context.Background(), &fluxcd)).Should(SatisfyAny(Succeed(), util.NotFoundMatcher{}))
+	})
+
+	It("should strip the registry prefix instead of using it to build the addon's k8s resource name", func() {
+		args := []string{"myregistry/fluxcd"}
+		cmd := NewAddonDisableCommand(c, cmdutil.IOStreams{})
+		cmd.SetArgs(args)
+		err := cmd.RunE(cmd, args)
+		// Before the fix, the un-split "myregistry/fluxcd" was used to build the
+		// addon's k8s resource name, which fails fast with an invalid name error.
+		if err != nil {
+			Expect(err.Error()).ToNot(ContainSubstring("may not contain '/'"))
+		}
+	})
+})
