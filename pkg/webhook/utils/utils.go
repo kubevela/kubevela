@@ -23,8 +23,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kubevela/pkg/cue/cuex"
+
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
-	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
+	workflowproviders "github.com/oam-dev/kubevela/pkg/workflow/providers"
 
 	"cuelang.org/go/cue/cuecontext"
 	cueErrors "cuelang.org/go/cue/errors"
@@ -74,18 +76,54 @@ func ValidateCueTemplate(cueTemplate string) error {
 	return checkError(err)
 }
 
-// ValidateCuexTemplate validate cueTemplate with CueX for types utilising it.
-// Uses WorkloadCompiler so that templates referencing internal provider
-// packages (e.g. "vela/helm") parse during admission validation.
+// ValidateCuexTemplate validates a ComponentDefinition or TraitDefinition CUE
+// template with CueX, using the workload compiler that renders those kinds.
 //
-// The compile runs under helm.WithDryRun so that any provider package that
-// honors the dry-run signal short-circuits to a side-effect-free path.
-// Without this, a ComponentDefinition whose CUE supplies fully concrete
-// arguments to helm.#Render could trigger a real chart fetch and helm
-// install during admission.
+// The compiler must match the one that renders the definition. Three import
+// paths, "vela/kube", "vela/http" and "vela/config", are registered by both the
+// workload and the workflow compiler but resolve to different packages with
+// different selectors and different $params schemas. Compiling against the wrong
+// flavor does not raise an error: a selector the flavor does not define is
+// silently accepted, and the $params schema check that would have caught a
+// misspelled or mistyped argument disappears with it. Validating a component
+// template against the workflow compiler therefore turns a checked template into
+// an unchecked one, quietly. See ValidateWorkflowStepCuexTemplate for the
+// counterpart used by workflow steps.
 func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
-	ctx = helm.WithDryRun(ctx)
-	val, err := velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx, cueTemplate)
+	return validateCuexTemplateWith(ctx, velacuex.WorkloadCompiler.Get(), cueTemplate)
+}
+
+// ValidateWorkflowStepCuexTemplate validates a WorkflowStepDefinition CUE
+// template against the workflow provider compiler.
+//
+// Step templates import workflow-only builtin packages that the workload
+// compiler does not register, "vela/op" above all. Validating them with
+// ValidateCuexTemplate rejects 26 of the 36 bundled step definitions with
+// `builtin package "vela/op" undefined`, so the two kinds cannot share a
+// compiler. They also cannot share the workflow one, for the reason described on
+// ValidateCuexTemplate.
+func ValidateWorkflowStepCuexTemplate(ctx context.Context, cueTemplate string) error {
+	return validateCuexTemplateWith(ctx, workflowproviders.DefaultCompiler.Get(), cueTemplate)
+}
+
+// validateCuexTemplateWith compiles cueTemplate against the given compiler and
+// reports whether it is a valid definition template.
+//
+// Compiles with DisableResolveProviderFunctions so provider functions are never
+// executed. Admission is a type check, and resolving would let a definition
+// whose CUE supplies fully concrete arguments trigger real side effects (a chart
+// fetch and helm install, a cluster read) merely by being submitted. Skipping
+// resolution also removes the need for the previous helm.WithDryRun guard, which
+// only protected the one provider that honored the signal; its other caller in
+// pkg/appfile stays, so the helper is not orphaned.
+//
+// Provider function arguments are still type-checked, because imports and
+// package schemas are resolved by BuildInstance before resolution would run.
+// Unresolved provider outputs ($returns) are left incomplete rather than
+// erroring, since Validate is called without cue.Concrete and templates are
+// legitimately incomplete until an Application supplies parameter values.
+func validateCuexTemplateWith(ctx context.Context, compiler *cuex.Compiler, cueTemplate string) error {
+	val, err := compiler.CompileStringWithOptions(ctx, cueTemplate, cuex.DisableResolveProviderFunctions{})
 	if err != nil {
 		return err
 	}
