@@ -27,7 +27,9 @@ template: {
 		module: *context.name | string
 		// Registry name; empty means the configured default.
 		registry: *"" | string
-		// Install namespace; empty means the default system namespace (vela-system).
+		// Namespace the module's definitions install into; empty means the default
+		// system namespace (vela-system). The Application this renders always lives
+		// in vela-system whatever this is set to.
 		namespace: *"" | string
 		// Module package version (the OCI/ECR tag vela module publish writes from
 		// _module.cue's version field). Empty means the latest published version.

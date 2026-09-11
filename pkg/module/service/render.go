@@ -73,12 +73,18 @@ func (r *rendererImpl) RenderModule(ctx context.Context, req api.ModuleRequest) 
 // RenderApplication builds the module's owned Application. It is pure: given a
 // parsed Module it touches no cluster and no registry, which is what lets the
 // whole tier layout be unit-tested against a fixture.
-func RenderApplication(mod *module.Module, namespace string) (map[string]interface{}, error) {
+//
+// definitionNamespace is where the module's definitions install. The owned
+// Application itself always lives in the system namespace: it is control-plane
+// bookkeeping, so it stays with the control plane even when the capabilities it
+// installs belong to a tenant namespace. Its name carries definitionNamespace
+// so two namespaces installing one module do not collide there.
+func RenderApplication(mod *module.Module, definitionNamespace string) (map[string]interface{}, error) {
 	if mod == nil || mod.Name == "" {
 		return nil, fmt.Errorf("render module: module has no name")
 	}
-	if namespace == "" {
-		namespace = types.DefaultKubeVelaNS
+	if definitionNamespace == "" {
+		definitionNamespace = types.DefaultKubeVelaNS
 	}
 
 	comps := []interface{}{}
@@ -90,7 +96,7 @@ func RenderApplication(mod *module.Module, namespace string) (map[string]interfa
 	moduleDep := ""
 	if len(mod.Auxiliary) > 0 {
 		moduleDep = mod.Name + "-aux"
-		comps = append(comps, objectsTier(moduleDep, toObjects(mod.Auxiliary), ""))
+		comps = append(comps, objectsTier(moduleDep, toObjects(mod.Auxiliary, definitionNamespace), ""))
 	}
 
 	for _, apiVersion := range enabledLines(mod) {
@@ -101,7 +107,7 @@ func RenderApplication(mod *module.Module, namespace string) (map[string]interfa
 		dep := moduleDep
 		if len(line.Auxiliary) > 0 {
 			tier := fmt.Sprintf("%s-%s-aux", mod.Name, apiVersion)
-			comps = append(comps, objectsTier(tier, toObjects(line.Auxiliary), dep))
+			comps = append(comps, objectsTier(tier, toObjects(line.Auxiliary, definitionNamespace), dep))
 			dep = tier
 		}
 
@@ -110,7 +116,7 @@ func RenderApplication(mod *module.Module, namespace string) (map[string]interfa
 		}
 		defs := make([]interface{}, 0, len(line.Definitions))
 		for _, def := range line.Definitions {
-			defs = append(defs, stampIdentity(def, mod.Name, apiVersion))
+			defs = append(defs, stampIdentity(def, mod.Name, apiVersion, definitionNamespace))
 		}
 		comps = append(comps, objectsTier(fmt.Sprintf("%s-%s-defs", mod.Name, apiVersion), defs, dep))
 	}
@@ -119,8 +125,8 @@ func RenderApplication(mod *module.Module, namespace string) (map[string]interfa
 		"apiVersion": "core.oam.dev/v1beta1",
 		"kind":       "Application",
 		"metadata": map[string]interface{}{
-			"name":      "module-" + mod.Name,
-			"namespace": namespace,
+			"name":      naming.OwnedApplicationName(mod.Name, definitionNamespace, types.DefaultKubeVelaNS),
+			"namespace": types.DefaultKubeVelaNS,
 			"labels": map[string]interface{}{
 				types.LabelDefinitionModule: mod.Name,
 			},
@@ -152,11 +158,30 @@ func enabledLines(mod *module.Module) []string {
 }
 
 // toObjects widens a scope's auxiliary objects for the k8s-objects properties,
-// preserving source order.
-func toObjects(aux []map[string]interface{}) []interface{} {
+// preserving source order, and defaults each one's namespace to where the
+// module's definitions install.
+//
+// The default preserves where these objects landed before the owned Application
+// moved to the system namespace: they installed beside the definitions they
+// support, and they still do. An object naming its own namespace keeps it, as
+// before. A cluster-scoped object is unaffected in practice, because the
+// resource keeper strips the namespace from cluster-scoped manifests before it
+// dispatches or deletes them.
+func toObjects(aux []map[string]interface{}, namespace string) []interface{} {
 	out := make([]interface{}, 0, len(aux))
 	for _, obj := range aux {
-		out = append(out, obj)
+		// Copy for the same reason stampIdentity does: the parsed Module is
+		// shared and may be cached.
+		o := deepCopyMap(obj)
+		meta, _ := o["metadata"].(map[string]interface{})
+		if meta == nil {
+			meta = map[string]interface{}{}
+			o["metadata"] = meta
+		}
+		if ns, _ := meta["namespace"].(string); ns == "" {
+			meta["namespace"] = namespace
+		}
+		out = append(out, o)
 	}
 	return out
 }
@@ -178,10 +203,16 @@ func objectsTier(name string, objects []interface{}, dependsOn string) map[strin
 }
 
 // stampIdentity returns a copy of def carrying its module identity: the
-// {module}-{apiVersion}-{name} object name, the definition identity labels, the
-// full-name annotation, and the spec identity fields. It copies rather than
-// mutates because the parsed Module is shared and may be cached.
-func stampIdentity(def map[string]interface{}, moduleName, apiVersion string) map[string]interface{} {
+// {module}-{apiVersion}-{name} object name, the installing namespace, the
+// definition identity labels, the full-name annotation, and the spec identity
+// fields. It copies rather than mutates because the parsed Module is shared and
+// may be cached.
+//
+// The namespace is written explicitly rather than inherited from the owned
+// Application, because the two now differ: the Application is control-plane
+// bookkeeping in the system namespace while its definitions install wherever
+// the operator asked for them.
+func stampIdentity(def map[string]interface{}, moduleName, apiVersion, namespace string) map[string]interface{} {
 	out := deepCopyMap(def)
 
 	meta, _ := out["metadata"].(map[string]interface{})
@@ -193,6 +224,7 @@ func stampIdentity(def map[string]interface{}, moduleName, apiVersion string) ma
 
 	fullName := fmt.Sprintf("%s-%s-%s", moduleName, apiVersion, shortName)
 	meta["name"] = naming.DefinitionName(moduleName, apiVersion, shortName)
+	meta["namespace"] = namespace
 
 	labels, _ := meta["labels"].(map[string]interface{})
 	if labels == nil {
