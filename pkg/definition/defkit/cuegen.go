@@ -3391,6 +3391,9 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	case *AllConditionsCondition:
 		return g.allConditionsConditionToCUE(c)
 	case *RegexMatchCondition:
+		if c.IsNegated() {
+			return fmt.Sprintf(`%s !~ %q`, g.valueToCUE(c.Source()), c.Pattern())
+		}
 		// General-purpose regex match: <value> =~ "pattern"
 		return fmt.Sprintf(`%s =~ %q`, g.valueToCUE(c.Source()), c.Pattern())
 	case *RawCUECondition:

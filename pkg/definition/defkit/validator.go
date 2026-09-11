@@ -156,6 +156,13 @@ func (s *LocalFieldRef) Matches(pattern string) Condition {
 	return RegexMatch(s, pattern)
 }
 
+// NotMatches creates a condition that checks if this field does not match a regex pattern.
+// Example: LocalField("tenantName").NotMatches(".*-$") generates: tenantName !~ ".*-$"
+// Reuses upstream RegexMatchCondition.
+func (s *LocalFieldRef) NotMatches(pattern string) Condition {
+	return RegexNotMatch(s, pattern)
+}
+
 // Eq creates a condition comparing this field to a value.
 // Example: LocalField("type").Eq("aws") generates: type == "aws"
 // Reuses upstream Comparison type.
