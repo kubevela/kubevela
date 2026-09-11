@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	pkgmodule "github.com/oam-dev/kubevela/pkg/module"
+	"github.com/oam-dev/kubevela/pkg/module/naming"
 	modulesvc "github.com/oam-dev/kubevela/pkg/module/service"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -59,18 +60,19 @@ type moduleComponentProperties struct {
 }
 
 // moduleDeployAppName is the name of the Application the deploy command
-// creates. The "-deploy" suffix keeps it distinct from ownedModuleAppName: the
-// render service names the owned Application "module-<name>", and the two
-// collide when both live in the same namespace.
+// creates. The "-deploy" suffix keeps it distinct from the owned Application:
+// the two still collide when a module is deployed into vela-system, which is
+// where every owned Application lives.
 func moduleDeployAppName(moduleName string) string {
 	return "module-" + moduleName + "-deploy"
 }
 
 // ownedModuleAppName is the name the render service gives the Application it
-// renders for a module, mirroring RenderApplication in
-// pkg/module/service/render.go.
-func ownedModuleAppName(moduleName string) string {
-	return "module-" + moduleName
+// renders for a module whose definitions install into namespace. The
+// derivation is shared with the render service through pkg/module/naming, so
+// the two cannot drift.
+func ownedModuleAppName(moduleName, namespace string) string {
+	return naming.OwnedApplicationName(moduleName, namespace, velatypes.DefaultKubeVelaNS)
 }
 
 // buildModuleApplication builds the one-component Application that installs a
@@ -269,13 +271,16 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 		var tiers []string
 		var services []oamcommon.ApplicationComponentStatus
 		var ownedApp v1beta1.Application
-		err := cli.Get(ctx, types.NamespacedName{Name: ownedModuleAppName(o.module), Namespace: o.namespace}, &ownedApp)
+		// The owned Application lives in the system namespace whatever namespace
+		// the definitions install into, so it is read from there, not o.namespace.
+		ownedName := ownedModuleAppName(o.module, o.namespace)
+		err := cli.Get(ctx, types.NamespacedName{Name: ownedName, Namespace: velatypes.DefaultKubeVelaNS}, &ownedApp)
 		switch {
 		case apierrors.IsNotFound(err):
 			// The render service has not created the owned Application yet, so
 			// the tier shape is not known.
 		case err != nil:
-			return fmt.Errorf("failed to read Application %s/%s: %w", o.namespace, ownedModuleAppName(o.module), err)
+			return fmt.Errorf("failed to read Application %s/%s: %w", velatypes.DefaultKubeVelaNS, ownedName, err)
 		default:
 			tiers = moduleTierNames(&ownedApp)
 			services = ownedApp.Status.Services
@@ -303,7 +308,7 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 		if time.Now().After(deadline) {
 			if len(tiers) == 0 {
 				return fmt.Errorf("timed out after %s waiting for module %q: the owned Application %s/%s was not created; deploy Application is in phase %s: %s",
-					o.timeout, o.module, o.namespace, ownedModuleAppName(o.module), deployApp.Status.Phase, moduleComponentMessage(&deployApp))
+					o.timeout, o.module, velatypes.DefaultKubeVelaNS, ownedName, deployApp.Status.Phase, moduleComponentMessage(&deployApp))
 			}
 			if tier == "" {
 				return fmt.Errorf("timed out after %s waiting for module %q: every tier is healthy but Application %s/%s is in phase %s",

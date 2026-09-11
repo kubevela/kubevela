@@ -128,12 +128,72 @@ func TestRenderApplication_DefaultsToVelaSystemWithLabel(t *testing.T) {
 	require.Equal(t, "s3", labels[types.LabelDefinitionModule])
 }
 
-func TestRenderApplication_HonorsChosenNamespace(t *testing.T) {
-	app, err := RenderApplication(&module.Module{Name: "s3"}, "team-a")
+// TestRenderApplication_OwnedApplicationStaysInVelaSystem asserts the split the
+// namespace parameter describes: the definitions install where the operator
+// asked for them, while the Application that installs them stays with the
+// control plane.
+func TestRenderApplication_OwnedApplicationStaysInVelaSystem(t *testing.T) {
+	app, err := RenderApplication(fixtureModule(), "team-a")
 	require.NoError(t, err)
 
 	meta := app["metadata"].(map[string]interface{})
-	require.Equal(t, "team-a", meta["namespace"])
+	require.Equal(t, types.DefaultKubeVelaNS, meta["namespace"])
+	require.Equal(t, "module-s3-team-a", meta["name"])
+
+	var defs []interface{}
+	for _, c := range components(t, app) {
+		if c["name"] == "s3-v1-defs" {
+			defs = c["properties"].(map[string]interface{})["objects"].([]interface{})
+		}
+	}
+	require.Len(t, defs, 1)
+	defMeta := defs[0].(map[string]interface{})["metadata"].(map[string]interface{})
+	require.Equal(t, "team-a", defMeta["namespace"])
+}
+
+// TestRenderApplication_TargetNamespacesRenderDistinctApplications guards the
+// collision that sharing one vela-system home would otherwise create: two
+// namespaces installing the same module must not render one Application twice,
+// or each install would claim the other's object.
+func TestRenderApplication_TargetNamespacesRenderDistinctApplications(t *testing.T) {
+	a, err := RenderApplication(fixtureModule(), "team-a")
+	require.NoError(t, err)
+	b, err := RenderApplication(fixtureModule(), "team-b")
+	require.NoError(t, err)
+
+	require.NotEqual(t,
+		a["metadata"].(map[string]interface{})["name"],
+		b["metadata"].(map[string]interface{})["name"])
+}
+
+// TestRenderApplication_AuxiliaryDefaultsToTheDefinitionNamespace asserts the
+// auxiliary objects still install beside the definitions they support rather
+// than following the owned Application into vela-system, and that an object
+// naming its own namespace keeps it.
+func TestRenderApplication_AuxiliaryDefaultsToTheDefinitionNamespace(t *testing.T) {
+	mod := fixtureModule()
+	pinned := auxObject("ConfigMap", "pinned")
+	pinned["metadata"].(map[string]interface{})["namespace"] = "elsewhere"
+	mod.Auxiliary = append(mod.Auxiliary, pinned)
+
+	app, err := RenderApplication(mod, "team-a")
+	require.NoError(t, err)
+
+	var objs []interface{}
+	for _, c := range components(t, app) {
+		if c["name"] == "s3-aux" {
+			objs = c["properties"].(map[string]interface{})["objects"].([]interface{})
+		}
+	}
+	require.Len(t, objs, 2)
+
+	byName := map[string]map[string]interface{}{}
+	for _, o := range objs {
+		m := o.(map[string]interface{})["metadata"].(map[string]interface{})
+		byName[m["name"].(string)] = m
+	}
+	require.Equal(t, "team-a", byName["xbuckets.aws.platform.io"]["namespace"])
+	require.Equal(t, "elsewhere", byName["pinned"]["namespace"])
 }
 
 // twoLineModule ships v1 and v2, both with an auxiliary Composition and a
@@ -334,6 +394,9 @@ func TestRenderApplication_StampsDefinitionIdentity(t *testing.T) {
 
 	meta := def["metadata"].(map[string]interface{})
 	require.Equal(t, "s3-v1-bucket", meta["name"])
+	// Written explicitly, not inherited: the owned Application's namespace and
+	// the definitions' namespace are no longer the same thing.
+	require.Equal(t, types.DefaultKubeVelaNS, meta["namespace"])
 
 	labels := meta["labels"].(map[string]interface{})
 	require.Equal(t, "s3", labels[types.LabelDefinitionModule])
@@ -358,6 +421,11 @@ func TestRenderApplication_DoesNotMutateTheFetchedModule(t *testing.T) {
 	original := mod.Lines["v1"].Definitions[0]["metadata"].(map[string]interface{})
 	require.Equal(t, "bucket", original["name"])
 	require.NotContains(t, original, "labels")
+
+	// Auxiliary objects are copied for the same reason: the render defaults
+	// their namespace, and must not write that back through the shared Module.
+	originalAux := mod.Auxiliary[0]["metadata"].(map[string]interface{})
+	require.NotContains(t, originalAux, "namespace")
 }
 
 func TestRenderApplication_TruncatesLongNamesWithAStableHash(t *testing.T) {

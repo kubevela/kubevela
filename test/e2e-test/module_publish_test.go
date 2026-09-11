@@ -40,6 +40,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	veltypes "github.com/oam-dev/kubevela/apis/types"
 	pkgmodule "github.com/oam-dev/kubevela/pkg/module"
+	"github.com/oam-dev/kubevela/pkg/module/naming"
 )
 
 // The module name, version, and API line are fixed by the fixture at
@@ -79,7 +80,6 @@ const (
 	moduleE2ERegistryURLEnv = "MODULE_E2E_REGISTRY_URL"
 
 	moduleDeployAppNameE2E = "module-" + modulePublishModuleName + "-deploy"
-	moduleOwnedAppNameE2E  = "module-" + modulePublishModuleName
 )
 
 var _ = Describe("Module publish and deploy", func() {
@@ -151,10 +151,13 @@ var _ = Describe("Module publish and deploy", func() {
 			g.Expect(cdList.Items).ShouldNot(BeEmpty(), "expected a ComponentDefinition from module %q in namespace %q", modulePublishModuleName, testNamespace)
 		}, 30*time.Second, 2*time.Second).Should(Succeed())
 
-		By("Asserting the owned Application reports every tier healthy")
+		By("Asserting the owned Application reports every tier healthy from vela-system")
+		// The owned Application lives in vela-system even though its definitions
+		// installed into testNamespace, and its name carries that namespace.
+		ownedAppName := naming.OwnedApplicationName(modulePublishModuleName, testNamespace, veltypes.DefaultKubeVelaNS)
 		Eventually(func(g Gomega) {
 			var owned v1beta1.Application
-			g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: moduleOwnedAppNameE2E, Namespace: testNamespace}, &owned)).Should(Succeed())
+			g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: ownedAppName, Namespace: veltypes.DefaultKubeVelaNS}, &owned)).Should(Succeed())
 			g.Expect(owned.Status.Services).ShouldNot(BeEmpty())
 			for _, svc := range owned.Status.Services {
 				g.Expect(svc.Healthy).Should(BeTrue(), "tier %q is not healthy: %s", svc.Name, svc.Message)
