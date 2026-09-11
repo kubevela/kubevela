@@ -24,6 +24,7 @@ import (
 )
 
 var _ = Describe("Expressions", func() {
+
 	Context("Literal", func() {
 		It("should create string literal", func() {
 			lit := defkit.Lit("hello")
@@ -354,7 +355,7 @@ var _ = Describe("Expressions", func() {
 	})
 
 	Context("RegexMatch", func() {
-		It("should create a RegexMatchCondition source and pattern", func() {
+		It("should create a RegexMatchCondition with source and pattern", func() {
 			ref := defkit.LocalField("name")
 			rm := defkit.RegexMatch(ref, "^test-")
 			Expect(rm.Pattern()).To(Equal("^test-"))

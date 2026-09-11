@@ -547,11 +547,13 @@ var _ = Describe("Render", func() {
 						defkit.NewResource("apps/v1", "Deployment").
 							Set("spec.replicas", defkit.Lit(1)),
 					)
-					tpl.Outputs("service",
+					tpl.Outputs(
+						"service",
 						defkit.NewResource("v1", "Service").
 							Set("spec.type", defkit.Lit("ClusterIP")),
 					)
-					tpl.Outputs("configmap",
+					tpl.Outputs(
+						"configmap",
 						defkit.NewResource("v1", "ConfigMap").
 							Set("data.key", defkit.Lit("value")),
 					)
@@ -783,28 +785,34 @@ var _ = Describe("Render", func() {
 				Render(defkit.TestContext()).Get("data.marked")).To(BeNil())
 		})
 
-		It("should skip both forms for a non-string source", func() {
-			positive := defkit.Int("port")
-			negative := defkit.Int("port")
+		It("should panic both forms for a non-string source", func() {
+			port := defkit.Int("port")
+			const errStr = "defkit: cannot use 8080 (type int) as type string in regex match"
 
-			Expect(regexComp(positive, defkit.RegexMatch(positive, "^80")).
-				Render(defkit.TestContext().WithParam("port", 8080)).
-				Get("data.marked")).To(BeNil())
-			Expect(regexComp(negative, defkit.RegexNotMatch(negative, "^80")).
-				Render(defkit.TestContext().WithParam("port", 8080)).
-				Get("data.marked")).To(BeNil())
+			Expect(func() {
+				regexComp(port, defkit.RegexMatch(port, "^80")).
+					Render(defkit.TestContext().WithParam("port", 8080))
+			}).To(PanicWith(errStr))
+
+			Expect(func() {
+				regexComp(port, defkit.RegexNotMatch(port, "^80")).
+					Render(defkit.TestContext().WithParam("port", 8080))
+			}).To(PanicWith(errStr))
 		})
 
-		It("should skip both forms for an invalid pattern", func() {
-			positive := defkit.String("name")
-			negative := defkit.String("name")
+		It("should panic both forms for an invalid pattern", func() {
+			name := defkit.String("name")
+			const errStr = "defkit: failed compiling regex from pattern: '[', error: error parsing regexp: missing closing ]: `[`"
 
-			Expect(regexComp(positive, positive.Matches("[")).
-				Render(defkit.TestContext().WithParam("name", "prod-web")).
-				Get("data.marked")).To(BeNil())
-			Expect(regexComp(negative, negative.NotMatches("[")).
-				Render(defkit.TestContext().WithParam("name", "prod-web")).
-				Get("data.marked")).To(BeNil())
+			Expect(func() {
+				regexComp(name, name.Matches("[")).
+					Render(defkit.TestContext().WithParam("name", "prod-web"))
+			}).To(PanicWith(errStr))
+
+			Expect(func() {
+				regexComp(name, name.NotMatches("[")).
+					Render(defkit.TestContext().WithParam("name", "prod-web"))
+			}).To(PanicWith(errStr))
 		})
 	})
 
