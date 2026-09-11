@@ -91,6 +91,26 @@ func TestRender_DefaultsVersionToEmpty(t *testing.T) {
 	assert.Equal(t, "", fake.req.Version)
 }
 
+// TestRender_ErrorsWhenModuleComponentGateDisabled asserts Render reports the
+// EnableModuleComponent gate by name, rather than falling through to the
+// unhelpful "module renderer not initialized" error, when the gate is off.
+func TestRender_ErrorsWhenModuleComponentGateDisabled(t *testing.T) {
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate,
+		features.EnableModuleComponent, false)
+
+	prev := api.DefaultRenderer()
+	t.Cleanup(func() { api.SetDefaultRenderer(prev) })
+
+	// A working renderer is installed, so any failure here can only come from the gate.
+	fake := &fakeRenderer{res: &api.ModuleResult{Application: map[string]interface{}{}}}
+	api.SetDefaultRenderer(fake)
+
+	_, err := Render(context.Background(), &RenderParams{Params: RenderVars{Module: "s3"}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EnableModuleComponent")
+	assert.Equal(t, api.ModuleRequest{}, fake.req, "the renderer must not be reached when the gate is off")
+}
+
 func TestRender_ErrorsWhenRendererNotInitialized(t *testing.T) {
 	enableModuleComponent(t)
 

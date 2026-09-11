@@ -112,6 +112,10 @@ const (
 	// GoDefModuleFileName is the module.yaml file name in godef/
 	GoDefModuleFileName string = "module.yaml"
 
+	// ModulesImportsFileName is the addon's modules/_imports.cue file name:
+	// the external-module-import declaration read by GetInstallPackageFromReader.
+	ModulesImportsFileName string = "modules/_imports.cue"
+
 	// AddonParameterDataKey is the key of parameter in addon args secrets
 	AddonParameterDataKey string = "addonParameterDataKey"
 
@@ -168,6 +172,8 @@ var Patterns = []Pattern{
 	{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName},
 	// parameter in resource directory
 	{Value: ParameterFileName},
+	// external module imports
+	{Value: ModulesImportsFileName},
 	// directory files
 	{IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName}, {IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName},
 	// Go-based definitions directory
@@ -301,6 +307,7 @@ func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiData *UIData
 		ViewDirName:            readViewFile,
 		AppTemplateCueFileName: readAppCueTemplate,
 		NotesCUEFileName:       readNotesFile,
+		ModulesImportsFileName: readModuleImportsFile,
 	}
 	ptItems := ClassifyItemByPattern(meta, r)
 
