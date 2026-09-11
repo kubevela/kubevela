@@ -101,4 +101,5 @@ webhook-clean:
 	@rm -rf k8s-webhook-server/
 	@kubectl delete secret webhook-server-cert -n vela-system --ignore-not-found
 	@kubectl delete validatingwebhookconfiguration kubevela-vela-core-admission --ignore-not-found
+	@kubectl delete mutatingwebhookconfiguration kubevela-vela-core-admission --ignore-not-found
 	@echo "Webhook debug environment cleaned"

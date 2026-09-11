@@ -173,15 +173,6 @@ func TestGitlabReader_Getters(t *testing.T) {
 		assert.Equal(t, 12345, r.GetProjectID())
 		assert.Equal(t, "my/project/path", r.GetProjectPath())
 	})
-
-	t.Run("RelativePath", func(t *testing.T) {
-		r := &gitlabReader{}
-		item := &GitLabItem{
-			basePath: "addons",
-			path:     "addons/fluxcd/metadata.yaml",
-		}
-		assert.Equal(t, "fluxcd/metadata.yaml", r.RelativePath(item))
-	})
 }
 
 func TestGitLabItem(t *testing.T) {

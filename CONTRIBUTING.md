@@ -40,6 +40,9 @@ make reviewable  # lint, generate, and get the PR ready for review
 These assume the prerequisites (Go, kustomize, CUE, and friends) are already
 installed. See the [code contribution guide](https://kubevela.io/docs/contributor/code-contribute)
 for installing those, running `vela-core` and VelaUX locally, and end-to-end tests.
+For step-by-step local dev/debug workflows in this repo (IDE debugging, local
+k3d clusters, remote-cluster testing, logging), see
+[`docs/development/`](./docs/development/README.md).
 
 ## Commit messages
 

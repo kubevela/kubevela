@@ -61,7 +61,7 @@ spec:
 					},
 				},
 			}
-			p.cache.Put("repo/my-chart/1.0.0", testChart, 1*time.Hour)
+			p.cache.Put("repo/"+sourceCacheID("my-chart")+"/1.0.0", createChartArchive(testChart), 1*time.Hour)
 
 			// Call the provider's internal render logic in dry-run mode
 			ctx := WithDryRun(context.Background())
@@ -113,7 +113,7 @@ spec:
 					},
 				},
 			}
-			p.cache.Put("repo/render-dryrun/1.0.0", testChart, 1*time.Hour)
+			p.cache.Put("repo/"+sourceCacheID("render-dryrun")+"/1.0.0", createChartArchive(testChart), 1*time.Hour)
 
 			ctx := WithDryRun(context.Background())
 			result, err := Render(ctx, &providers.Params[RenderParams]{
@@ -162,7 +162,7 @@ data:
 					},
 				},
 			}
-			p.cache.Put("repo/render-defaults/2.0.0", testChart, 1*time.Hour)
+			p.cache.Put("repo/"+sourceCacheID("render-defaults")+"/2.0.0", createChartArchive(testChart), 1*time.Hour)
 
 			ctx := WithDryRun(context.Background())
 			result, err := Render(ctx, &providers.Params[RenderParams]{
@@ -312,13 +312,13 @@ data:
 			singleton.KubeClient.Set(c)
 
 			p := NewProvider()
-			p.cache.Put("repo/render-defense-dryrun/1.0.0", &chart.Chart{
+			p.cache.Put("repo/"+sourceCacheID("render-defense-dryrun")+"/1.0.0", createChartArchive(&chart.Chart{
 				Metadata: &chart.Metadata{Name: "render-defense-dryrun", Version: "1.0.0"},
 				Templates: []*chart.File{{
 					Name: "templates/cm.yaml",
 					Data: []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: {{ .Release.Name }}-cm\n"),
 				}},
-			}, 1*time.Hour)
+			}), 1*time.Hour)
 
 			ctx := WithDryRun(context.Background())
 			_, err := Render(ctx, &providers.Params[RenderParams]{

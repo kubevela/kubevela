@@ -1,0 +1,20 @@
+# Passing the addon's own parameters. The nested `properties` block is handed
+# to the addon's templates, so its keys are whatever that addon's
+# parameter.cue declares, not KubeVela's.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: velaux-addon
+  namespace: vela-system
+spec:
+  components:
+    - name: velaux
+      type: addon
+      properties:
+        addon: velaux
+        version: "v1.9.5"
+        registry: KubeVela
+        properties:
+          serviceType: NodePort
+          nodePort: 30080
+          replicas: 1

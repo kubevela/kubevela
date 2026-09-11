@@ -17,7 +17,11 @@ limitations under the License.
 package defkit_test
 
 import (
+	"sort"
 	"strings"
+
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -1748,6 +1752,221 @@ var _ = Describe("CUEGenerator", func() {
 			// Inner braces should contain both the field and the conditional
 			Expect(cue).To(ContainSubstring("name: m.name"))
 			Expect(cue).To(ContainSubstring("if m.subPath != _|_"))
+		})
+	})
+
+	Describe("ArrayBuilder map-to-list comprehensions", func() {
+		It("should expose map keys and values to the item builder", func() {
+			accessPoints := defkit.Map("accessPoints").
+				WithSchema(`[string]: {path: string}`)
+			comp := defkit.NewComponent("test").
+				Params(accessPoints).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					items := defkit.NewArray().ForEachMapWith(
+						accessPoints,
+						func(entry *defkit.MapEntryBuilder) {
+							entry.Set("name", entry.Key())
+							entry.Set("path", entry.Value().Field("path"))
+						},
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.items", items))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(
+				"for k, v in parameter.accessPoints {",
+			))
+			Expect(generated).To(ContainSubstring("name: k"))
+			Expect(generated).To(ContainSubstring("path: v.path"))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
+		})
+
+		It("should support guards and existing item operations", func() {
+			accessPoints := defkit.Map("accessPoints").
+				WithSchema(`[string]: {
+					permissions?: string
+				}`).
+				Optional()
+			comp := defkit.NewComponent("test").
+				Params(accessPoints).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					items := defkit.NewArray().ForEachMapWithGuarded(
+						accessPoints.IsSet(),
+						accessPoints,
+						func(entry *defkit.MapEntryBuilder) {
+							entry.Set("name", defkit.StringsToLower(entry.Key()))
+							fallback := entry.Let("_fallback", defkit.Lit("0755"))
+							entry.IfSet("permissions", func() {
+								entry.Set("permissions", entry.Value().Field("permissions"))
+							})
+							entry.IfNotSet("permissions", func() {
+								entry.Set("permissions", fallback)
+							})
+							entry.SetDefault("ownerUID", defkit.Lit(1000), "int")
+							entry.If(entry.FieldExists("permissions"), func() {
+								entry.Set("configured", defkit.Lit(true))
+							})
+							entry.If(entry.FieldNotExists("permissions"), func() {
+								entry.Set("configured", defkit.Lit(false))
+							})
+						},
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.items", items))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"strings"`))
+			Expect(generated).To(ContainSubstring(
+				`if parameter["accessPoints"] != _|_ for k, v in parameter.accessPoints {`,
+			))
+			Expect(generated).To(ContainSubstring("name: strings.ToLower(k)"))
+			Expect(generated).To(ContainSubstring("_fallback: \"0755\""))
+			Expect(generated).To(ContainSubstring("if v.permissions != _|_ {"))
+			Expect(generated).To(ContainSubstring("if v.permissions == _|_ {"))
+			Expect(generated).To(ContainSubstring("ownerUID: *1000 | int"))
+			Expect(generated).To(ContainSubstring("configured: true"))
+			Expect(generated).To(ContainSubstring("configured: false"))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
+		})
+
+		It("should evaluate absent, empty, single-entry, and multi-entry maps", func() {
+			accessPoints := defkit.Map("accessPoints").
+				WithSchema(`[string]: {path: string}`).
+				Optional()
+			comp := defkit.NewComponent("test").
+				Params(accessPoints).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					items := defkit.NewArray().ForEachMapWithGuarded(
+						accessPoints.IsSet(),
+						accessPoints,
+						func(entry *defkit.MapEntryBuilder) {
+							entry.Set("name", entry.Key())
+							entry.Set("path", entry.Value().Field("path"))
+						},
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.items", items))
+				})
+
+			base := cuecontext.New().CompileString(comp.ToCue())
+			Expect(base.Err()).NotTo(HaveOccurred())
+
+			fixtures := []struct {
+				name string
+				data map[string]any
+				want []string
+			}{
+				{name: "absent", want: []string{}},
+				{name: "empty", data: map[string]any{}, want: []string{}},
+				{
+					name: "single",
+					data: map[string]any{
+						"reports": map[string]any{"path": "/reports"},
+					},
+					want: []string{"reports:/reports"},
+				},
+				{
+					name: "multiple",
+					data: map[string]any{
+						"reports": map[string]any{"path": "/reports"},
+						"logs":    map[string]any{"path": "/logs"},
+					},
+					want: []string{"logs:/logs", "reports:/reports"},
+				},
+			}
+
+			for _, fixture := range fixtures {
+				value := base
+				if fixture.data != nil {
+					value = value.FillPath(
+						cue.ParsePath("template.parameter.accessPoints"),
+						fixture.data,
+					)
+				}
+				Expect(value.Err()).NotTo(HaveOccurred(), fixture.name)
+
+				var items []struct {
+					Name string `json:"name"`
+					Path string `json:"path"`
+				}
+				err := value.LookupPath(
+					cue.ParsePath("template.output.data.items"),
+				).Decode(&items)
+				Expect(err).NotTo(HaveOccurred(), fixture.name)
+
+				got := make([]string, len(items))
+				for i := range items {
+					got[i] = items[i].Name + ":" + items[i].Path
+				}
+				sort.Strings(got)
+				Expect(got).To(Equal(fixture.want), fixture.name)
+			}
+		})
+	})
+
+	Describe("ArrayBuilder ForEachWith import collection", func() {
+		It("should collect imports from the iteration source", func() {
+			left := defkit.Array("left").WithFields(
+				defkit.String("name"),
+			)
+			right := defkit.Array("right").WithFields(
+				defkit.String("name"),
+			)
+			comp := defkit.NewComponent("test").
+				Params(left, right).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					items := defkit.NewArray().ForEachWith(
+						defkit.ArrayConcat(left, right),
+						func(item *defkit.ItemBuilder) {
+							item.Set("name", item.Var().Field("name"))
+						},
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.items", items))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"list"`))
+			Expect(generated).To(ContainSubstring(
+				"for v in list.Concat([parameter.left, parameter.right]) {",
+			))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
+		})
+
+		It("should collect imports from the iteration guard", func() {
+			tags := defkit.Array("tags")
+			ports := defkit.Array("ports").WithFields(
+				defkit.String("name"),
+				defkit.Bool("enabled"),
+			)
+			comp := defkit.NewComponent("test").
+				Params(tags, ports).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					items := defkit.NewArray().ForEachWithGuardedFiltered(
+						tags.Contains("enabled"),
+						defkit.FieldEquals("enabled", true),
+						ports,
+						func(item *defkit.ItemBuilder) {
+							item.Set("name", item.Var().Field("name"))
+						},
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.items", items))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"list"`))
+			Expect(generated).To(ContainSubstring(
+				`if list.Contains(parameter["tags"], "enabled")`,
+			))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
 		})
 	})
 

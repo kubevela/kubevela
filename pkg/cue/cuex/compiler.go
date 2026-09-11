@@ -27,6 +27,7 @@ import (
 	"github.com/kubevela/pkg/util/singleton"
 	"k8s.io/klog/v2"
 
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/addon"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/config"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
 )
@@ -48,11 +49,15 @@ var WorkloadCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compi
 		http.Package,
 		kube.Package,
 		cueext.Package,
+		addon.Package,
 	)
 	if cuex.EnableExternalPackageForDefaultCompiler {
 		if err := compiler.LoadExternalPackages(context.Background()); err != nil {
 			klog.Errorf("failed to load external packages for workload compiler: %v", err.Error())
 		}
+	}
+	if cuex.EnableExternalPackageWatchForDefaultCompiler {
+		go compiler.ListenExternalPackages(nil)
 	}
 	return compiler
 })

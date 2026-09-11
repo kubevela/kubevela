@@ -29,16 +29,58 @@ package defkit
 // Validators can be guarded (only active when a condition is true) and can be attached
 // at different levels: top-level parameter, inside map/struct params, or inside array elements.
 type Validator struct {
-	message   string    // the validation message (used as CUE field key)
-	failCond  Condition // when this condition is true, validation fails
-	guardCond Condition // optional: validator only active when guard is true
-	name      string    // optional: override the CUE variable name (default: derived from message)
+	message     string    // the validation message (used as CUE field key)
+	messageExpr Value     // optional: message built from an expression instead of a fixed string
+	failCond    Condition // when this condition is true, validation fails
+	guardCond   Condition // optional: validator only active when guard is true
+	name        string    // optional: override the CUE variable name (default: derived from message)
 }
 
 // Validate creates a new Validator with the given error message.
 // The message is used both as the CUE field key and as the error shown on failure.
 func Validate(message string) *Validator {
 	return &Validator{message: message}
+}
+
+// ValidateValue creates a Validator whose message is a CUE expression rather
+// than a fixed Go string, so the message can name the value that broke the rule.
+//
+// The expression is bound to a let inside the validator block and used as a
+// computed field key in both branches:
+//
+//	ValidateValue(
+//	    Interpolation(
+//	        Lit("region '"),
+//	        LocalField("region"),
+//	        Lit("' must not match the primary region"),
+//	    ),
+//	).
+//	    FailWhen(Eq(LocalField("region"), Reference("parameter.primaryRegion"))).
+//	    WithName("_validateReplicaRegion")
+//
+// generates:
+//
+//	_validateReplicaRegion: {
+//	    let _message = "region '\(region)' must not match the primary region"
+//	    (_message): true
+//	    if region == parameter.primaryRegion {
+//	        (_message): false
+//	    }
+//	}
+//
+// and fails with `region 'us-west-2' must not match the primary region`.
+//
+// Fixed messages are the better default for simple rules; use this when a list
+// or map has several similar entries and the message has to say which one
+// failed. Note that CUE leaves a validator whose message is not yet concrete
+// unevaluated rather than reporting it, the same way it already does for a
+// fail condition that is not yet concrete, so an expression referring to an
+// optional field only reports once that field is set.
+//
+// Passing a literal string Value is equivalent to Validate: the let is skipped
+// and the quoted message is emitted directly.
+func ValidateValue(message Value) *Validator {
+	return &Validator{messageExpr: message}
 }
 
 // FailWhen sets the condition that causes validation to fail.
@@ -62,8 +104,13 @@ func (v *Validator) WithName(name string) *Validator {
 	return v
 }
 
-// Message returns the validation message.
+// Message returns the fixed validation message.
+// It is empty for validators built with ValidateValue; use MessageValue for those.
 func (v *Validator) Message() string { return v.message }
+
+// MessageValue returns the message expression, or nil when the validator was
+// built with Validate and carries a fixed string message.
+func (v *Validator) MessageValue() Value { return v.messageExpr }
 
 // FailCondition returns the fail condition.
 func (v *Validator) FailCondition() Condition { return v.failCond }

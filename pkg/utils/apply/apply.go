@@ -149,11 +149,8 @@ func trimLastAppliedConfigurationForSpecialResources(desired client.Object) bool
 		}
 	}
 	ann := desired.GetAnnotations()
-	if ann != nil {
-		lac := ann[oam.AnnotationLastAppliedConfig]
-		if lac == "-" || lac == "skip" {
-			return false
-		}
+	if ann != nil && oam.IsSkipLastAppliedConfig(ann[oam.AnnotationLastAppliedConfig]) {
+		return false
 	}
 	return true
 }

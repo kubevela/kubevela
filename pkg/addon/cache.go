@@ -26,7 +26,6 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // We have three addon layer here
@@ -112,11 +111,10 @@ func (u *Cache) GetUIData(r Registry, addonName, version string) (*UIData, error
 			return nil, err
 		}
 	} else {
-		versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
-			Username:        r.Helm.Username,
-			Password:        r.Helm.Password,
-			InsecureSkipTLS: r.Helm.InsecureSkipTLS,
-		})
+		versionedRegistry, buildErr := ToVersionedRegistry(r)
+		if buildErr != nil {
+			return nil, buildErr
+		}
 		addon, err = versionedRegistry.GetAddonUIData(context.Background(), addonName, version)
 		if err != nil {
 			klog.Errorf("fail to get addons from registry %s for cache updating, %v", utils.Sanitize(r.Name), err)
@@ -166,9 +164,21 @@ func (u *Cache) getCachedUIData(registry Registry, addonName, version string) *U
 		if len(version) == 0 {
 			version = "latest"
 		}
-		return u.versionedUIData[registry.Name][fmt.Sprintf("%s-%s", addonName, version)]
+		return u.getCachedVersionedUIData(registry.Name, addonName, version)
 	}
 	return nil
+}
+
+// getCachedVersionedUIData reads one entry from the versioned cache. The read is
+// held under the cache lock: registry discovery prunes whole registries from
+// versionedUIData concurrently, so an unlocked read here races with that delete.
+func (u *Cache) getCachedVersionedUIData(registryName, addonName, version string) *UIData {
+	if u == nil {
+		return nil
+	}
+	u.mutex.RLock()
+	defer u.mutex.RUnlock()
+	return u.versionedUIData[registryName][fmt.Sprintf("%s-%s", addonName, version)]
 }
 
 // listCachedUIData will get cached addons from specified registry in cache
@@ -260,6 +270,7 @@ func (u *Cache) putRegistry2Cache(registry []Registry) {
 			delete(u.registry, k)
 			delete(u.registryMeta, k)
 			delete(u.uiData, k)
+			delete(u.versionedUIData, k)
 		}
 	}
 	for _, r := range registry {
@@ -321,20 +332,26 @@ func (u *Cache) listUIDataAndCache(r Registry) ([]*UIData, error) {
 }
 
 func (u *Cache) listVersionRegistryUIDataAndCache(r Registry) ([]*UIData, error) {
-	versionedRegistry := BuildVersionedRegistry(r.Name, r.Helm.URL, &common.HTTPOption{
-		Username:        r.Helm.Username,
-		Password:        r.Helm.Password,
-		InsecureSkipTLS: r.Helm.InsecureSkipTLS,
-	})
+	versionedRegistry, err := ToVersionedRegistry(r)
+	if err != nil {
+		return nil, err
+	}
 	uiDatas, err := versionedRegistry.ListAddon()
 	if err != nil {
 		klog.Errorf("fail to get addons from registry %s for cache updating, %v", r.Name, err)
 		return nil, err
 	}
+	u.cacheVersionedUIData(r.Name, versionedRegistry, uiDatas)
+	return uiDatas, nil
+}
+
+// cacheVersionedUIData fills the versioned cache from a registry listing and
+// drops entries for addons the listing no longer reports.
+func (u *Cache) cacheVersionedUIData(registryName string, versionedRegistry VersionedRegistry, uiDatas []*UIData) {
 	for _, addon := range uiDatas {
 		uiData, err := versionedRegistry.GetAddonUIData(context.Background(), addon.Name, addon.Version)
 		if err != nil {
-			klog.Errorf("fail to get addon from versioned registry %s, addon %s version %s for cache updating, %v", r.Name, addon.Name, addon.Version, err)
+			klog.Errorf("fail to get addon from versioned registry %s, addon %s version %s for cache updating, %v", registryName, addon.Name, addon.Version, err)
 			continue
 		}
 		// identity an addon from helm chart structure
@@ -342,25 +359,44 @@ func (u *Cache) listVersionRegistryUIDataAndCache(r Registry) ([]*UIData, error)
 			addon.Name = ""
 			continue
 		}
-		u.putVersionedUIData2Cache(r.Name, addon.Name, addon.Version, uiData)
+		// The listing knows every version; the per-version fetch above is pinned
+		// and so need not. Carry the list over rather than caching an entry that
+		// reports the addon as having only the version it was fetched at.
+		if len(uiData.AvailableVersions) == 0 {
+			uiData.AvailableVersions = addon.AvailableVersions
+		}
+		u.putVersionedUIData2Cache(registryName, addon.Name, addon.Version, uiData)
 		// we also no version key, if use get addonUIData without version will return this vale as latest data.
-		u.putVersionedUIData2Cache(r.Name, addon.Name, "latest", uiData)
+		u.putVersionedUIData2Cache(registryName, addon.Name, "latest", uiData)
 	}
 	// delete the addon which has been deleted from the addonRegistryCache
-	if addonUIData, ok := u.versionedUIData[r.Name]; ok {
-		for k := range addonUIData {
-			lastInd := strings.LastIndex(k, "-")
-			var needDelete = true
-			for _, addon := range uiDatas {
-				if k[:lastInd] == addon.Name {
-					needDelete = false
-					break
-				}
-			}
-			if needDelete {
-				delete(addonUIData, k)
+	u.pruneVersionedUIData(registryName, uiDatas)
+}
+
+// pruneVersionedUIData drops cached versioned entries whose addon the registry
+// listing no longer reports. It takes the write lock for the same reason
+// getCachedVersionedUIData takes the read lock.
+func (u *Cache) pruneVersionedUIData(registryName string, uiDatas []*UIData) {
+	if u == nil {
+		return
+	}
+	u.mutex.Lock()
+	defer u.mutex.Unlock()
+	addonUIData, ok := u.versionedUIData[registryName]
+	if !ok {
+		return
+	}
+	for k := range addonUIData {
+		lastInd := strings.LastIndex(k, "-")
+		var needDelete = true
+		for _, addon := range uiDatas {
+			if k[:lastInd] == addon.Name {
+				needDelete = false
+				break
 			}
 		}
+		if needDelete {
+			delete(addonUIData, k)
+		}
 	}
-	return uiDatas, nil
 }

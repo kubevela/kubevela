@@ -17,11 +17,19 @@ limitations under the License.
 package addon
 
 import (
+	"context"
+	"errors"
+	"sync"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"helm.sh/helm/v3/pkg/repo"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestPutVersionedUIData2cache(t *testing.T) {
@@ -126,4 +134,247 @@ func TestGetCachedAddonMeta(t *testing.T) {
 	u.putAddonMeta2Cache(name, addonMeta)
 
 	assert.Equal(t, u.getCachedAddonMeta(name), addonMeta)
+}
+
+// registryStub serves a fixed listing and per-version data, standing in for a
+// versioned registry without any network.
+type registryStub struct {
+	list    []*UIData
+	perCall func(name, version string) *UIData
+	err     error
+}
+
+func (s *registryStub) ListAddon() ([]*UIData, error) { return s.list, nil }
+func (s *registryStub) GetAddonUIData(_ context.Context, name, version string) (*UIData, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.perCall(name, version), nil
+}
+func (s *registryStub) GetAddonInstallPackage(context.Context, string, string) (*InstallPackage, error) {
+	return nil, nil
+}
+func (s *registryStub) GetDetailedAddon(context.Context, string, string) (*WholeAddonPackage, error) {
+	return nil, nil
+}
+func (s *registryStub) GetAddonAvailableVersion(string) ([]*repo.ChartVersion, error) {
+	return nil, nil
+}
+
+// TestCacheVersionedUIDataKeepsAvailableVersions covers what the UI reads to
+// offer version choices. The listing carries every version, but the per-version
+// fetch it drives is pinned and need not, so caching the fetch result verbatim
+// showed the addon as having a single version.
+func TestCacheVersionedUIDataKeepsAvailableVersions(t *testing.T) {
+	u := NewCache(nil)
+	stub := &registryStub{
+		list: []*UIData{{
+			Meta:              Meta{Name: "fluxcd", Version: "3.0.2"},
+			AvailableVersions: []string{"3.0.2", "3.0.1", "2.0.0"},
+		}},
+		perCall: func(name, version string) *UIData {
+			// A pinned fetch: no version list, matching ociRegistry.loadAddon.
+			return &UIData{Meta: Meta{Name: name, Version: version}}
+		},
+	}
+
+	u.cacheVersionedUIData("ecr", stub, stub.list)
+
+	cached := u.getCachedUIData(Registry{Name: "ecr", Helm: &HelmSource{URL: "oci://reg/addon"}}, "fluxcd", "3.0.2")
+	require.NotNil(t, cached)
+	assert.Equal(t, []string{"3.0.2", "3.0.1", "2.0.0"}, cached.AvailableVersions)
+
+	latest := u.getCachedUIData(Registry{Name: "ecr", Helm: &HelmSource{URL: "oci://reg/addon"}}, "fluxcd", "")
+	require.NotNil(t, latest)
+	assert.Equal(t, []string{"3.0.2", "3.0.1", "2.0.0"}, latest.AvailableVersions)
+}
+
+func TestCacheVersionedUIDataEdgeCases(t *testing.T) {
+	t.Run("skips addon on fetch error", func(t *testing.T) {
+		u := NewCache(nil)
+		stub := &registryStub{
+			list: []*UIData{{Meta: Meta{Name: "fluxcd", Version: "1.0.0"}}},
+			err:  errors.New("network error"),
+		}
+
+		u.cacheVersionedUIData("test-reg", stub, stub.list)
+		assert.Empty(t, u.versionedUIData["test-reg"])
+	})
+
+	t.Run("skips addon with empty name from chart", func(t *testing.T) {
+		u := NewCache(nil)
+		stub := &registryStub{
+			list: []*UIData{{Meta: Meta{Name: "badchart", Version: "1.0.0"}}},
+			perCall: func(_, version string) *UIData {
+				return &UIData{Meta: Meta{Name: "", Version: version}}
+			},
+		}
+
+		u.cacheVersionedUIData("test-reg", stub, stub.list)
+		assert.Empty(t, u.versionedUIData["test-reg"])
+	})
+
+	t.Run("deletes stale entries no longer in listing", func(t *testing.T) {
+		u := NewCache(nil)
+		// Pre-populate with an addon that won't appear in the new listing.
+		u.putVersionedUIData2Cache("test-reg", "old-addon", "1.0.0", &UIData{Meta: Meta{Name: "old-addon", Version: "1.0.0"}})
+		u.putVersionedUIData2Cache("test-reg", "old-addon", "latest", &UIData{Meta: Meta{Name: "old-addon", Version: "1.0.0"}})
+		require.NotNil(t, u.versionedUIData["test-reg"]["old-addon-1.0.0"])
+
+		stub := &registryStub{
+			list: []*UIData{{Meta: Meta{Name: "fluxcd", Version: "1.0.0"}}},
+			perCall: func(name, version string) *UIData {
+				return &UIData{Meta: Meta{Name: name, Version: version}}
+			},
+		}
+
+		u.cacheVersionedUIData("test-reg", stub, stub.list)
+
+		assert.NotNil(t, u.versionedUIData["test-reg"]["fluxcd-1.0.0"], "new addon must be cached")
+		assert.Nil(t, u.versionedUIData["test-reg"]["old-addon-1.0.0"], "stale addon must be deleted")
+	})
+
+	t.Run("preserves available versions when fetch already has them", func(t *testing.T) {
+		u := NewCache(nil)
+		stub := &registryStub{
+			list: []*UIData{{
+				Meta:              Meta{Name: "fluxcd", Version: "1.0.0"},
+				AvailableVersions: []string{"1.0.0", "0.9.0"},
+			}},
+			perCall: func(name, version string) *UIData {
+				return &UIData{Meta: Meta{Name: name, Version: version}, AvailableVersions: []string{"1.0.0"}}
+			},
+		}
+
+		u.cacheVersionedUIData("test-reg", stub, stub.list)
+
+		cached := u.versionedUIData["test-reg"]["fluxcd-1.0.0"]
+		require.NotNil(t, cached)
+		// The fetch already carried versions, so the listing's list must not override it.
+		assert.Equal(t, []string{"1.0.0"}, cached.AvailableVersions)
+	})
+}
+
+// TestPutRegistry2CacheClearsVersionedUIDataOnDelete pins a stale-cache bug: a
+// deleted registry's versionedUIData entries survived putRegistry2Cache's
+// cleanup, which only cleared registry/registryMeta/uiData. Recreating a
+// registry with the same name would then serve the old registry's cached
+// versioned addons instead of re-fetching.
+func TestPutRegistry2CacheClearsVersionedUIDataOnDelete(t *testing.T) {
+	u := NewCache(nil)
+	u.putRegistry2Cache([]Registry{{Name: "ecr", Helm: &HelmSource{URL: "oci://reg/addon"}}})
+	u.putVersionedUIData2Cache("ecr", "fluxcd", "1.0.0", &UIData{Meta: Meta{Name: "fluxcd", Version: "1.0.0"}})
+	require.NotNil(t, u.versionedUIData["ecr"]["fluxcd-1.0.0"])
+
+	// "ecr" is no longer in the configured list, so it must be cleaned up.
+	u.putRegistry2Cache(nil)
+
+	assert.Nil(t, u.versionedUIData["ecr"], "versionedUIData for a deleted registry must not survive")
+}
+
+// TestVersionedUIDataConcurrentAccessIsSynchronized pins the locking around
+// versionedUIData. Registry discovery runs on its own goroutine and prunes
+// whole registries from that map, while GetUIData reads it on the request
+// path. Both the read and the prune used to be unlocked, so the two racing
+// panicked the process with "concurrent map read and map write".
+//
+// This test only detects the race under -race, which CI runs.
+func TestVersionedUIDataConcurrentAccessIsSynchronized(t *testing.T) {
+	c := NewCache(nil)
+	registry := Registry{Name: "ecr", Helm: &HelmSource{URL: "oci://reg/addon"}}
+	c.putRegistry2Cache([]Registry{registry})
+	c.putVersionedUIData2Cache("ecr", "fluxcd", "1.0.0", &UIData{Meta: Meta{Name: "fluxcd", Version: "1.0.0"}})
+
+	const rounds = 200
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	// Discovery churn: the registry disappears and comes back, so the map entry
+	// is deleted and recreated underneath the readers. putRegistry2Cache only
+	// re-adds the registry entry, not versionedUIData, so the versioned entry
+	// has to be recreated here too -- otherwise it survives only the first
+	// cycle and pruneVersionedUIData's own delete loop below never runs against
+	// a non-empty map again.
+	go func() {
+		defer wg.Done()
+		for i := 0; i < rounds; i++ {
+			c.putRegistry2Cache(nil)
+			c.putRegistry2Cache([]Registry{registry})
+			c.putVersionedUIData2Cache("ecr", "fluxcd", "1.0.0", &UIData{Meta: Meta{Name: "fluxcd", Version: "1.0.0"}})
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < rounds; i++ {
+			c.getCachedUIData(registry, "fluxcd", "1.0.0")
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < rounds; i++ {
+			// A survivor list that does not include "fluxcd" so needDelete stays
+			// true and the delete(addonUIData, k) branch actually executes
+			// concurrently with the two goroutines above, instead of every call
+			// matching "fluxcd" and skipping the delete entirely.
+			c.pruneVersionedUIData("ecr", []*UIData{{Meta: Meta{Name: "other-addon"}}})
+		}
+	}()
+
+	wg.Wait()
+}
+
+// TestCacheGetUIData covers the three shapes GetUIData now takes since it
+// uses the chart-registry predicate: a cache hit
+// short-circuits both branches, a versioned/OCI miss goes through
+// ToVersionedRegistry, and a non-versioned registry with no source info
+// fails building its reader.
+func TestCacheGetUIData(t *testing.T) {
+	t.Run("cache hit returns without touching the registry", func(t *testing.T) {
+		c := NewCache(nil)
+		c.putVersionedUIData2Cache("ecr", "fluxcd", "1.0.0", &UIData{Meta: Meta{Name: "fluxcd", Version: "1.0.0"}})
+		r := Registry{Name: "ecr", Helm: &HelmSource{URL: "oci://127.0.0.1:1/addon"}}
+
+		data, err := c.GetUIData(r, "fluxcd", "1.0.0")
+		require.NoError(t, err)
+		require.NotNil(t, data)
+		assert.Equal(t, "fluxcd", data.Name)
+	})
+
+	t.Run("OCI registry cache miss resolves through ToVersionedRegistry and fails fast", func(t *testing.T) {
+		c := NewCache(nil)
+		r := Registry{Name: "ecr", Helm: &HelmSource{URL: "oci://127.0.0.1:1/addon"}}
+
+		_, err := c.GetUIData(r, "fluxcd", "1.0.0")
+		require.Error(t, err)
+	})
+
+	t.Run("non-versioned registry with no source info fails fast", func(t *testing.T) {
+		c := NewCache(nil)
+		r := Registry{Name: "bare"}
+
+		_, err := c.GetUIData(r, "fluxcd", "")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "enough info")
+	})
+}
+
+// TestCacheDiscoverAndRefreshRegistry exercises discoverAndRefreshRegistry's
+// updated branch (IsVersionRegistry) for both a non-versioned and an
+// OCI registry. Both listings fail fast against an unreachable host, so the
+// call completes deterministically without a real network dependency, while
+// still recording every registry in the cache via putRegistry2Cache.
+func TestCacheDiscoverAndRefreshRegistry(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, corev1.AddToScheme(scheme))
+	kubeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+	store := NewRegistryDataStore(kubeClient)
+	require.NoError(t, store.AddRegistry(context.Background(), Registry{Name: "bare"}))
+	require.NoError(t, store.AddRegistry(context.Background(), Registry{
+		Name: "ecr", Helm: &HelmSource{URL: "oci://127.0.0.1:1/addon"},
+	}))
+
+	c := NewCache(store)
+	c.discoverAndRefreshRegistry()
+
+	assert.Len(t, c.registry, 2, "registries are recorded in the cache even when their listings fail")
 }
