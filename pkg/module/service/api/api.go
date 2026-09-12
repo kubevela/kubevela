@@ -33,7 +33,8 @@ type ModuleRequest struct {
 	Registry string
 	// Namespace is where the module's definitions install. Empty means the
 	// default system namespace. It does not place the owned Application, which
-	// always lives in the system namespace.
+	// always lives in the system namespace. The module is still installed once
+	// cluster-wide.
 	Namespace string
 	// Version selects the module package version (the OCI/ECR tag vela module
 	// publish writes from _module.cue's version field). A git source ignores

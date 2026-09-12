@@ -138,7 +138,7 @@ func TestRenderApplication_OwnedApplicationStaysInVelaSystem(t *testing.T) {
 
 	meta := app["metadata"].(map[string]interface{})
 	require.Equal(t, types.DefaultKubeVelaNS, meta["namespace"])
-	require.Equal(t, "module-s3-team-a", meta["name"])
+	require.Equal(t, "module-s3", meta["name"])
 
 	var defs []interface{}
 	for _, c := range components(t, app) {
@@ -151,19 +151,21 @@ func TestRenderApplication_OwnedApplicationStaysInVelaSystem(t *testing.T) {
 	require.Equal(t, "team-a", defMeta["namespace"])
 }
 
-// TestRenderApplication_TargetNamespacesRenderDistinctApplications guards the
-// collision that sharing one vela-system home would otherwise create: two
-// namespaces installing the same module must not render one Application twice,
-// or each install would claim the other's object.
-func TestRenderApplication_TargetNamespacesRenderDistinctApplications(t *testing.T) {
+// TestRenderApplication_OwnedApplicationNameIgnoresTheNamespace pins the
+// install-once-cluster-wide rule: one module is one owned Application whatever
+// namespace its definitions target. Deriving a per-namespace name here would
+// quietly allow a module to be installed twice; keeping one name is what makes
+// the second install fail against the first's claim on the object.
+func TestRenderApplication_OwnedApplicationNameIgnoresTheNamespace(t *testing.T) {
 	a, err := RenderApplication(fixtureModule(), "team-a")
 	require.NoError(t, err)
 	b, err := RenderApplication(fixtureModule(), "team-b")
 	require.NoError(t, err)
 
-	require.NotEqual(t,
+	require.Equal(t,
 		a["metadata"].(map[string]interface{})["name"],
 		b["metadata"].(map[string]interface{})["name"])
+	require.Equal(t, "module-s3", a["metadata"].(map[string]interface{})["name"])
 }
 
 // TestRenderApplication_AuxiliaryDefaultsToTheDefinitionNamespace asserts the

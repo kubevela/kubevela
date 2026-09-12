@@ -63,24 +63,6 @@ func DefinitionName(module, apiVersion, name string) string {
 	return TruncateName(module + "-" + apiVersion + "-" + name)
 }
 
-// OwnedApplicationName derives the name of the Application the render service
-// creates for a module. Like DefinitionName this is a shared derivation: the
-// render service writes the name and vela module deploy reads it back, so the
-// two must agree exactly.
-//
-// The owned Application always lives in systemNamespace whatever namespace its
-// definitions target, so the target namespace is part of the name. Without it,
-// installing one module for two namespaces would render two Applications
-// sharing a single name, and each install would claim the other's object.
-// A definitionNamespace equal to systemNamespace adds nothing to disambiguate
-// and keeps the bare module-{name} form.
-func OwnedApplicationName(module, definitionNamespace, systemNamespace string) string {
-	if definitionNamespace == "" || definitionNamespace == systemNamespace {
-		return TruncateName("module-" + module)
-	}
-	return TruncateName("module-" + module + "-" + definitionNamespace)
-}
-
 // TruncateName keeps a derived definition name within the Kubernetes
 // object-name limit.
 func TruncateName(name string) string {
