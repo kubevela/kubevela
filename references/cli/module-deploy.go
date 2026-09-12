@@ -37,7 +37,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	pkgmodule "github.com/oam-dev/kubevela/pkg/module"
-	"github.com/oam-dev/kubevela/pkg/module/naming"
 	modulesvc "github.com/oam-dev/kubevela/pkg/module/service"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -68,11 +67,11 @@ func moduleDeployAppName(moduleName string) string {
 }
 
 // ownedModuleAppName is the name the render service gives the Application it
-// renders for a module whose definitions install into namespace. The
-// derivation is shared with the render service through pkg/module/naming, so
-// the two cannot drift.
-func ownedModuleAppName(moduleName, namespace string) string {
-	return naming.OwnedApplicationName(moduleName, namespace, velatypes.DefaultKubeVelaNS)
+// renders for a module, mirroring RenderApplication in
+// pkg/module/service/render.go. It carries no namespace because a module
+// installs once cluster-wide.
+func ownedModuleAppName(moduleName string) string {
+	return "module-" + moduleName
 }
 
 // buildModuleApplication builds the one-component Application that installs a
@@ -273,7 +272,7 @@ func (o *moduleDeployOptions) waitForModule(ctx context.Context, cli client.Clie
 		var ownedApp v1beta1.Application
 		// The owned Application lives in the system namespace whatever namespace
 		// the definitions install into, so it is read from there, not o.namespace.
-		ownedName := ownedModuleAppName(o.module, o.namespace)
+		ownedName := ownedModuleAppName(o.module)
 		err := cli.Get(ctx, types.NamespacedName{Name: ownedName, Namespace: velatypes.DefaultKubeVelaNS}, &ownedApp)
 		switch {
 		case apierrors.IsNotFound(err):

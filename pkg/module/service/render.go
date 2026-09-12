@@ -77,8 +77,13 @@ func (r *rendererImpl) RenderModule(ctx context.Context, req api.ModuleRequest) 
 // definitionNamespace is where the module's definitions install. The owned
 // Application itself always lives in the system namespace: it is control-plane
 // bookkeeping, so it stays with the control plane even when the capabilities it
-// installs belong to a tenant namespace. Its name carries definitionNamespace
-// so two namespaces installing one module do not collide there.
+// installs belong to a tenant namespace.
+//
+// Its name stays module-{module} with no namespace in it, because a module
+// installs once cluster-wide. A second install into a different namespace is
+// meant to fail, and it does: the owned Application is already controlled by
+// the first install's deploy Application, so MustBeControlledByApp rejects the
+// second (pkg/utils/apply/apply.go).
 func RenderApplication(mod *module.Module, definitionNamespace string) (map[string]interface{}, error) {
 	if mod == nil || mod.Name == "" {
 		return nil, fmt.Errorf("render module: module has no name")
@@ -125,7 +130,7 @@ func RenderApplication(mod *module.Module, definitionNamespace string) (map[stri
 		"apiVersion": "core.oam.dev/v1beta1",
 		"kind":       "Application",
 		"metadata": map[string]interface{}{
-			"name":      naming.OwnedApplicationName(mod.Name, definitionNamespace, types.DefaultKubeVelaNS),
+			"name":      "module-" + mod.Name,
 			"namespace": types.DefaultKubeVelaNS,
 			"labels": map[string]interface{}{
 				types.LabelDefinitionModule: mod.Name,
