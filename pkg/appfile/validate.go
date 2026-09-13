@@ -32,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
+	pkgcuex "github.com/kubevela/pkg/cue/cuex"
 	cueutils "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 
@@ -307,10 +308,12 @@ func ValidateTraitParams(ctxData velaprocess.ContextData, tr *Trait) error {
 
 	templateStr, _ := upgrade.EnsureCueVersionCompatibility(tr.FullTemplate.TemplateStr, tr.Name, upgrade.TraitKind, upgrade.TemplateAreaMain)
 
-	// Compile template-only first (no user params) to distinguish provider-import
-	// errors (expected in standalone validation) from user-param type errors.
+	// Compile template-only first (no user params) to distinguish CUE syntax
+	// errors from user-param type errors. Provider functions are disabled here
+	// and below so that trait validation never triggers external calls — provider
+	// execution is left to EvalContext.
 	templateOnlySrc := strings.Join([]string{renderTemplate(templateStr), baseCtx}, "\n")
-	_, templateCompileErr := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), templateOnlySrc)
+	_, templateCompileErr := velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx.GetCtx(), templateOnlySrc, pkgcuex.DisableResolveProviderFunctions{})
 
 	cueSrc := strings.Join([]string{
 		renderTemplate(templateStr),
@@ -318,7 +321,7 @@ func ValidateTraitParams(ctxData velaprocess.ContextData, tr *Trait) error {
 		baseCtx,
 	}, "\n")
 
-	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), cueSrc)
+	val, err := velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx.GetCtx(), cueSrc, pkgcuex.DisableResolveProviderFunctions{})
 	if err != nil {
 		if templateCompileErr == nil {
 			// Template compiled fine without user params, so the error originates
