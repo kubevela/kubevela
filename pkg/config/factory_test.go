@@ -49,6 +49,42 @@ func TestParseConfigTemplate(t *testing.T) {
 	r.Equal(len(template.Schema.Properties), 4)
 }
 
+func TestIsConfigCRDOwned(t *testing.T) {
+	r := require.New(t)
+
+	legacySecret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{
+		Name: "legacy", Namespace: "default",
+		Labels: map[string]string{types.LabelConfigCatalog: types.VelaCoreConfig},
+	}}
+	r.False(isConfigCRDOwned(legacySecret), "a hand-written legacy Secret has no owner reference")
+
+	crdOwnedSecret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{
+		Name: "crd-backed", Namespace: "default",
+		Labels: map[string]string{types.LabelConfigCatalog: types.VelaCoreConfig},
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: configv1alpha1.SchemeGroupVersion.String(),
+			Kind:       configv1alpha1.ConfigKind,
+			Name:       "crd-backed",
+			Controller: ptrBool(true),
+		}},
+	}}
+	r.True(isConfigCRDOwned(crdOwnedSecret), "the Config CRD reconciler's materialized output Secret must be recognized")
+
+	otherOwnedSecret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{
+		Name: "other-owned", Namespace: "default",
+		Labels: map[string]string{types.LabelConfigCatalog: types.VelaCoreConfig},
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+			Name:       "unrelated",
+			Controller: ptrBool(true),
+		}},
+	}}
+	r.False(isConfigCRDOwned(otherOwnedSecret), "an unrelated owner reference must not be mistaken for a Config CR")
+}
+
+func ptrBool(b bool) *bool { return &b }
+
 const configTemplateCRDCueScript = `
 metadata: { name: "from-crd" }
 template: {

@@ -75,6 +75,15 @@ func newRequest(t *testing.T, op admissionv1.Operation, gvr metav1.GroupVersionR
 	return req
 }
 
+func newUpdateRequest(t *testing.T, gvr metav1.GroupVersionResource, oldObj, newObj interface{}) admission.Request {
+	t.Helper()
+	req := newRequest(t, admissionv1.Update, gvr, newObj)
+	raw, err := json.Marshal(oldObj)
+	assert.NoError(t, err)
+	req.OldObject = runtime.RawExtension{Raw: raw}
+	return req
+}
+
 func TestHandle_WrongResource(t *testing.T) {
 	h := newHandler()
 	req := newRequest(t, admissionv1.Create, metav1.GroupVersionResource{Group: "not", Version: "v1", Resource: "configs"}, nil)
@@ -102,10 +111,102 @@ func TestHandle_DecodeError(t *testing.T) {
 	assert.Equal(t, int32(http.StatusBadRequest), resp.Result.Code)
 }
 
-// spec.properties and spec.propertiesFrom being mutually exclusive is enforced by the
-// Config controller (which sets status.phase=Error), not the webhook, so this must be
-// admitted rather than denied. See config_controller.go's ErrMutuallyExclusiveProperties.
-func TestHandle_MutuallyExclusivePropertiesIsAdmitted(t *testing.T) {
+// spec.templateRef is immutable, matching the legacy factory's ErrChangeTemplate: delete
+// and recreate to move a config to a different template.
+func TestHandle_TemplateRefNameChangeIsDenied(t *testing.T) {
+	h := newHandler()
+	oldCfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "ct-a", Namespace: "default"},
+		},
+	}
+	newCfg := oldCfg.DeepCopy()
+	newCfg.Spec.TemplateRef = &configv1alpha1.ConfigTemplateReference{Name: "ct-b", Namespace: "default"}
+
+	req := newUpdateRequest(t, metav1.GroupVersionResource(configGVR), oldCfg, newCfg)
+	resp := h.Handle(context.TODO(), req)
+	assert.False(t, resp.Allowed)
+	assert.Contains(t, string(resp.Result.Message), "the template of the config can not be changed")
+}
+
+func TestHandle_TemplateRefNamespaceChangeIsDenied(t *testing.T) {
+	h := newHandler()
+	oldCfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "ct-a", Namespace: "default"},
+		},
+	}
+	newCfg := oldCfg.DeepCopy()
+	newCfg.Spec.TemplateRef = &configv1alpha1.ConfigTemplateReference{Name: "ct-a", Namespace: "other-ns"}
+
+	req := newUpdateRequest(t, metav1.GroupVersionResource(configGVR), oldCfg, newCfg)
+	resp := h.Handle(context.TODO(), req)
+	assert.False(t, resp.Allowed)
+	assert.Contains(t, string(resp.Result.Message), "the template of the config can not be changed")
+}
+
+func TestHandle_TemplateRefAddedIsDenied(t *testing.T) {
+	h := newHandler()
+	oldCfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "default"},
+		Spec:       configv1alpha1.ConfigSpec{Properties: rawExtension(map[string]string{"key": "value"})},
+	}
+	newCfg := oldCfg.DeepCopy()
+	newCfg.Spec.TemplateRef = &configv1alpha1.ConfigTemplateReference{Name: "ct-a", Namespace: "default"}
+
+	req := newUpdateRequest(t, metav1.GroupVersionResource(configGVR), oldCfg, newCfg)
+	resp := h.Handle(context.TODO(), req)
+	assert.False(t, resp.Allowed)
+	assert.Contains(t, string(resp.Result.Message), "the template of the config can not be changed")
+}
+
+func TestHandle_TemplateRefRemovedIsDenied(t *testing.T) {
+	h := newHandler()
+	oldCfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "ct-a", Namespace: "default"},
+		},
+	}
+	newCfg := oldCfg.DeepCopy()
+	newCfg.Spec.TemplateRef = nil
+	newCfg.Spec.Properties = rawExtension(map[string]string{"key": "value"})
+
+	req := newUpdateRequest(t, metav1.GroupVersionResource(configGVR), oldCfg, newCfg)
+	resp := h.Handle(context.TODO(), req)
+	assert.False(t, resp.Allowed)
+	assert.Contains(t, string(resp.Result.Message), "the template of the config can not be changed")
+}
+
+func TestHandle_TemplateRefUnchangedOnUpdateIsAllowed(t *testing.T) {
+	ct := &configv1alpha1.ConfigTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "ct-avail", Namespace: "default"},
+		Spec:       configv1alpha1.ConfigTemplateSpec{Template: templateWithRequiredUsername},
+		Status:     configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+	}
+	h := newHandler(ct)
+	oldCfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "ct-avail", Namespace: "default"},
+			Properties:  rawExtension(map[string]string{"username": "alice"}),
+		},
+	}
+	newCfg := oldCfg.DeepCopy()
+	newCfg.Spec.Properties = rawExtension(map[string]string{"username": "bob"})
+
+	req := newUpdateRequest(t, metav1.GroupVersionResource(configGVR), oldCfg, newCfg)
+	resp := h.Handle(context.TODO(), req)
+	assert.True(t, resp.Allowed)
+}
+
+// spec.properties and spec.propertiesFrom being mutually exclusive is fully decidable
+// from the submitted object, so the webhook denies it directly instead of deferring to
+// the Config controller's status.phase=Error (kept as defense in depth for clusters
+// without the webhook installed). See legacyconfig.ErrMutuallyExclusiveProperties.
+func TestHandle_MutuallyExclusivePropertiesIsDenied(t *testing.T) {
 	h := newHandler()
 	cfg := &configv1alpha1.Config{
 		ObjectMeta: metav1.ObjectMeta{Name: "cfg-bad", Namespace: "default"},
@@ -116,7 +217,26 @@ func TestHandle_MutuallyExclusivePropertiesIsAdmitted(t *testing.T) {
 	}
 	req := newRequest(t, admissionv1.Create, metav1.GroupVersionResource(configGVR), cfg)
 	resp := h.Handle(context.TODO(), req)
-	assert.True(t, resp.Allowed)
+	assert.False(t, resp.Allowed)
+	assert.Contains(t, string(resp.Result.Message), "mutually exclusive")
+}
+
+// The mutual-exclusivity check must short-circuit before template resolution, so it
+// denies even when the referenced template doesn't exist (no cluster lookup needed).
+func TestHandle_MutuallyExclusivePropertiesIsDeniedBeforeTemplateResolution(t *testing.T) {
+	h := newHandler()
+	cfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "cfg-bad", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			TemplateRef:    &configv1alpha1.ConfigTemplateReference{Name: "does-not-exist", Namespace: "default"},
+			Properties:     rawExtension(map[string]string{"username": "alice"}),
+			PropertiesFrom: &configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "any-secret"}},
+		},
+	}
+	req := newRequest(t, admissionv1.Create, metav1.GroupVersionResource(configGVR), cfg)
+	resp := h.Handle(context.TODO(), req)
+	assert.False(t, resp.Allowed)
+	assert.Contains(t, string(resp.Result.Message), "mutually exclusive")
 }
 
 func TestHandle_NoTemplateRefIsAllowed(t *testing.T) {
@@ -219,6 +339,50 @@ func TestHandle_PropertiesFromMissingSecretIsDenied(t *testing.T) {
 	resp := h.Handle(context.TODO(), req)
 	assert.False(t, resp.Allowed)
 	assert.Contains(t, string(resp.Result.Message), "failed to load spec.propertiesFrom secret")
+}
+
+func TestHandle_SensitiveTemplateWithInlinePropertiesIsDenied(t *testing.T) {
+	ct := &configv1alpha1.ConfigTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "ct-sensitive", Namespace: "default"},
+		Spec:       configv1alpha1.ConfigTemplateSpec{Template: templateWithRequiredUsername, Sensitive: true},
+		Status:     configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+	}
+	h := newHandler(ct)
+	cfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "leaky", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "ct-sensitive", Namespace: "default"},
+			Properties:  rawExtension(map[string]string{"username": "PLACEHOLDER-TOKEN"}),
+		},
+	}
+	req := newRequest(t, admissionv1.Create, metav1.GroupVersionResource(configGVR), cfg)
+	resp := h.Handle(context.TODO(), req)
+	assert.False(t, resp.Allowed)
+	assert.Contains(t, string(resp.Result.Message), "is sensitive")
+	assert.Contains(t, string(resp.Result.Message), "propertiesFrom")
+}
+
+func TestHandle_SensitiveTemplateWithPropertiesFromIsAllowed(t *testing.T) {
+	ct := &configv1alpha1.ConfigTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "ct-sensitive", Namespace: "default"},
+		Spec:       configv1alpha1.ConfigTemplateSpec{Template: templateWithRequiredUsername, Sensitive: true},
+		Status:     configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "leaky-properties", Namespace: "default"},
+		Data:       map[string][]byte{"properties": []byte(`{"username":"PLACEHOLDER-TOKEN"}`)},
+	}
+	h := newHandler(ct, secret)
+	cfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: "leaky", Namespace: "default"},
+		Spec: configv1alpha1.ConfigSpec{
+			TemplateRef:    &configv1alpha1.ConfigTemplateReference{Name: "ct-sensitive", Namespace: "default"},
+			PropertiesFrom: &configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "leaky-properties"}},
+		},
+	}
+	req := newRequest(t, admissionv1.Create, metav1.GroupVersionResource(configGVR), cfg)
+	resp := h.Handle(context.TODO(), req)
+	assert.True(t, resp.Allowed)
 }
 
 func TestHandle_FallsBackToLegacyConfigMapTemplate(t *testing.T) {

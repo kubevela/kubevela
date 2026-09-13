@@ -54,15 +54,14 @@ func rawExtension(v interface{}) *runtime.RawExtension {
 	return &runtime.RawExtension{Raw: data}
 }
 
-// eventuallyConfigPhase polls the Config until a terminal status phase is observed.
-func eventuallyConfigPhase(ctx context.Context, key client.ObjectKey, got *configv1alpha1.Config) configv1alpha1.ConfigPhase {
-	var phase configv1alpha1.ConfigPhase
+// eventuallyConfigPhase polls the Config until it reaches want, tolerating transient phases
+// in between (e.g. Error while a just-Available ConfigTemplate is still propagating to the
+// controller's cache) instead of stopping at the first terminal-looking phase it sees.
+func eventuallyConfigPhase(ctx context.Context, key client.ObjectKey, want configv1alpha1.ConfigPhase, got *configv1alpha1.Config) {
 	Eventually(func() configv1alpha1.ConfigPhase {
 		Expect(k8sClient.Get(ctx, key, got)).Should(Succeed())
-		phase = got.Status.Phase
-		return phase
-	}, 15*time.Second, time.Second).Should(Or(Equal(configv1alpha1.ConfigPhaseAvailable), Equal(configv1alpha1.ConfigPhaseError)))
-	return phase
+		return got.Status.Phase
+	}, 15*time.Second, time.Second).Should(Equal(want))
 }
 
 var _ = Describe("Config controller", func() {
@@ -89,7 +88,7 @@ var _ = Describe("Config controller", func() {
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
 
 		var gotCfg configv1alpha1.Config
-		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseAvailable, &gotCfg)
 		Expect(gotCfg.Status.SecretRef).ShouldNot(BeNil())
 		Expect(gotCfg.Status.SecretRef.Name).Should(Equal("cfg-inline"))
 
@@ -120,7 +119,7 @@ var _ = Describe("Config controller", func() {
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
 
 		var gotCfg configv1alpha1.Config
-		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseAvailable, &gotCfg)
 
 		var secret corev1.Secret
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cfg-fromsecret"}, &secret)).Should(Succeed())
@@ -138,7 +137,7 @@ var _ = Describe("Config controller", func() {
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
 
 		var gotCfg configv1alpha1.Config
-		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseError))
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseError, &gotCfg)
 		Expect(gotCfg.Status.GetCondition("Synced").Message).Should(ContainSubstring("mutually exclusive"))
 	})
 
@@ -166,7 +165,7 @@ var _ = Describe("Config controller", func() {
 		}
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
 		var gotCfg configv1alpha1.Config
-		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseAvailable, &gotCfg)
 
 		Expect(k8sClient.Delete(ctx, cfg)).Should(Succeed())
 		Eventually(func() bool {
@@ -204,7 +203,7 @@ var _ = Describe("Config controller", func() {
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
 
 		var gotCfg configv1alpha1.Config
-		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseError))
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseError, &gotCfg)
 		Expect(gotCfg.Status.GetCondition("Synced").Message).Should(ContainSubstring("not Available yet"))
 
 		patch := client.MergeFrom(ct.DeepCopy())
@@ -232,7 +231,7 @@ var _ = Describe("Config controller", func() {
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
 
 		var gotCfg configv1alpha1.Config
-		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseAvailable, &gotCfg)
 
 		var secret corev1.Secret
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cfg-notmpl"}, &secret)).Should(Succeed())
@@ -251,7 +250,7 @@ var _ = Describe("Config controller", func() {
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
 
 		var gotCfg configv1alpha1.Config
-		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseError))
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseError, &gotCfg)
 	})
 
 	It("reads properties from a Secret using an explicit key in spec.propertiesFrom.secretRef", func() {
@@ -283,11 +282,201 @@ var _ = Describe("Config controller", func() {
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
 
 		var gotCfg configv1alpha1.Config
-		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseAvailable, &gotCfg)
 
 		var secret corev1.Secret
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cfg-custkey"}, &secret)).Should(Succeed())
 		Expect(string(secret.Data["username"])).Should(Equal("frank"))
+	})
+
+	It("also materializes template.outputs objects alongside the main Secret", func() {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "tmpl-outputs", Namespace: "default"},
+			Spec: configv1alpha1.ConfigTemplateSpec{Template: `
+context: {
+	name:      string
+	namespace: string
+}
+template: {
+	parameter: value: string
+	output: {
+		apiVersion: "v1"
+		kind:       "Secret"
+		metadata: {name: context.name, namespace: context.namespace}
+		stringData: value: parameter.value
+	}
+	outputs: {
+		"companion-cm": {
+			apiVersion: "v1"
+			kind:       "ConfigMap"
+			metadata: name: "\(context.name)-extra"
+			data: value: parameter.value
+		}
+		"companion-cm-2": {
+			apiVersion: "v1"
+			kind:       "ConfigMap"
+			metadata: name: "\(context.name)-extra-2"
+			data: value: parameter.value
+		}
+		"companion-secret": {
+			apiVersion: "v1"
+			kind:       "Secret"
+			metadata: name: "\(context.name)-extra-secret"
+			stringData: value: parameter.value
+		}
+	}
+}
+`},
+		}
+		Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+		Eventually(func() configv1alpha1.ConfigTemplatePhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
+			return ct.Status.Phase
+		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
+
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "cfg-outputs", Namespace: "default"},
+			Spec: configv1alpha1.ConfigSpec{
+				TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "tmpl-outputs", Namespace: "default"},
+				Properties:  rawExtension(map[string]string{"value": "hello"}),
+			},
+		}
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		var gotCfg configv1alpha1.Config
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseAvailable, &gotCfg)
+
+		var secret corev1.Secret
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cfg-outputs"}, &secret)).Should(Succeed())
+		Expect(string(secret.Data["value"])).Should(Equal("hello"))
+
+		var cm corev1.ConfigMap
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cfg-outputs-extra"}, &cm)
+		}, 15*time.Second, time.Second).Should(Succeed())
+		Expect(cm.Data["value"]).Should(Equal("hello"))
+		// GC on Config delete relies on this; envtest has no controller-manager to verify it directly.
+		Expect(cm.OwnerReferences).Should(HaveLen(1))
+		Expect(cm.OwnerReferences[0].Name).Should(Equal("cfg-outputs"))
+		Expect(*cm.OwnerReferences[0].Controller).Should(BeTrue())
+
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cfg-outputs-extra-2"}, &corev1.ConfigMap{})).Should(Succeed())
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cfg-outputs-extra-secret"}, &corev1.Secret{})).Should(Succeed())
+
+		// the Secret must record all three companion objects (not just the first), matching
+		// the legacy Factory.ParseConfig convention so addons/tooling reading objects-reference
+		// off the Secret still discover every output, not just one.
+		var refs []corev1.ObjectReference
+		Expect(json.Unmarshal(secret.Data["objects-reference"], &refs)).Should(Succeed())
+		Expect(refs).Should(ConsistOf(
+			corev1.ObjectReference{Kind: "ConfigMap", APIVersion: "v1", Namespace: "default", Name: "cfg-outputs-extra"},
+			corev1.ObjectReference{Kind: "ConfigMap", APIVersion: "v1", Namespace: "default", Name: "cfg-outputs-extra-2"},
+			corev1.ObjectReference{Kind: "Secret", APIVersion: "v1", Namespace: "default", Name: "cfg-outputs-extra-secret"},
+		))
+	})
+
+	It("denies materializing when a sensitive ConfigTemplate is used with inline spec.properties", func() {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "ct-sensitive", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: testCUETemplate, Sensitive: true},
+		}
+		Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+		Eventually(func() configv1alpha1.ConfigTemplatePhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
+			return ct.Status.Phase
+		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
+
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "leaky", Namespace: "default"},
+			Spec: configv1alpha1.ConfigSpec{
+				TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "ct-sensitive", Namespace: "default"},
+				Properties:  rawExtension(map[string]string{"username": "PLACEHOLDER-TOKEN"}),
+			},
+		}
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		var gotCfg configv1alpha1.Config
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseError, &gotCfg)
+		Expect(gotCfg.Status.GetCondition("Synced").Message).Should(ContainSubstring("is sensitive"))
+
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "leaky"}, &corev1.Secret{})).ShouldNot(Succeed())
+	})
+
+	It("materializes a sensitive ConfigTemplate via spec.propertiesFrom with no credential inlined", func() {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "ct-sensitive-ok", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: testCUETemplate, Sensitive: true},
+		}
+		Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+		Eventually(func() configv1alpha1.ConfigTemplatePhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
+			return ct.Status.Phase
+		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
+
+		propsSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "leaky-ok-properties", Namespace: "default"},
+			Data:       map[string][]byte{"properties": []byte(`{"username":"PLACEHOLDER-TOKEN"}`)},
+		}
+		Expect(k8sClient.Create(ctx, propsSecret)).Should(Succeed())
+
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "leaky-ok", Namespace: "default"},
+			Spec: configv1alpha1.ConfigSpec{
+				TemplateRef:    &configv1alpha1.ConfigTemplateReference{Name: "ct-sensitive-ok", Namespace: "default"},
+				PropertiesFrom: &configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "leaky-ok-properties"}},
+			},
+		}
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		var gotCfg configv1alpha1.Config
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseAvailable, &gotCfg)
+		Expect(gotCfg.Spec.Properties).Should(BeNil())
+
+		var secret corev1.Secret
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "leaky-ok"}, &secret)).Should(Succeed())
+		Expect(string(secret.Data["username"])).Should(Equal("PLACEHOLDER-TOKEN"))
+	})
+
+	It("fails to Error, not Available, when a Config with inline properties outlives admission and its template later becomes a sensitive Available template", func() {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "ct-race", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: `this is not valid cue {{{`},
+		}
+		Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+		Eventually(func() configv1alpha1.ConfigTemplatePhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
+			return ct.Status.Phase
+		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseError))
+
+		By("Config with inline properties is admitted while its template isn't Available yet")
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "leaky-race", Namespace: "default"},
+			Spec: configv1alpha1.ConfigSpec{
+				TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "ct-race", Namespace: "default"},
+				Properties:  rawExtension(map[string]string{"username": "PLACEHOLDER-TOKEN"}),
+			},
+		}
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		var gotCfg configv1alpha1.Config
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseError, &gotCfg)
+
+		By("the template later becomes Available and sensitive")
+		patch := client.MergeFrom(ct.DeepCopy())
+		ct.Spec.Template = testCUETemplate
+		ct.Spec.Sensitive = true
+		Expect(k8sClient.Patch(ctx, ct, patch)).Should(Succeed())
+		Eventually(func() configv1alpha1.ConfigTemplatePhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
+			return ct.Status.Phase
+		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
+
+		By("the Config must stay in Error, never Available, once the template resolves as sensitive")
+		Consistently(func() configv1alpha1.ConfigPhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Succeed())
+			return gotCfg.Status.Phase
+		}, 5*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigPhaseError))
+		Expect(gotCfg.Status.GetCondition("Synced").Message).Should(ContainSubstring("is sensitive"))
 	})
 
 	It("falls back to a legacy config-template-* ConfigMap when no ConfigTemplate CRD exists", func() {
@@ -311,7 +500,7 @@ var _ = Describe("Config controller", func() {
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
 
 		var gotCfg configv1alpha1.Config
-		Expect(eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseAvailable, &gotCfg)
 
 		var secret corev1.Secret
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cfg-legacy"}, &secret)).Should(Succeed())

@@ -19,15 +19,15 @@ package config
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"cuelang.org/go/cue"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
@@ -45,23 +45,10 @@ import (
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/cue/script"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
-// ErrMutuallyExclusiveProperties is returned when both spec.properties and spec.propertiesFrom are set.
-var ErrMutuallyExclusiveProperties = errors.New("spec.properties and spec.propertiesFrom are mutually exclusive")
-
 const defaultPropertiesSecretKey = "properties"
-
-// resolvedTemplate is the template resolved for a Config, from a ConfigTemplate CRD
-// or a legacy config-template-* ConfigMap.
-type resolvedTemplate struct {
-	name      string
-	namespace string
-	cue       script.CUE
-	scope     string
-	sensitive bool
-}
 
 // Reconciler reconciles a Config object.
 type Reconciler struct {
@@ -69,6 +56,7 @@ type Reconciler struct {
 	Scheme               *runtime.Scheme
 	record               event.Recorder
 	concurrentReconciles int
+	applicator           apply.Applicator
 }
 
 // Reconcile is the main logic for the Config controller.
@@ -86,10 +74,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	if cfg.Spec.Properties != nil && cfg.Spec.PropertiesFrom != nil {
-		return r.markError(ctx, &cfg, ErrMutuallyExclusiveProperties)
+		return r.markError(ctx, &cfg, legacyconfig.ErrMutuallyExclusiveProperties)
 	}
 
-	var tmpl *resolvedTemplate
+	var tmpl *legacyconfig.ResolvedTemplate
 	if cfg.Spec.TemplateRef != nil {
 		resolved, waiting, err := r.resolveTemplate(ctx, cfg.Spec.TemplateRef)
 		if err != nil {
@@ -101,12 +89,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		tmpl = resolved
 	}
 
+	// defense in depth: the validating webhook already blocks this, but a Config applied
+	// before its sensitive template first becomes Available can slip past admission.
+	if tmpl != nil && tmpl.Sensitive && cfg.Spec.Properties != nil {
+		return r.markError(ctx, &cfg, fmt.Errorf("config template %s/%s is sensitive: spec.properties must not be set, use spec.propertiesFrom instead", tmpl.Namespace, tmpl.Name))
+	}
+
 	props, err := r.resolveProperties(ctx, &cfg)
 	if err != nil {
 		return r.markError(ctx, &cfg, err)
 	}
 
-	secret, err := r.renderSecret(ctx, &cfg, tmpl, props)
+	secret, outputs, err := r.renderSecret(ctx, &cfg, tmpl, props)
 	if err != nil {
 		return r.markError(ctx, &cfg, err)
 	}
@@ -119,6 +113,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.markError(ctx, &cfg, err)
 	}
 
+	if err := r.applyOutputs(ctx, &cfg, outputs); err != nil {
+		return r.markError(ctx, &cfg, err)
+	}
+
 	cfg.Status.Phase = configv1alpha1.ConfigPhaseAvailable
 	cfg.Status.SecretRef = &corev1.LocalObjectReference{Name: secret.Name}
 	cfg.Status.SetConditions(condition.ReconcileSuccess())
@@ -128,46 +126,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 // resolveTemplate looks up the referenced template, CRD first, falling back to a
 // legacy ConfigMap. waiting is true if the ConfigTemplate CRD exists but its schema
 // hasn't reconciled yet.
-func (r *Reconciler) resolveTemplate(ctx context.Context, ref *configv1alpha1.ConfigTemplateReference) (*resolvedTemplate, bool, error) {
-	ns := ref.Namespace
-	if ns == "" {
-		ns = apitypes.DefaultKubeVelaNS
-	}
-
-	var ct configv1alpha1.ConfigTemplate
-	err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref.Name}, &ct)
-	switch {
-	case err == nil:
-		if ct.Status.Phase != configv1alpha1.ConfigTemplatePhaseAvailable {
-			return nil, true, nil
-		}
-		return &resolvedTemplate{
-			name:      ct.Name,
-			namespace: ns,
-			cue:       script.CUE(ct.Spec.Template),
-			scope:     string(ct.Spec.Scope),
-			sensitive: ct.Spec.Sensitive,
-		}, false, nil
-	case apierrors.IsNotFound(err):
-	default:
-		return nil, false, err
-	}
-
-	var cm corev1.ConfigMap
-	cmName := legacyconfig.TemplateConfigMapNamePrefix + ref.Name
-	if err := r.Get(ctx, client.ObjectKey{Namespace: ns, Name: cmName}, &cm); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil, false, legacyconfig.ErrTemplateNotFound
-		}
-		return nil, false, err
-	}
-	return &resolvedTemplate{
-		name:      ref.Name,
-		namespace: ns,
-		cue:       script.CUE(cm.Data[legacyconfig.SaveTemplateKey]),
-		scope:     cm.Labels[apitypes.LabelConfigScope],
-		sensitive: cm.Annotations[apitypes.AnnotationConfigSensitive] == "true",
-	}, false, nil
+func (r *Reconciler) resolveTemplate(ctx context.Context, ref *configv1alpha1.ConfigTemplateReference) (*legacyconfig.ResolvedTemplate, bool, error) {
+	return legacyconfig.ResolveConfigTemplate(ctx, r.Client, ref)
 }
 
 func (r *Reconciler) resolveProperties(ctx context.Context, cfg *configv1alpha1.Config) (map[string]interface{}, error) {
@@ -201,46 +161,56 @@ func (r *Reconciler) resolveProperties(ctx context.Context, cfg *configv1alpha1.
 	return props, nil
 }
 
-func (r *Reconciler) renderSecret(ctx context.Context, cfg *configv1alpha1.Config, tmpl *resolvedTemplate, props map[string]interface{}) (*corev1.Secret, error) {
+func (r *Reconciler) renderSecret(ctx context.Context, cfg *configv1alpha1.Config, tmpl *legacyconfig.ResolvedTemplate, props map[string]interface{}) (*corev1.Secret, []*unstructured.Unstructured, error) {
 	secret := &corev1.Secret{}
+	var outputs []*unstructured.Unstructured
 
 	if tmpl != nil {
 		contextValue := icontext.ConfigRenderContext{Name: cfg.Name, Namespace: cfg.Namespace}
-		val, err := tmpl.cue.RunAndOutputWithCueX(ctx, contextValue, props)
+		val, err := tmpl.CUE.RunAndOutputWithCueX(ctx, contextValue, props)
 		if err != nil && !velacue.IsFieldNotExist(err) {
-			return nil, fmt.Errorf("failed to render config template: %w", err)
+			return nil, nil, fmt.Errorf("failed to render config template: %w", err)
 		}
 
 		validReturns := val.LookupPath(cue.ParsePath(legacyconfig.TemplateValidationReturns))
 		if validReturns.Exists() {
 			var validation legacyconfig.Validation
 			if err := validReturns.Decode(&validation); err != nil {
-				return nil, fmt.Errorf("template.validation.$returns format must be a validation object: %w", err)
+				return nil, nil, fmt.Errorf("template.validation.$returns format must be a validation object: %w", err)
 			}
 			if len(validation.Message) > 0 {
-				return nil, &validation
+				return nil, nil, &validation
 			}
 		}
 
 		output := val.LookupPath(cue.ParsePath(legacyconfig.TemplateOutput))
 		if output.Exists() {
 			if err := output.Decode(secret); err != nil {
-				return nil, fmt.Errorf("template.output format must be a secret: %w", err)
+				return nil, nil, fmt.Errorf("template.output format must be a secret: %w", err)
 			}
+		}
+		if secret.Type == "" {
+			// matches the legacy Factory.ParseConfig fallback
+			secret.Type = corev1.SecretType(fmt.Sprintf("%s/%s", "", tmpl.Name))
+		}
+
+		outputs, err = renderOutputs(val, cfg.Namespace)
+		if err != nil {
+			return nil, nil, err
 		}
 
 		if secret.Labels == nil {
 			secret.Labels = map[string]string{}
 		}
 		secret.Labels[apitypes.LabelConfigCatalog] = apitypes.VelaCoreConfig
-		secret.Labels[apitypes.LabelConfigType] = tmpl.name
-		secret.Labels[apitypes.LabelConfigScope] = tmpl.scope
+		secret.Labels[apitypes.LabelConfigType] = tmpl.Name
+		secret.Labels[apitypes.LabelConfigScope] = tmpl.Scope
 
 		if secret.Annotations == nil {
 			secret.Annotations = map[string]string{}
 		}
-		secret.Annotations[apitypes.AnnotationConfigSensitive] = fmt.Sprintf("%t", tmpl.sensitive)
-		secret.Annotations[apitypes.AnnotationConfigTemplateNamespace] = tmpl.namespace
+		secret.Annotations[apitypes.AnnotationConfigSensitive] = fmt.Sprintf("%t", tmpl.Sensitive)
+		secret.Annotations[apitypes.AnnotationConfigTemplateNamespace] = tmpl.Namespace
 	} else {
 		secret.Labels = map[string]string{
 			apitypes.LabelConfigCatalog: apitypes.VelaCoreConfig,
@@ -257,7 +227,7 @@ func (r *Reconciler) renderSecret(ctx context.Context, cfg *configv1alpha1.Confi
 
 	propsJSON, err := json.Marshal(props)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode properties: %w", err)
+		return nil, nil, fmt.Errorf("failed to encode properties: %w", err)
 	}
 	if secret.Data == nil {
 		secret.Data = map[string][]byte{}
@@ -265,7 +235,63 @@ func (r *Reconciler) renderSecret(ctx context.Context, cfg *configv1alpha1.Confi
 	// matches the key the legacy Factory.ReadConfig/ListConfigs read
 	secret.Data[legacyconfig.SaveInputPropertiesKey] = propsJSON
 
-	return secret, nil
+	if len(outputs) > 0 {
+		refs := make([]corev1.ObjectReference, 0, len(outputs))
+		for _, obj := range outputs {
+			refs = append(refs, corev1.ObjectReference{
+				Kind:       obj.GetKind(),
+				Namespace:  obj.GetNamespace(),
+				Name:       obj.GetName(),
+				APIVersion: obj.GetAPIVersion(),
+			})
+		}
+		refsJSON, err := json.Marshal(refs)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to encode object references: %w", err)
+		}
+		// matches the key the legacy Factory.ParseConfig writes, so tooling that
+		// discovers a config's companion objects through the Secret works for both.
+		secret.Data[legacyconfig.SaveObjectReferenceKey] = refsJSON
+	}
+
+	return secret, outputs, nil
+}
+
+// renderOutputs decodes template.outputs (name -> arbitrary object) into unstructured
+// objects, forcing each into the Config's own namespace to prevent cross-namespace writes.
+func renderOutputs(val cue.Value, namespace string) ([]*unstructured.Unstructured, error) {
+	outputsVal := val.LookupPath(cue.ParsePath(legacyconfig.TemplateOutputs))
+	if !outputsVal.Exists() {
+		return nil, nil
+	}
+	var objects map[string]interface{}
+	if err := outputsVal.Decode(&objects); err != nil {
+		return nil, fmt.Errorf("template.outputs format must be a map of objects: %w", err)
+	}
+
+	names := make([]string, 0, len(objects))
+	for name := range objects {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	result := make([]*unstructured.Unstructured, 0, len(names))
+	for _, name := range names {
+		obj, ok := objects[name].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("template.outputs.%s must be an object", name)
+		}
+		u := &unstructured.Unstructured{Object: obj}
+		if u.GetAPIVersion() == "" || u.GetKind() == "" {
+			return nil, fmt.Errorf("template.outputs.%s must set apiVersion and kind", name)
+		}
+		if u.GetName() == "" {
+			return nil, fmt.Errorf("template.outputs.%s must set metadata.name", name)
+		}
+		u.SetNamespace(namespace)
+		result = append(result, u)
+	}
+	return result, nil
 }
 
 // applySecret creates or updates the materialized output Secret. It refuses to
@@ -287,6 +313,25 @@ func (r *Reconciler) applySecret(ctx context.Context, cfg *configv1alpha1.Config
 		return nil
 	})
 	return err
+}
+
+// applyOutputs applies the template.outputs objects, owned by the Config for GC on delete.
+func (r *Reconciler) applyOutputs(ctx context.Context, cfg *configv1alpha1.Config, outputs []*unstructured.Unstructured) error {
+	for _, obj := range outputs {
+		if err := controllerutil.SetControllerReference(cfg, obj, r.Scheme); err != nil {
+			return fmt.Errorf("failed to set owner reference on output object %s %s: %w", obj.GetKind(), obj.GetName(), err)
+		}
+		mustBeOwnedByConfig := apply.MakeCustomApplyOption(func(existing, _ client.Object) error {
+			if existing != nil && existing.GetUID() != "" && !metav1.IsControlledBy(existing, cfg) {
+				return fmt.Errorf("object %s %s/%s already exists and is not owned by this Config", obj.GetKind(), obj.GetNamespace(), obj.GetName())
+			}
+			return nil
+		})
+		if err := r.applicator.Apply(ctx, obj, apply.DisableUpdateAnnotation(), apply.Quiet(), mustBeOwnedByConfig); err != nil {
+			return fmt.Errorf("failed to apply output object %s %s/%s: %w", obj.GetKind(), obj.GetNamespace(), obj.GetName(), err)
+		}
+	}
+	return nil
 }
 
 // markError records a reconcile failure on the status without propagating the
@@ -400,6 +445,9 @@ func (r *Reconciler) findConfigsForLegacyTemplateConfigMap(ctx context.Context, 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("Config")).
 		WithAnnotations("controller", "Config")
+	if r.applicator == nil {
+		r.applicator = apply.NewAPIApplicator(mgr.GetClient())
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: r.concurrentReconciles,
@@ -424,6 +472,7 @@ func Setup(mgr ctrl.Manager, args oamctrl.Args) error {
 		Client:               mgr.GetClient(),
 		Scheme:               mgr.GetScheme(),
 		concurrentReconciles: args.ConcurrentReconciles,
+		applicator:           apply.NewAPIApplicator(mgr.GetClient()),
 	}
 	return r.SetupWithManager(mgr)
 }

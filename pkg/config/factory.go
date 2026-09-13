@@ -99,6 +99,14 @@ var ErrConfigNotFound = errors.New("the config does not exist")
 // ErrTemplateNotFound means the template does not exist
 var ErrTemplateNotFound = errors.New("the template does not exist")
 
+// ErrMutuallyExclusiveProperties is returned when both spec.properties and
+// spec.propertiesFrom are set on a Config. Shared by the Config controller and
+// validating webhook so both enforcement points agree on one message.
+var ErrMutuallyExclusiveProperties = errors.New("spec.properties and spec.propertiesFrom are mutually exclusive")
+
+// sensitiveAnnotationValue is the AnnotationConfigSensitive value that marks a config/template sensitive.
+const sensitiveAnnotationValue = "true"
+
 // ErrChangeTemplate means the template of the config can not be changed
 var ErrChangeTemplate = errors.New("the template of the config can not be changed")
 
@@ -373,7 +381,7 @@ func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
 		},
 		Alias:       cm.Annotations[types.AnnotationConfigAlias],
 		Description: cm.Annotations[types.AnnotationConfigDescription],
-		Sensitive:   cm.Annotations[types.AnnotationConfigSensitive] == "true",
+		Sensitive:   cm.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue,
 		Scope:       cm.Labels[types.LabelConfigScope],
 		CreateTime:  cm.CreationTimestamp.Time,
 		Template:    script.CUE(cm.Data[SaveTemplateKey]),
@@ -621,7 +629,7 @@ func (k *kubeConfigFactory) ReadConfig(ctx context.Context, namespace, name stri
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
 		return nil, err
 	}
-	if secret.Annotations[types.AnnotationConfigSensitive] == "true" {
+	if secret.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue {
 		return nil, ErrSensitiveConfig
 	}
 	properties := secret.Data[SaveInputPropertiesKey]
@@ -640,7 +648,7 @@ func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name strin
 		}
 		return nil, err
 	}
-	if secret.Annotations[types.AnnotationConfigSensitive] == "true" {
+	if secret.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue {
 		return nil, ErrSensitiveConfig
 	}
 	item, err := convertSecret2Config(&secret)
@@ -706,6 +714,16 @@ func (k *kubeConfigFactory) IsExist(ctx context.Context, namespace, name string)
 	return true, nil
 }
 
+// isConfigCRDOwned reports whether secret is a Config CRD's materialized output Secret.
+func isConfigCRDOwned(secret *v1.Secret) bool {
+	for _, ref := range secret.OwnerReferences {
+		if ref.Kind == configv1alpha1.ConfigKind && ref.APIVersion == configv1alpha1.SchemeGroupVersion.String() {
+			return true
+		}
+	}
+	return false
+}
+
 func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template, scope string, withStatus bool) ([]*Config, error) {
 	var list = &v1.SecretList{}
 	requirement := fmt.Sprintf("%s=%s", types.LabelConfigCatalog, types.VelaCoreConfig)
@@ -727,6 +745,10 @@ func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template
 	var configs []*Config
 	for i := range list.Items {
 		item := list.Items[i]
+		// CRD-materialized secrets carry the same legacy labels for compat; only the owner ref distinguishes them.
+		if isConfigCRDOwned(&item) {
+			continue
+		}
 		it, err := convertSecret2Config(&item)
 		if err != nil {
 			klog.Warningf("fail to parse the secret %s:%s", item.Name, err.Error())
@@ -985,7 +1007,7 @@ func convertSecret2Config(se *v1.Secret) (*Config, error) {
 		config.Alias = se.Annotations[types.AnnotationConfigAlias]
 		config.Description = se.Annotations[types.AnnotationConfigDescription]
 		config.Template.Namespace = se.Annotations[types.AnnotationConfigTemplateNamespace]
-		config.Template.Sensitive = se.Annotations[types.AnnotationConfigSensitive] == "true"
+		config.Template.Sensitive = se.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue
 	}
 	if !config.Template.Sensitive && len(se.Data[SaveInputPropertiesKey]) > 0 {
 		var properties = map[string]interface{}{}

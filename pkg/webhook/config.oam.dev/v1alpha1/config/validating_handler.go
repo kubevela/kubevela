@@ -19,24 +19,23 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 
 	"cuelang.org/go/cue"
 	admissionv1 "k8s.io/api/admission/v1"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
-	apitypes "github.com/oam-dev/kubevela/apis/types"
 	legacyconfig "github.com/oam-dev/kubevela/pkg/config"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
 
 var configGVR = configv1alpha1.ConfigGVR
@@ -64,15 +63,31 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	// spec.templateRef is immutable, matching the legacy factory's ErrChangeTemplate:
+	// delete and recreate to move a config to a different template. Compares the whole
+	// reference (not just .Name) so a namespace change, or adding/removing the field
+	// entirely, is caught too - all three change which template is in effect.
+	if req.Operation == admissionv1.Update {
+		oldObj := &configv1alpha1.Config{}
+		if err := h.Decoder.DecodeRaw(req.OldObject, oldObj); err != nil {
+			return admission.Errored(http.StatusBadRequest, err)
+		}
+		if !reflect.DeepEqual(obj.Spec.TemplateRef, oldObj.Spec.TemplateRef) {
+			return admission.Denied(fmt.Sprintf(
+				"%s: delete and recreate the config to use a different template (requestUID=%s)",
+				legacyconfig.ErrChangeTemplate, req.UID))
+		}
+	}
+
 	if obj.Spec.Properties != nil && obj.Spec.PropertiesFrom != nil {
-		return admission.ValidationResponse(true, "")
+		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", legacyconfig.ErrMutuallyExclusiveProperties, req.UID))
 	}
 
 	if obj.Spec.TemplateRef == nil {
 		return admission.ValidationResponse(true, "")
 	}
 
-	cueScript, resolved, err := h.resolveTemplate(ctx, obj.Spec.TemplateRef)
+	tmpl, resolved, err := h.resolveTemplate(ctx, obj.Spec.TemplateRef)
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
@@ -80,17 +95,23 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.ValidationResponse(true, "")
 	}
 
+	if tmpl.Sensitive && obj.Spec.Properties != nil {
+		return admission.Denied(fmt.Sprintf(
+			"config template %s/%s is sensitive: spec.properties must not be set, use spec.propertiesFrom instead (requestUID=%s)",
+			tmpl.Namespace, tmpl.Name, req.UID))
+	}
+
 	props, err := h.resolveProperties(ctx, obj)
 	if err != nil {
 		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 	}
 
-	if err := cueScript.ValidatePropertiesWithCueX(ctx, props); err != nil {
+	if err := tmpl.CUE.ValidatePropertiesWithCueX(ctx, props); err != nil {
 		return admission.Denied(fmt.Sprintf("properties do not match template schema: %s (requestUID=%s)", err.Error(), req.UID))
 	}
 
 	contextValue := icontext.ConfigRenderContext{Name: obj.Name, Namespace: obj.Namespace}
-	val, err := cueScript.RunAndOutputWithCueX(ctx, contextValue, props)
+	val, err := tmpl.CUE.RunAndOutputWithCueX(ctx, contextValue, props)
 	if err != nil && !velacue.IsFieldNotExist(err) {
 		return admission.Denied(fmt.Sprintf("failed to render config template: %s (requestUID=%s)", err.Error(), req.UID))
 	}
@@ -114,33 +135,20 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 }
 
 // resolveTemplate mirrors the Config controller's CRD-first, ConfigMap-fallback lookup.
-func (h *ValidatingHandler) resolveTemplate(ctx context.Context, ref *configv1alpha1.ConfigTemplateReference) (script.CUE, bool, error) {
-	ns := ref.Namespace
-	if ns == "" {
-		ns = apitypes.DefaultKubeVelaNS
-	}
-
-	var ct configv1alpha1.ConfigTemplate
-	switch err := h.Client.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref.Name}, &ct); {
-	case err == nil:
-		if ct.Status.Phase != configv1alpha1.ConfigTemplatePhaseAvailable {
-			return "", false, nil
-		}
-		return script.CUE(ct.Spec.Template), true, nil
-	case apierrors.IsNotFound(err):
+// resolved is false (with no error) both when the template doesn't exist yet and when a
+// ConfigTemplate CRD exists but hasn't reached Available - either way admission defers
+// to the controller, which will surface a clear error on the Config once it reconciles.
+func (h *ValidatingHandler) resolveTemplate(ctx context.Context, ref *configv1alpha1.ConfigTemplateReference) (*legacyconfig.ResolvedTemplate, bool, error) {
+	tmpl, waiting, err := legacyconfig.ResolveConfigTemplate(ctx, h.Client, ref)
+	switch {
+	case errors.Is(err, legacyconfig.ErrTemplateNotFound):
+		return nil, false, nil
+	case err != nil:
+		return nil, false, err
+	case waiting:
+		return nil, false, nil
 	default:
-		return "", false, err
-	}
-
-	var cm corev1.ConfigMap
-	cmName := legacyconfig.TemplateConfigMapNamePrefix + ref.Name
-	switch err := h.Client.Get(ctx, client.ObjectKey{Namespace: ns, Name: cmName}, &cm); {
-	case err == nil:
-		return script.CUE(cm.Data[legacyconfig.SaveTemplateKey]), true, nil
-	case apierrors.IsNotFound(err):
-		return "", false, nil
-	default:
-		return "", false, err
+		return tmpl, true, nil
 	}
 }
 

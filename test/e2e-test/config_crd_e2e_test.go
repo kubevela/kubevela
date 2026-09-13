@@ -216,7 +216,7 @@ var _ = Describe("CRD-based config management (config.oam.dev/v1alpha1)", func()
 		Expect(string(secret.Data["username"])).Should(Equal("bob"))
 	})
 
-	It("Config with both spec.properties and spec.propertiesFrom transitions to Error phase", func() {
+	It("Config with both spec.properties and spec.propertiesFrom is denied by the validating webhook", func() {
 		cfg := &configv1alpha1.Config{
 			ObjectMeta: metav1.ObjectMeta{Name: "cfg-bad", Namespace: namespace},
 			Spec: configv1alpha1.ConfigSpec{
@@ -226,16 +226,9 @@ var _ = Describe("CRD-based config management (config.oam.dev/v1alpha1)", func()
 				},
 			},
 		}
-		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
-
-		Eventually(func() configv1alpha1.ConfigPhase {
-			if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), cfg); err != nil {
-				return ""
-			}
-			return cfg.Status.Phase
-		}, configE2ETimeout, configE2EPollInterval).Should(Equal(configv1alpha1.ConfigPhaseError))
-
-		Expect(cfg.Status.GetCondition("Synced").Message).Should(ContainSubstring("mutually exclusive"))
+		err := k8sClient.Create(ctx, cfg)
+		Expect(err).Should(HaveOccurred())
+		Expect(err.Error()).Should(ContainSubstring("mutually exclusive"))
 	})
 
 	It("Deleting a Config triggers GC of the owned Secret via ownerRef", func() {
@@ -276,6 +269,81 @@ var _ = Describe("CRD-based config management (config.oam.dev/v1alpha1)", func()
 			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: "cfg-gc"}, &secret)
 			return apierrors.IsNotFound(err)
 		}, configE2ETimeout, configE2EPollInterval).Should(BeTrue())
+	})
+
+	It("derives a Secret type from the template name when template.output doesn't set type", func() {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "ct-notype", Namespace: namespace},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: configE2ECUETemplate},
+		}
+		Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+		Eventually(func() configv1alpha1.ConfigTemplatePhase {
+			_ = k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)
+			return ct.Status.Phase
+		}, configE2ETimeout, configE2EPollInterval).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
+
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "cfg-notype", Namespace: namespace},
+			Spec: configv1alpha1.ConfigSpec{
+				TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "ct-notype", Namespace: namespace},
+				Properties:  configE2ERawExtension(map[string]string{"username": "erin"}),
+			},
+		}
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		Eventually(func() configv1alpha1.ConfigPhase {
+			if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), cfg); err != nil {
+				return ""
+			}
+			return cfg.Status.Phase
+		}, configE2ETimeout, configE2EPollInterval).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+
+		var secret corev1.Secret
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: "cfg-notype"}, &secret)).Should(Succeed())
+		// matches the legacy Factory.ParseConfig fallback; not just "Opaque"
+		Expect(string(secret.Type)).Should(Equal("/ct-notype"))
+	})
+
+	It("preserves an explicit type set in template.output", func() {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "ct-withtype", Namespace: namespace},
+			Spec: configv1alpha1.ConfigTemplateSpec{Template: `
+template: {
+	parameter: username: string
+	output: {
+		apiVersion: "v1"
+		kind:       "Secret"
+		type:       "config.oam.dev/ct-withtype"
+		stringData: username: parameter.username
+	}
+}
+`},
+		}
+		Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+		Eventually(func() configv1alpha1.ConfigTemplatePhase {
+			_ = k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)
+			return ct.Status.Phase
+		}, configE2ETimeout, configE2EPollInterval).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
+
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "cfg-withtype", Namespace: namespace},
+			Spec: configv1alpha1.ConfigSpec{
+				TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "ct-withtype", Namespace: namespace},
+				Properties:  configE2ERawExtension(map[string]string{"username": "frank"}),
+			},
+		}
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		Eventually(func() configv1alpha1.ConfigPhase {
+			if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), cfg); err != nil {
+				return ""
+			}
+			return cfg.Status.Phase
+		}, configE2ETimeout, configE2EPollInterval).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+
+		var secret corev1.Secret
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: "cfg-withtype"}, &secret)).Should(Succeed())
+		Expect(string(secret.Type)).Should(Equal("config.oam.dev/ct-withtype"))
 	})
 
 	It("falls back to a legacy config-template-* ConfigMap when no ConfigTemplate CRD exists", func() {

@@ -25,10 +25,12 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/config"
 )
@@ -167,4 +169,41 @@ func createConfigCRD(ctx context.Context, cli client.Client, ns, name, templateN
 		return nil
 	})
 	return err
+}
+
+// setDistributionOwner makes the Config the controller owner of its distribution
+// Application, so deleting the Config (via the CLI, kubectl, or GitOps removing the
+// manifest) always recalls the distributed resources instead of orphaning the
+// Application and the copies it manages in target namespaces/clusters.
+// configCRDAvailable only reports whether the Config CRD type is installed, not
+// whether this particular config is CRD-backed (--config-mode legacy can still create
+// a plain Secret on a CRD-enabled cluster), so a missing Config CR here is expected
+// and not an error - it just means there's no owner to attach.
+func setDistributionOwner(ctx context.Context, cli client.Client, ns, configName, distributionName string) error {
+	cfg := &configv1alpha1.Config{}
+	if err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: configName}, cfg); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to load config %s to own its distribution: %w", configName, err)
+	}
+	// the Application controller reconciles (and updates status on) the distribution
+	// concurrently, so the update below can lose an optimistic-concurrency race; retry.
+	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		app := &v1beta1.Application{}
+		if err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: distributionName}, app); err != nil {
+			return err
+		}
+		if metav1.IsControlledBy(app, cfg) {
+			return nil
+		}
+		if err := controllerutil.SetControllerReference(cfg, app, cli.Scheme()); err != nil {
+			return err
+		}
+		return cli.Update(ctx, app)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set owner reference on distribution %s: %w", distributionName, err)
+	}
+	return nil
 }
