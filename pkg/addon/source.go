@@ -377,15 +377,16 @@ func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderT
 			return nil, errors.New("addon registry invalid")
 		}
 		u.Path = path.Join(u.Path, subPath)
-		_, content, err := utils.Parse(u.String())
+		addrType, content, err := utils.Parse(u.String())
 		if err != nil {
 			return nil, err
 		}
-		// utils.Parse reports an unrecognised address as (TypeUnknown, nil, nil):
-		// no error, no content. A git:// or ssh:// endpoint takes that path, since
-		// only http and https carry a host switch. Without this check the nil
-		// content becomes gitHelper.Meta, and readRepo dereferences it.
-		if content == nil {
+		// utils.Parse reports an unrecognised scheme such as git:// or ssh:// as
+		// (TypeUnknown, nil, nil), and parses oss://, file:// and gitee.com
+		// addresses into content of another type. Either way the GitHub fields
+		// are unset: nil content made readRepo dereference nil, and the others
+		// query owner "" and repo "". Only a GitHub address is usable here.
+		if addrType != utils.TypeGithub || content == nil {
 			return nil, fmt.Errorf("%w: %q", ErrUnsupportedGitEndpoint, endpoint)
 		}
 		gith := createGitHelper(content, token)
@@ -419,12 +420,12 @@ func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderT
 			return nil, errors.New("addon registry invalid")
 		}
 		u.Path = path.Join(u.Path, subPath)
-		_, content, err := utils.Parse(u.String())
+		addrType, content, err := utils.Parse(u.String())
 		if err != nil {
 			return nil, err
 		}
-		// Same nil content as the git case above; giteeHelper.Meta would take it.
-		if content == nil {
+		// Same as the git case above, for gitee.com.
+		if addrType != utils.TypeGitee || content == nil {
 			return nil, fmt.Errorf("%w: %q", ErrUnsupportedGiteeEndpoint, endpoint)
 		}
 		gitee := createGiteeHelper(content, token)

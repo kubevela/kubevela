@@ -321,11 +321,23 @@ func deleteAddonRegistry(ctx context.Context, c common.Args, name string) error 
 // so doing it here turns a registry that would fail at read time into an error
 // at add time. Gitlab and OSS are left alone: building those readers dials out.
 func validateReadableEndpoint(registry pkgaddon.Registry) error {
-	if registry.Git == nil && registry.Gitee == nil {
+	var endpoint string
+	switch {
+	case registry.Git != nil:
+		endpoint = registry.Git.URL
+	case registry.Gitee != nil:
+		endpoint = registry.Gitee.URL
+	default:
 		return nil
 	}
 	_, err := registry.BuildReader()
-	return err
+	if err == nil || errors.Is(err, pkgaddon.ErrUnsupportedGitEndpoint) || errors.Is(err, pkgaddon.ErrUnsupportedGiteeEndpoint) {
+		// The unsupported-endpoint errors already quote the endpoint.
+		return err
+	}
+	// A malformed URL or another HTTP host fails inside utils.Parse, whose
+	// errors do not always name the address.
+	return fmt.Errorf("endpoint %q: %w", endpoint, err)
 }
 
 func addAddonRegistry(ctx context.Context, c common.Args, registry pkgaddon.Registry) error {

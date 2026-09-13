@@ -116,29 +116,6 @@ func TestNewAsyncReader(t *testing.T) {
 			rdType:  gitType,
 			wantErr: true,
 		},
-		// utils.Parse reports an address it does not recognise as
-		// (TypeUnknown, nil, nil): no error, no content. Only http and https
-		// carry a host switch, so every other scheme lands there. These used to
-		// build a helper with a nil Meta, and readRepo then dereferenced it --
-		// the CLI segfaulted on `vela addon list` rather than here.
-		"git type with a git:// endpoint": {
-			baseURL: "git://127.0.0.1:9418/poc.git",
-			subPath: "addons",
-			rdType:  gitType,
-			wantErr: true,
-		},
-		"git type with an ssh:// endpoint": {
-			baseURL: "ssh://git@github.com/kubevela/catalog",
-			subPath: "addons",
-			rdType:  gitType,
-			wantErr: true,
-		},
-		"gitee type with a git:// endpoint": {
-			baseURL: "git://127.0.0.1:9418/poc.git",
-			subPath: "addons",
-			rdType:  giteeType,
-			wantErr: true,
-		},
 		"invalid type": {
 			baseURL: "https://github.com/kubevela/catalog",
 			rdType:  "invalid",
@@ -487,7 +464,12 @@ func TestNewAsyncReaderRejectsUnreadableGitEndpointsInsteadOfPanicking(t *testin
 	}{
 		{"git scheme", "git://127.0.0.1:9418/poc.git", gitType, ErrUnsupportedGitEndpoint},
 		{"ssh scheme", "ssh://git@github.com/kubevela/catalog", gitType, ErrUnsupportedGitEndpoint},
+		// These parse without error, into content of another type.
+		{"oss scheme", "oss://oss-cn-hangzhou.aliyuncs.com/kubevela-addons", gitType, ErrUnsupportedGitEndpoint},
+		{"file scheme", "file:///tmp/addons", gitType, ErrUnsupportedGitEndpoint},
+		{"a gitee.com URL", "https://gitee.com/kubevela/catalog", gitType, ErrUnsupportedGitEndpoint},
 		{"gitee, git scheme", "git://127.0.0.1:9418/poc.git", giteeType, ErrUnsupportedGiteeEndpoint},
+		{"gitee, a github.com URL", "https://github.com/kubevela/catalog", giteeType, ErrUnsupportedGiteeEndpoint},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// The point is that this returns rather than panics.

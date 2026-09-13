@@ -49,6 +49,11 @@ func TestValidateReadableEndpoint(t *testing.T) {
 			wantErr:  pkgaddon.ErrUnsupportedGiteeEndpoint,
 		},
 		{
+			name:     "git registry with an oss:// endpoint is refused",
+			registry: pkgaddon.Registry{Name: "repro-oss", Git: &pkgaddon.GitAddonSource{URL: "oss://oss-cn-hangzhou.aliyuncs.com/kubevela-addons", Path: "addons"}},
+			wantErr:  pkgaddon.ErrUnsupportedGitEndpoint,
+		},
+		{
 			name:     "a github endpoint is still accepted",
 			registry: pkgaddon.Registry{Name: "catalog", Git: &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "addons"}},
 		},
@@ -76,4 +81,13 @@ func TestValidateReadableEndpoint(t *testing.T) {
 			assert.ErrorIs(t, err, tc.wantErr)
 		})
 	}
+}
+
+// An endpoint utils.Parse rejects outright (another HTTP host) is named in the
+// error, so an operator can tell which endpoint to fix.
+func TestValidateReadableEndpointNamesAParseFailure(t *testing.T) {
+	const endpoint = "https://gitlab.example.com/kubevela/catalog"
+	err := validateReadableEndpoint(pkgaddon.Registry{Name: "other-host", Git: &pkgaddon.GitAddonSource{URL: endpoint, Path: "addons"}})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), endpoint)
 }
