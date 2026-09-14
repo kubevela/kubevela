@@ -23,9 +23,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/module/service/api"
 )
+
+// enableModuleComponent turns the gate on for tests that exercise the happy path.
+// Feature gates default to false, and Render refuses outright when the gate is off.
+func enableModuleComponent(t *testing.T) {
+	t.Helper()
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate,
+		features.EnableModuleComponent, true)
+}
 
 type fakeRenderer struct {
 	req api.ModuleRequest
@@ -39,6 +50,8 @@ func (f *fakeRenderer) RenderModule(_ context.Context, req api.ModuleRequest) (*
 }
 
 func TestRender_PassesParamsThroughAndReturnsApplication(t *testing.T) {
+	enableModuleComponent(t)
+
 	prev := api.DefaultRenderer()
 	t.Cleanup(func() { api.SetDefaultRenderer(prev) })
 
@@ -65,6 +78,8 @@ func TestRender_PassesParamsThroughAndReturnsApplication(t *testing.T) {
 // TestRender_DefaultsVersionToEmpty asserts an omitted Version reaches the
 // render service as "" (latest), not some other zero value.
 func TestRender_DefaultsVersionToEmpty(t *testing.T) {
+	enableModuleComponent(t)
+
 	prev := api.DefaultRenderer()
 	t.Cleanup(func() { api.SetDefaultRenderer(prev) })
 
@@ -77,6 +92,8 @@ func TestRender_DefaultsVersionToEmpty(t *testing.T) {
 }
 
 func TestRender_ErrorsWhenRendererNotInitialized(t *testing.T) {
+	enableModuleComponent(t)
+
 	prev := api.DefaultRenderer()
 	t.Cleanup(func() { api.SetDefaultRenderer(prev) })
 	api.SetDefaultRenderer(nil)
@@ -87,6 +104,8 @@ func TestRender_ErrorsWhenRendererNotInitialized(t *testing.T) {
 }
 
 func TestRender_PropagatesRendererError(t *testing.T) {
+	enableModuleComponent(t)
+
 	prev := api.DefaultRenderer()
 	t.Cleanup(func() { api.SetDefaultRenderer(prev) })
 	api.SetDefaultRenderer(&fakeRenderer{err: errors.New("module not found in registry")})
@@ -97,10 +116,30 @@ func TestRender_PropagatesRendererError(t *testing.T) {
 }
 
 func TestRender_ErrorsOnNilResult(t *testing.T) {
+	enableModuleComponent(t)
+
 	prev := api.DefaultRenderer()
 	t.Cleanup(func() { api.SetDefaultRenderer(prev) })
 	api.SetDefaultRenderer(&fakeRenderer{}) // zero value: returns (nil, nil)
 
 	_, err := Render(context.Background(), &RenderParams{Params: RenderVars{Module: "s3"}})
 	require.Error(t, err)
+}
+
+func TestRender_IsRefusedWhenTheGateIsDisabled(t *testing.T) {
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate,
+		features.EnableModuleComponent, false)
+
+	prev := api.DefaultRenderer()
+	t.Cleanup(func() { api.SetDefaultRenderer(prev) })
+
+	// A working renderer is installed, so any failure here can only come from the gate.
+	fake := &fakeRenderer{res: &api.ModuleResult{Application: map[string]interface{}{}}}
+	api.SetDefaultRenderer(fake)
+
+	_, err := Render(context.Background(), &RenderParams{Params: RenderVars{Module: "s3"}})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "EnableModuleComponent")
+	assert.Equal(t, api.ModuleRequest{}, fake.req, "the renderer must not be reached when the gate is off")
 }
