@@ -1,0 +1,22 @@
+# Test for person schema definition
+
+-- in.cue --
+package example
+
+#Person: {
+	name!: string
+	age?:  int
+}
+
+person: #Person & {
+	name: "Alice"
+	age:  30
+}
+
+-- out.cue --
+package example
+
+person: {
+	name: "Alice"
+	age:  30
+}
