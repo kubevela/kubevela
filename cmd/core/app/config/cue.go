@@ -18,6 +18,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/kubevela/pkg/cue/cuex"
 	wfupgrade "github.com/kubevela/workflow/pkg/cue/upgrade"
@@ -133,4 +134,12 @@ func (c *CUEConfig) SyncToCUEGlobals(ctx context.Context) {
 	}
 	upgrade.InitCompatibilityCache(ctx, c.CUECompatibilityCacheSize)
 	wfupgrade.InitCompatibilityCache(ctx, c.CUECompatibilityCacheSize)
+}
+
+// Validate checks if the CUE configuration is valid.
+func (c *CUEConfig) Validate() error {
+	if c.EnableExternalPackageWatch && !c.EnableExternalPackage {
+		return fmt.Errorf("enable-external-package-watch-for-default-compiler cannot be true when enable-external-package-for-default-compiler is false")
+	}
+	return nil
 }

@@ -36,3 +36,8 @@ func NewAdmissionConfig() *AdmissionConfig {
 func (c *AdmissionConfig) AddFlags(fs *pflag.FlagSet) {
 	standardcontroller.AddAdmissionFlags(fs)
 }
+
+// Validate ensures the configuration is valid.
+func (c *AdmissionConfig) Validate() error {
+	return nil
+}
