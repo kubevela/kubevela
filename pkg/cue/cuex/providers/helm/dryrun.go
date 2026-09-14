@@ -47,17 +47,14 @@ func (p *Provider) dryRunRender(ch *chart.Chart, releaseName, releaseNamespace s
 		install.KubeVersion = kv
 	}
 
-	install.PostRenderer = &velaLabelPostRenderer{
-		context:          velaCtx,
-		releaseName:      releaseName,
-		releaseNamespace: releaseNamespace,
-	}
-
+	var postRender *PostRenderParams
 	if options != nil {
+		postRender = options.PostRender
 		if options.SkipHooks != nil {
 			install.DisableHooks = *options.SkipHooks
 		}
 	}
+	install.PostRenderer = newPostRenderer(postRender, velaCtx, releaseName, releaseNamespace)
 
 	rel, err := install.Run(ch, values)
 	if err != nil {

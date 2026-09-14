@@ -83,11 +83,11 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 		return "", "", 0, err
 	}
 
-	postRenderer := &velaLabelPostRenderer{
-		context:          velaCtx,
-		releaseName:      releaseName,
-		releaseNamespace: releaseNamespace,
+	var postRender *PostRenderParams
+	if options != nil {
+		postRender = options.PostRender
 	}
+	postRenderer := newPostRenderer(postRender, velaCtx, releaseName, releaseNamespace)
 
 	// Build labels to embed in the release Secret so KubeVela can track and
 	// delete it via the ResourceTracker when the Application is deleted.
