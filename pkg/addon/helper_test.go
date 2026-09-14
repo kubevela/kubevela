@@ -44,7 +44,7 @@ func setupMockServer() *httptest.Server {
 			"index.yaml",
 			"fluxcd-test-version-1.0.0.tgz",
 			"fluxcd-test-version-2.0.0.tgz",
-			"vela-workflow-v0.6.2.tgz",
+			"vela-workflow-v0.7.3.tgz",
 			"foo-v1.0.0.tgz",
 			"bar-v1.0.0.tgz",
 			"bar-v2.0.0.tgz",

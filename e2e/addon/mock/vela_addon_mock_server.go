@@ -110,8 +110,8 @@ var helmHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Reques
 			_, _ = rw.Write([]byte(err.Error()))
 		}
 		rw.Write(file)
-	case strings.Contains(req.URL.Path, "vela-workflow-v0.6.2.tgz"):
-		file, err := os.ReadFile("./e2e/addon/mock/testrepo/helm-repo/vela-workflow-v0.6.2.tgz")
+	case strings.Contains(req.URL.Path, "vela-workflow-v0.7.3.tgz"):
+		file, err := os.ReadFile("./e2e/addon/mock/testrepo/helm-repo/vela-workflow-v0.7.3.tgz")
 		if err != nil {
 			_, _ = rw.Write([]byte(err.Error()))
 		}
