@@ -27,7 +27,9 @@ import (
 	"github.com/kubevela/pkg/cue/cuex/providers"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/module/service/api"
 )
 
@@ -61,6 +63,14 @@ type RenderReturns providers.Returns[ResultVars]
 // Render fetches the module and renders its owned Application via the injected
 // render service.
 func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
+	// This package is registered on the compilers unconditionally, because the module
+	// ComponentDefinition imports vela/module and could not compile otherwise. The
+	// gate is therefore checked here rather than at registration. When it is off no
+	// renderer is wired up either, but the nil-renderer error below does not say what
+	// to do about it, so report the gate explicitly.
+	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableModuleComponent) {
+		return nil, fmt.Errorf("module-as-component is disabled; enable the EnableModuleComponent feature gate to use type: module components")
+	}
 	r := api.DefaultRenderer()
 	if r == nil {
 		return nil, fmt.Errorf("module renderer not initialized")
