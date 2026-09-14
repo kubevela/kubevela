@@ -29,8 +29,15 @@ rules:
     resources: ["users", "groups", "serviceaccounts"]
     verbs: ["impersonate"]
   - apiGroups: [""]
-    resources: ["namespaces", "secrets", "services"]
+    resources: ["namespaces", "services"]
     verbs: ["get", "watch", "list"]
+  # Secrets are read-only except for the Application-owned Secret that stores
+  # sensitive policy context (kubevela#6840). create/update/patch are required to
+  # persist that Secret; delete is intentionally omitted (it is garbage-collected
+  # via the Application owner reference).
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "watch", "list", "create", "update", "patch"]
   - apiGroups: [""]
     resources: ["configmaps", "events"]
     verbs: ["*"]
