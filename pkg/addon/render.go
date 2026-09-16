@@ -310,7 +310,7 @@ func RenderApp(ctx context.Context, addon *InstallPackage, k8sClient client.Clie
 	}
 	app.Spec.Components = append(app.Spec.Components, renderNeededNamespaceAsComps(addon)...)
 
-	resources, err := renderResources(addon, args)
+	resources, err := RenderResources(addon, args)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -381,7 +381,13 @@ func attachPolicyForLegacyAddon(ctx context.Context, app *v1beta1.Application, a
 	return nil
 }
 
-func renderResources(addon *InstallPackage, args map[string]interface{}) ([]common2.ApplicationComponent, error) {
+// RenderResources renders the addon's resources/ tier: the YAML-based
+// k8s-objects component (when the addon has YAMLTemplates) and one component
+// per non-main CUE template. It is exported so callers assembling the addon
+// Application from outside this package (see pkg/addon/service/renderer.go)
+// can derive the resulting component names without re-implementing this
+// rendering.
+func RenderResources(addon *InstallPackage, args map[string]interface{}) ([]common2.ApplicationComponent, error) {
 	var resources []common2.ApplicationComponent
 	if len(addon.YAMLTemplates) != 0 {
 		comp, err := renderK8sObjectsComponent(addon.YAMLTemplates, addon.Name)

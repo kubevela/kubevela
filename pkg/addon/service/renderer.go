@@ -41,6 +41,7 @@ import (
 
 	"github.com/kubevela/pkg/util/singleton"
 
+	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/addon/service/api"
@@ -287,13 +288,45 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 		return nil, fmt.Errorf("render addon %q: %w", req.Name, err)
 	}
 
+	resourceComps, err := pkgaddon.RenderResources(installPkg, req.Properties)
+	if err != nil {
+		return nil, fmt.Errorf("render resources for addon %q: %w", req.Name, err)
+	}
+	dependsOn := componentNames(resourceComps)
+	if len(aux) > 0 {
+		// The addon template's own outputs: block (wrapped into addon-auxiliaries
+		// below) can carry arbitrary objects -- including operators/CRDs a
+		// module's Compositions rely on just as much as anything under
+		// resources/ -- so a module component must wait for it too. Its name
+		// has to be predicted here, before appendAuxComponents actually creates
+		// it: reserve the same name that call will end up choosing, against
+		// every component already in app.Spec.Components plus every module
+		// component about to be added (whose names are exactly the enabled,
+		// not-already-declared import names -- see RenderModuleComponents).
+		used := make(map[string]bool, len(app.Spec.Components)+len(installPkg.Imports))
+		for _, c := range app.Spec.Components {
+			used[c.Name] = true
+		}
+		for _, imp := range installPkg.Imports {
+			if imp.Enabled {
+				used[imp.Module] = true
+			}
+		}
+		dependsOn = append(dependsOn, uniqueComponentName(addonAuxiliariesComponentName, used))
+	}
+	moduleComps, err := pkgaddon.RenderModuleComponents(installPkg, app.Spec.Components, dependsOn)
+	if err != nil {
+		return nil, fmt.Errorf("render module components for addon %q: %w", req.Name, err)
+	}
+	app.Spec.Components = append(app.Spec.Components, moduleComps...)
+
 	groups, err := r.auxComponents(ctx, installPkg, req.Properties)
 	if err != nil {
 		return nil, fmt.Errorf("render auxiliaries for addon %q: %w", req.Name, err)
 	}
 	// The addon template's own outputs (RenderApp's aux) have no fixed category,
 	// so they go into a catch-all component.
-	groups = append(groups, auxComponent{name: "addon-auxiliaries", objects: aux})
+	groups = append(groups, auxComponent{name: addonAuxiliariesComponentName, objects: aux})
 
 	setAddonRegistryLabel(app, registryName)
 
@@ -372,6 +405,12 @@ func suppressLastAppliedConfig(m map[string]interface{}) {
 }
 
 const addonComponentStateKeepPolicyName = "addon-component-state-keep"
+
+// addonAuxiliariesComponentName is the catch-all k8s-objects component that wraps
+// the addon template's own outputs: block. Shared between the dependsOn
+// computation in resolveAndRender and the auxComponent this name is built from,
+// so the two never drift apart.
+const addonAuxiliariesComponentName = "addon-auxiliaries"
 
 // ensureAddonComponentStateKeepPolicy disables the legacy implicit apply-once
 // behavior for component-installed addons unless the addon declares its own.
@@ -532,6 +571,17 @@ func appendAuxComponents(appMap map[string]interface{}, groups []auxComponent) {
 		})
 	}
 	spec["components"] = comps
+}
+
+// componentNames returns the Name of each component, in order. Used to turn
+// the addon's rendered resource-tier components into the dependsOn list for
+// its auto-generated type: module components.
+func componentNames(comps []common2.ApplicationComponent) []string {
+	names := make([]string, 0, len(comps))
+	for _, c := range comps {
+		names = append(names, c.Name)
+	}
+	return names
 }
 
 // uniqueComponentName returns base, or base with the lowest numeric suffix that is
