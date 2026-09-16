@@ -153,6 +153,6 @@ func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 		Client:         mgr.GetClient(),
 		APIReader:      mgr.GetAPIReader(),
 		Decoder:        admission.NewDecoder(mgr.GetScheme()),
-		addonValidator: addonvalidation.NewValidator(mgr.GetClient(), mgr.GetConfig()),
+		addonValidator: addonvalidation.NewValidator(mgr.GetClient()),
 	}})
 }
