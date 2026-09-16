@@ -520,7 +520,9 @@ func RevokePrivileges(ctx context.Context, cli client.Client, privileges []Privi
 			if !kerrors.IsNotFound(err) {
 				return fmt.Errorf("failed to fetch %s %s in cluster %s: %w", kind, key, cluster, err)
 			}
-			return nil
+			// Nothing is bound at this scope, so there is nothing to revoke here. Keep going,
+			// the remaining scopes may still hold the privilege.
+			continue
 		}
 		if remove {
 			if err = cli.Delete(_ctx, toDel); err != nil {
