@@ -39,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -104,7 +105,11 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 	cli := &appRevBypassCacheClient{Client: h.Client}
 	appParser := appfile.NewApplicationParser(cli)
 
-	af, err := appParser.GenerateAppFile(ctx, app)
+	// A type: addon or type: module component renders to a package's own
+	// Application, which the provider would otherwise fetch from a remote
+	// registry while the apiserver holds this request open. See
+	// validation.WithValidationOnly.
+	af, err := appParser.GenerateAppFile(validation.WithValidationOnly(ctx), app)
 	if err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), app, err.Error()))
 		// cannot generate appfile, no need to validate further
