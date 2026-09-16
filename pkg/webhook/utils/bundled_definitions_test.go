@@ -35,7 +35,7 @@ var helmTemplateExpr = regexp.MustCompile(`\{\{[^}]*\}\}`)
 
 // Walks every definition vela-core ships and validates it through the validator
 // its kind is routed to. This is the regression surface for the routing itself:
-// the workload compiler rejects 26 of the 36 bundled WorkflowStepDefinitions
+// the workload compiler rejects 27 of the 37 bundled WorkflowStepDefinitions
 // with `builtin package "vela/op" undefined`, so a kind sent to the wrong
 // validator, or a compiler that loses a package, breaks admission for templates
 // that ship in the chart. Failing here is cheaper than failing on a user's

@@ -98,7 +98,7 @@ func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
 //
 // Step templates import workflow-only builtin packages that the workload
 // compiler does not register, "vela/op" above all. Validating them with
-// ValidateCuexTemplate rejects 26 of the 36 bundled step definitions with
+// ValidateCuexTemplate rejects 27 of the 37 bundled step definitions with
 // `builtin package "vela/op" undefined`, so the two kinds cannot share a
 // compiler. They also cannot share the workflow one, for the reason described on
 // ValidateCuexTemplate.
