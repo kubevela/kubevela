@@ -168,6 +168,6 @@ func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 		APIReader:      mgr.GetAPIReader(),
 		Live:           webhookutils.LiveClient(mgr),
 		Decoder:        admission.NewDecoder(mgr.GetScheme()),
-		addonValidator: addonvalidation.NewValidator(mgr.GetClient(), mgr.GetConfig()),
+		addonValidator: addonvalidation.NewValidator(mgr.GetClient()),
 	}})
 }

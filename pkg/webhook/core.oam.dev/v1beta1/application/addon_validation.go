@@ -52,7 +52,7 @@ func (h *ValidatingHandler) ValidateAddonComponents(
 	}
 	validator := h.addonValidator
 	if validator == nil {
-		validator = addonvalidation.NewValidator(h.Client, nil)
+		validator = addonvalidation.NewValidator(h.Client)
 	}
 	return validator.ValidateComponents(ctx, app)
 }

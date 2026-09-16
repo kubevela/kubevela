@@ -29,6 +29,8 @@ import (
 	"github.com/kubevela/pkg/util/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/module/service/api"
 )
@@ -71,11 +73,14 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableModuleComponent) {
 		return nil, fmt.Errorf("module-as-component is disabled; enable the EnableModuleComponent feature gate to use type: module components")
 	}
+	p := params.Params
+	if validation.IsValidationOnly(ctx) {
+		return placeholderReturns(p), nil
+	}
 	r := api.DefaultRenderer()
 	if r == nil {
 		return nil, fmt.Errorf("module renderer not initialized")
 	}
-	p := params.Params
 	res, err := r.RenderModule(ctx, api.ModuleRequest{
 		Module:    p.Module,
 		Registry:  p.Registry,
@@ -89,6 +94,41 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 		return nil, fmt.Errorf("module renderer returned no result")
 	}
 	return &RenderReturns{Returns: ResultVars{Application: res.Application}}, nil
+}
+
+// placeholderReturns is what Render yields under a validation-only context: an
+// Application shaped like the one the module would have rendered, but with no
+// components, because filling those in is exactly the remote fetch that must
+// not happen during admission. It keeps `output: _render.$returns.application`
+// in the module ComponentDefinition satisfiable, so the component's CUE and
+// parameters are still typechecked. See validation.WithValidationOnly.
+//
+// The name, namespace and module label match RenderApplication in
+// pkg/module/service, so anything reading those during admission sees the real
+// values. Two fields deliberately diverge: spec.components is empty, and the
+// module-version annotation is absent because the real value is read from the
+// fetched module's own _module.cue and cannot be known without fetching it. A
+// trait on a type: module component whose CUE reads into either would evaluate
+// against this placeholder and could reject an Application that renders
+// correctly; narrowing what admission evaluates is the fix if that ever bites,
+// the way ValidateCUESchematicAppfile already skips PostDispatch traits.
+func placeholderReturns(p RenderVars) *RenderReturns {
+	return &RenderReturns{Returns: ResultVars{
+		Application: map[string]interface{}{
+			"apiVersion": "core.oam.dev/v1beta1",
+			"kind":       "Application",
+			"metadata": map[string]interface{}{
+				"name":      "module-" + p.Module,
+				"namespace": types.DefaultKubeVelaNS,
+				"labels": map[string]interface{}{
+					types.LabelDefinitionModule: p.Module,
+				},
+			},
+			"spec": map[string]interface{}{
+				"components": []interface{}{},
+			},
+		},
+	}}
 }
 
 // GetTemplate returns the CUE template.
