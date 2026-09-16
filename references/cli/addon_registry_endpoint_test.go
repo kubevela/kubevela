@@ -17,11 +17,20 @@ limitations under the License.
 package cli
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/gosuri/uitable"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // Only the Helm branch of `vela addon registry add` verified anything before
@@ -90,4 +99,59 @@ func TestValidateReadableEndpointNamesAParseFailure(t *testing.T) {
 	err := validateReadableEndpoint(pkgaddon.Registry{Name: "other-host", Git: &pkgaddon.GitAddonSource{URL: endpoint, Path: "addons"}})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), endpoint)
+}
+
+// listAddons skips a registry it cannot read so that one bad registry does not
+// hide the addons of the others. A git registry stored before add-time
+// validation existed (or by hand in the ConfigMap) used to panic in readRepo
+// instead, taking every other registry down with it. See kubevela#7364.
+func TestListAddonsSkipsAnUnreadableGitRegistry(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/index.yaml") {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  fluxcd:
+    - name: fluxcd
+      description: Extended workload to do continuous and progressive delivery
+      urls:
+        - fluxcd-1.0.0.tgz
+      version: 1.0.0
+generated: "0001-01-01T00:00:00Z"
+`))
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	clt := fake.NewClientBuilder().WithScheme(common2.Scheme).Build()
+	ds := pkgaddon.NewRegistryDataStore(clt)
+	// Written through the data store, not `vela addon registry add`, so the
+	// endpoint is stored unvalidated. Registries are listed by name, so the
+	// broken one is read first.
+	broken := pkgaddon.Registry{Name: "a-broken-git", Git: &pkgaddon.GitAddonSource{URL: "git://127.0.0.1:9418/poc.git", Path: "addons"}}
+	healthy := pkgaddon.Registry{Name: "b-healthy-helm", Helm: &pkgaddon.HelmSource{URL: server.URL}}
+	require.NoError(t, ds.AddRegistry(ctx, broken))
+	require.NoError(t, ds.AddRegistry(ctx, healthy))
+
+	t.Run("every registry is listed, the unreadable one is skipped", func(t *testing.T) {
+		var table *uitable.Table
+		var err error
+		require.NotPanics(t, func() { table, err = listAddons(ctx, clt, "") })
+		require.NoError(t, err)
+
+		var registries []string
+		for _, row := range table.Rows[1:] {
+			assert.Equal(t, "fluxcd", row.Cells[0].Data)
+			registries = append(registries, fmt.Sprint(row.Cells[1].Data))
+		}
+		assert.Equal(t, []string{healthy.Name}, registries)
+	})
+
+	t.Run("asking for the unreadable registry by name returns its error", func(t *testing.T) {
+		var err error
+		require.NotPanics(t, func() { _, err = listAddons(ctx, clt, broken.Name) })
+		assert.ErrorIs(t, err, pkgaddon.ErrUnsupportedGitEndpoint)
+	})
 }
