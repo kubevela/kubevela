@@ -29,6 +29,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chart/loader"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -49,9 +50,58 @@ var _ = Describe("chart_fetch", func() {
 			Entry("Direct URL with .tgz", "https://github.com/nginx/nginx-helm/releases/download/nginx-1.1.0/nginx-1.1.0.tgz", "url"),
 			Entry("Direct URL with .tar.gz", "https://example.com/charts/app-1.0.0.tar.gz", "url"),
 			Entry("HTTP URL", "http://charts.example.com/app-1.0.0.tgz", "url"),
+			Entry("HTTPS URL without archive suffix", "https://charts.example.com/mychart", "url"),
+			Entry("HTTP URL without archive suffix", "http://charts.example.com/mychart", "url"),
 			Entry("Repository chart", "postgresql", "repo"),
 			Entry("Repository chart with path", "stable/postgresql", "repo"),
 		)
+	})
+
+	Describe("sourceCacheID", func() {
+		It("produces a stable 16-hex-char id", func() {
+			id := sourceCacheID("oci://ghcr.io/org/charts/app")
+			Expect(id).To(HaveLen(16))
+			Expect(sourceCacheID("oci://ghcr.io/org/charts/app")).To(Equal(id))
+		})
+
+		It("does not collide when slash is replaced by hyphen in the source path", func() {
+			Expect(sourceCacheID("oci://ghcr.io/org/charts/app")).
+				ToNot(Equal(sourceCacheID("oci://ghcr.io/org/charts-app")))
+			Expect(sourceCacheID("https://example.com/charts/app.tgz")).
+				ToNot(Equal(sourceCacheID("https://example.com/charts-app.tgz")))
+			Expect(sourceCacheID("stable/postgresql")).
+				ToNot(Equal(sourceCacheID("stable-postgresql")))
+		})
+	})
+
+	Describe("repoCacheTag", func() {
+		It("returns an empty tag for non-repo source types", func() {
+			Expect(repoCacheTag(sourceTypeOCI, "https://example.com")).To(Equal(""))
+			Expect(repoCacheTag(sourceTypeURL, "https://example.com")).To(Equal(""))
+		})
+
+		It("returns an empty tag when repoURL is empty", func() {
+			Expect(repoCacheTag(sourceTypeRepo, "")).To(Equal(""))
+		})
+
+		It("produces a stable 16-hex-char tag for a repo URL", func() {
+			tag := repoCacheTag(sourceTypeRepo, "https://repo-a.example.com")
+			Expect(tag).To(HaveLen(16))
+			Expect(tag).To(MatchRegexp("^[0-9a-f]+$"))
+			Expect(repoCacheTag(sourceTypeRepo, "https://repo-a.example.com")).To(Equal(tag))
+		})
+
+		It("discriminates different repositories", func() {
+			Expect(repoCacheTag(sourceTypeRepo, "https://repo-a.example.com")).
+				ToNot(Equal(repoCacheTag(sourceTypeRepo, "https://repo-b.example.com")))
+		})
+
+		It("normalises trailing slashes so one repository yields one tag", func() {
+			Expect(repoCacheTag(sourceTypeRepo, "https://repo-a.example.com/")).
+				To(Equal(repoCacheTag(sourceTypeRepo, "https://repo-a.example.com")))
+			Expect(repoCacheTag(sourceTypeRepo, "https://repo-a.example.com///")).
+				To(Equal(repoCacheTag(sourceTypeRepo, "https://repo-a.example.com")))
+		})
 	})
 
 	Describe("isMutableVersion", func() {
@@ -150,6 +200,21 @@ var _ = Describe("chart_fetch", func() {
 			})
 			Expect(ttl).To(Equal(24 * time.Hour))
 		})
+
+		It("should fall back to provider defaults when a cache block sets no TTL", func() {
+			// A component that writes options: {cache: {key: "x"}} carries an
+			// empty CacheParams here. The helmchart.cue template leaves the TTL
+			// fields optional, so nothing concrete arrives and the cluster-wide
+			// defaults (InitCacheTTL) must win — not a CUE-side default.
+			ttl := p.determineCacheTTL("1.2.3", &RenderOptionsParams{
+				Cache: &CacheParams{Key: "x"},
+			})
+			Expect(ttl).To(Equal(24 * time.Hour))
+			ttl = p.determineCacheTTL("latest", &RenderOptionsParams{
+				Cache: &CacheParams{Key: "x"},
+			})
+			Expect(ttl).To(Equal(5 * time.Minute))
+		})
 	})
 
 	Describe("fetchChartWithoutCache", func() {
@@ -180,30 +245,29 @@ var _ = Describe("chart_fetch", func() {
 		})
 
 		It("should return a cached chart on cache hit", func() {
-			testChart := &chart.Chart{
-				Metadata: &chart.Metadata{Name: "cached-chart", Version: "1.0.0"},
-			}
-			// Pre-seed the cache with the expected key format: <sourceType>/<source>/<version>
-			cacheKey := "repo/nginx/1.0.0"
-			p.cache.Put(cacheKey, testChart, 1*time.Hour)
+			// Pre-seed the cache with the expected key format:
+			// <sourceType>/<source>/repo-<tag>/<version>
+			repoURL := "https://repo-a.example.com"
+			cacheKey := "repo/" + sourceCacheID("nginx") + "/repo-" + repoCacheTag(sourceTypeRepo, repoURL) + "/1.0.0"
+
+			p.cache.Put(cacheKey, createMinimalChartArchive("cached-chart", "1.0.0"), 1*time.Hour)
 
 			result, err := p.fetchChart(context.Background(),
-				&ChartSourceParams{Source: "nginx", Version: "1.0.0"},
+				&ChartSourceParams{Source: "nginx", RepoURL: repoURL, Version: "1.0.0"},
 				nil, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("cached-chart"))
 		})
 
 		It("should return a cached chart with custom cache key prefix", func() {
-			testChart := &chart.Chart{
-				Metadata: &chart.Metadata{Name: "custom-cached", Version: "2.0.0"},
-			}
-			// With custom cache key: <cache_key_prefix>/<sourceType>/<source>/<version>
-			cacheKey := "my-prefix/repo/myapp/2.0.0"
-			p.cache.Put(cacheKey, testChart, 1*time.Hour)
+			// With custom cache key: <cache_key_prefix>/<sourceType>/<source>/repo-<tag>/<version>
+			repoURL := "https://repo-b.example.com"
+			cacheKey := "my-prefix/repo/" + sourceCacheID("myapp") + "/repo-" + repoCacheTag(sourceTypeRepo, repoURL) + "/2.0.0"
+
+			p.cache.Put(cacheKey, createMinimalChartArchive("custom-cached", "2.0.0"), 1*time.Hour)
 
 			result, err := p.fetchChart(context.Background(),
-				&ChartSourceParams{Source: "myapp", Version: "2.0.0"},
+				&ChartSourceParams{Source: "myapp", RepoURL: repoURL, Version: "2.0.0"},
 				&RenderOptionsParams{Cache: &CacheParams{Key: "my-prefix"}}, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("custom-cached"))
@@ -221,13 +285,10 @@ var _ = Describe("chart_fetch", func() {
 		})
 
 		It("should build correct cache key for OCI sources", func() {
-			testChart := &chart.Chart{
-				Metadata: &chart.Metadata{Name: "oci-chart", Version: "3.0.0"},
-			}
-			// OCI source: oci://ghcr.io/example/chart
-			// After replacing "://" with "-" and "/" with "-": oci-ghcr.io-example-chart
-			cacheKey := "oci/oci-ghcr.io-example-chart/3.0.0"
-			p.cache.Put(cacheKey, testChart, 1*time.Hour)
+
+			cacheKey := "oci/" + sourceCacheID("oci://ghcr.io/example/chart") + "/3.0.0"
+
+			p.cache.Put(cacheKey, createMinimalChartArchive("oci-chart", "3.0.0"), 1*time.Hour)
 
 			result, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "oci://ghcr.io/example/chart", Version: "3.0.0"},
@@ -237,19 +298,90 @@ var _ = Describe("chart_fetch", func() {
 		})
 
 		It("should build correct cache key for URL sources", func() {
-			testChart := &chart.Chart{
-				Metadata: &chart.Metadata{Name: "url-chart", Version: "1.0.0"},
-			}
-			// URL source: https://example.com/chart.tgz
-			// After replacing "://" with "-" and "/" with "-": https-example.com-chart.tgz
-			cacheKey := "url/https-example.com-chart.tgz/1.0.0"
-			p.cache.Put(cacheKey, testChart, 1*time.Hour)
+
+			cacheKey := "url/" + sourceCacheID("https://example.com/chart.tgz") + "/1.0.0"
+			p.cache.Put(cacheKey, createMinimalChartArchive("url-chart", "1.0.0"), 1*time.Hour)
 
 			result, err := p.fetchChart(context.Background(),
 				&ChartSourceParams{Source: "https://example.com/chart.tgz", Version: "1.0.0"},
 				nil, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(result.Metadata.Name).To(Equal("url-chart"))
+		})
+
+		It("should not serve one OCI chart for another whose path only differs by slash vs hyphen", func() {
+			p := NewProviderWithConfig(nil)
+			aKey := "oci/" + sourceCacheID("oci://ghcr.io/org/charts/app") + "/1.0.0"
+			bKey := "oci/" + sourceCacheID("oci://ghcr.io/org/charts-app") + "/1.0.0"
+			Expect(aKey).ToNot(Equal(bKey))
+			p.cache.Put(aKey, createMinimalChartArchive("charts-slash", "1.0.0"), time.Hour)
+			p.cache.Put(bKey, createMinimalChartArchive("charts-hyphen", "1.0.0"), time.Hour)
+
+			a, err := p.fetchChart(context.Background(),
+				&ChartSourceParams{Source: "oci://ghcr.io/org/charts/app", Version: "1.0.0"}, nil, "", "")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(a.Metadata.Name).To(Equal("charts-slash"))
+
+			b, err := p.fetchChart(context.Background(),
+				&ChartSourceParams{Source: "oci://ghcr.io/org/charts-app", Version: "1.0.0"}, nil, "", "")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(b.Metadata.Name).To(Equal("charts-hyphen"))
+		})
+
+		It("should NOT serve a chart from one repository into another for the same name and version", func() {
+			// Two repositories publishing the same chart name/version must not
+			// share a cache entry: without the repoURL discriminator the second
+			// request would silently receive the first repository's chart.
+			servers := map[string]*httptest.Server{}
+			chartNames := map[string]string{
+				"repo-a": "chart-from-a",
+				"repo-b": "chart-from-b",
+			}
+			for _, key := range []string{"repo-a", "repo-b"} {
+				name := chartNames[key]
+				archive := createMinimalChartArchive(name, "1.0.0")
+				s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case "/index.yaml":
+						_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  shared:
+    - name: shared
+      version: 1.0.0
+      urls:
+        - shared-1.0.0.tgz
+`))
+					case "/shared-1.0.0.tgz":
+						_, _ = w.Write(archive)
+					default:
+						http.NotFound(w, r)
+					}
+				}))
+				defer s.Close()
+				servers[key] = s
+			}
+
+			p := NewProviderWithConfig(nil)
+
+			// Prime the cache with repo-a's chart first.
+			first, err := p.fetchChart(context.Background(), &ChartSourceParams{
+				Source:  "shared",
+				RepoURL: servers["repo-a"].URL,
+				Version: "1.0.0",
+			}, nil, "", "")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(first.Metadata.Name).To(Equal("chart-from-a"))
+
+			// A different repository with the same chart name/version must
+			// produce its own cache entry and fetch its own chart bytes.
+			second, err := p.fetchChart(context.Background(), &ChartSourceParams{
+				Source:  "shared",
+				RepoURL: servers["repo-b"].URL,
+				Version: "1.0.0",
+			}, nil, "", "")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(second.Metadata.Name).To(Equal("chart-from-b"))
+			Expect(second.Metadata.Name).ToNot(Equal(first.Metadata.Name))
 		})
 	})
 
@@ -286,8 +418,10 @@ entries:
 			}, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch).ToNot(BeNil())
-			Expect(ch.Metadata.Name).To(Equal("test-repo-chart"))
-			Expect(ch.Metadata.Version).To(Equal("1.0.0"))
+			loaded, err := loader.LoadArchive(bytes.NewReader(ch))
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(loaded.Metadata.Name).To(Equal("test-repo-chart"))
+			Expect(loaded.Metadata.Version).To(Equal("1.0.0"))
 		})
 
 		It("should use first version when no version specified", func() {
@@ -318,7 +452,9 @@ entries:
 				RepoURL: server.URL,
 			}, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(ch.Metadata.Name).To(Equal("no-ver-chart"))
+			loaded, err := loader.LoadArchive(bytes.NewReader(ch))
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(loaded.Metadata.Name).To(Equal("no-ver-chart"))
 		})
 
 		It("should return error when chart not found in index", func() {
@@ -420,8 +556,10 @@ entries:
 			}, "", "")
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch).ToNot(BeNil())
-			Expect(ch.Metadata.Name).To(Equal("url-chart"))
-			Expect(ch.Metadata.Version).To(Equal("2.0.0"))
+			loaded, err := loader.LoadArchive(bytes.NewReader(ch))
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(loaded.Metadata.Name).To(Equal("url-chart"))
+			Expect(loaded.Metadata.Version).To(Equal("2.0.0"))
 		})
 
 		It("should return error for unreachable URL", func() {
@@ -466,8 +604,10 @@ entries:
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(ch.Metadata.Name).To(Equal("cache-miss"))
 
-			// Verify it's now cached
-			cached, found := p.cache.Get("repo/cache-miss/1.0.0")
+			// Verify it's now cached under the repo-discriminated key
+			cacheKey := "repo/" + sourceCacheID("cache-miss") + "/repo-" + repoCacheTag(sourceTypeRepo, server.URL) + "/1.0.0"
+
+			cached, found := p.cache.Get(cacheKey)
 			Expect(found).To(BeTrue())
 			Expect(cached).ToNot(BeNil())
 		})
@@ -545,6 +685,224 @@ entries:
 		})
 	})
 
+	Describe("fetchChart supplementary paths", func() {
+		It("should return the chart when caching is disabled (TTL=0) and the fetch succeeds", func() {
+			chartArchive := createMinimalChartArchive("no-cache-ok", "1.0.0")
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/index.yaml":
+					_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  no-cache-ok:
+    - name: no-cache-ok
+      version: 1.0.0
+      urls:
+        - no-cache-ok-1.0.0.tgz
+`))
+				case "/no-cache-ok-1.0.0.tgz":
+					_, _ = w.Write(chartArchive)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			ch, err := p.fetchChart(context.Background(), &ChartSourceParams{
+				Source:  "no-cache-ok",
+				RepoURL: server.URL,
+				Version: "1.0.0",
+			}, &RenderOptionsParams{Cache: &CacheParams{TTL: "0"}}, "", "")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(ch.Metadata.Name).To(Equal("no-cache-ok"))
+		})
+
+		It("should return an error when caching is disabled and the fetched bytes are not a chart", func() {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte("this is not a chart archive"))
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			_, err := p.fetchChart(context.Background(), &ChartSourceParams{
+				Source: server.URL + "/bad.tgz",
+			}, &RenderOptionsParams{Cache: &CacheParams{TTL: "0"}}, "", "")
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to load chart archive"))
+		})
+
+		It("should build an auth-tagged cache key and hit it when auth resolves", func() {
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "creds", Namespace: "rel-ns"},
+				Type:       corev1.SecretTypeOpaque,
+				Data:       map[string][]byte{"username": []byte("u"), "password": []byte("p")},
+			}
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build()
+			origKube := singleton.KubeClient.Get()
+			singleton.KubeClient.Set(c)
+			defer singleton.KubeClient.Set(origKube)
+
+			// Pre-warm the cache with the auth-tagged key computed from the
+			// resolved Secret so the request is served entirely from cache.
+			p := NewProviderWithConfig(nil)
+			params := &ChartSourceParams{
+				Source:  "nginx",
+				Version: "1.0.0",
+				Auth:    &AuthParams{SecretRef: &SecretRefParams{Name: "creds"}},
+			}
+			tag, err := computeAuthCacheTag(context.Background(), params, "app-ns", "rel-ns")
+			Expect(err).ShouldNot(HaveOccurred())
+			cacheKey := "repo/" + sourceCacheID("nginx") + "/1.0.0/auth-" + tag
+			p.cache.Put(cacheKey, createMinimalChartArchive("auth-ok", "1.0.0"), time.Hour)
+
+			ch, err := p.fetchChart(context.Background(), params, nil, "app-ns", "rel-ns")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(ch.Metadata.Name).To(Equal("auth-ok"))
+		})
+
+		It("should serve a cache hit when auth resolves successfully on a cached chart", func() {
+			scheme := runtime.NewScheme()
+			Expect(corev1.AddToScheme(scheme)).To(Succeed())
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{Name: "hit-creds", Namespace: "rel-ns"},
+				Type:       corev1.SecretTypeOpaque,
+				Data:       map[string][]byte{"username": []byte("u"), "password": []byte("p")},
+			}
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build()
+			origKube := singleton.KubeClient.Get()
+			singleton.KubeClient.Set(c)
+			defer singleton.KubeClient.Set(origKube)
+
+			p := NewProviderWithConfig(nil)
+			params := &ChartSourceParams{
+				Source:  "hit-chart",
+				Version: "1.0.0",
+				Auth:    &AuthParams{SecretRef: &SecretRefParams{Name: "hit-creds"}},
+			}
+			tag, err := computeAuthCacheTag(context.Background(), params, "app-ns", "rel-ns")
+			Expect(err).ShouldNot(HaveOccurred())
+			cacheKey := "repo/" + sourceCacheID("hit-chart") + "/1.0.0/auth-" + tag
+			p.cache.Put(cacheKey, createMinimalChartArchive("hit-chart", "1.0.0"), time.Hour)
+
+			ch, err := p.fetchChart(context.Background(), params, nil, "app-ns", "rel-ns")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(ch.Metadata.Name).To(Equal("hit-chart"))
+		})
+
+		It("should evict and refetch when cached bytes fail to load", func() {
+			chartArchive := createMinimalChartArchive("bad-cache", "1.0.0")
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/index.yaml":
+					_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  bad-cache:
+    - name: bad-cache
+      version: 1.0.0
+      urls:
+        - bad-cache-1.0.0.tgz
+`))
+				case "/bad-cache-1.0.0.tgz":
+					_, _ = w.Write(chartArchive)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			// Seed the cache with corrupt bytes so the cached-archive load fails,
+			// triggering eviction and a fresh fetch.
+			cacheKey := "repo/" + sourceCacheID("bad-cache") + "/repo-" + repoCacheTag(sourceTypeRepo, server.URL) + "/1.0.0"
+			p.cache.Put(cacheKey, []byte("not a valid chart"), time.Hour)
+
+			ch, err := p.fetchChart(context.Background(), &ChartSourceParams{
+				Source:  "bad-cache",
+				RepoURL: server.URL,
+				Version: "1.0.0",
+			}, nil, "", "")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(ch.Metadata.Name).To(Equal("bad-cache"))
+		})
+
+		It("should return an error when fetched bytes cannot be loaded as a chart", func() {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/index.yaml":
+					_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  corrupt:
+    - name: corrupt
+      version: 1.0.0
+      urls:
+        - corrupt-1.0.0.tgz
+`))
+				case "/corrupt-1.0.0.tgz":
+					_, _ = w.Write([]byte("this is not a chart archive at all"))
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			_, err := p.fetchChart(context.Background(), &ChartSourceParams{
+				Source:  "corrupt",
+				RepoURL: server.URL,
+				Version: "1.0.0",
+			}, nil, "", "")
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to load chart archive"))
+		})
+	})
+
+	Describe("fetchRepoChart server error paths", func() {
+		It("should return an error when the repository index cannot be fetched", func() {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Error(w, "boom", http.StatusInternalServerError)
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			_, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
+				Source:  "nginx",
+				RepoURL: server.URL,
+			}, "", "")
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to fetch repository index"))
+		})
+
+		It("should return an error when the chart archive download fails", func() {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/index.yaml":
+					_, _ = w.Write([]byte(`apiVersion: v1
+entries:
+  dl-fail:
+    - name: dl-fail
+      version: 1.0.0
+      urls:
+        - dl-fail-1.0.0.tgz
+`))
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			p := NewProviderWithConfig(nil)
+			_, err := p.fetchRepoChart(context.Background(), &ChartSourceParams{
+				Source:  "dl-fail",
+				RepoURL: server.URL,
+				Version: "1.0.0",
+			}, "", "")
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to download chart"))
+		})
+	})
+
 })
 
 // createMinimalChartArchive creates a minimal valid Helm chart .tgz archive
@@ -575,6 +933,36 @@ data:
 		Mode: 0644,
 	})
 	_, _ = tarWriter.Write([]byte(tmpl))
+
+	_ = tarWriter.Close()
+	_ = gzWriter.Close()
+
+	return buf.Bytes()
+}
+
+// createChartArchive serializes a *chart.Chart into a .tgz archive so it can be
+// stored in the byte-based cache and re-loaded by loader.LoadArchive.
+func createChartArchive(ch *chart.Chart) []byte {
+	var buf bytes.Buffer
+	gzWriter := gzip.NewWriter(&buf)
+	tarWriter := tar.NewWriter(gzWriter)
+
+	chartYaml := fmt.Sprintf("apiVersion: v2\nname: %s\nversion: %s\n", ch.Metadata.Name, ch.Metadata.Version)
+	_ = tarWriter.WriteHeader(&tar.Header{
+		Name: ch.Metadata.Name + "/Chart.yaml",
+		Size: int64(len(chartYaml)),
+		Mode: 0644,
+	})
+	_, _ = tarWriter.Write([]byte(chartYaml))
+
+	for _, f := range ch.Templates {
+		_ = tarWriter.WriteHeader(&tar.Header{
+			Name: ch.Metadata.Name + "/" + f.Name,
+			Size: int64(len(f.Data)),
+			Mode: 0644,
+		})
+		_, _ = tarWriter.Write(f.Data)
+	}
 
 	_ = tarWriter.Close()
 	_ = gzWriter.Close()

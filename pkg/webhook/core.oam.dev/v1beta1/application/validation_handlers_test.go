@@ -18,9 +18,12 @@ package application
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/kubevela/pkg/controller/sharding"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/stretchr/testify/assert"
 	admissionv1 "k8s.io/api/admission/v1"
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -39,6 +42,21 @@ import (
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
+
+func TestConciseSchematicError(t *testing.T) {
+	providerErr := errors.New(`addon "fluxcd" version "abc" not found in registries [KubeVela]`)
+	err := fmt.Errorf("failed to compile workload: %w", cuex.FunctionCallError{
+		Path:  "_render",
+		Value: "large CUE provider value",
+		Err:   providerErr,
+	})
+
+	assert.Equal(t, providerErr.Error(), conciseSchematicError(err))
+	assert.NotContains(t, conciseSchematicError(err), "large CUE provider value")
+
+	ordinary := errors.New("ordinary schematic failure")
+	assert.Equal(t, ordinary.Error(), conciseSchematicError(ordinary))
+}
 
 func TestValidateCreate(t *testing.T) {
 	// Disable the definition validation feature for this test

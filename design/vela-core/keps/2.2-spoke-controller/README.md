@@ -42,6 +42,36 @@ Hub application-controller
 
 ---
 
+## Open Decision: Where Rendering Happens
+
+This KEP has the spoke render: it loads `ComponentDefinition`s locally or from hub-dispatched snapshots and does the CUE work itself. The alternative is for the hub to render and ship concrete resources, with the spoke applying, tracking and reporting but never evaluating a template. **Not yet decided**, and the choice has consequences beyond where the CPU cycles land.
+
+| | Spoke renders (this KEP) | Hub renders |
+|---|---|---|
+| Definition governance | spoke needs the definition set; versions drift across the fleet | central, no skew |
+| Hub compute | distributed | the fleet bottleneck |
+| Payload | parameters and a signed snapshot | full rendered manifests, including rendered Secret material |
+| Authority bound | spoke RBAC **and** the local definition set | spoke RBAC alone |
+| Partition behaviour | spoke keeps rendering and reconciling | spoke keeps reconciling what it last received |
+
+Neither is wrong. Spoke-renders distributes compute and keeps rendered Secret material out of an object that travels between clusters. Hub-renders is simpler and keeps definitions centrally governed, at the cost of hub scaling. The fourth row usually decides it: under spoke-renders the local definition set is part of the trust boundary, which argues for or against depending on who administers the spoke.
+
+---
+
+## Keep the Spoke Controller Source-Agnostic
+
+**The spoke controller is a local controller over `Component` CRs in its own cluster, and nothing else.** It watches a namespace, renders, applies, tracks, evaluates health, and writes status back onto the object. It has no opinion about how those objects arrived.
+
+This is what makes push versus pull a later delivery-layer swap rather than a rewrite. Three things would break it:
+
+- an inbound endpoint the hub calls, rather than the spoke watching its own API
+- status reported anywhere other than the local object's status field
+- cluster context injected by the hub that only makes sense because the hub wrote it
+
+The third is the one most easily done by accident.
+
+---
+
 ## Spoke Reconcile Pipeline
 
 ```

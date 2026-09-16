@@ -21,7 +21,7 @@
 > - `KEP-2.12`: `ObservabilityDefinition` — fleet-level observability views across Component instances
 > - `KEP-2.13`: Declarative Addon Lifecycle — GitOps-compatible Addon CR continuous reconciliation, drift correction, addon-of-addons composition
 > - `KEP-2.14`: `TenantDefinition` & `Tenant` — first-class multi-tenancy; namespace + RBAC + quota + cluster access provisioning via CUE-authored tenancy archetypes
-> - `KEP-2.15`: `OperationDefinition` & `Operation` — Day 2 operations as OAM-context-aware orchestration primitives; phased workflow execution delegating to external tools via WorkflowStepDefinitions
+> - `KEP-2.15`: `OperationTemplate` & `Operation`: Day 2 operations as OAM-context-aware orchestration primitives; templates attach to a Component or an Application and run a workflow with the target's context, delegating the work to `WorkflowStepDefinition`s
 > - `KEP-2.16`: `SourceDefinition` & `fromSource` — declarative external data resolution; lazy, render-scoped, cacheable via ConfigTemplate/Config
 > - `KEP-2.17`: Component Exports & same-topology `fromDependency` — contract-driven intra-app data binding; acyclic dependency graph; no workflow steps required
 > - `KEP-2.18`: `ConfigTemplate` & `Config` CRDs — promote ConfigMap-backed config primitives to first-class CRDs with admission validation, native GitOps ergonomics, and proper RBAC
@@ -29,6 +29,8 @@
 > - `KEP-2.20`: Module & API Line Versioning — module identity model, definition naming convention, API line coexistence and deprecation lifecycle; extends KEP-2.13
 > - `KEP-2.21`: `from*` family resolution model — render-time resolution pass, admission schema validation, and shorthand syntax shared by `fromParameter`, `fromSource`, and `fromDependency`
 > - `KEP-2.22`: Multi-Instance Addons — `instance` field in `_module.cue`, per-instance Addon CR naming, namespace-scoped definition isolation
+> - `KEP-2.23`: Plugin Extension Points — named points where controller behaviour is replaced or extended by operator-supplied CUE; Go interface paired with an embedded schema, three cardinality modes, a Go base implementation per point, confined execution via `#Invoke`
+> - `KEP-2.24`: Component Configuration & Policies as Transforms — per-resource config moves onto the component, policy reduces to a CUE transform over component structure, and downstream consumers read a stable annotation contract
 
 ---
 
@@ -84,7 +86,7 @@ The vNext Roadmap is an ambitious architectural evolution across nine major area
 ### 7. Platform Engineering
 - **`ApplicationDefinition`** — app platform engineers compose platform primitives into opinionated developer-facing constructs; developers consume via `definition:` + `parameters:` or hand-craft their own Applications from available building blocks
 - **`PolicyDefinition`** — named, reusable policy definitions; referenced by name in `ApplicationDefinition` and `Application` CRs
-- **`OperationDefinition`** (KEP-2.15) — component authors ship Day 2 runbooks (backup, restore, rotate-credentials) alongside their Definitions; phases of `WorkflowStepDefinition` steps execute with full OAM context; delegates actual work to external tools (Argo Workflows, Crossplane, external APIs); `write-status` step surfaces operational state back onto Component/Application status
+- **`OperationTemplate`** (KEP-2.15): component authors ship Day 2 runbooks (backup, restore, rotate-credentials) alongside their Definitions; a template attaches to a Component type or to an Application by label, and its `WorkflowStepDefinition` steps execute with the target's OAM context, one workflow per targeted cluster; KubeVela orchestrates rather than executes, so the work itself lands on external tools (Argo Workflows, Crossplane, external APIs); a `write-status` step surfaces operational state back onto Component/Application status. Named `OperationDefinition` if the CUE-authored option is chosen, which is open
 - **`TenantDefinition`** (KEP-2.14) — platform engineers define tenancy archetypes (team, environment, partner); declares namespaces, RBAC, quotas, cluster access label selectors, and an Application or ApplicationDefinition for shared tenant infrastructure; `Tenant` CRs instantiate a type with parameters and pin to a `DefinitionRevision`
 - **`ObservabilityDefinition`** — fleet-level observability views across Component instances; scoped `selector` + `fields` projection keeps queries cheap; multiple teams can define independent views over the same or multiple Definition types; outputs metrics (Prometheus), logs (structured stdout), alerts (Kubernetes Events)
 - **Compositions** (KEP-2.10) — `type: component` outputs compose smaller Definitions into higher-order abstractions; dependency-ordered rollout, health aggregation, parameter surface reduction
@@ -345,7 +347,7 @@ This subsumes the current workaround of maintaining manual RBAC groups per defin
 | KEP-2.12 | Definition observability integration | Enhancement | [2.12-observability/README.md](2.12-observability/README.md) |
 | KEP-2.13 | Declarative Addon Lifecycle | High | [2.13-addons/README.md](2.13-addons/README.md) |
 | KEP-2.14 | `TenantDefinition` & `Tenant` | High | [2.14-tenants/README.md](2.14-tenants/README.md) |
-| KEP-2.15 | `OperationDefinition` & `Operation` | High | [2.15-operations/README.md](2.15-operations/README.md) |
+| KEP-2.15 | `OperationTemplate` & `Operation` | High | [2.15-operations/README.md](2.15-operations/README.md) |
 | KEP-2.16 | `SourceDefinition` & `fromSource` | High | [2.16-source-definition/README.md](2.16-source-definition/README.md) |
 | KEP-2.17 | Component Exports & same-topology `fromDependency` | High | [2.17-component-exports/README.md](2.17-component-exports/README.md) |
 | KEP-2.18 | `ConfigTemplate` & `Config` CRDs | High | [2.18-config-crds/README.md](2.18-config-crds/README.md) |
@@ -353,3 +355,5 @@ This subsumes the current workaround of maintaining manual RBAC groups per defin
 | KEP-2.20 | Module & API Line Versioning | High | [2.20-module-versioning/README.md](2.20-module-versioning/README.md) |
 | KEP-2.21 | `from*` family resolution model | High | [2.21-from-resolution/README.md](2.21-from-resolution/README.md) |
 | KEP-2.22 | Multi-Instance Addons | Medium | [2.22-multi-instance-addons/README.md](2.22-multi-instance-addons/README.md) |
+| KEP-2.23 | Plugin Extension Points | High | [2.23-plugins/README.md](2.23-plugins/README.md) |
+| KEP-2.24 | Component Configuration & Policies as Transforms | High | [2.24-component-config-policies/README.md](2.24-component-config-policies/README.md) |

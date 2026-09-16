@@ -44,6 +44,29 @@ The application-controller's job shrinks dramatically: resolve Definitions, inje
 
 ---
 
+## Effective Authority Is Bounded by the Spoke, Not by the Grant
+
+The hub's RBAC on each spoke narrows to a single GVK: create and watch `Component` CRs. That improves accidental scope and audit legibility: a reviewer can see at a glance what the hub is permitted to do, and a bug in hub code cannot write a ClusterRoleBinding.
+
+**It is not a reduction in what an attacker can do.** A credential that can create `Component` CRs is exactly as powerful as whatever the spoke component-controller will apply on its behalf, and the spoke applies whatever the rendered definition emits. Narrow grant, unchanged blast radius.
+
+What actually bounds authority is the spoke refusing things: a GVK allowlist, namespace scoping, and a policy over what a rendered Component may apply. Until that exists, "minimal RBAC, only needs permission to create/watch Component CRs" describes the shape of the grant rather than its power, and the phrase will be quoted in a security review as though the narrow grant were the protection.
+
+This matters for sequencing, because the steps are independently deliverable and only one of them is security:
+
+| Step | Buys | Security? |
+|---|---|---|
+| 1. Ship the spoke controller and `Component` CR | status fidelity, partition tolerance | no |
+| 2. Narrow the hub's RBAC to one GVK | audit legibility, accidental scope | no |
+| 3. Add the spoke's apply policy | **bounded authority** | **yes** |
+| 4. Optionally revisit pull-based delivery | removes the hub credential entirely | marginal, given 3 |
+
+Steps 1 and 2 are worth doing on their own merits, and each is useful without the next. Nobody should declare the credential problem solved after step 2.
+
+Step 4 is not free with today's transport. cluster-gateway proxies with an upgrade-aware handler, so watches and streaming already pass through. But konnectivity's agent only ever *receives* `DIAL_REQ` and never sends one, so the tunnel cannot be reversed to let a spoke initiate connections to the hub. Pull needs its own channel and its own registration flow, not a reuse of the existing one.
+
+---
+
 ## Hub Reconcile Pipeline
 
 ```
@@ -111,6 +134,9 @@ The three trait phases:
 ## Dispatching Component CRs
 
 The hub creates one `Component` CR per component in the Application. Each Component CR carries:
+
+> **On the name.** `Component` is free at the API level — no `Component` kind is registered under `core.oam.dev` and no such CRD ships today; `component_types.go` holds only constants, and the inline type in `spec.components[]` is `ApplicationComponent`. The ambiguity is in prose rather than in the API: "component" will mean both an entry in `spec.components[]` and a dispatched CR, and the two are one-to-one but not the same object. `ComponentWork` was considered and rejected as needless once the collision turned out not to exist.
+
 
 - `spec.type` — the ComponentDefinition name
 - `spec.properties` — the resolved properties (after `fromParameter` substitution)

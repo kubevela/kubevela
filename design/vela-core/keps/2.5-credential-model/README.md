@@ -51,6 +51,16 @@ The hub drives all token rotation. A request/response Secret on the spoke serves
 
 The fresh RSA keypair per rotation cycle provides **forward secrecy on token delivery** — compromise of one cycle's private key cannot expose tokens from any other cycle.
 
+## Rotation Has a Circular Dependency
+
+The rotation request travels to the spoke **through cluster-gateway**, which needs a currently valid credential to reach it. So the channel that repairs an expired credential is the same channel the expired credential gates.
+
+A single failed rotation is harmless, since the old token is still valid and the next attempt succeeds. Sustained failure is not: once the credential expires, there is no in-band way to deliver a new one, and recovery means manual re-registration against every affected spoke. That turns a transient outage on the rotation path into an operational incident proportional to fleet size.
+
+This needs designing for rather than discovering. Rotation must begin far enough before expiry that the retry budget exceeds any plausible outage, and the alert has to fire on *rotation failing*, not on the credential having expired. By then the channel is gone.
+
+---
+
 ## Secret Lifecycle & Audit
 
 Request Secrets are deleted from the spoke immediately after the hub reads and stores the response. The hub-side audit trail is maintained via structured controller logs:

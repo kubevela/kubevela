@@ -1,0 +1,14 @@
+# The smallest form. The component name is the addon name, the version is
+# whatever the registry currently reports as latest, and the registry is
+# whichever configured one has the addon.
+#
+# Requires the EnableAddonComponent feature gate.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: kubevela-io-addon
+  namespace: vela-system
+spec:
+  components:
+    - name: kubevela-io
+      type: addon
