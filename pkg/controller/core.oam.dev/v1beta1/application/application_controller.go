@@ -1183,11 +1183,14 @@ func evalStatus(ctx monitorContext.Context, handler *AppHandler, appFile *appfil
 const maxHealthCheckErrorMessage = 512
 
 // healthCheckErrorMessage condenses a health check error into a status message.
-// Only the first line is kept: for a CUE error that is the chain of wrapped
-// messages, which names the component and the reason, while the lines after it
-// are the dump of the failing CUE value.
+// What is kept is the chain of wrapped messages, which names the component and
+// the reason. What is dropped is CUE's dump of the failing value, which follows
+// on the same line as "(value:" and then runs over many more.
 func healthCheckErrorMessage(err error) string {
 	msg := strings.TrimSpace(err.Error())
+	if before, _, found := strings.Cut(msg, "(value:"); found {
+		msg = strings.TrimSpace(before)
+	}
 	if i := strings.IndexByte(msg, '\n'); i >= 0 {
 		msg = strings.TrimSpace(msg[:i])
 	}
@@ -1209,7 +1212,7 @@ func applyComponentHealthToServices(ctx monitorContext.Context, handler *AppHand
 	// Iterate services and lookup matching component from the map
 	for idx, svc := range handler.services {
 		if component, exists := componentMap[svc.Name]; exists {
-			_, status, _, _, err := healthCheck(ctx, component, nil, svc.Cluster, svc.Namespace)
+			_, status, _, _, err := healthCheck(ctx, component, nil, svc.Cluster, healthCheckNamespace(handler, svc))
 			if err != nil {
 				ctx.Error(err, "Failed to collect health status")
 				// Otherwise a health check that could not run tells us nothing good
@@ -1227,7 +1230,29 @@ func applyComponentHealthToServices(ctx monitorContext.Context, handler *AppHand
 				handler.services[idx].Message = status.Message
 				handler.services[idx].Details = status.Details
 				handler.services[idx].Traits = status.Traits
+			} else if !paramsSuppliedAtRuntime {
+				// No error and no status means the check stopped before it read
+				// anything, because the resources this component renders are not in
+				// the Application's ResourceTracker. That is no evidence of health
+				// either, so the previous value must not be carried forward.
+				ctx.Info("Health status undetermined", "component", svc.Name)
+				handler.services[idx].Healthy = false
+				handler.services[idx].Message = "health status undetermined: component resources are not tracked by this application"
 			}
 		}
 	}
+}
+
+// healthCheckNamespace is the namespace the health check renders the component
+// into. Only a real override counts: services[].namespace falls back to the
+// Application's own namespace, and passing that back as an override would move
+// every rendered resource into it, including one that names a namespace of its
+// own. A type: addon or type: module component renders its Application into
+// vela-system, so an Application elsewhere would look for it in the wrong place,
+// find nothing in its ResourceTracker and report the stale health it last saw.
+func healthCheckNamespace(handler *AppHandler, svc common.ApplicationComponentStatus) string {
+	if svc.Namespace == handler.app.Namespace {
+		return ""
+	}
+	return svc.Namespace
 }

@@ -53,9 +53,9 @@ func TestOwnedApplicationPolicies(t *testing.T) {
 				"services": []interface{}{service("api", true, "")},
 			},
 			wantHealthy: true,
-			wantMessage: "%s application is running",
+			wantMessage: "Ready:1/1",
 		},
-		"one unhealthy component makes it unhealthy and its message is carried up": {
+		"one unhealthy component makes it unhealthy and is named in the count": {
 			status: map[string]interface{}{
 				"status": "running",
 				"services": []interface{}{
@@ -63,25 +63,25 @@ func TestOwnedApplicationPolicies(t *testing.T) {
 					service("widget", false, `addon "nest-module-poc" not found in registries [my-addons]`),
 				},
 			},
-			wantMessage: `%s application is running, component widget unhealthy: addon "nest-module-poc" not found in registries [my-addons]`,
+			wantMessage: "Ready:1/2 widget unhealthy",
 		},
-		"a component with no message of its own still names the component": {
+		"an unhealthy component is named, its own message stays on its own Application": {
 			status: map[string]interface{}{
 				"status":   "unhealthy",
 				"services": []interface{}{service("widget", false, "")},
 			},
-			wantMessage: "%s application is unhealthy, component widget unhealthy: ",
+			wantMessage: "Ready:0/1 widget unhealthy",
 		},
 		"a phase other than running is unhealthy even with no components": {
 			status:      map[string]interface{}{"status": "rendering"},
-			wantMessage: "%s application is rendering",
+			wantMessage: "rendering",
 		},
 		"an Application that has not reported a status yet is unhealthy": {
 			status:      map[string]interface{}{},
-			wantMessage: "%s application has not reported a status yet",
+			wantMessage: "pending",
 		},
 		"an Application with no status at all is unhealthy": {
-			wantMessage: "%s application has not reported a status yet",
+			wantMessage: "pending",
 		},
 	}
 
@@ -101,7 +101,7 @@ func TestOwnedApplicationPolicies(t *testing.T) {
 
 				require.NoError(t, err)
 				assert.Equal(t, tc.wantHealthy, result.Healthy)
-				assert.Equal(t, strings.ReplaceAll(tc.wantMessage, "%s", kind), result.Message)
+				assert.Equal(t, tc.wantMessage, result.Message)
 			})
 		}
 	}
