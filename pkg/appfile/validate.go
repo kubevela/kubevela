@@ -526,6 +526,25 @@ func validateAuxiliaryNameUnique() process.AuxiliaryHook {
 	})
 }
 
+// HasParamsSuppliedAtRuntime reports whether any component parameter of this
+// Application is filled in at runtime rather than written in the spec. Such a
+// component cannot be rendered outside the workflow that supplies the value, so
+// a caller that renders components on its own has to expect an incomplete
+// parameter and cannot read that failure as a fault of the component.
+func HasParamsSuppliedAtRuntime(app *Appfile) bool {
+	if len(getWorkflowAndPolicySuppliedParams(app)) > 0 {
+		return true
+	}
+	// A component can also take an input directly, without an explicit workflow;
+	// the generated workflow step carries it.
+	for _, comp := range app.Components {
+		if len(comp.Inputs) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // getWorkflowAndPolicySuppliedParams returns a set of parameter keys that will be
 // supplied by workflow steps or override policies at runtime.
 func getWorkflowAndPolicySuppliedParams(app *Appfile) map[string]bool {
