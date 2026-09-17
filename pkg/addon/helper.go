@@ -18,6 +18,7 @@ package addon
 
 import (
 	"context"
+	goerrors "errors"
 	"fmt"
 	"path/filepath"
 
@@ -285,6 +286,9 @@ func FindAddonPackagesDetailFromRegistry(ctx context.Context, k8sClient client.C
 	// RegistryDataStore.ListRegistries sorts rather than iterating its decoded
 	// map -- otherwise addons[0] would switch registries between calls.
 	foundAddons := make(map[string]bool)
+	// Why a registry did not yield the addon, so that an empty result can say
+	// more than "addon not exist".
+	var lookupErrs []error
 	merge := func(addon *WholeAddonPackage) {
 		if foundAddons[addon.Name] {
 			return
@@ -309,13 +313,22 @@ func FindAddonPackagesDetailFromRegistry(ctx context.Context, k8sClient client.C
 					// (missing version, auth, media type) otherwise surfaces to
 					// the caller only as the misleading "addon not exist".
 					klog.Warningf("failed to load addon %q from registry %q: %v", addonName, r.Name, err)
+					lookupErrs = append(lookupErrs, fmt.Errorf("addon %q in registry %q: %w", addonName, r.Name, err))
 					continue
 				}
 				merge(wholePackage)
 			}
 		default:
+			// Every failure below has to be recorded. A git or OSS registry that
+			// could not be listed, or an addon whose files could not be read,
+			// otherwise reaches the caller only as the misleading "addon not
+			// exist" -- the same trap the versioned branch above already avoids.
+			// A rate-limited or unauthorized private repository looks exactly
+			// like an absent addon from here.
 			meta, err := r.ListAddonMeta()
 			if err != nil {
+				klog.Warningf("cannot list addon registry %q: %v", r.Name, err)
+				lookupErrs = append(lookupErrs, fmt.Errorf("registry %q: %w", r.Name, err))
 				continue
 			}
 
@@ -326,10 +339,14 @@ func FindAddonPackagesDetailFromRegistry(ctx context.Context, k8sClient client.C
 				}
 				uiData, err := GetUIData(&r, &sourceMeta, UIMetaOptions)
 				if err != nil {
+					klog.Warningf("failed to read addon %q metadata from registry %q: %v", addonName, r.Name, err)
+					lookupErrs = append(lookupErrs, fmt.Errorf("addon %q in registry %q: %w", addonName, r.Name, err))
 					continue
 				}
 				installPackage, err := GetInstallPackage(&r, &sourceMeta, uiData)
 				if err != nil {
+					klog.Warningf("failed to read addon %q package from registry %q: %v", addonName, r.Name, err)
+					lookupErrs = append(lookupErrs, fmt.Errorf("addon %q in registry %q: %w", addonName, r.Name, err))
 					continue
 				}
 				// Combine UIData and InstallPackage into WholeAddonPackage
@@ -346,6 +363,10 @@ func FindAddonPackagesDetailFromRegistry(ctx context.Context, k8sClient client.C
 	}
 
 	if len(addons) == 0 {
+		if len(lookupErrs) > 0 {
+			// Wrapped, not replaced: callers test for ErrNotExist with errors.Is.
+			return nil, fmt.Errorf("%w: %w", ErrNotExist, goerrors.Join(lookupErrs...))
+		}
 		return nil, ErrNotExist
 	}
 

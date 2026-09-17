@@ -41,23 +41,33 @@ import (
 					}
 				}
 				_unhealthy: [ for s in _app.services if !s.healthy {s}]
-				// Carry the first failing component's own message up, so the reason
-				// this addon is unhealthy is readable on the Application that asked
-				// for it instead of only on the addon's own Application.
-				_first: {
-					name:    *"" | string
-					message: *"" | string
-				}
+				// Ready:<healthy>/<total> of the owned Application's components, the same
+				// shape webservice reports, naming the first failing one so there is
+				// somewhere to look. Its own message stays on its own Application.
+				_ready: len(_app.services) - len(_unhealthy)
+				_first: name: *"" | string
+				_reason: *"" | string
 				if len(_unhealthy) > 0 {
-					_first: _unhealthy[0]
-					message: "addon application is \(_app.phase), component \(_first.name) unhealthy: \(_first.message)"
+					_first:  _unhealthy[0]
+					_reason: " \(_first.name) unhealthy"
 				}
 				if len(_unhealthy) == 0 {
+					if _app.phase != "running" {
+						if _app.phase != "" {
+							_reason: " \(_app.phase)"
+						}
+					}
+				}
+				if len(_app.services) > 0 {
+					message: "Ready:\(_ready)/\(len(_app.services))\(_reason)"
+				}
+				// Nothing to count yet, so the phase is all there is to report.
+				if len(_app.services) == 0 {
 					if _app.phase == "" {
-						message: "addon application has not reported a status yet"
+						message: "pending"
 					}
 					if _app.phase != "" {
-						message: "addon application is \(_app.phase)"
+						message: _app.phase
 					}
 				}
 				"""#
