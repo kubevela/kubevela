@@ -457,7 +457,16 @@ func (r *Registry) BuildReader() (AsyncReader, error) {
 	}
 	if r.Git != nil {
 		g := r.Git
-		return NewAsyncReader(g.URL, "", "", g.Path, g.Token, GitType)
+		reader, err := NewAsyncReader(g.URL, "", "", g.Path, g.Token, GitType)
+		if err != nil {
+			return nil, err
+		}
+		// A pinned registry reads at one commit, so every file this reader
+		// returns belongs to the same tree.
+		if git, ok := reader.(*gitReader); ok && r.readRevision != "" {
+			git.h.readRef = r.readRevision
+		}
+		return reader, nil
 	}
 	if r.Gitee != nil {
 		g := r.Gitee
@@ -488,8 +497,9 @@ func createGitHelper(content *utils.Content, token string) *gitHelper {
 	tc.Timeout = time.Second * 20
 	cli := github.NewClient(tc)
 	return &gitHelper{
-		Client: cli,
-		Meta:   content,
+		Client:     cli,
+		Meta:       content,
+		credential: CredentialDigest(token),
 	}
 }
 
@@ -502,8 +512,9 @@ func createGiteeHelper(content *utils.Content, token string) *giteeHelper {
 	tc.Timeout = time.Second * 20
 	cli := NewGiteeClient(tc, nil)
 	return &giteeHelper{
-		Client: cli,
-		Meta:   content,
+		Client:     cli,
+		Meta:       content,
+		credential: CredentialDigest(token),
 	}
 }
 

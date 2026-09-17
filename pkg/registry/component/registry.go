@@ -119,6 +119,30 @@ type Registry struct {
 	OSS    *OSSAddonSource    `json:"oss,omitempty"`
 	Gitee  *GiteeAddonSource  `json:"gitee,omitempty"`
 	Gitlab *GitlabAddonSource `json:"gitlab,omitempty"`
+
+	// readRevision pins every read from this registry to one exact revision.
+	// Unexported and unserialised: it is a property of one read, set by
+	// AtRevision on a copy, never of the stored registry record.
+	readRevision string
+}
+
+// AtRevision returns a copy of the registry whose reads are pinned to revision,
+// as PackageRevision reported it.
+//
+// Pinning closes a window that would otherwise cache the wrong bytes
+// permanently. A caller checks the revision, then reads; between those two the
+// source can move, and GitHub's contents API is eventually consistent with its
+// commits API, so the read can return the pre-push tree while the probe already
+// reported the post-push commit. The result would be stored under the new
+// revision, so every later check would match it and serve that stale content
+// until the next commit -- possibly days. Reading at the revision that was
+// checked makes the two agree by construction.
+//
+// An empty revision returns the registry unchanged, so a source that cannot
+// name a revision keeps reading whatever is current.
+func (r Registry) AtRevision(revision string) Registry {
+	r.readRevision = revision
+	return r
 }
 
 // RegistryDataStore CRUD addon registry data in configmap

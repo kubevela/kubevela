@@ -22,6 +22,9 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	goerrors "errors"
 	"fmt"
 	"io/fs"
 	"strings"
@@ -41,16 +44,46 @@ type Service struct {
 	store     component.RegistryDataStore
 	newReader func(reg *component.Registry) (component.AsyncReader, error)
 	pullChart ociChartPuller
+	// revision names what the registry holds without reading it, so a
+	// reconcile that finds it unchanged reads nothing. A seam like the two
+	// above: a fake reader that cannot report a revision reports
+	// ErrRevisionUnsupported and every fetch reads, which is what the
+	// uncached path always did.
+	revision packageRevisioner
 }
+
+// packageRevisioner names the current revision of one package in a registry.
+type packageRevisioner func(ctx context.Context, reg *component.Registry, name, version, lastKnown string) (string, error)
 
 // NewService wires the real addon transport. In production the store is
 // module.NewStore(cli) (the vela-module-registry ConfigMap).
 func NewService(store component.RegistryDataStore) *Service {
-	return &Service{
+	s := &Service{
 		store:     store,
 		newReader: buildModuleReader,
 		pullChart: pullModuleChart,
 	}
+	s.revision = s.packageRevision
+	return s
+}
+
+// packageRevision asks the registry what it holds now. The git half goes
+// through the reader seam, so whatever reads the files is also what reports
+// their revision; a reader that cannot answer stops the caching rather than
+// reaching past the seam to the network.
+func (s *Service) packageRevision(ctx context.Context, reg *component.Registry, name, version, lastKnown string) (string, error) {
+	if reg.OCIChartSource() != nil {
+		return reg.PackageRevision(ctx, name, version, lastKnown)
+	}
+	reader, err := s.newReader(reg)
+	if err != nil {
+		return "", err
+	}
+	revisions, ok := reader.(component.RevisionReader)
+	if !ok {
+		return "", component.ErrRevisionUnsupported
+	}
+	return revisions.Revision(ctx, lastKnown)
 }
 
 // buildModuleReader builds the reader for a module registry, pointed at its
@@ -74,15 +107,66 @@ func (s *Service) FetchModule(ctx context.Context, registry, moduleName, version
 	if err != nil {
 		return nil, err
 	}
-	fsys, err := s.sourceFS(ctx, &reg, moduleName, version)
-	if err != nil {
-		return nil, err
+	// The render path runs on every reconcile of every Application that names
+	// this module, so what it costs the registry is what matters here. Reading
+	// the module is skipped entirely whenever the registry reports the same
+	// revision it was read at.
+	return moduleCache.Load(
+		moduleCacheKey(&reg, moduleName, version),
+		func(lastKnown string) (string, error) {
+			if s.revision == nil {
+				return "", component.ErrRevisionUnsupported
+			}
+			return s.revision(ctx, &reg, moduleName, version, lastKnown)
+		},
+		func(revision string) (*module.Module, error) {
+			// Read at the revision that was checked, so the files parsed here
+			// are the ones that revision names.
+			at := reg.AtRevision(revision)
+			fsys, err := s.sourceFS(ctx, &at, moduleName, version)
+			if err != nil {
+				return nil, err
+			}
+			mod, err := module.ParseModule(fsys)
+			if err != nil {
+				return nil, fmt.Errorf("registry %q, module %q: %w", reg.Name, moduleName, err)
+			}
+			return mod, nil
+		},
+	)
+}
+
+// moduleCache holds parsed modules by the registry revision they were read at.
+// It is package scoped because production builds a Service per call
+// (rendererImpl.fetch), so a cache on the Service would never see a second hit.
+var moduleCache = component.NewRevisionCache[*module.Module](component.DefaultRevisionCacheSize)
+
+// ResetModuleCache empties the module cache. It exists for tests, which would
+// otherwise carry a module from one case into the next.
+func ResetModuleCache() { moduleCache.Reset() }
+
+// moduleCacheKey identifies what was read, which is more than the module name:
+// it is that module, at that version, out of that source, read with those
+// credentials. The credentials are in the key as a digest so that rotating a
+// token invalidates what the old one could see, without the secret itself
+// reaching a map key, a log line, or a metric label.
+func moduleCacheKey(reg *component.Registry, moduleName, version string) string {
+	// Same order sourceFS dispatches on, so a registry carrying both sources
+	// is not keyed as one and read as the other.
+	var source, secret string
+	switch {
+	case reg.OCIChartSource() != nil:
+		oci := reg.OCIChartSource()
+		source = "oci|" + oci.URL
+		secret = oci.Username + "|" + oci.Token
+	case reg.Git != nil:
+		source = "git|" + reg.Git.URL + "|" + reg.Git.Path
+		secret = reg.Git.Token
+	default:
+		source = "unknown"
 	}
-	mod, err := module.ParseModule(fsys)
-	if err != nil {
-		return nil, fmt.Errorf("registry %q, module %q: %w", reg.Name, moduleName, err)
-	}
-	return mod, nil
+	sum := sha256.Sum256([]byte(secret))
+	return strings.Join([]string{reg.Name, source, moduleName, version, hex.EncodeToString(sum[:8])}, "|")
 }
 
 // sourceFS dispatches on the registry source and returns the module tree as an
@@ -118,13 +202,14 @@ func (s *Service) sourceFS(ctx context.Context, reg *component.Registry, moduleN
 // strips its configured base, and MemoryReader returns "<module>/<rel>". Both
 // forms start with "<module>/", which readerFS then strips.
 func readerFS(r component.AsyncReader, moduleName string) (fs.FS, error) {
-	metas, err := r.ListAddonMeta()
+	// Scoped when the source can: listing the registry to keep one entry costs
+	// an API request per directory of every other module in it.
+	meta, err := component.ListPackageMeta(r, moduleName)
 	if err != nil {
+		if goerrors.Is(err, component.ErrPackageNotExist) {
+			return nil, fmt.Errorf("module %q not found in registry: %w", moduleName, module.ErrModuleNotFound)
+		}
 		return nil, fmt.Errorf("list modules: %w", err)
-	}
-	meta, ok := metas[moduleName]
-	if !ok {
-		return nil, fmt.Errorf("module %q not found in registry: %w", moduleName, module.ErrModuleNotFound)
 	}
 	prefix := moduleName + "/"
 	files := mapFS{}
