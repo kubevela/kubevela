@@ -25,13 +25,13 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/jeremywohl/flatten/v2"
+	pkgcuex "github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
-	pkgcuex "github.com/kubevela/pkg/cue/cuex"
 	cueutils "github.com/oam-dev/kubevela/pkg/cue"
 	// Use WorkloadCompiler instead of the upstream cuex.DefaultCompiler.
 	// The upstream DefaultCompiler does not include provider packages like
