@@ -817,6 +817,116 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring("annotations?:"))
 			Expect(cue).To(ContainSubstring("Labels to apply"))
 		})
+
+		It("should generate a structured value schema under dynamic keys", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.Map("accessPoints").
+						OfObject(
+							defkit.String("path").Required(),
+							defkit.Int("ownerUID").Default(1000),
+							defkit.Int("ownerGID").Default(1000),
+							defkit.String("permissions").Default("0755"),
+						).
+						Optional(),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("accessPoints?: [string]: {"))
+			Expect(cue).To(ContainSubstring("path!: string"))
+			Expect(cue).To(ContainSubstring("ownerUID: *1000 | int"))
+			Expect(cue).To(ContainSubstring("ownerGID: *1000 | int"))
+			Expect(cue).To(ContainSubstring(`permissions: *"0755" | string`))
+		})
+
+		It("should generate a value schema reference under dynamic keys", func() {
+			comp := defkit.NewComponent("test").
+				Params(defkit.Map("accessPoints").OfSchemaRef("AccessPointConfig").Optional())
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("accessPoints?: [string]: #AccessPointConfig"))
+		})
+
+		It("should close the value struct when Closed is set alongside OfObject", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.Map("accessPoints").
+						OfObject(defkit.String("path").Required()).
+						Closed().
+						Optional(),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("accessPoints?: [string]: close({"))
+			Expect(cue).To(ContainSubstring("})"))
+		})
+
+		It("should keep WithFields, Of and StringKeyMap rendering unchanged", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.Map("fixed").WithFields(
+						defkit.String("path"),
+						defkit.Int("uid"),
+					),
+					defkit.Map("scalar").Of(defkit.ParamTypeString),
+					defkit.StringKeyMap("skm"),
+					defkit.Map("wholeRef").WithSchemaRef("HealthProbe"),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			// Fixed object: still a struct on the parameter itself, no [string]: key.
+			Expect(cue).To(ContainSubstring("fixed: {"))
+			Expect(cue).NotTo(ContainSubstring("fixed: [string]:"))
+			// Scalar-valued dynamic maps unchanged.
+			Expect(cue).To(ContainSubstring("scalar: [string]: string"))
+			Expect(cue).To(ContainSubstring("skm: [string]: string"))
+			// WithSchemaRef still applies to the whole parameter.
+			Expect(cue).To(ContainSubstring("wholeRef: #HealthProbe"))
+			Expect(cue).NotTo(ContainSubstring("wholeRef: [string]:"))
+		})
+
+		It("should import packages needed by nested value-schema constraints", func() {
+			comp := defkit.NewComponent("test").
+				Workload("v1", "ConfigMap").
+				Params(
+					defkit.Map("accessPoints").
+						OfObject(defkit.String("path").MinLen(1)).
+						Optional(),
+				)
+
+			cue := defkit.NewCUEGenerator().GenerateFullDefinition(comp)
+
+			// strings.MinRunes is emitted, so "strings" has to be imported or
+			// the generated CUE fails to compile.
+			Expect(cue).To(ContainSubstring("strings.MinRunes(1)"))
+			Expect(cue).To(ContainSubstring(`"strings"`))
+		})
+
+		It("should produce CUE that compiles for the dynamic-key value forms", func() {
+			// Substring assertions cannot tell a missing import from a present
+			// one, so compile the result and let CUE decide.
+			comp := defkit.NewComponent("test").
+				Workload("v1", "ConfigMap").
+				Params(
+					defkit.Map("accessPoints").
+						OfObject(
+							defkit.String("path").Required(),
+							defkit.Int("ownerUID").Default(1000),
+							defkit.String("permissions").Default("0755"),
+						).
+						Optional(),
+					defkit.Map("constrained").
+						OfObject(defkit.String("name").MinLen(3)).
+						Optional(),
+				)
+
+			val := cuecontext.New().CompileString(defkit.NewCUEGenerator().GenerateFullDefinition(comp))
+			Expect(val.Err()).ToNot(HaveOccurred())
+		})
 	})
 
 	Describe("GenerateFullDefinition with template", func() {
