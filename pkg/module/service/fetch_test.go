@@ -101,6 +101,13 @@ func gitRegistry(name string) component.Registry {
 	return component.Registry{Name: name, Git: &component.GitAddonSource{URL: "https://example.com/repo", Path: "module"}}
 }
 
+// unrevisioned stands in for a source that cannot name its revision, which
+// turns the cache off and makes every fetch read -- the behaviour these cases
+// were written against.
+func unrevisioned(_ context.Context, _ *component.Registry, _, _, _ string) (string, error) {
+	return "", component.ErrRevisionUnsupported
+}
+
 func newServiceWithFakes(store component.RegistryDataStore, files map[string]string) *Service {
 	s := NewService(store)
 	s.newReader = func(_ *component.Registry) (component.AsyncReader, error) { return fakeReader{files: files}, nil }
@@ -229,6 +236,9 @@ func TestFetchModule_OCI_EqualsGit(t *testing.T) {
 	}
 
 	s := NewService(fakeStore{regs: []component.Registry{ociRegistry("oci")}})
+	// A faked puller needs a faked revision too, or the probe reaches for the
+	// registry the fake stands in for.
+	s.revision = unrevisioned
 	s.pullChart = func(_ context.Context, _ *component.Registry, _, _ string) ([]*loader.BufferedFile, error) {
 		return bufs, nil
 	}
@@ -253,6 +263,9 @@ func TestFetchModule_OCI_PassesRequestedVersion(t *testing.T) {
 
 	var gotVersion string
 	s := NewService(fakeStore{regs: []component.Registry{ociRegistry("oci")}})
+	// A faked puller needs a faked revision too, or the probe reaches for the
+	// registry the fake stands in for.
+	s.revision = unrevisioned
 	s.pullChart = func(_ context.Context, _ *component.Registry, _, version string) ([]*loader.BufferedFile, error) {
 		gotVersion = version
 		return bufs, nil
@@ -269,6 +282,9 @@ func TestFetchModule_OCI_PassesRequestedVersion(t *testing.T) {
 // FetchModule error naming the module, before any parse is attempted.
 func TestFetchModule_OCI_UnknownVersionFails(t *testing.T) {
 	s := NewService(fakeStore{regs: []component.Registry{ociRegistry("oci")}})
+	// A faked puller needs a faked revision too, or the probe reaches for the
+	// registry the fake stands in for.
+	s.revision = unrevisioned
 	s.pullChart = func(_ context.Context, _ *component.Registry, _, version string) ([]*loader.BufferedFile, error) {
 		return nil, errors.Errorf("failed to pull addon chart s3:%s: manifest unknown", version)
 	}

@@ -215,15 +215,32 @@ func NewOCIClientWithPlainHTTP(host, username, password string, plainHTTP bool) 
 // PullOCIChart is the production puller: it logs in (when credentials are set)
 // and pulls the chart layer from the OCI registry via the Helm registry client.
 func PullOCIChart(ctx context.Context, ref, host, username, password string) ([]byte, error) {
-	return AwaitOCICall(ctx, func() ([]byte, error) {
+	// A registry that has already said the caller is asking too often is not
+	// asked again until it said to: spending the request is what keeps a
+	// throttled registry throttled.
+	if err := sourceRateLimit.blocked(host); err != nil {
+		return nil, err
+	}
+	data, err := AwaitOCICall(ctx, func() ([]byte, error) {
 		return PullOCIChartWithTransport(ref, host, username, password, false)
 	})
+	if err != nil {
+		return nil, holdOCIThrottle(host, err)
+	}
+	return data, nil
 }
 
 func PullOCIChartWithPlainHTTP(ctx context.Context, ref, host, username, password string) ([]byte, error) {
-	return AwaitOCICall(ctx, func() ([]byte, error) {
+	if err := sourceRateLimit.blocked(host); err != nil {
+		return nil, err
+	}
+	data, err := AwaitOCICall(ctx, func() ([]byte, error) {
 		return PullOCIChartWithTransport(ref, host, username, password, true)
 	})
+	if err != nil {
+		return nil, holdOCIThrottle(host, err)
+	}
+	return data, nil
 }
 
 func PullOCIChartWithTransport(ref, host, username, password string, plainHTTP bool) ([]byte, error) {
@@ -244,15 +261,29 @@ func PullOCIChartWithTransport(ref, host, username, password string, plainHTTP b
 // ListOCITags lists the repository's semver tags (highest first) via the Helm
 // registry client, which filters non-semver tags and sorts descending.
 func ListOCITags(ctx context.Context, repoRef, host, username, password string) ([]string, error) {
-	return AwaitOCICall(ctx, func() ([]string, error) {
+	if err := sourceRateLimit.blocked(host); err != nil {
+		return nil, err
+	}
+	tags, err := AwaitOCICall(ctx, func() ([]string, error) {
 		return ListOCITagsWithTransport(repoRef, host, username, password, false)
 	})
+	if err != nil {
+		return nil, holdOCIThrottle(host, err)
+	}
+	return tags, nil
 }
 
 func ListOCITagsWithPlainHTTP(ctx context.Context, repoRef, host, username, password string) ([]string, error) {
-	return AwaitOCICall(ctx, func() ([]string, error) {
+	if err := sourceRateLimit.blocked(host); err != nil {
+		return nil, err
+	}
+	tags, err := AwaitOCICall(ctx, func() ([]string, error) {
 		return ListOCITagsWithTransport(repoRef, host, username, password, true)
 	})
+	if err != nil {
+		return nil, holdOCIThrottle(host, err)
+	}
+	return tags, nil
 }
 
 func ListOCITagsWithTransport(repoRef, host, username, password string, plainHTTP bool) ([]string, error) {
@@ -337,6 +368,24 @@ func PullOCIChartFiles(ctx context.Context, reg Registry, name, version string) 
 		return nil, errors.Errorf("registry %q is not an OCI registry", reg.Name)
 	}
 	repoRef, host := OCIRepoRef(oci.URL, name)
+
+	// A pinned registry already knows which tag, and which manifest behind it,
+	// the caller checked. Pulling that digest skips the tag resolution and,
+	// more importantly, cannot fetch a different artifact than the one whose
+	// revision was compared -- a tag can be re-pushed between the two.
+	if tag, digest, ok := pinnedOCIRevision(reg.readRevision, version); ok {
+		ref := repoRef + "@" + digest
+		archive, err := PullOCIChart(ctx, ref, host, oci.Username, oci.Token)
+		if err != nil {
+			return nil, err
+		}
+		files, err := loader.LoadArchiveFiles(bytes.NewReader(archive))
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to load chart archive %s (tag %s)", ref, tag)
+		}
+		return files, nil
+	}
+
 	tag, err := resolveOCITag(ctx, repoRef, host, oci.Username, oci.Token, version)
 	if err != nil {
 		return nil, err
@@ -351,4 +400,23 @@ func PullOCIChartFiles(ctx context.Context, reg Registry, name, version string) 
 		return nil, errors.Wrapf(err, "failed to load chart archive %s", ref)
 	}
 	return files, nil
+}
+
+// pinnedOCIRevision splits a pinned revision into the tag and digest
+// ociPackageRevision built it from, and reports whether it can be used.
+//
+// It is refused when the caller asked for a different version than the pin
+// names, because then the pin describes another artifact entirely.
+func pinnedOCIRevision(revision, version string) (tag, digest string, ok bool) {
+	if revision == "" {
+		return "", "", false
+	}
+	tag, digest, found := strings.Cut(revision, "@")
+	if !found || tag == "" || !strings.HasPrefix(digest, "sha256:") {
+		return "", "", false
+	}
+	if version != "" && version != tag {
+		return "", "", false
+	}
+	return tag, digest, true
 }
