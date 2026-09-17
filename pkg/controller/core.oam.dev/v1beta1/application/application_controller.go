@@ -1169,22 +1169,59 @@ func evalStatus(ctx monitorContext.Context, handler *AppHandler, appFile *appfil
 			componentMap[component.Name] = component
 		}
 
-		applyComponentHealthToServices(ctx, handler, componentMap, healthCheck)
+		applyComponentHealthToServices(ctx, handler, componentMap, healthCheck, appfile.HasParamsSuppliedAtRuntime(appFile))
 		handler.app.Status.Services = handler.services
 		return isHealthy(handler.services)
 	}
 	return true
 }
 
+// maxHealthCheckErrorMessage caps what a failed health check writes into
+// status.services[].message. A CUE evaluation error carries the whole failing
+// value, which runs to thousands of characters and would be patched onto the
+// Application on every reconcile.
+const maxHealthCheckErrorMessage = 512
+
+// healthCheckErrorMessage condenses a health check error into a status message.
+// Only the first line is kept: for a CUE error that is the chain of wrapped
+// messages, which names the component and the reason, while the lines after it
+// are the dump of the failing CUE value.
+func healthCheckErrorMessage(err error) string {
+	msg := strings.TrimSpace(err.Error())
+	if i := strings.IndexByte(msg, '\n'); i >= 0 {
+		msg = strings.TrimSpace(msg[:i])
+	}
+	if runes := []rune(msg); len(runes) > maxHealthCheckErrorMessage {
+		msg = string(runes[:maxHealthCheckErrorMessage]) + "..."
+	}
+	return msg
+}
+
 // applyComponentHealthToServices updates each service's health status by matching it to its corresponding component.
 // Components are matched to services by name using the provided map for O(1) lookup performance.
-func applyComponentHealthToServices(ctx monitorContext.Context, handler *AppHandler, componentMap map[string]common.ApplicationComponent, healthCheck oamprovidertypes.ComponentHealthCheck) {
+//
+// paramsSuppliedAtRuntime says that some component of this Application gets a
+// parameter from a workflow step input or an override policy. The health check
+// renders the component again on its own, without those values, so for such an
+// Application a failed health check is expected and says nothing about the
+// component; the status the workflow recorded is the only one there is.
+func applyComponentHealthToServices(ctx monitorContext.Context, handler *AppHandler, componentMap map[string]common.ApplicationComponent, healthCheck oamprovidertypes.ComponentHealthCheck, paramsSuppliedAtRuntime bool) {
 	// Iterate services and lookup matching component from the map
 	for idx, svc := range handler.services {
 		if component, exists := componentMap[svc.Name]; exists {
 			_, status, _, _, err := healthCheck(ctx, component, nil, svc.Cluster, svc.Namespace)
 			if err != nil {
 				ctx.Error(err, "Failed to collect health status")
+				// Otherwise a health check that could not run tells us nothing good
+				// about the component: rendering failed, or its resource could not be
+				// read. Leaving the previous Healthy value in place reports a component
+				// as healthy on evidence that no longer exists, which is how a type:
+				// addon or type: module component whose registry credentials expired
+				// kept reporting healthy while every reconcile logged the fetch failure.
+				if !paramsSuppliedAtRuntime {
+					handler.services[idx].Healthy = false
+					handler.services[idx].Message = healthCheckErrorMessage(err)
+				}
 			} else if status != nil {
 				handler.services[idx].Healthy = status.Healthy
 				handler.services[idx].Message = status.Message

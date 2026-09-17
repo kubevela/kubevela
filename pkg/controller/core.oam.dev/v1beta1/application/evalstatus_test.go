@@ -18,7 +18,9 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -38,7 +40,11 @@ func Test_applyComponentHealthToServices(t *testing.T) {
 		components      []common.ApplicationComponent
 		services        []common.ApplicationComponentStatus
 		healthCheckFunc func(string) *common.ApplicationComponentStatus
-		verifyFunc      func(*testing.T, []common.ApplicationComponentStatus)
+		healthCheckErr  error
+		// paramsSuppliedAtRuntime mirrors an Application whose components take a
+		// parameter from a workflow step input, which the health check cannot render.
+		paramsSuppliedAtRuntime bool
+		verifyFunc              func(*testing.T, []common.ApplicationComponentStatus)
 	}{
 		{
 			name: "each service gets its matching component's health status",
@@ -145,6 +151,42 @@ func Test_applyComponentHealthToServices(t *testing.T) {
 				}
 			},
 		},
+		{
+			// The same failure on an Application whose parameters come from the
+			// workflow is expected: the health check renders the component without
+			// those values, so it cannot succeed and says nothing about the component.
+			name: "a health check that fails is ignored when parameters come from the workflow",
+			components: []common.ApplicationComponent{
+				{Name: "myweb", Type: "webservice", Properties: &runtime.RawExtension{Raw: []byte(`{}`)}},
+			},
+			services: []common.ApplicationComponentStatus{
+				{Name: "myweb", Namespace: "default", Cluster: "local", Healthy: true, Message: "applied by the workflow"},
+			},
+			healthCheckErr:          errors.New("GenerateComponentManifest: parameter.image: incomplete value string"),
+			paramsSuppliedAtRuntime: true,
+			verifyFunc: func(t *testing.T, services []common.ApplicationComponentStatus) {
+				assert.True(t, services[0].Healthy, "the status the workflow recorded should stand")
+				assert.Equal(t, "applied by the workflow", services[0].Message)
+			},
+		},
+		{
+			// A health check that could not run is not evidence of health. This is
+			// how a type: addon or type: module component whose registry credentials
+			// expired kept reporting healthy while every reconcile logged the
+			// failure to fetch it.
+			name: "a health check that fails marks the service unhealthy with the reason",
+			components: []common.ApplicationComponent{
+				{Name: "my-addon", Type: "addon", Properties: &runtime.RawExtension{Raw: []byte(`{}`)}},
+			},
+			services: []common.ApplicationComponentStatus{
+				{Name: "my-addon", Namespace: "default", Cluster: "local", Healthy: true, Message: "addon application is running"},
+			},
+			healthCheckErr: errors.New("GenerateComponentManifest: evaluate: addon \"nest-module-poc\" not found in registries [my-addons]\n(value: #do: \"render\")"),
+			verifyFunc: func(t *testing.T, services []common.ApplicationComponentStatus) {
+				assert.False(t, services[0].Healthy, "a component whose health could not be checked is not healthy")
+				assert.Equal(t, `GenerateComponentManifest: evaluate: addon "nest-module-poc" not found in registries [my-addons]`, services[0].Message)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -169,11 +211,14 @@ func Test_applyComponentHealthToServices(t *testing.T) {
 			}
 
 			mockHealthCheck := func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+				if tt.healthCheckErr != nil {
+					return false, nil, nil, nil, tt.healthCheckErr
+				}
 				status := tt.healthCheckFunc(comp.Name)
 				return false, status, nil, nil, nil
 			}
 
-			applyComponentHealthToServices(ctx, handler, componentMap, mockHealthCheck)
+			applyComponentHealthToServices(ctx, handler, componentMap, mockHealthCheck, tt.paramsSuppliedAtRuntime)
 
 			if tt.verifyFunc != nil {
 				tt.verifyFunc(t, handler.services)
@@ -243,6 +288,32 @@ func TestFilterRemovedComponentsFromStatus(t *testing.T) {
 				assert.Equal(t, expectedName, filteredServices[i].Name,
 					fmt.Sprintf("service at index %d should be %s", i, expectedName))
 			}
+		})
+	}
+}
+
+func TestHealthCheckErrorMessage(t *testing.T) {
+	testCases := map[string]struct {
+		err  error
+		want string
+	}{
+		"only the first line is kept, because the rest is the failing CUE value": {
+			err:  errors.New("failed to compile workload my-addon: addon not exist\n(value: #do: \"render\"\n$params: {})"),
+			want: `failed to compile workload my-addon: addon not exist`,
+		},
+		"a single-line error is passed through": {
+			err:  errors.New("registry my-addons: 401 Unauthorized"),
+			want: "registry my-addons: 401 Unauthorized",
+		},
+		"a long error is capped so it is not patched onto the Application in full": {
+			err:  errors.New(strings.Repeat("x", maxHealthCheckErrorMessage+50)),
+			want: strings.Repeat("x", maxHealthCheckErrorMessage) + "...",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, healthCheckErrorMessage(tc.err))
 		})
 	}
 }
