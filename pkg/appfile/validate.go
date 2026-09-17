@@ -25,14 +25,13 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/jeremywohl/flatten/v2"
-	"github.com/kubevela/pkg/cue/cuex"
+	pkgcuex "github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
-	pkgcuex "github.com/kubevela/pkg/cue/cuex"
 	cueutils "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 
@@ -622,7 +621,7 @@ func componentParameterRoot(ctx context.Context, wl *Component, templateStr, bas
 // provider functions stay unresolved: nothing is supplied for them to run on.
 func compileSchemaLevel(ctx context.Context, src string) (cue.Value, error) {
 	return velacuex.WorkloadCompiler.Get().CompileStringWithOptions(
-		ctx, renderTemplate(src), cuex.DisableResolveProviderFunctions{})
+		ctx, renderTemplate(src), pkgcuex.DisableResolveProviderFunctions{})
 }
 
 // renderTemplate appends the placeholders expected by KubeVela’s template
