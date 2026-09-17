@@ -52,5 +52,7 @@ func TestWrapErrRateLimit(t *testing.T) {
 
 	rateLimitErr := &github.RateLimitError{}
 	wrappedErr = component.WrapErrRateLimit(rateLimitErr)
-	assert.Equal(t, ErrRateLimit, wrappedErr)
+	// The wrapped error now carries the reset time, so it is matched by
+	// errors.Is rather than compared for identity.
+	assert.ErrorIs(t, wrappedErr, ErrRateLimit)
 }

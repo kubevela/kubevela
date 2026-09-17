@@ -125,6 +125,32 @@ func classifyCatalogListStatus(host string, status int, statusText string) error
 	return errors.Errorf("failed to list OCI catalog at %s: server returned %s", host, statusText)
 }
 
+// classifyCatalogAuthFailure handles a catalog probe that never reached the
+// registry because the token exchange itself was refused.
+//
+// Docker Hub does not merely deny the registry:catalog:* scope at /v2/_catalog;
+// its auth service rejects the scope outright, answering the token request with
+// 400 Bad Request. That arrives here as a transport error, so
+// classifyCatalogListStatus -- which reads a registry response status -- never
+// sees it, and the Docker Hub relaxation there is unreachable for a caller
+// holding real credentials. The effect was that no Docker Hub OCI registry
+// could be added at all: enumeration failed as a read error, the portable
+// catalog was legitimately absent on a first push, and a read error on either
+// side is deliberately fatal.
+//
+// Being refused a catalog-scoped token is the same condition as being refused
+// the route: there is no catalog to enumerate here. It stays scoped to Docker
+// Hub's known hosts, because on any other registry a refused token exchange is
+// usually a real credential problem and rebuilding a catalog from a misread
+// empty list would drop every addon already published.
+func classifyCatalogAuthFailure(host string, err error) error {
+	if component.IsDockerHubHost(host) {
+		return errors.Wrapf(ErrOCICatalogAbsent,
+			"OCI catalog enumeration is unsupported at %s: Docker Hub does not issue a catalog-scoped token to any credential: %v", host, err)
+	}
+	return errors.Wrapf(err, "failed to list OCI catalog at %s", host)
+}
+
 // listOCIRepositories enumerates the OCI distribution catalog and returns
 // repository names relative to the configured registry prefix. The catalog API
 // is paginated through RFC 5988 Link headers.
@@ -191,7 +217,7 @@ func listOCIRepositoriesWithScheme(ctx context.Context, registryURL, username, p
 		}
 		resp, err := authClient.Do(req)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to list OCI catalog at %s", host)
+			return nil, classifyCatalogAuthFailure(host, err)
 		}
 
 		var page struct {
