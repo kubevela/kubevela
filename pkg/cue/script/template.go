@@ -26,8 +26,10 @@ import (
 	"github.com/kubevela/pkg/cue/cuex"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/errors"
+	"cuelang.org/go/cue/parser"
 
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
@@ -184,6 +186,23 @@ func (c CUE) RunAndOutput(context interface{}, properties map[string]interface{}
 	return lookup, lookup.Err()
 }
 
+// propertiesToExpr parses properties as CUE syntax instead of unifying the decoded Go map,
+// since a bare float64 (from json.Unmarshal) always converts to a CUE float, even for whole numbers, conflicting with `int`-typed parameter fields.
+func propertiesToExpr(properties map[string]interface{}) (ast.Expr, error) {
+	if properties == nil {
+		properties = map[string]interface{}{}
+	}
+	propertiesByte, err := json.Marshal(properties)
+	if err != nil {
+		return nil, fmt.Errorf("the properties is invalid %w", err)
+	}
+	expr, err := parser.ParseExpr("properties.cue", propertiesByte)
+	if err != nil {
+		return nil, fmt.Errorf("the properties is invalid %w", err)
+	}
+	return expr, nil
+}
+
 // RunAndOutputWithCueX run the cue script and return the values of the specified field.
 // The output field must be under the template field.
 func (c CUE) RunAndOutputWithCueX(ctx context.Context, context interface{}, properties map[string]interface{}, outputField ...string) (cue.Value, error) {
@@ -191,8 +210,12 @@ func (c CUE) RunAndOutputWithCueX(ctx context.Context, context interface{}, prop
 	if err := c.ValidatePropertiesWithCueX(ctx, properties); err != nil {
 		return cue.Value{}, err
 	}
+	propertiesExpr, err := propertiesToExpr(properties)
+	if err != nil {
+		return cue.Value{}, err
+	}
 	contextOption := cuex.WithExtraData("context", context)
-	parameterOption := cuex.WithExtraData("template.parameter", properties)
+	parameterOption := cuex.WithExtraData("template.parameter", propertiesExpr)
 	val, err := velacuex.ConfigCompiler.Get().CompileStringWithOptions(ctx, string(c), contextOption, parameterOption)
 	if !val.Exists() {
 		return cue.Value{}, fmt.Errorf("failed to compile config template")
@@ -259,7 +282,11 @@ func (c CUE) ValidatePropertiesWithCueX(ctx context.Context, properties map[stri
 	if !parameter.Exists() {
 		return fmt.Errorf("failed to lookup value: var(path=template.parameter) not exist")
 	}
-	props := parameter.FillPath(cue.ParsePath(""), properties)
+	propertiesExpr, err := propertiesToExpr(properties)
+	if err != nil {
+		return err
+	}
+	props := parameter.FillPath(cue.ParsePath(""), propertiesExpr)
 	if props.Err() != nil {
 		return ConvertFieldError(props.Err())
 	}
