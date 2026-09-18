@@ -96,6 +96,9 @@ func newGCConfig(options ...GCOption) *gcConfig {
 //	   i.  GarbageCollectionMode is not set to `passive`
 //	   ii. All managed resources are RECYCLED. (RECYCLED means resource does not exist or managed by latest
 //	       resourcetrackers)
+//	c. when no currentRT exists for the application's generation (the generation advanced without a
+//	   workflow restart, e.g. a rapid A -> B -> A spec flip back to an already-reconciled revision), the
+//	   newest historyRT of the current revision is not marked, as it still tracks the live resources.
 //
 // NOTE: Mark Stage will always work for each application reconcile, not matter whether workflow is ended
 //
@@ -241,6 +244,34 @@ func (h *gcHandler) scan(ctx context.Context) (inactiveRTs []*v1beta1.ResourceTr
 			}
 		} else {
 			inactiveRTs = h._historyRTs
+			// A finished workflow normally implies a currentRT exists. When the generation
+			// advanced without a workflow restart (e.g. a rapid A -> B -> A spec flip back
+			// to an already-reconciled revision), no RT is created for the new generation
+			// and the newest historyRT of the current revision still tracks the live
+			// resources. Keep it instead of recycling live resources.
+			if h._currentRT == nil && h.app.Status.LatestRevision != nil {
+				// Multiple history RTs can carry the current revision label after
+				// repeated spec flips. Protect the one with the highest application
+				// generation (the same ordering used for currentRT selection) and
+				// never pick an RT that is already being deleted.
+				keep := -1
+				for i, rt := range inactiveRTs {
+					if rt == nil || rt.GetDeletionTimestamp() != nil {
+						continue
+					}
+					if rt.GetLabels()[oam.LabelAppRevision] != h.app.Status.LatestRevision.Name {
+						continue
+					}
+					if keep < 0 || rt.Spec.ApplicationGeneration > inactiveRTs[keep].Spec.ApplicationGeneration {
+						keep = i
+					}
+				}
+				if keep >= 0 {
+					filtered := make([]*v1beta1.ResourceTracker, 0, len(inactiveRTs)-1)
+					filtered = append(filtered, inactiveRTs[:keep]...)
+					inactiveRTs = append(filtered, inactiveRTs[keep+1:]...)
+				}
+			}
 		}
 	}
 	return inactiveRTs
