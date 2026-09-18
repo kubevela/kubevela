@@ -337,6 +337,7 @@ spec:
                 - Trait
                 - Policy
                 - WorkflowStep
+                - Source
                 type: string
               policyDefinition:
                 description: PolicyDefinition records the snapshot of the created/modified
@@ -592,6 +593,218 @@ spec:
                 description: RevisionHash record the hash value of the spec of DefinitionRevision
                   object.
                 type: string
+              sourceDefinition:
+                description: SourceDefinition records the snapshot of the created/modified
+                  SourceDefinition
+                properties:
+                  apiVersion:
+                    description: |-
+                      APIVersion defines the versioned schema of this representation of an object.
+                      Servers should convert recognized schemas to the latest internal value, and
+                      may reject unrecognized values.
+                      More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+                    type: string
+                  kind:
+                    description: |-
+                      Kind is a string value representing the REST resource this object represents.
+                      Servers may infer this from the endpoint the client submits requests to.
+                      Cannot be updated.
+                      In CamelCase.
+                      More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+                    type: string
+                  metadata:
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      finalizers:
+                        items:
+                          type: string
+                        type: array
+                      labels:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      name:
+                        type: string
+                      namespace:
+                        type: string
+                    type: object
+                  spec:
+                    description: SourceDefinitionSpec defines the desired state of
+                      SourceDefinition.
+                    properties:
+                      schematic:
+                        description: Schematic defines source resolution logic.
+                        properties:
+                          cue:
+                            description: CUE defines the encapsulation in CUE format
+                            properties:
+                              template:
+                                description: |-
+                                  Template defines the abstraction template data of the capability, it will replace the old CUE template in extension field.
+                                  Template is a required field if CUE is defined in Capability Definition.
+                                type: string
+                            required:
+                            - template
+                            type: object
+                          terraform:
+                            description: Terraform is the struct to describe cloud
+                              resources managed by Hashicorp Terraform
+                            properties:
+                              configuration:
+                                description: Configuration is Terraform Configuration
+                                type: string
+                              customRegion:
+                                description: Region is cloud provider's region. It
+                                  will override the region in the region field of
+                                  ProviderReference
+                                type: string
+                              deleteResource:
+                                default: true
+                                description: DeleteResource will determine whether
+                                  provisioned cloud resources will be deleted when
+                                  CR is deleted
+                                type: boolean
+                              gitCredentialsSecretReference:
+                                description: GitCredentialsSecretReference specifies
+                                  the reference to the secret containing the git credentials
+                                properties:
+                                  name:
+                                    description: name is unique within a namespace
+                                      to reference a secret resource.
+                                    type: string
+                                  namespace:
+                                    description: namespace defines the space within
+                                      which the secret name must be unique.
+                                    type: string
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              path:
+                                description: Path is the sub-directory of remote git
+                                  repository. It's valid when remote is set
+                                type: string
+                              providerRef:
+                                description: ProviderReference specifies the reference
+                                  to Provider
+                                properties:
+                                  name:
+                                    description: Name of the referenced object.
+                                    type: string
+                                  namespace:
+                                    default: default
+                                    description: Namespace of the referenced object.
+                                    type: string
+                                required:
+                                - name
+                                type: object
+                              type:
+                                default: hcl
+                                description: Type specifies which Terraform configuration
+                                  it is, HCL or JSON syntax
+                                enum:
+                                - hcl
+                                - json
+                                - remote
+                                type: string
+                              writeConnectionSecretToRef:
+                                description: |-
+                                  WriteConnectionSecretToReference specifies the namespace and name of a
+                                  Secret to which any connection details for this managed resource should
+                                  be written. Connection details frequently include the endpoint, username,
+                                  and password required to connect to the managed resource.
+                                properties:
+                                  name:
+                                    description: Name of the secret.
+                                    type: string
+                                  namespace:
+                                    description: Namespace of the secret.
+                                    type: string
+                                required:
+                                - name
+                                type: object
+                            required:
+                            - configuration
+                            type: object
+                        type: object
+                      version:
+                        description: |-
+                          Version is the semantic version of this definition. Setting it makes each
+                          version a distinct DefinitionRevision, so a binding can pin one with
+                          `type: my-source@v1` and stop tracking whatever is newest.
+                        type: string
+                    type: object
+                  status:
+                    description: SourceDefinitionStatus defines the observed state
+                      of SourceDefinition.
+                    properties:
+                      conditions:
+                        description: Conditions of the resource.
+                        items:
+                          description: A Condition that may apply to a resource.
+                          properties:
+                            lastTransitionTime:
+                              description: |-
+                                LastTransitionTime is the last time this condition transitioned from one
+                                status to another.
+                              format: date-time
+                              type: string
+                            message:
+                              description: |-
+                                A Message containing details about this condition's last transition from
+                                one status to another, if any.
+                              type: string
+                            reason:
+                              description: A Reason for this condition's last transition
+                                from one status to another.
+                              type: string
+                            status:
+                              description: Status of this condition; is it currently
+                                True, False, or Unknown?
+                              type: string
+                            type:
+                              description: |-
+                                Type of this condition. At most one of each condition type may apply to
+                                a resource at any point in time.
+                              type: string
+                          required:
+                          - lastTransitionTime
+                          - reason
+                          - status
+                          - type
+                          type: object
+                        type: array
+                      configTemplateRef:
+                        description: ConfigTemplateRef references the ConfigTemplate
+                          generated from this SourceDefinition schema.
+                        properties:
+                          name:
+                            description: Name is the deterministic template name.
+                            type: string
+                          schemaHash:
+                            description: SchemaHash is the sha256 hash (hex) of the
+                              canonical schema cue snippet.
+                            type: string
+                        type: object
+                      latestRevision:
+                        description: LatestRevision of this source definition.
+                        properties:
+                          name:
+                            type: string
+                          revision:
+                            format: int64
+                            type: integer
+                          revisionHash:
+                            description: RevisionHash record the hash value of the
+                              spec of ApplicationRevision object.
+                            type: string
+                        required:
+                        - name
+                        - revision
+                        type: object
+                    type: object
+                type: object
               traitDefinition:
                 description: TraitDefinition records the snapshot of the created/modified
                   TraitDefinition

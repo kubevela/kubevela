@@ -155,6 +155,7 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 				TraitDefinitions:        make(map[string]*v1beta1.TraitDefinition),
 				PolicyDefinitions:       make(map[string]v1beta1.PolicyDefinition),
 				WorkflowStepDefinitions: make(map[string]*v1beta1.WorkflowStepDefinition),
+				SourceDefinitions:       make(map[string]*v1beta1.SourceDefinition),
 				Policies:                make(map[string]v1alpha1.Policy),
 			},
 		},
@@ -213,6 +214,9 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 	}
 	for name, def := range af.RelatedWorkflowStepDefinitions {
 		appRev.Spec.WorkflowStepDefinitions[name] = def.DeepCopy()
+	}
+	for name, def := range af.RelatedSourceDefinitions {
+		appRev.Spec.SourceDefinitions[name] = def.DeepCopy()
 	}
 	for name, po := range af.ExternalPolicies {
 		appRev.Spec.Policies[name] = *po
@@ -282,6 +286,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		ScopeDefinitionHash        map[string]string
 		PolicyDefinitionHash       map[string]string
 		WorkflowStepDefinitionHash map[string]string
+		SourceDefinitionHash       map[string]string
 		PolicyHash                 map[string]string
 		WorkflowHash               string
 		ReferredObjectsHash        string
@@ -292,6 +297,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		ScopeDefinitionHash:        make(map[string]string),
 		PolicyDefinitionHash:       make(map[string]string),
 		WorkflowStepDefinitionHash: make(map[string]string),
+		SourceDefinitionHash:       make(map[string]string),
 		PolicyHash:                 make(map[string]string),
 	}
 	var err error
@@ -339,6 +345,14 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		}
 		revHash.WorkflowStepDefinitionHash[key] = hash
 	}
+	for key, sd := range appRevision.Spec.SourceDefinitions {
+		s := sd
+		hash, err := utils.ComputeSpecHash(&s.Spec)
+		if err != nil {
+			return "", err
+		}
+		revHash.SourceDefinitionHash[key] = hash
+	}
 	for key, po := range appRevision.Spec.Policies {
 		hash, err := utils.ComputeSpecHash(po.Properties)
 		if err != nil {
@@ -379,11 +393,13 @@ func (h *AppHandler) currentAppRevIsNew(ctx context.Context) (bool, bool, error)
 		appSpec := h.currentAppRev.Spec.Application.Spec
 		traitDef := h.currentAppRev.Spec.TraitDefinitions
 		workflowStepDef := h.currentAppRev.Spec.WorkflowStepDefinitions
+		sourceDef := h.currentAppRev.Spec.SourceDefinitions
 		h.currentAppRev = h.latestAppRev.DeepCopy()
 		h.currentRevHash = h.app.Status.LatestRevision.RevisionHash
 		h.currentAppRev.Spec.Application.Spec = appSpec
 		h.currentAppRev.Spec.TraitDefinitions = traitDef
 		h.currentAppRev.Spec.WorkflowStepDefinitions = workflowStepDef
+		h.currentAppRev.Spec.SourceDefinitions = sourceDef
 		return false, false, nil
 	}
 
@@ -422,6 +438,11 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 	if len(oldTraitDefinitions) != len(newTraitDefinitions) {
 		return false
 	}
+	oldSourceDefinitions := old.Spec.SourceDefinitions
+	newSourceDefinitions := new.Spec.SourceDefinitions
+	if len(oldSourceDefinitions) != len(newSourceDefinitions) {
+		return false
+	}
 	if len(old.Spec.ComponentDefinitions) != len(new.Spec.ComponentDefinitions) {
 		return false
 	}
@@ -440,6 +461,18 @@ func DeepEqualRevision(old, new *v1beta1.ApplicationRevision) bool {
 	for key, td := range newTraitDefinitions {
 		oldTd, exists := oldTraitDefinitions[key]
 		if !exists || !apiequality.Semantic.DeepEqual(oldTd.Spec, td.Spec) {
+			return false
+		}
+	}
+	for key, sd := range newSourceDefinitions {
+		oldSd, exists := oldSourceDefinitions[key]
+		if !exists {
+			return false
+		}
+		if (oldSd == nil) != (sd == nil) {
+			return false
+		}
+		if oldSd != nil && !apiequality.Semantic.DeepEqual(oldSd.Spec, sd.Spec) {
 			return false
 		}
 	}

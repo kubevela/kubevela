@@ -117,6 +117,47 @@ subjects:
 {{ end }}
 
 ---
+# The source cache: Secrets that KubeVela owns, in its own namespace.
+#
+# The controller reads and writes these as itself rather than as the Application's
+# identity, because the cache is KubeVela's bookkeeping and is shared by every
+# Application that resolves the same source. Access to the data a source returns is
+# governed where it belongs - by whether a user may bind the SourceDefinition at
+# all, which the ValidateDefinitionPermissions gate checks per binding.
+#
+# Namespaced rather than added to the :manager ClusterRole, because cache entries
+# only ever live here and cluster-wide secret write is a much larger grant than
+# this needs.
+#
+# The namespace is systemDefinitionNamespace, not the release namespace: cache
+# entries sit with the definitions they are bookkeeping about, which is what the
+# controller writes to. Binding this in the release namespace instead left every
+# cache write, touch and sweep Forbidden wherever the two differ.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "kubevela.fullname" . }}:source-cache
+  namespace: {{ include "systemDefinitionNamespace" . }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "kubevela.fullname" . }}:source-cache
+  namespace: {{ include "systemDefinitionNamespace" . }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "kubevela.fullname" . }}:source-cache
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "kubevela.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+
+---
 # permissions to do leader election.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -333,6 +374,10 @@ spec:
             - "--feature-gates=EnableApplicationScopedPolicies={{- .Values.featureGates.enableApplicationScopedPolicies | toString -}}"
             - "--feature-gates=EnableGlobalPolicies={{- .Values.featureGates.enableGlobalPolicies | toString -}}"
             - "--feature-gates=EnableAddonComponent={{- .Values.featureGates.enableAddonComponent | toString -}}"
+            - "--feature-gates=EnableSourceAutoUpdate={{- .Values.featureGates.enableSourceAutoUpdate | toString -}}"
+            - "--feature-gates=EnableCelExpressions={{- .Values.featureGates.enableCelExpressions | toString -}}"
+            - "--feature-gates=RequireCelExpressionOptIn={{- .Values.featureGates.requireCelExpressionOptIn | toString -}}"
+            - "--feature-gates=ValidateUndeclaredParameters={{- .Values.featureGates.validateUndeclaredParameters | toString -}}"
             - "--feature-gates=ValidateDefinitionPermissions={{ .Values.authorization.definitionValidationEnabled | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}

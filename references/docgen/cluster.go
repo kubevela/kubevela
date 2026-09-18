@@ -19,8 +19,13 @@ package docgen
 import (
 	"context"
 	"fmt"
+	"slices"
+	"sort"
 	"strings"
 
+	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/format"
+	"cuelang.org/go/cue/parser"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -35,9 +40,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/definition/cachekey"
+	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/sources"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/sourcedefinition"
 	"github.com/oam-dev/kubevela/references/docgen/fix"
 )
 
@@ -81,6 +90,15 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.
 	}
 	caps = append(caps, wfs...)
 
+	srcs, erl, err := GetSources(ctx, namespace, c)
+	if err != nil {
+		return nil, err
+	}
+	for _, er := range erl {
+		klog.Infof("get source capability %v", er)
+	}
+	caps = append(caps, srcs...)
+
 	return caps, nil
 }
 
@@ -105,6 +123,10 @@ func GetNamespacedCapabilitiesFromCluster(ctx context.Context, namespace string,
 		capabilities = append(capabilities, policies...)
 	}
 
+	if sources, _, err := GetSources(ctx, namespace, c); err == nil {
+		capabilities = append(capabilities, sources...)
+	}
+
 	if namespace != types.DefaultKubeVelaNS {
 		// get components from default namespace
 		if workloads, _, err := GetComponentsFromClusterWithValidateOption(ctx, types.DefaultKubeVelaNS, c, selector, false); err == nil {
@@ -123,12 +145,16 @@ func GetNamespacedCapabilitiesFromCluster(ctx context.Context, namespace string,
 		if policies, _, err := GetPolicies(ctx, types.DefaultKubeVelaNS, c); err == nil {
 			capabilities = append(capabilities, policies...)
 		}
+
+		if sources, _, err := GetSources(ctx, types.DefaultKubeVelaNS, c); err == nil {
+			capabilities = append(capabilities, sources...)
+		}
 	}
 
 	if len(capabilities) > 0 {
 		return capabilities, nil
 	}
-	return nil, fmt.Errorf("could not find any components, traits or workflowSteps from namespace %s and %s", namespace, types.DefaultKubeVelaNS)
+	return nil, fmt.Errorf("could not find any components, traits, workflowSteps, policies or sources from namespace %s and %s", namespace, types.DefaultKubeVelaNS)
 }
 
 // GetComponentsFromCluster will get capability from K8s cluster
@@ -263,6 +289,32 @@ func GetPolicies(ctx context.Context, namespace string, c common.Args) ([]types.
 	var templateErrors []error
 	for _, def := range defs.Items {
 		tmp, err := GetCapabilityByPolicyDefinitionObject(def)
+		if err != nil {
+			templateErrors = append(templateErrors, err)
+			continue
+		}
+		templates = append(templates, *tmp)
+	}
+	return templates, templateErrors, nil
+}
+
+// GetSources gets SourceDefinitions from cluster
+func GetSources(ctx context.Context, namespace string, c common.Args) ([]types.Capability, []error, error) {
+	newClient, err := c.GetClient()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var templates []types.Capability
+	var defs v1beta1.SourceDefinitionList
+	err = newClient.List(ctx, &defs, &client.ListOptions{Namespace: namespace})
+	if err != nil {
+		return nil, nil, fmt.Errorf("list SourceDefinition err: %w", err)
+	}
+
+	var templateErrors []error
+	for _, def := range defs.Items {
+		tmp, err := GetCapabilityBySourceDefinitionObject(def)
 		if err != nil {
 			templateErrors = append(templateErrors, err)
 			continue
@@ -463,6 +515,42 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 		return capability, nil
 	}
 
+	var policyDef v1beta1.PolicyDefinition
+	err = newClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: capabilityName}, &policyDef)
+	if err == nil {
+		foundCapability = true
+	} else if kerrors.IsNotFound(err) {
+		err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &policyDef)
+		if err == nil {
+			foundCapability = true
+		}
+	}
+	if foundCapability {
+		capability, err = GetCapabilityByPolicyDefinitionObject(policyDef)
+		if err != nil {
+			return nil, err
+		}
+		return capability, nil
+	}
+
+	var sourceDef v1beta1.SourceDefinition
+	err = newClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: capabilityName}, &sourceDef)
+	if err == nil {
+		foundCapability = true
+	} else if kerrors.IsNotFound(err) {
+		err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &sourceDef)
+		if err == nil {
+			foundCapability = true
+		}
+	}
+	if foundCapability {
+		capability, err = GetCapabilityBySourceDefinitionObject(sourceDef)
+		if err != nil {
+			return nil, err
+		}
+		return capability, nil
+	}
+
 	if ns == types.DefaultKubeVelaNS {
 		return nil, fmt.Errorf("could not find %s in namespace %s", capabilityName, ns)
 	}
@@ -516,6 +604,10 @@ func GetCapabilityFromDefinitionRevision(ctx context.Context, c common.Args, ns,
 		return GetCapabilityByTraitDefinitionObject(rev.Spec.TraitDefinition)
 	case commontypes.WorkflowStepType:
 		return GetCapabilityByWorkflowStepDefinitionObject(rev.Spec.WorkflowStepDefinition)
+	case commontypes.PolicyType:
+		return GetCapabilityByPolicyDefinitionObject(rev.Spec.PolicyDefinition)
+	case commontypes.SourceType:
+		return GetCapabilityBySourceDefinitionObject(rev.Spec.SourceDefinition)
 	default:
 		return nil, fmt.Errorf("unsupported type %s", rev.Spec.DefinitionType)
 	}
@@ -567,4 +659,235 @@ func GetCapabilityByPolicyDefinitionObject(def v1beta1.PolicyDefinition) (*types
 	}
 	capability.Namespace = def.Namespace
 	return &capability, nil
+}
+
+// GetCapabilityBySourceDefinitionObject gets capability by SourceDefinition object
+func GetCapabilityBySourceDefinitionObject(def v1beta1.SourceDefinition) (*types.Capability, error) {
+	// SourceDefinitionSpec has no Reference field, so the CRD reference name is empty.
+	capability, err := HandleDefinition(def.Name, "", def.Annotations, def.Labels,
+		nil, types.TypeSource, nil, def.Spec.Schematic)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to handle SourceDefinition")
+	}
+	capability.Namespace = def.Namespace
+	// Surface the source-specific output contract (schema:) and caching (storage:)
+	// so `vela def show` can tell users what data the source provides and how it
+	// is cached. Failures here are non-fatal: the capability is still usable.
+	if capability.CueTemplate != "" {
+		if outputs, err := extractSourceOutputs(capability.CueTemplate); err != nil {
+			klog.Warningf("parse source outputs for %s: %v", def.Name, err)
+		} else {
+			capability.SourceOutputs = outputs
+		}
+		if storage, err := extractStorageFields(capability.CueTemplate); err != nil {
+			klog.Warningf("parse source storage for %s: %v", def.Name, err)
+		} else {
+			capability.SourceStorage = storage
+		}
+		// The cache key moved into $internal: when it became generated rather than
+		// authored, and this extractor read only storage: - so `vela def show`
+		// stopped printing the one field an operator needs to correlate a source
+		// with its cache entry. Prepended rather than appended: the key is the
+		// identity, the TTL is a policy about it.
+		capability.SourceStorage = append(internalCacheFields(capability.CueTemplate), capability.SourceStorage...)
+
+		capability.SourceSurfaces = sourceSurfaces(capability.CueTemplate)
+	}
+	return &capability, nil
+}
+
+// internalCacheFields reads the generated $internal: block - the cache key and
+// the context fields it is built from.
+//
+// Non-fatal on any failure, like every other extractor here: a definition that
+// predates the generated block simply has nothing to show.
+func internalCacheFields(template string) []types.SourceStorageField {
+	fields, err := extractBlockFields(template, "$internal")
+	if err != nil {
+		klog.Warningf("parse source $internal block: %v", err)
+		return nil
+	}
+	var out []types.SourceStorageField
+	for _, f := range fields {
+		switch f.Name {
+		case "key":
+			out = append(out, f)
+		case "keyInputs":
+			out = append(out, types.SourceStorageField{
+				Name: "keyInputs", Value: formatKeyInputs(f.Value)})
+		}
+	}
+	return out
+}
+
+// formatKeyInputs renders the generated keyInputs list as the context reads an
+// author would recognise: `["cluster","namespace"]` becomes
+// `context.cluster, context.namespace`.
+//
+// The stored form is a CUE list because that is what the generator writes and
+// what admission re-derives; it is not what anyone wants to read in a table.
+func formatKeyInputs(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	trimmed = strings.TrimPrefix(trimmed, "[")
+	trimmed = strings.TrimSuffix(trimmed, "]")
+	var names []string
+	for _, part := range strings.Split(trimmed, ",") {
+		part = strings.Trim(strings.TrimSpace(part), `"`)
+		if part != "" {
+			names = append(names, "context."+part)
+		}
+	}
+	if len(names) == 0 {
+		// Not a gap: a source that reads no context resolves to one entry shared
+		// by the whole cluster, which is worth stating rather than leaving blank.
+		return "(none - one cache entry for the whole cluster)"
+	}
+	return strings.Join(names, ", ")
+}
+
+// sourceSurfaces reports, for every surface, whether this source can be consumed
+// there and why not when it cannot.
+//
+// Derived, never authored. A source is restricted by the context its template
+// reads - one keyed on context.componentName cannot resolve in a workflow step,
+// because no component is being rendered there - and optionally narrowed further
+// by the definition's own consumableFrom. Both are already enforced at admission;
+// the only thing missing was telling the author before an Application is rejected.
+//
+// Every surface is returned, the reachable ones included, so the caller can show a
+// row each: "workflow steps: no, reads context.componentName" answers a question
+// that a list quietly omitting workflow steps does not.
+func sourceSurfaces(template string) []types.SourceSurface {
+	fields, err := cachekey.RequiredContext(template)
+	if err != nil {
+		klog.Warningf("infer source context reads: %v", err)
+		return nil
+	}
+
+	// Absent consumableFrom means every surface; present means only those named.
+	declared, derr := sourcedefinition.ParseConsumableFrom(template)
+	if derr != nil {
+		klog.Warningf("parse source consumableFrom: %v", derr)
+		declared = nil
+	}
+
+	out := make([]types.SourceSurface, 0, len(sources.ConsumableSurfaces))
+	for _, surface := range sources.ConsumableSurfaces {
+		row := types.SourceSurface{Name: propexpr.SurfacePlural(surface), Consumable: true}
+
+		// The two exclusions are reported together because they are independent
+		// and have different fixes: what a template reads can only change by
+		// changing the reads, while consumableFrom is a deliberate choice.
+		var reasons []string
+		if missing := cachekey.MissingOn(fields, surface); len(missing) > 0 {
+			reasons = append(reasons, "reads "+strings.Join(missing, ", "))
+		}
+		if len(declared) > 0 && !slices.Contains(declared, surface) {
+			reasons = append(reasons, "not in consumableFrom")
+		}
+		if len(reasons) > 0 {
+			row.Consumable, row.Reason = false, strings.Join(reasons, "; ")
+		}
+		out = append(out, row)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// extractSourceOutputs parses the `schema:` block of a SourceDefinition template
+// into displayable parameters. The schema block is a plain set of type
+// declarations (e.g. `value: int`), so it compiles standalone once relabeled as
+// a parameter block and reuses the same extractor as inputs.
+func extractSourceOutputs(template string) ([]types.Parameter, error) {
+	schema, err := extractTopLevelCUEBlock(template, "schema")
+	if err != nil || schema == "" {
+		return nil, err
+	}
+	params, err := cue.GetParameters("parameter: " + schema)
+	if err != nil {
+		if errors.Is(err, cue.ErrParameterNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return params, nil
+}
+
+// extractStorageFields parses the `storage:` block of a SourceDefinition
+// template into ordered name/value pairs (storageTTL, onStaleFailure, ...).
+// Values are the authored CUE expressions kept verbatim; interpolations like
+// \(parameter.min) are NOT evaluated.
+func extractStorageFields(template string) ([]types.SourceStorageField, error) {
+	return extractBlockFields(template, "storage")
+}
+
+// extractBlockFields returns the named top-level block's fields as ordered
+// name/value pairs. Used for both the authored `storage:` block and the
+// generated `$internal:` one, which have the same shape and are read the same
+// way - the difference between them is who writes them, not how they parse.
+func extractBlockFields(template, blockName string) ([]types.SourceStorageField, error) {
+	file, err := parser.ParseFile("-", template, parser.ParseComments)
+	if err != nil {
+		return nil, err
+	}
+	for _, decl := range file.Decls {
+		field, ok := decl.(*ast.Field)
+		if !ok {
+			continue
+		}
+		name, _, err := ast.LabelName(field.Label)
+		if err != nil || name != blockName {
+			continue
+		}
+		lit, ok := field.Value.(*ast.StructLit)
+		if !ok {
+			return nil, nil
+		}
+		var fields []types.SourceStorageField
+		for _, el := range lit.Elts {
+			sub, ok := el.(*ast.Field)
+			if !ok {
+				continue
+			}
+			subName, _, err := ast.LabelName(sub.Label)
+			if err != nil {
+				continue
+			}
+			bt, err := format.Node(sub.Value)
+			if err != nil {
+				return nil, err
+			}
+			fields = append(fields, types.SourceStorageField{
+				Name:  subName,
+				Value: strings.Trim(string(bt), `"`),
+			})
+		}
+		return fields, nil
+	}
+	return nil, nil
+}
+
+// extractTopLevelCUEBlock returns the formatted value of the named top-level
+// field from a CUE template (e.g. "schema"), or "" if absent.
+func extractTopLevelCUEBlock(template, fieldName string) (string, error) {
+	file, err := parser.ParseFile("-", template, parser.ParseComments)
+	if err != nil {
+		return "", err
+	}
+	for _, decl := range file.Decls {
+		field, ok := decl.(*ast.Field)
+		if !ok {
+			continue
+		}
+		name, _, err := ast.LabelName(field.Label)
+		if err != nil || name != fieldName {
+			continue
+		}
+		bt, err := format.Node(field.Value)
+		if err != nil {
+			return "", err
+		}
+		return string(bt), nil
+	}
+	return "", nil
 }

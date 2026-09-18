@@ -34,6 +34,8 @@ import (
 	"github.com/kubevela/workflow/pkg/providers/util"
 
 	addonprovider "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/addon"
+	velaregistry "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/registry"
+	velaconfig "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/config"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/helm"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy"
@@ -79,6 +81,11 @@ var compiler = singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, e
 		// it here: the name would otherwise be spelled in two places and the
 		// provider's own ProviderName in a third.
 		addonprovider.Package,
+		// SourceDefinitions compile against this compiler too - vela def render,
+		// the SDK generator and dry-run all reach it - so the packages a source
+		// may import belong here as well as in WorkloadCompiler.
+		velaregistry.Package,
+		velaconfig.Package,
 	), nil
 })
 

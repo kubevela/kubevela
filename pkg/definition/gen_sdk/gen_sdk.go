@@ -348,6 +348,10 @@ func (meta *GenMeta) Run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		if !SupportedDefinitionKind(defKind) {
+			klog.Infof("Skipping %s: the SDK does not model %s", cuePath, defKind)
+			continue
+		}
 		g.meta.SetDefinition(defName, defKind)
 
 		err = g.GenOpenAPISchema(template)
