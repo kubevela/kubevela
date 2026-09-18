@@ -403,6 +403,19 @@ func TestValidateTraitParams(t *testing.T) {
 			wantErr: "",
 		},
 		{
+			name:      "genuine template CUE error is silently skipped",
+			traitName: "broken",
+			template: `
+			parameter: {
+				maxReplicas: int
+			}
+			// CUE type error in template body independent of user params
+			_invalid: "str" + 1
+			`,
+			params:  map[string]interface{}{"maxReplicas": 5},
+			wantErr: "",
+		},
+		{
 			name:      "wrong type for defaulted parameter",
 			traitName: "scaler",
 			template: `

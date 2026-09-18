@@ -110,8 +110,10 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 				// references to fields that are populated/injected during runtime only
 				continue
 			}
-			if err := ValidateTraitParams(ctxData, tr); err != nil {
-				return err
+			if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation) {
+				if err := ValidateTraitParams(ctxData, tr); err != nil {
+					return err
+				}
 			}
 			if err := tr.EvalContext(pCtx); err != nil {
 				return errors.WithMessagef(err, "cannot evaluate trait %q", tr.Name)
@@ -270,14 +272,23 @@ func ValidateTraitParams(ctxData velaprocess.ContextData, tr *Trait) error {
 	val, err := velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx.GetCtx(), cueSrc, pkgcuex.DisableResolveProviderFunctions{})
 	if err != nil {
 		if templateCompileErr == nil {
-			// Template compiled fine without user params, so the error originates
-			// from a type conflict in the supplied parameter values.
-			return errors.WithMessagef(err, "trait %q: invalid parameter value", tr.Name)
+			// Template compiled fine without user params — the error comes from the
+			// user-supplied values conflicting with the parameter schema.
+			return errors.WithMessagef(err, "trait %q: parameter constraint violation", tr.Name)
 		}
-		// Template itself had compile errors regardless of user params (e.g. a missing
-		// provider import); log and skip to avoid false positives.
-		klog.V(4).Infof("trait %q: CUE compile error during param validation (skipping): %v", tr.Name, err)
-		return nil
+		// Template failed with the full base context — this can happen when the
+		// template references runtime-only fields (e.g. context.output) that are
+		// not present during admission. Fall back to compiling without baseCtx so
+		// that context: _ permits any field access and param types can still be
+		// checked independently.
+		minimalSrc := strings.Join([]string{renderTemplate(templateStr), paramSnippet}, "\n")
+		var minimalErr error
+		val, minimalErr = velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx.GetCtx(), minimalSrc, pkgcuex.DisableResolveProviderFunctions{})
+		if minimalErr != nil {
+			// Genuine template error unrelated to user params; skip to avoid false positives.
+			klog.V(4).Infof("trait %q: CUE compile error during param validation (skipping): %v", tr.Name, err)
+			return nil
+		}
 	}
 
 	paramVal := val.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
