@@ -162,6 +162,7 @@ optimize:
 ##@param featureGates.enableGlobalPolicies enable automatic discovery and application of global PolicyDefinitions to all Applications (Alpha)
 ##@param featureGates.enableCueExpVariable inject the CUE_EXPERIMENT env var (evalv3=0,keepvalidators=0) into the controller to disable experimental CUE features during the v0.14.x migration window
 ##@param featureGates.enableAddonComponent enable installing an addon as an Application component via the type: addon ComponentDefinition (Alpha)
+##@param featureGates.enableModuleComponent enable installing a module as an Application component via the type: module ComponentDefinition (Alpha)
 ##@param
 featureGates:
   gzipResourceTracker: false
@@ -184,6 +185,7 @@ featureGates:
   enableGlobalPolicies: false
   enableCueExpVariable: true
   enableAddonComponent: false
+  enableModuleComponent: false
 
 ## @section MultiCluster parameters
 

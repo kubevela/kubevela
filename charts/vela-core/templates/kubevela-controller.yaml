@@ -333,6 +333,7 @@ spec:
             - "--feature-gates=EnableApplicationScopedPolicies={{- .Values.featureGates.enableApplicationScopedPolicies | toString -}}"
             - "--feature-gates=EnableGlobalPolicies={{- .Values.featureGates.enableGlobalPolicies | toString -}}"
             - "--feature-gates=EnableAddonComponent={{- .Values.featureGates.enableAddonComponent | toString -}}"
+            - "--feature-gates=EnableModuleComponent={{- .Values.featureGates.enableModuleComponent | toString -}}"
             - "--feature-gates=ValidateDefinitionPermissions={{ .Values.authorization.definitionValidationEnabled | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}

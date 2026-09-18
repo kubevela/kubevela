@@ -135,6 +135,7 @@ func TestParsePolicies(t *testing.T) {
 				MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					return fmt.Errorf("get definition error")
 				},
+				MockList: test.NewMockListFn(nil),
 			},
 			wantErrContain: "get definition error",
 		},
@@ -195,6 +196,9 @@ func TestParsePolicies(t *testing.T) {
 					}
 					return nil
 				},
+				// Type resolution searches by module label when a bare name is not a
+				// legacy definition, so the mock has to answer List as well as Get.
+				MockList: test.NewMockListFn(nil),
 			},
 			wantErrContain: "fetch component/policy type of my-policy",
 		},
@@ -463,6 +467,7 @@ func TestApplicationParser(t *testing.T) {
 				}
 				return nil
 			},
+			MockList: test.NewMockListFn(nil),
 		}
 
 		appfile, err := NewApplicationParser(&tclient).GenerateAppFile(context.TODO(), &o)
@@ -625,6 +630,7 @@ patch: spec: replicas: parameter.replicas
 			}
 			return nil
 		},
+		MockList: test.NewMockListFn(nil),
 	}
 
 	t.Run("with apply-application workflowStep", func(t *testing.T) {

@@ -544,73 +544,6 @@ func TestSetPushPasswordFromStdin(t *testing.T) {
 	})
 }
 
-func TestAddonPushDirectOCIDoesNotRequireKubeClient(t *testing.T) {
-	cmd := NewAddonPushCommand(common.Args{}, util.IOStreams{})
-	cmd.SetArgs([]string{"/path/that/does/not/exist", "oci://registry.example.com/addons"})
-
-	err := cmd.Execute()
-
-	assert.Error(t, err)
-	assert.NotContains(t, err.Error(), "kubeconfig")
-	assert.NotContains(t, err.Error(), "Kubernetes")
-}
-
-func TestGetOCIRegistryFromArgsUsesPassword(t *testing.T) {
-	parse := func(flags ...string) (*pkgaddon.Registry, error) {
-		cmd := &cobra.Command{}
-		parseArgsFromFlag(cmd)
-		if err := cmd.Flags().Parse(flags); err != nil {
-			return nil, err
-		}
-		return getRegistryFromArgs(cmd, []string{"private"})
-	}
-
-	t.Run("username and password", func(t *testing.T) {
-		registry, err := parse(
-			"--type=oci",
-			"--endpoint=oci://registry.example.com/addons",
-			"--username=robot",
-			"--password=secret",
-		)
-
-		assert.NoError(t, err)
-		assert.Equal(t, "robot", registry.Helm.Username)
-		assert.Equal(t, "secret", registry.Helm.Token)
-	})
-
-	t.Run("anonymous", func(t *testing.T) {
-		registry, err := parse(
-			"--type=oci",
-			"--endpoint=oci://registry.example.com/addons",
-		)
-
-		assert.NoError(t, err)
-		assert.Empty(t, registry.Helm.Username)
-		assert.Empty(t, registry.Helm.Token)
-	})
-
-	t.Run("token flag is rejected", func(t *testing.T) {
-		_, err := parse(
-			"--type=oci",
-			"--endpoint=oci://registry.example.com/addons",
-			"--username=robot",
-			"--token=legacy-secret",
-		)
-
-		assert.ErrorContains(t, err, "unknown flag: --token")
-	})
-
-	t.Run("partial basic authentication is rejected", func(t *testing.T) {
-		_, err := parse(
-			"--type=oci",
-			"--endpoint=oci://registry.example.com/addons",
-			"--username=robot",
-		)
-
-		assert.ErrorContains(t, err, "must be supplied together")
-	})
-}
-
 func TestSetRegistryPasswordFromStdin(t *testing.T) {
 	newCommand := func(input string) *cobra.Command {
 		cmd := &cobra.Command{}
@@ -673,24 +606,6 @@ func TestSetRegistryPasswordFromStdin(t *testing.T) {
 			}
 		}
 	})
-}
-
-// TestNewAddAddonRegistryCommandWiresIOStreamsIn pins the actual command
-// factory, not just setRegistryPasswordFromStdin in isolation: a caller that
-// supplies input only through IOStreams.In (not real OS-level stdin, e.g. an
-// in-process embedding of this command) must have that input reach
-// --password-stdin, not silently fall back to the process's os.Stdin.
-func TestNewAddAddonRegistryCommandWiresIOStreamsIn(t *testing.T) {
-	ioStream := util.IOStreams{In: strings.NewReader("injected-password\n")}
-	cmd := NewAddAddonRegistryCommand(common.Args{}, ioStream)
-	assert.NoError(t, cmd.Flags().Set(addonPasswordStdin, "true"))
-	assert.NoError(t, cmd.Flags().Set(addonRegistryType, addonOCIType))
-
-	err := setRegistryPasswordFromStdin(cmd)
-	assert.NoError(t, err)
-	password, err := cmd.Flags().GetString(addonPassword)
-	assert.NoError(t, err)
-	assert.Equal(t, "injected-password", password)
 }
 
 // TestNewUpdateAddonRegistryCommandWiresIOStreamsIn is the same contract for

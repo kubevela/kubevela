@@ -126,6 +126,8 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 		NewComponentsCommand(commandArgs, "3", ioStream),
 		NewTraitCommand(commandArgs, "4", ioStream),
 		DefinitionCommandGroup(commandArgs, "5", ioStream),
+		// Modules
+		NewModuleCommand(commandArgs, "6", ioStream),
 
 		// System
 		NewInstallCommand(commandArgs, "1", ioStream),

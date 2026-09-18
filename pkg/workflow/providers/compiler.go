@@ -34,6 +34,7 @@ import (
 	"github.com/kubevela/workflow/pkg/providers/util"
 
 	addonprovider "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/addon"
+	moduleprovider "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/module"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/config"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/helm"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy"
@@ -75,10 +76,13 @@ var compiler = singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, e
 		runtime.Must(cuexruntime.NewInternalPackage("query", query.GetTemplate(), query.GetProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage("terraform", terraform.GetTemplate(), terraform.GetProviders())),
 
-		// Reuse the package the provider already exports rather than rebuilding
-		// it here: the name would otherwise be spelled in two places and the
-		// provider's own ProviderName in a third.
+		// Component provider packages, so definitions importing "vela/addon" and
+		// "vela/module" can be compiled for OpenAPI schema generation and
+		// definition validation. Reuse the package each provider already exports
+		// rather than rebuilding it here: the name would otherwise be spelled in
+		// two places and the provider's own ProviderName in a third.
 		addonprovider.Package,
+		moduleprovider.Package,
 	), nil
 })
 

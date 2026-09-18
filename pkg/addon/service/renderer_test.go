@@ -34,6 +34,7 @@ import (
 
 	"github.com/kubevela/pkg/util/singleton"
 
+	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
@@ -917,4 +918,232 @@ func TestClientAndRestConfigFallBackToSingleton(t *testing.T) {
 	r := &rendererImpl{}
 	assert.Same(t, fakeCli, r.client())
 	assert.Same(t, cfg, r.restConfig())
+}
+
+func TestResolveAndRenderAddsModuleComponentForEnabledImport(t *testing.T) {
+	r := &rendererImpl{
+		cli: fakeClientWithRegistry(t),
+		findPackagesFn: func(_ context.Context, _ client.Client, _, _ []string) ([]*pkgaddon.WholeAddonPackage, error) {
+			return []*pkgaddon.WholeAddonPackage{{
+				InstallPackage: pkgaddon.InstallPackage{
+					Meta:        pkgaddon.Meta{Name: "atmos-platform-storage", Version: "1.0.0"},
+					AppTemplate: &v1beta1.Application{},
+					YAMLTemplates: []pkgaddon.ElementFile{
+						{Name: "crd.yaml", Data: "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: crd-stand-in\n"},
+					},
+					Imports: []pkgaddon.ModuleImport{
+						{Module: "aws-s3", Enabled: true, Registry: "oam-modules", Version: "1.0.0"},
+					},
+				},
+				RegistryName: "fixture",
+			}}, nil
+		},
+	}
+
+	res, err := r.resolveAndRender(context.Background(), api.AddonRequest{
+		Name:                "atmos-platform-storage",
+		SkipVersionValidate: true,
+	})
+	require.NoError(t, err)
+
+	spec, ok := res.Application["spec"].(map[string]interface{})
+	require.True(t, ok, "Application.spec must be a map[string]interface{}")
+	comps, ok := spec["components"].([]interface{})
+	require.True(t, ok, "spec.components must be a []interface{}")
+
+	var moduleComp map[string]interface{}
+	var resourcesCompName string
+	for _, item := range comps {
+		comp, isMap := item.(map[string]interface{})
+		require.True(t, isMap, "each component must be a map[string]interface{}")
+		if comp["type"] == "module" {
+			moduleComp = comp
+		}
+		if name, _ := comp["name"].(string); name == "atmos-platform-storage-resources" {
+			resourcesCompName = name
+		}
+	}
+	require.NotEmpty(t, resourcesCompName, "the YAML resources component must be present")
+	require.NotNil(t, moduleComp, "a type: module component must be present")
+	assert.Equal(t, "aws-s3", moduleComp["name"])
+
+	props, ok := moduleComp["properties"].(map[string]interface{})
+	require.True(t, ok, "module component properties must be a map[string]interface{}")
+	assert.Equal(t, "aws-s3", props["module"])
+	assert.Equal(t, "oam-modules", props["registry"])
+	assert.Equal(t, "1.0.0", props["version"])
+
+	dependsOn, ok := moduleComp["dependsOn"].([]interface{})
+	require.True(t, ok, "module component dependsOn must be a []interface{}")
+	assert.Contains(t, dependsOn, resourcesCompName)
+}
+
+// TestResolveAndRenderModuleDependsOnAddonAuxiliaries pins that a module
+// component also waits on the addon's outputs: block (wrapped into the
+// addon-auxiliaries component), not just its resources/ tier -- outputs: can
+// carry arbitrary objects, including operators/CRDs a module's Compositions
+// rely on just as much as anything under resources/.
+func TestResolveAndRenderModuleDependsOnAddonAuxiliaries(t *testing.T) {
+	cueTemplate := `output: {
+	apiVersion: "core.oam.dev/v1beta1"
+	kind:       "Application"
+	metadata: {
+		name:      "atmos-platform-storage"
+		namespace: "vela-system"
+	}
+	spec: components: []
+}
+outputs: crossplaneProvider: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata: {
+		name:      "crossplane-provider-stand-in"
+		namespace: "vela-system"
+	}
+}`
+	r := &rendererImpl{
+		cli: fakeClientWithRegistry(t),
+		findPackagesFn: func(_ context.Context, _ client.Client, _, _ []string) ([]*pkgaddon.WholeAddonPackage, error) {
+			return []*pkgaddon.WholeAddonPackage{{
+				InstallPackage: pkgaddon.InstallPackage{
+					Meta:           pkgaddon.Meta{Name: "atmos-platform-storage", Version: "1.0.0"},
+					AppCueTemplate: pkgaddon.ElementFile{Data: cueTemplate},
+					Imports: []pkgaddon.ModuleImport{
+						{Module: "aws-s3", Enabled: true},
+					},
+				},
+				RegistryName: "fixture",
+			}}, nil
+		},
+	}
+
+	res, err := r.resolveAndRender(context.Background(), api.AddonRequest{
+		Name:                "atmos-platform-storage",
+		SkipVersionValidate: true,
+	})
+	require.NoError(t, err)
+
+	spec, ok := res.Application["spec"].(map[string]interface{})
+	require.True(t, ok, "Application.spec must be a map[string]interface{}")
+	comps, ok := spec["components"].([]interface{})
+	require.True(t, ok, "spec.components must be a []interface{}")
+
+	var moduleComp map[string]interface{}
+	var sawAddonAuxiliaries bool
+	for _, item := range comps {
+		comp, isMap := item.(map[string]interface{})
+		require.True(t, isMap, "each component must be a map[string]interface{}")
+		if comp["type"] == "module" {
+			moduleComp = comp
+		}
+		if name, _ := comp["name"].(string); name == "addon-auxiliaries" {
+			sawAddonAuxiliaries = true
+		}
+	}
+	require.True(t, sawAddonAuxiliaries, "the outputs: block must render as an addon-auxiliaries component")
+	require.NotNil(t, moduleComp, "a type: module component must be present")
+
+	dependsOn, ok := moduleComp["dependsOn"].([]interface{})
+	require.True(t, ok, "module component dependsOn must be a []interface{}")
+	assert.Contains(t, dependsOn, "addon-auxiliaries")
+}
+
+func TestResolveAndRenderSkipsDisabledImport(t *testing.T) {
+	r := &rendererImpl{
+		cli: fakeClientWithRegistry(t),
+		findPackagesFn: func(_ context.Context, _ client.Client, _, _ []string) ([]*pkgaddon.WholeAddonPackage, error) {
+			return []*pkgaddon.WholeAddonPackage{{
+				InstallPackage: pkgaddon.InstallPackage{
+					Meta:        pkgaddon.Meta{Name: "example", Version: "1.0.0"},
+					AppTemplate: &v1beta1.Application{},
+					Imports: []pkgaddon.ModuleImport{
+						{Module: "aws-s3", Enabled: false, Registry: "oam-modules"},
+					},
+				},
+				RegistryName: "fixture",
+			}}, nil
+		},
+	}
+
+	res, err := r.resolveAndRender(context.Background(), api.AddonRequest{
+		Name:                "example",
+		SkipVersionValidate: true,
+	})
+	require.NoError(t, err)
+
+	spec := res.Application["spec"].(map[string]interface{})
+	comps, _ := spec["components"].([]interface{})
+	for _, item := range comps {
+		comp := item.(map[string]interface{})
+		assert.NotEqual(t, "module", comp["type"], "a disabled import must not produce a component")
+	}
+}
+
+func TestResolveAndRenderDoesNotDuplicateAuthorDeclaredModuleComponent(t *testing.T) {
+	authorComponent := common2.ApplicationComponent{
+		Name: "aws-s3",
+		Type: "module",
+	}
+	r := &rendererImpl{
+		cli: fakeClientWithRegistry(t),
+		findPackagesFn: func(_ context.Context, _ client.Client, _, _ []string) ([]*pkgaddon.WholeAddonPackage, error) {
+			return []*pkgaddon.WholeAddonPackage{{
+				InstallPackage: pkgaddon.InstallPackage{
+					Meta: pkgaddon.Meta{Name: "example", Version: "1.0.0"},
+					AppTemplate: &v1beta1.Application{
+						Spec: v1beta1.ApplicationSpec{Components: []common2.ApplicationComponent{authorComponent}},
+					},
+					Imports: []pkgaddon.ModuleImport{
+						{Module: "aws-s3", Enabled: true, Registry: "oam-modules"},
+					},
+				},
+				RegistryName: "fixture",
+			}}, nil
+		},
+	}
+
+	res, err := r.resolveAndRender(context.Background(), api.AddonRequest{
+		Name:                "example",
+		SkipVersionValidate: true,
+	})
+	require.NoError(t, err)
+
+	spec := res.Application["spec"].(map[string]interface{})
+	comps, _ := spec["components"].([]interface{})
+	var moduleComps int
+	for _, item := range comps {
+		comp := item.(map[string]interface{})
+		if comp["type"] == "module" {
+			moduleComps++
+		}
+	}
+	assert.Equal(t, 1, moduleComps, "the author's own component must not be duplicated")
+}
+
+func TestResolveAndRenderWithoutImportsIsUnchanged(t *testing.T) {
+	r := &rendererImpl{
+		cli: fakeClientWithRegistry(t),
+		findPackagesFn: func(_ context.Context, _ client.Client, _, _ []string) ([]*pkgaddon.WholeAddonPackage, error) {
+			return []*pkgaddon.WholeAddonPackage{{
+				InstallPackage: pkgaddon.InstallPackage{
+					Meta:        pkgaddon.Meta{Name: "example", Version: "1.0.0"},
+					AppTemplate: &v1beta1.Application{},
+				},
+				RegistryName: "fixture",
+			}}, nil
+		},
+	}
+
+	res, err := r.resolveAndRender(context.Background(), api.AddonRequest{
+		Name:                "example",
+		SkipVersionValidate: true,
+	})
+	require.NoError(t, err)
+
+	spec := res.Application["spec"].(map[string]interface{})
+	comps, _ := spec["components"].([]interface{})
+	for _, item := range comps {
+		comp := item.(map[string]interface{})
+		assert.NotEqual(t, "module", comp["type"], "an addon with no _imports.cue must not gain a module component")
+	}
 }

@@ -41,6 +41,7 @@ import (
 	// config) and is initialized lazily (no init-time kubeconfig dependency).
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/features"
 
@@ -69,6 +70,17 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 			ctxData.Ctx = context.Background()
 		}
 		ctxData.Ctx = helm.WithDryRun(ctxData.Ctx)
+		// Same reasoning for the addon and module providers, which would
+		// otherwise resolve every type: addon and type: module component from
+		// its remote registry while the apiserver holds the admission request
+		// open.
+		//
+		// Not redundant with the caller that already marks the ctx it passes to
+		// GenerateAppFile: GenerateAppFileFromRevision takes no ctx and never
+		// sets Appfile.Context, so for a PublishVersion Application the marker
+		// would otherwise be lost and the fallback above would hand the
+		// providers a bare context.Background().
+		ctxData.Ctx = validation.WithValidationOnly(ctxData.Ctx)
 
 		if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation) {
 			err := p.ValidateComponentParams(ctxData, wl, a)
@@ -512,6 +524,25 @@ func validateAuxiliaryNameUnique() process.AuxiliaryHook {
 		}
 		return nil
 	})
+}
+
+// HasParamsSuppliedAtRuntime reports whether any component parameter of this
+// Application is filled in at runtime rather than written in the spec. Such a
+// component cannot be rendered outside the workflow that supplies the value, so
+// a caller that renders components on its own has to expect an incomplete
+// parameter and cannot read that failure as a fault of the component.
+func HasParamsSuppliedAtRuntime(app *Appfile) bool {
+	if len(getWorkflowAndPolicySuppliedParams(app)) > 0 {
+		return true
+	}
+	// A component can also take an input directly, without an explicit workflow;
+	// the generated workflow step carries it.
+	for _, comp := range app.Components {
+		if len(comp.Inputs) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // getWorkflowAndPolicySuppliedParams returns a set of parameter keys that will be

@@ -74,6 +74,13 @@ type Template struct {
 // processing.
 func LoadTemplate(ctx context.Context, cli client.Client, capName string, capType types.CapType, annotations map[string]string) (*Template, error) {
 	ctx = multicluster.WithCluster(ctx, multicluster.Local)
+
+	resolved, err := ResolveModuleType(ctx, cli, capName, capType)
+	if err != nil {
+		return nil, err
+	}
+	capName = resolved
+
 	// Application Controller only loads template from ComponentDefinition and TraitDefinition
 	switch capType {
 	case types.TypeComponentDefinition, types.TypeWorkload:
