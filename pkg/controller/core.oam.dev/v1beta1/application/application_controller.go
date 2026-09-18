@@ -422,38 +422,11 @@ func (r *Reconciler) refreshSourceDrivenComponents(logCtx monitorContext.Context
 		return
 	}
 	apply := handler.applyComponentFunc(appParser, af)
-	// Re-apply per placed instance: status.Services carries the resolved cluster
-	// and namespace for each component (honouring topology / override policies).
-	// The per-source-hash gate in the dispatcher makes this a no-op unless a
-	// consumed value actually changed.
-	seen := map[string]struct{}{}
-	// rendered accumulates what each component renders across every placement, so
-	// a component placed in two clusters is judged on the union rather than on
-	// whichever placement happened to come last.
-	rendered := map[string][]*unstructured.Unstructured{}
-	incomplete := map[string]struct{}{}
-	for _, svc := range app.Status.Services {
-		comp, ok := compByName[svc.Name]
-		if !ok {
-			continue
-		}
-		key := svc.Name + "/" + svc.Cluster + "/" + svc.Namespace
-		if _, dup := seen[key]; dup {
-			continue
-		}
-		seen[key] = struct{}{}
-		workload, traits, _, err := apply(logCtx, comp, nil, svc.Cluster, svc.Namespace)
-		if err != nil {
-			logCtx.Error(err, "failed to refresh source-driven component", "component", comp.Name, "cluster", svc.Cluster)
+	rendered, incomplete := renderedForPrune(logCtx, app, compByName, apply,
+		func(comp string, cluster string, err error) {
+			logCtx.Error(err, "failed to refresh source-driven component", "component", comp, "cluster", cluster)
 			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
-			incomplete[comp.Name] = struct{}{}
-			continue
-		}
-		if workload != nil {
-			rendered[comp.Name] = append(rendered[comp.Name], workload)
-		}
-		rendered[comp.Name] = append(rendered[comp.Name], traits...)
-	}
+		})
 
 	// Reap what a component no longer renders. Garbage collection cannot: it
 	// recycles whole ResourceTrackers, and a tracker is retired only when a new
@@ -482,6 +455,73 @@ func (r *Reconciler) refreshSourceDrivenComponents(logCtx monitorContext.Context
 				fmt.Sprintf("pruned %s %s/%s, no longer rendered by component %s", mr.Kind, mr.Namespace, mr.Name, name)))
 		}
 	}
+}
+
+// renderedForPrune re-applies every placed instance of each source-reading
+// component and reports what each one renders, alongside the components whose
+// report was incomplete and must therefore not be pruned against.
+//
+// Re-applied per placed instance because status.Services carries the resolved
+// cluster and namespace for each component, honouring topology and override
+// policies. The per-source-hash gate in the dispatcher makes this a no-op unless
+// a consumed value actually changed.
+func renderedForPrune(logCtx monitorContext.Context, app *v1beta1.Application,
+	compByName map[string]common.ApplicationComponent, apply oamprovidertypes.ComponentApply,
+	onErr func(component, cluster string, err error)) (map[string][]*unstructured.Unstructured, map[string]struct{}) {
+	seen := map[string]struct{}{}
+	// rendered accumulates what each component renders across every placement, so
+	// a component placed in two clusters is judged on the union rather than on
+	// whichever placement happened to come last.
+	rendered := map[string][]*unstructured.Unstructured{}
+	incomplete := map[string]struct{}{}
+	for _, svc := range app.Status.Services {
+		comp, ok := compByName[svc.Name]
+		if !ok {
+			continue
+		}
+		key := svc.Name + "/" + svc.Cluster + "/" + svc.Namespace
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		workload, traits, _, err := apply(logCtx, comp, nil, svc.Cluster, svc.Namespace)
+		if err != nil {
+			onErr(comp.Name, svc.Cluster, err)
+			incomplete[comp.Name] = struct{}{}
+			continue
+		}
+		// An apply that returns nothing at all did not finish. It reports no
+		// error when the dispatcher found the component unhealthy - which a
+		// freshly created workload always is, being zero replicas ready - and
+		// every other early return carries one. Either way it has told us
+		// nothing about what this component renders, and pruning against an
+		// empty set would delete everything the component owns.
+		//
+		// That was not hypothetical: it deleted the workload, which made the
+		// component unhealthy for good, which made the next reconcile do it
+		// again.
+		//
+		// Declining to prune costs nothing. A component reaches "renders
+		// nothing" only by skipping its workload, which only a manageWorkload
+		// trait does, which is a change to spec.components[].traits - and a spec
+		// change mints an ApplicationRevision, so the ResourceTracker is retired
+		// by revision garbage collection, which owns that case. A source value
+		// cannot get a component here, because it cannot alter the trait list.
+		// Verified against a cluster: with a manageWorkload trait rendering no
+		// object, this guard declined ten times and the workload was still
+		// collected, by the revision path.
+		if workload == nil && len(traits) == 0 {
+			logCtx.Info("skipping prune, the component reported nothing to keep",
+				"component", comp.Name, "cluster", svc.Cluster)
+			incomplete[comp.Name] = struct{}{}
+			continue
+		}
+		if workload != nil {
+			rendered[comp.Name] = append(rendered[comp.Name], workload)
+		}
+		rendered[comp.Name] = append(rendered[comp.Name], traits...)
+	}
+	return rendered, incomplete
 }
 
 // sourceAutoUpdateDefault is the controller-wide default applied to an
