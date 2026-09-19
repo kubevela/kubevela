@@ -474,7 +474,9 @@ func PassLabelAndAnnotation(parentObj, childObj labelAnnotationObject) {
 	// pass app-config labels
 	childObj.SetLabels(MergeMapOverrideWithDst(childObj.GetLabels(), parentObj.GetLabels()))
 	// pass app-config annotation
-	childObj.SetAnnotations(MergeMapOverrideWithDst(childObj.GetAnnotations(), parentObj.GetAnnotations()))
+	annos := MergeMapOverrideWithDst(childObj.GetAnnotations(), parentObj.GetAnnotations())
+	delete(annos, oam.AnnotationTraceID)
+	childObj.SetAnnotations(annos)
 }
 
 // RemoveLabels removes keys that contains in the removekeys slice from the label
