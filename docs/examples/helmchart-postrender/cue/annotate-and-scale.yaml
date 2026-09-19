@@ -1,0 +1,36 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: podinfo-annotate-and-scale
+spec:
+  components:
+    - name: podinfo
+      type: helmchart
+      properties:
+        chart:
+          source: podinfo
+          repoURL: https://stefanprodan.github.io/podinfo
+          version: 6.5.0
+        options:
+          postRender:
+            cue:
+              # Two transformations in one template:
+              #   1. annotate every rendered resource with its owning Application
+              #   2. override the replica count the chart rendered
+              #
+              # retainKeys is required for (2): CUE unification can only make a
+              # value more specific, so overriding a concrete value the chart
+              # already produced needs an explicit strategy. Without it the
+              # render fails with "conflicting values" rather than silently
+              # keeping the chart's value.
+              template: |
+                patch: {
+                	metadata: annotations: "example.com/owner": context.appName
+
+                	if context.resource.kind == "Deployment" {
+                		spec: {
+                			// +patchStrategy=retainKeys
+                			replicas: 3
+                		}
+                	}
+                }

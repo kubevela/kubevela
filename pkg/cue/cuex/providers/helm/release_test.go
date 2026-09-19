@@ -208,6 +208,94 @@ var _ = Describe("release", func() {
 			Expect(v2).To(Equal(1), "fingerprint dedup should keep revision at 1")
 		})
 
+		It("upgrades when only the post-render template changes, then settles", func() {
+			cfg := fakeActionConfig()
+			p := installProviderWithFake(cfg)
+			ch := minimalChart("c", "1.0.0")
+			values := map[string]interface{}{"replicas": 2}
+			velaCtx := &ContextParams{AppName: "app", AppNamespace: relNS, Name: "comp"}
+
+			withTemplate := func(tmpl string) *RenderOptionsParams {
+				return &RenderOptionsParams{PostRender: &PostRenderParams{CUE: &CUEParams{Template: tmpl}}}
+			}
+
+			_, _, v1, err := p.installOrUpgradeChart(
+				context.Background(), ch, relName, relNS, values,
+				withTemplate(`patch: metadata: labels: a: "1"`), velaCtx)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(v1).To(Equal(1))
+
+			// Chart and values are untouched, so the digest is the only signal.
+			_, _, v2, err := p.installOrUpgradeChart(
+				context.Background(), ch, relName, relNS, values,
+				withTemplate(`patch: metadata: labels: a: "2"`), velaCtx)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(v2).To(Equal(2), "a template edit should trigger an upgrade")
+
+			// And an unchanged template must not keep upgrading.
+			_, _, v3, err := p.installOrUpgradeChart(
+				context.Background(), ch, relName, relNS, values,
+				withTemplate(`patch: metadata: labels: a: "2"`), velaCtx)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(v3).To(Equal(2), "an unchanged template should not bump the revision")
+		})
+
+		It("settles after post-rendering is removed instead of upgrading forever", func() {
+			// Helm merges release labels on upgrade, so dropping the digest from
+			// the label map would carry the stale one forward and every later
+			// reconcile would see a mismatch and upgrade again. The upgrade path
+			// asks Helm to delete the label instead.
+			cfg := fakeActionConfig()
+			p := installProviderWithFake(cfg)
+			ch := minimalChart("c", "1.0.0")
+			values := map[string]interface{}{"replicas": 2}
+			velaCtx := &ContextParams{AppName: "app", AppNamespace: relNS, Name: "comp"}
+
+			_, _, v1, err := p.installOrUpgradeChart(
+				context.Background(), ch, relName, relNS, values,
+				&RenderOptionsParams{PostRender: &PostRenderParams{
+					CUE: &CUEParams{Template: `patch: metadata: labels: a: "1"`},
+				}}, velaCtx)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(v1).To(Equal(1))
+
+			// Post-rendering removed: one upgrade is correct and expected.
+			_, _, v2, err := p.installOrUpgradeChart(
+				context.Background(), ch, relName, relNS, values, nil, velaCtx)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(v2).To(Equal(2), "removing post-rendering should trigger one upgrade")
+
+			// Every reconcile after that must be a no-op.
+			for i := 0; i < 3; i++ {
+				_, _, vn, err := p.installOrUpgradeChart(
+					context.Background(), ch, relName, relNS, values, nil, velaCtx)
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(vn).To(Equal(2), "reconcile %d upgraded again; the stale digest was not removed", i+1)
+			}
+		})
+
+		It("does not upgrade for post-render settings that reach no renderer", func() {
+			cfg := fakeActionConfig()
+			p := installProviderWithFake(cfg)
+			ch := minimalChart("c", "1.0.0")
+			values := map[string]interface{}{"replicas": 2}
+			velaCtx := &ContextParams{AppName: "app", AppNamespace: relNS, Name: "comp"}
+
+			_, _, v1, err := p.installOrUpgradeChart(
+				context.Background(), ch, relName, relNS, values, nil, velaCtx)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(v1).To(Equal(1))
+
+			// A blank template renders nothing, so it must not count as a change.
+			_, _, v2, err := p.installOrUpgradeChart(
+				context.Background(), ch, relName, relNS, values,
+				&RenderOptionsParams{PostRender: &PostRenderParams{
+					CUE: &CUEParams{Template: "   \n"},
+				}}, velaCtx)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(v2).To(Equal(1), "a blank template should not bump the revision")
+		})
+
 		It("upgrades when the chart version changes", func() {
 			cfg := fakeActionConfig()
 			p := installProviderWithFake(cfg)
