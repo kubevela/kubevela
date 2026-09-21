@@ -27,6 +27,11 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
+	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apitypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -139,20 +144,109 @@ func (s *configAPISourceCacheStore) Write(ctx context.Context, cacheKey, sourceT
 	if err != nil {
 		return err
 	}
-	if cfg.Secret.Annotations == nil {
-		cfg.Secret.Annotations = map[string]string{}
-	}
-	if cfg.Secret.Labels == nil {
-		cfg.Secret.Labels = map[string]string{}
-	}
 	// Stamp identity + lifetime metadata for the GC sweep. sourceType is always
 	// recorded as the config type; the resolved template name (if any) is kept in
 	// its own annotation rather than overloading the type label.
+	//
+	// Stamped onto the Config rather than onto the Secret it happens to write.
+	// The factory merges them, leaving the labels it set itself alone - which is
+	// what keeps ParseConfig's template name as the config type here.
 	stampMeta := meta
 	stampMeta.TemplateName = templateName
-	sources.ApplySourceCacheMetadata(cfg.Secret, sourceType, stampMeta)
-	cfg.Secret.Annotations[sourceCacheSyncAtKey] = time.Now().UTC().Format(time.RFC3339)
-	return s.factory.CreateOrUpdateConfig(ctx, cfg, sources.CacheNamespace())
+	carrier := &metav1.ObjectMeta{}
+	sources.ApplySourceCacheMetadata(carrier, sourceType, stampMeta)
+	if carrier.Annotations == nil {
+		carrier.Annotations = map[string]string{}
+	}
+	carrier.Annotations[sourceCacheSyncAtKey] = time.Now().UTC().Format(time.RFC3339)
+	cfg.Labels, cfg.Annotations = carrier.Labels, carrier.Annotations
+
+	// Values first, declaration second. The validating webhook resolves
+	// spec.propertiesFrom when a Config is admitted, so declaring the entry
+	// before its Secret exists is denied outright: "failed to load
+	// spec.propertiesFrom secret".
+	//
+	// The values go in the Secret, not in spec.properties: a source schema can
+	// mark fields +sensitive and the resolver redacts them out of status, so they
+	// must be assumed sensitive, and a CR spec is plainly readable.
+	// propertiesFrom is the field for exactly that, and the Config controller
+	// only ever reads what it points at.
+	if err := s.factory.CreateOrUpdateConfig(ctx, cfg, sources.CacheNamespace()); err != nil {
+		return err
+	}
+	declared, err := s.declareConfig(ctx, cacheKey, templateName, carrier)
+	if err != nil {
+		return err
+	}
+	// The owner reference needs the Config's UID, so it can only be set once the
+	// Config exists - which is after the Secret it points at. A second write,
+	// but only on a cache miss, and only until the reference is in place.
+	return s.adoptCacheSecret(ctx, declared, cacheKey)
+}
+
+// adoptCacheSecret points the entry's Secret at the Config that declares it, so
+// deleting either takes both.
+func (s *configAPISourceCacheStore) adoptCacheSecret(ctx context.Context,
+	declared *configv1alpha1.Config, cacheKey string) error {
+	if declared == nil || s.client == nil {
+		return nil
+	}
+	secret := &corev1.Secret{}
+	if err := s.client.Get(ctx, client.ObjectKey{
+		Namespace: sources.CacheNamespace(), Name: cacheKey}, secret); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	for _, ref := range secret.OwnerReferences {
+		if ref.UID == declared.UID {
+			return nil
+		}
+	}
+	secret.OwnerReferences = append(secret.OwnerReferences,
+		*metav1.NewControllerRef(declared, configv1alpha1.SchemeGroupVersion.WithKind(configv1alpha1.ConfigKind)))
+	return s.client.Update(ctx, secret)
+}
+
+// declareConfig creates or updates the Config that declares a cache entry, and
+// returns it so the entry's Secret can be owned by it.
+func (s *configAPISourceCacheStore) declareConfig(ctx context.Context, cacheKey, templateName string,
+	meta *metav1.ObjectMeta) (*configv1alpha1.Config, error) {
+	if s.client == nil {
+		return nil, nil
+	}
+	cfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: cacheKey, Namespace: sources.CacheNamespace()},
+	}
+	if _, err := controllerutil.CreateOrUpdate(ctx, s.client, cfg, func() error {
+		if cfg.Labels == nil {
+			cfg.Labels = map[string]string{}
+		}
+		for key, value := range meta.Labels {
+			cfg.Labels[key] = value
+		}
+		if cfg.Annotations == nil {
+			cfg.Annotations = map[string]string{}
+		}
+		for key, value := range meta.Annotations {
+			cfg.Annotations[key] = value
+		}
+		cfg.Spec.Properties = nil
+		cfg.Spec.PropertiesFrom = &configv1alpha1.PropertiesReference{
+			SecretRef: configv1alpha1.SecretKeySelector{
+				Name: cacheKey,
+				Key:  config.SaveInputPropertiesKey,
+			},
+		}
+		if templateName != "" {
+			cfg.Spec.TemplateRef = &configv1alpha1.ConfigTemplateReference{
+				Name:      templateName,
+				Namespace: sources.CacheNamespace(),
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
 
 // Touch advances the last-accessed marker on a stale cache entry that is being

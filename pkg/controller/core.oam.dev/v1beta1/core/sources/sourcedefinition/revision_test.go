@@ -28,8 +28,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	apitypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	velacommon "github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -137,4 +139,34 @@ func TestReconcileCreatesNewRevisionOnChange(t *testing.T) {
 
 	r.NoError(rec.Client.Get(ctx, key, live))
 	r.Equal("atlas-v2", live.Status.LatestRevision.Name)
+}
+
+// The generated ConfigTemplate carries the owning SourceDefinition, so the cache
+// GC sweep can tell a live template from an orphan without parsing its CUE.
+//
+// Nothing asserted this before: the sweep's own test hand-builds a ConfigMap
+// with the labels already on it, so the controller could have stopped setting
+// them and every test would still have passed.
+func TestReconcileLabelsTheGeneratedConfigTemplate(t *testing.T) {
+	r := require.New(t)
+	def := newSourceDef(`
+schema: {host: string}
+$internal: {key: "atlas", keyInputs: []}
+output: {host: "example.com"}
+`)
+	rec := newReconciler(def)
+	_, err := rec.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: types.NamespacedName{Namespace: "vela-system", Name: "atlas"}})
+	r.NoError(err)
+
+	var templates configv1alpha1.ConfigTemplateList
+	r.NoError(rec.Client.List(context.Background(), &templates,
+		client.InNamespace("vela-system"),
+		client.HasLabels{oam.LabelSourceDefinitionName}))
+	r.Len(templates.Items, 1, "the reconcile must write exactly one labelled ConfigTemplate")
+
+	ct := templates.Items[0]
+	r.Equal("atlas", ct.Labels[oam.LabelSourceDefinitionName])
+	r.Equal("vela-system", ct.Labels[apitypes.LabelSourceDefinitionNamespace])
+	r.Contains(ct.Spec.Template, "parameter:", "the schema CUE is carried onto the CR")
 }

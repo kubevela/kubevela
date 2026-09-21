@@ -57,6 +57,8 @@ const (
 // +kubebuilder:rbac:groups=core.oam.dev,resources=sourcedefinitions,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=core.oam.dev,resources=sourcedefinitions/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=config.oam.dev,resources=configtemplates,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=config.oam.dev,resources=configs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;delete
 
 // Reconciler reconciles a SourceDefinition object.
@@ -169,17 +171,14 @@ template: {
 	// Stamp the owning SourceDefinition identity onto the ConfigTemplate as
 	// queryable labels so the cache GC sweep can determine whether a template is
 	// still referenced by a live SourceDefinition without parsing the CUE
-	// description. Additive to the labels ParseTemplate already sets.
-	if tmpl.ConfigMap != nil {
-		if tmpl.ConfigMap.Labels == nil {
-			tmpl.ConfigMap.Labels = map[string]string{}
-		}
-		tmpl.ConfigMap.Labels[apitypes.LabelSourceDefinitionName] = def.Name
-		if def.Namespace != "" {
-			tmpl.ConfigMap.Labels[apitypes.LabelSourceDefinitionNamespace] = def.Namespace
-		}
+	// description. Set on the Template rather than on the object it happens to
+	// write: a template read back from the ConfigTemplate CRD carries no
+	// ConfigMap, and reaching through would drop these silently.
+	tmpl.Labels = map[string]string{apitypes.LabelSourceDefinitionName: def.Name}
+	if def.Namespace != "" {
+		tmpl.Labels[apitypes.LabelSourceDefinitionNamespace] = def.Namespace
 	}
-	if err := factory.CreateOrUpdateConfigTemplate(ctx, sourceTemplateNamespace, tmpl); err != nil {
+	if err := factory.CreateOrUpdateConfigTemplateCR(ctx, sourceTemplateNamespace, tmpl); err != nil {
 		return nil, err
 	}
 	return &v1beta1.SourceDefinitionConfigTemplateRef{

@@ -37,7 +37,11 @@ import (
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 
+	"k8s.io/apimachinery/pkg/types"
+
+	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/sources"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // fakeConfigFactory implements config.Factory. Only the three methods this store
@@ -69,6 +73,25 @@ func (f *fakeConfigFactory) ParseConfig(_ context.Context, tmpl config.Namespace
 }
 
 func (f *fakeConfigFactory) CreateOrUpdateConfig(_ context.Context, c *config.Config, ns string) error {
+	// Mirror the real factory: caller labels and annotations are merged onto the
+	// written Secret, and the ones already there win. Without this the fake would
+	// silently drop everything the store stamps.
+	if c != nil && c.Secret != nil {
+		if c.Secret.Labels == nil {
+			c.Secret.Labels = map[string]string{}
+		}
+		for k, v := range c.Labels {
+			if _, reserved := c.Secret.Labels[k]; !reserved {
+				c.Secret.Labels[k] = v
+			}
+		}
+		if c.Secret.Annotations == nil {
+			c.Secret.Annotations = map[string]string{}
+		}
+		for k, v := range c.Annotations {
+			c.Secret.Annotations[k] = v
+		}
+	}
 	f.written, f.writeNS = c, ns
 	return f.writeErr
 }
@@ -80,6 +103,9 @@ func (f *fakeConfigFactory) LoadTemplate(context.Context, string, string) (*conf
 	return nil, nil
 }
 func (f *fakeConfigFactory) CreateOrUpdateConfigTemplate(context.Context, string, *config.Template) error {
+	return nil
+}
+func (f *fakeConfigFactory) CreateOrUpdateConfigTemplateCR(context.Context, string, *config.Template) error {
 	return nil
 }
 func (f *fakeConfigFactory) DeleteTemplate(context.Context, string, string) error { return nil }
@@ -383,4 +409,52 @@ func TestConfigStoreWritePrefersTheTemplateTheRenderUsed(t *testing.T) {
 			map[string]interface{}{"body": "hi"}, velaprocess.SourceCacheWriteMeta{}))
 		require.Equal(t, "http-get-live", f.parsed.Template.Name)
 	})
+}
+
+// A cache entry is two objects with distinct jobs: a Secret holding the resolved
+// values, and a Config CR declaring it through the API.
+//
+// The values stay in the Secret because they must be assumed sensitive - a
+// source schema can mark fields +sensitive and the resolver redacts them out of
+// status. spec.properties on a CR is plainly readable, so the entry points at
+// the Secret with propertiesFrom instead, which is what that field is for. The
+// controller only ever reads a propertiesFrom Secret, so nothing overwrites the
+// cached values.
+func TestConfigStoreWriteDeclaresTheEntryThroughTheAPI(t *testing.T) {
+	r := require.New(t)
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	s := newConfigAPISourceCacheStore(cli, nil)
+
+	data := map[string]interface{}{"host": "example.com"}
+	r.NoError(s.Write(context.Background(), "atlas-abc123", "atlas", data,
+		velaprocess.SourceCacheWriteMeta{
+			TTL:                5 * time.Minute,
+			SourceDefName:      "atlas",
+			SourceDefNamespace: "vela-system",
+		}))
+
+	ns := sources.CacheNamespace()
+
+	// The values live in the Secret.
+	var secret corev1.Secret
+	r.NoError(cli.Get(context.Background(),
+		types.NamespacedName{Namespace: ns, Name: "atlas-abc123"}, &secret))
+	r.Contains(string(secret.Data[config.SaveInputPropertiesKey]), "example.com")
+
+	// The Config CR declares it, pointing at that Secret rather than inlining.
+	var cfg configv1alpha1.Config
+	r.NoError(cli.Get(context.Background(),
+		types.NamespacedName{Namespace: ns, Name: "atlas-abc123"}, &cfg))
+	r.Nil(cfg.Spec.Properties, "sensitive values must not be inlined in the CR spec")
+	r.NotNil(cfg.Spec.PropertiesFrom)
+	r.Equal("atlas-abc123", cfg.Spec.PropertiesFrom.SecretRef.Name)
+
+	// Identity is queryable on the CR, so a sweep can find it.
+	r.Equal("atlas", cfg.Labels[apitypes.LabelSourceDefinitionName])
+	r.Equal("vela-system", cfg.Labels[apitypes.LabelSourceDefinitionNamespace])
+
+	// Deleting the CR takes the values with it.
+	r.Len(secret.OwnerReferences, 1, "the Secret is owned by its Config, so a delete cascades")
+	r.Equal(configv1alpha1.ConfigKind, secret.OwnerReferences[0].Kind)
+	r.Equal(cfg.UID, secret.OwnerReferences[0].UID)
 }

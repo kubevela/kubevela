@@ -39,11 +39,16 @@ import (
 // fail against a scaled-down in-cluster service.
 func TestWebhookPathsAreRegisteredEverywhere(t *testing.T) {
 	const (
-		goSources  = "v1beta1"
-		chartDir   = "../../../charts/vela-core/templates/admission-webhooks"
-		debugFile  = "../../../hack/debug-webhook-setup.sh"
-		pathRegexp = `/(validating|mutating)-core-oam-dev-v1beta1-[a-z]+`
+		chartDir  = "../../../charts/vela-core/templates/admission-webhooks"
+		debugFile = "../../../hack/debug-webhook-setup.sh"
+		// Both API groups that register webhooks, not just core.oam.dev:
+		// config.oam.dev arrived with the Config and ConfigTemplate CRDs and was
+		// registered in Go and in the chart but not in the debug script, so every
+		// local run admitted Configs unvalidated - the exact failure this test
+		// exists to catch, in the one group it was not looking at.
+		pathRegexp = `/(validating|mutating)-(core|config)-oam-dev-v1(beta1|alpha1)-[a-z]+`
 	)
+	goSources := []string{"v1beta1", "../config.oam.dev/v1alpha1"}
 
 	re := regexp.MustCompile(pathRegexp)
 
@@ -92,22 +97,24 @@ func TestWebhookPathsAreRegisteredEverywhere(t *testing.T) {
 
 	// The Go registrations are spread across the per-resource handler packages.
 	var registered []string
-	err := filepath.Walk(goSources, func(path string, _ os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+	for _, root := range goSources {
+		err := filepath.Walk(root, func(path string, _ os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			registered = append(registered, re.FindAllString(string(raw), -1)...)
 			return nil
-		}
-		raw, err := os.ReadFile(path)
+		})
 		if err != nil {
-			return err
+			t.Fatalf("walking %s: %v", root, err)
 		}
-		registered = append(registered, re.FindAllString(string(raw), -1)...)
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walking %s: %v", goSources, err)
 	}
 	registered = pathsIn(registered)
 

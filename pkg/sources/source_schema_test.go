@@ -146,3 +146,19 @@ output: {ratio: 1.0, port: 80, replicas: 1, name: "x"}
 	require.NoError(t, err)
 	require.Equal(t, int64(8081), got)
 }
+
+// The cache reads its data out of the Secret under one key, and two other
+// places write it: config.ParseConfig today, and the Config CRD's controller
+// once entries move to CRs. All three have to agree.
+//
+// They are separate constants in separate packages, so a rename on either side
+// would not fail to compile - the cache would simply read an absent key and
+// report every entry as a miss, re-resolving on every reconcile with nothing to
+// say why.
+func TestCacheDataKeyMatchesTheConfigAPI(t *testing.T) {
+	// config.SaveInputPropertiesKey cannot be referenced here - pkg/config
+	// transitively imports this package - so both sides pin the literal and
+	// TestSaveInputPropertiesKeyMatchesTheSourceCache is the other half.
+	require.Equal(t, "input-properties", sourceCacheDataKey,
+		"the key the cache reads must be the key the config API writes")
+}

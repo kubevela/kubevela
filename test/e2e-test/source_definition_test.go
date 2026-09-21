@@ -33,8 +33,10 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	apitypes "github.com/oam-dev/kubevela/apis/types"
 )
 
 var _ = Describe("SourceDefinition e2e", func() {
@@ -57,8 +59,8 @@ var _ = Describe("SourceDefinition e2e", func() {
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationBackground))).Should(BeNil())
 
 		// SourceDefinitions live in the test namespace, but the ConfigTemplates
-		// (config-template-source-* ConfigMaps) and source cache entries
-		// (source-cache-* Secrets) they generate live in vela-system and are only
+		// and the Configs and Secrets of the source cache entries they generate
+		// live in vela-system and are only
 		// reclaimed asynchronously by the periodic GC sweep. Delete everything
 		// stamped with this test's namespace via the owning-SourceDefinition label
 		// so runs do not leak into vela-system. Retry: the label-carrying objects
@@ -66,7 +68,11 @@ var _ = Describe("SourceDefinition e2e", func() {
 		By("Clean up ConfigTemplates and source cache entries created in vela-system")
 		nsLabel := client.MatchingLabels{"sourcedefinition.oam.dev/namespace": namespaceName}
 		Eventually(func() error {
-			if err := k8sClient.DeleteAllOf(ctx, &corev1.ConfigMap{},
+			if err := k8sClient.DeleteAllOf(ctx, &configv1alpha1.ConfigTemplate{},
+				client.InNamespace("vela-system"), nsLabel); err != nil {
+				return err
+			}
+			if err := k8sClient.DeleteAllOf(ctx, &configv1alpha1.Config{},
 				client.InNamespace("vela-system"), nsLabel); err != nil {
 				return err
 			}
@@ -75,17 +81,21 @@ var _ = Describe("SourceDefinition e2e", func() {
 				return err
 			}
 			// Confirm nothing labelled for this namespace remains.
-			var cms corev1.ConfigMapList
-			if err := k8sClient.List(ctx, &cms, client.InNamespace("vela-system"), nsLabel); err != nil {
+			var templates configv1alpha1.ConfigTemplateList
+			if err := k8sClient.List(ctx, &templates, client.InNamespace("vela-system"), nsLabel); err != nil {
+				return err
+			}
+			var configs configv1alpha1.ConfigList
+			if err := k8sClient.List(ctx, &configs, client.InNamespace("vela-system"), nsLabel); err != nil {
 				return err
 			}
 			var secrets corev1.SecretList
 			if err := k8sClient.List(ctx, &secrets, client.InNamespace("vela-system"), nsLabel); err != nil {
 				return err
 			}
-			if len(cms.Items)+len(secrets.Items) > 0 {
-				return fmt.Errorf("still %d configmaps and %d secrets labelled for %s in vela-system",
-					len(cms.Items), len(secrets.Items), namespaceName)
+			if len(templates.Items)+len(configs.Items)+len(secrets.Items) > 0 {
+				return fmt.Errorf("still %d configtemplates, %d configs and %d secrets labelled for %s in vela-system",
+					len(templates.Items), len(configs.Items), len(secrets.Items), namespaceName)
 			}
 			return nil
 		}, 30*time.Second, time.Second).Should(Succeed())
@@ -623,17 +633,20 @@ parameter: {
 			if latest.Status.ConfigTemplateRef.SchemaHash == "" {
 				return fmt.Errorf("configTemplateRef.schemaHash not ready")
 			}
-			cm := &corev1.ConfigMap{}
+			// The schema template is a ConfigTemplate CR, named for the template
+			// itself - there is no config-template- prefix to prepend, and the
+			// CUE lives in spec.template rather than in a ConfigMap key.
+			ct := &configv1alpha1.ConfigTemplate{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{
 				Namespace: "vela-system",
-				Name:      "config-template-" + latest.Status.ConfigTemplateRef.Name,
-			}, cm); err != nil {
+				Name:      latest.Status.ConfigTemplateRef.Name,
+			}, ct); err != nil {
 				return err
 			}
-			if cm.Labels["config.oam.dev/catalog"] != "velacore-config" {
-				return fmt.Errorf("unexpected config catalog label: %q", cm.Labels["config.oam.dev/catalog"])
+			if ct.Labels[apitypes.LabelSourceDefinitionName] == "" {
+				return fmt.Errorf("the template does not record its owning SourceDefinition")
 			}
-			if cm.Data["schema"] == "" {
+			if !strings.Contains(ct.Spec.Template, "parameter:") {
 				return fmt.Errorf("missing schema in config template")
 			}
 			return nil

@@ -18,7 +18,6 @@ package sourcedefinition
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -26,9 +25,11 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apitypes "github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/config"
 )
 
 const (
@@ -40,9 +41,6 @@ const (
 	// only once it is both stale (past one TTL since last sync) and has not been
 	// served for staleMultiplier×TTL since it was last accessed.
 	sourceCacheStaleMultiplier = 3
-	// sourceTemplateConfigMapPrefix is the ConfigMap name prefix for auto-generated
-	// source schema ConfigTemplates (config-template- + source-).
-	sourceTemplateConfigMapPrefix = config.TemplateConfigMapNamePrefix + sourceTemplateNamePrefix
 )
 
 // cacheGCResult summarizes one sweep, for logging and tests.
@@ -104,10 +102,58 @@ func (r *Reconciler) sweepCacheSecrets(ctx context.Context, now time.Time, res *
 		client.MatchingLabels{apitypes.LabelConfigCatalog: apitypes.VelaCoreConfig}); err != nil {
 		return referenced, err
 	}
+	// An entry declared through the Config API keeps its lifetime metadata on the
+	// Config, not on the Secret: the Config controller's output Secret is named
+	// for the Config, so it lands on the very Secret propertiesFrom points at and
+	// replaces its labels and annotations wholesale. The Config is the only half
+	// nothing else writes.
+	var declared configv1alpha1.ConfigList
+	if err := r.List(ctx, &declared,
+		client.InNamespace(sourceTemplateNamespace),
+		client.HasLabels{apitypes.LabelSourceDefinitionName}); err != nil {
+		return referenced, err
+	}
+	collected := map[string]struct{}{}
+	for i := range declared.Items {
+		cfg := &declared.Items[i]
+		if _, ok := cfg.Annotations[apitypes.AnnotationConfigLastSyncAt]; !ok {
+			continue
+		}
+		res.ConfigsScanned++
+		if shouldCollectCacheSecret(cfg.Annotations, now) {
+			// Both halves, rather than leaving the Secret to the owner reference:
+			// the staleness decision is already made, and an entry still present
+			// is still served.
+			if err := r.Delete(ctx, cfg); err != nil && !apierrors.IsNotFound(err) {
+				klog.ErrorS(err, "failed to delete a stale source cache Config", "name", cfg.Name)
+			} else {
+				collected[cfg.Name] = struct{}{}
+				res.ConfigsDeleted++
+				continue
+			}
+		}
+		if tmpl := cfg.Annotations[apitypes.AnnotationConfigTemplate]; tmpl != "" {
+			referenced[tmpl] = struct{}{}
+		}
+	}
+
 	for i := range secrets.Items {
 		s := &secrets.Items[i]
-		// Only source cache entries carry the last-sync-at annotation; skip other
-		// velacore-config secrets (e.g. distributed configs).
+		// The Secret half of an entry already collected above.
+		if _, done := collected[s.Name]; done {
+			if err := r.Delete(ctx, s); err != nil && !apierrors.IsNotFound(err) {
+				klog.ErrorS(err, "failed to delete a stale source cache secret", "name", s.Name)
+			}
+			continue
+		}
+		// A Secret a Config declares is accounted for above, whether or not it
+		// was collected.
+		if owningConfig(s) != "" {
+			continue
+		}
+		// What remains is an entry the admission-side Secret store wrote, which
+		// carries its own metadata. Only those have last-sync-at; other
+		// velacore-config secrets (distributed configs, say) are not ours.
 		if _, ok := s.Annotations[apitypes.AnnotationConfigLastSyncAt]; !ok {
 			continue
 		}
@@ -158,37 +204,44 @@ func (r *Reconciler) sweepTemplates(ctx context.Context, now time.Time, referenc
 	// matches the prefix, no SourceDefinition references it, and it ages past the
 	// grace window like anything else. The label is written by us, so it says
 	// ownership rather than resemblance.
-	var cms corev1.ConfigMapList
-	if err := r.List(ctx, &cms, client.InNamespace(sourceTemplateNamespace),
+	var templates configv1alpha1.ConfigTemplateList
+	if err := r.List(ctx, &templates, client.InNamespace(sourceTemplateNamespace),
 		client.HasLabels{apitypes.LabelSourceDefinitionName}); err != nil {
 		return err
 	}
-	for i := range cms.Items {
-		cm := &cms.Items[i]
-		// Still checked, so an object carrying the label but not the naming the
-		// TrimPrefix below assumes is left alone rather than misparsed.
-		if !strings.HasPrefix(cm.Name, sourceTemplateConfigMapPrefix) {
-			continue
-		}
+	for i := range templates.Items {
+		ct := &templates.Items[i]
 		res.TemplatesScanned++
-		// The ConfigTemplate name is the ConfigMap name minus the config-template- prefix.
-		templateName := strings.TrimPrefix(cm.Name, config.TemplateConfigMapNamePrefix)
-		if _, ok := referenced[templateName]; ok {
+		// A ConfigTemplate CR is named for the template, so there is no prefix to
+		// strip and nothing to misparse.
+		if _, ok := referenced[ct.Name]; ok {
 			res.TemplatesRetained++
 			continue
 		}
-		if now.Sub(cm.CreationTimestamp.Time) < grace {
+		if now.Sub(ct.CreationTimestamp.Time) < grace {
 			// Too young: a cache write for it may not have landed yet.
 			res.TemplatesRetained++
 			continue
 		}
-		if err := r.Delete(ctx, cm); err != nil && !apierrors.IsNotFound(err) {
-			klog.ErrorS(err, "failed to delete orphaned source ConfigTemplate", "name", cm.Name)
+		if err := r.Delete(ctx, ct); err != nil && !apierrors.IsNotFound(err) {
+			klog.ErrorS(err, "failed to delete orphaned source ConfigTemplate", "name", ct.Name)
 			continue
 		}
 		res.TemplatesDeleted++
 	}
 	return nil
+}
+
+// owningConfig names the Config that declares this cache entry, or "" when
+// nothing does - which is every entry written by the Secret store.
+func owningConfig(obj metav1.Object) string {
+	for _, ref := range obj.GetOwnerReferences() {
+		if ref.Kind == configv1alpha1.ConfigKind &&
+			ref.APIVersion == configv1alpha1.SchemeGroupVersion.String() {
+			return ref.Name
+		}
+	}
+	return ""
 }
 
 // shouldCollectCacheSecret returns true when a source cache entry is both stale

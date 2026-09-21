@@ -110,3 +110,22 @@ func assertCovers(t *testing.T, where string, granted, required []string) {
 			where, granted, missing)
 	}
 }
+
+// The schema template is a ConfigTemplate CR, so the controller needs rights on
+// it. Same failure mode as the secrets grant this file already guards: invisible
+// until authentication is on, at which point every reconcile fails to write its
+// template and the sweep cannot reap an orphan.
+func TestControllerMayWriteConfigTemplates(t *testing.T) {
+	required := []string{"create", "delete", "get", "list", "update", "watch"}
+
+	src, err := os.ReadFile("sourcedefinition_controller.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	re := regexp.MustCompile(`\+kubebuilder:rbac:groups=config\.oam\.dev,resources=configtemplates,verbs=(\S+)`)
+	m := re.FindSubmatch(src)
+	if m == nil {
+		t.Fatal("no configtemplates rbac marker on the controller; the generated role would grant nothing")
+	}
+	assertCovers(t, "marker", strings.Split(string(m[1]), ";"), required)
+}

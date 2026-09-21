@@ -30,9 +30,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apitypes "github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/config"
 )
 
 func rfc3339(t time.Time) string { return t.Format(time.RFC3339) }
@@ -115,6 +115,7 @@ func newTestScheme(t *testing.T) *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	assert.NoError(t, v1beta1.AddToScheme(scheme))
 	assert.NoError(t, corev1.AddToScheme(scheme))
+	assert.NoError(t, configv1alpha1.AddToScheme(scheme))
 	return scheme
 }
 
@@ -136,10 +137,11 @@ func cacheSecret(name, templateName string, ann map[string]string) *corev1.Secre
 	}
 }
 
-func templateCM(name string, created time.Time) *corev1.ConfigMap {
-	return &corev1.ConfigMap{
+// A ConfigTemplate CR is named for the template itself, with no prefix.
+func templateCM(name string, created time.Time) *configv1alpha1.ConfigTemplate {
+	return &configv1alpha1.ConfigTemplate{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:              config.TemplateConfigMapNamePrefix + name,
+			Name:              name,
 			Namespace:         sourceTemplateNamespace,
 			CreationTimestamp: metav1.NewTime(created),
 			Labels: map[string]string{
@@ -153,10 +155,10 @@ func templateCM(name string, created time.Time) *corev1.ConfigMap {
 // A ConfigTemplate somebody else created that happens to start with "source-".
 // The controller stamps its own with an owning-SourceDefinition label; this has
 // none.
-func foreignTemplateCM(name string, created time.Time) *corev1.ConfigMap {
-	cm := templateCM(name, created)
-	delete(cm.Labels, apitypes.LabelSourceDefinitionName)
-	return cm
+func foreignTemplateCM(name string, created time.Time) *configv1alpha1.ConfigTemplate {
+	ct := templateCM(name, created)
+	delete(ct.Labels, apitypes.LabelSourceDefinitionName)
+	return ct
 }
 
 func TestSweepSourceCache(t *testing.T) {
@@ -230,11 +232,11 @@ func TestSweepSourceCache(t *testing.T) {
 	assertExists(&corev1.Secret{}, types.NamespacedName{Namespace: ns, Name: "source-cache-fresh"})
 	assertExists(&corev1.Secret{}, types.NamespacedName{Namespace: ns, Name: "some-distributed-config"})
 
-	assertGone(&corev1.ConfigMap{}, types.NamespacedName{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + "source-orphan-aaaa1111"})
-	assertExists(&corev1.ConfigMap{}, types.NamespacedName{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + "source-live-bbbb2222"})
-	assertExists(&corev1.ConfigMap{}, types.NamespacedName{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + "source-livesd-cccc3333"})
-	assertExists(&corev1.ConfigMap{}, types.NamespacedName{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + "source-young-dddd4444"})
-	assertExists(&corev1.ConfigMap{}, types.NamespacedName{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + "source-of-truth"})
+	assertGone(&configv1alpha1.ConfigTemplate{}, types.NamespacedName{Namespace: ns, Name: "source-orphan-aaaa1111"})
+	assertExists(&configv1alpha1.ConfigTemplate{}, types.NamespacedName{Namespace: ns, Name: "source-live-bbbb2222"})
+	assertExists(&configv1alpha1.ConfigTemplate{}, types.NamespacedName{Namespace: ns, Name: "source-livesd-cccc3333"})
+	assertExists(&configv1alpha1.ConfigTemplate{}, types.NamespacedName{Namespace: ns, Name: "source-young-dddd4444"})
+	assertExists(&configv1alpha1.ConfigTemplate{}, types.NamespacedName{Namespace: ns, Name: "source-of-truth"})
 }
 
 // The sweep is a manager Runnable so it runs on its own timer rather than off
@@ -263,6 +265,7 @@ func TestCacheGCRunnableSweepsOnEachTick(t *testing.T) {
 	scheme := runtime.NewScheme()
 	assert.NoError(t, corev1.AddToScheme(scheme))
 	assert.NoError(t, v1beta1.AddToScheme(scheme))
+	assert.NoError(t, configv1alpha1.AddToScheme(scheme))
 
 	// A cache entry old enough to collect, so a sweep that ran leaves a mark.
 	old := time.Now().Add(-72 * time.Hour)
@@ -317,4 +320,60 @@ func TestCacheGCRunnableSurvivesAFailingSweep(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Start did not return")
 	}
+}
+
+// An entry written through the Config API is two objects, so collecting it has
+// to reap both. The owner reference makes a delete of the Config cascade to its
+// Secret, but the sweep deletes both rather than waiting on the collector: the
+// staleness decision is already made, and leaving the Secret until a background
+// collector notices would let a stale value be served in the meantime.
+//
+// Entries written by the admission-side Secret store have no Config at all, so
+// the sweep must still collect a bare Secret.
+func TestSweepCollectsBothHalvesOfAnEntry(t *testing.T) {
+	now := time.Now()
+	scheme := newTestScheme(t)
+	old := func(d time.Duration) string { return rfc3339(now.Add(-d)) }
+
+	stale := map[string]string{
+		apitypes.AnnotationConfigLastSyncAt: old(60 * time.Minute),
+		apitypes.AnnotationConfigTTL:        "10m",
+	}
+
+	// The Config carries the lifetime metadata. It has to: the Config
+	// controller's output Secret is named for the Config, so it lands on the
+	// very Secret propertiesFrom points at and replaces its labels and
+	// annotations wholesale. Anything the sweep needs must live where the
+	// controller does not write.
+	declared := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "source-cache-declared", Namespace: sourceTemplateNamespace,
+			UID:         "declared-uid",
+			Labels:      map[string]string{apitypes.LabelSourceDefinitionName: "owner"},
+			Annotations: stale,
+		},
+	}
+	// Stripped by the Config controller, as it is in a real cluster.
+	owned := cacheSecret("source-cache-declared", "", nil)
+	owned.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(declared,
+		configv1alpha1.SchemeGroupVersion.WithKind(configv1alpha1.ConfigKind))}
+
+	// Written by the Secret store at admission: no Config declares it.
+	bare := cacheSecret("source-cache-bare", "", stale)
+
+	cli := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(declared, owned, bare).Build()
+	r := &Reconciler{Client: cli, Scheme: scheme}
+
+	_, err := r.sweepSourceCache(context.Background())
+	assert.NoError(t, err)
+
+	notFound := func(obj client.Object, name string) {
+		err := cli.Get(context.Background(),
+			types.NamespacedName{Namespace: sourceTemplateNamespace, Name: name}, obj)
+		assert.True(t, apierrors.IsNotFound(err), "expected %s to be collected", name)
+	}
+	notFound(&corev1.Secret{}, "source-cache-declared")
+	notFound(&configv1alpha1.Config{}, "source-cache-declared")
+	notFound(&corev1.Secret{}, "source-cache-bare")
 }
