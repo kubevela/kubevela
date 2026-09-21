@@ -19,7 +19,7 @@ kind: ClusterRole
 metadata:
   name: {{ include "kubevela.fullname" . }}:manager
 rules:
-  - apiGroups: ["core.oam.dev", "terraform.core.oam.dev", "prism.oam.dev", "standard.oam.dev"]
+  - apiGroups: ["core.oam.dev", "terraform.core.oam.dev", "prism.oam.dev", "standard.oam.dev", "config.oam.dev"]
     resources: ["*"]
     verbs: ["*"]
   - apiGroups: ["cluster.open-cluster-management.io"]
@@ -29,8 +29,11 @@ rules:
     resources: ["users", "groups", "serviceaccounts"]
     verbs: ["impersonate"]
   - apiGroups: [""]
-    resources: ["namespaces", "secrets", "services"]
+    resources: ["namespaces", "services"]
     verbs: ["get", "watch", "list"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "watch", "list", "create", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["configmaps", "events"]
     verbs: ["*"]
