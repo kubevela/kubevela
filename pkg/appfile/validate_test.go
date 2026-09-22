@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
@@ -1565,4 +1566,122 @@ func TestValidateCUESchematicAppfile_LegacySyntax(t *testing.T) {
 		err := (&Parser{}).ValidateCUESchematicAppfile(newAppfile(legacyTemplate))
 		assert.Error(t, err)
 	})
+}
+
+// A source expression feeding a typed parameter must survive CUE validation.
+//
+// ValidateComponentParams builds a synthetic CUE document from the component's
+// params and validates it against the template's parameter block. Those params
+// are the *authored* ones, so an unresolved `$(source...)` reaches CUE as the
+// literal string it is and collides with any non-string constraint:
+//
+//	parameter.replicas: conflicting values int and "$(source.config.replicas)"
+//	(mismatched types int and string)
+//
+// The render path substitutes before it evaluates; this path did not, so the
+// feature worked with EnableCueValidation off and failed with it on. The gate
+// defaults to false, which is why every test and every local run missed it.
+func TestValidateComponentParamsResolvesSourceExpressions(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=true"))
+	defer func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=false"))
+	}()
+
+	wl := &Component{
+		Name: "web",
+		Type: "sized",
+		FullTemplate: &Template{TemplateStr: `
+output: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata: name: context.name
+}
+parameter: {
+	replicas: int
+	image:    string
+}
+`},
+		Params: map[string]interface{}{
+			"replicas": "$(source.config.replicas)",
+			"image":    "$(source.config.image)",
+		},
+	}
+
+	app := &Appfile{
+		Name:      "myapp",
+		Namespace: "test-ns",
+		Sources: []v1beta1.ApplicationSource{
+			{Name: "config", Type: "cfg-src"},
+		},
+		RelatedSourceDefinitions: map[string]*v1beta1.SourceDefinition{
+			"cfg-src": {
+				Spec: v1beta1.SourceDefinitionSpec{Schematic: &common.Schematic{CUE: &common.CUE{Template: `
+schema: {replicas: int, image: string}
+$internal: {key: "cfg-src", keyInputs: []}
+output: {replicas: 3, image: "nginx"}
+parameter: {}
+`}}},
+			},
+		},
+	}
+
+	ctxData := GenerateContextDataFromAppFile(app, wl.Name)
+	err := (&Parser{}).ValidateComponentParams(ctxData, wl, app)
+	assert.NoError(t, err, "an int from a source must satisfy an int parameter")
+}
+
+// The same expression in a string parameter, and one combined with text.
+//
+// Only the typed case failed visibly - a string parameter accepts the literal
+// expression text, so the bug was silent there: validation passed and the render
+// substituted, hiding that the two disagreed about what was being checked.
+func TestValidateComponentParamsResolvesEveryShape(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=true"))
+	defer func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCueValidation)+"=false"))
+	}()
+
+	app := &Appfile{
+		Name: "myapp", Namespace: "test-ns",
+		Sources: []v1beta1.ApplicationSource{{Name: "config", Type: "cfg-src"}},
+		RelatedSourceDefinitions: map[string]*v1beta1.SourceDefinition{
+			"cfg-src": {Spec: v1beta1.SourceDefinitionSpec{Schematic: &common.Schematic{CUE: &common.CUE{Template: `
+schema: {replicas: int, image: string, enabled: bool}
+$internal: {key: "cfg-src", keyInputs: []}
+output: {replicas: 3, image: "nginx", enabled: true}
+parameter: {}
+`}}}},
+		},
+	}
+
+	for _, tc := range []struct {
+		name   string
+		params map[string]interface{}
+	}{
+		{"int into int", map[string]interface{}{"replicas": "$(source.config.replicas)"}},
+		{"bool into bool", map[string]interface{}{"enabled": "$(source.config.enabled)"}},
+		{"string into string", map[string]interface{}{"image": "$(source.config.image)"}},
+		{"expression joined with text", map[string]interface{}{"image": "$(source.config.image):v1"}},
+		{"context into a string", map[string]interface{}{"image": "$(context.appName)"}},
+		{"nested in a struct", map[string]interface{}{
+			"nested": map[string]interface{}{"count": "$(source.config.replicas)"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wl := &Component{
+				Name: "web", Type: "sized",
+				FullTemplate: &Template{TemplateStr: `
+output: {apiVersion: "v1", kind: "ConfigMap", metadata: name: context.name}
+parameter: {
+	replicas?: int
+	image?:    string
+	enabled?:  bool
+	nested?: {count: int}
+}
+`},
+				Params: tc.params,
+			}
+			ctxData := GenerateContextDataFromAppFile(app, wl.Name)
+			assert.NoError(t, (&Parser{}).ValidateComponentParams(ctxData, wl, app))
+		})
+	}
 }

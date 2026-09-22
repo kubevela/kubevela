@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kubevela/pkg/cue/cuex"
+	upstreamcuex "github.com/kubevela/pkg/cue/cuex"
 
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	workflowproviders "github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -93,6 +93,37 @@ func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
 	return validateCuexTemplateWith(ctx, velacuex.WorkloadCompiler.Get(), cueTemplate)
 }
 
+// ValidateCuexTemplateWithoutProviders validates a template's shape without
+// executing the provider functions in it.
+//
+// A SourceDefinition's whole purpose is to fetch something, and admission runs
+// with no parameters supplied - so every provider call is either handed a
+// non-concrete value ("cannot convert incomplete value \"string\" to JSON") or,
+// worse, actually performed. Performing it would do the source's I/O on every
+// apply, which is the exact cost the cache exists to avoid, and would make
+// admission depend on a remote service being reachable.
+//
+// The shape checks that matter - the schema block, the storage block, the
+// generated key - are all static and unaffected.
+//
+// Every validator here now disables provider resolution, so this is equivalent
+// to ValidateCuexTemplate and is kept only so the SourceDefinition work that
+// introduced it keeps its API. It can be dropped once that is confirmed.
+func ValidateCuexTemplateWithoutProviders(ctx context.Context, cueTemplate string) error {
+	return validateCuexTemplateWith(ctx, velacuex.WorkloadCompiler.Get(), cueTemplate)
+}
+
+// ValidateSourceTemplate validates a SourceDefinition's template against the
+// packages a source is allowed to import.
+//
+// Compiling against SourceCompiler rather than WorkloadCompiler is what refuses
+// an acting package at apply time. Without it a source importing vela/helm would
+// be accepted and then install a chart on its first cache miss, since the render
+// path sets no dry-run.
+func ValidateSourceTemplate(ctx context.Context, cueTemplate string) error {
+	return validateCuexTemplateWith(ctx, velacuex.SourceCompiler.Get(), cueTemplate)
+}
+
 // ValidateWorkflowStepCuexTemplate validates a WorkflowStepDefinition CUE
 // template against the workflow provider compiler.
 //
@@ -122,8 +153,8 @@ func ValidateWorkflowStepCuexTemplate(ctx context.Context, cueTemplate string) e
 // Unresolved provider outputs ($returns) are left incomplete rather than
 // erroring, since Validate is called without cue.Concrete and templates are
 // legitimately incomplete until an Application supplies parameter values.
-func validateCuexTemplateWith(ctx context.Context, compiler *cuex.Compiler, cueTemplate string) error {
-	val, err := compiler.CompileStringWithOptions(ctx, cueTemplate, cuex.DisableResolveProviderFunctions{})
+func validateCuexTemplateWith(ctx context.Context, compiler *upstreamcuex.Compiler, cueTemplate string) error {
+	val, err := compiler.CompileStringWithOptions(ctx, cueTemplate, upstreamcuex.DisableResolveProviderFunctions{})
 	if err != nil {
 		return err
 	}

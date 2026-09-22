@@ -258,6 +258,8 @@ func (g *CUEGenerator) collectImportsFromValue(v interface{}) {
 				g.collectImportsFromItemOps(entry.mapEntryBuilder.ops())
 			}
 		}
+	case *ForEachMapOp:
+		g.collectImportsFromOps(val.Body())
 	case *PlusExpr:
 		for _, part := range val.Parts() {
 			g.collectImportsFromValue(part)
@@ -338,15 +340,7 @@ func (g *CUEGenerator) collectImportsFromOps(ops []ResourceOp) {
 			g.collectImportsFromValue(o.Cond())
 		case *IfBlock:
 			g.collectImportsFromValue(o.Cond())
-			for _, innerOp := range o.Ops() {
-				switch inner := innerOp.(type) {
-				case *SetOp:
-					g.collectImportsFromValue(inner.Value())
-				case *SetIfOp:
-					g.collectImportsFromValue(inner.Value())
-					g.collectImportsFromValue(inner.Cond())
-				}
-			}
+			g.collectImportsFromOps(o.Ops())
 		case *PatchKeyOp:
 			for _, elem := range o.Elements() {
 				g.collectImportsFromValue(elem)
@@ -2451,7 +2445,8 @@ func (g *CUEGenerator) iterRefToCUE(v Value) string {
 }
 
 // forEachMapOpToCUE converts a ForEachMapOp to CUE map comprehension syntax.
-// Generates: {for k, v in source { (keyExpr): valExpr }}.
+// Without body operations it generates {for k, v in source { (keyExpr): valExpr }}.
+// Body operations replace valExpr with a struct rendered under each output key.
 func (g *CUEGenerator) forEachMapOpToCUE(op *ForEachMapOp) string {
 	keyVar := op.KeyVar()
 	if keyVar == "" {
@@ -2473,7 +2468,16 @@ func (g *CUEGenerator) forEachMapOpToCUE(op *ForEachMapOp) string {
 		valExpr = valVar
 	}
 
-	return fmt.Sprintf("{for %s, %s in %s { (%s): %s }}", keyVar, valVar, op.Source(), keyExpr, valExpr)
+	if len(op.Body()) == 0 {
+		return fmt.Sprintf("{for %s, %s in %s { (%s): %s }}", keyVar, valVar, op.Source(), keyExpr, valExpr)
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "{for %s, %s in %s {\n", keyVar, valVar, op.Source())
+	fmt.Fprintf(&sb, "%s(%s): {\n", g.indent, keyExpr)
+	g.writeFieldTree(&sb, g.buildFieldTree(op.Body()), 2)
+	fmt.Fprintf(&sb, "%s}\n}}", g.indent)
+	return sb.String()
 }
 
 // cueFuncToCUE converts a CUE function call to CUE syntax.
@@ -3901,7 +3905,11 @@ func (g *CUEGenerator) formatArrayDefault(val any) string {
 
 // writeMapParam writes a map/object parameter.
 func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, name, optional string, depth int) {
-	// Priority: schemaRef > schema > fields > generic
+	// Priority: schemaRef > schema > value schema (dynamic keys) > fields > generic.
+	// The whole-parameter forms (schemaRef/schema) win over the value forms
+	// (OfSchemaRef/OfObject), which in turn win over the fixed-object form
+	// (WithFields). Setting both a value form and WithFields is contradictory;
+	// the value form is what gets emitted.
 	if schemaRef := p.GetSchemaRef(); schemaRef != "" {
 		// Reference to a helper definition like #HealthProbe
 		sb.WriteString(fmt.Sprintf("%s%s%s: #%s\n", indent, name, optional, schemaRef))
@@ -3911,6 +3919,32 @@ func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, n
 	if schema := p.GetSchema(); schema != "" {
 		// Raw CUE schema - output directly
 		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, schema))
+		return
+	}
+
+	// Values under dynamic keys pointing at a helper definition:
+	// name?: [string]: #Ref
+	if valueSchemaRef := p.GetValueSchemaRef(); valueSchemaRef != "" {
+		sb.WriteString(fmt.Sprintf("%s%s%s: [string]: #%s\n", indent, name, optional, valueSchemaRef))
+		return
+	}
+
+	// Values under dynamic keys with a structured schema:
+	// name?: [string]: { ... }
+	if valueFields := p.GetValueFields(); len(valueFields) > 0 {
+		if p.IsClosed() {
+			sb.WriteString(fmt.Sprintf("%s%s%s: [string]: close({\n", indent, name, optional))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s%s: [string]: {\n", indent, name, optional))
+		}
+		for _, field := range valueFields {
+			g.writeParam(sb, field, depth+1)
+		}
+		if p.IsClosed() {
+			sb.WriteString(fmt.Sprintf("%s})\n", indent))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		}
 		return
 	}
 

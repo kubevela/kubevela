@@ -67,6 +67,7 @@ type Template struct {
 
 	PolicyDefinition       *v1beta1.PolicyDefinition
 	WorkflowStepDefinition *v1beta1.WorkflowStepDefinition
+	SourceDefinition       *v1beta1.SourceDefinition
 }
 
 // LoadTemplate gets the capability definition from cluster and resolve it.
@@ -145,6 +146,17 @@ func LoadTemplate(ctx context.Context, cli client.Client, capName string, capTyp
 			return nil, err
 		}
 		return tmpl, nil
+	case types.TypeSource:
+		d := new(v1beta1.SourceDefinition)
+		err := oamutil.GetCapabilityDefinition(ctx, cli, d, capName, annotations)
+		if err != nil {
+			return nil, errors.WithMessagef(err, "load template from source definition [%s] ", capName)
+		}
+		tmpl, err := newTemplateOfSourceDefinition(d)
+		if err != nil {
+			return nil, err
+		}
+		return tmpl, nil
 	}
 	return nil, fmt.Errorf("kind(%s) of %s not supported", capType, capName)
 }
@@ -218,6 +230,16 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 			return nil, err
 		}
 		return tmpl, nil
+	case types.TypeSource:
+		s, ok := apprev.Spec.SourceDefinitions[capName]
+		if !ok {
+			return nil, errors.Errorf("SourceDefinition [%s] not found in app revision %s", capName, apprev.Name)
+		}
+		tmpl, err := newTemplateOfSourceDefinition(s.DeepCopy())
+		if err != nil {
+			return nil, err
+		}
+		return tmpl, nil
 	default:
 		return nil, fmt.Errorf("kind(%s) of %s not supported", capType, capName)
 	}
@@ -242,6 +264,8 @@ func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.A
 			_, ok = apprev.Spec.PolicyDefinitions[splitName]
 		case types.TypeWorkflowStep:
 			_, ok = apprev.Spec.WorkflowStepDefinitions[splitName]
+		case types.TypeSource:
+			_, ok = apprev.Spec.SourceDefinitions[splitName]
 		default:
 			return capName
 		}
@@ -344,6 +368,16 @@ func newTemplateOfPolicyDefinition(def *v1beta1.PolicyDefinition) (*Template, er
 func newTemplateOfWorkflowStepDefinition(def *v1beta1.WorkflowStepDefinition) (*Template, error) {
 	tmpl := &Template{
 		WorkflowStepDefinition: def,
+	}
+	if err := loadSchematicToTemplate(tmpl, nil, def.Spec.Schematic, nil); err != nil {
+		return nil, errors.WithMessage(err, "cannot load template")
+	}
+	return tmpl, nil
+}
+
+func newTemplateOfSourceDefinition(def *v1beta1.SourceDefinition) (*Template, error) {
+	tmpl := &Template{
+		SourceDefinition: def,
 	}
 	if err := loadSchematicToTemplate(tmpl, nil, def.Spec.Schematic, nil); err != nil {
 		return nil, errors.WithMessage(err, "cannot load template")

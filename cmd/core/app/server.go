@@ -55,6 +55,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/cache"
 	commonconfig "github.com/oam-dev/kubevela/pkg/controller/common"
+	configv1alpha1 "github.com/oam-dev/kubevela/pkg/controller/config.oam.dev/v1alpha1"
 	oamv1beta1 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -63,7 +64,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/requiredcrds"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	configwebhook "github.com/oam-dev/kubevela/pkg/webhook/config.oam.dev/v1alpha1"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -171,6 +174,23 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 		return fmt.Errorf("failed to create controller manager: %w", err)
 	}
 	klog.InfoS("Controller manager created successfully")
+
+	// Before anything registers a watch. Six of these kinds are watched with
+	// For(), and a watch on a kind the API server does not serve takes the manager
+	// down with it, reported as a bare "no matches for kind" from an informer.
+	// Helm never updates a chart's CRDs on upgrade, so that is a routine outcome
+	// of a `helm upgrade` onto a version that added one, and it deserves a cause.
+	//
+	// Deliberately not a hooks.PreStartHook, despite being exactly that shape.
+	// The hook list runs inside prepareRun, which a worker shard never reaches -
+	// it goes straight to application.Setup - and a worker shard watches
+	// Applications and reads definitions like any other process. Here is where
+	// both paths converge, and it is earlier than the hooks besides.
+	klog.V(2).InfoS("Verifying required CRDs are installed")
+	if err := requiredcrds.Verify(manager.GetRESTMapper()); err != nil {
+		klog.ErrorS(err, "Required CustomResourceDefinitions are missing")
+		return err
+	}
 
 	// Register health checks
 	klog.V(2).InfoS("Registering health and readiness checks")
@@ -474,6 +494,7 @@ func prepareRun(ctx context.Context, manager manager.Manager, coreOptions *optio
 			"port", coreOptions.Webhook.WebhookPort,
 			"certDir", coreOptions.Webhook.CertDir)
 		oamwebhook.Register(manager, coreOptions.Controller.Args)
+		configwebhook.Register(manager)
 		klog.V(2).InfoS("Waiting for webhook secret volume",
 			"timeout", waitSecretTimeout,
 			"checkInterval", waitSecretInterval)
@@ -490,6 +511,13 @@ func prepareRun(ctx context.Context, manager manager.Manager, coreOptions *optio
 		return err
 	}
 	klog.InfoS("OAM controllers setup completed successfully")
+
+	klog.InfoS("Setting up config controllers")
+	if err := configv1alpha1.Setup(manager, coreOptions.Controller.Args); err != nil {
+		klog.ErrorS(err, "Unable to setup the config controller")
+		return err
+	}
+	klog.InfoS("Config controllers setup completed successfully")
 
 	klog.V(2).InfoS("Initializing control plane cluster info")
 	if err := multicluster.InitClusterInfo(manager.GetConfig()); err != nil {

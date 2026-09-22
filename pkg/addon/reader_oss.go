@@ -19,6 +19,7 @@ package addon
 import (
 	"encoding/xml"
 	"fmt"
+	"net/http"
 	"path"
 	"sort"
 	"strings"
@@ -74,10 +75,26 @@ func (i OSSItem) GetName() string {
 }
 
 // ReadFile read file content from OSS bucket, path is relative to oss bucket and sub-path in reader
+//
+// The status code is checked, and has to be: object storage answers a missing
+// key with a 200-shaped response body containing an XML error document. Without
+// this, a 404 returned that document as the file's contents with a nil error,
+// and the caller parsed an error page as configuration.
+//
+// A missing object wraps ErrFileNotFound so a caller can tell absence from
+// failure and decide for itself; anything else non-2xx is a failure.
 func (o *ossReader) ReadFile(relativePath string) (content string, err error) {
-	resp, err := o.client.R().Get(fmt.Sprintf(singleOSSFileTmpl, o.bucketEndPoint, path.Join(o.path, relativePath)))
+	full := path.Join(o.path, relativePath)
+	resp, err := o.client.R().Get(fmt.Sprintf(singleOSSFileTmpl, o.bucketEndPoint, full))
 	if err != nil {
 		return "", err
+	}
+	switch code := resp.StatusCode(); {
+	case code == http.StatusNotFound:
+		return "", fmt.Errorf("reading %q from %s: %w", full, o.bucketEndPoint, ErrFileNotFound)
+	case code < 200 || code > 299:
+		return "", fmt.Errorf("reading %q from %s: unexpected status %d: %s",
+			full, o.bucketEndPoint, code, strings.TrimSpace(string(resp.Body())))
 	}
 	return string(resp.Body()), nil
 }

@@ -43,6 +43,7 @@ import (
 )
 
 var assumeYes bool
+var configMode string
 
 // NewCommand will contain all commands
 func NewCommand() *cobra.Command {
@@ -159,6 +160,7 @@ func NewCommandWithIOStreams(ioStream util.IOStreams) *cobra.Command {
 	klog.SetLogger(velalog.NewLogger("vela-cli"))
 	// init global flags
 	cmds.PersistentFlags().BoolVarP(&assumeYes, "yes", "y", false, "Assume yes for all user prompts")
+	cmds.PersistentFlags().StringVar(&configMode, "config-mode", "auto", "Config storage mode: auto (use CRDs if installed, else legacy ConfigMaps/Secrets), legacy (always ConfigMaps/Secrets), crd (always ConfigTemplate/Config CRDs)")
 	cmds.PersistentFlags().AddFlag(pflg)
 	return cmds
 }

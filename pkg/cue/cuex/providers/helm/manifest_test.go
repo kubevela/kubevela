@@ -241,6 +241,71 @@ spec: {replicas: 1}
 		})
 	})
 
+	Describe("parseManifestResources empty values", func() {
+		It("should keep CRD status subresources and emptyDir volumes intact", func() {
+			manifest := `---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: certificates.cert-manager.io
+  creationTimestamp: null
+spec:
+  group: cert-manager.io
+  names:
+    kind: Certificate
+    plural: certificates
+  scope: Namespaced
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    subresources:
+      status: {}
+    schema:
+      openAPIV3Schema:
+        type: object
+        x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app
+spec:
+  containers:
+  - name: app
+    image: nginx
+    resources: {}
+    volumeMounts:
+    - name: tmp
+      mountPath: /tmp
+  volumes:
+  - name: tmp
+    emptyDir: {}
+`
+			p := NewProvider()
+			resources, err := p.parseManifestResources(manifest, nil, "")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(resources).To(HaveLen(2))
+
+			crd := resources[0]
+			Expect(crd["kind"]).To(Equal("CustomResourceDefinition"))
+			_, found, _ := unstructured.NestedFieldNoCopy(crd, "metadata", "creationTimestamp")
+			Expect(found).To(BeFalse(), "nil values should still be removed")
+			versions, _, _ := unstructured.NestedSlice(crd, "spec", "versions")
+			Expect(versions).To(HaveLen(1))
+			status, found, _ := unstructured.NestedMap(versions[0].(map[string]interface{}), "subresources", "status")
+			Expect(found).To(BeTrue(), "CRD lost its status subresource")
+			Expect(status).To(BeEmpty())
+
+			pod := resources[1]
+			volumes, _, _ := unstructured.NestedSlice(pod, "spec", "volumes")
+			Expect(volumes).To(HaveLen(1))
+			Expect(volumes[0]).To(HaveKeyWithValue("emptyDir", map[string]interface{}{}))
+			containers, _, _ := unstructured.NestedSlice(pod, "spec", "containers")
+			Expect(containers[0]).To(HaveKeyWithValue("resources", map[string]interface{}{}))
+		})
+	})
+
 	Describe("cleanResource", func() {
 		It("should remove nil values", func() {
 			input := map[string]interface{}{
@@ -291,24 +356,38 @@ spec: {replicas: 1}
 			Expect(container).ToNot(HaveKey("image"))
 		})
 
-		It("should remove empty nested maps", func() {
+		It("should preserve empty maps, which carry meaning in Kubernetes", func() {
 			input := map[string]interface{}{
-				"status": map[string]interface{}{},
-				"spec":   map[string]interface{}{"replicas": 1},
+				"subresources": map[string]interface{}{
+					"status": map[string]interface{}{},
+				},
+				"emptyDir": map[string]interface{}{},
+				"spec":     map[string]interface{}{"replicas": 1},
 			}
 			result := cleanResource(input)
-			Expect(result).ToNot(HaveKey("status"))
+			Expect(result).To(HaveKeyWithValue("subresources", map[string]interface{}{"status": map[string]interface{}{}}))
+			Expect(result).To(HaveKeyWithValue("emptyDir", map[string]interface{}{}))
 			Expect(result["spec"].(map[string]interface{})["replicas"]).To(Equal(1))
 		})
 
-		It("should remove empty arrays", func() {
+		It("should keep a map whose only fields were nil, rather than dropping it", func() {
+			// emptyDir: {sizeLimit: null} must still be an emptyDir volume.
 			input := map[string]interface{}{
+				"emptyDir": map[string]interface{}{"sizeLimit": nil},
+			}
+			result := cleanResource(input)
+			Expect(result).To(HaveKeyWithValue("emptyDir", map[string]interface{}{}))
+		})
+
+		It("should preserve empty arrays", func() {
+			input := map[string]interface{}{
+				"args":   []interface{}{},
 				"items":  []interface{}{nil},
 				"labels": map[string]interface{}{"app": "test"},
 			}
 			result := cleanResource(input)
-			// After removing nil, the array is empty and should be dropped
-			Expect(result).ToNot(HaveKey("items"))
+			Expect(result).To(HaveKeyWithValue("args", []interface{}{}))
+			Expect(result).To(HaveKeyWithValue("items", []interface{}{}))
 			Expect(result["labels"].(map[string]interface{})["app"]).To(Equal("test"))
 		})
 	})

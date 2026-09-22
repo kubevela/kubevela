@@ -817,6 +817,116 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring("annotations?:"))
 			Expect(cue).To(ContainSubstring("Labels to apply"))
 		})
+
+		It("should generate a structured value schema under dynamic keys", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.Map("accessPoints").
+						OfObject(
+							defkit.String("path").Required(),
+							defkit.Int("ownerUID").Default(1000),
+							defkit.Int("ownerGID").Default(1000),
+							defkit.String("permissions").Default("0755"),
+						).
+						Optional(),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("accessPoints?: [string]: {"))
+			Expect(cue).To(ContainSubstring("path!: string"))
+			Expect(cue).To(ContainSubstring("ownerUID: *1000 | int"))
+			Expect(cue).To(ContainSubstring("ownerGID: *1000 | int"))
+			Expect(cue).To(ContainSubstring(`permissions: *"0755" | string`))
+		})
+
+		It("should generate a value schema reference under dynamic keys", func() {
+			comp := defkit.NewComponent("test").
+				Params(defkit.Map("accessPoints").OfSchemaRef("AccessPointConfig").Optional())
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("accessPoints?: [string]: #AccessPointConfig"))
+		})
+
+		It("should close the value struct when Closed is set alongside OfObject", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.Map("accessPoints").
+						OfObject(defkit.String("path").Required()).
+						Closed().
+						Optional(),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("accessPoints?: [string]: close({"))
+			Expect(cue).To(ContainSubstring("})"))
+		})
+
+		It("should keep WithFields, Of and StringKeyMap rendering unchanged", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.Map("fixed").WithFields(
+						defkit.String("path"),
+						defkit.Int("uid"),
+					),
+					defkit.Map("scalar").Of(defkit.ParamTypeString),
+					defkit.StringKeyMap("skm"),
+					defkit.Map("wholeRef").WithSchemaRef("HealthProbe"),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			// Fixed object: still a struct on the parameter itself, no [string]: key.
+			Expect(cue).To(ContainSubstring("fixed: {"))
+			Expect(cue).NotTo(ContainSubstring("fixed: [string]:"))
+			// Scalar-valued dynamic maps unchanged.
+			Expect(cue).To(ContainSubstring("scalar: [string]: string"))
+			Expect(cue).To(ContainSubstring("skm: [string]: string"))
+			// WithSchemaRef still applies to the whole parameter.
+			Expect(cue).To(ContainSubstring("wholeRef: #HealthProbe"))
+			Expect(cue).NotTo(ContainSubstring("wholeRef: [string]:"))
+		})
+
+		It("should import packages needed by nested value-schema constraints", func() {
+			comp := defkit.NewComponent("test").
+				Workload("v1", "ConfigMap").
+				Params(
+					defkit.Map("accessPoints").
+						OfObject(defkit.String("path").MinLen(1)).
+						Optional(),
+				)
+
+			cue := defkit.NewCUEGenerator().GenerateFullDefinition(comp)
+
+			// strings.MinRunes is emitted, so "strings" has to be imported or
+			// the generated CUE fails to compile.
+			Expect(cue).To(ContainSubstring("strings.MinRunes(1)"))
+			Expect(cue).To(ContainSubstring(`"strings"`))
+		})
+
+		It("should produce CUE that compiles for the dynamic-key value forms", func() {
+			// Substring assertions cannot tell a missing import from a present
+			// one, so compile the result and let CUE decide.
+			comp := defkit.NewComponent("test").
+				Workload("v1", "ConfigMap").
+				Params(
+					defkit.Map("accessPoints").
+						OfObject(
+							defkit.String("path").Required(),
+							defkit.Int("ownerUID").Default(1000),
+							defkit.String("permissions").Default("0755"),
+						).
+						Optional(),
+					defkit.Map("constrained").
+						OfObject(defkit.String("name").MinLen(3)).
+						Optional(),
+				)
+
+			val := cuecontext.New().CompileString(defkit.NewCUEGenerator().GenerateFullDefinition(comp))
+			Expect(val.Err()).ToNot(HaveOccurred())
+		})
 	})
 
 	Describe("GenerateFullDefinition with template", func() {
@@ -1752,6 +1862,143 @@ var _ = Describe("CUEGenerator", func() {
 			// Inner braces should contain both the field and the conditional
 			Expect(cue).To(ContainSubstring("name: m.name"))
 			Expect(cue).To(ContainSubstring("if m.subPath != _|_"))
+		})
+	})
+
+	Describe("ForEachMap body generation", func() {
+		It("should preserve the default map comprehension", func() {
+			labels := defkit.StringKeyMap("labels")
+			comp := defkit.NewComponent("test").
+				Params(labels).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					tpl.AddLetBinding(
+						"_content",
+						defkit.ForEachMap().Over("parameter.labels"),
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.content", defkit.LetVariable("_content")))
+				})
+
+			Expect(comp.ToCue()).To(ContainSubstring(
+				"let _content = {for k, v in parameter.labels { (k): v }}",
+			))
+		})
+
+		It("should render and evaluate body operations for every map entry", func() {
+			labels := defkit.StringKeyMap("labels")
+			body := defkit.NewResource("", "").
+				Set("name", defkit.Reference("key")).
+				Set("value", defkit.Reference("val")).
+				Set("metadata.owner", defkit.Reference("key")).
+				Ops()
+			comp := defkit.NewComponent("test").
+				Params(labels).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					content := defkit.ForEachMap().
+						Over("parameter.labels").
+						WithVars("key", "val").
+						WithBody(body...)
+					tpl.AddLetBinding("_content", content)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.content", defkit.LetVariable("_content")))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`let _content = {for key, val in parameter.labels {
+	(key): {
+		name: key
+		value: val
+		metadata: {
+			owner: key
+		}
+	}
+}}`))
+
+			base := cuecontext.New().CompileString(generated)
+			Expect(base.Err()).NotTo(HaveOccurred())
+			value := base.FillPath(
+				cue.ParsePath("template.parameter.labels"),
+				map[string]string{
+					"alpha": "one",
+					"beta":  "two",
+				},
+			)
+			Expect(value.Err()).NotTo(HaveOccurred())
+
+			var content map[string]struct {
+				Name     string `json:"name"`
+				Value    string `json:"value"`
+				Metadata struct {
+					Owner string `json:"owner"`
+				} `json:"metadata"`
+			}
+			err := value.LookupPath(
+				cue.ParsePath("template.output.data.content"),
+			).Decode(&content)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(content).To(HaveLen(2))
+			Expect(content["alpha"].Name).To(Equal("alpha"))
+			Expect(content["alpha"].Value).To(Equal("one"))
+			Expect(content["alpha"].Metadata.Owner).To(Equal("alpha"))
+			Expect(content["beta"].Name).To(Equal("beta"))
+			Expect(content["beta"].Value).To(Equal("two"))
+			Expect(content["beta"].Metadata.Owner).To(Equal("beta"))
+		})
+
+		It("should collect imports required by body values", func() {
+			labels := defkit.StringKeyMap("labels")
+			body := defkit.NewResource("", "").
+				Set("name", defkit.StringsToLower(defkit.Reference("key"))).
+				Set("value", defkit.Reference("val")).
+				Ops()
+			comp := defkit.NewComponent("test").
+				Params(labels).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					content := defkit.ForEachMap().
+						Over("parameter.labels").
+						WithVars("key", "val").
+						WithBody(body...)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.content", content))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"strings"`))
+			Expect(generated).To(ContainSubstring("name: strings.ToLower(key)"))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
+		})
+
+		It("should collect imports from nested body operations", func() {
+			labels := defkit.StringKeyMap("labels")
+			metadata := defkit.StringKeyMap("metadata")
+			features := defkit.StringList("features")
+			enabled := defkit.Bool("enabled")
+			body := defkit.NewResource("", "").
+				If(enabled.IsTrue()).
+				Set("metadata.fixed", defkit.Lit("fixed")).
+				SpreadIf(features.Contains("metadata"), "metadata", metadata).
+				EndIf().
+				Ops()
+			comp := defkit.NewComponent("test").
+				Params(labels, metadata, features, enabled).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					content := defkit.ForEachMap().
+						Over("parameter.labels").
+						WithBody(body...)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.content", content))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"list"`))
+			Expect(generated).To(ContainSubstring(
+				`list.Contains(parameter["features"], "metadata")`,
+			))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
 		})
 	})
 

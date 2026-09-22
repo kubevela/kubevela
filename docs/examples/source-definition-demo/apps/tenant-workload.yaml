@@ -1,0 +1,77 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: tenant-workload
+  namespace: source-demo
+  annotations:
+    app.oam.dev/cel-expressions: "true"
+spec:
+  sources:
+    # autoUpdate re-dispatches the components reading this binding when its
+    # resolved value changes, without waiting for the workflow to run again.
+    # Unset defers to the EnableSourceAutoUpdate feature gate; a publishVersion
+    # pin suppresses it either way.
+    # A binding is read as source.<name>, so the name has to be a plain
+    # identifier: no hyphens.
+    - name: replicas
+      type: get-random
+      autoUpdate: true
+
+    - name: cluster
+      type: cluster-lookup
+      autoUpdate: true
+
+    - name: tenant
+      type: tenant-data
+
+  components:
+    - name: web
+      type: demo-deployment
+      properties:
+        # Joined inline: an expression concatenates across sources, so a
+        # definition whose only job is to assemble a string is not needed.
+        name: '$((source.cluster.region + "-" + source.cluster.zone + "-" + source.tenant.department + "-" + source.tenant.name + "-web").lowerAscii())'
+        replicas: '$(source.replicas.value)'
+        region:
+          '$(source.cluster.region)'
+        zone:
+          '$(source.cluster.zone)'
+        department:
+          '$(source.tenant.department)'
+        tenant:
+          '$(source.tenant.name)'
+        environment:
+          '$(source.tenant.environment)'
+    # Writes the resolved tenant and cluster data into a ConfigMap. Values are
+    # substituted before the component renders, so the ConfigMap
+    # is created with concrete data.
+    - name: tenant-config
+      type: k8s-objects
+      properties:
+        objects:
+          - apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: tenant-config
+              namespace: source-demo
+            data:
+              tenantName:
+                '$(source.tenant.name)'
+              department:
+                '$(source.tenant.department)'
+              environment:
+                '$(source.tenant.environment)'
+              # costCenter is optional in the tenant-data schema, so it may be
+              # absent at resolution time. The target here is a free-form
+              # ConfigMap field (not a typed required parameter), so admission
+              # does not force a default -- but supplying one via the map form is
+              # good practice: without it, an absent costCenter would omit the
+              # key entirely. (Admission only *requires* a default when an
+              # optional source field feeds a required target parameter.)
+              costCenter: '$(has(source.tenant.costCenter) ? source.tenant.costCenter : "unassigned")'
+              region:
+                '$(source.cluster.region)'
+              zone:
+                '$(source.cluster.zone)'
+              provider:
+                '$(source.cluster.provider)'

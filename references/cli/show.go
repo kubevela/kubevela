@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 	"github.com/oam-dev/kubevela/references/docgen"
 )
 
@@ -466,7 +467,10 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 	if err != nil {
 		return err
 	}
-	ref := &docgen.ConsoleReference{}
+	// The vela providers compiler, not the upstream default: a definition
+	// importing vela/registry or vela/velaconfig cannot have its parameters
+	// extracted without it, and fails with "parameter not exist".
+	ref := &docgen.ConsoleReference{Compiler: providers.DefaultCompiler.Get()}
 	paserRef, err := genRefParser(capabilityName, ns, location, i18nPath, rev)
 	if err != nil {
 		return err

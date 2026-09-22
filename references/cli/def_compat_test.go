@@ -18,9 +18,12 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	oamcommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -267,6 +270,75 @@ func TestDefNameFromRevision(t *testing.T) {
 	}
 }
 
+// ── collectSchematics ─────────────────────────────────────────────────────────
+
+// Every definition kind an ApplicationRevision snapshots goes through this, and
+// a kind that never reaches collect is a kind vela def compat cannot report on.
+func TestCollectSchematicsCoversEveryKind(t *testing.T) {
+	tmpl := "output: {}"
+	sch := func() *oamcommon.Schematic {
+		return &oamcommon.Schematic{CUE: &oamcommon.CUE{Template: tmpl}}
+	}
+	all := map[string]bool{"component": true, "trait": true, "workflow-step": true,
+		"policy": true, "source": true}
+
+	var got []string
+	collect := func(name, kind, template string) {
+		if template != tmpl {
+			t.Errorf("%s/%s: template = %q, want %q", kind, name, template, tmpl)
+		}
+		got = append(got, kind+"/"+name)
+	}
+
+	collectSchematics(all, "component", map[string]*v1beta1.ComponentDefinition{
+		"web": {Spec: v1beta1.ComponentDefinitionSpec{Schematic: sch()}}}, collect,
+		func(d *v1beta1.ComponentDefinition) *oamcommon.Schematic { return d.Spec.Schematic })
+	collectSchematics(all, "policy", map[string]v1beta1.PolicyDefinition{
+		"override": {Spec: v1beta1.PolicyDefinitionSpec{Schematic: sch()}}}, collect,
+		func(d v1beta1.PolicyDefinition) *oamcommon.Schematic { return d.Spec.Schematic })
+	collectSchematics(all, "source", map[string]*v1beta1.SourceDefinition{
+		"http-get": {Spec: v1beta1.SourceDefinitionSpec{Schematic: sch()}}}, collect,
+		func(d *v1beta1.SourceDefinition) *oamcommon.Schematic { return d.Spec.Schematic })
+
+	sort.Strings(got)
+	want := []string{"component/web", "policy/override", "source/http-get"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("collected %v, want %v", got, want)
+	}
+}
+
+// A kind out of scope, a nil snapshot and a definition with no CUE must each be
+// passed over rather than reaching collect.
+func TestCollectSchematicsSkips(t *testing.T) {
+	called := 0
+	collect := func(_, _, _ string) { called++ }
+	acc := func(d *v1beta1.SourceDefinition) *oamcommon.Schematic {
+		if d == nil {
+			return nil
+		}
+		return d.Spec.Schematic
+	}
+	defs := map[string]*v1beta1.SourceDefinition{
+		"http-get": {Spec: v1beta1.SourceDefinitionSpec{
+			Schematic: &oamcommon.Schematic{CUE: &oamcommon.CUE{Template: "output: {}"}}}},
+	}
+
+	collectSchematics(map[string]bool{"component": true}, "source", defs, collect, acc)
+	if called != 0 {
+		t.Errorf("a kind out of scope must not be collected, got %d", called)
+	}
+	collectSchematics(map[string]bool{"source": true},
+		"source", map[string]*v1beta1.SourceDefinition{"gone": nil}, collect, acc)
+	if called != 0 {
+		t.Errorf("a nil snapshot must not be collected, got %d", called)
+	}
+	collectSchematics(map[string]bool{"source": true}, "source",
+		map[string]*v1beta1.SourceDefinition{"bare": {}}, collect, acc)
+	if called != 0 {
+		t.Errorf("a definition with no schematic must not be collected, got %d", called)
+	}
+}
+
 // ── extractDefRevTemplate ─────────────────────────────────────────────────────
 
 func TestExtractDefRevTemplate(t *testing.T) {
@@ -292,6 +364,16 @@ func TestExtractDefRevTemplate(t *testing.T) {
 			dr: v1beta1.DefinitionRevision{Spec: v1beta1.DefinitionRevisionSpec{
 				DefinitionType: oamcommon.TraitType,
 				TraitDefinition: v1beta1.TraitDefinition{Spec: v1beta1.TraitDefinitionSpec{
+					Schematic: &oamcommon.Schematic{CUE: &oamcommon.CUE{Template: tmpl}},
+				}},
+			}},
+			want: tmpl,
+		},
+		{
+			name: "source",
+			dr: v1beta1.DefinitionRevision{Spec: v1beta1.DefinitionRevisionSpec{
+				DefinitionType: oamcommon.SourceType,
+				SourceDefinition: v1beta1.SourceDefinition{Spec: v1beta1.SourceDefinitionSpec{
 					Schematic: &oamcommon.Schematic{CUE: &oamcommon.CUE{Template: tmpl}},
 				}},
 			}},
@@ -516,4 +598,23 @@ func TestPrintAppCompatReport(t *testing.T) {
 			t.Error("expected traits to be omitted when empty")
 		}
 	})
+}
+
+// A DefinitionRevision names its kind as the short DefinitionType - Component,
+// Trait, Source - while a live definition names the full kind. Without Source
+// in this map, an incompatible live SourceDefinition and its revision landed in
+// two separate report entries instead of being grouped as one definition.
+func TestNormaliseDefKindCoversEveryDefinitionType(t *testing.T) {
+	for shortName, kind := range map[string]string{
+		"Component":    v1beta1.ComponentDefinitionKind,
+		"Trait":        v1beta1.TraitDefinitionKind,
+		"WorkflowStep": v1beta1.WorkflowStepDefinitionKind,
+		"Policy":       v1beta1.PolicyDefinitionKind,
+		"Source":       v1beta1.SourceDefinitionKind,
+	} {
+		require.Equal(t, kind, normaliseDefKind(shortName))
+	}
+	// An unrecognised kind is passed through, since a live definition already
+	// carries the full name.
+	require.Equal(t, v1beta1.SourceDefinitionKind, normaliseDefKind(v1beta1.SourceDefinitionKind))
 }
