@@ -17,7 +17,10 @@ limitations under the License.
 package addon
 
 import (
+	"errors"
 	"fmt"
+
+	"github.com/google/go-github/v32/github"
 
 	"github.com/oam-dev/kubevela/pkg/registry/component"
 )
@@ -61,6 +64,16 @@ var (
 	// fail open on a lookup failure.
 	ErrVersionMismatch = NewAddonError("addon system requirement not met")
 )
+
+// WrapErrRateLimit return ErrRateLimit if is the situation, or return error directly
+func WrapErrRateLimit(err error) error {
+	errRate := &github.RateLimitError{}
+	errAbuse := &github.AbuseRateLimitError{}
+	if errors.As(err, &errRate) || errors.As(err, &errAbuse) {
+		return ErrRateLimit
+	}
+	return err
+}
 
 // VersionUnMatchError means addon system requirement cannot meet requirement
 type VersionUnMatchError struct {

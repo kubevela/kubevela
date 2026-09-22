@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package component
+package addon
 
 import (
 	"embed"
@@ -27,7 +27,6 @@ import (
 	"testing"
 
 	"github.com/google/go-github/v32/github"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -209,15 +208,3 @@ func Int(v int) *int { return &v }
 // String is a helper routine that allocates a new string value
 // to store v and returns a pointer to it.
 func String(v string) *string { return &v }
-
-func TestWrapErrRateLimit(t *testing.T) {
-	regularErr := errors.New("regular error")
-	wrappedErr := WrapErrRateLimit(regularErr)
-	assert.Equal(t, regularErr, wrappedErr)
-
-	rateLimitErr := &github.RateLimitError{}
-	wrappedErr = WrapErrRateLimit(rateLimitErr)
-	// The wrapped error now carries the reset time, so it is matched by
-	// errors.Is rather than compared for identity.
-	assert.ErrorIs(t, wrappedErr, ErrRateLimit)
-}

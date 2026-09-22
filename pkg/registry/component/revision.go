@@ -17,9 +17,6 @@ limitations under the License.
 package component
 
 import (
-	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	goerrors "errors"
 	"fmt"
 	"path"
@@ -27,45 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/go-github/v32/github"
 	"k8s.io/klog/v2"
 )
-
-// RevisionReader is an AsyncReader that can name the revision of its content
-// without reading the content. A caller holding a package it fetched at some
-// revision asks for the current one; if it is the same, what it already holds
-// is still correct and nothing has to be read again.
-//
-// lastKnown is the revision the caller holds, or empty if it holds none. A
-// source that can revalidate for free uses it to do so: GitHub answers a
-// conditional request with 304 Not Modified, and a 304 does not count against
-// the rate limit, so a reader that has not changed costs nothing to confirm.
-type RevisionReader interface {
-	Revision(ctx context.Context, lastKnown string) (string, error)
-}
-
-// ScopedReader is an AsyncReader that can list one package without walking the
-// whole registry. ListAddonMeta descends every directory of every package, one
-// API request each, and a caller after a single package discards the rest --
-// which is how a handful of applications exhausted a 5000-request hour.
-//
-// A package that is not in the registry reports ErrPackageNotExist, because a
-// scoped read cannot tell absence from an empty listing the way a caller
-// looking up a name in ListAddonMeta's map can.
-type ScopedReader interface {
-	ListAddonMetaFor(name string) (SourceMeta, error)
-}
-
-// CredentialDigest is a short, stable fingerprint of a secret, for use in a
-// cache key or a gate key. It exists so that rotating a token invalidates what
-// the old one could see, and so two credentials on one source can be told
-// apart, without the secret itself reaching a map key, a log line or a metric
-// label. Eight bytes of SHA-256 is far more than enough to distinguish the
-// handful of credentials one cluster configures.
-func CredentialDigest(secret string) string {
-	sum := sha256.Sum256([]byte(secret))
-	return hex.EncodeToString(sum[:8])
-}
 
 // IsPackageName reports whether name is usable as a single directory under a
 // registry's configured path.
@@ -196,47 +156,14 @@ func ResetRateLimitGate() {
 	sourceRateLimit.until = map[string]time.Time{}
 }
 
-// rateLimitHold reads how long a source wants to be left alone out of its
-// refusal, and reports whether the error was a rate limit at all.
+// rateLimitHold reads a deadline off an error this gate already produced, so a
+// refusal that is re-wrapped keeps its original hold rather than extending it.
+// A transport that recognises its own rate-limit error converts it to a
+// RateLimitedError first; holdOCIThrottle is the one that does.
 func rateLimitHold(err error) (time.Time, bool) {
-	var rateLimit *github.RateLimitError
-	if goerrors.As(err, &rateLimit) {
-		if t := rateLimit.Rate.Reset.Time; !t.IsZero() {
-			return t, true
-		}
-		return time.Now().Add(defaultRateLimitHold), true
-	}
-	var abuse *github.AbuseRateLimitError
-	if goerrors.As(err, &abuse) {
-		if abuse.RetryAfter != nil && *abuse.RetryAfter > 0 {
-			return time.Now().Add(*abuse.RetryAfter), true
-		}
-		return time.Now().Add(defaultRateLimitHold), true
-	}
 	var already *RateLimitedError
 	if goerrors.As(err, &already) {
 		return already.Until, true
 	}
 	return time.Time{}, false
-}
-
-// holdRateLimit records a rate-limit refusal against key and returns it as a
-// RateLimitedError. Any other error is returned untouched.
-func holdRateLimit(key string, err error) error {
-	until, ok := rateLimitHold(err)
-	if !ok {
-		return err
-	}
-	sourceRateLimit.trip(key, until)
-	return &RateLimitedError{Source: key, Until: until}
-}
-
-// WrapErrRateLimit returns a RateLimitedError carrying the source's reset time
-// when err is a rate-limit refusal, and err unchanged otherwise. errors.Is
-// against ErrRateLimit matches either way.
-func WrapErrRateLimit(err error) error {
-	if until, ok := rateLimitHold(err); ok {
-		return &RateLimitedError{Until: until}
-	}
-	return err
 }

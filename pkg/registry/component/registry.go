@@ -226,26 +226,22 @@ func (r registryImpl) ListRegistries(ctx context.Context) ([]Registry, error) {
 	return res, nil
 }
 
-// ListRegistryNames returns the names of the configured addon registries.
+// listRegistryRecordsFrom reads the registry records out of a named ConfigMap
+// without resolving any token Secret, so a caller that only needs a name or a
+// source kind does not need Secret access to get one. That matters on the
+// admission path, where an unreadable token Secret must not turn the check
+// into an error. The ConfigMap is a parameter because module registries share
+// the record format but live in their own.
 //
-// It exists alongside ListRegistries because that call resolves every
-// registry's credentials, reading one Secret per registry. A caller that only
-// needs to know whether a name is configured should not need Secret access to
-// find out, which matters most on the admission path: the Application webhook
-// checks the registry name of a type: addon component, and a broken or
-// unreadable token Secret must not turn that check into an error.
-//
-// A missing ConfigMap yields no names rather than an error, matching
-// ListRegistries: no ConfigMap and no registries are the same state to a
-// caller, and the ConfigMap is only created when the first registry is added. A
-// ConfigMap that exists without the registries key is a different state and
-// does return an error, because getRegistries reports that as a plain error
-// rather than a NotFound.
-func ListRegistryNames(ctx context.Context, cli client.Client) ([]string, error) {
+// A missing ConfigMap yields no records rather than an error, matching
+// ListRegistries: it is only created when the first registry is added. A
+// ConfigMap present but missing the registries key does error, because
+// getRegistries reports that as a plain error rather than a NotFound.
+func listRegistryRecordsFrom(ctx context.Context, cli client.Client, cmName string) (map[string]Registry, error) {
 	// secretNamePrefix is deliberately left zero: getRegistries, the only
 	// method reached from here, reads the ConfigMap and never the token
-	// Secrets, which is the whole point of this function.
-	store := registryImpl{client: cli, cmName: registryConfigMapName}
+	// Secrets, which is the whole point of these functions.
+	store := registryImpl{client: cli, cmName: cmName}
 	registries, _, err := store.getRegistries(ctx)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -253,13 +249,7 @@ func ListRegistryNames(ctx context.Context, cli client.Client) ([]string, error)
 		}
 		return nil, err
 	}
-	names := make([]string, 0, len(registries))
-	for name := range registries {
-		names = append(names, name)
-	}
-	// Sorted for the same reason ListRegistries sorts; see the rationale there.
-	sort.Strings(names)
-	return names, nil
+	return registries, nil
 }
 
 func (r registryImpl) AddRegistry(ctx context.Context, registry Registry) error {

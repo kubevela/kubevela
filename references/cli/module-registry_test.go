@@ -60,29 +60,11 @@ func moduleArgs(t *testing.T) common.Args {
 }
 
 func TestModuleRegistryFromArgs(t *testing.T) {
-	t.Run("git registry defaults the path to module", func(t *testing.T) {
-		reg, err := parseModuleRegistry(
-			[]string{"catalog", "https://github.com/kubevela/catalog"}, "--type=git")
-		require.NoError(t, err)
-		require.NotNil(t, reg.Git)
-		assert.Nil(t, reg.OCIChartSource())
-		assert.Equal(t, "catalog", reg.Name)
-		assert.Equal(t, "https://github.com/kubevela/catalog", reg.Git.URL)
-		assert.Equal(t, pkgmodule.DefaultGitPath, reg.Git.Path)
-	})
-
-	t.Run("path flag overrides the default", func(t *testing.T) {
-		reg, err := parseModuleRegistry(
-			[]string{"catalog", "https://github.com/kubevela/catalog"}, "--type=git", "--path=.")
-		require.NoError(t, err)
-		assert.Equal(t, ".", reg.Git.Path)
-	})
-
-	t.Run("git token is carried on the source", func(t *testing.T) {
-		reg, err := parseModuleRegistry(
-			[]string{"private", "https://github.com/org/private"}, "--type=git", "--gitToken=t0ken")
-		require.NoError(t, err)
-		assert.Equal(t, "t0ken", reg.Git.Token)
+	t.Run("git is refused", func(t *testing.T) {
+		_, err := parseModuleRegistry(
+			[]string{"catalog", "oci://ghcr.io/kubevela/catalog"}, "--type=git")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "git")
 	})
 
 	t.Run("oci registry carries username and password", func(t *testing.T) {
@@ -98,33 +80,42 @@ func TestModuleRegistryFromArgs(t *testing.T) {
 		assert.Equal(t, "secret", oci.Token)
 	})
 
-	t.Run("type is inferred from the URL", func(t *testing.T) {
-		cases := map[string]string{
-			"https://github.com/org/catalog":  moduleGitType,
-			"http://git.internal/org/catalog": moduleGitType,
-			"git@github.com:org/catalog.git":  moduleGitType,
-			"oci://ghcr.io/org/modules":       moduleOCIType,
-		}
-		for url, wantType := range cases {
+	t.Run("OCI is inferred from the URL", func(t *testing.T) {
+		// oci:// is explicit; http:// is a registry served without TLS. The
+		// last one is a repository whose name ends in .git, which mirroring a
+		// repository tends to produce: the scheme decides, not the suffix.
+		for _, url := range []string{
+			"oci://ghcr.io/org/modules",
+			"http://registry.internal:5000/modules",
+			"oci://ghcr.io/org/mirrors/catalog.git",
+		} {
 			reg, err := parseModuleRegistry([]string{"catalog", url})
 			require.NoError(t, err, url)
-			if wantType == moduleGitType {
-				assert.NotNil(t, reg.Git, url)
-			} else {
-				assert.NotNil(t, reg.OCIChartSource(), url)
-			}
+			assert.NotNil(t, reg.OCIChartSource(), url)
 		}
 	})
 
-	t.Run("ambiguous URL asks for the type", func(t *testing.T) {
-		_, err := parseModuleRegistry([]string{"catalog", "github.com/guidewire-oss/catalog"})
+	t.Run("a schemeless URL asks for a scheme", func(t *testing.T) {
+		_, err := parseModuleRegistry(
+			[]string{"catalog", "123456789012.dkr.ecr.us-west-2.amazonaws.com/modules"})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "--type")
+		assert.Contains(t, err.Error(), "oci://")
+	})
+
+	t.Run("a git or helm URL is named as unsupported", func(t *testing.T) {
+		for url, want := range map[string]string{
+			"git@github.com:org/catalog.git": "git",
+			"https://charts.example.com":     "Helm",
+		} {
+			_, err := parseModuleRegistry([]string{"catalog", url})
+			require.Error(t, err, url)
+			assert.Contains(t, err.Error(), want, url)
+		}
 	})
 
 	t.Run("invalid name is rejected", func(t *testing.T) {
 		_, err := parseModuleRegistry(
-			[]string{"MyCatalog", "https://github.com/org/catalog"}, "--type=git")
+			[]string{"MyCatalog", "oci://ghcr.io/org/modules"}, "--type=oci")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "MyCatalog")
 		assert.Contains(t, err.Error(), "DNS subdomain")
@@ -132,7 +123,7 @@ func TestModuleRegistryFromArgs(t *testing.T) {
 
 	t.Run("unknown type is rejected", func(t *testing.T) {
 		_, err := parseModuleRegistry(
-			[]string{"catalog", "https://github.com/org/catalog"}, "--type=helm")
+			[]string{"catalog", "oci://ghcr.io/org/modules"}, "--type=helm")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "helm")
 	})
@@ -210,7 +201,7 @@ func TestAddModuleRegistry(t *testing.T) {
 	ctx := context.Background()
 	reg := pkgaddon.Registry{
 		Name: "catalog",
-		Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module"},
+		Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/kubevela/catalog"},
 	}
 
 	t.Run("adds a new registry", func(t *testing.T) {
@@ -223,7 +214,7 @@ func TestAddModuleRegistry(t *testing.T) {
 		require.NoError(t, err)
 		got, err := pkgmodule.NewStore(k8sClient).GetRegistry(ctx, "catalog")
 		require.NoError(t, err)
-		assert.Equal(t, "https://github.com/kubevela/catalog", got.Git.URL)
+		assert.Equal(t, "oci://ghcr.io/kubevela/catalog", got.Helm.URL)
 	})
 
 	// Matches vela addon registry add: re-adding an existing name overwrites
@@ -236,7 +227,7 @@ func TestAddModuleRegistry(t *testing.T) {
 
 		updated := pkgaddon.Registry{
 			Name: "catalog",
-			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/org/fork", Path: "module"},
+			Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/org/fork"},
 		}
 		require.NoError(t, addModuleRegistry(ctx, c, updated, &out))
 
@@ -244,7 +235,7 @@ func TestAddModuleRegistry(t *testing.T) {
 		require.NoError(t, err)
 		got, err := pkgmodule.NewStore(k8sClient).GetRegistry(ctx, "catalog")
 		require.NoError(t, err)
-		assert.Equal(t, "https://github.com/org/fork", got.Git.URL)
+		assert.Equal(t, "oci://ghcr.io/org/fork", got.Helm.URL)
 	})
 
 	t.Run("overwrite without a new token keeps the stored credential", func(t *testing.T) {
@@ -252,7 +243,7 @@ func TestAddModuleRegistry(t *testing.T) {
 		var out bytes.Buffer
 		withToken := pkgaddon.Registry{
 			Name: "catalog",
-			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module", Token: "t0ken"},
+			Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/kubevela/catalog", Username: "robot", Token: "t0ken"},
 		}
 		require.NoError(t, addModuleRegistry(ctx, c, withToken, &out))
 
@@ -265,14 +256,14 @@ func TestAddModuleRegistry(t *testing.T) {
 
 		withoutToken := pkgaddon.Registry{
 			Name: "catalog",
-			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/org/fork", Path: "module"},
+			Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/org/fork"},
 		}
 		require.NoError(t, addModuleRegistry(ctx, c, withoutToken, &out))
 
 		after, err := pkgmodule.NewStore(k8sClient).GetRegistry(ctx, "catalog")
 		require.NoError(t, err)
-		assert.Equal(t, "https://github.com/org/fork", after.Git.URL)
-		assert.Equal(t, "t0ken", after.Git.Token,
+		assert.Equal(t, "oci://ghcr.io/org/fork", after.Helm.URL)
+		assert.Equal(t, "t0ken", after.Helm.Token,
 			"the stored token must survive an overwrite with no new token")
 
 		var secretAfter corev1.Secret
@@ -289,7 +280,7 @@ func TestUpdateModuleRegistry(t *testing.T) {
 		var out bytes.Buffer
 		err := updateModuleRegistry(ctx, moduleArgs(t), pkgaddon.Registry{
 			Name: "catalog",
-			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module"},
+			Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/kubevela/catalog"},
 		}, &out)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "catalog")
@@ -300,13 +291,13 @@ func TestUpdateModuleRegistry(t *testing.T) {
 		var discard bytes.Buffer
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "catalog",
-			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module"},
+			Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/kubevela/catalog"},
 		}, &discard))
 
 		var out bytes.Buffer
 		require.NoError(t, updateModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "catalog",
-			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/org/fork", Path: "module"},
+			Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/org/fork"},
 		}, &out))
 		assert.Contains(t, out.String(), "catalog")
 
@@ -314,7 +305,7 @@ func TestUpdateModuleRegistry(t *testing.T) {
 		require.NoError(t, err)
 		got, err := pkgmodule.NewStore(k8sClient).GetRegistry(ctx, "catalog")
 		require.NoError(t, err)
-		assert.Equal(t, "https://github.com/org/fork", got.Git.URL)
+		assert.Equal(t, "oci://ghcr.io/org/fork", got.Helm.URL)
 	})
 
 	t.Run("updating without a new token keeps the stored credential", func(t *testing.T) {
@@ -322,7 +313,7 @@ func TestUpdateModuleRegistry(t *testing.T) {
 		var discard bytes.Buffer
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "catalog",
-			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module", Token: "t0ken"},
+			Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/kubevela/catalog", Username: "robot", Token: "t0ken"},
 		}, &discard))
 
 		k8sClient, err := c.GetClient()
@@ -334,13 +325,13 @@ func TestUpdateModuleRegistry(t *testing.T) {
 
 		require.NoError(t, updateModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "catalog",
-			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/org/fork", Path: "module"},
+			Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/org/fork"},
 		}, &discard))
 
 		after, err := pkgmodule.NewStore(k8sClient).GetRegistry(ctx, "catalog")
 		require.NoError(t, err)
-		assert.Equal(t, "https://github.com/org/fork", after.Git.URL)
-		assert.Equal(t, "t0ken", after.Git.Token,
+		assert.Equal(t, "oci://ghcr.io/org/fork", after.Helm.URL)
+		assert.Equal(t, "t0ken", after.Helm.Token,
 			"the stored token must survive an update with no new token")
 
 		var secretAfter corev1.Secret
@@ -372,6 +363,9 @@ func TestListModuleRegistry(t *testing.T) {
 	})
 
 	t.Run("prints git and oci rows sorted by name", func(t *testing.T) {
+		// The git row is deliberate: modules cannot resolve a git registry any
+		// more, but list still has to render one, with its type and path, so an
+		// operator can recognise the entry they need to remove.
 		c := moduleArgs(t)
 		var discard bytes.Buffer
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
@@ -424,13 +418,13 @@ func TestGetModuleRegistry(t *testing.T) {
 		var discard bytes.Buffer
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "catalog",
-			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module"},
+			Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/kubevela/catalog"},
 		}, &discard))
 
 		var out bytes.Buffer
 		require.NoError(t, getModuleRegistry(ctx, c, "catalog", &out))
 		assert.Contains(t, out.String(), "catalog")
-		assert.Contains(t, out.String(), "https://github.com/kubevela/catalog")
+		assert.Contains(t, out.String(), "oci://ghcr.io/kubevela/catalog")
 	})
 
 	t.Run("unknown name errors", func(t *testing.T) {
@@ -464,11 +458,11 @@ func TestDeleteModuleRegistry(t *testing.T) {
 		var discard bytes.Buffer
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "catalog",
-			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module"},
+			Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/kubevela/catalog"},
 		}, &discard))
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "mine",
-			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/org/mine", Path: "module"},
+			Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/org/mine"},
 		}, &discard))
 
 		var out bytes.Buffer
@@ -492,7 +486,7 @@ func TestDeleteModuleRegistry(t *testing.T) {
 		var discard bytes.Buffer
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "catalog",
-			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module"},
+			Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/kubevela/catalog"},
 		}, &discard))
 
 		var out bytes.Buffer

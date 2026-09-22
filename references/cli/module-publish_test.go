@@ -122,11 +122,13 @@ func TestModulePublishFailsBeforePush(t *testing.T) {
 			wantErr: "not a valid semver",
 		},
 		{
-			name: "git registry target",
+			// A git registry is refused while the target is being resolved, so
+			// publish never reaches the push.
+			name: "git registry target is refused",
 			options: func(t *testing.T, rec *recordedPush) *modulePublishOptions {
 				return &modulePublishOptions{dir: publishFixtureDir(t), registry: "catalog", push: rec.push}
 			},
-			wantErr: "supports OCI/ECR only",
+			wantErr: "git registries are not supported",
 		},
 	}
 	for _, tc := range cases {

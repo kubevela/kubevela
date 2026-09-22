@@ -30,49 +30,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/registry/component"
 )
 
-// fakeItem implements component.Item.
-type fakeItem struct{ path, typ string }
-
-func (f fakeItem) GetType() string { return f.typ }
-func (f fakeItem) GetPath() string { return f.path }
-func (f fakeItem) GetName() string { return f.path }
-
-// fakeReader implements component.AsyncReader over an in-memory file map keyed by
-// path relative to the modules root (i.e. "<module>/<rel>"). RelativePath
-// returns that same path — the reader-agnostic form readerFS feeds to ReadFile.
-type fakeReader struct{ files map[string]string }
-
-func (r fakeReader) ListAddonMeta() (map[string]component.SourceMeta, error) {
-	byModule := map[string]*component.SourceMeta{}
-	for p := range r.files {
-		mod := p[:indexSlash(p)]
-		sm := byModule[mod]
-		if sm == nil {
-			sm = &component.SourceMeta{Name: mod}
-			byModule[mod] = sm
-		}
-		sm.Items = append(sm.Items, fakeItem{path: p, typ: component.FileType})
-	}
-	out := map[string]component.SourceMeta{}
-	for k, v := range byModule {
-		out[k] = *v
-	}
-	return out, nil
-}
-
-func (r fakeReader) ReadFile(p string) (string, error) { return r.files[p], nil }
-
-func (r fakeReader) RelativePath(item component.Item) string { return item.GetPath() }
-
-func indexSlash(s string) int {
-	for i := 0; i < len(s); i++ {
-		if s[i] == '/' {
-			return i
-		}
-	}
-	return len(s)
-}
-
 // fakeStore is a component.RegistryDataStore over an in-memory slice. Unknown names
 // return a k8s NotFound (as the real ConfigMap-backed store does), so
 // module.ResolveRegistry takes its not-found path.
@@ -97,10 +54,6 @@ func (s fakeStore) UpdateRegistry(context.Context, component.Registry) error { r
 
 func (s fakeStore) DeleteRegistry(context.Context, string) error { return nil }
 
-func gitRegistry(name string) component.Registry {
-	return component.Registry{Name: name, Git: &component.GitAddonSource{URL: "https://example.com/repo", Path: "module"}}
-}
-
 // unrevisioned stands in for a source that cannot name its revision, which
 // turns the cache off and makes every fetch read -- the behaviour these cases
 // were written against.
@@ -108,19 +61,33 @@ func unrevisioned(_ context.Context, _ *component.Registry, _, _, _ string) (str
 	return "", component.ErrRevisionUnsupported
 }
 
+// newServiceWithFakes builds a Service whose OCI pull returns files instead of
+// reaching a registry. files is keyed "<module>/<rel>", which is exactly the
+// naming a Helm chart carries and MemoryReader expects, so the real
+// pull -> MemoryReader -> readerFS path still runs underneath.
+//
+// A faked puller needs a faked revision too, or the probe reaches for the
+// registry the fake stands in for.
 func newServiceWithFakes(store component.RegistryDataStore, files map[string]string) *Service {
+	bufs := make([]*loader.BufferedFile, 0, len(files))
+	for name, data := range files {
+		bufs = append(bufs, &loader.BufferedFile{Name: name, Data: []byte(data)})
+	}
 	s := NewService(store)
-	s.newReader = func(_ *component.Registry) (component.AsyncReader, error) { return fakeReader{files: files}, nil }
+	s.revision = unrevisioned
+	s.pullChart = func(_ context.Context, _ *component.Registry, _, _ string) ([]*loader.BufferedFile, error) {
+		return bufs, nil
+	}
 	return s
 }
 
-func TestFetchModule_Git(t *testing.T) {
+func TestFetchModule(t *testing.T) {
 	files := map[string]string{
 		"s3/_module.cue":                "module: \"s3\"\nversion: \"1.0.0\"",
 		"s3/v1/_version.cue":            "apiVersion: \"v1\"",
 		"s3/v1/definitions/bucket.yaml": "apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: atmos-s3-v1\n",
 	}
-	s := newServiceWithFakes(fakeStore{regs: []component.Registry{gitRegistry("catalog")}}, files)
+	s := newServiceWithFakes(fakeStore{regs: []component.Registry{ociRegistry("catalog")}}, files)
 
 	mod, err := s.FetchModule(context.Background(), "catalog", "s3", "")
 	require.NoError(t, err)
@@ -129,17 +96,17 @@ func TestFetchModule_Git(t *testing.T) {
 	require.Contains(t, mod.Lines, "v1")
 }
 
-// TestFetchModule_Git_IgnoresVersion asserts a git source resolves the same
-// module regardless of what version is requested: git has no tag concept, so
-// it always pulls from the repository's default branch (the path-based read
-// this fake reader already simulates), silently ignoring version.
-func TestFetchModule_Git_IgnoresVersion(t *testing.T) {
+// TestFetchModule_PullerDecidesVersion asserts FetchModule reports whatever the
+// puller returned rather than the version that was asked for. The fake ignores
+// the requested tag, so a mismatch here would mean FetchModule had taken the
+// request as the answer instead of reading _module.cue.
+func TestFetchModule_PullerDecidesVersion(t *testing.T) {
 	files := map[string]string{
 		"s3/_module.cue":                "module: \"s3\"\nversion: \"1.0.0\"",
 		"s3/v1/_version.cue":            "apiVersion: \"v1\"",
 		"s3/v1/definitions/bucket.yaml": "apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: atmos-s3-v1\n",
 	}
-	s := newServiceWithFakes(fakeStore{regs: []component.Registry{gitRegistry("catalog")}}, files)
+	s := newServiceWithFakes(fakeStore{regs: []component.Registry{ociRegistry("catalog")}}, files)
 
 	mod, err := s.FetchModule(context.Background(), "catalog", "s3", "9.9.9-does-not-exist")
 	require.NoError(t, err)
@@ -153,7 +120,7 @@ func TestFetchModule_EmptyNameResolvesSole(t *testing.T) {
 		"s3/v1/_version.cue":            "apiVersion: \"v1\"",
 		"s3/v1/definitions/bucket.yaml": "apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: atmos-s3-v1\n",
 	}
-	s := newServiceWithFakes(fakeStore{regs: []component.Registry{gitRegistry("only")}}, files)
+	s := newServiceWithFakes(fakeStore{regs: []component.Registry{ociRegistry("only")}}, files)
 
 	mod, err := s.FetchModule(context.Background(), "", "s3", "")
 	require.NoError(t, err)
@@ -161,7 +128,7 @@ func TestFetchModule_EmptyNameResolvesSole(t *testing.T) {
 }
 
 func TestFetchModule_EmptyNameAmbiguous(t *testing.T) {
-	s := newServiceWithFakes(fakeStore{regs: []component.Registry{gitRegistry("a"), gitRegistry("b")}}, nil)
+	s := newServiceWithFakes(fakeStore{regs: []component.Registry{ociRegistry("a"), ociRegistry("b")}}, nil)
 
 	_, err := s.FetchModule(context.Background(), "", "s3", "")
 	require.Error(t, err)
@@ -170,7 +137,7 @@ func TestFetchModule_EmptyNameAmbiguous(t *testing.T) {
 }
 
 func TestFetchModule_UnknownRegistry(t *testing.T) {
-	s := newServiceWithFakes(fakeStore{regs: []component.Registry{gitRegistry("catalog")}}, nil)
+	s := newServiceWithFakes(fakeStore{regs: []component.Registry{ociRegistry("catalog")}}, nil)
 
 	_, err := s.FetchModule(context.Background(), "missing", "s3", "")
 	require.Error(t, err)
@@ -181,13 +148,13 @@ func TestFetchModule_UnknownRegistry(t *testing.T) {
 
 func TestFetchModule_RejectsUnsupportedSource(t *testing.T) {
 	// A helm entry can live in the shared ConfigMap; module.ResolveRegistry must
-	// reject it before any fetch. Verifies fetch honors the git/OCI-only scope.
+	// reject it before any fetch. Verifies fetch honors the OCI-only scope.
 	helmReg := component.Registry{Name: "legacy", Helm: &component.HelmSource{URL: "https://charts.example.com"}}
 	s := newServiceWithFakes(fakeStore{regs: []component.Registry{helmReg}}, nil)
 
 	_, err := s.FetchModule(context.Background(), "legacy", "s3", "")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "git and OCI")
+	require.Contains(t, err.Error(), "only OCI registries")
 }
 
 func TestFetchModule_EmptyNameDefaultsToCatalog(t *testing.T) {
@@ -198,34 +165,39 @@ func TestFetchModule_EmptyNameDefaultsToCatalog(t *testing.T) {
 		"s3/v1/_version.cue":            "apiVersion: \"v1\"",
 		"s3/v1/definitions/bucket.yaml": "apiVersion: core.oam.dev/v1beta1\nkind: ComponentDefinition\nmetadata:\n  name: atmos-s3-v1\n",
 	}
-	s := newServiceWithFakes(fakeStore{regs: []component.Registry{gitRegistry("other"), gitRegistry("catalog")}}, files)
+	s := newServiceWithFakes(fakeStore{regs: []component.Registry{ociRegistry("other"), ociRegistry("catalog")}}, files)
 
 	mod, err := s.FetchModule(context.Background(), "", "s3", "")
 	require.NoError(t, err)
 	require.Equal(t, "s3", mod.Name)
 }
 
+// TestFetchModule_ModuleNotFound covers a module the registry does not carry.
+// An OCI registry answers that at the pull, with a manifest-unknown error, so
+// there is no listing to be absent from and the failure names the module and
+// the registry rather than wrapping module.ErrModuleNotFound.
 func TestFetchModule_ModuleNotFound(t *testing.T) {
-	files := map[string]string{
-		"other/_module.cue": "module: \"other\"\nversion: \"1.0.0\"",
+	s := NewService(fakeStore{regs: []component.Registry{ociRegistry("catalog")}})
+	s.revision = unrevisioned
+	s.pullChart = func(_ context.Context, _ *component.Registry, name, _ string) ([]*loader.BufferedFile, error) {
+		return nil, errors.Errorf("failed to pull addon chart %s: manifest unknown", name)
 	}
-	s := newServiceWithFakes(fakeStore{regs: []component.Registry{gitRegistry("catalog")}}, files)
 
 	_, err := s.FetchModule(context.Background(), "catalog", "s3", "")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "s3")
 	require.Contains(t, err.Error(), "catalog")
-	require.ErrorIs(t, err, module.ErrModuleNotFound)
 }
 
 func ociRegistry(name string) component.Registry {
 	return component.Registry{Name: name, Helm: &component.HelmSource{URL: "oci://registry.example.com/modules"}}
 }
 
-// TestFetchModule_OCI_EqualsGit drives the OCI branch (pull -> MemoryReader ->
-// readerFS) through an injected puller and asserts it yields the same Module the
-// git path does. The real pull is exercised live in the round-trip test.
-func TestFetchModule_OCI_EqualsGit(t *testing.T) {
+// TestFetchModule_OCI_ParsesChartLayout drives the OCI branch
+// (pull -> MemoryReader -> readerFS) through an injected puller, including the
+// Chart.yaml wrapper a real chart carries. The real pull is exercised live in
+// the round-trip test.
+func TestFetchModule_OCI_ParsesChartLayout(t *testing.T) {
 	// A Helm chart carries files prefixed by the chart (module) name — exactly
 	// what pullModuleChart returns and what MemoryReader expects.
 	bufs := []*loader.BufferedFile{

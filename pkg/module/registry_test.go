@@ -34,13 +34,23 @@ import (
 	"github.com/oam-dev/kubevela/pkg/registry/component"
 )
 
-// gitRegistry builds a git-sourced registry entry for the tests.
+// ociRegistry builds an OCI-sourced registry entry, the only kind modules
+// resolve. An OCI registry is a Helm source carrying the oci:// scheme.
+func ociRegistry(name string) component.Registry {
+	return component.Registry{
+		Name: name,
+		Helm: &component.HelmSource{URL: "oci://registry.example.com/" + name},
+	}
+}
+
+// gitRegistry builds a git-sourced registry entry: a valid addon registry
+// entry that modules used to resolve and no longer do.
 func gitRegistry(name string) component.Registry {
 	return component.Registry{
 		Name: name,
 		Git: &component.GitAddonSource{
 			URL:  "https://github.com/org/" + name,
-			Path: DefaultGitPath,
+			Path: "module",
 		},
 	}
 }
@@ -102,34 +112,34 @@ func TestResolveRegistry(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("named registry resolves", func(t *testing.T) {
-		got, err := ResolveRegistry(ctx, moduleStoreWith(t, gitRegistry("catalog"), gitRegistry("mine")), "mine")
+		got, err := ResolveRegistry(ctx, moduleStoreWith(t, ociRegistry("catalog"), ociRegistry("mine")), "mine")
 		require.NoError(t, err)
 		assert.Equal(t, "mine", got.Name)
-		assert.Equal(t, "https://github.com/org/mine", got.Git.URL)
+		assert.Equal(t, "oci://registry.example.com/mine", got.Helm.URL)
 	})
 
 	t.Run("unknown name lists what exists", func(t *testing.T) {
-		_, err := ResolveRegistry(ctx, moduleStoreWith(t, gitRegistry("catalog")), "nope")
+		_, err := ResolveRegistry(ctx, moduleStoreWith(t, ociRegistry("catalog")), "nope")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `"nope"`)
 		assert.Contains(t, err.Error(), "catalog")
 	})
 
 	t.Run("a single registry is the default", func(t *testing.T) {
-		got, err := ResolveRegistry(ctx, moduleStoreWith(t, gitRegistry("mine")), "")
+		got, err := ResolveRegistry(ctx, moduleStoreWith(t, ociRegistry("mine")), "")
 		require.NoError(t, err)
 		assert.Equal(t, "mine", got.Name)
 	})
 
 	t.Run("catalog wins when several exist", func(t *testing.T) {
-		store := moduleStoreWith(t, gitRegistry("mine"), gitRegistry("catalog"), gitRegistry("other"))
+		store := moduleStoreWith(t, ociRegistry("mine"), ociRegistry("catalog"), ociRegistry("other"))
 		got, err := ResolveRegistry(ctx, store, "")
 		require.NoError(t, err)
 		assert.Equal(t, DefaultRegistryName, got.Name)
 	})
 
 	t.Run("several registries and no catalog is ambiguous", func(t *testing.T) {
-		_, err := ResolveRegistry(ctx, moduleStoreWith(t, gitRegistry("mine"), gitRegistry("other")), "")
+		_, err := ResolveRegistry(ctx, moduleStoreWith(t, ociRegistry("mine"), ociRegistry("other")), "")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "--registry")
 		assert.Contains(t, err.Error(), "mine")
@@ -147,7 +157,15 @@ func TestResolveRegistry(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "legacy")
 		assert.Contains(t, err.Error(), "helm")
-		assert.Contains(t, err.Error(), "git and OCI")
+		assert.Contains(t, err.Error(), "only OCI registries")
+	})
+
+	t.Run("a git-sourced entry is rejected as unsupported", func(t *testing.T) {
+		_, err := ResolveRegistry(ctx, moduleStoreWith(t, gitRegistry("legacy")), "legacy")
+		require.Error(t, err)
+		assert.ErrorIs(t, err, component.ErrGitSourceUnsupported)
+		assert.Contains(t, err.Error(), "legacy")
+		assert.Contains(t, err.Error(), "git")
 	})
 }
 

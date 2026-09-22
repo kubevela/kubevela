@@ -701,7 +701,8 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 		return errs
 	}
 	errs := h.ValidateComponents(ctx, app)
-	return append(errs, h.ValidateAddonComponents(ctx, app)...)
+	errs = append(errs, h.ValidateAddonComponents(ctx, app)...)
+	return append(errs, h.ValidateModuleComponents(ctx, app)...)
 }
 
 // validateSoundness runs every check that can be made without rendering: whether
@@ -734,5 +735,6 @@ func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *
 		return errs
 	}
 	errs = append(errs, h.ValidateComponents(ctx, newApp)...)
-	return append(errs, h.ValidateAddonComponents(ctx, newApp)...)
+	errs = append(errs, h.ValidateAddonComponents(ctx, newApp)...)
+	return append(errs, h.ValidateModuleComponents(ctx, newApp)...)
 }

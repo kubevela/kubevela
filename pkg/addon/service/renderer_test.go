@@ -797,7 +797,7 @@ func TestResolvePinnedVersionTriesEveryCandidateRegistry(t *testing.T) {
 			},
 		}
 
-		pkg, reg, err := r.resolvePinnedVersion(context.Background(), "example", "2.0.0", []string{"first", "second"})
+		pkg, reg, err := r.resolvePinnedVersion(context.Background(), "example", "2.0.0", []string{"first", "second"}, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "second", reg)
 		assert.Equal(t, "2.0.0", pkg.Version)
@@ -813,7 +813,7 @@ func TestResolvePinnedVersionTriesEveryCandidateRegistry(t *testing.T) {
 			},
 		}
 
-		_, reg, err := r.resolvePinnedVersion(context.Background(), "example", "1.0.0", []string{"first", "second"})
+		_, reg, err := r.resolvePinnedVersion(context.Background(), "example", "1.0.0", []string{"first", "second"}, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "first", reg)
 		assert.Equal(t, []string{"first"}, tried)
@@ -826,7 +826,7 @@ func TestResolvePinnedVersionTriesEveryCandidateRegistry(t *testing.T) {
 			},
 		}
 
-		_, _, err := r.resolvePinnedVersion(context.Background(), "example", "9.9.9", []string{"first", "second"})
+		_, _, err := r.resolvePinnedVersion(context.Background(), "example", "9.9.9", []string{"first", "second"}, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "boom in first")
 		assert.Contains(t, err.Error(), "boom in second", "the error must not hide later registries' reasons")
@@ -839,7 +839,7 @@ func TestResolvePinnedVersionTriesEveryCandidateRegistry(t *testing.T) {
 func TestResolvePinnedVersionEmptyCandidatesListsRegistries(t *testing.T) {
 	t.Run("fails when no registry is configured", func(t *testing.T) {
 		r := &rendererImpl{cli: fakeClientWithRegistry(t)}
-		_, _, err := r.resolvePinnedVersion(context.Background(), "example", "1.0.0", nil)
+		_, _, err := r.resolvePinnedVersion(context.Background(), "example", "1.0.0", nil, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no addon registries are configured")
 	})
@@ -857,7 +857,7 @@ func TestResolvePinnedVersionEmptyCandidatesListsRegistries(t *testing.T) {
 			},
 		}
 
-		pkg, reg, err := r.resolvePinnedVersion(context.Background(), "example", "1.0.0", nil)
+		pkg, reg, err := r.resolvePinnedVersion(context.Background(), "example", "1.0.0", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "discovered", reg)
 		assert.Equal(t, "1.0.0", pkg.Version)

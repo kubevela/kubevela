@@ -20,21 +20,13 @@ limitations under the License.
 package component
 
 import (
-	"context"
 	"fmt"
 	"net/url"
-	"path"
 	"strings"
-	"time"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/google/go-github/v32/github"
 	"github.com/pkg/errors"
-	gitlab "gitlab.com/gitlab-org/api/client-go"
-	"golang.org/x/oauth2"
 	helmregistry "helm.sh/helm/v3/pkg/registry"
-
-	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 const (
@@ -357,24 +349,38 @@ const (
 // NewAsyncReader create AsyncReader from
 // 1. GitHub url and directory
 // 2. OSS endpoint and bucket
-func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderType) (AsyncReader, error) {
+// GitReaderBuilder builds an AsyncReader over one of the Git-family sources.
+// The parameters are NewAsyncReader's, minus the ones no Git source uses.
+type GitReaderBuilder func(baseURL, repo, subPath, token string, rdType ReaderType) (AsyncReader, error)
 
+// gitReaderBuilder is registered by pkg/addon, which owns the GitHub, Gitee
+// and GitLab clients. This package deliberately holds none of them: a
+// type: addon or type: module component cannot resolve from Git, and the
+// legacy `vela addon enable` path that can is what pkg/addon serves.
+//
+// Registration happens from an init in pkg/addon, and every caller that can
+// reach a Git registry record goes through that package, so a nil builder
+// means a binary reading addon registries without linking the package that
+// installs the readers. NewAsyncReader says so rather than reporting the
+// addon as missing.
+var gitReaderBuilder GitReaderBuilder
+
+// RegisterGitReaderBuilder installs the Git-family reader builder. Call it
+// from an init.
+func RegisterGitReaderBuilder(b GitReaderBuilder) {
+	gitReaderBuilder = b
+}
+
+// NewAsyncReader builds a reader for one source. OSS is served here; the Git
+// family is delegated to the builder pkg/addon registers.
+func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderType) (AsyncReader, error) {
 	switch rdType {
-	case GitType:
-		baseURL = strings.TrimSuffix(baseURL, ".git")
-		u, err := url.Parse(baseURL)
-		if err != nil {
-			return nil, errors.New("addon registry invalid")
+	case GitType, GiteeType, GitlabType:
+		if gitReaderBuilder == nil {
+			return nil, fmt.Errorf("no reader is registered for addon registry type %q; "+
+				"the git readers are installed by pkg/addon", rdType)
 		}
-		u.Path = path.Join(u.Path, subPath)
-		_, content, err := utils.Parse(u.String())
-		if err != nil {
-			return nil, err
-		}
-		gith := createGitHelper(content, token)
-		return &gitReader{
-			h: gith,
-		}, nil
+		return gitReaderBuilder(baseURL, repo, subPath, token, rdType)
 	case OSSType:
 		ossURL, err := url.Parse(baseURL)
 		if err != nil {
@@ -394,59 +400,8 @@ func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderT
 			path:           subPath,
 			client:         resty.New(),
 		}, nil
-	case GiteeType:
-		baseURL = strings.TrimSuffix(baseURL, ".git")
-		u, err := url.Parse(baseURL)
-		if err != nil {
-			return nil, errors.New("addon registry invalid")
-		}
-		u.Path = path.Join(u.Path, subPath)
-		_, content, err := utils.Parse(u.String())
-		if err != nil {
-			return nil, err
-		}
-		gitee := createGiteeHelper(content, token)
-		return &giteeReader{
-			h: gitee,
-		}, nil
-	case GitlabType:
-		baseURL = strings.TrimSuffix(baseURL, ".git")
-		u, err := url.Parse(baseURL)
-		if err != nil {
-			return nil, errors.New("addon registry invalid")
-		}
-		_, content, err := utils.ParseGitlab(u.String(), repo)
-		if err != nil {
-			return nil, err
-		}
-		content.GitlabContent.Path = subPath
-		gitlabHelper, err := createGitlabHelper(content, token)
-		if err != nil {
-			return nil, errors.New("addon registry connect fail")
-		}
-
-		err = gitlabHelper.getGitlabProject(content)
-		if err != nil {
-			return nil, err
-		}
-
-		return &gitlabReader{
-			h: gitlabHelper,
-		}, nil
 	}
 	return nil, fmt.Errorf("invalid addon registry type '%s'", rdType)
-}
-
-// getGitlabProject get gitlab project , set project id
-func (h *gitlabHelper) getGitlabProject(content *utils.Content) error {
-	projectURL := content.GitlabContent.Owner + "/" + content.GitlabContent.Repo
-	projects, _, err := h.Client.Projects.GetProject(projectURL, &gitlab.GetProjectOptions{})
-	if err != nil {
-		return err
-	}
-	content.GitlabContent.PId = projects.ID
-
-	return nil
 }
 
 // BuildReader will build a AsyncReader from registry, AsyncReader are needed to read addon files
@@ -457,16 +412,7 @@ func (r *Registry) BuildReader() (AsyncReader, error) {
 	}
 	if r.Git != nil {
 		g := r.Git
-		reader, err := NewAsyncReader(g.URL, "", "", g.Path, g.Token, GitType)
-		if err != nil {
-			return nil, err
-		}
-		// A pinned registry reads at one commit, so every file this reader
-		// returns belongs to the same tree.
-		if git, ok := reader.(*gitReader); ok && r.readRevision != "" {
-			git.h.readRef = r.readRevision
-		}
-		return reader, nil
+		return NewAsyncReader(g.URL, "", "", g.Path, g.Token, GitType)
 	}
 	if r.Gitee != nil {
 		g := r.Gitee
@@ -486,43 +432,4 @@ func (r *Registry) ListAddonMeta() (map[string]SourceMeta, error) {
 		return nil, err
 	}
 	return reader.ListAddonMeta()
-}
-
-func createGitHelper(content *utils.Content, token string) *gitHelper {
-	var ts oauth2.TokenSource
-	if token != "" {
-		ts = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	}
-	tc := oauth2.NewClient(context.Background(), ts)
-	tc.Timeout = time.Second * 20
-	cli := github.NewClient(tc)
-	return &gitHelper{
-		Client:     cli,
-		Meta:       content,
-		credential: CredentialDigest(token),
-	}
-}
-
-func createGiteeHelper(content *utils.Content, token string) *giteeHelper {
-	var ts oauth2.TokenSource
-	if token != "" {
-		ts = oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	}
-	tc := oauth2.NewClient(context.Background(), ts)
-	tc.Timeout = time.Second * 20
-	cli := NewGiteeClient(tc, nil)
-	return &giteeHelper{
-		Client:     cli,
-		Meta:       content,
-		credential: CredentialDigest(token),
-	}
-}
-
-func createGitlabHelper(content *utils.Content, token string) (*gitlabHelper, error) {
-	newClient, err := gitlab.NewClient(token, gitlab.WithBaseURL(content.GitlabContent.Host))
-
-	return &gitlabHelper{
-		Client: newClient,
-		Meta:   content,
-	}, err
 }

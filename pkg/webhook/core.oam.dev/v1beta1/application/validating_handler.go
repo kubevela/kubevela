@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	addonvalidation "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application/addon"
+	modulevalidation "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application/module"
 )
 
 var _ admission.Handler = &ValidatingHandler{}
@@ -49,7 +50,8 @@ type ValidatingHandler struct {
 	// Decoder decodes objects
 	Decoder admission.Decoder
 
-	addonValidator addonComponentValidator
+	addonValidator  componentValidator
+	moduleValidator componentValidator
 }
 
 func simplifyError(err error) error {
@@ -150,9 +152,10 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	server := mgr.GetWebhookServer()
 	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: &ValidatingHandler{
-		Client:         mgr.GetClient(),
-		APIReader:      mgr.GetAPIReader(),
-		Decoder:        admission.NewDecoder(mgr.GetScheme()),
-		addonValidator: addonvalidation.NewValidator(mgr.GetClient()),
+		Client:          mgr.GetClient(),
+		APIReader:       mgr.GetAPIReader(),
+		Decoder:         admission.NewDecoder(mgr.GetScheme()),
+		addonValidator:  addonvalidation.NewValidator(mgr.GetClient()),
+		moduleValidator: modulevalidation.NewValidator(mgr.GetClient()),
 	}})
 }

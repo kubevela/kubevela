@@ -32,19 +32,17 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	pkgmodule "github.com/oam-dev/kubevela/pkg/module"
+	pkgcomponent "github.com/oam-dev/kubevela/pkg/registry/component"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 const (
 	moduleRegistryTypeFlag          = "type"
-	moduleRegistryPathFlag          = "path"
-	moduleRegistryGitTokenFlag      = "gitToken"
 	moduleRegistryUsernameFlag      = "username"
 	moduleRegistryPasswordFlag      = "password"
 	moduleRegistryPasswordStdinFlag = "password-stdin"
 
-	moduleGitType = "git"
 	moduleOCIType = "oci"
 )
 
@@ -60,7 +58,7 @@ func NewModuleCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) 
 			types.TagCommandType:  types.TypeExtension,
 		},
 	}
-	cmd.AddCommand(NewModuleListCommand(c), NewModuleRegistryCommand(c, ioStreams), NewModulePublishCommand(c, ioStreams), NewModuleDeployCommand(c, ioStreams), NewModuleInitCommand(c, ioStreams))
+	cmd.AddCommand(NewModuleRegistryCommand(c, ioStreams), NewModulePublishCommand(c, ioStreams), NewModuleDeployCommand(c, ioStreams), NewModuleInitCommand(c, ioStreams))
 	return cmd
 }
 
@@ -69,7 +67,7 @@ func NewModuleRegistryCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 	cmd := &cobra.Command{
 		Use:   "registry",
 		Short: "Manage module registries.",
-		Long:  "Manage the git and OCI registries that modules are published to and fetched from.",
+		Long:  "Manage the OCI registries that modules are published to and fetched from.",
 	}
 	cmd.AddCommand(
 		NewAddModuleRegistryCommand(c, ioStreams),
@@ -86,18 +84,15 @@ func NewAddModuleRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Comm
 	cmd := &cobra.Command{
 		Use:   "add",
 		Short: "Add a module registry.",
-		Long:  "Add a named git or OCI registry that modules are published to and fetched from.",
-		Example: `  Add a git registry, with modules under the default "module" subpath:
-	vela module registry add catalog https://github.com/kubevela/catalog --type git
-
-  Add a git registry whose modules live at the repository root:
-	vela module registry add catalog https://github.com/kubevela/catalog --type git --path .
+		Long:  "Add a named OCI registry that modules are published to and fetched from.",
+		Example: `  Add an OCI registry:
+	vela module registry add catalog oci://ghcr.io/kubevela/modules
 
   Add an OCI registry, reading the password from stdin:
 	printf '%s' "$PASSWORD" | vela module registry add ghcr oci://ghcr.io/org/modules --username robot --password-stdin
 
   Re-adding an existing name overwrites it in place, same as vela addon registry add:
-	vela module registry add catalog https://github.com/org/fork --type git`,
+	vela module registry add catalog oci://ghcr.io/org/fork`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := setRegistryPasswordFromStdin(cmd); err != nil {
 				return err
@@ -118,9 +113,9 @@ func NewUpdateModuleRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.C
 	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update a module registry.",
-		Long:  "Update an existing git or OCI module registry. Unlike \"add\", this fails if the registry does not already exist.",
+		Long:  "Update an existing OCI module registry. Unlike \"add\", this fails if the registry does not already exist.",
 		Example: `  Update a registry's URL:
-	vela module registry update catalog https://github.com/org/fork --type git
+	vela module registry update catalog oci://ghcr.io/org/fork
 
   Update an OCI registry's credentials, reading the password from stdin:
 	printf '%s' "$PASSWORD" | vela module registry update ghcr oci://ghcr.io/org/modules --username robot --password-stdin`,
@@ -141,9 +136,7 @@ func NewUpdateModuleRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.C
 
 // addModuleRegistryFlags registers the flags the add command accepts.
 func addModuleRegistryFlags(cmd *cobra.Command) {
-	cmd.Flags().String(moduleRegistryTypeFlag, "", "registry type, git or oci; inferred from the URL when omitted")
-	cmd.Flags().String(moduleRegistryPathFlag, pkgmodule.DefaultGitPath, "subpath within a git registry that holds modules")
-	cmd.Flags().String(moduleRegistryGitTokenFlag, "", "token used to read a private git registry")
+	cmd.Flags().String(moduleRegistryTypeFlag, "", "registry type; only \"oci\" is supported, and it is inferred from the URL when omitted")
 	cmd.Flags().String(moduleRegistryUsernameFlag, "", "username for an OCI registry")
 	cmd.Flags().String(moduleRegistryPasswordFlag, "", "password for an OCI registry")
 	cmd.Flags().Bool(moduleRegistryPasswordStdinFlag, false, "read the OCI registry password from stdin")
@@ -154,7 +147,7 @@ func addModuleRegistryFlags(cmd *cobra.Command) {
 func moduleRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Registry, error) {
 	if len(args) != 2 {
 		return nil, errors.New("must specify the registry name and URL, for example: " +
-			"vela module registry add catalog https://github.com/kubevela/catalog --type git")
+			"vela module registry add catalog oci://ghcr.io/kubevela/modules")
 	}
 	name, rawURL := args[0], args[1]
 	if err := validateModuleRegistryName(name); err != nil {
@@ -173,16 +166,6 @@ func moduleRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Regist
 
 	r := &pkgaddon.Registry{Name: name}
 	switch strings.ToLower(registryType) {
-	case moduleGitType:
-		path, err := cmd.Flags().GetString(moduleRegistryPathFlag)
-		if err != nil {
-			return nil, err
-		}
-		token, err := cmd.Flags().GetString(moduleRegistryGitTokenFlag)
-		if err != nil {
-			return nil, err
-		}
-		r.Git = &pkgaddon.GitAddonSource{URL: rawURL, Path: path, Token: token}
 	case moduleOCIType:
 		username, err := cmd.Flags().GetString(moduleRegistryUsernameFlag)
 		if err != nil {
@@ -204,8 +187,7 @@ func moduleRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Regist
 		}
 		r.Helm = &pkgaddon.HelmSource{URL: rawURL, Username: username, Token: password}
 	default:
-		return nil, fmt.Errorf("unsupported registry type %q, must be %q or %q",
-			registryType, moduleGitType, moduleOCIType)
+		return nil, fmt.Errorf("unsupported registry type %q, must be %q", registryType, moduleOCIType)
 	}
 	return r, nil
 }
@@ -248,22 +230,35 @@ func requireModuleRegistryName(args []string) (string, error) {
 	return name, nil
 }
 
-// inferModuleRegistryType guesses the registry type from the URL, and refuses to
-// guess when the URL is ambiguous. A schemeless reference such as
-// github.com/org/catalog is indistinguishable from an OCI reference such as
-// ghcr.io/org/modules, so those require an explicit --type.
+// inferModuleRegistryType reads the registry type off the URL. OCI is the only
+// type modules support, so the work here is recognising the spellings that mean
+// something else and saying so.
+//
+// The scheme is decisive and is checked first: a repository path can end in
+// .git legitimately -- mirroring a repository keeps its name -- so
+// oci://host/mirrors/catalog.git is an OCI reference, and the .git heuristic
+// only applies where no scheme has answered. http:// is OCI too, a registry
+// served without TLS. A schemeless reference is refused rather than guessed,
+// since moduleRegistryFromArgs requires one of those schemes anyway.
 func inferModuleRegistryType(rawURL string) (string, error) {
 	lower := strings.ToLower(rawURL)
 	switch {
-	case strings.HasPrefix(lower, "oci://"):
+	case strings.HasPrefix(lower, "oci://"), strings.HasPrefix(lower, "http://"):
 		return moduleOCIType, nil
-	case strings.HasPrefix(lower, "http://"),
-		strings.HasPrefix(lower, "https://"),
-		strings.HasSuffix(lower, ".git"):
-		return moduleGitType, nil
+	case strings.HasPrefix(lower, "https://"):
+		// Do not assert this is a chart repository. Now that https:// no longer
+		// means git, the likeliest reason to type it is an OCI registry with
+		// the wrong scheme, and telling the author their URL is something it
+		// plainly is not sends them the wrong way. Name both and show the
+		// rewrite.
+		return "", fmt.Errorf("modules cannot read a registry over https; %q is either a Helm chart repository, "+
+			"which modules do not support, or an OCI registry addressed with the wrong scheme -- if it is the "+
+			"latter, use %q", rawURL, "oci://"+rawURL[len("https://"):])
+	case strings.HasSuffix(lower, ".git"):
+		return "", fmt.Errorf("%q names a git repository, and git registries are not supported for modules; %s",
+			rawURL, pkgcomponent.ModuleGitRemedy)
 	default:
-		return "", fmt.Errorf("cannot infer the registry type from %q, pass --type %s or --type %s",
-			rawURL, moduleGitType, moduleOCIType)
+		return "", fmt.Errorf("cannot infer the registry type from %q; an OCI module registry URL must use the oci:// scheme (or http:// for a registry served without TLS)", rawURL)
 	}
 }
 
@@ -321,7 +316,7 @@ func updateModuleRegistry(ctx context.Context, c common.Args, registry pkgaddon.
 // preserveTokenSecretRef carries the stored credential forward onto registry
 // when this invocation supplied no new token. Both add's overwrite path and
 // update hand the store a Registry built fresh from flags; if the invocation
-// omitted --gitToken/--password, that source's Token is empty, so the store's
+// omitted --password, that source's Token is empty, so the store's
 // own token handling (pkg/registry/component/registry.go) never migrates a
 // token to a secret, and the entry would be rewritten with an empty
 // TokenSecretRef -- silently dropping the credential and orphaning the
@@ -329,7 +324,7 @@ func updateModuleRegistry(ctx context.Context, c common.Args, registry pkgaddon.
 //
 // existing comes from store.GetRegistry, which already loaded a configured
 // secret's value into its Token field -- and, as a side effect of
-// GitAddonSource/HelmSource's SetToken, cleared TokenSecretRef in memory
+// HelmSource's SetToken, cleared TokenSecretRef in memory
 // while doing so. So the credential to carry forward is existing's Token, not
 // its TokenSecretRef: handing that Token to UpdateRegistry re-migrates it to
 // the same secret name, which restores the ref. Only if the secret could not
@@ -339,6 +334,14 @@ func updateModuleRegistry(ctx context.Context, c common.Args, registry pkgaddon.
 func preserveTokenSecretRef(registry *pkgaddon.Registry, existing pkgaddon.Registry) {
 	src := registry.GetTokenSource()
 	if src == nil || src.GetToken() != "" {
+		return
+	}
+	// Only carry a credential between two entries of the same source kind. A
+	// credential is scoped to the host and protocol it was issued for, so
+	// carrying one across kinds would send the old kind's token to the new
+	// kind's host -- leaking it, and breaking a registry that wanted none. An
+	// operator changing the kind supplies the new credential, or no credential.
+	if pkgmodule.SourceTypeName(*registry) != pkgmodule.SourceTypeName(existing) {
 		return
 	}
 	old := existing.GetTokenSource()
@@ -426,8 +429,8 @@ func listModuleRegistry(ctx context.Context, c common.Args, out io.Writer) error
 }
 
 // moduleRegistrySourceURL renders a display URL for any source the shared
-// addon ConfigMap format can hold. Modules only support git and OCI, but list
-// must still show a helm, OSS, gitee, or gitlab entry -- an operator has to be
+// addon ConfigMap format can hold. Modules only support OCI, but list must
+// still show a git, helm, OSS, gitee, or gitlab entry -- an operator has to be
 // able to see a bad entry in order to remove it.
 func moduleRegistrySourceURL(registry pkgaddon.Registry) string {
 	switch {
@@ -450,6 +453,8 @@ func moduleRegistrySourceURL(registry pkgaddon.Registry) string {
 
 // moduleRegistrySourcePath renders the subpath for the source kinds that have
 // one; git, gitee, gitlab, and OSS all carry a Path field, OCI and helm do not.
+// Modules cannot resolve the Path-carrying kinds any more, but list still
+// renders them so an operator can recognise an entry that needs removing.
 func moduleRegistrySourcePath(registry pkgaddon.Registry) string {
 	switch {
 	case registry.Git != nil:
@@ -479,9 +484,6 @@ func getModuleRegistry(ctx context.Context, c common.Args, name string, out io.W
 	}
 	table := uitable.New()
 	switch {
-	case registry.Git != nil:
-		table.AddRow("NAME", "TYPE", "URL", "PATH")
-		table.AddRow(registry.Name, moduleGitType, registry.Git.URL, registry.Git.Path)
 	case registry.OCIChartSource() != nil:
 		oci := registry.OCIChartSource()
 		table.AddRow("NAME", "TYPE", "URL", "USERNAME")
@@ -497,7 +499,7 @@ func getModuleRegistry(ctx context.Context, c common.Args, name string, out io.W
 // deleteModuleRegistry removes a registry and its token secret. Existence is
 // checked with a plain store.GetRegistry rather than the strict
 // ResolveRegistry, so an entry ResolveRegistry would reject as unsupported
-// (helm, OSS, gitee, gitlab) can still be found and removed -- cleanup must
+// (git, helm, OSS, gitee, gitlab) can still be found and removed -- cleanup must
 // always work, even for a bad entry. This also sidesteps ResolveRegistry's
 // default-resolution rules for an empty name; delete removes the entry's own
 // resolved name rather than whatever raw string was passed in, so the two

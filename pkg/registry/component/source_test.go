@@ -33,19 +33,22 @@ func TestNewAsyncReader(t *testing.T) {
 		wantType interface{}
 		wantErr  bool
 	}{
-		"git type": {
-			baseURL:  "https://github.com/kubevela/catalog",
-			subPath:  "addons",
-			rdType:   GitType,
-			wantType: &gitReader{},
-			wantErr:  false,
+		// The git, gitee and gitlab readers live in pkg/addon and reach this
+		// package through RegisterGitReaderBuilder. Nothing registers one here,
+		// so these three are refused by name rather than built -- which is the
+		// behaviour that matters from this side of the seam. The readers
+		// themselves are covered by pkg/addon's reader tests.
+		"git type without a registered builder": {
+			baseURL: "https://github.com/kubevela/catalog",
+			subPath: "addons",
+			rdType:  GitType,
+			wantErr: true,
 		},
-		"gitee type": {
-			baseURL:  "https://gitee.com/kubevela/catalog",
-			subPath:  "addons",
-			rdType:   GiteeType,
-			wantType: &giteeReader{},
-			wantErr:  false,
+		"gitee type without a registered builder": {
+			baseURL: "https://gitee.com/kubevela/catalog",
+			subPath: "addons",
+			rdType:  GiteeType,
+			wantErr: true,
 		},
 		"oss type": {
 			baseURL:  "oss-cn-hangzhou.aliyuncs.com",
@@ -56,7 +59,7 @@ func TestNewAsyncReader(t *testing.T) {
 		},
 		"invalid url": {
 			baseURL: "://invalid-url",
-			rdType:  GitType,
+			rdType:  OSSType,
 			wantErr: true,
 		},
 		"invalid type": {

@@ -38,9 +38,27 @@ import (
 // feature: an Application component of this type installs an addon.
 const ComponentType = "addon"
 
-// registryNameLister reads the names of the configured addon registries. It is
-// a seam for tests; production uses component.ListRegistryNames.
-type registryNameLister func(context.Context, client.Client) ([]string, error)
+// registryLister reads what the validator needs to know about the configured
+// addon registries: every name, and which of those names are Git backed.
+//
+// One seam returning both, rather than one per fact, so a Validator cannot be
+// built with half of it stubbed and silently reach the cluster for the other
+// half.
+//
+// It is a seam for tests; production uses listClusterRegistries.
+type registryLister func(context.Context, client.Client) (names []string, gitKinds map[string]string, err error)
+
+// listClusterRegistries is the production registryLister: one read of the
+// addon registry ConfigMap, and no token Secret.
+//
+// That read reaches the apiserver rather than an informer. ConfigMaps are in
+// the manager client's uncached set by default (the
+// DisableWorkflowContextConfigMapCache gate), so this costs one GET inside the
+// admission timeout. It is one GET, once per request, and only for an
+// Application that names a registry -- see the skip in ValidateComponents.
+func listClusterRegistries(ctx context.Context, cli client.Client) ([]string, map[string]string, error) {
+	return component.ListRegistrySources(ctx, cli)
+}
 
 // Validator validates addon-specific Application components.
 //
@@ -61,10 +79,10 @@ type Validator struct {
 	// outright with none).
 	Client client.Client
 
-	listRegistryNames registryNameLister
+	listRegistries registryLister
 }
 
-// NewValidator creates a Validator reading registry names through cli.
+// NewValidator creates a Validator reading the registry records through cli.
 func NewValidator(cli client.Client) *Validator {
 	return &Validator{Client: cli}
 }
@@ -77,8 +95,8 @@ func NewValidator(cli client.Client) *Validator {
 //
 // Version deliberately gets no format check. Pinned-version resolution compares
 // the requested version to the package's own version as a string, both in
-// chooseVersion for a Helm or OCI registry and in checkVersionPinSupported for a
-// git or OSS one, and nothing requires a git registry's metadata.yaml version to
+// chooseVersion for a Helm or OCI registry and in checkVersionPinSupported for
+// an OSS one, and nothing requires an OSS registry's metadata.yaml version to
 // be semver. Rejecting a non-semver pin here would therefore refuse Applications
 // that resolve today.
 type componentProperties struct {
@@ -88,16 +106,29 @@ type componentProperties struct {
 }
 
 // ValidateComponents rejects type: addon components that cannot resolve for a
-// reason visible locally: properties that do not decode, or a registry that is
-// not configured on this cluster.
+// reason visible locally: properties that do not decode, a registry that is
+// not configured on this cluster, or a registry backed by Git.
+//
+// Git is refused here rather than at render because the answer is in the
+// registry ConfigMap, so admission can give it immediately and precisely,
+// while a render-time refusal would surface as a failing Application the
+// author has to go and read. `vela addon enable` is unaffected: this checks
+// Application components, not the registry record, and a Git registry stays
+// installable imperatively.
+//
+// A component that names no registry is not checked for this. An empty
+// registry means "search every configured registry", and which one wins is
+// decided by reading each in turn over the network -- exactly what admission
+// must not do. The renderer refuses those.
 func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Application) field.ErrorList {
 	startTime := time.Now()
 	logger := logging.WithContext(ctx).WithStep("validate-addon-components")
-	logger.Info("Addon component validation started")
+	logger.Debug("Addon component validation started")
 
 	addonComponentCount := 0
 	var errs field.ErrorList
 	var registryNames []string
+	var registryGitKinds map[string]string
 	// Tracked separately from registryNames: a cluster with no registries
 	// configured yields an empty list, which must still reject a named
 	// registry, whereas a failed read must not reject anything.
@@ -128,25 +159,33 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 			continue
 		}
 		if !registriesRead {
-			names, err := v.readRegistryNames(ctx)
+			names, kinds, err := v.readRegistries(ctx)
 			if err != nil {
 				// Fail open, and stop asking. The registry name may well be
 				// correct and this webhook runs with failurePolicy: Fail, so a
 				// ConfigMap read that failed for its own reasons must not block
-				// the apply. The renderer reports an unknown registry at
-				// reconcile time.
-				logger.Info("Skipping addon registry name check", "reason", "registry-list-failed", "error", err)
+				// the apply. The renderer reports an unknown registry, and
+				// refuses a Git one, at reconcile time.
+				logger.Info("Skipping addon registry checks", "reason", "registry-list-failed", "error", err)
 			} else {
-				registryNames, registriesKnown = names, true
+				registryNames, registryGitKinds, registriesKnown = names, kinds, true
 			}
 			registriesRead = true
 		}
-		if registriesKnown && !slices.Contains(registryNames, properties.Registry) {
+		if !registriesKnown {
+			continue
+		}
+		if !slices.Contains(registryNames, properties.Registry) {
 			// field.NotFound would render as `Not found: "typo"`, which leaves
 			// the author guessing what the right value was. Registry names are
 			// not sensitive, and the list is exactly what they need to see.
 			errs = append(errs, field.Invalid(path.Child("registry"), properties.Registry,
 				fmt.Sprintf("is not a configured addon registry; configured: %v", registryNames)))
+			continue
+		}
+		if kind := registryGitKinds[properties.Registry]; kind != "" {
+			errs = append(errs, field.Invalid(path.Child("registry"), properties.Registry,
+				component.GitSourceUnsupportedDetail(kind, component.AddonGitRemedy)))
 		}
 	}
 
@@ -158,10 +197,10 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 	return errs
 }
 
-func (v *Validator) readRegistryNames(ctx context.Context) ([]string, error) {
-	list := v.listRegistryNames
+func (v *Validator) readRegistries(ctx context.Context) ([]string, map[string]string, error) {
+	list := v.listRegistries
 	if list == nil {
-		list = component.ListRegistryNames
+		list = listClusterRegistries
 	}
 	return list(ctx, v.Client)
 }

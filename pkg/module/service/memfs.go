@@ -28,7 +28,7 @@ import (
 // mapFS is a minimal read-only in-memory fs.FS built from files keyed by
 // slash-separated path relative to the module root. It synthesizes the
 // directories implied by those keys, which is all ParseModule needs
-// (fs.ReadFile + fs.ReadDir). Both fetch adapters (git and OCI) build one.
+// (fs.ReadFile + fs.ReadDir). The OCI fetch adapter builds one.
 type mapFS map[string][]byte
 
 var (

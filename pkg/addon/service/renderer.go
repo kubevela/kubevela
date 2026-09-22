@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -46,6 +47,7 @@ import (
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/addon/service/api"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 )
 
 type rendererImpl struct {
@@ -82,6 +84,83 @@ type rendererImpl struct {
 	// fetchExactFn lets unit tests resolve a pinned version without registry I/O.
 	// Production uses pkgaddon.GetAddonInstallPackageFromRegistry.
 	fetchExactFn func(ctx context.Context, registryName, addonName, version string) (*pkgaddon.InstallPackage, error)
+}
+
+// candidateRegistries returns the registries resolveAndRender may search for
+// an addon, and separately the Git-backed ones it refused.
+//
+// A type: addon component resolves from an OCI registry or a Helm repository
+// only. The admission webhook refuses a component that names a Git registry,
+// but it cannot refuse one that names none: an empty registry means "search
+// them all", and which registry wins is decided by reading each in turn over
+// the network, which admission must not do. So the exclusion is applied here,
+// where the search is built.
+//
+// A nil allowed list means "search everything", which is what an empty list
+// has always meant to FindAddonPackagesDetailFromRegistry. That is the answer
+// when no Git registry is configured, so the common case builds the same
+// search, and costs the same one read, as it did before this restriction.
+//
+// When a Git registry does exist the search has to be spelled out name by
+// name, and that is not free: FindAddonPackagesDetailFromRegistry answers a
+// named list with one GetRegistry per name, each of which re-reads the
+// registry ConfigMap, where an empty list costs a single ListRegistries. The
+// price is one extra ConfigMap read per configured registry per render, paid
+// only by clusters that still have a Git registry. Removing it means refusing
+// Git where a registry becomes a reader instead of filtering the search input,
+// which is inside pkg/addon/helper.go -- shared with `vela addon enable`, so
+// out of scope here.
+//
+// This narrows the component path only. FindAddonPackagesDetailFromRegistry is
+// shared with `vela addon enable`, which passes its own registry list and goes
+// on installing from Git.
+func (r *rendererImpl) candidateRegistries(ctx context.Context, requested string) (allowed, excludedGit []string, err error) {
+	if requested != "" {
+		// Only this one registry's kind can change the outcome, so do not pay
+		// for the sorted name list.
+		gitKinds, err := component.ListRegistryGitKinds(ctx, r.client())
+		if err != nil {
+			return nil, nil, fmt.Errorf("read the addon registries: %w", err)
+		}
+		if kind := gitKinds[requested]; kind != "" {
+			return nil, nil, component.GitSourceUnsupportedError(
+				requested, kind, component.AddonGitRemedy)
+		}
+		return []string{requested}, nil, nil
+	}
+
+	names, gitKinds, err := component.ListRegistrySources(ctx, r.client())
+	if err != nil {
+		return nil, nil, fmt.Errorf("read the addon registries: %w", err)
+	}
+	if len(gitKinds) == 0 {
+		return nil, nil, nil
+	}
+	// names arrives sorted, so one pass leaves both halves sorted.
+	for _, name := range names {
+		if gitKinds[name] == "" {
+			allowed = append(allowed, name)
+		} else {
+			excludedGit = append(excludedGit, name)
+		}
+	}
+	if len(allowed) == 0 {
+		// Falling through with an empty list would mean "search everything",
+		// putting the Git registries straight back into the search.
+		return nil, nil, fmt.Errorf("every configured addon registry is git backed (%s): %w; %s",
+			strings.Join(excludedGit, ", "), component.ErrGitSourceUnsupported, component.AddonGitRemedy)
+	}
+	return allowed, excludedGit, nil
+}
+
+// skippedGitNote reports the Git registries left out of a search, for appending
+// to a not-found error. Without it an addon that exists only in a Git registry
+// reads as simply absent, when the truth is that its registry was refused.
+func skippedGitNote(excludedGit []string) string {
+	if len(excludedGit) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (skipped git registries: %s)", strings.Join(excludedGit, ", "))
 }
 
 // renderTimeout bounds one shared resolve+render. It has to be generous: the
@@ -243,9 +322,9 @@ func (r *rendererImpl) RenderAddon(ctx context.Context, req api.AddonRequest) (*
 }
 
 func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonRequest) (*api.AddonResult, error) {
-	regs := []string{}
-	if req.Registry != "" {
-		regs = []string{req.Registry}
+	regs, excludedGit, err := r.candidateRegistries(ctx, req.Registry)
+	if err != nil {
+		return nil, err
 	}
 	findPackages := r.findPackagesFn
 	if findPackages == nil {
@@ -259,7 +338,7 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 		// make a valid pin depend on two unrelated things: that the latest release
 		// loads at all, and that the registry holding the latest also holds the
 		// pinned version.
-		pkg, reg, err := r.resolvePinnedVersion(ctx, req.Name, req.Version, regs)
+		pkg, reg, err := r.resolvePinnedVersion(ctx, req.Name, req.Version, regs, excludedGit)
 		if err != nil {
 			return nil, err
 		}
@@ -267,10 +346,12 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	} else {
 		pkgs, err := findPackages(ctx, r.client(), []string{req.Name}, regs)
 		if err != nil {
-			return nil, fmt.Errorf("addon %q not found in registries %v: %w", req.Name, regs, err)
+			return nil, fmt.Errorf("addon %q not found in registries %v%s: %w",
+				req.Name, regs, skippedGitNote(excludedGit), err)
 		}
 		if len(pkgs) == 0 {
-			return nil, fmt.Errorf("addon %q not found in registries %v", req.Name, regs)
+			return nil, fmt.Errorf("addon %q not found in registries %v%s",
+				req.Name, regs, skippedGitNote(excludedGit))
 		}
 		installPkg = &pkgs[0].InstallPackage
 		registryName = pkgs[0].RegistryName
@@ -606,13 +687,21 @@ func uniqueComponentName(base string, used map[string]bool) string {
 // Registries that do not have the version are skipped rather than fatal, so an
 // addon present in several registries resolves from whichever one actually
 // publishes the pin.
-func (r *rendererImpl) resolvePinnedVersion(ctx context.Context, addonName, version string, candidates []string) (*pkgaddon.InstallPackage, string, error) {
+func (r *rendererImpl) resolvePinnedVersion(ctx context.Context, addonName, version string, candidates, excludedGit []string) (*pkgaddon.InstallPackage, string, error) {
 	if len(candidates) == 0 {
 		regs, err := pkgaddon.NewRegistryDataStore(r.client()).ListRegistries(ctx)
 		if err != nil {
 			return nil, "", fmt.Errorf("list addon registries: %w", err)
 		}
+		// Re-derive the refusal rather than trusting the empty list: an empty
+		// candidates means candidateRegistries had nothing to exclude, but
+		// this expansion reads the registries again and a Git one added in
+		// between would otherwise be searched.
 		for _, reg := range regs {
+			if component.GitFamilySource(reg) != "" {
+				excludedGit = append(excludedGit, reg.Name)
+				continue
+			}
 			candidates = append(candidates, reg.Name)
 		}
 	}
@@ -629,6 +718,6 @@ func (r *rendererImpl) resolvePinnedVersion(ctx context.Context, addonName, vers
 		}
 		return pkg, regName, nil
 	}
-	return nil, "", fmt.Errorf("addon %q version %q not found in registries %v: %w",
-		addonName, version, candidates, errors.Join(errs...))
+	return nil, "", fmt.Errorf("addon %q version %q not found in registries %v%s: %w",
+		addonName, version, candidates, skippedGitNote(excludedGit), errors.Join(errs...))
 }

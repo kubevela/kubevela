@@ -52,7 +52,7 @@ func moduleDeployClient(t *testing.T, registries ...string) client.Client {
 		for _, name := range registries {
 			entries[name] = pkgaddon.Registry{
 				Name: name,
-				Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module"},
+				Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/kubevela/catalog"},
 			}
 		}
 		raw, err := json.Marshal(entries)
