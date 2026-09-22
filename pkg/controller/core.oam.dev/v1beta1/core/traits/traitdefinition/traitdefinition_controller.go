@@ -30,6 +30,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
@@ -133,11 +134,17 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, def *v1beta1.TraitDefinit
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("TraitDefinition")).
 		WithAnnotations("controller", "TraitDefinition")
+	// A trait that extends another publishes a schema derived from it, so a
+	// parent edit has to wake its children.
+	if err := indexExtends(context.Background(), mgr); err != nil {
+		return err
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.Options{
 			MaxConcurrentReconciles: r.concurrentReconciles,
 		}).
 		For(&v1beta1.TraitDefinition{}).
+		Watches(&v1beta1.TraitDefinition{}, handler.EnqueueRequestsFromMapFunc(descendantsOf(mgr.GetClient()))).
 		Complete(r)
 }
 

@@ -147,7 +147,21 @@ func (ref *ConsoleReference) Show(ctx context.Context, c common.Args, ioStreams 
 	var propertyConsole []ConsoleReference
 	switch capability.Category {
 	case types.CUECategory:
-		_, propertyConsole, err = ref.GenerateCUETemplateProperties(capability)
+		if capability.Extends != "" {
+			// An extending definition's template does not compile on its own:
+			// `$super` is supplied by the chain and declared nowhere in the file.
+			// Its documented parameters are its parent's plus its own, which is
+			// what an application will actually be validated against.
+			//
+			// Under `--revision` the named definition comes from that revision,
+			// but an unpinned parent still resolves live: a DefinitionRevision
+			// records the definition, not the chain it was rendered through. A
+			// parent written as `webservice@v3` documents faithfully; a plain
+			// `webservice` documents whatever it is now.
+			propertyConsole, err = ref.generateInheritedProperties(ctx, c, capability)
+		} else {
+			_, propertyConsole, err = ref.GenerateCUETemplateProperties(capability)
+		}
 		if err != nil {
 			return err
 		}
@@ -213,4 +227,28 @@ func (ref *ConsoleReference) Show(ctx context.Context, c common.Args, ioStreams 
 		}
 	}
 	return nil
+}
+
+// generateInheritedProperties documents a definition that extends another.
+//
+// The chain is resolved from the cluster, because a parent's template is the
+// only place its parameters are written down, and the child's `parameter` is
+// stated in terms of them.
+func (ref *ConsoleReference) generateInheritedProperties(ctx context.Context, c common.Args, capability *types.Capability) ([]ConsoleReference, error) {
+	ref.DisplayFormat = "console"
+
+	cli, err := c.GetClient()
+	if err != nil {
+		return nil, fmt.Errorf("resolving what %s extends needs a cluster: %w", capability.Name, err)
+	}
+
+	value, err := inheritedParameterValue(ctx, cli, capability)
+	if err != nil {
+		return nil, err
+	}
+	_, console, err := ref.parseParameters(capability.Name, value, Specification, 0, false)
+	if err != nil {
+		return nil, err
+	}
+	return console, nil
 }

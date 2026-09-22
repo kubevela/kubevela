@@ -613,7 +613,19 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		}
 		jsonSchema, err = GetOpenAPISchemaFromTerraformComponentDefinition(configuration)
 	default:
-		jsonSchema, err = def.GetOpenAPISchema(ctx, name)
+		switch {
+		case def.ComponentDefinition.Spec.Extends == "":
+			jsonSchema, err = def.GetOpenAPISchema(ctx, name)
+		case def.ComponentDefinition.Spec.Schematic != nil && def.ComponentDefinition.Spec.Schematic.CUE != nil:
+			jsonSchema, err = inheritedComponentSchema(ctx, k8sClient, &def.ComponentDefinition)
+		default:
+			// Admission refuses this combination, so it can only reach here from
+			// a definition applied before the check existed. Publishing the
+			// child's own schema would describe a definition that cannot render.
+			err = fmt.Errorf(
+				"component definition %s extends %s but has no CUE template, so its parameters cannot be read",
+				def.Name, def.ComponentDefinition.Spec.Extends)
+		}
 	}
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
@@ -681,7 +693,14 @@ func (def *CapabilityTraitDefinition) GetOpenAPISchema(ctx context.Context, name
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from TraitDefinition in ConfigMap
 func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string, revName string) (string, error) {
-	jsonSchema, err := def.GetOpenAPISchema(ctx, name)
+	var jsonSchema []byte
+	var err error
+	if def.TraitDefinition.Spec.Extends != "" &&
+		def.TraitDefinition.Spec.Schematic != nil && def.TraitDefinition.Spec.Schematic.CUE != nil {
+		jsonSchema, err = inheritedTraitSchema(ctx, k8sClient, &def.TraitDefinition)
+	} else {
+		jsonSchema, err = def.GetOpenAPISchema(ctx, name)
+	}
 	if err != nil {
 		return "", fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}

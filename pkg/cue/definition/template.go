@@ -40,7 +40,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/workflow/pkg/cue/model"
-	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/kubevela/workflow/pkg/cue/process"
 
@@ -48,6 +47,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/render"
 	"github.com/oam-dev/kubevela/pkg/cue/task"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/sources"
@@ -96,6 +96,10 @@ type AbstractEngine interface {
 }
 type def struct {
 	name string
+	// ancestors are the definitions this one extends, nearest parent first.
+	// Empty for a definition that extends nothing, which is the common case and
+	// renders exactly as it always did.
+	ancestors []inherit.Level
 }
 type workloadDef struct {
 	def
@@ -105,11 +109,17 @@ type workloadDef struct {
 	surface string
 }
 
-// NewWorkloadAbstractEngine create Workload Definition AbstractEngine
-// NewWorkloadAbstractEngine create Workload Definition AbstractEngine
-func NewWorkloadAbstractEngine(name string) AbstractEngine {
+// NewWorkloadAbstractEngine create Workload Definition AbstractEngine.
+//
+// Ancestors are the definitions this one extends, nearest parent first. They
+// are variadic so that every existing caller, and every definition that extends
+// nothing, is unaffected.
+func NewWorkloadAbstractEngine(name string, ancestors ...inherit.Level) AbstractEngine {
 	return &workloadDef{
-		def:     def{name: name},
+		def: def{
+			name:      name,
+			ancestors: ancestors,
+		},
 		surface: sources.SurfaceComponent,
 	}
 }
@@ -168,14 +178,23 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 
 	abstractTemplate, _ = upgrade.EnsureCueVersionCompatibility(abstractTemplate, wd.name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
 
-	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), strings.Join([]string{
-		render.Template(abstractTemplate), paramFile, c,
-	}, "\n"))
-	if err != nil {
-		return errors.WithMessagef(err, "failed to compile workload %s after merge parameter and context", wd.name)
+	var val cue.Value
+	var userErrors []string
+	if wd.extendsSomething() {
+		res, err := wd.renderChain(ctx, abstractTemplate, paramFile, c, inherit.ComponentSurface)
+		if err != nil {
+			return err
+		}
+		val, userErrors = res.value, res.userErrors
+	} else {
+		val, err = velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), strings.Join([]string{
+			render.Template(abstractTemplate), paramFile, c,
+		}, "\n"))
+		if err != nil {
+			return errors.WithMessagef(err, "failed to compile workload %s after merge parameter and context", wd.name)
+		}
+		userErrors = render.UserErrors(val, "Workload definition", wd.name)
 	}
-
-	userErrors := render.UserErrors(val, "Workload definition", wd.name)
 
 	validationErr := val.Validate()
 
@@ -304,12 +323,16 @@ type traitDef struct {
 	def
 }
 
-// NewTraitAbstractEngine create Trait Definition AbstractEngine
-// NewTraitAbstractEngine create Trait Definition AbstractEngine
-func NewTraitAbstractEngine(name string) AbstractEngine {
+// NewTraitAbstractEngine create Trait Definition AbstractEngine.
+//
+// Ancestors are the definitions this one extends, nearest parent first. They
+// are variadic so that every existing caller, and every trait that extends
+// nothing, is unaffected.
+func NewTraitAbstractEngine(name string, ancestors ...inherit.Level) AbstractEngine {
 	return &traitDef{
 		def: def{
-			name: name,
+			name:      name,
+			ancestors: ancestors,
 		},
 	}
 }
@@ -329,7 +352,8 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}()
 
 	abstractTemplate, _ = upgrade.EnsureCueVersionCompatibility(abstractTemplate, td.name, upgrade.TraitKind, upgrade.TemplateAreaMain)
-	buff := abstractTemplate + "\n"
+
+	var paramFile string
 	if params != nil {
 		resolved, err := sources.ResolveSourceExpressions(ctx, params, sources.SurfaceTrait)
 		if err != nil {
@@ -343,9 +367,10 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
 		if string(bt) != "null" {
-			buff += fmt.Sprintf("%s: %s\n", velaprocess.ParameterFieldName, string(bt))
+			paramFile = fmt.Sprintf("%s: %s\n", velaprocess.ParameterFieldName, string(bt))
 		}
 	}
+	buff := abstractTemplate + "\n" + paramFile
 
 	multiStageEnabled := feature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply)
 	var statusBytes []byte
@@ -366,13 +391,22 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 
 	buff += c
 
-	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), buff)
-
-	if err != nil {
-		return errors.WithMessagef(err, "failed to compile trait %s after merge parameter and context", td.name)
+	var val cue.Value
+	var userErrors []string
+	var levels []cue.Value
+	if td.extendsSomething() {
+		res, err := td.renderChain(ctx, abstractTemplate, paramFile, c, inherit.TraitSurface)
+		if err != nil {
+			return err
+		}
+		val, userErrors, levels = res.value, res.userErrors, res.levels
+	} else {
+		val, err = velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), buff)
+		if err != nil {
+			return errors.WithMessagef(err, "failed to compile trait %s after merge parameter and context", td.name)
+		}
+		userErrors = render.UserErrors(val, "Trait definition", td.name)
 	}
-
-	userErrors := render.UserErrors(val, "Trait definition", td.name)
 
 	validationErr := val.Validate()
 
@@ -432,7 +466,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		if base == nil {
 			return fmt.Errorf("patch trait %s into an invalid workload", td.name)
 		}
-		if err := base.Unify(patcher, sets.CreateUnifyOptionsForPatcher(patcher)...); err != nil {
+		if err := base.Unify(patcher, patchOptionsFromLevels(levels, patcher)...); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
 	}

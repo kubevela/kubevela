@@ -39,6 +39,7 @@ e2e-setup-core-wo-auth:
 		--set featureGates.enableAddonComponent=true \
 		--set featureGates.enableCelExpressions=true \
 		--set featureGates.requireCelExpressionOptIn=true \
+		--set featureGates.enableDefinitionInheritance=true \
 	    --wait kubevela ./charts/vela-core          \
 		--debug
 
@@ -60,6 +61,7 @@ e2e-setup-core-w-auth:
 	    --set featureGates.zstdResourceTracker=true     \
 	    --set featureGates.zstdApplicationRevision=true \
 	    --set featureGates.validateComponentWhenSharding=true \
+	    --set featureGates.enableDefinitionInheritance=true \
 	    --set featureGates.enableCelExpressions=true  \
 	    --set featureGates.requireCelExpressionOptIn=true \
 	    --set featureGates.validateResourcesExist=true \

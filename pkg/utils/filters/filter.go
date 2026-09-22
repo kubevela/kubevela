@@ -77,6 +77,25 @@ func KeepNone() Filter {
 	}
 }
 
+// ByAbstract returns a filter over definitions that may only be extended.
+//
+// Hidden by default, since an abstract definition is not one anybody can use.
+func ByAbstract(include bool) Filter {
+	if include {
+		return KeepAll()
+	}
+
+	return func(obj unstructured.Unstructured) bool {
+		return !IsAbstract(obj)
+	}
+}
+
+// IsAbstract reports whether a definition is marked extend-only.
+func IsAbstract(obj unstructured.Unstructured) bool {
+	abstract, found, err := unstructured.NestedBool(obj.Object, "spec", "abstract")
+	return err == nil && found && abstract
+}
+
 // ByOwnerAddon returns a filter that filters out what does not belong to the owner addon.
 // Empty addon name will keep everything.
 func ByOwnerAddon(addonName string) Filter {

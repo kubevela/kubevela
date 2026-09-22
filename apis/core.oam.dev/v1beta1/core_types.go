@@ -107,6 +107,30 @@ type TraitDefinitionSpec struct {
 	// Reference to the CustomResourceDefinition that defines this trait kind.
 	Reference common.DefinitionReference `json:"definitionRef,omitempty"`
 
+	// Extends names a TraitDefinition this one builds on. The parent renders
+	// with the parameters this definition's template passes it in its `$super`
+	// block, and its patch, patchOutputs, outputs and parameter schema are
+	// inherited unless the template says otherwise with `$inherit`.
+	//
+	// A DefinitionRevision may be named to pin the parent, as in "gateway@v2";
+	// an unqualified name tracks whatever is current. The ancestors a render
+	// resolved are recorded in the ApplicationRevision, so an application keeps
+	// rendering the same way after a parent changes.
+	//
+	// +optional
+	Extends string `json:"extends,omitempty"`
+
+	// Abstract marks this definition as one that may only be extended, never
+	// named directly by an Application. A base that applies a platform's rules
+	// is not something to use as-is, and saying so here is what makes the
+	// definitions built on it the only way through.
+	//
+	// It is not inherited: a definition that extends an abstract one is usable
+	// unless it marks itself abstract too.
+	//
+	// +optional
+	Abstract bool `json:"abstract,omitempty"`
+
 	// Revision indicates whether a trait is aware of component revision
 	// +optional
 	RevisionEnabled bool `json:"revisionEnabled,omitempty"`

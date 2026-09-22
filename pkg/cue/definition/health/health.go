@@ -42,6 +42,16 @@ type StatusRequest struct {
 	Custom    string
 	Details   string
 	Parameter map[string]interface{}
+	// Ancestors are the status snippets of the definitions this one extends,
+	// nearest parent first. A definition that extends nothing has none, and
+	// composes with nobody.
+	Ancestors []Snippets
+}
+
+// chain is this definition's snippets followed by its ancestors', which is the
+// order composition walks.
+func (r *StatusRequest) chain() []Snippets {
+	return append([]Snippets{{Health: r.Health, Custom: r.Custom, Details: r.Details}}, r.Ancestors...)
 }
 
 type StatusResult struct {
@@ -58,6 +68,12 @@ func CheckHealth(templateContext map[string]interface{}, healthPolicyTemplate st
 	if err != nil {
 		return false, err
 	}
+	return checkHealthWith(runtimeContextBuff, healthPolicyTemplate)
+}
+
+// checkHealthWith evaluates one policy against an already-formatted runtime
+// context, so a chain marshals the rendered workload once rather than per level.
+func checkHealthWith(runtimeContextBuff, healthPolicyTemplate string) (bool, error) {
 	var buff = healthPolicyTemplate + "\n" + runtimeContextBuff
 
 	val := cuecontext.New().CompileString(buff)
@@ -80,12 +96,12 @@ func GetStatus(templateContext map[string]interface{}, request *StatusRequest) (
 		templateContext["status"] = make(map[string]interface{})
 	}
 
-	templateContext, statusMap, mapErr := getStatusMap(templateContext, request.Details, request.Parameter)
+	templateContext, statusMap, mapErr := getStatusMap(templateContext, detailsChain(request.chain()), request.Parameter)
 	if mapErr != nil {
 		klog.Warningf("failed to get status map: %v", mapErr)
 	}
 
-	healthy, healthErr := CheckHealth(templateContext, request.Health, request.Parameter)
+	healthy, healthErr := checkHealthChain(templateContext, request.chain(), request.Parameter)
 	if healthErr != nil {
 		klog.Warningf("failed to check health: %v", healthErr)
 	}
@@ -96,7 +112,7 @@ func GetStatus(templateContext map[string]interface{}, request *StatusRequest) (
 		klog.Warningf("templateContext['status'] is not a map[string]interface{}, cannot set healthy field")
 	}
 
-	message, msgErr := getStatusMessage(templateContext, request.Custom, request.Parameter)
+	message, msgErr := statusMessageChain(templateContext, request.chain(), request.Parameter)
 	if msgErr != nil {
 		klog.Warningf("failed to get status message: %v", msgErr)
 	}
@@ -116,6 +132,11 @@ func getStatusMessage(templateContext map[string]interface{}, customStatusTempla
 	if err != nil {
 		return "", err
 	}
+	return statusMessageWith(runtimeContextBuff, customStatusTemplate)
+}
+
+// statusMessageWith is getStatusMessage against an already-formatted context.
+func statusMessageWith(runtimeContextBuff, customStatusTemplate string) (string, error) {
 	var buff = customStatusTemplate + "\n" + runtimeContextBuff
 
 	val := cuecontext.New().CompileString(buff)
