@@ -85,11 +85,57 @@ Both are identified by the `config.oam.dev/catalog: velacore-config` label, not 
 
 > **KEP-2.18** proposes graduating ConfigTemplate and Config from labelled ConfigMaps/Secrets into first-class CRDs (or Aggregated API resources), giving them proper status subresources, server-side validation, and watch semantics. This KEP is delivered against the existing v1 backing store and is transparent to that migration; the `SourceDefinition` caching layer will work unchanged once KEP-2.18 lands, with no schema or key format changes required.
 
+## Built-in SourceDefinitions
+
+Eight ship with the chart, generated into `charts/vela-core/templates/defwithtemplate/`
+from `vela-templates/definitions/internal/source/`. Most Applications never need to
+author one.
+
+| Type | Reads |
+|---|---|
+| `configmap-local` | A ConfigMap's `data`, from the Application's own namespace on the cluster being rendered for, and nowhere else. Values are strings, as Kubernetes stores them. |
+| `git-file` | A file from a registry configured in this cluster, optionally at a branch or tag. YAML and JSON are parsed; anything else comes back as a string. |
+| `http-get` | A URL. The response is parsed when Content-Type says JSON or YAML; a non-2xx fails the source rather than becoming its value. |
+| `vela-config` | A KubeVela Config: its properties, the ConfigTemplate it satisfies, and references to what that template produced. Output values are never returned, only their references, and a Config marked sensitive is refused. |
+| `vela-app` | The status of another Application - phase, health, workflow state, and per-component status broken down by the cluster each is placed in. Status only; never its spec. |
+| `vela-component` | The status of one placement of one component - health, message, details and traits keyed by type. Status only; never its spec. |
+| `vela-addon` | Whether an addon is installed and running, and the name and namespace of the Application it built. Chain into `vela-app` for the detail. |
+| `vela-env` | The environment an Application is deployed into - its name, namespace, whether the namespace is a managed env, and the labels and annotations a platform keeps there. The Application's own namespace only. |
+
+**Only the local reader ships.** An earlier draft also shipped a `configmap`
+taking optional `namespace` and `cluster`, so one definition could read any
+ConfigMap on any cluster the controller can reach. Two things argued against it.
+
+A parameter cannot be taken away: a platform that grants the reaching definition
+has granted the reach, and nothing an Application author writes can narrow it
+again. Binding a definition is what RBAC can see, so the boundary belongs at the
+definition rather than at a field inside it, and shipping only the narrow one
+makes the safe option the default rather than the one that takes work.
+
+It also collided. Definition revisions are named `<definition>-v<n>` and do not
+carry the kind, and KubeVela already ships a `configmap` **trait**, so the two
+interleaved: the trait took `configmap-v1` and the source got `configmap-v2`.
+`configmap@v1` pinned the trait, and the source's first revision was not
+pinnable at all.
+
+A platform that genuinely needs to read across namespaces writes that definition
+itself, using `configmap-local` as the starting point. It is a dozen lines, and
+authoring it deliberately is the point.
+
+The four `vela-*` readers of KubeVela's own state exist because the alternative is a
+component reaching for the Kubernetes API itself, which needs credentials, gets no
+caching, and cannot be type-checked at admission.
+
+They return status, never spec. A spec is its author's intent and can carry properties
+they never meant to publish; a status is observable state the controller already writes
+for anyone with read access. Keeping to status makes these a health signal rather than
+a way to read somebody else's configuration.
+
 ## SourceDefinition Authoring Model
 
 Generated fields (`key`, `keyInputs`) are written by `vela def` into a `$internal:`
 block. `storage:` holds only authored fields (`storageTTL`, `onStaleFailure`) and is
-optional — a source with no caching preferences declares none. The split exists
+optional - a source with no caching preferences declares none. The split exists
 because one block holding both kinds, with nothing to distinguish them, is how a
 demo manifest in this repository came to carry a wrong hand-written key.
 
@@ -153,7 +199,7 @@ The admission webhook and the reconcile controller operate on different informat
 - Checks in-memory LRU cache, then backing `Config` object
 - On miss or TTL expiry: executes `template:` via CueX, writes updated `Config`
 - Substitutes resolved field values into component/trait properties before CUE template render
-- Surfaces per-source phase (`Resolved` / `Stale` / `Pending` / `Failed`) on `status.services`
+- Surfaces per-source phase (`Resolved` / `Stale` / `Failed` / `Unused`) on `status.sources`
 
 ### Custom Error Messages (`errs:`)
 
@@ -197,7 +243,7 @@ Whether a field is optional or required in `schema:` has downstream consequences
 |---|---|---|
 | `field: string` | Required (must be concrete after execution) | `$(source.src.field)` always resolves; no `default:` needed |
 | `field!: string` | Explicitly required (same as above, more explicit) | Same |
-| `field?: string` | Optional (may be absent from the resolved output) | `$(source.src.field)` may yield nothing; consumer must supply `default:` if the target parameter is required |
+| `field?: string` | Optional (may be absent from the resolved output) | `$(source.src.field)` may be absent; the consumer must guard it with `has(...) ? ... : <fallback>` if the target parameter is required |
 
 ```cue
 schema: {
@@ -241,9 +287,9 @@ The rule is strict: **a source may only reference sources declared earlier in `s
 
 Resolution is lazy and per-component: a source is only processed when a component or trait being rendered references it (directly or through a chain). Sources declared in `spec.sources[]` but not referenced in the current render are never evaluated; their `storage:` key is not computed and their `template:` is not executed.
 
-Chaining makes laziness transitive. If component `api` has `$(source["app-config"].dbEndpoint)`, and `app-config`'s `properties` contain `$(source["cluster-info"].region)`, then rendering `api` will process `cluster-info` first, then `app-config`, then substitute into `api` (even though `api` has no direct reference to `cluster-info`). The controller follows the dependency chain to whatever depth is needed, always in declaration order.
+Chaining makes laziness transitive. If component `api` has `$(source.appConfig.dbEndpoint)`, and `appConfig`'s `properties` contain `$(source.clusterInfo.region)`, then rendering `api` will process `clusterInfo` first, then `appConfig`, then substitute into `api` (even though `api` has no direct reference to `clusterInfo`). The controller follows the dependency chain to whatever depth is needed, always in declaration order.
 
-A source that is not referenced directly or transitively by any component in the current reconcile is never evaluated and will not appear in `status.services[].sources`.
+A source that is not referenced directly or transitively by any component in the current reconcile is never evaluated, and is reported as `Unused` in `status.sources[]`.
 
 ### Chaining example
 
@@ -252,9 +298,9 @@ A later source can use an expression in its `spec.sources[].properties` to recei
 ```mermaid
 flowchart LR
     App["<b>Application</b><br/>────────────<br/>sources[0].properties:<br/>cluster: us-east-1"]
-    S1["cluster-info<br/>────────────<br/><b>in:</b> parameter.cluster<br/>────────────<br/><b>out:</b> region<br/><b>out:</b> env"]
-    S2["app-config<br/>────────────<br/><b>in:</b> region<br/><b>from:</b> cluster-info.region<br/><br/><b>in:</b> env<br/><b>from:</b> cluster-info.env<br/>────────────<br/><b>out:</b> db"]
-    Props["api properties<br/>────────────<br/><b>in:</b> region<br/><b>from:</b> cluster-info.region<br/><br/><b>in:</b> db<br/><b>from:</b> app-config.db"]
+    S1["clusterInfo<br/>────────────<br/><b>in:</b> parameter.cluster<br/>────────────<br/><b>out:</b> region<br/><b>out:</b> env"]
+    S2["appConfig<br/>────────────<br/><b>in:</b> region<br/><b>from:</b> clusterInfo.region<br/><br/><b>in:</b> env<br/><b>from:</b> clusterInfo.env<br/>────────────<br/><b>out:</b> db"]
+    Props["api properties<br/>────────────<br/><b>in:</b> region<br/><b>from:</b> clusterInfo.region<br/><br/><b>in:</b> db<br/><b>from:</b> appConfig.db"]
     C[["<b>Component</b><br/>api<br/>(rendered)"]]
 
     App -->|"cluster"| S1
@@ -268,24 +314,24 @@ flowchart LR
 spec:
   sources:
     # Resolved first - fetches cluster metadata
-    - name: cluster-info
+    - name: clusterInfo
       type: cluster-config-reader
 
-    # Resolved second - uses cluster-info output as input
-    - name: app-config
+    # Resolved second - uses clusterInfo output as input
+    - name: appConfig
       type: app-config-reader
       properties:
-        region: '$(source["cluster-info"].region)'      # resolved before app-config's storage:/template: run
-        environment: '$(source["cluster-info"].environment)'
+        region: '$(source.clusterInfo.region)'      # resolved before appConfig's storage:/template: run
+        environment: '$(source.clusterInfo.environment)'
 
   components:
     - name: api
       type: webservice
       properties:
-        dbEndpoint: '$(source["app-config"].dbEndpoint)'
+        dbEndpoint: '$(source.appConfig.dbEndpoint)'
 ```
 
-By the time `app-config-reader`'s `storage:` key is interpolated, `parameter.region` and `parameter.environment` already hold concrete values from the `cluster-info` resolution:
+By the time `app-config-reader`'s `storage:` key is interpolated, `parameter.region` and `parameter.environment` already hold concrete values from the `clusterInfo` resolution:
 
 ```cue
 storage: {
@@ -387,13 +433,13 @@ storage: {
 obligation and gave no feedback when they got it wrong. The failure was silent and
 severe: a key omitting a discriminating input meant the second Application to
 resolve received the first's data, and nothing objected. Inference removes the
-obligation — everything the template reads is in the key by construction, so that
+obligation - everything the template reads is in the key by construction, so that
 class of bug cannot be written. The author keeps the choice that mattered: a
 template reading `context.cluster` is keyed per cluster, one reading nothing is
 shared everywhere. That is decided by what the template reads, which is the honest
 signal; the previous design let the key and the template disagree.
 
-An author can no longer widen the cache deliberately — read a value but exclude it
+An author can no longer widen the cache deliberately - read a value but exclude it
 from the key. That is exactly the operation that produced the silent-sharing bug,
 so it is withheld rather than supported.
 
@@ -403,7 +449,7 @@ document: the template's fingerprint, the binding's properties, and exactly the
 context values named by `keyInputs`. Three things follow:
 
 - **Normalisation is not the author's job.** A value that cannot be rendered into a
-  legal object name — a struct, a label value containing `/` or `.` — contributes to
+  legal object name - a struct, a label value containing `/` or `.` - contributes to
   the hash and not the prefix.
 - **Absent, empty and set are three identities.** The hash is structured, so `nil`,
   `""` and `"platform"` are distinct. A template may branch on that difference, so
@@ -414,17 +460,17 @@ context values named by `keyInputs`. Three things follow:
 **The template fingerprint closes finding #11.** Cached values are served without
 re-validation, so a definition whose fetch logic changed must stop addressing the
 entries its previous version produced. Hashing the schema alone would miss the case
-that matters — a changed URL behind an unchanged output shape. Because the whole
+that matters - a changed URL behind an unchanged output shape. Because the whole
 template is hashed, an edit of any kind orphans the old entries.
 
 **`keyInputs` matters more than the key.** Only some fields are inlined into the
 key expression, so a hashed-only input could be deleted by hand while the key still
-validated perfectly — collapsing every value that input distinguished onto one
+validated perfectly - collapsing every value that input distinguished onto one
 entry. Both are re-derived at admission.
 
 **On the `$` prefix.** It follows the convention CueX already uses for `$params` and
 `$returns`. A leading underscore would be the CUE idiom for "internal", but hidden
-fields are dropped from exported output and these must stay visible — GitOps diffs
+fields are dropped from exported output and these must stay visible - GitOps diffs
 them and admission re-derives them. `__` is reserved by CUE and does not compile.
 
 **Cardinality and sharing.** The keyed set determines the sharing boundary. A
@@ -433,8 +479,8 @@ every Application there; one also reading `context.appName` produces one per
 Application. Cross-application sharing is a natural consequence of key-based
 caching and is intentional.
 
-Caller identity — `componentName`, `traitType`, `stepName`, `policyName` and their
-types — is keyable, which is what makes a per-component source possible. A source
+Caller identity - `componentName`, `traitType`, `stepName`, `policyName` and their
+types - is keyable, which is what makes a per-component source possible. A source
 reading one of those is consumable only where that field exists; see
 [Where a source may be consumed](#where-a-source-may-be-consumed).
 
@@ -455,7 +501,7 @@ annotations:
 ```
 
 Only identity inputs are recorded. An entry is shared by every binding that
-resolves to it, so anything outside the identity — the consuming Application, say —
+resolves to it, so anything outside the identity - the consuming Application, say -
 differs between sharers, and recording it would describe whichever one wrote the
 entry first. Labels are selectable but constrained to 63 characters of a restricted
 alphabet, so only context values legal as both a label key and value become labels;
@@ -469,8 +515,8 @@ Configs (labelled Secrets in `vela-system`) are accessed through the `vela confi
 # List all cache entries for a SourceDefinition
 vela config list -t cluster-config-reader-a3f9c21b
 
-# Check Application status for per-source phase (Resolved / Stale / Pending / Failed)
-kubectl get application <name> -o jsonpath='{.status.services}'
+# Check per-source phase (Resolved / Stale / Failed / Unused), and who read each value
+vela status <name> --sources
 
 # Force a refresh: delete the cache entry - the controller will re-execute template: on next reconcile
 vela config delete cluster-config-reader-us-east-1
@@ -572,7 +618,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: Application
 spec:
   sources:
-    - name: cluster-info
+    - name: clusterInfo
       type: cluster-config-reader
       properties:
         cacheDuration: "1h"
@@ -581,15 +627,15 @@ spec:
     - name: api
       type: webservice
       properties:
-        region: '$(source["cluster-info"].region)'       # shorthand: <source>.<path>
-        accountId: '$(source["cluster-info"].accountId)'
+        region: '$(source.clusterInfo.region)'       # shorthand: <source>.<path>
+        accountId: '$(source.clusterInfo.accountId)'
         image: myapp:v1
 ```
 
 Supply a default when the field is optional and the target parameter is required:
 
 ```yaml
-        region: '$(*source["cluster-info"].region | "us-east-1")'
+        region: '$(has(source.clusterInfo.region) ? source.clusterInfo.region : "us-east-1")'
 ```
 
 The resulting Config (a labelled Secret in `vela-system`, keyed by `cluster-config-reader-us-east-1`). The YAML below shows the abstract Config model; the KEP-2.18 CRD will formalise this shape:
@@ -747,36 +793,106 @@ Because the source has no properties, it can be injected transparently; platform
 
 If the required label is absent, the `storage:` key interpolation produces an error at resolution time; the missing label surfaces as a fail-fast error on the Application status before any CueX I/O is attempted. This makes the labelling convention self-enforcing: an unlabelled Application cannot successfully render components that consume governance data.
 
+## Enablement: the delimiter problem
+
+`$( )` is not a free choice of delimiter. `$(VAR_NAME)` is Kubernetes' own syntax
+for a dependent environment variable, documented and ordinary in `env`, `command`
+and `args`. This repository contains an instance of it:
+`e2e/addon/mock/testdata/fluxcd/.../source-controller.yaml` passes
+`--storage-adv-addr=source-controller.$(RUNTIME_NAMESPACE).svc.cluster.local.`
+
+With the expression pass running, that value is read as an expression and the
+Application is refused, at admission and again at render. It fails loudly rather
+than rendering wrong, which is the right failure, but it is still a breaking
+change to every Application that uses the Kubernetes form. An installed base that
+has never heard of this feature must not have to escape anything.
+
+Alternatives considered: a different delimiter (`${ }` collides with shell,
+`{{ }}` with Helm and with every templating layer already wrapped around
+KubeVela); an escape-free grammar that only reads `$(source.` and `$(context.`
+prefixes (rejected because it makes the language's shape depend on what happens to
+be defined today, and a future root silently changes the meaning of stored
+Applications). Refusing to run at all until asked is the only option that leaves
+existing Applications untouched by construction.
+
+So two gates, giving three states:
+
+| State | `EnableCelExpressions` | `RequireCelExpressionOptIn` | Read |
+| --- | --- | --- | --- |
+| Off (default) | `false` | - | Nothing |
+| Opt-in | `true` | `true` (default) | Applications annotated `app.oam.dev/cel-expressions: "true"` |
+| On | `true` | `false` | Every Application |
+
+`ExpressionsEnabledFor` in `pkg/sources` is the single place that answers the
+question, so admission and render cannot disagree about whether an Application is
+in scope, which is the recurring shape of bug in this feature.
+
+**Named for CEL, not for sources.** `$(context.appName)` needs no SourceDefinition
+at all, so the gate and the annotation are named for the mechanism rather than for
+its first consumer. Sources are what made expressions worth having; they are not
+the boundary of what expressions will be used for.
+
+**Opt-in is per Application, not per namespace.** What is being opted in to is a
+new reading of the Application's own property values, and only its author knows
+whether any of them mean `$(VAR)` in the Kubernetes sense. A namespace-level
+switch would make one team's decision break another team's container.
+
+The migration path for an operator is therefore: enable the feature, let teams
+annotate as they audit their own properties, and only drop
+`RequireCelExpressionOptIn` once the fleet has been swept. Going straight to the
+third state re-reads every Application at once, and a break surfaces at some
+unrelated later admission looking like a regression in something else.
+
 ## Consuming a Source
 
-A property may be a CUE expression, delimited by `$( )`. That is the only
-consumption mechanism; the `fromSource` directive it replaced is gone, along with
-its `FromSource` and `SourceSelector` API types.
+A property may be a [CEL](https://github.com/google/cel-spec) expression, delimited
+by `$( )`. That is the only consumption mechanism; the `fromSource` directive it
+replaced is gone, along with its `FromSource` and `SourceSelector` API types.
 
 ```yaml
 image:      '$(source.catalog.image + ":1.25.0")'   # concatenation
-replicas:   '$(source.tenant.maxReplicas div 2)'    # integer arithmetic
+replicas:   '$(source.tenant.maxReplicas / 2)'      # integer arithmetic
 port:       '$(source.catalog.httpPort)'            # stays an int
 labels:     '$(source.catalog.standardLabels)'      # a struct, whole
-value:      '$(*source.registry.mirror | "none")'   # default
+value:      '$(has(source.registry.mirror) ? source.registry.mirror : "none")'
 value:      '$(context.appName + "." + context.namespace)'
 value:      'https://$(source.registry.host)/health'  # embedded in text
 ```
 
-`$$(` escapes the delimiter. A hyphenated binding needs the bracket form —
-`$(source["cluster-info"].region)` — because `source.cluster-info` would parse as
-subtraction.
+CEL was chosen over a purpose-built language because it is already the expression
+language of Kubernetes - CRD validation rules, admission policies, authorisation -
+so consumers largely know it, `k8s.io/apiserver/pkg/cel` was already a transitive
+dependency, and its checker gives a static result type without evaluating anything.
+The alternative was growing a bespoke grammar to cover ternaries, comparisons,
+string functions and iteration, each of which had to be specified, implemented and
+explained.
 
-Substitution happens before the consuming template runs. Resolution — the cache
-lookup and, on miss or expiry, `template:` execution — always completes first, so an
+The function set is CEL's standard library plus its Strings and Lists extensions:
+operators and macros (`has`, `all`, `exists`, `map`, `filter`), string handling
+(`split`, `join`, `replace`, `substring`, `trim`, `indexOf`, case conversion), list
+indexing and `slice`, and the `int`/`string`/`double`/`bool` conversions. Both
+extensions are pure and total, so the sandbox argument below is unchanged. `sort`
+and `distinct` need a newer cel-go than Kubernetes pins and are therefore absent.
+
+`$$(` escapes the delimiter.
+
+**A binding name must be a CEL identifier.** A binding is read as a field selection,
+so `source.cluster-info` parses as subtraction, and there is no bracket escape:
+`source` is an object type rather than a map, so `source.clusterInfo` does not
+compile either. Hyphenated names are therefore refused when the binding is declared
+- which reports the problem once, at the declaration, instead of as a compile
+failure inside every expression that reads it. Write `clusterInfo`.
+
+Substitution happens before the consuming template runs. Resolution - the cache
+lookup and, on miss or expiry, `template:` execution - always completes first, so an
 expression reads an already-resolved value, never an in-flight one. The expressions
 in a component's properties determine which sources are resolved during that
 component's reconcile, and in what order.
 
 **Why not a directive.** `fromSource` could *name* a value but not compute with one.
 Concatenating a tag onto an image, halving a granted quota, or building a hostname
-from two fields each required a bespoke `WorkflowStepDefinition` — written,
-installed and maintained per platform — or was hardcoded and left to drift. Two
+from two fields each required a bespoke `WorkflowStepDefinition` - written,
+installed and maintained per platform - or was hardcoded and left to drift. Two
 mechanisms also meant two enforcement paths, and they drifted: `fromSource` had a
 single list of where it resolved, expressions grew separate surface handling, and
 admission came to accept `$(context...)` in every policy while only some
@@ -785,36 +901,75 @@ substituted it.
 ### Type checking
 
 The expression is type-checked at admission against the parameter it feeds. The
-source's `schema:` is materialised into concrete sentinel values of the declared
-kinds, the expression is evaluated against those, and the resulting kind is compared
-with the consuming parameter's declared type. The schema supplies the types; the
-sentinel only makes the evaluator willing to run, because CUE will not compute on a
-non-concrete operand.
+source's `schema:` - a `cue.Value` - is translated into an
+`apiservercel.DeclType`, the expression is compiled against an environment holding
+one such type per binding, and CEL's `OutputType()` reports the result type. Nothing
+is evaluated: the type is a property of the expression and the declared schema, so
+no data has to exist at admission.
+
+The CUE schema remains the single contract. It is the definition author's
+declaration and the consumer's type check; the translation into CEL's type system is
+mechanical and invisible to both.
 
 | Written | Rejected at admission with |
 |---|---|
 | `port: '$(source.catalog.image)'` | *is string but component "webservice" parameter expects int* |
 | `image: '$(source.catalog.standardLabels)'` | *is object but … expects string* |
 | `image: '$(source.catalog.standardLabels)-x'` | *cannot be combined with text* |
-| `image: '$(source.registry.mirror)'` | *may be absent and feeds required … supply a default with `*… \| <fallback>`* |
-| `image: '$(source.registry.nope)'` | *not declared in the source's schema* |
-| `image: '$(parameter.image)'` | *unknown identifier "parameter"* |
+| `image: '$(source.registry.mirror)'` | *may be absent and feeds required … guard it with `has(…) ? … : <fallback>`* |
+| `image: '$(source.registry.nope)'` | *undefined field 'nope'* |
+| `image: '$(parameter.image)'` | *undeclared reference to 'parameter'* |
 
-Soundness requires that a result type be a function of its operands' types and never
-of their values, so the grammar is restricted — no conditionals, no comparisons, no
-function calls, and exactly one disjunction, the default. Anything whose type could
-depend on data that does not exist at admission is refused rather than typed by
-guess. That restriction is also what makes the sandbox enforceable.
+**Validation is two-phase, and the second is gated on the first.** Soundness comes
+first - expressions compile, their types fit the parameters they feed, sources are
+declared and ordered, names are unique, permissions hold - and rendering is
+attempted only when all of it passes.
 
-**Conditionals are out of scope by intent, not pending.** They could be made sound
-— require every branch to unify to one type and the result stays value-independent
-— but that is not the reason to leave them out. An expression's job is to surface a
-value and put it somewhere; deciding *what the platform does* belongs in the
-definitions, where CUE is unrestricted and the result is validated against a schema
-before anyone consumes it. Branching in an Application would move platform logic
-into the artefact least able to review it, and would do so one property at a time.
+| Phase | Answers | Cost |
+|---|---|---|
+| Soundness | is the Application well-formed? | static; no evaluation, no side effects |
+| Rendering | does it actually render? | generates the appfile, evaluates every template and trait, **resolves every source for real** |
 
-A definition author writes this, and the consumer reads a typed field:
+The gate exists because rendering was restating soundness failures in the
+evaluator's words and from a coarser field path: a type error reported precisely
+against `spec.components[0].properties.tags` reappeared as an opaque failure
+against `"schematic"`, so the same mistake was reported twice and the second
+telling was the worse one. It also stops an Application already known to be
+invalid from issuing whatever HTTP, git or Kubernetes reads its sources perform -
+admission-time resolution is real resolution.
+
+The cost is that a soundness failure hides a rendering failure until it is fixed.
+That is the usual compiler trade, and it is why the two phases are named: they
+answer different questions and only one of them can be answered cheaply.
+
+The last row is the sandbox: an environment declares exactly `source` and `context`,
+so any other identifier fails to compile. It needs no grammar restriction to
+enforce, and it holds inside a macro body, which is the one place an author could
+plausibly introduce a name.
+
+**Element types are compared too.** A CUE kind says only "list", so `list(string)`
+feeding a `[...int]` parameter would pass and fail at render - the failure this
+feature exists to prevent. CEL carries the element type, so the check is made on
+it. It judges collections only, and only where both sides are concrete: a struct,
+an untyped region and a `dyn` fail open, because a false rejection there is
+unfixable from the Application.
+
+**Conditionals are supported.** An earlier revision of this KEP excluded them, and
+the move to CEL reversed that. The exclusion rested on two arguments and CEL
+dissolved both.
+
+The soundness argument was mechanical: CUE has no conditional *expression* - `if` is
+a comprehension, so only the list-index idiom `[if c {a}, b][0]` parses as a value -
+and the checker materialised the schema into sentinels and evaluated once, so a
+conditional would branch on fake data and mistype. CEL's checker types a ternary
+statically and requires both arms to unify, so the result is value-independent by
+construction.
+
+The design argument was that an expression should surface a value, not decide what
+the platform does, and that branching in an Application moves platform logic into
+the artefact least able to review it. That remains sound as *guidance*, and
+definition authors should still put real decisions in the definition, where CUE is
+unrestricted and the output is validated against a schema:
 
 ```cue
 schema: {replicas: int}
@@ -824,15 +979,10 @@ output: {
 }
 ```
 
-Two mechanical notes for anyone revisiting this. CUE has no conditional
-*expression* — `if` is a comprehension, so `if c {a} else {b}` does not parse as a
-value; only the list-index idiom `[if c {a}, b][0]` does. And `TypeOf` materialises
-the schema into concrete sentinels and evaluates once, so a conditional would branch
-on fake data: `[if source.s.tier == "gold" {10}, "two"][0]` types as string at
-admission and produces an int at render. Supporting conditionals therefore means
-replacing evaluate-once with branch enumeration and unification, and collecting
-`References` from every branch so dependency ordering and `+sensitive` tracking do
-not under-approximate.
+But it was never worth a checker to enforce, and enforcing it is no longer possible
+anyway: the ternary is how CEL spells a guarded read of a possibly-absent value
+(`has(x) ? x : fallback`), so the construct has to be available. What was a
+restriction is now a convention.
 
 **Defaults are target-aware.** A default is required exactly when a possibly-absent
 read feeds a *required* parameter:
@@ -876,7 +1026,7 @@ substituted with nothing:
 
 "Policy" is three surfaces, not one, and only the rendering kind resolves sources.
 Only `spec.scope` on the `PolicyDefinition` distinguishes the scoped kind from the
-rendering kind — the type name looks identical — so every enforcement point looks it
+rendering kind - the type name looks identical - so every enforcement point looks it
 up rather than deciding for itself.
 
 **A source is further restricted by what it reads.** One keyed on
@@ -894,11 +1044,12 @@ silently resolving against the wrong identity somewhere else.
 
 **The component is the unit of consumption.** An expression resolves identically in a
 component's properties or in one of its traits': same context, same key, same entry.
-Traits have no separate identity in source resolution and their consumed sources are
-reported against the component in `status.services[]`.
+A trait has no separate identity in source resolution, so it is reported as a
+consumer named `<component>/<trait>` in `status.sources[].consumedBy` rather than as
+something a source resolves for on its own terms.
 
 Expressions are found structurally, at any depth within `properties`, including
-nested objects and array entries — a `k8s-objects` component whose parameter is an
+nested objects and array entries - a `k8s-objects` component whose parameter is an
 open list of open structs is substituted the same as any other.
 
 ### Validation summary
@@ -927,7 +1078,7 @@ A field that would not contribute to the key is *absent*, so it cannot be read e
 where admission is disabled. Reading anything else fails admission with one message:
 additional data reaches a source as a property instead. With the key covering what
 the template reads, the converse has to hold too, or a template could depend on a
-value the key ignores — reintroducing silent sharing through a different door.
+value the key ignores - reintroducing silent sharing through a different door.
 
 `context.name` is the `spec.sources[]` binding entry, not the consuming component,
 so it is stable on every surface. Because `context.name` means something different
@@ -936,10 +1087,10 @@ renders:
 
 | Render | Own | Inherited |
 |---|---|---|
-| component | `componentName`, `componentType` | — |
+| component | `componentName`, `componentType` | - |
 | trait | `traitType` | `componentName`, `componentType` |
-| workflow step | `stepName`, `stepType` | — |
-| policy | `policyName`, `policyType` | — |
+| workflow step | `stepName`, `stepType` | - |
+| policy | `policyName`, `policyType` | - |
 
 There is no `traitName`: `ApplicationTrait` carries only a `Type`, and inventing an
 instance name would recreate the ambiguity this removes.
@@ -972,7 +1123,7 @@ surfaces.component & <a real render context>
 
 Membership is pinned both ways: a field the render context carries must be placed in
 a group or in `excluded` with a `+reason` the loader requires at startup. Exclusion
-messages are derived, not prose — a field offered elsewhere reports *"available on:
+messages are derived, not prose - a field offered elsewhere reports *"available on:
 component, trait, workflow step"*.
 
 ## Resolution Scope: hub vs spoke
@@ -1030,23 +1181,61 @@ template: {
 
 ## Propagating a Re-resolved Value (opt-in)
 
-Resolution is demand-driven, but a value that has been re-resolved still has to reach the cluster. A component that is already healthy is not normally re-dispatched: change detection compares the component's properties against the previous revision, and an expression is *unchanged* by a new resolved value - the expression is the same text, only the value behind it moved. Left alone, a refreshed source would update the cache and never reach the workload.
+Resolution is demand-driven, but a value that has been re-resolved still has to reach the cluster. A
+succeeded workflow short-circuits, so nothing re-dispatches on its own and StateKeep goes on enforcing
+the manifest stored when the workflow last ran.
 
-This is therefore **opt-in per Application**, via annotations:
+This is **opt-in per binding**, on the binding itself:
 
-| Annotation | Value | Effect |
-|---|---|---|
-| `app.oam.dev/autoUpdateSources` | `"true"` or `"*"` | re-dispatch when any consumed source's resolved value changes |
-| `app.oam.dev/autoUpdateSources` | comma-separated source names | re-dispatch only when one of those sources changes |
-| `app.oam.dev/autoUpdate` | `"true"` | also enables source-change re-dispatch, as a side effect of its existing behaviour |
+```yaml
+spec:
+  sources:
+    - name: registry
+      type: configmap-local
+      autoUpdate: true       # a new image rolls out as soon as it is published
+    - name: flags
+      type: configmap-local
+      autoUpdate: false      # flags wait for a deliberate rollout
+    - name: cluster
+      type: cluster-lookup   # unset: the controller-wide default applies
+```
 
-Absent or empty, source-change re-dispatch is off and a refreshed value reaches the workload only when the component is re-rendered for some other reason.
+It sits on the binding rather than on the Application because it is a property of the data, not of the
+app. A registry address is worth picking up the moment it moves; a feature flag should wait for someone
+to decide; one Application routinely reads both. An unset field defers to the `EnableSourceAutoUpdate`
+feature gate, so a platform sets the fleet's posture and an Application disagrees per binding, in either
+direction.
 
-**How the change is detected.** Each dispatched workload is stamped with `source.oam.dev/resolved-hash`, a JSON map of source name to a hash of the values that source contributed to this component. On the next reconcile the freshly resolved values are hashed the same way and compared against the stamp; a source whose hash differs, and which the selector above has opted in, forces a re-dispatch. Hashing per source rather than over the whole set means an unrelated source refreshing does not churn the workload.
+**A `publishVersion` pin suppresses it.** An explicit pin is hard, and a source value changing must not
+move what is deployed until the pin is bumped - the rule a helmchart `valuesFrom` fingerprint already
+follows. Two external-data features answering the same question differently would make "pinned" mean
+one thing for one and something else for the other.
 
-**Why it is opt-in.** Re-dispatching on every resolved-value change turns any volatile source into a continuous rollout of everything consuming it. Whether that is desirable is a property of the application, not of the source, so the application declares it.
+**How the change is detected.** Each dispatched workload is stamped with `source.oam.dev/resolved-hash`,
+a per-source hash of the values that render actually consumed. A re-render whose hash differs from the
+live workload's re-dispatches; one that matches does not.
 
-**Cadence.** Re-dispatch cannot be faster than resolution, which is bounded by `storageTTL` and the in-memory cache TTL, and it is driven by the reconcile loop - so the effective update interval is the reconcile resync period or the TTL, whichever is longer. This is not a push mechanism; see [Caching Model](#caching-model), which still holds: nothing refreshes a value until a render asks for it.
+**Scope.** Components and traits only. A workflow step or a policy resolves its sources once, when it
+runs. Re-dispatching a component is safe in a way that re-running a step is not: a step may notify,
+approve or deploy, and repeating it because a ConfigMap changed is not something to do implicitly.
+
+**What a refresh must also do.** Re-dispatch changes desired state without minting an ApplicationRevision,
+which is the invariant garbage collection depends on: GC recycles whole ResourceTrackers, and a tracker
+retires only when a new revision supersedes it. A component whose rendered set shrank would therefore
+leave the difference tracked and running forever. The refresh path prunes what a component no longer
+renders, diffing against the tracker entries attributed to it. This is most visible when a resource name
+derives from source data - the rename dispatches a second object rather than updating the first - but any
+shrink in the rendered set leaks the same way.
+
+Pruning is all-or-nothing per component. A partial view of what a component renders would make a
+transient render error look like a deletion.
+
+**Why it is opt-in.** Re-dispatching on every resolved-value change turns any volatile source into a
+continuous deployment trigger, which is a decision an Application should make rather than inherit.
+
+**Cadence.** Re-dispatch cannot be faster than resolution, which is bounded by `storageTTL` and the
+reconcile interval. A short TTL with auto-update off means status shows a fresh value that no running
+workload has.
 
 ## ApplicationRevision Snapshot
 
@@ -1076,48 +1265,116 @@ The snapshot guarantees three properties that together make renders deterministi
 
 ## Application Status
 
-> **Implementation note (direction change):** The design below describes a first-class `phase` field (`Resolved` / `Pending` / `Failed` / `Stale`) on each source status entry. During implementation this was **not** carried into the shipped API. A dedicated `phase` enum duplicated information already available from the Application's condition/message surface without adding signal, so it was dropped. In its place, each source status entry carries an `expiresAt` timestamp (RFC3339) plus a human-readable `message`. Freshness and staleness are read from `expiresAt` (when the currently served value stops being trusted) and the `message` (which states, e.g., that a refresh failed and a stale value is being served); hard failures surface through the Application's normal error/condition reporting. The `phase:` values referenced throughout this section and the Practical Operations scenarios below should be read as *logical states* the operator can infer from `expiresAt` + `message`, not as a literal status field. The shipped status shape is: `{ name, type, config, expiresAt, message, properties, resolvedFields }`.
-
-Source consumption is reported per component in `status.services[]`, alongside each component's existing health and trait information. This placement is intentional: the status records what each component consumed and from which cache entry, not a global view of all source activity. Each component entry gains a `sources:` sub-field listing the sources it consumed, the Config object backing the resolution, and the field values that were injected (top-level `// +sensitive` fields redacted, all others shown in full regardless of type).
+Source consumption is reported **once per Application**, in `status.sources[]`. A binding is declared
+once in `spec.sources[]`, so whether it resolved, what backs it and when that expires are properties of
+the binding rather than of each component reading it.
 
 ```yaml
 status:
-  services:
-    - name: api
-      namespace: default
-      cluster: us-east-prod
-      healthy: true
-      sources:
-        - name: cluster-info              # matches spec.sources[].name
-          type: cluster-config-reader     # the SourceDefinition (spec.sources[].type)
-          phase: Resolved                 # Resolved | Pending | Failed | Stale
-          config: cluster-config-reader-us-east-prod   # backing cache entry - inspect with: vela config list
-          resolvedFields:
-            region:      us-east-1
-            environment: production
-            vpcId:       <redacted>       # // +sensitive
-            accountId:   <redacted>       # // +sensitive
-        - name: backstage-info
-          type: backstage-component       # the SourceDefinition (spec.sources[].type)
-          phase: Stale                    # template: refresh failed; prior data in use
-          config: backstage-component-my-api
-          resolvedFields:
-            name:        my-service
-            description: Handles inbound API traffic
-            team:        platform
-            tier:        tier-1
-            endpoints:                    
-              - us-east-1.backstage.internal
-              - eu-west-1.backstage.internal
+  sources:
+    - name: cluster-info
+      type: cluster-config-reader@v2   # the revision, where one was pinned
+      phase: Failed                    # worst across the instances below
+      autoUpdate: true
+      resolutions:
+        - storageKey: cluster-config-reader-eu-west-prod
+          clusters: [eu-west-prod]
+          phase: Resolved
+          expiresAt: "2026-08-19T16:30:00Z"
+        - storageKey: cluster-config-reader-us-east-prod
+          clusters: [us-east-prod]
+          phase: Failed
+          message: "dial tcp: i/o timeout"
+      consumedBy:
+        - definitionKind: component
+          name: api
+          type: webservice
+          cluster: eu-west-prod
+          namespace: default
+          values:
+            - property: image
+              sourceAttr: data.image
+              value: ghcr.io/acme/api:1.4.0
+        - definitionKind: workflowstep
+          name: notify
+          type: notification
+          values:
+            - property: slack.message
+              sourceAttr: data.channel
+              value: "#deploys"
 ```
 
-`phase` mirrors the resolution outcome for that source on that cluster:
-- `Resolved`: Config is fresh (`now - lastSyncAt < storageTTL`); value is current
-- `Stale`: TTL has expired; refresh attempt failed; prior value is being served (`onStaleFailure: use-stale`). The data being served was last successfully fetched at `lastSyncAt` on the backing Config object. The controller will re-attempt refresh on every subsequent reconcile until it succeeds or the source binding is removed.
-- `Pending`: first resolution in progress; no value available yet
-- `Failed`: first-load failure or refresh failed with `onStaleFailure: fail`; no prior value available; component render is blocked until the source becomes reachable
+**Resolutions are keyed by storage key, not by cluster.** The key is what a resolution is. A source
+keyed on `context.cluster` has an entry per cluster, each with its own expiry and its own state; one
+keyed on `context.componentName` has an entry per component inside a single cluster; one keyed on
+nothing has a single entry serving everything. Reporting a single `config` and `expiresAt` per binding
+named one of several arbitrarily, and keying the list by cluster would invent entries in the first case
+and collapse them in the third. The binding's own `phase` is the worst of its resolutions, so which
+cluster reconciled last cannot decide whether the Application looks healthy.
 
-`config` is the name of the backing Config. Operators can inspect it via `vela config list -t <definition>-<schema-hash>` or list all entries with `vela config list | grep <definition>`.
+| Phase | Means |
+|---|---|
+| `Resolved` | fetched, serving a current value |
+| `Stale` | a refresh failed and the previous value is still served. The Application works and its data has stopped moving |
+| `Failed` | could not be resolved |
+| `Unused` | declared but nothing reads it |
+
+**Consumption hangs off the source rather than off each consumer.** Not every consumer has somewhere to
+put it: a workflow step's status is `workflowv1alpha1.WorkflowStepStatus`, owned by the `kubevela/workflow`
+module, and that engine is deliberately unaware sources exist since properties are substituted before it
+ever sees them. Recording there would mean teaching another repository about a concept it was designed not
+to know. Inverting it also gives one place to answer both "did my data arrive" and "who used it".
+
+**A value records where it went, not only what it was.** `sourceAttr` is what was read, `property` is the
+consumer property that received it. A list rather than a map, because one attribute can feed several
+properties and one property can be assembled from several attributes - `host: "$(source.db.addr):$(source.db.port)"`
+is two values into one property, which a map cannot express.
+
+**Reads are attributed to the reader that made them.** A chained source resolves through the same resolver
+as the component that triggered it, so without this the component is credited with reads it never made and
+the chain is invisible.
+
+Values marked `// +sensitive`, and any path the binding's `statusPolicy` masks, are redacted wherever they
+appear - including inside a struct or list that was substituted whole, where a mark one level below the
+read would otherwise not match.
+
+### `statusPolicy`
+
+A definition author marks what is secret with `// +sensitive`; `statusPolicy` is how the *consuming*
+Application narrows what reaches its own status, for a value the author had no reason to consider secret
+but this Application does.
+
+```yaml
+spec:
+  sources:
+    - name: db
+      type: db-config
+      statusPolicy:
+        maskPaths: [password, "tls.key"]   # redacted to *** wherever they appear
+        exposeConsumedValues: false        # omit every value; the properties are still listed
+```
+
+| Field | Unset | Effect |
+|---|---|---|
+| `maskPaths` | mask nothing beyond `// +sensitive` | a path here, or anything beneath it, is replaced with `***` |
+| `exposeConsumedValues` | expose | `false` omits `values[].value` entirely, keeping `property` and `sourceAttr` |
+
+The two are independent, and unset is not the same as `false`. Masking one path narrows what is published;
+it does not ask for silence, so the fields not named stay visible. `exposeConsumedValues` is the blunt
+instrument for a source whose whole output is sensitive, where naming the paths would mean keeping a list
+in step with a schema that can change under you.
+
+Neither affects what a component *renders* - only what is reported. A masked value still reaches the
+workload; `status` is not the security boundary, RBAC on the `SourceDefinition` is.
+
+There is no per-component copy. `status.services[].sources` carried one, and everything in it was in
+`status.sources[].consumedBy` alongside the property each value landed in and where the component was
+placed, so it was strictly less information stored twice - and it multiplied by components and clusters,
+where this design is already closest to outgrowing an etcd object.
+
+**On the CLI.** `vela status` lists each binding with its instances and consumers; `vela status --sources`
+adds what each consumer took and where, with `--component` and `--cluster` filters and `-o yaml|json|jsonpath`
+for scripting.
 
 ## Practical Operations
 
@@ -1163,8 +1420,8 @@ This section describes runtime behavior at each stage of the cache lifecycle and
 
 **What to check:**
 ```bash
-kubectl get application <name> -o jsonpath='{.status.services}'  # phase: Stale, check error message
-vela config list | grep <definition>                              # check lastSyncAt to assess how stale
+vela status <name> --sources          # phase: Stale, with the message saying why
+vela config list | grep <definition>  # check lastSyncAt to assess how stale
 ```
 
 **How to respond:** Investigate why the data source is unreachable. The controller will refresh automatically on the next reconcile once it recovers. To force a refresh and drop the stale value (accepting that a subsequent failure will block the render):
@@ -1180,8 +1437,8 @@ vela config delete <cache-entry-name>
 
 **What to check:**
 ```bash
-kubectl get application <name> -o jsonpath='{.status.services}'  # phase: Failed, error message
-kubectl describe application <name>                               # events may include the raw error
+vela status <name> --sources         # phase: Failed, with the message saying why
+kubectl describe application <name>  # events may include the raw error
 ```
 
 ---
@@ -1194,16 +1451,16 @@ kubectl describe application <name>                               # events may i
 | List entries by schema version | `vela config list -t <definition>-<schema-hash>` |
 | Check the registered output schema | `vela config-template show <definition>-<schema-hash>` |
 | Force a cache refresh | `vela config delete <cache-entry-name>` |
-| Check per-source phase per component | `kubectl get application <name> -o jsonpath='{.status.services}'` |
+| Check per-source phase, and who read each value | `vela status <name> --sources` |
 
 ### Expected operational failures
 
 | Failure | `phase` | Likely cause | Resolution |
 |---|---|---|---|
-| Source never resolves on first apply | `Failed` | External endpoint unreachable, missing parameter, `errs:` check failing | Check `status.services` error; verify endpoint reachability and parameters |
+| Source never resolves on first apply | `Failed` | External endpoint unreachable, missing parameter, `errs:` check failing | Check the message in `vela status --sources`; verify endpoint reachability and parameters |
 | Source resolved initially, now `Stale` | `Stale` | Transient or persistent failure after a successful first fetch | Components render with stale data; investigate source; use `onStaleFailure: fail` if stale data is unacceptable |
 | Source path rejected at `kubectl apply` | Admission error | Expression path not in `schema:`, a missing default, a type mismatch, or no `get` permission on `SourceDefinition` | Check the admission error; verify the path is declared in `schema:` and a default is present where required |
-| Key computation fails | `Failed` | `storage:` interpolation references a label or parameter that is absent | Check `status.services` error; verify required Application labels or parameters are present |
+| Key computation fails | `Failed` | `storage:` interpolation references a label or parameter that is absent | Check the message in `vela status --sources`; verify required Application labels or parameters are present |
 
 ## Security
 
@@ -1215,20 +1472,28 @@ escape the schema"*. What holds it is structural rather than advisory:
 
 | Property | Enforced by |
 |---|---|
-| Only `source` and `context` are reachable; no `parameter`, no imports | Grammar walk over the parsed expression |
-| Only the surface's permitted roots and declared context fields | Per-surface context schema |
-| Only fields the source's `schema:` declares | Type check against the schema's sentinel |
-| No I/O, no provider calls, no function calls of any kind | Grammar walk |
-| The scope is built from Go data, never concatenated as CUE text | `buildScope` encodes via JSON |
+| Only `source` and `context` are reachable; no `parameter`, no imports | The CEL environment declares those two variables and nothing else |
+| Only the surface's permitted roots and declared context fields | Per-surface context schema, compiled into the environment |
+| Only fields the source's `schema:` declares | The schema's `DeclType`; an undeclared field fails to compile |
+| No I/O, no provider calls | CEL has no I/O, and no extension functions are registered |
+| The environment is built from Go data, never concatenated as CUE text | Types are constructed, and values encode via JSON |
 
-That last row is correctness, not style. Binding names and label keys come from the
+CEL narrowed this rather than widening it. The sandbox used to depend on a grammar
+walk refusing constructs - a check that has to enumerate everything unsafe and stays
+correct only while nothing is added. It now depends on what the environment
+*declares*, which is a closed list: an identifier that was not declared cannot
+compile, whatever it is. Function calls are the one deliberate relaxation, and only
+CEL's own built-ins, which are total, pure and have no access to anything outside
+their arguments.
+
+The last row is correctness, not style. Binding names and label keys come from the
 Application spec, so they are attacker-controlled if the author is hostile; a name
-like `a": {pwned: "yes"}, "b` concatenated into CUE source would inject fields into
-the scope, silently. Encoding the data means a name can only ever be a key. It has
-its own regression test.
+like `a": {pwned: "yes"}, "b` concatenated into CUE source would inject fields,
+silently. Constructing types and encoding values means a name can only ever be a
+key. It has its own regression test.
 
-An author can now construct a value the platform did not anticipate —
-`source.a.host + source.b.path` — from fields the platform did publish. The platform
+An author can now construct a value the platform did not anticipate -
+`source.a.host + source.b.path` - from fields the platform did publish. The platform
 still decides what exists and what is readable, and no longer decides what may be
 computed from it.
 
@@ -1254,7 +1519,7 @@ The following properties are enforced by the controller and do not require opera
 | Sensitive fields, and every field beneath them, are redacted from `status` and logs | Controller (`// +sensitive` marker in `schema:` or `output:`) |
 
 `// +sensitive` covers the field it names and every field beneath it, matched on
-path segments — `propertiesExtra` is a different field and is not covered. The
+path segments - `propertiesExtra` is a different field and is not covered. The
 marker can only be written where a schema declares a field, so a source exposing an
 open struct (`properties: _`) has nowhere to put one except on the struct itself;
 exact matching would redact a read of `properties` while publishing
@@ -1306,7 +1571,7 @@ The recommended pattern is to return a **reference** (the name of a Kubernetes S
 | **SourceDefinition exfiltrates data or makes unauthorized API calls** | Operator: RBAC restricting `SourceDefinition` authorship to platform engineers; network policy on the controller pod; CueX provider allowlists |
 | **Application author references a SourceDefinition they should not access** | Controller: `SubjectAccessReview` at admission; user must have `get` on the `SourceDefinition` in `vela-system` or the Application namespace |
 | **Application author reads fields beyond the declared schema** | Controller: Structural enforcement; expression paths are validated against `schema:` at admission; raw CueX state is never reachable |
-| **Sensitive values exposed in Application status or logs** | Controller: `// +sensitive` schema markers redact the entire field value in `status.services[].sources[].resolvedFields` and in all controller logs |
+| **Sensitive values exposed in Application status or logs** | Controller: `// +sensitive` schema markers redact the entire field value wherever it appears in `status.sources[]`, including inside a struct or list that was substituted whole, and in all controller logs |
 | **Sensitive values stored in hub API server** | Controller: Values are substituted at render time on the controller; they are never written to Application or Component specs; the only API-server copy is the Config in `vela-system` |
 | **Sensitive values accessible via vela-system** | Operator: `vela-system` RBAC must restrict access to platform operators; this namespace holds plaintext resolved values for `scope: spoke` definitions |
 | **Sensitive values appear in spoke resource manifests** | Definition author: Return references rather than raw values; the controller cannot prevent a definition from passing a resolved value through to a rendered resource |
@@ -1430,7 +1695,7 @@ Because resolved source outputs are stored as standard `Config` objects, any wor
 
 ## Future Enhancements
 
-- **~~Expressions in workflow steps and policies~~** — *closed.* Workflow steps
+- **~~Expressions in workflow steps and policies~~** - *closed.* Workflow steps
   resolve sources; a policy that renders resources does too. The two policy kinds
   that never render cannot, which is a property of those paths rather than a gap.
   The `context.name` hazard originally recorded here was closed by binding
@@ -1453,7 +1718,7 @@ an appendix; the reasoning that is not obvious from the result is under
 | A3 | Cache identity is a readable prefix plus a hash of every resolution input |
 | A4 | A source reads only the context that is part of its key |
 | A5 | Cache entries carry their identity as labels and annotations |
-| A6 | A property may be a CUE expression, type-checked against the parameter it feeds |
+| A6 | A property may be a CEL expression, type-checked against the parameter it feeds |
 | A7 | Expressions resolve on workflow steps, not just components and traits |
 | A8 | The author/platform boundary widened; a sandbox holds it rather than the absence of a language |
 | A9 | `// +sensitive` covers every field beneath the one it marks |
@@ -1462,8 +1727,20 @@ an appendix; the reasoning that is not obvious from the result is under
 | A12 | Context is declared once in CUE, per surface, and read by Go rather than restated |
 | A13 | A resource-rendering policy resolves sources; "policy" was one name for three surfaces |
 | A14 | A source may key on its caller's identity, which restricts where it can be consumed |
+| A15 | Expressions are CEL; the purpose-built expression engine is removed, and conditionals - previously excluded by A6 - are supported |
+| A16 | The Strings and Lists extensions are offered, and a collection's element type is checked against the parameter it feeds |
+| A17 | Validation is two-phase: rendering is attempted only when soundness passes |
+| A18 | Auto-update moves from an Application annotation to `spec.sources[].autoUpdate`, defaulted by a feature gate |
+| A19 | A `publishVersion` pin suppresses source-driven re-dispatch, as it already does a helmchart `valuesFrom` |
+| A20 | A refresh prunes what a component no longer renders; GC is tracker-level and cannot see it |
+| A21 | Source status moves to `status.sources[]`, once per binding rather than once per component |
+| A22 | A binding reports one resolution per storage key, not a single arbitrary one |
+| A23 | Consumption records the property each value landed in, and the reader that read it |
+| A24 | SourceDefinitions get DefinitionRevisions, so `type: my-source@v1` can be pinned |
+| A25 | `vela status` reports sources, with `--sources` for detail and `-o` for scripting |
 
 Nothing in this feature has shipped, so none of these carried compatibility debt.
+A15 changed authored syntax with nothing in the field to migrate.
 
 ## Implementation notes
 
@@ -1472,7 +1749,7 @@ by applying the shipped source library to a real cluster rather than by a unit
 suite, which is the strongest recurring argument in this list.
 
 **Two declarations of the same fact drift in both directions at once.** What an
-expression could read was declared in Go twice — once for admission, once for
+expression could read was declared in Go twice - once for admission, once for
 render. `context.appRevisionNum` passed the check and failed at render as an
 undefined field, while `context.policyName` was supplied at render and refused by
 the check. Neither table was neglected; both were maintained, and they still
@@ -1482,7 +1759,7 @@ disagreed. That is the argument for the registry being read rather than restated
 Admission permitted `$(context...)` in every policy while only Application-scoped
 policies substituted it. A `topology` policy reading `$(context.namespace)` was
 accepted at apply and failed at deploy with `namespaces "$(context.namespace)" not
-found` — the expression used verbatim as a name. Two enforcement points disagreeing
+found` - the expression used verbatim as a name. Two enforcement points disagreeing
 about a surface is the failure mode a single derived list exists to prevent.
 
 **A field that renders empty is worse than one that is absent.** `context.cluster`
@@ -1501,17 +1778,17 @@ workflow-step definition failed to compile, the check failed open, and it logged
 `ValidateComponentParams` validated *unresolved* params, so an expression reached
 CUE as literal text and collided with any non-string constraint. It only fires with
 `EnableCueValidation=true`, which defaults to false and was disabled in every local
-run and e2e setup — so the feature was built and tested with the one check that
+run and e2e setup - so the feature was built and tested with the one check that
 inspects raw params switched off. Reported by a user running with it on.
 
 **Schema lookup had never handled three shapes the library's own sources use.**
 Routing every read through one pass exposed `labels["platform.io/team"]` (a dotted
 key), `traits.scaler.healthy` (a key of an open map) and `properties.endpoint`
-(below an open field) — all ordinary reads, all rejected as undeclared. None was
+(below an open field) - all ordinary reads, all rejected as undeclared. None was
 caught by a unit suite.
 
 **A guard built before the case it guards is worth landing anyway.** Surface
-compatibility shipped while it could be proven inert — every keyable field existed
+compatibility shipped while it could be proven inert - every keyable field existed
 on every surface, so no definition could trip it. Adding caller identity to the
 keyed rules is what made it bite, and it worked, having been written and tested
 when there was nothing to break.
@@ -1521,6 +1798,65 @@ manifest carried a key that omitted a discriminating input, precisely because th
 field sat beside `storageTTL` and looked equally authorable. That is why generated
 fields moved to `$internal:` and why the key is inferred.
 
+
+
+**A registry written for one type system served another unchanged.** The context
+registry (A12) was built to stop two Go tables drifting. When the expression engine
+was replaced with CEL, it was the reason the swap was affordable: every context
+field and surface was already declared once, in CUE, so both type systems could be
+driven from it without an edit. The engine changed; the declaration did not. Making
+a fact readable rather than restated paid out in a way that was not foreseen when it
+was written.
+
+**CEL's checker does not model absence, so optionality is an AST property.**
+`source.cfg.note` on an optional field compiles cleanly as a string and fails at
+evaluation with "no such key". The rule that a possibly-absent read feeding a
+required parameter must be defended is therefore enforced by walking the checked AST
+for `has()` and `in` tests. Two rounds of adversarial questioning were needed to get
+it right: the first version accepted `has(other) ? note : x`, which defends nothing
+about `note`, and the second treated a read in a nested ternary's *condition* as
+guarded, though a condition is always evaluated. Both were found by being asked how
+resilient the analysis was - neither was reachable from the tests that existed,
+because those tests were written by the same reasoning that wrote the guard.
+
+**Replacing a language removes more than it adds.** The purpose-built engine - its
+own grammar, scope resolver, type checker and evaluator - came to about 1,490 lines
+and was queued to grow with every construct anyone asked for. The CEL engine
+replacing it is 1,451 lines including its tests, and the net change across the
+migration was +2,029 / −3,597. Interpolation needed no migration at all: `$( )`
+splitting is text handling, and was never part of the expression language.
+
+
+**A value that survived JSON stopped being an integer.** Resolved source values
+reach evaluation having been JSON-decoded, where every number is a float64 and the
+int/float distinction is gone. CEL has no mixed-numeric overloads, so
+`source.cfg.port + 1000` failed at render with "no such overload" - an error naming
+neither the field nor the cause - on an expression that type-checked cleanly at
+admission because the schema said `port: int`. The type system was right and the
+values had quietly stopped matching it.
+
+The fix belongs in `Eval`, not in its callers. It was first applied to `EvalTree`,
+which left the render-side resolver in `pkg/cue/definition` building its own input
+map and still failing; the symptom moved rather than went away, and only a second
+e2e run showed it. The same shape as the two-Go-tables drift the registry removed:
+when two paths construct the same thing, fixing one is indistinguishable from
+fixing both until something exercises the other.
+
+**Tests inherited from a replaced language test the replaced language.** The suite
+carried over from the CUE engine covered paths, defaults, concatenation and
+arithmetic, because that was the whole grammar. After the swap it passed 30/30
+while saying nothing about conditionals, comprehensions, string functions or
+element types - every one of which was now reachable. Three defects were sitting in
+that gap. A green suite is evidence about the code it was written for.
+
+
+**Accumulating every check's errors made the precise ones worth less.** Validation
+ran soundness and rendering and reported both, so a type error arrived alongside
+the render's restatement of it - the same mistake twice, and the second telling
+against `"schematic"` rather than the property that caused it. The fix was not a
+better message but an ordering: answer the cheap question first, and only ask the
+expensive one when the answer is yes. Admission-time source resolution is real
+resolution, so the expensive question also has consequences outside the cluster.
 
 ## Cross-KEP References
 

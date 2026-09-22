@@ -56,6 +56,12 @@ func TestDefinitionTypeMap(t *testing.T) {
 			expectedGVR:  WorkflowStepDefinitionGVR,
 			expectedKind: WorkflowStepDefinitionKind,
 		},
+		{
+			name:         "SourceDefinition",
+			defType:      reflect.TypeOf(SourceDefinition{}),
+			expectedGVR:  SourceDefinitionGVR,
+			expectedKind: SourceDefinitionKind,
+		},
 	}
 
 	for _, tt := range tests {
@@ -81,6 +87,7 @@ func TestDefinitionTypeMapCompleteness(t *testing.T) {
 		reflect.TypeOf(TraitDefinition{}),
 		reflect.TypeOf(PolicyDefinition{}),
 		reflect.TypeOf(WorkflowStepDefinition{}),
+		reflect.TypeOf(SourceDefinition{}),
 	}
 
 	assert.Equal(t, len(expectedTypes), len(DefinitionTypeMap), "DefinitionTypeMap should contain exactly %d entries", len(expectedTypes))
@@ -101,6 +108,7 @@ func TestDefinitionKindValues(t *testing.T) {
 		{TraitDefinition{}, "TraitDefinition"},
 		{PolicyDefinition{}, "PolicyDefinition"},
 		{WorkflowStepDefinition{}, "WorkflowStepDefinition"},
+		{SourceDefinition{}, "SourceDefinition"},
 	}
 
 	for _, tt := range tests {

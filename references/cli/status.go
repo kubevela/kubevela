@@ -161,6 +161,15 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 				return printMetrics(newClient, restConf, appName, namespace)
 			}
 
+			if showSources, err := cmd.Flags().GetBool("sources"); showSources && err == nil {
+				component, _ := cmd.Flags().GetString("component")
+				cluster, _ := cmd.Flags().GetString("cluster")
+				return printAppSources(newClient, namespace, appName, Filter{
+					Component: component,
+					Cluster:   cluster,
+				}, outputFormat, cmd.OutOrStdout())
+			}
+
 			if outputFormat != "" {
 				return printRawApplication(context.Background(), c, outputFormat, cmd.OutOrStdout(), namespace, appName)
 			}
@@ -179,8 +188,9 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	cmd.Flags().BoolP("pod", "", false, "show pod list of the application")
 	cmd.Flags().BoolVarP(&detail, "detail", "d", false, "display more details in the application like input/output data in context. Note that if you want to show the realtime details of application resources, please use it with --tree")
 	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details, must be used with --detail. Can be one of inline, wide, list, table, raw.")
-	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "raw Application output format. One of: (json, yaml, jsonpath)")
+	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "output format, also applies to --sources. One of: (json, yaml, jsonpath)")
 	cmd.Flags().BoolP("metrics", "m", false, "show resource quota and consumption metrics of the application")
+	cmd.Flags().BoolP("sources", "", false, "show what the application read from its declared sources, and which component, trait or workflow step used each value")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
 }
@@ -206,7 +216,13 @@ func printAppStatus(_ context.Context, c client.Client, ioStreams cmdutil.IOStre
 	if err := printWorkflowStatus(c, ioStreams, appName, namespace, detail); err != nil {
 		return err
 	}
-	return loopCheckStatus(c, ioStreams, appName, namespace)
+	if err := loopCheckStatus(c, ioStreams, appName, namespace); err != nil {
+		return err
+	}
+	// After Services: a source feeds components, so it reads as context for what
+	// is above it rather than as a preamble to the workflow.
+	printSourcesOverview(ioStreams, app)
+	return nil
 }
 
 func formatEndpoints(endpoints []types2.ServiceEndpoint) [][]string {
@@ -493,11 +509,10 @@ func getAppPhaseColor(appPhase commontypes.ApplicationPhase) *color.Color {
 }
 
 func getAppHealth(app *v1beta1.Application) bool {
-	// Terminal / unhealthy application phases must never report as healthy.
-	// This includes cases where no component services were recorded yet (e.g. CUE
-	// parameter errors fail the workflow before any service status is written).
-	// Previously empty Services made this function return true (vacuous truth),
-	// so `vela status` incorrectly showed Healthy: ✅ on workflowFailed apps.
+	// Terminal and unhealthy phases must never report as healthy, including when
+	// no component services were recorded - a CUE parameter error fails the
+	// workflow before any service status is written, and an empty Services list
+	// would otherwise be vacuously healthy.
 	switch app.Status.Phase {
 	case commontypes.ApplicationWorkflowFailed,
 		commontypes.ApplicationWorkflowTerminated,

@@ -304,8 +304,19 @@ func (r *Reconciler) applySecret(ctx context.Context, cfg *configv1alpha1.Config
 		if existing.UID != "" && !metav1.IsControlledBy(existing, cfg) {
 			return fmt.Errorf("secret %s/%s already exists and is not owned by this Config", existing.Namespace, existing.Name)
 		}
-		existing.Labels = secret.Labels
-		existing.Annotations = secret.Annotations
+		// Merge, not replace. The Secret is this Config's to reconcile, but not
+		// everything on it is this Config's to own: an operator labels it for
+		// cost allocation, another controller marks it, KubeVela's own source
+		// cache records what the entry is for. Replacing wholesale destroyed all
+		// of it within seconds of being written, with nothing to say why.
+		//
+		// Keys this Config sets - its own, plus whatever the template's output
+		// declares - are reconciled to the desired value. A key it dropped since
+		// the last pass is left behind rather than removed; erring towards
+		// keeping is the safe direction when the alternative deletes somebody
+		// else's metadata.
+		existing.Labels = mergeMeta(existing.Labels, secret.Labels)
+		existing.Annotations = mergeMeta(existing.Annotations, secret.Annotations)
 		existing.Data = secret.Data
 		existing.StringData = secret.StringData
 		existing.Type = secret.Type
@@ -313,6 +324,21 @@ func (r *Reconciler) applySecret(ctx context.Context, cfg *configv1alpha1.Config
 		return nil
 	})
 	return err
+}
+
+// mergeMeta layers desired keys over existing ones, leaving keys the caller does
+// not set untouched.
+func mergeMeta(existing, desired map[string]string) map[string]string {
+	if len(desired) == 0 {
+		return existing
+	}
+	if existing == nil {
+		existing = map[string]string{}
+	}
+	for key, value := range desired {
+		existing[key] = value
+	}
+	return existing
 }
 
 // applyOutputs applies the template.outputs objects, owned by the Config for GC on delete.

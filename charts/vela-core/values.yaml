@@ -160,6 +160,10 @@ optimize:
 ##@param featureGates.validateResourcesExist enable webhook validation to check if resource types referenced in definition templates exist in the cluster
 ##@param featureGates.enableApplicationScopedPolicies enable Application-scoped PolicyDefinitions that transform Application CR before rendering (Alpha)
 ##@param featureGates.enableGlobalPolicies enable automatic discovery and application of global PolicyDefinitions to all Applications (Alpha)
+##@param featureGates.enableSourceAutoUpdate default for spec.sources[].autoUpdate - re-dispatch components when a value they read from a SourceDefinition changes, for bindings that express no preference (Alpha)
+##@param featureGates.enableCelExpressions read $( ) property expressions, and with them SourceDefinition. Off by default because $(VAR_NAME) is Kubernetes' own env-var syntax and would be read as an expression (Alpha)
+##@param featureGates.requireCelExpressionOptIn while enableCelExpressions is on, read expressions only in Applications annotated app.oam.dev/cel-expressions=true, so enabling the feature is not a fleet-wide change (Alpha)
+##@param featureGates.validateUndeclaredParameters reject Application properties that the definition's parameter stanza does not declare (Alpha)
 ##@param featureGates.enableCueExpVariable inject the CUE_EXPERIMENT env var (evalv3=0,keepvalidators=0) into the controller to disable experimental CUE features during the v0.14.x migration window
 ##@param featureGates.enableAddonComponent enable installing an addon as an Application component via the type: addon ComponentDefinition (Alpha)
 ##@param
@@ -182,6 +186,10 @@ featureGates:
   validateResourcesExist: false
   enableApplicationScopedPolicies: false
   enableGlobalPolicies: false
+  enableSourceAutoUpdate: false
+  enableCelExpressions: false
+  requireCelExpressionOptIn: true
+  validateUndeclaredParameters: false
   enableCueExpVariable: true
   enableAddonComponent: false
 

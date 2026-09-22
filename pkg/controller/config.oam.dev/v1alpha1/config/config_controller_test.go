@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
+	apitypes "github.com/oam-dev/kubevela/apis/types"
 )
 
 const testCUETemplate = `
@@ -124,6 +125,51 @@ var _ = Describe("Config controller", func() {
 		var secret corev1.Secret
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cfg-fromsecret"}, &secret)).Should(Succeed())
 		Expect(string(secret.Data["username"])).Should(Equal("bob"))
+	})
+
+	// The Secret is the Config's to reconcile, but not everything on it is the
+	// Config's to own. An operator labels it for cost allocation, another
+	// controller marks it, KubeVela's own source cache records what an entry is
+	// for - and all of it was destroyed within seconds of being written, because
+	// the apply replaced labels and annotations wholesale rather than
+	// reconciling the keys it sets.
+	It("leaves labels and annotations it does not own alone", func() {
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "cfg-foreign-meta", Namespace: "default"},
+			Spec: configv1alpha1.ConfigSpec{
+				TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "tmpl-inline", Namespace: "default"},
+				Properties:  &runtime.RawExtension{Raw: []byte(`{"username":"bob"}`)},
+			},
+		}
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		var gotCfg configv1alpha1.Config
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseAvailable, &gotCfg)
+
+		key := client.ObjectKey{Namespace: "default", Name: "cfg-foreign-meta"}
+		var secret corev1.Secret
+		Expect(k8sClient.Get(ctx, key, &secret)).Should(Succeed())
+
+		// Somebody else's metadata, added after the Config materialised it.
+		secret.Labels["example.com/owner"] = "platform-team"
+		secret.Annotations["example.com/note"] = "do-not-delete"
+		Expect(k8sClient.Update(ctx, &secret)).Should(Succeed())
+
+		// Touch the Config so it reconciles over the Secret again.
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &gotCfg)).Should(Succeed())
+		gotCfg.Spec.Alias = "nudged"
+		Expect(k8sClient.Update(ctx, &gotCfg)).Should(Succeed())
+
+		Eventually(func(g Gomega) {
+			var after corev1.Secret
+			g.Expect(k8sClient.Get(ctx, key, &after)).Should(Succeed())
+			g.Expect(after.Annotations[apitypes.AnnotationConfigAlias]).Should(Equal("nudged"),
+				"precondition: the reconcile has run")
+			g.Expect(after.Labels).Should(HaveKeyWithValue("example.com/owner", "platform-team"))
+			g.Expect(after.Annotations).Should(HaveKeyWithValue("example.com/note", "do-not-delete"))
+			// What it does own is still reconciled.
+			g.Expect(after.Labels).Should(HaveKeyWithValue(apitypes.LabelConfigCatalog, apitypes.VelaCoreConfig))
+		}, 10*time.Second, 200*time.Millisecond).Should(Succeed())
 	})
 
 	It("rejects a Config with both properties and propertiesFrom set", func() {

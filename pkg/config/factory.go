@@ -40,6 +40,8 @@ import (
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -139,6 +141,12 @@ type Template struct {
 
 	Schema *openapi3.Schema `json:"schema"`
 
+	// Labels a caller wants on the written template, on top of the ones the
+	// factory sets itself. Carried here rather than stamped onto ConfigMap by
+	// the caller, so it reaches whichever object the factory writes - a
+	// ConfigTemplate read back from the CRD has no ConfigMap at all.
+	Labels map[string]string `json:"-"`
+
 	ConfigMap *v1.ConfigMap `json:"-"`
 }
 
@@ -164,6 +172,12 @@ type Config struct {
 	Metadata
 	CreateTime time.Time
 	Template   Template `json:"template"`
+	// Labels and Annotations a caller wants on the written config, on top of the
+	// ones the factory sets itself. Carried here rather than stamped onto Secret
+	// by the caller, for the reason Template.Labels is.
+	Labels      map[string]string `json:"-"`
+	Annotations map[string]string `json:"-"`
+
 	// Secret this is default output way.
 	Secret *v1.Secret `json:"secret"`
 
@@ -229,6 +243,10 @@ type Factory interface {
 
 	LoadTemplate(ctx context.Context, name, ns string) (*Template, error)
 	CreateOrUpdateConfigTemplate(ctx context.Context, ns string, it *Template) error
+	// CreateOrUpdateConfigTemplateCR writes the template as a ConfigTemplate CR.
+	// CreateOrUpdateConfigTemplate remains the legacy ConfigMap writer, which the
+	// CLI still selects in legacy mode.
+	CreateOrUpdateConfigTemplateCR(ctx context.Context, ns string, it *Template) error
 	DeleteTemplate(ctx context.Context, ns, name string) error
 	ListTemplates(ctx context.Context, ns, scope string) ([]*Template, error)
 
@@ -360,6 +378,7 @@ func (k *kubeConfigFactory) CreateOrUpdateConfigTemplate(ctx context.Context, ns
 	if ns != "" {
 		it.ConfigMap.Namespace = ns
 	}
+	applyTemplateLabels(it.ConfigMap, it.Labels)
 	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(it.ConfigMap)
 	if err != nil {
 		return fmt.Errorf("fail to convert configmap to unstructured: %w", err)
@@ -442,6 +461,42 @@ func (k *kubeConfigFactory) ListTemplates(ctx context.Context, ns, scope string)
 		}
 	}
 	return templates, nil
+}
+
+// applyTemplateLabels merges a caller's labels onto the written object, leaving
+// the factory's own labels alone. The factory owns catalog and scope; a caller
+// that set either would break the lookups keyed on them.
+func applyTemplateLabels(obj metav1.Object, labels map[string]string) {
+	if obj == nil || len(labels) == 0 {
+		return
+	}
+	existing := obj.GetLabels()
+	if existing == nil {
+		existing = map[string]string{}
+	}
+	for key, value := range labels {
+		if _, reserved := existing[key]; reserved {
+			continue
+		}
+		existing[key] = value
+	}
+	obj.SetLabels(existing)
+}
+
+// applyAnnotations merges a caller's annotations onto the written object,
+// leaving any the factory already set alone.
+func applyAnnotations(obj metav1.Object, annotations map[string]string) {
+	if obj == nil || len(annotations) == 0 {
+		return
+	}
+	existing := obj.GetAnnotations()
+	if existing == nil {
+		existing = map[string]string{}
+	}
+	for key, value := range annotations {
+		existing[key] = value
+	}
+	obj.SetAnnotations(existing)
 }
 
 // LoadTemplate load the template
@@ -665,7 +720,39 @@ func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name strin
 
 // CreateOrUpdateConfig create or update the config.
 // Write the expand config to the target server.
+// CreateOrUpdateConfigTemplateCR writes the template as a ConfigTemplate CR,
+// carrying the caller's labels onto it.
+//
+// Scope is narrowed the way the CLI narrows it: the legacy model carries free
+// strings such as "project", and only "system" has a distinct meaning on the CR.
+func (k *kubeConfigFactory) CreateOrUpdateConfigTemplateCR(ctx context.Context, ns string, it *Template) error {
+	if it == nil {
+		return nil
+	}
+	scope := configv1alpha1.ConfigTemplateScopeNamespace
+	if it.Scope == string(configv1alpha1.ConfigTemplateScopeSystem) {
+		scope = configv1alpha1.ConfigTemplateScopeSystem
+	}
+	ct := &configv1alpha1.ConfigTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: it.Name, Namespace: ns},
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, k.cli, ct, func() error {
+		applyTemplateLabels(ct, it.Labels)
+		ct.Spec = configv1alpha1.ConfigTemplateSpec{
+			Template:    string(it.Template),
+			Scope:       scope,
+			Sensitive:   it.Sensitive,
+			Alias:       it.Alias,
+			Description: it.Description,
+		}
+		return nil
+	})
+	return err
+}
+
 func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config, _ string) error {
+	applyTemplateLabels(i.Secret, i.Labels)
+	applyAnnotations(i.Secret, i.Annotations)
 	var secret v1.Secret
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: i.Namespace, Name: i.Name}, &secret); err == nil {
 		if secret.Labels[types.LabelConfigType] != i.Template.Name {

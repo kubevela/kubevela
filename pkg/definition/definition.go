@@ -48,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/definition/cachekey"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils"
@@ -70,6 +71,7 @@ const (
 	traitDefType        = "trait"
 	policyDefType       = "policy"
 	workflowStepDefType = "workflow-step"
+	sourceDefType       = "source"
 	workloadDefType     = "workload"
 )
 
@@ -83,6 +85,7 @@ var (
 		policyDefType:       v1beta1.PolicyDefinitionKind,
 		workloadDefType:     v1beta1.WorkloadDefinitionKind,
 		workflowStepDefType: v1beta1.WorkflowStepDefinitionKind,
+		sourceDefType:       v1beta1.SourceDefinitionKind,
 	}
 	// StringToDefinitionType converts user input to DefinitionType used in DefinitionRevisions
 	StringToDefinitionType = map[string]common.DefinitionType{
@@ -94,6 +97,8 @@ var (
 		policyDefType: common.PolicyType,
 		// workflow-step
 		workflowStepDefType: common.WorkflowStepType,
+		// source
+		sourceDefType: common.SourceType,
 	}
 	// DefinitionKindToNameLabel records DefinitionRevision types and labels to search its name
 	DefinitionKindToNameLabel = map[common.DefinitionType]string{
@@ -101,6 +106,7 @@ var (
 		common.TraitType:        oam.LabelTraitDefinitionName,
 		common.PolicyType:       oam.LabelPolicyDefinitionName,
 		common.WorkflowStepType: oam.LabelWorkflowStepDefinitionName,
+		common.SourceType:       oam.LabelSourceDefinitionName,
 	}
 	// DefinitionKindToType maps the definition kinds to a shorter type
 	DefinitionKindToType = map[string]string{
@@ -109,6 +115,7 @@ var (
 		v1beta1.PolicyDefinitionKind:       policyDefType,
 		v1beta1.WorkloadDefinitionKind:     workloadDefType,
 		v1beta1.WorkflowStepDefinitionKind: workflowStepDefType,
+		v1beta1.SourceDefinitionKind:       sourceDefType,
 	}
 )
 
@@ -364,6 +371,20 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 			}
 		}
 	}
+	// A SourceDefinition's cache key is generated, not authored: infer it from the
+	// context the template reads and write it into storage.key, recording which
+	// rules were used so the same ones validate it later. Doing this here rather
+	// than in a command covers every path that builds a definition from CUE.
+	if def.GetType() == sourceDefType {
+		stamped, rules, err := cachekey.Stamp(def.GetName(), templateString)
+		if err != nil {
+			return fmt.Errorf("deriving the cache key for SourceDefinition %s: %w", def.GetName(), err)
+		}
+		templateString = stamped
+		annotations[cachekey.RulesAnnotation] = rules.Hash
+		annotations[cachekey.RulesVersionAnnotation] = rules.Version
+	}
+
 	def.SetAnnotations(annotations)
 	def.SetLabels(labels)
 	if err := unstructured.SetNestedField(spec, templateString, DefinitionTemplateKeys[1:]...); err != nil {
@@ -391,6 +412,8 @@ func validateSpec(spec map[string]interface{}, t string) error {
 		tpl = &v1beta1.PolicyDefinitionSpec{}
 	case workflowStepDefType:
 		tpl = &v1beta1.WorkflowStepDefinitionSpec{}
+	case sourceDefType:
+		tpl = &v1beta1.SourceDefinitionSpec{}
 	default:
 	}
 	if tpl != nil {
@@ -622,6 +645,8 @@ func GetDefinitionFromDefinitionRevision(rev *v1beta1.DefinitionRevision) (*Defi
 		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.PolicyDefinition)
 	case common.WorkflowStepType:
 		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.WorkflowStepDefinition)
+	case common.SourceType:
+		u, err = runtime.DefaultUnstructuredConverter.ToUnstructured(&rev.Spec.SourceDefinition)
 	default:
 		return nil, fmt.Errorf("unsupported definition type: %s", rev.Spec.DefinitionType)
 	}

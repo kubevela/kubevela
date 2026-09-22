@@ -200,6 +200,130 @@ type ApplicationTraitStatus struct {
 	Message string            `json:"message,omitempty"`
 }
 
+// ApplicationSourceStatus records source resolution status.
+type ApplicationSourceStatus struct {
+	// Name is the spec.sources[] binding this reports on.
+	Name string `json:"name"`
+	// Type is the SourceDefinition that resolved it, carrying the pinned revision
+	// where one was requested, e.g. "configmap@v2".
+	Type string `json:"type,omitempty"`
+	// Phase is Resolved, Stale, Failed or Unused. Stale means a refresh failed and
+	// the previous value is still being served, which is a working Application
+	// with data that has stopped moving - the case a bare healthy/unhealthy cannot
+	// express.
+	Phase string `json:"phase,omitempty"`
+	// Resolutions are the cache entries backing this binding.
+	//
+	// More than one when the binding's cache key varies by something that varies -
+	// most often the cluster, since a source keying on context.cluster resolves
+	// separately in each. Collapsing them into a single config and expiry meant
+	// status named one entry when there were three, and named it arbitrarily.
+	// +optional
+	Resolutions []SourceResolution `json:"resolutions,omitempty"`
+	// AutoUpdate reports whether a change to this binding re-dispatches the
+	// components reading it, after the feature gate, the binding's own setting and
+	// any publishVersion pin have all been resolved. When it is false and the
+	// binding asked for true, Message says which of them won.
+	// +optional
+	AutoUpdate *bool `json:"autoUpdate,omitempty"`
+	// Message explains a result about the binding as a whole - most often why
+	// AutoUpdate is false on a binding that asked for true. A failure to resolve
+	// belongs to the entry that failed, and is reported on that Resolution.
+	Message string `json:"message,omitempty"`
+	// ConsumedBy records who read this source and what each of them got.
+	//
+	// Consumption hangs off the source rather than off each consumer because the
+	// consumers do not all have somewhere to put it: a workflow step's status is
+	// workflowv1alpha1.WorkflowStepStatus, owned by the workflow repo, and that
+	// engine is deliberately unaware sources exist - properties are substituted
+	// before it ever sees them.
+	// +optional
+	ConsumedBy []SourceConsumer `json:"consumedBy,omitempty"`
+}
+
+// SourceConsumer records one reader of a source and the values it received.
+type SourceConsumer struct {
+	// DefinitionKind is the kind of definition that read it: component, trait,
+	// workflowstep or policy.
+	DefinitionKind string `json:"definitionKind"`
+	// Name identifies the reader within its kind - the component, the step, the
+	// policy. A trait is named "<component>/<trait>", since a trait has no
+	// identity apart from the component it is attached to.
+	Name string `json:"name"`
+	// Type is the reader's own definition type, e.g. "webservice", so a reader can
+	// be understood without cross-referencing the spec.
+	// +optional
+	Type string `json:"type,omitempty"`
+	// Cluster and Namespace place the read. The same binding resolves separately
+	// per cluster when its cache key varies by one, so two entries here may
+	// legitimately hold different values, and an override policy can put the same
+	// component in two namespaces of one cluster.
+	// +optional
+	Cluster string `json:"cluster,omitempty"`
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+	// Values are what this reader took, each saying which source attribute was
+	// read and which of the reader's properties received it. A list rather than a
+	// map because one source attribute can feed several properties, and one
+	// property can be assembled from several attributes -
+	// "host: $(source.db.addr):$(source.db.port)" is two values into one
+	// property, which a map cannot express.
+	//
+	// Attributes the definition marks sensitive, and any the binding's
+	// statusPolicy masks, are redacted here exactly as they are elsewhere.
+	// +optional
+	Values []SourceValue `json:"values,omitempty"`
+}
+
+// SourceResolution is one stored entry backing a binding, and the state of it.
+//
+// Keyed by the storage key rather than by cluster because the key is what a
+// resolution is. A source keyed on the cluster has an entry per cluster; one
+// keyed on the component has an entry per component within a single cluster; one
+// keyed on nothing has a single entry serving everything. Cluster is only ever
+// one of the things a key may vary by.
+type SourceResolution struct {
+	// StorageKey identifies the entry, and is the name of the object holding it -
+	// inspect that directly to see when it last synced. Named for the storage.key
+	// a SourceDefinition author writes and vela def show reports, rather than for
+	// the store it happens to live in.
+	StorageKey string `json:"storageKey,omitempty"`
+	// Clusters this entry served, as context. Not the identity: a cache key may
+	// vary by namespace, appName, componentName or a label just as readily as by
+	// cluster, so two entries can serve one cluster and one entry can serve
+	// several.
+	// +optional
+	Clusters []string `json:"clusters,omitempty"`
+	// Phase is Resolved, Stale or Failed for this entry specifically. The binding's
+	// own Phase is the worst of these.
+	Phase string `json:"phase,omitempty"`
+	// ExpiresAt is the RFC3339 timestamp when this entry's value expires.
+	// +optional
+	ExpiresAt string `json:"expiresAt,omitempty"`
+	// Message carries the failure when this entry is Failed or Stale.
+	// +optional
+	Message string `json:"message,omitempty"`
+}
+
+// SourceValue is one value taken from a source: what was read and where it went.
+type SourceValue struct {
+	// SourceAttr is the attribute of the source that was read, e.g. "data.image".
+	SourceAttr string `json:"sourceAttr"`
+	// Property is the reader's property that received it, e.g. "image" or
+	// "env[0].value".
+	// +optional
+	Property string `json:"property,omitempty"`
+	// Value is what was read, redacted where the attribute is sensitive or masked.
+	//
+	// Schemaless because a source value is whatever the source returns - a string,
+	// a number, a list, a struct. RawExtension alone generates "type: object",
+	// which rejects every scalar and takes the whole status write down with it.
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +optional
+	Value *runtime.RawExtension `json:"value,omitempty"`
+}
+
 // Revision has name and revision number
 type Revision struct {
 	Name     string `json:"name"`
@@ -287,6 +411,15 @@ type AppStatus struct {
 	// +optional
 	ApplicationPoliciesConfigMap string `json:"applicationPoliciesConfigMap,omitempty"`
 
+	// Sources reports each spec.sources[] binding: whether it resolved, what
+	// backs it, when that expires, whether it auto-updates, and who read it.
+	//
+	// Application-level because a binding is declared once for the whole
+	// Application. The per-component list under Services says only what that
+	// component consumed.
+	// +optional
+	Sources []ApplicationSourceStatus `json:"sources,omitempty"`
+
 	// PolicyStatus records the status of policy
 	// Deprecated This field is only used by EnvBinding Policy which is deprecated.
 	PolicyStatus []PolicyStatus `json:"policy,omitempty"`
@@ -323,7 +456,7 @@ type WorkflowStatus struct {
 }
 
 // DefinitionType describes the type of DefinitionRevision.
-// +kubebuilder:validation:Enum=Component;Trait;Policy;WorkflowStep
+// +kubebuilder:validation:Enum=Component;Trait;Policy;WorkflowStep;Source
 type DefinitionType string
 
 const (
@@ -338,6 +471,8 @@ const (
 
 	// WorkflowStepType represents DefinitionRevision refer to type WorkflowStepDefinition
 	WorkflowStepType DefinitionType = "WorkflowStep"
+	// SourceType represents DefinitionRevision refer to type SourceDefinition
+	SourceType DefinitionType = "Source"
 )
 
 // ApplicationTrait defines the trait of application

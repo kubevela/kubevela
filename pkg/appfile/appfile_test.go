@@ -19,8 +19,11 @@ package appfile
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/oam-dev/kubevela/pkg/sources"
 
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
@@ -50,6 +53,7 @@ import (
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -1760,6 +1764,284 @@ func TestGeneratePolicyManifests(t *testing.T) {
 	assert.True(t, found)
 	assert.Equal(t, "test-value", data["key"])
 }
+
+func TestExtractSensitiveOutputPaths(t *testing.T) {
+	paths := sources.ExtractSensitiveOutputPaths(`
+output: {
+  // +sensitive
+  token: string
+  nested: {
+    // +sensitive
+    password: string
+    visible: string
+  }
+}
+`)
+	assert.ElementsMatch(t, []string{"token", "nested.password"}, paths)
+}
+
+// KEP-2.16 documents `// +sensitive` as a schema: marker and places it there in
+// its examples, but the first implementation only read output:. A definition
+// written to the KEP must still redact.
+
+// KEP-2.16 documents `// +sensitive` as a schema: marker and places it there in
+// its examples, but the first implementation only read output:. A definition
+// written to the KEP must still redact.
+func TestExtractSensitiveOutputPathsFromSchema(t *testing.T) {
+	paths := sources.ExtractSensitiveOutputPaths(`
+schema: {
+  region: string
+  // +sensitive
+  vpcId: string
+  // +sensitive
+  accountId: string
+}
+output: {
+  region:    "us-east-1"
+  vpcId:     "vpc-123"
+  accountId: "123456789012"
+}
+`)
+	assert.ElementsMatch(t, []string{"vpcId", "accountId"}, paths)
+}
+
+func TestExtractSensitiveOutputPathsMergesBothBlocks(t *testing.T) {
+	paths := sources.ExtractSensitiveOutputPaths(`
+schema: {
+  // +sensitive
+  token: string
+  secret: string
+}
+output: {
+  token: "t"
+  // +sensitive
+  secret: "s"
+}
+`)
+	// Marked in either block, reported once each.
+	assert.ElementsMatch(t, []string{"token", "secret"}, paths)
+}
+
+func TestExtractSensitiveOutputPathsDeduplicates(t *testing.T) {
+	paths := sources.ExtractSensitiveOutputPaths(`
+schema: {
+  // +sensitive
+  token: string
+}
+output: {
+  // +sensitive
+  token: "t"
+}
+`)
+	assert.Equal(t, []string{"token"}, paths)
+}
+
+// A rendered policy's context must carry its own identity.
+//
+// Its context is component-shaped because it is built the same way, but no
+// component identity is pushed - so a policy asking which policy it is had no
+// answer beyond context.name, which means something different at every call site.
+// The registry declares policyName and policyType on the policy-rendered surface;
+// this is the render side of that promise.
+
+// A rendered policy's context must carry its own identity.
+//
+// Its context is component-shaped because it is built the same way, but no
+// component identity is pushed - so a policy asking which policy it is had no
+// answer beyond context.name, which means something different at every call site.
+// The registry declares policyName and policyType on the policy-rendered surface;
+// this is the render side of that promise.
+func TestPolicyRenderSuppliesPolicyIdentity(t *testing.T) {
+	af := &Appfile{
+		Name:            "test-app",
+		Namespace:       "test-ns",
+		AppRevisionName: "test-app-v1",
+		ParsedPolicies: []*Component{
+			{
+				Name:   "pin-image",
+				Type:   "image-pin",
+				Params: map[string]interface{}{},
+				engine: definition.NewPolicyAbstractEngine("pin-image"),
+				FullTemplate: &Template{TemplateStr: `
+					output: {
+						apiVersion: "v1"
+						kind:       "ConfigMap"
+						metadata: name: context.name
+						data: {
+							policy: context.policyName
+							kind:   context.policyType
+							app:    context.appName
+						}
+					}
+					parameter: {}
+				`},
+			},
+		},
+	}
+
+	manifests, err := af.GeneratePolicyManifests(context.Background(), nil)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(manifests))
+
+	data, found, err := unstructured.NestedStringMap(manifests[0].Object, "data")
+	assert.NoError(t, err)
+	assert.True(t, found)
+	assert.Equal(t, "pin-image", data["policy"], "context.policyName should name the policy")
+	assert.Equal(t, "image-pin", data["kind"], "context.policyType should name its definition")
+	assert.Equal(t, "test-app", data["app"])
+}
+
+// And the parse-time pass must leave a rendered policy's expressions alone.
+//
+// Both passes substitute context. If the appfile-time one also handled a rendered
+// policy, the substitution would happen twice - and worse, it would refuse the
+// `source` reads the render can satisfy, because that pass has no resolver.
+
+// And the parse-time pass must leave a rendered policy's expressions alone.
+//
+// Both passes substitute context. If the appfile-time one also handled a rendered
+// policy, the substitution would happen twice - and worse, it would refuse the
+// `source` reads the render can satisfy, because that pass has no resolver.
+func TestParseTimeSubstitutionSkipsRenderedPolicies(t *testing.T) {
+	for _, tc := range []struct {
+		policyType string
+		builtin    bool
+	}{
+		{"override", true},
+		{"topology", true},
+		{"garbage-collect", true},
+		{"image-pin", false},
+		{"my-custom-policy", false},
+	} {
+		if got := IsBuiltinPolicyType(tc.policyType); got != tc.builtin {
+			t.Errorf("%s: consumed-not-rendered = %v, want %v", tc.policyType, got, tc.builtin)
+		}
+	}
+}
+
+// Every field the policy-rendered surface declares must survive a real policy
+// render, with a value.
+//
+// Membership alone is not enough, which is the lesson that produced this test:
+// context.cluster was declared on that surface and rendered as "" - present,
+// typed, and permanently meaningless, because GenerateContextDataFromAppFile
+// never assigns ctxData.Cluster and a policy's manifests are produced once for
+// the Application rather than per placement. On a live cluster a component read
+// "local" while the policy beside it read "". A field that always renders empty
+// is worse than an absent one: admission accepts it and the author gets nothing.
+//
+// So this renders a template that reads every declared field and asserts each
+// arrives with the value the fixture set. A field added to the surface but not
+// supplied fails here rather than against a cluster.
+
+// Every field the policy-rendered surface declares must survive a real policy
+// render, with a value.
+//
+// Membership alone is not enough, which is the lesson that produced this test:
+// context.cluster was declared on that surface and rendered as "" - present,
+// typed, and permanently meaningless, because GenerateContextDataFromAppFile
+// never assigns ctxData.Cluster and a policy's manifests are produced once for
+// the Application rather than per placement. On a live cluster a component read
+// "local" while the policy beside it read "". A field that always renders empty
+// is worse than an absent one: admission accepts it and the author gets nothing.
+//
+// So this renders a template that reads every declared field and asserts each
+// arrives with the value the fixture set. A field added to the surface but not
+// supplied fails here rather than against a cluster.
+func TestRenderedPolicySurfaceMatchesTheRender(t *testing.T) {
+	readable := propexpr.RenderedPolicyContext.ReadableFields()
+	assert.NotEmpty(t, readable)
+
+	// clusterVersion reaches the render from this global, populated when vela-core
+	// starts and so zero in a unit test. Set it for the same reason the
+	// annotations are set below - so an empty result means the path dropped the
+	// field. Against a live cluster this rendered major "1".
+	saved := oamtypes.ControlPlaneClusterVersion
+	oamtypes.ControlPlaneClusterVersion = oamtypes.ClusterVersion{Major: "1", Minor: "31", GitVersion: "v1.31.0", Platform: "linux/arm64"}
+	defer func() { oamtypes.ControlPlaneClusterVersion = saved }()
+
+	// custom is `_` - published by a scoped policy, absent unless one ran - and
+	// clusterVersion is a struct, so both are read a level down rather than
+	// whole. appLabels and appAnnotations are maps, read by key.
+	structured := map[string]string{
+		"clusterVersion": "clusterVersion.major",
+		"appLabels":      `appLabels["team"]`,
+		"appAnnotations": `appAnnotations["owner"]`,
+	}
+	skip := map[string]bool{"custom": true}
+
+	var lines []string
+	var expected []string
+	for _, f := range readable {
+		if skip[f] {
+			continue
+		}
+		read := f
+		if alt, ok := structured[f]; ok {
+			read = alt
+		}
+		lines = append(lines, fmt.Sprintf("\t\t\t%q: \"\\(context.%s)\"", f, read))
+		expected = append(expected, f)
+	}
+
+	af := &Appfile{
+		Name:            "drift-app",
+		Namespace:       "drift-ns",
+		AppRevisionName: "drift-app-v3",
+		AppLabels:       map[string]string{"team": "platform"},
+		// publishVersion and workflowName reach the render from annotations, and
+		// clusterVersion from the control-plane default, so the fixture supplies
+		// all three. An empty result then means the render path dropped the field,
+		// not that the fixture never set it.
+		AppAnnotations: map[string]string{
+			"owner":                      "sre",
+			oam.AnnotationPublishVersion: "v3",
+			oam.AnnotationWorkflowName:   "deploy",
+		},
+		ParsedPolicies: []*Component{
+			{
+				Name:   "surface-probe",
+				Type:   "probe-policy",
+				Params: map[string]interface{}{},
+				engine: definition.NewPolicyAbstractEngine("surface-probe"),
+				FullTemplate: &Template{TemplateStr: fmt.Sprintf(`
+					output: {
+						apiVersion: "v1"
+						kind:       "ConfigMap"
+						metadata: name: context.name
+						data: {
+%s
+						}
+					}
+					parameter: {}
+				`, strings.Join(lines, "\n"))},
+			},
+		},
+	}
+
+	manifests, err := af.GeneratePolicyManifests(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("a policy reading every field its surface declares failed to render: %v", err)
+	}
+	data, found, err := unstructured.NestedStringMap(manifests[0].Object, "data")
+	assert.NoError(t, err)
+	assert.True(t, found)
+
+	for _, f := range expected {
+		got, ok := data[f]
+		if !ok {
+			t.Errorf("the policy-rendered surface declares context.%s, but the render did not produce it", f)
+			continue
+		}
+		if got == "" {
+			t.Errorf("the policy-rendered surface declares context.%s, but it renders empty. "+
+				"Either the render path should supply it, or it should be removed from the "+
+				"policy-rendered surface in pkg/definition/propexpr/context.cue - an always-empty "+
+				"field type-checks at admission and tells the author nothing", f)
+		}
+	}
+}
+
 func TestPropagatePodDisruptiveHash(t *testing.T) {
 	deploymentWithTemplate := func() *unstructured.Unstructured {
 		return &unstructured.Unstructured{

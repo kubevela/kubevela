@@ -543,7 +543,14 @@ func createGitlabHelper(content *utils.Content, token string) (*gitlabHelper, er
 
 // readRepo will read relative path (relative to Meta.Path)
 func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
-	file, items, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.GithubContent.Owner, h.Meta.GithubContent.Repo, path.Join(h.Meta.GithubContent.Path, relativePath), nil)
+	// Honour the ref the registry URL pinned. Parse fills GithubContent.Ref from
+	// the /tree/<branch>/ form; without it a registry pointing at a branch would
+	// read the repository's default one.
+	var opts *github.RepositoryContentGetOptions
+	if ref := h.Meta.GithubContent.Ref; ref != "" {
+		opts = &github.RepositoryContentGetOptions{Ref: ref}
+	}
+	file, items, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.GithubContent.Owner, h.Meta.GithubContent.Repo, path.Join(h.Meta.GithubContent.Path, relativePath), opts)
 	if err != nil {
 		return nil, nil, WrapErrRateLimit(err)
 	}
@@ -580,6 +587,17 @@ func (c *Client) GetGiteeContents(ctx context.Context, owner, repo, path, ref st
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, nil, err
+	}
+	// Check the status before unmarshalling. Gitee answers a missing path with
+	// a JSON error document, and every field of RepositoryContent is optional,
+	// so it unmarshals cleanly into an empty file rather than failing - the
+	// caller then sees a file that exists and is blank.
+	if code := response.StatusCode; code < 200 || code > 299 {
+		if code == http.StatusNotFound {
+			return nil, nil, fmt.Errorf("reading %q from gitee: %w", path, ErrFileNotFound)
+		}
+		return nil, nil, fmt.Errorf("reading %q from gitee: unexpected status %d: %s",
+			path, code, strings.TrimSpace(string(body)))
 	}
 	return unmarshalToContent(body)
 }
