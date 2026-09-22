@@ -681,3 +681,24 @@ func ContainerStateToString(state corev1.ContainerState) string {
 		return "Unknown"
 	}
 }
+
+// DefinitionRestrictions limits where a definition may be used. Absent or empty
+// means it is usable anywhere.
+//
+// The fields are alternatives: a namespace is allowed if it matches Namespaces or
+// NamespaceSelector.
+type DefinitionRestrictions struct {
+	// Namespaces are the namespaces whose Applications may use this definition, as
+	// names or globs ("tenant-*", matched with path.Match).
+	// +optional
+	Namespaces []string `json:"namespaces,omitempty"`
+
+	// NamespaceSelector selects those namespaces by label instead, for membership
+	// that is not a naming convention. An empty selector matches every namespace;
+	// leave the field unset to express no opinion.
+	//
+	// Anyone who can label a namespace can bring it into scope, which a name glob
+	// does not allow without the right to create namespaces.
+	// +optional
+	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
+}

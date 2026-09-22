@@ -127,6 +127,13 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.validateUndeclaredParameters`                  | reject Application properties that the definition's parameter stanza does not declare (Alpha)                                                                                                                                    | `false` |
 | `featureGates.enableCueExpVariable`                          | inject the CUE_EXPERIMENT env var (evalv3=0,keepvalidators=0) into the controller to disable experimental CUE features during the v0.14.x migration window                                                                       | `true`  |
 | `featureGates.enableAddonComponent`                          | enable installing an addon as an Application component via the type: addon ComponentDefinition (Alpha)                                                                                                                           | `false` |
+| `featureGates.restrictDefinitionNamespaces`                  | enforce a definition's spec.restrictions or definition.oam.dev/restrict-namespaces annotation when an Application is created or updated (Beta, on by default; a no-op until a definition declares a restriction)                 | `true`  |
+
+### Definition restriction parameters
+
+| Name                     | Description                                                                                                                                         | Value |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `definitionRestrictions` | Restrictions stamped onto the builtin definitions, as `default` (applied to every one) and `overrides` (per definition name, replacing the default) | `{}`  |
 
 ### MultiCluster parameters
 

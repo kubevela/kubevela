@@ -10,6 +10,7 @@ metadata:
   name: ref-objects
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "ref-objects" "root" $) }}
   schematic:
     cue:
       template: |

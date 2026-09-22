@@ -10,6 +10,7 @@ metadata:
   name: apply-terraform-provider
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "apply-terraform-provider" "root" $) }}
   schematic:
     cue:
       template: |

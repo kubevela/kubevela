@@ -11,6 +11,7 @@ metadata:
   name: apply-component
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "apply-component" "root" $) }}
   schematic:
     cue:
       template: |

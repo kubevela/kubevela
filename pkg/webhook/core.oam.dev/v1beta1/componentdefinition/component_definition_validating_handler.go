@@ -32,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
+	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
 	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -126,6 +127,13 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
 			logger.WithStep("validate-version").Info("ComponentDefinition version follows semantic versioning format", "version", obj.Spec.Version)
+		}
+
+		// Validate namespace restrictions. A malformed glob would otherwise deny
+		// silently at render time, far from where it was written.
+		if err := nsrestrict.ValidateObject(obj); err != nil {
+			logger.WithStep("validate-namespace-restrictions").WithError(err).Error(err, "ComponentDefinition namespace restriction is not a valid list of namespace names or globs")
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
 
 		// Validate revision

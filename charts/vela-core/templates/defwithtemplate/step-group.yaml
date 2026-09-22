@@ -9,6 +9,7 @@ metadata:
   name: step-group
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "step-group" "root" $) }}
   schematic:
     cue:
       template: |

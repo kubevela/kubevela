@@ -10,6 +10,7 @@ metadata:
   name: build-push-image
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "build-push-image" "root" $) }}
   schematic:
     cue:
       template: |

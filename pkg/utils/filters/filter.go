@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
 	"github.com/oam-dev/kubevela/pkg/utils/addon"
 )
 
@@ -136,5 +137,20 @@ func ByAppliedWorkload(workload string) Filter {
 		}
 
 		return false
+	}
+}
+
+// ByUsableFrom returns a filter that keeps only the definitions an Application
+// in namespace ns may use. An empty namespace keeps everything.
+//
+// nsLabels are the namespace's labels, needed only by definitions that restrict
+// with a selector. Pass nil when they could not be read: a selector then matches
+// nothing, so the definition is treated as unusable rather than shown as usable.
+func ByUsableFrom(ns string, nsLabels map[string]string) Filter {
+	if ns == "" {
+		return KeepAll()
+	}
+	return func(obj unstructured.Unstructured) bool {
+		return nsrestrict.Allows(nsrestrict.OfUnstructured(obj), ns, nsLabels)
 	}
 }

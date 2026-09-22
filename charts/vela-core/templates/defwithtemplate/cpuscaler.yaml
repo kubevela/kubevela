@@ -11,6 +11,7 @@ spec:
   appliesToWorkloads:
     - deployments.apps
     - statefulsets.apps
+  #{{ include "definitionRestrictions" (dict "name" "cpuscaler" "root" $) }}
   schematic:
     cue:
       template: |

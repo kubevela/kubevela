@@ -11,6 +11,7 @@ metadata:
   name: deploy
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "deploy" "root" $) }}
   schematic:
     cue:
       template: |

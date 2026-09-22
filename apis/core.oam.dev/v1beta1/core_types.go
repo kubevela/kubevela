@@ -179,6 +179,12 @@ type TraitDefinitionSpec struct {
 
 	// +optional
 	Version string `json:"version,omitempty"`
+
+	// Restrictions limits where this definition may be used. Absent or empty means
+	// usable anywhere. A non-empty block overrides the
+	// definition.oam.dev/restrict-namespaces annotation.
+	// +optional
+	Restrictions *common.DefinitionRestrictions `json:"restrictions,omitempty"`
 }
 
 // StageType describes how the manifests should be dispatched.

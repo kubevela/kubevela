@@ -9,6 +9,7 @@ metadata:
   name: clean-jobs
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "clean-jobs" "root" $) }}
   schematic:
     cue:
       template: |

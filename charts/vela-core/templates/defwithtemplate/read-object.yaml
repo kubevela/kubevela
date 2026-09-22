@@ -9,6 +9,7 @@ metadata:
   name: read-object
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "read-object" "root" $) }}
   schematic:
     cue:
       template: |

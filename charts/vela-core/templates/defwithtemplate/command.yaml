@@ -13,6 +13,7 @@ spec:
     - statefulsets.apps
     - daemonsets.apps
     - jobs.batch
+  #{{ include "definitionRestrictions" (dict "name" "command" "root" $) }}
   schematic:
     cue:
       template: |

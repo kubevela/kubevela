@@ -377,6 +377,7 @@ spec:
             - "--feature-gates=EnableApplicationScopedPolicies={{- .Values.featureGates.enableApplicationScopedPolicies | toString -}}"
             - "--feature-gates=EnableGlobalPolicies={{- .Values.featureGates.enableGlobalPolicies | toString -}}"
             - "--feature-gates=EnableAddonComponent={{- .Values.featureGates.enableAddonComponent | toString -}}"
+            - "--feature-gates=RestrictDefinitionNamespaces={{- .Values.featureGates.restrictDefinitionNamespaces | toString -}}"
             - "--feature-gates=EnableSourceAutoUpdate={{- .Values.featureGates.enableSourceAutoUpdate | toString -}}"
             - "--feature-gates=EnableCelExpressions={{- .Values.featureGates.enableCelExpressions | toString -}}"
             - "--feature-gates=RequireCelExpressionOptIn={{- .Values.featureGates.requireCelExpressionOptIn | toString -}}"

@@ -8,6 +8,7 @@ metadata:
   name: read-only
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "read-only" "root" $) }}
   schematic:
     cue:
       template: |

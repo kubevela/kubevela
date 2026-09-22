@@ -10,6 +10,7 @@ metadata:
   name: vela-component
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "vela-component" "root" $) }}
   schematic:
     cue:
       template: |

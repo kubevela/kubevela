@@ -33,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
+	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
 	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
@@ -141,6 +142,13 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep("validate-version").WithError(err).Error(err, "TraitDefinition version does not follow semantic versioning format (x.y.z)", "version", obj.Spec.Version, "expectedFormat", "x.y.z")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
+		}
+
+		// Validate namespace restrictions. A malformed glob would otherwise deny
+		// silently at render time, far from where it was written.
+		if err := nsrestrict.ValidateObject(obj); err != nil {
+			logger.WithStep("validate-namespace-restrictions").WithError(err).Error(err, "TraitDefinition namespace restriction is not a valid list of namespace names or globs")
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
 
 		revisionName := obj.GetAnnotations()[oam.AnnotationDefinitionRevisionName]

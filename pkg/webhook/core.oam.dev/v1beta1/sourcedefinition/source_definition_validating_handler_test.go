@@ -270,3 +270,76 @@ func TestHandleValidatesTheDeclaredVersion(t *testing.T) {
 		require.False(t, resp.Allowed)
 	})
 }
+
+func TestHandleValidatesNamespaceRestrictions(t *testing.T) {
+	build := func(spec []string, annotation string) admission.Request {
+		def := &v1beta1.SourceDefinition{
+			TypeMeta: metav1.TypeMeta{Kind: "SourceDefinition", APIVersion: "core.oam.dev/v1beta1"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "probe-source", Namespace: "vela-system",
+			},
+			Spec: v1beta1.SourceDefinitionSpec{
+				Restrictions: nsRestrictions(spec),
+				Schematic:    &oamcommon.Schematic{CUE: &oamcommon.CUE{Template: validSourceTemplate}},
+			},
+		}
+		if annotation != "" {
+			def.Annotations = map[string]string{oam.AnnotationRestrictNamespaces: annotation}
+		}
+		raw, err := json.Marshal(def)
+		require.NoError(t, err)
+		req := sourceDefRequest(t, "probe-source", validSourceTemplate, admissionv1.Create)
+		req.Object = runtime.RawExtension{Raw: raw}
+		return req
+	}
+
+	t.Run("names and globs are admitted", func(t *testing.T) {
+		resp := handler(t).Handle(context.Background(), build([]string{"vela-system", "tenant-*"}, ""))
+		require.True(t, resp.Allowed, "%v", resp.Result)
+	})
+
+	t.Run("no restriction at all is admitted", func(t *testing.T) {
+		resp := handler(t).Handle(context.Background(), build(nil, ""))
+		require.True(t, resp.Allowed, "%v", resp.Result)
+	})
+
+	// A glob path.Match rejects would deny every namespace at render time,
+	// nowhere near where the typo was made.
+	t.Run("a valid annotation is admitted", func(t *testing.T) {
+		resp := handler(t).Handle(context.Background(), build(nil, "vela-system, tenant-*"))
+		require.True(t, resp.Allowed, "%v", resp.Result)
+	})
+
+	// Restrictions live in metadata too, so a spec-unchanged update must still be
+	// validated rather than waved past by the metadata-only shortcut.
+	t.Run("a malformed annotation is denied on a spec-unchanged update", func(t *testing.T) {
+		old := build(nil, "")
+		req := build(nil, "tenant-[")
+		req.Operation = admissionv1.Update
+		req.OldObject = old.Object
+		resp := handler(t).Handle(context.Background(), req)
+		require.False(t, resp.Allowed)
+		require.Contains(t, resp.Result.Message, oam.AnnotationRestrictNamespaces)
+	})
+
+	t.Run("a malformed glob in the spec is denied", func(t *testing.T) {
+		resp := handler(t).Handle(context.Background(), build([]string{"tenant-["}, ""))
+		require.False(t, resp.Allowed)
+		require.Contains(t, resp.Result.Message, "tenant-[")
+	})
+
+	t.Run("a malformed glob in the annotation is denied", func(t *testing.T) {
+		resp := handler(t).Handle(context.Background(), build(nil, "tenant-["))
+		require.False(t, resp.Allowed)
+		require.Contains(t, resp.Result.Message, oam.AnnotationRestrictNamespaces)
+	})
+}
+
+// nsRestrictions builds the spec block these tests vary; nil means the
+// definition declares nothing.
+func nsRestrictions(patterns []string) *oamcommon.DefinitionRestrictions {
+	if patterns == nil {
+		return nil
+	}
+	return &oamcommon.DefinitionRestrictions{Namespaces: patterns}
+}
