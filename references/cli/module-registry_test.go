@@ -216,7 +216,7 @@ func TestAddModuleRegistry(t *testing.T) {
 	t.Run("adds a new registry", func(t *testing.T) {
 		c := moduleArgs(t)
 		var out bytes.Buffer
-		require.NoError(t, addModuleRegistry(ctx, c, reg, false, &out))
+		require.NoError(t, addModuleRegistry(ctx, c, reg, &out))
 		assert.Contains(t, out.String(), "catalog")
 
 		k8sClient, err := c.GetClient()
@@ -226,27 +226,19 @@ func TestAddModuleRegistry(t *testing.T) {
 		assert.Equal(t, "https://github.com/kubevela/catalog", got.Git.URL)
 	})
 
-	t.Run("duplicate without force is rejected", func(t *testing.T) {
+	// Matches vela addon registry add: re-adding an existing name overwrites
+	// it in place, with no --force flag required (the store's AddRegistry
+	// already upserts; see component/registry.go).
+	t.Run("duplicate name overwrites in place without needing force", func(t *testing.T) {
 		c := moduleArgs(t)
 		var out bytes.Buffer
-		require.NoError(t, addModuleRegistry(ctx, c, reg, false, &out))
-
-		err := addModuleRegistry(ctx, c, reg, false, &out)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already exists")
-		assert.Contains(t, err.Error(), "--force")
-	})
-
-	t.Run("duplicate with force updates in place", func(t *testing.T) {
-		c := moduleArgs(t)
-		var out bytes.Buffer
-		require.NoError(t, addModuleRegistry(ctx, c, reg, false, &out))
+		require.NoError(t, addModuleRegistry(ctx, c, reg, &out))
 
 		updated := pkgaddon.Registry{
 			Name: "catalog",
 			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/org/fork", Path: "module"},
 		}
-		require.NoError(t, addModuleRegistry(ctx, c, updated, true, &out))
+		require.NoError(t, addModuleRegistry(ctx, c, updated, &out))
 
 		k8sClient, err := c.GetClient()
 		require.NoError(t, err)
@@ -255,14 +247,14 @@ func TestAddModuleRegistry(t *testing.T) {
 		assert.Equal(t, "https://github.com/org/fork", got.Git.URL)
 	})
 
-	t.Run("force overwrite without a new token keeps the stored credential", func(t *testing.T) {
+	t.Run("overwrite without a new token keeps the stored credential", func(t *testing.T) {
 		c := moduleArgs(t)
 		var out bytes.Buffer
 		withToken := pkgaddon.Registry{
 			Name: "catalog",
 			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module", Token: "t0ken"},
 		}
-		require.NoError(t, addModuleRegistry(ctx, c, withToken, false, &out))
+		require.NoError(t, addModuleRegistry(ctx, c, withToken, &out))
 
 		k8sClient, err := c.GetClient()
 		require.NoError(t, err)
@@ -275,13 +267,13 @@ func TestAddModuleRegistry(t *testing.T) {
 			Name: "catalog",
 			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/org/fork", Path: "module"},
 		}
-		require.NoError(t, addModuleRegistry(ctx, c, withoutToken, true, &out))
+		require.NoError(t, addModuleRegistry(ctx, c, withoutToken, &out))
 
 		after, err := pkgmodule.NewStore(k8sClient).GetRegistry(ctx, "catalog")
 		require.NoError(t, err)
 		assert.Equal(t, "https://github.com/org/fork", after.Git.URL)
 		assert.Equal(t, "t0ken", after.Git.Token,
-			"the stored token must survive a force update with no new token")
+			"the stored token must survive an overwrite with no new token")
 
 		var secretAfter corev1.Secret
 		require.NoError(t, k8sClient.Get(ctx, client.ObjectKey{Namespace: velatypes.DefaultKubeVelaNS, Name: secretName}, &secretAfter),
@@ -309,7 +301,7 @@ func TestUpdateModuleRegistry(t *testing.T) {
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "catalog",
 			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module"},
-		}, false, &discard))
+		}, &discard))
 
 		var out bytes.Buffer
 		require.NoError(t, updateModuleRegistry(ctx, c, pkgaddon.Registry{
@@ -331,7 +323,7 @@ func TestUpdateModuleRegistry(t *testing.T) {
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "catalog",
 			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module", Token: "t0ken"},
-		}, false, &discard))
+		}, &discard))
 
 		k8sClient, err := c.GetClient()
 		require.NoError(t, err)
@@ -385,11 +377,11 @@ func TestListModuleRegistry(t *testing.T) {
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "zzz-oci",
 			Helm: &pkgaddon.HelmSource{URL: "oci://ghcr.io/org/modules"},
-		}, false, &discard))
+		}, &discard))
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "catalog",
 			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module"},
-		}, false, &discard))
+		}, &discard))
 
 		var out bytes.Buffer
 		require.NoError(t, listModuleRegistry(ctx, c, &out))
@@ -413,7 +405,7 @@ func TestListModuleRegistry(t *testing.T) {
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "legacy",
 			Helm: &pkgaddon.HelmSource{URL: "https://charts.example.com/legacy"},
-		}, false, &discard))
+		}, &discard))
 
 		var out bytes.Buffer
 		require.NoError(t, listModuleRegistry(ctx, c, &out))
@@ -433,7 +425,7 @@ func TestGetModuleRegistry(t *testing.T) {
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "catalog",
 			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module"},
-		}, false, &discard))
+		}, &discard))
 
 		var out bytes.Buffer
 		require.NoError(t, getModuleRegistry(ctx, c, "catalog", &out))
@@ -454,7 +446,7 @@ func TestGetModuleRegistry(t *testing.T) {
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "legacy",
 			Helm: &pkgaddon.HelmSource{URL: "https://charts.example.com/legacy"},
-		}, false, &discard))
+		}, &discard))
 
 		var out bytes.Buffer
 		err := getModuleRegistry(ctx, c, "legacy", &out)
@@ -473,11 +465,11 @@ func TestDeleteModuleRegistry(t *testing.T) {
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "catalog",
 			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module"},
-		}, false, &discard))
+		}, &discard))
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "mine",
 			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/org/mine", Path: "module"},
-		}, false, &discard))
+		}, &discard))
 
 		var out bytes.Buffer
 		require.NoError(t, deleteModuleRegistry(ctx, c, "catalog", &out))
@@ -501,7 +493,7 @@ func TestDeleteModuleRegistry(t *testing.T) {
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "catalog",
 			Git:  &pkgaddon.GitAddonSource{URL: "https://github.com/kubevela/catalog", Path: "module"},
-		}, false, &discard))
+		}, &discard))
 
 		var out bytes.Buffer
 		err := deleteModuleRegistry(ctx, c, "nope", &out)
@@ -522,7 +514,7 @@ func TestDeleteModuleRegistry(t *testing.T) {
 		require.NoError(t, addModuleRegistry(ctx, c, pkgaddon.Registry{
 			Name: "legacy",
 			Helm: &pkgaddon.HelmSource{URL: "https://charts.example.com/legacy"},
-		}, false, &discard))
+		}, &discard))
 
 		var out bytes.Buffer
 		require.NoError(t, deleteModuleRegistry(ctx, c, "legacy", &out))

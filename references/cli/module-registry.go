@@ -43,7 +43,6 @@ const (
 	moduleRegistryUsernameFlag      = "username"
 	moduleRegistryPasswordFlag      = "password"
 	moduleRegistryPasswordStdinFlag = "password-stdin"
-	moduleRegistryForceFlag         = "force"
 
 	moduleGitType = "git"
 	moduleOCIType = "oci"
@@ -61,7 +60,7 @@ func NewModuleCommand(c common.Args, order string, ioStreams cmdutil.IOStreams) 
 			types.TagCommandType:  types.TypeExtension,
 		},
 	}
-	cmd.AddCommand(NewModuleRegistryCommand(c, ioStreams), NewModulePublishCommand(c, ioStreams), NewModuleDeployCommand(c, ioStreams), NewModuleInitCommand(c, ioStreams))
+	cmd.AddCommand(NewModuleListCommand(c), NewModuleRegistryCommand(c, ioStreams), NewModulePublishCommand(c, ioStreams), NewModuleDeployCommand(c, ioStreams), NewModuleInitCommand(c, ioStreams))
 	return cmd
 }
 
@@ -97,8 +96,8 @@ func NewAddModuleRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Comm
   Add an OCI registry, reading the password from stdin:
 	printf '%s' "$PASSWORD" | vela module registry add ghcr oci://ghcr.io/org/modules --username robot --password-stdin
 
-  Overwrite an existing registry:
-	vela module registry add catalog https://github.com/org/fork --type git --force`,
+  Re-adding an existing name overwrites it in place, same as vela addon registry add:
+	vela module registry add catalog https://github.com/org/fork --type git`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := setRegistryPasswordFromStdin(cmd); err != nil {
 				return err
@@ -107,11 +106,7 @@ func NewAddModuleRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Comm
 			if err != nil {
 				return err
 			}
-			force, err := cmd.Flags().GetBool(moduleRegistryForceFlag)
-			if err != nil {
-				return err
-			}
-			return addModuleRegistry(cmd.Context(), c, *registry, force, cmd.OutOrStdout())
+			return addModuleRegistry(cmd.Context(), c, *registry, cmd.OutOrStdout())
 		},
 	}
 	addModuleRegistryFlags(cmd)
@@ -152,7 +147,6 @@ func addModuleRegistryFlags(cmd *cobra.Command) {
 	cmd.Flags().String(moduleRegistryUsernameFlag, "", "username for an OCI registry")
 	cmd.Flags().String(moduleRegistryPasswordFlag, "", "password for an OCI registry")
 	cmd.Flags().Bool(moduleRegistryPasswordStdinFlag, false, "read the OCI registry password from stdin")
-	cmd.Flags().Bool(moduleRegistryForceFlag, false, "overwrite an existing registry with the same name")
 }
 
 // moduleRegistryFromArgs builds a Registry from the positional name and URL plus
@@ -273,37 +267,31 @@ func inferModuleRegistryType(rawURL string) (string, error) {
 	}
 }
 
-// addModuleRegistry persists a registry, rejecting a duplicate name unless force
-// is set. The store overwrites silently on Add, so the existence check is done
-// here.
-func addModuleRegistry(ctx context.Context, c common.Args, registry pkgaddon.Registry, force bool, out io.Writer) error {
+// addModuleRegistry persists a registry, overwriting a duplicate name in
+// place -- matching vela addon registry add, which never required a --force
+// flag for this either. The store's own AddRegistry already upserts (see
+// component/registry.go), so there is no existence check to gate here; the
+// only reason to look up the existing entry first is to preserve its token
+// when the new payload does not carry one.
+func addModuleRegistry(ctx context.Context, c common.Args, registry pkgaddon.Registry, out io.Writer) error {
 	k8sClient, err := c.GetClient()
 	if err != nil {
 		return err
 	}
 	store := pkgmodule.NewStore(k8sClient)
 
-	existing, err := store.GetRegistry(ctx, registry.Name)
-	switch {
+	switch existing, err := store.GetRegistry(ctx, registry.Name); {
 	case err == nil:
-		if !force {
-			return fmt.Errorf("module registry %s already exists, use --force to overwrite it", registry.Name)
-		}
 		preserveTokenSecretRef(&registry, existing)
-		if err := store.UpdateRegistry(ctx, registry); err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "Successfully updated module registry %s\n", registry.Name)
-		return nil
-	case apierrors.IsNotFound(err):
-		if err := store.AddRegistry(ctx, registry); err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "Successfully added module registry %s\n", registry.Name)
-		return nil
-	default:
+	case !apierrors.IsNotFound(err):
 		return err
 	}
+
+	if err := store.AddRegistry(ctx, registry); err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "Successfully added module registry %s\n", registry.Name)
+	return nil
 }
 
 // updateModuleRegistry updates an existing registry, rejecting a name that is
@@ -331,11 +319,11 @@ func updateModuleRegistry(ctx context.Context, c common.Args, registry pkgaddon.
 }
 
 // preserveTokenSecretRef carries the stored credential forward onto registry
-// when this invocation supplied no new token. Both add --force and update
-// hand UpdateRegistry a Registry built fresh from flags; if the invocation
-// omitted --gitToken/--password, that source's Token is empty, so
-// UpdateRegistry's own token handling (pkg/addon/registry.go) never migrates
-// a token to a secret, and the entry would be rewritten with an empty
+// when this invocation supplied no new token. Both add's overwrite path and
+// update hand the store a Registry built fresh from flags; if the invocation
+// omitted --gitToken/--password, that source's Token is empty, so the store's
+// own token handling (pkg/registry/component/registry.go) never migrates a
+// token to a secret, and the entry would be rewritten with an empty
 // TokenSecretRef -- silently dropping the credential and orphaning the
 // secret it used to point to, since delete skips a secret it has no ref to.
 //
