@@ -43,10 +43,6 @@ const (
 	// It is the default when a caller does not name a registry and more than one
 	// is configured.
 	DefaultRegistryName = "catalog"
-
-	// DefaultGitPath is the subpath within a git registry that holds modules.
-	// The fetch reads DefaultGitPath/<module name>/ from the repository.
-	DefaultGitPath = "module"
 )
 
 // NewStore returns the module registry store: the shared addon registry
@@ -57,15 +53,17 @@ func NewStore(cli client.Client) component.RegistryDataStore {
 
 // ResolveRegistry returns the module registry to use for an operation. A non-empty
 // name selects that registry; an empty name selects a default. The returned
-// Registry is guaranteed to be a git or OCI source, with its token loaded from
-// its secret.
+// Registry is guaranteed to be an OCI source, with its token loaded from its
+// secret.
 //
 // Modules support no other kind of source. The module ConfigMap shares its
-// format with the addon one, though, so an entry configured as helm, OSS,
+// format with the addon one, though, so an entry configured as git, helm, OSS,
 // gitee, or gitlab can be present -- hand-edited, or written by
 // `vela addon registry` if it is pointed at this ConfigMap. Such an entry is
 // rejected here, naming the entry and its actual type, rather than handed to a
-// consumer that assumes reg.Git or an oci:// reg.Helm is set.
+// consumer that assumes an oci:// reg.Helm is set. A Git-backed entry gets its
+// own message, because it is the one kind an existing install may already be
+// using.
 //
 // With an empty name the rules apply in order: the sole configured registry wins;
 // otherwise a registry named DefaultRegistryName wins; otherwise the choice is
@@ -78,16 +76,20 @@ func ResolveRegistry(ctx context.Context, store component.RegistryDataStore, nam
 	if err != nil {
 		return component.Registry{}, err
 	}
-	if reg.Git == nil && reg.OCIChartSource() == nil {
+	if kind := component.GitFamilySource(reg); kind != "" {
+		return component.Registry{}, component.GitSourceUnsupportedError(
+			reg.Name, kind, component.ModuleGitRemedy)
+	}
+	if reg.OCIChartSource() == nil {
 		return component.Registry{}, fmt.Errorf(
-			"module registry %q is a %s source; modules support only git and OCI registries",
+			"module registry %q is a %s source; modules support only OCI registries",
 			reg.Name, SourceTypeName(reg))
 	}
 	return reg, nil
 }
 
 // resolveRegistryByName implements ResolveRegistry's name-selection rules,
-// without enforcing that the result is a git or OCI source. ResolveRegistry
+// without enforcing that the result is an OCI source. ResolveRegistry
 // applies that check uniformly to every return path below.
 func resolveRegistryByName(ctx context.Context, store component.RegistryDataStore, name string) (component.Registry, error) {
 	if name != "" {
@@ -124,12 +126,15 @@ func resolveRegistryByName(ctx context.Context, store component.RegistryDataStor
 
 // SourceTypeName names the kind of source configured on a registry entry, or
 // "unknown" if none is set. It covers every source the shared addon ConfigMap
-// format can hold, not just git and OCI, so a caller such as list can name an
-// entry ResolveRegistry would reject instead of leaving its type blank.
+// format can hold, not just the OCI one modules resolve, so a caller such as
+// list can name an entry ResolveRegistry would reject instead of leaving its
+// type blank.
+
 func SourceTypeName(reg component.Registry) string {
+	if kind := component.GitFamilySource(reg); kind != "" {
+		return kind
+	}
 	switch {
-	case reg.Git != nil:
-		return "git"
 	case reg.OCIChartSource() != nil:
 		// An OCI registry is a Helm source with an oci:// URL, so this has to be
 		// tested before the plain helm case or every OCI entry reads as "helm".
@@ -138,10 +143,6 @@ func SourceTypeName(reg component.Registry) string {
 		return "helm"
 	case reg.OSS != nil:
 		return "oss"
-	case reg.Gitee != nil:
-		return "gitee"
-	case reg.Gitlab != nil:
-		return "gitlab"
 	default:
 		return "unknown"
 	}

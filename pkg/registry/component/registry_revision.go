@@ -47,20 +47,11 @@ func (r *Registry) PackageRevision(ctx context.Context, name, version, lastKnown
 	if oci := r.OCISource(); oci != nil {
 		return r.ociPackageRevision(ctx, oci, name, version, lastKnown)
 	}
-	// A Helm chart repository has no equivalent of a manifest digest, and its
-	// index is the thing a caller would have to fetch anyway.
-	if r.Helm != nil {
-		return "", ErrRevisionUnsupported
-	}
-	reader, err := r.BuildReader()
-	if err != nil {
-		return "", err
-	}
-	revisions, ok := reader.(RevisionReader)
-	if !ok {
-		return "", ErrRevisionUnsupported
-	}
-	return revisions.Revision(ctx, lastKnown)
+	// Nothing else can name a revision. A Helm chart repository has no
+	// equivalent of a manifest digest, and its index is the thing a caller
+	// would have to fetch anyway; the git, gitee, gitlab and OSS readers report
+	// none, so a caller that caches on revisions reads every time for those.
+	return "", ErrRevisionUnsupported
 }
 
 // ociPackageRevision is the resolved tag and the digest behind it. Both belong
@@ -88,9 +79,8 @@ func (r *Registry) ociPackageRevision(ctx context.Context, oci *HelmSource, name
 	return fmt.Sprintf("%s@%s", tag, digest), nil
 }
 
-// ListPackageMeta lists one package's files, reading only that package when the
-// source can. Sources that cannot fall back to listing the registry and
-// picking the one entry out, which is what every caller used to do.
+// ListPackageMeta lists one package's files by listing the registry and picking
+// the one entry out.
 func (r *Registry) ListPackageMeta(name string) (SourceMeta, error) {
 	reader, err := r.BuildReader()
 	if err != nil {
@@ -99,17 +89,13 @@ func (r *Registry) ListPackageMeta(name string) (SourceMeta, error) {
 	return ListPackageMeta(reader, name)
 }
 
-// ListPackageMeta lists one package from a reader, scoped if the reader
-// supports it.
+// ListPackageMeta lists one package from a reader.
 func ListPackageMeta(reader AsyncReader, name string) (SourceMeta, error) {
-	// Checked here as well as in the reader: a scoped read turns the name into
-	// a request path, and an unscoped one only uses it as a map key, so this is
-	// the one place both kinds of source pass through.
+	// Rejected before the listing rather than after: a name that cannot be a
+	// package is not going to be a key in the result, and the listing is a
+	// request per directory in the registry.
 	if !IsPackageName(name) {
 		return SourceMeta{}, fmt.Errorf("%q: %w", name, ErrPackageNotExist)
-	}
-	if scoped, ok := reader.(ScopedReader); ok {
-		return scoped.ListAddonMetaFor(name)
 	}
 	metas, err := reader.ListAddonMeta()
 	if err != nil {

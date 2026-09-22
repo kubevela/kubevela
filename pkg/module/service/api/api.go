@@ -37,8 +37,8 @@ type ModuleRequest struct {
 	// cluster-wide.
 	Namespace string
 	// Version selects the module package version (the OCI/ECR tag vela module
-	// publish writes from _module.cue's version field). A git source ignores
-	// this silently.
+	// publish writes from _module.cue's version field). Empty resolves the
+	// highest published semver tag.
 	Version string
 }
 

@@ -41,24 +41,39 @@ func rawProps(t *testing.T, m map[string]interface{}) *runtime.RawExtension {
 // registries returns a lister over the given names, plus a counter of how many
 // times it was called, so a test can assert the ConfigMap is read at most once
 // per admission request regardless of how many components name a registry.
-func registries(calls *int, names ...string) registryNameLister {
-	return func(context.Context, client.Client) ([]string, error) {
+func registries(calls *int, names ...string) registryLister {
+	return func(context.Context, client.Client) ([]string, map[string]string, error) {
 		*calls++
-		return names, nil
+		return names, nil, nil
 	}
 }
 
-func failingRegistries(calls *int, err error) registryNameLister {
-	return func(context.Context, client.Client) ([]string, error) {
+// gitRegistries returns a lister over names where each of gitNames is reported
+// as a git-backed entry. The names list covers both, because a git registry is
+// configured and so must pass the unknown-name check before the source check
+// can be the thing that rejects it.
+func gitRegistries(calls *int, gitNames []string, names ...string) registryLister {
+	kinds := map[string]string{}
+	for _, n := range gitNames {
+		kinds[n] = "git"
+	}
+	return func(context.Context, client.Client) ([]string, map[string]string, error) {
 		*calls++
-		return nil, err
+		return names, kinds, nil
+	}
+}
+
+func failingRegistries(calls *int, err error) registryLister {
+	return func(context.Context, client.Client) ([]string, map[string]string, error) {
+		*calls++
+		return nil, nil, err
 	}
 }
 
 func TestValidateComponents(t *testing.T) {
 	testCases := map[string]struct {
 		components []common.ApplicationComponent
-		lister     func(calls *int) registryNameLister
+		lister     func(calls *int) registryLister
 		wantFields []string
 		wantReads  int
 	}{
@@ -90,7 +105,7 @@ func TestValidateComponents(t *testing.T) {
 			},
 			wantFields: []string{"spec.components[0].properties"},
 		},
-		// Pinned-version resolution compares versions as strings, and a git
+		// Pinned-version resolution compares versions as strings, and an OSS
 		// registry's metadata.yaml version need not be semver, so a version
 		// that is not semver is not a version that cannot resolve.
 		"a non-semver version is accepted": {
@@ -107,14 +122,24 @@ func TestValidateComponents(t *testing.T) {
 			components: []common.ApplicationComponent{
 				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "registry": "KubeVela"})},
 			},
-			lister:    func(calls *int) registryNameLister { return registries(calls, "KubeVela", "my-addons") },
+			lister:    func(calls *int) registryLister { return registries(calls, "KubeVela", "my-addons") },
 			wantReads: 1,
+		},
+		"a git-backed registry is rejected": {
+			components: []common.ApplicationComponent{
+				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "registry": "my-git"})},
+			},
+			lister: func(calls *int) registryLister {
+				return gitRegistries(calls, []string{"my-git"}, "KubeVela", "my-git")
+			},
+			wantFields: []string{"spec.components[0].properties.registry"},
+			wantReads:  1,
 		},
 		"a registry that is not configured is rejected": {
 			components: []common.ApplicationComponent{
 				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "registry": "typo"})},
 			},
-			lister:     func(calls *int) registryNameLister { return registries(calls, "KubeVela") },
+			lister:     func(calls *int) registryLister { return registries(calls, "KubeVela") },
 			wantFields: []string{"spec.components[0].properties.registry"},
 			wantReads:  1,
 		},
@@ -124,7 +149,7 @@ func TestValidateComponents(t *testing.T) {
 			components: []common.ApplicationComponent{
 				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "registry": "my-addons"})},
 			},
-			lister:     func(calls *int) registryNameLister { return registries(calls) },
+			lister:     func(calls *int) registryLister { return registries(calls) },
 			wantFields: []string{"spec.components[0].properties.registry"},
 			wantReads:  1,
 		},
@@ -132,7 +157,7 @@ func TestValidateComponents(t *testing.T) {
 			components: []common.ApplicationComponent{
 				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "registry": "my-addons"})},
 			},
-			lister: func(calls *int) registryNameLister {
+			lister: func(calls *int) registryLister {
 				return failingRegistries(calls, errors.New("configmap unavailable"))
 			},
 			wantReads: 1,
@@ -143,7 +168,7 @@ func TestValidateComponents(t *testing.T) {
 				{Name: "velaux", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "velaux", "registry": "KubeVela"})},
 				{Name: "terraform", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "terraform", "registry": "KubeVela"})},
 			},
-			lister:    func(calls *int) registryNameLister { return registries(calls, "KubeVela") },
+			lister:    func(calls *int) registryLister { return registries(calls, "KubeVela") },
 			wantReads: 1,
 		},
 		"each component is reported against its own index": {
@@ -152,7 +177,7 @@ func TestValidateComponents(t *testing.T) {
 				{Name: "fluxcd", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "fluxcd", "registry": "KubeVela"})},
 				{Name: "velaux", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{"addon": "velaux", "registry": "typo"})},
 			},
-			lister:     func(calls *int) registryNameLister { return registries(calls, "KubeVela") },
+			lister:     func(calls *int) registryLister { return registries(calls, "KubeVela") },
 			wantFields: []string{"spec.components[2].properties.registry"},
 			wantReads:  1,
 		},
@@ -163,12 +188,12 @@ func TestValidateComponents(t *testing.T) {
 			reads := 0
 			validator := &Validator{}
 			if tc.lister != nil {
-				validator.listRegistryNames = tc.lister(&reads)
+				validator.listRegistries = tc.lister(&reads)
 			} else {
-				validator.listRegistryNames = func(context.Context, client.Client) ([]string, error) {
+				validator.listRegistries = func(context.Context, client.Client) ([]string, map[string]string, error) {
 					reads++
 					t.Error("registry names were read for a component that names no registry")
-					return nil, nil
+					return nil, nil, nil
 				}
 			}
 			app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: tc.components}}
@@ -196,7 +221,7 @@ func nilIfEmpty(s []string) []string {
 // their own YAML, and the detail has to name the values that would have worked.
 func TestValidateComponentsReportsTheOffendingValue(t *testing.T) {
 	reads := 0
-	validator := &Validator{listRegistryNames: registries(&reads, "KubeVela", "my-modules")}
+	validator := &Validator{listRegistries: registries(&reads, "KubeVela", "my-modules")}
 	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
 		{Name: "api", Type: "webservice"},
 		{Name: "installer", Type: ComponentType, Properties: rawProps(t, map[string]interface{}{

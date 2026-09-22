@@ -183,7 +183,7 @@ func NewModuleDeployCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 		},
 	}
 	cmd.Flags().StringVar(&o.registry, moduleDeployRegistryFlag, "", "The module registry to deploy from. Empty means the configured default.")
-	cmd.Flags().StringVar(&o.version, moduleDeployVersionFlag, "", "The module package version (OCI/ECR tag) to install. Empty installs the latest published version. Ignored for a git registry, which always installs from the default branch.")
+	cmd.Flags().StringVar(&o.version, moduleDeployVersionFlag, "", "The module package version (OCI/ECR tag) to install. Empty installs the latest published version.")
 	cmd.Flags().BoolVar(&o.dryRun, moduleDeployDryRunFlag, false, "Print the Application without applying it.")
 	cmd.Flags().DurationVar(&o.timeout, moduleDeployTimeoutFlag, defaultModuleDeployTimeout, "How long to wait for the module to become healthy.")
 	addNamespaceAndEnvArg(cmd)

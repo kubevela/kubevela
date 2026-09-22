@@ -22,6 +22,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/component-base/featuregate"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -30,7 +31,11 @@ import (
 	addonvalidation "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application/addon"
 )
 
-type addonComponentValidator interface {
+// componentValidator is the shape of a per-component-type admission check.
+// The addon and module checks share it: both answer from the Application plus
+// a registry ConfigMap, and both return field errors against the component's
+// properties path.
+type componentValidator interface {
 	ValidateComponents(context.Context, *v1beta1.Application) field.ErrorList
 }
 
@@ -39,20 +44,53 @@ func (h *ValidatingHandler) ValidateAddonComponents(
 	ctx context.Context,
 	app *v1beta1.Application,
 ) field.ErrorList {
-	logger := logging.WithContext(ctx).WithStep("validate-addon-components")
-	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableAddonComponent) {
-		logger.Debug("Skipping addon component validation", "reason", "feature-gate-disabled")
+	return h.validateComponentsOfType(ctx, app, componentCheck{
+		gate:          features.EnableAddonComponent,
+		componentType: addonvalidation.ComponentType,
+		step:          "validate-addon-components",
+		validator:     h.addonValidator,
+		newValidator:  func() componentValidator { return addonvalidation.NewValidator(h.Client) },
+	})
+}
+
+// componentCheck is one component type's admission check: the gate that turns
+// it on, the type it applies to, its log step, and the validator to run.
+type componentCheck struct {
+	gate          featuregate.Feature
+	componentType string
+	step          string
+	// validator is the handler's injected validator, nil outside tests.
+	validator    componentValidator
+	newValidator func() componentValidator
+}
+
+// validateComponentsOfType runs one componentCheck. The addon and module
+// checks differ only in the struct above, so the gate test, the
+// does-this-Application-even-have-one scan and the validator fallback live
+// here once rather than in each caller.
+//
+// The logger is built after both short-circuits, not before: WithStep copies a
+// key-value slice into a new sink, and this runs on every Application
+// admission including the controller's own metadata writes, so the disabled
+// and not-applicable paths stay allocation free.
+func (h *ValidatingHandler) validateComponentsOfType(
+	ctx context.Context,
+	app *v1beta1.Application,
+	check componentCheck,
+) field.ErrorList {
+	if !utilfeature.DefaultMutableFeatureGate.Enabled(check.gate) {
 		return nil
 	}
 	if !slices.ContainsFunc(app.Spec.Components, func(component common.ApplicationComponent) bool {
-		return component.Type == addonvalidation.ComponentType
+		return component.Type == check.componentType
 	}) {
-		logger.Debug("Skipping addon component validation", "reason", "no-addon-component")
 		return nil
 	}
-	validator := h.addonValidator
+	logging.WithContext(ctx).WithStep(check.step).Debug(
+		"Validating components", "componentType", check.componentType)
+	validator := check.validator
 	if validator == nil {
-		validator = addonvalidation.NewValidator(h.Client)
+		validator = check.newValidator()
 	}
 	return validator.ValidateComponents(ctx, app)
 }

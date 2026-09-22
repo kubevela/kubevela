@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package component
+package addon
 
 import (
 	"context"
@@ -38,15 +38,6 @@ var _ AsyncReader = &giteeReader{}
 type giteeHelper struct {
 	Client *Client
 	Meta   *utils.Content
-	// credential is a digest of the token this helper reads with; see
-	// gitHelper.credential.
-	credential string
-}
-
-// source identifies what the rate-limit gate holds for this reader: the
-// repository together with the credential used to read it.
-func (h *giteeHelper) source() string {
-	return "gitee:" + h.Meta.GiteeContent.Owner + "/" + h.Meta.GiteeContent.Repo + "#" + h.credential
 }
 
 // Client manages communication with the Gitee API
@@ -139,16 +130,9 @@ const DefaultGiteeURL string = "https://gitee.com/api/v5/"
 
 // readRepo will read relative path (relative to Meta.Path)
 func (h *giteeHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
-	key := h.source()
-	// As on the GitHub reader: a source that has already refused is not asked
-	// again until it said to. Without the gate a refused gitee registry keeps
-	// being hammered at the workflow's one-second retry floor.
-	if err := sourceRateLimit.blocked(key); err != nil {
-		return nil, nil, err
-	}
 	file, items, err := h.Client.GetGiteeContents(context.Background(), h.Meta.GiteeContent.Owner, h.Meta.GiteeContent.Repo, path.Join(h.Meta.GiteeContent.Path, relativePath), h.Meta.GiteeContent.Ref)
 	if err != nil {
-		return nil, nil, holdRateLimit(key, err)
+		return nil, nil, WrapErrRateLimit(err)
 	}
 	return file, items, nil
 }

@@ -16,8 +16,8 @@ limitations under the License.
 
 // Package service fetches a module from a registry and parses it into a
 // module.Module, server-side, for the type: module render path. It reuses the
-// shared transport (git reader, OCI Helm-chart client) and the Registry
-// model; it does not reuse the addon parsing/packaging layer.
+// shared OCI Helm-chart transport and the Registry model; it does not reuse
+// the addon parsing/packaging layer.
 package service
 
 import (
@@ -36,19 +36,17 @@ import (
 )
 
 // Service fetches modules. It resolves registries through module.ResolveRegistry
-// over a component.RegistryDataStore — reusing that story's default
-// policy, source rejection, token loading, and not-found reporting. Its
-// reader/puller seams are wired to the real addon transport by NewService and
-// overridden by tests.
+// over a component.RegistryDataStore — reusing that story's default policy,
+// source rejection, token loading, and not-found reporting.
 type Service struct {
-	store     component.RegistryDataStore
-	newReader func(reg *component.Registry) (component.AsyncReader, error)
+	store component.RegistryDataStore
+	// pullChart is wired to the real OCI transport by NewService and
+	// overridden by tests.
 	pullChart ociChartPuller
 	// revision names what the registry holds without reading it, so a
-	// reconcile that finds it unchanged reads nothing. A seam like the two
-	// above: a fake reader that cannot report a revision reports
-	// ErrRevisionUnsupported and every fetch reads, which is what the
-	// uncached path always did.
+	// reconcile that finds it unchanged reads nothing. Nil means ask the
+	// registry; tests set a fake, and one that cannot report a revision
+	// returns ErrRevisionUnsupported so every fetch reads.
 	revision packageRevisioner
 }
 
@@ -58,50 +56,16 @@ type packageRevisioner func(ctx context.Context, reg *component.Registry, name, 
 // NewService wires the real addon transport. In production the store is
 // module.NewStore(cli) (the vela-module-registry ConfigMap).
 func NewService(store component.RegistryDataStore) *Service {
-	s := &Service{
-		store:     store,
-		newReader: buildModuleReader,
-		pullChart: pullModuleChart,
-	}
-	s.revision = s.packageRevision
-	return s
-}
-
-// packageRevision asks the registry what it holds now. The git half goes
-// through the reader seam, so whatever reads the files is also what reports
-// their revision; a reader that cannot answer stops the caching rather than
-// reaching past the seam to the network.
-func (s *Service) packageRevision(ctx context.Context, reg *component.Registry, name, version, lastKnown string) (string, error) {
-	if reg.OCIChartSource() != nil {
-		return reg.PackageRevision(ctx, name, version, lastKnown)
-	}
-	reader, err := s.newReader(reg)
-	if err != nil {
-		return "", err
-	}
-	revisions, ok := reader.(component.RevisionReader)
-	if !ok {
-		return "", component.ErrRevisionUnsupported
-	}
-	return revisions.Revision(ctx, lastKnown)
-}
-
-// buildModuleReader builds the reader for a module registry, pointed at its
-// modules root (the source Path); ListAddonMeta then keys each module by name.
-// It reuses the addon transport (reg.BuildReader), returning the component.AsyncReader
-// readerFS consumes.
-func buildModuleReader(reg *component.Registry) (component.AsyncReader, error) {
-	return reg.BuildReader()
+	return &Service{store: store, pullChart: pullModuleChart}
 }
 
 // FetchModule resolves the registry, fetches the module's files into an fs.FS,
 // and parses them. Resolution is module.ResolveRegistry: an empty name selects
-// the sole registry or the "catalog" default, non-git/OCI sources are rejected,
+// the sole registry or the "catalog" default, non-OCI sources are rejected,
 // and unknown names report the configured registries (wrapping ErrRegistryNotFound).
 //
 // version selects the module package version (the OCI/ECR tag vela module
-// publish writes from _module.cue's version field). A git source has no tag
-// concept and always pulls from the repository's default branch.
+// publish writes from _module.cue's version field).
 func (s *Service) FetchModule(ctx context.Context, registry, moduleName, version string) (*module.Module, error) {
 	reg, err := module.ResolveRegistry(ctx, s.store, registry)
 	if err != nil {
@@ -114,10 +78,14 @@ func (s *Service) FetchModule(ctx context.Context, registry, moduleName, version
 	return moduleCache.Load(
 		moduleCacheKey(&reg, moduleName, version),
 		func(lastKnown string) (string, error) {
-			if s.revision == nil {
-				return "", component.ErrRevisionUnsupported
+			if s.revision != nil {
+				return s.revision(ctx, &reg, moduleName, version, lastKnown)
 			}
-			return s.revision(ctx, &reg, moduleName, version, lastKnown)
+			// An oci:// registry answers with its manifest digest. The two
+			// spellings OCIChartSource also accepts, http:// and a bare host,
+			// are not oci:// to OCISource, so PackageRevision reports
+			// ErrRevisionUnsupported for those and the caching turns off.
+			return reg.PackageRevision(ctx, moduleName, version, lastKnown)
 		},
 		func(revision string) (*module.Module, error) {
 			// Read at the revision that was checked, so the files parsed here
@@ -151,56 +119,33 @@ func ResetModuleCache() { moduleCache.Reset() }
 // token invalidates what the old one could see, without the secret itself
 // reaching a map key, a log line, or a metric label.
 func moduleCacheKey(reg *component.Registry, moduleName, version string) string {
-	// Same order sourceFS dispatches on, so a registry carrying both sources
-	// is not keyed as one and read as the other.
 	var source, secret string
-	switch {
-	case reg.OCIChartSource() != nil:
-		oci := reg.OCIChartSource()
+	if oci := reg.OCIChartSource(); oci != nil {
 		source = "oci|" + oci.URL
 		secret = oci.Username + "|" + oci.Token
-	case reg.Git != nil:
-		source = "git|" + reg.Git.URL + "|" + reg.Git.Path
-		secret = reg.Git.Token
-	default:
+	} else {
 		source = "unknown"
 	}
 	sum := sha256.Sum256([]byte(secret))
 	return strings.Join([]string{reg.Name, source, moduleName, version, hex.EncodeToString(sum[:8])}, "|")
 }
 
-// sourceFS dispatches on the registry source and returns the module tree as an
-// fs.FS. module.ResolveRegistry already guarantees reg is a git or OCI source
-// (it rejects helm/OSS/gitee/gitlab), so only those two branches exist. Both
-// converge on readerFS: git supplies the live reader, OCI a MemoryReader over the
-// pulled chart. readerFS errors are wrapped with the registry name so a failing
-// Application status is actionable. version applies only to the OCI branch; git
-// has no tag concept and always reads its configured path off the default branch.
+// sourceFS returns the module tree as an fs.FS. module.ResolveRegistry already
+// guarantees reg is an OCI source (it rejects git, gitee, gitlab, helm and
+// OSS), so there is one branch; the default stays as a guard against a resolver
+// that admitted something it should not have.
 func (s *Service) sourceFS(ctx context.Context, reg *component.Registry, moduleName, version string) (fs.FS, error) {
-	switch {
-	case reg.OCIChartSource() != nil:
+	if reg.OCIChartSource() != nil {
 		return s.ociChartFS(ctx, reg, moduleName, version)
-	case reg.Git != nil:
-		reader, err := s.newReader(reg)
-		if err != nil {
-			return nil, fmt.Errorf("registry %q: build reader: %w", reg.Name, err)
-		}
-		fsys, err := readerFS(reader, moduleName)
-		if err != nil {
-			return nil, fmt.Errorf("registry %q: %w", reg.Name, err)
-		}
-		return fsys, nil
-	default:
-		return nil, fmt.Errorf("registry %q has no supported module source", reg.Name)
 	}
+	return nil, fmt.Errorf("registry %q has no supported module source", reg.Name)
 }
 
-// readerFS is the single source->tree adapter. It reads the module's files from
-// any component.AsyncReader and assembles a mapFS keyed module-root-relative. It uses
-// RelativePath (not the raw item path) because that is the reader-agnostic path
-// both the live git reader and MemoryReader accept for ReadFile: the git reader
-// strips its configured base, and MemoryReader returns "<module>/<rel>". Both
-// forms start with "<module>/", which readerFS then strips.
+// readerFS is the source->tree adapter. It reads the module's files from a
+// component.AsyncReader and assembles a mapFS keyed module-root-relative. It
+// uses RelativePath (not the raw item path) because that is the reader-agnostic
+// path MemoryReader accepts for ReadFile: it returns "<module>/<rel>", which
+// starts with "<module>/", and readerFS then strips that prefix.
 func readerFS(r component.AsyncReader, moduleName string) (fs.FS, error) {
 	// Scoped when the source can: listing the registry to keep one entry costs
 	// an API request per directory of every other module in it.
