@@ -38,6 +38,7 @@ import (
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 const (
