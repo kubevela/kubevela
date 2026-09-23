@@ -221,6 +221,10 @@ func NewClusterJoinCommand(c *common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 					return true
 				}))
 			if err != nil {
+				if errors.Is(err, multicluster.ErrClusterAlreadyExistDeclined) {
+					cmd.Printf("Cancelled, cluster %s was not changed.\n", clusterName)
+					return nil
+				}
 				return err
 			}
 

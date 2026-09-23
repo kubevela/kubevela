@@ -55,6 +55,11 @@ type ContextKey string
 // KubeConfigContext marks the kubeConfig object in context
 const KubeConfigContext ContextKey = "kubeConfig"
 
+// ErrClusterAlreadyExistDeclined is returned by RegisterByVelaSecret when the
+// cluster already exists and ClusterAlreadyExistCallback declines the overwrite.
+// Callers must not treat this as a successful registration.
+var ErrClusterAlreadyExistDeclined = errors.New("declined to overwrite existing cluster")
+
 // KubeClusterConfig info for cluster management
 type KubeClusterConfig struct {
 	FilePath        string
@@ -176,7 +181,7 @@ func (clusterConfig *KubeClusterConfig) RegisterByVelaSecret(ctx context.Context
 			return fmt.Errorf("cluster %s already exists", cluster.Name)
 		}
 		if !clusterConfig.ClusterAlreadyExistCallback(clusterConfig.ClusterName) {
-			return nil
+			return ErrClusterAlreadyExistDeclined
 		}
 		if cluster.Spec.CredentialType == clusterv1alpha1.CredentialTypeInternal || cluster.Spec.CredentialType == clusterv1alpha1.CredentialTypeOCMManagedCluster {
 			return fmt.Errorf("cannot override %s typed cluster", cluster.Spec.CredentialType)
