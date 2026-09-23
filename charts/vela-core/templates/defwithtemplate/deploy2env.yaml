@@ -12,7 +12,7 @@ metadata:
   name: deploy2env
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "deploy2env" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "deploy2env" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |

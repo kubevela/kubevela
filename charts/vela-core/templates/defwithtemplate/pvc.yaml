@@ -13,7 +13,7 @@ spec:
   appliesToWorkloads:
     - deployments.apps
   podDisruptive: true
-  #{{ include "definitionRestrictions" (dict "name" "pvc" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "pvc" "kind" "TraitDefinition" "root" $) }}
   schematic:
     cue:
       template: |

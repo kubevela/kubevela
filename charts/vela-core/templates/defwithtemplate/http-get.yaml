@@ -10,7 +10,7 @@ metadata:
   name: http-get
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "http-get" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "http-get" "kind" "SourceDefinition" "root" $) }}
   schematic:
     cue:
       template: |

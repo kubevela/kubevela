@@ -10,7 +10,7 @@ metadata:
   name: configmap-local
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "configmap-local" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "configmap-local" "kind" "SourceDefinition" "root" $) }}
   schematic:
     cue:
       template: |

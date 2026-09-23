@@ -13,7 +13,7 @@ metadata:
   name: apply-remaining
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "apply-remaining" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "apply-remaining" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |

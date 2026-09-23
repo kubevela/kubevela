@@ -104,10 +104,16 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		"policyCount", len(app.Spec.Policies),
 		"workflowSteps", workflowSteps)
 
+	// A quota may ask to be flagged before it refuses; the warnings ride back on an
+	// admitted response.
+	var warnings []string
+
 	switch req.Operation {
 	case admissionv1.Create:
 		logger.WithStep("validate-create").Info("Validating Application creation - checking components, policies, and workflow configuration")
-		if allErrs := h.ValidateCreate(ctx, app, req); len(allErrs) > 0 {
+		allErrs, createWarnings := h.ValidateCreate(ctx, app, req)
+		warnings = createWarnings
+		if len(allErrs) > 0 {
 			mergedErr := mergeErrors(allErrs)
 			logger.WithStep("validate-create").WithError(mergedErr).Error(mergedErr, "Application creation validation failed - contains invalid components, policies, or workflow steps", "errorCount", len(allErrs), "applicationName", app.Name)
 			return admission.Errored(http.StatusBadRequest, fmt.Errorf("%w (requestUID=%s)", mergedErr, req.UID))
@@ -125,7 +131,9 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		logger = logger.WithValues("oldGeneration", oldApp.Generation)
 
 		if app.ObjectMeta.DeletionTimestamp.IsZero() {
-			if allErrs := h.ValidateUpdate(ctx, app, oldApp, req); len(allErrs) > 0 {
+			allErrs, updateWarnings := h.ValidateUpdate(ctx, app, oldApp, req)
+			warnings = updateWarnings
+			if len(allErrs) > 0 {
 				mergedErr := mergeErrors(allErrs)
 				logger.WithStep("validate-update").WithError(mergedErr).Error(mergedErr, "Application update validation failed - new configuration contains invalid changes", "errorCount", len(allErrs), "applicationName", app.Name, "oldGeneration", oldApp.Generation, "newGeneration", app.Generation)
 				return admission.Errored(http.StatusBadRequest, fmt.Errorf("%w (requestUID=%s)", mergedErr, req.UID))
@@ -143,7 +151,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	logger.WithStep("complete").WithSuccess(true, startTime).Info("Application admission validation completed successfully - resource will be admitted", "applicationName", req.Name, "operation", req.Operation, "namespace", req.Namespace)
-	return admission.ValidationResponse(true, "")
+	return admission.ValidationResponse(true, "").WithWarnings(warnings...)
 }
 
 // RegisterValidatingHandler will register application validate handler to the webhook

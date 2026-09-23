@@ -9,7 +9,7 @@ metadata:
   name: webhook
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "webhook" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "webhook" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |

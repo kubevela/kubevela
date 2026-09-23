@@ -8,7 +8,7 @@ metadata:
   name: daemon
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "daemon" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "daemon" "kind" "ComponentDefinition" "root" $) }}
   schematic:
     cue:
       template: |

@@ -1329,7 +1329,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 					return errors.Wrapf(err, "failed to marshal CRD into YAML")
 				}
 				s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", "{{ include \"systemDefinitionNamespace\" . }}") + "\n"
-				s = replaceRestrictionsPlaceholder(s, def.GetName())
+				s = replaceRestrictionsPlaceholder(s, def.GetName(), def.GetKind())
 				if outputFilename == "" {
 					s = fmt.Sprintf("--- %s ---\n%s", filepath.Base(inputFilename), s)
 					cmd.Print(s)
@@ -1417,7 +1417,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 						return errors.Wrapf(err, "failed to marshal CRD into YAML for %s", result.Definition.FunctionName)
 					}
 					s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", "{{ include \"systemDefinitionNamespace\" . }}") + "\n"
-					s = replaceRestrictionsPlaceholder(s, def.GetName())
+					s = replaceRestrictionsPlaceholder(s, def.GetName(), def.GetKind())
 
 					if outputFilename == "" {
 						allYAML.WriteString(fmt.Sprintf("--- %s (%s) ---\n%s", filepath.Base(inputFilename), result.Definition.Name, s))
@@ -2286,14 +2286,15 @@ func restrictionGenEnabled() bool {
 
 // replaceRestrictionsPlaceholder swaps the marker line for an include of the
 // chart's definitionRestrictions helper, keyed by the definition's name so a value
-// can target one definition.
+// can target one definition, and by its kind so the helper can refuse a quota on a
+// kind nothing counts before anything is applied.
 //
 // The include sits behind a "#". Helm expands the file as text before anything
 // parses it as YAML, so the directive still runs and the helper emits its content
 // on the lines below. This keeps the generated file valid YAML unrendered, which
 // callers that read it without Helm rely on.
-func replaceRestrictionsPlaceholder(s, name string) string {
+func replaceRestrictionsPlaceholder(s, name, kind string) string {
 	marker := fmt.Sprintf("  %s: '%s'\n", restrictionsField, HelmChartRestrictionsPlaceholder)
-	include := fmt.Sprintf("  #{{ include \"definitionRestrictions\" (dict \"name\" %q \"root\" $) }}\n", name)
+	include := fmt.Sprintf("  #{{ include \"definitionRestrictions\" (dict \"name\" %q \"kind\" %q \"root\" $) }}\n", name, kind)
 	return strings.Replace(s, marker, include, 1)
 }

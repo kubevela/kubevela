@@ -10,7 +10,7 @@ metadata:
   name: worker
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "worker" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "worker" "kind" "ComponentDefinition" "root" $) }}
   schematic:
     cue:
       template: |

@@ -11,7 +11,7 @@ metadata:
   name: check-metrics
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "check-metrics" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "check-metrics" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |

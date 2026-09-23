@@ -10,7 +10,7 @@ metadata:
   name: apply-terraform-config
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "apply-terraform-config" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "apply-terraform-config" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |

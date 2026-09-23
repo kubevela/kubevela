@@ -86,9 +86,9 @@ func TestRestrictionsPlaceholder(t *testing.T) {
 	// The include sits behind a "#" so the file is still valid YAML unrendered.
 	t.Run("the marker line becomes a commented, keyed include", func(t *testing.T) {
 		in := "spec:\n  restrictions: '" + HelmChartRestrictionsPlaceholder + "'\n  schematic:\n    cue: {}\n"
-		got := replaceRestrictionsPlaceholder(in, "webservice")
+		got := replaceRestrictionsPlaceholder(in, "webservice", "ComponentDefinition")
 		assert.Equal(t,
-			"spec:\n  #{{ include \"definitionRestrictions\" (dict \"name\" \"webservice\" \"root\" $) }}\n  schematic:\n    cue: {}\n",
+			"spec:\n  #{{ include \"definitionRestrictions\" (dict \"name\" \"webservice\" \"kind\" \"ComponentDefinition\" \"root\" $) }}\n  schematic:\n    cue: {}\n",
 			got)
 		for _, line := range strings.Split(got, "\n") {
 			assert.False(t, strings.HasPrefix(strings.TrimSpace(line), "{{"),
@@ -99,11 +99,11 @@ func TestRestrictionsPlaceholder(t *testing.T) {
 	// Definitions rendered without a marker must pass through untouched.
 	t.Run("yaml without a marker is untouched", func(t *testing.T) {
 		in := "spec:\n  schematic:\n    cue: {}\n"
-		assert.Equal(t, in, replaceRestrictionsPlaceholder(in, "webservice"))
+		assert.Equal(t, in, replaceRestrictionsPlaceholder(in, "webservice", "ComponentDefinition"))
 	})
 
 	t.Run("the definition name is carried into the include", func(t *testing.T) {
 		in := "  restrictions: '" + HelmChartRestrictionsPlaceholder + "'\n"
-		assert.Contains(t, replaceRestrictionsPlaceholder(in, "k8s-objects"), `"name" "k8s-objects"`)
+		assert.Contains(t, replaceRestrictionsPlaceholder(in, "k8s-objects", "ComponentDefinition"), `"name" "k8s-objects"`)
 	})
 }

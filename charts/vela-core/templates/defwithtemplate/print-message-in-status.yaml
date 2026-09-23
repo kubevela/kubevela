@@ -9,7 +9,7 @@ metadata:
   name: print-message-in-status
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "print-message-in-status" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "print-message-in-status" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |

@@ -9,7 +9,7 @@ metadata:
   name: delete-config
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "delete-config" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "delete-config" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |
