@@ -40,6 +40,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	velacache "github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -236,10 +237,7 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 // baseDefinitionName strips the revision a type may pin, leaving the definition
 // name. Types carrying no version are returned unchanged.
 func baseDefinitionName(definitionType string) string {
-	if base, _, found := strings.Cut(definitionType, "@"); found {
-		return base
-	}
-	return definitionType
+	return velacache.BaseTypeName(definitionType)
 }
 
 // definitionExistsInNamespace checks if a definition actually exists in the specified namespace
@@ -638,12 +636,13 @@ func traitConflictRuleMatches(rule string, target *v1beta1.TraitDefinition) bool
 // The cost is that a soundness failure hides any rendering failure until it is
 // fixed - the usual compiler trade, fewer and more precise errors per round, and
 // the reason the phases are named in the errors they produce.
-func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application, req admission.Request) field.ErrorList {
-	if errs := h.validateSoundness(ctx, app, req); len(errs) > 0 {
-		return errs
+func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.Application, req admission.Request) (field.ErrorList, []string) {
+	errs, warnings := h.validateSoundness(ctx, app, nil, req)
+	if len(errs) > 0 {
+		return errs, warnings
 	}
-	errs := h.ValidateComponents(ctx, app)
-	return append(errs, h.ValidateAddonComponents(ctx, app)...)
+	errs = h.ValidateComponents(ctx, app)
+	return append(errs, h.ValidateAddonComponents(ctx, app)...), warnings
 }
 
 // validateSoundness runs every check that can be made without rendering: whether
@@ -652,29 +651,30 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 //
 // Nothing here evaluates a template or resolves a source, so it is cheap and has
 // no side effects.
-func (h *ValidatingHandler) validateSoundness(ctx context.Context, app *v1beta1.Application, req admission.Request) field.ErrorList {
+func (h *ValidatingHandler) validateSoundness(ctx context.Context, app, oldApp *v1beta1.Application, req admission.Request) (field.ErrorList, []string) {
 	var errs field.ErrorList
 
 	errs = append(errs, h.ValidateAnnotations(ctx, app)...)
 	errs = append(errs, h.ValidateDefinitionPermissions(ctx, app, req)...)
-	errs = append(errs, h.ValidateDefinitionNamespaces(ctx, app)...)
+	restrictionErrs, warnings := h.ValidateDefinitionRestrictions(ctx, app, oldApp)
+	errs = append(errs, restrictionErrs...)
 	errs = append(errs, h.ValidateSources(ctx, app)...)
 	errs = append(errs, h.ValidateWorkflow(ctx, app)...)
 	errs = append(errs, h.ValidateComponentNames(ctx, app)...)
 	errs = append(errs, h.ValidateTraitConflicts(ctx, app)...)
-	return errs
+	return errs, warnings
 }
 
 // ValidateUpdate validates the Application on update
 //
 // The immutable-field check is soundness, not rendering, so it gates the render
 // alongside the rest rather than being reported after it.
-func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
-	errs := h.validateSoundness(ctx, newApp, req)
+func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *v1beta1.Application, req admission.Request) (field.ErrorList, []string) {
+	errs, warnings := h.validateSoundness(ctx, newApp, oldApp, req)
 	errs = append(errs, h.ValidateImmutableFields(ctx, newApp, oldApp)...)
 	if len(errs) > 0 {
-		return errs
+		return errs, warnings
 	}
 	errs = append(errs, h.ValidateComponents(ctx, newApp)...)
-	return append(errs, h.ValidateAddonComponents(ctx, newApp)...)
+	return append(errs, h.ValidateAddonComponents(ctx, newApp)...), warnings
 }
