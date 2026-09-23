@@ -66,7 +66,7 @@ var _ = Describe("Trait conflict validation", func() {
 			Entry("group wildcard ignored for empty reference", "*.k8s.io", cueTrait, false),
 			Entry("label selector match", "labelSelector:team=platform", cueTrait, true),
 			Entry("label selector miss", "labelSelector:team=edge", cueTrait, false),
-			Entry("invalid label selector", "labelSelector:@@@", cueTrait, false),
+			Entry("invalid label selector fails closed", "labelSelector:@@@", cueTrait, true),
 		)
 	})
 
