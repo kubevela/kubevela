@@ -11,6 +11,7 @@ metadata:
   name: export-service
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "export-service" "root" $) }}
   schematic:
     cue:
       template: |

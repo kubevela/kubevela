@@ -8,6 +8,7 @@ metadata:
   name: shared-resource
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "shared-resource" "root" $) }}
   schematic:
     cue:
       template: |

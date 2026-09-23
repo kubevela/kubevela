@@ -13,6 +13,7 @@ metadata:
   name: apply-application
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "apply-application" "root" $) }}
   schematic:
     cue:
       template: |

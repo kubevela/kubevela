@@ -13,6 +13,7 @@ spec:
   appliesToWorkloads:
     - deployments.apps
   podDisruptive: true
+  #{{ include "definitionRestrictions" (dict "name" "volumes" "root" $) }}
   schematic:
     cue:
       template: |

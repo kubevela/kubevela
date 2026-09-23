@@ -9,6 +9,7 @@ metadata:
   name: depends-on-app
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "depends-on-app" "root" $) }}
   schematic:
     cue:
       template: |

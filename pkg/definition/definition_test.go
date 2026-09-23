@@ -39,6 +39,8 @@ import (
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	addonutils "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/filters"
@@ -391,4 +393,46 @@ template: {
 
 	assert.Contains(t, storedTemplate, "parameter.env +")
 	assert.NotContains(t, storedTemplate, "list.Concat")
+}
+
+// Restrictions have to be reachable from `vela def apply`. Both channels ride
+// generic paths: attributes decodes into the typed spec, and an annotation key
+// containing "oam.dev" passes through unprefixed.
+func TestFromCUEStringCarriesNamespaceRestrictions(t *testing.T) {
+	const cueString = `
+"restricted-comp": {
+	annotations: {
+		"definition.oam.dev/restrict-namespaces": "vela-system,tenant-*"
+	}
+	attributes: {
+		restrictions: {
+			namespaces: ["vela-system", "tenant-*"]
+			namespaceSelector: matchLabels: tenant: "true"
+		}
+		workload: type: "deployments.apps"
+	}
+	description: "a component only tenants may use"
+	labels: {}
+	type: "component"
+}
+template: output: {
+	apiVersion: "apps/v1"
+	kind:       "Deployment"
+}
+`
+	def := &Definition{Unstructured: unstructured.Unstructured{}}
+	def.SetGVK("ComponentDefinition")
+	require.NoError(t, def.FromCUEString(cueString, nil))
+
+	cd := &v1beta1.ComponentDefinition{}
+	raw, err := json.Marshal(def.Object)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(raw, cd))
+
+	require.NotNil(t, cd.Spec.Restrictions)
+	assert.Equal(t, []string{"vela-system", "tenant-*"}, cd.Spec.Restrictions.Namespaces)
+	require.NotNil(t, cd.Spec.Restrictions.NamespaceSelector)
+	assert.Equal(t, map[string]string{"tenant": "true"}, cd.Spec.Restrictions.NamespaceSelector.MatchLabels)
+	assert.Equal(t, "vela-system,tenant-*", cd.Annotations[oam.AnnotationRestrictNamespaces])
+	assert.Equal(t, cd.Spec.Restrictions, nsrestrict.Of(cd))
 }

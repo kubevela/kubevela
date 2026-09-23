@@ -9,6 +9,7 @@ metadata:
   name: apply-object
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "apply-object" "root" $) }}
   schematic:
     cue:
       template: |

@@ -10,6 +10,7 @@ metadata:
   name: raw
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "raw" "root" $) }}
   schematic:
     cue:
       template: |

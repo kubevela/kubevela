@@ -77,6 +77,12 @@ type PolicyDefinitionSpec struct {
 	// If not specified, defaults to 0.
 	// +optional
 	Priority int32 `json:"priority,omitempty"`
+
+	// Restrictions limits where this definition may be used. Absent or empty means
+	// usable anywhere. A non-empty block overrides the
+	// definition.oam.dev/restrict-namespaces annotation.
+	// +optional
+	Restrictions *common.DefinitionRestrictions `json:"restrictions,omitempty"`
 }
 
 // PolicyDefinitionStatus is the status of PolicyDefinition

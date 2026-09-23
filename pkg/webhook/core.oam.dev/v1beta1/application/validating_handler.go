@@ -42,6 +42,10 @@ var _ admission.Handler = &ValidatingHandler{}
 // ValidatingHandler handles application
 type ValidatingHandler struct {
 	Client client.Client
+	// APIReader reads straight from the API server, used for the one Namespace
+	// lookup a restriction's label selector needs. The cached client would start a
+	// cluster-wide Namespace informer inside an admission request.
+	APIReader client.Reader
 	// Decoder decodes objects
 	Decoder admission.Decoder
 
@@ -147,6 +151,7 @@ func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	server := mgr.GetWebhookServer()
 	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: &ValidatingHandler{
 		Client:         mgr.GetClient(),
+		APIReader:      mgr.GetAPIReader(),
 		Decoder:        admission.NewDecoder(mgr.GetScheme()),
 		addonValidator: addonvalidation.NewValidator(mgr.GetClient(), mgr.GetConfig()),
 	}})

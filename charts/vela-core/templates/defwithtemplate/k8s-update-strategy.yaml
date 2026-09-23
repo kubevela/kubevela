@@ -15,6 +15,7 @@ spec:
     - daemonsets.apps
   conflictsWith: []
   podDisruptive: false
+  #{{ include "definitionRestrictions" (dict "name" "k8s-update-strategy" "root" $) }}
   schematic:
     cue:
       template: |

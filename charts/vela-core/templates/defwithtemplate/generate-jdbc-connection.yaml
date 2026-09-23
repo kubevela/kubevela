@@ -9,6 +9,7 @@ metadata:
   name: generate-jdbc-connection
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "generate-jdbc-connection" "root" $) }}
   schematic:
     cue:
       template: |

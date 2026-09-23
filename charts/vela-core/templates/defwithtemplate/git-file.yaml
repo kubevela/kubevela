@@ -10,6 +10,7 @@ metadata:
   name: git-file
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "git-file" "root" $) }}
   schematic:
     cue:
       template: |

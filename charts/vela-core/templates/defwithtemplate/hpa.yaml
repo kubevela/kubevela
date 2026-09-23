@@ -12,6 +12,7 @@ spec:
     - deployments.apps
     - statefulsets.apps
   podDisruptive: false
+  #{{ include "definitionRestrictions" (dict "name" "hpa" "root" $) }}
   schematic:
     cue:
       template: |

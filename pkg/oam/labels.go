@@ -152,6 +152,16 @@ const (
 	// AnnotationDefinitionRevisionName is used to specify the name of DefinitionRevision in component/trait definition
 	AnnotationDefinitionRevisionName = "definitionrevision.oam.dev/name"
 
+	// AnnotationRestrictNamespaces limits the namespaces whose Applications may use a
+	// definition, as a comma-separated list of namespace names or globs. It is the
+	// channel for definitions whose spec you do not own, such as the builtins helm
+	// installs. A label cannot carry this: label values reject "*" and ",".
+	//
+	// Names only. Restricting by namespace label is spec.restrictions.namespaceSelector
+	// and nothing else, so the annotation stays a flat list with no parsing to get
+	// wrong.
+	AnnotationRestrictNamespaces = "definition.oam.dev/restrict-namespaces"
+
 	// AnnotationLastAppliedConfiguration is kubectl annotations for 3-way merge
 	AnnotationLastAppliedConfiguration = "kubectl.kubernetes.io/last-applied-configuration"
 

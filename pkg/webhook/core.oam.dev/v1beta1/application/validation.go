@@ -446,52 +446,32 @@ func (h *ValidatingHandler) ValidateDefinitionPermissions(ctx context.Context, a
 	errs = append(errs, h.validateDefinitions(ctx, req, app.Namespace,
 		reflect.TypeOf(v1beta1.ComponentDefinition{}), usage.componentTypes,
 		func(indices interface{}) []*field.Path {
-			var paths []*field.Path
-			for _, idx := range indices.([]int) {
-				paths = append(paths, field.NewPath("spec", "components").Index(idx).Child("type"))
-			}
-			return paths
+			return componentTypePaths(indices.([]int))
 		})...)
 
 	// Validate TraitDefinitions
 	errs = append(errs, h.validateDefinitions(ctx, req, app.Namespace,
 		reflect.TypeOf(v1beta1.TraitDefinition{}), usage.traitTypes,
 		func(locations interface{}) []*field.Path {
-			var paths []*field.Path
-			for _, loc := range locations.([][2]int) {
-				paths = append(paths,
-					field.NewPath("spec", "components").Index(loc[0]).Child("traits").Index(loc[1]).Child("type"))
-			}
-			return paths
+			return traitTypePaths(locations.([][2]int))
 		})...)
 
 	// Validate PolicyDefinitions
 	errs = append(errs, h.validateDefinitions(ctx, req, app.Namespace,
 		reflect.TypeOf(v1beta1.PolicyDefinition{}), usage.policyTypes,
 		func(indices interface{}) []*field.Path {
-			var paths []*field.Path
-			for _, idx := range indices.([]int) {
-				paths = append(paths, field.NewPath("spec", "policies").Index(idx).Child("type"))
-			}
-			return paths
+			return policyTypePaths(indices.([]int))
 		})...)
 
 	// Validate WorkflowStepDefinitions
 	errs = append(errs, h.validateDefinitions(ctx, req, app.Namespace,
 		reflect.TypeOf(v1beta1.WorkflowStepDefinition{}), usage.workflowStepTypes,
 		func(locations interface{}) []*field.Path {
-			var paths []*field.Path
-			for _, loc := range locations.([]workflowStepLocation) {
-				paths = append(paths, getWorkflowStepFieldPath(loc))
-			}
-			return paths
+			return workflowStepTypePaths(locations.([]workflowStepLocation))
 		})...)
 	for sourceType, indices := range usage.sourceTypes {
 		allowed, err := h.checkDefinitionPermission(ctx, req, "sourcedefinitions", sourceType, app.Namespace)
-		fieldPaths := make([]*field.Path, 0, len(indices))
-		for _, idx := range indices {
-			fieldPaths = append(fieldPaths, field.NewPath("spec", "sources").Index(idx).Child("type"))
-		}
+		fieldPaths := sourceTypePaths(indices)
 		errs = append(errs, h.processDefinitionPermissionCheck(
 			allowed, err, req, "SourceDefinition", sourceType, app.Namespace, fieldPaths)...)
 	}
@@ -677,6 +657,7 @@ func (h *ValidatingHandler) validateSoundness(ctx context.Context, app *v1beta1.
 
 	errs = append(errs, h.ValidateAnnotations(ctx, app)...)
 	errs = append(errs, h.ValidateDefinitionPermissions(ctx, app, req)...)
+	errs = append(errs, h.ValidateDefinitionNamespaces(ctx, app)...)
 	errs = append(errs, h.ValidateSources(ctx, app)...)
 	errs = append(errs, h.ValidateWorkflow(ctx, app)...)
 	errs = append(errs, h.ValidateComponentNames(ctx, app)...)
