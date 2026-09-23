@@ -18,17 +18,24 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"testing"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	pkgtypes "k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	nacosmock "github.com/oam-dev/kubevela/test/mock/nacos"
 )
 
@@ -43,6 +50,111 @@ func TestParseConfigTemplate(t *testing.T) {
 	r.Equal(template.Name, "default")
 	r.NotEqual(template.Schema, nil)
 	r.Equal(len(template.Schema.Properties), 4)
+}
+
+func TestIsConfigCRDOwned(t *testing.T) {
+	r := require.New(t)
+
+	legacySecret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{
+		Name: "legacy", Namespace: "default",
+		Labels: map[string]string{types.LabelConfigCatalog: types.VelaCoreConfig},
+	}}
+	r.False(isConfigCRDOwned(legacySecret), "a hand-written legacy Secret has no owner reference")
+
+	crdOwnedSecret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{
+		Name: "crd-backed", Namespace: "default",
+		Labels: map[string]string{types.LabelConfigCatalog: types.VelaCoreConfig},
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: configv1alpha1.SchemeGroupVersion.String(),
+			Kind:       configv1alpha1.ConfigKind,
+			Name:       "crd-backed",
+			Controller: ptrBool(true),
+		}},
+	}}
+	r.True(isConfigCRDOwned(crdOwnedSecret), "the Config CRD reconciler's materialized output Secret must be recognized")
+
+	otherOwnedSecret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{
+		Name: "other-owned", Namespace: "default",
+		Labels: map[string]string{types.LabelConfigCatalog: types.VelaCoreConfig},
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+			Name:       "unrelated",
+			Controller: ptrBool(true),
+		}},
+	}}
+	r.False(isConfigCRDOwned(otherOwnedSecret), "an unrelated owner reference must not be mistaken for a Config CR")
+}
+
+func ptrBool(b bool) *bool { return &b }
+
+const configTemplateCRDCueScript = `
+metadata: { name: "from-crd" }
+template: {
+	parameter: {
+		key: string
+	}
+	output: {
+		apiVersion: "v1"
+		kind:       "Secret"
+		stringData: {
+			key: parameter.key
+		}
+	}
+}
+`
+
+func TestConfigTemplateCRDToTemplate(t *testing.T) {
+	r := require.New(t)
+
+	t.Run("without status schema, schema is parsed from the template", func(t *testing.T) {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "from-crd", Namespace: "default"},
+			Spec: configv1alpha1.ConfigTemplateSpec{
+				Template: configTemplateCRDCueScript,
+				Alias:    "alias",
+				Scope:    configv1alpha1.ConfigTemplateScopeNamespace,
+			},
+		}
+		template, err := configTemplateCRDToTemplate(context.Background(), ct)
+		r.NoError(err)
+		r.NotNil(template)
+		r.Equal("from-crd", template.Name)
+		r.Equal("alias", template.Alias)
+		r.NotNil(template.Schema)
+		r.Contains(template.Schema.Properties, "key")
+	})
+
+	t.Run("with a status schema, it is decoded directly", func(t *testing.T) {
+		schema := &openapi3.Schema{Type: &openapi3.Types{openapi3.TypeObject}}
+		raw, err := json.Marshal(schema)
+		r.NoError(err)
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "from-crd", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: configTemplateCRDCueScript},
+			Status: configv1alpha1.ConfigTemplateStatus{
+				Schema: &runtime.RawExtension{Raw: raw},
+			},
+		}
+		template, err := configTemplateCRDToTemplate(context.Background(), ct)
+		r.NoError(err)
+		r.NotNil(template.Schema)
+		r.True(template.Schema.Type.Includes(openapi3.TypeObject))
+	})
+
+	t.Run("with an invalid status schema, it fails to parse", func(t *testing.T) {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "from-crd", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: configTemplateCRDCueScript},
+			Status: configv1alpha1.ConfigTemplateStatus{
+				Schema: &runtime.RawExtension{Raw: []byte("not-json")},
+			},
+		}
+		_, err := configTemplateCRDToTemplate(context.Background(), ct)
+		r.Error(err)
+		r.Contains(err.Error(), "fail to parse the schema")
+	})
+
 }
 
 var _ = Describe("test config factory", func() {
@@ -185,6 +297,18 @@ var _ = Describe("test config factory", func() {
 		Expect(err.Error()).To(ContainSubstring("template"))
 	})
 
+	It("should load a template from a ConfigTemplate CRD before falling back to the ConfigMap convention", func() {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "crd-template", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: configTemplateCRDCueScript},
+		}
+		Expect(k8sClient.Create(context.TODO(), ct)).Should(BeNil())
+
+		template, err := fac.LoadTemplate(context.TODO(), "crd-template", "default")
+		Expect(err).Should(BeNil())
+		Expect(template.Name).Should(Equal("crd-template"))
+	})
+
 	It("should fail to parse config when template not found", func() {
 		_, err := fac.ParseConfig(context.TODO(), NamespacedName{Name: "non-existent-template", Namespace: "default"}, Metadata{})
 		Expect(err).To(Equal(ErrTemplateNotFound))
@@ -262,3 +386,151 @@ template: { parameter: { key: string } }
 		Expect(err).To(HaveOccurred())
 	})
 })
+
+// A caller that needs its own labels on a template - the SourceDefinition
+// controller stamps the owning definition so a sweep can find it - must not have
+// to reach past the API into whichever object the factory happens to write.
+//
+// Reaching through was the status quo: `tmpl.ConfigMap.Labels[...] = x`, guarded
+// by a nil check. configTemplateCRDToTemplate returns a Template with no
+// ConfigMap at all, so that guard silently dropped the labels the moment a
+// ConfigTemplate CR was involved.
+func TestParseTemplateCarriesCallerLabels(t *testing.T) {
+	r := require.New(t)
+	k8sClient := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	f := NewConfigFactory(k8sClient)
+
+	tmpl, err := f.ParseTemplate(context.Background(), "labelled", []byte(`
+metadata: {
+	name: "labelled"
+	scope: "system"
+}
+template: {
+	parameter: {name: string}
+	output: {}
+}
+`))
+	r.NoError(err)
+
+	tmpl.Labels = map[string]string{
+		"sourcedefinition.oam.dev/name":      "configmap-local",
+		"sourcedefinition.oam.dev/namespace": "vela-system",
+	}
+	r.NoError(f.CreateOrUpdateConfigTemplate(context.Background(), "vela-system", tmpl))
+
+	var cm v1.ConfigMap
+	r.NoError(k8sClient.Get(context.Background(),
+		pkgtypes.NamespacedName{Namespace: "vela-system", Name: TemplateConfigMapNamePrefix + "labelled"}, &cm))
+
+	r.Equal("configmap-local", cm.Labels["sourcedefinition.oam.dev/name"],
+		"a caller label must reach the written object")
+	r.Equal("vela-system", cm.Labels["sourcedefinition.oam.dev/namespace"])
+	// The factory's own labels are not displaced by the caller's.
+	r.Equal(types.VelaCoreConfig, cm.Labels[types.LabelConfigCatalog])
+	r.Equal("system", cm.Labels[types.LabelConfigScope])
+}
+
+// Same contract as Template.Labels, on the config side. The source cache stamps
+// identity and lifetime metadata so a context-free sweep can reason about an
+// entry; it should not have to reach into Config.Secret to do it.
+//
+// Annotations as well as labels: the cache's TTL, last-sync and template-hash
+// markers are annotations, and they are what the freshness logic reads.
+func TestCreateOrUpdateConfigCarriesCallerMetadata(t *testing.T) {
+	r := require.New(t)
+	k8sClient := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	f := NewConfigFactory(k8sClient)
+
+	cfg := &Config{
+		Metadata: Metadata{NamespacedName: NamespacedName{Name: "cache-entry", Namespace: "vela-system"}},
+		Template: Template{NamespacedName: NamespacedName{Name: "source-atlas-abc123"}},
+		Secret: &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cache-entry", Namespace: "vela-system",
+				Labels: map[string]string{types.LabelConfigType: "source-atlas-abc123"},
+			},
+			Data: map[string][]byte{SaveInputPropertiesKey: []byte(`{"host":"example.com"}`)},
+		},
+		Labels: map[string]string{
+			"sourcedefinition.oam.dev/name":        "atlas",
+			"sourcedefinition.oam.dev/ctx.cluster": "local",
+		},
+		Annotations: map[string]string{
+			types.AnnotationConfigTTL:                "5m0s",
+			"sourcedefinition.oam.dev/template-hash": "abc123",
+		},
+	}
+	r.NoError(f.CreateOrUpdateConfig(context.Background(), cfg, "vela-system"))
+
+	var got v1.Secret
+	r.NoError(k8sClient.Get(context.Background(),
+		pkgtypes.NamespacedName{Namespace: "vela-system", Name: "cache-entry"}, &got))
+
+	r.Equal("atlas", got.Labels["sourcedefinition.oam.dev/name"])
+	r.Equal("local", got.Labels["sourcedefinition.oam.dev/ctx.cluster"])
+	r.Equal("5m0s", got.Annotations[types.AnnotationConfigTTL])
+	r.Equal("abc123", got.Annotations["sourcedefinition.oam.dev/template-hash"])
+	// The factory's own type label is not displaced.
+	r.Equal("source-atlas-abc123", got.Labels[types.LabelConfigType])
+	// And the data still lands in the Secret.
+	r.Equal(`{"host":"example.com"}`, string(got.Data[SaveInputPropertiesKey]))
+}
+
+// The other half of the contract pinned in pkg/sources by
+// TestCacheDataKeyMatchesTheConfigAPI. The source cache reads its data from the
+// Secret under this key; ParseConfig writes it here, and the Config CRD's
+// controller writes it under the same key when it materialises an entry.
+//
+// An import cycle stops the two constants being compared directly, so each side
+// pins the literal. A rename on either would not fail to compile: the cache
+// would read an absent key and report every entry as a miss.
+func TestSaveInputPropertiesKeyMatchesTheSourceCache(t *testing.T) {
+	require.Equal(t, "input-properties", SaveInputPropertiesKey)
+}
+
+// Writing a template as a ConfigTemplate CR, with the caller's labels on it.
+//
+// The CLI grew its own applyConfigTemplateCRD for this, which sets Spec and
+// nothing else - so a caller needing to find its templates later, as the source
+// cache sweep does, has nowhere to record ownership.
+func TestCreateOrUpdateConfigTemplateCRWritesTheCR(t *testing.T) {
+	r := require.New(t)
+	k8sClient := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	f := NewConfigFactory(k8sClient)
+
+	tmpl, err := f.ParseTemplate(context.Background(), "atlas-schema", []byte(`
+metadata: {
+	name: "atlas-schema"
+	alias: "atlas"
+	scope: "system"
+	description: "generated"
+}
+template: {
+	parameter: {host: string}
+	output: {}
+}
+`))
+	r.NoError(err)
+	tmpl.Labels = map[string]string{"sourcedefinition.oam.dev/name": "atlas"}
+
+	r.NoError(f.CreateOrUpdateConfigTemplateCR(context.Background(), "vela-system", tmpl))
+
+	var ct configv1alpha1.ConfigTemplate
+	r.NoError(k8sClient.Get(context.Background(),
+		pkgtypes.NamespacedName{Namespace: "vela-system", Name: "atlas-schema"}, &ct))
+
+	r.Equal("atlas", ct.Labels["sourcedefinition.oam.dev/name"], "caller labels reach the CR")
+	r.Contains(ct.Spec.Template, "parameter:", "the CUE is carried verbatim")
+	r.Equal(configv1alpha1.ConfigTemplateScopeSystem, ct.Spec.Scope)
+	r.Equal("atlas", ct.Spec.Alias)
+	// ParseTemplate does not carry description off the CUE metadata, so there is
+	// none to write. The CLI's own CR writer has the same gap.
+	r.Empty(ct.Spec.Description)
+
+	// Idempotent: a second write updates rather than failing.
+	tmpl.Labels["sourcedefinition.oam.dev/namespace"] = "vela-system"
+	r.NoError(f.CreateOrUpdateConfigTemplateCR(context.Background(), "vela-system", tmpl))
+	r.NoError(k8sClient.Get(context.Background(),
+		pkgtypes.NamespacedName{Namespace: "vela-system", Name: "atlas-schema"}, &ct))
+	r.Equal("vela-system", ct.Labels["sourcedefinition.oam.dev/namespace"])
+}

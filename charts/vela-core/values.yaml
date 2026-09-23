@@ -160,8 +160,13 @@ optimize:
 ##@param featureGates.validateResourcesExist enable webhook validation to check if resource types referenced in definition templates exist in the cluster
 ##@param featureGates.enableApplicationScopedPolicies enable Application-scoped PolicyDefinitions that transform Application CR before rendering (Alpha)
 ##@param featureGates.enableGlobalPolicies enable automatic discovery and application of global PolicyDefinitions to all Applications (Alpha)
+##@param featureGates.enableSourceAutoUpdate default for spec.sources[].autoUpdate - re-dispatch components when a value they read from a SourceDefinition changes, for bindings that express no preference (Alpha)
+##@param featureGates.enableCelExpressions read $( ) property expressions, and with them SourceDefinition. Off by default because $(VAR_NAME) is Kubernetes' own env-var syntax and would be read as an expression (Alpha)
+##@param featureGates.requireCelExpressionOptIn while enableCelExpressions is on, read expressions only in Applications annotated app.oam.dev/cel-expressions=true, so enabling the feature is not a fleet-wide change (Alpha)
+##@param featureGates.validateUndeclaredParameters reject Application properties that the definition's parameter stanza does not declare (Alpha)
 ##@param featureGates.enableCueExpVariable inject the CUE_EXPERIMENT env var (evalv3=0,keepvalidators=0) into the controller to disable experimental CUE features during the v0.14.x migration window
 ##@param featureGates.enableAddonComponent enable installing an addon as an Application component via the type: addon ComponentDefinition (Alpha)
+##@param featureGates.restrictDefinitionNamespaces enforce a definition's spec.restrictions or definition.oam.dev/restrict-namespaces annotation when an Application is created or updated (Beta, on by default; a no-op until a definition declares a restriction)
 ##@param
 featureGates:
   gzipResourceTracker: false
@@ -182,8 +187,41 @@ featureGates:
   validateResourcesExist: false
   enableApplicationScopedPolicies: false
   enableGlobalPolicies: false
+  enableSourceAutoUpdate: false
+  enableCelExpressions: false
+  requireCelExpressionOptIn: true
+  validateUndeclaredParameters: false
   enableCueExpVariable: true
   enableAddonComponent: false
+  restrictDefinitionNamespaces: true
+
+## @section Definition restriction parameters
+
+## Restrictions stamped onto the builtin definitions this chart installs.
+##
+## These definitions are regenerated on every upgrade, so declare a restriction
+## here rather than editing one in the cluster. Empty by default.
+##
+## `default` applies to every builtin; `overrides` replaces it for one definition,
+## keyed by name. Both take the same shape as spec.restrictions: `namespaces`
+## (names or globs) and `namespaceSelector` (a label selector).
+##
+## Addons install their own Applications into vela-system using these
+## definitions, so a `default` that excludes vela-system breaks them.
+##
+##   definitionRestrictions:
+##     default:
+##       namespaces: ["vela-system", "tenant-*"]
+##     overrides:
+##       k8s-objects:
+##         namespaces: ["vela-system"]
+##       webservice:
+##         namespaceSelector:
+##           matchLabels:
+##             tenant: "true"
+##
+## @param definitionRestrictions Restrictions stamped onto the builtin definitions, as `default` (applied to every one) and `overrides` (per definition name, replacing the default)
+definitionRestrictions: {}
 
 ## @section MultiCluster parameters
 

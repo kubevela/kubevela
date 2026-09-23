@@ -42,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	controllerscheme "sigs.k8s.io/controller-runtime/pkg/scheme"
 
+	configoam "github.com/oam-dev/kubevela/apis/config.oam.dev"
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -71,6 +72,8 @@ var _ = BeforeSuite(func() {
 	err = crdv1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 	err = kruise.AddToScheme(scheme)
+	Expect(err).Should(BeNil())
+	err = configoam.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
 	depExample := &unstructured.Unstructured{}
 	depExample.SetGroupVersionKind(schema.GroupVersionKind{

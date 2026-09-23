@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
 	"github.com/oam-dev/kubevela/pkg/features"
@@ -46,10 +45,12 @@ import (
 	"github.com/kubevela/workflow/pkg/cue/process"
 
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/cue/render"
 	"github.com/oam-dev/kubevela/pkg/cue/task"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
 const (
@@ -61,8 +62,10 @@ const (
 	PatchFieldName = "patch"
 	// PatchOutputsFieldName is the name of the struct contains the patch of outputs CR data
 	PatchOutputsFieldName = "patchOutputs"
-	// ErrsFieldName check if errors contained in the cue
-	ErrsFieldName = "errs"
+	// ErrsFieldName check if errors contained in the cue. Kept as an alias so
+	// existing callers of definition.ErrsFieldName still compile; the value lives
+	// in pkg/cue/render, shared with source resolution.
+	ErrsFieldName = render.ErrsFieldName
 	// TemplateContextPrefix is the base prefix for storing templates in context
 	TemplateContextPrefix = "template-context-"
 )
@@ -72,6 +75,7 @@ func GetWorkloadTemplateKey(name string) string {
 	return TemplateContextPrefix + "workload-" + name
 }
 
+// GetTraitTemplateKey returns the context key for storing trait templates
 // GetTraitTemplateKey returns the context key for storing trait templates
 func GetTraitTemplateKey(name string) string {
 	return TemplateContextPrefix + "trait-" + name
@@ -84,29 +88,46 @@ const (
 )
 
 // AbstractEngine defines Definition's Render interface
+// AbstractEngine defines Definition's Render interface
 type AbstractEngine interface {
 	Complete(ctx process.Context, abstractTemplate string, params interface{}) error
 	Status(templateContext map[string]interface{}, request *health.StatusRequest) (*health.StatusResult, error)
 	GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error)
 }
-
 type def struct {
 	name string
 }
-
 type workloadDef struct {
 	def
+	// surface is the call site this definition renders on. A PolicyDefinition
+	// with a CUE template renders through this same engine, but it is not a
+	// component: its readable context differs, and context.name is the policy.
+	surface string
 }
 
 // NewWorkloadAbstractEngine create Workload Definition AbstractEngine
+// NewWorkloadAbstractEngine create Workload Definition AbstractEngine
 func NewWorkloadAbstractEngine(name string) AbstractEngine {
 	return &workloadDef{
-		def: def{
-			name: name,
-		},
+		def:     def{name: name},
+		surface: sources.SurfaceComponent,
 	}
 }
 
+// NewPolicyAbstractEngine creates the engine for a PolicyDefinition that renders
+// resources. Same machinery as a component, different surface - so its
+// expressions are typed and resolved against the context a policy render has.
+// NewPolicyAbstractEngine creates the engine for a PolicyDefinition that renders
+// resources. Same machinery as a component, different surface - so its
+// expressions are typed and resolved against the context a policy render has.
+func NewPolicyAbstractEngine(name string) AbstractEngine {
+	return &workloadDef{
+		def:     def{name: name},
+		surface: sources.SurfacePolicyRendered,
+	}
+}
+
+// Complete do workload definition's rendering
 // Complete do workload definition's rendering
 func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) (retErr error) {
 	start := time.Now()
@@ -120,7 +141,18 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 
 	var paramFile = velaprocess.ParameterFieldName + ": {}"
 	if params != nil {
+		surface := wd.surface
+		if surface == "" {
+			surface = sources.SurfaceComponent
+		}
+		resolved, err := sources.ResolveSourceExpressions(ctx, params, surface)
+		if err != nil {
+			return errors.WithMessagef(err, "resolve source expressions for %s %s", surface, wd.name)
+		}
 		bt, err := json.Marshal(params)
+		if resolved != nil {
+			bt, err = json.Marshal(resolved)
+		}
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of workload %s", wd.name)
 		}
@@ -137,18 +169,13 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	abstractTemplate, _ = upgrade.EnsureCueVersionCompatibility(abstractTemplate, wd.name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
 
 	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), strings.Join([]string{
-		renderTemplate(abstractTemplate), paramFile, c,
+		render.Template(abstractTemplate), paramFile, c,
 	}, "\n"))
 	if err != nil {
 		return errors.WithMessagef(err, "failed to compile workload %s after merge parameter and context", wd.name)
 	}
 
-	var userErrors []string
-	if errs := val.LookupPath(value.FieldPath(ErrsFieldName)); errs.Exists() {
-		if err := errs.Decode(&userErrors); err != nil {
-			klog.Warningf("Workload definition '%s' has malformed 'errs' field (expected []string): %v. Custom error reporting will be skipped.", wd.name, err)
-		}
-	}
+	userErrors := render.UserErrors(val, "Workload definition", wd.name)
 
 	validationErr := val.Validate()
 
@@ -211,14 +238,12 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	}
 	return nil
 }
-
 func withCluster(ctx context.Context, o client.Object) context.Context {
 	if cluster := oam.GetCluster(o); cluster != "" {
 		return multicluster.WithCluster(ctx, cluster)
 	}
 	return ctx
 }
-
 func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 	baseLabels := GetBaseContextLabels(ctx)
 	var root = initRoot(baseLabels)
@@ -267,10 +292,10 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 }
 
 // Status get workload status by customStatusTemplate
+// Status get workload status by customStatusTemplate
 func (wd *workloadDef) Status(templateContext map[string]interface{}, request *health.StatusRequest) (*health.StatusResult, error) {
 	return health.GetStatus(templateContext, request)
 }
-
 func (wd *workloadDef) GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 	return wd.getTemplateContext(ctx, cli, accessor)
 }
@@ -280,6 +305,7 @@ type traitDef struct {
 }
 
 // NewTraitAbstractEngine create Trait Definition AbstractEngine
+// NewTraitAbstractEngine create Trait Definition AbstractEngine
 func NewTraitAbstractEngine(name string) AbstractEngine {
 	return &traitDef{
 		def: def{
@@ -288,6 +314,8 @@ func NewTraitAbstractEngine(name string) AbstractEngine {
 	}
 }
 
+// Complete do trait definition's rendering
+// nolint:gocyclo
 // Complete do trait definition's rendering
 // nolint:gocyclo
 func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) (retErr error) {
@@ -303,7 +331,14 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	abstractTemplate, _ = upgrade.EnsureCueVersionCompatibility(abstractTemplate, td.name, upgrade.TraitKind, upgrade.TemplateAreaMain)
 	buff := abstractTemplate + "\n"
 	if params != nil {
+		resolved, err := sources.ResolveSourceExpressions(ctx, params, sources.SurfaceTrait)
+		if err != nil {
+			return errors.WithMessagef(err, "resolve source expressions for trait %s", td.name)
+		}
 		bt, err := json.Marshal(params)
+		if resolved != nil {
+			bt, err = json.Marshal(resolved)
+		}
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
@@ -337,12 +372,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		return errors.WithMessagef(err, "failed to compile trait %s after merge parameter and context", td.name)
 	}
 
-	var userErrors []string
-	if errs := val.LookupPath(value.FieldPath(ErrsFieldName)); errs.Exists() {
-		if err := errs.Decode(&userErrors); err != nil {
-			klog.Warningf("Trait definition '%s' has malformed 'errs' field (expected []string): %v. Custom error reporting will be skipped.", td.name, err)
-		}
-	}
+	userErrors := render.UserErrors(val, "Trait definition", td.name)
 
 	validationErr := val.Validate()
 
@@ -421,7 +451,6 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 
 	return nil
 }
-
 func outputStatusBytes(ctx process.Context) []byte {
 	var statusBytes []byte
 	var outputMap map[string]interface{}
@@ -444,7 +473,6 @@ func outputStatusBytes(ctx process.Context) []byte {
 	}
 	return statusBytes
 }
-
 func injectOutputStatusIntoBaseContext(ctx process.Context, c string, statusBytes []byte) string {
 	if len(statusBytes) > 0 {
 		// If output is an empty object, replace it with only the status field without trailing comma.
@@ -473,6 +501,7 @@ func injectOutputStatusIntoBaseContext(ctx process.Context, c string, statusByte
 }
 
 // GetCommonLabels will convert context based labels to OAM standard labels
+// GetCommonLabels will convert context based labels to OAM standard labels
 func GetCommonLabels(contextLabels map[string]string) map[string]string {
 	var commonLabels = map[string]string{}
 	for k, v := range contextLabels {
@@ -492,6 +521,7 @@ func GetCommonLabels(contextLabels map[string]string) map[string]string {
 }
 
 // GetBaseContextLabels get base context labels
+// GetBaseContextLabels get base context labels
 func GetBaseContextLabels(ctx process.Context) map[string]string {
 	baseLabels := ctx.BaseContextLabels()
 	baseLabels[velaprocess.ContextAppName] = ctx.GetData(velaprocess.ContextAppName).(string)
@@ -499,7 +529,6 @@ func GetBaseContextLabels(ctx process.Context) map[string]string {
 
 	return baseLabels
 }
-
 func initRoot(contextLabels map[string]string) map[string]interface{} {
 	var root = map[string]interface{}{}
 	for k, v := range contextLabels {
@@ -507,14 +536,6 @@ func initRoot(contextLabels map[string]string) map[string]interface{} {
 	}
 	return root
 }
-
-func renderTemplate(templ string) string {
-	return templ + `
-context: _
-parameter: _
-`
-}
-
 func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 	baseLabels := GetBaseContextLabels(ctx)
 	var root = initRoot(baseLabels)
@@ -546,14 +567,13 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, a
 }
 
 // Status get trait status by customStatusTemplate
+// Status get trait status by customStatusTemplate
 func (td *traitDef) Status(templateContext map[string]interface{}, request *health.StatusRequest) (*health.StatusResult, error) {
 	return health.GetStatus(templateContext, request)
 }
-
 func (td *traitDef) GetTemplateContext(ctx process.Context, cli client.Client, accessor util.NamespaceAccessor) (map[string]interface{}, error) {
 	return td.getTemplateContext(ctx, cli, accessor)
 }
-
 func getResourceFromObj(ctx context.Context, pctx process.Context, obj *unstructured.Unstructured, client client.Reader, namespace string, labels map[string]string, outputsResource string) (map[string]interface{}, error) {
 	if outputsResource != "" {
 		labels[oam.TraitResource] = outputsResource
@@ -586,6 +606,7 @@ func getResourceFromObj(ctx context.Context, pctx process.Context, obj *unstruct
 	return nil, errors.Errorf("no resources found gvk(%v) labels(%v)", obj.GroupVersionKind(), labels)
 }
 
+// FormatCUEError formats CUE errors in a user-friendly grouped format
 // FormatCUEError formats CUE errors in a user-friendly grouped format
 func FormatCUEError(err error, messagePrefix string, entityType, entityName string, val ...*cue.Value) error {
 	var allParamErrors = make(map[string]bool)

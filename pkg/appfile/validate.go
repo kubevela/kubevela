@@ -51,10 +51,20 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/types"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
+	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
 // ValidateCUESchematicAppfile validates CUE schematic workloads in an Appfile
 func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
+	// This render resolves sources for real - it has to, to type-check the
+	// result against the consuming parameter - but it is a validation, so it
+	// must not leave a cache entry behind. Reads still go through: not reading
+	// would make every admission repeat the source's live I/O, and would have
+	// validation resolve different data than the render that follows it.
+	restore := a.SourceCacheStore
+	a.SourceCacheStore = sources.NewReadOnlySourceCacheStore(sourceCacheStoreFor(a))
+	defer func() { a.SourceCacheStore = restore }()
+
 	for _, wl := range a.ParsedComponents {
 		// because helm & kube schematic has no CUE template
 		// it only validates CUE schematic workload
@@ -109,6 +119,9 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 				// references to fields that are populated/injected during runtime only
 				continue
 			}
+			// The same identity baseGenerateComponent pushes on the real path.
+			// Trait.Name is the TraitDefinition's name - the trait's type.
+			pCtx.PushData(velaprocess.ContextTraitType, tr.Name)
 			if err := tr.EvalContext(pCtx); err != nil {
 				return errors.WithMessagef(err, "cannot evaluate trait %q", tr.Name)
 			}
@@ -133,12 +146,40 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 	// 1. Build synthetic CUE source
 	// ---------------------------------------------------------------------
 	ctx := velaprocess.NewContext(ctxData)
+
+	// The component's identity, as baseGenerateComponent pushes it. A source may
+	// key on componentName or componentType, so whatever the render supplies here
+	// this must supply too, or admission and render disagree about the same
+	// Application.
+	ctx.PushData(velaprocess.ContextComponentName, wl.Name)
+	ctx.PushData(velaprocess.ContextComponentType, wl.Type)
+
 	baseCtx, err := ctx.BaseContextFile()
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	paramSnippet, err := cueParamBlock(wl.Params)
+	// Substitute source and context expressions before validating.
+	//
+	// These params are the authored ones, so an unresolved $(source...) reaches
+	// CUE as the literal string it is and collides with any non-string
+	// constraint - "conflicting values int and \"$(source.config.replicas)\"".
+	// The render path substitutes before it evaluates; this one has to as well,
+	// or the same Application is accepted at render and refused here.
+	//
+	// ValidateCUESchematicAppfile installs a read-through, write-discarding cache
+	// store for exactly this: the reads happen, and no entry is left behind by a
+	// validation.
+	params, err := sources.ResolveSourceExpressions(ctx, wl.Params, sources.SurfaceComponent)
+	if err != nil {
+		return errors.WithMessagef(err, "component %q: resolve source expressions", wl.Name)
+	}
+	resolvedParams, ok := params.(map[string]interface{})
+	if !ok {
+		resolvedParams = wl.Params
+	}
+
+	paramSnippet, err := cueParamBlock(resolvedParams)
 	if err != nil {
 		return errors.WithMessagef(err, "component %q: invalid params", wl.Name)
 	}
@@ -160,7 +201,12 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 	// ---------------------------------------------------------------------
 	// 2. Strict required‑field enforcement (feature‑gated)
 	// ---------------------------------------------------------------------
-	if err := enforceRequiredParams(val, wl.Params, app); err != nil {
+	//
+	// resolvedParams, not wl.Params, for the same reason the snippet above uses
+	// them: filterMissing flattens what was provided, so an unresolved
+	// `meta: "$(source.x.meta)"` flattens to the single key `meta` and never
+	// satisfies the required `meta.region` and `meta.zone`.
+	if err := enforceRequiredParams(val, resolvedParams, app); err != nil {
 		return errors.WithMessagef(err, "component %q", wl.Name)
 	}
 
@@ -487,6 +533,11 @@ func newValidationProcessContext(c *Component, ctxData velaprocess.ContextData) 
 	// Dry-run mode is already set on ctxData.Ctx by the caller
 	// (ValidateCUESchematicAppfile) so provider functions use client-only rendering.
 	pCtx := velaprocess.NewContext(ctxData)
+	// The same identity PrepareProcessContext pushes on the real path. Without it
+	// this render is missing context the live one has, so an expression reading it
+	// fails here and works in production - the worst possible split.
+	pCtx.PushData(velaprocess.ContextComponentName, c.Name)
+	pCtx.PushData(velaprocess.ContextComponentType, c.Type)
 	if err := c.EvalContext(pCtx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", ctxData.AppName, ctxData.Namespace)
 	}
@@ -710,4 +761,14 @@ func getMapKeys(m map[string]any) []string {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+// sourceCacheStoreFor returns the store an Appfile would resolve against,
+// falling back to the Secret store exactly as GenerateContextDataFromAppFile
+// does when nothing has been injected.
+func sourceCacheStoreFor(a *Appfile) velaprocess.SourceCacheStore {
+	if a.SourceCacheStore != nil {
+		return a.SourceCacheStore
+	}
+	return sources.NewSecretSourceCacheStore(a.KubeClient)
 }

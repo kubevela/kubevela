@@ -121,8 +121,19 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.validateResourcesExist`                        | enable webhook validation to check if resource types referenced in definition templates exist in the cluster                                                                                                                     | `false` |
 | `featureGates.enableApplicationScopedPolicies`               | enable Application-scoped PolicyDefinitions that transform Application CR before rendering (Alpha)                                                                                                                               | `false` |
 | `featureGates.enableGlobalPolicies`                          | enable automatic discovery and application of global PolicyDefinitions to all Applications (Alpha)                                                                                                                               | `false` |
+| `featureGates.enableSourceAutoUpdate`                        | default for spec.sources[].autoUpdate - re-dispatch components when a value they read from a SourceDefinition changes, for bindings that express no preference (Alpha)                                                           | `false` |
+| `featureGates.enableCelExpressions`                          | read $( ) property expressions, and with them SourceDefinition. Off by default because $(VAR_NAME) is Kubernetes' own env-var syntax and would be read as an expression (Alpha)                                                  | `false` |
+| `featureGates.requireCelExpressionOptIn`                     | while enableCelExpressions is on, read expressions only in Applications annotated app.oam.dev/cel-expressions=true, so enabling the feature is not a fleet-wide change (Alpha)                                                   | `true`  |
+| `featureGates.validateUndeclaredParameters`                  | reject Application properties that the definition's parameter stanza does not declare (Alpha)                                                                                                                                    | `false` |
 | `featureGates.enableCueExpVariable`                          | inject the CUE_EXPERIMENT env var (evalv3=0,keepvalidators=0) into the controller to disable experimental CUE features during the v0.14.x migration window                                                                       | `true`  |
 | `featureGates.enableAddonComponent`                          | enable installing an addon as an Application component via the type: addon ComponentDefinition (Alpha)                                                                                                                           | `false` |
+| `featureGates.restrictDefinitionNamespaces`                  | enforce a definition's spec.restrictions or definition.oam.dev/restrict-namespaces annotation when an Application is created or updated (Beta, on by default; a no-op until a definition declares a restriction)                 | `true`  |
+
+### Definition restriction parameters
+
+| Name                     | Description                                                                                                                                         | Value |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `definitionRestrictions` | Restrictions stamped onto the builtin definitions, as `default` (applied to every one) and `overrides` (per definition name, replacing the default) | `{}`  |
 
 ### MultiCluster parameters
 

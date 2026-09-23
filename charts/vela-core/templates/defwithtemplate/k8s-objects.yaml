@@ -8,6 +8,7 @@ metadata:
   name: k8s-objects
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "k8s-objects" "root" $) }}
   schematic:
     cue:
       template: |

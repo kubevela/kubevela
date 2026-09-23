@@ -360,6 +360,7 @@ var _ = Describe("Expressions", func() {
 			rm := defkit.RegexMatch(ref, "^test-")
 			Expect(rm.Pattern()).To(Equal("^test-"))
 			Expect(rm.Source()).To(Equal(ref))
+			Expect(rm.IsNegated()).To(BeFalse())
 		})
 
 		It("should work with StringParam as source", func() {
@@ -367,6 +368,7 @@ var _ = Describe("Expressions", func() {
 			rm := defkit.RegexMatch(p, `^prod-.*$`)
 			Expect(rm.Pattern()).To(Equal(`^prod-.*$`))
 			Expect(rm.Source()).To(Equal(p))
+			Expect(rm.IsNegated()).To(BeFalse())
 		})
 
 		It("should be produced by StringParam.Matches", func() {
@@ -376,6 +378,7 @@ var _ = Describe("Expressions", func() {
 			Expect(ok).To(BeTrue())
 			Expect(rm.Pattern()).To(Equal("^prod-"))
 			Expect(rm.Source()).To(Equal(p))
+			Expect(rm.IsNegated()).To(BeFalse())
 		})
 
 		It("should be produced by LocalFieldRef.Matches", func() {
@@ -385,6 +388,45 @@ var _ = Describe("Expressions", func() {
 			Expect(ok).To(BeTrue())
 			Expect(rm.Pattern()).To(Equal(".*-$"))
 			Expect(rm.Source()).To(Equal(ref))
+			Expect(rm.IsNegated()).To(BeFalse())
+		})
+	})
+
+	Context("RegexNotMatch", func() {
+		It("should create a RegexMatchCondition with negative match, source and pattern", func() {
+			ref := defkit.LocalField("name")
+			rm := defkit.RegexNotMatch(ref, "^test")
+			Expect(rm.Pattern()).To(Equal("^test"))
+			Expect(rm.Source()).To(Equal(ref))
+			Expect(rm.IsNegated()).To(BeTrue())
+		})
+
+		It("should work with StringParam as source for negative match", func() {
+			p := defkit.String("host")
+			rm := defkit.RegexNotMatch(p, `^prod-.*$`)
+			Expect(rm.Pattern()).To(Equal(`^prod-.*$`))
+			Expect(rm.Source()).To(Equal(p))
+			Expect(rm.IsNegated()).To(BeTrue())
+		})
+
+		It("should be produced by StringParam.NotMatches", func() {
+			p := defkit.String("name")
+			cond := p.NotMatches("^prod-")
+			rm, ok := cond.(*defkit.RegexMatchCondition)
+			Expect(ok).To(BeTrue())
+			Expect(rm.Pattern()).To(Equal("^prod-"))
+			Expect(rm.Source()).To(Equal(p))
+			Expect(rm.IsNegated()).To(BeTrue())
+		})
+
+		It("should be produced by LocalFieldRef.NotMatches", func() {
+			ref := defkit.LocalField("tenantName")
+			cond := ref.NotMatches(".*-$")
+			rm, ok := cond.(*defkit.RegexMatchCondition)
+			Expect(ok).To(BeTrue())
+			Expect(rm.Pattern()).To(Equal(".*-$"))
+			Expect(rm.Source()).To(Equal(ref))
+			Expect(rm.IsNegated()).To(BeTrue())
 		})
 	})
 

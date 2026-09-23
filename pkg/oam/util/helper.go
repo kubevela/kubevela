@@ -134,6 +134,7 @@ var DefinitionKindToNameLabel = map[common.DefinitionType]string{
 	common.TraitType:        oam.LabelTraitDefinitionName,
 	common.PolicyType:       oam.LabelPolicyDefinitionName,
 	common.WorkflowStepType: oam.LabelWorkflowStepDefinitionName,
+	common.SourceType:       oam.LabelSourceDefinitionName,
 }
 
 // A ConditionedObject is an Object type with condition field
@@ -241,6 +242,20 @@ func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition 
 
 		return GetDefinition(ctx, cli, definition, definitionName)
 	}
+	// A DefinitionRevision is named "<definition>-v<n>" with no kind in it, so
+	// definitions of different kinds sharing a name share revision names too -
+	// KubeVela ships a "configmap" trait, and a SourceDefinition named after what
+	// it reads collides with it. Without this check the mismatch is silent: the
+	// switch below copies the field for the kind asked for, which on a revision
+	// of another kind is a zero struct, so the caller gets an empty definition
+	// and no error. That surfaces much later as "declares no parameters" or
+	// "undefined field", neither of which points at the collision.
+	if defRev.Spec.DefinitionType != definitionType {
+		return fmt.Errorf("definition revision %q holds a %s definition, but %s was requested as a %s; "+
+			"revision names do not carry the kind, so definitions of different kinds sharing the name %q share revisions",
+			defRev.Name, defRev.Spec.DefinitionType, definitionName, definitionType,
+			strings.Split(definitionName, "@")[0])
+	}
 	switch def := definition.(type) {
 	case *v1beta1.ComponentDefinition:
 		*def = defRev.Spec.ComponentDefinition
@@ -250,6 +265,8 @@ func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition 
 		*def = defRev.Spec.PolicyDefinition
 	case *v1beta1.WorkflowStepDefinition:
 		*def = defRev.Spec.WorkflowStepDefinition
+	case *v1beta1.SourceDefinition:
+		*def = defRev.Spec.SourceDefinition
 	default:
 	}
 	return nil
@@ -266,6 +283,8 @@ func getDefinitionType(definition client.Object) (common.DefinitionType, error) 
 		definitionType = common.PolicyType
 	case *v1beta1.WorkflowStepDefinition:
 		definitionType = common.WorkflowStepType
+	case *v1beta1.SourceDefinition:
+		definitionType = common.SourceType
 	default:
 		return definitionType, fmt.Errorf("invalid definition type for %v", definition.GetName())
 	}

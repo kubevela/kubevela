@@ -42,6 +42,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
+	corev1 "k8s.io/api/core/v1"
 	errors2 "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -59,6 +60,7 @@ import (
 	pkgdef "github.com/oam-dev/kubevela/pkg/definition"
 	"github.com/oam-dev/kubevela/pkg/definition/gen_sdk"
 	"github.com/oam-dev/kubevela/pkg/definition/goloader"
+	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -72,6 +74,19 @@ import (
 const (
 	// HelmChartNamespacePlaceholder is used as a placeholder for rendering definitions into helm chart format
 	HelmChartNamespacePlaceholder = "###HELM_NAMESPACE###"
+	// HelmChartRestrictionsPlaceholder stands in for spec.restrictions while the
+	// definition is a Go value, and is swapped for a Helm include once the YAML is
+	// marshalled.
+	HelmChartRestrictionsPlaceholder = "###HELM_RESTRICTIONS###"
+	// envOptIn is the value the definition-render environment variables take to
+	// opt in.
+	envOptIn = "true"
+	// RestrictionGenEnvName makes a chart render take its definitions' restrictions
+	// from chart values, discarding whatever their sources declared. Separate from
+	// AS_HELM_CHART so rendering as a chart does not imply that.
+	RestrictionGenEnvName = "WITH_RESTRICTION_GEN"
+	// restrictionsField matches the json tag carrying common.DefinitionRestrictions.
+	restrictionsField = "restrictions"
 	// HelmChartFormatEnvName is the name of the environment variable to enable render helm chart format YAML
 	HelmChartFormatEnvName = "AS_HELM_CHART"
 )
@@ -949,10 +964,11 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 		Use:   "list",
 		Short: "List definitions.",
 		Long:  "List definitions in kubernetes cluster.",
-		Example: "# Command below will list all definitions in all namespaces\n" +
+		Example: "# Command below lists the definitions you can use: those in your current\n" +
+			"# namespace and those in the system namespace\n" +
 			"> vela def list\n" +
-			"# Command below will list all definitions in the vela-system namespace\n" +
-			"> vela def get annotations --type trait --namespace vela-system",
+			"# Command below lists the definitions in one namespace\n" +
+			"> vela def list --namespace vela-system",
 		Args: cobra.ExactArgs(0),
 		Annotations: map[string]string{
 			types.TagCommandType:  types.TypeDefManagement,
@@ -975,13 +991,49 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
 			}
-			definitions, err := pkgdef.SearchDefinition(k8sClient,
-				definitionType,
-				namespace,
-				filters.ByOwnerAddon(addonName))
+			workingIn := currentNamespace(c)
+
+			// Without --namespace, look where a definition is actually resolved
+			// from: the current namespace, then the system one.
+			searchIn := []string{namespace}
+			if namespace == "" {
+				searchIn = []string{workingIn}
+				if workingIn != types.DefaultKubeVelaNS {
+					searchIn = append(searchIn, types.DefaultKubeVelaNS)
+				}
+			}
+
+			var definitions []unstructured.Unstructured
+			for _, ns := range searchIn {
+				found, err := pkgdef.SearchDefinition(k8sClient,
+					definitionType,
+					ns,
+					filters.ByOwnerAddon(addonName))
+				if err != nil {
+					return err
+				}
+				definitions = append(definitions, found...)
+			}
+
+			// Leave out what this namespace cannot use. The list is what you can
+			// build with, so a definition reserved for somewhere else is not yours
+			// to see here.
+			objs := make([]client.Object, len(definitions))
+			for i := range definitions {
+				objs[i] = &definitions[i]
+			}
+			usable, err := judgeUsability(cmd.Context(), k8sClient, objs, workingIn)
 			if err != nil {
 				return err
 			}
+			kept := definitions[:0]
+			for i, def := range definitions {
+				if usable[i] {
+					kept = append(kept, def)
+				}
+			}
+			definitions = kept
+
 			if len(definitions) == 0 {
 				cmd.Println("No definition found.")
 				return nil
@@ -1029,8 +1081,52 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to list. If empty, all types will be searched. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
 	cmd.Flags().String("from", "", "Filter definitions by which addon installed them.")
-	cmd.Flags().StringP(Namespace, "n", types.DefaultKubeVelaNS, "Specify which namespace the definition locates.")
+	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace the definition locates. Defaults to your current namespace and the system namespace.")
 	return cmd
+}
+
+// judgeUsability reports, per definition, whether an Application in namespace ns
+// may use it.
+//
+// The namespace's labels are read once, and only when some definition restricts
+// with a selector.
+func judgeUsability(ctx context.Context, c client.Client, definitions []client.Object, ns string) ([]bool, error) {
+	needLabels := false
+	for _, def := range definitions {
+		if nsrestrict.NeedsNamespaceLabels(def, ns) {
+			needLabels = true
+			break
+		}
+	}
+	var nsLabels map[string]string
+	if needLabels {
+		namespace := &corev1.Namespace{}
+		if err := c.Get(ctx, types2.NamespacedName{Name: ns}, namespace); err != nil {
+			if !errors2.IsNotFound(err) {
+				return nil, errors.Wrapf(err, "failed to read namespace %s", ns)
+			}
+			// A namespace that does not exist has no labels, so a selector matches
+			// nothing and those definitions read as unusable.
+		} else if nsLabels = namespace.Labels; nsLabels == nil {
+			nsLabels = map[string]string{}
+		}
+	}
+
+	usable := make([]bool, len(definitions))
+	for i, def := range definitions {
+		usable[i] = nsrestrict.Allows(nsrestrict.Of(def), ns, nsLabels)
+	}
+	return usable, nil
+}
+
+// currentNamespace is the namespace the user is working in: the current vela
+// env, else the kubeconfig context, else "default". GetFlagEnvOrCurrent falls
+// through all three and cannot fail.
+func currentNamespace(c common.Args) string {
+	if velaEnv, err := GetFlagEnvOrCurrent(nil, c); err == nil && velaEnv.Namespace != "" {
+		return velaEnv.Namespace
+	}
+	return types.DefaultAppNamespace
 }
 
 // NewDefinitionEditCommand create the `vela def edit` command to help user edit remote definitions
@@ -1219,8 +1315,9 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 				}
 
 				helmChartFormatEnv := strings.ToLower(os.Getenv(HelmChartFormatEnvName))
-				if helmChartFormatEnv == "true" {
+				if helmChartFormatEnv == envOptIn {
 					def.SetNamespace(HelmChartNamespacePlaceholder)
+					markRestrictionsPlaceholder(&def)
 				} else if helmChartFormatEnv == "system" {
 					def.SetNamespace(types.DefaultKubeVelaNS)
 				}
@@ -1232,6 +1329,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 					return errors.Wrapf(err, "failed to marshal CRD into YAML")
 				}
 				s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", "{{ include \"systemDefinitionNamespace\" . }}") + "\n"
+				s = replaceRestrictionsPlaceholder(s, def.GetName())
 				if outputFilename == "" {
 					s = fmt.Sprintf("--- %s ---\n%s", filepath.Base(inputFilename), s)
 					cmd.Print(s)
@@ -1304,8 +1402,9 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 					}
 
 					helmChartFormatEnv := strings.ToLower(os.Getenv(HelmChartFormatEnvName))
-					if helmChartFormatEnv == "true" {
+					if helmChartFormatEnv == envOptIn {
 						def.SetNamespace(HelmChartNamespacePlaceholder)
+						markRestrictionsPlaceholder(&def)
 					} else if helmChartFormatEnv == "system" {
 						def.SetNamespace(types.DefaultKubeVelaNS)
 					}
@@ -1318,6 +1417,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 						return errors.Wrapf(err, "failed to marshal CRD into YAML for %s", result.Definition.FunctionName)
 					}
 					s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", "{{ include \"systemDefinitionNamespace\" . }}") + "\n"
+					s = replaceRestrictionsPlaceholder(s, def.GetName())
 
 					if outputFilename == "" {
 						allYAML.WriteString(fmt.Sprintf("--- %s (%s) ---\n%s", filepath.Base(inputFilename), result.Definition.Name, s))
@@ -2164,4 +2264,36 @@ func enableAllUpgradePasses(enableAll bool) func() {
 		upgrade.EnableKeepValidatorsSingletonUpgrade = origKeep
 		upgrade.EnableEvalv3SelfRefGuardUpgrade = origEval
 	}
+}
+
+// markRestrictionsPlaceholder puts a marker where spec.restrictions belongs, so
+// the marshalled YAML has a line to splice a Helm directive into. It discards any
+// restrictions the source declared, so it runs only under WITH_RESTRICTION_GEN.
+func markRestrictionsPlaceholder(def *pkgdef.Definition) {
+	if !restrictionGenEnabled() {
+		return
+	}
+	spec, ok := def.Object["spec"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	spec[restrictionsField] = HelmChartRestrictionsPlaceholder
+}
+
+func restrictionGenEnabled() bool {
+	return strings.ToLower(os.Getenv(RestrictionGenEnvName)) == envOptIn
+}
+
+// replaceRestrictionsPlaceholder swaps the marker line for an include of the
+// chart's definitionRestrictions helper, keyed by the definition's name so a value
+// can target one definition.
+//
+// The include sits behind a "#". Helm expands the file as text before anything
+// parses it as YAML, so the directive still runs and the helper emits its content
+// on the lines below. This keeps the generated file valid YAML unrendered, which
+// callers that read it without Helm rely on.
+func replaceRestrictionsPlaceholder(s, name string) string {
+	marker := fmt.Sprintf("  %s: '%s'\n", restrictionsField, HelmChartRestrictionsPlaceholder)
+	include := fmt.Sprintf("  #{{ include \"definitionRestrictions\" (dict \"name\" %q \"root\" $) }}\n", name)
+	return strings.Replace(s, marker, include, 1)
 }

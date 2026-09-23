@@ -8,6 +8,7 @@ metadata:
   name: replication
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "replication" "root" $) }}
   schematic:
     cue:
       template: |

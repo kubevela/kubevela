@@ -9,6 +9,7 @@ metadata:
   name: collect-service-endpoints
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "collect-service-endpoints" "root" $) }}
   schematic:
     cue:
       template: |

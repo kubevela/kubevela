@@ -271,6 +271,42 @@ webhooks:
   admissionReviewVersions: ["v1", "v1beta1"]
   sideEffects: None
   failurePolicy: Fail
+- name: sourcedefinition.core.oam.dev
+  clientConfig:
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-core-oam-dev-v1beta1-sourcedefinitions
+    caBundle: ${CA_BUNDLE}
+  rules:
+  - apiGroups: ["core.oam.dev"]
+    apiVersions: ["v1beta1"]
+    resources: ["sourcedefinitions"]
+    operations: ["CREATE", "UPDATE"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+- name: configtemplate.config.oam.dev
+  clientConfig:
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-config-oam-dev-v1alpha1-configtemplates
+    caBundle: ${CA_BUNDLE}
+  rules:
+  - apiGroups: ["config.oam.dev"]
+    apiVersions: ["v1alpha1"]
+    resources: ["configtemplates"]
+    operations: ["CREATE", "UPDATE"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+- name: config.config.oam.dev
+  clientConfig:
+    url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-config-oam-dev-v1alpha1-configs
+    caBundle: ${CA_BUNDLE}
+  rules:
+  - apiGroups: ["config.oam.dev"]
+    apiVersions: ["v1alpha1"]
+    resources: ["configs"]
+    operations: ["CREATE", "UPDATE"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
 - name: applications.core.oam.dev
   clientConfig:
     url: https://${HOST_IP}:${WEBHOOK_PORT}/validating-core-oam-dev-v1beta1-applications

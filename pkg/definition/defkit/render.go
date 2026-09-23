@@ -16,6 +16,11 @@ limitations under the License.
 
 package defkit
 
+import (
+	"fmt"
+	"regexp"
+)
+
 // Render executes the component template with the given test context
 // and returns the rendered primary output resource.
 func (c *ComponentDefinition) Render(ctx *TestContextBuilder) *RenderedResource {
@@ -266,6 +271,8 @@ func evaluateCondition(cond Condition, ctx *TestRuntimeContext) bool {
 		// Resolve the ports value and check if any have expose=true
 		portsValue := resolveValue(c.ports, ctx)
 		return hasExposedPorts(portsValue)
+	case *RegexMatchCondition:
+		return evaluateRegexMatch(c, ctx)
 	default:
 		// For parameter-based conditions (param used as condition)
 		if v, ok := cond.(Value); ok {
@@ -274,6 +281,30 @@ func evaluateCondition(cond Condition, ctx *TestRuntimeContext) bool {
 		}
 		return true
 	}
+}
+
+// evaluateRegexMatch evaluates a RegexMatchCondition against the resolved source.
+// It returns false for nil/missing sources, and panics on non-string values and
+// invalid regex patterns.
+func evaluateRegexMatch(c *RegexMatchCondition, ctx *TestRuntimeContext) bool {
+	val := resolveValue(c.Source(), ctx)
+	if val == nil {
+		return false
+	}
+
+	str, ok := val.(string)
+	if !ok {
+		panic(fmt.Sprintf("defkit: cannot use %v (type %T) as type string in regex match", val, val))
+	}
+
+	matched, err := regexp.MatchString(c.Pattern(), str)
+	if err != nil {
+		panic(fmt.Sprintf("defkit: failed compiling regex from pattern: '%s', error: %v", c.Pattern(), err))
+	}
+	if c.IsNegated() {
+		return !matched
+	}
+	return matched
 }
 
 // hasExposedPorts checks if a ports array has any port with expose=true.

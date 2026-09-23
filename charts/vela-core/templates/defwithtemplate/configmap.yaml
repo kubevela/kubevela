@@ -13,6 +13,7 @@ spec:
   appliesToWorkloads:
     - '*'
   podDisruptive: true
+  #{{ include "definitionRestrictions" (dict "name" "configmap" "root" $) }}
   schematic:
     cue:
       template: |

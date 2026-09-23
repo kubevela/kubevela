@@ -8,6 +8,7 @@ metadata:
   name: apply-once
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "apply-once" "root" $) }}
   schematic:
     cue:
       template: |

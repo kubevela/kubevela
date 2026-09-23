@@ -363,10 +363,38 @@ const (
 	gitlabType ReaderType = "gitlab"
 )
 
+// ReaderOption adjusts how a reader resolves content.
+type ReaderOption func(*readerConfig)
+
+type readerConfig struct {
+	// ref overrides the branch, tag or commit the registry URL pinned.
+	ref string
+}
+
+// WithRef reads at a specific branch, tag or commit instead of whatever the
+// registry URL pinned.
+//
+// A registry is configured once by the platform, but a consumer may legitimately
+// want a different revision of the same repository - a release branch for one
+// file and main for another. Overriding here keeps that a per-read choice
+// without needing a second registry.
+func WithRef(ref string) ReaderOption {
+	return func(c *readerConfig) { c.ref = ref }
+}
+
+func newReaderConfig(opts []ReaderOption) readerConfig {
+	var c readerConfig
+	for _, o := range opts {
+		o(&c)
+	}
+	return c
+}
+
 // NewAsyncReader create AsyncReader from
 // 1. GitHub url and directory
 // 2. OSS endpoint and bucket
-func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderType) (AsyncReader, error) {
+func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderType, opts ...ReaderOption) (AsyncReader, error) {
+	cfg := newReaderConfig(opts)
 
 	switch rdType {
 	case gitType:
@@ -388,6 +416,9 @@ func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderT
 		// query owner "" and repo "". Only a GitHub address is usable here.
 		if addrType != utils.TypeGithub || content == nil {
 			return nil, fmt.Errorf("%w: %q", ErrUnsupportedGitEndpoint, endpoint)
+		}
+		if cfg.ref != "" {
+			content.GithubContent.Ref = cfg.ref
 		}
 		gith := createGitHelper(content, token)
 		return &gitReader{
@@ -428,6 +459,9 @@ func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderT
 		if addrType != utils.TypeGitee || content == nil {
 			return nil, fmt.Errorf("%w: %q", ErrUnsupportedGiteeEndpoint, endpoint)
 		}
+		if cfg.ref != "" {
+			content.GiteeContent.Ref = cfg.ref
+		}
 		gitee := createGiteeHelper(content, token)
 		return &giteeReader{
 			h: gitee,
@@ -441,6 +475,9 @@ func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderT
 		_, content, err := utils.ParseGitlab(u.String(), repo)
 		if err != nil {
 			return nil, err
+		}
+		if cfg.ref != "" {
+			content.GitlabContent.Ref = cfg.ref
 		}
 		content.GitlabContent.Path = subPath
 		gitlabHelper, err := createGitlabHelper(content, token)
@@ -482,22 +519,26 @@ var ErrUnsupportedGitEndpoint = errors.New("unsupported endpoint for a git addon
 var ErrUnsupportedGiteeEndpoint = errors.New("unsupported endpoint for a gitee addon registry: it must be an http(s) gitee.com URL")
 
 // BuildReader will build a AsyncReader from registry, AsyncReader are needed to read addon files
-func (r *Registry) BuildReader() (AsyncReader, error) {
+//
+// Options are forwarded to the reader, so a caller can read one file at a
+// different revision than the registry pinned - see WithRef. OSS has no notion
+// of a ref and ignores it.
+func (r *Registry) BuildReader(opts ...ReaderOption) (AsyncReader, error) {
 	if r.OSS != nil {
 		o := r.OSS
-		return NewAsyncReader(o.Endpoint, o.Bucket, "", o.Path, "", ossType)
+		return NewAsyncReader(o.Endpoint, o.Bucket, "", o.Path, "", ossType, opts...)
 	}
 	if r.Git != nil {
 		g := r.Git
-		return NewAsyncReader(g.URL, "", "", g.Path, g.Token, gitType)
+		return NewAsyncReader(g.URL, "", "", g.Path, g.Token, gitType, opts...)
 	}
 	if r.Gitee != nil {
 		g := r.Gitee
-		return NewAsyncReader(g.URL, "", "", g.Path, g.Token, giteeType)
+		return NewAsyncReader(g.URL, "", "", g.Path, g.Token, giteeType, opts...)
 	}
 	if r.Gitlab != nil {
 		g := r.Gitlab
-		return NewAsyncReader(g.URL, "", g.Repo, g.Path, g.Token, gitlabType)
+		return NewAsyncReader(g.URL, "", g.Repo, g.Path, g.Token, gitlabType, opts...)
 	}
 	return nil, errors.New("registry don't have enough info to build a reader")
 }

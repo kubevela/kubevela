@@ -8,6 +8,7 @@ metadata:
   name: webservice
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "webservice" "root" $) }}
   schematic:
     cue:
       template: |

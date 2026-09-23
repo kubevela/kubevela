@@ -8,6 +8,7 @@ metadata:
   name: override
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "override" "root" $) }}
   schematic:
     cue:
       template: |

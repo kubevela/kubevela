@@ -9,6 +9,7 @@ metadata:
   name: suspend
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "suspend" "root" $) }}
   schematic:
     cue:
       template: |

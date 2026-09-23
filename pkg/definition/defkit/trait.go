@@ -499,6 +499,19 @@ func (g *TraitCUEGenerator) detectRequiredImports(t *TraitDefinition) {
 		}
 	}
 
+	// Validator message expressions on nested params. Traits do not emit
+	// top-level validators, but writeParam emits the ones attached to map and
+	// array params, so those messages can still reference a CUE stdlib call.
+	// Scanned before the template check so traits without a Template body are
+	// covered too.
+	validatorScan := NewCUEGenerator()
+	for _, param := range t.GetParams() {
+		validatorScan.collectImportsFromParamValidators(param)
+	}
+	for _, imp := range validatorScan.imports {
+		g.addImportIfMissing(imp)
+	}
+
 	if !t.HasTemplate() {
 		return
 	}

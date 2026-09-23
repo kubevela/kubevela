@@ -8,6 +8,7 @@ metadata:
   name: resource-update
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "resource-update" "root" $) }}
   schematic:
     cue:
       template: |

@@ -12,6 +12,7 @@ metadata:
   name: apply-application-in-parallel
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "apply-application-in-parallel" "root" $) }}
   schematic:
     cue:
       template: |

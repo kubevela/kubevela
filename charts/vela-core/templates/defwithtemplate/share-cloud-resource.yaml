@@ -11,6 +11,7 @@ metadata:
   name: share-cloud-resource
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "share-cloud-resource" "root" $) }}
   schematic:
     cue:
       template: |

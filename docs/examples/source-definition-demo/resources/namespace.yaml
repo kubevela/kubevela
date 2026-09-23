@@ -1,0 +1,11 @@
+# Prerequisite: the namespace the demo runs in, carrying the tenant labels that
+# the tenant-data SourceDefinition reads. Apply before the Application.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: source-demo
+  labels:
+    tenant.example.com/name: acme
+    tenant.example.com/department: platform
+    tenant.example.com/environment: production
+    tenant.example.com/cost-center: cc-4127

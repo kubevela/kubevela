@@ -16,6 +16,7 @@ spec:
     - daemonsets.apps
     - jobs.batch
   podDisruptive: true
+  #{{ include "definitionRestrictions" (dict "name" "nocalhost" "root" $) }}
   schematic:
     cue:
       template: |

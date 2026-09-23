@@ -11,6 +11,7 @@ metadata:
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
   podDisruptive: false
+  #{{ include "definitionRestrictions" (dict "name" "ingress" "root" $) }}
   schematic:
     cue:
       template: |

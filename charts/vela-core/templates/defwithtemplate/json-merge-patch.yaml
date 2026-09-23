@@ -13,6 +13,7 @@ spec:
   appliesToWorkloads:
     - '*'
   podDisruptive: true
+  #{{ include "definitionRestrictions" (dict "name" "json-merge-patch" "root" $) }}
   schematic:
     cue:
       template: |

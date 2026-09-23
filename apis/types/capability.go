@@ -46,6 +46,8 @@ const (
 	TypeWorkflowStep CapType = "workflowstep"
 	// TypePolicy represent OAM Policy
 	TypePolicy CapType = "policy"
+	// TypeSource represent OAM SourceDefinition
+	TypeSource CapType = "source"
 )
 
 // CapabilityConfigMapNamePrefix is the prefix for capability ConfigMap name
@@ -101,6 +103,15 @@ type Capability struct {
 	// trait only
 	AppliesTo []string `json:"appliesTo,omitempty"`
 
+	// source only: the output contract (schema: block) a SourceDefinition
+	// provides back to consumers, and its caching (storage: block) fields.
+	SourceOutputs []Parameter          `json:"sourceOutputs,omitempty"`
+	SourceStorage []SourceStorageField `json:"sourceStorage,omitempty"`
+	// SourceSurfaces is every Application surface and whether this source can be
+	// consumed there. The unreachable ones are carried too: "traits: no" is the
+	// answer to a question, where a list that simply omits traits is silence.
+	SourceSurfaces []SourceSurface `json:"sourceSurfaces,omitempty"`
+
 	// Namespace represents it's a system-level or user-level capability.
 	Namespace string `json:"namespace,omitempty"`
 
@@ -111,4 +122,24 @@ type Capability struct {
 	TerraformConfiguration string `json:"terraformConfiguration,omitempty"`
 	ConfigurationType      string `json:"configurationType,omitempty"`
 	Path                   string `json:"path,omitempty"`
+}
+
+// SourceSurface is one Application surface and whether a source resolves there.
+type SourceSurface struct {
+	// Name is the surface in the plural, ready to print - "workflow steps".
+	Name string `json:"name"`
+	// Consumable reports whether this source can be consumed on that surface.
+	Consumable bool `json:"consumable"`
+	// Reason says why not, naming the context reads that surface cannot satisfy.
+	// Empty when the source is consumable there.
+	Reason string `json:"reason,omitempty"`
+}
+
+// SourceStorageField is one field of a SourceDefinition's storage: (caching)
+// block, e.g. {Name: "key", Value: "get-random-\(parameter.min)-..."}. The
+// value is the authored CUE expression, kept verbatim (interpolations are not
+// evaluated).
+type SourceStorageField struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }

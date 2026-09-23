@@ -125,7 +125,7 @@ func NewLanguageArgs(lang string, langArgs []string) (LanguageArgs, error) {
 	availableArgs := LangArgsRegistry[lang]
 	res := languageArgs{}
 	for _, arg := range langArgs {
-		parts := strings.Split(arg, "=")
+		parts := strings.SplitN(arg, "=", 2)
 		if len(parts) != 2 {
 			return nil, errors.Errorf("argument %s is not in the format of key=value", arg)
 		}
@@ -347,6 +347,10 @@ func (meta *GenMeta) Run(ctx context.Context) error {
 		template, defName, defKind, err := g.GetDefinitionValue(ctx, cueBytes)
 		if err != nil {
 			return err
+		}
+		if !SupportedDefinitionKind(defKind) {
+			klog.Infof("Skipping %s: the SDK does not model %s", cuePath, defKind)
+			continue
 		}
 		g.meta.SetDefinition(defName, defKind)
 

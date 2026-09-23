@@ -22,7 +22,7 @@
 > - `KEP-2.13`: Declarative Addon Lifecycle — GitOps-compatible Addon CR continuous reconciliation, drift correction, addon-of-addons composition
 > - `KEP-2.14`: `TenantDefinition` & `Tenant` — first-class multi-tenancy; namespace + RBAC + quota + cluster access provisioning via CUE-authored tenancy archetypes
 > - `KEP-2.15`: `OperationTemplate` & `Operation`: Day 2 operations as OAM-context-aware orchestration primitives; templates attach to a Component or an Application and run a workflow with the target's context, delegating the work to `WorkflowStepDefinition`s
-> - `KEP-2.16`: `SourceDefinition` & `fromSource` — declarative external data resolution; lazy, render-scoped, cacheable via ConfigTemplate/Config
+> - `KEP-2.16`: `SourceDefinition` — declarative external data resolution; lazy, render-scoped, cacheable via ConfigTemplate/Config. Consumed via `spec.sources[]` and `$( )` property expressions rather than the `from*` family (see KEP-2.21)
 > - `KEP-2.17`: Component Exports & same-topology `fromDependency` — contract-driven intra-app data binding; acyclic dependency graph; no workflow steps required
 > - `KEP-2.18`: `ConfigTemplate` & `Config` CRDs — promote ConfigMap-backed config primitives to first-class CRDs with admission validation, native GitOps ergonomics, and proper RBAC
 > - `KEP-2.19`: Cross-topology `fromDependency` — named topology groups; hub-mediated resolution across clusters; depends on KEP-2.4 and KEP-2.18
@@ -41,7 +41,7 @@ The vNext Roadmap is an ambitious architectural evolution across nine major area
 ### 1. New API Model (`core.oam.dev/v2alpha1`)
 - **Definition types replace Definitions** — `ComponentDefinition`, `TraitDefinition`, `WorkflowStepDefinition`, `PolicyDefinition`, `ApplicationDefinition` follow a consistent CUE authoring model (metadata block + `template:` at top level, `parameter` and `output` inside `template`)
 - **`Component` is a first-class instance CR** — can be deployed standalone without an Application
-- **`SourceDefinition` & `fromSource`** (KEP-2.16) — platform engineers publish reusable external data resolvers (HTTP/APIs, ConfigMaps, Secrets, cluster metadata); application authors consume inline via `fromSource` in properties; lazy render-scoped resolution with TTL caching persisted via ConfigTemplate/Config; `fromContext` superseded by purpose-built `SourceDefinition` definitions
+- **`SourceDefinition`** (KEP-2.16) — platform engineers publish reusable external data resolvers (HTTP/APIs, ConfigMaps, Secrets, cluster metadata); application authors bind them in `spec.sources[]` and read them with `$(source.<binding>.<path>)` property expressions; lazy render-scoped resolution with TTL caching persisted via ConfigTemplate/Config; `fromContext` superseded by purpose-built `SourceDefinition` definitions
 - **Component Exports & `fromDependency`** (KEP-2.17) — `ComponentDefinition` authors declare an explicit `exports` contract; application authors wire component outputs to downstream inputs via `fromDependency`; implicit ordering dependency graph, cycle detection at admission, no workflow steps required
 - **`spec.parameters` on Application** — application-level constants shared across components, traits, policies, and operations; templated apps validated against `ApplicationDefinition` schema; non-templated apps use free-form map with `fromParameter` for inline property substitution; available in Operations as `context.appParams`
 - **`outputs: []` replaces `output:`/`outputs:`** — named list with `type` (defaults to `resource`), `value`, and `statusPaths` per entry; supports `type: component` for nested instances
@@ -324,7 +324,7 @@ This subsumes the current workaround of maintaining manual RBAC groups per defin
 - [ ] `run-job` output capture — convention for Jobs writing structured results back to the controller (ConfigMap written by job, read by controller after completion)
 - [ ] Spoke component-controller installation and upgrade lifecycle — how is it distributed to spokes?
 - [ ] Export federation for OCM — ManifestWork feedback rules for `Component.status.exports.*` fields
-- [ ] `fromSource` / `fromDependency` / `fromParameter` in trait and policy properties — currently specified for component properties only; determine whether the same substitution model applies throughout
+- [ ] `fromSource` / `fromDependency` / `fromParameter` in trait and policy properties — currently specified for component properties only; determine whether the same substitution model applies throughout. KEP-2.16 shipped `$( )` property expressions in place of `fromSource`, covering components, traits, workflow steps and resource-rendering policies, so the `from*` family needs revisiting against what that established
 - [ ] Config distribution alignment (KEP-2.18 × KEP-2.4) — the existing Config distribution mechanism (push to target clusters) is a parallel delivery path to the Dispatcher; needs rationalisation: should platform-engineer-authored `Config` CRDs be dispatched via the same Dispatcher path as Components, or retain a separate distribution reconciler? Spoke access model (hub read via cluster-gateway vs replica on spoke), ownership when a spoke has GitOps-applied Configs of its own, and whether `SourceDefinition` cache Configs (hub-local by definition) should be excluded from distribution entirely all need design decisions before KEP-2.18 is complete.
 
 ---
@@ -348,7 +348,7 @@ This subsumes the current workaround of maintaining manual RBAC groups per defin
 | KEP-2.13 | Declarative Addon Lifecycle | High | [2.13-addons/README.md](2.13-addons/README.md) |
 | KEP-2.14 | `TenantDefinition` & `Tenant` | High | [2.14-tenants/README.md](2.14-tenants/README.md) |
 | KEP-2.15 | `OperationTemplate` & `Operation` | High | [2.15-operations/README.md](2.15-operations/README.md) |
-| KEP-2.16 | `SourceDefinition` & `fromSource` | High | [2.16-source-definition/README.md](2.16-source-definition/README.md) |
+| KEP-2.16 | `SourceDefinition` | High | [2.16-source-definition/README.md](2.16-source-definition/README.md) |
 | KEP-2.17 | Component Exports & same-topology `fromDependency` | High | [2.17-component-exports/README.md](2.17-component-exports/README.md) |
 | KEP-2.18 | `ConfigTemplate` & `Config` CRDs | High | [2.18-config-crds/README.md](2.18-config-crds/README.md) |
 | KEP-2.19 | Cross-topology `fromDependency` | High | [2.19-cross-topology-deps/README.md](2.19-cross-topology-deps/README.md) |
