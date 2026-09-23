@@ -355,8 +355,9 @@ func kindExpr(k cue.Kind, field cue.Value) string {
 		return "[...]"
 	case cue.NullKind:
 		return "null"
+	default:
+		return "_"
 	}
-	return "_"
 }
 
 // celTypeExpr names a CEL type as a CUE type expression.
@@ -507,6 +508,8 @@ func pruneIncomplete(v cue.Value) (any, bool) {
 			changed = changed || childChanged
 		}
 		return out, changed
+	default:
+		// A scalar, handled below.
 	}
 	if v.IsConcrete() {
 		var decoded any
@@ -533,6 +536,7 @@ func zeroOf(k cue.Kind) any {
 		return []any{}
 	case cue.StructKind:
 		return map[string]any{}
+	default:
+		return ""
 	}
-	return ""
 }
