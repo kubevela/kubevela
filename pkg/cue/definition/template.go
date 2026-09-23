@@ -199,11 +199,9 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	}
 	output := val.LookupPath(value.FieldPath(OutputFieldName))
 	// A typed parameter leaves this non-concrete, and the trait renders against
-	// it as JSON. Fill it here, where nothing checks it, rather than in the
+	// it as JSON. Prune it here, where nothing checks it, rather than in the
 	// parameters, where something does.
-	if sources.TypeOnly(ctx.GetCtx()) {
-		output, _ = sources.ConcreteForValidation(output)
-	}
+	output = concreteForRender(ctx, output)
 
 	base, err := model.NewBase(output)
 	if err != nil {
@@ -235,7 +233,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		if iter.Selector().IsDefinition() || iter.Selector().PkgPath() != "" || iter.IsOptional() {
 			continue
 		}
-		other, err := model.NewOther(iter.Value())
+		other, err := model.NewOther(concreteForRender(ctx, iter.Value()))
 		name := util.GetIteratorLabel(*iter)
 		if err != nil {
 			return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", name, wd.name)
@@ -420,7 +418,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			if iter.Selector().IsDefinition() || iter.Selector().PkgPath() != "" || iter.IsOptional() {
 				continue
 			}
-			other, err := model.NewOther(iter.Value())
+			other, err := model.NewOther(concreteForRender(ctx, iter.Value()))
 			name := util.GetIteratorLabel(*iter)
 			if err != nil {
 				return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", name, td.name)
@@ -693,4 +691,15 @@ func renderParams(ctx process.Context, params, resolved interface{}) (string, er
 		return "", err
 	}
 	return string(raw), nil
+}
+
+// concreteForRender makes a validation's rendered resource marshalable. Every
+// resource here is handed to the next template through the context as JSON,
+// which an unknowable leaf cannot survive. A real render has nothing to prune.
+func concreteForRender(ctx process.Context, v cue.Value) cue.Value {
+	if !sources.TypeOnly(ctx.GetCtx()) {
+		return v
+	}
+	pruned, _ := sources.ConcreteForValidation(v)
+	return pruned
 }

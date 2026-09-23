@@ -189,15 +189,16 @@ func (t *paramTyper) typeOfLeaf(raw string) (any, error) {
 }
 
 // fromSchema types a plain `source.<binding>.<path>` read from the binding's
-// declared schema. Reports false for anything else, including a read of a
-// binding with no schema to judge by.
+// declared schema, or the whole binding when the path stops at its name.
+// Reports false for anything else, including a read of a binding with no schema
+// to judge by.
 func (t *paramTyper) fromSchema(expr string) (any, bool) {
 	refs, err := celexpr.PropertyReferences(expr)
 	if err != nil || len(refs) != 1 {
 		return nil, false
 	}
 	ref := refs[0]
-	if !ref.IsSource() || len(ref.Path) < 2 || ref.String() != expr {
+	if !ref.IsSource() || len(ref.Path) == 0 || ref.String() != expr {
 		// Not a bare read: the expression does something with the value.
 		return nil, false
 	}
@@ -218,9 +219,13 @@ func (t *paramTyper) fromSchema(expr string) (any, bool) {
 
 // shapeOf converts a schema field into what TypedParams emits: a nested map for
 // a struct, so its fields survive flattening, and a type expression otherwise.
+//
+// Optional fields are left out. The required-field check treats every key it
+// finds here as provided, and a field the schema marks optional is one the
+// source may never supply.
 func (t *paramTyper) shapeOf(field cue.Value) any {
 	if field.IncompleteKind() == cue.StructKind {
-		iter, err := field.Fields(cue.Optional(true), cue.Definitions(false))
+		iter, err := field.Fields(cue.Optional(false), cue.Definitions(false))
 		if err != nil {
 			return CUEType("{...}")
 		}
@@ -233,8 +238,8 @@ func (t *paramTyper) shapeOf(field cue.Value) any {
 			out[sel.Unquoted()] = t.shapeOf(iter.Value())
 		}
 		if len(out) == 0 {
-			// An open map declares a value type and no keys, so there is no
-			// shape to carry, only that anything here is allowed.
+			// Nothing guaranteed: an open map declaring a value type and no
+			// keys, or a struct whose fields are all optional.
 			return CUEType("{...}")
 		}
 		return out
@@ -430,26 +435,37 @@ func renderCUE(node any) (string, error) {
 	}
 }
 
-// ConcreteForValidation fills the leaves a typed render left non-concrete, so
-// the result can be marshalled: a component's output becomes the base its
-// traits render against, and the engine passes that as JSON.
+// ConcreteForValidation makes a typed render marshalable: a component's output
+// becomes the base its traits render against, and the engine passes that as
+// JSON, which an unknowable leaf cannot survive.
+//
+// Those leaves are left out rather than zeroed. A trait patches the base by
+// unification, and a zero value conflicts with every literal it might patch in,
+// which would refuse an Application that renders fine. An absent field unifies
+// with anything.
 //
 // The output and not the parameters. The parameter block is checked against the
-// definition's constraints, where a zero value would refuse `replicas: >0`
-// outright; the output is checked against nothing.
+// definition's constraints, where a missing field would fail the required-field
+// check; the output is checked against nothing.
 func ConcreteForValidation(v cue.Value) (cue.Value, bool) {
-	filled, changed := fillIncomplete(v)
-	if !changed {
+	pruned, changed := pruneIncomplete(v)
+	if !changed || pruned == any(dropped) {
 		return v, false
 	}
-	out := v.Context().Encode(filled)
+	out := v.Context().Encode(pruned)
 	if out.Err() != nil {
 		return v, false
 	}
 	return out, true
 }
 
-func fillIncomplete(v cue.Value) (any, bool) {
+// dropped marks a leaf that carries no value worth passing on. A sentinel and
+// not nil, because nil is what a CUE null decodes to.
+type droppedLeaf struct{}
+
+var dropped = droppedLeaf{}
+
+func pruneIncomplete(v cue.Value) (any, bool) {
 	switch v.IncompleteKind() {
 	case cue.StructKind:
 		iter, err := v.Fields()
@@ -463,7 +479,11 @@ func fillIncomplete(v cue.Value) (any, bool) {
 			if !sel.IsString() {
 				continue
 			}
-			child, childChanged := fillIncomplete(iter.Value())
+			child, childChanged := pruneIncomplete(iter.Value())
+			if child == any(dropped) {
+				changed = true
+				continue
+			}
 			out[sel.Unquoted()] = child
 			changed = changed || childChanged
 		}
@@ -476,7 +496,13 @@ func fillIncomplete(v cue.Value) (any, bool) {
 		out := []any{}
 		changed := false
 		for iter.Next() {
-			child, childChanged := fillIncomplete(iter.Value())
+			child, childChanged := pruneIncomplete(iter.Value())
+			if child == any(dropped) {
+				// A list unifies by position, so an element cannot be left out
+				// without moving the ones after it.
+				child = zeroOf(iter.Value().IncompleteKind())
+				childChanged = true
+			}
 			out = append(out, child)
 			changed = changed || childChanged
 		}
@@ -488,10 +514,11 @@ func fillIncomplete(v cue.Value) (any, bool) {
 			return decoded, false
 		}
 	}
-	return zeroOf(v.IncompleteKind()), true
+	return dropped, true
 }
 
-// zeroOf is a stand-in of the right shape for a value that is not knowable.
+// zeroOf is a stand-in of the right shape for a list element that is not
+// knowable, which cannot be left out without moving its neighbours.
 func zeroOf(k cue.Kind) any {
 	switch k {
 	case cue.StringKind:

@@ -1699,9 +1699,11 @@ func TestValidateComponentParamsTypesFromSchemaWithoutResolving(t *testing.T) {
 	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
 		string(features.EnableCueValidation)+"=true,"+
 			string(features.EnableCelExpressions)+"=true"))
-	defer func() {
-		_ = utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCelExpressions) + "=false")
-	}()
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=false,"+
+				string(features.EnableCelExpressions)+"=false"))
+	})
 
 	// Reads a ConfigMap through vela/kube: resolving needs a live cluster.
 	const unresolvable = `
@@ -1765,9 +1767,11 @@ func TestValidateComponentParamsKeepsTheShapeOfAStructRead(t *testing.T) {
 	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
 		string(features.EnableCueValidation)+"=true,"+
 			string(features.EnableCelExpressions)+"=true"))
-	defer func() {
-		_ = utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCelExpressions) + "=false")
-	}()
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=false,"+
+				string(features.EnableCelExpressions)+"=false"))
+	})
 
 	const template = `
 $internal: {key: "demo", keyInputs: []}
@@ -1897,9 +1901,11 @@ func TestValidateComponentParamsCarriesSchemaConstraints(t *testing.T) {
 	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
 		string(features.EnableCueValidation)+"=true,"+
 			string(features.EnableCelExpressions)+"=true"))
-	defer func() {
-		_ = utilfeature.DefaultMutableFeatureGate.Set(string(features.EnableCelExpressions) + "=false")
-	}()
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=false,"+
+				string(features.EnableCelExpressions)+"=false"))
+	})
 
 	appFor := func(schemaType, paramType string) (*Appfile, *Component) {
 		af := &Appfile{
@@ -1940,4 +1946,71 @@ func TestValidateComponentParamsCarriesSchemaConstraints(t *testing.T) {
 			assert.NoError(t, err, "a value satisfying both exists, so admission must not guess")
 		})
 	}
+}
+
+// A trait patches the base the component rendered, and under type-only
+// validation a source-fed field of that base has no value yet. Leaving it out
+// is what lets the patch land; a zero value in its place would conflict with
+// the literal and refuse an Application that renders fine.
+func TestValidateCUESchematicAppfileTraitPatchesASourceFedField(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+		string(features.EnableCueValidation)+"=true,"+
+			string(features.EnableCelExpressions)+"=true"))
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=false,"+
+				string(features.EnableCelExpressions)+"=false"))
+	})
+
+	const unresolvable = `
+import "vela/kube"
+$internal: {key: "demo", keyInputs: []}
+schema: {image: string}
+parameter: {name: string}
+_cm: kube.#Get & {$params: resource: {apiVersion: "v1", kind: "ConfigMap", metadata: {name: parameter.name, namespace: "default"}}}
+output: {image: _cm.$returns.data.image}
+`
+	appfile := &Appfile{
+		Name: "myapp", Namespace: "test-ns",
+		AppAnnotations: map[string]string{oam.AnnotationCelExpressions: "true"},
+		Sources: []v1beta1.ApplicationSource{
+			{Name: "cfg", Type: "demo", Properties: &runtime.RawExtension{Raw: []byte(`{"name":"app-config"}`)}},
+		},
+		RelatedSourceDefinitions: map[string]*v1beta1.SourceDefinition{
+			"demo": {Spec: v1beta1.SourceDefinitionSpec{
+				Schematic: &common.Schematic{CUE: &common.CUE{Template: unresolvable}},
+			}},
+		},
+		ParsedComponents: []*Component{
+			{
+				Name: "my-comp", Type: "worker",
+				CapabilityCategory: types.CUECategory,
+				FullTemplate: &Template{TemplateStr: `
+					parameter: { image: string }
+					output: {
+						apiVersion: "apps/v1"
+						kind:       "Deployment"
+						spec: template: spec: containers: [{name: "c", image: parameter.image}]
+					}
+				`},
+				Params: map[string]any{"image": "$(source.cfg.image)"},
+				engine: definition.NewWorkloadAbstractEngine("my-comp"),
+				Traits: []*Trait{
+					{
+						Name:               "override-image",
+						CapabilityCategory: types.CUECategory,
+						Template: `
+							parameter: { image: string }
+							patch: spec: template: spec: containers: [{name: "c", image: parameter.image}]
+						`,
+						Params: map[string]any{"image": "nginx"},
+						engine: definition.NewTraitAbstractEngine("override-image"),
+					},
+				},
+			},
+		},
+	}
+
+	assert.NoError(t, (&Parser{}).ValidateCUESchematicAppfile(appfile),
+		"a trait patching a source-fed field must not be refused at admission")
 }
