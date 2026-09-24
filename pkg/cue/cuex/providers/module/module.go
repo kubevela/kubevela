@@ -107,11 +107,9 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 // pkg/module/service, so anything reading those during admission sees the real
 // values. Two fields deliberately diverge: spec.components is empty, and the
 // module-version annotation is absent because the real value is read from the
-// fetched module's own _module.cue and cannot be known without fetching it. A
-// trait on a type: module component whose CUE reads into either would evaluate
-// against this placeholder and could reject an Application that renders
-// correctly; narrowing what admission evaluates is the fix if that ever bites,
-// the way ValidateCUESchematicAppfile already skips PostDispatch traits.
+// fetched module's own _module.cue and cannot be known without fetching it.
+// Traits on a type: module component would evaluate against this placeholder,
+// so ValidateCUESchematicAppfile skips them during admission.
 func placeholderReturns(p RenderVars) *RenderReturns {
 	return &RenderReturns{Returns: ResultVars{
 		Application: map[string]interface{}{
