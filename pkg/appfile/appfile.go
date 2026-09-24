@@ -784,9 +784,6 @@ func makeWorkloadWithContext(pCtx process.Context, comp *Component, ns, appName 
 	if comp.FullTemplate != nil && comp.FullTemplate.ComponentDefinition != nil &&
 		comp.FullTemplate.ComponentDefinition.Name != "" {
 		resolvedType = comp.FullTemplate.ComponentDefinition.Name
-	} else if comp.FullTemplate != nil && comp.FullTemplate.WorkloadDefinition != nil &&
-		comp.FullTemplate.WorkloadDefinition.Name != "" {
-		resolvedType = comp.FullTemplate.WorkloadDefinition.Name
 	}
 	util.AddLabels(workload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: resolvedType}))
 	return workload, nil

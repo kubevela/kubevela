@@ -18,10 +18,8 @@ package module
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/oam-dev/kubevela/pkg/module/naming"
 )
@@ -31,9 +29,6 @@ import (
 func validateModuleName(name, path string) error {
 	if name == "" {
 		return fmt.Errorf("module in %s must not be empty", path)
-	}
-	if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
-		return fmt.Errorf("module name %q in %s is invalid: %s", name, path, strings.Join(errs, "; "))
 	}
 	return nil
 }
@@ -64,9 +59,6 @@ func validateDefinitionName(def map[string]interface{}, path string) error {
 	metadata, ok := def["metadata"].(map[string]interface{})
 	if ok {
 		if name, ok := metadata["name"].(string); ok && name != "" {
-			if errs := validation.IsDNS1123Subdomain(name); len(errs) > 0 {
-				return fmt.Errorf("definition rendered from %s has invalid metadata.name %q: %s", path, name, strings.Join(errs, "; "))
-			}
 			return nil
 		}
 	}

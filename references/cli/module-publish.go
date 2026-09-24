@@ -94,7 +94,7 @@ func NewModulePublishCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command 
 	vela module publish ./modules/s3 --registry ecr --version 1.1.0-rc1 --force`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := setModulePublishPasswordFromStdin(cmd); err != nil {
+			if err := setRegistryPasswordFromStdin(cmd); err != nil {
 				return err
 			}
 			o.dir = args[0]
@@ -138,21 +138,6 @@ func NewModulePublishCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command 
 	cmd.Flags().String(addonPassword, "", "Registry password. Empty uses the docker credential chain.")
 	cmd.Flags().Bool(addonPasswordStdin, false, "Read the registry password from stdin.")
 	return cmd
-}
-
-func setModulePublishPasswordFromStdin(cmd *cobra.Command) error {
-	passwordStdin, err := cmd.Flags().GetBool(addonPasswordStdin)
-	if err != nil {
-		return err
-	}
-	if !passwordStdin {
-		return nil
-	}
-	value, err := readPasswordFromStdin(cmd, cmd.Flags().Changed(addonPassword), "registry")
-	if err != nil {
-		return err
-	}
-	return cmd.Flags().Set(addonPassword, value)
 }
 
 // run validates the tree, resolves the target registry, and publishes.
