@@ -20,8 +20,10 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/kubevela/pkg/util/singleton"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/module"
@@ -87,6 +89,9 @@ func (r *rendererImpl) RenderModule(ctx context.Context, req api.ModuleRequest) 
 func RenderApplication(mod *module.Module, definitionNamespace string) (map[string]interface{}, error) {
 	if mod == nil || mod.Name == "" {
 		return nil, fmt.Errorf("render module: module has no name")
+	}
+	if errs := validation.IsDNS1123Label(mod.Name); len(errs) > 0 {
+		return nil, fmt.Errorf("render module: invalid module name %q: %s", mod.Name, strings.Join(errs, "; "))
 	}
 	if definitionNamespace == "" {
 		definitionNamespace = types.DefaultKubeVelaNS
