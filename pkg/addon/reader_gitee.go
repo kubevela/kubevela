@@ -140,7 +140,7 @@ func (h *giteeHelper) readRepo(relativePath string) (*github.RepositoryContent, 
 // GetGiteeContents can return either the metadata and content of a single file
 func (c *Client) GetGiteeContents(ctx context.Context, owner, repo, path, ref string) (fileContent *github.RepositoryContent, directoryContent []*github.RepositoryContent, err error) {
 	escapedPath := (&url.URL{Path: path}).String()
-	u := fmt.Sprintf(c.BaseURL.String()+"repos/%s/%s/contents/%s", owner, repo, escapedPath)
+	u := fmt.Sprintf("%s/repos/%s/%s/contents/%s", strings.TrimRight(c.BaseURL.String(), "/"), owner, repo, escapedPath)
 	if ref != "" {
 		u = fmt.Sprintf(u+"?ref=%s", ref)
 	}

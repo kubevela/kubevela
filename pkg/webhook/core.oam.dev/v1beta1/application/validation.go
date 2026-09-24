@@ -443,7 +443,7 @@ func (h *ValidatingHandler) validateDefinitions(
 		// Permitted: now confirm the definition is actually installed. This is what
 		// catches a Form 3 reference, whose resolution is pure string math and never
 		// touches the cluster.
-		if err := appfile.DefinitionExists(ctx, h.Client, resolved, capType); err != nil {
+		if err := appfile.DefinitionExists(ctx, h.Client, baseDefinitionName(resolved), capType); err != nil {
 			return toFieldErrs(err.Error())
 		}
 		return nil

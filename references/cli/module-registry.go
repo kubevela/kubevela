@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -203,6 +204,12 @@ func moduleRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Regist
 		if !pkgaddon.IsOCIURL(rawURL) && !strings.HasPrefix(strings.ToLower(rawURL), "http://") {
 			return nil, errors.New("an OCI module registry URL must use the oci:// scheme (or http:// for a registry served without TLS)")
 		}
+		if strings.HasPrefix(strings.ToLower(rawURL), "http://") {
+			u, err := url.Parse(rawURL)
+			if err != nil || u.Host == "" {
+				return nil, errors.New("http:// module registry URL must include a registry host (for example: http://127.0.0.1:5000/modules)")
+			}
+		}
 		r.Helm = &pkgaddon.HelmSource{URL: rawURL, Username: username, Token: password}
 	default:
 		return nil, fmt.Errorf("unsupported registry type %q, must be %q", registryType, moduleOCIType)
@@ -372,6 +379,11 @@ func preserveTokenSecretRef(registry *pkgaddon.Registry, existing pkgaddon.Regis
 		return
 	}
 	if token := old.GetToken(); token != "" {
+		if nextOCI := registry.OCIChartSource(); nextOCI != nil && nextOCI.Username == "" {
+			if prevOCI := existing.OCIChartSource(); prevOCI != nil {
+				nextOCI.Username = prevOCI.Username
+			}
+		}
 		src.SetToken(token)
 		return
 	}

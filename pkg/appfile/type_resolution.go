@@ -55,6 +55,12 @@ func parseTypeRef(typeName string) (form int, module, apiVersion, name string, e
 		}
 		return 2, "", parts[0], parts[1], nil
 	case 3:
+		if !naming.IsValidAPIVersion(parts[1]) {
+			return 0, "", "", "", fmt.Errorf(
+				"invalid type reference %q: %q is not a valid API version; "+
+					"expected v<N>, v<N>alpha<N>, or v<N>beta<N> (e.g. v1, v1alpha1, v2beta2)",
+				typeName, parts[1])
+		}
 		return 3, parts[0], parts[1], parts[2], nil
 	default:
 		return 0, "", "", "", fmt.Errorf(
@@ -192,6 +198,14 @@ func listModuleDefinitions(ctx context.Context, cli client.Reader, capType types
 			for i := range l.Items {
 				all = append(all, &l.Items[i])
 			}
+		case types.TypeSource:
+			l := &v1beta1.SourceDefinitionList{}
+			if err := cli.List(ctx, l, opts...); err != nil {
+				return nil, err
+			}
+			for i := range l.Items {
+				all = append(all, &l.Items[i])
+			}
 		default:
 			return nil, fmt.Errorf("unsupported capType %q for module type resolution", capType)
 		}
@@ -238,6 +252,8 @@ func definitionObjectFor(capType types.CapType) client.Object {
 		return new(v1beta1.WorkflowStepDefinition)
 	case types.TypeWorkload:
 		return new(v1beta1.WorkloadDefinition)
+	case types.TypeSource:
+		return new(v1beta1.SourceDefinition)
 	default:
 		return new(v1beta1.ComponentDefinition)
 	}

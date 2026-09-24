@@ -31,6 +31,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"regexp"
+	"strings"
 )
 
 const (
@@ -83,5 +84,9 @@ func TruncateWithHash(s string, max int) string {
 	}
 	sum := sha256.Sum256([]byte(s))
 	suffix := "-" + hex.EncodeToString(sum[:])[:8]
-	return s[:max-len(suffix)] + suffix
+	prefix := strings.TrimRight(s[:max-len(suffix)], ".")
+	if prefix == "" {
+		return s[:max]
+	}
+	return prefix + suffix
 }

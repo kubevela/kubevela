@@ -188,7 +188,8 @@ const (
 	// EnableModuleComponent enables installing a module as an Application component via the
 	// type: module ComponentDefinition. As with EnableAddonComponent, the ComponentDefinition
 	// and its vela/module CueX package always ship, because the definition cannot compile
-	// without the package; this gate controls only whether the render service is wired up.
+	// without the package; this gate controls whether the render service is wired up and
+	// whether the shared Application webhook runs its module-specific validation branch.
 	// When disabled, an Application using type: module fails at render with an actionable
 	// message.
 	EnableModuleComponent featuregate.Feature = "EnableModuleComponent"
