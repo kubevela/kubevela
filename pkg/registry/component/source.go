@@ -368,9 +368,6 @@ func newReaderConfig(opts []ReaderOption) readerConfig {
 	return c
 }
 
-// NewAsyncReader create AsyncReader from
-// 1. GitHub url and directory
-// 2. OSS endpoint and bucket
 // GitReaderBuilder builds an AsyncReader over one of the Git-family sources.
 // The parameters are NewAsyncReader's, minus the ones no Git source uses.
 type GitReaderBuilder func(baseURL, repo, subPath, token string, rdType ReaderType, ref string) (AsyncReader, error)

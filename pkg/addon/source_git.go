@@ -105,6 +105,9 @@ func buildGitReader(baseURL, repo, subPath, token string, rdType component.Reade
 			return nil, err
 		}
 		return &gitlabReader{h: helper}, nil
+	case component.OSSType:
+		// Git reader builder only serves Git-family sources.
+		return nil, fmt.Errorf("invalid addon registry type '%s'", rdType)
 	}
 	return nil, fmt.Errorf("invalid addon registry type '%s'", rdType)
 }

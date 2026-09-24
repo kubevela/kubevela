@@ -1213,7 +1213,8 @@ func applyComponentHealthToServices(ctx monitorContext.Context, handler *AppHand
 	for idx, svc := range handler.services {
 		if component, exists := componentMap[svc.Name]; exists {
 			_, status, _, _, err := healthCheck(ctx, component, nil, svc.Cluster, healthCheckNamespace(handler, svc))
-			if err != nil {
+			switch {
+			case err != nil:
 				ctx.Error(err, "Failed to collect health status")
 				// Otherwise a health check that could not run tells us nothing good
 				// about the component: rendering failed, or its resource could not be
@@ -1225,12 +1226,12 @@ func applyComponentHealthToServices(ctx monitorContext.Context, handler *AppHand
 					handler.services[idx].Healthy = false
 					handler.services[idx].Message = healthCheckErrorMessage(err)
 				}
-			} else if status != nil {
+			case status != nil:
 				handler.services[idx].Healthy = status.Healthy
 				handler.services[idx].Message = status.Message
 				handler.services[idx].Details = status.Details
 				handler.services[idx].Traits = status.Traits
-			} else if !paramsSuppliedAtRuntime {
+			case !paramsSuppliedAtRuntime:
 				// No error and no status means the check stopped before it read
 				// anything, because the resources this component renders are not in
 				// the Application's ResourceTracker. That is no evidence of health
