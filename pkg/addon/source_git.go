@@ -51,7 +51,7 @@ func init() {
 // buildGitReader is the component.GitReaderBuilder for the three Git-family
 // source types. It is the body of what NewAsyncReader's git, gitee and gitlab
 // cases used to do inline.
-func buildGitReader(baseURL, repo, subPath, token string, rdType component.ReaderType) (component.AsyncReader, error) {
+func buildGitReader(baseURL, repo, subPath, token string, rdType component.ReaderType, ref string) (component.AsyncReader, error) {
 	baseURL = strings.TrimSuffix(baseURL, ".git")
 	u, err := url.Parse(baseURL)
 	if err != nil {
@@ -61,22 +61,40 @@ func buildGitReader(baseURL, repo, subPath, token string, rdType component.Reade
 	switch rdType {
 	case gitType:
 		u.Path = path.Join(u.Path, subPath)
-		_, content, err := utils.Parse(u.String())
+		parsedType, content, err := utils.Parse(u.String())
 		if err != nil {
 			return nil, err
+		}
+		if parsedType != utils.TypeGithub || content == nil {
+			return nil, errors.New("addon registry invalid")
+		}
+		if ref != "" {
+			content.GithubContent.Ref = ref
 		}
 		return &gitReader{h: createGitHelper(content, token)}, nil
 	case giteeType:
 		u.Path = path.Join(u.Path, subPath)
-		_, content, err := utils.Parse(u.String())
+		parsedType, content, err := utils.Parse(u.String())
 		if err != nil {
 			return nil, err
 		}
+		if parsedType != utils.TypeGitee || content == nil {
+			return nil, errors.New("addon registry invalid")
+		}
+		if ref != "" {
+			content.GiteeContent.Ref = ref
+		}
 		return &giteeReader{h: createGiteeHelper(content, token)}, nil
 	case gitlabType:
-		_, content, err := utils.ParseGitlab(u.String(), repo)
+		parsedType, content, err := utils.ParseGitlab(u.String(), repo)
 		if err != nil {
 			return nil, err
+		}
+		if parsedType != utils.TypeGitlab || content == nil {
+			return nil, errors.New("addon registry invalid")
+		}
+		if ref != "" {
+			content.GitlabContent.Ref = ref
 		}
 		content.GitlabContent.Path = subPath
 		helper, err := createGitlabHelper(content, token)
