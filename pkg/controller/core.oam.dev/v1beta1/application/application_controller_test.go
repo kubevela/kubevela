@@ -354,6 +354,31 @@ var _ = Describe("Test Application Controller", func() {
 		},
 	}
 
+	appWithEnvConflict := &v1beta1.Application{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Application",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "app-env-conflict",
+		},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{
+				{
+					Name:       "conflict-worker",
+					Type:       "worker",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","env":[{"name":"API_KEY","value":"hardcoded"}]}`)},
+				},
+			},
+		},
+	}
+	appWithEnvConflict.Spec.Components[0].Traits = []common.ApplicationTrait{
+		{
+			Type:       "storage",
+			Properties: &runtime.RawExtension{Raw: []byte(`{"secret":[{"name":"conflict-secret","mountToEnv":{"envName":"API_KEY","secretKey":"api-key"},"data":{"api-key":"c2VjcmV0"}}]}`)},
+		},
+	}
+
 	appWithAffinity := &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
@@ -3565,6 +3590,56 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Delete(ctx, cm)).Should(BeNil())
 		Expect(k8sClient.Delete(ctx, secret)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
+
+	It("storage trait should replace conflicting env var from component instead of merging", func() {
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-env-conflict",
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+
+		appWithEnvConflict.SetNamespace(ns.Name)
+		app := appWithEnvConflict.DeepCopy()
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+
+		By("Check Deployment env only has valueFrom for the conflicting var, not both value and valueFrom")
+		deployment := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: ns.Name,
+			Name:      app.Spec.Components[0].Name,
+		}, deployment)).Should(BeNil())
+
+		containers := deployment.Spec.Template.Spec.Containers
+		Expect(len(containers)).Should(BeNumerically(">", 0))
+
+		var apiKeyEnv *corev1.EnvVar
+		for i := range containers[0].Env {
+			if containers[0].Env[i].Name == "API_KEY" {
+				apiKeyEnv = &containers[0].Env[i]
+				break
+			}
+		}
+		Expect(apiKeyEnv).ShouldNot(BeNil(), "API_KEY env var should be present in Deployment")
+		Expect(apiKeyEnv.Value).Should(BeEmpty(), "API_KEY should not retain plain value when storage trait provides valueFrom")
+		Expect(apiKeyEnv.ValueFrom).ShouldNot(BeNil(), "API_KEY should have valueFrom set by storage trait")
+		Expect(apiKeyEnv.ValueFrom.SecretKeyRef).ShouldNot(BeNil())
+		Expect(apiKeyEnv.ValueFrom.SecretKeyRef.Name).Should(Equal("conflict-secret"))
+		Expect(apiKeyEnv.ValueFrom.SecretKeyRef.Key).Should(Equal("api-key"))
+
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
