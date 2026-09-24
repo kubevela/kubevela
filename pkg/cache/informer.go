@@ -198,21 +198,29 @@ func (in *DefinitionCache) Start(ctx context.Context, store cache.Cache, duratio
 	if err != nil {
 		klog.ErrorS(err, "failed to add event handler for definition cache")
 	}
+	pruneFunc := func() {
+		t0 := time.Now()
+		compDefPruned := in.ComponentDefinitionCache.Prune(duration)
+		traitDefPruned := in.TraitDefinitionCache.Prune(duration)
+		wsDefPruned := in.WorkflowStepDefinitionCache.Prune(duration)
+		klog.Infof("DefinitionCache prune finished. ComponentDefinition: %d(-%d), TraitDefinition: %d(-%d), WorkflowStepDefinition: %d(-%d). Time cost: %d ms.",
+			in.ComponentDefinitionCache.Size(), compDefPruned,
+			in.TraitDefinitionCache.Size(), traitDefPruned,
+			in.WorkflowStepDefinitionCache.Size(), wsDefPruned,
+			time.Since(t0).Microseconds())
+	}
+
+	pruneFunc()
+
+	ticker := time.NewTicker(duration)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-			t0 := time.Now()
-			compDefPruned := in.ComponentDefinitionCache.Prune(duration)
-			traitDefPruned := in.TraitDefinitionCache.Prune(duration)
-			wsDefPruned := in.WorkflowStepDefinitionCache.Prune(duration)
-			klog.Infof("DefinitionCache prune finished. ComponentDefinition: %d(-%d), TraitDefinition: %d(-%d), WorkflowStepDefinition: %d(-%d). Time cost: %d ms.",
-				in.ComponentDefinitionCache.Size(), compDefPruned,
-				in.TraitDefinitionCache.Size(), traitDefPruned,
-				in.WorkflowStepDefinitionCache.Size(), wsDefPruned,
-				time.Since(t0).Microseconds())
-			time.Sleep(duration)
+		case <-ticker.C:
+			pruneFunc()
 		}
 	}
 }
