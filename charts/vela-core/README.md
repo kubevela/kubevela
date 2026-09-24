@@ -12,7 +12,7 @@
 [![codecov](https://codecov.io/gh/kubevela/kubevela/branch/master/graph/badge.svg)](https://codecov.io/gh/kubevela/kubevela)
 [![LICENSE](https://img.shields.io/github/license/kubevela/kubevela.svg?style=flat-square)](/LICENSE)
 [![Releases](https://img.shields.io/github/release/kubevela/kubevela/all.svg?style=flat-square)](https://github.com/kubevela/kubevela/releases)
-[![TODOs](https://img.shields.io/endpoint?url=https://api.tickgit.com/badge?repo=github.com/kubevela/kubevela)](https://www.tickgit.com/browse?repo=github.com/oam-dev/kubevela)
+[![TODOs](https://img.shields.io/endpoint?url=https://api.tickgit.com/badge?repo=github.com/kubevela/kubevela)](https://www.tickgit.com/browse?repo=github.com/kubevela/kubevela)
 [![Twitter](https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Ftwitter.com%2Foam_dev)](https://twitter.com/oam_dev)
 [![Artifact HUB](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/kubevela)](https://artifacthub.io/packages/search?repo=kubevela)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4602/badge)](https://bestpractices.coreinfrastructure.org/projects/4602)
@@ -48,31 +48,49 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 
 ### KubeVela workflow parameters
 
-| Name                                                    | Description                                             | Value   |
-| ------------------------------------------------------- | ------------------------------------------------------- | ------- |
-| `workflow.enableSuspendOnFailure`                       | Enable suspend on workflow failure                      | `false` |
-| `workflow.enableExternalPackageForDefaultCompiler`      | Enable external package for default cuex compiler       | `true`  |
-| `workflow.enableExternalPackageWatchForDefaultCompiler` | Enable external package watch for default cuex compiler | `false` |
-| `workflow.backoff.maxTime.waitState`                    | The max backoff time of workflow in a wait condition    | `60`    |
-| `workflow.backoff.maxTime.failedState`                  | The max backoff time of workflow in a failed condition  | `300`   |
-| `workflow.step.errorRetryTimes`                         | The max retry times of a failed workflow step           | `10`    |
+| Name                                                    | Description                                                                                         | Value   |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------- |
+| `workflow.enableSuspendOnFailure`                       | Enable suspend on workflow failure                                                                  | `false` |
+| `workflow.enableExternalPackageForDefaultCompiler`      | Enable external package for default cuex compiler                                                   | `true`  |
+| `workflow.enableExternalPackageWatchForDefaultCompiler` | Enable external package watch for default cuex compiler                                             | `false` |
+| `workflow.enableCUEVersionCompatibility`                | Automatically rewrite legacy CUE syntax in stored definitions at render time                        | `true`  |
+| `workflow.cueCompatibilityCacheSize`                    | Maximum number of CUE templates to cache after version compatibility rewriting (0 disables caching) | `512`   |
+| `workflow.cueUpgradeListConcatEnabled`                  | Enable list concat/list arithmetic compatibility rewrite pass                                       | `true`  |
+| `workflow.cueUpgradeErrorFieldLabelEnabled`             | Enable error field-label compatibility rewrite pass                                                 | `true`  |
+| `workflow.cueUpgradeBoolDefaultGuardEnabled`            | Enable bool default-guard hazard compatibility rewrite pass                                         | `false` |
+| `workflow.cueUpgradeGenericDefaultGuardEnabled`         | Enable generic default-guard hazard compatibility rewrite pass                                      | `false` |
+| `workflow.cueUpgradeKeepValidatorsSingletonEnabled`     | Enable keepvalidators singleton concretization compatibility pass                                   | `false` |
+| `workflow.cueUpgradeEvalv3SelfRefGuardEnabled`          | Enable evalv3 self-reference default-guard compatibility rewrite pass                               | `false` |
+| `workflow.backoff.maxTime.waitState`                    | The max backoff time of workflow in a wait condition                                                | `60`    |
+| `workflow.backoff.maxTime.failedState`                  | The max backoff time of workflow in a failed condition                                              | `300`   |
+| `workflow.step.errorRetryTimes`                         | The max retry times of a failed workflow step                                                       | `10`    |
+
+### KubeVela Helm cache parameters
+
+| Name                      | Description                                                                                                                                                                                               | Value       |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `helmCache.maxBytes`      | Maximum number of bytes to keep in the Helm chart cache. Tune this down on memory-constrained deployments (the default 256MiB can be a quarter of a 1Gi container). Set to 0 to use the built-in default. | `268435456` |
+| `helmCache.sweepInterval` | How often the Helm chart cache sweeps expired entries (e.g. "60s"). The sweep shares the lock with Get and Put, so a very small interval raises lock contention. Set to 0 to use the built-in default.    | `60s`       |
+| `helmCache.immutableTTL`  | Cluster-wide default cache TTL for immutable (semver) chart versions. Used only when a component does not set options.cache.immutableTTL. Set to 0 to use the built-in default (24h).                     | `24h`       |
+| `helmCache.mutableTTL`    | Cluster-wide default cache TTL for mutable chart tags. Used only when a component does not set options.cache.mutableTTL. Set to 0 to use the built-in default (5m).                                       | `5m`        |
 
 ### KubeVela controller parameters
 
-| Name                        | Description                          | Value              |
-| --------------------------- | ------------------------------------ | ------------------ |
-| `replicaCount`              | KubeVela controller replica count    | `1`                |
-| `imageRegistry`             | Image registry                       | `""`               |
-| `image.repository`          | Image repository                     | `oamdev/vela-core` |
-| `image.tag`                 | Image tag                            | `latest`           |
-| `image.pullPolicy`          | Image pull policy                    | `Always`           |
-| `resources.limits.cpu`      | KubeVela controller's cpu limit      | `500m`             |
-| `resources.limits.memory`   | KubeVela controller's memory limit   | `1Gi`              |
-| `resources.requests.cpu`    | KubeVela controller's cpu request    | `50m`              |
-| `resources.requests.memory` | KubeVela controller's memory request | `20Mi`             |
-| `webhookService.type`       | KubeVela webhook service type        | `ClusterIP`        |
-| `webhookService.port`       | KubeVela webhook service port        | `9443`             |
-| `healthCheck.port`          | KubeVela health check port           | `9440`             |
+| Name                        | Description                                                                  | Value              |
+| --------------------------- | ---------------------------------------------------------------------------- | ------------------ |
+| `replicaCount`              | KubeVela controller replica count                                            | `1`                |
+| `imageRegistry`             | Image registry                                                               | `""`               |
+| `image.repository`          | Image repository                                                             | `oamdev/vela-core` |
+| `image.tag`                 | Image tag                                                                    | `latest`           |
+| `image.pullPolicy`          | Image pull policy                                                            | `Always`           |
+| `resources.limits.cpu`      | KubeVela controller's cpu limit                                              | `500m`             |
+| `resources.limits.memory`   | KubeVela controller's memory limit                                           | `1Gi`              |
+| `resources.requests.cpu`    | KubeVela controller's cpu request                                            | `50m`              |
+| `resources.requests.memory` | KubeVela controller's memory request                                         | `20Mi`             |
+| `extraEnvs`                 | Extra environment variables to inject into the KubeVela controller container | `[]`               |
+| `webhookService.type`       | KubeVela webhook service type                                                | `ClusterIP`        |
+| `webhookService.port`       | KubeVela webhook service port                                                | `9443`             |
+| `healthCheck.port`          | KubeVela health check port                                                   | `9440`             |
 
 ### KubeVela controller optimization parameters
 
@@ -103,6 +121,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.validateResourcesExist`                        | enable webhook validation to check if resource types referenced in definition templates exist in the cluster                                                                                                                     | `false` |
 | `featureGates.enableApplicationScopedPolicies`               | enable Application-scoped PolicyDefinitions that transform Application CR before rendering (Alpha)                                                                                                                               | `false` |
 | `featureGates.enableGlobalPolicies`                          | enable automatic discovery and application of global PolicyDefinitions to all Applications (Alpha)                                                                                                                               | `false` |
+| `featureGates.enableCueExpVariable`                          | inject the CUE_EXPERIMENT env var (evalv3=0,keepvalidators=0) into the controller to disable experimental CUE features during the v0.14.x migration window                                                                       | `true`  |
 
 ### MultiCluster parameters
 

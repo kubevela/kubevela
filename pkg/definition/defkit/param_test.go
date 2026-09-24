@@ -253,6 +253,118 @@ var _ = Describe("Parameters", func() {
 			Expect(p.IsOptional()).To(BeTrue())
 			Expect(p.ValueType()).To(Equal(defkit.ParamTypeString))
 		})
+
+		It("should store a structured value schema via OfObject", func() {
+			p := defkit.Map("accessPoints").OfObject(
+				defkit.String("path").Required(),
+				defkit.Int("ownerUID").Default(1000),
+			).Optional()
+			Expect(p.GetValueFields()).To(HaveLen(2))
+			Expect(p.GetValueFields()[0].Name()).To(Equal("path"))
+			Expect(p.GetValueFields()[1].Name()).To(Equal("ownerUID"))
+			// OfObject describes the value, not a fixed object on the map itself.
+			Expect(p.GetFields()).To(BeEmpty())
+			Expect(p.IsOptional()).To(BeTrue())
+		})
+
+		It("should store a value schema reference via OfSchemaRef", func() {
+			p := defkit.Map("accessPoints").OfSchemaRef("AccessPointConfig").Optional()
+			Expect(p.GetValueSchemaRef()).To(Equal("AccessPointConfig"))
+			// WithSchemaRef applies to the whole parameter and stays separate.
+			Expect(p.GetSchemaRef()).To(BeEmpty())
+		})
+
+		It("should surface nested field imports from both WithFields and OfObject", func() {
+			// Only top-level params are scanned for imports, so a map has to
+			// report what its children need.
+			Expect(defkit.Map("m").WithFields(
+				defkit.String("name").MinLen(3),
+			).RequiredImports()).To(ContainElement("strings"))
+
+			Expect(defkit.Map("m").OfObject(
+				defkit.String("name").MaxLen(63),
+			).RequiredImports()).To(ContainElement("strings"))
+
+			// No constraints means no imports.
+			Expect(defkit.Map("m").OfObject(
+				defkit.String("name"),
+			).RequiredImports()).To(BeEmpty())
+		})
+
+		It("should not duplicate an import needed by more than one nested field", func() {
+			Expect(defkit.Map("m").WithFields(
+				defkit.String("first").MinLen(3),
+				defkit.String("second").MinLen(3),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+
+			Expect(defkit.Map("m").OfObject(
+				defkit.String("first").MinLen(3),
+				defkit.String("second").MaxLen(63),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+
+			// Same package needed by both WithFields and OfObject on the same map.
+			Expect(defkit.Map("m").WithFields(
+				defkit.String("fixed").MinLen(3),
+			).OfObject(
+				defkit.String("dynamic").MaxLen(63),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+
+			Expect(defkit.Array("labels").WithFields(
+				defkit.String("first").MinLen(3),
+				defkit.String("second").MinLen(3),
+			).MinItems(1).RequiredImports()).To(Equal([]string{"list", "strings"}))
+		})
+
+		It("should not report imports for a form the generator will not render", func() {
+			// writeMapParam ranks schemaRef > schema > valueSchemaRef > valueFields >
+			// fields, and returns early. Reporting a losing form's import emits a
+			// package the output never references: "imported and not used".
+			Expect(defkit.Map("m").WithSchemaRef("Ref").OfObject(
+				defkit.String("y").MinLen(3),
+			).RequiredImports()).To(BeEmpty())
+
+			Expect(defkit.Map("m").WithSchema("{...}").WithFields(
+				defkit.String("y").MinLen(3),
+			).RequiredImports()).To(BeEmpty())
+
+			Expect(defkit.Map("m").OfSchemaRef("Ref").OfObject(
+				defkit.String("y").MinLen(3),
+			).RequiredImports()).To(BeEmpty())
+
+			// valueFields wins over fields, so only valueFields is walked.
+			Expect(defkit.Map("m").WithFields(
+				defkit.String("fixed").MinLen(3),
+			).OfObject(
+				defkit.String("dynamic"),
+			).RequiredImports()).To(BeEmpty())
+
+			// list is still needed: MinItems renders whichever array form wins.
+			Expect(defkit.Array("a").WithSchema("[...int]").WithFields(
+				defkit.String("y").MinLen(3),
+			).MinItems(1).RequiredImports()).To(Equal([]string{"list"}))
+
+			Expect(defkit.Array("a").WithSchemaRef("Ref").WithFields(
+				defkit.String("y").MinLen(3),
+			).RequiredImports()).To(BeEmpty())
+		})
+
+		It("should report imports needed by conditional branch params", func() {
+			// Branch bodies are rendered into the struct like ordinary fields.
+			Expect(defkit.Map("cfg").ConditionalFields(
+				defkit.WhenParam(defkit.Bool("flag").Eq(true)).Params(
+					defkit.String("secret").MinLen(3),
+				),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+
+			// deduped against fields needing the same package
+			Expect(defkit.Map("cfg").WithFields(
+				defkit.String("plain").MinLen(3),
+			).ConditionalFields(
+				defkit.WhenParam(defkit.Bool("flag").Eq(true)).Params(
+					defkit.String("secret").MinLen(3),
+				),
+			).RequiredImports()).To(Equal([]string{"strings"}))
+		})
 	})
 
 	Context("StructParam", func() {
@@ -663,12 +775,50 @@ var _ = Describe("Parameters", func() {
 			Expect(lenCond.Length()).To(Equal(1))
 		})
 
+		It("should require the list import only when MinItems or MaxItems is set", func() {
+			plain := defkit.StringList("tags")
+			Expect(plain.RequiredImports()).To(BeNil())
+
+			withMin := defkit.StringList("tags").MinItems(1)
+			Expect(withMin.RequiredImports()).To(Equal([]string{"list"}))
+
+			withMax := defkit.StringList("tags").MaxItems(10)
+			Expect(withMax.RequiredImports()).To(Equal([]string{"list"}))
+
+			withBoth := defkit.StringList("tags").MinItems(1).MaxItems(10)
+			Expect(withBoth.RequiredImports()).To(Equal([]string{"list"}))
+		})
+
 		It("should set WithFields for array items", func() {
 			p := defkit.List("ports").WithFields(
 				defkit.Int("port").Required(),
 				defkit.String("name"),
 			)
 			Expect(p.GetFields()).To(HaveLen(2))
+		})
+	})
+
+	Context("StringKeyMapParam conditions", func() {
+		// Until this fix, StringKeyMapParam (the convenience constructor for
+		// [string]: string maps) did not expose any of the runtime predicate
+		// helpers that MapParam offered. Callers had to fall back to
+		// Map(...).Of(ParamTypeString) just to get HasKey or IsNotEmpty.
+		It("should support HasKey", func() {
+			labels := defkit.StringKeyMap("labels")
+			cond := labels.HasKey("app")
+			Expect(cond).NotTo(BeNil())
+			hasKey, ok := cond.(*defkit.MapHasKeyCondition)
+			Expect(ok).To(BeTrue(), "expected *MapHasKeyCondition")
+			Expect(hasKey.ParamName()).To(Equal("labels"))
+			Expect(hasKey.Key()).To(Equal("app"))
+		})
+
+		It("should support IsEmpty / IsNotEmpty / LenEq / LenGt", func() {
+			labels := defkit.StringKeyMap("labels")
+			Expect(labels.IsEmpty()).NotTo(BeNil())
+			Expect(labels.IsNotEmpty()).NotTo(BeNil())
+			Expect(labels.LenEq(3)).NotTo(BeNil())
+			Expect(labels.LenGt(0)).NotTo(BeNil())
 		})
 	})
 
@@ -1082,6 +1232,48 @@ var _ = Describe("Parameters", func() {
 			Expect(p.GetPattern()).To(Equal("^[a-z]+$"))
 			Expect(p.GetMinLen()).NotTo(BeNil())
 			Expect(*p.GetMinLen()).To(Equal(3))
+		})
+	})
+
+	Context("StringParam RequiredImports", func() {
+		It("should return nil when neither MinLen nor MaxLen is set", func() {
+			p := defkit.String("name")
+			Expect(p.RequiredImports()).To(BeNil())
+		})
+
+		It("should return [strings] when only MinLen is set", func() {
+			p := defkit.String("name").MinLen(3)
+			Expect(p.RequiredImports()).To(Equal([]string{"strings"}))
+		})
+
+		It("should return [strings] when only MaxLen is set", func() {
+			p := defkit.String("name").MaxLen(63)
+			Expect(p.RequiredImports()).To(Equal([]string{"strings"}))
+		})
+
+		It("should return [strings] when both MinLen and MaxLen are set", func() {
+			p := defkit.String("name").MinLen(1).MaxLen(63)
+			Expect(p.RequiredImports()).To(Equal([]string{"strings"}))
+		})
+
+		It("should return nil when only Pattern is set (no stdlib call)", func() {
+			p := defkit.String("name").Pattern("^[a-z]+$")
+			Expect(p.RequiredImports()).To(BeNil())
+		})
+
+		It("should return nil when only NotEmpty is set (no stdlib call)", func() {
+			p := defkit.String("name").NotEmpty()
+			Expect(p.RequiredImports()).To(BeNil())
+		})
+
+		It("should return nil when only Values is set (no stdlib call)", func() {
+			p := defkit.String("level").Values("info", "debug")
+			Expect(p.RequiredImports()).To(BeNil())
+		})
+
+		It("should still return [strings] when MinLen is combined with other constraints", func() {
+			p := defkit.String("name").NotEmpty().Pattern("^[a-z]+$").MinLen(3)
+			Expect(p.RequiredImports()).To(Equal([]string{"strings"}))
 		})
 	})
 

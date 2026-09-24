@@ -87,8 +87,8 @@ e2e-api-test:
 
 .PHONY: e2e-test
 e2e-test:
-	# Run e2e test
-	ginkgo -v ./test/e2e-test
+	# Run e2e test (KUBEVELA_E2E_AUTH=1 enables auth-test registry setup)
+	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-test
 	@$(OK) tests pass
 
 # Run e2e tests with k3d and webhook validation
@@ -99,6 +99,17 @@ e2e-test-local:
 	# Build and load image
 	docker build -t vela-core:e2e-test -f Dockerfile . --build-arg=VERSION=e2e-test --build-arg=GITVERSION=test
 	k3d image import vela-core:e2e-test -c kubevela-debug
+	# Pre-load auth-test registry images used by Describe("Helmchart Auth")
+	# in test/e2e-test/helmchart_test.go. Each command runs on its own
+	# line under `set -e` so a failed pull stops the loop (a `&&` chain
+	# would swallow the failure as far as `set -e` is concerned).
+	@set -e ; for img in \
+	  ghcr.io/project-zot/zot-minimal-linux-amd64:v2.1.1 \
+	  ghcr.io/helm/chartmuseum:v0.16.2 \
+	  docker.io/library/nginx:1.27-alpine ; do \
+	    docker pull $$img ; \
+	    k3d image import $$img -c kubevela-debug ; \
+	done
 	# Deploy with Helm
 	kubectl delete validatingwebhookconfiguration kubevela-vela-core-admission 2>/dev/null || true
 	helm upgrade --install kubevela ./charts/vela-core \
@@ -112,8 +123,8 @@ e2e-test-local:
 		--set applicationRevisionLimit=5 \
 		--set controllerArgs.reSyncPeriod=1m \
 		--wait --timeout 3m
-	# Run tests
-	ginkgo -v ./test/e2e-test
+	# Run tests (auth registries pre-loaded above, enable the gate)
+	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-test
 	@$(OK) tests pass
 
 # Run e2e application tests with k3d and webhook validation

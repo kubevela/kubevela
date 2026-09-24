@@ -233,6 +233,15 @@ func (p *StringParam) GetMaxLen() *int {
 	return p.maxLen
 }
 
+// RequiredImports returns the CUE imports needed by this parameter's constraints.
+// MinLen/MaxLen generate strings.MinRunes()/strings.MaxRunes() which require "strings".
+func (p *StringParam) RequiredImports() []string {
+	if p.minLen != nil || p.maxLen != nil {
+		return []string{"strings"}
+	}
+	return nil
+}
+
 // NotEmpty adds a non-empty string constraint.
 // This generates CUE like: string & !=""
 func (p *StringParam) NotEmpty() *StringParam {
@@ -271,6 +280,12 @@ func (p *StringParam) Matches(pattern string) Condition {
 	return RegexMatch(p, pattern)
 }
 
+// NotMatches creates a condition that checks if this string parameter does not match a regex pattern.
+// Example: name.NotMatches("^prod-") generates: parameter.name !~ "^prod-"
+func (p *StringParam) NotMatches(pattern string) Condition {
+	return RegexNotMatch(p, pattern)
+}
+
 // StartsWith creates a condition that checks if this string parameter starts with a prefix.
 // Example: name.StartsWith("prod-") generates: strings.HasPrefix(parameter.name, "prod-")
 func (p *StringParam) StartsWith(prefix string) Condition {
@@ -284,31 +299,31 @@ func (p *StringParam) EndsWith(suffix string) Condition {
 }
 
 // LenEq creates a condition that checks if this string parameter has exactly n characters.
-// Example: name.LenEq(5) generates: len(parameter.name) == 5
+// Example: name.LenEq(5) generates: parameter["name"] != _|_ if len(parameter["name"]) == 5
 func (p *StringParam) LenEq(n int) Condition {
 	return &LenCondition{paramName: p.name, op: "==", length: n}
 }
 
 // LenGt creates a condition that checks if this string parameter has more than n characters.
-// Example: name.LenGt(5) generates: len(parameter.name) > 5
+// Example: name.LenGt(5) generates: parameter["name"] != _|_ if len(parameter["name"]) > 5
 func (p *StringParam) LenGt(n int) Condition {
 	return &LenCondition{paramName: p.name, op: ">", length: n}
 }
 
 // LenGte creates a condition that checks if this string parameter has n or more characters.
-// Example: name.LenGte(5) generates: len(parameter.name) >= 5
+// Example: name.LenGte(5) generates: parameter["name"] != _|_ if len(parameter["name"]) >= 5
 func (p *StringParam) LenGte(n int) Condition {
 	return &LenCondition{paramName: p.name, op: ">=", length: n}
 }
 
 // LenLt creates a condition that checks if this string parameter has fewer than n characters.
-// Example: name.LenLt(5) generates: len(parameter.name) < 5
+// Example: name.LenLt(5) generates: parameter["name"] != _|_ if len(parameter["name"]) < 5
 func (p *StringParam) LenLt(n int) Condition {
 	return &LenCondition{paramName: p.name, op: "<", length: n}
 }
 
 // LenLte creates a condition that checks if this string parameter has n or fewer characters.
-// Example: name.LenLte(5) generates: len(parameter.name) <= 5
+// Example: name.LenLte(5) generates: parameter["name"] != _|_ if len(parameter["name"]) <= 5
 func (p *StringParam) LenLte(n int) Condition {
 	return &LenCondition{paramName: p.name, op: "<=", length: n}
 }
@@ -755,52 +770,126 @@ func (p *ArrayParam) GetMaxItems() *int {
 	return p.maxItems
 }
 
+// RequiredImports returns the CUE imports needed by this parameter's constraints.
+// MinItems/MaxItems generate list.MinItems()/list.MaxItems() which require "list",
+// and those are emitted whichever body form wins, so "list" is unconditional.
+//
+// Nested element fields are only reported when they are actually rendered.
+// writeArrayParam ranks schemaRef > schema > fields, so a schema form silences
+// the fields; reporting their imports anyway emits a package the output never
+// references, which CUE rejects as "imported and not used".
+func (p *ArrayParam) RequiredImports() []string {
+	var imports []string
+	if p.minItems != nil || p.maxItems != nil {
+		imports = append(imports, "list")
+	}
+	if p.schemaRef == "" && p.schema == "" {
+		imports = append(imports, nestedParamImports(p.fields)...)
+	}
+	return dedupeImports(imports)
+}
+
+// nestedParamImports collects the imports declared by nested field parameters.
+// Only top-level parameters are scanned by the generator, so container params
+// (maps, arrays) have to surface what their children need or the generated CUE
+// references a package it never imports.
+func nestedParamImports(params []Param) []string {
+	var imports []string
+	for _, param := range params {
+		if ir, ok := param.(ImportRequirer); ok {
+			imports = append(imports, ir.RequiredImports()...)
+		}
+	}
+	return imports
+}
+
+// nestedBranchImports collects the imports declared by params inside conditional
+// branches. Branch bodies are rendered into the struct like ordinary fields, so
+// a constraint such as String("secret").MinLen(3) inside a branch needs its
+// package imported just the same.
+func nestedBranchImports(branches []*ConditionalBranch) []string {
+	var imports []string
+	for _, branch := range branches {
+		imports = append(imports, nestedParamImports(branch.GetParams())...)
+	}
+	return imports
+}
+
+// dedupeImports drops repeated entries while keeping first-occurrence order.
+// Sibling fields commonly need the same package (e.g. two String fields with
+// MinLen both need "strings"), and RequiredImports() is a public API asserted
+// with exact slice equality in existing tests, so callers normalize before
+// returning rather than relying on downstream import collection to dedupe.
+func dedupeImports(imports []string) []string {
+	if len(imports) == 0 {
+		return imports
+	}
+	var deduped []string
+	seen := make(map[string]bool, len(imports))
+	for _, imp := range imports {
+		if !seen[imp] {
+			seen[imp] = true
+			deduped = append(deduped, imp)
+		}
+	}
+	return deduped
+}
+
 // --- ArrayParam Runtime Condition Methods ---
 
 // LenEq creates a condition that checks if this array has exactly n elements.
-// Example: tags.LenEq(5) generates: len(parameter.tags) == 5
+// Example: tags.LenEq(5) generates: parameter["tags"] != _|_ if len(parameter["tags"]) == 5
+//
+// LenEq(0) is treated as "absent OR empty" — equivalent to IsEmpty(). It
+// returns an AbsentOrEmptyCondition that the renderer expands into two if
+// blocks (one for absent, one for set-and-empty).
 func (p *ArrayParam) LenEq(n int) Condition {
+	if n == 0 {
+		return &AbsentOrEmptyCondition{paramName: p.name}
+	}
 	return &LenCondition{paramName: p.name, op: "==", length: n}
 }
 
 // LenGt creates a condition that checks if this array has more than n elements.
-// Example: tags.LenGt(0) generates: len(parameter.tags) > 0
+// Example: tags.LenGt(0) generates: parameter["tags"] != _|_ if len(parameter["tags"]) > 0
 func (p *ArrayParam) LenGt(n int) Condition {
 	return &LenCondition{paramName: p.name, op: ">", length: n}
 }
 
 // LenGte creates a condition that checks if this array has n or more elements.
-// Example: tags.LenGte(1) generates: len(parameter.tags) >= 1
+// Example: tags.LenGte(1) generates: parameter["tags"] != _|_ if len(parameter["tags"]) >= 1
 func (p *ArrayParam) LenGte(n int) Condition {
 	return &LenCondition{paramName: p.name, op: ">=", length: n}
 }
 
 // LenLt creates a condition that checks if this array has fewer than n elements.
-// Example: tags.LenLt(10) generates: len(parameter.tags) < 10
+// Example: tags.LenLt(10) generates: parameter["tags"] != _|_ if len(parameter["tags"]) < 10
 func (p *ArrayParam) LenLt(n int) Condition {
 	return &LenCondition{paramName: p.name, op: "<", length: n}
 }
 
 // LenLte creates a condition that checks if this array has n or fewer elements.
-// Example: tags.LenLte(10) generates: len(parameter.tags) <= 10
+// Example: tags.LenLte(10) generates: parameter["tags"] != _|_ if len(parameter["tags"]) <= 10
 func (p *ArrayParam) LenLte(n int) Condition {
 	return &LenCondition{paramName: p.name, op: "<=", length: n}
 }
 
 // Contains creates a condition that checks if this array contains a specific value.
-// Example: tags.Contains("gpu") generates: list.Contains(parameter.tags, "gpu")
+// Example: tags.Contains("gpu") generates: parameter["tags"] != _|_ if list.Contains(parameter["tags"], "gpu")
 func (p *ArrayParam) Contains(val any) Condition {
 	return &ArrayContainsCondition{paramName: p.name, value: val}
 }
 
-// IsEmpty creates a condition that checks if this array is empty.
-// Example: tags.IsEmpty() generates: len(parameter.tags) == 0
+// IsEmpty creates a condition that checks if this array is absent or empty.
+// Renders as two separate if blocks: one for `parameter["X"] == _|_` (absent)
+// and one for `parameter["X"] != _|_ if len(parameter["X"]) == 0` (set and
+// empty). Both blocks emit the same body; CUE unifies same-path writes.
 func (p *ArrayParam) IsEmpty() Condition {
-	return &LenCondition{paramName: p.name, op: "==", length: 0}
+	return &AbsentOrEmptyCondition{paramName: p.name}
 }
 
-// IsNotEmpty creates a condition that checks if this array is not empty.
-// Example: tags.IsNotEmpty() generates: len(parameter.tags) > 0
+// IsNotEmpty creates a condition that checks if this array is set and non-empty.
+// Example: tags.IsNotEmpty() generates: parameter["tags"] != _|_ if len(parameter["tags"]) > 0
 func (p *ArrayParam) IsNotEmpty() Condition {
 	return &LenCondition{paramName: p.name, op: ">", length: 0}
 }
@@ -811,6 +900,8 @@ type MapParam struct {
 	keyType           ParamType
 	valueType         ParamType
 	fields            []Param              // fields for structured map values
+	valueFields       []Param              // schema for values under dynamic keys ([string]: {...})
+	valueSchemaRef    string               // helper definition for values under dynamic keys ([string]: #Ref)
 	schema            string               // raw CUE schema for the map structure
 	schemaRef         string               // reference to a helper definition (e.g., "HealthProbe")
 	closed            bool                 // when true, wraps struct output in close({...})
@@ -876,6 +967,80 @@ func (p *MapParam) WithFields(fields ...Param) *MapParam {
 // GetFields returns the field definitions for map values.
 func (p *MapParam) GetFields() []Param {
 	return p.fields
+}
+
+// OfObject sets a structured schema for the values held under dynamic keys,
+// the Go equivalent of map[string]SomeStruct.
+//
+// This differs from WithFields, which describes a fixed object on the map
+// parameter itself. OfObject describes what each value looks like:
+//
+//	Map("accessPoints").OfObject(
+//		String("path").Required(),
+//		Int("ownerUID").Default(1000),
+//	).Optional()
+//
+// generates:
+//
+//	accessPoints?: [string]: {
+//		path!:     string
+//		ownerUID:  *1000 | int
+//	}
+//
+// Fields keep the defaults, constraints and nesting they would have as
+// ordinary object parameters. Closed() applies to the value struct when
+// OfObject is used, emitting [string]: close({...}).
+func (p *MapParam) OfObject(fields ...Param) *MapParam {
+	p.valueFields = append(p.valueFields, fields...)
+	return p
+}
+
+// GetValueFields returns the schema for values under dynamic keys.
+func (p *MapParam) GetValueFields() []Param {
+	return p.valueFields
+}
+
+// OfSchemaRef points the values under dynamic keys at a reusable helper
+// definition, giving [string]: #Ref.
+//
+//	Map("accessPoints").OfSchemaRef("AccessPointConfig").Optional()
+//
+// generates:
+//
+//	accessPoints?: [string]: #AccessPointConfig
+//
+// This differs from WithSchemaRef, which applies the reference to the whole
+// parameter and yields accessPoints?: #AccessPointConfig instead.
+func (p *MapParam) OfSchemaRef(ref string) *MapParam {
+	p.valueSchemaRef = ref
+	return p
+}
+
+// GetValueSchemaRef returns the helper definition used for values under
+// dynamic keys.
+func (p *MapParam) GetValueSchemaRef() string {
+	return p.valueSchemaRef
+}
+
+// RequiredImports returns the CUE imports needed by this parameter's nested
+// fields. Without it a nested constraint such as String("name").MinLen(3)
+// renders strings.MinRunes(3) with no import and the definition won't compile.
+//
+// The walk mirrors writeMapParam's priority (schemaRef > schema >
+// valueSchemaRef > valueFields > fields/validators/conditionalFields) and stops
+// at whichever form wins, because only that form's body is rendered. Reporting
+// a losing form's imports emits a package the output never references, which
+// CUE rejects as "imported and not used".
+func (p *MapParam) RequiredImports() []string {
+	if p.schemaRef != "" || p.schema != "" || p.valueSchemaRef != "" {
+		return nil
+	}
+	if len(p.valueFields) > 0 {
+		return dedupeImports(nestedParamImports(p.valueFields))
+	}
+	imports := nestedParamImports(p.fields)
+	imports = append(imports, nestedBranchImports(p.conditionalFields)...)
+	return dedupeImports(imports)
 }
 
 // WithSchema sets a raw CUE schema for the map structure.
@@ -954,25 +1119,30 @@ func (p *MapParam) HasKey(key string) Condition {
 }
 
 // LenEq creates a condition that checks if this map has exactly n entries.
-// Example: config.LenEq(5) generates: len(parameter.config) == 5
+// Example: config.LenEq(5) generates: parameter["config"] != _|_ if len(parameter["config"]) == 5
+//
+// LenEq(0) is treated as "absent OR empty" — equivalent to IsEmpty().
 func (p *MapParam) LenEq(n int) Condition {
+	if n == 0 {
+		return &AbsentOrEmptyCondition{paramName: p.name}
+	}
 	return &LenCondition{paramName: p.name, op: "==", length: n}
 }
 
 // LenGt creates a condition that checks if this map has more than n entries.
-// Example: config.LenGt(0) generates: len(parameter.config) > 0
+// Example: config.LenGt(0) generates: parameter["config"] != _|_ if len(parameter["config"]) > 0
 func (p *MapParam) LenGt(n int) Condition {
 	return &LenCondition{paramName: p.name, op: ">", length: n}
 }
 
-// IsEmpty creates a condition that checks if this map is empty.
-// Example: config.IsEmpty() generates: len(parameter.config) == 0
+// IsEmpty creates a condition that checks if this map is absent or empty.
+// Renders as two if blocks (absent + set-and-empty). See AbsentOrEmptyCondition.
 func (p *MapParam) IsEmpty() Condition {
-	return &LenCondition{paramName: p.name, op: "==", length: 0}
+	return &AbsentOrEmptyCondition{paramName: p.name}
 }
 
-// IsNotEmpty creates a condition that checks if this map is not empty.
-// Example: config.IsNotEmpty() generates: len(parameter.config) > 0
+// IsNotEmpty creates a condition that checks if this map is set and non-empty.
+// Example: config.IsNotEmpty() generates: parameter["config"] != _|_ if len(parameter["config"]) > 0
 func (p *MapParam) IsNotEmpty() Condition {
 	return &LenCondition{paramName: p.name, op: ">", length: 0}
 }
@@ -1483,6 +1653,49 @@ func (p *StringKeyMapParam) Description(desc string) *StringKeyMapParam {
 
 // GetType returns the parameter type.
 func (p *StringKeyMapParam) GetType() ParamType { return p.paramType }
+
+// --- StringKeyMapParam Runtime Condition Methods ---
+//
+// These mirror MapParam's runtime conditions. StringKeyMap and Map.Of(ParamTypeString)
+// generate the same CUE schema ([string]: string), so they should expose the same
+// runtime predicates. Without these, callers writing validators or SetIf guards
+// against a StringKeyMap have to fall back to Map.Of(ParamTypeString) just to
+// recover HasKey / IsNotEmpty.
+
+// HasKey creates a condition that checks if this map has a specific key.
+// Example: labels.HasKey("app") generates: parameter.labels.app != _|_
+func (p *StringKeyMapParam) HasKey(key string) Condition {
+	return &MapHasKeyCondition{paramName: p.name, key: key}
+}
+
+// LenEq creates a condition that checks if this map has exactly n entries.
+// Example: labels.LenEq(3) generates: parameter["labels"] != _|_ if len(parameter["labels"]) == 3
+//
+// LenEq(0) is treated as "absent OR empty" — equivalent to IsEmpty().
+func (p *StringKeyMapParam) LenEq(n int) Condition {
+	if n == 0 {
+		return &AbsentOrEmptyCondition{paramName: p.name}
+	}
+	return &LenCondition{paramName: p.name, op: "==", length: n}
+}
+
+// LenGt creates a condition that checks if this map has more than n entries.
+// Example: labels.LenGt(0) generates: parameter["labels"] != _|_ if len(parameter["labels"]) > 0
+func (p *StringKeyMapParam) LenGt(n int) Condition {
+	return &LenCondition{paramName: p.name, op: ">", length: n}
+}
+
+// IsEmpty creates a condition that checks if this map is absent or empty.
+// Renders as two if blocks (absent + set-and-empty). See AbsentOrEmptyCondition.
+func (p *StringKeyMapParam) IsEmpty() Condition {
+	return &AbsentOrEmptyCondition{paramName: p.name}
+}
+
+// IsNotEmpty creates a condition that checks if this map is set and non-empty.
+// Example: labels.IsNotEmpty() generates: parameter["labels"] != _|_ if len(parameter["labels"]) > 0
+func (p *StringKeyMapParam) IsNotEmpty() Condition {
+	return &LenCondition{paramName: p.name, op: ">", length: 0}
+}
 
 // DynamicMapParam represents a parameter where the parameter itself is a dynamic map.
 // In CUE: parameter: [string]: T (where T is the value type)

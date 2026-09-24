@@ -531,10 +531,10 @@ func validateAddonPackage(addonPkg *InstallPackage) error {
 		return fmt.Errorf("the addon package doesn't have `metadata.yaml`")
 	}
 	if addonPkg.Name == "" {
-		return fmt.Errorf("`matadata.yaml` must define the name of addon")
+		return fmt.Errorf("`metadata.yaml` must define the name of addon")
 	}
 	if addonPkg.Version == "" {
-		return fmt.Errorf("`matadata.yaml` must define the version of addon")
+		return fmt.Errorf("`metadata.yaml` must define the version of addon")
 	}
 	return nil
 }

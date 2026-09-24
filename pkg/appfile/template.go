@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -405,11 +406,30 @@ func ConvertTemplateJSON2Object(capabilityName string, in *runtime.RawExtension,
 	return t, nil
 }
 
+// definitionKind returns the upgrade.DefinitionKind for this template, derived from
+// whichever definition pointer is populated. Defaults to ComponentKind.
+func (t *Template) definitionKind() upgrade.DefinitionKind {
+	switch {
+	case t.TraitDefinition != nil:
+		return upgrade.TraitKind
+	case t.PolicyDefinition != nil:
+		return upgrade.PolicyKind
+	case t.WorkflowStepDefinition != nil:
+		return upgrade.WorkflowStepKind
+	default:
+		return upgrade.ComponentKind
+	}
+}
+
 func (t *Template) AsStatusRequest(parameter map[string]interface{}) *health.StatusRequest {
+	kind := t.definitionKind()
+	healthCUE, _ := upgrade.EnsureCueVersionCompatibility(t.Health, "health", kind, upgrade.TemplateAreaHealth)
+	customCUE, _ := upgrade.EnsureCueVersionCompatibility(t.CustomStatus, "customStatus", kind, upgrade.TemplateAreaCustomStatus)
+	detailsCUE, _ := upgrade.EnsureCueVersionCompatibility(t.Details, "statusDetails", kind, upgrade.TemplateAreaStatusDetail)
 	return &health.StatusRequest{
-		Health:    t.Health,
-		Custom:    t.CustomStatus,
-		Details:   t.Details,
+		Health:    healthCUE,
+		Custom:    customCUE,
+		Details:   detailsCUE,
 		Parameter: parameter,
 	}
 }

@@ -1701,14 +1701,16 @@ spec:
 `, opts.name, desc)
 }
 
-// generateGoMod generates the go.mod content
+// generateGoMod generates the go.mod content. The kubevela require version
+// tracks the running binary's build-time version so scaffolded modules pin the
+// SDK matching the tool that generated them.
 func generateGoMod(opts initModuleOptions) string {
 	return fmt.Sprintf(`module %s
 
 go 1.23.8
 
-require github.com/oam-dev/kubevela v1.9.0
-`, opts.goModule)
+require github.com/oam-dev/kubevela %s
+`, opts.goModule, velaversion.ModuleRequireVersion())
 }
 
 // generateModuleReadme generates the README.md content
@@ -1963,8 +1965,8 @@ func NewDefinitionGenModuleCommand(_ common.Args, streams util.IOStreams) *cobra
 This command loads a Go definition module, compiles all definitions to CUE,
 and writes the generated CUE files to an output directory organized by type.
 
-Output structure:
-  <output>/
+Output structure:` + "\n\n```\n" +
+			`  <output>/
     components/
       webservice.cue
       worker.cue
@@ -1973,7 +1975,7 @@ Output structure:
     policies/
       topology.cue
     workflowsteps/
-      deploy.cue`,
+      deploy.cue` + "\n```",
 		Example: `# Generate CUE from a local module (output to ./cue-generated)
 > vela def gen-module ./my-definitions
 

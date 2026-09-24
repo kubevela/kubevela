@@ -467,4 +467,5 @@ output: {
 			g.Expect(app.Labels).Should(HaveKeyWithValue("versioned.io/label", "from-v2"))
 		}, policyTransformWaitTimeout, 3*time.Second).Should(Succeed())
 	})
+
 })

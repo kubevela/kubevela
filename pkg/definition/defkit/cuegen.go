@@ -19,6 +19,7 @@ package defkit
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -140,6 +141,21 @@ func (g *CUEGenerator) detectRequiredImports(c *ComponentDefinition) {
 		g.collectImportsFromValue(helper.Collection())
 	}
 
+	// Check parameters for import requirements (e.g. StringParam with MinLen/MaxLen needs "strings")
+	for _, param := range c.GetParams() {
+		if ir, ok := param.(ImportRequirer); ok {
+			for _, imp := range ir.RequiredImports() {
+				g.addImportIfMissing(imp)
+			}
+		}
+	}
+
+	// Check validator message expressions, at the top level and inside params.
+	g.collectImportsFromValidators(c.GetValidators())
+	for _, param := range c.GetParams() {
+		g.collectImportsFromParamValidators(param)
+	}
+
 	// Check resource operations in output
 	if output := tpl.GetOutput(); output != nil {
 		g.collectImportsFromResource(output)
@@ -148,6 +164,42 @@ func (g *CUEGenerator) detectRequiredImports(c *ComponentDefinition) {
 	// Check resource operations in outputs
 	for _, res := range tpl.GetOutputs() {
 		g.collectImportsFromResource(res)
+	}
+}
+
+// collectImportsFromValidators adds the imports needed by validator message
+// expressions.
+//
+// A message can hold any Value, including a CUE standard library call such as
+// strings.ToLower, and the reference is emitted whether or not the import is
+// there. Only the message is walked: a validator built with Validate carries no
+// expression and contributes nothing, so this cannot change what any existing
+// definition generates.
+func (g *CUEGenerator) collectImportsFromValidators(validators []*Validator) {
+	for _, v := range validators {
+		if v == nil {
+			continue
+		}
+		if msg := v.MessageValue(); msg != nil {
+			g.collectImportsFromValue(msg)
+		}
+	}
+}
+
+// collectImportsFromParamValidators walks a parameter for validators, including
+// the ones attached to nested fields of maps and array elements.
+func (g *CUEGenerator) collectImportsFromParamValidators(param Param) {
+	switch p := param.(type) {
+	case *MapParam:
+		g.collectImportsFromValidators(p.GetValidators())
+		for _, field := range p.GetFields() {
+			g.collectImportsFromParamValidators(field)
+		}
+	case *ArrayParam:
+		g.collectImportsFromValidators(p.GetValidators())
+		for _, field := range p.GetFields() {
+			g.collectImportsFromParamValidators(field)
+		}
 	}
 }
 
@@ -196,12 +248,29 @@ func (g *CUEGenerator) collectImportsFromValue(v interface{}) {
 	case *ArrayBuilder:
 		for _, entry := range val.Entries() {
 			if entry.itemBuilder != nil {
+				g.collectImportsFromValue(entry.source)
+				g.collectImportsFromValue(entry.guard)
 				g.collectImportsFromItemOps(entry.itemBuilder.Ops())
 			}
+			if entry.mapEntryBuilder != nil {
+				g.collectImportsFromValue(entry.source)
+				g.collectImportsFromValue(entry.guard)
+				g.collectImportsFromItemOps(entry.mapEntryBuilder.ops())
+			}
 		}
+	case *ForEachMapOp:
+		g.collectImportsFromOps(val.Body())
 	case *PlusExpr:
 		for _, part := range val.Parts() {
 			g.collectImportsFromValue(part)
+		}
+	case *InterpolatedString:
+		for _, part := range val.Parts() {
+			g.collectImportsFromValue(part)
+		}
+	case *CUEFunc:
+		for _, arg := range val.Args() {
+			g.collectImportsFromValue(arg)
 		}
 	}
 }
@@ -253,22 +322,35 @@ func (g *CUEGenerator) collectImportsFromResource(res *Resource) {
 	if res == nil {
 		return
 	}
+	g.collectImportsFromOps(res.Ops())
+}
 
-	for _, op := range res.Ops() {
+// collectImportsFromOps walks a slice of ResourceOp (used by Resource, PatchResource,
+// and similar) and surfaces any imports declared via ImportRequirer.
+func (g *CUEGenerator) collectImportsFromOps(ops []ResourceOp) {
+	for _, op := range ops {
 		switch o := op.(type) {
 		case *SetOp:
 			g.collectImportsFromValue(o.Value())
 		case *SetIfOp:
 			g.collectImportsFromValue(o.Value())
+			g.collectImportsFromValue(o.Cond())
 		case *SpreadIfOp:
 			g.collectImportsFromValue(o.Value())
+			g.collectImportsFromValue(o.Cond())
 		case *IfBlock:
-			for _, innerOp := range o.Ops() {
-				switch inner := innerOp.(type) {
-				case *SetOp:
-					g.collectImportsFromValue(inner.Value())
-				case *SetIfOp:
-					g.collectImportsFromValue(inner.Value())
+			g.collectImportsFromValue(o.Cond())
+			g.collectImportsFromOps(o.Ops())
+		case *PatchKeyOp:
+			for _, elem := range o.Elements() {
+				g.collectImportsFromValue(elem)
+				if ae, ok := elem.(*ArrayElement); ok {
+					for _, fv := range ae.Fields() {
+						g.collectImportsFromValue(fv)
+					}
+					for _, pkf := range ae.PatchKeyFields() {
+						g.collectImportsFromValue(pkf.value)
+					}
 				}
 			}
 		}
@@ -413,6 +495,14 @@ func (g *CUEGenerator) GenerateTemplate(c *ComponentDefinition) string {
 		}
 	}
 
+	// Emit let bindings (tpl.AddLetBinding) before the output block so the
+	// rendered let expressions appear in the same order they were declared
+	// and are in scope for the output / outputs / helpers that follow.
+	for _, lb := range tpl.GetLetBindings() {
+		exprStr := g.valueToCUE(lb.Expr())
+		sb.WriteString(fmt.Sprintf("%slet %s = %s\n", g.indent, lb.Name(), exprStr))
+	}
+
 	// Generate output block
 	if output := tpl.GetOutput(); output != nil {
 		g.writeResourceOutput(&sb, "output", output, nil, 1)
@@ -424,17 +514,37 @@ func (g *CUEGenerator) GenerateTemplate(c *ComponentDefinition) string {
 		g.writeHelper(&sb, helper, 1)
 	}
 
-	// Generate outputs block for auxiliary resources
-	if outputs := tpl.GetOutputs(); len(outputs) > 0 {
-		outputNames := make([]string, 0, len(outputs))
-		for name := range outputs {
-			outputNames = append(outputNames, name)
-		}
-		sort.Strings(outputNames)
+	// Generate outputs block for auxiliary resources.
+	// Includes plain outputs (Outputs/OutputsIf) and grouped outputs (OutputsGroupIf),
+	// which share a single `if cond { ... }` wrapper inside the outputs block.
+	outputs := tpl.GetOutputs()
+	outputGroups := tpl.GetOutputGroups()
+	if len(outputs) > 0 || len(outputGroups) > 0 {
 		sb.WriteString(fmt.Sprintf("%soutputs: {\n", g.indent))
-		for _, name := range outputNames {
-			res := outputs[name]
-			g.writeResourceOutput(&sb, name, res, res.outputCondition, 2)
+		if len(outputs) > 0 {
+			outputNames := make([]string, 0, len(outputs))
+			for name := range outputs {
+				outputNames = append(outputNames, name)
+			}
+			sort.Strings(outputNames)
+			for _, name := range outputNames {
+				res := outputs[name]
+				g.writeResourceOutput(&sb, name, res, res.outputCondition, 2)
+			}
+		}
+		for _, group := range outputGroups {
+			condStr := g.conditionToCUE(group.cond)
+			sb.WriteString(fmt.Sprintf("%s%sif %s {\n", g.indent, g.indent, condStr))
+			gNames := make([]string, 0, len(group.outputs))
+			for gName := range group.outputs {
+				gNames = append(gNames, gName)
+			}
+			sort.Strings(gNames)
+			for _, gName := range gNames {
+				gRes := group.outputs[gName]
+				g.writeResourceOutput(&sb, gName, gRes, nil, 3)
+			}
+			sb.WriteString(fmt.Sprintf("%s%s}\n", g.indent, g.indent))
 		}
 		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 	}
@@ -476,6 +586,12 @@ func (g *CUEGenerator) generateParameterBlock(c *ComponentDefinition, depth int)
 	return sb.String()
 }
 
+// validatorMessageVar is the CUE let binding holding a computed validator
+// message. It is declared inside the validator block rather than beside it, so
+// each validator gets its own binding and several validators can share a
+// struct without their message bindings colliding.
+const validatorMessageVar = "_message"
+
 // writeValidator writes a CUE _validate* block.
 // Example output:
 //
@@ -485,6 +601,9 @@ func (g *CUEGenerator) generateParameterBlock(c *ComponentDefinition, depth int)
 //	        "tenantName must not end with a hyphen": false
 //	    }
 //	}
+//
+// Validators built with ValidateValue carry an expression message instead, and
+// the two branches share a computed key. See validatorMessageKey.
 func (g *CUEGenerator) writeValidator(sb *strings.Builder, v *Validator, depth int) {
 	indent := strings.Repeat(g.indent, depth)
 	inner := strings.Repeat(g.indent, depth+1)
@@ -497,32 +616,117 @@ func (g *CUEGenerator) writeValidator(sb *strings.Builder, v *Validator, depth i
 		name = "_validate"
 	}
 
+	letDecl, key := g.validatorMessageKey(v)
+
+	writeBody := func(bodyIndent, innerBodyIndent string) {
+		sb.WriteString(fmt.Sprintf("%s%s: {\n", bodyIndent, name))
+		if letDecl != "" {
+			sb.WriteString(fmt.Sprintf("%s%s\n", innerBodyIndent, letDecl))
+		}
+		sb.WriteString(fmt.Sprintf("%s%s: true\n", innerBodyIndent, key))
+		if v.FailCondition() != nil {
+			g.writeIfBlocksForCond(sb, v.FailCondition(), innerBodyIndent, func() {
+				sb.WriteString(fmt.Sprintf("%s\t%s: false\n", innerBodyIndent, key))
+			})
+		}
+		sb.WriteString(fmt.Sprintf("%s}\n", bodyIndent))
+	}
+
 	if v.GuardCondition() != nil {
 		// Guarded validator: wrap in if guard { ... }
-		guardCUE := g.conditionToCUE(v.GuardCondition())
-		sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, guardCUE))
-		sb.WriteString(fmt.Sprintf("%s%s: {\n", inner, name))
-		sb.WriteString(fmt.Sprintf("%s%q: true\n", inner2, v.Message()))
-		if v.FailCondition() != nil {
-			failCUE := g.conditionToCUE(v.FailCondition())
-			sb.WriteString(fmt.Sprintf("%sif %s {\n", inner2, failCUE))
-			sb.WriteString(fmt.Sprintf("%s\t%q: false\n", inner2, v.Message()))
-			sb.WriteString(fmt.Sprintf("%s}\n", inner2))
-		}
-		sb.WriteString(fmt.Sprintf("%s}\n", inner))
-		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		g.writeIfBlocksForCond(sb, v.GuardCondition(), indent, func() {
+			writeBody(inner, inner2)
+		})
 	} else {
-		// Unguarded validator
-		sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, name))
-		sb.WriteString(fmt.Sprintf("%s%q: true\n", inner, v.Message()))
-		if v.FailCondition() != nil {
-			failCUE := g.conditionToCUE(v.FailCondition())
-			sb.WriteString(fmt.Sprintf("%sif %s {\n", inner, failCUE))
-			sb.WriteString(fmt.Sprintf("%s\t%q: false\n", inner, v.Message()))
-			sb.WriteString(fmt.Sprintf("%s}\n", inner))
-		}
-		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		writeBody(indent, inner)
 	}
+}
+
+// validatorMessageKey returns the optional `let` declaration a validator needs
+// and the CUE field label its two branches share.
+//
+// A fixed string message is emitted as a quoted label directly. An expression
+// message is bound to a let and both branches use the computed label
+// (_message). Going through the let is what keeps the two labels identical:
+// they have to unify into one field for the validator to conflict, and reaching
+// for the same binding twice guarantees that in a way repeating the expression
+// does not. It also keeps a long message out of the generated CUE twice over.
+func (g *CUEGenerator) validatorMessageKey(v *Validator) (letDecl, key string) {
+	expr := v.MessageValue()
+	if expr == nil {
+		return "", fmt.Sprintf("%q", v.Message())
+	}
+	// A literal string needs no indirection: emit the label the fixed-string
+	// form would have produced.
+	if lit, ok := expr.(*Literal); ok {
+		if s, ok := lit.Val().(string); ok {
+			return "", fmt.Sprintf("%q", s)
+		}
+	}
+	rendered := g.valueToCUE(expr)
+	if !g.messageRenderable(expr) {
+		// Some part of the message has no rendering and fell through to
+		// valueToCUE's placeholder. Binding that would produce a label CUE
+		// never resolves and a validator that silently never fires, which is
+		// the one outcome worth avoiding here, so fail in the generated CUE
+		// instead.
+		rendered = "_|_ // defkit: validator message expression cannot be rendered"
+	}
+	return fmt.Sprintf("let %s = %s", validatorMessageVar, rendered), fmt.Sprintf("(%s)", validatorMessageVar)
+}
+
+// messageRenderable reports whether every leaf of a validator message
+// expression has a rendering.
+//
+// Checking the rendered string as a whole is not enough. valueToCUE falls back
+// to "_" for values it does not know, and nested inside an interpolation that
+// placeholder does not stand out: "region '\(_)' bad" is a perfectly ordinary
+// non-concrete string, so CUE leaves it alone and the validator never fires.
+// Walking the parts is what lets the whole message fail loudly instead.
+func (g *CUEGenerator) messageRenderable(v Value) bool {
+	switch val := v.(type) {
+	case *InterpolatedString:
+		return g.partsRenderable(val.Parts())
+	case *PlusExpr:
+		return g.partsRenderable(val.Parts())
+	case *CUEFunc:
+		return g.partsRenderable(val.Args())
+	default:
+		rendered := g.valueToCUE(v)
+		return rendered != "" && rendered != "_"
+	}
+}
+
+// partsRenderable reports whether every part of a compound message value has a
+// rendering.
+func (g *CUEGenerator) partsRenderable(parts []Value) bool {
+	for _, part := range parts {
+		if !g.messageRenderable(part) {
+			return false
+		}
+	}
+	return true
+}
+
+// writeIfBlocksForCond writes one or more `if cond { body }` blocks. For
+// AbsentOrEmptyCondition the body is duplicated into two blocks (one for
+// each branch) — CUE's `||` cannot express "absent OR empty" safely on
+// optional fields, so the structural duplication is required. For all other
+// conditions a single if block is emitted.
+func (g *CUEGenerator) writeIfBlocksForCond(sb *strings.Builder, cond Condition, indent string, writeBody func()) {
+	if aoe, ok := cond.(*AbsentOrEmptyCondition); ok {
+		for _, branch := range aoe.Branches() {
+			condCUE := g.conditionToCUE(branch)
+			sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condCUE))
+			writeBody()
+			sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		}
+		return
+	}
+	condCUE := g.conditionToCUE(cond)
+	sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condCUE))
+	writeBody()
+	sb.WriteString(fmt.Sprintf("%s}\n", indent))
 }
 
 // writeConditionalParamBlock writes conditional parameter branches.
@@ -977,7 +1181,7 @@ func (g *CUEGenerator) writeMultiSourceHelper(sb *strings.Builder, ms *MultiSour
 		}
 		var cond string
 		if fOp, ok := op.(*filterOp); ok {
-			cond = g.predicateToCUE(fOp.pred)
+			cond = g.predicateToCUE(fOp.pred, "v")
 		} else if fOp, ok := op.(*filterCondCollectionOp); ok {
 			cond = g.conditionToCUE(fOp.Cond())
 		}
@@ -1046,7 +1250,7 @@ func (g *CUEGenerator) writeCollectionOpHelper(sb *strings.Builder, col *Collect
 	for _, op := range ops {
 		var cond string
 		if fOp, ok := op.(*filterOp); ok {
-			cond = g.predicateToCUE(fOp.pred)
+			cond = g.predicateToCUE(fOp.pred, "v")
 		} else if fOp, ok := op.(*filterCondCollectionOp); ok {
 			cond = g.conditionToCUE(fOp.Cond())
 		}
@@ -1153,8 +1357,14 @@ func (g *CUEGenerator) writeCollectionOpHelper(sb *strings.Builder, col *Collect
 		}
 	}
 
-	// Default: simple list comprehension
-	sb.WriteString(fmt.Sprintf("[for v in %s { v }]", sourceStr))
+	// Default: simple list comprehension. Honour any guard and filter
+	// conditions collected above so `From().Filter(...).Guard(...).Build()`
+	// renders with the right scope instead of silently dropping them.
+	if filterCondition != "" {
+		sb.WriteString(fmt.Sprintf("[%sfor v in %s if %s { v }]", guardPrefix, sourceStr, filterCondition))
+		return
+	}
+	sb.WriteString(fmt.Sprintf("[%sfor v in %s { v }]", guardPrefix, sourceStr))
 }
 
 // writeFieldMapAsHelper writes a FieldMap as CUE fields.
@@ -1321,10 +1531,25 @@ func (g *CUEGenerator) buildFieldTree(ops []ResourceOp) *fieldNode {
 		case *SetOp:
 			g.insertIntoTree(root, o.Path(), o.Value(), nil)
 		case *SetIfOp:
-			g.insertIntoTree(root, o.Path(), o.Value(), o.Cond())
+			// Expand AbsentOrEmptyCondition into branches: each branch
+			// produces its own conditional value at the same path. The tree
+			// renderer emits one if block per condValue.
+			if aoe, ok := o.Cond().(*AbsentOrEmptyCondition); ok {
+				for _, branch := range aoe.Branches() {
+					g.insertIntoTree(root, o.Path(), o.Value(), branch)
+				}
+			} else {
+				g.insertIntoTree(root, o.Path(), o.Value(), o.Cond())
+			}
 		case *SpreadIfOp:
 			// SpreadIfOp adds a spread entry to the target node
-			g.insertSpreadIntoTree(root, o.Path(), o.Value(), o.Cond())
+			if aoe, ok := o.Cond().(*AbsentOrEmptyCondition); ok {
+				for _, branch := range aoe.Branches() {
+					g.insertSpreadIntoTree(root, o.Path(), o.Value(), branch)
+				}
+			} else {
+				g.insertSpreadIntoTree(root, o.Path(), o.Value(), o.Cond())
+			}
 		case *ForEachOp:
 			// ForEachOp creates a for-each iteration at the target path
 			g.insertForEachIntoTree(root, o, nil)
@@ -1345,13 +1570,28 @@ func (g *CUEGenerator) buildFieldTree(ops []ResourceOp) *fieldNode {
 				case *SetOp:
 					g.insertIntoTree(root, inner.Path(), inner.Value(), o.Cond())
 				case *SetIfOp:
-					// Combine conditions
-					combinedCond := &AndCondition{left: o.Cond(), right: inner.Cond()}
-					g.insertIntoTree(root, inner.Path(), inner.Value(), combinedCond)
+					// Combine conditions. If inner is AbsentOrEmpty, expand
+					// each branch and combine the outer block's cond with each.
+					if aoe, ok := inner.Cond().(*AbsentOrEmptyCondition); ok {
+						for _, branch := range aoe.Branches() {
+							combined := &AndCondition{left: o.Cond(), right: branch}
+							g.insertIntoTree(root, inner.Path(), inner.Value(), combined)
+						}
+					} else {
+						combinedCond := &AndCondition{left: o.Cond(), right: inner.Cond()}
+						g.insertIntoTree(root, inner.Path(), inner.Value(), combinedCond)
+					}
 				case *SpreadIfOp:
 					// Combine conditions for spread
-					combinedCond := &AndCondition{left: o.Cond(), right: inner.Cond()}
-					g.insertSpreadIntoTree(root, inner.Path(), inner.Value(), combinedCond)
+					if aoe, ok := inner.Cond().(*AbsentOrEmptyCondition); ok {
+						for _, branch := range aoe.Branches() {
+							combined := &AndCondition{left: o.Cond(), right: branch}
+							g.insertSpreadIntoTree(root, inner.Path(), inner.Value(), combined)
+						}
+					} else {
+						combinedCond := &AndCondition{left: o.Cond(), right: inner.Cond()}
+						g.insertSpreadIntoTree(root, inner.Path(), inner.Value(), combinedCond)
+					}
 				case *ForEachOp:
 					// ForEach inside an if block - pass the block's condition
 					g.insertForEachIntoTree(root, inner, o.Cond())
@@ -1837,16 +2077,7 @@ func (g *CUEGenerator) writeFieldNode(sb *strings.Builder, name string, node *fi
 
 	// Handle bracket notation in name (like [app.oam.dev/name])
 	if strings.HasPrefix(name, "[") && !strings.HasPrefix(name, "[0]") {
-		// This is a map key access - extract the key
-		key := strings.Trim(name, "[]")
-		if node.value != nil {
-			valStr := g.valueToCUE(node.value)
-			sb.WriteString(fmt.Sprintf("%s%q: %s\n", indent, key, valStr))
-		} else if len(node.children) > 0 {
-			sb.WriteString(fmt.Sprintf("%s%q: {\n", indent, key))
-			g.writeFieldTree(sb, node, depth+1)
-			sb.WriteString(fmt.Sprintf("%s}\n", indent))
-		}
+		g.writeBracketKeyNode(sb, name, node, indent, depth)
 		return
 	}
 
@@ -1903,6 +2134,51 @@ func (g *CUEGenerator) writeFieldNode(sb *strings.Builder, name string, node *fi
 		sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, name))
 		g.writeFieldTree(sb, node, depth+1)
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
+}
+
+// writeBracketKeyNode renders a map-key access leaf (`[key]`) honoring the
+// node's primary condition and any additional condValues. Split out from
+// writeFieldNode so the dispatcher stays under gocritic's ifElseChain check.
+func (g *CUEGenerator) writeBracketKeyNode(sb *strings.Builder, name string, node *fieldNode, indent string, depth int) {
+	key := strings.Trim(name, "[]")
+	quoted := fmt.Sprintf("%q", key)
+
+	// Subtree: render as a nested struct (no condition handling — children
+	// carry their own conditions).
+	if node.value == nil {
+		if len(node.children) > 0 {
+			sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, quoted))
+			g.writeFieldTree(sb, node, depth+1)
+			sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		}
+		return
+	}
+
+	valStr := g.valueToCUE(node.value)
+	writeGuarded := func(cond Condition, v string) {
+		condStr := g.conditionToCUE(cond)
+		sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
+		sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, quoted, v))
+		sb.WriteString(fmt.Sprintf("%s}\n", indent))
+	}
+
+	switch {
+	case len(node.condValues) > 0:
+		// Multiple conditional values at the same bracket-access path —
+		// render each inside its own if block.
+		if node.cond != nil {
+			writeGuarded(node.cond, valStr)
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, quoted, valStr))
+		}
+		for _, cv := range node.condValues {
+			writeGuarded(cv.cond, g.valueToCUE(cv.value))
+		}
+	case node.cond != nil:
+		writeGuarded(node.cond, valStr)
+	default:
+		sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, quoted, valStr))
 	}
 }
 
@@ -2072,6 +2348,10 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 		// Return reference to the helper by name
 		return val.Name()
 	case *StringParam, *IntParam, *BoolParam, *FloatParam, *ArrayParam, *MapParam, *StringKeyMapParam, *EnumParam, *OneOfParam:
+		// Dot syntax is safe here: the call sites that wrap value refs in a
+		// guarded if-block (e.g. `if len(parameter.X | []) > 0 { foo: parameter.X }`)
+		// have already established the field is concrete before the body
+		// evaluates.
 		return "parameter." + v.(Param).Name()
 	case *DynamicMapParam:
 		// Dynamic map parameters reference just "parameter"
@@ -2106,7 +2386,7 @@ func (g *CUEGenerator) valueToCUE(v Value) string {
 	case *ArrayBuilder:
 		return g.arrayBuilderToCUE(val, 1)
 	case *ArrayConcatValue:
-		return g.valueToCUE(val.Left()) + " + " + g.valueToCUE(val.Right())
+		return "list.Concat([" + g.valueToCUE(val.Left()) + ", " + g.valueToCUE(val.Right()) + "])"
 	case *ListComprehension:
 		// Return list comprehension CUE
 		return g.listComprehensionToCUE(val)
@@ -2165,7 +2445,8 @@ func (g *CUEGenerator) iterRefToCUE(v Value) string {
 }
 
 // forEachMapOpToCUE converts a ForEachMapOp to CUE map comprehension syntax.
-// Generates: {for k, v in source { (keyExpr): valExpr }}.
+// Without body operations it generates {for k, v in source { (keyExpr): valExpr }}.
+// Body operations replace valExpr with a struct rendered under each output key.
 func (g *CUEGenerator) forEachMapOpToCUE(op *ForEachMapOp) string {
 	keyVar := op.KeyVar()
 	if keyVar == "" {
@@ -2187,7 +2468,16 @@ func (g *CUEGenerator) forEachMapOpToCUE(op *ForEachMapOp) string {
 		valExpr = valVar
 	}
 
-	return fmt.Sprintf("{for %s, %s in %s { (%s): %s }}", keyVar, valVar, op.Source(), keyExpr, valExpr)
+	if len(op.Body()) == 0 {
+		return fmt.Sprintf("{for %s, %s in %s { (%s): %s }}", keyVar, valVar, op.Source(), keyExpr, valExpr)
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "{for %s, %s in %s {\n", keyVar, valVar, op.Source())
+	fmt.Fprintf(&sb, "%s(%s): {\n", g.indent, keyExpr)
+	g.writeFieldTree(&sb, g.buildFieldTree(op.Body()), 2)
+	fmt.Fprintf(&sb, "%s}\n}}", g.indent)
+	return sb.String()
 }
 
 // cueFuncToCUE converts a CUE function call to CUE syntax.
@@ -2199,6 +2489,19 @@ func (g *CUEGenerator) cueFuncToCUE(fn *CUEFunc) string {
 	return fmt.Sprintf("%s.%s(%s)", fn.Package(), fn.Function(), strings.Join(args, ", "))
 }
 
+// cueStringContent escapes s for use inside a CUE double-quoted string and
+// returns the content only, without the surrounding quotes.
+//
+// Interpolated strings are assembled by hand rather than through %q, because
+// the \(...) segments have to stay live. That means the literal segments
+// between them still need escaping: an unescaped quote ends the string early
+// and breaks the definition, and an unescaped backslash silently turns
+// something like a Windows path into an escape sequence.
+func cueStringContent(s string) string {
+	quoted := strconv.Quote(s)
+	return quoted[1 : len(quoted)-1]
+}
+
 // interpolatedStringToCUE converts an InterpolatedString to CUE string interpolation.
 // Literal string values are inlined directly. All other values are wrapped in \(...).
 // Example: Interpolation(vela.Namespace(), Lit(":"), name) → "\(context.namespace):\(parameter.name)"
@@ -2208,7 +2511,7 @@ func (g *CUEGenerator) interpolatedStringToCUE(is *InterpolatedString) string {
 	for _, part := range is.Parts() {
 		if lit, ok := part.(*Literal); ok {
 			if s, ok := lit.Val().(string); ok {
-				sb.WriteString(s)
+				sb.WriteString(cueStringContent(s))
 				continue
 			}
 		}
@@ -2228,7 +2531,7 @@ func (g *CUEGenerator) valueToCUEAtDepth(v Value, depth int) string {
 	case *ArrayBuilder:
 		return g.arrayBuilderToCUE(val, depth)
 	case *ArrayConcatValue:
-		return g.valueToCUEAtDepth(val.Left(), depth) + " + " + g.valueToCUE(val.Right())
+		return "list.Concat([" + g.valueToCUEAtDepth(val.Left(), depth) + ", " + g.valueToCUE(val.Right()) + "])"
 	default:
 		return g.valueToCUE(v)
 	}
@@ -2258,8 +2561,7 @@ func (g *CUEGenerator) arrayElementToCUEWithDepth(elem *ArrayElement, depth int)
 		if setIf, ok := op.(*SetIfOp); ok {
 			condStr := g.conditionToCUE(setIf.Cond())
 			valStr := indentMultilineValue(g.valueToCUE(setIf.Value()), innerIndent+"\t")
-			// Convert dot-separated path to CUE shorthand syntax: "a.b.c" -> "a: b: c"
-			cuePath := strings.ReplaceAll(setIf.Path(), ".", ": ")
+			cuePath := itemFieldLabel(setIf.Path())
 			sb.WriteString(fmt.Sprintf("%sif %s {\n", innerIndent, condStr))
 			sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", innerIndent, cuePath, valStr))
 			sb.WriteString(fmt.Sprintf("%s}\n", innerIndent))
@@ -2339,7 +2641,7 @@ func (g *CUEGenerator) arrayBuilderToCUE(ab *ArrayBuilder, depth int) string {
 				if setIf, ok := op.(*SetIfOp); ok {
 					condStr := g.conditionToCUE(setIf.Cond())
 					valStr := g.valueToCUE(setIf.Value())
-					cuePath := strings.ReplaceAll(setIf.Path(), ".", ": ")
+					cuePath := itemFieldLabel(setIf.Path())
 					sb.WriteString(fmt.Sprintf("%sif %s {\n", extraIndent, condStr))
 					sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", extraIndent, cuePath, valStr))
 					sb.WriteString(fmt.Sprintf("%s}\n", extraIndent))
@@ -2356,16 +2658,43 @@ func (g *CUEGenerator) arrayBuilderToCUE(ab *ArrayBuilder, depth int) string {
 			}
 			filterSuffix := ""
 			if entry.filter != nil {
-				filterSuffix = " if " + g.predicateToCUE(entry.filter)
+				filterSuffix = " if " + g.predicateToCUE(entry.filter, entry.itemBuilder.VarName())
 			}
 			sb.WriteString(fmt.Sprintf("%s%sfor %s in %s%s {\n", innerIndent, guardPrefix, entry.itemBuilder.VarName(), sourceStr, filterSuffix))
 			g.writeItemBuilderOps(&sb, entry.itemBuilder.Ops(), depth+2)
+			sb.WriteString(fmt.Sprintf("%s},\n", innerIndent))
+
+		case entryForEachMapWith:
+			sourceStr := g.valueToCUE(entry.source)
+			guardPrefix := ""
+			if entry.guard != nil {
+				guardPrefix = "if " + g.conditionToCUE(entry.guard) + " "
+			}
+			sb.WriteString(fmt.Sprintf(
+				"%s%sfor %s, %s in %s {\n",
+				innerIndent,
+				guardPrefix,
+				entry.mapEntryBuilder.keyVarName,
+				entry.mapEntryBuilder.valueBuilder.VarName(),
+				sourceStr,
+			))
+			g.writeItemBuilderOps(&sb, entry.mapEntryBuilder.ops(), depth+2)
 			sb.WriteString(fmt.Sprintf("%s},\n", innerIndent))
 		}
 	}
 
 	sb.WriteString(fmt.Sprintf("%s]", indent))
 	return sb.String()
+}
+
+// itemFieldLabel converts a dot-separated field path into CUE nested-field
+// shorthand. Dots inside brackets are preserved as part of the key.
+func itemFieldLabel(field string) string {
+	parts := splitPath(field)
+	if len(parts) < 2 {
+		return field
+	}
+	return strings.Join(parts, ": ")
 }
 
 // writeItemBuilderOps writes the CUE for ItemBuilder operations.
@@ -2376,7 +2705,7 @@ func (g *CUEGenerator) writeItemBuilderOps(sb *strings.Builder, ops []itemOp, de
 		switch o := op.(type) {
 		case setOp:
 			valStr := g.valueToCUE(o.value)
-			sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, o.field, valStr))
+			sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, itemFieldLabel(o.field), valStr))
 
 		case ifBlockOp:
 			condStr := g.conditionToCUE(o.cond)
@@ -2390,7 +2719,7 @@ func (g *CUEGenerator) writeItemBuilderOps(sb *strings.Builder, ops []itemOp, de
 
 		case setDefaultOp:
 			defStr := g.valueToCUE(o.defValue)
-			sb.WriteString(fmt.Sprintf("%s%s: *%s | %s\n", indent, o.field, defStr, o.typeName))
+			sb.WriteString(fmt.Sprintf("%s%s: *%s | %s\n", indent, itemFieldLabel(o.field), defStr, o.typeName))
 		}
 	}
 }
@@ -2421,7 +2750,7 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 	for _, op := range ops {
 		var cond string
 		if fOp, ok := op.(*filterOp); ok {
-			cond = g.predicateToCUE(fOp.pred)
+			cond = g.predicateToCUE(fOp.pred, "v")
 		} else if fOp, ok := op.(*filterCondCollectionOp); ok {
 			cond = g.conditionToCUE(fOp.Cond())
 		}
@@ -2447,7 +2776,12 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 	}
 
 	// Dedupe: render the nested-comprehension pattern.
-	// This is placed after all op detection so that guard/filter/map are not bypassed.
+	//
+	// When Filter and/or Map are also present in the chain, we have to thread
+	// them through the dedupe template — otherwise both stages were silently
+	// dropped, which is the bug the regression test in collections_test.go
+	// guards against. The semantics this honours are "filter first, dedupe by
+	// key, then map", which matches the order the chain was declared in.
 	if dedupeKeyField != "" {
 		var sb strings.Builder
 		// Apply guard if present
@@ -2455,18 +2789,42 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 			guardStr := g.conditionToCUE(guard)
 			sb.WriteString(fmt.Sprintf("if %s ", guardStr))
 		}
+
+		// Render the filter twice — once for the i-loop and once for the
+		// j-loop — so we only ever compare items inside the filtered set.
+		// Without filtering both, an unfiltered earlier vj could mark the
+		// first FILTERED occurrence as a duplicate and drop it.
+		filterVi, filterVj := g.collectFilterCondition(ops, "vi"), g.collectFilterCondition(ops, "vj")
+		iFilterClause := ""
+		if filterVi != "" {
+			iFilterClause = " if " + filterVi
+		}
+		jFilterClause := ""
+		if filterVj != "" {
+			jFilterClause = filterVj + " && "
+		}
+
 		sb.WriteString(fmt.Sprintf(`[
 		for val in [
-			for i, vi in %s {
-				for j, vj in %s if j < i && vi.%s == vj.%s {
+			for i, vi in %s%s {
+				for j, vj in %s if j < i && %svi.%s == vj.%s {
 					_ignore: true
 				}
 				vi
 			},
 		] if val._ignore == _|_ {
-			val
-		},
-	]`, sourceStr, sourceStr, dedupeKeyField, dedupeKeyField))
+`, sourceStr, iFilterClause, sourceStr, jFilterClause, dedupeKeyField, dedupeKeyField))
+
+		// Apply Map / MapVariant if present, otherwise pass the deduped
+		// element through unchanged. The outer iteration variable is "val",
+		// so writeMapBody substitutes FieldRef("v.x") into "val.x" via the
+		// varName parameter.
+		if hasMap || hasVariant {
+			g.writeMapBody(&sb, ops, "\t\t\t", "val")
+		} else {
+			sb.WriteString("\t\t\tval,\n")
+		}
+		sb.WriteString("\t\t},\n\t]")
 		return sb.String()
 	}
 
@@ -2551,18 +2909,123 @@ func (g *CUEGenerator) collectionOpToCUE(col *CollectionOp) string {
 	return sb.String()
 }
 
-// predicateToCUE converts a Predicate to CUE filter condition.
-func (g *CUEGenerator) predicateToCUE(pred Predicate) string {
+// predicateToCUE converts a Predicate to CUE filter condition for the given
+// iteration variable. When varName is empty it falls back to "v" so existing
+// callers that emit `for v in source if ...` keep their behaviour. Renaming
+// callers (ForEachWithVar / ForEachWithGuardedFilteredVar, the dedupe inner
+// loops) pass their own variable name so the rendered CUE references the
+// right scope.
+func (g *CUEGenerator) predicateToCUE(pred Predicate, varName string) string {
+	if varName == "" {
+		varName = "v"
+	}
 	switch p := pred.(type) {
 	case FieldEq:
-		// Generate: v.field == value
-		return fmt.Sprintf("v.%s == %s", p.field, formatCUEValue(p.value))
+		// Generate: <varName>.field == value
+		return fmt.Sprintf("%s.%s == %s", varName, p.field, formatCUEValue(p.value))
 	case FieldIsSet:
-		// Generate: v.field != _|_
-		return fmt.Sprintf("v.%s != _|_", p.field)
+		// Generate: <varName>.field != _|_
+		return fmt.Sprintf("%s.%s != _|_", varName, p.field)
 	default:
 		return cueBoolTrue
 	}
+}
+
+// collectFilterCondition AND-composes every filterOp predicate into a single
+// CUE expression evaluated against varName. Returns "" when no filter is
+// present. filterCondCollectionOp is intentionally skipped because its
+// ConditionToCUE rendering does not depend on the iteration variable.
+func (g *CUEGenerator) collectFilterCondition(ops []collectionOperation, varName string) string {
+	out := ""
+	for _, op := range ops {
+		fOp, ok := op.(*filterOp)
+		if !ok {
+			continue
+		}
+		cond := g.predicateToCUE(fOp.pred, varName)
+		if cond == "" {
+			continue
+		}
+		if out == "" {
+			out = cond
+		} else {
+			out = out + " && " + cond
+		}
+	}
+	return out
+}
+
+// writeMapBody writes the Map / MapVariant rendering used by both the regular
+// comprehension path and the dedupe path. The iteration variable name is
+// parameterized so the dedupe path (where the outer variable is "val") and
+// the non-dedupe path (where it is "v") both render with the right scope.
+// fieldValueToCUE on a FieldRef always emits "v.field" — we substitute "v"
+// for the requested varName so the references resolve.
+func (g *CUEGenerator) writeMapBody(sb *strings.Builder, ops []collectionOperation, indent, varName string) {
+	if varName == "" {
+		varName = "v"
+	}
+	subVar := func(s string) string {
+		if varName == "v" {
+			return s
+		}
+		return strings.ReplaceAll(s, "v.", varName+".")
+	}
+	sb.WriteString(indent + "{\n")
+	inner := indent + "\t"
+	for _, op := range ops {
+		mOp, ok := op.(*mapOp)
+		if !ok {
+			continue
+		}
+		for _, fieldName := range sortedKeys(mOp.mappings) {
+			fieldVal := mOp.mappings[fieldName]
+			switch fv := fieldVal.(type) {
+			case *OptionalField:
+				sb.WriteString(fmt.Sprintf("%sif %s.%s != _|_ {\n", inner, varName, fv.field))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s.%s\n", inner, fieldName, varName, fv.field))
+				sb.WriteString(inner + "}\n")
+			case *CompoundOptionalField:
+				condStr := g.conditionToCUE(fv.additionalCond)
+				sb.WriteString(fmt.Sprintf("%sif %s.%s != _|_ if %s {\n", inner, varName, fv.field, condStr))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s.%s\n", inner, fieldName, varName, fv.field))
+				sb.WriteString(inner + "}\n")
+			case *ConditionalOrFieldRef:
+				primaryField := string(fv.primary)
+				fallbackStr := g.fieldValueToCUE(fv.fallback)
+				sb.WriteString(fmt.Sprintf("%sif %s.%s != _|_ {\n", inner, varName, primaryField))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s.%s\n", inner, fieldName, varName, primaryField))
+				sb.WriteString(inner + "}\n")
+				sb.WriteString(fmt.Sprintf("%sif %s.%s == _|_ {\n", inner, varName, primaryField))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", inner, fieldName, subVar(fallbackStr)))
+				sb.WriteString(inner + "}\n")
+			default:
+				valStr := subVar(g.fieldValueToCUE(fieldVal))
+				sb.WriteString(fmt.Sprintf("%s%s: %s\n", inner, fieldName, valStr))
+			}
+		}
+	}
+	for _, op := range ops {
+		mvOp, ok := op.(*mapVariantOp)
+		if !ok {
+			continue
+		}
+		sb.WriteString(fmt.Sprintf("%sif %s.%s == %q {\n", inner, varName, mvOp.discriminator, mvOp.variantName))
+		variantInner := inner + "\t"
+		for _, fieldName := range sortedKeys(mvOp.mappings) {
+			fieldVal := mvOp.mappings[fieldName]
+			if optField, isOptional := fieldVal.(*OptionalField); isOptional {
+				sb.WriteString(fmt.Sprintf("%sif %s.%s != _|_ {\n", variantInner, varName, optField.field))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s.%s\n", variantInner, fieldName, varName, optField.field))
+				sb.WriteString(variantInner + "}\n")
+			} else {
+				valStr := subVar(g.fieldValueToCUE(fieldVal))
+				sb.WriteString(fmt.Sprintf("%s%s: %s\n", variantInner, fieldName, valStr))
+			}
+		}
+		sb.WriteString(inner + "}\n")
+	}
+	sb.WriteString(indent + "},\n")
 }
 
 // listComprehensionToCUE generates CUE for a ListComprehension.
@@ -2646,7 +3109,7 @@ func (g *CUEGenerator) multiSourceToCUE(ms *MultiSource) string {
 	for _, op := range ms.Operations() {
 		var cond string
 		if fOp, ok := op.(*filterOp); ok {
-			cond = g.predicateToCUE(fOp.pred)
+			cond = g.predicateToCUE(fOp.pred, "v")
 		} else if fOp, ok := op.(*filterCondCollectionOp); ok {
 			cond = g.conditionToCUE(fOp.Cond())
 		} else if pOp, ok := op.(*pickOp); ok {
@@ -2878,11 +3341,17 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	case *StringEndsWithCondition:
 		return fmt.Sprintf(`strings.HasSuffix(parameter.%s, %q)`, c.ParamName(), c.Suffix())
 	case *LenCondition:
-		return fmt.Sprintf("len(parameter.%s) %s %d", c.ParamName(), c.Op(), c.Length())
+		return g.lenConditionToCUE(c)
+	case *AbsentOrEmptyCondition:
+		return g.absentOrEmptyConditionToCUE(c)
 	case *ArrayContainsCondition:
-		return fmt.Sprintf("list.Contains(parameter.%s, %s)", c.ParamName(), formatCUEValue(c.Value()))
+		return g.arrayContainsConditionToCUE(c)
 	case *MapHasKeyCondition:
-		return fmt.Sprintf("parameter.%s.%s != _|_", c.ParamName(), c.Key())
+		// daemon.cue's idiom for nested optional access: bracket on the
+		// outer (optional) map, dot on the inner key (concrete after the
+		// outer guard).
+		return fmt.Sprintf(`parameter[%q] != _|_ && parameter[%q].%s != _|_`,
+			c.ParamName(), c.ParamName(), c.Key())
 	case *ParamCompareCondition:
 		// Parameter comparison: parameter.name op value
 		return fmt.Sprintf("parameter.%s %s %s", c.ParamName(), c.Op(), formatCUEValue(c.CompareValue()))
@@ -2891,29 +3360,11 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		right := g.exprToCUE(c.Right())
 		return fmt.Sprintf("%s %s %s", left, c.Op(), right)
 	case *AndCondition:
-		left := g.conditionToCUE(c.left)
-		right := g.conditionToCUE(c.right)
-		return fmt.Sprintf("(%s) && (%s)", left, right)
+		return g.andConditionToCUE(c)
 	case *LogicalExpr:
-		parts := make([]string, len(c.Conditions()))
-		for i, sub := range c.Conditions() {
-			parts[i] = g.conditionToCUE(sub)
-		}
-		op := " && "
-		if c.Op() == OpOr {
-			op = " || "
-		}
-		return strings.Join(parts, op)
+		return g.logicalExprToCUE(c)
 	case *NotExpr:
-		// Special case: Not(IsSet("x")) -> parameter["x"] == _|_
-		if isSet, ok := c.Cond().(*IsSetCondition); ok {
-			return fmt.Sprintf("parameter[%q] == _|_", isSet.ParamName())
-		}
-		// Special case: Not(PathExists("x")) -> x == _|_
-		if pe, ok := c.Cond().(*PathExistsCondition); ok {
-			return fmt.Sprintf("%s == _|_", pe.Path())
-		}
-		return fmt.Sprintf("!(%s)", g.conditionToCUE(c.Cond()))
+		return g.notExprToCUE(c)
 	case *HasExposedPortsCondition:
 		// Check if any port has expose=true
 		portsStr := g.valueToCUE(c.Ports())
@@ -2942,15 +3393,11 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 		// Check if a context.output path exists
 		return fmt.Sprintf("context.output.%s != _|_", c.Path())
 	case *AllConditionsCondition:
-		// Generate compound condition: if cond1 if cond2 ...
-		var parts []string
-		for _, cond := range c.Conditions() {
-			parts = append(parts, g.conditionToCUE(cond))
-		}
-		// For CUE, we generate: cond1 && cond2 && cond3
-		// which will be used in a single if statement
-		return strings.Join(parts, " && ")
+		return g.allConditionsConditionToCUE(c)
 	case *RegexMatchCondition:
+		if c.IsNegated() {
+			return fmt.Sprintf(`%s !~ %q`, g.valueToCUE(c.Source()), c.Pattern())
+		}
 		// General-purpose regex match: <value> =~ "pattern"
 		return fmt.Sprintf(`%s =~ %q`, g.valueToCUE(c.Source()), c.Pattern())
 	case *RawCUECondition:
@@ -2959,6 +3406,114 @@ func (g *CUEGenerator) conditionToCUE(cond Condition) string {
 	default:
 		return cueBoolTrue
 	}
+}
+
+// usesChainedGuard returns true for condition types whose conditionToCUE output
+// uses CUE chained-if syntax (e.g. `guard if inner`). These conditions cannot
+// be placed inside `(…) && (…)` — compound conditions must join with ` if `
+// instead of ` && ` when any operand uses chained guards.
+func usesChainedGuard(c Condition) bool {
+	switch c.(type) {
+	case *ArrayContainsCondition, *LenCondition:
+		return true
+	}
+	return false
+}
+
+// lenConditionToCUE renders a LenCondition using CUE's chained-if guard
+// pattern: `parameter["X"] != _|_ if len(parameter["X"]) op N`.
+//
+// The bracket-existence guard handles CUE strict mode on optional fields
+// (dot syntax `parameter.X` errors on `_|_`). The second `if` only evaluates
+// when the first passes, so `len()` never references an absent value.
+// For required fields the outer guard always passes — a few characters
+// longer than `len(parameter.X) op N` but correctness is uniform across
+// required and optional fields. Pattern matches the chained-if form already
+// used at cuegen.go:1145 for compound optional access.
+func (g *CUEGenerator) lenConditionToCUE(c *LenCondition) string {
+	return fmt.Sprintf(`parameter[%q] != _|_ if len(parameter[%q]) %s %d`,
+		c.ParamName(), c.ParamName(), c.Op(), c.Length())
+}
+
+// absentOrEmptyConditionToCUE is the conditionToCUE fallback for paths that
+// haven't been updated to expand AbsentOrEmpty branches into separate if
+// blocks. It renders only the "set and empty" branch (the "absent" branch is
+// lost). Top-level SetIfOp / SpreadIfOp in buildFieldTree DO expand and
+// render both branches correctly via the field tree's condValues.
+func (g *CUEGenerator) absentOrEmptyConditionToCUE(c *AbsentOrEmptyCondition) string {
+	return fmt.Sprintf(`parameter[%q] != _|_ if len(parameter[%q]) == 0`,
+		c.ParamName(), c.ParamName())
+}
+
+// arrayContainsConditionToCUE renders an ArrayContainsCondition as the
+// chained-if guard `parameter["X"] != _|_ if list.Contains(parameter["X"], val)`.
+// CUE does not short-circuit `&&`, so the inner list.Contains would otherwise
+// be evaluated against `_|_` when the field is absent.
+func (g *CUEGenerator) arrayContainsConditionToCUE(c *ArrayContainsCondition) string {
+	return fmt.Sprintf(`parameter[%q] != _|_ if list.Contains(parameter[%q], %s)`,
+		c.ParamName(), c.ParamName(), formatCUEValue(c.Value()))
+}
+
+// andConditionToCUE renders an AndCondition. If either operand uses chained-if
+// guard syntax (e.g. ArrayContainsCondition), join with ` if ` instead of
+// ` && ` because chained-if expressions are invalid inside `(...) && (...)`.
+func (g *CUEGenerator) andConditionToCUE(c *AndCondition) string {
+	left := g.conditionToCUE(c.left)
+	right := g.conditionToCUE(c.right)
+	if usesChainedGuard(c.left) || usesChainedGuard(c.right) {
+		return fmt.Sprintf("%s if %s", left, right)
+	}
+	return fmt.Sprintf("(%s) && (%s)", left, right)
+}
+
+// logicalExprToCUE renders a LogicalExpr (AND/OR over N conditions). For
+// AND mode with any chained-guard operand, joins with ` if `; otherwise
+// ` && `. OR mode always joins with ` || `.
+func (g *CUEGenerator) logicalExprToCUE(c *LogicalExpr) string {
+	parts := make([]string, len(c.Conditions()))
+	anyChained := false
+	for i, sub := range c.Conditions() {
+		parts[i] = g.conditionToCUE(sub)
+		if usesChainedGuard(sub) {
+			anyChained = true
+		}
+	}
+	if c.Op() == OpOr {
+		return strings.Join(parts, " || ")
+	}
+	if anyChained {
+		return strings.Join(parts, " if ")
+	}
+	return strings.Join(parts, " && ")
+}
+
+// allConditionsConditionToCUE renders an AllConditionsCondition (AND over N
+// conditions). Joins with ` if ` when any operand uses chained-guard syntax.
+func (g *CUEGenerator) allConditionsConditionToCUE(c *AllConditionsCondition) string {
+	parts := make([]string, 0, len(c.Conditions()))
+	anyChained := false
+	for _, cond := range c.Conditions() {
+		parts = append(parts, g.conditionToCUE(cond))
+		if usesChainedGuard(cond) {
+			anyChained = true
+		}
+	}
+	if anyChained {
+		return strings.Join(parts, " if ")
+	}
+	return strings.Join(parts, " && ")
+}
+
+// notExprToCUE renders a NotExpr, special-casing Not(IsSet) and
+// Not(PathExists) to the canonical `X == _|_` form.
+func (g *CUEGenerator) notExprToCUE(c *NotExpr) string {
+	if isSet, ok := c.Cond().(*IsSetCondition); ok {
+		return fmt.Sprintf("parameter[%q] == _|_", isSet.ParamName())
+	}
+	if pe, ok := c.Cond().(*PathExistsCondition); ok {
+		return fmt.Sprintf("%s == _|_", pe.Path())
+	}
+	return fmt.Sprintf("!(%s)", g.conditionToCUE(c.Cond()))
 }
 
 // inConditionToCUE converts an InCondition to CUE syntax.
@@ -3350,7 +3905,11 @@ func (g *CUEGenerator) formatArrayDefault(val any) string {
 
 // writeMapParam writes a map/object parameter.
 func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, name, optional string, depth int) {
-	// Priority: schemaRef > schema > fields > generic
+	// Priority: schemaRef > schema > value schema (dynamic keys) > fields > generic.
+	// The whole-parameter forms (schemaRef/schema) win over the value forms
+	// (OfSchemaRef/OfObject), which in turn win over the fixed-object form
+	// (WithFields). Setting both a value form and WithFields is contradictory;
+	// the value form is what gets emitted.
 	if schemaRef := p.GetSchemaRef(); schemaRef != "" {
 		// Reference to a helper definition like #HealthProbe
 		sb.WriteString(fmt.Sprintf("%s%s%s: #%s\n", indent, name, optional, schemaRef))
@@ -3360,6 +3919,32 @@ func (g *CUEGenerator) writeMapParam(sb *strings.Builder, p *MapParam, indent, n
 	if schema := p.GetSchema(); schema != "" {
 		// Raw CUE schema - output directly
 		sb.WriteString(fmt.Sprintf("%s%s%s: %s\n", indent, name, optional, schema))
+		return
+	}
+
+	// Values under dynamic keys pointing at a helper definition:
+	// name?: [string]: #Ref
+	if valueSchemaRef := p.GetValueSchemaRef(); valueSchemaRef != "" {
+		sb.WriteString(fmt.Sprintf("%s%s%s: [string]: #%s\n", indent, name, optional, valueSchemaRef))
+		return
+	}
+
+	// Values under dynamic keys with a structured schema:
+	// name?: [string]: { ... }
+	if valueFields := p.GetValueFields(); len(valueFields) > 0 {
+		if p.IsClosed() {
+			sb.WriteString(fmt.Sprintf("%s%s%s: [string]: close({\n", indent, name, optional))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s%s%s: [string]: {\n", indent, name, optional))
+		}
+		for _, field := range valueFields {
+			g.writeParam(sb, field, depth+1)
+		}
+		if p.IsClosed() {
+			sb.WriteString(fmt.Sprintf("%s})\n", indent))
+		} else {
+			sb.WriteString(fmt.Sprintf("%s}\n", indent))
+		}
 		return
 	}
 
@@ -3557,6 +4142,11 @@ func (g *CUEGenerator) writeOneOfParam(sb *strings.Builder, p *OneOfParam, inden
 				enumParts = append(enumParts, fmt.Sprintf("%q", v.Name()))
 			}
 		}
+		// A default makes the field effectively non-optional in CUE — the
+		// downstream `if name == "..."` blocks reference the field by name
+		// from sibling scope, which fails CUE strict mode when marked
+		// optional. Drop the "?" marker so the field is concrete.
+		optional = ""
 	} else {
 		for _, v := range variants {
 			enumParts = append(enumParts, fmt.Sprintf("%q", v.Name()))

@@ -354,10 +354,10 @@ func getMatchingDefinitionRevision(exactRevisionName, definitionName string, rev
 		if strings.HasPrefix(revision.Name, revisionPrefix) {
 			version := strings.Split(revision.Name, definitionName+"-")[1]
 			v, err := semver.NewVersion(version)
-			orignalVersions[v.String()] = version
 			if err != nil {
 				return "", err
 			}
+			orignalVersions[v.String()] = version
 			definitionVersions = append(definitionVersions, v)
 		}
 	}

@@ -360,3 +360,35 @@ func TestStringStatusFromCueString(t *testing.T) {
 	require.True(t, ok, "status field not found in CUE definition")
 	require.IsType(t, &ast2.StructLit{}, statusField.Value, "expected status field to be of type StructLit ")
 }
+
+// TestFromCUEString_PreservesLegacySyntax verifies that FromCUEString stores the
+// original user-supplied CUE verbatim. Validation runs against the upgraded form,
+// but the stored template retains the legacy syntax for the compat layer to handle at render time.
+func TestFromCUEString_PreservesLegacySyntax(t *testing.T) {
+	legacyCUE := strings.TrimSpace(`
+"legacy-worker": {
+  type: "component"
+  annotations: {}
+}
+template: {
+  envWithDefaults: parameter.env + [{name: "MANAGED_BY", value: "kubevela"}]
+  output: {
+    apiVersion: "apps/v1"
+    kind:       "Deployment"
+    spec: containers: [{env: envWithDefaults}]
+  }
+  parameter: {
+    env: *[] | [...{name: string, value?: string}]
+  }
+}
+`)
+	def := &Definition{}
+	require.NoError(t, def.FromCUEString(legacyCUE, nil))
+
+	storedTemplate, found, err := unstructured.NestedString(def.Object, DefinitionTemplateKeys...)
+	require.NoError(t, err)
+	require.True(t, found)
+
+	assert.Contains(t, storedTemplate, "parameter.env +")
+	assert.NotContains(t, storedTemplate, "list.Concat")
+}

@@ -20,7 +20,6 @@ import (
 	"embed"
 	"encoding/xml"
 	"fmt"
-	"html/template"
 	"io/fs"
 	"log"
 	"net/http"
@@ -70,38 +69,24 @@ var ossHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Request
 			}
 		}
 		data, err := xml.Marshal(res)
-		error := map[string]error{"error": err}
-		// Make and parse the data
-		t, err := template.New("").Parse(string(data))
 		if err != nil {
-			// Render the data
-			t.Execute(rw, error)
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		// Render the data
-		t.Execute(rw, data)
-
+		_, _ = rw.Write(data)
 	} else {
-		found := false
 		for _, p := range paths {
 			if queryPath == p.path {
 				file, err := testData.ReadFile(path.Join("testdata", queryPath))
-				error := map[string]error{"error": err}
-				// Make and parse the data
-				t, err := template.New("").Parse(string(file))
 				if err != nil {
-					// Render the data
-					t.Execute(rw, error)
+					http.Error(rw, err.Error(), http.StatusInternalServerError)
+					return
 				}
-				found = true
-				t.Execute(rw, file)
-				break
+				_, _ = rw.Write(file)
+				return
 			}
 		}
-		if !found {
-			nf := "not found"
-			t, _ := template.New("").Parse(nf)
-			t.Execute(rw, nf)
-		}
+		_, _ = rw.Write([]byte("not found"))
 	}
 }
 
@@ -125,8 +110,8 @@ var helmHandler http.HandlerFunc = func(rw http.ResponseWriter, req *http.Reques
 			_, _ = rw.Write([]byte(err.Error()))
 		}
 		rw.Write(file)
-	case strings.Contains(req.URL.Path, "vela-workflow-v0.6.2.tgz"):
-		file, err := os.ReadFile("./e2e/addon/mock/testrepo/helm-repo/vela-workflow-v0.6.2.tgz")
+	case strings.Contains(req.URL.Path, "vela-workflow-v0.7.3.tgz"):
+		file, err := os.ReadFile("./e2e/addon/mock/testrepo/helm-repo/vela-workflow-v0.7.3.tgz")
 		if err != nil {
 			_, _ = rw.Write([]byte(err.Error()))
 		}

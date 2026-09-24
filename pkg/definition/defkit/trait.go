@@ -471,8 +471,95 @@ func (g *TraitCUEGenerator) WithImports(imports ...string) *TraitCUEGenerator {
 	return g
 }
 
+// addImportIfMissing adds an import only when not already present.
+func (g *TraitCUEGenerator) addImportIfMissing(imp string) {
+	for _, existing := range g.imports {
+		if existing == imp {
+			return
+		}
+	}
+	g.imports = append(g.imports, imp)
+}
+
+// detectRequiredImports analyzes the trait template and adds any CUE standard
+// library imports declared by its values via the ImportRequirer interface.
+// Mirrors CUEGenerator.detectRequiredImports for components so that helpers
+// like ArrayConcat (which renders as list.Concat) auto-pull "list" without
+// the trait author calling WithImports.
+func (g *TraitCUEGenerator) detectRequiredImports(t *TraitDefinition) {
+	// Trait params can declare ImportRequirer themselves (e.g. StringParam
+	// with MinLen/MaxLen requires "strings"). Scan params first so traits
+	// without a Template(func(tpl)) body (raw TemplateBlock, status-only,
+	// etc.) still pick up the imports their parameter schema needs.
+	for _, param := range t.GetParams() {
+		if ir, ok := param.(ImportRequirer); ok {
+			for _, imp := range ir.RequiredImports() {
+				g.addImportIfMissing(imp)
+			}
+		}
+	}
+
+	// Validator message expressions on nested params. Traits do not emit
+	// top-level validators, but writeParam emits the ones attached to map and
+	// array params, so those messages can still reference a CUE stdlib call.
+	// Scanned before the template check so traits without a Template body are
+	// covered too.
+	validatorScan := NewCUEGenerator()
+	for _, param := range t.GetParams() {
+		validatorScan.collectImportsFromParamValidators(param)
+	}
+	for _, imp := range validatorScan.imports {
+		g.addImportIfMissing(imp)
+	}
+
+	if !t.HasTemplate() {
+		return
+	}
+	tpl := NewTemplate()
+	t.GetTemplate()(tpl)
+
+	scan := NewCUEGenerator()
+
+	// Template-level helpers (list.Concat / struct-array / dedupe / let bindings).
+	for _, helper := range tpl.GetConcatHelpers() {
+		scan.collectImportsFromValue(helper)
+	}
+	for _, helper := range tpl.GetStructArrayHelpers() {
+		scan.collectImportsFromValue(helper)
+	}
+	for _, helper := range tpl.GetDedupeHelpers() {
+		scan.collectImportsFromValue(helper)
+	}
+	for _, helper := range tpl.GetHelpersBeforeOutput() {
+		scan.collectImportsFromValue(helper)
+		scan.collectImportsFromValue(helper.Collection())
+	}
+	for _, helper := range tpl.GetHelpersAfterOutput() {
+		scan.collectImportsFromValue(helper)
+		scan.collectImportsFromValue(helper.Collection())
+	}
+
+	// Resource operations in output / outputs / patch.
+	if output := tpl.GetOutput(); output != nil {
+		scan.collectImportsFromResource(output)
+	}
+	for _, res := range tpl.GetOutputs() {
+		scan.collectImportsFromResource(res)
+	}
+	if patch := tpl.GetPatch(); patch != nil {
+		scan.collectImportsFromOps(patch.Ops())
+	}
+
+	for _, imp := range scan.imports {
+		g.addImportIfMissing(imp)
+	}
+}
+
 // GenerateFullDefinition generates the complete CUE definition for a trait.
 func (g *TraitCUEGenerator) GenerateFullDefinition(t *TraitDefinition) string {
+	// Auto-detect imports needed by template values (e.g. ArrayConcat → list).
+	g.detectRequiredImports(t)
+
 	var sb strings.Builder
 
 	// Write imports if any
@@ -700,16 +787,20 @@ func (g *TraitCUEGenerator) writeUnifiedTemplate(sb *strings.Builder, t *TraitDe
 		sb.WriteString("\n")
 	}
 
-	// Generate outputs block if present
-	if outputs := tpl.GetOutputs(); len(outputs) > 0 {
-		outputNames := sortedKeys(outputs)
+	// Generate outputs block if either plain Outputs or grouped OutputsGroupIf
+	// entries exist. Gating solely on len(outputs) > 0 would silently drop a
+	// trait that uses only OutputsGroupIf with no plain Outputs sibling.
+	outputs := tpl.GetOutputs()
+	outputGroups := tpl.GetOutputGroups()
+	if len(outputs) > 0 || len(outputGroups) > 0 {
 		sb.WriteString(fmt.Sprintf("%soutputs: {\n", indent))
-		for _, name := range outputNames {
-			res := outputs[name]
-			g.writeTraitResourceOutput(sb, gen, name, res, depth+1)
+		if len(outputs) > 0 {
+			for _, name := range sortedKeys(outputs) {
+				res := outputs[name]
+				g.writeTraitResourceOutput(sb, gen, name, res, depth+1)
+			}
 		}
-		// Render output groups (multiple outputs under one condition)
-		for _, group := range tpl.GetOutputGroups() {
+		for _, group := range outputGroups {
 			condStr := gen.conditionToCUE(group.cond)
 			sb.WriteString(fmt.Sprintf("%s\tif %s {\n", indent, condStr))
 			for _, gName := range sortedKeys(group.outputs) {

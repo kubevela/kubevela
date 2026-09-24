@@ -17,7 +17,11 @@ limitations under the License.
 package defkit_test
 
 import (
+	"sort"
 	"strings"
+
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -813,6 +817,116 @@ var _ = Describe("CUEGenerator", func() {
 			Expect(cue).To(ContainSubstring("annotations?:"))
 			Expect(cue).To(ContainSubstring("Labels to apply"))
 		})
+
+		It("should generate a structured value schema under dynamic keys", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.Map("accessPoints").
+						OfObject(
+							defkit.String("path").Required(),
+							defkit.Int("ownerUID").Default(1000),
+							defkit.Int("ownerGID").Default(1000),
+							defkit.String("permissions").Default("0755"),
+						).
+						Optional(),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("accessPoints?: [string]: {"))
+			Expect(cue).To(ContainSubstring("path!: string"))
+			Expect(cue).To(ContainSubstring("ownerUID: *1000 | int"))
+			Expect(cue).To(ContainSubstring("ownerGID: *1000 | int"))
+			Expect(cue).To(ContainSubstring(`permissions: *"0755" | string`))
+		})
+
+		It("should generate a value schema reference under dynamic keys", func() {
+			comp := defkit.NewComponent("test").
+				Params(defkit.Map("accessPoints").OfSchemaRef("AccessPointConfig").Optional())
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("accessPoints?: [string]: #AccessPointConfig"))
+		})
+
+		It("should close the value struct when Closed is set alongside OfObject", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.Map("accessPoints").
+						OfObject(defkit.String("path").Required()).
+						Closed().
+						Optional(),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			Expect(cue).To(ContainSubstring("accessPoints?: [string]: close({"))
+			Expect(cue).To(ContainSubstring("})"))
+		})
+
+		It("should keep WithFields, Of and StringKeyMap rendering unchanged", func() {
+			comp := defkit.NewComponent("test").
+				Params(
+					defkit.Map("fixed").WithFields(
+						defkit.String("path"),
+						defkit.Int("uid"),
+					),
+					defkit.Map("scalar").Of(defkit.ParamTypeString),
+					defkit.StringKeyMap("skm"),
+					defkit.Map("wholeRef").WithSchemaRef("HealthProbe"),
+				)
+
+			cue := gen.GenerateParameterSchema(comp)
+
+			// Fixed object: still a struct on the parameter itself, no [string]: key.
+			Expect(cue).To(ContainSubstring("fixed: {"))
+			Expect(cue).NotTo(ContainSubstring("fixed: [string]:"))
+			// Scalar-valued dynamic maps unchanged.
+			Expect(cue).To(ContainSubstring("scalar: [string]: string"))
+			Expect(cue).To(ContainSubstring("skm: [string]: string"))
+			// WithSchemaRef still applies to the whole parameter.
+			Expect(cue).To(ContainSubstring("wholeRef: #HealthProbe"))
+			Expect(cue).NotTo(ContainSubstring("wholeRef: [string]:"))
+		})
+
+		It("should import packages needed by nested value-schema constraints", func() {
+			comp := defkit.NewComponent("test").
+				Workload("v1", "ConfigMap").
+				Params(
+					defkit.Map("accessPoints").
+						OfObject(defkit.String("path").MinLen(1)).
+						Optional(),
+				)
+
+			cue := defkit.NewCUEGenerator().GenerateFullDefinition(comp)
+
+			// strings.MinRunes is emitted, so "strings" has to be imported or
+			// the generated CUE fails to compile.
+			Expect(cue).To(ContainSubstring("strings.MinRunes(1)"))
+			Expect(cue).To(ContainSubstring(`"strings"`))
+		})
+
+		It("should produce CUE that compiles for the dynamic-key value forms", func() {
+			// Substring assertions cannot tell a missing import from a present
+			// one, so compile the result and let CUE decide.
+			comp := defkit.NewComponent("test").
+				Workload("v1", "ConfigMap").
+				Params(
+					defkit.Map("accessPoints").
+						OfObject(
+							defkit.String("path").Required(),
+							defkit.Int("ownerUID").Default(1000),
+							defkit.String("permissions").Default("0755"),
+						).
+						Optional(),
+					defkit.Map("constrained").
+						OfObject(defkit.String("name").MinLen(3)).
+						Optional(),
+				)
+
+			val := cuecontext.New().CompileString(defkit.NewCUEGenerator().GenerateFullDefinition(comp))
+			Expect(val.Err()).ToNot(HaveOccurred())
+		})
 	})
 
 	Describe("GenerateFullDefinition with template", func() {
@@ -876,6 +990,156 @@ var _ = Describe("CUEGenerator", func() {
 		})
 	})
 
+	Describe("GenerateFullDefinition with OutputsGroupIf", func() {
+		It("should render a grouped if block with multiple outputs on a component", func() {
+			enabled := defkit.Bool("enabled")
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(enabled).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", defkit.VelaCtx().Name()),
+					)
+					tpl.OutputsGroupIf(defkit.Eq(enabled, defkit.Lit(true)), func(g *defkit.OutputGroup) {
+						g.Add("service", defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+						g.Add("ingress", defkit.NewResource("networking.k8s.io/v1", "Ingress").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).To(ContainSubstring("outputs: {"))
+			Expect(cue).To(ContainSubstring("if parameter.enabled == true {"))
+			Expect(cue).To(ContainSubstring("service: {"))
+			Expect(cue).To(ContainSubstring("ingress: {"))
+
+			ifIdx := strings.Index(cue, "if parameter.enabled == true {")
+			svcIdx := strings.Index(cue, "service: {")
+			ingIdx := strings.Index(cue, "ingress: {")
+			Expect(ifIdx).To(BeNumerically(">=", 0))
+			Expect(ifIdx).To(BeNumerically("<", ingIdx))
+			Expect(ifIdx).To(BeNumerically("<", svcIdx))
+			Expect(ingIdx).To(BeNumerically("<", svcIdx))
+		})
+
+		It("should render plain Outputs before grouped outputs", func() {
+			enabled := defkit.Bool("enabled")
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(enabled).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", defkit.VelaCtx().Name()),
+					)
+					tpl.Outputs("configmap",
+						defkit.NewResource("v1", "ConfigMap").
+							Set("metadata.name", defkit.VelaCtx().Name()),
+					)
+					tpl.OutputsGroupIf(defkit.Eq(enabled, defkit.Lit(true)), func(g *defkit.OutputGroup) {
+						g.Add("service", defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			cmIdx := strings.Index(cue, "configmap: {")
+			ifIdx := strings.Index(cue, "if parameter.enabled == true {")
+			svcIdx := strings.Index(cue, "service: {")
+			Expect(cmIdx).To(BeNumerically(">=", 0))
+			Expect(ifIdx).To(BeNumerically(">=", 0))
+			Expect(svcIdx).To(BeNumerically(">=", 0))
+			Expect(cmIdx).To(BeNumerically("<", ifIdx))
+			Expect(ifIdx).To(BeNumerically("<", svcIdx))
+		})
+
+		It("should render multiple OutputsGroupIf blocks independently", func() {
+			enabled := defkit.Bool("enabled")
+			debug := defkit.Bool("debug")
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(enabled, debug).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", defkit.VelaCtx().Name()),
+					)
+					tpl.OutputsGroupIf(defkit.Eq(enabled, defkit.Lit(true)), func(g *defkit.OutputGroup) {
+						g.Add("service", defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+					tpl.OutputsGroupIf(defkit.Eq(debug, defkit.Lit(true)), func(g *defkit.OutputGroup) {
+						g.Add("debug-cm", defkit.NewResource("v1", "ConfigMap").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).To(ContainSubstring("if parameter.enabled == true {"))
+			Expect(cue).To(ContainSubstring("if parameter.debug == true {"))
+			Expect(cue).To(ContainSubstring("service: {"))
+			Expect(cue).To(ContainSubstring("debug-cm"))
+		})
+
+		It("should render an outputs block even with only grouped outputs (no plain Outputs)", func() {
+			enabled := defkit.Bool("enabled")
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(enabled).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", defkit.VelaCtx().Name()),
+					)
+					tpl.OutputsGroupIf(defkit.Eq(enabled, defkit.Lit(true)), func(g *defkit.OutputGroup) {
+						g.Add("service", defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+						g.Add("ingress", defkit.NewResource("networking.k8s.io/v1", "Ingress").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).To(ContainSubstring("outputs: {"))
+			Expect(cue).To(ContainSubstring("if parameter.enabled == true {"))
+			Expect(cue).To(ContainSubstring("service: {"))
+			Expect(cue).To(ContainSubstring("ingress: {"))
+		})
+
+		It("should render grouped output names sorted alphabetically", func() {
+			enabled := defkit.Bool("enabled")
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(enabled).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", defkit.VelaCtx().Name()),
+					)
+					tpl.OutputsGroupIf(defkit.Eq(enabled, defkit.Lit(true)), func(g *defkit.OutputGroup) {
+						g.Add("z-ingress", defkit.NewResource("networking.k8s.io/v1", "Ingress").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+						g.Add("a-svc", defkit.NewResource("v1", "Service").
+							Set("metadata.name", defkit.VelaCtx().Name()))
+					})
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			aIdx := strings.Index(cue, "a-svc")
+			zIdx := strings.Index(cue, "z-ingress")
+			Expect(aIdx).To(BeNumerically(">=", 0))
+			Expect(zIdx).To(BeNumerically(">=", 0))
+			Expect(aIdx).To(BeNumerically("<", zIdx))
+		})
+	})
+
 	Describe("Import detection", func() {
 		It("should detect strconv import from FormatInt", func() {
 			port := defkit.Int("port")
@@ -909,6 +1173,105 @@ var _ = Describe("CUEGenerator", func() {
 			cue := gen.GenerateFullDefinition(comp)
 
 			Expect(cue).To(ContainSubstring("strings"))
+		})
+
+		It("should detect strings import from StringParam.MinLen", func() {
+			hostname := defkit.String("hostname").MinLen(1)
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(hostname).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", hostname),
+					)
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).To(MatchRegexp(`import\s+\(\s+"strings"\s+\)`))
+			Expect(cue).To(ContainSubstring("strings.MinRunes(1)"))
+		})
+
+		It("should detect strings import from StringParam.MaxLen", func() {
+			hostname := defkit.String("hostname").MaxLen(63)
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(hostname).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", hostname),
+					)
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).To(MatchRegexp(`import\s+\(\s+"strings"\s+\)`))
+			Expect(cue).To(ContainSubstring("strings.MaxRunes(63)"))
+		})
+
+		It("should detect strings import when both MinLen and MaxLen are set", func() {
+			hostname := defkit.String("hostname").
+				Pattern("^[a-z0-9-]+$").
+				MinLen(1).
+				MaxLen(63)
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(hostname).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", hostname),
+					)
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).To(MatchRegexp(`import\s+\(\s+"strings"\s+\)`))
+			Expect(cue).To(ContainSubstring("strings.MinRunes(1)"))
+			Expect(cue).To(ContainSubstring("strings.MaxRunes(63)"))
+			// Only one import of "strings", not duplicated
+			Expect(strings.Count(cue, `"strings"`)).To(Equal(1))
+		})
+
+		It("should not emit strings import when no param uses MinLen/MaxLen", func() {
+			name := defkit.String("name")
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(name).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", name),
+					)
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).NotTo(MatchRegexp(`import\s+\(\s+"strings"\s+\)`))
+			Expect(cue).NotTo(ContainSubstring("strings.MinRunes"))
+			Expect(cue).NotTo(ContainSubstring("strings.MaxRunes"))
+		})
+
+		It("should detect strings import even when MinLen param is not referenced in template", func() {
+			// The param is declared but the template doesn't reference it — the
+			// import must still be emitted because the parameter schema uses it.
+			hostname := defkit.String("hostname").MinLen(1).MaxLen(63)
+			name := defkit.String("name")
+			comp := defkit.NewComponent("test").
+				Workload("apps/v1", "Deployment").
+				Params(hostname, name).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(
+						defkit.NewResource("apps/v1", "Deployment").
+							Set("metadata.name", name),
+					)
+				})
+
+			cue := gen.GenerateFullDefinition(comp)
+
+			Expect(cue).To(MatchRegexp(`import\s+\(\s+"strings"\s+\)`))
 		})
 	})
 
@@ -1200,6 +1563,114 @@ var _ = Describe("CUEGenerator", func() {
 			// Plain string (optional)
 			Expect(cue).To(ContainSubstring("name?: string"))
 		})
+
+		// Table-driven tests for StringParam enum edge cases via writeStringParam.
+		DescribeTable("StringParam enum edge cases",
+			func(buildComp func() defkit.Param, contains []string, notContains []string) {
+				comp := defkit.NewComponent("test-string-enum-edge").
+					Workload("v1", "Pod").
+					Params(buildComp()).
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("v1", "Pod"))
+					})
+				cue := defkit.NewCUEGenerator().GenerateParameterSchema(comp)
+				for _, s := range contains {
+					Expect(cue).To(ContainSubstring(s))
+				}
+				for _, s := range notContains {
+					Expect(cue).NotTo(ContainSubstring(s))
+				}
+			},
+			Entry("empty Values and no default produces plain string",
+				func() defkit.Param {
+					return defkit.String("fieldName")
+				},
+				[]string{"fieldName: string"},
+				[]string{`fieldName: "`, "fieldName?: "},
+			),
+			Entry("single value no default required produces quoted literal",
+				func() defkit.Param {
+					return defkit.String("fieldName").Values("v1")
+				},
+				[]string{`fieldName: "v1"`},
+				[]string{"fieldName?: ", "fieldName: string"},
+			),
+			Entry("single value optional produces optional quoted literal",
+				func() defkit.Param {
+					return defkit.String("fieldName").Values("v1").Optional()
+				},
+				[]string{`fieldName?: "v1"`},
+				[]string{"fieldName: string"},
+			),
+			Entry("default not in Values list: default appears first with asterisk",
+				func() defkit.Param {
+					return defkit.String("fieldName").Default("x").Values("v1", "v2")
+				},
+				[]string{`fieldName: *"x" | "v1" | "v2"`},
+				[]string{"fieldName?: ", "fieldName: string"},
+			),
+			Entry("OpenEnum with values appends | string",
+				func() defkit.Param {
+					return defkit.String("fieldName").Values("v1", "v2").OpenEnum()
+				},
+				[]string{`fieldName: "v1" | "v2" | string`},
+				[]string{"fieldName?: "},
+			),
+			Entry("OpenEnum with no values produces plain string",
+				func() defkit.Param {
+					return defkit.String("fieldName").OpenEnum()
+				},
+				[]string{"fieldName: string"},
+				[]string{"fieldName?: "},
+			),
+		)
+
+		// Table-driven tests for EnumParam edge cases via writeEnumParam.
+		DescribeTable("EnumParam edge cases",
+			func(buildComp func() defkit.Param, contains []string, notContains []string) {
+				comp := defkit.NewComponent("test-enum-param-edge").
+					Workload("v1", "Pod").
+					Params(buildComp()).
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("v1", "Pod"))
+					})
+				cue := defkit.NewCUEGenerator().GenerateParameterSchema(comp)
+				for _, s := range contains {
+					Expect(cue).To(ContainSubstring(s))
+				}
+				for _, s := range notContains {
+					Expect(cue).NotTo(ContainSubstring(s))
+				}
+			},
+			Entry("required enum with multiple values — ! marker present",
+				func() defkit.Param {
+					return defkit.Enum("fieldName").Values("a", "b", "c").Required()
+				},
+				[]string{`fieldName!: "a" | "b" | "c"`},
+				[]string{"fieldName?: ", "fieldName: string"},
+			),
+			Entry("optional enum with multiple values — ? marker present",
+				func() defkit.Param {
+					return defkit.Enum("fieldName").Values("a", "b", "c").Optional()
+				},
+				[]string{`fieldName?: "a" | "b" | "c"`},
+				[]string{"fieldName: string"},
+			),
+			Entry("EnumParam with single value only",
+				func() defkit.Param {
+					return defkit.Enum("fieldName").Values("only")
+				},
+				[]string{`fieldName: "only"`},
+				[]string{"fieldName?: ", "fieldName: string"},
+			),
+			Entry("EnumParam with no values produces plain string",
+				func() defkit.Param {
+					return defkit.Enum("fieldName")
+				},
+				[]string{"fieldName: string"},
+				[]string{"fieldName?: "},
+			),
+		)
 	})
 
 	Describe("GenerateParameterSchema with ClosedUnion parameters", func() {
@@ -1391,6 +1862,358 @@ var _ = Describe("CUEGenerator", func() {
 			// Inner braces should contain both the field and the conditional
 			Expect(cue).To(ContainSubstring("name: m.name"))
 			Expect(cue).To(ContainSubstring("if m.subPath != _|_"))
+		})
+	})
+
+	Describe("ForEachMap body generation", func() {
+		It("should preserve the default map comprehension", func() {
+			labels := defkit.StringKeyMap("labels")
+			comp := defkit.NewComponent("test").
+				Params(labels).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					tpl.AddLetBinding(
+						"_content",
+						defkit.ForEachMap().Over("parameter.labels"),
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.content", defkit.LetVariable("_content")))
+				})
+
+			Expect(comp.ToCue()).To(ContainSubstring(
+				"let _content = {for k, v in parameter.labels { (k): v }}",
+			))
+		})
+
+		It("should render and evaluate body operations for every map entry", func() {
+			labels := defkit.StringKeyMap("labels")
+			body := defkit.NewResource("", "").
+				Set("name", defkit.Reference("key")).
+				Set("value", defkit.Reference("val")).
+				Set("metadata.owner", defkit.Reference("key")).
+				Ops()
+			comp := defkit.NewComponent("test").
+				Params(labels).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					content := defkit.ForEachMap().
+						Over("parameter.labels").
+						WithVars("key", "val").
+						WithBody(body...)
+					tpl.AddLetBinding("_content", content)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.content", defkit.LetVariable("_content")))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`let _content = {for key, val in parameter.labels {
+	(key): {
+		name: key
+		value: val
+		metadata: {
+			owner: key
+		}
+	}
+}}`))
+
+			base := cuecontext.New().CompileString(generated)
+			Expect(base.Err()).NotTo(HaveOccurred())
+			value := base.FillPath(
+				cue.ParsePath("template.parameter.labels"),
+				map[string]string{
+					"alpha": "one",
+					"beta":  "two",
+				},
+			)
+			Expect(value.Err()).NotTo(HaveOccurred())
+
+			var content map[string]struct {
+				Name     string `json:"name"`
+				Value    string `json:"value"`
+				Metadata struct {
+					Owner string `json:"owner"`
+				} `json:"metadata"`
+			}
+			err := value.LookupPath(
+				cue.ParsePath("template.output.data.content"),
+			).Decode(&content)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(content).To(HaveLen(2))
+			Expect(content["alpha"].Name).To(Equal("alpha"))
+			Expect(content["alpha"].Value).To(Equal("one"))
+			Expect(content["alpha"].Metadata.Owner).To(Equal("alpha"))
+			Expect(content["beta"].Name).To(Equal("beta"))
+			Expect(content["beta"].Value).To(Equal("two"))
+			Expect(content["beta"].Metadata.Owner).To(Equal("beta"))
+		})
+
+		It("should collect imports required by body values", func() {
+			labels := defkit.StringKeyMap("labels")
+			body := defkit.NewResource("", "").
+				Set("name", defkit.StringsToLower(defkit.Reference("key"))).
+				Set("value", defkit.Reference("val")).
+				Ops()
+			comp := defkit.NewComponent("test").
+				Params(labels).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					content := defkit.ForEachMap().
+						Over("parameter.labels").
+						WithVars("key", "val").
+						WithBody(body...)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.content", content))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"strings"`))
+			Expect(generated).To(ContainSubstring("name: strings.ToLower(key)"))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
+		})
+
+		It("should collect imports from nested body operations", func() {
+			labels := defkit.StringKeyMap("labels")
+			metadata := defkit.StringKeyMap("metadata")
+			features := defkit.StringList("features")
+			enabled := defkit.Bool("enabled")
+			body := defkit.NewResource("", "").
+				If(enabled.IsTrue()).
+				Set("metadata.fixed", defkit.Lit("fixed")).
+				SpreadIf(features.Contains("metadata"), "metadata", metadata).
+				EndIf().
+				Ops()
+			comp := defkit.NewComponent("test").
+				Params(labels, metadata, features, enabled).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					content := defkit.ForEachMap().
+						Over("parameter.labels").
+						WithBody(body...)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.content", content))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"list"`))
+			Expect(generated).To(ContainSubstring(
+				`list.Contains(parameter["features"], "metadata")`,
+			))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
+		})
+	})
+
+	Describe("ArrayBuilder map-to-list comprehensions", func() {
+		It("should expose map keys and values to the item builder", func() {
+			accessPoints := defkit.Map("accessPoints").
+				WithSchema(`[string]: {path: string}`)
+			comp := defkit.NewComponent("test").
+				Params(accessPoints).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					items := defkit.NewArray().ForEachMapWith(
+						accessPoints,
+						func(entry *defkit.MapEntryBuilder) {
+							entry.Set("name", entry.Key())
+							entry.Set("path", entry.Value().Field("path"))
+						},
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.items", items))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(
+				"for k, v in parameter.accessPoints {",
+			))
+			Expect(generated).To(ContainSubstring("name: k"))
+			Expect(generated).To(ContainSubstring("path: v.path"))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
+		})
+
+		It("should support guards and existing item operations", func() {
+			accessPoints := defkit.Map("accessPoints").
+				WithSchema(`[string]: {
+					permissions?: string
+				}`).
+				Optional()
+			comp := defkit.NewComponent("test").
+				Params(accessPoints).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					items := defkit.NewArray().ForEachMapWithGuarded(
+						accessPoints.IsSet(),
+						accessPoints,
+						func(entry *defkit.MapEntryBuilder) {
+							entry.Set("name", defkit.StringsToLower(entry.Key()))
+							fallback := entry.Let("_fallback", defkit.Lit("0755"))
+							entry.IfSet("permissions", func() {
+								entry.Set("permissions", entry.Value().Field("permissions"))
+							})
+							entry.IfNotSet("permissions", func() {
+								entry.Set("permissions", fallback)
+							})
+							entry.SetDefault("ownerUID", defkit.Lit(1000), "int")
+							entry.If(entry.FieldExists("permissions"), func() {
+								entry.Set("configured", defkit.Lit(true))
+							})
+							entry.If(entry.FieldNotExists("permissions"), func() {
+								entry.Set("configured", defkit.Lit(false))
+							})
+						},
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.items", items))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"strings"`))
+			Expect(generated).To(ContainSubstring(
+				`if parameter["accessPoints"] != _|_ for k, v in parameter.accessPoints {`,
+			))
+			Expect(generated).To(ContainSubstring("name: strings.ToLower(k)"))
+			Expect(generated).To(ContainSubstring("_fallback: \"0755\""))
+			Expect(generated).To(ContainSubstring("if v.permissions != _|_ {"))
+			Expect(generated).To(ContainSubstring("if v.permissions == _|_ {"))
+			Expect(generated).To(ContainSubstring("ownerUID: *1000 | int"))
+			Expect(generated).To(ContainSubstring("configured: true"))
+			Expect(generated).To(ContainSubstring("configured: false"))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
+		})
+
+		It("should evaluate absent, empty, single-entry, and multi-entry maps", func() {
+			accessPoints := defkit.Map("accessPoints").
+				WithSchema(`[string]: {path: string}`).
+				Optional()
+			comp := defkit.NewComponent("test").
+				Params(accessPoints).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					items := defkit.NewArray().ForEachMapWithGuarded(
+						accessPoints.IsSet(),
+						accessPoints,
+						func(entry *defkit.MapEntryBuilder) {
+							entry.Set("name", entry.Key())
+							entry.Set("path", entry.Value().Field("path"))
+						},
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.items", items))
+				})
+
+			base := cuecontext.New().CompileString(comp.ToCue())
+			Expect(base.Err()).NotTo(HaveOccurred())
+
+			fixtures := []struct {
+				name string
+				data map[string]any
+				want []string
+			}{
+				{name: "absent", want: []string{}},
+				{name: "empty", data: map[string]any{}, want: []string{}},
+				{
+					name: "single",
+					data: map[string]any{
+						"reports": map[string]any{"path": "/reports"},
+					},
+					want: []string{"reports:/reports"},
+				},
+				{
+					name: "multiple",
+					data: map[string]any{
+						"reports": map[string]any{"path": "/reports"},
+						"logs":    map[string]any{"path": "/logs"},
+					},
+					want: []string{"logs:/logs", "reports:/reports"},
+				},
+			}
+
+			for _, fixture := range fixtures {
+				value := base
+				if fixture.data != nil {
+					value = value.FillPath(
+						cue.ParsePath("template.parameter.accessPoints"),
+						fixture.data,
+					)
+				}
+				Expect(value.Err()).NotTo(HaveOccurred(), fixture.name)
+
+				var items []struct {
+					Name string `json:"name"`
+					Path string `json:"path"`
+				}
+				err := value.LookupPath(
+					cue.ParsePath("template.output.data.items"),
+				).Decode(&items)
+				Expect(err).NotTo(HaveOccurred(), fixture.name)
+
+				got := make([]string, len(items))
+				for i := range items {
+					got[i] = items[i].Name + ":" + items[i].Path
+				}
+				sort.Strings(got)
+				Expect(got).To(Equal(fixture.want), fixture.name)
+			}
+		})
+	})
+
+	Describe("ArrayBuilder ForEachWith import collection", func() {
+		It("should collect imports from the iteration source", func() {
+			left := defkit.Array("left").WithFields(
+				defkit.String("name"),
+			)
+			right := defkit.Array("right").WithFields(
+				defkit.String("name"),
+			)
+			comp := defkit.NewComponent("test").
+				Params(left, right).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					items := defkit.NewArray().ForEachWith(
+						defkit.ArrayConcat(left, right),
+						func(item *defkit.ItemBuilder) {
+							item.Set("name", item.Var().Field("name"))
+						},
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.items", items))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"list"`))
+			Expect(generated).To(ContainSubstring(
+				"for v in list.Concat([parameter.left, parameter.right]) {",
+			))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
+		})
+
+		It("should collect imports from the iteration guard", func() {
+			tags := defkit.Array("tags")
+			ports := defkit.Array("ports").WithFields(
+				defkit.String("name"),
+				defkit.Bool("enabled"),
+			)
+			comp := defkit.NewComponent("test").
+				Params(tags, ports).
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					items := defkit.NewArray().ForEachWithGuardedFiltered(
+						tags.Contains("enabled"),
+						defkit.FieldEquals("enabled", true),
+						ports,
+						func(item *defkit.ItemBuilder) {
+							item.Set("name", item.Var().Field("name"))
+						},
+					)
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data.items", items))
+				})
+
+			generated := comp.ToCue()
+			Expect(generated).To(ContainSubstring(`"list"`))
+			Expect(generated).To(ContainSubstring(
+				`if list.Contains(parameter["tags"], "enabled")`,
+			))
+			Expect(cuecontext.New().CompileString(generated).Err()).NotTo(HaveOccurred())
 		})
 	})
 
@@ -1723,6 +2546,69 @@ var _ = Describe("CUEGenerator", func() {
 			})
 		})
 
+		Context("RegexNotMatch CUE Generation", func() {
+			It("should generate regex not-match for StringParam.NotMatches", func() {
+				p := defkit.String("name")
+				comp := defkit.NewComponent("test").
+					Params(p).
+					Workload("v1", "ConfigMap").
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("v1", "ConfigMap").
+							SetIf(p.NotMatches("^prod-"), "data.env", defkit.Lit("non-production")))
+					})
+
+				cue := gen.GenerateTemplate(comp)
+				Expect(cue).To(ContainSubstring(`parameter.name !~ "^prod-"`))
+				Expect(cue).NotTo(ContainSubstring(`parameter.name =~ "^prod-"`))
+			})
+
+			It("should generate regex not-match for LocalFieldRef.NotMatches in validator", func() {
+				v := defkit.Validate("bad").
+					WithName("_v").
+					FailWhen(defkit.LocalField("host").NotMatches(`\.internal$`))
+
+				comp := defkit.NewComponent("test").Validators(v)
+				cue := gen.GenerateParameterSchema(comp)
+				Expect(cue).To(ContainSubstring(`host !~ "\\.internal$"`))
+			})
+
+			It("should keep Matches and NotMatches distinct on the same param", func() {
+				p := defkit.String("name")
+				comp := defkit.NewComponent("test").
+					Params(p).
+					Workload("v1", "ConfigMap").
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("v1", "ConfigMap").
+							SetIf(p.Matches("^prod-"), "data.env", defkit.Lit("production")).
+							SetIf(p.NotMatches("^prod-"), "data.env", defkit.Lit("non-production")))
+					})
+
+				cue := gen.GenerateTemplate(comp)
+				Expect(cue).To(ContainSubstring(`parameter.name =~ "^prod-"`))
+				Expect(cue).To(ContainSubstring(`parameter.name !~ "^prod-"`))
+			})
+
+			It("should render NotMatches inside a compound And condition", func() {
+				name := defkit.String("name")
+				env := defkit.String("env")
+				comp := defkit.NewComponent("test").
+					Params(name, env).
+					Workload("v1", "ConfigMap").
+					Template(func(tpl *defkit.Template) {
+						tpl.Output(defkit.NewResource("v1", "ConfigMap").
+							SetIf(
+								defkit.And(
+									name.NotMatches("^prod-"),
+									defkit.Eq(env, defkit.Lit("dev")),
+								),
+								"data.debug", defkit.Lit("true")))
+					})
+
+				cue := gen.GenerateTemplate(comp)
+				Expect(cue).To(ContainSubstring(`parameter.name !~ "^prod-" && parameter.env == "dev"`))
+			})
+		})
+
 		Context("LocalFieldRef NotSet CUE Generation", func() {
 			It("should generate == _|_ for LocalFieldRef.NotSet", func() {
 				v := defkit.Validate("role required").
@@ -1886,6 +2772,1080 @@ var _ = Describe("CUEGenerator", func() {
 
 			Expect(cue).To(ContainSubstring("deploy: kube.#Apply & {"))
 			Expect(cue).To(ContainSubstring("$params:"))
+		})
+	})
+
+	// --- OneOf with Default --------------------------------------------------
+	//
+	// Background: when a OneOfParam has both Optional() and Default(), the
+	// generated discriminator block uses sibling-scope `if name == "..."`
+	// references that fail CUE strict mode if the field is marked `?`.
+	// Default makes the value concrete; the `?` marker must be dropped.
+	Context("OneOf with Default", func() {
+		It("should drop the ? marker when a default is set", func() {
+			vol := defkit.OneOf("volume").Optional().Default("emptyDir").Variants(
+				defkit.Variant("emptyDir").WithFields(
+					defkit.Field("medium", defkit.ParamTypeString).Optional(),
+				),
+				defkit.Variant("configMap").WithFields(
+					defkit.Field("name", defkit.ParamTypeString).Required(),
+				),
+			)
+			schema := defkit.NewCUEGenerator().GenerateParameterSchema(
+				defkit.NewComponent("c").Params(vol))
+			Expect(schema).To(ContainSubstring(`volume: *"emptyDir" | "configMap"`))
+			Expect(schema).NotTo(ContainSubstring(`volume?:`))
+		})
+
+		It("should keep the ? marker when no default is set", func() {
+			vol := defkit.OneOf("volume").Optional().Variants(
+				defkit.Variant("a").WithFields(defkit.Field("x", defkit.ParamTypeString).Required()),
+				defkit.Variant("b").WithFields(defkit.Field("y", defkit.ParamTypeString).Required()),
+			)
+			schema := defkit.NewCUEGenerator().GenerateParameterSchema(
+				defkit.NewComponent("c").Params(vol))
+			Expect(schema).To(ContainSubstring(`volume?:`))
+		})
+	})
+
+	// --- Auto-import for ArrayParam list constraints ------------------------
+	//
+	// Background: ArrayParam.MinItems/MaxItems emit list.MinItems(N) /
+	// list.MaxItems(N), which require the CUE "list" stdlib import. The
+	// auto-import scanner picks this up via ArrayParam.RequiredImports.
+	Context("Auto-import for Array list constraints", func() {
+		It("should add the list import when Array.MinItems is set", func() {
+			ports := defkit.IntList("ports").Optional().MinItems(1)
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(ports).
+				Template(func(tpl *defkit.Template) {}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`"list"`))
+			Expect(cue).To(ContainSubstring(`list.MinItems(1)`))
+		})
+
+		It("should add the list import when Array.MaxItems is set", func() {
+			ports := defkit.IntList("ports").Optional().MaxItems(10)
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(ports).
+				Template(func(tpl *defkit.Template) {}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`"list"`))
+			Expect(cue).To(ContainSubstring(`list.MaxItems(10)`))
+		})
+
+		It("should NOT add the list import for a plain Array param", func() {
+			args := defkit.StringList("args").Optional()
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args).
+				Template(func(tpl *defkit.Template) {}).
+				ToCue()
+			Expect(cue).NotTo(ContainSubstring(`"list"`))
+		})
+
+		It("should emit the list import only once when both MinItems and MaxItems are set", func() {
+			ports := defkit.IntList("ports").Optional().MinItems(1).MaxItems(10)
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(ports).
+				Template(func(tpl *defkit.Template) {}).
+				ToCue()
+			Expect(strings.Count(cue, `"list"`)).To(Equal(1))
+		})
+
+		It("should add the list import when Array.Contains() is used", func() {
+			tags := defkit.StringList("tags").Optional()
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(tags).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(tags.Contains("gpu"), "data.gpu", defkit.Lit("true")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`"list"`))
+			Expect(cue).To(ContainSubstring(`list.Contains`))
+		})
+	})
+
+	// --- Optional collection rendering (end-to-end) -------------------------
+	//
+	// Background: in CUE strict mode (and the KubeVela template pipeline
+	// specifically), references to optional fields like `parameter.X` (dot)
+	// or `len(parameter.X)` trip "cannot reference optional field". The
+	// rendering must use the bracket-existence pattern `parameter["X"] != _|_`
+	// — the same form every built-in KubeVela component (cron-task.cue,
+	// daemon.cue, helmchart.cue) uses.
+	// --- Bracket-access conditional rendering --------------------------------
+	//
+	// Regression: when SetIf targets a bracket-access path (e.g.
+	// `data[args-empty]`), the bracket-leaf rendering previously dropped the
+	// node's condition and condValues, emitting the field unconditionally.
+	// Both single conditions and AbsentOrEmpty's two-branch expansion must
+	// produce wrapping if blocks for keys with hyphens / dots / etc.
+	Context("Bracket-access conditional rendering", func() {
+		It("should wrap a bracket-access SetIf in an if block (single condition)", func() {
+			args := defkit.StringList("args").Optional()
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(args.IsNotEmpty(), "data[has-args]", defkit.Lit("yes")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`if parameter["args"] != _|_ if len(parameter["args"]) > 0`))
+			// The bracket key must be quoted (CUE requires quoting for
+			// non-identifier field names) and live inside the if block.
+			Expect(cue).To(ContainSubstring(`"has-args": "yes"`))
+		})
+
+		It("should wrap a bracket-access SetIf with AbsentOrEmpty in TWO if blocks", func() {
+			args := defkit.StringList("args").Optional()
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(args.IsEmpty(), "data[args-empty]", defkit.Lit("yes")))
+				}).
+				ToCue()
+			// Two branches: absent + set-and-empty, both wrapping the same key.
+			Expect(cue).To(ContainSubstring(`if parameter["args"] == _|_`))
+			Expect(cue).To(ContainSubstring(`if parameter["args"] != _|_ if len(parameter["args"]) == 0`))
+			Expect(strings.Count(cue, `"args-empty": "yes"`)).To(Equal(2))
+		})
+
+		It("should render an unconditional bracket-key Set without an if block", func() {
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("data[my-key]", defkit.Lit("v")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`"my-key": "v"`))
+			Expect(cue).NotTo(ContainSubstring(`if `))
+		})
+
+		It("should render a bracket-key parent with a nested child as a struct", func() {
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("metadata.annotations[my-key].nested", defkit.Lit("v")))
+				}).
+				ToCue()
+			// Bracket key with a child renders as `"my-key": { nested: ... }`.
+			Expect(cue).To(ContainSubstring(`"my-key": {`))
+			Expect(cue).To(ContainSubstring(`nested: "v"`))
+		})
+
+		It("should keep per-bracket-key conditions when sibling keys have different conds", func() {
+			args := defkit.StringList("args").Optional()
+			tags := defkit.StringList("tags").Optional()
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args, tags).
+				Template(func(tpl *defkit.Template) {
+					// Two bracket keys with DIFFERENT conditions — liftChildConditions
+					// can't merge them, so each bracket leaf keeps its own cond and
+					// writeBracketKeyNode hits the per-leaf if-block emission path.
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(args.IsNotEmpty(), "data[has-args]", defkit.Lit("yes")).
+						SetIf(tags.IsNotEmpty(), "data[has-tags]", defkit.Lit("yes")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`"has-args": "yes"`))
+			Expect(cue).To(ContainSubstring(`"has-tags": "yes"`))
+			Expect(cue).To(ContainSubstring(`len(parameter["args"]) > 0`))
+			Expect(cue).To(ContainSubstring(`len(parameter["tags"]) > 0`))
+		})
+
+		It("should keep per-bracket-key condValues when AbsentOrEmpty mixes with other conds", func() {
+			args := defkit.StringList("args").Optional()
+			tags := defkit.StringList("tags").Optional()
+			// Mix AbsentOrEmpty (two condValues) with another condition on a
+			// sibling bracket key — prevents liftChildConditions from sharing,
+			// so the bracket leaf keeps its condValues and writeBracketKeyNode
+			// hits `case len(node.condValues) > 0`.
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args, tags).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(args.IsEmpty(), "data[args-empty]", defkit.Lit("yes")).
+						SetIf(tags.IsNotEmpty(), "data[has-tags]", defkit.Lit("yes")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`"args-empty": "yes"`))
+			Expect(cue).To(ContainSubstring(`"has-tags": "yes"`))
+		})
+	})
+
+	// --- Compound condition rendering ---------------------------------------
+	//
+	// Conditions that use CUE chained-if syntax (LenCondition, ArrayContains)
+	// cannot live inside `(...) && (...)` — compound joiners must use ` if `
+	// instead. Cover the chained-guard branches of And / LogicalExpr and the
+	// LogicalExpr OR pass-through.
+	Context("Compound condition rendering", func() {
+		It("should join AND with chained-guard LenCondition operand using ` if `", func() {
+			args := defkit.StringList("args").Optional()
+			flag := defkit.Bool("flag").Default(false)
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args, flag).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(defkit.And(args.LenGt(0), flag.IsTrue()),
+							"data[both]", defkit.Lit("y")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`len(parameter["args"]) > 0`))
+			// The parenthesized && form must NOT wrap a chained-guard operand.
+			Expect(cue).NotTo(MatchRegexp(`\([^)]*len\(parameter\["args"\]\)[^)]*\) && `))
+		})
+
+		It("should join AND with chained-guard ArrayContains operands using ` if `", func() {
+			tags := defkit.StringList("tags").Optional()
+			flag := defkit.Bool("flag").Default(false)
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(tags, flag).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(defkit.And(tags.Contains("gpu"), flag.IsTrue(), tags.LenGt(0)),
+							"data[ok]", defkit.Lit("y")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`list.Contains(parameter["tags"], "gpu")`))
+			Expect(cue).To(ContainSubstring(`len(parameter["tags"]) > 0`))
+		})
+
+		It("should join LogicalExpr OR with ` || ` regardless of chained guards", func() {
+			flag := defkit.Bool("flag").Default(false)
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(flag).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(defkit.Or(flag.IsTrue(), flag.IsFalse()),
+							"data[either]", defkit.Lit("y")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(` || `))
+		})
+	})
+
+	Context("Optional collection rendering", func() {
+		It("should render IsNotEmpty() on optional Array as chained-if guard with len() > 0", func() {
+			args := defkit.StringList("args").Optional()
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(args.IsNotEmpty(), "data.x", defkit.Lit("y")))
+				}).
+				ToCue()
+			Expect(cue).To(ContainSubstring(`if parameter["args"] != _|_`))
+			Expect(cue).To(ContainSubstring(`len(parameter["args"]) > 0`))
+			Expect(cue).NotTo(ContainSubstring(`len(parameter.args)`))
+			Expect(cue).NotTo(ContainSubstring(`parameter.args | []`))
+		})
+
+		It("should render IsEmpty() on optional Array as two if blocks (absent OR set-and-empty)", func() {
+			args := defkit.StringList("args").Optional()
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						SetIf(args.IsEmpty(), "data.empty", defkit.Lit("yes")))
+				}).
+				ToCue()
+			// Branch 1: field absent
+			Expect(cue).To(ContainSubstring(`if parameter["args"] == _|_`))
+			// Branch 2: field set and empty
+			Expect(cue).To(ContainSubstring(`if parameter["args"] != _|_ if len(parameter["args"]) == 0`))
+		})
+
+		It("should expand AbsentOrEmpty in SpreadIf into two spread blocks", func() {
+			extra := defkit.Map("extra").Of(defkit.ParamTypeString).Optional()
+			// SpreadIf renders only when its target node also has at least one
+			// regular child (otherwise the leaf-with-only-spreads case is a
+			// pre-existing no-op in writeFieldNode). Add a sibling Set under
+			// metadata.labels so the spread is exercised.
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(extra).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("metadata.labels.fixed", defkit.Lit("y")).
+						SpreadIf(extra.IsEmpty(), "metadata.labels", defkit.Reference("parameter.extra")))
+				}).
+				ToCue()
+			// Both AbsentOrEmpty branches must wrap the spread.
+			Expect(cue).To(ContainSubstring(`if parameter["extra"] == _|_`))
+			Expect(cue).To(ContainSubstring(`if parameter["extra"] != _|_ if len(parameter["extra"]) == 0`))
+		})
+
+		It("should expand AbsentOrEmpty SetIf inside an IfBlock with combined guards", func() {
+			args := defkit.StringList("args").Optional()
+			flag := defkit.Bool("flag").Default(false)
+			cue := defkit.NewComponent("c").
+				Workload("v1", "ConfigMap").
+				Params(args, flag).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						If(flag.IsTrue()).
+						SetIf(args.IsEmpty(), "data[when-flag]", defkit.Lit("y")).
+						EndIf())
+				}).
+				ToCue()
+			// Outer flag guard combined with each inner AbsentOrEmpty branch.
+			Expect(cue).To(ContainSubstring(`parameter["args"] == _|_`))
+			Expect(cue).To(ContainSubstring(`len(parameter["args"]) == 0`))
+			Expect(cue).To(ContainSubstring(`parameter.flag`))
+		})
+
+		It("should render Map.HasKey() with the daemon.cue two-clause guard", func() {
+			cfg := defkit.Map("config").Of(defkit.ParamTypeString).Optional()
+			schema := defkit.NewCUEGenerator().GenerateParameterSchema(
+				defkit.NewComponent("c").Params(cfg).
+					Validators(
+						defkit.Validate("debug must not be set").
+							WithName("_v").
+							FailWhen(cfg.HasKey("debug")),
+					))
+			Expect(schema).To(ContainSubstring(`parameter["config"] != _|_`))
+			Expect(schema).To(ContainSubstring(`parameter["config"].debug != _|_`))
+			Expect(schema).NotTo(ContainSubstring(`parameter.config.debug != _|_`))
+		})
+
+		It("should render a multi-collection ComponentDefinition without dot-references to optional fields", func() {
+			image := defkit.String("image").Required()
+			args := defkit.StringList("args").Optional()
+			ports := defkit.IntList("ports").Optional().MinItems(1).MaxItems(10)
+			labels := defkit.StringKeyMap("labels").Optional()
+			anns := defkit.Map("annotations").Of(defkit.ParamTypeString).Optional()
+			vol := defkit.OneOf("volume").Optional().Default("emptyDir").Variants(
+				defkit.Variant("emptyDir").WithFields(
+					defkit.Field("medium", defkit.ParamTypeString).Optional(),
+				),
+				defkit.Variant("configMap").WithFields(
+					defkit.Field("name", defkit.ParamTypeString).Required(),
+				),
+			)
+
+			c := defkit.NewComponent("collection-showcase").
+				Workload("apps/v1", "Deployment").
+				PodSpecPath("spec.template.spec").
+				Params(image, args, ports, labels, anns, vol).
+				Template(func(tpl *defkit.Template) {
+					vela := defkit.VelaCtx()
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						Set("metadata.name", vela.Name()).
+						Set("spec.template.spec.containers[0].image", image).
+						SetIf(labels.IsNotEmpty(), "metadata.labels", labels).
+						SetIf(anns.IsNotEmpty(), "metadata.annotations", anns).
+						SetIf(args.IsNotEmpty(), "spec.template.spec.containers[0].args", args).
+						SetIf(ports.IsNotEmpty(), "metadata.annotations[showcase/ports-set]", defkit.Lit("true")))
+				})
+
+			cue := c.ToCue()
+
+			// 1. Schema-level: list import present, MinItems/MaxItems intact.
+			Expect(cue).To(ContainSubstring(`"list"`))
+			Expect(cue).To(ContainSubstring(`list.MinItems(1) & list.MaxItems(10)`))
+
+			// 2. Every optional-collection guard uses bracket existence.
+			Expect(cue).To(ContainSubstring(`if parameter["labels"] != _|_`))
+			Expect(cue).To(ContainSubstring(`if parameter["annotations"] != _|_`))
+			Expect(cue).To(ContainSubstring(`if parameter["args"] != _|_`))
+			Expect(cue).To(ContainSubstring(`if parameter["ports"] != _|_`))
+
+			// 3. None of the strict-mode-failing forms appear.
+			Expect(cue).NotTo(ContainSubstring(`len(parameter.labels)`))
+			Expect(cue).NotTo(ContainSubstring(`len(parameter.args)`))
+			Expect(cue).NotTo(ContainSubstring(`parameter.labels | {}`))
+			Expect(cue).NotTo(ContainSubstring(`parameter.args | []`))
+
+			// 4. OneOf with Default: discriminator field is concrete, not optional.
+			Expect(cue).To(ContainSubstring(`volume: *"emptyDir" | "configMap"`))
+			Expect(cue).NotTo(ContainSubstring(`volume?:`))
+
+			// 5. Inside a guarded if-block, dot syntax for the value reference
+			//    is still emitted (safe because the guard establishes existence).
+			Expect(cue).To(ContainSubstring(`labels: parameter.labels`))
+			Expect(cue).To(ContainSubstring(`args: parameter.args`))
+		})
+	})
+
+	// ------------------------------------------------------------------
+	// Regression coverage for two related defkit-cuegen bugs:
+	//   1. predicateToCUE() hardcoded the iteration variable to "v", so
+	//      ForEachWithGuardedFilteredVar with any other name emitted
+	//      `for p in source if v.field == ...` — broken CUE.
+	//   2. From().Filter().Map().Dedupe() rendered only the dedupe loop
+	//      and silently dropped the Filter and Map stages.
+	// ------------------------------------------------------------------
+
+	Describe("Filter predicate honours iteration variable name", func() {
+		It("ForEachWithGuardedFilteredVar with a custom var renames the predicate", func() {
+			ports := defkit.Array("ports").WithFields(
+				defkit.Int("port"),
+				defkit.Bool("expose").Default(false),
+			).Optional()
+
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(ports).
+				Template(func(tpl *defkit.Template) {
+					arr := defkit.NewArray().ForEachWithGuardedFilteredVar(
+						"p",
+						ports.IsSet(),
+						defkit.FieldEquals("expose", true),
+						ports,
+						func(item *defkit.ItemBuilder) {
+							p := item.Var()
+							item.Set("port", p.Field("port"))
+						})
+					tpl.Output(defkit.NewResource("v1", "Service").
+						Set("spec.ports", arr))
+				})
+
+			cue := c.ToCue()
+			// The for-loop must iterate `p`, AND the filter must reference `p`.
+			Expect(cue).To(ContainSubstring("for p in parameter.ports if p.expose == true"))
+			// The buggy combination — iteration `p` with filter against `v` —
+			// must not regress.
+			Expect(cue).NotTo(ContainSubstring("for p in parameter.ports if v.expose"))
+		})
+
+		It("ForEachWith with the default 'v' variable still renders v.field", func() {
+			ports := defkit.Array("ports").WithFields(
+				defkit.Int("port"),
+				defkit.Bool("expose").Default(false),
+			).Optional()
+
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(ports).
+				Template(func(tpl *defkit.Template) {
+					arr := defkit.NewArray().ForEachWithGuardedFiltered(
+						ports.IsSet(),
+						defkit.FieldEquals("expose", true),
+						ports,
+						func(item *defkit.ItemBuilder) {
+							v := item.Var()
+							item.Set("port", v.Field("port"))
+						})
+					tpl.Output(defkit.NewResource("v1", "Service").
+						Set("spec.ports", arr))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring("for v in parameter.ports if v.expose == true"))
+		})
+
+		It("ForEachWithVar renames the iteration variable in the body", func() {
+			env := defkit.Array("env").WithFields(
+				defkit.String("name"),
+				defkit.String("value"),
+			).Optional()
+
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(env).
+				Template(func(tpl *defkit.Template) {
+					arr := defkit.NewArray().ForEachWithVar("e", env,
+						func(item *defkit.ItemBuilder) {
+							e := item.Var()
+							item.Set("name", e.Field("name"))
+							item.Set("value", e.Field("value"))
+						})
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						Set("spec.template.spec.containers[0].env", arr))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring("for e in parameter.env"))
+			Expect(cue).To(ContainSubstring("name: e.name"))
+			Expect(cue).To(ContainSubstring("value: e.value"))
+		})
+
+		It("ItemBuilder.Set expands a dotted path into nested fields", func() {
+			maxRead := defkit.Int("maxReadRequestUnits").Optional()
+			indexes := defkit.Array("indexes").WithFields(
+				defkit.String("name"),
+			).Optional()
+
+			c := defkit.NewComponent("table").
+				Workload("v1", "ConfigMap").
+				Params(indexes, maxRead).
+				Template(func(tpl *defkit.Template) {
+					arr := defkit.NewArray().ForEachWith(indexes,
+						func(item *defkit.ItemBuilder) {
+							v := item.Var()
+							item.Set("name", v.Field("name"))
+							item.Set("onDemandThroughput.maxReadRequestUnits", maxRead)
+						})
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("spec.indexes", arr))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring("onDemandThroughput: maxReadRequestUnits: parameter.maxReadRequestUnits"))
+			// The unexpanded label is not valid CUE and must not reappear.
+			Expect(cue).NotTo(ContainSubstring("onDemandThroughput.maxReadRequestUnits:"))
+			// A single-segment field is unaffected.
+			Expect(cue).To(ContainSubstring("name: v.name"))
+			Expect(parseCUE(cue)).To(Succeed())
+		})
+
+		It("ItemBuilder.Set expands a dotted path inside a conditional block", func() {
+			maxRead := defkit.Int("maxReadRequestUnits").Optional()
+			maxWrite := defkit.Int("maxWriteRequestUnits").Optional()
+			indexes := defkit.Array("indexes").WithFields(
+				defkit.String("name"),
+			).Optional()
+
+			c := defkit.NewComponent("table").
+				Workload("v1", "ConfigMap").
+				Params(indexes, maxRead, maxWrite).
+				Template(func(tpl *defkit.Template) {
+					arr := defkit.NewArray().ForEachWith(indexes,
+						func(item *defkit.ItemBuilder) {
+							item.If(maxRead.IsSet(), func() {
+								item.Set("onDemandThroughput.maxReadRequestUnits", maxRead)
+							})
+							item.If(maxWrite.IsSet(), func() {
+								item.Set("onDemandThroughput.maxWriteRequestUnits", maxWrite)
+							})
+						})
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("spec.indexes", arr))
+				})
+
+			cue := c.ToCue()
+			// Sibling writes to the same parent unify into one struct.
+			Expect(cue).To(ContainSubstring("onDemandThroughput: maxReadRequestUnits: parameter.maxReadRequestUnits"))
+			Expect(cue).To(ContainSubstring("onDemandThroughput: maxWriteRequestUnits: parameter.maxWriteRequestUnits"))
+			Expect(parseCUE(cue)).To(Succeed())
+		})
+
+		It("ItemBuilder.Set does not split on a dot inside a bracketed key", func() {
+			items := defkit.Array("items").WithFields(
+				defkit.String("value"),
+			).Optional()
+
+			c := defkit.NewComponent("annotated").
+				Workload("v1", "ConfigMap").
+				Params(items).
+				Template(func(tpl *defkit.Template) {
+					arr := defkit.NewArray().ForEachWith(items,
+						func(item *defkit.ItemBuilder) {
+							v := item.Var()
+							item.Set(`metadata.annotations["example.com/owner"]`, v.Field("value"))
+						})
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("spec.items", arr))
+				})
+
+			cue := c.ToCue()
+			// The dot inside the brackets is part of the key, not a separator.
+			// Bracketed keys are not otherwise supported here; this only guards
+			// against one being split apart.
+			Expect(cue).To(ContainSubstring(`annotations["example.com/owner"]: v.value`))
+			Expect(cue).NotTo(ContainSubstring(`example: com/owner`))
+		})
+
+		It("ArrayElement.SetIf preserves dots inside bracketed keys", func() {
+			enabled := defkit.Bool("enabled").Optional()
+			items := defkit.Array("items").WithFields(
+				defkit.String("value"),
+			).Optional()
+
+			c := defkit.NewComponent("annotated").
+				Workload("v1", "ConfigMap").
+				Params(enabled, items).
+				Template(func(tpl *defkit.Template) {
+					const path = `labels["app.kubernetes.io/name"]`
+					arr := defkit.NewArray().
+						Item(defkit.NewArrayElement().
+							SetIf(enabled.IsSet(), path, defkit.Lit("static"))).
+						ForEach(items, defkit.NewArrayElement().
+							SetIf(enabled.IsSet(), path, defkit.Reference("m.value")))
+					tpl.Output(defkit.NewResource("v1", "ConfigMap").
+						Set("spec.items", arr))
+				})
+
+			cue := c.ToCue()
+			Expect(strings.Count(cue, `labels["app.kubernetes.io/name"]:`)).To(Equal(2))
+			Expect(cue).NotTo(ContainSubstring(`labels["app: kubernetes: io/name"]:`))
+		})
+	})
+
+	Describe("From().Filter().Map().Dedupe() pipeline", func() {
+		It("renders Filter, Map, and Dedupe stages together", func() {
+			env := defkit.Array("env").WithFields(
+				defkit.String("name"),
+				defkit.Bool("required").Default(false),
+			).Optional()
+
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(env).
+				Template(func(tpl *defkit.Template) {
+					chain := defkit.From(env).
+						Filter(defkit.FieldEquals("required", true)).
+						Map(defkit.FieldMap{
+							"secretName": defkit.FieldRef("name"),
+						}).
+						Dedupe("name")
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						SetIf(env.IsSet(),
+							"spec.template.spec.containers[0].envFrom", chain))
+				})
+
+			cue := c.ToCue()
+
+			// Filter must reach the dedupe inner loops, on both vi and vj,
+			// or duplicate detection compares across the filter boundary.
+			Expect(cue).To(ContainSubstring("for i, vi in parameter.env if vi.required == true"))
+			Expect(cue).To(ContainSubstring("vj.required == true && vi.name == vj.name"))
+
+			// Map output must replace the bare `vi` body that the buggy
+			// renderer used to emit; the mapped field reads off "val".
+			Expect(cue).To(ContainSubstring("if val._ignore == _|_"))
+			Expect(cue).To(ContainSubstring("secretName: val.name"))
+
+			// Negative: the previous output that silently dropped Filter+Map
+			// must not regress. A plain `val,` line in the body would mean
+			// the map was not applied.
+			Expect(cue).NotTo(MatchRegexp(`if val\._ignore == _\|_ \{\s*val,`))
+		})
+
+		It("Filter+Dedupe without Map keeps the deduped element", func() {
+			env := defkit.Array("env").WithFields(
+				defkit.String("name"),
+				defkit.Bool("required").Default(false),
+			).Optional()
+
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(env).
+				Template(func(tpl *defkit.Template) {
+					chain := defkit.From(env).
+						Filter(defkit.FieldEquals("required", true)).
+						Dedupe("name")
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						SetIf(env.IsSet(),
+							"spec.template.spec.containers[0].env", chain))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring("for i, vi in parameter.env if vi.required == true"))
+			Expect(cue).To(ContainSubstring("vj.required == true && vi.name == vj.name"))
+			// Without a Map, the deduped body is the bare element.
+			Expect(cue).To(ContainSubstring("val,"))
+		})
+
+		It("Map+Dedupe without Filter still renders the mapped struct", func() {
+			env := defkit.Array("env").WithFields(
+				defkit.String("name"),
+				defkit.String("value"),
+			).Optional()
+
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(env).
+				Template(func(tpl *defkit.Template) {
+					chain := defkit.From(env).
+						Map(defkit.FieldMap{
+							"name":  defkit.FieldRef("name"),
+							"value": defkit.FieldRef("value"),
+						}).
+						Dedupe("name")
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						SetIf(env.IsSet(),
+							"spec.template.spec.containers[0].env", chain))
+				})
+
+			cue := c.ToCue()
+			// No filter clause should leak into the i-loop.
+			Expect(cue).NotTo(ContainSubstring("for i, vi in parameter.env if"))
+			// Map output references "val" (the dedupe outer var), not "v".
+			Expect(cue).To(ContainSubstring("name: val.name"))
+			Expect(cue).To(ContainSubstring("value: val.value"))
+		})
+	})
+
+	// ------------------------------------------------------------------
+	// Regression coverage for the defkit audit bugs:
+	//   Bug 1: SetIf on an array-element path drops the if-guard.
+	//   Bug 2: tpl.AddLetBinding(...) ignored on components.
+	//   Bug 3: tpl.Helper(...).Filter(...).Guard(...).Build() drops both.
+	// (Bug 4 is in status_expr_test.go.)
+	// ------------------------------------------------------------------
+
+	Describe("TestFix_ArrayElementSetIfGuard (Bug 1)", func() {
+		It("keeps the if-guard around an array-element SetIf body", func() {
+			cmd := defkit.StringList("cmd").Optional()
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(cmd).
+				Template(func(tpl *defkit.Template) {
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						Set("spec.template.spec.containers[0].image", defkit.Lit("nginx")).
+						SetIf(cmd.IsSet(), "spec.template.spec.containers[0].command", cmd))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring(`if parameter["cmd"] != _|_`))
+			Expect(cue).To(ContainSubstring("command: parameter.cmd"))
+		})
+	})
+
+	Describe("TestFix_ComponentLetBinding (Bug 2)", func() {
+		It("emits the let binding above the output block", func() {
+			privileges := defkit.Array("privileges").WithFields(
+				defkit.String("scope"),
+			).Optional()
+			c := defkit.NewComponent("rbac").
+				Workload("apps/v1", "Deployment").
+				Params(privileges).
+				Template(func(tpl *defkit.Template) {
+					tpl.AddLetBinding("_clusterPrivileges",
+						defkit.From(privileges).
+							Filter(defkit.FieldEquals("scope", "cluster")).
+							Guard(privileges.IsSet()))
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment"))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring("let _clusterPrivileges = "))
+			Expect(cue).To(ContainSubstring(`if parameter["privileges"] != _|_`))
+			Expect(cue).To(ContainSubstring(`v.scope == "cluster"`))
+			// The let must appear before the output block.
+			Expect(strings.Index(cue, "let _clusterPrivileges")).To(BeNumerically("<", strings.Index(cue, "output:")))
+		})
+	})
+
+	Describe("TestFix_HelperFilterGuard (Bug 3)", func() {
+		It("emits both Filter and Guard inside the helper comprehension", func() {
+			privileges := defkit.Array("privileges").WithFields(
+				defkit.String("scope"),
+			).Optional()
+
+			c := defkit.NewComponent("rbac").
+				Workload("apps/v1", "Deployment").
+				Params(privileges).
+				Template(func(tpl *defkit.Template) {
+					tpl.Helper("_clusterPrivileges").
+						From(privileges).
+						Filter(defkit.FieldEquals("scope", "cluster")).
+						Guard(privileges.IsSet()).
+						Build()
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment"))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring(`if parameter["privileges"] != _|_`))
+			Expect(cue).To(ContainSubstring(`for v in parameter.privileges if v.scope == "cluster"`))
+			// Negative: the previous broken output silently dropped both.
+			Expect(cue).NotTo(MatchRegexp(`_clusterPrivileges: \[for v in parameter\.privileges \{ v \}\]`))
+		})
+	})
+
+	// ------------------------------------------------------------------
+	// Additional coverage for writeMapBody field variants on the dedupe
+	// path: OptionalField, CompoundOptionalField, ConditionalOrFieldRef,
+	// and MapVariant. The non-dedupe path is already covered by existing
+	// "GenerateFullDefinition with MapVariant" tests; these scenarios
+	// exercise the body that writeMapBody emits when a Dedupe stage is in
+	// the chain (so the iteration variable is "val", not "v").
+	// ------------------------------------------------------------------
+	Describe("Dedupe + Map variants exercise writeMapBody scope substitution", func() {
+		It("substitutes val.X for FieldRef and emits OptionalField guard", func() {
+			env := defkit.Array("env").WithFields(
+				defkit.String("name"),
+				defkit.String("value").Optional(),
+			).Optional()
+
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(env).
+				Template(func(tpl *defkit.Template) {
+					chain := defkit.From(env).
+						Map(defkit.FieldMap{
+							"name":  defkit.FieldRef("name"),
+							"value": defkit.OptionalFieldRef("value"),
+						}).
+						Dedupe("name")
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						SetIf(env.IsSet(),
+							"spec.template.spec.containers[0].env", chain))
+				})
+
+			cue := c.ToCue()
+			// OptionalField guard must reference the deduped scope variable.
+			Expect(cue).To(ContainSubstring("if val.value != _|_"))
+			Expect(cue).To(ContainSubstring("value: val.value"))
+			Expect(cue).To(ContainSubstring("name: val.name"))
+		})
+
+		It("emits CompoundOptionalField with an additional condition", func() {
+			mode := defkit.Enum("mode").Values("inline", "ref").Default("inline")
+			env := defkit.Array("env").WithFields(
+				defkit.String("name"),
+				defkit.String("value").Optional(),
+			).Optional()
+
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(mode, env).
+				Template(func(tpl *defkit.Template) {
+					chain := defkit.From(env).
+						Map(defkit.FieldMap{
+							"name": defkit.FieldRef("name"),
+							"value": defkit.OptionalFieldWithCond("value",
+								defkit.Eq(mode, defkit.Lit("inline"))),
+						}).
+						Dedupe("name")
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						SetIf(env.IsSet(),
+							"spec.template.spec.containers[0].env", chain))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring("if val.value != _|_"))
+			Expect(cue).To(ContainSubstring(`parameter.mode == "inline"`))
+			Expect(cue).To(ContainSubstring("value: val.value"))
+		})
+
+		It("emits ConditionalOrFieldRef with primary/fallback branches", func() {
+			env := defkit.Array("env").WithFields(
+				defkit.String("name"),
+				defkit.String("override").Optional(),
+				defkit.String("defaultValue").Optional(),
+			).Optional()
+
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(env).
+				Template(func(tpl *defkit.Template) {
+					chain := defkit.From(env).
+						Map(defkit.FieldMap{
+							"name":  defkit.FieldRef("name"),
+							"value": defkit.FieldRef("override").OrConditional(defkit.FieldRef("defaultValue")),
+						}).
+						Dedupe("name")
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						SetIf(env.IsSet(),
+							"spec.template.spec.containers[0].env", chain))
+				})
+
+			cue := c.ToCue()
+			// Primary present branch.
+			Expect(cue).To(ContainSubstring("if val.override != _|_"))
+			Expect(cue).To(ContainSubstring("value: val.override"))
+			// Primary absent branch — fallback FieldRef("defaultValue") was
+			// emitted as "v.defaultValue" by fieldValueToCUE; subVar must
+			// rewrite it to "val.defaultValue" in the dedupe scope.
+			Expect(cue).To(ContainSubstring("if val.override == _|_"))
+			Expect(cue).To(ContainSubstring("value: val.defaultValue"))
+		})
+
+		It("emits MapVariant blocks with val-scoped discriminator and fields", func() {
+			volumes := defkit.Array("volumes").WithFields(
+				defkit.String("name"),
+				defkit.String("type"),
+				defkit.String("claimName").Optional(),
+				defkit.String("medium").Optional(),
+			).Optional()
+
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(volumes).
+				Template(func(tpl *defkit.Template) {
+					chain := defkit.From(volumes).
+						Map(defkit.FieldMap{
+							"name": defkit.FieldRef("name"),
+						}).
+						MapVariant("type", "pvc", defkit.FieldMap{
+							"persistentVolumeClaim.claimName": defkit.FieldRef("claimName"),
+						}).
+						MapVariant("type", "emptyDir", defkit.FieldMap{
+							"emptyDir.medium": defkit.OptionalFieldRef("medium"),
+						}).
+						Dedupe("name")
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						SetIf(volumes.IsSet(),
+							"spec.template.spec.volumes", chain))
+				})
+
+			cue := c.ToCue()
+			// Discriminator and variant fields read off "val".
+			Expect(cue).To(ContainSubstring(`if val.type == "pvc"`))
+			Expect(cue).To(ContainSubstring("persistentVolumeClaim.claimName: val.claimName"))
+			Expect(cue).To(ContainSubstring(`if val.type == "emptyDir"`))
+			// OptionalField nested inside MapVariant guards on val.medium.
+			Expect(cue).To(ContainSubstring("if val.medium != _|_"))
+			Expect(cue).To(ContainSubstring("emptyDir.medium: val.medium"))
+		})
+	})
+
+	// ------------------------------------------------------------------
+	// predicateToCUE FieldIsSet branch — exercised when Filter() takes a
+	// FieldExists predicate. The dedupe path threads it through the inner
+	// loops, so the rendered CUE must contain "v.field != _|_".
+	// ------------------------------------------------------------------
+	Describe("Filter with FieldExists predicate", func() {
+		It("renders v.field != _|_ inside the dedupe loops", func() {
+			env := defkit.Array("env").WithFields(
+				defkit.String("name"),
+				defkit.String("optional").Optional(),
+			).Optional()
+
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(env).
+				Template(func(tpl *defkit.Template) {
+					chain := defkit.From(env).
+						Filter(defkit.FieldExists("optional")).
+						Dedupe("name")
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						SetIf(env.IsSet(),
+							"spec.template.spec.containers[0].env", chain))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring("vi.optional != _|_"))
+			Expect(cue).To(ContainSubstring("vj.optional != _|_"))
+		})
+	})
+
+	// ------------------------------------------------------------------
+	// collectFilterCondition AND-composes multiple Filter() stages into
+	// one CUE expression on each side of the dedupe inner loops.
+	// ------------------------------------------------------------------
+	Describe("Multiple Filter stages compose via && in dedupe loops", func() {
+		It("ANDs two Filter predicates inside the dedupe i/j loops", func() {
+			env := defkit.Array("env").WithFields(
+				defkit.String("name"),
+				defkit.Bool("required").Default(false),
+				defkit.Bool("active").Default(true),
+			).Optional()
+
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(env).
+				Template(func(tpl *defkit.Template) {
+					chain := defkit.From(env).
+						Filter(defkit.FieldEquals("required", true)).
+						Filter(defkit.FieldEquals("active", true)).
+						Dedupe("name")
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment").
+						SetIf(env.IsSet(),
+							"spec.template.spec.containers[0].env", chain))
+				})
+
+			cue := c.ToCue()
+			// Both filters reach the i-loop via " && ".
+			Expect(cue).To(ContainSubstring("vi.required == true && vi.active == true"))
+			// And the j-loop precedes the dedupe key compare.
+			Expect(cue).To(ContainSubstring("vj.required == true && vj.active == true && vi.name == vj.name"))
+		})
+	})
+
+	// ------------------------------------------------------------------
+	// writeCollectionOpHelper bare-comprehension default path. With no
+	// Filter, Map, Dedupe, or Pick on the chain the helper renders as
+	// `[for v in source { v }]` — covers the bare-default branch.
+	// ------------------------------------------------------------------
+	Describe("Helper with no Filter / no Map / no Dedupe renders bare comprehension", func() {
+		It("emits [for v in source { v }]", func() {
+			ports := defkit.Array("ports").WithFields(
+				defkit.Int("port"),
+			).Optional()
+
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(ports).
+				Template(func(tpl *defkit.Template) {
+					tpl.Helper("_passthrough").
+						From(ports).
+						Build()
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment"))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring(`for v in parameter.ports { v }`))
+		})
+	})
+
+	// ------------------------------------------------------------------
+	// writeMultiSourceHelper / multiSourceToCUE pick up the renamed
+	// predicateToCUE(pred, "v") call site whenever a MultiSource chain
+	// includes a Filter. tpl.Helper(...).FromFields(...).Filter(...) wires
+	// that path end-to-end.
+	// ------------------------------------------------------------------
+	Describe("MultiSource helper with Filter exercises renamed predicate path", func() {
+		It("emits the filter expression in the multi-source comprehension", func() {
+			volumes := defkit.Struct("volumes").WithFields(
+				defkit.Field("pvc", defkit.ParamTypeArray).Optional(),
+				defkit.Field("configMap", defkit.ParamTypeArray).Optional(),
+			).Optional()
+
+			c := defkit.NewComponent("svc").
+				Workload("apps/v1", "Deployment").
+				Params(volumes).
+				Template(func(tpl *defkit.Template) {
+					tpl.Helper("_exposed").
+						FromFields(volumes, "pvc", "configMap").
+						Filter(defkit.FieldEquals("expose", true)).
+						Build()
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment"))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring("v.expose == true"))
+		})
+	})
+
+	// ------------------------------------------------------------------
+	// writeCollectionOpHelper Default path with both Filter and Guard.
+	// Triggered when a helper has filters and a guard but no Map / Dedupe /
+	// MapVariant / Reduce — the renderer must emit the guard-prefixed
+	// comprehension with the filter clause inline.
+	// ------------------------------------------------------------------
+	Describe("Helper with Filter+Guard but no Map renders guard-prefixed comprehension", func() {
+		It("emits if-guard followed by for-v-in source if cond { v }", func() {
+			privileges := defkit.Array("privileges").WithFields(
+				defkit.String("scope"),
+			).Optional()
+
+			c := defkit.NewComponent("rbac").
+				Workload("apps/v1", "Deployment").
+				Params(privileges).
+				Template(func(tpl *defkit.Template) {
+					tpl.Helper("_clusterScopes").
+						From(privileges).
+						Filter(defkit.FieldEquals("scope", "cluster")).
+						Guard(privileges.IsSet()).
+						Build()
+					tpl.Output(defkit.NewResource("apps/v1", "Deployment"))
+				})
+
+			cue := c.ToCue()
+			Expect(cue).To(ContainSubstring(`if parameter["privileges"] != _|_`))
+			Expect(cue).To(ContainSubstring(`for v in parameter.privileges if v.scope == "cluster"`))
 		})
 	})
 })

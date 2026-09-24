@@ -1,3 +1,5 @@
+import "list"
+
 command: {
 	type: "trait"
 	annotations: {}
@@ -64,7 +66,7 @@ template: {
 			}
 
 			// +patchStrategy=replace
-			args: [for a in _args if _delArgs[a] == _|_ {a}] + [for a in _addArgs if _delArgs[a] == _|_ && _argsMap[a] == _|_ {a}]
+			args: list.Concat([[for a in _args if _delArgs[a] == _|_ {a}], [for a in _addArgs if _delArgs[a] == _|_ && _argsMap[a] == _|_ {a}]])
 		}
 	}
 	// +patchStrategy=open

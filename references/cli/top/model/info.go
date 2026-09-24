@@ -86,6 +86,9 @@ func (i *Info) ClusterNum() string {
 
 // K8SVersion return k8s version info
 func K8SVersion(cfg *rest.Config) string {
+	if cfg == nil {
+		return Unknown
+	}
 	c, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		return Unknown
@@ -141,6 +144,9 @@ func ApplicationRunningNum(cfg *rest.Config) string {
 }
 
 func velaCorePodUsage(cfg *rest.Config) (*v1beta1.PodMetrics, error) {
+	if cfg == nil {
+		return nil, errors.New("no rest.Config available")
+	}
 	ctx := context.Background()
 	c, err := metrics.NewForConfig(cfg)
 	if err != nil {
@@ -194,6 +200,9 @@ func VelaCoreRatio(c client.Client, cfg *rest.Config) (string, string, string, s
 }
 
 func velaCLusterGatewayPodUsage(cfg *rest.Config) (*v1beta1.PodMetrics, error) {
+	if cfg == nil {
+		return nil, errors.New("no rest.Config available")
+	}
 	ctx := context.Background()
 	c, err := metrics.NewForConfig(cfg)
 	if err != nil {

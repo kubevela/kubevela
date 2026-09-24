@@ -1,0 +1,45 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-deploy-components-missing
+spec:
+  components:
+    - name: cm-on-local
+      type: k8s-objects
+      properties:
+        objects:
+          - apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: cm-on-local
+            data:
+              key: "local"
+    - name: cm-on-worker
+      type: k8s-objects
+      properties:
+        objects:
+          - apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: cm-on-worker
+            data:
+              key: "worker"
+  policies:
+    - name: topology-local
+      type: topology
+      properties:
+        clusters: ["local"]
+    - name: topology-worker
+      type: topology
+      properties:
+        clusters: ["cluster-worker"]
+  workflow:
+    steps:
+      - name: deploy-components
+        type: deploy-components
+        properties:
+          components:
+            - name: cm-on-lcal # intentional typo, should trigger validation failure
+              policies: ["topology-local"]
+            - name: cm-on-worker
+              policies: ["topology-worker"]

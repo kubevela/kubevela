@@ -17,10 +17,12 @@ spec:
   schematic:
     cue:
       template: |
-        import "strconv"
-        import "strings"
         import "list"
 
+        import (
+        	"strconv"
+        	"strings"
+        )
         #PatchParams: {
         	// +usage=Specify the name of the target container, if not set, use the component name
         	containerName: *"" | string

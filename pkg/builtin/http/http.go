@@ -59,6 +59,16 @@ func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 		}
 	)
 	if obj := meta.Obj.LookupPath(value.FieldPath("request")); obj.Exists() {
+		// Allow CUE authors to override the default 3s timeout via request.timeout
+		// (e.g., timeout: "30s"). Expects a string duration parseable by time.ParseDuration.
+		// Only positive durations are accepted; zero or negative values are ignored.
+		if v := obj.LookupPath(value.FieldPath("timeout")); v.Exists() {
+			if timeoutStr, parseErr := v.String(); parseErr == nil {
+				if d, parseErr := time.ParseDuration(timeoutStr); parseErr == nil && d > 0 {
+					client.Timeout = d
+				}
+			}
+		}
 		if v := obj.LookupPath(value.FieldPath("body")); v.Exists() {
 			r, err = v.Reader()
 			if err != nil {

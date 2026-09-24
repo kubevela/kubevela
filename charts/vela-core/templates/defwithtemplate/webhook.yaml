@@ -12,12 +12,13 @@ spec:
   schematic:
     cue:
       template: |
-        import "vela/http"
-        import "vela/kube"
-        import "vela/util"
-        import "encoding/json"
-        import "encoding/base64"
-
+        import (
+        	"vela/http"
+        	"vela/kube"
+        	"vela/util"
+        	"encoding/json"
+        	"encoding/base64"
+        )
         data: {
         	if parameter.data == _|_ {
         		read: kube.#Read & {
@@ -36,6 +37,11 @@ spec:
         		value: json.Marshal(parameter.data)
         	}
         }
+        httpRequestOpts: {
+        	if parameter.timeout != _|_ {
+        		timeout: parameter.timeout
+        	}
+        }
         webhook: {
         	if parameter.url.value != _|_ {
         		req: http.#HTTPDo & {
@@ -45,7 +51,7 @@ spec:
         				request: {
         					body: data.value
         					header: "Content-Type": "application/json"
-        				}
+        				} & httpRequestOpts
         			}
         		}
         	}
@@ -69,7 +75,7 @@ spec:
         				request: {
         					body: data.value
         					header: "Content-Type": "application/json"
-        				}
+        				} & httpRequestOpts
         			}
         		}
         	}
@@ -89,5 +95,7 @@ spec:
         	})
         	// +usage=Specify the data you want to send
         	data?: {...}
+        	// +usage=The timeout of this request (Go duration string, e.g. "30s", "2m", "500ms"). Defaults to 3s when omitted. Invalid values fail when the step runs.
+        	timeout?: string & =~"^(0|(([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$"
         }
 

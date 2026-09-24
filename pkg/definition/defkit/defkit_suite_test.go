@@ -19,6 +19,7 @@ package defkit_test
 import (
 	"testing"
 
+	"cuelang.org/go/cue/parser"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -26,4 +27,12 @@ import (
 func TestDefkit(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Defkit Suite")
+}
+
+// parseCUE parses generated CUE and returns any syntax error. Substring
+// assertions cannot tell a well-formed definition from one that only breaks
+// once a parser reaches it.
+func parseCUE(src string) error {
+	_, err := parser.ParseFile("generated.cue", src)
+	return err
 }

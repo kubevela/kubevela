@@ -15,7 +15,8 @@ Fixes #
 
 I have:
 
-- [ ] Read and followed KubeVela's [contribution process](https://github.com/kubevela/kubevela/blob/master/contribute/create-pull-request.md).
+- [ ] Read and followed KubeVela's [pull request process](https://kubevela.io/docs/contributor/code-contribute#create-a-pull-request).
+- [ ] All commits are signed off (DCO).
 - [ ] [Related Docs](https://github.com/kubevela/kubevela.io) updated properly. In a new feature or configuration option, an update to the documentation is necessary. 
 - [ ] Run `make reviewable` to ensure this PR is ready for review.
 - [ ] Added `backport release-x.y` labels to auto-backport this PR if necessary.

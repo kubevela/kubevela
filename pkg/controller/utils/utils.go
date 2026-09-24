@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -53,6 +54,14 @@ var ExtractComponentName = util.ExtractComponentName
 // ExtractRevision will extract the revision from a revisionName
 func ExtractRevision(revisionName string) (int, error) {
 	splits := strings.Split(revisionName, "-")
+	// check some bad revision name, eg: 5
+	if len(splits) == 1 {
+		return 0, errors.New(util.ErrBadRevision)
+	}
+	// check some bad revision name, eg: myapp-a1
+	if !strings.HasPrefix(splits[len(splits)-1], "v") {
+		return 0, errors.New(util.ErrBadRevision)
+	}
 	// the revision is the last string without the prefix "v"
 	return strconv.Atoi(strings.TrimPrefix(splits[len(splits)-1], "v"))
 }

@@ -20,9 +20,12 @@ package utils
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-git/go-git/v5"
@@ -205,41 +208,268 @@ func GetOpenAPISchemaFromTerraformComponentDefinition(configuration string) ([]b
 
 // GetTerraformConfigurationFromRemote gets Terraform Configuration(HCL)
 func GetTerraformConfigurationFromRemote(name, remoteURL, remotePath string, sshPublicKey *gitssh.PublicKeys) (string, error) {
+	if err := validateModuleName(name); err != nil {
+		return "", err
+	}
 	userHome, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
 	cachePath := filepath.Join(userHome, ".vela", "terraform", name)
-	// Check if the directory exists. If yes, remove it.
-	entities, err := os.ReadDir(cachePath)
-	if err != nil || len(entities) == 0 {
-		fmt.Printf("loading terraform module %s into %s from %s\n", name, cachePath, remoteURL)
-		cloneOptions := &git.CloneOptions{
-			URL:      remoteURL,
-			Progress: os.Stdout,
-		}
-		if sshPublicKey != nil {
-			cloneOptions.Auth = sshPublicKey
-		}
-		if _, err = git.PlainClone(cachePath, false, cloneOptions); err != nil {
+
+	// Reuse the cache only when it is populated AND was cloned from the same URL.
+	// Otherwise (empty, a changed URL, or a missing marker) re-clone, so a
+	// definition repointed at a different repository does not keep serving the old
+	// tree. See GHSA-fmgp-q6jx-gg3x.
+	if !cacheMatchesRemote(cachePath, remoteURL) {
+		_ = os.RemoveAll(cachePath)
+		klog.InfoS("cloning remote Terraform module", "module", name, "url", redactURLCredentials(remoteURL), "cache", cachePath)
+		if err = cloneTerraformModule(cachePath, remoteURL, sshPublicKey); err != nil {
+			// Do not leave a partial or oversized clone behind for the next reconcile.
+			klog.ErrorS(err, "failed to clone remote Terraform module", "module", name, "url", redactURLCredentials(remoteURL))
+			_ = os.RemoveAll(cachePath)
 			return "", err
 		}
+		recordCacheRemote(cachePath, remoteURL)
 	}
 	sshKnownHostsPath := os.Getenv("SSH_KNOWN_HOSTS")
 	_ = os.Remove(sshKnownHostsPath)
 
-	tfPath := filepath.Join(cachePath, remotePath, "variables.tf")
-	if _, err := os.Stat(tfPath); err != nil {
-		tfPath = filepath.Join(cachePath, remotePath, "main.tf")
-		if _, err := os.Stat(tfPath); err != nil {
-			return "", errors.Wrap(err, "failed to find main.tf or variables.tf in Terraform configurations of the remote repository")
+	conf, err := readTerraformConfigFromDir(cachePath, remotePath)
+	if err != nil {
+		// Drop the cached clone on any rejection or read failure so a corrected or
+		// replaced repository is re-cloned next time, rather than the controller
+		// re-reading a poisoned or stale tree forever. Wiping on a transient read
+		// error only costs one bounded re-clone, which beats risking a stuck poison.
+		klog.InfoS("evicting Terraform module cache after a failed read", "module", name, "cache", cachePath, "err", err.Error())
+		_ = os.RemoveAll(cachePath)
+		return "", err
+	}
+	return conf, nil
+}
+
+// cacheRemoteMarkerSuffix names the sibling file that records the remote a cached
+// Terraform module was cloned from, used to detect a changed remote. A
+// credential-stripped form of the URL is stored (see redactURLCredentials) so the
+// marker never persists secrets embedded in an authenticated Git URL.
+const cacheRemoteMarkerSuffix = ".remote-url"
+
+// validateModuleName rejects names that could steer the cache path (and the
+// os.RemoveAll that cleans it) outside the module cache directory. Callers pass a
+// Kubernetes object name, but the check keeps that guarantee local and explicit.
+func validateModuleName(name string) error {
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+		return errors.Errorf("invalid Terraform module name %q", name)
+	}
+	return nil
+}
+
+// cacheMatchesRemote reports whether cachePath holds a populated clone recorded
+// as coming from remoteURL. The marker stores a credential-stripped URL, so the
+// comparison strips credentials from remoteURL the same way before matching.
+func cacheMatchesRemote(cachePath, remoteURL string) bool {
+	entities, err := os.ReadDir(cachePath)
+	if err != nil || len(entities) == 0 {
+		return false
+	}
+	recorded, err := os.ReadFile(filepath.Clean(cachePath + cacheRemoteMarkerSuffix))
+	if err != nil {
+		return false
+	}
+	return string(recorded) == redactURLCredentials(remoteURL)
+}
+
+// recordCacheRemote records the remote a freshly cloned module came from. It stores a
+// credential-stripped URL so the marker never persists secrets that an authenticated
+// Git URL may embed.
+func recordCacheRemote(cachePath, remoteURL string) {
+	if err := os.WriteFile(cachePath+cacheRemoteMarkerSuffix, []byte(redactURLCredentials(remoteURL)), 0600); err != nil {
+		klog.ErrorS(err, "failed to record Terraform module remote URL", "cache", cachePath)
+	}
+}
+
+// redactURLCredentials strips any embedded userinfo (a username, password, or token)
+// from a URL so it is safe to log and persist. Authenticated HTTPS Git URLs can carry
+// credentials in the userinfo; scp-style SSH URLs ("git@host:path") fail url.Parse but
+// authenticate with keys, so they carry no secret. The same stripped form is used for
+// logging and for the cache marker, so record and match stay consistent.
+func redactURLCredentials(raw string) string {
+	if u, err := url.Parse(raw); err == nil {
+		u.User = nil
+		return u.String()
+	}
+	// url.Parse failed (typically scp-style SSH). Strip a leading "user@" defensively
+	// in case a malformed URL still embeds credentials before the host.
+	if _, after, found := strings.Cut(raw, "@"); found {
+		return after
+	}
+	return raw
+}
+
+const (
+	// cloneTimeout bounds the network fetch of a remote Terraform module clone, so a
+	// slow or oversized attacker-supplied repository cannot hang the controller. It
+	// covers the git transport only; the worktree checkout that follows is not bound
+	// by this deadline.
+	cloneTimeout = 2 * time.Minute
+	// maxCloneBytes and maxCloneEntries cap the on-disk footprint of a cloned remote
+	// Terraform module (modules are small). They run AFTER the clone completes, so
+	// they bound the RETAINED clone (an oversized clone is rejected and removed by
+	// the caller) rather than peak transient disk during transfer/checkout; Depth:1
+	// keeps that transient footprint to a single shallow commit. Fully bounding peak
+	// transfer disk (NoCheckout plus object-store reads, or an instrumented
+	// filesystem) is a follow-up. See GHSA-fmgp-q6jx-gg3x.
+	maxCloneBytes int64 = 64 << 20 // 64 MiB
+	// maxCloneEntries counts every filesystem entry (files, directories, and
+	// symlinks), so a tree of many empty directories or symlinks cannot bypass the
+	// bound and exhaust inodes.
+	maxCloneEntries = 50000
+)
+
+// cloneTerraformModule shallow-clones remoteURL into cachePath under a fetch
+// timeout, then rejects an oversized clone. Depth:1 drops history, the timeout
+// bounds the network fetch, and the post-clone caps reject a clone whose retained
+// size or entry count is too large (the caller removes the rejected clone).
+func cloneTerraformModule(cachePath, remoteURL string, sshPublicKey *gitssh.PublicKeys) error {
+	ctx, cancel := context.WithTimeout(context.Background(), cloneTimeout)
+	defer cancel()
+
+	cloneOptions := &git.CloneOptions{
+		URL:      remoteURL,
+		Progress: os.Stdout,
+		Depth:    1,
+	}
+	if sshPublicKey != nil {
+		cloneOptions.Auth = sshPublicKey
+	}
+	if _, err := git.PlainCloneContext(ctx, cachePath, false, cloneOptions); err != nil {
+		return errors.Wrap(err, "failed to clone remote Terraform configuration")
+	}
+	return ensureDirWithinLimits(cachePath, maxCloneBytes, maxCloneEntries)
+}
+
+// ensureDirWithinLimits returns an error as soon as the entries under root exceed
+// maxEntries in count or the regular files exceed maxBytes in total size. Every
+// entry (regular files, directories, and symlinks) counts toward maxEntries, so a
+// tree of many directories or symlinks cannot slip past the bound and exhaust
+// inodes; only regular files contribute to the byte total. It counts everything
+// under root (including .git, by design) and does not follow symlinks. The caps
+// bound the retained clone, not peak disk during the clone (see maxCloneBytes).
+func ensureDirWithinLimits(root string, maxBytes int64, maxEntries int) error {
+	var (
+		total   int64
+		entries int
+	)
+	return filepath.WalkDir(root, func(_ string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		entries++
+		if entries > maxEntries {
+			return errors.Errorf("remote Terraform repository exceeds the maximum allowed entry count of %d", maxEntries)
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		total += info.Size()
+		if total > maxBytes {
+			return errors.Errorf("remote Terraform repository exceeds the maximum allowed size of %d bytes", maxBytes)
+		}
+		return nil
+	})
+}
+
+// maxTerraformConfigBytes caps how much of a remote Terraform configuration
+// file the loader will read. HCL configurations are small, so the cap stops a
+// malicious or compromised repository from steering the read at an unbounded
+// source (for example a variables.tf symlinked to /dev/zero) and OOM-killing
+// the controller. See GHSA-fmgp-q6jx-gg3x.
+const maxTerraformConfigBytes int64 = 1 << 20 // 1 MiB
+
+// errTerraformConfigTooLarge builds the error returned when a candidate
+// configuration file exceeds maxTerraformConfigBytes.
+func errTerraformConfigTooLarge(path string, maxSize int64) error {
+	return errors.Errorf("refusing to read Terraform configuration %q: exceeds the maximum allowed size of %d bytes", path, maxSize)
+}
+
+// readTerraformConfigFromDir reads variables.tf, or main.tf as a fallback, from
+// the cloned remote repository at cacheRoot/remotePath. It refuses any candidate
+// that is not a regular file contained within cacheRoot (defeating symlink and
+// path-traversal escapes) and any file larger than maxTerraformConfigBytes.
+func readTerraformConfigFromDir(cacheRoot, remotePath string) (string, error) {
+	baseDir := filepath.Join(cacheRoot, remotePath)
+	for _, name := range []string{"variables.tf", "main.tf"} {
+		content, found, err := readContainedRegularFile(cacheRoot, filepath.Join(baseDir, name), maxTerraformConfigBytes)
+		if err != nil {
+			return "", err
+		}
+		if found {
+			return content, nil
 		}
 	}
-	conf, err := os.ReadFile(filepath.Clean(tfPath))
+	return "", errors.New("failed to find main.tf or variables.tf in Terraform configurations of the remote repository")
+}
+
+// readContainedRegularFile reads path when it is a regular file whose real
+// location stays inside root and whose size is within maxSize. found is false
+// only when path does not exist, so callers can try a fallback name; any other
+// problem (a symlink or traversal escape, an irregular file, or an oversize
+// file) is a hard error rather than a silent fallback.
+func readContainedRegularFile(root, path string, maxSize int64) (content string, found bool, err error) {
+	info, err := os.Lstat(path)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to read Terraform configuration")
+		if os.IsNotExist(err) {
+			return "", false, nil
+		}
+		return "", false, errors.Wrap(err, "failed to stat Terraform configuration")
 	}
-	return string(conf), nil
+	// Reject any symlink at the target outright, even one that resolves inside
+	// the cache. This is intentionally stricter than the containment check
+	// below: variables.tf/main.tf are expected to be regular files, so a blanket
+	// rejection is the simplest defense against the GHSA-fmgp-q6jx-gg3x
+	// symlink-to-/dev/zero vector. The containment check still guards a symlinked
+	// parent directory whose leaf is itself a regular file.
+	if info.Mode()&os.ModeSymlink != 0 {
+		return "", true, errors.Errorf("refusing to read symlinked Terraform configuration %q", path)
+	}
+
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", true, errors.Wrap(err, "failed to resolve Terraform cache directory")
+	}
+	realPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", true, errors.Wrap(err, "failed to resolve Terraform configuration path")
+	}
+	if realPath != realRoot && !strings.HasPrefix(realPath, realRoot+string(os.PathSeparator)) {
+		return "", true, errors.Errorf("refusing to read Terraform configuration outside the cache directory: %q", path)
+	}
+
+	if !info.Mode().IsRegular() {
+		return "", true, errors.Errorf("refusing to read non-regular Terraform configuration %q", path)
+	}
+	if info.Size() > maxSize {
+		return "", true, errTerraformConfigTooLarge(path, maxSize)
+	}
+
+	f, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return "", true, errors.Wrap(err, "failed to read Terraform configuration")
+	}
+	defer func() { _ = f.Close() }()
+
+	buf, err := io.ReadAll(io.LimitReader(f, maxSize+1))
+	if err != nil {
+		return "", true, errors.Wrap(err, "failed to read Terraform configuration")
+	}
+	if int64(len(buf)) > maxSize {
+		return "", true, errTerraformConfigTooLarge(path, maxSize)
+	}
+	return string(buf), true, nil
 }
 
 func parseOtherProperties4TerraformDefinition() map[string]*openapi3.Schema {

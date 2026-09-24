@@ -14,9 +14,10 @@ spec:
   schematic:
     cue:
       template: |
-        import "vela/kube"
-        import "vela/builtin"
-
+        import (
+        	"vela/kube"
+        	"vela/builtin"
+        )
         // Count how many parameters are provided
         _paramCount: len([
         	if parameter.at != _|_ {1},

@@ -1,0 +1,29 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: legacy-cue-trait
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Trait with legacy CUE list-arithmetic syntax for compat layer testing"
+spec:
+  appliesToWorkloads:
+    - legacy-cue-component
+  podDisruptive: false
+  schematic:
+    cue:
+      template: |
+        // Legacy list-arithmetic: baseLabels + extraLabels uses deprecated + operator
+        baseLabels: [{key: "managed-by", value: "kubevela"}]
+        extraLabels: [{key: "legacy-compat", value: "tested"}]
+        allLabels: baseLabels + extraLabels
+
+        outputs: configmap: {
+          apiVersion: "v1"
+          kind:       "ConfigMap"
+          metadata: {
+            name: context.name + "-legacy-labels"
+            labels: "managed-by": "kubevela"
+          }
+          data: "label-count": "\(len(allLabels))"
+        }
+        parameter: {}

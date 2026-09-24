@@ -1,0 +1,62 @@
+# application.yaml
+#
+# Exercises all three legacy CUE definitions together:
+#
+#   Component  db-provisioner        -- list-arithmetic upgrade (list + and *)
+#   Trait      sidecar-logger        -- error-field-label upgrade (unquoted `error:`)
+#   Workflow   check-global-replica  -- bool-default-negation upgrade (bool | *false guard)
+#
+# When --enable-cue-version-compatibility=true (the default), all three
+# definitions are rewritten transparently at render time and the application
+# reconciles successfully. Disable the flag to observe the raw CUE v0.14
+# compilation failures.
+#
+# Apply order:
+#   vela def apply examples/legacy-upgrade-demo/component-db-provisioner.cue
+#   vela def apply examples/legacy-upgrade-demo/trait-sidecar-logger.cue
+#   vela def apply examples/legacy-upgrade-demo/workflow-check-global-replica.cue
+#   kubectl apply -f examples/legacy-upgrade-demo/application.yaml
+
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: db-global-secondary
+  namespace: default
+  annotations:
+    # Documents that this app was authored against pre-v1.11 definitions.
+    app.oam.dev/legacy-cue-compat: "true"
+spec:
+  components:
+    - name: primary-db
+      type: db-provisioner
+      properties:
+        image: postgres:15
+        replicas: 1
+        port: 5432
+        env:
+          - name: POSTGRES_DB
+            value: appdb
+          - name: POSTGRES_USER
+            value: admin
+        initScripts:
+          - /bin/sh
+          - -c
+          - echo "DB init complete"
+        scriptReplicas: 2
+      traits:
+        - type: sidecar-logger
+          properties:
+            format: json
+            level: info
+
+  workflow:
+    steps:
+      # Runs the bool-default-negation-affected step.
+      # This cluster is a secondary, so engineVersion must NOT be required.
+      - name: validate-replica-role
+        type: check-global-replica
+        properties:
+          globalCluster:
+            mode: secondary
+            id: eu-west-1-replica
+          # engineVersion intentionally omitted — must be fine for a secondary.

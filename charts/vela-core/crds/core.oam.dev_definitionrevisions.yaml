@@ -686,8 +686,20 @@ spec:
                           for creating the workload
                         type: boolean
                       podDisruptive:
-                        description: PodDisruptive specifies whether using the trait
-                          will cause the pod to restart or not.
+                        description: |-
+                          PodDisruptive indicates that this trait is disruptive to the pod: applying or
+                          updating it should cause the workload's pods to restart. If the trait's CUE
+                          template patches the workload's pod template directly (`patch:` on
+                          `spec.template`), the restart happens automatically via the normal Kubernetes
+                          rollout mechanism and this field is not required.
+
+                          If the trait instead renders separate objects via `outputs:` (e.g. a ConfigMap
+                          consumed by the workload), set this to true so KubeVela stamps a content hash of
+                          the trait's rendered output onto the workload's pod template annotations
+                          (`app.oam.dev/trait-restart-hash-<traitType>`). This causes the pod template to
+                          change whenever the trait's applied configuration changes, which in turn causes
+                          the owning controller (Deployment/StatefulSet/CloneSet/...) to roll the pods.
+                          Workloads without a `spec.template` (e.g. a bare Service) are unaffected.
                         type: boolean
                       revisionEnabled:
                         description: Revision indicates whether a trait is aware of

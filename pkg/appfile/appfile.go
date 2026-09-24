@@ -18,6 +18,8 @@ package appfile
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -364,8 +366,90 @@ func (af *Appfile) SetOAMContract(comp *types.ComponentManifest) error {
 		if err := af.setWorkloadRefToTrait(workloadRef, trait); err != nil && !IsNotFoundInAppFile(err) {
 			return errors.WithMessagef(err, "cannot set workload reference to trait %q", trait.GetName())
 		}
+		if err := af.propagatePodDisruptiveHash(comp.ComponentOutput, trait); err != nil && !IsNotFoundInAppFile(err) {
+			return errors.WithMessagef(err, "cannot propagate podDisruptive hash for trait %q", trait.GetName())
+		}
 	}
 	return nil
+}
+
+const podRestartHashAnnotationPrefix = "app.oam.dev/trait-restart-hash-"
+
+const maxAnnotationKeyNameLength = 63
+
+func podRestartHashAnnotationKey(lookupType string) string {
+	key := podRestartHashAnnotationPrefix + lookupType
+	if len(key) <= maxAnnotationKeyNameLength {
+		return key
+	}
+	sum := sha256.Sum256([]byte(lookupType))
+	return podRestartHashAnnotationPrefix + hex.EncodeToString(sum[:])[:16]
+}
+
+func (af *Appfile) propagatePodDisruptiveHash(workload *unstructured.Unstructured, trait *unstructured.Unstructured) error {
+	traitType := trait.GetLabels()[oam.TraitTypeLabel]
+	if traitType == "" || traitType == definition.AuxiliaryWorkload {
+		return nil
+	}
+	lookupType := traitType
+	if strings.Contains(lookupType, "-") {
+		splitName := lookupType[0:strings.LastIndex(lookupType, "-")]
+		if _, ok := af.RelatedTraitDefinitions[splitName]; ok {
+			lookupType = splitName
+		}
+	}
+	traitDef, ok := af.RelatedTraitDefinitions[lookupType]
+	if !ok {
+		return errors.Errorf("TraitDefinition %s not found in appfile", lookupType)
+	}
+	if !traitDef.Spec.PodDisruptive {
+		return nil
+	}
+
+	if _, found, err := unstructured.NestedMap(workload.UnstructuredContent(), "spec", "template"); err != nil || !found {
+		return nil //nolint:nilerr
+	}
+
+	hash, err := computeTraitContentHash(trait)
+	if err != nil {
+		return errors.Wrapf(err, "failed to hash content of trait %q", trait.GetName())
+	}
+
+	templateAnnotations, _, err := unstructured.NestedStringMap(workload.UnstructuredContent(), "spec", "template", "metadata", "annotations")
+	if err != nil {
+		return err
+	}
+	if templateAnnotations == nil {
+		templateAnnotations = map[string]string{}
+	}
+
+	templateAnnotations[podRestartHashAnnotationKey(lookupType)] = hash
+	return unstructured.SetNestedStringMap(workload.UnstructuredContent(), templateAnnotations, "spec", "template", "metadata", "annotations")
+}
+
+var oamInjectedMetadataFields = [][]string{
+	{"resourceVersion"},
+	{"uid"},
+	{"creationTimestamp"},
+	{"generation"},
+	{"managedFields"},
+	{"ownerReferences"},
+	{"labels", oam.LabelAppRevision},
+	{"labels", oam.LabelAppRevisionHash},
+}
+
+func computeTraitContentHash(trait *unstructured.Unstructured) (string, error) {
+	cp := trait.DeepCopy()
+	for _, field := range oamInjectedMetadataFields {
+		unstructured.RemoveNestedField(cp.Object, append([]string{"metadata"}, field...)...)
+	}
+	unstructured.RemoveNestedField(cp.Object, "status")
+	data, err := json.Marshal(cp.Object)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])[:16], nil
 }
 
 // workload and trait in the same component both have these labels, except componentRevision which should be evaluated with input/output

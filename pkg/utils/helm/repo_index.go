@@ -27,6 +27,9 @@ import (
 	"helm.sh/helm/v3/pkg/getter"
 	helmrepo "helm.sh/helm/v3/pkg/repo"
 	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/version"
 )
 
 // IndexYaml is the index.yaml of helm repo
@@ -67,9 +70,10 @@ func loadData(u string, cred *RepoCredential) (*bytes.Buffer, error) {
 	}
 
 	indexURL := parsedURL.String()
-	// TODO add user-agent
+	userAgent := types.KubeVelaName + "/" + version.GitRevision
 	g, _ := getter.NewHTTPGetter()
 	resp, err = g.Get(indexURL,
+		getter.WithUserAgent(userAgent),
 		getter.WithTimeout(5*time.Minute),
 		getter.WithURL(u),
 		getter.WithInsecureSkipVerifyTLS(skipTLS),
