@@ -123,11 +123,11 @@ func TestValidateAddonComponentsAggregatesErrorsForCreateAndUpdate(t *testing.T)
 		UserInfo: authenticationv1.UserInfo{Username: "test-user"},
 	}}
 
-	createErrs := handler.ValidateCreate(context.Background(), app, req)
+	createErrs, _ := handler.ValidateCreate(context.Background(), app, req)
 	assert.Contains(t, createErrs, addonErr)
 	assert.Equal(t, 1, validator.calls)
 
-	updateErrs := handler.ValidateUpdate(context.Background(), app, app.DeepCopy(), req)
+	updateErrs, _ := handler.ValidateUpdate(context.Background(), app, app.DeepCopy(), req)
 	assert.Contains(t, updateErrs, addonErr)
 	assert.Equal(t, 2, validator.calls)
 }

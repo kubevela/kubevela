@@ -42,11 +42,12 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-// Of returns the restrictions a definition declares. A non-empty
-// spec.restrictions wins over the annotation. nil means unrestricted.
+// Of returns the restrictions a definition declares, combining the two channels.
+// nil means unrestricted.
 func Of(obj client.Object) *common.DefinitionRestrictions {
 	if isNil(obj) {
 		return nil
@@ -54,10 +55,29 @@ func Of(obj client.Object) *common.DefinitionRestrictions {
 	if u, ok := obj.(*unstructured.Unstructured); ok {
 		return OfUnstructured(*u)
 	}
-	if r, _ := fromSpec(obj); !isEmpty(r) {
-		return r
+	r, _ := fromSpec(obj)
+	return effective(r, obj.GetAnnotations())
+}
+
+// effective combines the two channels. The spec settles the namespaces where it
+// names any, the annotation otherwise. A quota is spec-only, so adding one never
+// widens who may use the definition.
+func effective(spec *common.DefinitionRestrictions, annotations map[string]string) *common.DefinitionRestrictions {
+	if restrictsNamespaces(spec) {
+		return spec // already carries its own quota
 	}
-	return fromAnnotation(obj.GetAnnotations())
+	ann := fromAnnotation(annotations)
+	if ann == nil {
+		if isEmpty(spec) {
+			return nil
+		}
+		return spec // quota only
+	}
+	if spec == nil || len(spec.Quota) == 0 {
+		return ann
+	}
+	// Namespaces from the annotation, quota from the spec.
+	return &common.DefinitionRestrictions{Namespaces: ann.Namespaces, Quota: spec.Quota}
 }
 
 // NeedsNamespaceLabels reports whether Allows needs the target namespace's labels
@@ -78,7 +98,8 @@ func NeedsNamespaceLabels(obj client.Object, ns string) bool {
 // Pass nil nsLabels when the namespace could not be read. A selector then matches
 // nothing.
 func Allows(r *common.DefinitionRestrictions, ns string, nsLabels map[string]string) bool {
-	if isEmpty(r) {
+	// A block carrying only a quota restricts no namespace.
+	if !restrictsNamespaces(r) {
 		return true
 	}
 	if matchesName(r.Namespaces, ns) {
@@ -97,16 +118,14 @@ func OfUnstructured(obj unstructured.Unstructured) *common.DefinitionRestriction
 		// nothing rather than read it as unrestricted.
 		return denyAll()
 	}
+	var spec *common.DefinitionRestrictions
 	if found {
-		r := &common.DefinitionRestrictions{}
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(raw, r); err != nil {
+		spec = &common.DefinitionRestrictions{}
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(raw, spec); err != nil {
 			return denyAll()
 		}
-		if !isEmpty(r) {
-			return r
-		}
 	}
-	return fromAnnotation(obj.GetAnnotations())
+	return effective(spec, obj.GetAnnotations())
 }
 
 // denyAll is what an unreadable spec.restrictions block resolves to: a selector
@@ -156,6 +175,92 @@ func Describe(obj client.Object) string {
 	return describe(Of(obj))
 }
 
+// isSystemNamespace reports a namespace no quota applies to. Addons install their
+// own Applications using these definitions, so a quota there breaks installation
+// rather than capping a tenant.
+//
+// Both names are checked because they are configured by different paths and can
+// disagree. oam.SystemDefinitionNamespace follows --system-definition-namespace,
+// which the chart sets to the release namespace. types.DefaultKubeVelaNS is where
+// addon Applications are placed, and only the CLI binds it from the environment;
+// in the controller it keeps its compiled default. Exempting one would leave the
+// other quota'd on any install outside vela-system.
+func isSystemNamespace(ns string) bool {
+	return ns == types.DefaultKubeVelaNS || ns == oam.SystemDefinitionNamespace
+}
+
+// QuotaExempt reports whether a namespace has opted out of every quota, from its
+// own annotations. Only "true" counts, so a typo leaves the quota in force.
+func QuotaExempt(nsAnnotations map[string]string) bool {
+	return nsAnnotations[oam.AnnotationQuotaExempt] == "true"
+}
+
+// QuotaFor returns the quota entry governing namespace ns, or nil when none does.
+// The first matching entry wins, so an entry with no matcher reads as the default
+// and belongs last.
+//
+// nsLabels may be nil when the namespace could not be read; an entry selecting on
+// labels then does not match, exactly as Allows treats it.
+func QuotaFor(obj client.Object, ns string, nsLabels map[string]string) *common.NamespaceQuota {
+	if isSystemNamespace(ns) {
+		return nil
+	}
+	r := Of(obj)
+	if r == nil {
+		return nil
+	}
+	for i := range r.Quota {
+		q := &r.Quota[i]
+		if matchesName(q.Namespaces, ns) || matchesSelector(q.NamespaceSelector, nsLabels) {
+			return q
+		}
+		if len(q.Namespaces) == 0 && q.NamespaceSelector == nil {
+			return q
+		}
+	}
+	return nil
+}
+
+// QuotaNeedsNamespaceLabels reports whether picking the quota entry for ns requires
+// the namespace's labels, so a caller can skip fetching the Namespace otherwise.
+func QuotaNeedsNamespaceLabels(obj client.Object, ns string) bool {
+	if isSystemNamespace(ns) {
+		return false
+	}
+	r := Of(obj)
+	if r == nil {
+		return false
+	}
+	for i := range r.Quota {
+		q := &r.Quota[i]
+		if matchesName(q.Namespaces, ns) {
+			return false // an earlier entry already decides it
+		}
+		if q.NamespaceSelector != nil {
+			return true
+		}
+		if len(q.Namespaces) == 0 {
+			return false // the no-matcher default decides it
+		}
+	}
+	return false
+}
+
+// ExceedsQuota reports whether a total breaches the entry's ceiling, and whether it
+// has reached the point the entry wants flagged.
+func ExceedsQuota(q *common.NamespaceQuota, total int) (refuse bool, warn bool) {
+	if q == nil {
+		return false, false
+	}
+	if q.Limit != nil && total > int(*q.Limit) {
+		return true, false
+	}
+	if q.Warn != nil && total >= int(*q.Warn) {
+		return false, true
+	}
+	return false, false
+}
+
 // Validate reports restrictions that cannot be applied: an empty entry, a glob
 // path.Match rejects, or a selector that does not compile. The definition
 // webhooks call it so a typo is caught on write.
@@ -183,7 +288,65 @@ func Validate(r *common.DefinitionRestrictions) error {
 			return fmt.Errorf("namespaceSelector is not a valid label selector: %w", err)
 		}
 	}
+	for i := range r.Quota {
+		q := &r.Quota[i]
+		if err := validateQuota(q); err != nil {
+			return fmt.Errorf("quota[%d]: %w", i, err)
+		}
+		// The first matching entry wins, so an entry with no matcher takes every
+		// namespace and leaves anything after it unreachable. Only the last entry
+		// may be the default.
+		if len(q.Namespaces) == 0 && q.NamespaceSelector == nil && i != len(r.Quota)-1 {
+			return fmt.Errorf("quota[%d] matches every namespace, so quota[%d] onwards could never apply", i, i+1)
+		}
+	}
 	return nil
+}
+
+func validateQuota(q *common.NamespaceQuota) error {
+	for j, p := range q.Namespaces {
+		trimmed := strings.TrimSpace(p)
+		if trimmed == "" {
+			return fmt.Errorf("namespaces[%d] is empty", j)
+		}
+		if trimmed != p {
+			return fmt.Errorf("namespaces[%d] %q has leading or trailing whitespace", j, p)
+		}
+		if _, err := path.Match(p, ""); err != nil {
+			return fmt.Errorf("namespaces[%d] %q is not a valid pattern: %w", j, p, err)
+		}
+	}
+	if q.NamespaceSelector != nil {
+		if _, err := metav1.LabelSelectorAsSelector(q.NamespaceSelector); err != nil {
+			return fmt.Errorf("namespaceSelector is not a valid label selector: %w", err)
+		}
+	}
+	if q.Warn == nil && q.Limit == nil {
+		return fmt.Errorf("sets neither warn nor limit, so it does nothing")
+	}
+	// A ceiling below the warning never warns before it refuses, which is a typo
+	// rather than a policy.
+	if q.Warn != nil && q.Limit != nil && *q.Warn > *q.Limit {
+		return fmt.Errorf("warn %d is above the limit %d, so it would never warn", *q.Warn, *q.Limit)
+	}
+	return nil
+}
+
+// validateQuotaKind rejects a quota on a kind nothing counts. A namespace
+// accumulates components and the traits on them; a policy, workflow step or source
+// is part of how one Application is put together, so capping them per namespace
+// would say nothing. Rejected on write rather than ignored at admission, because a
+// quota that silently does nothing is worse than one that will not apply.
+func validateQuotaKind(r *common.DefinitionRestrictions, kind string) error {
+	if r == nil || len(r.Quota) == 0 {
+		return nil
+	}
+	switch kind {
+	case "ComponentDefinition", "TraitDefinition":
+		return nil
+	default:
+		return fmt.Errorf("quota is not supported on %s, only on ComponentDefinition and TraitDefinition", kind)
+	}
 }
 
 // ValidateObject validates the spec block and the annotation, not just whichever
@@ -193,8 +356,11 @@ func ValidateObject(obj client.Object) error {
 	if isNil(obj) {
 		return nil
 	}
-	spec, _ := fromSpec(obj)
+	spec, kind := fromSpec(obj)
 	if err := Validate(spec); err != nil {
+		return fmt.Errorf("spec.restrictions: %w", err)
+	}
+	if err := validateQuotaKind(spec, kind); err != nil {
 		return fmt.Errorf("spec.restrictions: %w", err)
 	}
 	if err := Validate(fromAnnotation(obj.GetAnnotations())); err != nil {
@@ -246,8 +412,17 @@ func describe(r *common.DefinitionRestrictions) string {
 	return strings.Join(parts, " or ")
 }
 
+// isEmpty reports a block that declares nothing at all, so the annotation channel
+// should be consulted instead. A quota counts: a definition may cap usage without
+// restricting which namespaces may use it.
 func isEmpty(r *common.DefinitionRestrictions) bool {
-	return r == nil || (len(r.Namespaces) == 0 && r.NamespaceSelector == nil)
+	return r == nil || (!restrictsNamespaces(r) && len(r.Quota) == 0)
+}
+
+// restrictsNamespaces reports whether the block limits which namespaces may use the
+// definition at all, as opposed to only capping how much they may use.
+func restrictsNamespaces(r *common.DefinitionRestrictions) bool {
+	return r != nil && (len(r.Namespaces) > 0 || r.NamespaceSelector != nil)
 }
 
 // fromSpec returns the restrictions in the definition's spec, with its kind for

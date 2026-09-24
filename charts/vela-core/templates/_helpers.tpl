@@ -91,6 +91,9 @@ nothing when no restriction applies.
 {{- define "definitionRestrictions" -}}
 {{- $restrictions := dict -}}
 {{- with .root.Values.definitionRestrictions -}}
+{{-   if and .default (hasKey .default "quota") -}}
+{{-     fail "definitionRestrictions.default.quota is not installable: default reaches every builtin, and a quota is only valid on ComponentDefinition and TraitDefinition. Put the quota under definitionRestrictions.overrides.<name> instead." -}}
+{{-   end -}}
 {{-   with .default -}}
 {{-     $restrictions = . -}}
 {{-   end -}}

@@ -701,4 +701,49 @@ type DefinitionRestrictions struct {
 	// does not allow without the right to create namespaces.
 	// +optional
 	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
+
+	// Quota limits how many uses of this definition one namespace may contain. The
+	// first entry matching the namespace applies, so an entry with no matcher reads
+	// as the default and belongs last. Absent or empty means unlimited.
+	//
+	// Only ComponentDefinition and TraitDefinition are counted, and a quota on any
+	// other kind is rejected when the definition is written. A namespace
+	// accumulates components and the traits on them; a policy, workflow step or
+	// source is part of how one Application is assembled.
+	//
+	// The system namespace is never subject to a quota: addons install their own
+	// Applications there using these definitions.
+	// +optional
+	Quota []NamespaceQuota `json:"quota,omitempty"`
+}
+
+// NamespaceQuota caps how many uses of a definition the namespaces it matches may
+// contain. Its matcher fields carry the same meaning as the ones on
+// DefinitionRestrictions, and an entry with neither matches every namespace.
+//
+// Warn and Limit are both optional, and at least one must be set. Warn alone never
+// refuses, which is how a quota is introduced before it is enforced.
+type NamespaceQuota struct {
+	// Namespaces are the namespaces this entry applies to, as names or globs
+	// ("tenant-*", matched with path.Match). Leave both matchers unset to make the
+	// entry the default.
+	// +optional
+	Namespaces []string `json:"namespaces,omitempty"`
+
+	// NamespaceSelector selects those namespaces by label instead. It and
+	// Namespaces are alternatives, so either one matching selects the entry.
+	// +optional
+	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
+
+	// Warn is the count at or above which the Application is admitted with a
+	// warning.
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	Warn *int32 `json:"warn,omitempty"`
+
+	// Limit is the most uses of this definition the namespace may contain. Omit to
+	// warn without ever refusing; zero forbids the type outright.
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	Limit *int32 `json:"limit,omitempty"`
 }

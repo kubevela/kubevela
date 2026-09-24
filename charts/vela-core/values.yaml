@@ -204,10 +204,17 @@ featureGates:
 ##
 ## `default` applies to every builtin; `overrides` replaces it for one definition,
 ## keyed by name. Both take the same shape as spec.restrictions: `namespaces`
-## (names or globs) and `namespaceSelector` (a label selector).
+## (names or globs) and `namespaceSelector` (a label selector) for who may use the
+## definition, and `quota` for how much they may use it.
+##
+## `quota` counts components and traits only. The builtins include policies,
+## workflow steps and sources, which reject a quota outright, so it belongs in
+## `overrides` rather than `default`. A quota in `default` fails the install at
+## template time rather than part way through applying definitions.
 ##
 ## Addons install their own Applications into vela-system using these
-## definitions, so a `default` that excludes vela-system breaks them.
+## definitions, so a `default` that excludes vela-system breaks them. A quota
+## never applies to vela-system, for the same reason.
 ##
 ##   definitionRestrictions:
 ##     default:
@@ -219,6 +226,17 @@ featureGates:
 ##         namespaceSelector:
 ##           matchLabels:
 ##             tenant: "true"
+##         quota:
+##           # The first entry matching the namespace applies, so the entry with
+##           # no matcher reads as the default and belongs last.
+##           - namespaceSelector:
+##               matchLabels:
+##                 tier: gold
+##             warn: 16
+##             limit: 20
+##           # warn without a limit never refuses: publish a quota, see who trips
+##           # it, set the limit once you know.
+##           - warn: 5
 ##
 ## @param definitionRestrictions Restrictions stamped onto the builtin definitions, as `default` (applied to every one) and `overrides` (per definition name, replacing the default)
 definitionRestrictions: {}
