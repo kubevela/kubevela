@@ -619,6 +619,93 @@ func TestLoadTemplateFromRevision(t *testing.T) {
 	}
 }
 
+func TestLoadTemplateFromRevisionModuleReferences(t *testing.T) {
+	moduleLabels := func(module, apiVersion, name string) map[string]string {
+		return map[string]string{
+			types.LabelDefinitionModule:           module,
+			types.LabelDefinitionModuleAPIVersion: apiVersion,
+			types.LabelDefinitionName:             name,
+		}
+	}
+	cueSchematic := &common.Schematic{CUE: &common.CUE{Template: "parameter: {}"}}
+	trait := func(key string, labels map[string]string) *v1beta1.TraitDefinition {
+		return &v1beta1.TraitDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: key, Labels: labels},
+			Spec:       v1beta1.TraitDefinitionSpec{Schematic: cueSchematic},
+		}
+	}
+	revision := func(traits map[string]*v1beta1.TraitDefinition) *v1beta1.ApplicationRevision {
+		return &v1beta1.ApplicationRevision{
+			ObjectMeta: metav1.ObjectMeta{Name: "my-app-rev"},
+			Spec: v1beta1.ApplicationRevisionSpec{
+				ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+					TraitDefinitions: traits,
+					PolicyDefinitions: map[string]v1beta1.PolicyDefinition{
+						"mod-v1-pol": {
+							ObjectMeta: metav1.ObjectMeta{Name: "mod-v1-pol", Labels: moduleLabels("mod", "v1", "pol")},
+							Spec:       v1beta1.PolicyDefinitionSpec{Schematic: cueSchematic},
+						},
+					},
+					WorkflowStepDefinitions: map[string]*v1beta1.WorkflowStepDefinition{
+						"mod-v1-step": {
+							ObjectMeta: metav1.ObjectMeta{Name: "mod-v1-step", Labels: moduleLabels("mod", "v1", "step")},
+							Spec:       v1beta1.WorkflowStepDefinitionSpec{Schematic: cueSchematic},
+						},
+					},
+				},
+			},
+		}
+	}
+	mapper := fakeRESTMapper{}
+
+	t.Run("form 2 resolves trait, policy and workflow step by module labels", func(t *testing.T) {
+		rev := revision(map[string]*v1beta1.TraitDefinition{
+			"mod-v1-scaler": trait("mod-v1-scaler", moduleLabels("mod", "v1", "scaler")),
+		})
+		tmpl, err := LoadTemplateFromRevision("v1/scaler", types.TypeTrait, rev, mapper)
+		assert.NoError(t, err)
+		assert.Equal(t, "mod-v1-scaler", tmpl.TraitDefinition.Name)
+
+		tmpl, err = LoadTemplateFromRevision("v1/pol", types.TypePolicy, rev, mapper)
+		assert.NoError(t, err)
+		assert.Equal(t, "mod-v1-pol", tmpl.PolicyDefinition.Name)
+
+		tmpl, err = LoadTemplateFromRevision("v1/step", types.TypeWorkflowStep, rev, mapper)
+		assert.NoError(t, err)
+		assert.Equal(t, "mod-v1-step", tmpl.WorkflowStepDefinition.Name)
+	})
+
+	t.Run("form 2 ignores a non-module definition whose name ends in the same suffix", func(t *testing.T) {
+		rev := revision(map[string]*v1beta1.TraitDefinition{
+			"foo-v1-scaler": trait("foo-v1-scaler", nil),
+			"mod-v1-scaler": trait("mod-v1-scaler", moduleLabels("mod", "v1", "scaler")),
+		})
+		tmpl, err := LoadTemplateFromRevision("v1/scaler", types.TypeTrait, rev, mapper)
+		assert.NoError(t, err)
+		assert.Equal(t, "mod-v1-scaler", tmpl.TraitDefinition.Name)
+	})
+
+	t.Run("form 2 rejects a reference that matches more than one module", func(t *testing.T) {
+		rev := revision(map[string]*v1beta1.TraitDefinition{
+			"moda-v1-scaler": trait("moda-v1-scaler", moduleLabels("moda", "v1", "scaler")),
+			"modb-v1-scaler": trait("modb-v1-scaler", moduleLabels("modb", "v1", "scaler")),
+		})
+		_, err := LoadTemplateFromRevision("v1/scaler", types.TypeTrait, rev, mapper)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), `type "v1/scaler" is ambiguous in app revision my-app-rev: definitions [moda-v1-scaler, modb-v1-scaler]`)
+	})
+
+	t.Run("form 3 still picks the named module when form 2 would be ambiguous", func(t *testing.T) {
+		rev := revision(map[string]*v1beta1.TraitDefinition{
+			"moda-v1-scaler": trait("moda-v1-scaler", moduleLabels("moda", "v1", "scaler")),
+			"modb-v1-scaler": trait("modb-v1-scaler", moduleLabels("modb", "v1", "scaler")),
+		})
+		tmpl, err := LoadTemplateFromRevision("modb/v1/scaler", types.TypeTrait, rev, mapper)
+		assert.NoError(t, err)
+		assert.Equal(t, "modb-v1-scaler", tmpl.TraitDefinition.Name)
+	})
+}
+
 func TestConvertTemplateJSON2Object(t *testing.T) {
 	testCases := map[string]struct {
 		capName   string

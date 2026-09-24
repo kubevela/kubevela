@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/kubevela/pkg/multicluster"
@@ -174,7 +175,10 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 	if apprev == nil {
 		return nil, errors.Errorf("fail to find template for %s as app revision is empty", capName)
 	}
-	capName = resolveRevisionCapabilityName(capName, capType, apprev)
+	capName, err := resolveRevisionCapabilityName(capName, capType, apprev)
+	if err != nil {
+		return nil, err
+	}
 	switch capType {
 	case types.TypeComponentDefinition:
 		cd, ok := apprev.Spec.ComponentDefinitions[capName]
@@ -253,30 +257,36 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 	}
 }
 
-func resolveRevisionCapabilityName(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) string {
+func resolveRevisionCapabilityName(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) (string, error) {
 	capName = verifyRevisionName(capName, capType, apprev)
 	if revisionCapabilityExists(capName, capType, apprev) {
-		return capName
+		return capName, nil
 	}
 	form, moduleName, apiVersion, shortName, err := parseTypeRef(capName)
 	if err != nil {
-		return capName
+		return capName, nil
 	}
 	switch form {
 	case 3:
 		resolved := naming.DefinitionName(moduleName, apiVersion, shortName)
 		if revisionCapabilityExists(resolved, capType, apprev) {
-			return resolved
+			return resolved, nil
 		}
 	case 2:
-		suffix := "-" + apiVersion + "-" + shortName
-		for _, name := range revisionCapabilityNames(capType, apprev) {
-			if strings.HasSuffix(name, suffix) {
-				return name
-			}
+		// Match on the module labels, as resolveForm2 does, rather than on the
+		// name: a non-module definition can end in "-{apiVersion}-{name}" too.
+		matches := revisionModuleDefinitionNames(capType, apprev, apiVersion, shortName)
+		switch len(matches) {
+		case 0:
+		case 1:
+			return matches[0], nil
+		default:
+			sort.Strings(matches)
+			return "", errors.Errorf("type %q is ambiguous in app revision %s: definitions [%s] all match; use a fully qualified type ({module}/{apiVersion}/{name}) to disambiguate",
+				capName, apprev.Name, strings.Join(matches, ", "))
 		}
 	}
-	return capName
+	return capName, nil
 }
 
 func revisionCapabilityExists(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) bool {
@@ -304,19 +314,33 @@ func revisionCapabilityExists(capName string, capType types.CapType, apprev *v1b
 	return false
 }
 
-func revisionCapabilityNames(capType types.CapType, apprev *v1beta1.ApplicationRevision) []string {
-	names := make([]string, 0)
+// revisionModuleDefinitionNames returns the revision keys of the snapshotted
+// definitions of capType whose module labels match apiVersion and name.
+func revisionModuleDefinitionNames(capType types.CapType, apprev *v1beta1.ApplicationRevision, apiVersion, name string) []string {
+	spec := &apprev.Spec
 	switch capType {
 	case types.TypeComponentDefinition:
-		for name := range apprev.Spec.ComponentDefinitions {
-			names = append(names, name)
-		}
-		for name := range apprev.Spec.WorkloadDefinitions {
-			names = append(names, name)
-		}
+		return append(
+			moduleLabelMatches(spec.ComponentDefinitions, func(d *v1beta1.ComponentDefinition) map[string]string { return d.Labels }, apiVersion, name),
+			moduleLabelMatches(spec.WorkloadDefinitions, func(d v1beta1.WorkloadDefinition) map[string]string { return d.Labels }, apiVersion, name)...)
+	case types.TypeTrait:
+		return moduleLabelMatches(spec.TraitDefinitions, func(d *v1beta1.TraitDefinition) map[string]string { return d.Labels }, apiVersion, name)
+	case types.TypePolicy:
+		return moduleLabelMatches(spec.PolicyDefinitions, func(d v1beta1.PolicyDefinition) map[string]string { return d.Labels }, apiVersion, name)
+	case types.TypeWorkflowStep:
+		return moduleLabelMatches(spec.WorkflowStepDefinitions, func(d *v1beta1.WorkflowStepDefinition) map[string]string { return d.Labels }, apiVersion, name)
 	case types.TypeSource:
-		for name := range apprev.Spec.SourceDefinitions {
-			names = append(names, name)
+		return moduleLabelMatches(spec.SourceDefinitions, func(d *v1beta1.SourceDefinition) map[string]string { return d.Labels }, apiVersion, name)
+	}
+	return nil
+}
+
+func moduleLabelMatches[T any](defs map[string]T, labelsOf func(T) map[string]string, apiVersion, name string) []string {
+	var names []string
+	for key, def := range defs {
+		labels := labelsOf(def)
+		if labels[types.LabelDefinitionModuleAPIVersion] == apiVersion && labels[types.LabelDefinitionName] == name {
+			names = append(names, key)
 		}
 	}
 	return names
