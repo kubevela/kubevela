@@ -66,21 +66,24 @@ func OCIChartRef(reg Registry, name, tag string) (string, error) {
 // It is the push counterpart of PullOCIChartFiles and uses the same reference
 // construction and the same authenticated Helm registry client, so a module
 // published here is pulled by the module fetch unchanged.
-func PushOCIChart(_ context.Context, reg Registry, name, version string, archive []byte) error {
+func PushOCIChart(ctx context.Context, reg Registry, name, version string, archive []byte) error {
 	oci := reg.OCIChartSource()
 	if oci == nil {
 		return errors.Errorf("registry %q is not an OCI registry", reg.Name)
 	}
 	repoRef, host := OCIRepoRef(oci.URL, name)
-	client, err := NewOCIClientWithPlainHTTP(host, oci.Username, oci.Token, ociURLIsPlainHTTP(oci.URL))
-	if err != nil {
-		return err
-	}
 	ref := repoRef + ":" + version
-	if _, err := client.Push(archive, ref); err != nil {
-		return errors.Wrapf(err, "failed to push chart %s", ref)
-	}
-	return nil
+	_, err := AwaitOCICall(ctx, func() (struct{}, error) {
+		client, err := NewOCIClientWithPlainHTTP(host, oci.Username, oci.Token, ociURLIsPlainHTTP(oci.URL))
+		if err != nil {
+			return struct{}{}, err
+		}
+		if _, err := client.Push(archive, ref); err != nil {
+			return struct{}{}, errors.Wrapf(err, "failed to push chart %s", ref)
+		}
+		return struct{}{}, nil
+	})
+	return err
 }
 
 // OCIChartTagExists reports whether tag is already published for name in reg.
@@ -92,7 +95,16 @@ func OCIChartTagExists(ctx context.Context, reg Registry, name, tag string) (boo
 		return false, errors.Errorf("registry %q is not an OCI registry", reg.Name)
 	}
 	repoRef, host := OCIRepoRef(oci.URL, name)
-	tags, err := chartTagLister(repoRef, host, oci.Username, oci.Token, ociURLIsPlainHTTP(oci.URL))
+	plainHTTP := ociURLIsPlainHTTP(oci.URL)
+	var (
+		tags []string
+		err  error
+	)
+	if plainHTTP {
+		tags, err = ListOCITagsWithPlainHTTP(ctx, repoRef, host, oci.Username, oci.Token)
+	} else {
+		tags, err = ListOCITags(ctx, repoRef, host, oci.Username, oci.Token)
+	}
 	if err != nil {
 		if IsOCIRepositoryNotFound(err) {
 			return false, nil

@@ -85,6 +85,13 @@ func ResolveRegistry(ctx context.Context, store component.RegistryDataStore, nam
 			"module registry %q is a %s source; modules support only OCI registries",
 			reg.Name, SourceTypeName(reg))
 	}
+	if oci := reg.OCIChartSource(); oci != nil && strings.HasPrefix(strings.ToLower(oci.URL), "http://") {
+		if oci.Username != "" || oci.Token != "" || oci.TokenSecretRef != "" {
+			return component.Registry{}, fmt.Errorf(
+				"module registry %q uses http:// and carries credentials; use oci:// for authenticated registries",
+				reg.Name)
+		}
+	}
 	return reg, nil
 }
 

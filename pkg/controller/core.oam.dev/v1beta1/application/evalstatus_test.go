@@ -218,7 +218,11 @@ func Test_applyComponentHealthToServices(t *testing.T) {
 				return false, status, nil, nil, nil
 			}
 
-			applyComponentHealthToServices(ctx, handler, componentMap, mockHealthCheck, tt.paramsSuppliedAtRuntime)
+			runtimeParamsByComponent := make(map[string]bool, len(tt.services))
+			for _, svc := range tt.services {
+				runtimeParamsByComponent[svc.Name] = tt.paramsSuppliedAtRuntime
+			}
+			applyComponentHealthToServices(ctx, handler, componentMap, mockHealthCheck, runtimeParamsByComponent)
 
 			if tt.verifyFunc != nil {
 				tt.verifyFunc(t, handler.services)

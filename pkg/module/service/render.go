@@ -238,10 +238,7 @@ func stampIdentity(def map[string]interface{}, moduleName, apiVersion, namespace
 	}
 	labels[types.LabelDefinitionModule] = moduleName
 	labels[types.LabelDefinitionModuleAPIVersion] = apiVersion
-	// The definition name can be up to the object-name limit, but a label value
-	// caps at 63 chars, so bound it; the untruncated name lives on the full-name
-	// annotation below.
-	labels[types.LabelDefinitionName] = naming.TruncateWithHash(shortName, naming.MaxLabelValueLen)
+	labels[types.LabelDefinitionName] = shortName
 	labels[oam.LabelAddonName] = moduleName
 
 	annos, _ := meta["annotations"].(map[string]interface{})

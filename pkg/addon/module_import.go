@@ -19,6 +19,7 @@ package addon
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"slices"
 
 	"cuelang.org/go/cue/cuecontext"
@@ -151,6 +152,18 @@ func existingModuleNames(components []common2.ApplicationComponent) map[string]b
 	return names
 }
 
+func uniqueImportedComponentName(base string, used map[string]bool) string {
+	if !used[base] {
+		return base
+	}
+	for i := 2; ; i++ {
+		candidate := base + "-" + strconv.Itoa(i)
+		if !used[candidate] {
+			return candidate
+		}
+	}
+}
+
 // RenderModuleComponents builds one type: module ApplicationComponent per
 // enabled modules/_imports.cue entry that is not already declared as a
 // type: module component in existingComponents -- an addon author's own
@@ -159,11 +172,15 @@ func existingModuleNames(components []common2.ApplicationComponent) map[string]b
 // the module's XRD/Compositions never apply before the addon's own operators
 // and CRDs are healthy.
 func RenderModuleComponents(addon *InstallPackage, existingComponents []common2.ApplicationComponent, resourceComponentNames []string) ([]common2.ApplicationComponent, error) {
-	already := existingModuleNames(existingComponents)
+	alreadyModules := existingModuleNames(existingComponents)
+	usedNames := make(map[string]bool, len(existingComponents))
+	for _, c := range existingComponents {
+		usedNames[c.Name] = true
+	}
 
 	var comps []common2.ApplicationComponent
 	for _, imp := range addon.Imports {
-		if !imp.Enabled || already[imp.Module] {
+		if !imp.Enabled || alreadyModules[imp.Module] {
 			continue
 		}
 		properties := map[string]interface{}{"module": imp.Module}
@@ -177,13 +194,15 @@ func RenderModuleComponents(addon *InstallPackage, existingComponents []common2.
 		if err != nil {
 			return nil, fmt.Errorf("render module component %q for addon %q: %w", imp.Module, addon.Name, err)
 		}
+		componentName := uniqueImportedComponentName(imp.Module, usedNames)
 		comps = append(comps, common2.ApplicationComponent{
-			Name:       imp.Module,
+			Name:       componentName,
 			Type:       "module",
 			Properties: &runtime.RawExtension{Raw: raw},
 			DependsOn:  slices.Clone(resourceComponentNames),
 		})
-		already[imp.Module] = true
+		alreadyModules[imp.Module] = true
+		usedNames[componentName] = true
 	}
 	return comps, nil
 }

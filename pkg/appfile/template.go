@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/module/naming"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -173,7 +174,7 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 	if apprev == nil {
 		return nil, errors.Errorf("fail to find template for %s as app revision is empty", capName)
 	}
-	capName = verifyRevisionName(capName, capType, apprev)
+	capName = resolveRevisionCapabilityName(capName, capType, apprev)
 	switch capType {
 	case types.TypeComponentDefinition:
 		cd, ok := apprev.Spec.ComponentDefinitions[capName]
@@ -250,6 +251,75 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 	default:
 		return nil, fmt.Errorf("kind(%s) of %s not supported", capType, capName)
 	}
+}
+
+func resolveRevisionCapabilityName(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) string {
+	capName = verifyRevisionName(capName, capType, apprev)
+	if revisionCapabilityExists(capName, capType, apprev) {
+		return capName
+	}
+	form, moduleName, apiVersion, shortName, err := parseTypeRef(capName)
+	if err != nil {
+		return capName
+	}
+	switch form {
+	case 3:
+		resolved := naming.DefinitionName(moduleName, apiVersion, shortName)
+		if revisionCapabilityExists(resolved, capType, apprev) {
+			return resolved
+		}
+	case 2:
+		suffix := "-" + apiVersion + "-" + shortName
+		for _, name := range revisionCapabilityNames(capType, apprev) {
+			if strings.HasSuffix(name, suffix) {
+				return name
+			}
+		}
+	}
+	return capName
+}
+
+func revisionCapabilityExists(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) bool {
+	switch capType {
+	case types.TypeComponentDefinition:
+		if _, ok := apprev.Spec.ComponentDefinitions[capName]; ok {
+			return true
+		}
+		if _, ok := apprev.Spec.WorkloadDefinitions[capName]; ok {
+			return true
+		}
+	case types.TypeTrait:
+		_, ok := apprev.Spec.TraitDefinitions[capName]
+		return ok
+	case types.TypePolicy:
+		_, ok := apprev.Spec.PolicyDefinitions[capName]
+		return ok
+	case types.TypeWorkflowStep:
+		_, ok := apprev.Spec.WorkflowStepDefinitions[capName]
+		return ok
+	case types.TypeSource:
+		_, ok := apprev.Spec.SourceDefinitions[capName]
+		return ok
+	}
+	return false
+}
+
+func revisionCapabilityNames(capType types.CapType, apprev *v1beta1.ApplicationRevision) []string {
+	names := make([]string, 0)
+	switch capType {
+	case types.TypeComponentDefinition:
+		for name := range apprev.Spec.ComponentDefinitions {
+			names = append(names, name)
+		}
+		for name := range apprev.Spec.WorkloadDefinitions {
+			names = append(names, name)
+		}
+	case types.TypeSource:
+		for name := range apprev.Spec.SourceDefinitions {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 // IsNotFoundInAppRevision check if the error is `not found in app revision`

@@ -151,12 +151,8 @@ func listModuleDefinitions(ctx context.Context, cli client.Reader, capType types
 		namespaces = append(namespaces, systemNs)
 	}
 
-	var all []client.Object
-	for _, ns := range namespaces {
-		opts := []client.ListOption{
-			client.InNamespace(ns),
-			client.MatchingLabels(matchLabels),
-		}
+	listWithOpts := func(opts ...client.ListOption) ([]client.Object, error) {
+		var all []client.Object
 		switch capType {
 		case types.TypeComponentDefinition:
 			l := &v1beta1.ComponentDefinitionList{}
@@ -209,6 +205,25 @@ func listModuleDefinitions(ctx context.Context, cli client.Reader, capType types
 		default:
 			return nil, fmt.Errorf("unsupported capType %q for module type resolution", capType)
 		}
+		return all, nil
+	}
+
+	var all []client.Object
+	for _, ns := range namespaces {
+		inNS, err := listWithOpts(client.InNamespace(ns), client.MatchingLabels(matchLabels))
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, inNS...)
+	}
+	if len(all) == 0 {
+		// Module definitions can be installed into an operator-chosen namespace
+		// that differs from both the app namespace and vela-system.
+		clusterWide, err := listWithOpts(client.MatchingLabels(matchLabels))
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, clusterWide...)
 	}
 	return all, nil
 }

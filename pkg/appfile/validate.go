@@ -596,6 +596,19 @@ func HasParamsSuppliedAtRuntime(app *Appfile) bool {
 	return false
 }
 
+// HasComponentParamsSuppliedAtRuntime reports whether the named component takes
+// runtime-only parameter input through workflow-generated step inputs. The
+// component-local check avoids suppressing health failures for unrelated
+// components.
+func HasComponentParamsSuppliedAtRuntime(app *Appfile, componentName string) bool {
+	for _, comp := range app.Components {
+		if comp.Name == componentName {
+			return len(comp.Inputs) > 0
+		}
+	}
+	return false
+}
+
 // getWorkflowAndPolicySuppliedParams returns a set of parameter keys that will be
 // supplied by workflow steps or override policies at runtime.
 func getWorkflowAndPolicySuppliedParams(app *Appfile) map[string]bool {
