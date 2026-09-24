@@ -109,15 +109,11 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 // which is not knowable without asking it, and reporting an invented version
 // would be worse than reporting none.
 //
-// Known divergence from a real render, which also sets a namespace, the
-// oam.LabelAddonRegistry label, an ApplyOnce policy, and a populated
-// spec.components: a trait on a type: addon component whose CUE reads into any
-// of those would evaluate against this placeholder during admission and could
-// reject an Application that renders correctly. Nothing forbids traits on an
-// addon component today. Widening the placeholder only moves the line, since it
-// cannot carry the addon's real components without fetching them, which is what
-// this exists to avoid; narrowing what admission evaluates is the real fix, the
-// way ValidateCUESchematicAppfile already skips PostDispatch traits.
+// A real render also sets a namespace, the oam.LabelAddonRegistry label, an
+// ApplyOnce policy, and a populated spec.components, none of which can be known
+// without fetching the addon. Traits on a type: addon component would evaluate
+// against this placeholder, so ValidateCUESchematicAppfile skips them during
+// admission.
 func placeholderReturns(p RenderVars) *RenderReturns {
 	return &RenderReturns{Returns: ResultVars{
 		ResolvedVersion: p.Version,

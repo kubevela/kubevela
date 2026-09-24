@@ -121,6 +121,14 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 			return errors.WithMessagef(err, "cannot create the validation process context of app=%s in namespace=%s", a.Name, a.Namespace)
 		}
 
+		// Under a validation-only context the addon and module providers return a
+		// placeholder Application instead of fetching the real one, so any trait
+		// evaluated here would be checked against content that does not exist yet
+		// and could reject an Application that renders correctly.
+		if rendersPlaceholderDuringValidation(wl) {
+			continue
+		}
+
 		for _, tr := range wl.Traits {
 			if tr.CapabilityCategory != types.CUECategory {
 				continue
@@ -140,6 +148,23 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 		}
 	}
 	return nil
+}
+
+// placeholderRenderedTypes are the ComponentDefinitions whose output is a
+// remote-fetch placeholder during admission (see validation.WithValidationOnly).
+var placeholderRenderedTypes = map[string]bool{
+	"addon":  true,
+	"module": true,
+}
+
+func rendersPlaceholderDuringValidation(wl *Component) bool {
+	if placeholderRenderedTypes[wl.Type] {
+		return true
+	}
+	if wl.FullTemplate != nil && wl.FullTemplate.ComponentDefinition != nil {
+		return placeholderRenderedTypes[wl.FullTemplate.ComponentDefinition.Name]
+	}
+	return false
 }
 
 // ValidateComponentParams performs CUE‑level validation for a Component’s
