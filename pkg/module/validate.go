@@ -55,6 +55,9 @@ func validateAPIVersion(apiVersion, path string) error {
 	if !naming.IsValidAPIVersion(apiVersion) {
 		return fmt.Errorf("apiVersion %q in %s is invalid, must match %s", apiVersion, path, naming.APIVersionPattern())
 	}
+	if len(apiVersion) > naming.MaxLabelValueLen {
+		return fmt.Errorf("apiVersion %q in %s is too long: label values must be <= %d characters", apiVersion, path, naming.MaxLabelValueLen)
+	}
 	return nil
 }
 
@@ -66,6 +69,9 @@ func validateDefinitionName(def map[string]interface{}, path string) error {
 		if name, ok := metadata["name"].(string); ok && name != "" {
 			if errs := validation.IsDNS1123Subdomain(name); len(errs) > 0 {
 				return fmt.Errorf("definition rendered from %s has invalid metadata.name %q: %s", path, name, strings.Join(errs, "; "))
+			}
+			if len(name) > naming.MaxLabelValueLen {
+				return fmt.Errorf("definition rendered from %s has metadata.name %q longer than %d characters; module references use it as a label value", path, name, naming.MaxLabelValueLen)
 			}
 			return nil
 		}

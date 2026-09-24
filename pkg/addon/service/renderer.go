@@ -374,6 +374,10 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 		return nil, fmt.Errorf("render resources for addon %q: %w", req.Name, err)
 	}
 	dependsOn := componentNames(resourceComps)
+	moduleComps, err := pkgaddon.RenderModuleComponents(installPkg, app.Spec.Components, dependsOn)
+	if err != nil {
+		return nil, fmt.Errorf("render module components for addon %q: %w", req.Name, err)
+	}
 	if len(aux) > 0 {
 		// The addon template's own outputs: block (wrapped into addon-auxiliaries
 		// below) can carry arbitrary objects -- including operators/CRDs a
@@ -382,22 +386,19 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 		// has to be predicted here, before appendAuxComponents actually creates
 		// it: reserve the same name that call will end up choosing, against
 		// every component already in app.Spec.Components plus every module
-		// component about to be added (whose names are exactly the enabled,
-		// not-already-declared import names -- see RenderModuleComponents).
-		used := make(map[string]bool, len(app.Spec.Components)+len(installPkg.Imports))
+		// component actually emitted (which already excludes skipped imports and
+		// may include collision-avoiding suffixes).
+		used := make(map[string]bool, len(app.Spec.Components)+len(moduleComps))
 		for _, c := range app.Spec.Components {
 			used[c.Name] = true
 		}
-		for _, imp := range installPkg.Imports {
-			if imp.Enabled {
-				used[imp.Module] = true
-			}
+		for _, c := range moduleComps {
+			used[c.Name] = true
 		}
-		dependsOn = append(dependsOn, uniqueComponentName(addonAuxiliariesComponentName, used))
-	}
-	moduleComps, err := pkgaddon.RenderModuleComponents(installPkg, app.Spec.Components, dependsOn)
-	if err != nil {
-		return nil, fmt.Errorf("render module components for addon %q: %w", req.Name, err)
+		auxName := uniqueComponentName(addonAuxiliariesComponentName, used)
+		for i := range moduleComps {
+			moduleComps[i].DependsOn = append(moduleComps[i].DependsOn, auxName)
+		}
 	}
 	app.Spec.Components = append(app.Spec.Components, moduleComps...)
 

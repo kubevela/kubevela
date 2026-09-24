@@ -1169,7 +1169,11 @@ func evalStatus(ctx monitorContext.Context, handler *AppHandler, appFile *appfil
 			componentMap[component.Name] = component
 		}
 
-		applyComponentHealthToServices(ctx, handler, componentMap, healthCheck, appfile.HasParamsSuppliedAtRuntime(appFile))
+		runtimeParamsByComponent := make(map[string]bool, len(componentMap))
+		for name := range componentMap {
+			runtimeParamsByComponent[name] = appfile.HasComponentParamsSuppliedAtRuntime(appFile, name)
+		}
+		applyComponentHealthToServices(ctx, handler, componentMap, healthCheck, runtimeParamsByComponent)
 		handler.app.Status.Services = handler.services
 		return isHealthy(handler.services)
 	}
@@ -1208,10 +1212,11 @@ func healthCheckErrorMessage(err error) string {
 // renders the component again on its own, without those values, so for such an
 // Application a failed health check is expected and says nothing about the
 // component; the status the workflow recorded is the only one there is.
-func applyComponentHealthToServices(ctx monitorContext.Context, handler *AppHandler, componentMap map[string]common.ApplicationComponent, healthCheck oamprovidertypes.ComponentHealthCheck, paramsSuppliedAtRuntime bool) {
+func applyComponentHealthToServices(ctx monitorContext.Context, handler *AppHandler, componentMap map[string]common.ApplicationComponent, healthCheck oamprovidertypes.ComponentHealthCheck, runtimeParamsByComponent map[string]bool) {
 	// Iterate services and lookup matching component from the map
 	for idx, svc := range handler.services {
 		if component, exists := componentMap[svc.Name]; exists {
+			paramsSuppliedAtRuntime := runtimeParamsByComponent[svc.Name]
 			_, status, _, _, err := healthCheck(ctx, component, nil, svc.Cluster, healthCheckNamespace(handler, svc))
 			switch {
 			case err != nil:

@@ -27,7 +27,9 @@ import (
 	"github.com/gosuri/uitable"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -334,6 +336,15 @@ func updateModuleRegistry(ctx context.Context, c common.Args, registry pkgaddon.
 	if err := store.UpdateRegistry(ctx, registry); err != nil {
 		return err
 	}
+	if droppedCredentialAcrossOrigins(existing, registry) {
+		secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+			Name:      pkgmodule.ModuleRegistrySecretPrefix + registry.Name,
+			Namespace: types.DefaultKubeVelaNS,
+		}}
+		if err := k8sClient.Delete(ctx, secret); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("updated registry but failed to remove stale credential secret %q: %w", secret.Name, err)
+		}
+	}
 	fmt.Fprintf(out, "Successfully updated module registry %s\n", registry.Name)
 	return nil
 }
@@ -401,6 +412,25 @@ func sameRegistryOrigin(next, prev pkgaddon.Registry) bool {
 	nh, _ := pkgcomponent.OCIRegistryLocation(n.URL)
 	ph, _ := pkgcomponent.OCIRegistryLocation(p.URL)
 	return strings.EqualFold(nh, ph)
+}
+
+func droppedCredentialAcrossOrigins(existing, updated pkgaddon.Registry) bool {
+	if sameRegistryOrigin(updated, existing) {
+		return false
+	}
+	oldSrc := existing.GetTokenSource()
+	if oldSrc == nil {
+		return false
+	}
+	oldHadCredential := oldSrc.GetToken() != "" || oldSrc.GetTokenSecretRef() != ""
+	if !oldHadCredential {
+		return false
+	}
+	newSrc := updated.GetTokenSource()
+	if newSrc == nil {
+		return false
+	}
+	return newSrc.GetToken() == "" && newSrc.GetTokenSecretRef() == ""
 }
 
 // NewListModuleRegistryCommand returns the vela module registry list command.
