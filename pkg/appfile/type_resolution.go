@@ -152,8 +152,16 @@ func listModuleDefinitions(ctx context.Context, cli client.Reader, capType types
 			client.MatchingLabels(matchLabels),
 		}
 		switch capType {
-		case types.TypeComponentDefinition, types.TypeWorkload:
+		case types.TypeComponentDefinition:
 			l := &v1beta1.ComponentDefinitionList{}
+			if err := cli.List(ctx, l, opts...); err != nil {
+				return nil, err
+			}
+			for i := range l.Items {
+				all = append(all, &l.Items[i])
+			}
+		case types.TypeWorkload:
+			l := &v1beta1.WorkloadDefinitionList{}
 			if err := cli.List(ctx, l, opts...); err != nil {
 				return nil, err
 			}
@@ -228,6 +236,8 @@ func definitionObjectFor(capType types.CapType) client.Object {
 		return new(v1beta1.PolicyDefinition)
 	case types.TypeWorkflowStep:
 		return new(v1beta1.WorkflowStepDefinition)
+	case types.TypeWorkload:
+		return new(v1beta1.WorkloadDefinition)
 	default:
 		return new(v1beta1.ComponentDefinition)
 	}
