@@ -133,7 +133,7 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 				// the render will fail later anyway, and admitting it silently
 				// is the one outcome that leaves the author with no idea why.
 				logger.Error(err, "Rejecting malformed module component properties", "component", comp.Name)
-				errs = append(errs, field.Invalid(path, "<redacted>",
+				errs = append(errs, field.Invalid(path, string(comp.Properties.Raw),
 					"cannot be decoded as module component properties: "+err.Error()))
 				continue
 			}

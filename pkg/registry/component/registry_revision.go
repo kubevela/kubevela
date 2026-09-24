@@ -38,9 +38,6 @@ var ErrRevisionUnsupported = NewError("registry source cannot report a revision"
 // a version: a git registry reports a commit, an OCI registry a tag and the
 // digest behind it, and neither is ordered.
 func (r *Registry) PackageRevision(ctx context.Context, name, version, lastKnown string) (string, error) {
-	if !IsPackageName(name) {
-		return "", fmt.Errorf("%q: %w", name, ErrPackageNotExist)
-	}
 	// OCISource, not OCIChartSource: the latter deliberately widens to
 	// scheme-less and http:// URLs for the module chart path, and a plain Helm
 	// repository served over HTTP matches that spelling too. Asking such a

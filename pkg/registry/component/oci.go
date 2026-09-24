@@ -345,22 +345,10 @@ func IsDockerHubHost(host string) bool {
 // resolveOCITag returns the tag to pull. A pinned version is used as-is; an
 // empty version resolves to the highest semver tag published in the repository.
 func resolveOCITag(ctx context.Context, repoRef, host, username, password, version string) (string, error) {
-	return resolveOCITagWithTransport(ctx, repoRef, host, username, password, version, false)
-}
-
-func resolveOCITagWithTransport(ctx context.Context, repoRef, host, username, password, version string, plainHTTP bool) (string, error) {
 	if version != "" {
 		return version, nil
 	}
-	var (
-		tags []string
-		err  error
-	)
-	if plainHTTP {
-		tags, err = ListOCITagsWithPlainHTTP(ctx, repoRef, host, username, password)
-	} else {
-		tags, err = ListOCITags(ctx, repoRef, host, username, password)
-	}
+	tags, err := ListOCITags(ctx, repoRef, host, username, password)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to list tags for OCI repository %s", repoRef)
 	}
@@ -380,7 +368,6 @@ func PullOCIChartFiles(ctx context.Context, reg Registry, name, version string) 
 		return nil, errors.Errorf("registry %q is not an OCI registry", reg.Name)
 	}
 	repoRef, host := OCIRepoRef(oci.URL, name)
-	plainHTTP := ociURLIsPlainHTTP(oci.URL)
 
 	// A pinned registry already knows which tag, and which manifest behind it,
 	// the caller checked. Pulling that digest skips the tag resolution and,
@@ -388,13 +375,7 @@ func PullOCIChartFiles(ctx context.Context, reg Registry, name, version string) 
 	// revision was compared -- a tag can be re-pushed between the two.
 	if tag, digest, ok := pinnedOCIRevision(reg.readRevision, version); ok {
 		ref := repoRef + "@" + digest
-		var archive []byte
-		var err error
-		if plainHTTP {
-			archive, err = PullOCIChartWithPlainHTTP(ctx, ref, host, oci.Username, oci.Token)
-		} else {
-			archive, err = PullOCIChart(ctx, ref, host, oci.Username, oci.Token)
-		}
+		archive, err := PullOCIChart(ctx, ref, host, oci.Username, oci.Token)
 		if err != nil {
 			return nil, err
 		}
@@ -405,17 +386,12 @@ func PullOCIChartFiles(ctx context.Context, reg Registry, name, version string) 
 		return files, nil
 	}
 
-	tag, err := resolveOCITagWithTransport(ctx, repoRef, host, oci.Username, oci.Token, version, plainHTTP)
+	tag, err := resolveOCITag(ctx, repoRef, host, oci.Username, oci.Token, version)
 	if err != nil {
 		return nil, err
 	}
 	ref := fmt.Sprintf("%s:%s", repoRef, tag)
-	var archive []byte
-	if plainHTTP {
-		archive, err = PullOCIChartWithPlainHTTP(ctx, ref, host, oci.Username, oci.Token)
-	} else {
-		archive, err = PullOCIChart(ctx, ref, host, oci.Username, oci.Token)
-	}
+	archive, err := PullOCIChart(ctx, ref, host, oci.Username, oci.Token)
 	if err != nil {
 		return nil, err
 	}

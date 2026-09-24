@@ -282,7 +282,7 @@ func IsOCIURL(rawURL string) bool {
 	if err != nil {
 		return false
 	}
-	return strings.EqualFold(u.Scheme, helmregistry.OCIScheme) && u.Host != ""
+	return strings.EqualFold(u.Scheme, helmregistry.OCIScheme)
 }
 
 // SafeCopier is an interface to copy struct without sensitive fields, such as Token, Username, Password
@@ -346,34 +346,12 @@ const (
 	GitlabType ReaderType = "gitlab"
 )
 
-// ReaderOption adjusts how a reader resolves content.
-type ReaderOption func(*readerConfig)
-
-type readerConfig struct {
-	// ref overrides the branch, tag or commit the registry URL pinned.
-	ref string
-}
-
-// WithRef reads at a specific branch, tag or commit instead of whatever the
-// registry URL pinned.
-func WithRef(ref string) ReaderOption {
-	return func(c *readerConfig) { c.ref = ref }
-}
-
-func newReaderConfig(opts []ReaderOption) readerConfig {
-	var c readerConfig
-	for _, o := range opts {
-		o(&c)
-	}
-	return c
-}
-
 // NewAsyncReader create AsyncReader from
 // 1. GitHub url and directory
 // 2. OSS endpoint and bucket
 // GitReaderBuilder builds an AsyncReader over one of the Git-family sources.
 // The parameters are NewAsyncReader's, minus the ones no Git source uses.
-type GitReaderBuilder func(baseURL, repo, subPath, token string, rdType ReaderType, ref string) (AsyncReader, error)
+type GitReaderBuilder func(baseURL, repo, subPath, token string, rdType ReaderType) (AsyncReader, error)
 
 // gitReaderBuilder is registered by pkg/addon, which owns the GitHub, Gitee
 // and GitLab clients. This package deliberately holds none of them: a
@@ -395,15 +373,14 @@ func RegisterGitReaderBuilder(b GitReaderBuilder) {
 
 // NewAsyncReader builds a reader for one source. OSS is served here; the Git
 // family is delegated to the builder pkg/addon registers.
-func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderType, opts ...ReaderOption) (AsyncReader, error) {
-	cfg := newReaderConfig(opts)
+func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderType) (AsyncReader, error) {
 	switch rdType {
 	case GitType, GiteeType, GitlabType:
 		if gitReaderBuilder == nil {
 			return nil, fmt.Errorf("no reader is registered for addon registry type %q; "+
 				"the git readers are installed by pkg/addon", rdType)
 		}
-		return gitReaderBuilder(baseURL, repo, subPath, token, rdType, cfg.ref)
+		return gitReaderBuilder(baseURL, repo, subPath, token, rdType)
 	case OSSType:
 		ossURL, err := url.Parse(baseURL)
 		if err != nil {
@@ -428,22 +405,22 @@ func NewAsyncReader(baseURL, bucket, repo, subPath, token string, rdType ReaderT
 }
 
 // BuildReader will build a AsyncReader from registry, AsyncReader are needed to read addon files
-func (r *Registry) BuildReader(opts ...ReaderOption) (AsyncReader, error) {
+func (r *Registry) BuildReader() (AsyncReader, error) {
 	if r.OSS != nil {
 		o := r.OSS
-		return NewAsyncReader(o.Endpoint, o.Bucket, "", o.Path, "", OSSType, opts...)
+		return NewAsyncReader(o.Endpoint, o.Bucket, "", o.Path, "", OSSType)
 	}
 	if r.Git != nil {
 		g := r.Git
-		return NewAsyncReader(g.URL, "", "", g.Path, g.Token, GitType, opts...)
+		return NewAsyncReader(g.URL, "", "", g.Path, g.Token, GitType)
 	}
 	if r.Gitee != nil {
 		g := r.Gitee
-		return NewAsyncReader(g.URL, "", "", g.Path, g.Token, GiteeType, opts...)
+		return NewAsyncReader(g.URL, "", "", g.Path, g.Token, GiteeType)
 	}
 	if r.Gitlab != nil {
 		g := r.Gitlab
-		return NewAsyncReader(g.URL, "", g.Repo, g.Path, g.Token, GitlabType, opts...)
+		return NewAsyncReader(g.URL, "", g.Repo, g.Path, g.Token, GitlabType)
 	}
 	return nil, errors.New("registry don't have enough info to build a reader")
 }
