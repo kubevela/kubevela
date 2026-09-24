@@ -68,7 +68,7 @@ func ResolveSourceExpressions(ctx process.Context, params interface{}, surface s
 		if !ok {
 			return params, nil
 		}
-		return TypedParams(ctx, typed)
+		return TypedParams(ctx, typed, surface)
 	}
 
 	bt, err := json.Marshal(params)

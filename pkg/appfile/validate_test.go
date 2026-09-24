@@ -1809,7 +1809,7 @@ output: {meta: {region: "eu", zone: "a"}, tags: ["x"]}
 
 	// And the shape is what reaches the required-field check, not one opaque key.
 	pCtx := velaprocess.NewContext(ctxData)
-	typed, err := sources.TypedParams(pCtx, wl.Params)
+	typed, err := sources.TypedParams(pCtx, wl.Params, sources.SurfaceComponent)
 	assert.NoError(t, err)
 	meta, ok := typed["meta"].(map[string]any)
 	assert.True(t, ok, "a struct read expands to its fields, got %T", typed["meta"])
@@ -2013,4 +2013,80 @@ output: {image: _cm.$returns.data.image}
 
 	assert.NoError(t, (&Parser{}).ValidateCUESchematicAppfile(appfile),
 		"a trait patching a source-fed field must not be refused at admission")
+}
+
+// A trait's patch goes into the base, and the base is what the next trait is
+// handed as JSON. A source-fed trait parameter is a type at validation, so
+// without pruning the patch the second trait cannot render at all.
+func TestValidateCUESchematicAppfileSecondTraitAfterASourceFedPatch(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+		string(features.EnableCueValidation)+"=true,"+
+			string(features.EnableCelExpressions)+"=true"))
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=false,"+
+				string(features.EnableCelExpressions)+"=false"))
+	})
+
+	const unresolvable = `
+import "vela/kube"
+$internal: {key: "demo", keyInputs: []}
+schema: {replicas: int}
+parameter: {name: string}
+_cm: kube.#Get & {$params: resource: {apiVersion: "v1", kind: "ConfigMap", metadata: {name: parameter.name, namespace: "default"}}}
+output: {replicas: _cm.$returns.data.replicas}
+`
+	appfile := &Appfile{
+		Name: "myapp", Namespace: "test-ns",
+		AppAnnotations: map[string]string{oam.AnnotationCelExpressions: "true"},
+		Sources: []v1beta1.ApplicationSource{
+			{Name: "cfg", Type: "demo", Properties: &runtime.RawExtension{Raw: []byte(`{"name":"app-config"}`)}},
+		},
+		RelatedSourceDefinitions: map[string]*v1beta1.SourceDefinition{
+			"demo": {Spec: v1beta1.SourceDefinitionSpec{
+				Schematic: &common.Schematic{CUE: &common.CUE{Template: unresolvable}},
+			}},
+		},
+		ParsedComponents: []*Component{
+			{
+				Name: "my-comp", Type: "worker",
+				CapabilityCategory: types.CUECategory,
+				FullTemplate: &Template{TemplateStr: `
+					parameter: { image: string }
+					output: {
+						apiVersion: "apps/v1"
+						kind:       "Deployment"
+						spec: template: spec: containers: [{name: "c", image: parameter.image}]
+					}
+				`},
+				Params: map[string]any{"image": "nginx"},
+				engine: definition.NewWorkloadAbstractEngine("my-comp"),
+				Traits: []*Trait{
+					{
+						Name:               "scaler",
+						CapabilityCategory: types.CUECategory,
+						Template: `
+							parameter: { replicas: int }
+							patch: spec: replicas: parameter.replicas
+						`,
+						Params: map[string]any{"replicas": "$(source.cfg.replicas)"},
+						engine: definition.NewTraitAbstractEngine("scaler"),
+					},
+					{
+						Name:               "labeler",
+						CapabilityCategory: types.CUECategory,
+						Template: `
+							parameter: { key: string }
+							patch: spec: template: metadata: labels: (parameter.key): "v"
+						`,
+						Params: map[string]any{"key": "team"},
+						engine: definition.NewTraitAbstractEngine("labeler"),
+					},
+				},
+			},
+		},
+	}
+
+	assert.NoError(t, (&Parser{}).ValidateCUESchematicAppfile(appfile),
+		"a trait following a source-fed patch must still render")
 }

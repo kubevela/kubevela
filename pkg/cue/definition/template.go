@@ -438,6 +438,12 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		if err := base.Unify(patcher, sets.CreateUnifyOptionsForPatcher(patcher)...); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
+		// The patch carries the trait's own parameters, so a source-fed one
+		// lands here as a type. Pruned after the unification rather than before
+		// it, because the patcher's attributes are what drive patch strategy.
+		if err := repruneBase(ctx, base); err != nil {
+			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
+		}
 	}
 	outputsPatcher := val.LookupPath(value.FieldPath(PatchOutputsFieldName))
 	if outputsPatcher.Exists() {
@@ -447,6 +453,9 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 				continue
 			}
 			if err = auxiliary.Ins.Unify(target); err != nil {
+				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
+			}
+			if err = repruneInstance(ctx, auxiliary.Ins); err != nil {
 				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
 			}
 		}
@@ -702,4 +711,33 @@ func concreteForRender(ctx process.Context, v cue.Value) cue.Value {
 	}
 	pruned, _ := sources.ConcreteForValidation(v)
 	return pruned
+}
+
+// repruneBase prunes a base that a patch has just made non-concrete again, and
+// puts the result back so the next trait can be handed it as JSON.
+func repruneBase(ctx process.Context, base model.Instance) error {
+	if !sources.TypeOnly(ctx.GetCtx()) {
+		return nil
+	}
+	pruned, changed := sources.ConcreteForValidation(base.Value())
+	if !changed {
+		return nil
+	}
+	next, err := model.NewBase(pruned)
+	if err != nil {
+		return err
+	}
+	return ctx.SetBase(next)
+}
+
+// repruneInstance does the same for an auxiliary, which is patched in place.
+func repruneInstance(ctx process.Context, ins model.Instance) error {
+	if !sources.TypeOnly(ctx.GetCtx()) {
+		return nil
+	}
+	pruned, changed := sources.ConcreteForValidation(ins.Value())
+	if !changed {
+		return nil
+	}
+	return ins.Unify(pruned)
 }

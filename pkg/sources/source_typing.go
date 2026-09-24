@@ -63,13 +63,13 @@ type CUEType string
 //
 // A struct read keeps its shape: the required-field check flattens what was
 // provided and looks for "meta.region".
-func TypedParams(ctx process.Context, params map[string]any) (map[string]any, error) {
+func TypedParams(ctx process.Context, params map[string]any, surface string) (map[string]any, error) {
 	if len(params) == 0 {
 		return params, nil
 	}
 	// The schemas and the CUE context are built on first use: most components
 	// carry no expression at all, and for those this is a walk and nothing more.
-	t := &paramTyper{ctx: ctx, compiled: map[string]cue.Value{}}
+	t := &paramTyper{ctx: ctx, surface: surface, compiled: map[string]cue.Value{}}
 	out, changed, err := t.walk(params)
 	if err != nil {
 		return nil, err
@@ -83,6 +83,7 @@ func TypedParams(ctx process.Context, params map[string]any) (map[string]any, er
 
 type paramTyper struct {
 	ctx      process.Context
+	surface  string
 	schemas  map[string]string
 	compiled map[string]cue.Value
 	cuectx   *cue.Context
@@ -167,9 +168,14 @@ func (t *paramTyper) typeOfLeaf(raw string) (any, error) {
 		return raw, nil
 	}
 	parsed, err := propexpr.Parse(raw)
-	if err != nil || !parsed.HasExpr() {
+	if err != nil {
 		//nolint:nilerr // a malformed expression is reported by the expression validator
 		return raw, nil
+	}
+	if !parsed.HasExpr() {
+		// Literal and not the raw string: the render collapses `$$(` to `$(`,
+		// so checking the raw form would judge a value that never reaches CUE.
+		return parsed.Literal(), nil
 	}
 	t.prepare()
 	expr, whole := parsed.SoleExpr()
@@ -303,7 +309,7 @@ func standaloneConstraint(cuectx *cue.Context, expr string) bool {
 
 // fromCEL types a computed expression from its output type alone.
 func (t *paramTyper) fromCEL(expr string) (any, error) {
-	env, err := celexpr.EnvForContext(t.schemas, propexpr.ComponentContext)
+	env, err := celexpr.EnvForContext(t.schemas, propexpr.ContextFor(t.surface))
 	if err != nil {
 		return nil, err
 	}
@@ -499,10 +505,11 @@ func pruneIncomplete(v cue.Value) (any, bool) {
 		for iter.Next() {
 			child, childChanged := pruneIncomplete(iter.Value())
 			if child == any(dropped) {
-				// A list unifies by position, so an element cannot be left out
-				// without moving the ones after it.
-				child = zeroOf(iter.Value().IncompleteKind())
-				childChanged = true
+				// A list unifies by position and cannot lose an element without
+				// moving the rest, so one unknowable element takes the whole
+				// list. A stand-in would conflict with whatever a trait patches
+				// at that index, which is what leaving it out avoids.
+				return dropped, true
 			}
 			out = append(out, child)
 			changed = changed || childChanged
@@ -518,25 +525,4 @@ func pruneIncomplete(v cue.Value) (any, bool) {
 		}
 	}
 	return dropped, true
-}
-
-// zeroOf is a stand-in of the right shape for a list element that is not
-// knowable, which cannot be left out without moving its neighbours.
-func zeroOf(k cue.Kind) any {
-	switch k {
-	case cue.StringKind:
-		return ""
-	case cue.IntKind:
-		return 0
-	case cue.FloatKind, cue.NumberKind:
-		return 0.0
-	case cue.BoolKind:
-		return false
-	case cue.ListKind:
-		return []any{}
-	case cue.StructKind:
-		return map[string]any{}
-	default:
-		return ""
-	}
 }

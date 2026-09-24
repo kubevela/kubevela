@@ -69,7 +69,7 @@ func TestTypedParamsTypesExpressionsAndLeavesTheRestAlone(t *testing.T) {
 		"count":    3,
 		"nested":   map[string]any{"inner": "$(source.cfg.host)", "kept": true},
 		"list":     []any{"$(source.cfg.port)", "plain"},
-	})
+	}, SurfaceComponent)
 	require.NoError(t, err)
 
 	require.Equal(t, CUEType("string"), out["host"])
@@ -102,7 +102,7 @@ func TestTypedParamsReturnsTheInputWhenThereIsNothingToType(t *testing.T) {
 
 func mustTyped(t *testing.T, ctx wfprocess.Context, in map[string]any) map[string]any {
 	t.Helper()
-	out, err := TypedParams(ctx, in)
+	out, err := TypedParams(ctx, in, SurfaceComponent)
 	require.NoError(t, err)
 	return out
 }
@@ -115,7 +115,7 @@ func TestTypedParamsTypesAComputedExpression(t *testing.T) {
 	out, err := TypedParams(ctx, map[string]any{
 		"doubled":  "$(source.cfg.port * 2)",
 		"nonsense": "$(source.cfg.nosuchfield)",
-	})
+	}, SurfaceComponent)
 	require.NoError(t, err)
 
 	require.Equal(t, CUEType("int"), out["doubled"])
@@ -192,28 +192,38 @@ func TestKindExprNamesEveryKindItHandles(t *testing.T) {
 	}
 }
 
-// A list unifies by position, so an element that is not knowable cannot be left
-// out the way a struct field is.
-func TestConcreteForValidationZeroesAListElement(t *testing.T) {
+// A list unifies by position and cannot lose an element without moving the
+// rest, so one unknowable element takes the whole list. A stand-in at that
+// index would conflict with whatever a trait patches there.
+func TestConcreteForValidationDropsAListWithAnUnknowableElement(t *testing.T) {
 	cuectx := cuecontext.New()
-	v := cuectx.CompileString(`{args: ["keep", string], flags: [bool], counts: [int]}`)
+	v := cuectx.CompileString(`{args: ["keep", string], flags: [true], name: "web"}`)
 	require.NoError(t, v.Err())
 
 	out, changed := ConcreteForValidation(v)
 	require.True(t, changed)
 
-	args, err := out.LookupPath(cue.ParsePath("args")).List()
+	require.False(t, out.LookupPath(cue.ParsePath("args")).Exists(),
+		"a list with an unknowable element is left out entirely")
+
+	// A list that is knowable throughout is kept as it was.
+	flags, err := out.LookupPath(cue.ParsePath("flags")).List()
 	require.NoError(t, err)
-	var got []string
-	for args.Next() {
-		s, err := args.Value().String()
-		require.NoError(t, err)
-		got = append(got, s)
-	}
-	require.Equal(t, []string{"keep", ""}, got, "the length is kept, the value stands in")
+	require.True(t, flags.Next())
+	kept, err := flags.Value().Bool()
+	require.NoError(t, err)
+	require.True(t, kept)
+
+	name, err := out.LookupPath(cue.ParsePath("name")).String()
+	require.NoError(t, err)
+	require.Equal(t, "web", name)
+
+	// The trait that patches the dropped list can now supply it.
+	patched := out.Unify(cuectx.CompileString(`{args: ["keep", "real"]}`))
+	require.NoError(t, patched.Err())
 
 	_, err = out.MarshalJSON()
-	require.NoError(t, err)
+	require.NoError(t, err, "the base must still marshal")
 }
 
 // The resolver is the choke point: under the marker it types from the schema
@@ -235,4 +245,46 @@ func TestResolveSourceExpressionsTypesUnderTheMarker(t *testing.T) {
 	same, err := ResolveSourceExpressions(ctx, []any{"$(source.cfg.port)"}, SurfaceComponent)
 	require.NoError(t, err)
 	require.Equal(t, []any{"$(source.cfg.port)"}, same)
+}
+
+// An expression sees what the definition it feeds sees, so the surface decides
+// which context fields have a type at all. Typing every surface as a component
+// would quietly stop checking the fields only a trait or policy can read.
+func TestTypedParamsTypesContextPerSurface(t *testing.T) {
+	ctx := typingContext(t)
+
+	trait, err := TypedParams(ctx, map[string]any{"tt": "$(context.traitType)"}, SurfaceTrait)
+	require.NoError(t, err)
+	require.Equal(t, CUEType("string"), trait["tt"],
+		"a trait reads its own type, so it has one")
+
+	// Not readable on a component, so there is nothing to promise.
+	comp, err := TypedParams(ctx, map[string]any{"tt": "$(context.traitType)"}, SurfaceComponent)
+	require.NoError(t, err)
+	require.Equal(t, CUEType("_"), comp["tt"])
+
+	// A field both surfaces carry is typed on both.
+	for _, surface := range []string{SurfaceComponent, SurfaceTrait} {
+		out, err := TypedParams(ctx, map[string]any{"an": "$(context.appName)"}, surface)
+		require.NoError(t, err)
+		require.Equal(t, CUEType("string"), out["an"], "surface %q", surface)
+	}
+}
+
+// `$$(` is how an author writes a literal `$(`, and the render collapses it.
+// Validation has to judge the string the render will produce, or a parameter
+// constrained to the collapsed form is refused for a value that renders fine.
+func TestTypedParamsCollapsesAnEscape(t *testing.T) {
+	ctx := typingContext(t)
+
+	out, err := TypedParams(ctx, map[string]any{
+		"escaped": "$$(MY_VAR)",
+		"mixed":   "cost: $$(100) and $(source.cfg.host)",
+	}, SurfaceComponent)
+	require.NoError(t, err)
+
+	require.Equal(t, "$(MY_VAR)", out["escaped"],
+		"the escape is collapsed, as the render collapses it")
+	require.Equal(t, CUEType("string"), out["mixed"],
+		"an escape alongside a real expression still yields a string")
 }
