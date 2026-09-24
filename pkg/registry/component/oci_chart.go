@@ -26,11 +26,16 @@ import (
 // ociChartTagLister lists a repository's tags over a chosen transport. It
 // mirrors ListOCITagsWithTransport rather than ociTagLister because a push
 // target's transport comes from its own URL scheme, not from a caller flag.
-type ociChartTagLister func(repoRef, host, username, password string, plainHTTP bool) ([]string, error)
+type ociChartTagLister func(ctx context.Context, repoRef, host, username, password string, plainHTTP bool) ([]string, error)
 
 // chartTagLister lists a repository's tags. It is a package variable so tests
 // can substitute a fake; production always uses ListOCITagsWithTransport.
-var chartTagLister ociChartTagLister = ListOCITagsWithTransport
+var chartTagLister ociChartTagLister = func(ctx context.Context, repoRef, host, username, password string, plainHTTP bool) ([]string, error) {
+	if plainHTTP {
+		return ListOCITagsWithPlainHTTP(ctx, repoRef, host, username, password)
+	}
+	return ListOCITags(ctx, repoRef, host, username, password)
+}
 
 // ociTagListerForTest swaps the package tag lister and returns a function that
 // restores it. It exists for tests in this package only.
@@ -95,16 +100,7 @@ func OCIChartTagExists(ctx context.Context, reg Registry, name, tag string) (boo
 		return false, errors.Errorf("registry %q is not an OCI registry", reg.Name)
 	}
 	repoRef, host := OCIRepoRef(oci.URL, name)
-	plainHTTP := ociURLIsPlainHTTP(oci.URL)
-	var (
-		tags []string
-		err  error
-	)
-	if plainHTTP {
-		tags, err = ListOCITagsWithPlainHTTP(ctx, repoRef, host, oci.Username, oci.Token)
-	} else {
-		tags, err = ListOCITags(ctx, repoRef, host, oci.Username, oci.Token)
-	}
+	tags, err := chartTagLister(ctx, repoRef, host, oci.Username, oci.Token, ociURLIsPlainHTTP(oci.URL))
 	if err != nil {
 		if IsOCIRepositoryNotFound(err) {
 			return false, nil
