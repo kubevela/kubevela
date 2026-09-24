@@ -159,6 +159,13 @@ func (c *Client) GetGiteeContents(ctx context.Context, owner, repo, path, ref st
 	if err != nil {
 		return nil, nil, err
 	}
+	if code := response.StatusCode; code < 200 || code > 299 {
+		if code == http.StatusNotFound {
+			return nil, nil, fmt.Errorf("reading %q from gitee: %w", path, ErrFileNotFound)
+		}
+		return nil, nil, fmt.Errorf("reading %q from gitee: unexpected status %d: %s",
+			path, code, strings.TrimSpace(string(body)))
+	}
 	return unmarshalToContent(body)
 }
 

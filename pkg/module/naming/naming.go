@@ -72,8 +72,14 @@ func TruncateName(name string) string {
 // TruncateWithHash keeps s within max bytes, appending a stable 8-char digest of
 // the full value so two long values sharing a prefix stay distinct.
 func TruncateWithHash(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
 	if len(s) <= max {
 		return s
+	}
+	if max <= 9 {
+		return s[:max]
 	}
 	sum := sha256.Sum256([]byte(s))
 	suffix := "-" + hex.EncodeToString(sum[:])[:8]

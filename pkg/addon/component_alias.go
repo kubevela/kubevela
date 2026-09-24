@@ -45,6 +45,8 @@ type (
 	AsyncReader = component.AsyncReader
 	// ReaderType marks which transport a reader speaks.
 	ReaderType = component.ReaderType
+	// ReaderOption adjusts how a reader resolves content.
+	ReaderOption = component.ReaderOption
 	// Item is one file or directory in a source.
 	Item = component.Item
 	// SourceMeta is one package's file listing.
@@ -90,6 +92,8 @@ var (
 	NewRegistryDataStoreFor = component.NewRegistryDataStoreFor
 	// NewAsyncReader builds a reader for a source.
 	NewAsyncReader = component.NewAsyncReader
+	// WithRef reads at a specific branch, tag or commit.
+	WithRef = component.WithRef
 	// IsOCIURL reports whether a URL names an OCI registry.
 	IsOCIURL = component.IsOCIURL
 	// OCIChartRef returns the full reference a chart publishes to.
