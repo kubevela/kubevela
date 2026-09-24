@@ -186,12 +186,14 @@ var Patterns = []Pattern{
 // AsyncReader is needed to calculate relative path
 func GetPatternFromItem(it Item, r AsyncReader, rootPath string) string {
 	relativePath := r.RelativePath(it)
+	normalized := filepath.ToSlash(relativePath)
 	for _, p := range Patterns {
-		if strings.HasPrefix(relativePath, strings.Join([]string{rootPath, p.Value}, "/")) {
+		patternPath := path.Join(rootPath, p.Value)
+		if normalized == patternPath || strings.HasPrefix(normalized, patternPath+"/") {
 			return p.Value
 		}
-		if strings.HasPrefix(relativePath, filepath.Join(rootPath, p.Value)) {
-			// for enable addon by load dir, compatible with linux or windows os
+		if strings.HasPrefix(relativePath, filepath.Join(rootPath, p.Value)+string(filepath.Separator)) {
+			// Compatible with local directory reads on windows path separators.
 			return p.Value
 		}
 	}

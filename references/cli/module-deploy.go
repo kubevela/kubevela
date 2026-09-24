@@ -187,6 +187,7 @@ func NewModuleDeployCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.C
 	cmd.Flags().BoolVar(&o.dryRun, moduleDeployDryRunFlag, false, "Print the Application without applying it.")
 	cmd.Flags().DurationVar(&o.timeout, moduleDeployTimeoutFlag, defaultModuleDeployTimeout, "How long to wait for the module to become healthy.")
 	addNamespaceAndEnvArg(cmd)
+	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
 

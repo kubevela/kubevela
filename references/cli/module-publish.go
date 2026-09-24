@@ -72,7 +72,7 @@ type modulePublishOptions struct {
 }
 
 // NewModulePublishCommand returns the vela module publish command.
-func NewModulePublishCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command {
+func NewModulePublishCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	o := &modulePublishOptions{push: pkgaddon.PushOCIChart, tagExists: pkgaddon.OCIChartTagExists}
 	cmd := &cobra.Command{
 		Use:   "publish <dir> [oci-ref]",
@@ -137,6 +137,8 @@ func NewModulePublishCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Command 
 	cmd.Flags().String(modulePublishUsernameFlag, "", "Registry username. Empty uses the docker credential chain.")
 	cmd.Flags().String(addonPassword, "", "Registry password. Empty uses the docker credential chain.")
 	cmd.Flags().Bool(addonPasswordStdin, false, "Read the registry password from stdin.")
+	cmd.SetIn(ioStreams.In)
+	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
 
@@ -214,6 +216,9 @@ func (o *modulePublishOptions) run(ctx context.Context, cli client.Client, out i
 // network call.
 func (o *modulePublishOptions) resolveTarget(ctx context.Context, cli client.Client) (pkgaddon.Registry, error) {
 	if o.ociRef != "" {
+		if (o.username == "") != (o.password == "") {
+			return pkgaddon.Registry{}, fmt.Errorf("OCI registry username and password must be supplied together; omit both for anonymous access")
+		}
 		return pkgaddon.Registry{
 			Name: o.ociRef,
 			// A positional reference is by definition an OCI target, stored as
