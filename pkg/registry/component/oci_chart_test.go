@@ -21,6 +21,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -73,7 +74,7 @@ func TestOCIChartTagExists(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			restore := ociTagListerForTest(func(_, _, _, _ string, _ bool) ([]string, error) {
+			restore := ociTagListerForTest(func(_ context.Context, _, _, _, _ string, _ bool) ([]string, error) {
 				return tc.tags, tc.tagsErr
 			})
 			defer restore()
@@ -85,6 +86,31 @@ func TestOCIChartTagExists(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestOCIChartTagExistsUsesPlainHTTPTransportForHTTPURL(t *testing.T) {
+	cases := []struct {
+		name      string
+		url       string
+		plainHTTP bool
+	}{
+		{name: "http URL uses plain HTTP", url: "http://127.0.0.1:5000/modules", plainHTTP: true},
+		{name: "oci URL uses TLS", url: "oci://registry.example.com/modules", plainHTTP: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reg := Registry{Name: "r", Helm: &HelmSource{URL: tc.url}}
+			restore := ociTagListerForTest(func(_ context.Context, _, _, _, _ string, plainHTTP bool) ([]string, error) {
+				assert.Equal(t, tc.plainHTTP, plainHTTP)
+				return []string{"1.0.0"}, nil
+			})
+			defer restore()
+
+			exists, err := OCIChartTagExists(context.Background(), reg, "s3", "1.0.0")
+			require.NoError(t, err)
+			require.True(t, exists)
 		})
 	}
 }
