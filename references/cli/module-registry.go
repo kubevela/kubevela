@@ -94,7 +94,7 @@ func NewAddModuleRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Comm
   Re-adding an existing name overwrites it in place, same as vela addon registry add:
 	vela module registry add catalog oci://ghcr.io/org/fork`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := setRegistryPasswordFromStdin(cmd); err != nil {
+			if err := setModuleRegistryPasswordFromStdin(cmd); err != nil {
 				return err
 			}
 			registry, err := moduleRegistryFromArgs(cmd, args)
@@ -120,7 +120,7 @@ func NewUpdateModuleRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.C
   Update an OCI registry's credentials, reading the password from stdin:
 	printf '%s' "$PASSWORD" | vela module registry update ghcr oci://ghcr.io/org/modules --username robot --password-stdin`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := setRegistryPasswordFromStdin(cmd); err != nil {
+			if err := setModuleRegistryPasswordFromStdin(cmd); err != nil {
 				return err
 			}
 			registry, err := moduleRegistryFromArgs(cmd, args)
@@ -140,6 +140,21 @@ func addModuleRegistryFlags(cmd *cobra.Command) {
 	cmd.Flags().String(moduleRegistryUsernameFlag, "", "username for an OCI registry")
 	cmd.Flags().String(moduleRegistryPasswordFlag, "", "password for an OCI registry")
 	cmd.Flags().Bool(moduleRegistryPasswordStdinFlag, false, "read the OCI registry password from stdin")
+}
+
+func setModuleRegistryPasswordFromStdin(cmd *cobra.Command) error {
+	passwordStdin, err := cmd.Flags().GetBool(moduleRegistryPasswordStdinFlag)
+	if err != nil {
+		return err
+	}
+	if !passwordStdin {
+		return nil
+	}
+	value, err := readPasswordFromStdin(cmd, cmd.Flags().Changed(moduleRegistryPasswordFlag), "registry")
+	if err != nil {
+		return err
+	}
+	return cmd.Flags().Set(moduleRegistryPasswordFlag, value)
 }
 
 // moduleRegistryFromArgs builds a Registry from the positional name and URL plus
@@ -177,6 +192,9 @@ func moduleRegistryFromArgs(cmd *cobra.Command, args []string) (*pkgaddon.Regist
 		}
 		if (username == "") != (password == "") {
 			return nil, errors.New("OCI registry username and password must be supplied together; omit both for anonymous access")
+		}
+		if strings.HasPrefix(strings.ToLower(rawURL), "http://") && password != "" {
+			return nil, errors.New("credentials are not supported for http:// module registries; use oci:// for authenticated registries")
 		}
 		// An OCI registry is stored as a Helm source carrying the oci:// scheme,
 		// the same record `vela addon registry add --type oci` writes. Asserting
@@ -344,6 +362,11 @@ func preserveTokenSecretRef(registry *pkgaddon.Registry, existing pkgaddon.Regis
 	if pkgmodule.SourceTypeName(*registry) != pkgmodule.SourceTypeName(existing) {
 		return
 	}
+	// Keep a credential only when the target origin is unchanged. Reusing a
+	// token across hosts can leak credentials to the new endpoint.
+	if !sameRegistryOrigin(*registry, existing) {
+		return
+	}
 	old := existing.GetTokenSource()
 	if old == nil {
 		return
@@ -355,6 +378,17 @@ func preserveTokenSecretRef(registry *pkgaddon.Registry, existing pkgaddon.Regis
 	if ref := old.GetTokenSecretRef(); ref != "" {
 		src.SetTokenSecretRef(ref)
 	}
+}
+
+func sameRegistryOrigin(next, prev pkgaddon.Registry) bool {
+	n := next.OCIChartSource()
+	p := prev.OCIChartSource()
+	if n == nil || p == nil {
+		return false
+	}
+	nh, _ := pkgcomponent.OCIRegistryLocation(n.URL)
+	ph, _ := pkgcomponent.OCIRegistryLocation(p.URL)
+	return strings.EqualFold(nh, ph)
 }
 
 // NewListModuleRegistryCommand returns the vela module registry list command.

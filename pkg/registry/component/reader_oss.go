@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	"github.com/pkg/errors"
 )
 
@@ -96,7 +97,7 @@ func (o *ossReader) ReadFile(relativePath string) (content string, err error) {
 	}
 	switch code := resp.StatusCode(); {
 	case code == http.StatusNotFound:
-		return "", fmt.Errorf("reading %q from %s: %w", full, o.bucketEndPoint, ErrFileNotFound)
+		return "", fmt.Errorf("reading %q from %s: %w", full, o.bucketEndPoint, velaerrors.ErrFileNotFound)
 	case code < 200 || code > 299:
 		return "", fmt.Errorf("reading %q from %s: unexpected status %d: %s",
 			full, o.bucketEndPoint, code, strings.TrimSpace(string(resp.Body())))
