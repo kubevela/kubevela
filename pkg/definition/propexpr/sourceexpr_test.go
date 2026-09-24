@@ -114,6 +114,27 @@ func TestParse(t *testing.T) {
 	}
 }
 
+// Parse skips its scan for a value holding no "$(", which is almost every
+// property. That shortcut has to produce what the scan would have produced.
+func TestParseNoExpressionShortcut(t *testing.T) {
+	for _, raw := range []string{"", "just-a-string", "a: b, c", "100%", "$notanexpr", "()"} {
+		got, err := Parse(raw)
+		if err != nil {
+			t.Fatalf("Parse(%q): %v", raw, err)
+		}
+		if got.HasExpr() {
+			t.Errorf("Parse(%q) found an expression", raw)
+		}
+		var lit string
+		for _, f := range got.Fragments {
+			lit += f.Text
+		}
+		if lit != raw {
+			t.Errorf("Parse(%q) reassembles to %q", raw, lit)
+		}
+	}
+}
+
 // An expression sees what the definition it feeds sees, at the moment that
 // definition is rendered. This builds a real component render context and
 // requires every field in it to be classified - readable with a type, or

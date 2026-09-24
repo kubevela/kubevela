@@ -17,8 +17,14 @@ limitations under the License.
 package definition
 
 import (
+	"context"
 	"strings"
 	"testing"
+
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
+
+	"github.com/oam-dev/kubevela/pkg/sources"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1836,4 +1842,24 @@ func TestGetBaseContextLabels(t *testing.T) {
 			r.Equal(tc.want.labels, got, tc.reason)
 		})
 	}
+}
+
+// A real render has nothing to prune, and paying for a walk of every rendered
+// resource on every reconcile is the cost this guard exists to avoid.
+func TestConcreteForRenderOnlyTouchesAValidation(t *testing.T) {
+	cuectx := cuecontext.New()
+	v := cuectx.CompileString(`{image: string, replicas: 2}`)
+	require.NoError(t, v.Err())
+
+	render := wfprocess.NewContext(wfprocess.ContextData{Ctx: context.Background()})
+	require.Equal(t, v, concreteForRender(render, v), "a real render is handed back its own value")
+
+	validation := wfprocess.NewContext(wfprocess.ContextData{
+		Ctx: sources.WithTypeOnly(context.Background()),
+	})
+	pruned := concreteForRender(validation, v)
+	require.False(t, pruned.LookupPath(cue.ParsePath("image")).Exists(),
+		"an unknowable leaf is pruned so the value can be marshalled")
+	_, err := pruned.MarshalJSON()
+	require.NoError(t, err)
 }

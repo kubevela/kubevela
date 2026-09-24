@@ -149,15 +149,12 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		if err != nil {
 			return errors.WithMessagef(err, "resolve source expressions for %s %s", surface, wd.name)
 		}
-		bt, err := json.Marshal(params)
-		if resolved != nil {
-			bt, err = json.Marshal(resolved)
-		}
+		bt, err := renderParams(ctx, params, resolved)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of workload %s", wd.name)
 		}
-		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("%s: %s", velaprocess.ParameterFieldName, string(bt))
+		if bt != "null" {
+			paramFile = fmt.Sprintf("%s: %s", velaprocess.ParameterFieldName, bt)
 		}
 	}
 
@@ -201,6 +198,10 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return errors.New(strings.TrimRight(result.String(), "\n"))
 	}
 	output := val.LookupPath(value.FieldPath(OutputFieldName))
+	// A typed parameter leaves this non-concrete, and the trait renders against
+	// it as JSON. Prune it here, where nothing checks it, rather than in the
+	// parameters, where something does.
+	output = concreteForRender(ctx, output)
 
 	base, err := model.NewBase(output)
 	if err != nil {
@@ -211,7 +212,12 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	}
 
 	// Store template for error context (use workload-specific key to avoid pollution)
-	ctx.PushData(GetWorkloadTemplateKey(wd.name), val)
+	// Skipped during validation: the whole value is marshalled into every later
+	// template's context, which a typed parameter cannot survive. The render
+	// path falls back to the base when it is absent.
+	if !sources.TypeOnly(ctx.GetCtx()) {
+		ctx.PushData(GetWorkloadTemplateKey(wd.name), val)
+	}
 
 	// we will support outputs for workload composition, and it will become trait in AppConfig.
 	outputs := val.LookupPath(value.FieldPath(OutputsFieldName))
@@ -227,7 +233,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		if iter.Selector().IsDefinition() || iter.Selector().PkgPath() != "" || iter.IsOptional() {
 			continue
 		}
-		other, err := model.NewOther(iter.Value())
+		other, err := model.NewOther(concreteForRender(ctx, iter.Value()))
 		name := util.GetIteratorLabel(*iter)
 		if err != nil {
 			return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", name, wd.name)
@@ -335,15 +341,12 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		if err != nil {
 			return errors.WithMessagef(err, "resolve source expressions for trait %s", td.name)
 		}
-		bt, err := json.Marshal(params)
-		if resolved != nil {
-			bt, err = json.Marshal(resolved)
-		}
+		bt, err := renderParams(ctx, params, resolved)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
-		if string(bt) != "null" {
-			buff += fmt.Sprintf("%s: %s\n", velaprocess.ParameterFieldName, string(bt))
+		if bt != "null" {
+			buff += fmt.Sprintf("%s: %s\n", velaprocess.ParameterFieldName, bt)
 		}
 	}
 
@@ -415,7 +418,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			if iter.Selector().IsDefinition() || iter.Selector().PkgPath() != "" || iter.IsOptional() {
 				continue
 			}
-			other, err := model.NewOther(iter.Value())
+			other, err := model.NewOther(concreteForRender(ctx, iter.Value()))
 			name := util.GetIteratorLabel(*iter)
 			if err != nil {
 				return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", name, td.name)
@@ -435,6 +438,12 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		if err := base.Unify(patcher, sets.CreateUnifyOptionsForPatcher(patcher)...); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
+		// The patch carries the trait's own parameters, so a source-fed one
+		// lands here as a type. Pruned after the unification rather than before
+		// it, because the patcher's attributes are what drive patch strategy.
+		if err := repruneBase(ctx, base); err != nil {
+			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
+		}
 	}
 	outputsPatcher := val.LookupPath(value.FieldPath(PatchOutputsFieldName))
 	if outputsPatcher.Exists() {
@@ -444,6 +453,9 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 				continue
 			}
 			if err = auxiliary.Ins.Unify(target); err != nil {
+				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
+			}
+			if err = repruneInstance(ctx, auxiliary.Ins); err != nil {
 				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
 			}
 		}
@@ -671,4 +683,61 @@ func FormatCUEError(err error, messagePrefix string, entityType, entityName stri
 	}
 
 	return fmt.Errorf("%s", strings.TrimRight(result.String(), "\n"))
+}
+
+// renderParams writes a component or trait's properties as CUE. A validation
+// renders types rather than values, and a type cannot survive json.Marshal.
+func renderParams(ctx process.Context, params, resolved interface{}) (string, error) {
+	chosen := params
+	if resolved != nil {
+		chosen = resolved
+	}
+	if typed, ok := chosen.(map[string]interface{}); ok && sources.TypeOnly(ctx.GetCtx()) {
+		return sources.ParamsAsCUE(typed)
+	}
+	raw, err := json.Marshal(chosen)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// concreteForRender makes a validation's rendered resource marshalable. Every
+// resource here is handed to the next template through the context as JSON,
+// which an unknowable leaf cannot survive. A real render has nothing to prune.
+func concreteForRender(ctx process.Context, v cue.Value) cue.Value {
+	if !sources.TypeOnly(ctx.GetCtx()) {
+		return v
+	}
+	pruned, _ := sources.ConcreteForValidation(v)
+	return pruned
+}
+
+// repruneBase prunes a base that a patch has just made non-concrete again, and
+// puts the result back so the next trait can be handed it as JSON.
+func repruneBase(ctx process.Context, base model.Instance) error {
+	if !sources.TypeOnly(ctx.GetCtx()) {
+		return nil
+	}
+	pruned, changed := sources.ConcreteForValidation(base.Value())
+	if !changed {
+		return nil
+	}
+	next, err := model.NewBase(pruned)
+	if err != nil {
+		return err
+	}
+	return ctx.SetBase(next)
+}
+
+// repruneInstance does the same for an auxiliary, which is patched in place.
+func repruneInstance(ctx process.Context, ins model.Instance) error {
+	if !sources.TypeOnly(ctx.GetCtx()) {
+		return nil
+	}
+	pruned, changed := sources.ConcreteForValidation(ins.Value())
+	if !changed {
+		return nil
+	}
+	return ins.Unify(pruned)
 }

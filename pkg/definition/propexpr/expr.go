@@ -151,6 +151,13 @@ func (p Parsed) SoleExpr() (string, bool) {
 	return "", false
 }
 
+// MayContainExpr reports whether a value is worth parsing. It is false for a
+// plain string, which is almost every property, and never false for a value
+// that does hold an expression or an escape.
+func MayContainExpr(raw string) bool {
+	return strings.Contains(raw, open)
+}
+
 // Parse splits a property value into literal and expression fragments.
 //
 // `$$(` is a literal `$(`, so a value that genuinely contains the delimiter can
@@ -158,6 +165,13 @@ func (p Parsed) SoleExpr() (string, bool) {
 // unbalanced `)`, counting parens so that `$(f((a)))` works.
 func Parse(raw string) (Parsed, error) {
 	var out Parsed
+	if !MayContainExpr(raw) {
+		if raw != "" {
+			out.Fragments = []Fragment{{Text: raw}}
+		}
+		return out, nil
+	}
+
 	var lit strings.Builder
 
 	for i := 0; i < len(raw); {
