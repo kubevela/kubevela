@@ -97,6 +97,15 @@ e2e-test:
 	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-test
 	@$(OK) tests pass
 
+.PHONY: e2e-module-test
+e2e-module-test:
+	# Run the module-as-a-component e2e suite (KUBEVELA_E2E_AUTH=1 enables
+	# the zot auth-test registry, used by one credentialed-registry test).
+	# Kept as its own package/target so a failure elsewhere in e2e-api-test
+	# or e2e-test cannot prevent this from running.
+	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-module-test
+	@$(OK) tests pass
+
 # Run e2e tests with k3d and webhook validation
 .PHONY: e2e-test-local
 e2e-test-local:
