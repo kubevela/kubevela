@@ -200,6 +200,14 @@ func pullModuleChart(ctx context.Context, reg *component.Registry, moduleName, v
 func (s *Service) ociChartFS(ctx context.Context, reg *component.Registry, moduleName, version string) (fs.FS, error) {
 	bufs, err := s.pullChart(ctx, reg, moduleName, version)
 	if err != nil {
+		// Each module is its own repository in an OCI registry, so a module
+		// that was never published is a missing repository, which the tag
+		// listing reports before any pull. Say that rather than pass on the
+		// registry's 404.
+		if component.IsOCIRepositoryNotFound(err) {
+			return nil, fmt.Errorf("registry %q: module %q is not published to this registry: %w",
+				reg.Name, moduleName, module.ErrModuleNotFound)
+		}
 		return nil, fmt.Errorf("registry %q: %w", reg.Name, err)
 	}
 	fsys, err := readerFS(&component.MemoryReader{Name: moduleName, Files: bufs}, moduleName)
