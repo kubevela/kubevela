@@ -1,0 +1,18 @@
+# The v1 line of the same capability, installed side by side with v2. Its
+# parameters differ: "tier" rather than "class", and no region.
+#
+# This uses Form 2, {apiVersion}/{name}, which resolves by label selector
+# rather than string math. It works because only one module in this cluster
+# ships a v1 capability named bucket.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: demo-store-consumer-v1
+  namespace: default
+spec:
+  components:
+    - name: documents
+      type: v1/bucket
+      properties:
+        bucketName: documents
+        tier: standard
