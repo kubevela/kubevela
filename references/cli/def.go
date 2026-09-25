@@ -987,6 +987,10 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", "from")
 			}
+			showAbstract, err := cmd.Flags().GetBool("include-abstract")
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", "include-abstract")
+			}
 			k8sClient, err := c.GetClient()
 			if err != nil {
 				return errors.Wrapf(err, "failed to get k8s client")
@@ -1008,7 +1012,8 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 				found, err := pkgdef.SearchDefinition(k8sClient,
 					definitionType,
 					ns,
-					filters.ByOwnerAddon(addonName))
+					filters.ByOwnerAddon(addonName),
+					filters.ByAbstract(showAbstract))
 				if err != nil {
 					return err
 				}
@@ -1050,10 +1055,24 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 			}
 			table := newUITable()
 
+			// Likewise ABSTRACT, only ever on show under --include-abstract
+			showAbstractColumn := false
+			for _, def := range definitions {
+				if filters.IsAbstract(def) {
+					showAbstractColumn = true
+					break
+				}
+			}
+
 			// We only include SOURCE-ADDON if there is at least one definition from an addon
-			if showSourceAddon {
+			switch {
+			case showSourceAddon && showAbstractColumn:
+				table.AddRow("NAME", "TYPE", "NAMESPACE", "SOURCE-ADDON", "ABSTRACT", "DESCRIPTION")
+			case showSourceAddon:
 				table.AddRow("NAME", "TYPE", "NAMESPACE", "SOURCE-ADDON", "DESCRIPTION")
-			} else {
+			case showAbstractColumn:
+				table.AddRow("NAME", "TYPE", "NAMESPACE", "ABSTRACT", "DESCRIPTION")
+			default:
 				table.AddRow("NAME", "TYPE", "NAMESPACE", "DESCRIPTION")
 			}
 
@@ -1063,17 +1082,22 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 					desc = annotations[pkgdef.DescriptionKey]
 				}
 
-				// Do not show SOURCE-ADDON column
-				if !showSourceAddon {
-					table.AddRow(definition.GetName(), definition.GetKind(), definition.GetNamespace(), desc)
-					continue
+				row := []interface{}{definition.GetName(), definition.GetKind(), definition.GetNamespace()}
+				if showSourceAddon {
+					sourceAddon := ""
+					if len(definition.GetOwnerReferences()) > 0 {
+						sourceAddon = strings.TrimPrefix(definition.GetOwnerReferences()[0].Name, "addon-")
+					}
+					row = append(row, sourceAddon)
 				}
-
-				sourceAddon := ""
-				if len(definition.GetOwnerReferences()) > 0 {
-					sourceAddon = strings.TrimPrefix(definition.GetOwnerReferences()[0].Name, "addon-")
+				if showAbstractColumn {
+					abstract := ""
+					if filters.IsAbstract(definition) {
+						abstract = "yes"
+					}
+					row = append(row, abstract)
 				}
-				table.AddRow(definition.GetName(), definition.GetKind(), definition.GetNamespace(), sourceAddon, desc)
+				table.AddRow(append(row, desc)...)
 			}
 			cmd.Println(table)
 			return nil
@@ -1081,6 +1105,7 @@ func NewDefinitionListCommand(c common.Args) *cobra.Command {
 	}
 	cmd.Flags().StringP(FlagType, "t", "", "Specify which definition type to list. If empty, all types will be searched. Valid types: "+strings.Join(pkgdef.ValidDefinitionTypes(), ", "))
 	cmd.Flags().String("from", "", "Filter definitions by which addon installed them.")
+	cmd.Flags().Bool("include-abstract", false, "Include definitions that may only be extended, which are hidden by default.")
 	cmd.Flags().StringP(Namespace, "n", "", "Specify which namespace the definition locates. Defaults to your current namespace and the system namespace.")
 	return cmd
 }

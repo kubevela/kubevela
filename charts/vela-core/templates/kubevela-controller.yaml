@@ -382,6 +382,7 @@ spec:
             - "--feature-gates=EnableCelExpressions={{- .Values.featureGates.enableCelExpressions | toString -}}"
             - "--feature-gates=RequireCelExpressionOptIn={{- .Values.featureGates.requireCelExpressionOptIn | toString -}}"
             - "--feature-gates=ValidateUndeclaredParameters={{- .Values.featureGates.validateUndeclaredParameters | toString -}}"
+            - "--feature-gates=EnableDefinitionInheritance={{- .Values.featureGates.enableDefinitionInheritance | toString -}}"
             - "--feature-gates=ValidateDefinitionPermissions={{ .Values.authorization.definitionValidationEnabled | toString -}}"
             {{ if .Values.authentication.enabled }}
             {{ if .Values.authentication.withUser }}

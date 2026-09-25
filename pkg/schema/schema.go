@@ -67,6 +67,18 @@ func ParsePropertiesToSchema(ctx context.Context, s string, templateFieldPath ..
 			return nil, fmt.Errorf("%w cue script: %s", template.Err(), s)
 		}
 	}
+	return ParseValueToSchema(template)
+}
+
+// ParseValueToSchema is ParsePropertiesToSchema for a value that has already
+// been compiled.
+//
+// A definition that extends another cannot be compiled from its own template:
+// it writes `parameter: $super._parameter & {...}`, and `$super` is supplied by
+// the chain rather than declared anywhere in the file. Such a definition is
+// compiled by the inheritance renderer and handed here, so its published
+// parameter schema is the one an application will actually be validated against.
+func ParseValueToSchema(template cue.Value) (*openapi3.Schema, error) {
 	data, err := common.GenOpenAPI(template)
 	if err != nil {
 		return nil, err

@@ -54,6 +54,16 @@ spec:
           spec:
             description: A TraitDefinitionSpec defines the desired state of a TraitDefinition.
             properties:
+              abstract:
+                description: |-
+                  Abstract marks this definition as one that may only be extended, never
+                  named directly by an Application. A base that applies a platform's rules
+                  is not something to use as-is, and saying so here is what makes the
+                  definitions built on it the only way through.
+
+                  It is not inherited: a definition that extends an abstract one is usable
+                  unless it marks itself abstract too.
+                type: boolean
               appliesToWorkloads:
                 description: |-
                   AppliesToWorkloads specifies the list of workload kinds this trait
@@ -96,6 +106,18 @@ spec:
                 required:
                 - name
                 type: object
+              extends:
+                description: |-
+                  Extends names a TraitDefinition this one builds on. The parent renders
+                  with the parameters this definition's template passes it in its `$super`
+                  block, and its patch, patchOutputs, outputs and parameter schema are
+                  inherited unless the template says otherwise with `$inherit`.
+
+                  A DefinitionRevision may be named to pin the parent, as in "gateway@v2";
+                  an unqualified name tracks whatever is current. The ancestors a render
+                  resolved are recorded in the ApplicationRevision, so an application keeps
+                  rendering the same way after a parent changes.
+                type: string
               extension:
                 description: Extension is used for extension needs by OAM platform
                   builders

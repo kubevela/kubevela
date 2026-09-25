@@ -184,6 +184,13 @@ const (
 	// has been checked for $(VAR) in env, command and args. Turning it off makes
 	// every Application eligible at once.
 	RequireCelExpressionOptIn featuregate.Feature = "RequireCelExpressionOptIn"
+
+	// EnableDefinitionInheritance enables spec.extends on ComponentDefinition and
+	// TraitDefinition, letting a definition render on top of another. With the
+	// gate off a definition that sets the field is refused rather than ignored,
+	// since ignoring it would render the child's template with an unresolved
+	// `$super`.
+	EnableDefinitionInheritance featuregate.Feature = "EnableDefinitionInheritance"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -220,6 +227,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	EnableSourceAutoUpdate:                        {Default: false, PreRelease: featuregate.Alpha},
 	EnableCelExpressions:                          {Default: false, PreRelease: featuregate.Alpha},
 	RequireCelExpressionOptIn:                     {Default: true, PreRelease: featuregate.Alpha},
+	EnableDefinitionInheritance:                   {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {
