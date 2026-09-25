@@ -145,7 +145,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	var notes string
 	if isDryRun(ctx) {
 		klog.V(2).Infof("Helm provider: Dry-run mode — rendering chart %s client-side only", ch.Name())
-		manifest, notes, err = p.dryRunRender(ch, releaseName, releaseNamespace, values, renderParams.Options, renderParams.Context)
+		manifest, notes, err = p.dryRunRender(ctx, ch, releaseName, releaseNamespace, values, renderParams.Options, renderParams.Context)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to dry-run render chart")
 		}

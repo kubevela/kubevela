@@ -65,7 +65,7 @@ spec:
 
 			// Call the provider's internal render logic in dry-run mode
 			ctx := WithDryRun(context.Background())
-			manifest, notes, err := p.dryRunRender(testChart, "release", "default",
+			manifest, notes, err := p.dryRunRender(context.Background(), testChart, "release", "default",
 				map[string]interface{}{}, nil, nil)
 			Expect(err).ShouldNot(HaveOccurred())
 			_ = ctx
