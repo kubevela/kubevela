@@ -65,3 +65,93 @@ jobs:
           chart_version=${{ steps.get_version.outputs.VERSION }}
           git commit -m "update vela-core chart ${chart_version}"
           git push https://x-access-token:${{ steps.get_app_token.outputs.token }}@github.com/kubevela/charts.git
+
+  # Publishes the same chart to GHCR as an OCI artifact. This is an additive
+  # mirror: the classic HTTP repo at kubevela.github.io/charts is untouched and
+  # remains the primary. The mirror keeps charts installable when that domain or
+  # its DNS is unavailable, and gives users a second option.
+  publish-charts-ghcr:
+    permissions:
+      contents: read
+      packages: write
+    env:
+      HELM_CHART: charts/vela-core
+      HELM_CHART_NAME: vela-core
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+      # OCI push requires Helm 3.8 or newer. The publish-charts job above pins
+      # 3.4.0, so this job installs its own version rather than changing it.
+      - name: Install Helm
+        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78
+        with:
+          version: v3.16.2
+
+      # Mirrors the publish-charts job so both channels ship the same
+      # generated chart README rather than whatever is committed in the tree.
+      - name: Setup node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '14'
+
+      - name: Generate helm doc
+        run: |
+          make helm-doc-gen
+
+      - name: Resolve the version
+        id: get_version
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION="${REF_NAME}"
+          case "${VERSION}" in
+            v*) ;;
+            *) echo "expected a v-prefixed tag, got ${VERSION}" >&2; exit 1 ;;
+          esac
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "SEMVER=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Tag helm chart image
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+          SEMVER: ${{ steps.get_version.outputs.SEMVER }}
+        run: |
+          # Anchored to the image tag field so an unrelated "latest" elsewhere
+          # in values.yaml is never rewritten. Chart.yaml keeps the global
+          # substitution because both version and appVersion are stamped.
+          sed -i "s|^  tag: latest|  tag: ${VERSION}|" $HELM_CHART/values.yaml
+          sed -i "s/0.1.0/${SEMVER}/g" $HELM_CHART/Chart.yaml
+
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          echo "${GHCR_TOKEN}" | helm registry login ghcr.io -u "${GHCR_USER}" --password-stdin
+
+      - name: Package and push to GHCR
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          owner_lc=$(echo "${OWNER}" | tr '[:upper:]' '[:lower:]')
+          helm package $HELM_CHART --destination ./dist
+          helm push ./dist/${HELM_CHART_NAME}-*.tgz "oci://ghcr.io/${owner_lc}/charts"
+
+      # Verified without credentials on purpose. A newly created GHCR package is
+      # private, and GitHub exposes no API to change that (a PATCH against the
+      # packages endpoint returns 404), so it cannot be provisioned here. An
+      # anonymous check turns that into a visible failure at publish time
+      # instead of a 403 for every user trying to pull the chart.
+      - name: Verify the chart is pullable without credentials
+        env:
+          OWNER: ${{ github.repository_owner }}
+          SEMVER: ${{ steps.get_version.outputs.SEMVER }}
+        run: |
+          owner_lc=$(echo "${OWNER}" | tr '[:upper:]' '[:lower:]')
+          echo '{}' > "${RUNNER_TEMP}/anon-registry.json"
+          if ! helm show chart "oci://ghcr.io/${owner_lc}/charts/${HELM_CHART_NAME}" \
+              --version "${SEMVER}" --registry-config "${RUNNER_TEMP}/anon-registry.json"; then
+            echo "::error::Chart pushed but not pullable anonymously. Set the package ghcr.io/${owner_lc}/charts/${HELM_CHART_NAME} to public in the package settings, then re-run."
+            exit 1
+          fi
