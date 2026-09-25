@@ -68,6 +68,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
 			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
+			waitDefinitionRevision(ctx, namespace, componentType, componentVersion)
 
 			By("Create configmap-component with 1.2.0 version")
 			updatedComponent := new(v1beta1.ComponentDefinition)
@@ -151,6 +152,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
 			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
+			waitDefinitionRevision(ctx, namespace, componentType, componentVersion)
 
 			By("Create configmap-component with 2.3.0 version")
 			updatedComponent := new(v1beta1.ComponentDefinition)
@@ -246,6 +248,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			trait := createTrait(traitVersion, namespace, traitType, "1")
 			trait.SetNamespace(namespace)
 			Expect(k8sClient.Create(ctx, trait)).Should(Succeed())
+			waitDefinitionRevision(ctx, namespace, traitType, traitVersion)
 
 			By("Create scaler-trait with 1.2.0 version and 2 replicas")
 			updatedTrait := new(v1beta1.TraitDefinition)
@@ -400,6 +403,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
 			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
+			waitDefinitionRevision(ctx, namespace, componentType, componentVersion)
 
 			By("Create configmap-component with 1.2.0 version")
 			updatedComponent := new(v1beta1.ComponentDefinition)
@@ -463,6 +467,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			traitType := "scaler-trait"
 			trait := createTrait(traitVersion, namespace, traitType, "1")
 			Expect(k8sClient.Create(ctx, trait)).Should(Succeed())
+			waitDefinitionRevision(ctx, namespace, traitType, traitVersion)
 
 			By("Create scaler-trait with 1.2.0 version and 2 replica")
 			updatedTrait := new(v1beta1.TraitDefinition)
