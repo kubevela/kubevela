@@ -30,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/cue/definition/health"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 	"github.com/oam-dev/kubevela/pkg/features"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -79,7 +80,10 @@ func resolveComponentChain(ctx context.Context, tmpl *Template, cd *v1beta1.Comp
 				"component definition %s extends %s, which has no CUE template; only CUE definitions can be extended",
 				current.Name, name)
 		}
-		tmpl.Ancestors = append(tmpl.Ancestors, inherit.Level{Name: name, Template: parent.Spec.Schematic.CUE.Template})
+		tmpl.Ancestors = append(tmpl.Ancestors, inherit.Level{
+			Name:     name,
+			Template: upgradedTemplate(parent.Spec.Schematic.CUE.Template, name, upgrade.ComponentKind),
+		})
 		if tmpl.AncestorComponentDefinitions == nil {
 			tmpl.AncestorComponentDefinitions = map[string]*v1beta1.ComponentDefinition{}
 		}
@@ -87,7 +91,7 @@ func resolveComponentChain(ctx context.Context, tmpl *Template, cd *v1beta1.Comp
 		stored.Status = v1beta1.ComponentDefinitionStatus{}
 		tmpl.AncestorComponentDefinitions[name] = stored
 
-		inheritComponentAttributes(tmpl, current, parent)
+		inheritComponentAttributes(tmpl, cd, parent)
 		seen = append(seen, name)
 		current = parent
 	}
@@ -119,7 +123,10 @@ func resolveTraitChain(ctx context.Context, tmpl *Template, td *v1beta1.TraitDef
 				"trait definition %s extends %s, which has no CUE template; only CUE definitions can be extended",
 				current.Name, name)
 		}
-		tmpl.Ancestors = append(tmpl.Ancestors, inherit.Level{Name: name, Template: parent.Spec.Schematic.CUE.Template})
+		tmpl.Ancestors = append(tmpl.Ancestors, inherit.Level{
+			Name:     name,
+			Template: upgradedTemplate(parent.Spec.Schematic.CUE.Template, name, upgrade.TraitKind),
+		})
 		if tmpl.AncestorTraitDefinitions == nil {
 			tmpl.AncestorTraitDefinitions = map[string]*v1beta1.TraitDefinition{}
 		}
@@ -127,11 +134,25 @@ func resolveTraitChain(ctx context.Context, tmpl *Template, td *v1beta1.TraitDef
 		stored.Status = v1beta1.TraitDefinitionStatus{}
 		tmpl.AncestorTraitDefinitions[name] = stored
 
-		inheritTraitAttributes(tmpl, current, parent)
+		inheritTraitAttributes(tmpl, td, parent)
 		seen = append(seen, name)
 		current = parent
 	}
 	return nil
+}
+
+// upgradedTemplate puts a parent's template through the same CUE compatibility
+// pass its own render would.
+//
+// A definition is upgraded where it is rendered, which covers one written
+// against an older CUE. Extending it reads the template straight off the parent,
+// so without this a parent that renders perfectly well on its own fails the
+// moment anything extends it, with a syntax error attributed to a file its
+// author did not touch. The parent's status CUE is already upgraded this way in
+// upgradedAncestors.
+func upgradedTemplate(template, name string, kind upgrade.DefinitionKind) string {
+	upgraded, _ := upgrade.EnsureCueVersionCompatibility(template, name, kind, upgrade.TemplateAreaMain)
+	return upgraded
 }
 
 // checkChain refuses a chain that loops or runs too deep. A cycle is caught by
@@ -177,6 +198,11 @@ func inheritanceEnabled(name, extends string) error {
 // inheritComponentAttributes fills in what the child left empty. Only the
 // template is composed by rendering; the rest of the spec describes the
 // workload, where silence means the parent's answer.
+//
+// Called once per ancestor with the same child, so the nearest ancestor to
+// declare a field wins and a boolean is true if any of them set it. Folding a
+// pair at a time instead would let a grandparent answer for a level that had
+// already spoken.
 func inheritComponentAttributes(tmpl *Template, child, parent *v1beta1.ComponentDefinition) {
 	if child.Spec.Workload.Definition.Kind == "" && child.Spec.Workload.Type == "" {
 		child.Spec.Workload = parent.Spec.Workload

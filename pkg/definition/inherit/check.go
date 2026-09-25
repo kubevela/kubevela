@@ -40,7 +40,7 @@ func CheckCall(ctx context.Context, chain []Level, s Surface, compile CompileFun
 	}
 	self, parent := chain[0], chain[1]
 
-	schema, err := schemaOf(ctx, chain[1:], "", s, compile)
+	schema, err := declaredSchema(ctx, parent, "", s, compile)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func CheckCall(ctx context.Context, chain []Level, s Surface, compile CompileFun
 		return nil, fmt.Errorf("%s %s: %w", s.Kind, self.Name, err)
 	}
 
-	// Asked before the schema is filled in, since filling creates `$super`.
+	// Asked before anything is filled in, since filling creates `$super`.
 	if !child.LookupPath(cue.ParsePath(SuperField)).Exists() {
 		return nil, fmt.Errorf(
 			"%s %s extends %s but its template never calls it; "+
@@ -67,13 +67,6 @@ func CheckCall(ctx context.Context, chain []Level, s Surface, compile CompileFun
 			s.Kind, self.Name, parent.Name, parent.Name)
 	}
 
-	// The schema must be in place first, or `$super: properties: parameter`
-	// supplies almost nothing and every required parameter looks unsupplied.
-	moved, err := adopt(child, schema)
-	if err != nil {
-		return nil, fmt.Errorf("%s %s: %w", s.Kind, self.Name, err)
-	}
-	child = child.FillPath(superPath(ParameterField), moved)
 	call := child.LookupPath(propertiesPath())
 
 	passed, err := fieldNames(call)
@@ -131,9 +124,8 @@ func CheckCall(ctx context.Context, chain []Level, s Surface, compile CompileFun
 		them := map[bool]string{true: "them", false: "it"}[len(inert) > 1]
 		warnings = append(warnings, fmt.Sprintf(
 			"%s %s publishes %s, which %s neither passed to %s nor used by %s itself, so setting %s "+
-				"on a component will do nothing. Inheriting a parent's whole parameter set with "+
-				"`$super.parameter` suits a definition that forwards all of it, as in `$super: properties: parameter`; "+
-				"one that decides some of them on its users' behalf should declare only what it exposes",
+				"on a component will do nothing. Forward it in `$super: properties: {...}`, or "+
+				"leave it out of the `parameter` block if this definition decides it on its users' behalf",
 			s.Kind, self.Name, quoteList(inert), plural, parent.Name, self.Name, them))
 	}
 	return warnings, nil
@@ -150,7 +142,7 @@ func inertParameters(ctx context.Context, chain []Level, s Surface, compile Comp
 		return nil
 	}
 
-	effective, err := SchemaValue(ctx, chain, "", s, compile)
+	effective, err := SchemaValue(ctx, chain[0], "", s, compile)
 	if err != nil {
 		return nil
 	}
@@ -220,11 +212,10 @@ func describeSchema(schema cue.Value) (declared map[string]bool, required []stri
 // Read from the syntax, because a plain CUE struct is open too: asking the value
 // whether it allows an invented name says yes for both.
 //
-// A schema may arrive as an expression rather than a struct. A child that
-// inherits its parent's declaration writes `$super.parameter & {...}`, whose
-// syntax is a binary expression, so both sides are searched: reading only the
-// top level would report it closed and warn about every name the pattern exists
-// to allow.
+// A schema may arrive as an expression rather than a struct, as in
+// `#Base & {...}`, whose syntax is a binary expression. Both sides are
+// searched: reading only the top level would report it closed and warn about
+// every name the pattern exists to allow.
 func hasPatternConstraint(schema cue.Value) bool {
 	return nodeHasPattern(schema.Syntax(cue.Raw()))
 }
@@ -280,31 +271,43 @@ func quoteList(names []string) string {
 	return strings.Join(quoted[:len(quoted)-1], ", ") + " and " + quoted[len(quoted)-1]
 }
 
-// SchemaValue compiles a chain's child far enough for its parameters to be read,
-// which a definition writing `parameter: $super.parameter & {...}` needs. The
-// OpenAPI generator uses it. Nothing is rendered, so a parent that calls a
-// provider is not made to call it.
-func SchemaValue(ctx context.Context, chain []Level, contextFile string, s Surface, compile CompileFunc) (cue.Value, error) {
-	if len(chain) == 0 {
-		return cue.Value{}, fmt.Errorf("read parameters: empty inheritance chain")
-	}
-	self := chain[0]
-
+// SchemaValue compiles a definition far enough for its parameters to be read.
+// The OpenAPI generator uses it. Nothing is rendered, so a definition that calls
+// a provider is not made to call it.
+//
+// One definition, not a chain: the parameters a definition publishes are the
+// ones it declares. Asking for its ancestors would mean reading them from the
+// cluster, which would make a definition's own schema fail to publish because
+// something it extends had been renamed.
+func SchemaValue(ctx context.Context, self Level, contextFile string, s Surface, compile CompileFunc) (cue.Value, error) {
 	val, compileErr := compile(ctx, join(self.Template, contextFile))
 	if !val.Exists() {
 		return cue.Value{}, fmt.Errorf("read the parameters of %s %s: %w", s.Kind, self.Name, compileErr)
 	}
-	if len(chain) == 1 {
-		return val, nil
-	}
+	return val, nil
+}
 
-	parentSchema, err := schemaOf(ctx, chain[1:], contextFile, s, compile)
-	if err != nil {
-		return cue.Value{}, err
+// declaredSchema reads a level's parameter declaration: its template compiled
+// with none supplied, so the declaration stands as the schema.
+//
+// Its own only. A definition states the parameters it takes rather than
+// inheriting them, so there is no chain to walk here.
+func declaredSchema(ctx context.Context, lvl Level, contextFile string, s Surface, compile CompileFunc) (cue.Value, error) {
+	// Compiling with no parameters errors on every field that wanted one, so the
+	// value is judged at `parameter` rather than as a whole.
+	val, compileErr := compile(ctx, join(lvl.Template, contextFile))
+	if !val.Exists() {
+		return cue.Value{}, fmt.Errorf(
+			"read the parameter schema of %s %s: %w", s.Kind, lvl.Name, compileErr)
 	}
-	moved, err := adopt(val, parentSchema)
-	if err != nil {
-		return cue.Value{}, fmt.Errorf("%s %s: %w", s.Kind, self.Name, err)
+	schema := val.LookupPath(cue.ParsePath(ParameterField))
+	if schema.Err() != nil {
+		return cue.Value{}, fmt.Errorf(
+			"read the parameter schema of %s %s: %w", s.Kind, lvl.Name, schema.Err())
 	}
-	return val.FillPath(superPath(ParameterField), moved), nil
+	if !schema.Exists() {
+		// Declaring no parameters is legitimate.
+		return val.Context().CompileString("{}"), nil
+	}
+	return schema, nil
 }

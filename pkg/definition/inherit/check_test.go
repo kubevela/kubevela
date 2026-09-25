@@ -183,9 +183,9 @@ func TestChainOfOneIsNotChecked(t *testing.T) {
 }
 
 // A pattern constraint takes names nobody wrote down, so a call supplying one is
-// not a typo. It has to be seen through a unification too: a child that inherits
-// its parent's schema as `$super.parameter & {...}` hands over a value whose
-// syntax is an expression, not a struct, and reading only the top level reports
+// not a typo. It has to be seen through a unification too: a schema written as
+// `#Base & {...}` hands over a value whose syntax is an expression rather than
+// a struct, and reading only the top level reports
 // it as closed and warns about every name the pattern was there to allow.
 func TestAPatternConstraintIsSeenThroughAUnification(t *testing.T) {
 	ctx := cuecontext.New()

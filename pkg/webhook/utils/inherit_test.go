@@ -87,21 +87,23 @@ func TestTemplateWithoutASuperCallIsRefusedAgainstTheRealWebservice(t *testing.T
 	require.ErrorContains(t, err, "never calls it")
 }
 
-// Inheriting webservice's whole parameter set while forwarding two fields of it
-// publishes eighteen parameters that go nowhere. An application can set any of
-// them and nothing happens, which was reproduced on a cluster: `replicas: 5`
-// against a definition shaped like this produced one replica and no complaint.
-func TestInheritingWebserviceSchemaWithoutForwardingItWarns(t *testing.T) {
+// A parameter published but neither forwarded nor used goes nowhere. An
+// application can set it and nothing happens, which was reproduced on a
+// cluster: `replicas: 5` against a definition shaped like this produced one
+// replica and no complaint.
+func TestPublishingParametersWithoutForwardingThemWarns(t *testing.T) {
 	child := `
 $super: properties: {
 	image: parameter.image
-	ports: parameter.ports
 }
 
 output: metadata: labels: "tenant.oam.dev/name": parameter.tenant
 
-parameter: $super.parameter & {
-	tenant: string
+parameter: {
+	image:   string
+	cpu?:    string
+	memory?: string
+	tenant:  string
 }
 `
 	warnings, err := ValidateInheritedTemplate(context.Background(), "tenant-webservice", child,
@@ -110,7 +112,7 @@ parameter: $super.parameter & {
 	require.NoError(t, err, "worth saying, not worth refusing over")
 	require.Len(t, warnings, 1)
 	require.Contains(t, warnings[0], `"cpu"`)
-	require.Contains(t, warnings[0], `"livenessProbe"`)
+	require.Contains(t, warnings[0], `"memory"`)
 	require.Contains(t, warnings[0], "will do nothing")
 	require.NotContains(t, warnings[0], `"image"`, "image is forwarded")
 	require.NotContains(t, warnings[0], `"tenant"`, "tenant is used by the child")
@@ -123,7 +125,8 @@ $super: properties: parameter
 
 output: metadata: labels: "tenant.oam.dev/name": parameter.tenant
 
-parameter: $super.parameter & {
+parameter: {
+	image:  string
 	tenant: string
 }
 `

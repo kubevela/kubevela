@@ -156,26 +156,6 @@ parameter: {
 	require.EqualValues(t, 5, replicas)
 }
 
-func TestChildInheritsParentParameterSchema(t *testing.T) {
-	child := `
-$super: properties: {image: parameter.image, replicas: parameter.replicas}
-
-parameter: $super.parameter & {
-	tenant: string
-}
-`
-	res := render(t, child, `parameter: {image: "NGINX", tenant: "acme"}`)
-
-	// The parent's default arrives through the inherited schema.
-	replicas, err := res.Value.LookupPath(cue.ParsePath("parameter.replicas")).Int64()
-	require.NoError(t, err)
-	require.EqualValues(t, 1, replicas)
-
-	tenant, err := res.Value.LookupPath(cue.ParsePath("parameter.tenant")).String()
-	require.NoError(t, err)
-	require.Equal(t, "acme", tenant)
-}
-
 func TestInheritFalseTakesTheSurfaceOver(t *testing.T) {
 	child := `
 $inherit: {output: false}
@@ -245,8 +225,10 @@ $super: properties: {image: parameter.image, replicas: parameter.replicas}
 
 output: metadata: labels: tier: parameter.tier
 
-parameter: $super.parameter & {
-	tier: *"standard" | string
+parameter: {
+	image:    string
+	replicas: *1 | int
+	tier:     *"standard" | string
 }
 `
 	child := `

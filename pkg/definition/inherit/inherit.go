@@ -75,19 +75,14 @@ type Level struct {
 // compiler, so an inherited template sees the same provider packages.
 type CompileFunc func(ctx context.Context, src string) (cue.Value, error)
 
-// Compilers are the two ways a chain's templates are compiled.
+// Compilers is how a chain's templates are compiled.
 type Compilers struct {
 	// Render compiles a level to render it, provider functions and all.
 	Render CompileFunc
-	// Schema compiles a level only to read its parameter declaration, and must
-	// leave provider functions unresolved: that pass supplies no parameters for
-	// them to run on.
-	Schema CompileFunc
 }
 
-// SameCompiler uses one compiler for both passes, for a caller with no side
-// effects to avoid.
-func SameCompiler(f CompileFunc) Compilers { return Compilers{Render: f, Schema: f} }
+// SameCompiler is the plain case, kept so callers read the same as before.
+func SameCompiler(f CompileFunc) Compilers { return Compilers{Render: f} }
 
 // Result is what a chain renders to.
 type Result struct {
@@ -108,104 +103,62 @@ func Render(ctx context.Context, chain []Level, paramFile, contextFile string, s
 	if len(chain) == 0 {
 		return nil, fmt.Errorf("render %s: empty inheritance chain", s.Kind)
 	}
-	if len(chain) == 1 {
-		// Nothing is extended, so there is no schema to resolve.
-		return renderFrom(ctx, chain, nil, paramFile, contextFile, s, c.Render)
-	}
-	schemas, err := schemaChain(ctx, chain, contextFile, s, c.Schema)
-	if err != nil {
-		return nil, err
-	}
-	return renderFrom(ctx, chain, schemas, paramFile, contextFile, s, c.Render)
+	return renderFrom(ctx, chain, paramFile, contextFile, s, c.Render, nil)
 }
 
-// schemaChain computes every level's parameter schema once, from the root down,
-// since a level may state its own as `$super.parameter & {...}`. Resolving them
-// here rather than inside the render keeps it to one compile per level.
+// chainPath names a level by the route taken to reach it, leaf first, as in
+// `tenant-webservice:webservice`.
 //
-// schemas[i] is the schema of chain[i:], so a level renders against schemas[i+1].
-func schemaChain(ctx context.Context, chain []Level, contextFile string, s Surface, compile CompileFunc) ([]cue.Value, error) {
-	// Index 0 is never read: a level renders against schemas[i+1], and the
-	// recursion drops its own index each time.
-	schemas := make([]cue.Value, len(chain))
-	for i := len(chain) - 1; i >= 1; i-- {
-		val, compileErr := compile(ctx, join(chain[i].Template, contextFile))
-		if !val.Exists() {
-			return nil, fmt.Errorf(
-				"read the parameter schema of %s %s: %w", s.Kind, chain[i].Name, compileErr)
-		}
-		if i+1 < len(chain) {
-			moved, err := adopt(val, schemas[i+1])
-			if err != nil {
-				return nil, fmt.Errorf("%s %s: %w", s.Kind, chain[i].Name, err)
-			}
-			val = val.FillPath(superPath(ParameterField), moved)
-		}
-		schema := val.LookupPath(cue.ParsePath(ParameterField))
-		if schema.Err() != nil {
-			return nil, fmt.Errorf(
-				"read the parameter schema of %s %s: %w", s.Kind, chain[i].Name, schema.Err())
-		}
-		if !schema.Exists() {
-			// Declaring no parameters is legitimate; an empty struct keeps
-			// `$super.parameter` resolvable for whatever extends it.
-			schema = val.Context().CompileString("{}")
-		}
-		schemas[i] = schema
+// A level is compiled with what the level below supplied, so its errors are
+// often the lower one's doing. Naming it alone sends the author to a file they
+// did not write; the route says which definition failed and which one called it.
+func chainPath(trail []string, name string) string {
+	if len(trail) == 0 {
+		return name
 	}
-	return schemas, nil
+	return strings.Join(append(append([]string{}, trail...), name), ":")
 }
 
-// renderFrom renders chain[0] against the rest of the chain. schemas is aligned
-// with chain, so chain[0] renders against schemas[1].
-func renderFrom(ctx context.Context, chain []Level, schemas []cue.Value, paramFile, contextFile string, s Surface, compile CompileFunc) (*Result, error) {
+// renderFrom renders chain[0] against the rest of the chain. trail is the route
+// from the leaf to chain[0], for attributing errors.
+func renderFrom(ctx context.Context, chain []Level, paramFile, contextFile string, s Surface, compile CompileFunc, trail []string) (*Result, error) {
 	self := chain[0]
 	parents := chain[1:]
+	at := chainPath(trail, self.Name)
+	below := append(append([]string{}, trail...), self.Name)
 
 	// Extending nothing: compile as an ordinary template.
 	if len(parents) == 0 {
 		val, err := compile(ctx, join(self.Template, paramFile, contextFile))
 		if err != nil {
-			return nil, fmt.Errorf("compile %s %s: %w", s.Kind, self.Name, err)
+			return nil, fmt.Errorf("compile %s %s: %w", s.Kind, at, err)
 		}
 		return &Result{Value: val, Errs: authoredErrs(val), Levels: []cue.Value{val}}, nil
 	}
 
-	parentSchema := schemas[1]
-
 	// Compile with the parent's results absent, to read what the child supplies.
 	staged, err := compile(ctx, join(self.Template, paramFile, contextFile))
 	if err != nil {
-		return nil, fmt.Errorf("compile %s %s: %w", s.Kind, self.Name, err)
+		return nil, fmt.Errorf("compile %s %s: %w", s.Kind, at, err)
 	}
 	// Asked before the schema is filled in, since filling creates `$super` itself.
 	if !staged.LookupPath(cue.ParsePath(SuperField)).Exists() {
 		return nil, fmt.Errorf(
 			"%s %s extends %s but declares no `$super` block; "+
 				"add `$super: {...}` naming the parameters %s should receive",
-			s.Kind, self.Name, parents[0].Name, parents[0].Name)
+			s.Kind, at, parents[0].Name, parents[0].Name)
 	}
 
-	// Only what the template reads is handed to it: moving values between
-	// cue.Contexts is most of what a chain costs.
 	reads := superReads(self.Template)
-	if wants(reads, ParameterField) {
-		adoptedSchema, err := adopt(staged, parentSchema)
-		if err != nil {
-			return nil, fmt.Errorf("%s %s: %w", s.Kind, self.Name, err)
-		}
-		staged = staged.FillPath(superPath(ParameterField), adoptedSchema)
-		if err := staged.Err(); err != nil {
-			return nil, fmt.Errorf("compile %s %s: %w", s.Kind, self.Name, err)
-		}
-	}
 
 	superParams := staged.LookupPath(propertiesPath())
 	if err := checkNoResultDependency(superParams, self, parents[0], s); err != nil {
 		return nil, err
 	}
 
-	parentResult, err := renderFrom(ctx, parents, schemas[1:], paramsFile(superParams), contextFile, s, compile)
+	ownParams := staged.LookupPath(cue.ParsePath(ParameterField))
+	parentResult, err := renderFrom(ctx, parents,
+		paramsFile(superParams, ownParams), contextFile, s, compile, below)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +173,7 @@ func renderFrom(ctx context.Context, chain []Level, schemas []cue.Value, paramFi
 		}
 		moved, err := adopt(val, got)
 		if err != nil {
-			return nil, fmt.Errorf("%s %s: %w", s.Kind, self.Name, err)
+			return nil, fmt.Errorf("%s %s: %w", s.Kind, at, err)
 		}
 		// The merge below always needs this; `$super` only gets it if the template
 		// reads it.
@@ -230,14 +183,14 @@ func renderFrom(ctx context.Context, chain []Level, schemas []cue.Value, paramFi
 		}
 	}
 	if err := val.Err(); err != nil {
-		return nil, fmt.Errorf("%s %s: handing %s's result back: %w", s.Kind, self.Name, parents[0].Name, err)
+		return nil, fmt.Errorf("%s %s: handing %s's result back: %w", s.Kind, at, parents[0].Name, err)
 	}
 
 	directives, err := parseDirectives(self)
 	if err != nil {
 		return nil, err
 	}
-	val, err = mergeSurfaces(val, adoptedParent, s, directives, self, parents[0])
+	val, err = mergeSurfaces(val, adoptedParent, s, directives, parents[0], at)
 	if err != nil {
 		return nil, err
 	}
@@ -252,41 +205,6 @@ func renderFrom(ctx context.Context, chain []Level, schemas []cue.Value, paramFi
 	}, nil
 }
 
-// schemaOf reads parents[0]'s parameter schema: its template compiled with none
-// supplied, so the declaration stands as the schema. It recurses, since a level
-// may inherit its own with `$super.parameter & {...}`.
-func schemaOf(ctx context.Context, parents []Level, contextFile string, s Surface, compile CompileFunc) (cue.Value, error) {
-	// Compiling with no parameters errors on every field that wanted one, so the
-	// value is judged at `parameter` rather than as a whole.
-	val, compileErr := compile(ctx, join(parents[0].Template, contextFile))
-	if !val.Exists() {
-		return cue.Value{}, fmt.Errorf(
-			"read the parameter schema of %s %s: %w", s.Kind, parents[0].Name, compileErr)
-	}
-	if len(parents) > 1 {
-		inherited, err := schemaOf(ctx, parents[1:], contextFile, s, compile)
-		if err != nil {
-			return cue.Value{}, err
-		}
-		moved, err := adopt(val, inherited)
-		if err != nil {
-			return cue.Value{}, fmt.Errorf("%s %s: %w", s.Kind, parents[0].Name, err)
-		}
-		val = val.FillPath(superPath(ParameterField), moved)
-	}
-	schema := val.LookupPath(cue.ParsePath(ParameterField))
-	if !schema.Exists() || schema.Err() != nil {
-		if schema.Err() != nil {
-			return cue.Value{}, fmt.Errorf(
-				"read the parameter schema of %s %s: %w", s.Kind, parents[0].Name, schema.Err())
-		}
-		// Declaring no parameters is legitimate; an empty struct keeps
-		// `$super.parameter` resolvable.
-		return val.Context().CompileString("{}"), nil
-	}
-	return schema, nil
-}
-
 // checkNoResultDependency refuses a `$super` block that depends on what the
 // parent produced: properties travel up before results come back, so it cannot
 // be evaluated yet and would surface far from its cause.
@@ -297,7 +215,7 @@ func checkNoResultDependency(superParams cue.Value, self, parent Level, s Surfac
 		// is not an error on the value: it survives into the text handed to the
 		// parent, whose own compile then fails on an unresolved `$super` and says
 		// nothing about where it came from. What travels up is what to inspect.
-		if mentionsResultField(paramsFile(superParams)) {
+		if mentionsResultField(wholeParamsText(superParams)) {
 			return fmt.Errorf(
 				"%s %s: its `$super` block depends on what %s produced, which is not "+
 					"available until %s has rendered. Properties travel up the chain before "+
@@ -337,11 +255,99 @@ func mentionsResultField(msg string) bool {
 
 // paramsFile renders what a child supplies into its parent's file. Supplying
 // nothing is not an error here; that is the parent's schema's business.
-func paramsFile(params cue.Value) string {
+//
+// A field with nothing behind it is left out rather than rendered. The text is
+// compiled inside the parent's file, where `parameter` means the parent's own
+// block, so a field still holding a reference such as `parameter.tag` would be
+// re-read there and quietly pick up whatever the parent happens to call `tag`.
+// Leaving it out says what the child meant: it has nothing to supply, so the
+// parent's own declaration stands.
+func paramsFile(params, ownParams cue.Value) string {
+	if !params.Exists() {
+		return ParameterField + ": {}"
+	}
+	kept, ok := resolvedFields(params, ownParams)
+	if !ok {
+		return wholeParamsText(params)
+	}
+	return ParameterField + ": " + fmt.Sprintf("%v", kept)
+}
+
+// wholeParamsText renders the block as the child wrote it, nothing left out,
+// for the checks that judge what it says rather than what it supplies.
+func wholeParamsText(params cue.Value) string {
 	if !params.Exists() {
 		return ParameterField + ": {}"
 	}
 	return ParameterField + ": " + fmt.Sprintf("%v", params)
+}
+
+// resolvedFields drops the fields of a struct that had nothing to supply. A
+// field that is merely non-concrete is kept: a forwarded `*1 | int` is a real
+// answer, and the parent is entitled to the default.
+func resolvedFields(params, ownParams cue.Value) (cue.Value, bool) {
+	it, err := params.Fields(cue.All())
+	if err != nil {
+		return cue.Value{}, false
+	}
+	kept := params.Context().CompileString("{}")
+	for it.Next() {
+		if it.Value().Err() != nil {
+			if !suppliesNothing(it.Value(), ownParams) {
+				// Not simply empty: reading the parent's results, or naming a
+				// parameter that was never declared. Both are the child's
+				// mistake and both are reported, so the field travels and the
+				// complaint names it.
+				return cue.Value{}, false
+			}
+			continue
+		}
+		kept = kept.FillPath(cue.MakePath(it.Selector()), it.Value())
+		if kept.Err() != nil {
+			return cue.Value{}, false
+		}
+	}
+	return kept, true
+}
+
+// suppliesNothing reports whether a field came up empty because it forwards a
+// parameter the child declares and nothing set.
+//
+// That is the one case worth passing over in silence: the child said to hand
+// its `tag` up, it has no tag, so the parent's own declaration stands. Naming a
+// parameter that was never declared reads the same way to CUE and is a typo, so
+// it is left in to be complained about.
+func suppliesNothing(field, ownParams cue.Value) bool {
+	ref, ok := forwardedParameter(fmt.Sprintf("%v", field))
+	if !ok {
+		return false
+	}
+	// Walked rather than looked up: the case this exists for is an optional
+	// parameter nobody set, and LookupPath does not return optional fields.
+	it, err := ownParams.Fields(cue.All())
+	if err != nil {
+		return false
+	}
+	for it.Next() {
+		if strings.TrimSuffix(it.Selector().String(), "?") == ref {
+			return true
+		}
+	}
+	return false
+}
+
+// forwardedParameter reads the name out of a field left holding `parameter.x`.
+func forwardedParameter(text string) (string, bool) {
+	const prefix = ParameterField + "."
+	text = strings.TrimSpace(text)
+	if !strings.HasPrefix(text, prefix) {
+		return "", false
+	}
+	name := text[len(prefix):]
+	if name == "" || strings.ContainsAny(name, " \t\n.[]{}()&|") {
+		return "", false
+	}
+	return name, true
 }
 
 func join(parts ...string) string {

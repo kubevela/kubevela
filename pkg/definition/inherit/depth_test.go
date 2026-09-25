@@ -46,36 +46,22 @@ parameter: {
 }
 `
 
-// Inherits its parent's schema, which means its own `$super` is filled from a
-// context above it before the level below adopts the result.
-func schemaInheritingLevel(i int) Level {
-	return Level{
-		Name: fmt.Sprintf("level-%d", i),
-		Template: fmt.Sprintf(`
-$super: properties: {image: parameter.image}
-
-parameter: $super.parameter & {
-	tier%d: *"standard" | string
-}
-`, i),
-	}
-}
-
-// Forwards everything it was given rather than naming fields.
+// Forwards everything it declares rather than naming fields.
 func forwardingLevel(i int) Level {
 	return Level{
 		Name: fmt.Sprintf("level-%d", i),
 		Template: fmt.Sprintf(`
 $super: properties: parameter
 
-parameter: $super.parameter & {
+parameter: {
+	image:  string
 	tier%d: *"standard" | string
 }
 `, i),
 	}
 }
 
-// Declares its own parameters and reads nothing off `$super`.
+// Names the fields it passes up.
 func abstractingLevelForDepth(i int) Level {
 	return Level{
 		Name: fmt.Sprintf("level-%d", i),
@@ -105,9 +91,8 @@ func chainOf(level func(int) Level, depth int, root string) []Level {
 // adopt that result.
 func TestChainsRenderAtEveryDepth(t *testing.T) {
 	shapes := map[string]func(int) Level{
-		"schema-inheriting": schemaInheritingLevel,
-		"forwarding":        forwardingLevel,
-		"abstracting":       abstractingLevelForDepth,
+		"forwarding":  forwardingLevel,
+		"abstracting": abstractingLevelForDepth,
 	}
 
 	for name, level := range shapes {
@@ -144,7 +129,12 @@ $super: properties: {
 	ports: parameter.ports
 }
 
-parameter: $super.parameter & {
+parameter: {
+	image: string
+	ports?: [...{
+		port:    int
+		expose?: bool
+	}]
 	tier%d: *"standard" | string
 }
 `, i),

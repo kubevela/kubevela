@@ -22,42 +22,31 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/kubevela/pkg/cue/cuex"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 	"github.com/oam-dev/kubevela/pkg/schema"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
 )
 
 // inheritedComponentSchema generates the published parameter schema of a
-// ComponentDefinition that extends another. The generator compiles the whole
-// template, and an extending definition does not compile on its own: `$super` is
-// supplied by the chain.
-func inheritedComponentSchema(ctx context.Context, cli client.Client, cd *v1beta1.ComponentDefinition) ([]byte, error) {
-	ancestors, err := appfile.ComponentAncestors(ctx, cli, cd)
-	if err != nil {
-		return nil, err
-	}
-	return inheritedSchema(ctx, cd.Name, cd.Spec.Schematic.CUE.Template, ancestors, inherit.ComponentSurface)
+// ComponentDefinition that extends another.
+//
+// The generator compiles the whole template, and an extending definition does
+// not compile on its own: `$super` is supplied by the chain. Its parameters are
+// still its own, so nothing is read from the cluster to publish them.
+func inheritedComponentSchema(ctx context.Context, cd *v1beta1.ComponentDefinition) ([]byte, error) {
+	return inheritedSchema(ctx, cd.Name, cd.Spec.Schematic.CUE.Template, inherit.ComponentSurface)
 }
 
 // inheritedTraitSchema is inheritedComponentSchema for a TraitDefinition.
-func inheritedTraitSchema(ctx context.Context, cli client.Client, td *v1beta1.TraitDefinition) ([]byte, error) {
-	ancestors, err := appfile.TraitAncestors(ctx, cli, td)
-	if err != nil {
-		return nil, err
-	}
-	return inheritedSchema(ctx, td.Name, td.Spec.Schematic.CUE.Template, ancestors, inherit.TraitSurface)
+func inheritedTraitSchema(ctx context.Context, td *v1beta1.TraitDefinition) ([]byte, error) {
+	return inheritedSchema(ctx, td.Name, td.Spec.Schematic.CUE.Template, inherit.TraitSurface)
 }
 
-func inheritedSchema(ctx context.Context, name, template string, ancestors []inherit.Level, surface inherit.Surface) ([]byte, error) {
-	chain := make([]inherit.Level, 0, len(ancestors)+1)
-	chain = append(chain, inherit.Level{Name: name, Template: template})
-	chain = append(chain, ancestors...)
-
-	val, err := inherit.SchemaValue(ctx, chain, schema.BaseTemplate, surface, schemaCompiler)
+func inheritedSchema(ctx context.Context, name, template string, surface inherit.Surface) ([]byte, error) {
+	val, err := inherit.SchemaValue(ctx,
+		inherit.Level{Name: name, Template: template}, schema.BaseTemplate, surface, schemaCompiler)
 	if err != nil {
 		return nil, err
 	}

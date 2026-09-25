@@ -36,19 +36,21 @@ parameter: {
 }
 `
 
-// The combination that goes wrong: the whole of the parent's schema is
-// published, only part of it is forwarded, and the remainder is inert. An
-// application setting `replicas: 5` on this gets one replica and no complaint,
-// which was reproduced on a cluster before this check existed.
-func TestInertInheritedParameterIsReported(t *testing.T) {
+// The combination that goes wrong: a parameter is published, is not forwarded,
+// and is not used by the definition that published it. An application setting
+// `replicas: 5` on this gets one replica and no complaint, which was reproduced
+// on a cluster before this check existed.
+func TestInertPublishedParameterIsReported(t *testing.T) {
 	warnings, err := CheckCall(context.Background(), []Level{
 		{Name: "tenant-app", Template: `
 $super: properties: {image: parameter.image}
 
 output: metadata: labels: tenant: parameter.tenant
 
-parameter: $super.parameter & {
-	tenant: string
+parameter: {
+	image:    string
+	replicas: *1 | int
+	tenant:   string
 }
 `},
 		{Name: "webservice", Template: inertParent},
@@ -70,7 +72,8 @@ $super: properties: parameter
 
 output: metadata: labels: tenant: parameter.tenant
 
-parameter: $super.parameter & {
+parameter: {
+	image:  string
 	tenant: string
 }
 `},

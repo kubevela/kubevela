@@ -28,7 +28,7 @@ import (
 // and `output` is overlaid field by field. A parent value from a defaulted
 // parameter is still a disjunction here, so a child setting it wins; only a
 // concrete one conflicts.
-func mergeSurfaces(child cue.Value, parent map[string]cue.Value, s Surface, d directives, self, parentLevel Level) (cue.Value, error) {
+func mergeSurfaces(child cue.Value, parent map[string]cue.Value, s Surface, d directives, parentLevel Level, at string) (cue.Value, error) {
 	out := child
 	for _, field := range s.Fields {
 		if !d.inherits(field) {
@@ -45,7 +45,7 @@ func mergeSurfaces(child cue.Value, parent map[string]cue.Value, s Surface, d di
 			out = out.FillPath(path, fromParent)
 			if err := out.Err(); err != nil {
 				return cue.Value{}, fmt.Errorf(
-					"%s %s: inheriting %s from %s: %w", s.Kind, self.Name, field, parentLevel.Name, err)
+					"%s %s: inheriting %s from %s: %w", s.Kind, at, field, parentLevel.Name, err)
 			}
 			continue
 		}
@@ -55,13 +55,13 @@ func mergeSurfaces(child cue.Value, parent map[string]cue.Value, s Surface, d di
 				"%s %s: merging its %s onto %s's: %w\n"+
 					"  a conflict here means %s sets that field to a concrete value. "+
 					"Pass a different parameter to %s, or take the field over with `%s: {%s: false}`",
-				s.Kind, self.Name, field, parentLevel.Name, err,
+				s.Kind, at, field, parentLevel.Name, err,
 				parentLevel.Name, parentLevel.Name, InheritField, field)
 		}
 		out = out.FillPath(path, merged)
 		if err := out.Err(); err != nil {
 			return cue.Value{}, fmt.Errorf(
-				"%s %s: merging %s: %w", s.Kind, self.Name, field, err)
+				"%s %s: merging %s: %w", s.Kind, at, field, err)
 		}
 	}
 	return out, nil

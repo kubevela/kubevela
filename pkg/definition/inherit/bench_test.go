@@ -37,37 +37,6 @@ func countingCompile(n *int64) CompileFunc {
 	}
 }
 
-// middleLevel is a level that inherits its parent's schema and adds to it, which
-// is the shape that makes a chain expensive: every level has to resolve the one
-// above before its own parameters mean anything.
-func middleLevel(i int) Level {
-	return Level{
-		Name: fmt.Sprintf("level-%d", i),
-		Template: fmt.Sprintf(`
-$super: properties: parameter
-
-output: metadata: labels: "level-%d": parameter.tier%d
-
-parameter: $super.parameter & {
-	tier%d: *"standard" | string
-}
-`, i, i, i),
-	}
-}
-
-func chainOfDepth(t testing.TB, depth int) []Level {
-	t.Helper()
-	root, err := os.ReadFile("testdata/webservice.cue")
-	if err != nil {
-		t.Fatal(err)
-	}
-	chain := make([]Level, 0, depth)
-	for i := depth - 1; i >= 1; i-- {
-		chain = append(chain, middleLevel(i))
-	}
-	return append(chain, Level{Name: "webservice", Template: string(root)})
-}
-
 const benchParams = `parameter: {image: "nginx:1.27", ports: [{port: 8080, expose: true}]}`
 
 const benchContext = `
@@ -78,35 +47,10 @@ context: {
 }
 `
 
-func benchDepth(b *testing.B, depth int) {
-	chain := chainOfDepth(b, depth)
-	var compiles int64
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		atomic.StoreInt64(&compiles, 0)
-		if _, err := Render(context.Background(), chain, benchParams, benchContext,
-			ComponentSurface, SameCompiler(countingCompile(&compiles))); err != nil {
-			b.Fatal(err)
-		}
-	}
-	b.StopTimer()
-	b.ReportMetric(float64(atomic.LoadInt64(&compiles)), "compiles/op")
-}
-
-func BenchmarkRenderDepth1(b *testing.B) { benchDepth(b, 1) }
-func BenchmarkRenderDepth2(b *testing.B) { benchDepth(b, 2) }
-func BenchmarkRenderDepth3(b *testing.B) { benchDepth(b, 3) }
-func BenchmarkRenderDepth4(b *testing.B) { benchDepth(b, 4) }
-func BenchmarkRenderDepth5(b *testing.B) { benchDepth(b, 5) }
-
-// The cap, so the worst chain anyone can write is measured rather than assumed.
-func BenchmarkRenderDepth9(b *testing.B) { benchDepth(b, 9) }
-
-// abstractingLevel declares its own parameters and reads nothing off `$super`,
-// which is the shape most definitions will have: merging happens in Go, so a
+// ownSchemaLevel declares the parameters it takes and names what it passes up,
+// which is how a definition states its contract: merging happens in Go, so a
 // child that adds to its parent's output never mentions `$super.output`.
-func abstractingLevel(i int) Level {
+func ownSchemaLevel(i int) Level {
 	return Level{
 		Name: fmt.Sprintf("level-%d", i),
 		Template: fmt.Sprintf(`
@@ -122,14 +66,14 @@ parameter: {
 	}
 }
 
-func benchAbstracting(b *testing.B, depth int) {
+func benchOwnSchema(b *testing.B, depth int) {
 	root, err := os.ReadFile("testdata/webservice.cue")
 	if err != nil {
 		b.Fatal(err)
 	}
 	chain := make([]Level, 0, depth)
 	for i := depth - 1; i >= 1; i-- {
-		chain = append(chain, abstractingLevel(i))
+		chain = append(chain, ownSchemaLevel(i))
 	}
 	chain = append(chain, Level{Name: "webservice", Template: string(root)})
 
@@ -146,6 +90,7 @@ func benchAbstracting(b *testing.B, depth int) {
 	b.ReportMetric(float64(atomic.LoadInt64(&compiles)), "compiles/op")
 }
 
-func BenchmarkAbstractingDepth2(b *testing.B) { benchAbstracting(b, 2) }
-func BenchmarkAbstractingDepth5(b *testing.B) { benchAbstracting(b, 5) }
-func BenchmarkAbstractingDepth9(b *testing.B) { benchAbstracting(b, 9) }
+func BenchmarkOwnSchemaDepth2(b *testing.B) { benchOwnSchema(b, 2) }
+func BenchmarkOwnSchemaDepth3(b *testing.B) { benchOwnSchema(b, 3) }
+func BenchmarkOwnSchemaDepth5(b *testing.B) { benchOwnSchema(b, 5) }
+func BenchmarkOwnSchemaDepth9(b *testing.B) { benchOwnSchema(b, 9) }

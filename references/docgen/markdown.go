@@ -156,21 +156,9 @@ func (ref *MarkdownReference) GenerateMarkdownForCap(_ context.Context, c types.
 		ctx := context.Background()
 		var cueValue cuelang.Value
 		var err error
-		switch {
-		case c.Extends != "" && ref.Client != nil:
-			// An extending definition states its parameters in terms of its
-			// parent's, so its own template documents nothing on its own.
-			cueValue, err = inheritedParameterValue(ctx, ref.Client, &c, ref.Compiler)
-		case c.Extends != "":
-			// No client to resolve the chain with. Documenting the child alone
-			// would publish a parameter list shorter than the truth, with
-			// nothing to say it was incomplete.
-			return "", fmt.Errorf(
-				"%s extends %s, and documenting it needs a cluster connection to read the chain",
-				c.Name, c.Extends)
-		default:
-			cueValue, err = common.GetCUExParameterValue(ctx, c.CueTemplate, ref.Compiler)
-		}
+		// A definition states the parameters it takes, whether or not it
+		// extends something, so no cluster is needed to document one.
+		cueValue, err = common.GetCUExParameterValue(ctx, c.CueTemplate, ref.Compiler)
 		if err != nil && !errors.Is(err, cue.ErrParameterNotExist) {
 			return "", fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
 		}

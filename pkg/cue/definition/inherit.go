@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"cuelang.org/go/cue"
-	"github.com/kubevela/pkg/cue/cuex"
 
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
@@ -54,7 +53,7 @@ func (d *def) renderChain(ctx process.Context, abstractTemplate, paramFile, cont
 	chain = append(chain, d.ancestors...)
 
 	res, err := inherit.Render(ctx.GetCtx(), chain, paramFile, contextFile, surface,
-		inherit.Compilers{Render: compileLevel, Schema: compileLevelForSchema})
+		inherit.Compilers{Render: compileLevel})
 	if err != nil {
 		return nil, err
 	}
@@ -93,11 +92,4 @@ func patchOptionsFromLevels(levels []cue.Value, merged cue.Value) []sets.UnifyOp
 // with no parameters, to read its declaration as a schema.
 func compileLevel(ctx context.Context, src string) (cue.Value, error) {
 	return velacuex.WorkloadCompiler.Get().CompileString(ctx, render.Template(src))
-}
-
-// compileLevelForSchema compiles a level only to read its parameters. Provider
-// functions stay unresolved, since that pass supplies none for them to run on.
-func compileLevelForSchema(ctx context.Context, src string) (cue.Value, error) {
-	return velacuex.WorkloadCompiler.Get().CompileStringWithOptions(
-		ctx, render.Template(src), cuex.DisableResolveProviderFunctions{})
 }

@@ -38,7 +38,12 @@ limitations under the License.
 // (`$inherit: {output: false}`).
 //
 // What the parent produced is readable on `$super` as `output`, `outputs`,
-// `patch` and `patchOutputs`, and its schema as `$super.parameter`.
+// `patch` and `patchOutputs`.
+//
+// A definition declares the parameters it takes. It does not inherit its
+// parent's: the parameters it publishes are the ones an application is
+// validated against, and taking a parent's whole set publishes fields that
+// reach nothing unless they are also forwarded.
 //
 // # The one constraint
 //

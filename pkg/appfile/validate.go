@@ -535,11 +535,9 @@ func componentParameterSchema(ctx context.Context, wl *Component, templateStr, b
 		return root.LookupPath(value.FieldPath(velaprocess.ParameterFieldName)), nil
 	}
 
-	chain := make([]inherit.Level, 0, len(wl.FullTemplate.Ancestors)+1)
-	chain = append(chain, inherit.Level{Name: wl.Name, Template: templateStr})
-	chain = append(chain, wl.FullTemplate.Ancestors...)
-
-	root, err := inherit.SchemaValue(ctx, chain, baseCtx, inherit.ComponentSurface, compileSchemaLevel)
+	root, err := inherit.SchemaValue(ctx,
+		inherit.Level{Name: wl.Name, Template: templateStr},
+		baseCtx, inherit.ComponentSurface, compileSchemaLevel)
 	if err != nil {
 		return cue.Value{}, err
 	}
@@ -557,11 +555,9 @@ func componentParameterRoot(ctx context.Context, wl *Component, templateStr, bas
 		}, "\n"))
 	}
 
-	chain := make([]inherit.Level, 0, len(wl.FullTemplate.Ancestors)+1)
-	chain = append(chain, inherit.Level{Name: wl.Name, Template: templateStr})
-	chain = append(chain, wl.FullTemplate.Ancestors...)
-
-	return inherit.SchemaValue(ctx, chain, baseCtx, inherit.ComponentSurface, compileSchemaLevel)
+	return inherit.SchemaValue(ctx,
+		inherit.Level{Name: wl.Name, Template: templateStr},
+		baseCtx, inherit.ComponentSurface, compileSchemaLevel)
 }
 
 // compileSchemaLevel compiles one level of a chain for its parameters alone, so

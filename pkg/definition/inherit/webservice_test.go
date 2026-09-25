@@ -19,7 +19,6 @@ package inherit
 import (
 	"context"
 	"os"
-	"strings"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -77,7 +76,12 @@ outputs: quota: {
 	spec: hard: "count/pods": parameter.maxPods
 }
 
-parameter: $super.parameter & {
+parameter: {
+	image: string
+	ports?: [...{
+		port:    int
+		expose?: bool
+	}]
 	// +usage=Owning tenant, stamped on every pod
 	tenant: string
 	// +usage=Pod ceiling for this component
@@ -139,48 +143,4 @@ func TestExtendingTheRealWebservice(t *testing.T) {
 	quotaPods, err := outputs.LookupPath(cue.ParsePath(`quota.spec.hard."count/pods"`)).Int64()
 	require.NoError(t, err)
 	require.EqualValues(t, 10, quotaPods, "the child's default reached its own output")
-}
-
-// The schema lookup is the thing textual composition could not do: webservice
-// declares `parameter` in terms of `#HealthProbe`, so lifting the block out of
-// the AST broke the reference. Compiling the template whole does not.
-func TestInheritedSchemaCarriesWebserviceParameters(t *testing.T) {
-	res, err := Render(
-		context.Background(),
-		[]Level{
-			{Name: "tenant-webservice", Template: tenantWebservice},
-			{Name: "webservice", Template: webserviceTemplate(t)},
-		},
-		`parameter: {image: "acme/billing:1.4.2", ports: [{port: 8080, expose: true}], tenant: "acme"}`,
-		webserviceContext, ComponentSurface, SameCompiler(testCompile()),
-	)
-	require.NoError(t, err)
-
-	param := res.Value.LookupPath(cue.ParsePath("parameter"))
-
-	// The child's own parameters.
-	tenant, err := param.LookupPath(cue.ParsePath("tenant")).String()
-	require.NoError(t, err)
-	require.Equal(t, "acme", tenant)
-
-	// webservice's, inherited. Most of them are optional, and an optional field
-	// that nobody set does not answer to LookupPath, so the declared set is read
-	// off the schema rather than probed.
-	declared := map[string]bool{}
-	iter, err := param.Fields(cue.Optional(true), cue.All())
-	require.NoError(t, err)
-	for iter.Next() {
-		// An optional field's selector prints with its "?".
-		declared[strings.TrimSuffix(iter.Selector().String(), "?")] = true
-	}
-
-	for _, field := range []string{
-		"image", "ports", "cpu", "memory", "volumeMounts",
-		"imagePullPolicy", "imagePullSecrets",
-		// declared through #HealthProbe, which is what defeated lifting the
-		// parameter block out of the AST.
-		"livenessProbe", "readinessProbe",
-	} {
-		require.True(t, declared[field], "expected webservice's %q in the inherited schema, got %v", field, declared)
-	}
 }

@@ -23,23 +23,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/features"
 )
-
-func schemaClient(t *testing.T, objs ...client.Object) client.Client {
-	t.Helper()
-	scheme := runtime.NewScheme()
-	require.NoError(t, v1beta1.AddToScheme(scheme))
-	return fake.NewClientBuilder().WithScheme(scheme).WithObjects(objs...).Build()
-}
 
 func schemaComponent(namespace, name, extends, template string) *v1beta1.ComponentDefinition {
 	return &v1beta1.ComponentDefinition{
@@ -60,12 +50,8 @@ func TestPublishedSchemaOfAnExtendingComponent(t *testing.T) {
 		features.EnableDefinitionInheritance, true)
 
 	child := schemaComponent("vela-system", "tenant-webservice", "webservice", schemaChild)
-	cli := schemaClient(t,
-		schemaComponent("vela-system", "webservice", "", schemaParent),
-		child,
-	)
 
-	raw, err := inheritedComponentSchema(context.Background(), cli, child)
+	raw, err := inheritedComponentSchema(context.Background(), child)
 	require.NoError(t, err)
 
 	var doc map[string]interface{}
@@ -76,23 +62,13 @@ func TestPublishedSchemaOfAnExtendingComponent(t *testing.T) {
 
 	require.Contains(t, props, "tenant", "the child's own")
 	require.Contains(t, props, "image", "and what it passes up")
-	require.Contains(t, props, "replicas", "and what the parent defaults, which an app may override")
+	require.NotContains(t, props, "replicas", "the parent's parameters stay the parent's")
 }
 
 func TestPublishedSchemaOfAnExtendingTrait(t *testing.T) {
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate,
 		features.EnableDefinitionInheritance, true)
 
-	parent := &v1beta1.TraitDefinition{
-		ObjectMeta: metav1.ObjectMeta{Name: "base-labels", Namespace: "vela-system"},
-		Spec: v1beta1.TraitDefinitionSpec{
-			Schematic: &common.Schematic{CUE: &common.CUE{Template: `
-patch: metadata: labels: team: parameter.team
-
-parameter: {team: string}
-`}},
-		},
-	}
 	child := &v1beta1.TraitDefinition{
 		ObjectMeta: metav1.ObjectMeta{Name: "tenant-labels", Namespace: "vela-system"},
 		Spec: v1beta1.TraitDefinitionSpec{
@@ -108,7 +84,7 @@ parameter: {
 		},
 	}
 
-	raw, err := inheritedTraitSchema(context.Background(), schemaClient(t, parent, child), child)
+	raw, err := inheritedTraitSchema(context.Background(), child)
 	require.NoError(t, err)
 
 	var doc map[string]interface{}
@@ -120,14 +96,22 @@ parameter: {
 	require.Contains(t, props, "team")
 }
 
-// A parent that is not there is reported, rather than publishing a schema that
-// describes only half the definition.
-func TestPublishedSchemaNeedsItsParent(t *testing.T) {
+// A definition publishes the parameters it declares, so a parent that is not
+// there cannot stop it. Reading the chain to publish a schema would leave a
+// definition unready because something it extends had been renamed, for a
+// schema that never depended on it.
+func TestAMissingParentDoesNotStopTheSchemaPublishing(t *testing.T) {
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate,
 		features.EnableDefinitionInheritance, true)
 
 	child := schemaComponent("vela-system", "orphan", "gone", schemaChild)
 
-	_, err := inheritedComponentSchema(context.Background(), schemaClient(t, child), child)
-	require.Error(t, err)
+	raw, err := inheritedComponentSchema(context.Background(), child)
+	require.NoError(t, err)
+
+	var doc map[string]interface{}
+	require.NoError(t, json.Unmarshal(raw, &doc))
+	props, ok := doc["properties"].(map[string]interface{})
+	require.True(t, ok)
+	require.Contains(t, props, "tenant")
 }

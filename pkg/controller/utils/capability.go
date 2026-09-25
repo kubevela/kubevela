@@ -617,7 +617,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		case def.ComponentDefinition.Spec.Extends == "":
 			jsonSchema, err = def.GetOpenAPISchema(ctx, name)
 		case def.ComponentDefinition.Spec.Schematic != nil && def.ComponentDefinition.Spec.Schematic.CUE != nil:
-			jsonSchema, err = inheritedComponentSchema(ctx, k8sClient, &def.ComponentDefinition)
+			jsonSchema, err = inheritedComponentSchema(ctx, &def.ComponentDefinition)
 		default:
 			// Admission refuses this combination, so it can only reach here from
 			// a definition applied before the check existed. Publishing the
@@ -697,7 +697,7 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 	var err error
 	if def.TraitDefinition.Spec.Extends != "" &&
 		def.TraitDefinition.Spec.Schematic != nil && def.TraitDefinition.Spec.Schematic.CUE != nil {
-		jsonSchema, err = inheritedTraitSchema(ctx, k8sClient, &def.TraitDefinition)
+		jsonSchema, err = inheritedTraitSchema(ctx, &def.TraitDefinition)
 	} else {
 		jsonSchema, err = def.GetOpenAPISchema(ctx, name)
 	}

@@ -253,7 +253,7 @@ func TestRevisionFetcherDoesNotFallBackToTheCluster(t *testing.T) {
 // The undeclared-parameter check reads a component's declaration on its own. A
 // child inherits half of its, so judging it by its own template alone would
 // call every parameter it takes from its parent undeclared.
-func TestInheritedParametersAreNotUndeclared(t *testing.T) {
+func TestAnExtendingComponentIsJudgedAgainstItsOwnParameters(t *testing.T) {
 	withInheritance(t)
 
 	parent := `
@@ -271,7 +271,8 @@ parameter: {
 	child := `
 $super: properties: {image: parameter.image}
 
-parameter: $super.parameter & {
+parameter: {
+	image:  string
 	tenant: string
 }
 `
@@ -289,8 +290,8 @@ parameter: $super.parameter & {
 
 	declared := getDeclaredFieldNames(schema)
 	require.True(t, declared["tenant"], "the child's own")
-	require.True(t, declared["image"], "and its parent's, or every app using it is refused")
-	require.True(t, declared["replicas"])
+	require.True(t, declared["image"], "and what it passes up, which it declares too")
+	require.False(t, declared["replicas"], "the parent decides this one; the child does not expose it")
 
 	params := map[string]any{"image": "nginx:1.27", "tenant": "acme"}
 	require.Empty(t, findUndeclaredFields(schema, params, ""))

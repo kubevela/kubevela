@@ -48,58 +48,50 @@ $super: properties: {image: parameter.image}
 
 output: metadata: labels: "tenant.oam.dev/name": parameter.tenant
 
-parameter: $super.parameter & {
+parameter: {
+	image: string
 	// +usage=Owning tenant
 	tenant: string
 }
 `
 
 // The published schema is what `vela show` prints and what an application is
-// validated against. A child that inherits its parent's parameters must publish
-// them, or a definition that renders perfectly well looks like it takes nothing.
-func TestInheritedSchemaPublishesTheWholeParameterSet(t *testing.T) {
+// validated against. A definition that extends another publishes the parameters
+// it declares, exactly as one that extends nothing does.
+func TestAnExtendingDefinitionPublishesItsOwnParameters(t *testing.T) {
 	raw, err := inheritedSchema(context.Background(), "tenant-webservice", schemaChild,
-		[]inherit.Level{{Name: "webservice", Template: schemaParent}}, inherit.ComponentSurface)
+		inherit.ComponentSurface)
 	require.NoError(t, err)
 
 	var s openapi3.Schema
 	require.NoError(t, json.Unmarshal(raw, &s))
 
-	for _, field := range []string{"tenant", "image", "replicas", "cpu"} {
+	for _, field := range []string{"tenant", "image"} {
 		require.Contains(t, s.Properties, field, "expected %q in the published schema", field)
 	}
 
-	// The parent's documentation travels with its parameters.
-	require.Equal(t, "Which image would you like to use", s.Properties["image"].Value.Description)
+	// The parent's parameters stay the parent's. A definition publishes what it
+	// declares, so an application is validated against what this one states it
+	// takes rather than against everything the chain could accept.
+	require.NotContains(t, s.Properties, "replicas")
+	require.NotContains(t, s.Properties, "cpu")
+
 	require.Equal(t, "Owning tenant", s.Properties["tenant"].Value.Description)
-
-	// A defaulted parameter is published with its default.
-	require.EqualValues(t, 1, s.Properties["replicas"].Value.Default)
-
-	// What the parent insists on, the child inherits the insistence on.
 	require.Contains(t, s.Required, "image")
 	require.Contains(t, s.Required, "tenant")
-	require.NotContains(t, s.Required, "cpu", "an optional parent parameter stays optional")
-
-	// Inheriting a parameter set does not change what the generator makes of it:
-	// a defaulted parameter is listed as required here exactly as it is for a
-	// definition that extends nothing, which TestSchemaOfADefinitionThatExtendsNothing
-	// pins. That is existing behaviour of the OpenAPI generation, not something
-	// inheritance introduces, so it is asserted rather than corrected here.
-	require.Contains(t, s.Required, "replicas")
 }
 
 // A chain of one goes through the same path and must behave as it always did.
 func TestSchemaOfADefinitionThatExtendsNothing(t *testing.T) {
-	raw, err := inheritedSchema(context.Background(), "webservice", schemaParent, nil, inherit.ComponentSurface)
+	raw, err := inheritedSchema(context.Background(), "webservice", schemaParent, inherit.ComponentSurface)
 	require.NoError(t, err)
 
 	var s openapi3.Schema
 	require.NoError(t, json.Unmarshal(raw, &s))
 	require.Contains(t, s.Properties, "image")
 	require.NotContains(t, s.Properties, "tenant")
-	// The baseline for the note in TestInheritedSchemaPublishesTheWholeParameterSet:
-	// a defaulted parameter is published as required with no inheritance involved.
+	// A defaulted parameter is published as required. That is existing behaviour
+	// of the OpenAPI generation, asserted rather than corrected here.
 	require.Contains(t, s.Required, "replicas")
 	require.EqualValues(t, 1, s.Properties["replicas"].Value.Default)
 }

@@ -40,7 +40,6 @@ parameter: {tenant: string}
 	require.NoError(t, err)
 
 	require.False(t, res.Value.LookupPath(superPath("output")).Exists(), "$super.output was filled but never read")
-	require.False(t, res.Value.LookupPath(superPath("parameter")).Exists(), "$super.parameter was filled but never read")
 	require.True(t, res.Value.LookupPath(cue.ParsePath("output.kind")).Exists(), "the merge still happened")
 }
 
@@ -53,7 +52,10 @@ $super: properties: {image: parameter.image}
 
 output: $super.output
 
-parameter: $super.parameter & {tenant: string}
+parameter: {
+	image:  string
+	tenant: string
+}
 `
 	res, err := Render(context.Background(),
 		[]Level{{Name: "child", Template: child}, {Name: "webservice", Template: parentTemplate}},
@@ -62,11 +64,10 @@ parameter: $super.parameter & {tenant: string}
 	require.NoError(t, err)
 
 	require.True(t, res.Value.LookupPath(superPath("output")).Exists())
-	require.True(t, res.Value.LookupPath(superPath("parameter")).Exists())
 }
 
-// `outputs` is gated exactly as `output` and `parameter` are, and was the one
-// component surface field the gating tests did not cover.
+// `outputs` is gated exactly as `output` is, and was the one component surface
+// field the gating tests did not cover.
 func TestUnreadSuperOutputsAreNotFilled(t *testing.T) {
 	child := `
 $super: properties: {image: parameter.image}

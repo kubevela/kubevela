@@ -77,7 +77,8 @@ outputs: quota: {
 	metadata: name: context.name
 }
 
-parameter: $super.parameter & {
+parameter: {
+	image:  string
 	tenant: string
 }
 `
