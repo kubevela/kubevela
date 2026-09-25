@@ -1,0 +1,30 @@
+# Uses a capability the demo-store module installed, through the fully
+# qualified Form 3 reference {module}/{apiVersion}/{name}.
+#
+# Form 3 needs no cluster lookup: the installed object name is derived by
+# string math that the render service and type resolution share, so this
+# resolves to demo-store-v2-bucket without a label search.
+#
+# The trait comes from a different API line of the same module, which is the
+# point: lines are siblings and a component may mix them.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: demo-store-consumer-v2
+  namespace: default
+spec:
+  components:
+    - name: photos
+      type: demo-store/v2/bucket
+      properties:
+        # bucketName and region are both required in v2. region does not exist
+        # in v1, and omitting it here must fail.
+        bucketName: photos
+        region: us-west-2
+        # v2 renamed v1's "tier" to "class" and added the archive value.
+        class: premium
+      traits:
+        - type: demo-store/v1/labeler
+          properties:
+            labels:
+              team: platform

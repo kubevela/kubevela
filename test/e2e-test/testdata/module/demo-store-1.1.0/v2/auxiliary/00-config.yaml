@@ -1,0 +1,12 @@
+# v2's own auxiliary tier, installed as "demo-store-v2-aux". It depends on the
+# module-level "demo-store-aux" tier, exactly as v1's does, and NOT on
+# "demo-store-v1-aux".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-store-v2-settings
+data:
+  tier: "line"
+  line: "v2"
+  # Added in 1.1.0, so an upgrade updates this object rather than creating it.
+  moduleVersion: "1.1.0"
