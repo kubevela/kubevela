@@ -101,7 +101,7 @@ spec:
       	}
       }
       _unhealthy: [ for s in _app.services if !s.healthy {s}]
-      isHealth: _app.phase == "running" && len(_app.services) > 0 && len(_unhealthy) == 0
+      isHealth: _app.phase == "running" && len(_unhealthy) == 0
   workload:
     type: autodetects.core.oam.dev
 

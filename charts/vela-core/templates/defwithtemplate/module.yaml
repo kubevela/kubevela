@@ -8,6 +8,7 @@ metadata:
   name: module
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "module" "root" $) }}
   schematic:
     cue:
       template: |
