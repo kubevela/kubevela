@@ -65,7 +65,9 @@ func GetClusterInfo(_ctx context.Context, k8sClient client.Client, clusterName s
 	var workerNumber, masterNumber int
 	var memoryCapacity, cpuCapacity, podCapacity, memoryAllocatable, cpuAllocatable, podAllocatable resource.Quantity
 	for _, node := range nodes.Items {
-		if _, ok := node.Labels["node-role.kubernetes.io/master"]; ok {
+		_, isMaster := node.Labels["node-role.kubernetes.io/master"]
+		_, isControlPlane := node.Labels["node-role.kubernetes.io/control-plane"]
+		if isMaster || isControlPlane {
 			masterNumber++
 		} else {
 			workerNumber++
