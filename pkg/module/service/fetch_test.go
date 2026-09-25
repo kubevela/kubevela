@@ -189,6 +189,22 @@ func TestFetchModule_ModuleNotFound(t *testing.T) {
 	require.Contains(t, err.Error(), "catalog")
 }
 
+// TestFetchModule_OCI_RepositoryNotFound covers a module never published to
+// an OCI registry: the tag listing fails with the registry's missing-repository
+// answer, which must surface as module.ErrModuleNotFound, not a raw 404.
+func TestFetchModule_OCI_RepositoryNotFound(t *testing.T) {
+	s := NewService(fakeStore{regs: []component.Registry{ociRegistry("ecr")}})
+	s.revision = unrevisioned
+	s.pullChart = func(_ context.Context, _ *component.Registry, name, _ string) ([]*loader.BufferedFile, error) {
+		return nil, errors.Errorf("module %q: pull OCI chart: failed to list tags for OCI repository registry.example.com/modules/%s: "+
+			"unexpected status code 404: name unknown: The repository with name 'modules/%s' does not exist", name, name, name)
+	}
+
+	_, err := s.FetchModule(context.Background(), "ecr", "nosuchmodule", "")
+	require.ErrorIs(t, err, module.ErrModuleNotFound)
+	require.EqualError(t, err, `registry "ecr": module "nosuchmodule" is not published to this registry: module not found in registry`)
+}
+
 func ociRegistry(name string) component.Registry {
 	return component.Registry{Name: name, Helm: &component.HelmSource{URL: "oci://registry.example.com/modules"}}
 }
