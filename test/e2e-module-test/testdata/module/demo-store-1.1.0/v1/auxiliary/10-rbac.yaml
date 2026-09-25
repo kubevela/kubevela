@@ -22,5 +22,7 @@ subjects:
     name: demo-store-runner
     # This ServiceAccount comes from the module-level auxiliary tier, which is
     # applied before this one -- that ordering is what the tier dependency
-    # exists for.
-    namespace: vela-system
+    # exists for. No namespace here: a ServiceAccount subject with no
+    # namespace defaults to the RoleBinding's own namespace, which is
+    # whatever namespace the module is installed into -- hardcoding
+    # vela-system would break an install into any other namespace.

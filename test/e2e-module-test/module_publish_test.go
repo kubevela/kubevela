@@ -49,7 +49,7 @@ import (
 // "module-e2e-widget-deploy" and the controller's owned Application is
 // "module-e2e-widget" (see references/cli/module-deploy.go).
 const (
-	modulePublishFixtureRelPath = "test/e2e-test/testdata/module/e2e-widget"
+	modulePublishFixtureRelPath = "test/e2e-module-test/testdata/module/e2e-widget"
 	modulePublishModuleName     = "e2e-widget"
 	modulePublishModuleVersion  = "1.0.0"
 	modulePublishRegistryName   = "e2e-oci"
