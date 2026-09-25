@@ -33,6 +33,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/strings/slices"
@@ -64,6 +65,7 @@ import (
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -115,14 +117,29 @@ type options struct {
 func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	ctx, cancel := ctrlrec.NewReconcileContext(ctx)
 	defer cancel()
-	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("application", req.String(), "controller", "application")
-	logCtx.Info("Start reconcile application")
-	defer logCtx.Commit("End reconcile application")
+
 	app := new(v1beta1.Application)
-	if err := r.Get(ctx, client.ObjectKey{
+	err := r.Get(ctx, client.ObjectKey{
 		Name:      req.Name,
 		Namespace: req.Namespace,
-	}, app); err != nil {
+	}, app)
+
+	traceID := ""
+	if err == nil {
+		if id, ok := logging.TraceIDFromObject(app); ok {
+			traceID = id
+		}
+	}
+
+	ctx = logging.WithRequestID(ctx, traceID)
+	spanID := string(uuid.NewUUID())
+	ctx = logging.WithSpanID(ctx, spanID)
+
+	logCtx := monitorContext.NewTraceContext(ctx, spanID).AddTag("application", req.String(), "controller", "application", logging.FieldRequestID, traceID)
+	logCtx.Info("Start reconcile application")
+	defer logCtx.Commit("End reconcile application")
+
+	if err != nil {
 		if !kerrors.IsNotFound(err) {
 			logCtx.Error(err, "get application")
 		}
