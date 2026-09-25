@@ -118,6 +118,8 @@ func TestOCIChartTagExistsUsesPlainHTTPTransportForHTTPURL(t *testing.T) {
 func TestIsOCIRepositoryNotFound(t *testing.T) {
 	require.True(t, IsOCIRepositoryNotFound(errors.New("unexpected status: 404 Not Found: NAME_UNKNOWN")))
 	require.True(t, IsOCIRepositoryNotFound(errors.New("RepositoryNotFoundException: The repository with name 'modules/s3' does not exist")))
+	require.True(t, IsOCIRepositoryNotFound(errors.New(`failed to push chart 123456789012.dkr.ecr.us-west-2.amazonaws.com/modules/s3:1.0.0: unexpected status from POST request to https://123456789012.dkr.ecr.us-west-2.amazonaws.com/v2/modules/s3/blobs/uploads/: 404 Not Found`)))
+	require.False(t, IsOCIRepositoryNotFound(errors.New(`unexpected status from POST request to https://registry.example.com/v2/modules/s3/blobs/uploads/: 401 Unauthorized`)))
 	require.False(t, IsOCIRepositoryNotFound(errors.New("unauthorized: authentication required")))
 }
 

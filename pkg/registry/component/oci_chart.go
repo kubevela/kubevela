@@ -117,12 +117,17 @@ func OCIChartTagExists(ctx context.Context, reg Registry, name, tag string) (boo
 
 // IsOCIRepositoryNotFound reports whether err is a registry's "this repository
 // does not exist" answer. ECR reports RepositoryNotFoundException; the
-// distribution API reports NAME_UNKNOWN.
+// distribution API reports NAME_UNKNOWN. On a push, ECR answers the blob upload
+// for a missing repository with a bare 404 and no error body, so a 404 on the
+// upload endpoint is the only sign there is.
 func IsOCIRepositoryNotFound(err error) bool {
 	if err == nil {
 		return false
 	}
 	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "/blobs/uploads/") && strings.Contains(msg, "404") {
+		return true
+	}
 	for _, marker := range []string{"name_unknown", "name unknown", "repositorynotfoundexception", "repository not found"} {
 		if strings.Contains(msg, marker) {
 			return true

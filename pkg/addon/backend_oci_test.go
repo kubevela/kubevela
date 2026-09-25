@@ -771,13 +771,18 @@ func TestNewOCIClientWithPlainHTTP(t *testing.T) {
 	}
 }
 
-// TestNewOCIClientWithPlainHTTPLoginFailure covers the credentialed branch:
-// non-empty credentials trigger a real Login call, which fails fast and
-// deterministically against a closed loopback port.
-func TestNewOCIClientWithPlainHTTPLoginFailure(t *testing.T) {
-	_, err := component.NewOCIClientWithPlainHTTP(closedPortHost, "AWS", "secret", false)
+// TestNewOCIClientWithPlainHTTPCredentialsNoEagerLogin covers the credentialed
+// branch: credentials are handed to the client, not used to log in, so building
+// it against a closed loopback port succeeds and the failure surfaces on the
+// first pull instead.
+func TestNewOCIClientWithPlainHTTPCredentialsNoEagerLogin(t *testing.T) {
+	client, err := component.NewOCIClientWithPlainHTTP(closedPortHost, "AWS", "secret", false)
+	require.NoError(t, err)
+	assert.NotNil(t, client)
+
+	_, err = component.PullOCIChartWithTransport(closedPortRepoRef+":1.0.0", closedPortHost, "AWS", "secret", false)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to login to OCI registry")
+	assert.Contains(t, err.Error(), "failed to pull addon chart")
 }
 
 // closedPortRepoRef and closedPortHost point at a loopback port nothing is
