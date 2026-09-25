@@ -23,7 +23,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"helm.sh/helm/v3/pkg/registry"
 )
 
 // TestOCIClientCacheReusesLogin pins the fix for the handshake storm: listing a
@@ -31,9 +30,7 @@ import (
 // client and logged in again, which real registries reject once the catalog
 // holds more than a couple of addons.
 func TestOCIClientCacheReusesLogin(t *testing.T) {
-	ociClientCache.Lock()
-	ociClientCache.clients = map[string]*registry.Client{}
-	ociClientCache.Unlock()
+	ResetOCIClientCache()
 
 	first, err := NewOCIClientWithPlainHTTP("reg.example.com", "", "", false)
 	require.NoError(t, err)
@@ -45,7 +42,6 @@ func TestOCIClientCacheReusesLogin(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotSame(t, first, other, "different hosts must not share a client")
 
-	// Credentialed clients log in, so assert the keying rather than build one.
 	// A rotated credential must miss the cache: an ECR login token lasts 12
 	// hours, and reusing the client holding the stale one would fail every pull.
 	assert.NotEqual(t,
@@ -63,9 +59,7 @@ func TestOCIClientCacheReusesLogin(t *testing.T) {
 }
 
 func TestOCIClientCacheIsBounded(t *testing.T) {
-	ociClientCache.Lock()
-	ociClientCache.clients = map[string]*registry.Client{}
-	ociClientCache.Unlock()
+	ResetOCIClientCache()
 
 	for i := 0; i < ociClientCacheLimit*2; i++ {
 		_, err := NewOCIClientWithPlainHTTP(fmt.Sprintf("reg%d.example.com", i), "", "", false)

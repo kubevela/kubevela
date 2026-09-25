@@ -121,8 +121,16 @@ func OCIRepoRef(url, name string) (repoRef, host string) {
 // lasts 12 hours) yields a new client rather than reusing a stale one.
 var ociClientCache = struct {
 	sync.Mutex
-	clients map[string]*registry.Client
-}{clients: map[string]*registry.Client{}}
+	clients map[string]ociClientEntry
+}{clients: map[string]ociClientEntry{}}
+
+// ociClientEntry is a cached client together with the credentials file it
+// authenticates from. The file has to outlive the client, so eviction removes
+// the two together.
+type ociClientEntry struct {
+	client   *registry.Client
+	credFile string
+}
 
 // ociClientCacheLimit bounds the cache. Entries are keyed by credentials, so the
 // live set is small; the cap only stops unbounded growth as tokens rotate.
@@ -145,29 +153,40 @@ func ociClientCacheKey(host, username, password string, plainHTTP bool) string {
 // whichever test ran next.
 func ResetOCIClientCache() {
 	ociClientCache.Lock()
-	defer ociClientCache.Unlock()
-	ociClientCache.clients = map[string]*registry.Client{}
+	evicted := ociClientCache.clients
+	ociClientCache.clients = map[string]ociClientEntry{}
+	ociClientCache.Unlock()
+
+	// Outside the lock: removing files is filesystem work, and nothing else
+	// can reach these entries once they are off the map.
+	for _, entry := range evicted {
+		removeOCICredentialsFile(entry.credFile)
+	}
 }
 
 func cachedOCIClient(key string) (*registry.Client, bool) {
 	ociClientCache.Lock()
 	defer ociClientCache.Unlock()
-	client, ok := ociClientCache.clients[key]
-	return client, ok
+	entry, ok := ociClientCache.clients[key]
+	return entry.client, ok
 }
 
-func storeOCIClient(key string, client *registry.Client) {
+func storeOCIClient(key string, client *registry.Client, credFile string) {
+	var evicted string
 	ociClientCache.Lock()
-	defer ociClientCache.Unlock()
 	if len(ociClientCache.clients) >= ociClientCacheLimit {
 		// Cheap eviction: the entries are interchangeable, and a dropped one is
-		// only re-logged-in on next use.
-		for k := range ociClientCache.clients {
+		// only rebuilt on next use.
+		for k, entry := range ociClientCache.clients {
+			evicted = entry.credFile
 			delete(ociClientCache.clients, k)
 			break
 		}
 	}
-	ociClientCache.clients[key] = client
+	ociClientCache.clients[key] = ociClientEntry{client: client, credFile: credFile}
+	ociClientCache.Unlock()
+
+	removeOCICredentialsFile(evicted)
 }
 
 func NewOCIClientWithPlainHTTP(host, username, password string, plainHTTP bool) (*registry.Client, error) {
@@ -193,17 +212,30 @@ func NewOCIClientWithPlainHTTP(host, username, password string, plainHTTP bool) 
 		if plainHTTP {
 			opts = append(opts, registry.ClientOptPlainHTTP())
 		}
-		client, err := registry.NewClient(opts...)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to create OCI registry client")
-		}
+
+		// A credential of our own goes into a credentials file of our own, so
+		// the client neither reads the machine's registry logins nor writes
+		// this one back to them. See oci_credentials.go. Without a credential
+		// the client keeps its default file, which is what lets a caller that
+		// supplied none fall back to the ambient docker credential chain, as
+		// `vela module publish --username ""` documents.
+		var credFile string
 		if username != "" || password != "" {
-			if err := client.Login(host, registry.LoginOptBasicAuth(username, password)); err != nil {
-				return nil, errors.Wrapf(err, "failed to login to OCI registry %s", host)
+			path, err := writeOCICredentialsFile(key, host, username, password)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to prepare credentials for OCI registry %s", host)
 			}
+			credFile = path
+			opts = append(opts, registry.ClientOptCredentialsFile(credFile))
 		}
 
-		storeOCIClient(key, client)
+		client, err := registry.NewClient(opts...)
+		if err != nil {
+			removeOCICredentialsFile(credFile)
+			return nil, errors.Wrap(err, "failed to create OCI registry client")
+		}
+
+		storeOCIClient(key, client, credFile)
 		return client, nil
 	})
 	if err != nil {
