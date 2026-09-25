@@ -38,3 +38,8 @@ func NewReconcileConfig() *ReconcileConfig {
 func (c *ReconcileConfig) AddFlags(fs *pflag.FlagSet) {
 	ctrlrec.AddFlags(fs)
 }
+
+// Validate ensures the configuration is valid.
+func (c *ReconcileConfig) Validate() error {
+	return nil
+}
