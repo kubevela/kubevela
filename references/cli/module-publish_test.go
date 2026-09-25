@@ -167,9 +167,10 @@ func TestModulePublishAlreadyPublishedWithoutForce(t *testing.T) {
 	require.Zero(t, rec.calls)
 }
 
-// errRepositoryNotFoundTest mimics ECR's rejection of a push to a repository
-// that does not yet exist, so IsOCIRepositoryNotFound recognizes it.
-var errRepositoryNotFoundTest = errors.New("RepositoryNotFoundException: the repository with name 'modules/s3' does not exist")
+// errRepositoryNotFoundTest is what ECR actually returns for a push to a
+// repository that does not yet exist: the blob upload fails with a bare 404.
+var errRepositoryNotFoundTest = errors.New("failed to push chart registry.example.com/modules/s3:1.0.0: " +
+	"unexpected status from POST request to https://registry.example.com/v2/modules/s3/blobs/uploads/: 404 Not Found")
 
 // errTagImmutableTest mimics ECR's rejection of a tag move on a repository
 // with IMMUTABLE tag mutability, so IsOCITagImmutable recognizes it.
