@@ -81,7 +81,7 @@ var _ = Describe("Application AutoUpdate", func() {
 				updatedComponent.Spec.Schematic.CUE.Template = createOutputConfigMap(updatedComponentVersion)
 				return k8sClient.Update(ctx, updatedComponent)
 			}, 15*time.Second, time.Second).Should(BeNil())
-			time.Sleep(sleepTime)
+			waitDefinitionRevision(ctx, namespace, componentType, updatedComponentVersion)
 
 			By("Create application using configmap-component@1.2.0")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", componentVersion)
@@ -128,7 +128,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
 			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
-			time.Sleep(sleepTime)
+			waitDefinitionRevision(ctx, namespace, componentType, componentVersion)
 
 			By("Create application using configmap-component@1.4")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "1.4")
@@ -164,7 +164,7 @@ var _ = Describe("Application AutoUpdate", func() {
 				updatedComponent.Spec.Schematic.CUE.Template = createOutputConfigMap(updatedComponentVersion)
 				return k8sClient.Update(ctx, updatedComponent)
 			}, 15*time.Second, time.Second).Should(BeNil())
-			time.Sleep(sleepTime)
+			waitDefinitionRevision(ctx, namespace, componentType, updatedComponentVersion)
 
 			By("Create application using configmap-component@2")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "2")
@@ -211,7 +211,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
 			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
-			time.Sleep(sleepTime)
+			waitDefinitionRevision(ctx, namespace, componentType, componentVersion)
 
 			By("Create application using configmap-component@1.4 version")
 			app := updateAppComponent(appWithTwoComponentTemplate, "app1", namespace, componentType, "first-component", "1.4")
@@ -259,7 +259,7 @@ var _ = Describe("Application AutoUpdate", func() {
 				updatedTrait.Spec.Schematic.CUE.Template = createScalerTraitOutput("2")
 				return k8sClient.Update(ctx, updatedTrait)
 			}, 15*time.Second, time.Second).Should(BeNil())
-			time.Sleep(sleepTime)
+			waitDefinitionRevision(ctx, namespace, traitType, updatedTraitVersion)
 
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, updatedTraitVersion)
 			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
@@ -307,7 +307,7 @@ var _ = Describe("Application AutoUpdate", func() {
 
 			trait := createTrait(traitVersion, namespace, traitType, "4")
 			Expect(k8sClient.Create(ctx, trait)).Should(Succeed())
-			time.Sleep(sleepTime)
+			waitDefinitionRevision(ctx, namespace, traitType, traitVersion)
 
 			By("Create application using scaler-trait@v1.4")
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, "1.4")
@@ -331,7 +331,7 @@ var _ = Describe("Application AutoUpdate", func() {
 
 			trait := createTrait(traitVersion, namespace, traitType, "4")
 			Expect(k8sClient.Create(ctx, trait)).Should(Succeed())
-			time.Sleep(sleepTime)
+			waitDefinitionRevision(ctx, namespace, traitType, traitVersion)
 
 			By("Create application using scaler-trait@v1.4")
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, "1.4")
@@ -381,7 +381,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
 			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
-			time.Sleep(sleepTime)
+			waitDefinitionRevision(ctx, namespace, componentType, componentVersion)
 
 			By("Create application using configmap-component@1.4.5")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "1.4.5")
@@ -413,7 +413,7 @@ var _ = Describe("Application AutoUpdate", func() {
 				updatedComponent.Spec.Schematic.CUE.Template = createOutputConfigMap(componentVersion)
 				return k8sClient.Update(ctx, updatedComponent)
 			}, 15*time.Second, time.Second).Should(BeNil())
-			time.Sleep(sleepTime)
+			waitDefinitionRevision(ctx, namespace, componentType, updatedComponentVersion)
 
 			By("Create application using configmap-component@1.0.0 version")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", componentVersion)
@@ -436,7 +436,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
 			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
-			time.Sleep(sleepTime)
+			waitDefinitionRevision(ctx, namespace, componentType, componentVersion)
 
 			By("Create application using configmap-component@1 version")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "1")
@@ -476,7 +476,7 @@ var _ = Describe("Application AutoUpdate", func() {
 				updatedTrait.Spec.Schematic.CUE.Template = createScalerTraitOutput("2")
 				return k8sClient.Update(ctx, updatedTrait)
 			}, 15*time.Second, time.Second).Should(BeNil())
-			time.Sleep(sleepTime)
+			waitDefinitionRevision(ctx, namespace, traitType, updatedTraitVersion)
 
 			By("Create application using scaler-trait@1.0.0 version")
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, traitVersion)
@@ -503,6 +503,13 @@ var _ = Describe("Application AutoUpdate", func() {
 })
 
 // TODO Add test cases for policydefinition and worflowstepdefinition
+
+func waitDefinitionRevision(ctx context.Context, namespace, name, version string) {
+	defRevName := fmt.Sprintf("%s-v%s", name, version)
+	Eventually(func() error {
+		return k8sClient.Get(ctx, client.ObjectKey{Name: defRevName, Namespace: namespace}, new(v1beta1.DefinitionRevision))
+	}, 30*time.Second, time.Second).Should(Succeed())
+}
 
 func updateAppComponent(appTemplate v1beta1.Application, appName, namespace, typeName, componentName, componentVersion string) *v1beta1.Application {
 	app := appTemplate.DeepCopy()
