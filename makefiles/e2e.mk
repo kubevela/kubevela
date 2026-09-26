@@ -37,6 +37,7 @@ e2e-setup-core-wo-auth:
 		--set featureGates.enableApplicationScopedPolicies=true \
 		--set featureGates.enableGlobalPolicies=true \
 		--set featureGates.enableAddonComponent=true \
+		--set featureGates.enableModuleComponent=true \
 		--set featureGates.enableCelExpressions=true \
 		--set featureGates.requireCelExpressionOptIn=true \
 	    --wait kubevela ./charts/vela-core          \
@@ -94,6 +95,15 @@ e2e-api-test:
 e2e-test:
 	# Run e2e test (KUBEVELA_E2E_AUTH=1 enables auth-test registry setup)
 	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-test
+	@$(OK) tests pass
+
+.PHONY: e2e-module-test
+e2e-module-test:
+	# Run the module-as-a-component e2e suite (KUBEVELA_E2E_AUTH=1 enables
+	# the zot auth-test registry, used by one credentialed-registry test).
+	# Kept as its own package/target so a failure elsewhere in e2e-api-test
+	# or e2e-test cannot prevent this from running.
+	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-module-test
 	@$(OK) tests pass
 
 # Run e2e tests with k3d and webhook validation

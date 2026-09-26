@@ -62,6 +62,16 @@ runs:
         echo "Running general e2e tests..."
         make e2e-test
 
+    - name: Run module e2e tests
+      # Its own step, own package, and always() so a failure in an earlier
+      # step (e.g. an unrelated e2e-api-test flake) cannot prevent this from
+      # running.
+      if: always()
+      shell: bash
+      run: |
+        echo "Running module e2e tests..."
+        make e2e-module-test
+
     - name: Upload coverage report
       if: ${{ inputs.codecov-enable == 'true' }}
       uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24

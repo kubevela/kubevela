@@ -29,7 +29,9 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/oam-dev/kubevela/pkg/addon/service/api"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
 	"github.com/oam-dev/kubevela/pkg/features"
+	addonutil "github.com/oam-dev/kubevela/pkg/utils/addon"
 )
 
 // ProviderName is the CUE #provider value.
@@ -70,11 +72,14 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableAddonComponent) {
 		return nil, fmt.Errorf("addon-as-component is disabled; enable the EnableAddonComponent feature gate to use type: addon components")
 	}
+	p := params.Params
+	if validation.IsValidationOnly(ctx) {
+		return placeholderReturns(p), nil
+	}
 	r := api.DefaultRenderer()
 	if r == nil {
 		return nil, fmt.Errorf("addon renderer not initialized")
 	}
-	p := params.Params
 	res, err := r.RenderAddon(ctx, api.AddonRequest{
 		Name:                p.Addon,
 		Version:             p.Version,
@@ -90,6 +95,40 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 		Registry:        res.Registry,
 		Application:     res.Application,
 	}}, nil
+}
+
+// placeholderReturns is what Render yields under a validation-only context: a
+// structurally valid but empty Application standing in for the one the addon
+// would have rendered. It keeps `output: _render.$returns.application` in the
+// addon ComponentDefinition satisfiable, so the component's CUE and parameters
+// are still typechecked, with no registry access. See
+// validation.WithValidationOnly.
+//
+// ResolvedVersion echoes the requested version rather than resolving one. An
+// unpinned component resolves to whatever the registry currently calls latest,
+// which is not knowable without asking it, and reporting an invented version
+// would be worse than reporting none.
+//
+// A real render also sets a namespace, the oam.LabelAddonRegistry label, an
+// ApplyOnce policy, and a populated spec.components, none of which can be known
+// without fetching the addon. Traits on a type: addon component would evaluate
+// against this placeholder, so ValidateCUESchematicAppfile skips them during
+// admission.
+func placeholderReturns(p RenderVars) *RenderReturns {
+	return &RenderReturns{Returns: ResultVars{
+		ResolvedVersion: p.Version,
+		Registry:        p.Registry,
+		Application: map[string]interface{}{
+			"apiVersion": "core.oam.dev/v1beta1",
+			"kind":       "Application",
+			"metadata": map[string]interface{}{
+				"name": addonutil.Addon2AppName(p.Addon),
+			},
+			"spec": map[string]interface{}{
+				"components": []interface{}{},
+			},
+		},
+	}}
 }
 
 // GetTemplate returns the CUE template.

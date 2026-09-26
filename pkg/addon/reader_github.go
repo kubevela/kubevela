@@ -17,6 +17,7 @@ limitations under the License.
 package addon
 
 import (
+	"context"
 	"fmt"
 	"path"
 	"strings"
@@ -100,5 +101,28 @@ func (g *gitReader) RelativePath(item Item) string {
 		return path.Join(absPath...)
 	}
 	base := strings.Split(g.h.Meta.GithubContent.Path, "/")
+	// An item shallower than the configured base is not under it, so there is
+	// no relative path to cut. Slicing anyway panics, which is worth avoiding
+	// for a value that comes back from a registry listing.
+	if len(absPath) < len(base) {
+		return path.Join(absPath...)
+	}
 	return path.Join(absPath[len(base):]...)
+}
+
+// readRepo will read relative path (relative to Meta.Path)
+func (h *gitHelper) readRepo(relativePath string) (*github.RepositoryContent, []*github.RepositoryContent, error) {
+	// The ref the registry URL names, which utils.Parse fills in for a
+	// .../tree/<branch>/<path> URL. Passing no options reads the repository's
+	// default branch instead, so a registry pinned to a release branch was
+	// served the wrong content.
+	var opts *github.RepositoryContentGetOptions
+	if ref := h.Meta.GithubContent.Ref; ref != "" {
+		opts = &github.RepositoryContentGetOptions{Ref: ref}
+	}
+	file, items, _, err := h.Client.Repositories.GetContents(context.Background(), h.Meta.GithubContent.Owner, h.Meta.GithubContent.Repo, path.Join(h.Meta.GithubContent.Path, relativePath), opts)
+	if err != nil {
+		return nil, nil, WrapErrRateLimit(err)
+	}
+	return file, items, nil
 }

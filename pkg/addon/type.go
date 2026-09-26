@@ -70,6 +70,12 @@ type InstallPackage struct {
 	AppTemplate    *v1beta1.Application `json:"appTemplate"`
 	AppCueTemplate ElementFile          `json:"appCueTemplate,omitempty"`
 	Notes          ElementFile          `json:"notes,omitempty"`
+
+	// Imports are the addon's modules/_imports.cue entries: external modules
+	// the addon references, each installed as a type: module component in
+	// the rendered addon Application. Empty when the addon has no
+	// modules/_imports.cue file.
+	Imports []ModuleImport `json:"imports,omitempty"`
 }
 
 // WholeAddonPackage contains all infos of an addon

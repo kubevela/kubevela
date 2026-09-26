@@ -41,6 +41,7 @@ import (
 	// config) and is initialized lazily (no init-time kubeconfig dependency).
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/features"
 
@@ -79,6 +80,17 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 			ctxData.Ctx = context.Background()
 		}
 		ctxData.Ctx = helm.WithDryRun(ctxData.Ctx)
+		// Same reasoning for the addon and module providers, which would
+		// otherwise resolve every type: addon and type: module component from
+		// its remote registry while the apiserver holds the admission request
+		// open.
+		//
+		// Not redundant with the caller that already marks the ctx it passes to
+		// GenerateAppFile: GenerateAppFileFromRevision takes no ctx and never
+		// sets Appfile.Context, so for a PublishVersion Application the marker
+		// would otherwise be lost and the fallback above would hand the
+		// providers a bare context.Background().
+		ctxData.Ctx = validation.WithValidationOnly(ctxData.Ctx)
 
 		if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation) {
 			err := p.ValidateComponentParams(ctxData, wl, a)
@@ -109,6 +121,14 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 			return errors.WithMessagef(err, "cannot create the validation process context of app=%s in namespace=%s", a.Name, a.Namespace)
 		}
 
+		// Under a validation-only context the addon and module providers return a
+		// placeholder Application instead of fetching the real one, so any trait
+		// evaluated here would be checked against content that does not exist yet
+		// and could reject an Application that renders correctly.
+		if rendersPlaceholderDuringValidation(wl) {
+			continue
+		}
+
 		for _, tr := range wl.Traits {
 			if tr.CapabilityCategory != types.CUECategory {
 				continue
@@ -128,6 +148,23 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 		}
 	}
 	return nil
+}
+
+// placeholderRenderedTypes are the ComponentDefinitions whose output is a
+// remote-fetch placeholder during admission (see validation.WithValidationOnly).
+var placeholderRenderedTypes = map[string]bool{
+	"addon":  true,
+	"module": true,
+}
+
+func rendersPlaceholderDuringValidation(wl *Component) bool {
+	if placeholderRenderedTypes[wl.Type] {
+		return true
+	}
+	if wl.FullTemplate != nil && wl.FullTemplate.ComponentDefinition != nil {
+		return placeholderRenderedTypes[wl.FullTemplate.ComponentDefinition.Name]
+	}
+	return false
 }
 
 // ValidateComponentParams performs CUE‑level validation for a Component’s
@@ -563,6 +600,38 @@ func validateAuxiliaryNameUnique() process.AuxiliaryHook {
 		}
 		return nil
 	})
+}
+
+// HasParamsSuppliedAtRuntime reports whether any component parameter of this
+// Application is filled in at runtime rather than written in the spec. Such a
+// component cannot be rendered outside the workflow that supplies the value, so
+// a caller that renders components on its own has to expect an incomplete
+// parameter and cannot read that failure as a fault of the component.
+func HasParamsSuppliedAtRuntime(app *Appfile) bool {
+	if len(getWorkflowAndPolicySuppliedParams(app)) > 0 {
+		return true
+	}
+	// A component can also take an input directly, without an explicit workflow;
+	// the generated workflow step carries it.
+	for _, comp := range app.Components {
+		if len(comp.Inputs) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// HasComponentParamsSuppliedAtRuntime reports whether the named component takes
+// runtime-only parameter input through workflow-generated step inputs. The
+// component-local check avoids suppressing health failures for unrelated
+// components.
+func HasComponentParamsSuppliedAtRuntime(app *Appfile, componentName string) bool {
+	for _, comp := range app.Components {
+		if comp.Name == componentName {
+			return len(comp.Inputs) > 0
+		}
+	}
+	return false
 }
 
 // getWorkflowAndPolicySuppliedParams returns a set of parameter keys that will be
