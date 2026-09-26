@@ -14,16 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This file turns the manual run recorded in
-// localtest/addon-component-module/E2E-TEST-PLAN.md into a Ginkgo suite. Every
-// It below names the scenario it replaces so a failure can be traced back to
-// the transcript in that document. It reuses the CLI/registry plumbing from
-// module_publish_test.go (runVelaCommand, moduleE2ERegistryURL, etc).
+// This file is the e2e suite for the module-as-a-component feature: registry
+// management, publish, install and use, reconciler behaviour, uninstall,
+// namespace isolation, git-registry refusals, and the module error paths. It
+// reuses the CLI/registry plumbing from module_publish_test.go
+// (runVelaCommand, moduleE2ERegistryURL, etc).
 package controllers_test
 
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -58,7 +59,7 @@ const (
 	demoStoreGitRegistryName = "demo-store-gitreg"
 )
 
-var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
+var _ = Describe("Module as a component", Ordered, func() {
 	var (
 		ctx          context.Context
 		repoRoot     string
@@ -115,12 +116,12 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			_, _ = runVelaCommand(repoRoot, "module", "registry", "delete", secondRegistry)
 		})
 
-		It("resolves the sole configured registry by default (1b)", func() {
+		It("resolves the sole configured registry by default", func() {
 			out := runVelaCommandSucceed(repoRoot, "module", "deploy", demoStoreModuleName, "--dry-run")
 			Expect(out).Should(ContainSubstring("registry: " + demoStoreRegistryName))
 		})
 
-		It("refuses ambiguous resolution once a second registry exists, naming both (1b)", func() {
+		It("refuses ambiguous resolution once a second registry exists, naming both", func() {
 			runVelaCommandSucceed(repoRoot, "module", "registry", "add", secondRegistry, registryURL, "--type", "oci")
 			out, err := runVelaCommand(repoRoot, "module", "publish", demoStoreFixtureRelPath, "--dry-run")
 			Expect(err).Should(HaveOccurred())
@@ -128,7 +129,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			Expect(out).Should(ContainSubstring(secondRegistry))
 		})
 
-		It("adds and deletes a registry (1a, 1c)", func() {
+		It("adds and deletes a registry", func() {
 			runVelaCommandSucceed(repoRoot, "module", "registry", "add", secondRegistry, registryURL, "--type", "oci")
 			out := runVelaCommandSucceed(repoRoot, "module", "registry", "list")
 			Expect(out).Should(ContainSubstring(secondRegistry))
@@ -147,7 +148,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 		// setup this environment cannot reach. So this checks only what does
 		// not need a reachable registry: `registry add` never dials out, it
 		// just writes the ConfigMap and Secret.
-		It("stores a real credential in a Secret, not the ConfigMap (1a, credentials)", func() {
+		It("stores a real credential in a Secret, not the ConfigMap", func() {
 			const credRegistryName = "demo-store-cred"
 			runVelaCommandSucceed(repoRoot, "module", "registry", "add", credRegistryName,
 				"oci://registry.invalid/modules", "--username", "testuser", "--password", "testpass")
@@ -165,7 +166,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 
 	// --- Scenario 2: publish ---
 	Context("publish (scenario 2)", func() {
-		It("dry run prints the target and every annotation and pushes nothing (2)", func() {
+		It("dry run prints the target and every annotation and pushes nothing", func() {
 			out := runVelaCommandSucceed(repoRoot, "module", "publish", demoStoreFixtureRelPath,
 				"--registry", demoStoreRegistryName, "--version", "9.9.9-dryrun", "--dry-run")
 			Expect(out).Should(ContainSubstring("modules.oam.dev/module: demo-store"))
@@ -283,7 +284,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			Expect(err.Error()).Should(ContainSubstring("is ambiguous"))
 		})
 
-		It("stops the render when a required parameter has no value (D26)", func() {
+		It("stops the render when a required parameter has no value", func() {
 			err := applyManifestFile(ctx, k8sClient, "testdata/module/consumer-missing-region.yaml")
 			if err == nil {
 				DeferCleanup(func() {
@@ -295,10 +296,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 				if k8sClient.Get(ctx, k8stypes.NamespacedName{Name: "demo-store-missing-region", Namespace: "default"}, &app) != nil {
 					return ""
 				}
-				if app.Status.Workflow == nil {
-					return ""
-				}
-				return app.Status.Workflow.Message
+				return workflowMessage(&app)
 			}, 60*time.Second, 2*time.Second).Should(ContainSubstring("region: incomplete value string"))
 
 			var cm corev1.ConfigMap
@@ -309,7 +307,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 
 	// --- Scenario 4: reconciler behaviour ---
 	Context("reconciler (scenario 4)", func() {
-		It("reverts an edited auxiliary object (4a)", func() {
+		It("reverts an edited auxiliary object", func() {
 			var cm corev1.ConfigMap
 			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: "demo-store-v1-settings", Namespace: veltypes.DefaultKubeVelaNS}, &cm)).Should(Succeed())
 			cm.Data["line"] = "tampered"
@@ -322,7 +320,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			}, 3*time.Minute, 5*time.Second).Should(Equal("v1"))
 		})
 
-		It("recreates a deleted definition (4b)", func() {
+		It("recreates a deleted definition", func() {
 			Expect(k8sClient.Delete(ctx, &v1beta1.ComponentDefinition{ObjectMeta: metav1.ObjectMeta{Name: "demo-store-v1-bucket", Namespace: veltypes.DefaultKubeVelaNS}})).Should(Succeed())
 
 			Eventually(func(g Gomega) error {
@@ -330,7 +328,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			}, 3*time.Minute, 5*time.Second).Should(Succeed())
 		})
 
-		It("applies a pinned upgrade in full (4d)", func() {
+		It("applies a pinned upgrade in full", func() {
 			runVelaCommandSucceed(repoRoot, "module", "deploy", demoStoreModuleName, "--registry", demoStoreRegistryName, "--version", demoStoreUpgradeVersion)
 
 			Eventually(func(g Gomega) {
@@ -346,7 +344,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			Expect(k8serrors.IsNotFound(err)).Should(BeTrue(), "the definition dropped by the upgrade must be garbage collected")
 		})
 
-		It("a republished version with no spec change is not picked up (4c)", func() {
+		It("a republished version with no spec change is not picked up", func() {
 			ns := veltypes.DefaultKubeVelaNS
 
 			By("switching to an unpinned install, so the Application keeps resolving whatever it first saw")
@@ -381,7 +379,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 	// --- Group A: uninstall ---
 	Context("uninstall (group A)", func() {
 		BeforeAll(func() {
-			By("applying a consumer of the v2 bucket capability, so A6 can be observed")
+			By("applying a consumer of the v2 bucket capability, so its behaviour once the capability is removed can be observed")
 			Expect(applyManifestFile(ctx, k8sClient, "testdata/module/consumer-v2-bucket.yaml")).Should(Succeed())
 			DeferCleanup(func() {
 				_ = k8sClient.Delete(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "demo-store-consumer-v2", Namespace: "default"}})
@@ -393,7 +391,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			}, 60*time.Second, 2*time.Second).Should(Succeed())
 		})
 
-		It("removes the owned Application, every definition and every auxiliary object, and both ResourceTrackers (A2-A5)", func() {
+		It("removes the owned Application, every definition and every auxiliary object, and both ResourceTrackers", func() {
 			Expect(k8sClient.Delete(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: demoStoreDeployAppName, Namespace: veltypes.DefaultKubeVelaNS}})).Should(Succeed())
 
 			ns := veltypes.DefaultKubeVelaNS
@@ -418,7 +416,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			}, 90*time.Second, 3*time.Second).Should(Succeed())
 		})
 
-		It("a consumer of the removed capability keeps its resources (A6)", func() {
+		It("a consumer of the removed capability keeps its resources", func() {
 			var cm corev1.ConfigMap
 			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: "photos", Namespace: "default"}, &cm)).Should(Succeed())
 
@@ -435,7 +433,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			}, 90*time.Second, 3*time.Second).Should(Succeed())
 		})
 
-		It("reinstall restores the definition set and the consumer recovers on its own (A7)", func() {
+		It("reinstall restores the definition set and the consumer recovers on its own", func() {
 			ns := veltypes.DefaultKubeVelaNS
 			runVelaCommandSucceed(repoRoot, "module", "deploy", demoStoreModuleName, "--registry", demoStoreRegistryName, "--version", demoStoreUpgradeVersion)
 			Eventually(func(g Gomega) {
@@ -474,7 +472,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			})
 		})
 
-		It("installs definitions and auxiliary objects into the named namespace, owned Application stays in vela-system (C1-C3)", func() {
+		It("installs definitions and auxiliary objects into the named namespace, owned Application stays in vela-system", func() {
 			runVelaCommandSucceed(repoRoot, "module", "deploy", demoStoreModuleName, "--registry", demoStoreRegistryName, "-n", tenant)
 
 			Eventually(func(g Gomega) {
@@ -491,7 +489,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			moduleInstallNamespace = tenant
 		})
 
-		It("is usable from the tenant namespace it was installed into (C4)", func() {
+		It("is usable from the tenant namespace it was installed into", func() {
 			consumer := &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{Name: "demo-store-tenant-consumer", Namespace: tenant},
 				Spec: v1beta1.ApplicationSpec{
@@ -514,7 +512,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			}, 60*time.Second, 2*time.Second).Should(Succeed())
 		})
 
-		It("does not resolve from another namespace (C5)", func() {
+		It("does not resolve from another namespace", func() {
 			err := applyManifestFile(ctx, k8sClient, "testdata/module/consumer-v2-bucket.yaml")
 			// The Form 3 reference the fixture uses names a definition this
 			// module only installed into the tenant namespace, so from
@@ -529,7 +527,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			Expect(err.Error()).Should(ContainSubstring("demo-store-v2-bucket"))
 		})
 
-		It("refuses a second install into another namespace and leaves the first untouched (C6)", func() {
+		It("refuses a second install into another namespace and leaves the first untouched", func() {
 			out, err := runVelaCommand(repoRoot, "module", "deploy", demoStoreModuleName, "--registry", demoStoreRegistryName, "-n", "default")
 			Expect(err).Should(HaveOccurred(), "output:\n%s", out)
 			DeferCleanup(func() {
@@ -541,10 +539,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 				if k8sClient.Get(ctx, k8stypes.NamespacedName{Name: demoStoreDeployAppName, Namespace: "default"}, &app) != nil {
 					return ""
 				}
-				if app.Status.Workflow == nil {
-					return ""
-				}
-				return app.Status.Workflow.Message
+				return workflowMessage(&app)
 			}, 60*time.Second, 2*time.Second).Should(ContainSubstring("managed by other application"))
 
 			// The tenant install must be untouched.
@@ -558,18 +553,17 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 	Context("git refusals (group B)", func() {
 		const gitURL = "https://github.com/kubevela/catalog"
 
-		It("the CLI rejects every unsupported URL shape (B1-B4)", func() {
-			// B1: https://, no .git -- the scheme is checked first, so this is
+		It("the CLI rejects every unsupported URL shape", func() {
+			// https://, no .git -- the scheme is checked first, so this is
 			// the "modules cannot read a registry over https" message, not the
 			// git one.
 			out, err := runVelaCommand(repoRoot, "module", "registry", "add", "b1refused", gitURL)
 			Expect(err).Should(HaveOccurred())
 			Expect(out).Should(ContainSubstring("modules cannot read a registry over https"))
 
-			// B2: https://....git -- the runbook originally expected the git
-			// message here; the scheme is still checked first, so this is the
-			// same https message as B1 (see E2E-TEST-PLAN.md's runbook
-			// correction for B2).
+			// https://....git -- the scheme is still checked first, so a .git
+			// suffix does not change the answer: same https message as above,
+			// not the git-specific one.
 			out, err = runVelaCommand(repoRoot, "module", "registry", "add", "b2refused", gitURL+".git")
 			Expect(err).Should(HaveOccurred())
 			Expect(out).Should(ContainSubstring("modules cannot read a registry over https"))
@@ -579,12 +573,12 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			Expect(err).Should(HaveOccurred())
 			Expect(out).Should(ContainSubstring("git registries are not supported"))
 
-			// B3: schemeless, no .git either -- refused rather than guessed.
+			// Schemeless, no .git either -- refused rather than guessed.
 			out, err = runVelaCommand(repoRoot, "module", "registry", "add", "b3refused", "github.com/kubevela/catalog")
 			Expect(err).Should(HaveOccurred())
 			Expect(out).Should(ContainSubstring("cannot infer the registry type"))
 
-			// B4: --type git explicit.
+			// --type git explicit.
 			out, err = runVelaCommand(repoRoot, "module", "registry", "add", "b4refused", gitURL, "--type", "git")
 			Expect(err).Should(HaveOccurred())
 			Expect(out).Should(ContainSubstring("unsupported registry type"))
@@ -593,7 +587,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			Expect(out).ShouldNot(ContainSubstring("b1refused"), "none of the rejected adds should have been stored")
 		})
 
-		It("a git entry already in the ConfigMap is listed with type git (B5)", func() {
+		It("a git entry already in the ConfigMap is listed with type git", func() {
 			Expect(store.AddRegistry(ctx, regcomponent.Registry{
 				Name: demoStoreGitRegistryName,
 				Git:  &regcomponent.GitAddonSource{URL: gitURL},
@@ -606,7 +600,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			Expect(out).Should(ContainSubstring("git"))
 		})
 
-		It("registry get, publish --dry-run and deploy all refuse a git-backed entry before any network call (B6-B8)", func() {
+		It("registry get, publish --dry-run and deploy all refuse a git-backed entry before any network call", func() {
 			Expect(store.AddRegistry(ctx, regcomponent.Registry{
 				Name: demoStoreGitRegistryName,
 				Git:  &regcomponent.GitAddonSource{URL: gitURL},
@@ -631,7 +625,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			Expect(k8serrors.IsNotFound(getErr)).Should(BeTrue(), "no deploy Application should have been created")
 		})
 
-		It("the webhook refuses a type: module component naming a git registry (B9)", func() {
+		It("the webhook refuses a type: module component naming a git registry", func() {
 			Expect(store.AddRegistry(ctx, regcomponent.Registry{
 				Name: demoStoreGitRegistryName,
 				Git:  &regcomponent.GitAddonSource{URL: gitURL},
@@ -655,7 +649,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			Expect(err.Error()).Should(ContainSubstring("use an OCI registry"))
 		})
 
-		It("the webhook refuses a type: addon component naming a git registry, with the addon remedy (B10)", func() {
+		It("the webhook refuses a type: addon component naming a git registry, with the addon remedy", func() {
 			// The addon webhook reads a different ConfigMap (vela-addon-registry)
 			// than the module one, so this needs its own store and its own entry.
 			addonStore := regcomponent.NewRegistryDataStore(k8sClient)
@@ -682,7 +676,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			Expect(err.Error()).Should(ContainSubstring("use an OCI registry or a Helm repository"))
 		})
 
-		It("a component naming no registry is admitted and refused at reconcile, naming the ambiguity (B11)", func() {
+		It("a component naming no registry is admitted and refused at reconcile, naming the ambiguity", func() {
 			Expect(store.AddRegistry(ctx, regcomponent.Registry{
 				Name: demoStoreGitRegistryName,
 				Git:  &regcomponent.GitAddonSource{URL: gitURL},
@@ -711,14 +705,11 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 				if k8sClient.Get(ctx, k8stypes.NamespacedName{Name: app.Name, Namespace: app.Namespace}, got) != nil {
 					return ""
 				}
-				if got.Status.Workflow == nil {
-					return ""
-				}
-				return got.Status.Workflow.Message
+				return workflowMessage(got)
 			}, 60*time.Second, 2*time.Second).Should(ContainSubstring("none is named"))
 		})
 
-		It("with a git registry as the sole configured one, an unnamed registry is refused at reconcile as git (B11)", func() {
+		It("with a git registry as the sole configured one, an unnamed registry is refused at reconcile as git", func() {
 			// resolveRegistryByName's sole-registry rule picks this one, so
 			// resolution reaches the git gate instead of the ambiguity error
 			// above.
@@ -754,17 +745,14 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 				if k8sClient.Get(ctx, k8stypes.NamespacedName{Name: app.Name, Namespace: app.Namespace}, got) != nil {
 					return ""
 				}
-				if got.Status.Workflow == nil {
-					return ""
-				}
-				return got.Status.Workflow.Message
+				return workflowMessage(got)
 			}, 60*time.Second, 2*time.Second).Should(ContainSubstring("is a git source"))
 		})
 	})
 
 	// --- Group D: error paths ---
 	Context("error paths (group D)", func() {
-		It("deploy of a module never published names it plainly (D22)", func() {
+		It("deploy of a module never published names it plainly", func() {
 			out, err := runVelaCommand(repoRoot, "module", "deploy", "nosuchmodule", "--registry", demoStoreRegistryName)
 			Expect(err).Should(HaveOccurred())
 			Expect(out).Should(ContainSubstring(`module "nosuchmodule" is not published to this registry`))
@@ -774,7 +762,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			Expect(k8serrors.IsNotFound(getErr)).Should(BeTrue())
 		})
 
-		It("malformed component properties are refused at admission (D24)", func() {
+		It("malformed component properties are refused at admission", func() {
 			app := &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{Name: "demo-store-malformed-consumer", Namespace: "default"},
 				Spec: v1beta1.ApplicationSpec{
@@ -790,7 +778,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 			Expect(err.Error()).Should(ContainSubstring("cannot be decoded as module component properties"))
 		})
 
-		It("an unknown registry name is admitted and refused at reconcile (D25)", func() {
+		It("an unknown registry name is admitted and refused at reconcile", func() {
 			app := &v1beta1.Application{
 				ObjectMeta: metav1.ObjectMeta{Name: "demo-store-unknown-registry-consumer", Namespace: "default"},
 				Spec: v1beta1.ApplicationSpec{
@@ -811,10 +799,7 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 				if k8sClient.Get(ctx, k8stypes.NamespacedName{Name: app.Name, Namespace: app.Namespace}, got) != nil {
 					return ""
 				}
-				if got.Status.Workflow == nil {
-					return ""
-				}
-				return got.Status.Workflow.Message
+				return workflowMessage(got)
 			}, 60*time.Second, 2*time.Second).Should(ContainSubstring(`module registry "doesnotexist" not found`))
 		})
 	})
@@ -826,4 +811,23 @@ var _ = Describe("Module as a component (E2E-TEST-PLAN)", Ordered, func() {
 // specific refusal).
 func rawExtension(json string) *runtime.RawExtension {
 	return &runtime.RawExtension{Raw: []byte(json)}
+}
+
+// workflowMessage returns app's workflow-level message plus every step's own
+// message, joined. A render failure surfaces on the step (StepStatus.Message
+// in the kubevela/workflow API), not necessarily on the workflow's own
+// aggregate message, so checking only the latter can see an empty string
+// even once the step has already failed.
+func workflowMessage(app *v1beta1.Application) string {
+	if app.Status.Workflow == nil {
+		return ""
+	}
+	parts := []string{app.Status.Workflow.Message}
+	for _, step := range app.Status.Workflow.Steps {
+		parts = append(parts, step.Message)
+		for _, sub := range step.SubStepsStatus {
+			parts = append(parts, sub.Message)
+		}
+	}
+	return strings.Join(parts, "\n")
 }

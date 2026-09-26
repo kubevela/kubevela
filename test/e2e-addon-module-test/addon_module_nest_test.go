@@ -44,10 +44,10 @@ import (
 )
 
 // fixtureModuleName is the one module the fixtures in this suite know about,
-// reusing test/e2e-test/testdata/module/e2e-widget -- an existing, already
-// unit-tested module fixture (name "e2e-widget", one enabled API line "v1",
-// one ComponentDefinition, no auxiliary objects) -- rather than authoring a
-// new one.
+// reusing test/e2e-module-test/testdata/module/e2e-widget -- an existing,
+// already unit-tested module fixture (name "e2e-widget", one enabled API
+// line "v1", one ComponentDefinition, no auxiliary objects) -- rather than
+// authoring a new one.
 const fixtureModuleName = "e2e-widget"
 
 // fixtureAddonName is the addon this suite's fixture addon renderer knows
@@ -57,11 +57,11 @@ const fixtureModuleName = "e2e-widget"
 const fixtureAddonName = "e2e-nest-addon"
 
 // fixtureModuleDir resolves the e2e-widget module fixture directory shared
-// with test/e2e-test, independent of the working directory the test binary
-// runs from.
+// with test/e2e-module-test, independent of the working directory the test
+// binary runs from.
 func fixtureModuleDir() string {
 	_, thisFile, _, _ := sysruntime.Caller(0)
-	return filepath.Join(filepath.Dir(thisFile), "..", "e2e-test", "testdata", "module", fixtureModuleName)
+	return filepath.Join(filepath.Dir(thisFile), "..", "e2e-module-test", "testdata", "module", fixtureModuleName)
 }
 
 // fixtureModuleRenderer implements moduleapi.Renderer over the local
