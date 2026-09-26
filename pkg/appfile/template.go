@@ -180,7 +180,7 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 		return nil, err
 	}
 	switch capType {
-	case types.TypeComponentDefinition:
+	case types.TypeComponentDefinition, types.TypeWorkload:
 		cd, ok := apprev.Spec.ComponentDefinitions[capName]
 		if !ok {
 			wd, ok := apprev.Spec.WorkloadDefinitions[capName]
@@ -264,7 +264,7 @@ func resolveRevisionCapabilityName(capName string, capType types.CapType, apprev
 	}
 	form, moduleName, apiVersion, shortName, err := parseTypeRef(capName)
 	if err != nil {
-		return capName, nil
+		return "", err
 	}
 	switch form {
 	case 3:
@@ -291,7 +291,7 @@ func resolveRevisionCapabilityName(capName string, capType types.CapType, apprev
 
 func revisionCapabilityExists(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) bool {
 	switch capType {
-	case types.TypeComponentDefinition:
+	case types.TypeComponentDefinition, types.TypeWorkload:
 		if _, ok := apprev.Spec.ComponentDefinitions[capName]; ok {
 			return true
 		}
@@ -319,7 +319,7 @@ func revisionCapabilityExists(capName string, capType types.CapType, apprev *v1b
 func revisionModuleDefinitionNames(capType types.CapType, apprev *v1beta1.ApplicationRevision, apiVersion, name string) []string {
 	spec := &apprev.Spec
 	switch capType {
-	case types.TypeComponentDefinition:
+	case types.TypeComponentDefinition, types.TypeWorkload:
 		return append(
 			moduleLabelMatches(spec.ComponentDefinitions, func(d *v1beta1.ComponentDefinition) map[string]string { return d.Labels }, apiVersion, name),
 			moduleLabelMatches(spec.WorkloadDefinitions, func(d v1beta1.WorkloadDefinition) map[string]string { return d.Labels }, apiVersion, name)...)
@@ -359,6 +359,11 @@ func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.A
 		switch capType {
 		case types.TypeComponentDefinition:
 			_, ok = apprev.Spec.ComponentDefinitions[splitName]
+			if !ok {
+				_, ok = apprev.Spec.WorkloadDefinitions[splitName]
+			}
+		case types.TypeWorkload:
+			_, ok = apprev.Spec.WorkloadDefinitions[splitName]
 		case types.TypeTrait:
 			_, ok = apprev.Spec.TraitDefinitions[splitName]
 		case types.TypePolicy:

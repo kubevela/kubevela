@@ -19,8 +19,8 @@ package addon
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"slices"
+	"strconv"
 
 	"cuelang.org/go/cue/cuecontext"
 	"k8s.io/apimachinery/pkg/runtime"
