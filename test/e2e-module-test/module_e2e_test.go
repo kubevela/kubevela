@@ -352,7 +352,9 @@ var _ = Describe("Module as a component", Ordered, func() {
 			By("switching to an unpinned install, so the Application keeps resolving whatever it first saw")
 			Expect(k8sClient.Delete(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: demoStoreDeployAppName, Namespace: ns}})).Should(Succeed())
 			Eventually(func(g Gomega) {
-				err := k8sClient.Get(ctx, k8stypes.NamespacedName{Name: demoStoreOwnedAppName, Namespace: ns}, &v1beta1.Application{})
+				err := k8sClient.Get(ctx, k8stypes.NamespacedName{Name: demoStoreDeployAppName, Namespace: ns}, &v1beta1.Application{})
+				g.Expect(k8serrors.IsNotFound(err)).Should(BeTrue())
+				err = k8sClient.Get(ctx, k8stypes.NamespacedName{Name: demoStoreOwnedAppName, Namespace: ns}, &v1beta1.Application{})
 				g.Expect(k8serrors.IsNotFound(err)).Should(BeTrue())
 			}, 90*time.Second, 3*time.Second).Should(Succeed())
 			runVelaCommandSucceed(repoRoot, "module", "deploy", demoStoreModuleName, "--registry", demoStoreRegistryName)
