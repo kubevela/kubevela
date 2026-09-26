@@ -34,6 +34,19 @@ import (
 	"github.com/oam-dev/kubevela/pkg/features"
 )
 
+func TestHasComponentParamsSuppliedAtRuntime(t *testing.T) {
+	app := &Appfile{
+		Components: []common.ApplicationComponent{{Name: "myweb1"}, {Name: "myweb2"}},
+		WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{{WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+			Type:       "apply-component",
+			Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+			Inputs:     wfTypesv1alpha1.StepInputs{{From: "image", ParameterKey: "image"}},
+		}}},
+	}
+	assert.True(t, HasComponentParamsSuppliedAtRuntime(app, "myweb1"))
+	assert.False(t, HasComponentParamsSuppliedAtRuntime(app, "myweb2"))
+}
+
 func TestTrait_EvalContext_OutputNameUniqueness(t *testing.T) {
 	type SubTestCase struct {
 		name          string

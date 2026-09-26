@@ -622,13 +622,27 @@ func HasParamsSuppliedAtRuntime(app *Appfile) bool {
 }
 
 // HasComponentParamsSuppliedAtRuntime reports whether the named component takes
-// runtime-only parameter input through workflow-generated step inputs. The
-// component-local check avoids suppressing health failures for unrelated
-// components.
+// runtime-only parameter input directly or through an apply-component workflow
+// step. The component-local check avoids suppressing health failures for
+// unrelated components.
 func HasComponentParamsSuppliedAtRuntime(app *Appfile, componentName string) bool {
 	for _, comp := range app.Components {
 		if comp.Name == componentName {
-			return len(comp.Inputs) > 0
+			if len(comp.Inputs) > 0 {
+				return true
+			}
+			break
+		}
+	}
+	for _, step := range app.WorkflowSteps {
+		if step.Type != "apply-component" || len(step.Inputs) == 0 || step.Properties == nil {
+			continue
+		}
+		var props struct {
+			Component string `json:"component"`
+		}
+		if json.Unmarshal(step.Properties.Raw, &props) == nil && props.Component == componentName {
+			return true
 		}
 	}
 	return false
