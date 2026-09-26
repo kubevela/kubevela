@@ -286,18 +286,20 @@ var _ = Describe("Module as a component", Ordered, func() {
 
 		It("stops the render when a required parameter has no value", func() {
 			err := applyManifestFile(ctx, k8sClient, "testdata/module/consumer-missing-region.yaml")
-			if err == nil {
+			if err != nil {
+				Expect(err.Error()).Should(ContainSubstring("missing parameters: region"))
+			} else {
 				DeferCleanup(func() {
 					_ = k8sClient.Delete(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "demo-store-missing-region", Namespace: "default"}})
 				})
+				Eventually(func(g Gomega) string {
+					var app v1beta1.Application
+					if k8sClient.Get(ctx, k8stypes.NamespacedName{Name: "demo-store-missing-region", Namespace: "default"}, &app) != nil {
+						return ""
+					}
+					return workflowMessage(&app)
+				}, 60*time.Second, 2*time.Second).Should(ContainSubstring("region: incomplete value string"))
 			}
-			Eventually(func(g Gomega) string {
-				var app v1beta1.Application
-				if k8sClient.Get(ctx, k8stypes.NamespacedName{Name: "demo-store-missing-region", Namespace: "default"}, &app) != nil {
-					return ""
-				}
-				return workflowMessage(&app)
-			}, 60*time.Second, 2*time.Second).Should(ContainSubstring("region: incomplete value string"))
 
 			var cm corev1.ConfigMap
 			err = k8sClient.Get(ctx, k8stypes.NamespacedName{Name: "broken", Namespace: "default"}, &cm)
