@@ -22,7 +22,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/registry/component"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
@@ -31,6 +30,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 )
 
 func TestPutVersionedUIData2cache(t *testing.T) {

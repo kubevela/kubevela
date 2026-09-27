@@ -20,10 +20,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 func TestParseModuleImportsSingleEnabledImport(t *testing.T) {
