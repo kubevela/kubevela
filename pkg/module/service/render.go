@@ -243,7 +243,7 @@ func stampIdentity(def map[string]interface{}, moduleName, apiVersion, namespace
 	}
 	labels[types.LabelDefinitionModule] = moduleName
 	labels[types.LabelDefinitionModuleAPIVersion] = apiVersion
-	labels[types.LabelDefinitionName] = shortName
+	labels[types.LabelDefinitionName] = naming.TruncateWithHash(shortName, naming.MaxLabelValueLen)
 	labels[oam.LabelAddonName] = moduleName
 
 	annos, _ := meta["annotations"].(map[string]interface{})
