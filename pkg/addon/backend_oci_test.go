@@ -31,13 +31,14 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/registry/component"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
 	registryauth "oras.land/oras-go/pkg/registry/remote/auth"
+
+	"github.com/oam-dev/kubevela/pkg/registry/component"
 )
 
 // useCatalogHTTPClient points the /v2/_catalog probe at a test HTTP client for

@@ -26,8 +26,9 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
-	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 	"github.com/pkg/errors"
+
+	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 var _ AsyncReader = &ossReader{}
