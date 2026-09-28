@@ -34,6 +34,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
+	celengine "github.com/kubevela/pkg/cel"
+	"github.com/kubevela/pkg/cel/template"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
@@ -870,12 +872,16 @@ func (p *Parser) validateExpressionSurfaces(ctx context.Context, af *Appfile) er
 			//nolint:nilerr // reported elsewhere, deliberately not twice
 			return nil
 		}
-		if !propexpr.HasExpression(decoded) {
+		if !template.HasExpression(decoded) {
 			return nil
 		}
-		// ValidateTree reports reading any root the surface does not offer.
-		if err := celexpr.ValidateTree(decoded, sources.RootsFor(surface)...); err != nil {
+		plan, err := celexpr.Vela.Plan(decoded)
+		if err != nil {
 			return fmt.Errorf("%s %q: %w", surface, name, err)
+		}
+		// Reading any root the surface does not offer is refused.
+		if faults := plan.Check(sources.RootsFor(surface), nil); len(faults) > 0 {
+			return fmt.Errorf("%s %q: %w", surface, name, celengine.CheckErrors(faults))
 		}
 		return nil
 	}
@@ -938,12 +944,8 @@ func (p *Parser) validateExpressionSurfaces(ctx context.Context, af *Appfile) er
 // them is not possible from here. Leaving them alone hands them to
 // substituteScopedPolicyExpressions, which has the render's context.
 func evalWhatIsKnown(node interface{}, values map[string]interface{}) (interface{}, error) {
-	env, err := celexpr.DynEnv()
-	if err != nil {
-		return nil, err
-	}
-	return propexpr.Map(node, "", func(_, raw string) (interface{}, error) {
-		parsed, perr := propexpr.Parse(raw)
+	return template.Map(node, "", func(_, raw string) (interface{}, error) {
+		parsed, perr := template.Parse(raw)
 		if perr != nil || !parsed.HasExpr() {
 			//nolint:nilerr // an unparseable value is reported by the policy's own parsing
 			return raw, nil
@@ -952,13 +954,13 @@ func evalWhatIsKnown(node interface{}, values map[string]interface{}) (interface
 			if !fragment.IsExpr() {
 				continue
 			}
-			refs, rerr := celexpr.PropertyReferences(fragment.Expr)
+			refs, rerr := celexpr.Vela.PropertyReferences(fragment.Expr)
 			if rerr != nil {
 				//nolint:nilerr // reported by admission, with a better message
 				return raw, nil
 			}
 			for _, ref := range refs {
-				if ref.IsSource() || len(ref.Path) == 0 {
+				if propexpr.IsSource(ref) || len(ref.Path) == 0 {
 					continue
 				}
 				if _, known := values[ref.Path[0]]; !known {
@@ -966,7 +968,7 @@ func evalWhatIsKnown(node interface{}, values map[string]interface{}) (interface
 				}
 			}
 		}
-		return celexpr.EvalProperty(env, raw, map[string]interface{}{
+		return celexpr.Vela.EvalProperty(celexpr.Vela.DynEnv(), raw, map[string]interface{}{
 			"context": values,
 			"source":  map[string]interface{}{},
 		})
@@ -1026,7 +1028,7 @@ func (p *Parser) resolvePolicyExpressions(ctx context.Context, af *Appfile) erro
 			// which gives a better message than anything available here.
 			continue
 		}
-		if !propexpr.HasExpression(decoded) {
+		if !template.HasExpression(decoded) {
 			continue
 		}
 

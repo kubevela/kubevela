@@ -27,6 +27,8 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	celengine "github.com/kubevela/pkg/cel"
+	"github.com/kubevela/pkg/cel/template"
 	"github.com/kubevela/pkg/cue/cuex"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	"github.com/pkg/errors"
@@ -1367,7 +1369,7 @@ func ptrBool(b bool) *bool { return &b }
 // expression can see is what this render actually carries, rather than what a
 // component render would have.
 func substituteScopedPolicyExpressions(pCtx wfprocess.Context, params map[string]interface{}) (map[string]interface{}, error) {
-	if !propexpr.HasExpression(params) {
+	if !template.HasExpression(params) {
 		return params, nil
 	}
 
@@ -1378,7 +1380,13 @@ func substituteScopedPolicyExpressions(pCtx wfprocess.Context, params map[string
 		}
 	}
 
-	resolved, err := celexpr.EvalTree(params, nil, ctxValues)
+	goCtx := pCtx.GetCtx()
+	if goCtx == nil {
+		goCtx = context.Background()
+	}
+	resolved, err := celexpr.Vela.EvalTree(goCtx, params, map[string]celengine.Resolver{
+		propexpr.ContextIdent: celengine.Static(ctxValues),
+	}, celengine.TreeOptions{})
 	if err != nil {
 		return nil, err
 	}

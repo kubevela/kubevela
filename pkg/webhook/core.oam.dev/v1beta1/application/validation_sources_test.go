@@ -262,6 +262,25 @@ parameter: {}
 `}},
 			},
 		},
+		// upstream source whose schema output "ratio" is a float and "count" an int
+		&v1beta1.SourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "ratio-source", Namespace: "default"},
+			Spec: v1beta1.SourceDefinitionSpec{
+				Schematic: &common.Schematic{CUE: &common.CUE{Template: `
+schema: {
+  ratio: float
+  count: int
+  n:     number
+}
+output: {
+  ratio: 1.5
+  count: 2
+  n:     3
+}
+parameter: {}
+`}},
+			},
+		},
 		// source that declares no parameter block
 		&v1beta1.SourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{Name: "noparam-source", Namespace: "default"},
@@ -340,6 +359,90 @@ output: {
 					Sources: []v1beta1.ApplicationSource{
 						{Name: "up", Type: "region-source", Properties: rawJSON(`{}`)},
 						{Name: "s", Type: "typed-source", Properties: rawJSON(`{"image":"nginx","replicas":"$(source.up.region)"}`)},
+					},
+				},
+			},
+			expectedErrs: 1,
+		},
+		{
+			// A double may carry a fraction the int parameter cannot hold.
+			name: "reject expression-fed type mismatch: float schema into int param",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"},
+				Spec: v1beta1.ApplicationSpec{
+					Sources: []v1beta1.ApplicationSource{
+						{Name: "up", Type: "ratio-source", Properties: rawJSON(`{}`)},
+						{Name: "s", Type: "typed-source", Properties: rawJSON(`{"image":"nginx","replicas":"$(source.up.ratio)"}`)},
+					},
+				},
+			},
+			expectedErrs: 1,
+		},
+		{
+			name: "valid expression-fed property type: int schema into int param",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"},
+				Spec: v1beta1.ApplicationSpec{
+					Sources: []v1beta1.ApplicationSource{
+						{Name: "up", Type: "ratio-source", Properties: rawJSON(`{}`)},
+						{Name: "s", Type: "typed-source", Properties: rawJSON(`{"image":"nginx","replicas":"$(source.up.count)"}`)},
+					},
+				},
+			},
+			expectedErrs: 0,
+		},
+		{
+			// A schema's number may hold an integer.
+			name:         "valid expression-fed property type: number schema into int param",
+			app:          inputApp(`{}`, `{"image":"nginx","replicas":"$(source.up.n)"}`),
+			expectedErrs: 0,
+		},
+		{
+			name:         "reject a fractional literal into int param",
+			app:          inputApp(`{}`, `{"image":"nginx","replicas":1.5}`),
+			expectedErrs: 1,
+		},
+		{
+			// One bad expression must not turn its valid siblings into literals.
+			name:         "a syntax error is reported alone, without mistyping its siblings",
+			app:          inputApp(`{}`, `{"image":"$(source.up.count +)","replicas":"$(source.up.count)"}`),
+			expectedErrs: 1,
+		},
+		{
+			name:         "an undeclared binding in a chained read is reported once",
+			app:          inputApp(`{}`, `{"image":"nginx","replicas":"$(source.nope.count)"}`),
+			expectedErrs: 1,
+		},
+		{
+			name:         "an undeclared schema path in a chained read is reported once",
+			app:          inputApp(`{}`, `{"image":"nginx","replicas":"$(source.up.missing)"}`),
+			expectedErrs: 1,
+		},
+		{
+			// A source's properties are evaluated in its consumer's context: one
+			// consumed only by a workflow step may read the step's name.
+			name: "a source consumed by a workflow step may read the step's context",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"},
+				Spec: v1beta1.ApplicationSpec{
+					Sources: []v1beta1.ApplicationSource{
+						{Name: "s", Type: "typed-source", Properties: rawJSON(`{"image":"$(context.stepName)","replicas":1}`)},
+					},
+					Workflow: &v1beta1.Workflow{Steps: []wfv1alpha1.WorkflowStep{{
+						WorkflowStepBase: wfv1alpha1.WorkflowStepBase{Name: "notify", Type: "notification",
+							Properties: rawJSON(`{"message":"$(source.s.image)"}`)},
+					}}},
+				},
+			},
+			expectedErrs: 0,
+		},
+		{
+			name: "malformed properties are reported",
+			app: &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"},
+				Spec: v1beta1.ApplicationSpec{
+					Sources: []v1beta1.ApplicationSource{
+						{Name: "s", Type: "typed-source", Properties: rawJSON(`{"image":`)},
 					},
 				},
 			},
@@ -1002,7 +1105,7 @@ func TestValidateSourceContextReads(t *testing.T) {
 
 	t.Run("component-only context consumed from a component is fine", func(t *testing.T) {
 		errs := validateSourceContextReads(
-			app(`{"component":"$(context.componentName)"}`),
+			planApplication(app(`{"component":"$(context.componentName)"}`), noAppScope),
 			map[string][]string{"own": {"component"}})
 		if len(errs) != 0 {
 			t.Fatalf("expected none, got %v", errs)
@@ -1011,7 +1114,7 @@ func TestValidateSourceContextReads(t *testing.T) {
 
 	t.Run("component-only context consumed from a workflow step is refused", func(t *testing.T) {
 		errs := validateSourceContextReads(
-			app(`{"component":"$(context.componentName)"}`),
+			planApplication(app(`{"component":"$(context.componentName)"}`), noAppScope),
 			map[string][]string{"own": {"workflowstep"}})
 		if len(errs) != 1 {
 			t.Fatalf("expected one error, got %v", errs)
@@ -1026,7 +1129,7 @@ func TestValidateSourceContextReads(t *testing.T) {
 	// The same binding used from both: it must satisfy the stricter one.
 	t.Run("consumed from two surfaces, one of which lacks the field", func(t *testing.T) {
 		errs := validateSourceContextReads(
-			app(`{"component":"$(context.componentName)"}`),
+			planApplication(app(`{"component":"$(context.componentName)"}`), noAppScope),
 			map[string][]string{"own": {"component", "workflowstep"}})
 		if len(errs) != 1 {
 			t.Fatalf("expected the workflow step to be refused, got %v", errs)
@@ -1035,7 +1138,7 @@ func TestValidateSourceContextReads(t *testing.T) {
 
 	t.Run("universal context is fine everywhere", func(t *testing.T) {
 		errs := validateSourceContextReads(
-			app(`{"component":"$(context.appName)"}`),
+			planApplication(app(`{"component":"$(context.appName)"}`), noAppScope),
 			map[string][]string{"own": {"component", "trait", "workflowstep"}})
 		if len(errs) != 0 {
 			t.Fatalf("appName exists on every surface; got %v", errs)
@@ -1046,7 +1149,7 @@ func TestValidateSourceContextReads(t *testing.T) {
 	// paths are checked by the reference loop.
 	t.Run("source reads are left to the reference pass", func(t *testing.T) {
 		errs := validateSourceContextReads(
-			app(`{"component":"$(source.other.field)"}`),
+			planApplication(app(`{"component":"$(source.other.field)"}`), noAppScope),
 			map[string][]string{"own": {"workflowstep"}})
 		if len(errs) != 0 {
 			t.Fatalf("expected none, got %v", errs)
@@ -1056,7 +1159,7 @@ func TestValidateSourceContextReads(t *testing.T) {
 	// An unconsumed binding resolves nowhere, so it constrains nothing.
 	t.Run("an unconsumed binding is not judged", func(t *testing.T) {
 		errs := validateSourceContextReads(
-			app(`{"component":"$(context.componentName)"}`), map[string][]string{})
+			planApplication(app(`{"component":"$(context.componentName)"}`), noAppScope), map[string][]string{})
 		if len(errs) != 0 {
 			t.Fatalf("expected none, got %v", errs)
 		}
@@ -1510,4 +1613,38 @@ parameter: {image: string}
 		errs := handlerFor().ValidateSources(context.Background(), app)
 		require.Empty(t, errs, "%v", errs)
 	})
+}
+
+func noAppScope(string) bool { return false }
+
+// inputApp chains typed-source "s" onto ratio-source "up", with the properties
+// given for each.
+func inputApp(up, s string) *v1beta1.Application {
+	return &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"},
+		Spec: v1beta1.ApplicationSpec{
+			Sources: []v1beta1.ApplicationSource{
+				{Name: "up", Type: "ratio-source", Properties: rawJSON(up)},
+				{Name: "s", Type: "typed-source", Properties: rawJSON(s)},
+			},
+		},
+	}
+}
+
+// An expression that does not compile is reported once, where it is written,
+// and not again by the component-read rules that could not read it either.
+func TestACompileFaultIsReportedOnce(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = v1beta1.AddToScheme(scheme)
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"},
+		Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{{
+			Name: "api", Type: "webservice",
+			Properties: rawJSON(`{"env":[{"name":"X","value":"$(source.cfg.cluster(\"east\").region)"}]}`),
+		}}},
+	}
+	h := &ValidatingHandler{Client: fake.NewClientBuilder().WithScheme(scheme).Build()}
+	errs := h.ValidateSources(context.Background(), app)
+	require.Len(t, errs, 1, "%v", errs)
+	require.Contains(t, errs[0].Error(), "cluster() goes only on a component read")
 }
