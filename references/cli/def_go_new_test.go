@@ -209,6 +209,7 @@ func helper() {}
 		{"Go definition file", goDefFile, true},
 		{"Regular Go file", regularGoFile, false},
 		{"Test file", "component_test.go", false},
+		{"CUE test file", "component_test.cue", false},
 		{"Markdown file", "README.md", false},
 		{"JSON file", "config.json", true}, // JSON is included in IsJSONYAMLorCUEFile
 	}
@@ -244,6 +245,7 @@ func MyComponent() *defkit.ComponentDefinition { return nil }
 		{"CUE file", "component.cue", true},
 		{"Go definition file", goDefFile, true},
 		{"Test file", "component_test.go", false},
+		{"CUE test file", "component_test.cue", false},
 		{"YAML file", "component.yaml", false},
 		{"YML file", "component.yml", false},
 	}

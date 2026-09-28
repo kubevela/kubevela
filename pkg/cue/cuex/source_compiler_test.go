@@ -140,3 +140,13 @@ func TestSourceCompilerPackageSetIsDeliberate(t *testing.T) {
 	}, sourceCompilerPackageNames(),
 		"the source package set changed; a source may fetch, not act")
 }
+
+func TestWorkloadPackages(t *testing.T) {
+	var names []string
+	for _, p := range WorkloadPackages() {
+		names = append(names, p.GetName())
+	}
+	require.ElementsMatch(t, []string{
+		"config", "helm", "base64", "http", "kube", "cue", "addon", "registry", "velaconfig",
+	}, names)
+}

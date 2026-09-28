@@ -160,11 +160,9 @@ func (r *sourceResolver) validateResolvedOutput(sourceType, sourceTemplate strin
 	if schema.Err() != nil {
 		return schema.Err()
 	}
-	out := schema.Unify(data)
-	if out.Err() != nil {
-		return out.Err()
-	}
-	return out.Validate(cue.Concrete(true))
+	// Validate rather than Err: it reports every field that does not fit, not
+	// the first.
+	return schema.Unify(data).Validate(cue.Concrete(true))
 }
 
 // schemaExprCacheSize bounds the number of distinct definition templates kept.
