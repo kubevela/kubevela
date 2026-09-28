@@ -1187,35 +1187,7 @@ func (h *AppHandler) renderPoliciesInSequence(ctx monitorContext.Context, app *v
 		allResults = append(allResults, result)
 
 		// Chain: apply this policy's output to workingApp so the next policy sees it.
-		if result.Enabled && result.Transforms != nil {
-			if policyOutput, ok := result.Transforms.(*PolicyOutput); ok {
-				if len(policyOutput.Labels) > 0 {
-					if workingApp.Labels == nil {
-						workingApp.Labels = make(map[string]string)
-					}
-					for k, v := range policyOutput.Labels {
-						workingApp.Labels[k] = v
-					}
-				}
-				if len(policyOutput.Annotations) > 0 {
-					if workingApp.Annotations == nil {
-						workingApp.Annotations = make(map[string]string)
-					}
-					for k, v := range policyOutput.Annotations {
-						workingApp.Annotations[k] = v
-					}
-				}
-				if len(policyOutput.Components) > 0 {
-					workingApp.Spec.Components = policyOutput.Components
-				}
-				if policyOutput.Workflow != nil {
-					workingApp.Spec.Workflow = policyOutput.Workflow
-				}
-				if policyOutput.Policies != nil {
-					workingApp.Spec.Policies = policyOutput.Policies
-				}
-			}
-		}
+		applyPolicyResult(workingApp, result)
 
 		// Store spec snapshots only when this policy changed the spec (for ConfigMap audit trail).
 		specAfter := workingApp.Spec.DeepCopy()
@@ -1226,6 +1198,88 @@ func (h *AppHandler) renderPoliciesInSequence(ctx monitorContext.Context, app *v
 	}
 
 	return allResults, nil
+}
+
+// applyPolicyResult applies an enabled policy's output to app: labels and
+// annotations merged, components, workflow and policies replaced where given.
+func applyPolicyResult(app *v1beta1.Application, result RenderedPolicyResult) {
+	if !result.Enabled || result.Transforms == nil {
+		return
+	}
+	policyOutput, ok := result.Transforms.(*PolicyOutput)
+	if !ok {
+		return
+	}
+	if len(policyOutput.Labels) > 0 {
+		if app.Labels == nil {
+			app.Labels = make(map[string]string)
+		}
+		for k, v := range policyOutput.Labels {
+			app.Labels[k] = v
+		}
+	}
+	if len(policyOutput.Annotations) > 0 {
+		if app.Annotations == nil {
+			app.Annotations = make(map[string]string)
+		}
+		for k, v := range policyOutput.Annotations {
+			app.Annotations[k] = v
+		}
+	}
+	if len(policyOutput.Components) > 0 {
+		app.Spec.Components = policyOutput.Components
+	}
+	if policyOutput.Workflow != nil {
+		app.Spec.Workflow = policyOutput.Workflow
+	}
+	if policyOutput.Policies != nil {
+		app.Spec.Policies = policyOutput.Policies
+	}
+}
+
+// ApplicationPolicyRender is one Application-scoped policy to render.
+type ApplicationPolicyRender struct {
+	// App is the Application as the policy receives it; it is required.
+	App *v1beta1.Application
+	// AppRevision is the revision the template reads as context.appRevision.
+	AppRevision string
+	Policy      v1beta1.AppPolicy
+	// Definition is the policy's definition; it is required.
+	Definition *v1beta1.PolicyDefinition
+	// Version is the definition revision the template reads as
+	// context.policyRevision and the rest; nil leaves them empty.
+	Version *v1beta1.PolicyVersionMetadata
+}
+
+// RenderApplicationPolicy renders one Application-scoped policy as
+// ApplyApplicationScopeTransforms renders each in turn, and returns the
+// Application as that policy leaves it, beside the result. cli is what the
+// template's providers read through, and may be nil for a template that uses
+// none.
+func RenderApplicationPolicy(ctx context.Context, cli client.Client, r ApplicationPolicyRender) (*v1beta1.Application, RenderedPolicyResult, error) {
+	if r.App == nil {
+		return nil, RenderedPolicyResult{}, errors.New("application is required")
+	}
+	if r.Definition == nil {
+		return nil, RenderedPolicyResult{}, errors.New("policy definition is required")
+	}
+	h := &AppHandler{Client: cli}
+	if r.AppRevision != "" {
+		h.currentAppRev = &v1beta1.ApplicationRevision{ObjectMeta: metav1.ObjectMeta{Name: r.AppRevision}}
+	}
+	app := r.App.DeepCopy()
+	result, err := h.renderPolicy(monitorContext.NewTraceContext(ctx, ""), app, r.Policy, r.Definition, r.Version)
+	if err != nil {
+		return nil, result, err
+	}
+	if r.Version != nil {
+		result.DefinitionRevisionName = r.Version.DefinitionRevisionName
+		result.Revision = r.Version.Revision
+		result.RevisionHash = r.Version.RevisionHash
+	}
+	result.PolicyDefinitionUsed = r.Definition
+	applyPolicyResult(app, result)
+	return app, result, nil
 }
 
 // policyConfigMapName returns the ConfigMap name for policy results, capped at 253 chars.

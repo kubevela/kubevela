@@ -1474,7 +1474,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 					if err != nil {
 						return err
 					}
-					if info.IsDir() {
+					if info.IsDir() || utils.IsCUETestFile(path) {
 						return nil
 					}
 					filename := filepath.Base(path)
@@ -1593,9 +1593,9 @@ func NewDefinitionApplyCommand(c common.Args, streams util.IOStreams) *cobra.Com
 
 // isDefinitionFile checks if the path is a definition file (JSON, YAML, CUE, or Go)
 func isDefinitionFile(path string) bool {
-	// Check for standard definition file types
+	// Check for standard definition file types, skipping CUE test files
 	if utils.IsJSONYAMLorCUEFile(path) {
-		return true
+		return !utils.IsCUETestFile(path)
 	}
 	// Check for Go definition files (skip test files)
 	if strings.HasSuffix(path, GoExtension) && !strings.HasSuffix(path, "_test.go") {
@@ -1837,7 +1837,7 @@ func NewDefinitionDelCommand(c common.Args) *cobra.Command {
 // isCUEorGoDefinitionFile checks if a file is a CUE file or a Go definition file
 func isCUEorGoDefinitionFile(path string) bool {
 	if utils.IsCUEFile(path) {
-		return true
+		return !utils.IsCUETestFile(path)
 	}
 	if strings.HasSuffix(path, GoExtension) && !strings.HasSuffix(path, "_test.go") {
 		isDefFile, err := goloader.IsGoDefinitionFile(path)

@@ -180,25 +180,9 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	validationErr := val.Validate()
 
 	if validationErr != nil || len(userErrors) > 0 {
-		var result strings.Builder
-		result.WriteString(fmt.Sprintf("validation failed for workload %s:", wd.name))
-
-		if len(userErrors) > 0 {
-			result.WriteString("\n\nUser Errors:\n")
-			for _, e := range userErrors {
-				result.WriteString(fmt.Sprintf("  %s\n", e))
-			}
-		}
-
-		if validationErr != nil {
-			if fmtErr := FormatCUEError(validationErr, "validation failed for", "workload", wd.name, &val); fmtErr != nil {
-				errMsg := fmtErr.Error()
-				errMsg = strings.TrimPrefix(errMsg, fmt.Sprintf("validation failed for workload %s:", wd.name))
-				result.WriteString(errMsg)
-			}
-		}
-
-		return errors.New(strings.TrimRight(result.String(), "\n"))
+		verr := &ValidationError{Kind: "workload", Name: wd.name, User: userErrors}
+		verr.Parameter, verr.Template = cueErrorMessages(validationErr, &val)
+		return verr
 	}
 	output := val.LookupPath(value.FieldPath(OutputFieldName))
 
@@ -377,25 +361,9 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	validationErr := val.Validate()
 
 	if validationErr != nil || len(userErrors) > 0 {
-		var result strings.Builder
-		result.WriteString(fmt.Sprintf("validation failed for trait %s:", td.name))
-
-		if len(userErrors) > 0 {
-			result.WriteString("\n\nUser Errors:\n")
-			for _, e := range userErrors {
-				result.WriteString(fmt.Sprintf("  %s\n", e))
-			}
-		}
-
-		if validationErr != nil {
-			if fmtErr := FormatCUEError(validationErr, "validation failed for", "trait", td.name, &val); fmtErr != nil {
-				errMsg := fmtErr.Error()
-				errMsg = strings.TrimPrefix(errMsg, fmt.Sprintf("validation failed for trait %s:", td.name))
-				result.WriteString(errMsg)
-			}
-		}
-
-		return errors.New(strings.TrimRight(result.String(), "\n"))
+		verr := &ValidationError{Kind: "trait", Name: td.name, User: userErrors}
+		verr.Parameter, verr.Template = cueErrorMessages(validationErr, &val)
+		return verr
 	}
 
 	processing := val.LookupPath(value.FieldPath("processing"))
@@ -606,69 +574,93 @@ func getResourceFromObj(ctx context.Context, pctx process.Context, obj *unstruct
 	return nil, errors.Errorf("no resources found gvk(%v) labels(%v)", obj.GroupVersionKind(), labels)
 }
 
-// FormatCUEError formats CUE errors in a user-friendly grouped format
-// FormatCUEError formats CUE errors in a user-friendly grouped format
+// FormatCUEError returns err as a *ValidationError, its messages grouped into
+// Parameter and Template sections, or nil when there is nothing to report.
 func FormatCUEError(err error, messagePrefix string, entityType, entityName string, val ...*cue.Value) error {
-	var allParamErrors = make(map[string]bool)
-	var allTemplateErrors = make(map[string]bool)
-
-	if err != nil {
-		errList := cueerrors.Errors(err)
-		for _, e := range errList {
-			errMsg := e.Error()
-			if strings.HasPrefix(errMsg, "parameter.") {
-				allParamErrors[errMsg] = true
-			} else {
-				allTemplateErrors[errMsg] = true
-			}
-		}
-
-		if len(val) > 0 && val[0] != nil {
-			if concreteErr := val[0].Validate(cue.Concrete(true)); concreteErr != nil {
-				concreteErrList := cueerrors.Errors(concreteErr)
-				for _, e := range concreteErrList {
-					errMsg := e.Error()
-					if strings.HasPrefix(errMsg, "parameter.") {
-						allParamErrors[errMsg] = true
-					} else {
-						allTemplateErrors[errMsg] = true
-					}
-				}
-			}
-		}
-	}
-
-	if len(allParamErrors) == 0 && len(allTemplateErrors) == 0 {
+	paramErrs, templateErrs := cueErrorMessages(err, val...)
+	if len(paramErrs) == 0 && len(templateErrs) == 0 {
 		return nil
 	}
+	return &ValidationError{
+		Kind:      entityType,
+		Name:      entityName,
+		Parameter: paramErrs,
+		Template:  templateErrs,
+		header:    fmt.Sprintf("%s %s %s:", messagePrefix, entityType, entityName),
+	}
+}
 
-	var result strings.Builder
-	result.WriteString(fmt.Sprintf("%s %s %s:", messagePrefix, entityType, entityName))
-
-	if len(allParamErrors) > 0 {
-		result.WriteString("\n\nParameter errors:\n")
-		// Sort errors for deterministic output
-		paramErrs := make([]string, 0, len(allParamErrors))
-		for errMsg := range allParamErrors {
-			paramErrs = append(paramErrs, errMsg)
-		}
-		sort.Strings(paramErrs)
-		for _, errMsg := range paramErrs {
-			result.WriteString("  " + errMsg + "\n")
+// cueErrorMessages splits a CUE error, and the incomplete values left in
+// val, into parameter and template messages, deduplicated and sorted.
+func cueErrorMessages(err error, val ...*cue.Value) (params, templates []string) {
+	if err == nil {
+		return nil, nil
+	}
+	paramSet, templateSet := map[string]bool{}, map[string]bool{}
+	collect := func(err error) {
+		for _, e := range cueerrors.Errors(err) {
+			if msg := e.Error(); strings.HasPrefix(msg, "parameter.") {
+				paramSet[msg] = true
+			} else {
+				templateSet[msg] = true
+			}
 		}
 	}
-
-	if len(allTemplateErrors) > 0 {
-		result.WriteString("\n\nTemplate errors:\n")
-		templateErrs := make([]string, 0, len(allTemplateErrors))
-		for errMsg := range allTemplateErrors {
-			templateErrs = append(templateErrs, errMsg)
-		}
-		sort.Strings(templateErrs)
-		for _, errMsg := range templateErrs {
-			result.WriteString("  " + errMsg + "\n")
+	collect(err)
+	if len(val) > 0 && val[0] != nil {
+		if concreteErr := val[0].Validate(cue.Concrete(true)); concreteErr != nil {
+			collect(concreteErr)
 		}
 	}
+	return sortedKeys(paramSet), sortedKeys(templateSet)
+}
 
-	return fmt.Errorf("%s", strings.TrimRight(result.String(), "\n"))
+func sortedKeys(set map[string]bool) []string {
+	if len(set) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func writeErrorSection(b *strings.Builder, title string, errs []string) {
+	if len(errs) == 0 {
+		return
+	}
+	b.WriteString("\n\n" + title + ":\n")
+	for _, e := range errs {
+		b.WriteString("  " + e + "\n")
+	}
+}
+
+// ValidationError is a definition that failed validation once rendered: the
+// errors it raised itself through `errs`, and the CUE errors in its parameters
+// and in the rest of its template.
+type ValidationError struct {
+	// Kind is what failed: a workload, trait, component and so on.
+	Kind      string
+	Name      string
+	User      []string
+	Parameter []string
+	Template  []string
+
+	// header opens the message in place of "validation failed for ...".
+	header string
+}
+
+func (e *ValidationError) Error() string {
+	var b strings.Builder
+	if e.header != "" {
+		b.WriteString(e.header)
+	} else {
+		b.WriteString(fmt.Sprintf("validation failed for %s %s:", e.Kind, e.Name))
+	}
+	writeErrorSection(&b, "User Errors", e.User)
+	writeErrorSection(&b, "Parameter errors", e.Parameter)
+	writeErrorSection(&b, "Template errors", e.Template)
+	return strings.TrimRight(b.String(), "\n")
 }

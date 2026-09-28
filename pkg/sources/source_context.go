@@ -79,6 +79,20 @@ func sourceContext(values map[string]interface{}, bindingName, surface string) (
 	return sourceContextFile(values, bindingName, availableFields(rules.Fields(), surface))
 }
 
+// ContextFields are the context fields a source consumed from surface can
+// read: the cache-key rules' fields that surface offers, and name, which is
+// the binding's.
+func ContextFields(surface string) ([]string, error) {
+	if !propexpr.SurfaceDeclared(surface) {
+		return nil, fmt.Errorf("unknown surface %q; declared surfaces are %v", surface, propexpr.SurfaceNames())
+	}
+	rules, err := cachekey.LoadRules()
+	if err != nil {
+		return nil, err
+	}
+	return availableFields(rules.Fields(), surface), nil
+}
+
 // availableFields narrows the rules' field list to those the surface offers.
 func availableFields(fields []string, surface string) []string {
 	if surface == "" || !propexpr.SurfaceDeclared(surface) {
