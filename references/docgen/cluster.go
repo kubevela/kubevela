@@ -621,6 +621,7 @@ func GetCapabilityByComponentDefinitionObject(componentDef v1beta1.ComponentDefi
 		return nil, errors.Wrap(err, "failed to handle ComponentDefinition")
 	}
 	capability.Namespace = componentDef.Namespace
+	capability.Extends = componentDef.Spec.Extends
 	return &capability, nil
 }
 
@@ -636,6 +637,7 @@ func GetCapabilityByTraitDefinitionObject(traitDef v1beta1.TraitDefinition) (*ty
 		return nil, errors.Wrap(err, "failed to handle TraitDefinition")
 	}
 	capability.Namespace = traitDef.Namespace
+	capability.Extends = traitDef.Spec.Extends
 	return &capability, nil
 }
 

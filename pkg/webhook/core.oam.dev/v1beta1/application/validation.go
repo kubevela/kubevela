@@ -440,6 +440,9 @@ func (h *ValidatingHandler) ValidateDefinitionPermissions(ctx context.Context, a
 	}
 
 	var errs field.ErrorList
+	// Only the types the Application names are checked, never what they extend.
+	// Granting a team an abstraction and not the expressive definition under it
+	// is the point: the abstraction is the capability.
 	usage := collectDefinitionUsage(app)
 
 	// Validate ComponentDefinitions
@@ -659,6 +662,7 @@ func (h *ValidatingHandler) validateSoundness(ctx context.Context, app *v1beta1.
 	errs = append(errs, h.ValidateDefinitionPermissions(ctx, app, req)...)
 	errs = append(errs, h.ValidateDefinitionNamespaces(ctx, app)...)
 	errs = append(errs, h.ValidateSources(ctx, app)...)
+	errs = append(errs, h.ValidateAbstractTypes(ctx, app)...)
 	errs = append(errs, h.ValidateWorkflow(ctx, app)...)
 	errs = append(errs, h.ValidateComponentNames(ctx, app)...)
 	errs = append(errs, h.ValidateTraitConflicts(ctx, app)...)

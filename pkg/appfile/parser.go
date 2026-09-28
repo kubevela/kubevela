@@ -45,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -601,7 +602,7 @@ func (p *Parser) convertTemplate2Component(name, typ string, capType types.CapTy
 		CapabilityCategory: templ.CapabilityCategory,
 		FullTemplate:       templ,
 		Params:             settings,
-		engine:             newEngineFor(capType, name),
+		engine:             newEngineFor(capType, name, templ.Ancestors...),
 	}, nil
 }
 
@@ -633,6 +634,14 @@ func setComponentDefinitions(af *Appfile, comps []*Component) {
 			cd.Status = v1beta1.ComponentDefinitionStatus{}
 			af.RelatedComponentDefinitions[comp.FullTemplate.ComponentDefinition.Name] = cd
 		}
+		// Whatever the component extended goes in beside it. A render that went
+		// through a chain is only reproducible from the revision if every level it
+		// went through was written down, and this is the map the revision is built
+		// from. The key is the name the extending definition wrote, so a pinned
+		// `webservice@v3` and a sibling on plain `webservice` each keep their own.
+		for name, ancestor := range comp.FullTemplate.AncestorComponentDefinitions {
+			af.RelatedComponentDefinitions[name] = ancestor.DeepCopy()
+		}
 		for _, t := range comp.Traits {
 			if t == nil {
 				continue
@@ -641,6 +650,9 @@ func setComponentDefinitions(af *Appfile, comps []*Component) {
 				td := t.FullTemplate.TraitDefinition.DeepCopy()
 				td.Status = v1beta1.TraitDefinitionStatus{}
 				af.RelatedTraitDefinitions[t.FullTemplate.TraitDefinition.Name] = td
+			}
+			for name, ancestor := range t.FullTemplate.AncestorTraitDefinitions {
+				af.RelatedTraitDefinitions[name] = ancestor.DeepCopy()
 			}
 		}
 	}
@@ -795,7 +807,7 @@ func (p *Parser) convertTemplate2Trait(name string, properties map[string]interf
 		Template:           templ.TemplateStr,
 		CustomStatusFormat: templ.CustomStatus,
 		FullTemplate:       templ,
-		engine:             definition.NewTraitAbstractEngine(traitName),
+		engine:             definition.NewTraitAbstractEngine(traitName, templ.Ancestors...),
 	}, nil
 }
 
@@ -1030,11 +1042,13 @@ func nonNilStrings(in map[string]string) map[string]string {
 // newEngineFor picks the render engine for a capability. A PolicyDefinition with
 // a CUE template renders through the same machinery as a component but on its own
 // surface, so its expressions see the context a policy render actually has.
-func newEngineFor(capType types.CapType, name string) definition.AbstractEngine {
+// newEngineFor picks the engine for a capability. Ancestors are only meaningful
+// to the workload engine: a policy cannot extend anything.
+func newEngineFor(capType types.CapType, name string, ancestors ...inherit.Level) definition.AbstractEngine {
 	if capType == types.TypePolicy {
 		return definition.NewPolicyAbstractEngine(name)
 	}
-	return definition.NewWorkloadAbstractEngine(name)
+	return definition.NewWorkloadAbstractEngine(name, ancestors...)
 }
 
 // policyAppScoped reports whether a policy type is an Application-scoped

@@ -147,6 +147,8 @@ func (ref *ConsoleReference) Show(ctx context.Context, c common.Args, ioStreams 
 	var propertyConsole []ConsoleReference
 	switch capability.Category {
 	case types.CUECategory:
+		// A definition states the parameters it takes, whether or not it
+		// extends something, so its own template documents it in full.
 		_, propertyConsole, err = ref.GenerateCUETemplateProperties(capability)
 		if err != nil {
 			return err
