@@ -39,14 +39,30 @@ jobs:
         continue-on-error: true
 
   e2e-tests:
+    name: ${{ matrix.suite }} / Kubernetes ${{ matrix.k8s-version }}
     runs-on: ubuntu-22.04
     needs: [ detect-noop ]
     if: needs.detect-noop.outputs.noop != 'true'
+    timeout-minutes: 90
     strategy:
+      fail-fast: false
+      max-parallel: 2
       matrix:
-        k8s-version: ["v1.31"]
+        include:
+          - suite: core
+            k8s-version: v1.31.9
+            procs: '3'
+          - suite: module
+            k8s-version: v1.31.9
+            procs: '3'
+          - suite: addon
+            k8s-version: v1.31.9
+            procs: '2'
+          - suite: addon-module
+            k8s-version: v1.31.9
+            procs: '1'
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}-${{ matrix.suite }}
       cancel-in-progress: true
 
     steps:
@@ -54,29 +70,61 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
 
       - name: Setup KinD
+        if: ${{ matrix.suite != 'addon-module' }}
         uses: ./.github/actions/setup-kind-cluster
+        with:
+          k8s-version: ${{ matrix.k8s-version }}
 
       # ========================================================================
       # E2E Test Execution
       # ========================================================================
-      - name: Run upgrade e2e tests
+      - name: Run E2E suite
         uses: ./.github/actions/e2e-test
         with:
-          codecov-enable: true
+          suite: ${{ matrix.suite }}
+          procs: ${{ matrix.procs }}
+          addon-procs: ${{ matrix.procs }}
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
-      - name: Clean e2e profile
-        run: |
-          if [ -f /tmp/e2e-profile.out ]; then
-            rm /tmp/e2e-profile.out
-            echo "E2E profile cleaned"
-          else
-            echo "E2E profile not found, skipping cleanup"
-          fi
+      - name: Upload suite reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@134dcf33c0b9454c4b17a936843d7e21dccdc335 # v4.3.6
+        with:
+          name: e2e-${{ matrix.suite }}-${{ matrix.k8s-version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: _artifacts/e2e/
+          if-no-files-found: warn
 
+      - name: Cleanup image
+        if: ${{ always() && matrix.suite != 'addon-module' }}
+        run: |
+          make image-cleanup
+          docker image prune -f --filter "until=24h"
+
+  e2e-api:
+    name: Existing API E2E coverage
+    runs-on: ubuntu-22.04
+    needs: [ detect-noop, e2e-tests ]
+    if: ${{ !cancelled() && needs.detect-noop.outputs.noop != 'true' }}
+    timeout-minutes: 90
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-v1.31.9-api
+      cancel-in-progress: true
+    steps:
+      - name: Check out code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - name: Setup KinD
+        uses: ./.github/actions/setup-kind-cluster
+        with:
+          k8s-version: v1.31.9
+      - name: Run existing API E2E tests
+        uses: ./.github/actions/e2e-test
+        with:
+          suite: api
+          procs: '1'
+          codecov-enable: true
+          codecov-token: ${{ secrets.CODECOV_TOKEN }}
       - name: Cleanup image
         if: ${{ always() }}
         run: |
           make image-cleanup
           docker image prune -f --filter "until=24h"
-

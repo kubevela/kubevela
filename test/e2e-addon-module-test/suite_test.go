@@ -35,6 +35,7 @@ package addonmoduletest
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	sysruntime "runtime"
 	"strings"
@@ -71,11 +72,12 @@ import (
 )
 
 var (
-	cfg       *rest.Config
-	k8sClient client.Client
-	testEnv   *envtest.Environment
-	scheme    = runtime.NewScheme()
-	cancelMgr context.CancelFunc
+	cfg         *rest.Config
+	k8sClient   client.Client
+	testEnv     *envtest.Environment
+	scheme      = runtime.NewScheme()
+	cancelMgr   context.CancelFunc
+	managerDone chan error
 )
 
 // systemNamespace is where the "addon" and "module" ComponentDefinitions and
@@ -153,9 +155,9 @@ var _ = BeforeSuite(func() {
 
 	var mgrCtx context.Context
 	mgrCtx, cancelMgr = context.WithCancel(context.Background())
+	managerDone = make(chan error, 1)
 	go func() {
-		defer GinkgoRecover()
-		Expect(mgr.Start(mgrCtx)).To(Succeed())
+		managerDone <- mgr.Start(mgrCtx)
 	}()
 	multicluster.InitClusterInfo(cfg)
 })
@@ -165,5 +167,16 @@ var _ = AfterSuite(func() {
 	if cancelMgr != nil {
 		cancelMgr()
 	}
-	Expect(testEnv.Stop()).To(Succeed())
+	var managerErr error
+	if managerDone != nil {
+		select {
+		case managerErr = <-managerDone:
+		case <-time.After(15 * time.Second):
+			managerErr = fmt.Errorf("Application manager did not stop after cancellation")
+		}
+	}
+	if testEnv != nil && cfg != nil {
+		Expect(testEnv.Stop()).To(Succeed())
+	}
+	Expect(managerErr).To(Succeed())
 })

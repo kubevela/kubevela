@@ -24,8 +24,12 @@ limitations under the License.
 package controllers_test
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"fmt"
-	"math/rand"
+	"os"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -38,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
 var k8sClient client.Client
@@ -50,18 +55,70 @@ func TestModuleE2E(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
+	cleanupHome, err := prepareModuleWorkerHome()
+	Expect(err).NotTo(HaveOccurred())
+	DeferCleanup(func() { Expect(cleanupHome()).To(Succeed()) })
 
 	Expect(clientgoscheme.AddToScheme(scheme)).Should(Succeed())
 	Expect(core.AddToScheme(scheme)).Should(Succeed())
 
-	var err error
 	k8sClient, err = client.New(config.GetConfigOrDie(), client.Options{Scheme: scheme})
 	Expect(err).ShouldNot(HaveOccurred())
 })
 
-// randomNamespaceName generates a random name based on the basic name, so
-// each spec that needs its own namespace does not collide with another run's
-// leftovers.
+// Each Ginkgo process launches its own vela CLI subprocesses. Keep the CLI's
+// writable configuration and cache out of the user's VELA_HOME and other
+// workers' directories while leaving KUBECONFIG/current-context untouched.
+func prepareModuleWorkerHome() (func() error, error) {
+	home, err := os.MkdirTemp("", fmt.Sprintf("kubevela-module-e2e-p%d-", GinkgoParallelProcess()))
+	if err != nil {
+		return nil, err
+	}
+	previous, existed := os.LookupEnv(system.VelaHomeEnv)
+	if err := os.Setenv(system.VelaHomeEnv, home); err != nil {
+		_ = os.RemoveAll(home)
+		return nil, err
+	}
+	return func() error {
+		var restoreErr error
+		if existed {
+			restoreErr = os.Setenv(system.VelaHomeEnv, previous)
+		} else {
+			restoreErr = os.Unsetenv(system.VelaHomeEnv)
+		}
+		return errors.Join(restoreErr, os.RemoveAll(home))
+	}, nil
+}
+
+// randomNamespaceName preserves the readable prefix while adding the Ginkgo
+// process number and a cryptographically random suffix.  This avoids reusing
+// names across worker processes or independent test invocations.
 func randomNamespaceName(basic string) string {
-	return fmt.Sprintf("%s-%d", basic, rand.Int63())
+	const randomBytes = 12
+	var token [randomBytes]byte
+	if _, err := rand.Read(token[:]); err != nil {
+		panic(fmt.Errorf("generate test namespace name: %w", err))
+	}
+
+	var prefix strings.Builder
+	lastWasSeparator := false
+	for _, char := range strings.ToLower(basic) {
+		if char >= 'a' && char <= 'z' || char >= '0' && char <= '9' {
+			prefix.WriteRune(char)
+			lastWasSeparator = false
+		} else if prefix.Len() > 0 && !lastWasSeparator {
+			prefix.WriteByte('-')
+			lastWasSeparator = true
+		}
+	}
+	worker := fmt.Sprintf("%d", GinkgoParallelProcess())
+	suffix := "-" + worker + "-" + hex.EncodeToString(token[:])
+	readable := strings.Trim(prefix.String(), "-")
+	if readable == "" {
+		readable = "e2e"
+	}
+	if len(readable) > 63-len(suffix) {
+		readable = strings.TrimRight(readable[:63-len(suffix)], "-")
+	}
+	return readable + suffix
 }
