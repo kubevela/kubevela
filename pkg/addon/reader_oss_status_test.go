@@ -23,7 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,7 +49,8 @@ func TestOSSReadFileHonoursTheStatusCode(t *testing.T) {
 	defer srv.Close()
 
 	r := require.New(t)
-	reader := &ossReader{bucketEndPoint: srv.URL, path: "", client: resty.New()}
+	reader, err := NewAsyncReader(srv.URL, "", "", "", "", ossType)
+	r.NoError(err)
 
 	content, err := reader.ReadFile("present.yaml")
 	r.NoError(err)

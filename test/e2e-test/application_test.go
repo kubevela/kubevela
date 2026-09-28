@@ -44,33 +44,17 @@ import (
 )
 
 func createNamespace(ctx context.Context, namespaceName string) corev1.Namespace {
-	ns := corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: namespaceName,
-		},
-	}
-	// delete the namespaceName with all its resources
-	Eventually(
-		func() error {
-			return k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))
-		},
-		time.Second*120, time.Millisecond*500).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
-	By("make sure all the resources are removed")
-	objectKey := client.ObjectKey{
-		Name: namespaceName,
-	}
-	res := &corev1.Namespace{}
-	Eventually(
-		func() error {
-			return k8sClient.Get(ctx, objectKey, res)
-		},
-		time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
-	Eventually(
-		func() error {
-			return k8sClient.Create(ctx, &ns)
-		},
-		time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	ns, err := createFreshNamespace(ctx, k8sClient, namespaceName)
+	Expect(err).To(Succeed())
 	return ns
+}
+
+func createFreshNamespace(ctx context.Context, cli client.Client, name string) (corev1.Namespace, error) {
+	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}
+	if err := cli.Create(ctx, &ns); err != nil {
+		return corev1.Namespace{}, err
+	}
+	return ns, nil
 }
 
 func createServiceAccount(ctx context.Context, ns, name string) {
@@ -619,14 +603,22 @@ var _ = Describe("Application Normal tests", func() {
 
 var _ = Describe("Test Component Level DependsOn", func() {
 	ctx := context.TODO()
-	namespaceName := "component-depends-on-test"
+	var namespaceName string
+	var namespace corev1.Namespace
+	var namespaceCreated bool
 
 	BeforeEach(func() {
 		By("Creating namespace for component dependsOn tests")
-		createNamespace(ctx, namespaceName)
+		namespaceCreated = false
+		namespaceName = randomNamespaceName("component-depends-on-test")
+		namespace = createNamespace(ctx, namespaceName)
+		namespaceCreated = true
 	})
 
 	AfterEach(func() {
+		if !namespaceCreated {
+			return
+		}
 		By("Cleaning up resources after each test")
 		// Clean up applications
 		appList := &v1beta1.ApplicationList{}
@@ -640,6 +632,7 @@ var _ = Describe("Test Component Level DependsOn", func() {
 			_ = k8sClient.List(ctx, appList, client.InNamespace(namespaceName))
 			return len(appList.Items) == 0
 		}, 120*time.Second, 2*time.Second).Should(BeTrue())
+		Expect(k8sClient.Delete(ctx, &namespace, client.PropagationPolicy(metav1.DeletePropagationForeground))).To(Succeed())
 	})
 
 	It("Component dependsOn should enforce execution gating - success scenario", func() {

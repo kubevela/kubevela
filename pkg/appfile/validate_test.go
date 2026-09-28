@@ -34,6 +34,19 @@ import (
 	"github.com/oam-dev/kubevela/pkg/features"
 )
 
+func TestHasComponentParamsSuppliedAtRuntime(t *testing.T) {
+	app := &Appfile{
+		Components: []common.ApplicationComponent{{Name: "myweb1"}, {Name: "myweb2"}},
+		WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{{WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+			Type:       "apply-component",
+			Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+			Inputs:     wfTypesv1alpha1.StepInputs{{From: "image", ParameterKey: "image"}},
+		}}},
+	}
+	assert.True(t, HasComponentParamsSuppliedAtRuntime(app, "myweb1"))
+	assert.False(t, HasComponentParamsSuppliedAtRuntime(app, "myweb2"))
+}
+
 func TestTrait_EvalContext_OutputNameUniqueness(t *testing.T) {
 	type SubTestCase struct {
 		name          string
@@ -611,6 +624,51 @@ func TestParser_ValidateCUESchematicAppfile(t *testing.T) {
 		err := p.ValidateCUESchematicAppfile(appfile)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "missing parameters: image")
+	})
+
+	t.Run("should skip traits on placeholder-rendered components", func(t *testing.T) {
+		for _, compType := range []string{"addon", "module"} {
+			t.Run(compType, func(t *testing.T) {
+				appfile := &Appfile{
+					Name:      "test-app",
+					Namespace: "test-ns",
+					ParsedComponents: []*Component{
+						{
+							Name:               "my-comp",
+							Type:               compType,
+							CapabilityCategory: types.CUECategory,
+							Params:             map[string]any{},
+							FullTemplate: &Template{
+								TemplateStr: `
+									parameter: {}
+									output: {
+										apiVersion: "core.oam.dev/v1beta1"
+										kind: "Application"
+										spec: components: []
+									}
+								`,
+							},
+							engine: definition.NewWorkloadAbstractEngine("my-comp"),
+							Traits: []*Trait{
+								{
+									Name:               "reads-rendered-components",
+									CapabilityCategory: types.CUECategory,
+									Template: `
+										parameter: {}
+										patch: metadata: labels: first: context.output.spec.components[0].name
+									`,
+									Params: map[string]any{},
+									engine: definition.NewTraitAbstractEngine("reads-rendered-components"),
+								},
+							},
+						},
+					},
+				}
+
+				err := (&Parser{}).ValidateCUESchematicAppfile(appfile)
+				assert.NoError(t, err)
+			})
+		}
 	})
 
 	t.Run("should skip non-CUE components", func(t *testing.T) {

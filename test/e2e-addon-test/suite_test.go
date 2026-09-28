@@ -17,7 +17,10 @@ limitations under the License.
 package controllers_test
 
 import (
-	"math/rand"
+	"context"
+	"os/exec"
+	"path/filepath"
+	sysruntime "runtime"
 	"testing"
 	"time"
 
@@ -26,6 +29,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -46,9 +51,11 @@ func TestAPIs(t *testing.T) {
 	RunSpecs(t, "Addons Controller Suite")
 }
 
-var _ = BeforeSuite(func() {
+func initializeAddonClient() {
+	if k8sClient != nil {
+		return
+	}
 	By("Bootstrapping test environment")
-	rand.Seed(time.Now().UnixNano())
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	err := clientgoscheme.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
@@ -67,10 +74,63 @@ var _ = BeforeSuite(func() {
 		Fail("setup failed")
 	}
 	By("Finished setting up test environment")
+}
+
+var _ = SynchronizedBeforeSuite(func() {
+	initializeAddonClient()
+	// Both addon installations change shared controllers, CRDs and RBAC. Finish
+	// them before independent workload specs are scheduled to any worker.
+	By("Install Addon Terraform")
+	prepareAddonCleanup("terraform-alibaba")
+	enableAddonForSuite("terraform-alibaba")
+	By("Install Addon Workflow")
+	prepareAddonCleanup("vela-workflow")
+	enableAddonForSuite("vela-workflow")
+}, func() {
+	initializeAddonClient()
 })
 
-var _ = AfterSuite(func() {
-	By("Tearing down test environment")
-	// TearDownSuite()
-	By("Finished tearing down test environment")
-})
+func enableAddonForSuite(name string, args ...string) {
+	output, err := runVelaAddonCommand(append([]string{"addon", "enable", name}, args...)...)
+	Expect(err).To(Succeed(), "vela addon enable %s failed: %s", name, output)
+	Expect(string(output)).To(ContainSubstring("enabled successfully"))
+}
+
+func prepareAddonCleanup(name string) {
+	existed, err := addonApplicationExists(context.Background(), k8sClient, name)
+	Expect(err).To(Succeed())
+	if existed {
+		return
+	}
+	DeferCleanup(func() {
+		exists, err := addonApplicationExists(context.Background(), k8sClient, name)
+		Expect(err).To(Succeed())
+		if !exists {
+			return
+		}
+		output, err := runVelaAddonCommand("addon", "disable", name, "--yes")
+		Expect(err).To(Succeed(), "clean up addon %s: %s", name, output)
+	})
+}
+
+func addonApplicationExists(ctx context.Context, cli client.Client, name string) (bool, error) {
+	var app v1beta1.Application
+	err := cli.Get(ctx, client.ObjectKey{Name: "addon-" + name, Namespace: "vela-system"}, &app)
+	if apierrors.IsNotFound(err) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func runVelaAddonCommand(args ...string) ([]byte, error) {
+	_, sourceFile, _, ok := sysruntime.Caller(0)
+	Expect(ok).To(BeTrue())
+	repoRoot := filepath.Join(filepath.Dir(sourceFile), "..", "..")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, filepath.Join(repoRoot, "bin", "vela"), args...)
+	cmd.Dir = repoRoot
+	output, err := cmd.CombinedOutput()
+	GinkgoWriter.Printf("vela %v: %s\n", args, output)
+	return output, err
+}

@@ -36,34 +36,34 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-var _ = Describe("Application required-parameter validation", Ordered, func() {
+var _ = Describe("Application required-parameter validation", func() {
 	var (
-		ctx       context.Context
-		nsName    string
-		namespace corev1.Namespace
+		ctx              context.Context
+		nsName           string
+		namespace        corev1.Namespace
+		namespaceCreated bool
 	)
 
-	BeforeAll(func() {
+	BeforeEach(func() {
 		ctx = context.Background()
+		namespaceCreated = false
 		nsName = randomNamespaceName("requiredparam-validation-test")
 		namespace = corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsName}}
 
 		By("creating the test namespace")
-		Eventually(func() error {
-			return k8sClient.Create(ctx, &namespace)
-		}, 3*time.Second, 300*time.Millisecond).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, &namespace)).To(Succeed())
+		namespaceCreated = true
 
 		By("Apply the component definition")
 		Expect(k8sClient.Create(ctx, newConfigMapComponent(nsName))).To(Succeed())
 	})
 
 	AfterEach(func() {
+		if !namespaceCreated {
+			return
+		}
 		By("Cleaning up resources after each test")
 		Expect(k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(nsName))).To(Succeed())
-	})
-
-	AfterAll(func() {
-		By("Cleaning up resources after all the test")
 		Expect(k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(nsName))).To(Succeed())
 		Expect(k8sClient.Delete(ctx, &namespace)).To(Succeed())
 	})
