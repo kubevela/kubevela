@@ -1,6 +1,6 @@
 # Safe E2E Parallel Execution Implementation Plan
 
-Implementation note (2026-09-28): the checked-in workflow uses fixed defaults of three core/module workers, two addon workers, one envtest worker and two concurrent matrix jobs. See `test/E2E_PARALLEL.md` for commands, live probe results and remaining full-suite validation. The checklist below records the original planning tasks and is not a claim that every step has been completed.
+Implementation note (2026-09-28): the checked-in workflow uses fixed defaults of three core/module workers, two addon workers, one envtest worker and four concurrent matrix jobs. See `test/E2E_PARALLEL.md` for commands, live probe results and remaining full-suite validation. The checklist below records the original planning tasks and is not a claim that every step has been completed.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -17,7 +17,7 @@ Implementation note (2026-09-28): the checked-in workflow uses fixed defaults of
 - Include exactly the four requested packages; exclude multi-cluster tests and workflows.
 - Preserve existing `make e2e-api-test` coverage as an unchanged compatibility lane.
 - Preserve pre-existing user changes in `Makefile` and `hack/utils/golangci-lint-wrapper.sh`.
-- Local `E2E_PROCS=1`; CI core/module workers=3, addon workers=2, envtest=1, legacy API=1, four-row matrix max-parallel=2. Keep API outside the new suite matrix.
+- Local `E2E_PROCS=1`; CI core/module workers=3, addon workers=2, envtest=1, legacy API=1, four-row matrix max-parallel=4. Keep API outside the new suite matrix.
 - `E2E_TIMEOUT=1h`; CI per-job timeout=90 minutes. Do not reduce existing assertion timeouts to claim a speedup.
 - Ginkgo CLI must match go.mod (currently v2.23.3); no dependency upgrade or production behavior change.
 - No goroutine/t.Parallel spec execution, broad namespace cleanup, forced finalizer removal, or shared-current-context mutation.
@@ -125,7 +125,7 @@ Implementation note (2026-09-28): the checked-in workflow uses fixed defaults of
 - [ ] In env-setup install Ginkgo from the checked-out module (`go install github.com/onsi/ginkgo/v2/ginkgo`, without a conflicting `@version`), and log/check its version. This is a shared tool-version correction, not an expansion into multicluster scheduling.
 - [ ] Add composite input `suite`, default `all`, plus worker/timeout/report inputs. `all` retains existing API/addon/core/module sequence for upgrade callers; use explicit step-status conditions so independent tests still run after a test failure but not after failed setup. Specific suite inputs run only their selected target. `api` is accepted by the composite to invoke unchanged `make e2e-api-test`, not by the four-suite runner. Envtest preparation installs assets and avoids KinD/Helm/live-cluster setup.
 - [ ] Matrix rows: exactly `e2e-test`, `e2e-module-test`, `e2e-addon-test`, and `e2e-addon-module-test`. Keep `api` as a separate unchanged serial compatibility job, gated after the matrix if needed to keep at most two active live-cluster runners. Long core/module rows first is a reasonable queue default, not a scheduling guarantee. Live rows each create one fresh KinD cluster; envtest skips it. Pass actual `v1.31.9` to cluster setup. Keep existing image-load/build/Helm-test/feature-gate preparation for live rows; run setup once per row, never as a background per-suite operation.
-- [ ] Configure `strategy.fail-fast: false`, max-parallel=2, live workers=2 by default and envtest/API=1. Expose positive-integer workflow_dispatch/repository-variable overrides using validated inputs. Cancellation group includes workflow/ref/version/suite. Retain no-op gating and job-level failure status. Keep normal PR and upgrade callers working.
+- [ ] Configure `strategy.fail-fast: false`, max-parallel=4, core/module workers=3, addon workers=2, and envtest/API=1. Use the fixed defaults for workflow dispatch. Cancellation group includes workflow/ref/version/suite. Retain no-op gating and job-level failure status. Keep normal PR and upgrade callers working.
 - [ ] Report/upload under `always()` (with absent-report diagnostics when setup fails). Unique artifact names contain suite/version/run/attempt. Include JSON, JUnit, suite logs and cluster diagnostics without credential dumps. Keep Codecov enabled when configured and use suite-specific names; do not claim the current `coverage.txt` upload proves E2E coverage. Preserve existing coverage production/collection and surface missing expected outputs.
 - [ ] Document local one-worker and two-worker commands, envtest asset prerequisites, isolated-cluster requirement for concurrent packages/runs, unchanged pending case, and per-job resource budget. Run shell contract tests, `bash -n`, available ShellCheck/actionlint and targeted Make dry runs. Review rendered workflow expressions, matrix keys and action compatibility.
 
