@@ -102,7 +102,7 @@ jobs:
   e2e-api:
     name: Existing API E2E coverage
     runs-on: ubuntu-22.04
-    needs: [ detect-noop, e2e-tests ]
+    needs: [ detect-noop ]
     if: ${{ !cancelled() && needs.detect-noop.outputs.noop != 'true' }}
     timeout-minutes: 90
     concurrency:
