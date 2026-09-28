@@ -10,10 +10,37 @@ inputs:
     description: 'Enable codecov coverage upload'
     required: false
     default: 'false'
+  addon-procs:
+    description: 'Ginkgo worker processes for the addon E2E suite (1 to 4)'
+    required: false
+    default: '2'
+  suite:
+    description: 'Suite to run: all, api, addon, core, module, or addon-module'
+    required: false
+    default: 'all'
+  procs:
+    description: 'Ginkgo workers for a selected live-cluster suite (1 to 4)'
+    required: false
+    default: '2'
 
 runs:
   using: "composite"
   steps:
+    - name: Validate suite selection
+      shell: bash
+      env:
+        E2E_SUITE: ${{ inputs.suite }}
+        E2E_WORKERS: ${{ inputs.procs }}
+      run: |
+        case "$E2E_SUITE" in
+          all|api|addon|core|module|addon-module) ;;
+          *) echo "Unknown E2E suite: $E2E_SUITE" >&2; exit 1 ;;
+        esac
+        case "$E2E_WORKERS" in
+          1|2|3|4) ;;
+          *) echo "procs must be between 1 and 4" >&2; exit 1 ;;
+        esac
+
     # ========================================================================
     # Environment Setup
     # ========================================================================
@@ -21,10 +48,11 @@ runs:
       uses: ./.github/actions/env-setup
       with:
         install-ginkgo: 'true'
-        install-setup-envtest: 'false'
+        install-setup-envtest: ${{ inputs.suite == 'addon-module' && 'true' || 'false' }}
         install-kustomize: 'false'
 
     - name: Build project
+      if: ${{ inputs.suite != 'addon-module' }}
       shell: bash
       run: make
 
@@ -32,6 +60,8 @@ runs:
     # E2E Test Environment Preparation
     # ========================================================================
     - name: Prepare e2e environment
+      id: prepare
+      if: ${{ inputs.suite != 'addon-module' }}
       shell: bash
       run: |
         echo "Preparing e2e test environment..."
@@ -45,32 +75,54 @@ runs:
     # E2E Test Execution
     # ========================================================================
     - name: Run API e2e tests
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'api') }}
       shell: bash
       run: |
         echo "Running API e2e tests..."
         make e2e-api-test
 
     - name: Run addon e2e tests
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'addon') }}
       shell: bash
+      env:
+        E2E_ADDON_PROCS: ${{ inputs.addon-procs }}
       run: |
         echo "Running addon e2e tests..."
-        make e2e-addon-test
+        case "$E2E_ADDON_PROCS" in
+          1|2|3|4) ;;
+          *) echo "addon-procs must be between 1 and 4" >&2; exit 1 ;;
+        esac
+        make e2e-addon-test E2E_PROCS="$E2E_ADDON_PROCS"
 
     - name: Run general e2e tests
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'core') }}
       shell: bash
+      env:
+        E2E_WORKERS: ${{ inputs.procs }}
+        E2E_SUITE: ${{ inputs.suite }}
       run: |
         echo "Running general e2e tests..."
-        make e2e-test
+        if [ "$E2E_SUITE" = all ]; then E2E_WORKERS=1; fi
+        make e2e-test E2E_PROCS="$E2E_WORKERS"
 
     - name: Run module e2e tests
       # Its own step, own package, and always() so a failure in an earlier
       # step (e.g. an unrelated e2e-api-test flake) cannot prevent this from
       # running.
-      if: always()
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'module') }}
       shell: bash
+      env:
+        E2E_WORKERS: ${{ inputs.procs }}
+        E2E_SUITE: ${{ inputs.suite }}
       run: |
         echo "Running module e2e tests..."
-        make e2e-module-test
+        if [ "$E2E_SUITE" = all ]; then E2E_WORKERS=1; fi
+        make e2e-module-test E2E_PROCS="$E2E_WORKERS"
+
+    - name: Run addon/module envtest suite
+      if: ${{ inputs.suite == 'addon-module' }}
+      shell: bash
+      run: make e2e-addon-module-test
 
     - name: Run addon-component e2e tests
       # Same reasoning as the module step above. The suite brings up its own
@@ -106,7 +158,7 @@ runs:
     # Failure Diagnostics
     # ========================================================================
     - name: Collect failure diagnostics
-      if: failure()
+      if: ${{ failure() && inputs.suite != 'addon-module' }}
       shell: bash
       run: |
         echo "=== FAILURE DIAGNOSTICS ==="

@@ -65,6 +65,49 @@ func applyManifestFile(ctx context.Context, k8sClient client.Client, path string
 	}
 }
 
+// createOCIRegistry installs the registry fixture in a namespace owned by one
+// test scenario. It never adopts an existing registry: doing so would let one
+// scenario tear down a Service still used by another.
+func createOCIRegistry(ctx context.Context, k8sClient client.Client, namespace string) error {
+	if namespace == "" {
+		return fmt.Errorf("registry namespace must not be empty")
+	}
+	f, err := os.Open("testdata/module/registry.yaml")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	decoder := yaml.NewYAMLOrJSONDecoder(bufio.NewReader(f), 4096)
+	for {
+		raw := map[string]any{}
+		if err := decoder.Decode(&raw); err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+		if len(raw) == 0 {
+			continue
+		}
+		obj, err := decodeKubeObject(raw)
+		if err != nil {
+			return err
+		}
+		switch obj.(type) {
+		case *appsv1.Deployment, *corev1.Service:
+		default:
+			return fmt.Errorf("registry fixture contains unexpected %T", obj)
+		}
+		if obj.GetNamespace() != "" {
+			return fmt.Errorf("registry fixture must not hardcode namespace %q", obj.GetNamespace())
+		}
+		obj.SetNamespace(namespace)
+		if err := k8sClient.Create(ctx, obj); err != nil {
+			return err
+		}
+	}
+}
+
 func decodeKubeObject(raw map[string]any) (client.Object, error) {
 	b, err := json.Marshal(raw)
 	if err != nil {

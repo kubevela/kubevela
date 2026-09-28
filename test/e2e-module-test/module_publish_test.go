@@ -54,26 +54,22 @@ const (
 	modulePublishModuleVersion  = "1.0.0"
 	modulePublishRegistryName   = "e2e-oci"
 
-	// ociRegistryNodePort is the fixed NodePort testdata/module/registry.yaml
-	// exposes the in-cluster registry on. A NodePort plus a node's own
-	// InternalIP resolves from both this test process and the controller's
+	// A NodePort plus a node's own InternalIP resolves from both this test process and the controller's
 	// pod with no DNS tricks and no privileges. That "resolves from both"
 	// property is required, not a convenience: "vela module deploy" fetches
 	// the module client-side, in the CLI process itself, before it applies
 	// anything to the cluster (references/cli/module-deploy.go calls
 	// FetchModule before apply.NewAPIApplicator(...).Apply), so a registry
-	// URL that only resolves inside the cluster -- such as the Service DNS
-	// name oci-registry.default.svc.cluster.local -- makes the CLI itself
+	// URL that only resolves inside the cluster -- such as the registry's Service DNS
+	// name -- makes the CLI itself
 	// fail before the controller is ever involved. One URL, reachable from
 	// both sides, is the only shape that works.
-	ociRegistryNodePort = 30500
-
 	// moduleE2ERegistryURLEnv is an escape hatch for environments where a kind
 	// node's IP is not routable from wherever this test runs (for example, a
 	// devcontainer on a different docker network than the kind node: the node
 	// sits at an address like 172.18.0.2 on the host's docker network, which
 	// is unreachable from inside such a container). CI leaves this unset and
-	// derives the URL from a node's InternalIP and ociRegistryNodePort; where
+	// derives the URL from a node's InternalIP and the allocated NodePort; where
 	// that derivation would not resolve, the operator sets this to a URL that
 	// resolves for both the CLI and the controller.
 	moduleE2ERegistryURLEnv = "MODULE_E2E_REGISTRY_URL"
@@ -82,7 +78,7 @@ const (
 	moduleOwnedAppNameE2E  = "module-" + modulePublishModuleName
 )
 
-var _ = Describe("Module publish and deploy", func() {
+var _ = Describe("Module publish and deploy", Serial, func() {
 	It("packages a module, publishes it to an in-cluster OCI registry, and deploys it through the controller", func() {
 		ctx := context.Background()
 		repoRoot := modulePublishRepoRoot()
@@ -96,15 +92,11 @@ var _ = Describe("Module publish and deploy", func() {
 		})
 
 		By("Applying the in-cluster OCI registry manifest and waiting for it to be Available")
-		Expect(applyManifestFile(ctx, k8sClient, "testdata/module/registry.yaml")).Should(Succeed())
-		DeferCleanup(func() {
-			_ = k8sClient.Delete(ctx, &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "oci-registry", Namespace: "default"}})
-			_ = k8sClient.Delete(ctx, &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "oci-registry", Namespace: "default"}})
-		})
-		waitForOCIRegistryDeploymentAvailable(ctx)
+		Expect(createOCIRegistry(ctx, k8sClient, testNamespace)).Should(Succeed())
+		waitForOCIRegistryDeploymentAvailable(ctx, testNamespace)
 
 		By("Deriving one registry URL that resolves for both the CLI and the controller")
-		registryURL := moduleE2ERegistryURL(ctx)
+		registryURL := moduleE2ERegistryURL(ctx, testNamespace)
 		registryBase, err := registryHTTPBase(registryURL)
 		Expect(err).ShouldNot(HaveOccurred(), "registry URL: %s", registryURL)
 		waitForOCIRegistryReachable(registryBase + "/v2/")
@@ -208,10 +200,10 @@ func runVelaCommandSucceed(repoRoot string, args ...string) string {
 // waitForOCIRegistryDeploymentAvailable waits for the oci-registry Deployment
 // applied from testdata/module/registry.yaml to report Available, mirroring
 // waitForAuthDeploymentsReady in auth_registry_helpers_test.go.
-func waitForOCIRegistryDeploymentAvailable(ctx context.Context) {
+func waitForOCIRegistryDeploymentAvailable(ctx context.Context, namespace string) {
 	Eventually(func() bool {
 		d := &appsv1.Deployment{}
-		if err := k8sClient.Get(ctx, k8stypes.NamespacedName{Namespace: "default", Name: "oci-registry"}, d); err != nil {
+		if err := k8sClient.Get(ctx, k8stypes.NamespacedName{Namespace: namespace, Name: "oci-registry"}, d); err != nil {
 			return false
 		}
 		for _, c := range d.Status.Conditions {
@@ -225,8 +217,7 @@ func waitForOCIRegistryDeploymentAvailable(ctx context.Context) {
 
 // moduleE2ERegistryURL returns the one registry URL used for both the
 // publish/register CLI calls and (indirectly, once registered) the
-// controller's fetch. See the comment on ociRegistryNodePort for why one URL
-// covering both sides is required rather than a convenience: "vela module
+// controller's fetch. A NodePort lets the same URL reach both sides: "vela module
 // deploy" validates and fetches the module client-side before applying
 // anything, so a registry entry that only resolves inside the cluster breaks
 // the CLI itself, not just the controller.
@@ -234,24 +225,37 @@ func waitForOCIRegistryDeploymentAvailable(ctx context.Context) {
 // MODULE_E2E_REGISTRY_URL, when set, is used verbatim and skips the node-IP
 // derivation entirely -- for an environment (like this devcontainer) where
 // the kind node's IP is not routable from wherever this test runs. CI leaves
-// it unset and derives the URL from testdata/module/registry.yaml's NodePort
-// (ociRegistryNodePort) and a node's own InternalIP, which is routable from
+// it unset and derives the URL from the registry Service's allocated NodePort
+// and a node's own InternalIP, which is routable from
 // both the CI runner and every pod.
-func moduleE2ERegistryURL(ctx context.Context) string {
+func moduleE2ERegistryURL(ctx context.Context, namespace string) string {
 	if v := os.Getenv(moduleE2ERegistryURLEnv); v != "" {
 		return v
 	}
+	port, err := registryNodePort(ctx, k8sClient, namespace)
+	Expect(err).ShouldNot(HaveOccurred())
 	var nodes corev1.NodeList
 	Expect(k8sClient.List(ctx, &nodes)).Should(Succeed())
 	Expect(nodes.Items).ShouldNot(BeEmpty(), "no nodes found to derive the registry URL from")
 	for _, addr := range nodes.Items[0].Status.Addresses {
 		if addr.Type == corev1.NodeInternalIP {
-			return fmt.Sprintf("http://%s:%d/modules", addr.Address, ociRegistryNodePort)
+			return fmt.Sprintf("http://%s:%d/modules", addr.Address, port)
 		}
 	}
 	Fail(fmt.Sprintf("node %q has no status.addresses entry of type InternalIP; "+
 		"set %s to work around this", nodes.Items[0].Name, moduleE2ERegistryURLEnv))
 	return ""
+}
+
+func registryNodePort(ctx context.Context, cli client.Client, namespace string) (int32, error) {
+	var service corev1.Service
+	if err := cli.Get(ctx, client.ObjectKey{Name: "oci-registry", Namespace: namespace}, &service); err != nil {
+		return 0, err
+	}
+	if len(service.Spec.Ports) != 1 || service.Spec.Ports[0].NodePort == 0 {
+		return 0, fmt.Errorf("registry Service %s/oci-registry has no allocated NodePort", namespace)
+	}
+	return service.Spec.Ports[0].NodePort, nil
 }
 
 // registryHTTPBase returns the scheme and host ("http://host:port") of

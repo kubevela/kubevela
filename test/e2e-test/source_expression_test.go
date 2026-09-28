@@ -71,7 +71,9 @@ func exprTraitDefinition(namespace, name, template string) *v1beta1.TraitDefinit
 // path substitutes, that the value keeps its type all the way into the rendered
 // object, and that a source read through an expression still drives resolution
 // and reports status.
-var _ = Describe("Source expressions across surfaces", func() {
+// Several cases create the same SourceDefinition names and shared-system
+// ConfigTemplates. Ginkgo must keep this family sequential on one worker.
+var _ = Describe("Source expressions across surfaces", Ordered, ContinueOnFailure, func() {
 	ctx := context.Background()
 
 	var namespaceName string

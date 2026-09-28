@@ -18,10 +18,12 @@ package controllers_test
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"os"
-	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,8 +31,9 @@ import (
 	. "github.com/onsi/gomega"
 
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
-	rbac "k8s.io/api/rbac/v1"
+	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -53,8 +56,7 @@ import (
 
 var k8sClient client.Client
 var scheme = runtime.NewScheme()
-var roleName = "oam-example-com"
-var roleBindingName = "oam-role-binding"
+var authSetupStarted bool
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -62,7 +64,10 @@ func TestAPIs(t *testing.T) {
 	RunSpecs(t, "OAM Core Resource Controller Suite")
 }
 
-var _ = BeforeSuite(func() {
+func bootstrapCoreClient() {
+	if k8sClient != nil {
+		return
+	}
 	By("Bootstrapping test environment")
 	rand.Seed(time.Now().UnixNano())
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
@@ -94,6 +99,10 @@ var _ = BeforeSuite(func() {
 		Fail("setup failed")
 	}
 	By("Finished setting up test environment")
+}
+
+var _ = SynchronizedBeforeSuite(func() {
+	bootstrapCoreClient()
 
 	// create workload definition for 'deployments'
 	wdDeploy := v1beta1.WorkloadDefinition{
@@ -110,44 +119,22 @@ var _ = BeforeSuite(func() {
 	Expect(k8sClient.Create(context.Background(), &wdDeploy)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Created deployments.apps")
 
-	exampleClusterRole := rbac.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: roleName,
-			Labels: map[string]string{
-				"oam":                                  "clusterrole",
-				"rbac.oam.dev/aggregate-to-controller": "true",
-			},
-		},
-		Rules: []rbac.PolicyRule{{
-			APIGroups: []string{"example.com"},
-			Resources: []string{rbac.ResourceAll},
-			Verbs:     []string{rbac.VerbAll},
-		}},
-	}
-	Expect(k8sClient.Create(context.Background(), &exampleClusterRole)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	By("Created example.com cluster role for the test service account")
-
-	adminRoleBinding := rbac.ClusterRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   roleBindingName,
-			Labels: map[string]string{"oam": "clusterrole"},
-		},
-		Subjects: []rbac.Subject{
-			{
-				Kind: "User",
-				Name: "system:serviceaccount:oam-system:oam-kubernetes-runtime-e2e",
-			},
-		},
-		RoleRef: rbac.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "ClusterRole",
-			Name:     "cluster-admin",
-		},
-	}
-	Expect(k8sClient.Create(context.Background(), &adminRoleBinding)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	By("Created cluster role binding for the test service account")
+	var token [12]byte
+	_, err := cryptorand.Read(token[:])
+	Expect(err).NotTo(HaveOccurred())
+	runID := hex.EncodeToString(token[:])
+	ownedRBAC, err := installCoreSuiteRBAC(context.Background(), k8sClient, runID)
+	Expect(err).NotTo(HaveOccurred())
+	DeferCleanup(func() {
+		Expect(ownedRBAC.cleanup(context.Background(), k8sClient)).To(Succeed())
+	})
+	By("Created example.com cluster role and binding for the test service account")
 
 	if os.Getenv("KUBEVELA_E2E_AUTH") == "1" {
+		var ns corev1.Namespace
+		err := k8sClient.Get(context.Background(), client.ObjectKey{Name: authTestNamespace}, &ns)
+		Expect(apierrors.IsNotFound(err)).To(BeTrue(), "auth-test namespace already exists or could not be checked: %v", err)
+		authSetupStarted = true
 		By("Bringing up auth-test registries")
 		Expect(setupAuthRegistries(context.Background(), k8sClient)).To(Succeed())
 
@@ -158,22 +145,14 @@ var _ = BeforeSuite(func() {
 	} else {
 		By("Skipping auth-test registries setup (KUBEVELA_E2E_AUTH not set)")
 	}
-
 	waitForControllerReconciling(context.Background())
+}, func() {
+	bootstrapCoreClient()
 })
 
-var _ = AfterSuite(func() {
+var _ = SynchronizedAfterSuite(func() {}, func() {
 	By("Tearing down the test environment")
-	adminRoleBinding := rbac.ClusterRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   roleBindingName,
-			Labels: map[string]string{"oam": "clusterrole"},
-		},
-	}
-	Expect(k8sClient.Delete(context.Background(), &adminRoleBinding)).Should(BeNil())
-	By("Deleted the cluster role binding")
-
-	if os.Getenv("KUBEVELA_E2E_AUTH") == "1" {
+	if authSetupStarted {
 		By("Tearing down auth-test registries")
 		Expect(tearDownAuthRegistries(context.Background(), k8sClient)).To(Succeed())
 	}
@@ -279,9 +258,37 @@ func ConsistentlyReconciled(ctx context.Context, o client.Object, assertion func
 	}).WithPolling(time.Second).WithTimeout(4 * quietPeriod)
 }
 
-// randomNamespaceName generates a random name based on the basic name.
-// Running each ginkgo case in a new namespace with a random name can avoid
-// waiting a long time to GC namespace.
+// randomNamespaceName generates an independent DNS-label name for each case.
+// Empty prefixes are used as suffixes by the PostDispatch fixtures; keep that
+// suffix short enough for their longest object name.
 func randomNamespaceName(basic string) string {
-	return fmt.Sprintf("%s-%s", basic, strconv.FormatInt(rand.Int63(), 16))
+	var token [8]byte
+	if _, err := cryptorand.Read(token[:]); err != nil {
+		panic(fmt.Errorf("generate test name: %w", err))
+	}
+	suffix := "-" + hex.EncodeToString(token[:])
+	if basic == "" {
+		return suffix
+	}
+	worker := fmt.Sprintf("-p%d", GinkgoParallelProcess())
+	suffix = worker + suffix
+	var readable strings.Builder
+	lastWasSeparator := false
+	for _, char := range strings.ToLower(basic) {
+		if char >= 'a' && char <= 'z' || char >= '0' && char <= '9' {
+			readable.WriteRune(char)
+			lastWasSeparator = false
+		} else if readable.Len() > 0 && !lastWasSeparator {
+			readable.WriteByte('-')
+			lastWasSeparator = true
+		}
+	}
+	prefix := strings.Trim(readable.String(), "-")
+	if prefix == "" {
+		prefix = "e2e"
+	}
+	if len(prefix) > 63-len(suffix) {
+		prefix = strings.TrimRight(prefix[:63-len(suffix)], "-")
+	}
+	return prefix + suffix
 }

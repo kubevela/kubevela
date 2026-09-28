@@ -90,7 +90,7 @@ runs:
       shell: bash
       run: |
         echo "Installing Ginkgo testing framework..."
-        go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
+        go install github.com/onsi/ginkgo/v2/ginkgo
         echo "Ginkgo installed successfully"
 
     - name: Install setup-envtest
@@ -105,7 +105,7 @@ runs:
 
         # Download and cache the Kubernetes binaries for envtest
         echo "Downloading Kubernetes binaries for envtest..."
-        KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.31.0 --bin-dir ./bin -p path)
+        KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.31.0 --bin-dir "$(pwd)/bin" -p path)
         echo "Kubernetes binaries downloaded successfully"
         echo "KUBEBUILDER_ASSETS=${KUBEBUILDER_ASSETS}"
         # Export for subsequent steps

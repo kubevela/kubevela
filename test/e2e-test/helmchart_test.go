@@ -36,8 +36,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
-	"github.com/kubevela/pkg/util/rand"
-
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
@@ -54,12 +52,18 @@ type helmTestContext struct {
 func newHelmTestContext() *helmTestContext {
 	return &helmTestContext{
 		ctx:          context.Background(),
-		namespace:    "helm-e2e-" + rand.RandomString(4),
 		appNamespace: "default",
 	}
 }
 
+func helmTestSuffix() string {
+	return strings.TrimPrefix(randomNamespaceName(""), "-")
+}
+
 func (h *helmTestContext) createNamespace() {
+	if h.namespace == "" {
+		h.namespace = randomNamespaceName("helm-e2e")
+	}
 	By("Creating target namespace for Helm release: " + h.namespace)
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: h.namespace}}
 	Expect(k8sClient.Create(h.ctx, ns)).Should(SatisfyAny(Succeed(), Not(HaveOccurred())))
@@ -109,7 +113,7 @@ func (h *helmTestContext) deployAppFrom(yamlPath string) {
 	h.app = &v1beta1.Application{}
 	Expect(yaml.Unmarshal(raw, h.app)).Should(BeNil())
 	h.app.SetNamespace(h.appNamespace)
-	h.app.SetName("podinfo-helm-test-" + rand.RandomString(4))
+	h.app.SetName(randomNamespaceName("podinfo-helm-test"))
 	Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
 	h.appKey = client.ObjectKeyFromObject(h.app)
 	By("Waiting for Application to reach running state")
@@ -645,7 +649,7 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 			h.app = &v1beta1.Application{}
 			Expect(yaml.Unmarshal(raw, h.app)).Should(BeNil())
 			h.app.SetNamespace(h.appNamespace)
-			h.app.SetName("podinfo-helm-test-" + rand.RandomString(4))
+			h.app.SetName("podinfo-helm-test-" + helmTestSuffix())
 			Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
 			h.appKey = client.ObjectKeyFromObject(h.app)
 			Eventually(func(g Gomega) {
@@ -791,7 +795,7 @@ var _ = Describe("Helmchart Destructive & Chaos", func() {
 			appB = &v1beta1.Application{}
 			Expect(yaml.Unmarshal(raw, appB)).Should(BeNil())
 			appB.SetNamespace(h.appNamespace)
-			appB.SetName("podinfo-conflict-" + rand.RandomString(4))
+			appB.SetName("podinfo-conflict-" + helmTestSuffix())
 			Expect(k8sClient.Create(h.ctx, appB)).Should(Succeed())
 			appBKey := client.ObjectKeyFromObject(appB)
 
@@ -860,7 +864,7 @@ spec:
 			h.app = &v1beta1.Application{}
 			Expect(yaml.Unmarshal(raw, h.app)).Should(BeNil())
 			h.app.SetNamespace(h.appNamespace)
-			h.app.SetName("crossplane-crd-test-" + rand.RandomString(4))
+			h.app.SetName("crossplane-crd-test-" + helmTestSuffix())
 			Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
 			h.appKey = client.ObjectKeyFromObject(h.app)
 
@@ -903,6 +907,7 @@ spec:
 
 	Context("Chart with Namespaces (createNamespace)", Ordered, func() {
 		h := newHelmTestContext()
+		BeforeAll(func() { h.namespace = randomNamespaceName("helm-e2e") })
 		AfterAll(func() { h.cleanup() })
 
 		It("should create namespace before deploying namespace-scoped resources", func() {
@@ -1043,7 +1048,7 @@ var _ = Describe("Helmchart Edge Cases", func() {
 	Context("Namespace Does Not Exist and createNamespace=false", Ordered, func() {
 		h := &helmTestContext{
 			ctx:          context.Background(),
-			namespace:    "nonexistent-ns-" + rand.RandomString(4),
+			namespace:    "nonexistent-ns-" + helmTestSuffix(),
 			appNamespace: "default",
 		}
 		AfterAll(func() {
@@ -1059,7 +1064,7 @@ var _ = Describe("Helmchart Edge Cases", func() {
 			h.app = &v1beta1.Application{}
 			Expect(yaml.Unmarshal(raw, h.app)).Should(BeNil())
 			h.app.SetNamespace(h.appNamespace)
-			h.app.SetName("no-ns-test-" + rand.RandomString(4))
+			h.app.SetName("no-ns-test-" + helmTestSuffix())
 			Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
 			h.appKey = client.ObjectKeyFromObject(h.app)
 
@@ -1093,7 +1098,7 @@ var _ = Describe("Helmchart Edge Cases", func() {
 			h.app = &v1beta1.Application{}
 			Expect(yaml.Unmarshal(raw, h.app)).Should(BeNil())
 			h.app.SetNamespace(h.appNamespace)
-			h.app.SetName("bad-chart-test-" + rand.RandomString(4))
+			h.app.SetName("bad-chart-test-" + helmTestSuffix())
 			createErr := k8sClient.Create(h.ctx, h.app)
 
 			if createErr != nil {
@@ -1126,7 +1131,7 @@ var _ = Describe("Helmchart Edge Cases", func() {
 			h.app = &v1beta1.Application{}
 			Expect(yaml.Unmarshal(raw, h.app)).Should(BeNil())
 			h.app.SetNamespace(h.appNamespace)
-			h.app.SetName("bad-version-test-" + rand.RandomString(4))
+			h.app.SetName("bad-version-test-" + helmTestSuffix())
 			createErr := k8sClient.Create(h.ctx, h.app)
 
 			if createErr != nil {
@@ -1177,8 +1182,8 @@ var _ = Describe("Helmchart Edge Cases", func() {
 
 	Context("Two helmchart Components in Same Application", Ordered, func() {
 		h := newHelmTestContext()
-		nsA := "helm-multi-a-" + rand.RandomString(4)
-		nsB := "helm-multi-b-" + rand.RandomString(4)
+		nsA := "helm-multi-a-" + helmTestSuffix()
+		nsB := "helm-multi-b-" + helmTestSuffix()
 		BeforeAll(func() {
 			for _, ns := range []string{nsA, nsB} {
 				n := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}
@@ -1206,7 +1211,7 @@ var _ = Describe("Helmchart Edge Cases", func() {
 			h.app = &v1beta1.Application{}
 			Expect(yaml.Unmarshal(raw, h.app)).Should(BeNil())
 			h.app.SetNamespace(h.appNamespace)
-			h.app.SetName("two-comp-test-" + rand.RandomString(4))
+			h.app.SetName("two-comp-test-" + helmTestSuffix())
 			Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
 			h.appKey = client.ObjectKeyFromObject(h.app)
 
@@ -1348,7 +1353,7 @@ var _ = Describe("Helmchart Edge Cases", func() {
 			h.app = &v1beta1.Application{}
 			Expect(yaml.Unmarshal(raw, h.app)).Should(BeNil())
 			h.app.SetNamespace(h.appNamespace)
-			h.app.SetName("chart-mismatch-" + rand.RandomString(4))
+			h.app.SetName("chart-mismatch-" + helmTestSuffix())
 			Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
 			h.appKey = client.ObjectKeyFromObject(h.app)
 
@@ -1390,9 +1395,12 @@ var _ = Describe("Helmchart Edge Cases", func() {
 			Expect(err).Should(BeNil())
 			raw = bytes.ReplaceAll(raw, []byte("placeholder_ns"), []byte(h.namespace))
 			raw = bytes.ReplaceAll(raw, []byte("name: podinfo-helm-test"), []byte("name: "+h.app.Name))
-			tmpFile := fmt.Sprintf("/tmp/helm-reapply-%s.yaml", rand.RandomString(4))
-			Expect(os.WriteFile(tmpFile, raw, 0644)).Should(Succeed())
-			defer os.Remove(tmpFile)
+			tmp, err := os.CreateTemp("", "helm-reapply-*.yaml")
+			Expect(err).Should(Succeed())
+			tmpFile := tmp.Name()
+			Expect(tmp.Close()).Should(Succeed())
+			DeferCleanup(func() { Expect(os.Remove(tmpFile)).To(Succeed()) })
+			Expect(os.WriteFile(tmpFile, raw, 0600)).Should(Succeed())
 			runCommandSucceed("kubectl", "apply", "-f", tmpFile, "-n", h.appNamespace)
 
 			By("Verifying no Helm upgrade occurs and the Deployment is untouched across reconciles")
@@ -1479,7 +1487,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 	deployAppWithComponents := func(h *helmTestContext, appNamePrefix string, comps []common2.ApplicationComponent) {
 		h.app = &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      appNamePrefix + "-" + rand.RandomString(4),
+				Name:      appNamePrefix + "-" + helmTestSuffix(),
 				Namespace: h.appNamespace,
 			},
 			Spec: v1beta1.ApplicationSpec{Components: comps},
@@ -1502,7 +1510,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 	createPodinfoApp := func(h *helmTestContext, appNamePrefix string, comps ...common2.ApplicationComponent) *v1beta1.Application {
 		app := &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      appNamePrefix + "-" + rand.RandomString(4),
+				Name:      appNamePrefix + "-" + helmTestSuffix(),
 				Namespace: h.appNamespace,
 			},
 			Spec: v1beta1.ApplicationSpec{Components: comps},
@@ -1973,7 +1981,7 @@ var _ = Describe("Helmchart Auth", func() {
 		comp := buildPodinfoComponentForAuth(h, releaseName, chartProps)
 		h.app = &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      prefix + "-" + rand.RandomString(4),
+				Name:      prefix + "-" + helmTestSuffix(),
 				Namespace: h.appNamespace,
 			},
 			Spec: v1beta1.ApplicationSpec{Components: []common2.ApplicationComponent{comp}},
@@ -1998,7 +2006,7 @@ var _ = Describe("Helmchart Auth", func() {
 		comp := buildPodinfoComponentForAuth(h, releaseName, chartProps)
 		h.app = &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      prefix + "-" + rand.RandomString(4),
+				Name:      prefix + "-" + helmTestSuffix(),
 				Namespace: h.appNamespace,
 			},
 			Spec: v1beta1.ApplicationSpec{Components: []common2.ApplicationComponent{comp}},
@@ -2225,7 +2233,7 @@ var _ = Describe("Helmchart Auth", func() {
 		otherNS := ""
 		BeforeAll(func() {
 			h.createNamespace()
-			otherNS = "auth-cross-ns-other-" + rand.RandomString(4)
+			otherNS = "auth-cross-ns-other-" + helmTestSuffix()
 			Expect(k8sClient.Create(h.ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: otherNS}})).To(Succeed())
 			Expect(createSecretInNamespace(h, "creds", otherNS, corev1.SecretTypeOpaque, map[string]string{
 				"username": authTestUser, "password": authTestPass,

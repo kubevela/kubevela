@@ -40,7 +40,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-var _ = Describe("SourceDefinition e2e", func() {
+// Generated ConfigTemplate names derive from SourceDefinition name and schema,
+// not its namespace. Keep these cases on one Ginkgo worker until their source
+// names are unique across cases; other core suites can run alongside them.
+var _ = Describe("SourceDefinition e2e", Ordered, ContinueOnFailure, func() {
 	ctx := context.Background()
 
 	var namespaceName string

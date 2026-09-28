@@ -1,3 +1,8 @@
+.PHONY: e2e-addon-test
+E2E_PROCS ?= 1
+E2E_TIMEOUT ?= 1h
+E2E_REPORT_DIR ?= _artifacts/e2e
+
 .PHONY: e2e-setup-core-pre-hook
 e2e-setup-core-pre-hook:
 	sh ./hack/e2e/modify_charts.sh
@@ -96,7 +101,8 @@ e2e-api-test:
 .PHONY: e2e-test
 e2e-test:
 	# Run e2e test (KUBEVELA_E2E_AUTH=1 enables auth-test registry setup)
-	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-test
+	mkdir -p "$(E2E_REPORT_DIR)"
+	KUBEVELA_E2E_AUTH=1 ginkgo -v --procs=$(E2E_PROCS) --timeout=$(E2E_TIMEOUT) --json-report="$(E2E_REPORT_DIR)/e2e-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-test.xml" ./test/e2e-test
 	@$(OK) tests pass
 
 .PHONY: e2e-module-test
@@ -105,7 +111,8 @@ e2e-module-test:
 	# the zot auth-test registry, used by one credentialed-registry test).
 	# Kept as its own package/target so a failure elsewhere in e2e-api-test
 	# or e2e-test cannot prevent this from running.
-	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-module-test
+	mkdir -p "$(E2E_REPORT_DIR)"
+	KUBEVELA_E2E_AUTH=1 ginkgo -v --procs=$(E2E_PROCS) --timeout=$(E2E_TIMEOUT) --json-report="$(E2E_REPORT_DIR)/e2e-module-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-module-test.xml" ./test/e2e-module-test
 	@$(OK) tests pass
 
 .PHONY: e2e-addon-component-test
@@ -342,10 +349,16 @@ e2e-test-main-clean:
 	@echo "==> Cleanup complete"
 
 
-.PHONY: e2e-addon-test
 e2e-addon-test:
-	cp bin/vela /tmp/
-	ginkgo -v ./test/e2e-addon-test
+	mkdir -p "$(E2E_REPORT_DIR)"
+	ginkgo -v --procs=$(E2E_PROCS) --timeout=$(E2E_TIMEOUT) --json-report="$(E2E_REPORT_DIR)/e2e-addon-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-test.xml" ./test/e2e-addon-test
+	@$(OK) tests pass
+
+.PHONY: e2e-addon-module-test
+e2e-addon-module-test:
+	@test -n "$$KUBEBUILDER_ASSETS" || (echo 'Set KUBEBUILDER_ASSETS with bin/setup-envtest before running this suite' >&2; exit 1)
+	mkdir -p "$(E2E_REPORT_DIR)"
+	ginkgo -v --procs=1 --timeout=$(E2E_TIMEOUT) --json-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.xml" ./test/e2e-addon-module-test
 	@$(OK) tests pass
 
 .PHONY: e2e-multicluster-test
