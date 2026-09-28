@@ -44,7 +44,7 @@ var ConfigCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compile
 	return compiler
 })
 
-// sourcePackages are the CueX packages a SourceDefinition may import.
+// SourcePackages are the CueX packages a SourceDefinition may import.
 //
 // A source is a cached, shared read: one resolution serves every Application
 // with the same key, and the value outlives the render in a Config. So the set
@@ -59,7 +59,7 @@ var ConfigCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compile
 // Adding one here widens what every SourceDefinition on the cluster can do.
 // TestSourceCompilerPackageSetIsDeliberate fails when this drifts from
 // WorkloadCompiler, so the choice has to be made rather than inherited.
-func sourcePackages() []cuexruntime.Package {
+func SourcePackages() []cuexruntime.Package {
 	return []cuexruntime.Package{
 		// vela/kube with #Apply and #Patch removed. The package set alone is not
 		// enough: kube carries reads and writes under one name, so a source could
@@ -74,8 +74,8 @@ func sourcePackages() []cuexruntime.Package {
 }
 
 func sourceCompilerPackageNames() []string {
-	names := make([]string, 0, len(sourcePackages()))
-	for _, p := range sourcePackages() {
+	names := make([]string, 0, len(SourcePackages()))
+	for _, p := range SourcePackages() {
 		names = append(names, p.GetName())
 	}
 	return names
@@ -83,7 +83,7 @@ func sourceCompilerPackageNames() []string {
 
 // SourceCompiler is the compiler a SourceDefinition's template is resolved with.
 var SourceCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compiler {
-	compiler := cuex.NewCompilerWithInternalPackages(sourcePackages()...)
+	compiler := cuex.NewCompilerWithInternalPackages(SourcePackages()...)
 	if cuex.EnableExternalPackageForDefaultCompiler {
 		if err := compiler.LoadExternalPackages(context.Background()); err != nil {
 			klog.Errorf("failed to load external packages for source compiler: %v", err.Error())
@@ -92,9 +92,9 @@ var SourceCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compile
 	return compiler
 })
 
-// WorkloadCompiler is the compiler for workload/component definitions
-var WorkloadCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compiler {
-	compiler := cuex.NewCompilerWithInternalPackages(
+// WorkloadPackages are the packages a component or trait template can import.
+func WorkloadPackages() []cuexruntime.Package {
+	return []cuexruntime.Package{
 		config.Package,
 		helm.Package,
 		base64.Package,
@@ -107,7 +107,12 @@ var WorkloadCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compi
 		// of a Config the platform has created.
 		registry.Package,
 		velaconfig.Package,
-	)
+	}
+}
+
+// WorkloadCompiler is the compiler for workload/component definitions
+var WorkloadCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compiler {
+	compiler := cuex.NewCompilerWithInternalPackages(WorkloadPackages()...)
 	if cuex.EnableExternalPackageForDefaultCompiler {
 		if err := compiler.LoadExternalPackages(context.Background()); err != nil {
 			klog.Errorf("failed to load external packages for workload compiler: %v", err.Error())

@@ -330,6 +330,10 @@ type SourceMeta struct {
 func ClassifyItemByPattern(meta *SourceMeta, r AsyncReader) map[string][]Item {
 	var p = make(map[string][]Item)
 	for _, it := range meta.Items {
+		// Definition tests sit beside what they test; they are not part of the addon.
+		if utils.IsCUETestFile(r.RelativePath(it)) {
+			continue
+		}
 		pt := GetPatternFromItem(it, r, meta.Name)
 		if pt == "" {
 			continue

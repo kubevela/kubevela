@@ -225,8 +225,8 @@ func TestScopedPolicyContextIsASubset(t *testing.T) {
 	}
 }
 
-// A surface's declared context must unify with the context that surface really
-// renders against.
+// A surface's or template's declared context must unify with the context it
+// really renders against.
 //
 // This is the whole point of declaring the registry in CUE. The membership tests
 // either side of this one check that every field is classified and every declared
@@ -245,6 +245,7 @@ func TestSurfaceTypesUnifyWithTheRenderContext(t *testing.T) {
 	}{
 		{"component", ComponentContext, componentRenderContext(t)},
 		{"application-scoped policy", ScopedPolicyContext, scopedPolicyContext(t)},
+		{"workflow step template", WorkflowStepTemplateContext, workflowStepTemplateContext(t)},
 	} {
 		t.Run(tc.surface, func(t *testing.T) {
 			real := registryContext.CompileString(tc.render).LookupPath(cue.ParsePath("context"))

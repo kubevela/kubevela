@@ -252,7 +252,7 @@ func ReadDefinitionsFromFile(path string, io cmdutil.IOStreams) ([]*unstructured
 			io.Errorf("failed to walk dir %s: %v", path, err)
 			return nil
 		}
-		if e.IsDir() {
+		if e.IsDir() || utils.IsCUETestFile(path) {
 			return nil
 		}
 		fileType := filepath.Ext(e.Name())
