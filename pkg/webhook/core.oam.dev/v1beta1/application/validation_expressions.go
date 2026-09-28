@@ -25,6 +25,8 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/google/cel-go/cel"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	wfv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -96,6 +98,7 @@ func validateExpressions(app *v1beta1.Application, appScoped func(string) bool) 
 		for i, step := range app.Spec.Workflow.Steps {
 			p := field.NewPath("spec", "workflow", "steps").Index(i)
 			check(step.Properties, p.Child("properties"), both...)
+			check(forEachItems(step), p.Child("forEach", "items"), both...)
 			for j, sub := range step.SubSteps {
 				check(sub.Properties, p.Child("subSteps").Index(j).Child("properties"), both...)
 			}
@@ -245,6 +248,7 @@ func (h *ValidatingHandler) validateExpressionTargetTypes(ctx context.Context, a
 					fmt.Sprintf("workflow step %q parameter", step.Type),
 					propexpr.WorkflowStepContext)
 			}
+			errs = append(errs, forEachItemsType(step, p.Child("forEach", "items"), schemasFor, reported)...)
 			for j, sub := range step.SubSteps {
 				if sub.Properties == nil || len(sub.Properties.Raw) == 0 {
 					continue
@@ -257,6 +261,45 @@ func (h *ValidatingHandler) validateExpressionTargetTypes(ctx context.Context, a
 		}
 	}
 	return errs
+}
+
+// forEachItems is a step's forEach.items as raw JSON, the shape the property passes
+// walk, or nil when the step does not loop over items.
+func forEachItems(step wfv1alpha1.WorkflowStep) *runtime.RawExtension {
+	if step.ForEach == nil || step.ForEach.Items == nil {
+		return nil
+	}
+	return &runtime.RawExtension{Raw: step.ForEach.Items.Raw}
+}
+
+// forEachItemsType checks that forEach.items given as one whole expression types as a
+// list. Expressions inside a literal list feed individual items, which any type may be.
+func forEachItemsType(step wfv1alpha1.WorkflowStep, path *field.Path, schemas map[string]string, reported map[string]bool) field.ErrorList {
+	items := forEachItems(step)
+	if items == nil || reported[path.String()] {
+		return nil
+	}
+	var raw string
+	if err := json.Unmarshal(items.Raw, &raw); err != nil {
+		return nil
+	}
+	parsed, err := propexpr.Parse(raw)
+	if err != nil || !parsed.HasExpr() {
+		return nil
+	}
+	if _, whole := parsed.SoleExpr(); !whole {
+		return field.ErrorList{field.Invalid(path, raw, "type mismatch: text around an expression makes a string but forEach.items expects list")}
+	}
+	kind, _, err := expressionValueType(raw, schemas, propexpr.WorkflowStepContext)
+	if err != nil {
+		return field.ErrorList{field.Invalid(path, raw, err.Error())}
+	}
+	// dyn: a read below an untyped region. The engine checks the value it gets.
+	if kind == cue.ListKind || kind == cue.TopKind {
+		return nil
+	}
+	return field.ErrorList{field.Invalid(path, raw,
+		fmt.Sprintf("type mismatch: expression %s is %s but forEach.items expects list", raw, kindName(kind)))}
 }
 
 // hasSourceExpression reports whether a property value carries a $(...)

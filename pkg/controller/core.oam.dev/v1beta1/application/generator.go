@@ -36,6 +36,7 @@ import (
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/slices"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	"github.com/kubevela/workflow/pkg/cue/process"
 	"github.com/kubevela/workflow/pkg/executor"
 	"github.com/kubevela/workflow/pkg/generator"
 	providertypes "github.com/kubevela/workflow/pkg/providers/types"
@@ -592,7 +593,8 @@ func generateContextDataFromApp(goCtx context.Context, app *v1beta1.Application,
 }
 
 // resolveWorkflowStepSources substitutes $(...) expressions in workflow step
-// properties, using the same resolver the component and trait paths use.
+// properties and forEach.items, using the same resolver the component and trait
+// paths use.
 //
 // This runs entirely inside kubevela: the workflow engine receives ordinary data
 // and does not know sources exist.
@@ -602,36 +604,43 @@ func generateContextDataFromApp(goCtx context.Context, app *v1beta1.Application,
 // substitute. A step reading a source left no trace of what it received.
 func resolveWorkflowStepSources(af *appfile.Appfile, steps []wfTypesv1alpha1.WorkflowStep,
 	record func(name, stepType string, resolved map[string]sources.SourceResolutionStatus)) error {
-	substitute := func(name, stepType string, raw *runtime.RawExtension) error {
-		if raw == nil || len(raw.Raw) == 0 {
-			return nil
+	// substitute resolves every blob one step owns through a single process context,
+	// then records what the step read once. A reader is recorded under its step name,
+	// and a later record for the same name replaces the earlier one.
+	substitute := func(name, stepType string, raws ...*runtime.RawExtension) error {
+		var pCtx process.Context
+		for _, raw := range raws {
+			if raw == nil || len(raw.Raw) == 0 {
+				continue
+			}
+			var decoded interface{}
+			if err := json.Unmarshal(raw.Raw, &decoded); err != nil {
+				// Malformed properties are reported by the step's own parsing.
+				//nolint:nilerr // reported elsewhere, deliberately not twice
+				continue
+			}
+			if !propexpr.HasExpression(decoded) {
+				continue
+			}
+			if pCtx == nil {
+				pCtx = velaprocess.NewContext(appfile.GenerateContextDataFromAppFile(af, name))
+				// The step's own identity. context.name is the step here too, but only by
+				// coincidence of how the context is built - stepName says what it is, and
+				// is what a source resolving on this surface can rely on.
+				pCtx.PushData(velaprocess.ContextStepName, name)
+				pCtx.PushData(velaprocess.ContextStepType, stepType)
+			}
+			resolved, err := sources.ResolveSourceExpressions(pCtx, decoded, sources.SurfaceWorkflowStep)
+			if err != nil {
+				return err
+			}
+			out, err := json.Marshal(resolved)
+			if err != nil {
+				return err
+			}
+			raw.Raw = out
 		}
-		var decoded interface{}
-		if err := json.Unmarshal(raw.Raw, &decoded); err != nil {
-			// Malformed properties are reported by the step's own parsing.
-			//nolint:nilerr // reported elsewhere, deliberately not twice
-			return nil
-		}
-		if !propexpr.HasExpression(decoded) {
-			return nil
-		}
-		ctxData := appfile.GenerateContextDataFromAppFile(af, name)
-		pCtx := velaprocess.NewContext(ctxData)
-		// The step's own identity. context.name is the step here too, but only by
-		// coincidence of how the context is built - stepName says what it is, and
-		// is what a source resolving on this surface can rely on.
-		pCtx.PushData(velaprocess.ContextStepName, name)
-		pCtx.PushData(velaprocess.ContextStepType, stepType)
-		resolved, err := sources.ResolveSourceExpressions(pCtx, decoded, sources.SurfaceWorkflowStep)
-		if err != nil {
-			return err
-		}
-		out, err := json.Marshal(resolved)
-		if err != nil {
-			return err
-		}
-		raw.Raw = out
-		if record != nil {
+		if record != nil && pCtx != nil {
 			statuses, _ := pCtx.GetData(sources.SourceResolutionStatusKey).(map[string]sources.SourceResolutionStatus)
 			record(name, stepType, statuses)
 		}
@@ -639,8 +648,16 @@ func resolveWorkflowStepSources(af *appfile.Appfile, steps []wfTypesv1alpha1.Wor
 	}
 
 	for i := range steps {
-		if err := substitute(steps[i].Name, steps[i].Type, steps[i].Properties); err != nil {
+		// forEach.items resolves here too, so the engine only ever receives a list.
+		var items *runtime.RawExtension
+		if forEach := steps[i].ForEach; forEach != nil && forEach.Items != nil {
+			items = &runtime.RawExtension{Raw: forEach.Items.Raw}
+		}
+		if err := substitute(steps[i].Name, steps[i].Type, steps[i].Properties, items); err != nil {
 			return err
+		}
+		if items != nil {
+			steps[i].ForEach.Items.Raw = items.Raw
 		}
 		for j := range steps[i].SubSteps {
 			if err := substitute(steps[i].SubSteps[j].Name, steps[i].SubSteps[j].Type,
