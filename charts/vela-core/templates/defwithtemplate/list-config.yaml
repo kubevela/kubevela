@@ -9,7 +9,7 @@ metadata:
   name: list-config
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "list-config" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "list-config" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |

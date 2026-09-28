@@ -15,7 +15,7 @@ spec:
     - jobs.batch
     - cronjobs.batch
   podDisruptive: true
-  #{{ include "definitionRestrictions" (dict "name" "resource" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "resource" "kind" "TraitDefinition" "root" $) }}
   schematic:
     cue:
       template: |

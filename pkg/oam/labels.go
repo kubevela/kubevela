@@ -162,6 +162,15 @@ const (
 	// wrong.
 	AnnotationRestrictNamespaces = "definition.oam.dev/restrict-namespaces"
 
+	// AnnotationQuotaExempt, set to "true" on a Namespace, lifts every definition
+	// quota for that namespace. It is for getting out of the way of an incident,
+	// not for carving out a permanent exception, so each use is logged.
+	//
+	// Namespaces are cluster scoped, so setting this needs cluster level RBAC. It
+	// lifts quotas only; which definitions a namespace may use at all is not
+	// something a namespace gets to decide about itself.
+	AnnotationQuotaExempt = "definition.oam.dev/quota-exempt"
+
 	// AnnotationLastAppliedConfiguration is kubectl annotations for 3-way merge
 	AnnotationLastAppliedConfiguration = "kubectl.kubernetes.io/last-applied-configuration"
 

@@ -12,7 +12,7 @@ spec:
     - deployments.apps
     - statefulsets.apps
   podDisruptive: false
-  #{{ include "definitionRestrictions" (dict "name" "scaler" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "scaler" "kind" "TraitDefinition" "root" $) }}
   schematic:
     cue:
       template: |

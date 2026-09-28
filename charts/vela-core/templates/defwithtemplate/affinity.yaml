@@ -16,7 +16,7 @@ spec:
     - daemonsets.apps
     - jobs.batch
   podDisruptive: true
-  #{{ include "definitionRestrictions" (dict "name" "affinity" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "affinity" "kind" "TraitDefinition" "root" $) }}
   schematic:
     cue:
       template: |

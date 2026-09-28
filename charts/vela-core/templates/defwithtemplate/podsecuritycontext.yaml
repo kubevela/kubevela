@@ -14,7 +14,7 @@ spec:
     - daemonsets.apps
     - jobs.batch
   podDisruptive: true
-  #{{ include "definitionRestrictions" (dict "name" "podsecuritycontext" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "podsecuritycontext" "kind" "TraitDefinition" "root" $) }}
   schematic:
     cue:
       template: |

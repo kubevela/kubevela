@@ -15,7 +15,7 @@ spec:
     - '*'
   conflictsWith: []
   podDisruptive: false
-  #{{ include "definitionRestrictions" (dict "name" "pure-ingress" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "pure-ingress" "kind" "TraitDefinition" "root" $) }}
   schematic:
     cue:
       template: |

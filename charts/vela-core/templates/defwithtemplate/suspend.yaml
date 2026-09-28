@@ -9,7 +9,7 @@ metadata:
   name: suspend
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "suspend" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "suspend" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |

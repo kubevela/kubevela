@@ -9,7 +9,7 @@ metadata:
   name: notification
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "notification" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "notification" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |

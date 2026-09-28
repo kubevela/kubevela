@@ -9,7 +9,7 @@ metadata:
   name: read-config
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "read-config" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "read-config" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |

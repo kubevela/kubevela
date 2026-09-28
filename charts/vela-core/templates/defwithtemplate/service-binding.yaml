@@ -15,7 +15,7 @@ spec:
     - statefulsets.apps
     - daemonsets.apps
     - jobs.batch
-  #{{ include "definitionRestrictions" (dict "name" "service-binding" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "service-binding" "kind" "TraitDefinition" "root" $) }}
   schematic:
     cue:
       template: |

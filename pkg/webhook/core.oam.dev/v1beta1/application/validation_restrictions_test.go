@@ -53,6 +53,13 @@ func nsRestrictHandler(t *testing.T, objs ...client.Object) *ValidatingHandler {
 	}
 }
 
+// restrictionErrs runs the check for a test that cares only about the errors.
+// Warnings have their own tests.
+func restrictionErrs(h *ValidatingHandler, app *v1beta1.Application) field.ErrorList {
+	errs, _ := h.ValidateDefinitionRestrictions(context.Background(), app, nil)
+	return errs
+}
+
 func restrictedCompDef(name, namespace string, patterns ...string) *v1beta1.ComponentDefinition {
 	return &v1beta1.ComponentDefinition{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
@@ -74,12 +81,12 @@ func TestValidateDefinitionNamespaces(t *testing.T) {
 
 	t.Run("an allowed namespace passes", func(t *testing.T) {
 		h := nsRestrictHandler(t, def)
-		assert.Empty(t, h.ValidateDefinitionNamespaces(context.Background(), appUsing("tenant-a", "webservice")))
+		assert.Empty(t, restrictionErrs(h, appUsing("tenant-a", "webservice")))
 	})
 
 	t.Run("a denied namespace reports the offending component", func(t *testing.T) {
 		h := nsRestrictHandler(t, def)
-		errs := h.ValidateDefinitionNamespaces(context.Background(), appUsing("default", "webservice"))
+		errs := restrictionErrs(h, appUsing("default", "webservice"))
 		require.Len(t, errs, 1)
 		assert.Equal(t, "spec.components[0].type", errs[0].Field)
 		assert.Contains(t, errs[0].Detail, "ComponentDefinition")
@@ -91,7 +98,7 @@ func TestValidateDefinitionNamespaces(t *testing.T) {
 
 	t.Run("an unrestricted definition passes", func(t *testing.T) {
 		h := nsRestrictHandler(t, restrictedCompDef("webservice", oam.SystemDefinitionNamespace))
-		assert.Empty(t, h.ValidateDefinitionNamespaces(context.Background(), appUsing("default", "webservice")))
+		assert.Empty(t, restrictionErrs(h, appUsing("default", "webservice")))
 	})
 
 	// The annotation is the channel for a definition whose spec helm owns.
@@ -99,21 +106,21 @@ func TestValidateDefinitionNamespaces(t *testing.T) {
 		annotated := restrictedCompDef("webservice", oam.SystemDefinitionNamespace)
 		annotated.Annotations = map[string]string{oam.AnnotationRestrictNamespaces: "tenant-*"}
 		h := nsRestrictHandler(t, annotated)
-		assert.Len(t, h.ValidateDefinitionNamespaces(context.Background(), appUsing("default", "webservice")), 1)
-		assert.Empty(t, h.ValidateDefinitionNamespaces(context.Background(), appUsing("tenant-a", "webservice")))
+		assert.Len(t, restrictionErrs(h, appUsing("default", "webservice")), 1)
+		assert.Empty(t, restrictionErrs(h, appUsing("tenant-a", "webservice")))
 	})
 
 	// ValidateComponents reports a missing definition.
 	t.Run("a missing definition is not this check's to report", func(t *testing.T) {
 		h := nsRestrictHandler(t)
-		assert.Empty(t, h.ValidateDefinitionNamespaces(context.Background(), appUsing("default", "nonexistent")))
+		assert.Empty(t, restrictionErrs(h, appUsing("default", "nonexistent")))
 	})
 
 	// A pinned type renders from a frozen revision, but the live restriction
 	// applies.
 	t.Run("a pinned type is checked against the live definition", func(t *testing.T) {
 		h := nsRestrictHandler(t, def)
-		errs := h.ValidateDefinitionNamespaces(context.Background(), appUsing("default", "webservice@v1"))
+		errs := restrictionErrs(h, appUsing("default", "webservice@v1"))
 		require.Len(t, errs, 1)
 		assert.Equal(t, "spec.components[0].type", errs[0].Field)
 	})
@@ -130,13 +137,13 @@ func TestValidateDefinitionNamespaces(t *testing.T) {
 		}
 		live := restrictedCompDef("webservice", oam.SystemDefinitionNamespace)
 		h := nsRestrictHandler(t, live, frozen)
-		assert.Empty(t, h.ValidateDefinitionNamespaces(context.Background(), appUsing("default", "webservice@v1")))
+		assert.Empty(t, restrictionErrs(h, appUsing("default", "webservice@v1")))
 	})
 
 	t.Run("a definition in the app's own namespace is checked too", func(t *testing.T) {
 		local := restrictedCompDef("local-type", "tenant-a", "tenant-b")
 		h := nsRestrictHandler(t, local)
-		assert.Len(t, h.ValidateDefinitionNamespaces(context.Background(), appUsing("tenant-a", "local-type")), 1)
+		assert.Len(t, restrictionErrs(h, appUsing("tenant-a", "local-type")), 1)
 	})
 
 	t.Run("every use of the definition is reported", func(t *testing.T) {
@@ -144,7 +151,7 @@ func TestValidateDefinitionNamespaces(t *testing.T) {
 		app := appUsing("default", "webservice")
 		app.Spec.Components = append(app.Spec.Components,
 			common.ApplicationComponent{Name: "api", Type: "webservice"})
-		errs := h.ValidateDefinitionNamespaces(context.Background(), app)
+		errs := restrictionErrs(h, app)
 		require.Len(t, errs, 2)
 		fields := []string{errs[0].Field, errs[1].Field}
 		assert.ElementsMatch(t, []string{"spec.components[0].type", "spec.components[1].type"}, fields)
@@ -154,7 +161,7 @@ func TestValidateDefinitionNamespaces(t *testing.T) {
 		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultMutableFeatureGate,
 			features.RestrictDefinitionNamespaces, false)
 		h := nsRestrictHandler(t, def)
-		assert.Empty(t, h.ValidateDefinitionNamespaces(context.Background(), appUsing("default", "webservice")))
+		assert.Empty(t, restrictionErrs(h, appUsing("default", "webservice")))
 	})
 }
 
@@ -198,7 +205,7 @@ func TestValidateDefinitionNamespacesAcrossKinds(t *testing.T) {
 		},
 	}
 
-	errs := h.ValidateDefinitionNamespaces(context.Background(), app)
+	errs := restrictionErrs(h, app)
 	fields := make([]string, 0, len(errs))
 	for _, e := range errs {
 		fields = append(fields, e.Field)
@@ -224,7 +231,7 @@ func TestValidateDefinitionNamespacesSkipsBuiltinSteps(t *testing.T) {
 			}}},
 		},
 	}
-	assert.Empty(t, h.ValidateDefinitionNamespaces(context.Background(), app))
+	assert.Empty(t, restrictionErrs(h, app))
 }
 
 // nsRestrictions builds the spec block these tests vary; nil means the
@@ -257,14 +264,14 @@ func TestValidateDefinitionNamespacesBySelector(t *testing.T) {
 		h := nsRestrictHandler(t,
 			selectorCompDef("webservice", oam.SystemDefinitionNamespace, tenantSel),
 			labelledNamespace("acme-prod", map[string]string{"tenant": "true"}))
-		assert.Empty(t, h.ValidateDefinitionNamespaces(context.Background(), appUsing("acme-prod", "webservice")))
+		assert.Empty(t, restrictionErrs(h, appUsing("acme-prod", "webservice")))
 	})
 
 	t.Run("an unlabelled namespace is denied without naming the selector", func(t *testing.T) {
 		h := nsRestrictHandler(t,
 			selectorCompDef("webservice", oam.SystemDefinitionNamespace, tenantSel),
 			labelledNamespace("default", nil))
-		errs := h.ValidateDefinitionNamespaces(context.Background(), appUsing("default", "webservice"))
+		errs := restrictionErrs(h, appUsing("default", "webservice"))
 		require.Len(t, errs, 1)
 		assert.Equal(t, "spec.components[0].type", errs[0].Field)
 		assert.NotContains(t, errs[0].Detail, "tenant=true", "the selector must not reach the author")
@@ -276,13 +283,13 @@ func TestValidateDefinitionNamespacesBySelector(t *testing.T) {
 		h := nsRestrictHandler(t,
 			selectorCompDef("webservice", oam.SystemDefinitionNamespace, tenantSel, "vela-system"),
 			labelledNamespace("vela-system", nil))
-		assert.Empty(t, h.ValidateDefinitionNamespaces(context.Background(), appUsing("vela-system", "webservice")))
+		assert.Empty(t, restrictionErrs(h, appUsing("vela-system", "webservice")))
 	})
 
 	// nil labels mean the namespace could not be read, which must not widen access.
 	t.Run("an unreadable namespace denies a selector", func(t *testing.T) {
 		h := nsRestrictHandler(t, selectorCompDef("webservice", oam.SystemDefinitionNamespace, tenantSel))
-		assert.Len(t, h.ValidateDefinitionNamespaces(context.Background(), appUsing("missing-ns", "webservice")), 1)
+		assert.Len(t, restrictionErrs(h, appUsing("missing-ns", "webservice")), 1)
 	})
 
 	// The namespace is read only when something selects on labels.
@@ -290,7 +297,7 @@ func TestValidateDefinitionNamespacesBySelector(t *testing.T) {
 		h := nsRestrictHandler(t, restrictedCompDef("webservice", oam.SystemDefinitionNamespace, "tenant-*"))
 		// No Namespace object exists in the fake client at all; a lookup would
 		// surface as a denial for tenant-a.
-		assert.Empty(t, h.ValidateDefinitionNamespaces(context.Background(), appUsing("tenant-a", "webservice")))
+		assert.Empty(t, restrictionErrs(h, appUsing("tenant-a", "webservice")))
 	})
 }
 
@@ -317,7 +324,7 @@ func TestValidateDefinitionNamespacesReportsNamespaceReadFailure(t *testing.T) {
 			}).Build(),
 	}
 
-	errs := h.ValidateDefinitionNamespaces(context.Background(), appUsing("default", "webservice"))
+	errs := restrictionErrs(h, appUsing("default", "webservice"))
 	require.Len(t, errs, 1)
 	assert.Equal(t, field.ErrorTypeInternal, errs[0].Type,
 		"a read failure must not be reported as a policy violation")

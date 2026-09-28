@@ -10,7 +10,7 @@ metadata:
   name: build-push-image
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
-  #{{ include "definitionRestrictions" (dict "name" "build-push-image" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "build-push-image" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |

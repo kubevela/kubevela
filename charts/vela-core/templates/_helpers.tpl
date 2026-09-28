@@ -100,6 +100,9 @@ nothing when no restriction applies.
 {{-     end -}}
 {{-   end -}}
 {{- end -}}
+{{- if and (hasKey $restrictions "quota") (not (has .kind (list "ComponentDefinition" "TraitDefinition"))) -}}
+{{-   fail (printf "definitionRestrictions would put a quota on %s %q, and only components and traits are counted. A quota under `default` reaches every builtin; under `overrides` it has to name a ComponentDefinition or TraitDefinition." .kind .name) -}}
+{{- end -}}
 {{- if $restrictions }}
 {{ printf "restrictions:\n%s" (toYaml $restrictions | indent 2) | indent 2 }}
 {{- end -}}

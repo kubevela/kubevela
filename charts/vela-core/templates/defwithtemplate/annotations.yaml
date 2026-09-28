@@ -11,7 +11,7 @@ spec:
   appliesToWorkloads:
     - '*'
   podDisruptive: true
-  #{{ include "definitionRestrictions" (dict "name" "annotations" "root" $) }}
+  #{{ include "definitionRestrictions" (dict "name" "annotations" "kind" "TraitDefinition" "root" $) }}
   schematic:
     cue:
       template: |
