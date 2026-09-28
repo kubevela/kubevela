@@ -3,6 +3,10 @@ E2E_PROCS ?= 1
 E2E_TIMEOUT ?= 1h
 E2E_REPORT_DIR ?= _artifacts/e2e
 
+.PHONY: e2e-vela-cli
+e2e-vela-cli:
+	$(GOBUILD_ENV) go build -o bin/vela -ldflags $(LDFLAGS) ./references/cmd/cli/main.go
+
 .PHONY: e2e-setup-core-pre-hook
 e2e-setup-core-pre-hook:
 	sh ./hack/e2e/modify_charts.sh
@@ -87,6 +91,10 @@ e2e-setup-core-w-auth:
 
 .PHONY: e2e-setup-core
 e2e-setup-core: e2e-setup-core-pre-hook e2e-setup-core-wo-auth e2e-setup-core-post-hook
+
+.PHONY: e2e-setup-core-module
+e2e-setup-core-module: e2e-setup-core-pre-hook e2e-setup-core-wo-auth
+	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
 
 .PHONY: e2e-setup-core-auth
 e2e-setup-core-auth: e2e-setup-core-pre-hook e2e-setup-core-w-auth e2e-setup-core-post-hook

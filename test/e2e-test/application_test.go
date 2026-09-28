@@ -603,14 +603,22 @@ var _ = Describe("Application Normal tests", func() {
 
 var _ = Describe("Test Component Level DependsOn", func() {
 	ctx := context.TODO()
-	namespaceName := "component-depends-on-test"
+	var namespaceName string
+	var namespace corev1.Namespace
+	var namespaceCreated bool
 
 	BeforeEach(func() {
 		By("Creating namespace for component dependsOn tests")
-		createNamespace(ctx, namespaceName)
+		namespaceCreated = false
+		namespaceName = randomNamespaceName("component-depends-on-test")
+		namespace = createNamespace(ctx, namespaceName)
+		namespaceCreated = true
 	})
 
 	AfterEach(func() {
+		if !namespaceCreated {
+			return
+		}
 		By("Cleaning up resources after each test")
 		// Clean up applications
 		appList := &v1beta1.ApplicationList{}
@@ -624,6 +632,7 @@ var _ = Describe("Test Component Level DependsOn", func() {
 			_ = k8sClient.List(ctx, appList, client.InNamespace(namespaceName))
 			return len(appList.Items) == 0
 		}, 120*time.Second, 2*time.Second).Should(BeTrue())
+		Expect(k8sClient.Delete(ctx, &namespace, client.PropagationPolicy(metav1.DeletePropagationForeground))).To(Succeed())
 	})
 
 	It("Component dependsOn should enforce execution gating - success scenario", func() {

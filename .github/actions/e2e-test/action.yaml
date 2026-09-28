@@ -54,7 +54,13 @@ runs:
     - name: Build project
       if: ${{ inputs.suite != 'addon-module' }}
       shell: bash
-      run: make
+      env:
+        E2E_SUITE: ${{ inputs.suite }}
+      run: |
+        case "$E2E_SUITE" in
+          all|api) make ;;
+          core|module|addon) make e2e-vela-cli ;;
+        esac
 
     # ========================================================================
     # E2E Test Environment Preparation
@@ -66,7 +72,11 @@ runs:
       run: |
         echo "Preparing e2e test environment..."
         make e2e-cleanup
-        make e2e-setup-core
+        if [ "$E2E_SUITE" = module ]; then
+          make e2e-setup-core-module
+        else
+          make e2e-setup-core
+        fi
 
         echo "Running Helm tests..."
         helm test -n vela-system kubevela --timeout 5m
