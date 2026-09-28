@@ -19,6 +19,8 @@ package sources
 import (
 	"sync"
 
+	"github.com/kubevela/pkg/cel/template"
+
 	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 )
@@ -111,41 +113,29 @@ func (r *sourceResolver) independentBindings(properties interface{}) []string {
 		node := queue[0]
 		queue = queue[1:]
 
-		//nolint:errcheck // a malformed expression is the lazy path's to report
-		_ = propexpr.Walk(node, "", func(_, raw string) error {
-			parsed, err := propexpr.Parse(raw)
-			if err != nil || !parsed.HasExpr() {
-				//nolint:nilerr // prefetching must not change an outcome; the lazy path reports this
-				return nil
+		// A malformed expression is the lazy path's to report: prefetching must
+		// not change an outcome.
+		plan, err := celexpr.Vela.Plan(node)
+		if err != nil {
+			continue
+		}
+		for _, read := range plan.Reads(propexpr.SourceIdent) {
+			if len(read.Path) == 0 {
+				continue
 			}
-			for _, fragment := range parsed.Fragments {
-				if !fragment.IsExpr() {
-					continue
-				}
-				refs, rerr := celexpr.PropertyReferences(fragment.Expr)
-				if rerr != nil {
-					continue
-				}
-				for _, ref := range refs {
-					if ref.Root != "source" || len(ref.Path) == 0 {
-						continue
-					}
-					name := ref.Path[0]
-					if seen[name] {
-						continue
-					}
-					seen[name] = true
+			name := read.Path[0]
+			if seen[name] {
+				continue
+			}
+			seen[name] = true
 
-					props, ok := r.sourceProps[name]
-					if ok && props != nil && propexpr.HasExpression(props) {
-						queue = append(queue, props)
-						continue
-					}
-					order = append(order, name)
-				}
+			props, ok := r.sourceProps[name]
+			if ok && props != nil && template.HasExpression(props) {
+				queue = append(queue, props)
+				continue
 			}
-			return nil
-		})
+			order = append(order, name)
+		}
 	}
 	return order
 }

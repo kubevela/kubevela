@@ -39,18 +39,18 @@ func TestTypedEnvCacheDistinguishesSchemas(t *testing.T) {
 	intPort, err := EnvForContext(map[string]string{"cfg": `{port: int}`}, propexpr.ComponentContext)
 	require.NoError(t, err)
 
-	got, err := OutputType(stringPort, expr)
+	got, err := Vela.OutputType(stringPort, expr)
 	require.NoError(t, err)
 	assert.Equal(t, "string", got.String())
 
-	got, err = OutputType(intPort, expr)
+	got, err = Vela.OutputType(intPort, expr)
 	require.NoError(t, err)
 	assert.Equal(t, "int", got.String(), "the same binding name against a different schema must type differently")
 
 	// The same inputs again come from the cache and must not have drifted.
 	again, err := EnvForContext(map[string]string{"cfg": `{port: string}`}, propexpr.ComponentContext)
 	require.NoError(t, err)
-	got, err = OutputType(again, expr)
+	got, err = Vela.OutputType(again, expr)
 	require.NoError(t, err)
 	assert.Equal(t, "string", got.String())
 }
@@ -68,8 +68,8 @@ func TestTypedEnvCacheDistinguishesSurfaces(t *testing.T) {
 
 	// componentType is a component-and-trait field; a workflow step has no such
 	// thing, so the same expression types on one surface and not the other.
-	_, compErr := OutputType(comp, "context.componentType")
-	_, stepErr := OutputType(step, "context.componentType")
+	_, compErr := Vela.OutputType(comp, "context.componentType")
+	_, stepErr := Vela.OutputType(step, "context.componentType")
 	assert.NoError(t, compErr, "a component reads componentType")
 	assert.Error(t, stepErr, "a workflow step must not be served the component environment")
 }
@@ -87,7 +87,7 @@ func TestTypedEnvCacheIsConcurrencySafe(t *testing.T) {
 				t.Error(err)
 				return
 			}
-			if _, err := OutputType(env, "source.cfg.region"); err != nil {
+			if _, err := Vela.OutputType(env, "source.cfg.region"); err != nil {
 				t.Error(err)
 			}
 		}()

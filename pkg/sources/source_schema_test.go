@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"testing"
 
+	celengine "github.com/kubevela/pkg/cel"
 	"github.com/stretchr/testify/require"
 
 	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
@@ -132,17 +133,16 @@ output: {ratio: 1.0, port: 80, replicas: 1, name: "x"}
 	require.Equal(t, "x", typed["name"])
 
 	// Both kinds of arithmetic now work, which is the whole point.
-	env, err := celexpr.DynEnv()
-	require.NoError(t, err)
+	env := celexpr.Vela.DynEnv()
 	in := map[string]interface{}{
-		"source":  map[string]interface{}{"cfg": typed},
+		"source":  celengine.Typed(map[string]interface{}{"cfg": typed}),
 		"context": map[string]interface{}{},
 	}
-	got, err := celexpr.EvalPropertyTyped(env, "$(source.cfg.ratio * 2.0)", in)
+	got, err := celexpr.Vela.EvalProperty(env, "$(source.cfg.ratio * 2.0)", in)
 	require.NoError(t, err)
 	require.Equal(t, float64(4), got)
 
-	got, err = celexpr.EvalPropertyTyped(env, "$(source.cfg.port + 1)", in)
+	got, err = celexpr.Vela.EvalProperty(env, "$(source.cfg.port + 1)", in)
 	require.NoError(t, err)
 	require.Equal(t, int64(8081), got)
 }

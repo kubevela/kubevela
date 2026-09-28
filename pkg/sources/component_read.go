@@ -17,13 +17,16 @@ limitations under the License.
 package sources
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sort"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
+
+	celengine "github.com/kubevela/pkg/cel"
+	"github.com/kubevela/pkg/cel/template"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
@@ -39,7 +42,7 @@ type ComponentRead struct {
 	// Producer is the component being read.
 	Producer string
 	// Placement is the placement calls the read makes, in order, as
-	// propexpr.PlacementCall spells them; empty for the producer beside the reader.
+	// template.Call spells them; empty for the producer beside the reader.
 	Placement []string
 	// Path is the read below the producer and its placement: ["output", ...] or
 	// ["outputs", <resource>, ...].
@@ -52,9 +55,9 @@ type ComponentRead struct {
 func (r ComponentRead) String() string {
 	path := []string{r.Producer}
 	for _, call := range r.Placement {
-		path = append(path, propexpr.QualifierSegment(call))
+		path = append(path, template.QualifierSegment(call))
 	}
-	return propexpr.Reference{Root: propexpr.ComponentIdent, Path: append(path, r.Path...)}.String()
+	return template.Reference{Root: propexpr.ComponentIdent, Path: append(path, r.Path...)}.String()
 }
 
 // ReadTarget is where a read's placement calls point.
@@ -70,7 +73,7 @@ func (r ComponentRead) Target() (ReadTarget, error) {
 	var t ReadTarget
 	fns := make([]string, 0, len(r.Placement))
 	for _, call := range r.Placement {
-		fn, arg := propexpr.SplitPlacementCall(call)
+		fn, arg := template.SplitCall(call)
 		fns = append(fns, fn)
 		switch fn {
 		case propexpr.PlaceCluster:
@@ -91,7 +94,7 @@ func (r ComponentRead) Target() (ReadTarget, error) {
 // Misplaced reports a placement call anywhere but straight after the component.
 func (r ComponentRead) Misplaced() bool {
 	for _, seg := range r.Path {
-		if _, ok := propexpr.SegmentQualifier(seg); ok {
+		if _, ok := template.SegmentQualifier(seg); ok {
 			return true
 		}
 	}
@@ -120,41 +123,26 @@ func readsIn(raw *runtime.RawExtension, trait int) ([]ComponentRead, error) {
 	if raw == nil || len(raw.Raw) == 0 {
 		return nil, nil
 	}
-	var decoded interface{}
-	if err := json.Unmarshal(raw.Raw, &decoded); err != nil {
+	plan, err := celexpr.Vela.PlanJSON(raw.Raw)
+	var faults celengine.CheckErrors
+	switch {
+	case errors.As(err, &faults):
+		return nil, err
+	case err != nil:
 		//nolint:nilerr // malformed properties are reported by the consumer's own parsing
 		return nil, nil
 	}
 	seen := map[string]ComponentRead{}
-	err := propexpr.Walk(decoded, "", func(_, leaf string) error {
-		parsed, err := propexpr.Parse(leaf)
-		if err != nil || !parsed.HasExpr() {
-			return err
+	for _, read := range plan.Reads(propexpr.ComponentIdent) {
+		if len(read.Path) == 0 {
+			continue
 		}
-		for _, f := range parsed.Fragments {
-			if !f.IsExpr() {
-				continue
-			}
-			refs, err := celexpr.PropertyReferences(f.Expr)
-			if err != nil {
-				return err
-			}
-			for _, ref := range refs {
-				if !ref.IsComponent() || len(ref.Path) == 0 {
-					continue
-				}
-				calls, path := ref.Placement()
-				r := ComponentRead{Trait: trait, Producer: path[0], Placement: calls, Path: path[1:], Guarded: ref.Defaulted}
-				// An unguarded read of the same path wins: it is the one that waits.
-				if prev, dup := seen[r.String()]; !dup || (prev.Guarded && !r.Guarded) {
-					seen[r.String()] = r
-				}
-			}
+		calls, path := propexpr.Placement(read.Reference)
+		r := ComponentRead{Trait: trait, Producer: path[0], Placement: calls, Path: path[1:], Guarded: read.Defaulted}
+		// An unguarded read of the same path wins: it is the one that waits.
+		if prev, dup := seen[r.String()]; !dup || (prev.Guarded && !r.Guarded) {
+			seen[r.String()] = r
 		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
 	out := make([]ComponentRead, 0, len(seen))
 	for _, r := range seen {

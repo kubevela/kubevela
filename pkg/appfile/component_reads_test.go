@@ -98,9 +98,9 @@ func TestValidateComponentReads(t *testing.T) {
 		{"namespace before cluster", []common.ApplicationComponent{db, read(`$(component.db.namespace("a").cluster("b").output.status.x)`)},
 			`name a placement with .cluster("<cluster>")`},
 		{"a qualifier elsewhere", []common.ApplicationComponent{db, read(`$(component.db.output.cluster("data").status.x)`)},
-			`cluster and namespace go straight after the component`},
+			`cluster and namespace go straight after component.<name>`},
 		{"a computed placement", []common.ApplicationComponent{db, read(`$(component.db.cluster(context.cluster).output.status.x)`)},
-			`read component.db.output or component.db.outputs.<resource>`},
+			`cluster() takes a literal string`},
 		{"cycle through reads", []common.ApplicationComponent{
 			comp(t, "db", map[string]interface{}{"x": `$(component.api.output.status.x)`}),
 			read(`$(component.db.output.status.x)`)},

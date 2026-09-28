@@ -18,11 +18,15 @@ package sources
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/stretchr/testify/require"
 
+	celengine "github.com/kubevela/pkg/cel"
+	"github.com/kubevela/pkg/cel/template"
 	wfprocess "github.com/kubevela/workflow/pkg/cue/process"
 
 	"github.com/oam-dev/kubevela/pkg/cue/process"
@@ -51,8 +55,8 @@ func withScope(t *testing.T, scope map[string]interface{}) wfprocess.Context {
 
 func TestComponentReadsResolve(t *testing.T) {
 	db := view(map[string]interface{}{"status": map[string]interface{}{"endpoint": "db.internal", "port": float64(5432)}})
-	db[propexpr.QualifiedKey] = map[string]interface{}{
-		propexpr.PlacementCall(propexpr.PlaceCluster, "data"): view(map[string]interface{}{"status": map[string]interface{}{"endpoint": "db.data"}}),
+	db[celengine.QualifiedKey] = map[string]interface{}{
+		template.Call(propexpr.PlaceCluster, "data"): view(map[string]interface{}{"status": map[string]interface{}{"endpoint": "db.data"}}),
 	}
 	out, err := ResolveSourceExpressions(withScope(t, map[string]interface{}{"db": db}), map[string]interface{}{
 		"url":    "pg://$(component.db.output.status.endpoint):5432",
@@ -168,4 +172,41 @@ func TestComponentReadOfAMissingElementWaits(t *testing.T) {
 		"url": `$(component.db.output.status.addresses[0])`,
 	}, SurfaceComponent)
 	require.True(t, IsComponentReadNotReady(err), "%v", err)
+}
+
+// A host that knows only the engine has to be able to tell a waiting reader
+// from a failing one.
+func TestComponentReadNotReadyIsEngineNotReady(t *testing.T) {
+	err := fmt.Errorf("rendering api: %w", ComponentReadNotReady{Reason: "waiting for component.db.output"})
+	require.True(t, errors.Is(err, celengine.ErrNotReady))
+	require.True(t, IsComponentReadNotReady(err))
+	require.False(t, errors.Is(errors.New("boom"), celengine.ErrNotReady))
+
+	// Any resolver's wait, not only a component read's, is a wait to the host.
+	require.True(t, IsComponentReadNotReady(fmt.Errorf("waiting on step: %w", celengine.ErrNotReady)))
+}
+
+// Reads the controller answers from memory are checked before any source is
+// fetched, so a reader waiting on a producer does not fetch its sources on
+// every requeue. The source here is not even declared: were it resolved first,
+// that would be the error.
+func TestAWaitingComponentReadIsCheckedBeforeSourcesResolve(t *testing.T) {
+	delivered := map[string]interface{}{"db": view(map[string]interface{}{"status": map[string]interface{}{}})}
+	_, err := ResolveSourceExpressions(withScope(t, delivered), map[string]interface{}{
+		"endpoint": "$(component.db.output.status.endpoint)",
+		"region":   "$(source.undeclared.region)",
+	}, SurfaceComponent)
+	require.True(t, IsComponentReadNotReady(err), "%v", err)
+}
+
+// A read through a list index resolves once the element is there.
+func TestComponentReadThroughAListIndex(t *testing.T) {
+	delivered := map[string]interface{}{"db": view(map[string]interface{}{"status": map[string]interface{}{
+		"addresses": []interface{}{"10.0.0.1"},
+	}})}
+	out, err := ResolveSourceExpressions(withScope(t, delivered), map[string]interface{}{
+		"ip": `$(component.db.output.status.addresses[0])`,
+	}, SurfaceComponent)
+	require.NoError(t, err)
+	require.Equal(t, map[string]interface{}{"ip": "10.0.0.1"}, out)
 }
