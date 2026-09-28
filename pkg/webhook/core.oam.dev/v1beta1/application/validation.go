@@ -38,6 +38,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	wfbuiltin "github.com/kubevela/workflow/pkg/tasks/builtin"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -46,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
 // ValidateWorkflow validates the Application workflow
@@ -71,6 +74,10 @@ func (h *ValidatingHandler) ValidateWorkflow(_ context.Context, app *v1beta1.App
 				}
 			}
 		}
+		// forEach.items may be an expression only where this Application's
+		// expressions are resolved before the workflow runs.
+		errs = append(errs, wfbuiltin.ValidateForEachSteps(field.NewPath("spec", "workflow", "steps"),
+			app.Spec.Workflow.Steps, sources.ExpressionsEnabledFor(app.GetAnnotations()))...)
 	}
 	return errs
 }

@@ -46,6 +46,10 @@ func (h *ValidatingHandler) validateExpressionTargetTypes(ctx context.Context, a
 		if bp.plan == nil || bp.sourceIndex >= 0 {
 			continue
 		}
+		if bp.targetKind == forEachItemsTarget {
+			errs = append(errs, forEachItemsTypes(bp, t, reported)...)
+			continue
+		}
 		faults, err := t.faults(bp, bp.ctxSchema, loadTarget(bp.targetKind, bp.targetType))
 		if err != nil {
 			errs = append(errs, field.Invalid(bp.base, string(bp.raw), err.Error()))
@@ -60,6 +64,23 @@ func (h *ValidatingHandler) validateExpressionTargetTypes(ctx context.Context, a
 				continue
 			}
 			errs = append(errs, w.fieldError(lf, f))
+		}
+	}
+	return errs
+}
+
+// forEachItemsTypes refuses forEach.items given as one expression that does not
+// type as a list. A read below an untyped region types as dyn, which the engine
+// checks once it has the value.
+func forEachItemsTypes(bp blobPlan, t *typing, reported map[string]bool) field.ErrorList {
+	faults, err := t.faultsAgainst(bp, bp.ctxSchema, forEachItemsList)
+	if err != nil {
+		return field.ErrorList{field.Invalid(bp.base, string(bp.raw), err.Error())}
+	}
+	var errs field.ErrorList
+	for _, lf := range bp.leaves {
+		if f, faulted := faults[lf.property]; faulted && !reported[lf.fieldPath.String()] {
+			errs = append(errs, forEachItemsWording.fieldError(lf, f))
 		}
 	}
 	return errs

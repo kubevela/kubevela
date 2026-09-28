@@ -77,7 +77,7 @@ func ExprTraitDefinition(namespace, name, template string) *v1beta1.TraitDefinit
 func ApplyDefinition(ctx context.Context, cli client.Client, obj client.Object) {
 	ginkgo.GinkgoHelper()
 	switch obj.(type) {
-	case *v1beta1.SourceDefinition, *v1beta1.ComponentDefinition, *v1beta1.PolicyDefinition, *v1beta1.TraitDefinition:
+	case *v1beta1.SourceDefinition, *v1beta1.ComponentDefinition, *v1beta1.PolicyDefinition, *v1beta1.TraitDefinition, *v1beta1.WorkflowStepDefinition:
 	default:
 		ginkgo.Fail(fmt.Sprintf("ApplyDefinition does not know when a %T has been reconciled", obj))
 	}
@@ -111,6 +111,14 @@ func ApplyDefinition(ctx context.Context, cli client.Client, obj client.Object) 
 			}
 			if latest.Status.LatestRevision == nil {
 				return fmt.Errorf("PolicyDefinition %s not reconciled yet", key.Name)
+			}
+		case *v1beta1.WorkflowStepDefinition:
+			latest := &v1beta1.WorkflowStepDefinition{}
+			if err := cli.Get(ctx, key, latest); err != nil {
+				return err
+			}
+			if latest.Status.LatestRevision == nil {
+				return fmt.Errorf("WorkflowStepDefinition %s not reconciled yet", key.Name)
 			}
 		case *v1beta1.TraitDefinition:
 			latest := &v1beta1.TraitDefinition{}

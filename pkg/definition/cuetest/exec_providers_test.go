@@ -40,9 +40,10 @@ post: http.#HTTPDo & {$params: {method: "POST", url: "https://hooks.example.com"
 		"an unmocked call that stays inside runs for real": {src: `import "vela/time"
 ts: time.#DateToTimestamp & {$params: {date: "2026-09-27T00:00:00Z", layout: ""}}`},
 		"an unmocked call that reaches outside fails": {
+			// Named by the narrowest definition it fits: its method defaults to GET.
 			src: `import "vela/http"
 get: http.#HTTPDo & {$params: url: "https://example.com"}`,
-			err: "unmocked call vela/http.#HTTPDo with $params",
+			err: "unmocked call vela/http.#HTTPGet with $params",
 		},
 		"placement decisions are written into the Application": {
 			src: `import "vela/op"
