@@ -25,6 +25,8 @@ import (
 	"testing"
 
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
+	celengine "github.com/kubevela/pkg/cel"
+	"github.com/kubevela/pkg/cel/template"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -160,7 +162,7 @@ func along(t *testing.T, c map[string]interface{}, calls ...string) interface{} 
 	t.Helper()
 	node := delivered(t, c)["db"]
 	for _, call := range calls {
-		node = node.(map[string]interface{})[propexpr.QualifiedKey].(map[string]interface{})[call]
+		node = node.(map[string]interface{})[celengine.QualifiedKey].(map[string]interface{})[call]
 	}
 	return node
 }
@@ -172,8 +174,8 @@ func TestDeliverAtANamedPlacement(t *testing.T) {
 		"db@multi/b":      endpoint("db.multi.b"),
 		"db@east/orders2": endpoint("db.east.orders2"),
 	}}
-	cluster := func(c string) string { return propexpr.PlacementCall(propexpr.PlaceCluster, c) }
-	namespace := func(n string) string { return propexpr.PlacementCall(propexpr.PlaceNamespace, n) }
+	cluster := func(c string) string { return template.Call(propexpr.PlaceCluster, c) }
+	namespace := func(n string) string { return template.Call(propexpr.PlaceNamespace, n) }
 
 	for _, tc := range []struct {
 		expr     string
@@ -297,7 +299,7 @@ func TestDeliverSharesNoWritableMaps(t *testing.T) {
 	}
 	wg.Wait()
 	for _, cached := range d.views {
-		require.NotContains(t, cached, propexpr.QualifiedKey, "a cached view must never be written into")
+		require.NotContains(t, cached, celengine.QualifiedKey, "a cached view must never be written into")
 	}
 }
 

@@ -18,9 +18,11 @@ package sources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/cel-go/cel"
+	celengine "github.com/kubevela/pkg/cel"
 
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
@@ -250,26 +252,23 @@ func (e *SourceEngine) Check(properties interface{}) []CheckError {
 	if err != nil {
 		return []CheckError{{Err: err}}
 	}
+	plan, err := celexpr.Vela.Plan(properties)
+	var faults celengine.CheckErrors
+	if errors.As(err, &faults) {
+		out := make([]CheckError, 0, len(faults))
+		for _, f := range faults {
+			out = append(out, CheckError{Property: f.Property, Expr: f.Expr, Err: f.Err})
+		}
+		return out
+	}
+	if err != nil {
+		return []CheckError{{Err: err}}
+	}
 	var out []CheckError
-	_ = propexpr.Walk(properties, "", func(path, raw string) error {
-		parsed, perr := propexpr.Parse(raw)
-		if perr != nil {
-			out = append(out, CheckError{Property: path, Expr: raw, Err: perr})
-			//nolint:nilerr // collected, not raised: the walk reports every bad expression, not the first
-			return nil
+	for _, x := range plan.Expressions() {
+		if _, cerr := celexpr.Vela.OutputType(env, x.Expr); cerr != nil {
+			out = append(out, CheckError{Property: x.Property, Expr: x.Expr, Err: cerr})
 		}
-		if !parsed.HasExpr() {
-			return nil
-		}
-		for _, fragment := range parsed.Fragments {
-			if !fragment.IsExpr() {
-				continue
-			}
-			if _, cerr := celexpr.OutputType(env, fragment.Expr); cerr != nil {
-				out = append(out, CheckError{Property: path, Expr: fragment.Expr, Err: cerr})
-			}
-		}
-		return nil
-	})
+	}
 	return out
 }

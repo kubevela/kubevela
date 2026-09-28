@@ -23,9 +23,9 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	celengine "github.com/kubevela/pkg/cel"
+
 	"github.com/oam-dev/kubevela/pkg/definition/cachekey"
-	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 )
 
@@ -55,58 +55,24 @@ func (h *ValidatingHandler) requiredContext(ctx context.Context, appNamespace, s
 // validateSourceContextReads checks the context an Application reads inside
 // spec.sources[].properties against the surfaces that consume each binding.
 //
-// This is the other half of surface compatibility, and the half that is reachable
-// today. A SourceDefinition's own template may only read universally-available
-// context, so it can be consumed anywhere - but the *Application* can feed a
-// source from context, which is how a per-component source is written:
+// A SourceDefinition's own template may only read universally-available
+// context, but an Application can feed a source from context, which is how a
+// per-component source is written:
 //
 //	sources:
 //	  - name: own
 //	    type: percomp
 //	    properties: {component: '$(context.componentName)'}
 //
-// That binding now only works where componentName exists. Consumed from a
-// workflow step, the read has nothing to resolve against - and the failure was
-// silent: the step's expressions were left unsubstituted and the literal
-// "$(source.own.label)" was written into the rendered resource.
-func validateSourceContextReads(app *v1beta1.Application, effective map[string][]string) field.ErrorList {
+// Such a binding works only where every surface consuming it offers the field.
+func validateSourceContextReads(blobs []blobPlan, effective map[string][]string) field.ErrorList {
 	var errs field.ErrorList
-	for i, src := range app.Spec.Sources {
-		if src.Properties == nil || len(src.Properties.Raw) == 0 || src.Name == "" {
+	for _, bp := range blobs {
+		if bp.sourceIndex < 0 || bp.binding == "" || bp.plan == nil {
 			continue
 		}
-		base := field.NewPath("spec", "sources").Index(i).Child("properties")
-		for _, lf := range flattenLeafPaths(src.Properties.Raw, base) {
-			text, ok := lf.literal.(string)
-			if !ok {
-				continue
-			}
-			parsed, perr := propexpr.Parse(text)
-			if perr != nil || !parsed.HasExpr() {
-				continue
-			}
-			for _, fragment := range parsed.Fragments {
-				if !fragment.IsExpr() {
-					continue
-				}
-				reads, rerr := celexpr.PropertyReferences(fragment.Expr)
-				if rerr != nil {
-					continue // reported by validateExpressions
-				}
-				for _, read := range reads {
-					if read.IsSource() || len(read.Path) == 0 {
-						continue
-					}
-					for _, surface := range effective[src.Name] {
-						if propexpr.ContextFor(surface).Offers(read.Path[0]) {
-							continue
-						}
-						errs = append(errs, field.Invalid(lf.fieldPath, text,
-							contextUnavailableMessage(read.Path[0], surface, src.Name)))
-					}
-				}
-			}
-		}
+		faults := bp.plan.Check(everyRoot, map[string]celengine.Checker{propexpr.ContextIdent: contextChecker(bp, effective)})
+		errs = append(errs, bp.fieldErrors(faults, nil)...)
 	}
 	return errs
 }

@@ -570,7 +570,7 @@ spec:
   components:
     - {name: db, type: k8s-objects, properties: {objects: [{apiVersion: v1, kind: ConfigMap, metadata: {name: db}, data: {v: x}}]}}
     - {name: api, type: k8s-objects, properties: {objects: [{apiVersion: v1, kind: ConfigMap, metadata: {name: x}, data: {v: '$(component.db.output.cluster("local").data.v)'}}]}}
-`, `go straight after the component`),
+`, `go straight after component.<name>`),
 		Entry("every placement of a component", `
 metadata: {name: refuse-placements}
 spec:
