@@ -60,6 +60,17 @@ func ResolveSourceExpressions(ctx process.Context, params interface{}, surface s
 	if !ExpressionsEnabledFor(appAnnotationsFrom(ctx)) {
 		return params, nil
 	}
+	// A validation types expressions from their schemas instead of resolving
+	// them: the type is all admission can judge, since the value is re-resolved
+	// on each reconcile.
+	if TypeOnly(ctx.GetCtx()) {
+		typed, ok := params.(map[string]interface{})
+		if !ok {
+			return params, nil
+		}
+		return TypedParams(ctx, typed, surface)
+	}
+
 	bt, err := json.Marshal(params)
 	if err != nil {
 		return nil, err

@@ -17,8 +17,14 @@ limitations under the License.
 package definition
 
 import (
+	"context"
 	"strings"
 	"testing"
+
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
+
+	"github.com/oam-dev/kubevela/pkg/sources"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/kubevela/workflow/pkg/cue/model"
 	wfprocess "github.com/kubevela/workflow/pkg/cue/process"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -1836,4 +1843,50 @@ func TestGetBaseContextLabels(t *testing.T) {
 			r.Equal(tc.want.labels, got, tc.reason)
 		})
 	}
+}
+
+// A real render has nothing to prune, and paying for a walk of every rendered
+// resource on every reconcile is the cost this guard exists to avoid.
+func TestConcreteForRenderOnlyTouchesAValidation(t *testing.T) {
+	cuectx := cuecontext.New()
+	v := cuectx.CompileString(`{image: string, replicas: 2}`)
+	require.NoError(t, v.Err())
+
+	render := wfprocess.NewContext(wfprocess.ContextData{Ctx: context.Background()})
+	require.Equal(t, v, concreteForRender(render, v), "a real render is handed back its own value")
+
+	validation := wfprocess.NewContext(wfprocess.ContextData{
+		Ctx: sources.WithTypeOnly(context.Background()),
+	})
+	pruned := concreteForRender(validation, v)
+	require.False(t, pruned.LookupPath(cue.ParsePath("image")).Exists(),
+		"an unknowable leaf is pruned so the value can be marshalled")
+	replicas, err := pruned.LookupPath(cue.ParsePath("replicas")).Int64()
+	require.NoError(t, err, "a concrete leaf survives")
+	require.Equal(t, int64(2), replicas)
+	_, err = pruned.MarshalJSON()
+	require.NoError(t, err)
+}
+
+// A trait's typed parameter patched into an auxiliary lands as an open leaf, and
+// unifying the auxiliary with a pruned copy of itself keeps that leaf: pruning
+// has to replace the instance for the auxiliary to marshal.
+func TestRepruneAuxiliaryReplacesTheOpenLeaf(t *testing.T) {
+	v := cuecontext.New().CompileString(`{apiVersion: "v1", kind: "Service", metadata: name: "svc", spec: port: int}`)
+	require.NoError(t, v.Err())
+	other, err := model.NewOther(v)
+	require.NoError(t, err)
+
+	validation := wfprocess.NewContext(wfprocess.ContextData{Ctx: sources.WithTypeOnly(context.Background())})
+	require.NoError(t, validation.AppendAuxiliaries(wfprocess.Auxiliary{Ins: other, Name: "svc"}))
+	_, auxiliaries := validation.Output()
+	require.NoError(t, repruneAuxiliary(validation, auxiliaries, 0))
+
+	_, auxiliaries = validation.Output()
+	got := auxiliaries[0].Ins.Value()
+	require.False(t, got.LookupPath(cue.ParsePath("spec.port")).Exists(), "the open leaf is gone")
+	require.Equal(t, "Service", func() string { s, _ := got.LookupPath(cue.ParsePath("kind")).String(); return s }(),
+		"and what was concrete stays")
+	_, err = got.MarshalJSON()
+	require.NoError(t, err)
 }
