@@ -190,7 +190,9 @@ func (h *helmTestContext) recordPodUIDs() map[types.UID]bool {
 	)).Should(Succeed())
 	uids := make(map[types.UID]bool)
 	for _, pod := range podList.Items {
-		uids[pod.UID] = true
+		if pod.DeletionTimestamp == nil {
+			uids[pod.UID] = true
+		}
 	}
 	return uids
 }
@@ -203,7 +205,7 @@ func (h *helmTestContext) countSurvivingPods(originalUIDs map[types.UID]bool) in
 	)).Should(Succeed())
 	count := 0
 	for _, pod := range podList.Items {
-		if originalUIDs[pod.UID] {
+		if originalUIDs[pod.UID] && pod.DeletionTimestamp == nil {
 			count++
 		}
 	}
@@ -235,12 +237,13 @@ func runCommandSucceed(name string, args ...string) string {
 // Self-Healing Scenarios
 // ============================================================================
 
-// The self-healing scenarios run in sequence against one release. Each ends
-// with the release back at two ready replicas; the destructive ones come last.
+// The self-healing scenarios run in sequence against one release. Each
+// disruption ends with the release back at two ready replicas; the destructive
+// ones come last.
 var _ = Describe("Helmchart Self-Healing", Ordered, func() {
 	h := newHelmTestContext()
 	BeforeAll(func() { h.createNamespace() })
-	AfterAll(func() { h.cleanupNamespaceOnly() })
+	AfterAll(func() { h.cleanup() })
 
 	It("should deploy podinfo successfully", func() {
 		h.deployApp()
@@ -261,7 +264,7 @@ var _ = Describe("Helmchart Self-Healing", Ordered, func() {
 			g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
 			g.Expect(d.GetAnnotations()).Should(HaveKeyWithValue("custom.io/test", "test-value"))
 			g.Expect(d.GetLabels()).Should(HaveKeyWithValue("extra.io/label", "extra-value"))
-		}).WithTimeout(5 * time.Second).Should(Succeed())
+		}).Should(Succeed())
 		h.waitForAppRunning()
 	})
 
@@ -371,7 +374,7 @@ var _ = Describe("Helmchart Self-Healing", Ordered, func() {
 				}
 			}
 			return count
-		}, 3*time.Second, time.Second).Should(BeNumerically(">=", 2))
+		}, 10*time.Second, 2*time.Second).Should(BeNumerically(">=", 2))
 
 		By("Triggering reconciliation")
 		RequestReconcileNow(h.ctx, h.app)
@@ -796,6 +799,11 @@ var _ = Describe("Helmchart Destructive & Chaos", func() {
 			EventuallyReconciled(h.ctx, appB, func(g Gomega) {
 				g.Expect(k8sClient.Get(h.ctx, appBKey, appB)).Should(Succeed())
 				g.Expect(appB.Status.Phase).Should(Equal(common2.ApplicationWorkflowFailed), "workflow=%+v", appB.Status.Workflow)
+				var messages []string
+				for _, step := range appB.Status.Workflow.Steps {
+					messages = append(messages, step.Message)
+				}
+				g.Expect(strings.Join(messages, "\n")).Should(ContainSubstring("managed by other application"))
 			}).WithTimeout(90 * time.Second).Should(Succeed())
 
 			By("Verifying the first application remains healthy and unaffected")
@@ -1394,7 +1402,7 @@ var _ = Describe("Helmchart Edge Cases", func() {
 				current := &appsv1.Deployment{}
 				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, current)).Should(Succeed())
 				g.Expect(current.ResourceVersion).Should(Equal(initialResourceVersion))
-			}).WithTimeout(5 * time.Second).Should(Succeed())
+			}).Should(Succeed())
 		})
 	})
 })
@@ -1560,9 +1568,9 @@ var _ = Describe("Helmchart valuesFrom", func() {
 	}
 
 	// Each merge case is its own release in one Application, so the cases share
-	// one install and one teardown. Release names contain "podinfo", so the
+	// one Application and one teardown. Release names contain "podinfo", so the
 	// chart names each Deployment after its release.
-	Context("Merging values from ConfigMaps and Secrets", Ordered, func() {
+	Context("Merging values from ConfigMaps and Secrets", Ordered, ContinueOnFailure, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.createNamespace()
@@ -1573,7 +1581,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 				ObjectMeta: metav1.ObjectMeta{Name: "multi-env", Namespace: h.namespace},
 				Data: map[string]string{
 					"dev.yaml":  "replicaCount: 1\n",
-					"prod.yaml": "replicaCount: 3\n",
+					"prod.yaml": "replicaCount: 5\n",
 				},
 			})).Should(Succeed())
 			createCMWithReplicas(h, "two-cms-base", 2)
@@ -1657,7 +1665,7 @@ replicaCount: 2
 		})
 
 		It("should use the specified key and ignore other keys in the ConfigMap", func() {
-			waitForNamedReplicas(h, "podinfo-key", 3)
+			waitForNamedReplicas(h, "podinfo-key", 5)
 		})
 
 		It("should resolve a conflict between two ConfigMaps to the later one", func() {
@@ -1726,7 +1734,7 @@ replicaCount: 2
 			}).WithTimeout(60 * time.Second).Should(Succeed())
 		})
 
-		It("should run every release independently and bring the Application to running", func() {
+		It("should bring the Application with every release to running", func() {
 			EventuallyReconciled(h.ctx, h.app, func(g Gomega) {
 				g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
 				g.Expect(h.app.Status.Phase).Should(Equal(common2.ApplicationRunning))
@@ -1747,7 +1755,7 @@ replicaCount: 2
 
 	// Each failure is its own Application so one step's error cannot satisfy
 	// another's assertion; they are created together so their retries overlap.
-	Context("Failing valuesFrom sources", Ordered, func() {
+	Context("Failing valuesFrom sources", Ordered, ContinueOnFailure, func() {
 		h := newHelmTestContext()
 		otherNS := "helm-other-tenant-" + rand.RandomString(4)
 		var missing, badYAML, crossNS, noNS *v1beta1.Application

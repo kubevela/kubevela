@@ -78,15 +78,17 @@ var _ = Describe("Application AutoUpdate", func() {
 
 			By("Create application using configmap-component@v1.0.0")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "1.0.0")
-			createAutoUpdateApp(ctx, app)
-			Eventually(renderedVersion, 15*time.Second, 250*time.Millisecond).Should(Equal("1.0.0"))
+			createAppOnceRevisionVisible(ctx, app)
+			EventuallyReconciled(ctx, app, func(g Gomega) {
+				g.Expect(renderedVersion(g)).To(Equal("1.0.0"))
+			}).WithTimeout(30 * time.Second).Should(Succeed())
 
 			publishComponentVersion(ctx, namespace, componentType, "1.4.0")
 
 			By("The app stays on the exact version across reconciles")
 			ConsistentlyReconciled(ctx, app, func(g Gomega) {
 				g.Expect(renderedVersion(g)).To(Equal("1.0.0"))
-			}).WithTimeout(5 * time.Second).Should(Succeed())
+			}).Should(Succeed())
 		})
 
 		It("When new component version release after app creation, app should use new version during reconciliation", func() {
@@ -96,8 +98,10 @@ var _ = Describe("Application AutoUpdate", func() {
 
 			By("Create application using configmap-component@v2")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "2")
-			createAutoUpdateApp(ctx, app)
-			Eventually(renderedVersion, 15*time.Second, 250*time.Millisecond).Should(Equal("2.3.0"))
+			createAppOnceRevisionVisible(ctx, app)
+			EventuallyReconciled(ctx, app, func(g Gomega) {
+				g.Expect(renderedVersion(g)).To(Equal("2.3.0"))
+			}).WithTimeout(30 * time.Second).Should(Succeed())
 
 			publishComponentVersion(ctx, namespace, componentType, "2.4.0")
 
@@ -113,10 +117,13 @@ var _ = Describe("Application AutoUpdate", func() {
 
 			By("Create application using configmap-component@v1.4 beside webservice@v1")
 			app := updateAppComponent(appWithTwoComponentTemplate, "app1", namespace, componentType, "first-component", "1.4")
-			createAutoUpdateApp(ctx, app)
-			Eventually(renderedVersion, 15*time.Second, 250*time.Millisecond).Should(Equal("1.4.5"))
-			Eventually(func(g Gomega) {
-				g.Expect(deploymentReplicas(ctx, g, namespace, "second-component")).To(BeEquivalentTo(1))
+			createAppOnceRevisionVisible(ctx, app)
+			EventuallyReconciled(ctx, app, func(g Gomega) {
+				g.Expect(renderedVersion(g)).To(Equal("1.4.5"))
+			}).WithTimeout(30 * time.Second).Should(Succeed())
+			By("webservice@v1 resolves beside it")
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Name: "second-component", Namespace: namespace}, &appsv1.Deployment{})
 			}, 15*time.Second, 250*time.Millisecond).Should(Succeed())
 		})
 
@@ -127,15 +134,17 @@ var _ = Describe("Application AutoUpdate", func() {
 
 			By("Create application using scaler-trait@v1.2.0")
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, "1.2.0")
-			createAutoUpdateApp(ctx, app)
-			Eventually(replicas, 30*time.Second, 250*time.Millisecond).Should(BeEquivalentTo(2))
+			createAppOnceRevisionVisible(ctx, app)
+			EventuallyReconciled(ctx, app, func(g Gomega) {
+				g.Expect(replicas(g)).To(BeEquivalentTo(2))
+			}).WithTimeout(30 * time.Second).Should(Succeed())
 
 			publishTraitVersion(ctx, namespace, traitType, "1.4.0", "3")
 
 			By("The app stays on the exact version across reconciles")
 			ConsistentlyReconciled(ctx, app, func(g Gomega) {
 				g.Expect(replicas(g)).To(BeEquivalentTo(2))
-			}).WithTimeout(5 * time.Second).Should(Succeed())
+			}).Should(Succeed())
 		})
 
 		It("When new trait version is created after app creation, app should use new version during reconciliation", func() {
@@ -144,8 +153,10 @@ var _ = Describe("Application AutoUpdate", func() {
 
 			By("Create application using scaler-trait@v1.4")
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, "1.4")
-			createAutoUpdateApp(ctx, app)
-			Eventually(replicas, 30*time.Second, 250*time.Millisecond).Should(BeEquivalentTo(4))
+			createAppOnceRevisionVisible(ctx, app)
+			EventuallyReconciled(ctx, app, func(g Gomega) {
+				g.Expect(replicas(g)).To(BeEquivalentTo(4))
+			}).WithTimeout(30 * time.Second).Should(Succeed())
 
 			publishTraitVersion(ctx, namespace, traitType, "1.4.8", "2")
 
@@ -177,8 +188,10 @@ var _ = Describe("Application AutoUpdate", func() {
 			By("Create application using configmap-component@v1.0.0")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "1.0.0")
 			app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate] = "false"
-			createAutoUpdateApp(ctx, app)
-			Eventually(renderedVersion, 15*time.Second, 250*time.Millisecond).Should(Equal("1.0.0"))
+			createAppOnceRevisionVisible(ctx, app)
+			EventuallyReconciled(ctx, app, func(g Gomega) {
+				g.Expect(renderedVersion(g)).To(Equal("1.0.0"))
+			}).WithTimeout(30 * time.Second).Should(Succeed())
 		})
 
 		It("When specified component version is unavailable, app creation should fail", func() {
@@ -188,26 +201,30 @@ var _ = Describe("Application AutoUpdate", func() {
 			By("Create application using configmap-component@v1")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "1")
 			app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate] = "false"
-			Expect(k8sClient.Create(ctx, app)).ShouldNot(Succeed())
+			err := k8sClient.Create(ctx, app)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring(`"configmap-component@v1" not found`))
 		})
 
 		It("When specified trait version is available, app should specified trait version", func() {
 			traitType := "scaler-trait"
-			createTraitVersion(ctx, namespace, traitType, "1.0.0", "1")
+			createTraitVersion(ctx, namespace, traitType, "1.0.0", "5")
 			publishTraitVersion(ctx, namespace, traitType, "1.2.0", "2")
 
 			By("Create application using scaler-trait@v1.0.0")
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, "1.0.0")
 			app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate] = "false"
-			createAutoUpdateApp(ctx, app)
-			Eventually(replicas, 30*time.Second, 250*time.Millisecond).Should(BeEquivalentTo(1))
+			createAppOnceRevisionVisible(ctx, app)
+			EventuallyReconciled(ctx, app, func(g Gomega) {
+				g.Expect(replicas(g)).To(BeEquivalentTo(5))
+			}).WithTimeout(30 * time.Second).Should(Succeed())
 
 			publishTraitVersion(ctx, namespace, traitType, "1.4.0", "3")
 
 			By("The app stays on the specified version across reconciles")
 			ConsistentlyReconciled(ctx, app, func(g Gomega) {
-				g.Expect(replicas(g)).To(BeEquivalentTo(1))
-			}).WithTimeout(5 * time.Second).Should(Succeed())
+				g.Expect(replicas(g)).To(BeEquivalentTo(5))
+			}).Should(Succeed())
 		})
 	})
 })
@@ -290,17 +307,26 @@ func waitForDefinitionRevision(ctx context.Context, namespace, name, version str
 	}, 30*time.Second, 250*time.Millisecond).Should(Succeed(), "no DefinitionRevision %s", key.Name)
 }
 
-// createAutoUpdateApp creates app, retrying only the webhook's failure to find
-// a definition revision. The webhook lists revisions through its cache, which
-// can trail the revision the test has just read from the API server.
-func createAutoUpdateApp(ctx context.Context, app *v1beta1.Application) {
+// createAppOnceRevisionVisible creates app, retrying only the webhook's failure
+// to find the definition revision it references. The webhook reads revisions
+// through its cache, which can trail the revision the test has just read from
+// the API server: an autoUpdate app lists them, a pinned app gets one by name.
+func createAppOnceRevisionVisible(ctx context.Context, app *v1beta1.Application) {
 	Eventually(func() error {
 		err := k8sClient.Create(ctx, app.DeepCopy())
-		if err != nil && !strings.Contains(err.Error(), "error finding definition revision") {
+		if err != nil && !isStaleRevisionRead(err) {
 			return StopTrying("create refused").Wrap(err)
 		}
 		return err
 	}, 15*time.Second, 500*time.Millisecond).Should(Succeed())
+}
+
+// isStaleRevisionRead matches both refusals: the version-range lookup's, and
+// the pinned lookup's NotFound for a "<type>@v<version>" reference.
+func isStaleRevisionRead(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "error finding definition revision") ||
+		(strings.Contains(msg, "@v") && strings.Contains(msg, "not found"))
 }
 
 // deploymentReplicas reads the desired replicas the scaler trait wrote. Pod

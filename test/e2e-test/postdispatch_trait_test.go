@@ -37,8 +37,10 @@ import (
 // The PostDispatch specs share one namespace and one set of definitions. Each
 // scenario is a component of an Application whose outcome it shares: the
 // healthy scenarios in one app, the degraded ones in another, since a single
-// unhealthy component keeps a whole app out of Running.
-var _ = Describe("PostDispatch Trait tests", Ordered, func() {
+// unhealthy component keeps a whole app out of Running. A scenario whose state
+// would leak into others, a failing PostDispatch render or a timed readiness
+// flip, gets an app of its own.
+var _ = Describe("PostDispatch Trait tests", Ordered, ContinueOnFailure, func() {
 	ctx := context.Background()
 	var namespace string
 	var defs postDispatchDefs
@@ -57,6 +59,7 @@ var _ = Describe("PostDispatch Trait tests", Ordered, func() {
 		// its own spec, since its readiness is on a timer from pod start.
 		healthyApp = postDispatchApp(namespace, "app-postdispatch-healthy",
 			webserviceWithStatusTraits(defs, "test-deployment", 3, "nginx:1.21"),
+			webserviceWithStatusTraits(defs, "test-deployment-b", 3, "nginx:1.21"),
 			common.ApplicationComponent{
 				Name:       "test-component",
 				Type:       defs.workerComp,
@@ -126,9 +129,11 @@ var _ = Describe("PostDispatch Trait tests", Ordered, func() {
 			EventuallyReconciled(ctx, healthyApp, func(g Gomega) {
 				app := getApp(g, healthyApp)
 				g.Expect(app.Status.Phase).Should(Equal(common.ApplicationRunning))
-				g.Expect(app.Status.Services).Should(HaveLen(3))
+				wantTraits := map[string]int{"test-deployment": 3, "test-deployment-b": 3, "test-component": 2, "slow-component": 1}
+				g.Expect(app.Status.Services).Should(HaveLen(len(wantTraits)))
 				for _, svc := range app.Status.Services {
 					g.Expect(svc.Healthy).Should(BeTrue(), "component %s", svc.Name)
+					g.Expect(svc.Traits).Should(HaveLen(wantTraits[svc.Name]), "traits on %s", svc.Name)
 					for _, trait := range svc.Traits {
 						g.Expect(trait.Healthy).Should(BeTrue(), "trait %s on %s", trait.Type, svc.Name)
 						g.Expect(trait.Pending).Should(BeFalse(), "trait %s on %s", trait.Type, svc.Name)
@@ -149,15 +154,21 @@ var _ = Describe("PostDispatch Trait tests", Ordered, func() {
 				))
 			}, 30*time.Second, time.Second).Should(Succeed())
 
-			By("A status ConfigMap re-rendered once every replica of a custom component is ready")
+			By("A second component with the same PostDispatch traits gets its own outputs")
 			Eventually(func(g Gomega) {
+				expectReadyDeployment(g, "trait-deployment-test-deployment-b", 3)
+				g.Expect(configMapData(g, "test-deployment-b-status")).Should(HaveKeyWithValue("componentName", "test-deployment-b"))
+			}, 30*time.Second, time.Second).Should(Succeed())
+
+			By("A status ConfigMap re-rendered once every replica of a custom component is ready")
+			EventuallyReconciled(ctx, healthyApp, func(g Gomega) {
 				expectReadyDeployment(g, "test-worker", 3)
 				g.Expect(configMapData(g, "test-component-status")).Should(And(
 					HaveKeyWithValue("componentName", "test-component"),
 					HaveKeyWithValue("replicas", "3"),
 					HaveKeyWithValue("readyReplicas", "3"),
 				))
-			}, 30*time.Second, time.Second).Should(Succeed())
+			}).WithTimeout(time.Minute).Should(Succeed())
 
 			By("A marker dispatched once the slow component passed its readiness probe")
 			Eventually(func(g Gomega) {
@@ -188,10 +199,13 @@ var _ = Describe("PostDispatch Trait tests", Ordered, func() {
 				two := findServiceStatus(g, app, "two-replica-component")
 				g.Expect(two.Healthy).Should(BeFalse())
 				g.Expect(findTraitStatus(g, app, "two-replica-component", defs.deploymentTrait).Healthy).Should(BeTrue())
-				g.Expect(findTraitStatus(g, app, "two-replica-component", defs.cmTrait).Healthy).Should(BeFalse())
+				twoCM := findTraitStatus(g, app, "two-replica-component", defs.cmTrait)
+				g.Expect(twoCM.Healthy).Should(BeFalse())
+				g.Expect(twoCM.Pending).Should(BeFalse())
 
 				good := findServiceStatus(g, app, "good-component")
 				g.Expect(good.Healthy).Should(BeTrue())
+				g.Expect(good.Traits).Should(HaveLen(3))
 				for _, trait := range good.Traits {
 					g.Expect(trait.Healthy).Should(BeTrue(), "trait %s", trait.Type)
 					g.Expect(trait.Pending).Should(BeFalse(), "trait %s", trait.Type)
@@ -395,10 +409,10 @@ parameter: {
 `, containerExtra)
 }
 
-// flipContainer is ready for its first 15 seconds and never again, a
+// flipContainer is ready for its first 30 seconds and never again, a
 // permanent state any reconcile observes.
 const flipContainer = `
-				command: ["sh", "-c", "touch /tmp/ready && sleep 15 && rm /tmp/ready && sleep 3600"]
+				command: ["sh", "-c", "touch /tmp/ready && sleep 30 && rm /tmp/ready && sleep 3600"]
 				readinessProbe: {
 					exec: command: ["cat", "/tmp/ready"]
 					periodSeconds: 1

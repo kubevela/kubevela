@@ -185,26 +185,28 @@ var _ = AfterSuite(func() {
 // CA, so without this the first spec races the controller's start.
 func waitForControllerReconciling(ctx context.Context) {
 	By("Waiting for the controller to reconcile a canary Application")
+	name := randomNamespaceName("e2e-canary")
 	app := &v1beta1.Application{
-		ObjectMeta: metav1.ObjectMeta{Name: randomNamespaceName("e2e-canary"), Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
 		Spec: v1beta1.ApplicationSpec{Components: []commontypes.ApplicationComponent{{
 			Name:       "canary",
 			Type:       "k8s-objects",
-			Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"e2e-canary"}}]}`)},
+			Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"objects":[{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":%q}}]}`, name))},
 		}}},
 	}
 	Eventually(func() error { return k8sClient.Create(ctx, app) }, 30*time.Second, time.Second).Should(Succeed())
+	DeferCleanup(func() { _ = k8sClient.Delete(ctx, app) })
 	Eventually(func(g Gomega) {
 		current := &v1beta1.Application{}
 		g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(app), current)).To(Succeed())
 		g.Expect(current.Status.Phase).To(Equal(commontypes.ApplicationRunning))
 	}, 2*time.Minute, 500*time.Millisecond).Should(Succeed())
-	Expect(k8sClient.Delete(ctx, app)).To(Succeed())
 }
 
-// RequestReconcileNow queues o for an immediate reconcile. The controller
-// watches neither Definitions nor the workloads it applies, so without this a
-// change to either is only seen on the next resync.
+// RequestReconcileNow queues o for an immediate reconcile. The Application
+// controller watches neither Component nor Trait definitions, nor the
+// workloads it applies, so a change to them is otherwise seen on the next
+// resync.
 func RequestReconcileNow(ctx context.Context, o client.Object) {
 	By(fmt.Sprintf("Request reconcile %q now", o.GetName()))
 	_, err := requestReconcile(ctx, o)
@@ -223,36 +225,40 @@ func requestReconcile(ctx context.Context, o client.Object) (string, error) {
 	return patched.GetResourceVersion(), nil
 }
 
-// reconcileRequester requests reconciles of one object without overlapping
-// them. A request that lands while a reconcile is in flight makes that
-// reconcile's status write conflict and its progress is lost, so a new request
-// waits until the controller has written the object since the last one, or
-// until requestSpacing has passed in case a reconcile had nothing to write.
+// reconcileRequester requests reconciles of one object only while the
+// controller leaves it alone. A request that lands while a reconcile is in
+// flight makes that reconcile's status write conflict, and its progress, such
+// as a failing step's retry count, is lost. The controller writes the object
+// while a busy app requeues itself, so a request waits until the object has
+// been unchanged for quietPeriod: the controller is then waiting out a backoff
+// or the resync, which is the wait a request is meant to cut short.
 type reconcileRequester struct {
 	ctx    context.Context
 	obj    client.Object
-	lastRV string
-	lastAt time.Time
+	seenRV string
+	seenAt time.Time
 }
 
-const requestSpacing = 5 * time.Second
+const quietPeriod = 3 * time.Second
 
 func (r *reconcileRequester) request(g Gomega) {
-	if r.lastRV != "" && time.Since(r.lastAt) < requestSpacing {
-		current := r.obj.DeepCopyObject().(client.Object)
-		g.Expect(k8sClient.Get(r.ctx, client.ObjectKeyFromObject(r.obj), current)).To(Succeed())
-		if current.GetResourceVersion() == r.lastRV {
-			return
-		}
+	current := r.obj.DeepCopyObject().(client.Object)
+	g.Expect(k8sClient.Get(r.ctx, client.ObjectKeyFromObject(r.obj), current)).To(Succeed())
+	now := time.Now()
+	if rv := current.GetResourceVersion(); rv != r.seenRV {
+		r.seenRV, r.seenAt = rv, now
+	}
+	if now.Sub(r.seenAt) < quietPeriod {
+		return
 	}
 	rv, err := requestReconcile(r.ctx, r.obj)
 	g.Expect(err).To(Succeed())
-	r.lastRV, r.lastAt = rv, time.Now()
+	r.seenRV, r.seenAt = rv, now
 }
 
-// EventuallyReconciled polls assertion, requesting reconciles of o as fast as
-// the controller completes them. Every reconcile also re-runs a failing
-// workflow step, so a terminal failure is reached without the step backoff.
+// EventuallyReconciled polls assertion, requesting a reconcile of o whenever the
+// controller has left it alone for quietPeriod. Every reconcile also re-runs a
+// failing workflow step, so the long gaps of the step backoff are cut short.
 func EventuallyReconciled(ctx context.Context, o client.Object, assertion func(g Gomega)) AsyncAssertion {
 	r := &reconcileRequester{ctx: ctx, obj: o}
 	return Eventually(func(g Gomega) {
@@ -262,13 +268,15 @@ func EventuallyReconciled(ctx context.Context, o client.Object, assertion func(g
 }
 
 // ConsistentlyReconciled holds assertion while requesting reconciles of o, so
-// "nothing changed" is checked across real reconciles.
+// "nothing changed" is checked across real reconciles. The controller records
+// nothing when a requested reconcile completes, so the window spans three
+// requests rather than relying on the first one finishing.
 func ConsistentlyReconciled(ctx context.Context, o client.Object, assertion func(g Gomega)) AsyncAssertion {
 	r := &reconcileRequester{ctx: ctx, obj: o}
 	return Consistently(func(g Gomega) {
 		r.request(g)
 		assertion(g)
-	}).WithPolling(time.Second)
+	}).WithPolling(time.Second).WithTimeout(4 * quietPeriod)
 }
 
 // randomNamespaceName generates a random name based on the basic name.
