@@ -248,6 +248,32 @@ func TestValidateCuexTemplate(t *testing.T) {
 				}`,
 			want: errors.New("output.hello: reference \"world\" not found"),
 		},
+		"nonexistentProviderFunction": {
+			cueTemplate: `
+import "vela/kube"
+
+output: kube.#NotARealFunction & {
+	$params: {}
+}
+`,
+			want: errors.New("output: undefined field: #NotARealFunction"),
+		},
+		"concreteProviderWithoutExecution": {
+			cueTemplate: `
+import "vela/config"
+
+output: config.#ImageRegistry & {
+	$params: {
+		registry: "index.docker.io"
+		auth: {
+			username: "foo"
+			password: "bar"
+		}
+	}
+}
+`,
+			want: nil,
+		},
 	}
 
 	for caseName, cs := range cases {
@@ -255,7 +281,7 @@ func TestValidateCuexTemplate(t *testing.T) {
 			t.Parallel()
 			err := ValidateCuexTemplate(context.Background(), cs.cueTemplate)
 			if cs.want != nil {
-				assert.Equal(t, cs.want.Error(), err.Error())
+				assert.EqualError(t, err, cs.want.Error())
 			} else {
 				assert.NoError(t, err)
 			}
