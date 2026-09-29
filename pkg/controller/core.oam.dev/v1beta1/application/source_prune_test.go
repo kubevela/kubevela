@@ -71,9 +71,9 @@ func TestRenderedForPruneKeepsAComponentThatReportedNothing(t *testing.T) {
 	app, compByName := appWithService("web2", "demo-ns")
 	logCtx := monitorContext.NewTraceContext(context.Background(), "test")
 
-	apply := func(_ context.Context, _ common.ApplicationComponent, _ *cue.Value, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	apply := func(_ context.Context, _ common.ApplicationComponent, _ *cue.Value, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 		// Exactly what the unhealthy-dispatcher path returns: no error.
-		return nil, nil, false, nil
+		return nil, nil, false, "", nil
 	}
 
 	rendered, incomplete := renderedForPrune(logCtx, app, compByName, apply,
@@ -91,8 +91,8 @@ func TestRenderedForPruneKeepsAComponentThatFailed(t *testing.T) {
 	logCtx := monitorContext.NewTraceContext(context.Background(), "test")
 
 	reported := 0
-	apply := func(_ context.Context, _ common.ApplicationComponent, _ *cue.Value, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
-		return nil, nil, false, errors.New("render blew up")
+	apply := func(_ context.Context, _ common.ApplicationComponent, _ *cue.Value, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
+		return nil, nil, false, "", errors.New("render blew up")
 	}
 
 	rendered, incomplete := renderedForPrune(logCtx, app, compByName, apply,
@@ -110,8 +110,8 @@ func TestRenderedForPruneCollectsWhatAComponentRenders(t *testing.T) {
 	app, compByName := appWithService("web2", "demo-ns")
 	logCtx := monitorContext.NewTraceContext(context.Background(), "test")
 
-	apply := func(_ context.Context, _ common.ApplicationComponent, _ *cue.Value, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
-		return deployObj("demo-ns", "web2"), []*unstructured.Unstructured{traitObj("demo-ns", "web2")}, true, nil
+	apply := func(_ context.Context, _ common.ApplicationComponent, _ *cue.Value, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
+		return deployObj("demo-ns", "web2"), []*unstructured.Unstructured{traitObj("demo-ns", "web2")}, true, "", nil
 	}
 
 	rendered, incomplete := renderedForPrune(logCtx, app, compByName, apply,
@@ -127,8 +127,8 @@ func TestRenderedForPruneAcceptsATraitOnlyComponent(t *testing.T) {
 	app, compByName := appWithService("web2", "demo-ns")
 	logCtx := monitorContext.NewTraceContext(context.Background(), "test")
 
-	apply := func(_ context.Context, _ common.ApplicationComponent, _ *cue.Value, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
-		return nil, []*unstructured.Unstructured{traitObj("demo-ns", "web2")}, true, nil
+	apply := func(_ context.Context, _ common.ApplicationComponent, _ *cue.Value, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
+		return nil, []*unstructured.Unstructured{traitObj("demo-ns", "web2")}, true, "", nil
 	}
 
 	rendered, incomplete := renderedForPrune(logCtx, app, compByName, apply,
@@ -146,11 +146,11 @@ func TestRenderedForPruneJudgesEveryPlacement(t *testing.T) {
 		common.ApplicationComponentStatus{Name: "web2", Namespace: "demo-ns", Cluster: "remote"})
 	logCtx := monitorContext.NewTraceContext(context.Background(), "test")
 
-	apply := func(_ context.Context, _ common.ApplicationComponent, _ *cue.Value, cluster string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	apply := func(_ context.Context, _ common.ApplicationComponent, _ *cue.Value, cluster string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 		if cluster == "remote" {
-			return nil, nil, false, nil
+			return nil, nil, false, "", nil
 		}
-		return deployObj("demo-ns", "web2"), nil, true, nil
+		return deployObj("demo-ns", "web2"), nil, true, "", nil
 	}
 
 	_, incomplete := renderedForPrune(logCtx, app, compByName, apply,
@@ -176,9 +176,9 @@ func TestRenderedForPruneStillReapsASourceDrivenRename(t *testing.T) {
 
 	// The source value now names "cfg-silver"; "cfg-gold" is what it used to
 	// render and is what the prune has to reap.
-	apply := func(_ context.Context, _ common.ApplicationComponent, _ *cue.Value, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	apply := func(_ context.Context, _ common.ApplicationComponent, _ *cue.Value, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 		return deployObj("demo-ns", "web2"),
-			[]*unstructured.Unstructured{traitObj("demo-ns", "cfg-silver")}, true, nil
+			[]*unstructured.Unstructured{traitObj("demo-ns", "cfg-silver")}, true, "", nil
 	}
 
 	rendered, incomplete := renderedForPrune(logCtx, app, compByName, apply,
@@ -194,4 +194,21 @@ func TestRenderedForPruneStillReapsASourceDrivenRename(t *testing.T) {
 	require.Contains(t, names, "cfg-silver")
 	require.NotContains(t, names, "cfg-gold",
 		"the old name is absent from the keep set, so the prune reaps it")
+}
+
+// A component waiting on a read was not applied: it is incomplete, and not a
+// failure to report.
+func TestRenderedForPruneKeepsAComponentWaitingOnARead(t *testing.T) {
+	app, compByName := appWithService("web2", "demo-ns")
+	logCtx := monitorContext.NewTraceContext(context.Background(), "test")
+
+	apply := func(_ context.Context, _ common.ApplicationComponent, _ *cue.Value, _ string, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
+		return nil, nil, false, `waiting for component "db" to be healthy`, nil
+	}
+
+	rendered, incomplete := renderedForPrune(logCtx, app, compByName, apply,
+		func(string, string, error) { t.Fatal("a component waiting on a read has not failed") })
+
+	require.Contains(t, incomplete, "web2")
+	require.NotContains(t, rendered, "web2")
 }

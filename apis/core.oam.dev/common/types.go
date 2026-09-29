@@ -200,6 +200,37 @@ type ApplicationTraitStatus struct {
 	Message string            `json:"message,omitempty"`
 }
 
+// ComponentDependencySource is where a component's dependency is declared.
+type ComponentDependencySource string
+
+const (
+	// DependencySourceDependsOn is a component named in dependsOn.
+	DependencySourceDependsOn ComponentDependencySource = "dependsOn"
+	// DependencySourceInputs is a component whose outputs the inputs read.
+	DependencySourceInputs ComponentDependencySource = "inputs"
+	// DependencySourceExpression is a component a property expression reads.
+	DependencySourceExpression ComponentDependencySource = "expression"
+)
+
+// ComponentDependency is one component another depends on. A dependency on a
+// component beside the dependent, in its own cluster and namespace, orders the
+// dependent after it. One from an expression that names a cluster or namespace
+// is read there, and is ordered by the workflow instead.
+type ComponentDependency struct {
+	// Component is the component that depends.
+	Component string `json:"component"`
+	// DependsOn is the component depended on.
+	DependsOn string `json:"dependsOn"`
+	// Source is where the dependency is declared.
+	Source ComponentDependencySource `json:"source"`
+	// Cluster is the cluster an expression reads the component in, when it names one.
+	// +optional
+	Cluster string `json:"cluster,omitempty"`
+	// Namespace is the namespace an expression reads the component in, when it names one.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
 // ApplicationSourceStatus records source resolution status.
 type ApplicationSourceStatus struct {
 	// Name is the spec.sources[] binding this reports on.
@@ -419,6 +450,12 @@ type AppStatus struct {
 	// component consumed.
 	// +optional
 	Sources []ApplicationSourceStatus `json:"sources,omitempty"`
+
+	// Dependencies is what each component depends on: the components named in
+	// its dependsOn, those whose outputs its inputs read, and those its property
+	// expressions read.
+	// +optional
+	Dependencies []ComponentDependency `json:"dependencies,omitempty"`
 
 	// PolicyStatus records the status of policy
 	// Deprecated This field is only used by EnvBinding Policy which is deprecated.

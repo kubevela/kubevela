@@ -181,9 +181,13 @@ type Appfile struct {
 	RelatedWorkflowStepDefinitions map[string]*v1beta1.WorkflowStepDefinition
 	RelatedSourceDefinitions       map[string]*v1beta1.SourceDefinition
 
-	Policies      []v1beta1.AppPolicy
-	Sources       []v1beta1.ApplicationSource
-	Components    []common.ApplicationComponent
+	Policies   []v1beta1.AppPolicy
+	Sources    []v1beta1.ApplicationSource
+	Components []common.ApplicationComponent
+	// Dependencies is what each component depends on, taken once from the
+	// components as parsed: status reports it, and the workflow orders by the
+	// entries of it that order (sources.Orders).
+	Dependencies  []common.ComponentDependency
 	Artifacts     []*types.ComponentManifest
 	WorkflowSteps []wfTypesv1alpha1.WorkflowStep
 	WorkflowMode  *wfTypesv1alpha1.WorkflowExecuteMode
