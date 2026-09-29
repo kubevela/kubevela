@@ -231,10 +231,11 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	}
 
 	// Store template for error context (use workload-specific key to avoid pollution)
-	// Skipped during validation: the whole value is marshalled into every later
-	// template's context, which a typed parameter cannot survive. The render
+	// Skipped when parameters are open (a validation, or a placeholder dry-run):
+	// the whole value is marshalled into every later template's context, which a
+	// typed parameter cannot survive. The render
 	// path falls back to the base when it is absent.
-	if !sources.TypeOnly(ctx.GetCtx()) {
+	if !sources.OpenParams(ctx.GetCtx()) {
 		ctx.PushData(GetWorkloadTemplateKey(wd.name), val)
 	}
 
@@ -719,14 +720,14 @@ func FormatCUEError(err error, messagePrefix string, entityType, entityName stri
 	return fmt.Errorf("%s", strings.TrimRight(result.String(), "\n"))
 }
 
-// renderParams writes a component or trait's properties as CUE. A validation
-// renders types rather than values, and a type cannot survive json.Marshal.
+// renderParams writes a component or trait's properties as CUE. An open render
+// may carry types rather than values, and a type cannot survive json.Marshal.
 func renderParams(ctx process.Context, params, resolved interface{}) (string, error) {
 	chosen := params
 	if resolved != nil {
 		chosen = resolved
 	}
-	if typed, ok := chosen.(map[string]interface{}); ok && sources.TypeOnly(ctx.GetCtx()) {
+	if typed, ok := chosen.(map[string]interface{}); ok && sources.OpenParams(ctx.GetCtx()) {
 		return sources.ParamsAsCUE(typed)
 	}
 	raw, err := json.Marshal(chosen)
@@ -736,24 +737,24 @@ func renderParams(ctx process.Context, params, resolved interface{}) (string, er
 	return string(raw), nil
 }
 
-// concreteForRender makes a validation's rendered resource marshalable. Every
+// concreteForRender makes an open render's resource marshalable. Every
 // resource here is handed to the next template through the context as JSON,
 // which an unknowable leaf cannot survive. A real render has nothing to prune.
 func concreteForRender(ctx process.Context, v cue.Value) cue.Value {
-	if !sources.TypeOnly(ctx.GetCtx()) {
+	if !sources.OpenParams(ctx.GetCtx()) {
 		return v
 	}
-	pruned, _ := sources.ConcreteForValidation(v)
+	pruned, _ := sources.ConcreteForOpenRender(ctx.GetCtx(), v)
 	return pruned
 }
 
 // repruneBase prunes a base that a patch has just made non-concrete again, and
 // puts the result back so the next trait can be handed it as JSON.
 func repruneBase(ctx process.Context, base model.Instance) error {
-	if !sources.TypeOnly(ctx.GetCtx()) {
+	if !sources.OpenParams(ctx.GetCtx()) {
 		return nil
 	}
-	pruned, changed := sources.ConcreteForValidation(base.Value())
+	pruned, changed := sources.ConcreteForOpenRender(ctx.GetCtx(), base.Value())
 	if !changed {
 		return nil
 	}
@@ -768,10 +769,10 @@ func repruneBase(ctx process.Context, base model.Instance) error {
 // pruned self would keep the open leaf, so the instance is replaced; Output
 // hands back the context's own slice, which is what makes the replacement stick.
 func repruneAuxiliary(ctx process.Context, auxiliaries []process.Auxiliary, i int) error {
-	if !sources.TypeOnly(ctx.GetCtx()) {
+	if !sources.OpenParams(ctx.GetCtx()) {
 		return nil
 	}
-	pruned, changed := sources.ConcreteForValidation(auxiliaries[i].Ins.Value())
+	pruned, changed := sources.ConcreteForOpenRender(ctx.GetCtx(), auxiliaries[i].Ins.Value())
 	if !changed {
 		return nil
 	}

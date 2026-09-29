@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -33,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -41,6 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
+	"github.com/oam-dev/kubevela/pkg/sources"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -142,6 +145,21 @@ func (d *Option) ValidateApp(ctx context.Context, filename string) error {
 // ExecuteDryRun simulates applying an application into cluster and returns rendered
 // resources but not persist them into cluster.
 func (d *Option) ExecuteDryRun(ctx context.Context, application *v1beta1.Application) ([]*types.ComponentManifest, []*unstructured.Unstructured, error) {
+	if err := validateComponentReads(application); err != nil {
+		return nil, nil, err
+	}
+	return d.executeDryRun(ctx, application)
+}
+
+// executeDryRun renders an Application whose component reads were validated
+// against the whole of it: the steps of a multi-step dry-run are rendered one
+// slice at a time, and a slice may not hold the components its readers read.
+//
+// There are no live producers to read, so each component read renders as a
+// placeholder where it stands in text and is left unchecked otherwise; see
+// withPlaceholders.
+func (d *Option) executeDryRun(ctx context.Context, application *v1beta1.Application) ([]*types.ComponentManifest, []*unstructured.Unstructured, error) {
+	ctx = withPlaceholders(ctx, application)
 	app := application.DeepCopy()
 	if app.Namespace != "" {
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
@@ -222,7 +240,6 @@ func (d *Option) PrintDryRun(buff *bytes.Buffer, appName string, comps []*types.
 
 // ExecuteDryRunWithPolicies is similar to ExecuteDryRun func, but considers deploy workflow step and topology+override policies
 func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1beta1.Application, buff *bytes.Buffer) error {
-
 	app := application.DeepCopy()
 	appNs := ctx.Value(oamutil.AppDefinitionNamespace)
 	if appNs == nil {
@@ -234,8 +251,13 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 	}
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	parser := appfile.NewDryRunApplicationParser(d.Client, d.Auxiliaries)
+	// Reads are validated with the whole Application as it is parsed, before it
+	// is rendered one step's slice at a time.
 	af, err := parser.GenerateAppFileFromApp(ctx, app)
 	if err != nil {
+		return err
+	}
+	if err := writeComponentReadsNotice(buff, application); err != nil {
 		return err
 	}
 	deployWorkflowCount := 0
@@ -257,7 +279,7 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 					if err != nil {
 						return err
 					}
-					comps, pms, err := d.ExecuteDryRun(ctx, patchedApp)
+					comps, pms, err := d.executeDryRun(ctx, patchedApp)
 					if err != nil {
 						return err
 					}
@@ -271,7 +293,7 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 				if err != nil {
 					return err
 				}
-				comps, pms, err := d.ExecuteDryRun(ctx, patchedApp)
+				comps, pms, err := d.executeDryRun(ctx, patchedApp)
 				if err != nil {
 					return err
 				}
@@ -283,7 +305,7 @@ func (d *Option) ExecuteDryRunWithPolicies(ctx context.Context, application *v1b
 		}
 	}
 	if deployWorkflowCount == 0 {
-		comps, pms, err := d.ExecuteDryRun(ctx, app)
+		comps, pms, err := d.executeDryRun(ctx, app)
 		if err != nil {
 			return err
 		}
@@ -337,4 +359,71 @@ func patchApp(application *v1beta1.Application, overridePolicies []v1beta1.AppPo
 	}
 
 	return app, nil
+}
+
+// writeComponentReadsNotice lists the component reads a dry-run stands in for,
+// and how each is ordered. A read in text shows as a
+// placeholder, but one feeding any other type is left unchecked, and the
+// definition's own default for that parameter, if it has one, shows where the
+// real value would land.
+func writeComponentReadsNotice(buff *bytes.Buffer, app *v1beta1.Application) error {
+	if !sources.ExpressionsEnabledFor(app.GetAnnotations()) {
+		return nil
+	}
+	var lines []string
+	for _, comp := range app.Spec.Components {
+		reads, err := sources.ComponentReads(comp)
+		if err != nil {
+			return err
+		}
+		for _, r := range reads {
+			lines = append(lines, fmt.Sprintf("# component %s reads %s", comp.Name, r))
+		}
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	lines = append(lines, "# How they are ordered:")
+	for _, d := range sources.Dependencies(app.Spec.Components, app.GetAnnotations()) {
+		if d.Source != common.DependencySourceExpression {
+			continue
+		}
+		where := sources.DependencyPlacement(d)
+		if where == "" {
+			lines = append(lines, fmt.Sprintf("#   %s dependsOn %s, beside it", d.Component, d.DependsOn))
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("#   %s reads %s in %s: the workflow orders it", d.Component, d.DependsOn, where))
+	}
+	_, err := fmt.Fprintf(buff, "# Component reads come from live clusters and are not resolved in a dry-run.\n"+
+		"# In text they show as <placeholders>; any other value is unchecked and may show the definition's default.\n%s\n\n",
+		strings.Join(lines, "\n"))
+	return err
+}
+
+// validateComponentReads checks an Application's reads, when it has opted into
+// expressions at all; without the opt-in, $( ) is ordinary text.
+func validateComponentReads(app *v1beta1.Application) error {
+	if !sources.ExpressionsEnabledFor(app.GetAnnotations()) {
+		return nil
+	}
+	return appfile.ValidateComponentReads(app.Spec)
+}
+
+// withPlaceholders marks ctx for a render standing in for component reads, when
+// app makes any. Only then: placeholder mode also prunes whatever a render
+// leaves open, which in any other Application would hide a definition's fault.
+func withPlaceholders(ctx context.Context, app *v1beta1.Application) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if !sources.ExpressionsEnabledFor(app.GetAnnotations()) {
+		return ctx
+	}
+	for _, comp := range app.Spec.Components {
+		if reads, err := sources.ComponentReads(comp); err == nil && len(reads) > 0 {
+			return sources.WithComponentPlaceholders(ctx)
+		}
+	}
+	return ctx
 }

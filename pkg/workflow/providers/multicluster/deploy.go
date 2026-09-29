@@ -111,6 +111,7 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context) (bool, s
 	if err != nil {
 		return false, "", err
 	}
+	components = executor.af.ComponentsWithReadDependencies(components)
 	return applyComponents(ctx, executor.apply, executor.healthCheck, components, placements, int(executor.parameter.Parallelism))
 }
 
@@ -243,11 +244,29 @@ func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []
 		return nil
 	}
 
+	componentVal, err := OutputView(output, outputs, build)
+	if err != nil {
+		return err
+	}
+	for _, o := range t.component.Outputs {
+		actualOutput, err := LookupOutput(componentVal, o.ValueFrom)
+		if err != nil {
+			return err
+		}
+		cache.Set(t.varKey(o.Name), actualOutput)
+	}
+	return nil
+}
+
+// OutputView is the value a component output's valueFrom is looked up in:
+// `output` for the workload and `outputs.<resource>` for each trait resource,
+// named by its oam.TraitResource label.
+func OutputView(output *unstructured.Unstructured, outputs []*unstructured.Unstructured, build func(string) cue.Value) (cue.Value, error) {
 	var cueString string
 	if output != nil {
 		outputJSON, err := output.MarshalJSON()
 		if err != nil {
-			return errors.Wrap(err, "marshal output")
+			return cue.Value{}, errors.Wrap(err, "marshal output")
 		}
 		cueString += fmt.Sprintf("output:%s\n", string(outputJSON))
 	}
@@ -259,16 +278,16 @@ func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []
 			componentVal = componentVal.FillPath(cue.ParsePath(fmt.Sprintf("outputs.%s", name)), os.Object)
 		}
 	}
+	return componentVal, nil
+}
 
-	for _, o := range t.component.Outputs {
-		pathToSetVar := t.varKey(o.Name)
-		actualOutput := componentVal.LookupPath(cue.ParsePath(o.ValueFrom))
-		if !actualOutput.Exists() {
-			return workflowerrors.LookUpNotFoundErr(o.ValueFrom)
-		}
-		cache.Set(pathToSetVar, actualOutput)
+// LookupOutput reads one output out of an OutputView.
+func LookupOutput(view cue.Value, valueFrom string) (cue.Value, error) {
+	v := view.LookupPath(cue.ParsePath(valueFrom))
+	if !v.Exists() {
+		return cue.Value{}, workflowerrors.LookUpNotFoundErr(valueFrom)
 	}
-	return nil
+	return v, nil
 }
 
 func (t *applyTask) allDependsReady(healthyMap map[string]bool) bool {
@@ -294,6 +313,8 @@ func (t *applyTask) allInputReady(cache *pkgmaps.SyncMap[string, cue.Value]) boo
 
 type applyTaskResult struct {
 	healthy bool
+	// waiting is why the task was not applied yet, when it was not.
+	waiting string
 	err     error
 	task    *applyTask
 	// outputReady indicates whether all declared outputs are ready
@@ -393,7 +414,10 @@ HealthCheck:
 			if err != nil {
 				return &applyTaskResult{healthy: false, err: err, task: task, outputReady: true}
 			}
-			_, _, healthy, err := apply(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace)
+			_, _, healthy, waiting, err := apply(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace)
+			if waiting != "" {
+				return &applyTaskResult{healthy: false, waiting: waiting, task: task, outputReady: true}
+			}
 			if err != nil {
 				return &applyTaskResult{healthy: healthy, err: err, task: task, outputReady: true}
 			}
@@ -409,6 +433,12 @@ HealthCheck:
 		}
 	}
 	for _, res := range results {
+		if res.waiting != "" {
+			// Not applied yet, and not an error: its reason is the step's message.
+			allHealthy = false
+			reasons = append(reasons, fmt.Sprintf("%s is %s", res.task.key(), res.waiting))
+			continue
+		}
 		if res.err != nil {
 			errs = append(errs, fmt.Errorf("error encountered in cluster %s: %w", res.task.placement.Cluster, res.err))
 		}

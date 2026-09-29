@@ -73,7 +73,7 @@ func TestParser(t *testing.T) {
 		Params: v,
 		RuntimeParams: oamprovidertypes.RuntimeParams{
 			Action: act,
-			ComponentApply: oamprovidertypes.ComponentApply(func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+			ComponentApply: oamprovidertypes.ComponentApply(func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 				return &unstructured.Unstructured{
 						Object: map[string]interface{}{
 							"metadata": map[string]interface{}{
@@ -91,7 +91,7 @@ func TestParser(t *testing.T) {
 								},
 							},
 						},
-					}, false, nil
+					}, false, "", nil
 			}),
 		},
 	})
@@ -266,4 +266,25 @@ func TestLoadComponentInOrder(t *testing.T) {
 	b, err := json.Marshal(res.Returns.Value)
 	r.NoError(err)
 	r.Equal(string(b), `[{"name":"c1","type":"test","properties":{"image":"busybox"}},{"name":"c2","type":"test","properties":{"image":"busybox"}}]`)
+}
+
+// A component waiting on a read was not applied, so its step waits, with the
+// reason, whether or not it asked to wait for health.
+func TestApplyComponentWaitsOnARead(t *testing.T) {
+	r := require.New(t)
+	act := &mock.Action{}
+	v := cuecontext.New().CompileString(`$params: value: {name: "api", type: "webservice"}
+waitHealthy: false`)
+	_, err := ApplyComponent(context.Background(), &oamprovidertypes.Params[cue.Value]{
+		Params: v,
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			Action: act,
+			ComponentApply: func(context.Context, common.ApplicationComponent, *cue.Value, string, string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
+				return nil, nil, false, `waiting for component "db" in east to be healthy`, nil
+			},
+		},
+	})
+	r.NoError(err)
+	r.Equal("Wait", act.Phase)
+	r.Equal(`waiting for component "db" in east to be healthy`, act.Msg)
 }

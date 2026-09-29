@@ -26,6 +26,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	cueformat "cuelang.org/go/cue/format"
+	"github.com/kubevela/pkg/cel/template"
 	"github.com/kubevela/workflow/pkg/cue/process"
 	"k8s.io/utils/lru"
 
@@ -164,10 +165,10 @@ func (t *paramTyper) walk(node any) (any, bool, error) {
 // typeOfLeaf returns what a string leaf should contribute: itself when it holds
 // no expression, otherwise the type the expression produces.
 func (t *paramTyper) typeOfLeaf(raw string) (any, error) {
-	if !propexpr.MayContainExpr(raw) {
+	if !template.MayContainExpr(raw) {
 		return raw, nil
 	}
-	parsed, err := propexpr.Parse(raw)
+	parsed, err := template.Parse(raw)
 	if err != nil {
 		//nolint:nilerr // a malformed expression is reported by the expression validator
 		return raw, nil
@@ -199,12 +200,12 @@ func (t *paramTyper) typeOfLeaf(raw string) (any, error) {
 // Reports false for anything else, including a read of a binding with no schema
 // to judge by.
 func (t *paramTyper) fromSchema(expr string) (any, bool) {
-	refs, err := celexpr.PropertyReferences(expr)
+	refs, err := celexpr.Vela.PropertyReferences(expr)
 	if err != nil || len(refs) != 1 {
 		return nil, false
 	}
 	ref := refs[0]
-	if !ref.IsSource() || len(ref.Path) == 0 || ref.String() != expr {
+	if !propexpr.IsSource(ref) || len(ref.Path) == 0 || ref.String() != expr {
 		// Not a bare read: the expression does something with the value.
 		return nil, false
 	}
@@ -313,7 +314,7 @@ func (t *paramTyper) fromCEL(expr string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	out, err := celexpr.OutputType(env, expr)
+	out, err := celexpr.Vela.OutputType(env, expr)
 	if err != nil {
 		// The expression validator reports this properly. Leaving it untyped
 		// here keeps one failure to one message.
@@ -455,7 +456,19 @@ func renderCUE(node any) (string, error) {
 // definition's constraints, where a missing field would fail the required-field
 // check; the output is checked against nothing.
 func ConcreteForValidation(v cue.Value) (cue.Value, bool) {
-	pruned, changed := pruneIncomplete(v)
+	return concreteFor(v, false)
+}
+
+// ConcreteForOpenRender is ConcreteForValidation for whichever open render ctx
+// is. A placeholder dry-run first takes each leaf's default, which is where a
+// component read's placeholder sits wherever its parameter takes text; a
+// validation does not, since a default there says nothing about the value.
+func ConcreteForOpenRender(ctx context.Context, v cue.Value) (cue.Value, bool) {
+	return concreteFor(v, ComponentPlaceholders(ctx) && !TypeOnly(ctx))
+}
+
+func concreteFor(v cue.Value, takeDefaults bool) (cue.Value, bool) {
+	pruned, changed := pruneIncomplete(v, takeDefaults)
 	if !changed {
 		return v, false
 	}
@@ -481,7 +494,7 @@ type droppedLeaf struct{}
 
 var dropped = droppedLeaf{}
 
-func pruneIncomplete(v cue.Value) (any, bool) {
+func pruneIncomplete(v cue.Value, takeDefaults bool) (any, bool) {
 	switch v.IncompleteKind() {
 	case cue.StructKind:
 		iter, err := v.Fields()
@@ -495,7 +508,7 @@ func pruneIncomplete(v cue.Value) (any, bool) {
 			if !sel.IsString() {
 				continue
 			}
-			child, childChanged := pruneIncomplete(iter.Value())
+			child, childChanged := pruneIncomplete(iter.Value(), takeDefaults)
 			if child == any(dropped) {
 				changed = true
 				continue
@@ -512,7 +525,7 @@ func pruneIncomplete(v cue.Value) (any, bool) {
 		out := []any{}
 		changed := false
 		for iter.Next() {
-			child, childChanged := pruneIncomplete(iter.Value())
+			child, childChanged := pruneIncomplete(iter.Value(), takeDefaults)
 			if child == any(dropped) {
 				// A list unifies by position and cannot lose an element without
 				// moving the rest, so one unknowable element takes the whole
@@ -533,5 +546,20 @@ func pruneIncomplete(v cue.Value) (any, bool) {
 			return decoded, false
 		}
 	}
+	if takeDefaults {
+		if d, ok := v.Default(); ok && d.IsConcrete() {
+			var decoded any
+			if err := d.Decode(&decoded); err == nil {
+				return decoded, true
+			}
+		}
+	}
 	return dropped, true
+}
+
+// OpenParams reports whether a render's parameters may carry types instead of
+// values: a validation, or a dry-run standing in for component reads. Such a
+// render writes parameters as CUE and prunes what stays open from its output.
+func OpenParams(ctx context.Context) bool {
+	return TypeOnly(ctx) || ComponentPlaceholders(ctx)
 }

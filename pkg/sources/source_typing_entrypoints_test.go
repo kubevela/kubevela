@@ -300,10 +300,25 @@ func TestConcreteForValidationEmptiesAWhollyUnknowableValue(t *testing.T) {
 		`[1, int]`: `[]`,
 		`string`:   `{}`,
 	} {
-		out, changed := ConcreteForValidation(cc.CompileString(src))
+		v := cc.CompileString(src)
+		require.NoError(t, v.Err(), src)
+		out, changed := ConcreteForValidation(v)
 		require.True(t, changed, src)
 		got, err := out.MarshalJSON()
 		require.NoError(t, err, src)
 		require.JSONEq(t, want, string(got), src)
 	}
+}
+
+// A component's output has no schema at admission, so a read of one types as
+// anything rather than failing the validation render.
+func TestTypedParamsTypesAComponentReadAsAnything(t *testing.T) {
+	ctx := typingContext(t)
+	out, err := TypedParams(ctx, map[string]any{
+		"url":  "$(component.db.output.status.endpoint)",
+		"text": "pg://$(component.db.output.status.endpoint)",
+	}, SurfaceComponent)
+	require.NoError(t, err)
+	require.Equal(t, CUEType("_"), out["url"])
+	require.Equal(t, CUEType("string"), out["text"])
 }

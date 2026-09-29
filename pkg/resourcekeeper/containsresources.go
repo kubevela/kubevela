@@ -16,7 +16,11 @@ limitations under the License.
 
 package resourcekeeper
 
-import "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import (
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+)
 
 // ContainsResources check if resources all exist
 func (h *resourceKeeper) ContainsResources(resources []*unstructured.Unstructured) bool {
@@ -32,4 +36,30 @@ func (h *resourceKeeper) ContainsResources(resources []*unstructured.Unstructure
 		return false
 	}
 	return true
+}
+
+// ComponentResources is every resource the tracked Application has applied for a
+// component and not since deleted. Only trackers already loaded are read: a
+// tracker that does not exist yet holds nothing applied.
+//
+// Held under the keeper's lock, since a deploy step records into the trackers
+// from parallel tasks; the entries are copied out, without the stored manifest.
+func (h *resourceKeeper) ComponentResources(component string) []v1beta1.ManagedResource {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var out []v1beta1.ManagedResource
+	for _, rt := range []*v1beta1.ResourceTracker{h._currentRT, h._rootRT} {
+		if rt == nil {
+			continue
+		}
+		for _, mr := range rt.Spec.ManagedResources {
+			if !mr.Deleted && mr.Component == component {
+				// The stored manifest is shared with the tracker, and not needed to
+				// find the resource.
+				mr.Data = nil
+				out = append(out, mr)
+			}
+		}
+	}
+	return out
 }

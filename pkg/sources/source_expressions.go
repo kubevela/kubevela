@@ -17,99 +17,90 @@ limitations under the License.
 package sources
 
 import (
+	"context"
+	"fmt"
 	"strconv"
 	"strings"
+
+	celengine "github.com/kubevela/pkg/cel"
 
 	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 )
 
-// resolveSourceNode walks a properties blob, tracking the path it is at so a
-// recorded read can say which property received the value. Without that, status
-// can report what was read but not where it went, which is the half that matters
-// once a property is assembled from more than one source.
-func resolveSourceNode(node interface{}, resolver *sourceResolver) (interface{}, error) {
-	return propexpr.Map(node, "", func(at, raw string) (interface{}, error) {
-		return evaluateSourceExpression(raw, resolver, at)
-	})
-}
-
-// evaluateSourceExpression substitutes $(...) expressions in a property value.
-// A value with no delimiter comes back byte-identical; one holding only `$$(`
-// escapes comes back with them collapsed, which is the point of writing them.
+// resolveSourceNode substitutes every expression in a properties blob, reading
+// sources through this resolver.
 //
 // Resolution happens here rather than at admission so that reading a source
 // through an expression drives the resolution and the consumed-value recording
-// that status reports. Otherwise a binding read only by an expression would show
-// as unresolved.
-func evaluateSourceExpression(raw string, resolver *sourceResolver, property string) (interface{}, error) {
-	parsed, err := propexpr.Parse(raw)
-	if err != nil {
-		return nil, err
+// that status reports. Each read carries the property it feeds, so status can
+// report where a value went as well as what was read, which is the half that
+// matters once a property is assembled from more than one source.
+func resolveSourceNode(node interface{}, resolver *sourceResolver) (interface{}, error) {
+	ctx := resolver.goCtx
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	if !parsed.HasExpr() {
-		return parsed.Literal(), nil
-	}
-
-	resolved := map[string]map[string]interface{}{}
-	for _, fragment := range parsed.Fragments {
-		if !fragment.IsExpr() {
-			continue
-		}
-		refs, rerr := celexpr.PropertyReferences(fragment.Expr)
-		if rerr != nil {
-			return nil, rerr
-		}
-		for _, ref := range refs {
-			// A bare `source` names no binding to resolve. Admission refuses it,
-			// and reaching here means it came from somewhere admission does not
-			// cover.
-			if !ref.IsSource() || len(ref.Path) == 0 {
-				continue
-			}
-			name := ref.Path[0]
-			values, verr := resolver.resolve(name)
-			if verr != nil {
-				return nil, verr
-			}
-			resolved[name] = values
-
-			// Record what the expression read, so status reports it exactly as a
-			// status reports it - including +sensitive redaction, which
-			// matches on the recorded path.
-			// Looked up by segments, reported as text. A key may contain a dot
-			// - a ConfigMap entry called app.properties, a domain-prefixed label
-			// - and splitting the rendered path would read one key as two, so
-			// the read went unrecorded and with it the hash that drives
-			// auto-update for that binding.
-			segments := ref.Path[1:]
-			if value, ok := lookupMapSegments(values, segments); ok {
-				resolver.recordConsumedValue(name, resolver.sourceTypes[name],
-					strings.Join(segments, "."), value, property)
-			}
-		}
-	}
-
-	return celEvalProperty(raw, resolved, resolver.expressionContext())
+	return celexpr.Vela.EvalTree(ctx, node, map[string]celengine.Resolver{
+		propexpr.SourceIdent: celengine.ResolverFunc(resolver.resolveReads),
+		propexpr.ContextIdent: celengine.ResolverFunc(func(context.Context, []celengine.Read) (interface{}, error) {
+			return resolver.expressionContext(), nil
+		}),
+		propexpr.ComponentIdent: celengine.ResolverFunc(resolver.componentReadsFor),
+	}, celengine.TreeOptions{Unknown: componentPlaceholder, OnEvalError: waitOnMissingOutput})
 }
 
-// celEvalProperty evaluates a whole property value with CEL, interpolation
-// included. The $( ) splitting is shared, so only the contents differ.
-func celEvalProperty(raw string, resolved map[string]map[string]interface{},
-	ctx map[string]interface{}) (interface{}, error) {
-	env, err := celexpr.DynEnv()
-	if err != nil {
-		return nil, err
+// waitOnMissingOutput treats an element or key missing below a component read,
+// such as the first of a list a status fills in later, as a wait: only
+// evaluation finds it missing.
+func waitOnMissingOutput(expr string, roots []string, err error) error {
+	for _, root := range roots {
+		if root == propexpr.ComponentIdent && missingFromOutput(err) {
+			return ComponentReadNotReady{Reason: fmt.Sprintf("waiting for %s: %v", expr, err)}
+		}
 	}
-	in := map[string]interface{}{"context": ctx}
-	sources := map[string]interface{}{}
-	for name, values := range resolved {
-		sources[name] = values
+	return err
+}
+
+// missingFromOutput reports an evaluation that failed on an element or key not
+// there, as opposed to one that failed on how the expression is written.
+func missingFromOutput(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "out of bounds") || strings.Contains(msg, "out of range") || strings.Contains(msg, "no such key")
+}
+
+// resolveReads resolves every binding the reads name and records what each read
+// consumed.
+//
+// Resolved values were retyped against their source's schema, so they are
+// marked typed: guessing an int from a float64 with no fractional part would
+// undo that.
+func (r *sourceResolver) resolveReads(_ context.Context, reads []celengine.Read) (interface{}, error) {
+	resolved := map[string]interface{}{}
+	for _, read := range reads {
+		// A bare `source` names no binding to resolve. Admission refuses it, and
+		// reaching here means it came from somewhere admission does not cover.
+		if len(read.Path) == 0 {
+			continue
+		}
+		name := read.Path[0]
+		values, err := r.resolve(name)
+		if err != nil {
+			return nil, err
+		}
+		resolved[name] = values
+
+		// Recorded as status reports it, including +sensitive redaction, which
+		// matches on the recorded path. Looked up by segments, reported as text:
+		// a key may contain a dot (a ConfigMap entry called app.properties, a
+		// domain-prefixed label), and splitting the rendered path would read one
+		// key as two, losing the read and the hash that drives auto-update.
+		segments := read.Path[1:]
+		if value, ok := lookupMapSegments(values, segments); ok {
+			r.recordConsumedValue(name, r.sourceTypes[name], strings.Join(segments, "."), value, read.Property)
+		}
 	}
-	in["source"] = sources
-	// Typed: resolved values were retyped against their source's schema, so
-	// guessing an int from a float64 with no fractional part would undo it.
-	return celexpr.EvalPropertyTyped(env, raw, in)
+	return celengine.Typed(resolved), nil
 }
 
 func lookupMapSegments(data map[string]interface{}, segments []string) (interface{}, bool) {
