@@ -318,3 +318,7 @@ replace (
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
 	sigs.k8s.io/apiserver-runtime => github.com/kmodules/apiserver-runtime v1.1.2-0.20250422194347-c5ac4abaf2ae
 )
+
+replace github.com/kubevela/pkg => github.com/briankane/pkg v0.0.0-20260928111829-7ce350456176
+
+replace github.com/kubevela/workflow => github.com/briankane/workflow v0.6.5-0.20260928111957-902def5f3c77

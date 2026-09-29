@@ -261,12 +261,14 @@ func TestWorkflowOptions_SyncToGlobals(t *testing.T) {
 	origWait := wfTypes.MaxWorkflowWaitBackoffTime
 	origFailed := wfTypes.MaxWorkflowFailedBackoffTime
 	origRetry := wfTypes.MaxWorkflowStepErrorRetryTimes
+	origForEach := wfTypes.MaxForEachItems
 
 	// Restore after test
 	defer func() {
 		wfTypes.MaxWorkflowWaitBackoffTime = origWait
 		wfTypes.MaxWorkflowFailedBackoffTime = origFailed
 		wfTypes.MaxWorkflowStepErrorRetryTimes = origRetry
+		wfTypes.MaxForEachItems = origForEach
 	}()
 
 	opts := NewCoreOptions()
@@ -276,6 +278,7 @@ func TestWorkflowOptions_SyncToGlobals(t *testing.T) {
 		"--max-workflow-wait-backoff-time=120",
 		"--max-workflow-failed-backoff-time=600",
 		"--max-workflow-step-error-retry-times=20",
+		"--max-for-each-items=7",
 	}
 
 	err := fss.FlagSet("workflow").Parse(args)
@@ -285,12 +288,14 @@ func TestWorkflowOptions_SyncToGlobals(t *testing.T) {
 	assert.Equal(t, 120, opts.Workflow.MaxWaitBackoffTime)
 	assert.Equal(t, 600, opts.Workflow.MaxFailedBackoffTime)
 	assert.Equal(t, 20, opts.Workflow.MaxStepErrorRetryTimes)
+	assert.Equal(t, 7, opts.Workflow.MaxForEachItems)
 
 	// After sync, globals should be updated
 	opts.Workflow.SyncToWorkflowGlobals()
 	assert.Equal(t, 120, wfTypes.MaxWorkflowWaitBackoffTime)
 	assert.Equal(t, 600, wfTypes.MaxWorkflowFailedBackoffTime)
 	assert.Equal(t, 20, wfTypes.MaxWorkflowStepErrorRetryTimes)
+	assert.Equal(t, 7, wfTypes.MaxForEachItems)
 }
 
 func TestOAMOptions_SyncToGlobals(t *testing.T) {

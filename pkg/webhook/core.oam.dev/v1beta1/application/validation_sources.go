@@ -103,6 +103,9 @@ func (h *ValidatingHandler) ValidateSources(ctx context.Context, app *v1beta1.Ap
 			stepRefs, stepErrs := collectSourceRefs(step.Properties, field.NewPath("spec", "workflow", "steps").Index(i).Child("properties"), -1)
 			errs = append(errs, stepErrs...)
 			refs = append(refs, withSurface(stepRefs, sources.SurfaceWorkflowStep)...)
+			itemRefs, itemErrs := collectSourceRefs(forEachItems(step), field.NewPath("spec", "workflow", "steps").Index(i).Child("forEach", "items"), -1)
+			errs = append(errs, itemErrs...)
+			refs = append(refs, withSurface(itemRefs, sources.SurfaceWorkflowStep)...)
 			for j, sub := range step.SubSteps {
 				subRefs, subErrs := collectSourceRefs(sub.Properties, field.NewPath("spec", "workflow", "steps").Index(i).Child("subSteps").Index(j).Child("properties"), -1)
 				errs = append(errs, subErrs...)

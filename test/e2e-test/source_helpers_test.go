@@ -93,6 +93,14 @@ func applyDefinition(ctx context.Context, obj client.Object) {
 			if latest.Status.LatestRevision == nil {
 				return fmt.Errorf("PolicyDefinition %s not reconciled yet", key.Name)
 			}
+		case *v1beta1.WorkflowStepDefinition:
+			latest := &v1beta1.WorkflowStepDefinition{}
+			if err := k8sClient.Get(ctx, key, latest); err != nil {
+				return err
+			}
+			if latest.Status.LatestRevision == nil {
+				return fmt.Errorf("WorkflowStepDefinition %s not reconciled yet", key.Name)
+			}
 		case *v1beta1.TraitDefinition:
 			latest := &v1beta1.TraitDefinition{}
 			if err := k8sClient.Get(ctx, key, latest); err != nil {
