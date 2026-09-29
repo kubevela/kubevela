@@ -182,32 +182,66 @@ var _ = AfterSuite(func() {
 // change to either is only seen on the next resync.
 func RequestReconcileNow(ctx context.Context, o client.Object) {
 	By(fmt.Sprintf("Request reconcile %q now", o.GetName()))
-	Expect(requestReconcile(ctx, o)).Should(Succeed())
+	_, err := requestReconcile(ctx, o)
+	Expect(err).Should(Succeed())
 }
 
 // requestReconcile stamps an annotation, which passes the Application
-// controller's update predicate. It patches metadata only, so a stale o
-// cannot overwrite the spec.
-func requestReconcile(ctx context.Context, o client.Object) error {
+// controller's update predicate, and returns the resulting resourceVersion.
+// It patches metadata only, so a stale o cannot overwrite the spec.
+func requestReconcile(ctx context.Context, o client.Object) (string, error) {
 	patch := fmt.Sprintf(`{"metadata":{"annotations":{"app.oam.dev/requestreconcile":%q}}}`, time.Now().Format(time.RFC3339Nano))
-	return k8sClient.Patch(ctx, o.DeepCopyObject().(client.Object), client.RawPatch(types.MergePatchType, []byte(patch)))
+	patched := o.DeepCopyObject().(client.Object)
+	if err := k8sClient.Patch(ctx, patched, client.RawPatch(types.MergePatchType, []byte(patch))); err != nil {
+		return "", err
+	}
+	return patched.GetResourceVersion(), nil
 }
 
-// EventuallyReconciled polls assertion, requesting a reconcile of o before
-// each poll. Every reconcile also re-runs a failing workflow step, so a
-// terminal failure is reached at the poll rate instead of the step backoff.
+// reconcileRequester requests reconciles of one object without overlapping
+// them. A request that lands while a reconcile is in flight makes that
+// reconcile's status write conflict and its progress is lost, so a new request
+// waits until the controller has written the object since the last one, or
+// until requestSpacing has passed in case a reconcile had nothing to write.
+type reconcileRequester struct {
+	ctx    context.Context
+	obj    client.Object
+	lastRV string
+	lastAt time.Time
+}
+
+const requestSpacing = 5 * time.Second
+
+func (r *reconcileRequester) request(g Gomega) {
+	if r.lastRV != "" && time.Since(r.lastAt) < requestSpacing {
+		current := r.obj.DeepCopyObject().(client.Object)
+		g.Expect(k8sClient.Get(r.ctx, client.ObjectKeyFromObject(r.obj), current)).To(Succeed())
+		if current.GetResourceVersion() == r.lastRV {
+			return
+		}
+	}
+	rv, err := requestReconcile(r.ctx, r.obj)
+	g.Expect(err).To(Succeed())
+	r.lastRV, r.lastAt = rv, time.Now()
+}
+
+// EventuallyReconciled polls assertion, requesting reconciles of o as fast as
+// the controller completes them. Every reconcile also re-runs a failing
+// workflow step, so a terminal failure is reached without the step backoff.
 func EventuallyReconciled(ctx context.Context, o client.Object, assertion func(g Gomega)) AsyncAssertion {
+	r := &reconcileRequester{ctx: ctx, obj: o}
 	return Eventually(func(g Gomega) {
-		g.Expect(requestReconcile(ctx, o)).To(Succeed())
+		r.request(g)
 		assertion(g)
 	}).WithPolling(time.Second)
 }
 
-// ConsistentlyReconciled holds assertion while requesting a reconcile of o
-// before each poll, so "nothing changed" is checked across real reconciles.
+// ConsistentlyReconciled holds assertion while requesting reconciles of o, so
+// "nothing changed" is checked across real reconciles.
 func ConsistentlyReconciled(ctx context.Context, o client.Object, assertion func(g Gomega)) AsyncAssertion {
+	r := &reconcileRequester{ctx: ctx, obj: o}
 	return Consistently(func(g Gomega) {
-		g.Expect(requestReconcile(ctx, o)).To(Succeed())
+		r.request(g)
 		assertion(g)
 	}).WithPolling(time.Second)
 }
