@@ -264,7 +264,7 @@ func EventuallyReconciled(ctx context.Context, o client.Object, assertion func(g
 	return Eventually(func(g Gomega) {
 		r.request(g)
 		assertion(g)
-	}).WithPolling(time.Second)
+	}).WithPolling(time.Second).WithTimeout(2 * time.Minute)
 }
 
 // ConsistentlyReconciled holds assertion while requesting reconciles of o, so

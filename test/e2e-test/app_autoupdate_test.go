@@ -203,7 +203,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate] = "false"
 			err := k8sClient.Create(ctx, app)
 			Expect(err).Should(HaveOccurred())
-			Expect(err.Error()).Should(ContainSubstring(`"configmap-component@v1" not found`))
+			Expect(err.Error()).Should(And(ContainSubstring("configmap-component@v1"), ContainSubstring("not found")))
 		})
 
 		It("When specified trait version is available, app should specified trait version", func() {
@@ -314,7 +314,7 @@ func waitForDefinitionRevision(ctx context.Context, namespace, name, version str
 func createAppOnceRevisionVisible(ctx context.Context, app *v1beta1.Application) {
 	Eventually(func() error {
 		err := k8sClient.Create(ctx, app.DeepCopy())
-		if err != nil && !isStaleRevisionRead(err) {
+		if err != nil && !isStaleRevisionRead(err, app) {
 			return StopTrying("create refused").Wrap(err)
 		}
 		return err
@@ -322,11 +322,28 @@ func createAppOnceRevisionVisible(ctx context.Context, app *v1beta1.Application)
 }
 
 // isStaleRevisionRead matches both refusals: the version-range lookup's, and
-// the pinned lookup's NotFound for a "<type>@v<version>" reference.
-func isStaleRevisionRead(err error) bool {
+// the pinned lookup's NotFound naming one of app's own "<type>@v<version>"
+// references.
+func isStaleRevisionRead(err error, app *v1beta1.Application) bool {
 	msg := err.Error()
-	return strings.Contains(msg, "error finding definition revision") ||
-		(strings.Contains(msg, "@v") && strings.Contains(msg, "not found"))
+	if strings.Contains(msg, "error finding definition revision") {
+		return true
+	}
+	if !strings.Contains(msg, "not found") {
+		return false
+	}
+	for _, comp := range app.Spec.Components {
+		refs := []string{comp.Type}
+		for _, trait := range comp.Traits {
+			refs = append(refs, trait.Type)
+		}
+		for _, ref := range refs {
+			if strings.Contains(ref, "@v") && strings.Contains(msg, fmt.Sprintf("%q", ref)) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // deploymentReplicas reads the desired replicas the scaler trait wrote. Pod

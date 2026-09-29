@@ -233,7 +233,10 @@ var _ = Describe("PostDispatch Trait tests", Ordered, ContinueOnFailure, func() 
 				g.Expect(findTraitStatus(g, current, "flip-component", defs.flipTrait).Healthy).Should(BeTrue())
 			}).WithTimeout(time.Minute).WithPolling(time.Second).Should(Succeed())
 
-			By("The trait and its component turn unhealthy once the pod stops being ready")
+			By("The trait's pod stops being ready")
+			runCommandSucceed("kubectl", "exec", "-n", namespace, "deploy/trait-deployment-flip", "--", "rm", "/tmp/ready")
+
+			By("The trait and its component turn unhealthy")
 			EventuallyReconciled(ctx, app, func(g Gomega) {
 				current := getApp(g, app)
 				g.Expect(findServiceStatus(g, current, "flip-component").Healthy).Should(BeFalse())
@@ -409,10 +412,11 @@ parameter: {
 `, containerExtra)
 }
 
-// flipContainer is ready for its first 30 seconds and never again, a
-// permanent state any reconcile observes.
+// flipContainer is ready while /tmp/ready exists. The spec removes it once it
+// has seen the trait healthy, so neither state depends on when a reconcile
+// lands.
 const flipContainer = `
-				command: ["sh", "-c", "touch /tmp/ready && sleep 30 && rm /tmp/ready && sleep 3600"]
+				command: ["sh", "-c", "touch /tmp/ready && sleep 3600"]
 				readinessProbe: {
 					exec: command: ["cat", "/tmp/ready"]
 					periodSeconds: 1
