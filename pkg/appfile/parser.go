@@ -835,6 +835,11 @@ func (p *Parser) ValidateComponentNames(app *v1beta1.Application) (int, error) {
 // The rule itself lives in pkg/cue/definition, next to the resolver that
 // implements it, so the two enforcement points cannot drift apart.
 func (p *Parser) validateExpressionSurfaces(ctx context.Context, af *Appfile) error {
+	// Without the opt-in, $( ) is ordinary text, a shell command say, and there
+	// is no expression to check: the same decision admission and the render make.
+	if af.app == nil || !sources.ExpressionsEnabledFor(af.app.GetAnnotations()) {
+		return nil
+	}
 	check := func(raw *runtime.RawExtension, surface, name string) error {
 		if raw == nil || len(raw.Raw) == 0 {
 			return nil
