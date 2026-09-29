@@ -33,6 +33,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -296,7 +297,7 @@ var _ = Describe("Test Application workflow generator", func() {
 			},
 			Spec: oamcore.ApplicationSpec{Components: []common.ApplicationComponent{}},
 		}
-		ctxData := generateContextDataFromApp(context.Background(), app, "apprev-with-meta")
+		ctxData := appfile.WorkflowContextData(context.Background(), app, "apprev-with-meta")
 		Expect(ctxData.AppLabels).To(Equal(app.Labels))
 		Expect(ctxData.AppAnnotations).To(Equal(app.Annotations))
 	})
@@ -307,7 +308,7 @@ var _ = Describe("Test Application workflow generator", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "app-without-meta", Namespace: namespaceName},
 			Spec:       oamcore.ApplicationSpec{Components: []common.ApplicationComponent{}},
 		}
-		ctxData := generateContextDataFromApp(context.Background(), app, "apprev-without-meta")
+		ctxData := appfile.WorkflowContextData(context.Background(), app, "apprev-without-meta")
 		Expect(ctxData.AppLabels).To(BeNil())
 		Expect(ctxData.AppAnnotations).To(BeNil())
 	})

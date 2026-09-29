@@ -83,6 +83,11 @@ var TraitContext = surfaceSchema("trait")
 // built the same way a component's is.
 var WorkflowStepContext = surfaceSchema("workflowstep")
 
+// WorkflowStepTemplateContext is what a WorkflowStepDefinition template sees
+// when the workflow engine runs it, as opposed to WorkflowStepContext, which is
+// what the step's properties see when they are substituted.
+var WorkflowStepTemplateContext = surfaceSchema("workflowstep-template")
+
 // PolicyContext is what a resource-rendering policy sees.
 //
 // Narrower than ScopedPolicyContext because the two policy paths run at
@@ -128,6 +133,13 @@ func (c ContextSchema) Offers(field string) bool {
 // rather than restating them is the whole point of the registry.
 func (c ContextSchema) FieldValue(name string) (cue.Value, bool) {
 	return c.field(name)
+}
+
+// Plural names this surface in the plural, for a message that reads "not
+// offered to workflow step templates". Surface is the singular label, which
+// is not the registry key SurfacePlural takes.
+func (c ContextSchema) Plural() string {
+	return SurfacePlural(c.key)
 }
 
 // ReadableFields lists the context fields this surface offers, sorted.

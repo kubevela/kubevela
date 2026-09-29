@@ -42,6 +42,24 @@ type sourceCachePolicy struct {
 	OnStaleFailure string
 }
 
+// keyedCachePolicy is a binding's cache policy with its full key: storage.key
+// is the readable prefix, and uniqueness comes from a hash covering the
+// definition's template, the binding's properties, and exactly the context
+// values the template reads.
+func (r *sourceResolver) keyedCachePolicy(sourceName, sourceType, sourceTemplate string, props map[string]interface{}) (sourceCachePolicy, identityInputs, error) {
+	policy, err := r.resolveCachePolicy(sourceName, sourceType, sourceTemplate, props)
+	if err != nil {
+		return policy, identityInputs{}, err
+	}
+	identity := identityInputs{
+		Template:   templateFingerprint(sourceTemplate),
+		Properties: props,
+		Context:    identityContext(r.ctxValues, sourceName, policy.KeyInputs),
+	}
+	policy.Key, err = cacheIdentity(policy.Key, identity)
+	return policy, identity, err
+}
+
 func (r *sourceResolver) resolveCachePolicy(sourceName, sourceType, sourceTemplate string, props map[string]interface{}) (sourceCachePolicy, error) {
 	policy := sourceCachePolicy{
 		TTL:            sourceCacheTTL,
