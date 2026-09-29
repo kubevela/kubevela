@@ -158,6 +158,8 @@ var _ = BeforeSuite(func() {
 	} else {
 		By("Skipping auth-test registries setup (KUBEVELA_E2E_AUTH not set)")
 	}
+
+	waitForControllerReconciling(context.Background())
 })
 
 var _ = AfterSuite(func() {
@@ -176,6 +178,29 @@ var _ = AfterSuite(func() {
 		Expect(tearDownAuthRegistries(context.Background(), k8sClient)).To(Succeed())
 	}
 })
+
+// waitForControllerReconciling waits until the controller runs an Application
+// to completion. A vela-core Deployment can report Available while its new pod
+// still waits on the leader lease, and the auth setup restarts it to inject a
+// CA, so without this the first spec races the controller's start.
+func waitForControllerReconciling(ctx context.Context) {
+	By("Waiting for the controller to reconcile a canary Application")
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: randomNamespaceName("e2e-canary"), Namespace: "default"},
+		Spec: v1beta1.ApplicationSpec{Components: []commontypes.ApplicationComponent{{
+			Name:       "canary",
+			Type:       "k8s-objects",
+			Properties: &runtime.RawExtension{Raw: []byte(`{"objects":[{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"e2e-canary"}}]}`)},
+		}}},
+	}
+	Eventually(func() error { return k8sClient.Create(ctx, app) }, 30*time.Second, time.Second).Should(Succeed())
+	Eventually(func(g Gomega) {
+		current := &v1beta1.Application{}
+		g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(app), current)).To(Succeed())
+		g.Expect(current.Status.Phase).To(Equal(commontypes.ApplicationRunning))
+	}, 2*time.Minute, 500*time.Millisecond).Should(Succeed())
+	Expect(k8sClient.Delete(ctx, app)).To(Succeed())
+}
 
 // RequestReconcileNow queues o for an immediate reconcile. The controller
 // watches neither Definitions nor the workloads it applies, so without this a
