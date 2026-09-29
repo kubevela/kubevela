@@ -1574,7 +1574,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 		Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
 		h.appKey = client.ObjectKeyFromObject(h.app)
 
-		Eventually(func(g Gomega) {
+		EventuallyReconciled(h.ctx, h.app, func(g Gomega) {
 			g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
 			g.Expect(h.app.Status.Workflow).ToNot(BeNil())
 			g.Expect(string(h.app.Status.Workflow.Phase)).To(Equal("failed"))
@@ -1587,7 +1587,7 @@ var _ = Describe("Helmchart valuesFrom", func() {
 			}
 			g.Expect(found).To(BeTrue(),
 				"no workflow step contained %q; status=%+v", errSubstring, h.app.Status.Workflow)
-		}, 180*time.Second, 5*time.Second).Should(Succeed())
+		}).WithTimeout(60 * time.Second).Should(Succeed())
 
 		err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &appsv1.Deployment{})
 		Expect(err).To(HaveOccurred(), "no Deployment should exist for a failed workflow")

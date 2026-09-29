@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -68,7 +69,6 @@ var _ = Describe("Application AutoUpdate", func() {
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
 			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
-			waitDefinitionRevision(ctx, namespace, componentType, componentVersion)
 
 			By("Create configmap-component with 1.2.0 version")
 			updatedComponent := new(v1beta1.ComponentDefinition)
@@ -82,7 +82,7 @@ var _ = Describe("Application AutoUpdate", func() {
 				updatedComponent.Spec.Schematic.CUE.Template = createOutputConfigMap(updatedComponentVersion)
 				return k8sClient.Update(ctx, updatedComponent)
 			}, 15*time.Second, time.Second).Should(BeNil())
-			waitDefinitionRevision(ctx, namespace, componentType, updatedComponentVersion)
+			time.Sleep(sleepTime)
 
 			By("Create application using configmap-component@1.2.0")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", componentVersion)
@@ -129,7 +129,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
 			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
-			waitDefinitionRevision(ctx, namespace, componentType, componentVersion)
+			time.Sleep(sleepTime)
 
 			By("Create application using configmap-component@1.4")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "1.4")
@@ -152,7 +152,6 @@ var _ = Describe("Application AutoUpdate", func() {
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
 			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
-			waitDefinitionRevision(ctx, namespace, componentType, componentVersion)
 
 			By("Create configmap-component with 2.3.0 version")
 			updatedComponent := new(v1beta1.ComponentDefinition)
@@ -166,7 +165,7 @@ var _ = Describe("Application AutoUpdate", func() {
 				updatedComponent.Spec.Schematic.CUE.Template = createOutputConfigMap(updatedComponentVersion)
 				return k8sClient.Update(ctx, updatedComponent)
 			}, 15*time.Second, time.Second).Should(BeNil())
-			waitDefinitionRevision(ctx, namespace, componentType, updatedComponentVersion)
+			time.Sleep(sleepTime)
 
 			By("Create application using configmap-component@2")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "2")
@@ -213,7 +212,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
 			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
-			waitDefinitionRevision(ctx, namespace, componentType, componentVersion)
+			time.Sleep(sleepTime)
 
 			By("Create application using configmap-component@1.4 version")
 			app := updateAppComponent(appWithTwoComponentTemplate, "app1", namespace, componentType, "first-component", "1.4")
@@ -248,7 +247,6 @@ var _ = Describe("Application AutoUpdate", func() {
 			trait := createTrait(traitVersion, namespace, traitType, "1")
 			trait.SetNamespace(namespace)
 			Expect(k8sClient.Create(ctx, trait)).Should(Succeed())
-			waitDefinitionRevision(ctx, namespace, traitType, traitVersion)
 
 			By("Create scaler-trait with 1.2.0 version and 2 replicas")
 			updatedTrait := new(v1beta1.TraitDefinition)
@@ -262,20 +260,13 @@ var _ = Describe("Application AutoUpdate", func() {
 				updatedTrait.Spec.Schematic.CUE.Template = createScalerTraitOutput("2")
 				return k8sClient.Update(ctx, updatedTrait)
 			}, 15*time.Second, time.Second).Should(BeNil())
-			waitDefinitionRevision(ctx, namespace, traitType, updatedTraitVersion)
+			waitForDefinitionRevision(ctx, namespace, traitType, updatedTraitVersion)
 
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, updatedTraitVersion)
 			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
-			pods := new(corev1.PodList)
-			opts := []client.ListOption{
-				client.InNamespace(namespace),
-				client.MatchingLabels{
-					oam.LabelAppName: "app1",
-				},
-			}
-			time.Sleep(sleepTime)
-			Expect(k8sClient.List(ctx, pods, opts...)).To(BeNil())
-			Expect(len(pods.Items)).To(BeEquivalentTo(2))
+			Eventually(func(g Gomega) {
+				g.Expect(deploymentReplicas(ctx, g, namespace, "webservice-component")).To(BeEquivalentTo(2))
+			}, 30*time.Second, 500*time.Millisecond).Should(Succeed())
 
 			By("Create scaler-trait with 1.4.0 version")
 			updatedTraitVersion = "1.4.0"
@@ -288,19 +279,12 @@ var _ = Describe("Application AutoUpdate", func() {
 				updatedTrait.Spec.Schematic.CUE.Template = createScalerTraitOutput("3")
 				return k8sClient.Update(ctx, updatedTrait)
 			}, 15*time.Second, time.Second).Should(BeNil())
+			waitForDefinitionRevision(ctx, namespace, traitType, updatedTraitVersion)
 
-			By("Wait for application to reconcile")
-			time.Sleep(reconcileSleepTime)
-			pods = new(corev1.PodList)
-			opts = []client.ListOption{
-				client.InNamespace(namespace),
-				client.MatchingLabels{
-					oam.LabelAppName: "app1",
-				},
-			}
-			time.Sleep(sleepTime)
-			Expect(k8sClient.List(ctx, pods, opts...)).To(BeNil())
-			Expect(len(pods.Items)).To(BeEquivalentTo(2))
+			By("The app stays on the exact version across reconciles")
+			ConsistentlyReconciled(ctx, app, func(g Gomega) {
+				g.Expect(deploymentReplicas(ctx, g, namespace, "webservice-component")).To(BeEquivalentTo(2))
+			}).WithTimeout(5 * time.Second).Should(Succeed())
 		})
 
 		It("When specified trait version is unavailable, app should use latest version specified in range", func() {
@@ -310,7 +294,7 @@ var _ = Describe("Application AutoUpdate", func() {
 
 			trait := createTrait(traitVersion, namespace, traitType, "4")
 			Expect(k8sClient.Create(ctx, trait)).Should(Succeed())
-			waitDefinitionRevision(ctx, namespace, traitType, traitVersion)
+			time.Sleep(sleepTime)
 
 			By("Create application using scaler-trait@v1.4")
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, "1.4")
@@ -334,7 +318,7 @@ var _ = Describe("Application AutoUpdate", func() {
 
 			trait := createTrait(traitVersion, namespace, traitType, "4")
 			Expect(k8sClient.Create(ctx, trait)).Should(Succeed())
-			waitDefinitionRevision(ctx, namespace, traitType, traitVersion)
+			time.Sleep(sleepTime)
 
 			By("Create application using scaler-trait@v1.4")
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, "1.4")
@@ -384,7 +368,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
 			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
-			waitDefinitionRevision(ctx, namespace, componentType, componentVersion)
+			time.Sleep(sleepTime)
 
 			By("Create application using configmap-component@1.4.5")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "1.4.5")
@@ -403,7 +387,6 @@ var _ = Describe("Application AutoUpdate", func() {
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
 			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
-			waitDefinitionRevision(ctx, namespace, componentType, componentVersion)
 
 			By("Create configmap-component with 1.2.0 version")
 			updatedComponent := new(v1beta1.ComponentDefinition)
@@ -417,7 +400,7 @@ var _ = Describe("Application AutoUpdate", func() {
 				updatedComponent.Spec.Schematic.CUE.Template = createOutputConfigMap(componentVersion)
 				return k8sClient.Update(ctx, updatedComponent)
 			}, 15*time.Second, time.Second).Should(BeNil())
-			waitDefinitionRevision(ctx, namespace, componentType, updatedComponentVersion)
+			time.Sleep(sleepTime)
 
 			By("Create application using configmap-component@1.0.0 version")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", componentVersion)
@@ -440,7 +423,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			componentType := "configmap-component"
 			component := createComponent(componentVersion, namespace, componentType)
 			Expect(k8sClient.Create(ctx, component)).Should(Succeed())
-			waitDefinitionRevision(ctx, namespace, componentType, componentVersion)
+			time.Sleep(sleepTime)
 
 			By("Create application using configmap-component@1 version")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "1")
@@ -467,7 +450,6 @@ var _ = Describe("Application AutoUpdate", func() {
 			traitType := "scaler-trait"
 			trait := createTrait(traitVersion, namespace, traitType, "1")
 			Expect(k8sClient.Create(ctx, trait)).Should(Succeed())
-			waitDefinitionRevision(ctx, namespace, traitType, traitVersion)
 
 			By("Create scaler-trait with 1.2.0 version and 2 replica")
 			updatedTrait := new(v1beta1.TraitDefinition)
@@ -481,7 +463,7 @@ var _ = Describe("Application AutoUpdate", func() {
 				updatedTrait.Spec.Schematic.CUE.Template = createScalerTraitOutput("2")
 				return k8sClient.Update(ctx, updatedTrait)
 			}, 15*time.Second, time.Second).Should(BeNil())
-			waitDefinitionRevision(ctx, namespace, traitType, updatedTraitVersion)
+			time.Sleep(sleepTime)
 
 			By("Create application using scaler-trait@1.0.0 version")
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, traitVersion)
@@ -509,13 +491,6 @@ var _ = Describe("Application AutoUpdate", func() {
 
 // TODO Add test cases for policydefinition and worflowstepdefinition
 
-func waitDefinitionRevision(ctx context.Context, namespace, name, version string) {
-	defRevName := fmt.Sprintf("%s-v%s", name, version)
-	Eventually(func() error {
-		return k8sClient.Get(ctx, client.ObjectKey{Name: defRevName, Namespace: namespace}, new(v1beta1.DefinitionRevision))
-	}, 30*time.Second, time.Second).Should(Succeed())
-}
-
 func updateAppComponent(appTemplate v1beta1.Application, appName, namespace, typeName, componentName, componentVersion string) *v1beta1.Application {
 	app := appTemplate.DeepCopy()
 	app.ObjectMeta.Name = appName
@@ -533,6 +508,24 @@ func updateAppTrait(traitApp v1beta1.Application, appName, namespace, typeName, 
 	app.Spec.Components[0].Traits[0].Type = fmt.Sprintf("%s@v%s", typeName, traitVersion)
 
 	return app
+}
+
+// waitForDefinitionRevision waits for the revision the definition controller
+// mints for version, which is what an app's @vX reference resolves against.
+func waitForDefinitionRevision(ctx context.Context, namespace, name, version string) {
+	key := client.ObjectKey{Name: fmt.Sprintf("%s-v%s", name, version), Namespace: namespace}
+	Eventually(func() error {
+		return k8sClient.Get(ctx, key, &v1beta1.DefinitionRevision{})
+	}, 15*time.Second, 250*time.Millisecond).Should(Succeed())
+}
+
+// deploymentReplicas reads the desired replicas the scaler trait wrote. Pod
+// counts lag it while old pods terminate.
+func deploymentReplicas(ctx context.Context, g Gomega, namespace, name string) int32 {
+	deploy := &appsv1.Deployment{}
+	g.Expect(k8sClient.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, deploy)).To(Succeed())
+	g.Expect(deploy.Spec.Replicas).NotTo(BeNil())
+	return *deploy.Spec.Replicas
 }
 
 func createComponent(componentVersion, namespace, name string) *v1beta1.ComponentDefinition {

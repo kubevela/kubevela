@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -176,20 +177,39 @@ var _ = AfterSuite(func() {
 	}
 })
 
-// RequestReconcileNow will trigger an immediate reconciliation on K8s object.
-// Some test cases may fail for timeout to wait a scheduled reconciliation.
-// This is a workaround to avoid long-time wait before next scheduled
-// reconciliation.
+// RequestReconcileNow queues o for an immediate reconcile. The controller
+// watches neither Definitions nor the workloads it applies, so without this a
+// change to either is only seen on the next resync.
 func RequestReconcileNow(ctx context.Context, o client.Object) {
-	oCopy := o.DeepCopyObject()
-	oMeta, ok := oCopy.(metav1.Object)
-	Expect(ok).Should(BeTrue())
-	oMeta.SetAnnotations(map[string]string{
-		"app.oam.dev/requestreconcile": time.Now().String(),
-	})
-	oMeta.SetResourceVersion("")
-	By(fmt.Sprintf("Request reconcile %q now", oMeta.GetName()))
-	Expect(k8sClient.Patch(ctx, oCopy.(client.Object), client.Merge)).Should(Succeed())
+	By(fmt.Sprintf("Request reconcile %q now", o.GetName()))
+	Expect(requestReconcile(ctx, o)).Should(Succeed())
+}
+
+// requestReconcile stamps an annotation, which passes the Application
+// controller's update predicate. It patches metadata only, so a stale o
+// cannot overwrite the spec.
+func requestReconcile(ctx context.Context, o client.Object) error {
+	patch := fmt.Sprintf(`{"metadata":{"annotations":{"app.oam.dev/requestreconcile":%q}}}`, time.Now().Format(time.RFC3339Nano))
+	return k8sClient.Patch(ctx, o.DeepCopyObject().(client.Object), client.RawPatch(types.MergePatchType, []byte(patch)))
+}
+
+// EventuallyReconciled polls assertion, requesting a reconcile of o before
+// each poll. Every reconcile also re-runs a failing workflow step, so a
+// terminal failure is reached at the poll rate instead of the step backoff.
+func EventuallyReconciled(ctx context.Context, o client.Object, assertion func(g Gomega)) AsyncAssertion {
+	return Eventually(func(g Gomega) {
+		g.Expect(requestReconcile(ctx, o)).To(Succeed())
+		assertion(g)
+	}).WithPolling(time.Second)
+}
+
+// ConsistentlyReconciled holds assertion while requesting a reconcile of o
+// before each poll, so "nothing changed" is checked across real reconciles.
+func ConsistentlyReconciled(ctx context.Context, o client.Object, assertion func(g Gomega)) AsyncAssertion {
+	return Consistently(func(g Gomega) {
+		g.Expect(requestReconcile(ctx, o)).To(Succeed())
+		assertion(g)
+	}).WithPolling(time.Second)
 }
 
 // randomNamespaceName generates a random name based on the basic name.
