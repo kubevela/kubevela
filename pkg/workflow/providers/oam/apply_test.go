@@ -75,23 +75,23 @@ func TestParser(t *testing.T) {
 			Action: act,
 			ComponentApply: oamprovidertypes.ComponentApply(func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
 				return &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"metadata": map[string]interface{}{
-							"name": comp.Name,
-						},
-					},
-				}, []*unstructured.Unstructured{
-					{
 						Object: map[string]interface{}{
 							"metadata": map[string]interface{}{
-								"name": "service",
-								"labels": map[string]interface{}{
-									"trait.oam.dev/resource": "service",
+								"name": comp.Name,
+							},
+						},
+					}, []*unstructured.Unstructured{
+						{
+							Object: map[string]interface{}{
+								"metadata": map[string]interface{}{
+									"name": "service",
+									"labels": map[string]interface{}{
+										"trait.oam.dev/resource": "service",
+									},
 								},
 							},
 						},
-					},
-				}, false, nil
+					}, false, nil
 			}),
 		},
 	})

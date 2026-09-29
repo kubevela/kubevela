@@ -166,23 +166,23 @@ func TestApplyComponentsIO(t *testing.T) {
 	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
 		return found, nil, &unstructured.Unstructured{Object: map[string]interface{}{
-			"spec": map[string]interface{}{
-				"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
-			},
-		}}, []*unstructured.Unstructured{
-			{
-				Object: map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"labels": map[string]interface{}{
-							oam.TraitResource: "obj",
+				"spec": map[string]interface{}{
+					"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
+				},
+			}}, []*unstructured.Unstructured{
+				{
+					Object: map[string]interface{}{
+						"metadata": map[string]interface{}{
+							"labels": map[string]interface{}{
+								oam.TraitResource: "obj",
+							},
+						},
+						"spec": map[string]interface{}{
+							"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
 						},
 					},
-					"spec": map[string]interface{}{
-						"path": fmt.Sprintf("%s/%s", clusterName, comp.Name),
-					},
 				},
-			},
-		}, nil
+			}, nil
 	}
 
 	resetStore := func() {
