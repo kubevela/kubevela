@@ -48,6 +48,7 @@ type helmTestContext struct {
 	appNamespace string
 	app          *v1beta1.Application
 	appKey       client.ObjectKey
+	attempted    bool
 }
 
 func newHelmTestContext() *helmTestContext {
@@ -76,6 +77,19 @@ func (h *helmTestContext) cleanup() {
 	By("Deleting target namespace")
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: h.namespace}}
 	_ = k8sClient.Delete(h.ctx, ns, client.PropagationPolicy(metav1.DeletePropagationForeground))
+}
+
+// freshAttempt moves a retried spec to a new namespace, removing the previous
+// attempt's Application and release. FlakeAttempts reruns an It but not its
+// BeforeAll, and a helm install into the first attempt's namespace fails.
+func (h *helmTestContext) freshAttempt() {
+	if h.attempted {
+		h.cleanup()
+		h.app = nil
+		h.namespace = "helm-e2e-" + rand.RandomString(4)
+		h.createNamespace()
+	}
+	h.attempted = true
 }
 
 func (h *helmTestContext) cleanupNamespaceOnly() {
@@ -194,6 +208,14 @@ func (h *helmTestContext) countSurvivingPods(originalUIDs map[types.UID]bool) in
 		}
 	}
 	return count
+}
+
+// podinfoAppResourceFlags are the values testdata/helm/app_helmchart_podinfo.yaml
+// sets besides replicaCount. A vanilla release installed with them has the pod
+// template the Application renders, so adopting it rolls no pods.
+var podinfoAppResourceFlags = []string{
+	"--set", "resources.limits.memory=256Mi",
+	"--set", "resources.limits.cpu=100m",
 }
 
 func runCommand(name string, args ...string) (string, error) {
@@ -536,16 +558,17 @@ var _ = Describe("Helmchart Self-Healing", Ordered, func() {
 
 var _ = Describe("Helmchart Adoption & Takeover", func() {
 
-	Context("Adopt an Existing Vanilla Helm Release", FlakeAttempts(2), Ordered, func() {
+	Context("Adopt an Existing Vanilla Helm Release", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
 		It("should adopt a pre-existing Helm release", func() {
 			By("Installing podinfo via helm install directly (no KubeVela)")
-			runCommandSucceed("helm", "install", "podinfo",
+			runCommandSucceed("helm", append([]string{"install", "podinfo",
 				"--repo", "https://stefanprodan.github.io/podinfo", "podinfo",
-				"--version", "6.11.1", "--set", "replicaCount=2", "-n", h.namespace)
+				"--version", "6.11.1", "--set", "replicaCount=2", "-n", h.namespace},
+				podinfoAppResourceFlags...)...)
 
 			initialSecretCount := len(h.getHelmSecrets().Items)
 
@@ -578,6 +601,9 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 			deploy := &appsv1.Deployment{}
 			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
 			Expect(deploy.GetLabels()).Should(HaveKey("app.oam.dev/name"))
+
+			By("Verifying the pod template was not changed, so no rollout started")
+			Expect(deploy.GetAnnotations()).Should(HaveKeyWithValue("deployment.kubernetes.io/revision", "1"))
 
 			By("Verifying app.oam.dev/* labels appear on Service")
 			svc := &corev1.Service{}
@@ -647,10 +673,12 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 		AfterAll(func() { h.cleanupNamespaceOnly() })
 
 		It("should re-adopt seamlessly after deletion and reinstall", func() {
+			h.freshAttempt()
 			By("Installing podinfo via helm install")
-			runCommandSucceed("helm", "install", "podinfo",
+			runCommandSucceed("helm", append([]string{"install", "podinfo",
 				"--repo", "https://stefanprodan.github.io/podinfo", "podinfo",
-				"--version", "6.11.1", "--set", "replicaCount=2", "-n", h.namespace)
+				"--version", "6.11.1", "--set", "replicaCount=2", "-n", h.namespace},
+				podinfoAppResourceFlags...)...)
 			Eventually(func(g Gomega) {
 				d := &appsv1.Deployment{}
 				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
@@ -672,9 +700,10 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 			Eventually(func() int { return len(h.getHelmSecrets().Items) }, 60*time.Second, 3*time.Second).Should(Equal(0))
 
 			By("Installing podinfo via helm install again")
-			runCommandSucceed("helm", "install", "podinfo",
+			runCommandSucceed("helm", append([]string{"install", "podinfo",
 				"--repo", "https://stefanprodan.github.io/podinfo", "podinfo",
-				"--version", "6.11.1", "--set", "replicaCount=2", "-n", h.namespace)
+				"--version", "6.11.1", "--set", "replicaCount=2", "-n", h.namespace},
+				podinfoAppResourceFlags...)...)
 			Eventually(func(g Gomega) {
 				d := &appsv1.Deployment{}
 				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
@@ -1768,6 +1797,7 @@ replicaCount: 2
 		AfterAll(func() { h.cleanup() })
 
 		It("should adopt the pre-existing release and merge CM values on the adoption upgrade", func() {
+			h.freshAttempt()
 			By("Installing podinfo via vanilla helm at replicaCount=1")
 			runCommandSucceed("helm", "install", "podinfo",
 				"--repo", "https://stefanprodan.github.io/podinfo", "podinfo",
