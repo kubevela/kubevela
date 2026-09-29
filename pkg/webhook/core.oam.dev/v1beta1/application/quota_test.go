@@ -286,7 +286,7 @@ func TestValidateQuotaWarning(t *testing.T) {
 		assert.Empty(t, errs)
 		require.Len(t, warnings, 1)
 		assert.Contains(t, warnings[0], `ComponentDefinition "webservice"`)
-		assert.Contains(t, warnings[0], "using 3 of the 5 allowed")
+		assert.Contains(t, warnings[0], `ComponentDefinition "webservice" in namespace "tenant-a" is using 3 of 5.`)
 	})
 
 	t.Run("a warn-only quota warns and never refuses", func(t *testing.T) {
@@ -296,8 +296,7 @@ func TestValidateQuotaWarning(t *testing.T) {
 			appWith("tenant-a", "app-2", "webservice", "webservice", "webservice"), nil)
 		assert.Empty(t, errs)
 		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0], "using 5")
-		assert.NotContains(t, warnings[0], "allowed")
+		assert.Contains(t, warnings[0], `ComponentDefinition "webservice" in namespace "tenant-a" is using 5 of 3.`)
 	})
 
 	t.Run("a refusal warns about nothing, it refuses", func(t *testing.T) {
@@ -363,7 +362,7 @@ func TestQuotaCountsAPinnedTypeOnce(t *testing.T) {
 		appWith("tenant-a", "app-2", "webservice", "webservice@v1"), nil)
 	assert.Empty(t, errs)
 	require.Len(t, warnings, 1)
-	assert.Contains(t, warnings[0], "using 3 of the 10 allowed")
+	assert.Contains(t, warnings[0], `is using 3 of 10.`)
 }
 
 // The count runs once, but a refusal still names every component behind it.
@@ -622,7 +621,7 @@ func TestValidateTraitQuota(t *testing.T) {
 		assert.Empty(t, errs)
 		require.Len(t, warnings, 1)
 		assert.Contains(t, warnings[0], `TraitDefinition "gateway"`)
-		assert.Contains(t, warnings[0], "using 2 of the 9 allowed")
+		assert.Contains(t, warnings[0], `is using 2 of 9.`)
 	})
 }
 
@@ -703,7 +702,7 @@ func TestQuotaLoweredUnderANamespaceStaysDrainable(t *testing.T) {
 			appWith("tenant-a", "app-1", "webservice"), old)
 		assert.Empty(t, errs, "an edit that reduces its own use must get through")
 		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0], "over its quota at 4 of the 2 allowed")
+		assert.Contains(t, warnings[0], "is using 4 of 2, and this change does not add to it")
 		assert.Contains(t, warnings[0], "does not add to it")
 	})
 
@@ -713,7 +712,7 @@ func TestQuotaLoweredUnderANamespaceStaysDrainable(t *testing.T) {
 			appWith("tenant-a", "app-1", "webservice", "webservice", "webservice"), old)
 		assert.Empty(t, errs)
 		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0], "over its quota at 6 of the 2 allowed")
+		assert.Contains(t, warnings[0], "is using 6 of 2, and this change does not add to it")
 		assert.Contains(t, warnings[0], "does not add to it")
 	})
 
