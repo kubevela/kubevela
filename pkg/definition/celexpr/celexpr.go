@@ -108,18 +108,20 @@ func Env(sources map[string]cue.Value, ctx map[string]*apiservercel.DeclType) (*
 // permissive and typed environments cannot disagree about what compiles.
 //
 // Only pure, total libraries are enabled. Strings gives the text handling that
-// reshaping a value needs; Lists gives slice. Neither performs I/O nor reaches
-// outside its arguments, so the environment still declares exactly `source` and
-// `context` and an undeclared identifier still cannot compile.
+// reshaping a value needs; Lists gives slice. The placement functions only look
+// up what was delivered with a component. None performs I/O or reaches outside
+// its arguments, so the environment still declares only its roots and an
+// undeclared identifier still cannot compile.
 //
 // Deliberately absent: Encoders and Sets have no established use here, and
 // Bindings introduces `cel.bind`, which would let an expression name intermediate
 // values and grow into a small program.
 func libraries() []cel.EnvOption {
-	return []cel.EnvOption{
+	out := []cel.EnvOption{
 		ext.Strings(),
 		ext.Lists(),
 	}
+	return append(out, placementFunctions()...)
 }
 
 func env(sources map[string]cue.Value, ctx map[string]*apiservercel.DeclType, extra ...cel.EnvOption) (*cel.Env, error) {
@@ -150,9 +152,20 @@ func env(sources map[string]cue.Value, ctx map[string]*apiservercel.DeclType, ex
 	opts = append(opts,
 		cel.Variable("source", sourceType.CelType()),
 		cel.Variable("context", contextType.CelType()),
+		componentVariable(),
 	)
 	opts = append(opts, libraries()...)
 	return cel.NewEnv(append(opts, extra...)...)
+}
+
+// componentVariable declares the component root in every environment.
+//
+// It is dyn throughout because the value is a live object's status, which has no
+// schema at admission. Whether a surface may read it is settled by the root
+// check, not by leaving it undeclared, so an environment never disagrees with
+// another about what compiles.
+func componentVariable() cel.EnvOption {
+	return cel.Variable(propexpr.ComponentIdent, cel.MapType(cel.StringType, cel.DynType))
 }
 
 // bindingName is the shape a spec.sources[] entry's name must have to be
@@ -405,6 +418,7 @@ func DynEnv() (*cel.Env, error) {
 		dynEnvVal, dynEnvErr = cel.NewEnv(append([]cel.EnvOption{
 			cel.Variable("source", cel.MapType(cel.StringType, cel.DynType)),
 			cel.Variable("context", cel.MapType(cel.StringType, cel.DynType)),
+			componentVariable(),
 		}, libraries()...)...)
 	})
 	return dynEnvVal, dynEnvErr

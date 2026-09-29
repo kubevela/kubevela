@@ -29,12 +29,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -449,4 +451,34 @@ func TestUpdateSharedManagedResourceOwner(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A component read beside the reader orders deletion as its dependsOn would: the
+// producer's resources wait for the reader's. A read naming a placement does not.
+func TestCheckDependentComponentCountsReads(t *testing.T) {
+	before := map[string]bool{
+		string(features.EnableCelExpressions):      utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCelExpressions),
+		string(features.RequireCelExpressionOptIn): utilfeature.DefaultMutableFeatureGate.Enabled(features.RequireCelExpressionOptIn),
+	}
+	require.NoError(t, utilfeature.DefaultMutableFeatureGate.SetFromMap(map[string]bool{
+		string(features.EnableCelExpressions): true, string(features.RequireCelExpressionOptIn): true}))
+	t.Cleanup(func() { require.NoError(t, utilfeature.DefaultMutableFeatureGate.SetFromMap(before)) })
+
+	props := func(s string) *runtime.RawExtension { return &runtime.RawExtension{Raw: []byte(s)} }
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{oam.AnnotationCelExpressions: "true"}},
+		Spec: v1beta1.ApplicationSpec{Components: []apicommon.ApplicationComponent{
+			{Name: "db"},
+			{Name: "api", Properties: props(`{"host":"$(component.db.output.status.endpoint)"}`)},
+			{Name: "remote", Properties: props(`{"host":"$(component.db.cluster(\"east\").output.status.endpoint)"}`)},
+		}},
+	}
+	h := &gcHandler{resourceKeeper: &resourceKeeper{app: app}}
+	dependents := func(comp string) []string {
+		return h.checkDependentComponent(v1beta1.ManagedResource{OAMObjectReference: apicommon.OAMObjectReference{Component: comp}})
+	}
+	require.Equal(t, []string{"api"}, dependents("db"))
+
+	app.Annotations = nil
+	require.Empty(t, dependents("db"), "without the opt-in, $( ) is ordinary text")
 }

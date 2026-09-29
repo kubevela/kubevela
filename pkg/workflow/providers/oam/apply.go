@@ -80,7 +80,12 @@ func ApplyComponent(ctx context.Context, params *oamprovidertypes.Params[cue.Val
 	if err != nil {
 		return cue.Value{}, err
 	}
-	workload, traits, healthy, err := params.ComponentApply(ctx, *comp, patcher, clusterName, overrideNamespace)
+	workload, traits, healthy, waiting, err := params.ComponentApply(ctx, *comp, patcher, clusterName, overrideNamespace)
+	if waiting != "" {
+		// Nothing was applied, so the step waits whatever waitHealthy says.
+		params.Action.Wait(waiting)
+		return v, nil
+	}
 	if err != nil {
 		return cue.Value{}, err
 	}

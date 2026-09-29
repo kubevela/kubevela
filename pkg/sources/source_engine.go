@@ -65,6 +65,9 @@ type SourceEngineOptions struct {
 	Store velaprocess.SourceCacheStore
 	// Compiler evaluates templates. Nil uses the workload compiler.
 	Compiler SourceCompiler
+	// ComponentReads is the `component` scope the controller delivered: producer
+	// name -> its output view. Nil when the render reads no component.
+	ComponentReads map[string]interface{}
 
 	// Validate runs Check before resolving, and refuses rather than resolving an
 	// expression that will not type.
@@ -167,6 +170,8 @@ func (e *SourceEngine) Resolve(ctx context.Context, properties interface{}) (Sou
 		Sensitive: e.opts.Sensitive,
 		Store:     e.opts.Store,
 		Compiler:  e.opts.Compiler,
+
+		ComponentReads: e.opts.ComponentReads,
 	})
 	// Overlap the round trips before walking. Behaviour-neutral: it only
 	// populates the memo the walk already consults, and anything it fails to

@@ -455,7 +455,19 @@ func renderCUE(node any) (string, error) {
 // definition's constraints, where a missing field would fail the required-field
 // check; the output is checked against nothing.
 func ConcreteForValidation(v cue.Value) (cue.Value, bool) {
-	pruned, changed := pruneIncomplete(v)
+	return concreteFor(v, false)
+}
+
+// ConcreteForOpenRender is ConcreteForValidation for whichever open render ctx
+// is. A placeholder dry-run first takes each leaf's default, which is where a
+// component read's placeholder sits wherever its parameter takes text; a
+// validation does not, since a default there says nothing about the value.
+func ConcreteForOpenRender(ctx context.Context, v cue.Value) (cue.Value, bool) {
+	return concreteFor(v, ComponentPlaceholders(ctx) && !TypeOnly(ctx))
+}
+
+func concreteFor(v cue.Value, takeDefaults bool) (cue.Value, bool) {
+	pruned, changed := pruneIncomplete(v, takeDefaults)
 	if !changed {
 		return v, false
 	}
@@ -481,7 +493,7 @@ type droppedLeaf struct{}
 
 var dropped = droppedLeaf{}
 
-func pruneIncomplete(v cue.Value) (any, bool) {
+func pruneIncomplete(v cue.Value, takeDefaults bool) (any, bool) {
 	switch v.IncompleteKind() {
 	case cue.StructKind:
 		iter, err := v.Fields()
@@ -495,7 +507,7 @@ func pruneIncomplete(v cue.Value) (any, bool) {
 			if !sel.IsString() {
 				continue
 			}
-			child, childChanged := pruneIncomplete(iter.Value())
+			child, childChanged := pruneIncomplete(iter.Value(), takeDefaults)
 			if child == any(dropped) {
 				changed = true
 				continue
@@ -512,7 +524,7 @@ func pruneIncomplete(v cue.Value) (any, bool) {
 		out := []any{}
 		changed := false
 		for iter.Next() {
-			child, childChanged := pruneIncomplete(iter.Value())
+			child, childChanged := pruneIncomplete(iter.Value(), takeDefaults)
 			if child == any(dropped) {
 				// A list unifies by position and cannot lose an element without
 				// moving the rest, so one unknowable element takes the whole
@@ -533,5 +545,20 @@ func pruneIncomplete(v cue.Value) (any, bool) {
 			return decoded, false
 		}
 	}
+	if takeDefaults {
+		if d, ok := v.Default(); ok && d.IsConcrete() {
+			var decoded any
+			if err := d.Decode(&decoded); err == nil {
+				return decoded, true
+			}
+		}
+	}
 	return dropped, true
+}
+
+// OpenParams reports whether a render's parameters may carry types instead of
+// values: a validation, or a dry-run standing in for component reads. Such a
+// render writes parameters as CUE and prunes what stays open from its output.
+func OpenParams(ctx context.Context) bool {
+	return TypeOnly(ctx) || ComponentPlaceholders(ctx)
 }

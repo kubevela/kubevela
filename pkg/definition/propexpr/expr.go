@@ -47,10 +47,19 @@ import (
 	"strings"
 )
 
-// SourceIdent is the only identifier an expression may reference. Everything a
-// consumer is allowed to read hangs off it, so the sandbox is "this name and
-// nothing else" rather than a denylist.
+// SourceIdent reads a resolved source. It is one of a fixed set of roots, with
+// ContextIdent and ComponentIdent: everything a consumer may read hangs off one
+// of them, so the sandbox is "these names and nothing else" rather than a
+// denylist.
 const SourceIdent = "source"
+
+// ComponentIdent reads another component's live output once it is healthy:
+// component.<name>.output for the workload and
+// component.<name>.outputs.<resource> for a trait resource, beside the reader
+// or at a placement named with cluster or namespace. Only component
+// and trait properties offer it, because only a component's render can wait: a
+// reader whose producer is not ready is simply not healthy yet.
+const ComponentIdent = "component"
 
 const (
 	open   = "$("
