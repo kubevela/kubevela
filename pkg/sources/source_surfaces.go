@@ -18,13 +18,15 @@ package sources
 
 import (
 	"slices"
+
+	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 )
 
 // Surfaces an Application can carry a property expression on.
 //
 // These live here, next to the resolver, because which of them can read a
-// `source` is a property of this package: resolution is wired into
-// workloadDef.Complete and traitDef.Complete and nowhere else. The admission
+// `source` or a `component` value is a property of this package: both are
+// substituted by ResolveSourceExpressions and nowhere else. The admission
 // webhook and the appfile parser both enforce that rule, so it is stated once
 // rather than restated per enforcement point - which is exactly the divergence
 // that let admission accept `$(context...)` in every policy while only one kind
@@ -98,4 +100,31 @@ func consumableSurfaces() []string {
 // is silently accepted as a value. Both enforcement points reject it instead.
 func SurfaceReadsSource(surface string) bool {
 	return slices.Contains(sourceReadingSurfaces, surface)
+}
+
+// componentReadingSurfaces are where an expression may read another component's
+// output: a component render, which the controller answers the reads for and
+// which reports not healthy until every component it reads is.
+var componentReadingSurfaces = []string{
+	SurfaceComponent,
+	SurfaceTrait,
+}
+
+// SurfaceReadsComponents reports whether an expression on this surface may read
+// `component`.
+func SurfaceReadsComponents(surface string) bool {
+	return slices.Contains(componentReadingSurfaces, surface)
+}
+
+// RootsFor is every root an expression on this surface may read. Every surface
+// offers `context`; the rest follow from the surface lists above.
+func RootsFor(surface string) []string {
+	roots := []string{propexpr.ContextIdent}
+	if SurfaceReadsSource(surface) {
+		roots = append(roots, propexpr.SourceIdent)
+	}
+	if SurfaceReadsComponents(surface) {
+		roots = append(roots, propexpr.ComponentIdent)
+	}
+	return roots
 }

@@ -624,6 +624,41 @@ spec:
                           - type
                           type: object
                         type: array
+                      dependencies:
+                        description: |-
+                          Dependencies is what each component depends on: the components named in
+                          its dependsOn, those whose outputs its inputs read, and those its property
+                          expressions read.
+                        items:
+                          description: |-
+                            ComponentDependency is one component another depends on. A dependency on a
+                            component beside the dependent, in its own cluster and namespace, orders the
+                            dependent after it. One from an expression that names a cluster or namespace
+                            is read there, and is ordered by the workflow instead.
+                          properties:
+                            cluster:
+                              description: Cluster is the cluster an expression reads
+                                the component in, when it names one.
+                              type: string
+                            component:
+                              description: Component is the component that depends.
+                              type: string
+                            dependsOn:
+                              description: DependsOn is the component depended on.
+                              type: string
+                            namespace:
+                              description: Namespace is the namespace an expression
+                                reads the component in, when it names one.
+                              type: string
+                            source:
+                              description: Source is where the dependency is declared.
+                              type: string
+                          required:
+                          - component
+                          - dependsOn
+                          - source
+                          type: object
+                        type: array
                       latestRevision:
                         description: LatestRevision of the application configuration
                           it generates

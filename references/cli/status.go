@@ -170,6 +170,11 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 				}, outputFormat, cmd.OutOrStdout())
 			}
 
+			if showDeps, err := cmd.Flags().GetBool("dependencies"); showDeps && err == nil {
+				component, _ := cmd.Flags().GetString("component")
+				return printAppDependencies(newClient, namespace, appName, Filter{Component: component}, outputFormat, cmd.OutOrStdout())
+			}
+
 			if outputFormat != "" {
 				return printRawApplication(context.Background(), c, outputFormat, cmd.OutOrStdout(), namespace, appName)
 			}
@@ -190,6 +195,7 @@ func NewAppStatusCommand(c common.Args, order string, ioStreams cmdutil.IOStream
 	cmd.Flags().StringP("detail-format", "", "inline", "the format for displaying details, must be used with --detail. Can be one of inline, wide, list, table, raw.")
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "", "output format, also applies to --sources. One of: (json, yaml, jsonpath)")
 	cmd.Flags().BoolP("metrics", "m", false, "show resource quota and consumption metrics of the application")
+	cmd.Flags().BoolP("dependencies", "", false, "show what each component depends on: dependsOn, inputs, and the components its property expressions read")
 	cmd.Flags().BoolP("sources", "", false, "show what the application read from its declared sources, and which component, trait or workflow step used each value")
 	addNamespaceAndEnvArg(cmd)
 	return cmd
