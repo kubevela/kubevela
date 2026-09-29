@@ -78,7 +78,7 @@ var _ = Describe("Application AutoUpdate", func() {
 
 			By("Create application using configmap-component@v1.0.0")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "1.0.0")
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			createAutoUpdateApp(ctx, app)
 			Eventually(renderedVersion, 15*time.Second, 250*time.Millisecond).Should(Equal("1.0.0"))
 
 			publishComponentVersion(ctx, namespace, componentType, "1.4.0")
@@ -96,7 +96,7 @@ var _ = Describe("Application AutoUpdate", func() {
 
 			By("Create application using configmap-component@v2")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "2")
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			createAutoUpdateApp(ctx, app)
 			Eventually(renderedVersion, 15*time.Second, 250*time.Millisecond).Should(Equal("2.3.0"))
 
 			publishComponentVersion(ctx, namespace, componentType, "2.4.0")
@@ -113,7 +113,7 @@ var _ = Describe("Application AutoUpdate", func() {
 
 			By("Create application using configmap-component@v1.4 beside webservice@v1")
 			app := updateAppComponent(appWithTwoComponentTemplate, "app1", namespace, componentType, "first-component", "1.4")
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			createAutoUpdateApp(ctx, app)
 			Eventually(renderedVersion, 15*time.Second, 250*time.Millisecond).Should(Equal("1.4.5"))
 			Eventually(func(g Gomega) {
 				g.Expect(deploymentReplicas(ctx, g, namespace, "second-component")).To(BeEquivalentTo(1))
@@ -127,7 +127,7 @@ var _ = Describe("Application AutoUpdate", func() {
 
 			By("Create application using scaler-trait@v1.2.0")
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, "1.2.0")
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			createAutoUpdateApp(ctx, app)
 			Eventually(replicas, 30*time.Second, 250*time.Millisecond).Should(BeEquivalentTo(2))
 
 			publishTraitVersion(ctx, namespace, traitType, "1.4.0", "3")
@@ -144,7 +144,7 @@ var _ = Describe("Application AutoUpdate", func() {
 
 			By("Create application using scaler-trait@v1.4")
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, "1.4")
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			createAutoUpdateApp(ctx, app)
 			Eventually(replicas, 30*time.Second, 250*time.Millisecond).Should(BeEquivalentTo(4))
 
 			publishTraitVersion(ctx, namespace, traitType, "1.4.8", "2")
@@ -177,7 +177,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			By("Create application using configmap-component@v1.0.0")
 			app := updateAppComponent(appTemplate, "app1", namespace, componentType, "first-component", "1.0.0")
 			app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate] = "false"
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			createAutoUpdateApp(ctx, app)
 			Eventually(renderedVersion, 15*time.Second, 250*time.Millisecond).Should(Equal("1.0.0"))
 		})
 
@@ -199,7 +199,7 @@ var _ = Describe("Application AutoUpdate", func() {
 			By("Create application using scaler-trait@v1.0.0")
 			app := updateAppTrait(traitApp, "app1", namespace, traitType, "1.0.0")
 			app.ObjectMeta.Annotations[oam.AnnotationAutoUpdate] = "false"
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+			createAutoUpdateApp(ctx, app)
 			Eventually(replicas, 30*time.Second, 250*time.Millisecond).Should(BeEquivalentTo(1))
 
 			publishTraitVersion(ctx, namespace, traitType, "1.4.0", "3")
@@ -287,7 +287,20 @@ func waitForDefinitionRevision(ctx context.Context, namespace, name, version str
 	key := client.ObjectKey{Name: fmt.Sprintf("%s-v%s", name, version), Namespace: namespace}
 	Eventually(func() error {
 		return k8sClient.Get(ctx, key, &v1beta1.DefinitionRevision{})
-	}, 15*time.Second, 250*time.Millisecond).Should(Succeed())
+	}, 30*time.Second, 250*time.Millisecond).Should(Succeed(), "no DefinitionRevision %s", key.Name)
+}
+
+// createAutoUpdateApp creates app, retrying only the webhook's failure to find
+// a definition revision. The webhook lists revisions through its cache, which
+// can trail the revision the test has just read from the API server.
+func createAutoUpdateApp(ctx context.Context, app *v1beta1.Application) {
+	Eventually(func() error {
+		err := k8sClient.Create(ctx, app.DeepCopy())
+		if err != nil && !strings.Contains(err.Error(), "error finding definition revision") {
+			return StopTrying("create refused").Wrap(err)
+		}
+		return err
+	}, 15*time.Second, 500*time.Millisecond).Should(Succeed())
 }
 
 // deploymentReplicas reads the desired replicas the scaler trait wrote. Pod
