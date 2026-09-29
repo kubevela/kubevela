@@ -72,6 +72,17 @@ runs:
         echo "Running module e2e tests..."
         make e2e-module-test
 
+    - name: Run addon-component e2e tests
+      # Same reasoning as the module step above. The suite brings up its own
+      # in-cluster ChartMuseum and pushes its fixtures into it, so it needs no
+      # external registry; e2e-setup-core has already installed the chart with
+      # featureGates.enableAddonComponent=true.
+      if: always()
+      shell: bash
+      run: |
+        echo "Running addon-component e2e tests..."
+        make e2e-addon-component-test
+
     - name: Upload coverage report
       if: ${{ inputs.codecov-enable == 'true' }}
       uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
