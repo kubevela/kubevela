@@ -42,6 +42,16 @@ const (
 	// LabelAppUID records the uid of Application
 	LabelAppUID = "app.oam.dev/uid"
 
+	// LabelOwnerKind records the kind of a non-Application owner (e.g. Component) of a
+	// ResourceTracker or of a resource it dispatched
+	LabelOwnerKind = "owner.oam.dev/kind"
+	// LabelOwnerName records the name of a non-Application owner
+	LabelOwnerName = "owner.oam.dev/name"
+	// LabelOwnerNamespace records the namespace of a non-Application owner
+	LabelOwnerNamespace = "owner.oam.dev/namespace"
+	// LabelOwnerUID records the uid of a non-Application owner
+	LabelOwnerUID = "owner.oam.dev/uid"
+
 	// WorkloadTypeLabel indicates the type of the workloadDefinition
 	WorkloadTypeLabel = "workload.oam.dev/type"
 	// TraitTypeLabel indicates the type of the traitDefinition
@@ -298,6 +308,7 @@ const PolicyAdditionalContextKey policyContextKeyType = "kubevela.oam.dev/policy
 // reading internal platform metadata.
 var internalMetadataPrefixes = map[string]struct{}{
 	"app.oam.dev/":           {},
+	"owner.oam.dev/":         {},
 	"oam.dev/":               {},
 	"kubectl.kubernetes.io/": {},
 	"kubernetes.io/":         {},

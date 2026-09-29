@@ -20,18 +20,13 @@ import (
 	"context"
 	"sync"
 
-	"github.com/pkg/errors"
-	appsv1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/policy"
+	"github.com/oam-dev/kubevela/pkg/kubeutil"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -47,17 +42,17 @@ type ResourceKeeper interface {
 	// the implementation for why this is not part of Dispatch.
 	PruneComponentResources(context.Context, string, []*unstructured.Unstructured) ([]v1beta1.ManagedResource, error)
 
-	DispatchComponentRevision(context.Context, *appsv1.ControllerRevision) error
-	DeleteComponentRevision(context.Context, *appsv1.ControllerRevision) error
-
 	// GetAppliedResources returns the current applied resources from the ResourceTracker.
 	GetAppliedResources() []common.ClusterObjectReference
 }
 
 type resourceKeeper struct {
 	client.Client
-	app *v1beta1.Application
-	mu  sync.Mutex
+	// owner is who the keeper acts for.
+	owner    resourcetracker.Tracked
+	policies Policies
+	opts     Options
+	mu       sync.Mutex
 
 	applicator  apply.Applicator
 	_rootRT     *v1beta1.ResourceTracker
@@ -65,19 +60,12 @@ type resourceKeeper struct {
 	_historyRTs []*v1beta1.ResourceTracker
 	_crRT       *v1beta1.ResourceTracker
 
-	applyOncePolicy      *v1alpha1.ApplyOncePolicySpec
-	garbageCollectPolicy *v1alpha1.GarbageCollectPolicySpec
-	sharedResourcePolicy *v1alpha1.SharedResourcePolicySpec
-	takeOverPolicy       *v1alpha1.TakeOverPolicySpec
-	readOnlyPolicy       *v1alpha1.ReadOnlyPolicySpec
-	resourceUpdatePolicy *v1alpha1.ResourceUpdatePolicySpec
-
 	cache *resourceCache
 }
 
 func (h *resourceKeeper) getRootRT(ctx context.Context) (rootRT *v1beta1.ResourceTracker, err error) {
 	if h._rootRT == nil {
-		if h._rootRT, err = resourcetracker.CreateRootResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, h.app); err != nil {
+		if h._rootRT, err = resourcetracker.CreateTracker(localCluster(ctx), h.Client, h.owner, v1beta1.ResourceTrackerTypeRoot); err != nil {
 			return nil, err
 		}
 	}
@@ -86,50 +74,58 @@ func (h *resourceKeeper) getRootRT(ctx context.Context) (rootRT *v1beta1.Resourc
 
 func (h *resourceKeeper) getCurrentRT(ctx context.Context) (currentRT *v1beta1.ResourceTracker, err error) {
 	if h._currentRT == nil {
-		if h._currentRT, err = resourcetracker.CreateCurrentResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, h.app); err != nil {
+		if h._currentRT, err = resourcetracker.CreateTracker(localCluster(ctx), h.Client, h.owner, v1beta1.ResourceTrackerTypeVersioned); err != nil {
 			return nil, err
 		}
 	}
 	return h._currentRT, nil
 }
 
-func (h *resourceKeeper) getComponentRevisionRT(ctx context.Context) (crRT *v1beta1.ResourceTracker, err error) {
-	if h._crRT == nil {
-		if h._crRT, err = resourcetracker.CreateComponentRevisionResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, h.app); err != nil {
-			return nil, err
-		}
+func (h *resourceKeeper) loadResourceTrackers(ctx context.Context) error {
+	ctx = localCluster(ctx) // trackers live on the hub, whichever cluster the caller is working in
+	trackers, err := h.owner.LoadTrackers(ctx, h.Client)
+	if err != nil {
+		return err
 	}
-	return h._crRT, nil
-}
-
-func (h *resourceKeeper) parseApplicationResourcePolicy() (err error) {
-	if h.applyOncePolicy, err = policy.ParsePolicy[v1alpha1.ApplyOncePolicySpec](h.app); err != nil {
-		return errors.Wrapf(err, "failed to parse apply-once policy")
-	}
-	if h.applyOncePolicy == nil && metav1.HasLabel(h.app.ObjectMeta, oam.LabelAddonName) {
-		h.applyOncePolicy = &v1alpha1.ApplyOncePolicySpec{Enable: true}
-	}
-	if h.garbageCollectPolicy, err = policy.ParsePolicy[v1alpha1.GarbageCollectPolicySpec](h.app); err != nil {
-		return errors.Wrapf(err, "failed to parse garbage-collect policy")
-	}
-	if h.sharedResourcePolicy, err = policy.ParsePolicy[v1alpha1.SharedResourcePolicySpec](h.app); err != nil {
-		return errors.Wrapf(err, "failed to parse shared-resource policy")
-	}
-	if h.takeOverPolicy, err = policy.ParsePolicy[v1alpha1.TakeOverPolicySpec](h.app); err != nil {
-		return errors.Wrapf(err, "failed to parse take-over policy")
-	}
-	if h.readOnlyPolicy, err = policy.ParsePolicy[v1alpha1.ReadOnlyPolicySpec](h.app); err != nil {
-		return errors.Wrapf(err, "failed to parse read-only policy")
-	}
-	if h.resourceUpdatePolicy, err = policy.ParsePolicy[v1alpha1.ResourceUpdatePolicySpec](h.app); err != nil {
-		return errors.Wrapf(err, "failed to parse resource-update policy")
-	}
+	h._rootRT, h._currentRT, h._historyRTs, h._crRT = trackers.Root, trackers.Current, trackers.History, trackers.ComponentRevision
+	h.labelTrackers(ctx, append([]*v1beta1.ResourceTracker{h._rootRT, h._currentRT, h._crRT}, h._historyRTs...)...)
 	return nil
 }
 
-func (h *resourceKeeper) loadResourceTrackers(ctx context.Context) (err error) {
-	h._rootRT, h._currentRT, h._historyRTs, h._crRT, err = resourcetracker.ListApplicationResourceTrackers(multicluster.ContextInLocalCluster(ctx), h.Client, h.app)
-	return err
+// Migration: owner labels. Adds any of the owner's tracker labels a live tracker lacks.
+// Trackers are rewritten only when what they record changes, so an idle owner's would never
+// gain them. Best-effort: a failed write is logged and retried on the next load. The tracker
+// is updated in place, so later writes build on the new version.
+func (h *resourceKeeper) labelTrackers(ctx context.Context, rts ...*v1beta1.ResourceTracker) {
+	want := h.owner.TrackerLabels()
+	for _, rt := range rts {
+		if rt == nil || rt.GetDeletionTimestamp() != nil {
+			continue
+		}
+		// No resource version means this did not come from the API server but from a
+		// projection, as vela-prism serves to callers without tracker permission. Its name is
+		// the real tracker's, and a write carrying no resource version has no precondition,
+		// so it would overwrite that tracker with the projection.
+		if rt.GetResourceVersion() == "" {
+			continue
+		}
+		missing := false
+		for k, v := range want {
+			if rt.GetLabels()[k] != v {
+				missing = true
+				break
+			}
+		}
+		if !missing {
+			continue
+		}
+		// Patch, not update: a tracker's records can be large, and this writes labels only.
+		patch := client.MergeFrom(rt.DeepCopy())
+		kubeutil.AddLabels(rt, want)
+		if err := h.Client.Patch(ctx, rt, patch); err != nil {
+			klog.InfoS("could not add owner labels to resource tracker; will retry", "resourcetracker", rt.Name, "err", err)
+		}
+	}
 }
 
 // GetAppliedResources returns all resources from the current ResourceTracker as ClusterObjectReferences.
@@ -144,21 +140,4 @@ func (h *resourceKeeper) GetAppliedResources() []common.ClusterObjectReference {
 		refs = append(refs, mr.ClusterObjectReference)
 	}
 	return refs
-}
-
-// NewResourceKeeper create a handler for dispatching and deleting resources
-func NewResourceKeeper(ctx context.Context, cli client.Client, app *v1beta1.Application) (_ ResourceKeeper, err error) {
-	h := &resourceKeeper{
-		Client:     cli,
-		app:        app,
-		applicator: apply.NewAPIApplicator(cli),
-		cache:      newResourceCache(cli, app),
-	}
-	if err = h.loadResourceTrackers(ctx); err != nil {
-		return nil, errors.Wrapf(err, "failed to load resourcetrackers")
-	}
-	if err = h.parseApplicationResourcePolicy(); err != nil {
-		return nil, errors.Wrapf(err, "failed to parse resource policy")
-	}
-	return h, nil
 }

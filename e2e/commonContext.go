@@ -19,7 +19,6 @@ package e2e
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/Netflix/go-expect"
 	"github.com/onsi/ginkgo/v2"
@@ -165,16 +164,14 @@ var (
 	// ComponentListContext used for test vela svc ls
 	ComponentListContext = func(context string, applicationName string, workloadType string, traitAlias string) bool {
 		return ginkgo.It(context+": should list all applications", func() {
-			gomega.Eventually(func(g gomega.Gomega) {
-				output, err := Exec("vela ls")
-				g.Expect(err).NotTo(gomega.HaveOccurred())
-				g.Expect(output).To(gomega.ContainSubstring("COMPONENT"))
-				g.Expect(output).To(gomega.ContainSubstring(applicationName))
-				g.Expect(output).To(gomega.ContainSubstring(workloadType))
-				if traitAlias != "" {
-					g.Expect(output).To(gomega.ContainSubstring(traitAlias))
-				}
-			}, 30*time.Second, time.Second).Should(gomega.Succeed())
+			output, err := Exec("vela ls")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(output).To(gomega.ContainSubstring("COMPONENT"))
+			gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
+			gomega.Expect(output).To(gomega.ContainSubstring(workloadType))
+			if traitAlias != "" {
+				gomega.Expect(output).To(gomega.ContainSubstring(traitAlias))
+			}
 		})
 	}
 

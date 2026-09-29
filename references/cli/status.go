@@ -46,13 +46,14 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	pkgappfile "github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/policy"
-	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	types2 "github.com/oam-dev/kubevela/pkg/utils/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
+	"github.com/oam-dev/kubevela/references/cli/resourcetree"
 	references "github.com/oam-dev/kubevela/references/common"
 )
 
@@ -577,7 +578,7 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 		return err
 	}
 	ctx := context.Background()
-	_, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, cli, app)
+	_, currentRT, historyRTs, _, err := appkeeper.ListApplicationResourceTrackers(ctx, cli, app)
 	if err != nil {
 		return err
 	}
@@ -597,10 +598,10 @@ func printApplicationTree(c common.Args, cmd *cobra.Command, appName string, app
 	if w, _, err := term.GetSize(0); err == nil && w > 0 {
 		maxWidth = ptr.To(w)
 	}
-	options := resourcetracker.ResourceTreePrintOptions{MaxWidth: maxWidth, Format: format, ClusterNameMapper: clusterNameMapper}
+	options := resourcetree.ResourceTreePrintOptions{MaxWidth: maxWidth, Format: format, ClusterNameMapper: clusterNameMapper}
 	printDetails, _ := cmd.Flags().GetBool("detail")
 	if printDetails {
-		msgRetriever, err := resourcetracker.RetrieveKubeCtlGetMessageGenerator(config)
+		msgRetriever, err := resourcetree.RetrieveKubeCtlGetMessageGenerator(config)
 		if err != nil {
 			return err
 		}
