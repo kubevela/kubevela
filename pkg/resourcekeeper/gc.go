@@ -18,36 +18,23 @@ package resourcekeeper
 
 import (
 	"context"
-	"encoding/json"
 	"math/rand"
-	"strings"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	"github.com/hashicorp/go-version"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/slices"
 	"github.com/pkg/errors"
-	appsv1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/auth"
-	"github.com/oam-dev/kubevela/pkg/features"
-	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/kubeutil"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
-	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	version2 "github.com/oam-dev/kubevela/version"
 )
 
 var (
@@ -63,16 +50,16 @@ type GCOption interface {
 type gcConfig struct {
 	passive bool
 
-	disableMark                  bool
-	disableSweep                 bool
-	disableFinalize              bool
-	disableComponentRevisionGC   bool
-	disableLegacyGC              bool
-	disableApplicationRevisionGC bool
+	disableMark                bool
+	disableSweep               bool
+	disableFinalize            bool
+	disableComponentRevisionGC bool
+	disableLegacyGC            bool
+	disableRevisionGC          bool
 
 	order v1alpha1.GarbageCollectOrder
 
-	appRevisionLimit int
+	revisionLimit int
 }
 
 func newGCConfig(options ...GCOption) *gcConfig {
@@ -114,16 +101,16 @@ func (h *resourceKeeper) GarbageCollect(ctx context.Context, options ...GCOption
 }
 
 func (h *resourceKeeper) buildGCConfig(ctx context.Context, options ...GCOption) *gcConfig {
-	if h.garbageCollectPolicy != nil {
-		if h.garbageCollectPolicy.KeepLegacyResource {
+	if h.policies.GarbageCollect != nil {
+		if h.policies.GarbageCollect.KeepLegacyResource {
 			options = append(options, PassiveGCOption{})
 		}
-		switch h.garbageCollectPolicy.Order {
+		switch h.policies.GarbageCollect.Order {
 		case v1alpha1.OrderDependency:
 			options = append(options, DependencyGCOption{})
 		default:
 		}
-		if h.garbageCollectPolicy.ContinueOnFailure && PhaseFrom(ctx) == common.ApplicationWorkflowFailed {
+		if h.policies.GarbageCollect.ContinueOnFailure && failedRun(ctx) {
 			options = slices.Filter(options, func(opt GCOption) bool {
 				_, ok := opt.(DisableMarkStageGCOption)
 				return !ok
@@ -157,26 +144,44 @@ func (h *resourceKeeper) garbageCollect(ctx context.Context, cfg *gcConfig) (fin
 			return false, waiting, errors.Wrapf(err, "failed to finalize resourcetrackers to be deleted")
 		}
 	}
-	// Garbage Collect Component Revision in unused components
-	if !cfg.disableComponentRevisionGC {
-		if err = gc.GarbageCollectComponentRevisionResourceTracker(ctx); err != nil {
-			return false, waiting, errors.Wrapf(err, "failed to garbage collect component revisions in unused components")
-		}
-	}
 	// Garbage Collect Legacy ResourceTrackers
-	if !cfg.disableLegacyGC {
-		if err = gc.GarbageCollectLegacyResourceTrackers(ctx); err != nil {
+	// Legacy (pre-v1.2) trackers are an Application concern; the creator supplies the step,
+	// and it runs once the owner is on new trackers, or while the owner is being deleted.
+	if !cfg.disableLegacyGC && h.opts.LegacyGarbageCollect != nil && (h.owner.Deleting() || h._currentRT != nil) {
+		if err = h.opts.LegacyGarbageCollect(ctx); err != nil {
 			return false, waiting, errors.Wrapf(err, "failed to garbage collect legacy resource trackers")
 		}
 	}
 
-	if !cfg.disableApplicationRevisionGC {
-		if err = gc.GarbageCollectApplicationRevision(ctx); err != nil {
-			return false, waiting, errors.Wrapf(err, "failed to garbage collect application revision")
+	if h.opts.Collect != nil {
+		if err = h.opts.Collect(ctx, gc.collectState()); err != nil {
+			return false, waiting, err
 		}
 	}
 
 	return finished, waiting, nil
+}
+
+// collectState is what this pass leaves for Options.Collect.
+func (h *gcHandler) collectState() CollectState {
+	inUse := func() map[string]bool {
+		components := map[string]bool{}
+		for _, entry := range h.cache.m.Data() {
+			for _, rt := range entry.usedBy {
+				if rt.GetDeletionTimestamp() == nil || len(rt.GetFinalizers()) != 0 {
+					components[entry.mr.ComponentKey()] = true
+				}
+			}
+		}
+		return components
+	}
+	return CollectState{
+		Trackers:                   resourcetracker.Trackers{Root: h._rootRT, Current: h._currentRT, History: h._historyRTs, ComponentRevision: h._crRT},
+		InUseComponents:            inUse,
+		RevisionLimit:              h.cfg.revisionLimit,
+		DisableRevisionGC:          h.cfg.disableRevisionGC,
+		DisableComponentRevisionGC: h.cfg.disableComponentRevisionGC,
+	}
 }
 
 // gcHandler gc detail implementations
@@ -188,8 +193,7 @@ type gcHandler struct {
 func (h *gcHandler) monitor(stage string) func() {
 	begin := time.Now()
 	return func() {
-		v := time.Since(begin).Seconds()
-		metrics.AppReconcileStageDurationHistogram.WithLabelValues("gc-rt." + stage).Observe(v)
+		h.observeStage("gc-rt."+stage, begin)
 	}
 }
 
@@ -199,7 +203,7 @@ func (h *gcHandler) regularizeResourceTracker(rts ...*v1beta1.ResourceTracker) {
 			continue
 		}
 		for i, mr := range rt.Spec.ManagedResources {
-			if ok, err := utils.IsClusterScope(mr.GroupVersionKind(), h.Client.RESTMapper()); err == nil && ok {
+			if ok, err := kubeutil.IsClusterScope(mr.GroupVersionKind(), h.Client.RESTMapper()); err == nil && ok {
 				rt.Spec.ManagedResources[i].Namespace = ""
 			}
 		}
@@ -215,7 +219,7 @@ func (h *gcHandler) Init() {
 }
 
 func (h *gcHandler) scan(ctx context.Context) (inactiveRTs []*v1beta1.ResourceTracker) {
-	if h.app.GetDeletionTimestamp() != nil {
+	if h.owner.Deleting() {
 		inactiveRTs = append(inactiveRTs, h._historyRTs...)
 		inactiveRTs = append(inactiveRTs, h._currentRT, h._rootRT, h._crRT)
 	} else {
@@ -228,7 +232,7 @@ func (h *gcHandler) scan(ctx context.Context) (inactiveRTs []*v1beta1.ResourceTr
 				if rt != nil {
 					inactive := true
 					for _, mr := range rt.Spec.ManagedResources {
-						entry := h.cache.get(auth.ContextWithUserInfo(ctx, h.app), mr)
+						entry := h.cache.get(h.asRequester(ctx), mr)
 						if entry.err == nil && (entry.gcExecutorRT != rt || !entry.exists) {
 							continue
 						}
@@ -271,7 +275,7 @@ func (h *gcHandler) Mark(ctx context.Context) error {
 // checkAndRemoveResourceTrackerFinalizer return (all resource recycled, error)
 func (h *gcHandler) checkAndRemoveResourceTrackerFinalizer(ctx context.Context, rt *v1beta1.ResourceTracker) (bool, v1beta1.ManagedResource, error) {
 	for _, mr := range rt.Spec.ManagedResources {
-		entry := h.cache.get(auth.ContextWithUserInfo(ctx, h.app), mr)
+		entry := h.cache.get(h.asRequester(ctx), mr)
 		if entry.err != nil {
 			return false, entry.mr, entry.err
 		}
@@ -303,9 +307,13 @@ func (h *gcHandler) Sweep(ctx context.Context) (finished bool, waiting []v1beta1
 }
 
 func (h *gcHandler) recycleResourceTracker(ctx context.Context, rt *v1beta1.ResourceTracker) error {
-	ctx = auth.ContextWithUserInfo(ctx, h.app)
+	ctx = h.asRequester(ctx)
 	switch h.cfg.order {
 	case v1alpha1.OrderDependency:
+		// Without dependency information, dependency order is plain order.
+		if h.opts.Dependents == nil {
+			break
+		}
 		for _, mr := range rt.Spec.ManagedResources {
 			if err := h.deleteIndependentComponent(ctx, mr, rt); err != nil {
 				return err
@@ -323,7 +331,7 @@ func (h *gcHandler) recycleResourceTracker(ctx context.Context, rt *v1beta1.Reso
 }
 
 func (h *gcHandler) deleteIndependentComponent(ctx context.Context, mr v1beta1.ManagedResource, rt *v1beta1.ResourceTracker) error {
-	dependent := h.checkDependentComponent(mr)
+	dependent := h.opts.Dependents(mr.Component)
 	if len(dependent) == 0 {
 		if err := h.deleteManagedResource(ctx, mr, rt); err != nil {
 			return err
@@ -354,20 +362,20 @@ func (h *gcHandler) deleteIndependentComponent(ctx context.Context, mr v1beta1.M
 	return nil
 }
 
-// UpdateSharedManagedResourceOwner update owner & sharer labels for managed resource
+// UpdateSharedManagedResourceOwner hands a shared resource to the first remaining sharer:
+// it records the sharer list and labels the resource as that sharer's (see
+// resourcetracker.LabelsForKey), dropping any owner.oam.dev/* labels of the previous owner.
 func UpdateSharedManagedResourceOwner(ctx context.Context, cli client.Client, manifest *unstructured.Unstructured, sharedBy string) error {
-	parts := strings.Split(apply.FirstSharer(sharedBy), "/")
-	appName, appNs := "", metav1.NamespaceDefault
-	if len(parts) == 1 {
-		appName = parts[0]
-	} else if len(parts) == 2 {
-		appName, appNs = parts[1], parts[0]
+	labels := resourcetracker.LabelsForKey(apply.FirstSharer(sharedBy))
+	if len(labels) == 0 {
+		// Nobody to hand it to, which a malformed sharer list can cause. Leaving the marks as
+		// they are keeps the resource owned by someone; stripping them would leave it owned by
+		// nobody, and the next sharer's ownership check would then refuse to touch it.
+		return errors.Errorf("cannot hand over resource %s/%s: no owner in %q", manifest.GetNamespace(), manifest.GetName(), sharedBy)
 	}
-	util.AddAnnotations(manifest, map[string]string{oam.AnnotationAppSharedBy: sharedBy})
-	util.AddLabels(manifest, map[string]string{
-		oam.LabelAppName:      appName,
-		oam.LabelAppNamespace: appNs,
-	})
+	kubeutil.AddAnnotations(manifest, map[string]string{oam.AnnotationAppSharedBy: sharedBy})
+	kubeutil.RemoveLabels(manifest, resourcetracker.OwnerLabelKeys())
+	kubeutil.AddLabels(manifest, labels)
 	return cli.Update(ctx, manifest)
 }
 
@@ -379,39 +387,37 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 	if entry.err != nil {
 		return entry.err
 	}
-	if entry.exists {
-		return DeleteManagedResourceInApplication(ctx, h.Client, mr, entry.obj, h.app)
+	if !entry.exists {
+		return nil
 	}
-	return nil
+	return DeleteManagedResource(ctx, h.Client, mr, entry.obj, h.owner, h.policies.GarbageCollect)
 }
 
-// DeleteManagedResourceInApplication delete managed resource in application
-func DeleteManagedResourceInApplication(ctx context.Context, cli client.Client, mr v1beta1.ManagedResource, obj *unstructured.Unstructured, app *v1beta1.Application) error {
-	_ctx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
+// DeleteManagedResource lets owner go of a resource it manages: if others share it, owner
+// leaves the sharer list and control passes to the next sharer; if it is to be kept (skip-GC,
+// an orphaning owner, or the garbage-collect policy), owner's marks are removed; otherwise it
+// is deleted. garbageCollectPolicy may be nil.
+func DeleteManagedResource(ctx context.Context, cli client.Client, mr v1beta1.ManagedResource, obj *unstructured.Unstructured, owner resourcetracker.Tracked, garbageCollectPolicy *v1alpha1.GarbageCollectPolicySpec) error {
+	_ctx := pkgmulticluster.WithCluster(ctx, mr.Cluster)
 	if annotations := obj.GetAnnotations(); annotations != nil && annotations[oam.AnnotationAppSharedBy] != "" {
-		sharedBy := apply.RemoveSharer(annotations[oam.AnnotationAppSharedBy], app)
+		sharedBy := apply.RemoveSharer(annotations[oam.AnnotationAppSharedBy], owner.Key())
 		if sharedBy != "" {
 			if err := UpdateSharedManagedResourceOwner(_ctx, cli, obj, sharedBy); err != nil {
 				return errors.Wrapf(err, "failed to remove sharer from resource %s", mr.ResourceKey())
 			}
 			return nil
 		}
-		util.RemoveAnnotations(obj, []string{oam.AnnotationAppSharedBy})
+		kubeutil.RemoveAnnotations(obj, []string{oam.AnnotationAppSharedBy})
 	}
 
 	var opts []client.DeleteOption
 	var isOrphan bool
-
-	if garbageCollectPolicy, _ := policy.ParsePolicy[v1alpha1.GarbageCollectPolicySpec](app); garbageCollectPolicy != nil {
+	if garbageCollectPolicy != nil {
 		isOrphan, opts = garbageCollectPolicy.FindDeleteOption(obj)
 	}
 
-	if mr.SkipGC || hasOrphanFinalizer(app) || isOrphan {
-		if labels := obj.GetLabels(); labels != nil {
-			delete(labels, oam.LabelAppName)
-			delete(labels, oam.LabelAppNamespace)
-			obj.SetLabels(labels)
-		}
+	if mr.SkipGC || owner.Orphaning() || isOrphan {
+		owner.Release(obj)
 		return errors.Wrapf(cli.Update(_ctx, obj), "skipping deletion for resource")
 	}
 
@@ -419,33 +425,6 @@ func DeleteManagedResourceInApplication(ctx context.Context, cli client.Client, 
 		return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
 	}
 	return nil
-}
-
-func (h *gcHandler) checkDependentComponent(mr v1beta1.ManagedResource) []string {
-	dependent := make([]string, 0)
-	outputs := make([]string, 0)
-	for _, comp := range h.app.Spec.Components {
-		if comp.Name == mr.Component {
-			for _, output := range comp.Outputs {
-				outputs = append(outputs, output.Name)
-			}
-		} else {
-			for _, dependsOn := range comp.DependsOn {
-				if dependsOn == mr.Component {
-					dependent = append(dependent, comp.Name)
-					break
-				}
-			}
-		}
-	}
-	for _, comp := range h.app.Spec.Components {
-		for _, input := range comp.Inputs {
-			if slices.Contains(outputs, input.From) {
-				dependent = append(dependent, comp.Name)
-			}
-		}
-	}
-	return dependent
 }
 
 func (h *gcHandler) Finalize(ctx context.Context) error {
@@ -458,126 +437,5 @@ func (h *gcHandler) Finalize(ctx context.Context) error {
 			}
 		}
 	}
-	return nil
-}
-
-func (h *gcHandler) GarbageCollectComponentRevisionResourceTracker(ctx context.Context) error {
-	cb := h.monitor("comp-rev")
-	defer cb()
-	if h._crRT == nil {
-		return nil
-	}
-	inUseComponents := map[string]bool{}
-	for _, entry := range h.cache.m.Data() {
-		for _, rt := range entry.usedBy {
-			if rt.GetDeletionTimestamp() == nil || len(rt.GetFinalizers()) != 0 {
-				inUseComponents[entry.mr.ComponentKey()] = true
-			}
-		}
-	}
-	var managedResources []v1beta1.ManagedResource
-	for _, cr := range h._crRT.Spec.ManagedResources { // legacy code for rollout-plan
-		_ctx := multicluster.ContextWithClusterName(ctx, cr.Cluster)
-		_ctx = auth.ContextWithUserInfo(_ctx, h.app)
-		if _, exists := inUseComponents[cr.ComponentKey()]; !exists {
-			_cr := &appsv1.ControllerRevision{}
-			err := h.Client.Get(_ctx, cr.NamespacedName(), _cr)
-			if err != nil && !multicluster.IsNotFoundOrClusterNotExists(err) {
-				return errors.Wrapf(err, "failed to get component revision %s", cr.ResourceKey())
-			}
-			if err == nil {
-				if err = h.Client.Delete(_ctx, _cr); err != nil && !kerrors.IsNotFound(err) {
-					return errors.Wrapf(err, "failed to delete component revision %s", cr.ResourceKey())
-				}
-			}
-		} else {
-			managedResources = append(managedResources, cr)
-		}
-	}
-	h._crRT.Spec.ManagedResources = managedResources
-	if len(managedResources) == 0 && h._crRT.GetDeletionTimestamp() != nil {
-		meta.RemoveFinalizer(h._crRT, resourcetracker.Finalizer)
-	}
-	if err := h.Client.Update(ctx, h._crRT); err != nil {
-		return errors.Wrapf(err, "failed to update controllerrevision RT %s", h._crRT.Name)
-	}
-	return nil
-}
-
-const velaVersionNumberToUpgradeResourceTracker = "v1.2.0"
-
-func (h *gcHandler) GarbageCollectLegacyResourceTrackers(ctx context.Context) error {
-	// skip legacy gc if controller not enable this feature
-	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.LegacyResourceTrackerGC) {
-		return nil
-	}
-	// skip legacy gc if application is not handled by new version rt
-	if h.app.GetDeletionTimestamp() == nil && h.resourceKeeper._currentRT == nil {
-		return nil
-	}
-	// check app version
-	velaVersionToUpgradeResourceTracker, _ := version.NewVersion(velaVersionNumberToUpgradeResourceTracker)
-	var currentVersionNumber string
-	if annotations := h.app.GetAnnotations(); annotations != nil && annotations[oam.AnnotationKubeVelaVersion] != "" {
-		currentVersionNumber = annotations[oam.AnnotationKubeVelaVersion]
-	}
-	currentVersion, err := version.NewVersion(currentVersionNumber)
-	if err == nil && velaVersionToUpgradeResourceTracker.LessThanOrEqual(currentVersion) {
-		return nil
-	}
-	// remove legacy ResourceTrackers
-	clusters := map[string]bool{multicluster.ClusterLocalName: true}
-	for _, rsc := range h.app.Status.AppliedResources {
-		if rsc.Cluster != "" {
-			clusters[rsc.Cluster] = true
-		}
-	}
-	for _, policy := range h.app.Spec.Policies {
-		if policy.Type == v1alpha1.EnvBindingPolicyType && policy.Properties != nil {
-			spec := &v1alpha1.EnvBindingSpec{}
-			if err = json.Unmarshal(policy.Properties.Raw, &spec); err == nil {
-				for _, env := range spec.Envs {
-					if env.Placement.ClusterSelector != nil && env.Placement.ClusterSelector.Name != "" {
-						clusters[env.Placement.ClusterSelector.Name] = true
-					}
-				}
-			}
-		}
-	}
-	for cluster := range clusters {
-		_ctx := multicluster.ContextWithClusterName(ctx, cluster)
-		rts := &unstructured.UnstructuredList{}
-		rts.SetGroupVersionKind(v1beta1.SchemeGroupVersion.WithKind("ResourceTrackerList"))
-		if err = h.Client.List(_ctx, rts, client.MatchingLabels(map[string]string{
-			oam.LabelAppName:      h.app.Name,
-			oam.LabelAppNamespace: h.app.Namespace,
-		})); err != nil {
-			if strings.Contains(err.Error(), "could not find the requested resource") {
-				continue
-			}
-			return errors.Wrapf(err, "failed to list resource trackers for app %s/%s in cluster %s", h.app.Namespace, h.app.Name, cluster)
-		}
-		for _, rt := range rts.Items {
-			if s, exists, _ := unstructured.NestedString(rt.Object, "spec", "type"); !exists || s == "" {
-				if err = h.Client.Delete(_ctx, rt.DeepCopy()); err != nil {
-					return errors.Wrapf(err, "failed to delete legacy resource tracker %s for app %s/%s in cluster %s", rt.GetName(), h.app.Namespace, h.app.Name, cluster)
-				}
-			}
-		}
-	}
-	// upgrade app version
-	app := &v1beta1.Application{}
-	if err = h.Client.Get(ctx, client.ObjectKeyFromObject(h.app), app); err != nil {
-		return errors.Wrapf(err, "failed to get app %s/%s for upgrade version", h.app.Namespace, h.app.Name)
-	}
-	if _, err = version.NewVersion(version2.VelaVersion); err != nil {
-		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, velaVersionNumberToUpgradeResourceTracker)
-	} else {
-		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, version2.VelaVersion)
-	}
-	if err = h.Client.Update(ctx, app); err != nil {
-		return errors.Wrapf(err, "failed to upgrade app %s/%s", h.app.Namespace, h.app.Name)
-	}
-	h.app.ObjectMeta = app.ObjectMeta
 	return nil
 }

@@ -282,6 +282,46 @@ func (in *ResourceTracker) AddManagedResource(rsc client.Object, metaOnly bool, 
 	return true
 }
 
+// AddManagedResources records rscs, returning whether any record changed. It indexes the
+// tracker once rather than searching it per resource, which matters for an owner with many
+// resources: a tracker holds one record per resource per cluster.
+func (in *ResourceTracker) AddManagedResources(rscs []client.Object, metaOnly bool, skipGC bool, creator string) (updated bool) {
+	index := make(map[string]int, len(in.Spec.ManagedResources))
+	for i, mr := range in.Spec.ManagedResources {
+		index[managedResourceKey(mr.ClusterObjectReference)] = i
+	}
+	for _, rsc := range rscs {
+		mr := newManagedResourceFromResource(rsc)
+		mr.SkipGC = skipGC
+		if !metaOnly {
+			mr.Data = &runtime.RawExtension{Object: rsc}
+		}
+		if creator != "" {
+			mr.ClusterObjectReference.Creator = creator
+		}
+		key := managedResourceKey(mr.ClusterObjectReference)
+		if i, found := index[key]; found {
+			if reflect.DeepEqual(in.Spec.ManagedResources[i], mr) {
+				continue
+			}
+			in.Spec.ManagedResources[i] = mr
+		} else {
+			index[key] = len(in.Spec.ManagedResources)
+			in.Spec.ManagedResources = append(in.Spec.ManagedResources, mr)
+		}
+		updated = true
+	}
+	return updated
+}
+
+// managedResourceKey identifies a recorded resource by the fields ClusterObjectReference.Equal
+// compares, so indexing by it and searching with Equal find the same record.
+func managedResourceKey(ref common.ClusterObjectReference) string {
+	// NUL separates: an APIVersion carries a slash, so joining on one could run two fields
+	// together into the same key.
+	return strings.Join([]string{ref.APIVersion, ref.Kind, ref.Name, ref.Namespace, string(ref.UID), ref.Creator, ref.Cluster}, "\x00")
+}
+
 // DeleteManagedResource if remove flag is on, it will remove the object from recorded resources.
 // otherwise, it will mark the object as deleted instead of removing it
 // workflow   stage: resources are marked as deleted (and execute the deletion action)

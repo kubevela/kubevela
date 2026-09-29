@@ -72,8 +72,6 @@ At reconcile time, before the CUE template runs:
 
 - All I/O is in the `SourceDefinition`'s `template:` block, executed by the controller on cache miss or expiry. Application authors declare what they need; the platform controls how and when it is fetched.
 - Admission validates every expression's path against the `SourceDefinition`'s declared schema at `kubectl apply` time. Invalid paths are rejected before any resolution occurs.
-- A `schema:` may constrain a field and not just type it (`replicas: >0 & int`), and that constraint is a guarantee the resolver enforces against the resolved output. Admission unifies it with what the consuming parameter demands, which proves more than a type does: two constraints unify to nothing exactly when no value satisfies both, so a component demanding `>0` from a source guaranteeing `<0` is refused at apply time rather than failing on every reconcile after it. A constraint expressed in terms of another field is left out, since it means nothing away from its schema.
-- Admission judges what the schema *guarantees*, never the value. `$(source.db.port)` feeding an `int` parameter is checked without fetching anything, and a `>0` bound on that parameter is checked only against the schema: refused if the schema rules every such value out, as above, and admitted if the schema says only `int`, since some `int` satisfies it. Whether the value actually resolved meets the bound is not an admission question: the value is re-resolved on a later reconcile and can change with no admission event to catch it, so checking whichever value happened to be current would be a false comfort. The value is checked where it exists, at render.
 
 ## KubeVela Config and ConfigTemplate
 

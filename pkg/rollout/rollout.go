@@ -28,13 +28,13 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
 	"github.com/oam-dev/kubevela/pkg/oam"
 
 	kruisev1alpha1 "github.com/openkruise/rollouts/api/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
@@ -53,7 +53,7 @@ type ClusterRollout struct {
 }
 
 func getAssociatedRollouts(ctx context.Context, cli client.Client, app *v1beta1.Application, withHistoryRTs bool) ([]*ClusterRollout, error) {
-	rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, cli, app)
+	rootRT, currentRT, historyRTs, _, err := appkeeper.ListApplicationResourceTrackers(ctx, cli, app)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to list resource trackers")
 	}

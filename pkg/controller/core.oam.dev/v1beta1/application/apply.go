@@ -43,6 +43,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
+	"github.com/oam-dev/kubevela/pkg/componenthealth"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -92,7 +94,7 @@ func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application)
 		}))
 		defer subCtx.Commit("finish create appHandler")
 	}
-	resourceHandler, err := resourcekeeper.NewResourceKeeper(ctx, r.Client, app)
+	resourceHandler, err := appkeeper.New(ctx, r.Client, app)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create resourceKeeper")
 	}
@@ -432,26 +434,9 @@ collectNext:
 			break
 		}
 	}
-	traitHealthy := true
-	for _, ts := range traitStatusByKey {
-		if ts.Pending {
-			continue
-		}
-		if !ts.Healthy {
-			traitHealthy = false
-			break
-		}
-	}
-	if !skipWorkload {
-		status.Healthy = status.WorkloadHealthy && traitHealthy
-	} else if !traitHealthy {
-		status.Healthy = false
-		if status.Message == "" {
-			status.Message = "traits are not healthy"
-		}
-	}
-	h.recordComponentSourceReads(comp, &status)
 	status.Traits = slices.Collect(maps.Values(traitStatusByKey))
+	componenthealth.Rollup(&status, !skipWorkload)
+	h.recordComponentSourceReads(comp, &status)
 	h.addServiceStatus(true, status)
 	return &status, output, outputs, isHealth, nil
 }

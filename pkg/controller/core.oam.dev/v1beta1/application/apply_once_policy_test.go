@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -125,7 +125,7 @@ var _ = Describe("Test Application with apply-once policy", func() {
 			}
 
 			By("step 4. Check OnStateKeep, replicas also should be 5 ")
-			rk, err := resourcekeeper.NewResourceKeeper(context.Background(), k8sClient, app)
+			rk, err := appkeeper.New(context.Background(), k8sClient, app)
 			Expect(err).Should(BeNil())
 			for i := 0; i <= 3; i++ {
 				// state keep :5
@@ -152,7 +152,7 @@ var _ = Describe("Test Application with apply-once policy", func() {
 			Eventually(updateDeployReplicas(ctx, app, targetReplicas), time.Second*3, time.Microsecond*300).Should(BeNil())
 
 			By("step 3. Check OnStateKeep, replicas should be 5 ")
-			rk, err := resourcekeeper.NewResourceKeeper(context.Background(), k8sClient, app)
+			rk, err := appkeeper.New(context.Background(), k8sClient, app)
 			Expect(err).Should(BeNil())
 			for i := 0; i <= 3; i++ {
 				// state keep : use newest replicas
@@ -203,7 +203,7 @@ var _ = Describe("Test Application with apply-once policy", func() {
 			}
 
 			By("step 4. Check OnStateKeep, replicas should be 2 ")
-			rk, err := resourcekeeper.NewResourceKeeper(context.Background(), k8sClient, app)
+			rk, err := appkeeper.New(context.Background(), k8sClient, app)
 			Expect(err).Should(BeNil())
 			for i := 0; i <= 3; i++ {
 				// state keep : not use newest replicas

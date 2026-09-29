@@ -59,6 +59,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -68,7 +69,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
-	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/workflow"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 	"github.com/oam-dev/kubevela/version"
@@ -360,10 +360,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	r.stateKeep(logCtx, handler, app)
 
 	opts := []resourcekeeper.GCOption{
-		resourcekeeper.AppRevisionLimitGCOption(r.appRevisionLimit),
+		resourcekeeper.RevisionLimitGCOption(r.appRevisionLimit),
 	}
 	if DisableAllApplicationRevision {
-		opts = append(opts, resourcekeeper.DisableApplicationRevisionGCOption{})
+		opts = append(opts, resourcekeeper.DisableRevisionGCOption{})
 	}
 	if DisableAllComponentRevision {
 		opts = append(opts, resourcekeeper.DisableGCComponentRevisionOption{})
@@ -619,10 +619,10 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 	}
 
 	options := []resourcekeeper.GCOption{
-		resourcekeeper.AppRevisionLimitGCOption(r.appRevisionLimit),
+		resourcekeeper.RevisionLimitGCOption(r.appRevisionLimit),
 	}
 	if DisableAllApplicationRevision {
-		options = append(options, resourcekeeper.DisableApplicationRevisionGCOption{})
+		options = append(options, resourcekeeper.DisableRevisionGCOption{})
 	}
 	if DisableAllComponentRevision {
 		options = append(options, resourcekeeper.DisableGCComponentRevisionOption{})
@@ -632,11 +632,11 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 			resourcekeeper.DisableMarkStageGCOption{},
 			resourcekeeper.DisableGCComponentRevisionOption{},
 			resourcekeeper.DisableLegacyGCOption{},
-			resourcekeeper.DisableApplicationRevisionGCOption{},
+			resourcekeeper.DisableRevisionGCOption{},
 		)
 	}
 
-	finished, waiting, err := handler.resourceKeeper.GarbageCollect(resourcekeeper.WithPhase(logCtx, phase), options...)
+	finished, waiting, err := handler.resourceKeeper.GarbageCollect(resourcekeeper.WithFailedRun(logCtx, phase == common.ApplicationWorkflowFailed), options...)
 	if err != nil {
 		logCtx.Error(err, "Failed to gc resourcetrackers")
 		cond := condition.Deleting()
@@ -730,7 +730,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 				metrics.AppReconcileStageDurationHistogram.WithLabelValues("remove-finalizer").Observe(v)
 			}))
 			defer subCtx.Commit("finish remove finalizers")
-			rootRT, currentRT, historyRTs, crRT, err := resourcetracker.ListApplicationResourceTrackers(ctx, r.Client, app)
+			rootRT, currentRT, historyRTs, crRT, err := appkeeper.ListApplicationResourceTrackers(ctx, r.Client, app)
 			if err != nil {
 				return r.result(err).end(true)
 			}
@@ -739,7 +739,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 				return true, result, err
 			}
 			if rootRT == nil && currentRT == nil && len(historyRTs) == 0 && crRT == nil {
-				if revs, err := resourcekeeper.ListApplicationRevisions(ctx, r.Client, app.Name, app.Namespace); len(revs) > 0 || err != nil {
+				if revs, err := appkeeper.ListApplicationRevisions(ctx, r.Client, app.Name, app.Namespace); len(revs) > 0 || err != nil {
 					klog.Infof("garbage collecting application revisions for application %s/%s, rest: %d, err: %s", app.Namespace, app.Name, len(revs), err)
 					return r.result(err).requeue(baseGCBackoffWaitTime).end(true)
 				}

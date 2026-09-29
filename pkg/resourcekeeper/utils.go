@@ -17,53 +17,53 @@ limitations under the License.
 package resourcekeeper
 
 import (
+	"context"
+
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/utils/strings/slices"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils"
+	"github.com/oam-dev/kubevela/pkg/kubeutil"
 )
 
 // ClearNamespaceForClusterScopedResources clear namespace for cluster scoped resources
 func (h *resourceKeeper) ClearNamespaceForClusterScopedResources(manifests []*unstructured.Unstructured) {
 	for _, manifest := range manifests {
-		if ok, err := utils.IsClusterScope(manifest.GroupVersionKind(), h.Client.RESTMapper()); err == nil && ok {
+		if ok, err := kubeutil.IsClusterScope(manifest.GroupVersionKind(), h.Client.RESTMapper()); err == nil && ok {
 			manifest.SetNamespace("")
 		}
 	}
 }
 
 func (h *resourceKeeper) isShared(manifest *unstructured.Unstructured) bool {
-	if h.sharedResourcePolicy == nil {
+	if h.policies.SharedResource == nil {
 		return false
 	}
-	return h.sharedResourcePolicy.FindStrategy(manifest)
+	return h.policies.SharedResource.FindStrategy(manifest)
 }
 
 func (h *resourceKeeper) canTakeOver(manifest *unstructured.Unstructured) bool {
-	if h.takeOverPolicy == nil {
+	if h.policies.TakeOver == nil {
 		return false
 	}
-	return h.takeOverPolicy.FindStrategy(manifest)
+	return h.policies.TakeOver.FindStrategy(manifest)
 }
 
 func (h *resourceKeeper) isReadOnly(manifest *unstructured.Unstructured) bool {
-	if h.readOnlyPolicy == nil {
+	if h.policies.ReadOnly == nil {
 		return false
 	}
-	return h.readOnlyPolicy.FindStrategy(manifest)
+	return h.policies.ReadOnly.FindStrategy(manifest)
 }
 
 func (h *resourceKeeper) getUpdateStrategy(manifest *unstructured.Unstructured) *v1alpha1.ResourceUpdateStrategy {
-	if h.resourceUpdatePolicy == nil {
+	if h.policies.ResourceUpdate == nil {
 		return nil
 	}
-	return h.resourceUpdatePolicy.FindStrategy(manifest)
+	return h.policies.ResourceUpdate.FindStrategy(manifest)
 }
 
-// hasOrphanFinalizer checks if the target application should orphan child resources
-func hasOrphanFinalizer(app *v1beta1.Application) bool {
-	return slices.Contains(app.GetFinalizers(), oam.FinalizerOrphanResource)
+// localCluster addresses the cluster the keeper runs in (where ResourceTrackers live).
+func localCluster(ctx context.Context) context.Context {
+	return pkgmulticluster.WithCluster(ctx, pkgmulticluster.Local)
 }

@@ -30,6 +30,9 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // getActionConfig initializes a Helm action.Configuration with a real Kubernetes
@@ -96,6 +99,11 @@ func (r *velaLabelPostRenderer) Run(renderedManifests *bytes.Buffer) (*bytes.Buf
 			labels["app.oam.dev/name"] = r.context.AppName
 			labels["app.oam.dev/namespace"] = r.context.AppNamespace
 			labels["app.oam.dev/component"] = r.context.Name
+			// Chart resources are applied by Helm, not the resource keeper, so they get the
+			// owner.oam.dev/* labels every resource an Application owns carries here.
+			for k, v := range applicationOwnerLabels(r.context) {
+				labels[k] = v
+			}
 			obj.SetLabels(labels)
 		}
 
@@ -160,6 +168,9 @@ func velaOwnerLabels(velaCtx *ContextParams) map[string]string {
 		"app.oam.dev/namespace": velaCtx.AppNamespace,
 		"app.oam.dev/component": velaCtx.Name,
 	}
+	for k, v := range applicationOwnerLabels(velaCtx) {
+		labels[k] = v
+	}
 	// Embed the publishVersion pin in the release labels so subsequent
 	// reconciles can short-circuit when the App is at a stable pin and the
 	// release was already installed at that pin.
@@ -167,6 +178,15 @@ func velaOwnerLabels(velaCtx *ContextParams) map[string]string {
 		labels["app.oam.dev/publishVersion"] = velaCtx.PublishVersion
 	}
 	return labels
+}
+
+// applicationOwnerLabels are the owner.oam.dev/* labels of the Application in velaCtx.
+func applicationOwnerLabels(velaCtx *ContextParams) map[string]string {
+	return map[string]string{
+		oam.LabelOwnerKind:      v1beta1.ApplicationKind,
+		oam.LabelOwnerName:      velaCtx.AppName,
+		oam.LabelOwnerNamespace: velaCtx.AppNamespace,
+	}
 }
 
 // isOwnedByVela checks whether a Helm release was installed/managed by THIS
