@@ -64,6 +64,15 @@ var _ = Describe("Test Generating SDK", func() {
 		err = meta.Run(context.Background())
 		Expect(err).Should(BeNil())
 	}
+	It("skips CUE test files in a directory, but not one named explicitly", func() {
+		dir := GinkgoT().TempDir()
+		for _, f := range []string{"web.cue", "web_test.cue", "README.md"} {
+			Expect(os.WriteFile(filepath.Join(dir, f), nil, 0o600)).To(Succeed())
+		}
+		named := filepath.Join(dir, "web_test.cue")
+		Expect(cuePathsIn([]string{dir, named})).To(Equal([]string{filepath.Join(dir, "web.cue"), named}))
+	})
+
 	It("Test generating SDK and init the scaffold", func() {
 		meta.InitSDK = true
 		genWithMeta()

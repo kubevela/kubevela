@@ -93,6 +93,15 @@
 	stepType: string
 }
 
+// #StepRun is what the workflow engine sets as it runs a step, on top of the
+// Application's context. There is no stepType: only the properties path pushes it.
+#StepRun: {
+	// +usage=The step being run
+	stepName: string
+	// +usage=The step's ID in the workflow status
+	stepSessionID: string
+}
+
 // #PolicyIdentity is the policy instance being rendered.
 #PolicyIdentity: {
 	// +usage=The policy's name, from its spec.policies[] entry
@@ -131,21 +140,23 @@
 // workflow steps" or "not readable in workflow step properties" depending on
 // what it is saying.
 labels: {
-	component:         "component"
-	trait:             "trait"
-	workflowstep:      "workflow step"
-	"policy-default":  "built-in policy"
-	"policy-rendered": "policy"
-	"policy-app":      "application-scoped policy"
+	component:               "component"
+	trait:                   "trait"
+	workflowstep:            "workflow step"
+	"workflowstep-template": "workflow step template"
+	"policy-default":        "built-in policy"
+	"policy-rendered":       "policy"
+	"policy-app":            "application-scoped policy"
 }
 
 plurals: {
-	component:         "components"
-	trait:             "traits"
-	workflowstep:      "workflow steps"
-	"policy-default":  "built-in policies"
-	"policy-rendered": "policies"
-	"policy-app":      "application-scoped policies"
+	component:               "components"
+	trait:                   "traits"
+	workflowstep:            "workflow steps"
+	"workflowstep-template": "workflow step templates"
+	"policy-default":        "built-in policies"
+	"policy-rendered":       "policies"
+	"policy-app":            "application-scoped policies"
 }
 
 // surfaces are the call sites. Each is the readable context at that point.
@@ -162,6 +173,7 @@ surfaces: {
 		#ClusterIdentity
 		#ComponentIdentity
 		#PublishedContext
+
 		// +usage=The component being rendered
 		name: string
 	}
@@ -178,6 +190,7 @@ surfaces: {
 		#ClusterIdentity
 		#PublishedContext
 		#StepIdentity
+
 		// +usage=The step being rendered
 		name: string
 	}
@@ -193,6 +206,7 @@ surfaces: {
 		#ClusterIdentity
 		#PublishedContext
 		#PolicyIdentity
+
 		// +usage=The policy being rendered
 		name: string
 	}
@@ -212,6 +226,7 @@ surfaces: {
 		#AppIdentity
 		#PolicyIdentity
 		#PolicyRevisionIdentity
+
 		// A later scoped policy sees what an earlier one published:
 		// storeAdditionalContextInCtx merges rather than replaces.
 		#PublishedContext
@@ -221,6 +236,26 @@ surfaces: {
 			gitVersion: string
 			platform:   string
 		}
+	}
+}
+
+// templates are what a definition's template reads, where that is not any
+// surface's context: not places a property expression is substituted, so
+// they are neither offered for an expression nor valid for a source read.
+templates: {
+	// A WorkflowStepDefinition template, as the workflow engine runs it: the
+	// Application's context (appfile.WorkflowContextData) with the running step
+	// added. Unlike surfaces.workflowstep, a step's properties, context.name is the
+	// Application, which is how that context is built, and there is no cluster:
+	// a step is not placed the way a component is.
+	"workflowstep-template": {
+		#AppIdentity
+		#DeliveryIdentity
+		#PublishedContext
+		#StepRun
+
+		// +usage=The Application; read stepName for the step
+		name: string
 	}
 }
 
@@ -259,4 +294,6 @@ excluded: {
 	outputSecretName: _
 	// +reason=the properties being substituted; reading them from within is circular
 	parameter: _
+	// +reason=the workflow engine's trace span for one reconcile, for its own tracing
+	spanID: _
 }

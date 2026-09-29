@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
+	cueerrors "cuelang.org/go/cue/errors"
 	upstreamcuex "github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/kubevela/workflow/pkg/cue/process"
@@ -339,6 +340,34 @@ func newSourceResolver(goCtx context.Context, ctxValues map[string]interface{}, 
 	}
 }
 
+// bindingProperties are a binding's properties with their expressions
+// substituted, as the binding resolves with them.
+func (r *sourceResolver) bindingProperties(sourceName, sourceType string) (map[string]interface{}, error) {
+	props, ok := r.sourceProps[sourceName]
+	if !ok || props == nil {
+		return map[string]interface{}{}, nil
+	}
+	// A source's own properties may read an earlier source. Those reads belong
+	// to this binding, not to the component whose render happened to trigger
+	// the chain - without this the chain is invisible and the reads look like
+	// the component made them directly.
+	prevKind, prevName := r.readerKind, r.readerName
+	r.readerKind, r.readerName = "source", sourceName
+	resolvedPropsNode, err := resolveSourceNode(props, r)
+	r.readerKind, r.readerName = prevKind, prevName
+	if err != nil {
+		r.setSourceStatus(sourceName, sourceType, PhaseFailed, err.Error(), "", "")
+		return nil, errors.WithMessagef(err, "resolve source properties for %s", sourceName)
+	}
+	rp, ok := resolvedPropsNode.(map[string]interface{})
+	if !ok {
+		err := fmt.Errorf("resolved source properties for %s are invalid", sourceName)
+		r.setSourceStatus(sourceName, sourceType, PhaseFailed, err.Error(), "", "")
+		return nil, err
+	}
+	return rp, nil
+}
+
 // resolve returns a binding's value, resolving it if this render has not
 // already, and memoising the result for the rest of the render.
 func (r *sourceResolver) resolve(sourceName string) (map[string]interface{}, error) {
@@ -362,48 +391,20 @@ func (r *sourceResolver) resolve(sourceName string) (map[string]interface{}, err
 		err := fmt.Errorf("source definition %q for source %q is missing cue template", sourceType, sourceName)
 		return r.fail(sourceName, sourceType, "", err, "")
 	}
-	resolvedProps := map[string]interface{}{}
+	resolvedProps, err := r.bindingProperties(sourceName, sourceType)
+	if err != nil {
+		return nil, err
+	}
 	paramFile := velaprocess.ParameterFieldName + ": {}"
-	if props, ok := r.sourceProps[sourceName]; ok && props != nil {
-		// A source's own properties may read an earlier source. Those reads belong
-		// to this binding, not to the component whose render happened to trigger
-		// the chain - without this the chain is invisible and the reads look like
-		// the component made them directly.
-		prevKind, prevName := r.readerKind, r.readerName
-		r.readerKind, r.readerName = "source", sourceName
-		resolvedPropsNode, err := resolveSourceNode(props, r)
-		r.readerKind, r.readerName = prevKind, prevName
-		if err != nil {
-			r.setSourceStatus(sourceName, sourceType, PhaseFailed, err.Error(), "", "")
-			return nil, errors.WithMessagef(err, "resolve source properties for %s", sourceName)
-		}
-		rp, ok := resolvedPropsNode.(map[string]interface{})
-		if !ok {
-			err := fmt.Errorf("resolved source properties for %s are invalid", sourceName)
-			r.setSourceStatus(sourceName, sourceType, PhaseFailed, err.Error(), "", "")
-			return nil, err
-		}
-		resolvedProps = rp
-		raw, err := json.Marshal(rp)
+	if len(resolvedProps) > 0 {
+		raw, err := json.Marshal(resolvedProps)
 		if err != nil {
 			r.setSourceStatus(sourceName, sourceType, PhaseFailed, err.Error(), "", "")
 			return nil, errors.WithMessagef(err, "marshal properties for source %s", sourceName)
 		}
 		paramFile = fmt.Sprintf("%s: %s", velaprocess.ParameterFieldName, string(raw))
 	}
-	cachePolicy, err := r.resolveCachePolicy(sourceName, sourceType, sourceTemplate, resolvedProps)
-	if err != nil {
-		return r.fail(sourceName, sourceType, "", err, "")
-	}
-	// storage.key is the readable prefix; uniqueness comes from the hash below,
-	// which covers the definition's template, the binding's properties, and
-	// exactly the context values the template reads.
-	identity := identityInputs{
-		Template:   templateFingerprint(sourceTemplate),
-		Properties: resolvedProps,
-		Context:    identityContext(r.ctxValues, sourceName, cachePolicy.KeyInputs),
-	}
-	cachePolicy.Key, err = cacheIdentity(cachePolicy.Key, identity)
+	cachePolicy, identity, err := r.keyedCachePolicy(sourceName, sourceType, sourceTemplate, resolvedProps)
 	if err != nil {
 		return r.fail(sourceName, sourceType, "", err, "")
 	}
@@ -448,7 +449,10 @@ func (r *sourceResolver) resolve(sourceName string) (map[string]interface{}, err
 		if v, ok := r.serveStale(fallback, "refresh reported errors; serving stale cached value"); ok {
 			return v, nil
 		}
-		return r.fail(sourceName, sourceType, cachePolicy.Key, fmt.Errorf("source definition %s reported errors: %s", sourceType, errMsg), "")
+		return r.fail(sourceName, sourceType, cachePolicy.Key, &DefinitionError{
+			message: fmt.Sprintf("source definition %s reported errors: %s", sourceType, errMsg),
+			User:    userErrs,
+		}, "")
 	}
 	output := map[string]interface{}{}
 	if err := val.LookupPath(value.FieldPath(velaprocess.OutputFieldName)).Decode(&output); err != nil {
@@ -462,7 +466,11 @@ func (r *sourceResolver) resolve(sourceName string) (map[string]interface{}, err
 		if v, ok := r.serveStale(fallback, "refresh failed; serving stale cached value"); ok {
 			return v, nil
 		}
-		return r.fail(sourceName, sourceType, cachePolicy.Key, err,
+		var mismatches []string
+		for _, e := range cueerrors.Errors(err) {
+			mismatches = append(mismatches, e.Error())
+		}
+		return r.fail(sourceName, sourceType, cachePolicy.Key, &DefinitionError{message: err.Error(), Schema: mismatches, cause: err},
 			fmt.Sprintf("validate output against schema for source definition %s", sourceType))
 	}
 	r.resolved[sourceName] = output
