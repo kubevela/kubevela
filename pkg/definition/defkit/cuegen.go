@@ -2019,7 +2019,7 @@ func (g *CUEGenerator) tryDecomposeOrLift(sb *strings.Builder, name string, node
 
 		for _, condStr := range condStrs {
 			sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
-			sb.WriteString(fmt.Sprintf("%s\t%s: {\n", indent, name))
+			sb.WriteString(fmt.Sprintf("%s\t%s: {\n", indent, cueLabel(name)))
 			for _, childName := range node.childOrder {
 				child := node.children[childName]
 				filteredChild := g.filterNodeByCondition(child, condStr)
@@ -2061,7 +2061,7 @@ func (g *CUEGenerator) tryDecomposeOrLift(sb *strings.Builder, name string, node
 			clone.children[childName] = &childCopy
 		}
 		sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
-		sb.WriteString(fmt.Sprintf("%s\t%s: {\n", indent, name))
+		sb.WriteString(fmt.Sprintf("%s\t%s: {\n", indent, cueLabel(name)))
 		g.writeFieldTree(sb, clone, depth+2)
 		sb.WriteString(fmt.Sprintf("%s\t}\n", indent))
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
@@ -2083,7 +2083,7 @@ func (g *CUEGenerator) writeFieldNode(sb *strings.Builder, name string, node *fi
 
 	// Handle array notation
 	if node.isArray {
-		sb.WriteString(fmt.Sprintf("%s%s: [{\n", indent, name))
+		sb.WriteString(fmt.Sprintf("%s%s: [{\n", indent, cueLabel(name)))
 		// Write the first array element (index 0)
 		if child, exists := node.children["[0]"]; exists {
 			g.writeFieldTree(sb, child, depth+1)
@@ -2111,27 +2111,27 @@ func (g *CUEGenerator) writeFieldNode(sb *strings.Builder, name string, node *fi
 				condStr := g.conditionToCUE(node.cond)
 				valStr := g.valueToCUE(node.value)
 				sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
-				sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, name, valStr))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, cueLabel(name), valStr))
 				sb.WriteString(fmt.Sprintf("%s}\n", indent))
 			} else {
 				valStr := g.valueToCUE(node.value)
-				sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, name, valStr))
+				sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, cueLabel(name), valStr))
 			}
 			for _, cv := range node.condValues {
 				condStr := g.conditionToCUE(cv.cond)
 				valStr := g.valueToCUE(cv.value)
 				sb.WriteString(fmt.Sprintf("%sif %s {\n", indent, condStr))
-				sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, name, valStr))
+				sb.WriteString(fmt.Sprintf("%s\t%s: %s\n", indent, cueLabel(name), valStr))
 				sb.WriteString(fmt.Sprintf("%s}\n", indent))
 			}
 			return
 		}
 		// Leaf node with value
 		valStr := g.valueToCUE(node.value)
-		sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, name, valStr))
+		sb.WriteString(fmt.Sprintf("%s%s: %s\n", indent, cueLabel(name), valStr))
 	} else if len(node.children) > 0 {
 		// Node with children - write as nested struct
-		sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, name))
+		sb.WriteString(fmt.Sprintf("%s%s: {\n", indent, cueLabel(name)))
 		g.writeFieldTree(sb, node, depth+1)
 		sb.WriteString(fmt.Sprintf("%s}\n", indent))
 	}
