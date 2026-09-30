@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -157,6 +158,8 @@ var _ = BeforeSuite(func() {
 	} else {
 		By("Skipping auth-test registries setup (KUBEVELA_E2E_AUTH not set)")
 	}
+
+	waitForControllerReconciling(context.Background())
 })
 
 var _ = AfterSuite(func() {
@@ -176,20 +179,104 @@ var _ = AfterSuite(func() {
 	}
 })
 
-// RequestReconcileNow will trigger an immediate reconciliation on K8s object.
-// Some test cases may fail for timeout to wait a scheduled reconciliation.
-// This is a workaround to avoid long-time wait before next scheduled
-// reconciliation.
+// waitForControllerReconciling waits until the controller runs an Application
+// to completion. A vela-core Deployment can report Available while its new pod
+// still waits on the leader lease, and the auth setup restarts it to inject a
+// CA, so without this the first spec races the controller's start.
+func waitForControllerReconciling(ctx context.Context) {
+	By("Waiting for the controller to reconcile a canary Application")
+	name := randomNamespaceName("e2e-canary")
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+		Spec: v1beta1.ApplicationSpec{Components: []commontypes.ApplicationComponent{{
+			Name:       "canary",
+			Type:       "k8s-objects",
+			Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"objects":[{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":%q}}]}`, name))},
+		}}},
+	}
+	Eventually(func() error { return k8sClient.Create(ctx, app) }, 30*time.Second, time.Second).Should(Succeed())
+	DeferCleanup(func() { _ = k8sClient.Delete(ctx, app) })
+	Eventually(func(g Gomega) {
+		current := &v1beta1.Application{}
+		g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(app), current)).To(Succeed())
+		g.Expect(current.Status.Phase).To(Equal(commontypes.ApplicationRunning))
+	}, 2*time.Minute, 500*time.Millisecond).Should(Succeed())
+}
+
+// RequestReconcileNow queues o for an immediate reconcile. The Application
+// controller watches neither Component nor Trait definitions, nor the
+// workloads it applies, so a change to them is otherwise seen on the next
+// resync.
 func RequestReconcileNow(ctx context.Context, o client.Object) {
-	oCopy := o.DeepCopyObject()
-	oMeta, ok := oCopy.(metav1.Object)
-	Expect(ok).Should(BeTrue())
-	oMeta.SetAnnotations(map[string]string{
-		"app.oam.dev/requestreconcile": time.Now().String(),
-	})
-	oMeta.SetResourceVersion("")
-	By(fmt.Sprintf("Request reconcile %q now", oMeta.GetName()))
-	Expect(k8sClient.Patch(ctx, oCopy.(client.Object), client.Merge)).Should(Succeed())
+	By(fmt.Sprintf("Request reconcile %q now", o.GetName()))
+	_, err := requestReconcile(ctx, o)
+	Expect(err).Should(Succeed())
+}
+
+// requestReconcile stamps an annotation, which passes the Application
+// controller's update predicate, and returns the resulting resourceVersion.
+// It patches metadata only, so a stale o cannot overwrite the spec.
+func requestReconcile(ctx context.Context, o client.Object) (string, error) {
+	patch := fmt.Sprintf(`{"metadata":{"annotations":{"app.oam.dev/requestreconcile":%q}}}`, time.Now().Format(time.RFC3339Nano))
+	patched := o.DeepCopyObject().(client.Object)
+	if err := k8sClient.Patch(ctx, patched, client.RawPatch(types.MergePatchType, []byte(patch))); err != nil {
+		return "", err
+	}
+	return patched.GetResourceVersion(), nil
+}
+
+// reconcileRequester requests reconciles of one object only while the
+// controller leaves it alone. A request that lands while a reconcile is in
+// flight makes that reconcile's status write conflict, and its progress, such
+// as a failing step's retry count, is lost. The controller writes the object
+// while a busy app requeues itself, so a request waits until the object has
+// been unchanged for quietPeriod: the controller is then waiting out a backoff
+// or the resync, which is the wait a request is meant to cut short.
+type reconcileRequester struct {
+	ctx    context.Context
+	obj    client.Object
+	seenRV string
+	seenAt time.Time
+}
+
+const quietPeriod = 3 * time.Second
+
+func (r *reconcileRequester) request(g Gomega) {
+	current := r.obj.DeepCopyObject().(client.Object)
+	g.Expect(k8sClient.Get(r.ctx, client.ObjectKeyFromObject(r.obj), current)).To(Succeed())
+	now := time.Now()
+	if rv := current.GetResourceVersion(); rv != r.seenRV {
+		r.seenRV, r.seenAt = rv, now
+	}
+	if now.Sub(r.seenAt) < quietPeriod {
+		return
+	}
+	rv, err := requestReconcile(r.ctx, r.obj)
+	g.Expect(err).To(Succeed())
+	r.seenRV, r.seenAt = rv, now
+}
+
+// EventuallyReconciled polls assertion, requesting a reconcile of o whenever the
+// controller has left it alone for quietPeriod. Every reconcile also re-runs a
+// failing workflow step, so the long gaps of the step backoff are cut short.
+func EventuallyReconciled(ctx context.Context, o client.Object, assertion func(g Gomega)) AsyncAssertion {
+	r := &reconcileRequester{ctx: ctx, obj: o}
+	return Eventually(func(g Gomega) {
+		r.request(g)
+		assertion(g)
+	}).WithPolling(time.Second).WithTimeout(2 * time.Minute)
+}
+
+// ConsistentlyReconciled holds assertion while requesting reconciles of o, so
+// "nothing changed" is checked across real reconciles. The controller records
+// nothing when a requested reconcile completes, so the window spans three
+// requests rather than relying on the first one finishing.
+func ConsistentlyReconciled(ctx context.Context, o client.Object, assertion func(g Gomega)) AsyncAssertion {
+	r := &reconcileRequester{ctx: ctx, obj: o}
+	return Consistently(func(g Gomega) {
+		r.request(g)
+		assertion(g)
+	}).WithPolling(time.Second).WithTimeout(4 * quietPeriod)
 }
 
 // randomNamespaceName generates a random name based on the basic name.
