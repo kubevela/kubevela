@@ -112,7 +112,8 @@ func ByTraitType(readyTraits, checkTraits []*unstructured.Unstructured) TraitFil
 	readyMap := generateFn(readyTraits)
 	checkMap := generateFn(checkTraits)
 	return func(trait appfile.Trait) bool {
-		return !checkMap[trait.Name] && readyMap[trait.Name]
+		label := trait.GetTypeLabel()
+		return !checkMap[label] && readyMap[label]
 	}
 }
 

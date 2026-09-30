@@ -327,6 +327,10 @@ func (wd *workloadDef) GetTemplateContext(ctx process.Context, cli client.Client
 
 type traitDef struct {
 	def
+	// typeLabel is the trait.oam.dev/type value put on the objects the trait
+	// emits through outputs. It is the name, except for a module definition,
+	// where it is the installed name (see NewTraitAbstractEngineWithTypeLabel).
+	typeLabel string
 }
 
 // NewTraitAbstractEngine create Trait Definition AbstractEngine.
@@ -335,12 +339,31 @@ type traitDef struct {
 // are variadic so that every existing caller, and every trait that extends
 // nothing, is unaffected.
 func NewTraitAbstractEngine(name string, ancestors ...inherit.Level) AbstractEngine {
+	return NewTraitAbstractEngineWithTypeLabel(name, name, ancestors...)
+}
+
+// NewTraitAbstractEngineWithTypeLabel is NewTraitAbstractEngine for a trait
+// whose outputs are labelled with something other than its name. A module
+// trait referenced as "note" or "widget-kit/v1/note" is labelled with its
+// installed name "widget-kit-v1-note": the slashes of the long forms are not
+// valid in a label value, and the dispatcher looks the label up among the
+// revision's definitions, which are keyed by installed name.
+func NewTraitAbstractEngineWithTypeLabel(name, typeLabel string, ancestors ...inherit.Level) AbstractEngine {
 	return &traitDef{
 		def: def{
 			name:      name,
 			ancestors: ancestors,
 		},
+		typeLabel: typeLabel,
 	}
+}
+
+// outputTypeLabel returns typeLabel, or the name for a traitDef built without one.
+func (td *traitDef) outputTypeLabel() string {
+	if td.typeLabel != "" {
+		return td.typeLabel
+	}
+	return td.name
 }
 
 // Complete do trait definition's rendering
@@ -457,7 +480,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			if err != nil {
 				return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", name, td.name)
 			}
-			if err := ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: name}); err != nil {
+			if err := ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.outputTypeLabel(), Name: name}); err != nil {
 				return err
 			}
 		}
@@ -590,7 +613,7 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, a
 
 	outputs := make(map[string]interface{})
 	for _, assist := range assists {
-		if assist.Type != td.name {
+		if assist.Type != td.outputTypeLabel() {
 			continue
 		}
 		traitRef, err := assist.Ins.Unstructured()

@@ -129,7 +129,10 @@ func (comp *Component) EvalStatus(templateContext map[string]interface{}) (*heal
 // Trait is ComponentTrait
 type Trait struct {
 	// The Name is name of TraitDefinition, actually it's a type of the trait instance
-	Name               string
+	Name string
+	// TypeLabel is the trait.oam.dev/type value on the objects the trait emits.
+	// It equals Name except for a module trait, where it is the installed name.
+	TypeLabel          string
 	CapabilityCategory types.CapabilityCategory
 	Params             map[string]interface{}
 
@@ -141,6 +144,15 @@ type Trait struct {
 
 	FullTemplate *Template
 	engine       definition.AbstractEngine
+}
+
+// GetTypeLabel returns TypeLabel, falling back to Name for a Trait built
+// without one.
+func (trait *Trait) GetTypeLabel() string {
+	if trait.TypeLabel != "" {
+		return trait.TypeLabel
+	}
+	return trait.Name
 }
 
 // EvalContext eval trait template and set result to context
