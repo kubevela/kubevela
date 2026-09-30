@@ -1156,12 +1156,10 @@ func moduleComponent(t *testing.T, name string, props map[string]interface{}) co
 	return common2.ApplicationComponent{Name: name, Type: moduleComponentType, Properties: &runtime.RawExtension{Raw: raw}}
 }
 
-func TestEnsureUnpinnedModulesRedispatch(t *testing.T) {
+func TestEnsureModulesRedispatch(t *testing.T) {
 	unpinned := moduleComponent(t, "widget-kit", map[string]interface{}{"module": "widget-kit"})
-	emptyVersion := moduleComponent(t, "widget-kit", map[string]interface{}{"module": "widget-kit", "version": ""})
 	pinned := moduleComponent(t, "gadget-kit", map[string]interface{}{"module": "gadget-kit", "version": "1.0.0"})
 	noProps := common2.ApplicationComponent{Name: "widget-kit", Type: moduleComponentType}
-	unreadable := common2.ApplicationComponent{Name: "widget-kit", Type: moduleComponentType, Properties: &runtime.RawExtension{Raw: []byte(`{"version": 1}`)}}
 	plain := common2.ApplicationComponent{Name: "web", Type: "webservice"}
 
 	for name, tc := range map[string]struct {
@@ -1169,34 +1167,28 @@ func TestEnsureUnpinnedModulesRedispatch(t *testing.T) {
 		annotations map[string]string
 		want        map[string]string
 	}{
-		"no version property": {
+		"unpinned module: a new tag must be applied on restart": {
 			comps: []common2.ApplicationComponent{plain, unpinned},
 			want:  map[string]string{oam.AnnotationAutoUpdate: "true"},
 		},
-		"empty version property": {
-			comps: []common2.ApplicationComponent{emptyVersion},
+		"pinned module: a re-pushed tag must be applied on restart": {
+			comps: []common2.ApplicationComponent{pinned},
 			want:  map[string]string{oam.AnnotationAutoUpdate: "true"},
 		},
-		"no properties at all": {
+		"module with no properties": {
 			comps: []common2.ApplicationComponent{noProps},
 			want:  map[string]string{oam.AnnotationAutoUpdate: "true"},
 		},
-		"one of several modules unpinned": {
+		"existing annotations are kept": {
 			comps:       []common2.ApplicationComponent{pinned, unpinned},
 			annotations: map[string]string{"keep": "me"},
 			want:        map[string]string{"keep": "me", oam.AnnotationAutoUpdate: "true"},
 		},
-		"every module pinned": {
-			comps: []common2.ApplicationComponent{pinned},
-		},
 		"no module components": {
 			comps: []common2.ApplicationComponent{plain},
 		},
-		"properties that cannot be read": {
-			comps: []common2.ApplicationComponent{unreadable},
-		},
 		"the addon sets autoUpdate itself": {
-			comps:       []common2.ApplicationComponent{unpinned},
+			comps:       []common2.ApplicationComponent{pinned},
 			annotations: map[string]string{oam.AnnotationAutoUpdate: "false"},
 			want:        map[string]string{oam.AnnotationAutoUpdate: "false"},
 		},
@@ -1209,7 +1201,7 @@ func TestEnsureUnpinnedModulesRedispatch(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Annotations: tc.annotations}}
 			app.Spec.Components = tc.comps
-			ensureUnpinnedModulesRedispatch(app)
+			ensureModulesRedispatch(app)
 			if tc.want == nil {
 				assert.Empty(t, app.GetAnnotations())
 				return
@@ -1219,11 +1211,11 @@ func TestEnsureUnpinnedModulesRedispatch(t *testing.T) {
 	}
 }
 
-// An addon whose _imports.cue names a module without a version comes out of
-// resolveAndRender with autoUpdate, so a restarted workflow applies the newly
-// resolved tag; pinning the import leaves the annotation off.
-func TestResolveAndRenderSetsAutoUpdateForUnpinnedImports(t *testing.T) {
-	render := func(t *testing.T, version string) map[string]interface{} {
+// An addon whose _imports.cue names a module comes out of resolveAndRender
+// with autoUpdate, pinned or not, so a restarted workflow applies a newly
+// resolved tag or a re-pushed one; an addon with no module has none.
+func TestResolveAndRenderSetsAutoUpdateForModuleImports(t *testing.T) {
+	render := func(t *testing.T, imports []pkgaddon.ModuleImport) map[string]interface{} {
 		t.Helper()
 		r := &rendererImpl{
 			cli: fakeClientWithRegistry(t),
@@ -1232,7 +1224,7 @@ func TestResolveAndRenderSetsAutoUpdateForUnpinnedImports(t *testing.T) {
 					InstallPackage: pkgaddon.InstallPackage{
 						Meta:        pkgaddon.Meta{Name: "widget-latest", Version: "1.0.0"},
 						AppTemplate: &v1beta1.Application{},
-						Imports:     []pkgaddon.ModuleImport{{Module: "widget-kit", Enabled: true, Version: version}},
+						Imports:     imports,
 					},
 					RegistryName: "fixture",
 				}}, nil
@@ -1246,6 +1238,11 @@ func TestResolveAndRenderSetsAutoUpdateForUnpinnedImports(t *testing.T) {
 		return annotations
 	}
 
-	assert.Equal(t, "true", render(t, "")[oam.AnnotationAutoUpdate], "an unpinned import must be re-applied on every workflow run")
-	assert.NotContains(t, render(t, "1.0.0"), oam.AnnotationAutoUpdate, "a pinned import only moves with a spec change")
+	unpinned := []pkgaddon.ModuleImport{{Module: "widget-kit", Enabled: true}}
+	pinned := []pkgaddon.ModuleImport{{Module: "widget-kit", Enabled: true, Version: "1.0.0"}}
+	disabled := []pkgaddon.ModuleImport{{Module: "widget-kit", Enabled: false}}
+	assert.Equal(t, "true", render(t, unpinned)[oam.AnnotationAutoUpdate], "a new tag must be applied on a workflow restart")
+	assert.Equal(t, "true", render(t, pinned)[oam.AnnotationAutoUpdate], "a re-pushed tag must be applied on a workflow restart")
+	assert.NotContains(t, render(t, disabled), oam.AnnotationAutoUpdate, "a disabled import emits no module component")
+	assert.NotContains(t, render(t, nil), oam.AnnotationAutoUpdate, "an addon with no module is unchanged")
 }
