@@ -19,12 +19,15 @@ package application
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
@@ -88,18 +91,39 @@ func abstractMessage(typ, kind string) string {
 func (h *ValidatingHandler) isAbstract(ctx context.Context, app *v1beta1.Application, typ string, component bool) (bool, error) {
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 
+	capType := types.TypeComponentDefinition
+	if !component {
+		capType = types.TypeTrait
+	}
+
+	// A KEP-2.20 Form 2/3 reference ("demo-store/v2/bucket") is a module-scoped
+	// spelling, not a resource name. Read unresolved it asks the API server for a
+	// name containing '/', which is refused with an error that is not NotFound
+	// and so reads here as "could not be read".
+	resolved, err := appfile.ResolveModuleType(ctx, h.Client, typ, capType)
+	if err != nil {
+		// A module-scoped spelling that will not resolve is not judged here: the
+		// type-resolution check reports it, with a message that explains it. A
+		// plain name reaches this only on a failed cluster read, which is exactly
+		// what must not be taken as permission.
+		if strings.Contains(typ, "/") {
+			return false, nil
+		}
+		return false, err
+	}
+
 	// An Application may be applied in the same breath as the definitions it
 	// names, and reading absence off a cache that has not caught up would report
 	// a definition as missing rather than as abstract, skipping the check exactly
 	// when two objects arrive together. So a lookup that finds nothing is retried
 	// against the API server.
 	var abstract bool
-	err := webhookutils.ReadWithLiveRetry(h.Client, h.Live, func(cli client.Client) error {
+	err = webhookutils.ReadWithLiveRetry(h.Client, h.Live, func(cli client.Client) error {
 		var def client.Object = &v1beta1.ComponentDefinition{}
 		if !component {
 			def = &v1beta1.TraitDefinition{}
 		}
-		if err := oamutil.GetCapabilityDefinition(ctx, cli, def, typ, app.GetAnnotations()); err != nil {
+		if err := oamutil.GetCapabilityDefinition(ctx, cli, def, resolved, app.GetAnnotations()); err != nil {
 			return err
 		}
 		switch d := def.(type) {
