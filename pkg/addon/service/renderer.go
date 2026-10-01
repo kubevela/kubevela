@@ -402,7 +402,7 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 		}
 	}
 	app.Spec.Components = append(app.Spec.Components, moduleComps...)
-	ensureModulesRedispatch(app)
+	ensureUnpinnedModulesRedispatch(app)
 
 	groups, err := r.auxComponents(ctx, installPkg, req.Properties)
 	if err != nil {
@@ -488,23 +488,22 @@ func suppressLastAppliedConfig(m map[string]interface{}) {
 	annotations[oam.AnnotationLastAppliedConfig] = "skip"
 }
 
-// ensureModulesRedispatch sets app.oam.dev/autoUpdate on an addon Application
-// with a module component.
+// ensureUnpinnedModulesRedispatch sets app.oam.dev/autoUpdate on an addon
+// Application with a module component that names no version.
 //
-// A workflow run only re-applies a component that is unhealthy or whose
-// properties changed, and what a module component renders can change while its
-// properties stay the same: an unpinned import resolves a newly published tag,
-// and a pinned tag can be re-pushed with new content, which is the ordinary way
-// a module is corrected. Without autoUpdate a restarted workflow renders the
-// new content and then skips applying it. autoUpdate makes every workflow run
-// apply it; renders between workflow runs are still health checks only, and
-// applying an unchanged object is a no-op.
+// Such a component resolves the highest published tag on every render, but a
+// workflow run only re-applies a component that is unhealthy or whose
+// properties changed. The properties of an unpinned module component never
+// change when a new tag is published, so without autoUpdate a restarted
+// workflow renders the new version and then skips applying it, and the import
+// never follows the registry. autoUpdate makes every workflow run apply it;
+// renders between workflow runs are still health checks only.
 //
 // An addon that already sets autoUpdate keeps its value, and one with
 // app.oam.dev/publishVersion is left alone because the webhook refuses the
 // two annotations together.
-func ensureModulesRedispatch(app *v1beta1.Application) {
-	if !hasModuleComponent(app.Spec.Components) {
+func ensureUnpinnedModulesRedispatch(app *v1beta1.Application) {
+	if !hasUnpinnedModuleComponent(app.Spec.Components) {
 		return
 	}
 	annotations := app.GetAnnotations()
@@ -524,10 +523,24 @@ func ensureModulesRedispatch(app *v1beta1.Application) {
 // moduleComponentType is the component type that installs a module.
 const moduleComponentType = "module"
 
-// hasModuleComponent reports whether any component installs a module.
-func hasModuleComponent(comps []common2.ApplicationComponent) bool {
+// hasUnpinnedModuleComponent reports whether any module component has an
+// empty or absent version property. A component whose properties cannot be
+// read is not counted: its version cannot be told, and the module
+// ComponentDefinition refuses it anyway.
+func hasUnpinnedModuleComponent(comps []common2.ApplicationComponent) bool {
 	for _, c := range comps {
-		if c.Type == moduleComponentType {
+		if c.Type != moduleComponentType {
+			continue
+		}
+		var props struct {
+			Version string `json:"version"`
+		}
+		if c.Properties != nil && len(c.Properties.Raw) > 0 {
+			if err := json.Unmarshal(c.Properties.Raw, &props); err != nil {
+				continue
+			}
+		}
+		if props.Version == "" {
 			return true
 		}
 	}
