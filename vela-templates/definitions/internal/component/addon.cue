@@ -3,7 +3,10 @@ import (
 )
 
 "addon": {
-	annotations: {}
+	// What this renders is fetched from a registry and can change while the
+	// properties stay the same (a new tag, or a tag re-pushed), so every workflow
+	// run applies it again rather than only when the properties change.
+	annotations: "definition.oam.dev/redispatch-on-workflow-run": "true"
 	attributes: {
 		workload: type: "autodetects.core.oam.dev"
 		// The rendered output is the addon's own Application, so this component is

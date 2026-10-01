@@ -5,6 +5,7 @@ kind: ComponentDefinition
 metadata:
   annotations:
     definition.oam.dev/description: Install an addon as a component; the addon's Application is tracked by this Application.
+    definition.oam.dev/redispatch-on-workflow-run: "true"
   name: addon
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

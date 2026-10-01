@@ -41,6 +41,7 @@ import (
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 )
 
@@ -202,8 +203,10 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, pre
 			})
 
 			// Dispatch if: unhealthy, health error, properties changed, source
-			// values changed, or auto-update enabled
-			requiresDispatch := !isHealth || err != nil || propertiesChanged || sourceValuesChanged || (!comp.SkipApplyWorkload && isAutoUpdateEnabled)
+			// values changed, or auto-update enabled for the Application or
+			// requested by the component's definition
+			redispatch := isAutoUpdateEnabled || definitionRequestsRedispatch(comp)
+			requiresDispatch := !isHealth || err != nil || propertiesChanged || sourceValuesChanged || (!comp.SkipApplyWorkload && redispatch)
 
 			if requiresDispatch {
 				// Record the resolved-source hashes so the next reconcile can
@@ -314,6 +317,18 @@ func getTraitDispatchStage(client client.Client, traitType string, appRev *v1bet
 //   - This detects when workflow steps dynamically modify component properties
 //
 // Returns true if properties have changed.
+// definitionRequestsRedispatch reports whether the component's
+// ComponentDefinition asks for its components to be applied on every workflow
+// run (types.AnnoDefinitionRedispatchOnWorkflowRun). The addon and module
+// definitions do: what they render comes from a registry and can change while
+// their properties do not, when a tag is published or re-pushed.
+func definitionRequestsRedispatch(comp *appfile.Component) bool {
+	if comp == nil || comp.FullTemplate == nil || comp.FullTemplate.ComponentDefinition == nil {
+		return false
+	}
+	return comp.FullTemplate.ComponentDefinition.Annotations[types.AnnoDefinitionRedispatchOnWorkflowRun] == "true"
+}
+
 func componentPropertiesChanged(comp *appfile.Component, appRev *v1beta1.ApplicationRevision) bool {
 	var revComponent *common.ApplicationComponent
 	for i := range appRev.Spec.Application.Spec.Components {

@@ -5,6 +5,7 @@ kind: ComponentDefinition
 metadata:
   annotations:
     definition.oam.dev/description: 'Install a module: fetch it and render its owned Application'
+    definition.oam.dev/redispatch-on-workflow-run: "true"
   name: module
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:

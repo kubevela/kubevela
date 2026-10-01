@@ -56,6 +56,12 @@ const (
 	AnnoDefinitionIcon = "definition.oam.dev/icon"
 	// AnnoDefinitionAppliedWorkloads is the annotation which describe what is the workloads used for in a TraitDefinition Object
 	AnnoDefinitionAppliedWorkloads = "definition.oam.dev/appliedWorkloads"
+	// AnnoDefinitionRedispatchOnWorkflowRun, set to "true" on a ComponentDefinition,
+	// makes every workflow run apply its components again, as
+	// app.oam.dev/autoUpdate does for a whole Application. It is for definitions
+	// whose output can change while the component's properties stay the same,
+	// such as addon and module, which fetch from a registry when they render.
+	AnnoDefinitionRedispatchOnWorkflowRun = "definition.oam.dev/redispatch-on-workflow-run"
 	// LabelDefinition is the label for definition
 	LabelDefinition = "definition.oam.dev"
 	// LabelDefinitionName is the label for definition name
