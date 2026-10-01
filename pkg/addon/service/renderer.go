@@ -44,7 +44,6 @@ import (
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	pkgaddon "github.com/oam-dev/kubevela/pkg/addon"
 	"github.com/oam-dev/kubevela/pkg/addon/service/api"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -402,7 +401,6 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 		}
 	}
 	app.Spec.Components = append(app.Spec.Components, moduleComps...)
-	ensureUnpinnedModulesRedispatch(app)
 
 	groups, err := r.auxComponents(ctx, installPkg, req.Properties)
 	if err != nil {
@@ -486,65 +484,6 @@ func suppressLastAppliedConfig(m map[string]interface{}) {
 		metadata["annotations"] = annotations
 	}
 	annotations[oam.AnnotationLastAppliedConfig] = "skip"
-}
-
-// ensureUnpinnedModulesRedispatch sets app.oam.dev/autoUpdate on an addon
-// Application with a module component that names no version.
-//
-// Such a component resolves the highest published tag on every render, but a
-// workflow run only re-applies a component that is unhealthy or whose
-// properties changed. The properties of an unpinned module component never
-// change when a new tag is published, so without autoUpdate a restarted
-// workflow renders the new version and then skips applying it, and the import
-// never follows the registry. autoUpdate makes every workflow run apply it;
-// renders between workflow runs are still health checks only.
-//
-// An addon that already sets autoUpdate keeps its value, and one with
-// app.oam.dev/publishVersion is left alone because the webhook refuses the
-// two annotations together.
-func ensureUnpinnedModulesRedispatch(app *v1beta1.Application) {
-	if !hasUnpinnedModuleComponent(app.Spec.Components) {
-		return
-	}
-	annotations := app.GetAnnotations()
-	if _, pinned := annotations[oam.AnnotationPublishVersion]; pinned {
-		return
-	}
-	if _, set := annotations[oam.AnnotationAutoUpdate]; set {
-		return
-	}
-	if annotations == nil {
-		annotations = map[string]string{}
-	}
-	annotations[oam.AnnotationAutoUpdate] = "true"
-	app.SetAnnotations(annotations)
-}
-
-// moduleComponentType is the component type that installs a module.
-const moduleComponentType = "module"
-
-// hasUnpinnedModuleComponent reports whether any module component has an
-// empty or absent version property. A component whose properties cannot be
-// read is not counted: its version cannot be told, and the module
-// ComponentDefinition refuses it anyway.
-func hasUnpinnedModuleComponent(comps []common2.ApplicationComponent) bool {
-	for _, c := range comps {
-		if c.Type != moduleComponentType {
-			continue
-		}
-		var props struct {
-			Version string `json:"version"`
-		}
-		if c.Properties != nil && len(c.Properties.Raw) > 0 {
-			if err := json.Unmarshal(c.Properties.Raw, &props); err != nil {
-				continue
-			}
-		}
-		if props.Version == "" {
-			return true
-		}
-	}
-	return false
 }
 
 const addonComponentStateKeepPolicyName = "addon-component-state-keep"
