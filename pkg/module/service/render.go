@@ -25,6 +25,7 @@ import (
 	"github.com/kubevela/pkg/util/singleton"
 	"k8s.io/apimachinery/pkg/util/validation"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/module"
 	"github.com/oam-dev/kubevela/pkg/module/naming"
@@ -147,8 +148,31 @@ func RenderApplication(mod *module.Module, definitionNamespace string) (map[stri
 				types.AnnoDefinitionModuleVersion: mod.Version,
 			},
 		},
-		"spec": map[string]interface{}{"components": comps},
+		"spec": map[string]interface{}{
+			"components": comps,
+			"policies":   []interface{}{moduleStateKeepPolicy()},
+		},
 	}, nil
+}
+
+// moduleStateKeepPolicyName names the apply-once policy every owned
+// Application carries.
+const moduleStateKeepPolicyName = "module-state-keep"
+
+// moduleStateKeepPolicy is an apply-once policy that is switched off. A module
+// installed through an addon inherits addons.oam.dev/name from the addon
+// Application, and the resource keeper treats any Application with that label
+// and no apply-once policy as apply-once, which turns state keep off: deleted
+// definitions, auxiliary objects and CRDs would not come back until the next
+// workflow run. Declaring the policy, switched off, keeps state keep running
+// whatever labels the Application inherits, as the addon renderer does for the
+// addon Application (ensureAddonComponentStateKeepPolicy).
+func moduleStateKeepPolicy() map[string]interface{} {
+	return map[string]interface{}{
+		"name":       moduleStateKeepPolicyName,
+		"type":       v1alpha1.ApplyOncePolicyType,
+		"properties": map[string]interface{}{"enable": false},
+	}
 }
 
 // enabledLines returns the API versions to install: every line whose Enabled is

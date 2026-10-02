@@ -21,10 +21,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/module"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/policy"
 )
 
 // definition builds a minimal ComponentDefinition map as the parser produces it.
@@ -470,4 +474,26 @@ func TestRenderApplication_TruncatesLongNamesWithAStableHash(t *testing.T) {
 			require.LessOrEqual(t, len(nameLabel), 63)
 		}
 	}
+}
+
+// The owned Application declares apply-once switched off. A module installed
+// through an addon inherits addons.oam.dev/name from the addon Application, and
+// the resource keeper treats a labelled Application with no apply-once policy
+// as apply-once, which skips state keep; with the policy declared, that rule
+// does not apply and hand-deleted objects are restored on the next resync.
+func TestRenderApplication_DeclaresApplyOnceOff(t *testing.T) {
+	raw, err := RenderApplication(fixtureModule(), "")
+	require.NoError(t, err)
+
+	var app v1beta1.Application
+	require.NoError(t, runtime.DefaultUnstructuredConverter.FromUnstructured(raw, &app))
+	// What the addon Application stamps onto everything it dispatches.
+	app.SetLabels(map[string]string{oam.LabelAddonName: "widget-platform"})
+
+	require.Len(t, app.Spec.Policies, 1)
+	require.Equal(t, moduleStateKeepPolicyName, app.Spec.Policies[0].Name)
+	spec, err := policy.ParsePolicy[v1alpha1.ApplyOncePolicySpec](&app)
+	require.NoError(t, err)
+	require.NotNil(t, spec, "an explicit policy, so the resource keeper's implicit apply-once for addon-labelled Applications does not apply")
+	require.False(t, spec.Enable)
 }
