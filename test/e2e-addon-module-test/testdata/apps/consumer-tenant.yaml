@@ -1,0 +1,14 @@
+# Lives in kit-tenant, where tenant-widgets installed the module definitions.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: tenant-consumer
+  namespace: kit-tenant
+spec:
+  components:
+    - name: tenant-widget
+      type: widget-kit/v1/widget
+      properties:
+        color: red
+      traits:
+        - type: widget-kit/v1/labeler

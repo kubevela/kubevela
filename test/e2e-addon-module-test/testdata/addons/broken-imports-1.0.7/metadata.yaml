@@ -1,0 +1,7 @@
+name: broken-imports
+version: 1.0.7
+description: "Deliberately broken _imports.cue: CUE that references parameter (not allowed in _imports.cue)."
+tags:
+  - test
+  - module-import
+dependencies: []

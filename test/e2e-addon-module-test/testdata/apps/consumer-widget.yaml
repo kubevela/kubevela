@@ -1,0 +1,27 @@
+# Uses what widget-platform's module installed. Applied only after the module
+# is running: type strings are resolved at admission.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: widget-consumer
+  namespace: default
+spec:
+  components:
+    - name: blue-widget
+      type: widget-kit/v1/widget        # Form 3 -> ComponentDefinition widget-kit-v1-widget
+      properties:
+        color: blue
+        replicas: 2
+      traits:
+        - type: widget-kit/v1/labeler   # module trait, patch only
+          properties:
+            tier: gold
+        - type: platform-owner           # addon-level trait from widget-platform/definitions
+          properties:
+            team: team-blue
+    - name: big-widget
+      type: widget-kit/v2/widget        # the v2 contract: size instead of color
+      properties:
+        size: L
+      traits:
+        - type: v2/labeler              # Form 2; unique because only widget-kit has a v2 labeler

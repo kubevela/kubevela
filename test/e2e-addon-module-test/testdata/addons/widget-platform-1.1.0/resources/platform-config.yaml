@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: widget-platform-config
+  namespace: vela-system
+data:
+  source: resources/platform-config.yaml

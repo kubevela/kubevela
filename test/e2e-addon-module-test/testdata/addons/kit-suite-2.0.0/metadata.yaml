@@ -1,0 +1,7 @@
+name: kit-suite
+version: 2.0.0
+description: "Test addon importing widget-kit 1.0.0 only (gadget-kit removed)."
+tags:
+  - test
+  - module-import
+dependencies: []
