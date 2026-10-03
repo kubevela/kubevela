@@ -83,15 +83,40 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 		return "", "", 0, err
 	}
 
-	postRenderer := &velaLabelPostRenderer{
-		context:          velaCtx,
-		releaseName:      releaseName,
-		releaseNamespace: releaseNamespace,
+	var postRender *PostRenderParams
+	if options != nil {
+		postRender = options.PostRender
 	}
+	postRenderer := newPostRenderer(ctx, postRender, velaCtx, releaseName, releaseNamespace)
 
 	// Build labels to embed in the release Secret so KubeVela can track and
 	// delete it via the ResourceTracker when the Application is deleted.
 	releaseLabels := velaOwnerLabels(velaCtx)
+
+	// Post-render configuration never reaches Helm's stored values, so the
+	// fingerprint below cannot see a change to it. Carry a digest on the release
+	// instead and compare it alongside the fingerprint.
+	postRenderHash := postRenderFingerprint(postRender)
+	if postRenderHash != "" {
+		if releaseLabels == nil {
+			releaseLabels = map[string]string{}
+		}
+		releaseLabels[postRenderHashLabel] = postRenderHash
+	}
+	// Upgrades merge the supplied labels over the previous release's, so simply
+	// omitting the digest when post-rendering is removed would carry the stale
+	// one forward. The dedup check below would then see a mismatch on every
+	// reconcile and upgrade forever. Helm deletes a label whose value is "null",
+	// so ask for the removal explicitly. Installs store labels verbatim and do
+	// not honor the sentinel, hence the separate map for the upgrade path only.
+	upgradeLabels := releaseLabels
+	if postRenderHash == "" {
+		upgradeLabels = make(map[string]string, len(releaseLabels)+1)
+		for k, v := range releaseLabels {
+			upgradeLabels[k] = v
+		}
+		upgradeLabels[postRenderHashLabel] = helmLabelDelete
+	}
 
 	// Always check the live release in the cluster before using cached data.
 	// This prevents stale cache entries from masking externally-deleted releases
@@ -181,7 +206,7 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 		// Release exists — check if it is already deployed with the same fingerprint
 		if !needsAdoption && existingRelease.Info != nil && existingRelease.Info.Status == release.StatusDeployed {
 			clusterFingerprint := computeReleaseFingerprint(existingRelease.Chart, existingRelease.Config)
-			if clusterFingerprint == fingerprint {
+			if clusterFingerprint == fingerprint && existingRelease.Labels[postRenderHashLabel] == postRenderHash {
 				klog.V(3).Infof("Helm provider [%s]: Release %s already deployed and unchanged (cluster fingerprint match), skipping upgrade", velaContextStr(velaCtx), releaseName)
 				p.releaseFingerprints[cacheKey] = fingerprint
 				p.releaseManifests[cacheKey] = existingRelease.Manifest
@@ -194,7 +219,7 @@ func (p *Provider) installOrUpgradeChart(ctx context.Context, ch *chart.Chart, r
 		}
 
 		// Fingerprint differs, needs adoption, or release is not in a clean deployed state — upgrade
-		rel, err := p.performUpgrade(ctx, actionConfig, ch, releaseName, releaseNamespace, values, options, postRenderer, releaseLabels, velaCtx)
+		rel, err := p.performUpgrade(ctx, actionConfig, ch, releaseName, releaseNamespace, values, options, postRenderer, upgradeLabels, velaCtx)
 		if err != nil {
 			return "", "", 0, err
 		}
