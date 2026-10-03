@@ -24,7 +24,7 @@ jobs:
         run: |
           echo "git_revision=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
       - name: Install Helm
-        uses: azure/setup-helm@5119fcb9089d432beecbf79bb2c7915207344b78
+        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2
         with:
           version: v3.4.0
       - name: Setup node
