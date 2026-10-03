@@ -79,26 +79,21 @@ type RenderOptionsParams struct {
 	Cache           *CacheParams      `json:"cache,omitempty"`
 }
 
-// PostRenderParams represents post-rendering configuration
+// PostRenderParams represents post-rendering configuration.
+// Exactly one of the fields should be set.
 type PostRenderParams struct {
 	Kustomize *KustomizeParams `json:"kustomize,omitempty"`
-	Exec      *ExecParams      `json:"exec,omitempty"`
 }
 
-// KustomizeParams represents Kustomize post-rendering options
+// KustomizeParams represents Kustomize post-rendering options.
+// Fields use []interface{} because values arrive from CUE as JSON-decoded
+// maps/slices; krusty receives them after re-marshaling to YAML.
 type KustomizeParams struct {
 	Patches               []interface{} `json:"patches,omitempty"`
 	PatchesJson6902       []interface{} `json:"patchesJson6902,omitempty"`
 	PatchesStrategicMerge []interface{} `json:"patchesStrategicMerge,omitempty"`
 	Images                []interface{} `json:"images,omitempty"`
 	Replicas              []interface{} `json:"replicas,omitempty"`
-}
-
-// ExecParams represents external binary post-rendering
-type ExecParams struct {
-	Command string   `json:"command"`
-	Args    []string `json:"args,omitempty"`
-	Env     []string `json:"env,omitempty"`
 }
 
 // ContextParams holds KubeVela ownership information to be injected as labels
