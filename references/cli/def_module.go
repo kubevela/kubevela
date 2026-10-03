@@ -1707,7 +1707,7 @@ spec:
 func generateGoMod(opts initModuleOptions) string {
 	return fmt.Sprintf(`module %s
 
-go 1.23.8
+go 1.24.4
 
 require github.com/oam-dev/kubevela %s
 `, opts.goModule, velaversion.ModuleRequireVersion())
