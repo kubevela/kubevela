@@ -1166,7 +1166,15 @@ func evalStatus(ctx monitorContext.Context, handler *AppHandler, appFile *appfil
 		// Build component map once for efficient lookup
 		componentMap := make(map[string]common.ApplicationComponent, len(handler.app.Spec.Components))
 		for _, component := range handler.app.Spec.Components {
-			componentMap[component.Name] = component
+			// A ref-objects component holds a selector, not a resource, so the health
+			// check has to resolve it the way the dispatch path does before rendering.
+			resolved := component
+			if loaded, err := appFile.LoadDynamicComponent(ctx, handler.Client, component.DeepCopy()); err != nil {
+				ctx.Error(err, "Failed to resolve component for health check", "component", component.Name)
+			} else {
+				resolved = *loaded
+			}
+			componentMap[component.Name] = resolved
 		}
 
 		runtimeParamsByComponent := make(map[string]bool, len(componentMap))
