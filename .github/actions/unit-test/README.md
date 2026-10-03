@@ -8,7 +8,7 @@ A comprehensive GitHub composite action for running KubeVela Kubernetes upgrade 
 |-------|-------------|----------|---------|
 | `codecov-token` | Codecov token for uploading coverage reports | ❌ | `''` |
 | `codecov-enable` | Enable Codecov coverage upload (`'true'` or `'false'`) | ❌ | `'false'` |
-| `go-version` | Go version to use for testing | ❌ | `'1.23.8'` |
+| `go-version` | Go version to use for testing | ❌ | `'1.24.4'` |
 
 ## Quick Start
 
@@ -30,5 +30,5 @@ jobs:
         with:
           codecov-enable: 'true'
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
-          go-version: '1.23.8'
+          go-version: '1.24.4'
 ```
