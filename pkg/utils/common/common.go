@@ -344,12 +344,8 @@ func GenOpenAPI(val cue.Value) (b []byte, err error) {
 	if val.Err() != nil {
 		return nil, val.Err()
 	}
-	paramOnlyVal, err := RefineParameterValue(val)
-	if err != nil {
-		return nil, err
-	}
 	defaultConfig := &openapi.Config{ExpandReferences: true}
-	b, err = openapi.Gen(paramOnlyVal, defaultConfig)
+	b, err = genOpenAPIWithFallback(val, RefineParameterValue, defaultConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -370,9 +366,10 @@ func GenOpenAPIWithCueX(val cue.Value) (b []byte, err error) {
 	if val.Err() != nil {
 		return nil, val.Err()
 	}
-	paramOnlyVal := FillParameterDefinitionFieldIfNotExist(val)
 	defaultConfig := &openapi.Config{ExpandReferences: true}
-	b, err = openapi.Gen(paramOnlyVal, defaultConfig)
+	b, err = genOpenAPIWithFallback(val, func(v cue.Value) (cue.Value, error) {
+		return FillParameterDefinitionFieldIfNotExist(v), nil
+	}, defaultConfig)
 	if err != nil {
 		return nil, err
 	}
