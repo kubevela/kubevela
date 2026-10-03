@@ -26,6 +26,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
@@ -181,4 +182,91 @@ func TestCleanupStaleEntriesUpdateError(t *testing.T) {
 	err := rk.cleanupStaleEntries(context.Background(), entries)
 	r.Error(err)
 	r.Contains(err.Error(), "failed to remove stale entries from resourcetracker test-rt")
+}
+
+// TestResourceKeeperDeleteRespectsSharedResource verifies that Delete unshares (rather than
+// deletes) a resource still shared with another Application, mirroring the protection
+// DeleteManagedResourceInApplication already applies during garbage collection.
+func TestResourceKeeperDeleteRespectsSharedResource(t *testing.T) {
+	r := require.New(t)
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	app := &v1beta1.Application{ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "default", Generation: 1}}
+	_rk, err := NewResourceKeeper(context.Background(), cli, app)
+	r.NoError(err)
+	rk := _rk.(*resourceKeeper)
+
+	cm := &unstructured.Unstructured{}
+	cm.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("ConfigMap"))
+	cm.SetName("shared-cm")
+	cm.SetNamespace("default")
+	cm.SetAnnotations(map[string]string{oam.AnnotationAppSharedBy: "default/app,default/other-app"})
+
+	r.NoError(rk.Dispatch(context.Background(), []*unstructured.Unstructured{cm}, nil))
+	r.NoError(rk.Delete(context.Background(), []*unstructured.Unstructured{cm}))
+
+	got := &v1.ConfigMap{}
+	r.NoError(cli.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: "shared-cm"}, got))
+	r.Equal("default/other-app", got.Annotations[oam.AnnotationAppSharedBy])
+}
+
+// TestResourceKeeperDeleteRespectsGarbageCollectOrphanPropagation verifies that Delete releases
+// (strips app-ownership labels instead of deleting) a resource whose garbage-collect policy rule
+// sets propagation to orphan, mirroring DeleteManagedResourceInApplication's behavior.
+func TestResourceKeeperDeleteRespectsGarbageCollectOrphanPropagation(t *testing.T) {
+	r := require.New(t)
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	app := &v1beta1.Application{ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "default", Generation: 1}}
+	_rk, err := NewResourceKeeper(context.Background(), cli, app)
+	r.NoError(err)
+	rk := _rk.(*resourceKeeper)
+	orphan := v1alpha1.GarbageCollectPropagation(v1alpha1.GarbageCollectPropagationOrphan)
+	rk.garbageCollectPolicy = &v1alpha1.GarbageCollectPolicySpec{
+		Rules: []v1alpha1.GarbageCollectPolicyRule{{
+			Selector:    v1alpha1.ResourcePolicyRuleSelector{TraitTypes: []string{"orphaned"}},
+			Propagation: &orphan,
+		}},
+	}
+
+	cm := &unstructured.Unstructured{}
+	cm.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("ConfigMap"))
+	cm.SetName("orphan-cm")
+	cm.SetNamespace("default")
+	cm.SetLabels(map[string]string{oam.TraitTypeLabel: "orphaned", oam.LabelAppName: "app", oam.LabelAppNamespace: "default"})
+
+	r.NoError(rk.Dispatch(context.Background(), []*unstructured.Unstructured{cm}, nil))
+	r.NoError(rk.Delete(context.Background(), []*unstructured.Unstructured{cm}))
+
+	got := &v1.ConfigMap{}
+	r.NoError(cli.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: "orphan-cm"}, got))
+	r.NotContains(got.Labels, oam.LabelAppName)
+	r.NotContains(got.Labels, oam.LabelAppNamespace)
+}
+
+// TestResourceKeeperDeleteRespectsOrphanFinalizer verifies that Delete releases (strips
+// app-ownership labels instead of deleting) every managed resource when the owning Application
+// carries the orphan-resource finalizer, mirroring DeleteManagedResourceInApplication's behavior.
+func TestResourceKeeperDeleteRespectsOrphanFinalizer(t *testing.T) {
+	r := require.New(t)
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	app := &v1beta1.Application{ObjectMeta: v12.ObjectMeta{
+		Name: "app", Namespace: "default", Generation: 1,
+		Finalizers: []string{oam.FinalizerOrphanResource},
+	}}
+	_rk, err := NewResourceKeeper(context.Background(), cli, app)
+	r.NoError(err)
+	rk := _rk.(*resourceKeeper)
+
+	cm := &unstructured.Unstructured{}
+	cm.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("ConfigMap"))
+	cm.SetName("finalizer-cm")
+	cm.SetNamespace("default")
+	cm.SetLabels(map[string]string{oam.LabelAppName: "app", oam.LabelAppNamespace: "default"})
+
+	r.NoError(rk.Dispatch(context.Background(), []*unstructured.Unstructured{cm}, nil))
+	r.NoError(rk.Delete(context.Background(), []*unstructured.Unstructured{cm}))
+
+	got := &v1.ConfigMap{}
+	r.NoError(cli.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: "finalizer-cm"}, got))
+	r.NotContains(got.Labels, oam.LabelAppName)
+	r.NotContains(got.Labels, oam.LabelAppNamespace)
 }
