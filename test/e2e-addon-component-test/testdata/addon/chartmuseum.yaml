@@ -1,0 +1,59 @@
+# A plain-HTTP, anonymous ChartMuseum used as the addon registry for this
+# suite. Plain HTTP rather than OCI because an addon registry of --type oci
+# must use the oci:// scheme, and that scheme always takes the TLS path on the
+# controller's fetch (ociURLIsPlainHTTP only accepts a literal "http://" URL).
+# A TLS registry would need certs materialised into the cluster before the
+# controller can pull, which buys nothing this suite is trying to test.
+#
+# ALLOW_OVERWRITE lets the "republish is refused without --force" spec control
+# that refusal from the CLI side rather than having the registry reject it.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: addon-chartmuseum
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: addon-chartmuseum
+  template:
+    metadata:
+      labels:
+        app: addon-chartmuseum
+    spec:
+      containers:
+        - name: chartmuseum
+          image: ghcr.io/helm/chartmuseum:v0.16.2
+          env:
+            - name: STORAGE
+              value: local
+            - name: STORAGE_LOCAL_ROOTDIR
+              value: /charts
+            - name: DISABLE_API
+              value: "false"
+            - name: ALLOW_OVERWRITE
+              value: "true"
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: storage
+              mountPath: /charts
+      volumes:
+        - name: storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: addon-chartmuseum
+  namespace: default
+spec:
+  type: NodePort
+  selector:
+    app: addon-chartmuseum
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30800

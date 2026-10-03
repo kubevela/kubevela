@@ -37,6 +37,7 @@ e2e-setup-core-wo-auth:
 		--set featureGates.enableApplicationScopedPolicies=true \
 		--set featureGates.enableGlobalPolicies=true \
 		--set featureGates.enableAddonComponent=true \
+		--set featureGates.enableModuleComponent=true \
 		--set featureGates.enableCelExpressions=true \
 		--set featureGates.requireCelExpressionOptIn=true \
 		--set featureGates.enableDefinitionInheritance=true \
@@ -96,6 +97,58 @@ e2e-api-test:
 e2e-test:
 	# Run e2e test (KUBEVELA_E2E_AUTH=1 enables auth-test registry setup)
 	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-test
+	@$(OK) tests pass
+
+.PHONY: e2e-module-test
+e2e-module-test:
+	# Run the module-as-a-component e2e suite (KUBEVELA_E2E_AUTH=1 enables
+	# the zot auth-test registry, used by one credentialed-registry test).
+	# Kept as its own package/target so a failure elsewhere in e2e-api-test
+	# or e2e-test cannot prevent this from running.
+	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-module-test
+	@$(OK) tests pass
+
+.PHONY: e2e-addon-component-test
+e2e-addon-component-test:
+	# Run the addon-as-a-component e2e suite. It brings up its own plain-HTTP
+	# ChartMuseum in-cluster and pushes the fixtures under
+	# test/e2e-addon-component-test/testdata/addon into it, so it needs no
+	# external registry and no credentials.
+	#
+	# Kept as its own package/target for the same reason as e2e-module-test:
+	# a failure elsewhere in e2e-api-test or e2e-test must not stop it running.
+	# Requires featureGates.enableAddonComponent=true on the installed chart.
+	ginkgo -v ./test/e2e-addon-component-test
+	@$(OK) tests pass
+
+# Bring up everything the addon-component suite needs on a local k3d cluster,
+# then run it. ADDON_E2E_CLUSTER selects the k3d cluster to use.
+.PHONY: e2e-addon-component-test-local
+ADDON_E2E_CLUSTER ?= addondemo-cluster
+e2e-addon-component-test-local:
+	@k3d cluster create $(ADDON_E2E_CLUSTER) --servers 1 || true
+	docker build -t vela-core:addon-e2e -f Dockerfile . --build-arg=VERSION=addon-e2e --build-arg=GITVERSION=test
+	k3d image import vela-core:addon-e2e -c $(ADDON_E2E_CLUSTER)
+	# Pre-load the images the suite's registry and fixtures pull, so a slow or
+	# rate-limited pull inside the cluster does not read as a spec timeout.
+	@set -e ; for img in \
+	  ghcr.io/helm/chartmuseum:v0.16.2 \
+	  ealen/echo-server:0.9.2 ; do \
+	    docker pull $$img ; \
+	    k3d image import $$img -c $(ADDON_E2E_CLUSTER) ; \
+	done
+	kubectl delete validatingwebhookconfiguration kubevela-vela-core-admission 2>/dev/null || true
+	helm upgrade --install kubevela ./charts/vela-core \
+		--namespace vela-system --create-namespace \
+		--set image.repository=vela-core \
+		--set image.tag=addon-e2e \
+		--set image.pullPolicy=IfNotPresent \
+		--set admissionWebhooks.enabled=true \
+		--set featureGates.enableAddonComponent=true \
+		--set applicationRevisionLimit=5 \
+		--set controllerArgs.reSyncPeriod=1m \
+		--wait --timeout 5m
+	ginkgo -v ./test/e2e-addon-component-test
 	@$(OK) tests pass
 
 # Run e2e tests with k3d and webhook validation

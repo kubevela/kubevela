@@ -1,0 +1,4 @@
+# `vela addon push` writes a Chart.yaml into the addon directory it packages,
+# generated from that addon's metadata.yaml. It is build output, not fixture
+# source, and reappears on every run of this suite.
+*/Chart.yaml

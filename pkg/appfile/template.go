@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/kubevela/pkg/multicluster"
@@ -38,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/definition/inherit"
+	"github.com/oam-dev/kubevela/pkg/module/naming"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -93,6 +95,13 @@ type Template struct {
 // processing.
 func LoadTemplate(ctx context.Context, cli client.Client, capName string, capType types.CapType, annotations map[string]string) (*Template, error) {
 	ctx = multicluster.WithCluster(ctx, multicluster.Local)
+
+	resolved, err := ResolveModuleType(ctx, cli, capName, capType)
+	if err != nil {
+		return nil, err
+	}
+	capName = resolved
+
 	// Application Controller only loads template from ComponentDefinition and TraitDefinition
 	switch capType {
 	case types.TypeComponentDefinition, types.TypeWorkload:
@@ -184,9 +193,12 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 	if apprev == nil {
 		return nil, errors.Errorf("fail to find template for %s as app revision is empty", capName)
 	}
-	capName = verifyRevisionName(capName, capType, apprev)
+	capName, err := resolveRevisionCapabilityName(capName, capType, apprev)
+	if err != nil {
+		return nil, err
+	}
 	switch capType {
-	case types.TypeComponentDefinition:
+	case types.TypeComponentDefinition, types.TypeWorkload:
 		cd, ok := apprev.Spec.ComponentDefinitions[capName]
 		if !ok {
 			wd, ok := apprev.Spec.WorkloadDefinitions[capName]
@@ -263,6 +275,95 @@ func LoadTemplateFromRevision(capName string, capType types.CapType, apprev *v1b
 	}
 }
 
+func resolveRevisionCapabilityName(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) (string, error) {
+	capName = verifyRevisionName(capName, capType, apprev)
+	if revisionCapabilityExists(capName, capType, apprev) {
+		return capName, nil
+	}
+	form, moduleName, apiVersion, shortName, err := parseTypeRef(capName)
+	if err != nil {
+		return "", err
+	}
+	switch form {
+	case 3:
+		resolved := naming.DefinitionName(moduleName, apiVersion, shortName)
+		if revisionCapabilityExists(resolved, capType, apprev) {
+			return resolved, nil
+		}
+	case 2:
+		// Match on the module labels, as resolveForm2 does, rather than on the
+		// name: a non-module definition can end in "-{apiVersion}-{name}" too.
+		matches := revisionModuleDefinitionNames(capType, apprev, apiVersion, shortName)
+		switch len(matches) {
+		case 0:
+		case 1:
+			return matches[0], nil
+		default:
+			sort.Strings(matches)
+			return "", errors.Errorf("type %q is ambiguous in app revision %s: definitions [%s] all match; use a fully qualified type ({module}/{apiVersion}/{name}) to disambiguate",
+				capName, apprev.Name, strings.Join(matches, ", "))
+		}
+	}
+	return capName, nil
+}
+
+func revisionCapabilityExists(capName string, capType types.CapType, apprev *v1beta1.ApplicationRevision) bool {
+	switch capType {
+	case types.TypeComponentDefinition, types.TypeWorkload:
+		if _, ok := apprev.Spec.ComponentDefinitions[capName]; ok {
+			return true
+		}
+		if _, ok := apprev.Spec.WorkloadDefinitions[capName]; ok {
+			return true
+		}
+	case types.TypeTrait:
+		_, ok := apprev.Spec.TraitDefinitions[capName]
+		return ok
+	case types.TypePolicy:
+		_, ok := apprev.Spec.PolicyDefinitions[capName]
+		return ok
+	case types.TypeWorkflowStep:
+		_, ok := apprev.Spec.WorkflowStepDefinitions[capName]
+		return ok
+	case types.TypeSource:
+		_, ok := apprev.Spec.SourceDefinitions[capName]
+		return ok
+	}
+	return false
+}
+
+// revisionModuleDefinitionNames returns the revision keys of the snapshotted
+// definitions of capType whose module labels match apiVersion and name.
+func revisionModuleDefinitionNames(capType types.CapType, apprev *v1beta1.ApplicationRevision, apiVersion, name string) []string {
+	spec := &apprev.Spec
+	switch capType {
+	case types.TypeComponentDefinition, types.TypeWorkload:
+		return append(
+			moduleLabelMatches(spec.ComponentDefinitions, func(d *v1beta1.ComponentDefinition) map[string]string { return d.Labels }, apiVersion, name),
+			moduleLabelMatches(spec.WorkloadDefinitions, func(d v1beta1.WorkloadDefinition) map[string]string { return d.Labels }, apiVersion, name)...)
+	case types.TypeTrait:
+		return moduleLabelMatches(spec.TraitDefinitions, func(d *v1beta1.TraitDefinition) map[string]string { return d.Labels }, apiVersion, name)
+	case types.TypePolicy:
+		return moduleLabelMatches(spec.PolicyDefinitions, func(d v1beta1.PolicyDefinition) map[string]string { return d.Labels }, apiVersion, name)
+	case types.TypeWorkflowStep:
+		return moduleLabelMatches(spec.WorkflowStepDefinitions, func(d *v1beta1.WorkflowStepDefinition) map[string]string { return d.Labels }, apiVersion, name)
+	case types.TypeSource:
+		return moduleLabelMatches(spec.SourceDefinitions, func(d *v1beta1.SourceDefinition) map[string]string { return d.Labels }, apiVersion, name)
+	}
+	return nil
+}
+
+func moduleLabelMatches[T any](defs map[string]T, labelsOf func(T) map[string]string, apiVersion, name string) []string {
+	var names []string
+	for key, def := range defs {
+		labels := labelsOf(def)
+		if labels[types.LabelDefinitionModuleAPIVersion] == apiVersion && labels[types.LabelDefinitionName] == name {
+			names = append(names, key)
+		}
+	}
+	return names
+}
+
 // IsNotFoundInAppRevision check if the error is `not found in app revision`
 func IsNotFoundInAppRevision(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "not found in app revision")
@@ -276,6 +377,11 @@ func verifyRevisionName(capName string, capType types.CapType, apprev *v1beta1.A
 		switch capType {
 		case types.TypeComponentDefinition:
 			_, ok = apprev.Spec.ComponentDefinitions[splitName]
+			if !ok {
+				_, ok = apprev.Spec.WorkloadDefinitions[splitName]
+			}
+		case types.TypeWorkload:
+			_, ok = apprev.Spec.WorkloadDefinitions[splitName]
 		case types.TypeTrait:
 			_, ok = apprev.Spec.TraitDefinitions[splitName]
 		case types.TypePolicy:
