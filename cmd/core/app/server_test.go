@@ -628,6 +628,19 @@ var _ = Describe("Server Tests", func() {
 		// - Application resources in cluster
 	})
 
+	Describe("run", func() {
+		It("should return error when configuration is invalid", func() {
+			ctx := context.Background()
+			coreOpts := options.NewCoreOptions()
+			// Make configuration invalid to test validation flow
+			coreOpts.OAM.SystemDefinitionNamespace = ""
+
+			err := run(ctx, coreOpts)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid configuration"))
+		})
+	})
+
 	// Note: The run() function requires full Kubernetes environment with CRDs.
 	// These unit tests focuses on individual functions with mocked dependencies.
 })
