@@ -83,6 +83,15 @@ runs:
         echo "Running addon-component e2e tests..."
         make e2e-addon-component-test
 
+    - name: Run addon-module e2e tests
+      # This test installs addons that import modules. It makes sure that
+      # KubeVela installs, upgrades and removes these addons and modules correctly.
+      if: always()
+      shell: bash
+      run: |
+        echo "Running addon-module e2e tests..."
+        make e2e-addon-module-test
+
     - name: Upload coverage report
       if: ${{ inputs.codecov-enable == 'true' }}
       uses: codecov/codecov-action@18283e04ce6e62d37312384ff67231eb8fd56d24
