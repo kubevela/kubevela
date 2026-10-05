@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package resourcekeeper
+package appkeeper
 
 import (
 	"context"
@@ -33,12 +33,14 @@ import (
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
+	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 )
 
-func Test_gcHandler_GarbageCollectApplicationRevision(t *testing.T) {
+func TestApplicationRevisionsAreCollectedToTheLimit(t *testing.T) {
 	type fields struct {
-		resourceKeeper *resourceKeeper
-		cfg            *gcConfig
+		resourceKeeper *resourceKeeperFixture
+		cfg            *gcConfigFixture
 	}
 	tests := []struct {
 		name    string
@@ -48,11 +50,11 @@ func Test_gcHandler_GarbageCollectApplicationRevision(t *testing.T) {
 		{
 			name: "cleanUpApplicationRevision and cleanUpWorkflowComponentRevision success",
 			fields: fields{
-				resourceKeeper: &resourceKeeper{
+				resourceKeeper: &resourceKeeperFixture{
 					Client: test.NewMockClient(),
 					app:    &v1beta1.Application{},
 				},
-				cfg: &gcConfig{
+				cfg: &gcConfigFixture{
 					disableApplicationRevisionGC: false,
 					disableComponentRevisionGC:   false,
 				},
@@ -61,7 +63,7 @@ func Test_gcHandler_GarbageCollectApplicationRevision(t *testing.T) {
 		{
 			name: "failed",
 			fields: fields{
-				resourceKeeper: &resourceKeeper{
+				resourceKeeper: &resourceKeeperFixture{
 					Client: &test.MockClient{
 						MockGet:         test.NewMockGetFn(errors.New("mock")),
 						MockList:        test.NewMockListFn(errors.New("mock")),
@@ -73,7 +75,7 @@ func Test_gcHandler_GarbageCollectApplicationRevision(t *testing.T) {
 					},
 					app: &v1beta1.Application{},
 				},
-				cfg: &gcConfig{
+				cfg: &gcConfigFixture{
 					disableApplicationRevisionGC: false,
 					disableComponentRevisionGC:   false,
 				},
@@ -83,12 +85,13 @@ func Test_gcHandler_GarbageCollectApplicationRevision(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := &gcHandler{
+			h := &gcHandlerFixture{
 				resourceKeeper: tt.fields.resourceKeeper,
 				cfg:            tt.fields.cfg,
 			}
-			if err := h.GarbageCollectApplicationRevision(context.Background()); (err != nil) != tt.wantErr {
-				t.Errorf("gcHandler.GarbageCollectApplicationRevision() error = %v, wantErr %v", err, tt.wantErr)
+			c, st := h.collector()
+			if err := c.gcRevisions(context.Background(), st); (err != nil) != tt.wantErr {
+				t.Errorf("gcRevisions() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
@@ -96,7 +99,7 @@ func Test_gcHandler_GarbageCollectApplicationRevision(t *testing.T) {
 
 func Test_cleanUpApplicationRevision(t *testing.T) {
 	type args struct {
-		h *gcHandler
+		h *gcHandlerFixture
 	}
 	tests := []struct {
 		name    string
@@ -106,8 +109,8 @@ func Test_cleanUpApplicationRevision(t *testing.T) {
 		{
 			name: "clean up app-v2",
 			args: args{
-				h: &gcHandler{
-					resourceKeeper: &resourceKeeper{
+				h: &gcHandlerFixture{
+					resourceKeeper: &resourceKeeperFixture{
 						Client: &test.MockClient{
 							MockList: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 								l, _ := list.(*v1beta1.ApplicationRevisionList)
@@ -140,7 +143,7 @@ func Test_cleanUpApplicationRevision(t *testing.T) {
 							},
 						},
 					},
-					cfg: &gcConfig{
+					cfg: &gcConfigFixture{
 						disableApplicationRevisionGC: false,
 						appRevisionLimit:             1,
 					},
@@ -150,8 +153,8 @@ func Test_cleanUpApplicationRevision(t *testing.T) {
 		{
 			name: "disabled",
 			args: args{
-				h: &gcHandler{
-					cfg: &gcConfig{
+				h: &gcHandlerFixture{
+					cfg: &gcConfigFixture{
 						disableApplicationRevisionGC: true,
 					},
 				},
@@ -160,14 +163,14 @@ func Test_cleanUpApplicationRevision(t *testing.T) {
 		{
 			name: "list failed",
 			args: args{
-				h: &gcHandler{
-					resourceKeeper: &resourceKeeper{
+				h: &gcHandlerFixture{
+					resourceKeeper: &resourceKeeperFixture{
 						Client: &test.MockClient{
 							MockList: test.NewMockListFn(errors.New("mock")),
 						},
 						app: &v1beta1.Application{},
 					},
-					cfg: &gcConfig{
+					cfg: &gcConfigFixture{
 						disableApplicationRevisionGC: false,
 						appRevisionLimit:             1,
 					},
@@ -178,8 +181,8 @@ func Test_cleanUpApplicationRevision(t *testing.T) {
 		{
 			name: "delete failed",
 			args: args{
-				h: &gcHandler{
-					resourceKeeper: &resourceKeeper{
+				h: &gcHandlerFixture{
+					resourceKeeper: &resourceKeeperFixture{
 						Client: &test.MockClient{
 							MockList: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 								l, _ := list.(*v1beta1.ApplicationRevisionList)
@@ -212,7 +215,7 @@ func Test_cleanUpApplicationRevision(t *testing.T) {
 							},
 						},
 					},
-					cfg: &gcConfig{
+					cfg: &gcConfigFixture{
 						disableApplicationRevisionGC: false,
 						appRevisionLimit:             1,
 					},
@@ -223,7 +226,8 @@ func Test_cleanUpApplicationRevision(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := cleanUpApplicationRevision(context.Background(), tt.args.h); (err != nil) != tt.wantErr {
+			c, st := tt.args.h.collector()
+			if err := c.cleanUpApplicationRevision(context.Background(), st); (err != nil) != tt.wantErr {
 				t.Errorf("cleanUpApplicationRevision() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -232,7 +236,7 @@ func Test_cleanUpApplicationRevision(t *testing.T) {
 
 func Test_cleanUpWorkflowComponentRevision(t *testing.T) {
 	type args struct {
-		h *gcHandler
+		h *gcHandlerFixture
 	}
 	tests := []struct {
 		name    string
@@ -242,8 +246,8 @@ func Test_cleanUpWorkflowComponentRevision(t *testing.T) {
 		{
 			name: "clean up found revisions",
 			args: args{
-				h: &gcHandler{
-					resourceKeeper: &resourceKeeper{
+				h: &gcHandlerFixture{
+					resourceKeeper: &resourceKeeperFixture{
 						_crRT: &v1beta1.ResourceTracker{},
 						Client: &test.MockClient{
 							MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
@@ -299,7 +303,7 @@ func Test_cleanUpWorkflowComponentRevision(t *testing.T) {
 								},
 							},
 							ObjectMeta: metav1.ObjectMeta{}}},
-					cfg: &gcConfig{
+					cfg: &gcConfigFixture{
 						disableComponentRevisionGC: false,
 						appRevisionLimit:           1,
 					},
@@ -309,8 +313,8 @@ func Test_cleanUpWorkflowComponentRevision(t *testing.T) {
 		{
 			name: "no need clean up",
 			args: args{
-				h: &gcHandler{
-					resourceKeeper: &resourceKeeper{
+				h: &gcHandlerFixture{
+					resourceKeeper: &resourceKeeperFixture{
 						_crRT: &v1beta1.ResourceTracker{},
 						Client: &test.MockClient{
 							MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
@@ -340,7 +344,7 @@ func Test_cleanUpWorkflowComponentRevision(t *testing.T) {
 								},
 							},
 							ObjectMeta: metav1.ObjectMeta{}}},
-					cfg: &gcConfig{
+					cfg: &gcConfigFixture{
 						disableComponentRevisionGC: false,
 						appRevisionLimit:           1,
 					},
@@ -350,8 +354,8 @@ func Test_cleanUpWorkflowComponentRevision(t *testing.T) {
 		{
 			name: "disabled",
 			args: args{
-				h: &gcHandler{
-					cfg: &gcConfig{
+				h: &gcHandlerFixture{
+					cfg: &gcConfigFixture{
 						disableComponentRevisionGC: true,
 					},
 				},
@@ -360,8 +364,8 @@ func Test_cleanUpWorkflowComponentRevision(t *testing.T) {
 		{
 			name: "get failed",
 			args: args{
-				h: &gcHandler{
-					resourceKeeper: &resourceKeeper{
+				h: &gcHandlerFixture{
+					resourceKeeper: &resourceKeeperFixture{
 						Client: &test.MockClient{
 							MockGet: test.NewMockGetFn(errors.New("mock")),
 						},
@@ -372,7 +376,7 @@ func Test_cleanUpWorkflowComponentRevision(t *testing.T) {
 								},
 							},
 							ObjectMeta: metav1.ObjectMeta{}}},
-					cfg: &gcConfig{
+					cfg: &gcConfigFixture{
 						disableComponentRevisionGC: false,
 						appRevisionLimit:           1,
 					},
@@ -383,8 +387,8 @@ func Test_cleanUpWorkflowComponentRevision(t *testing.T) {
 		{
 			name: "list failed",
 			args: args{
-				h: &gcHandler{
-					resourceKeeper: &resourceKeeper{
+				h: &gcHandlerFixture{
+					resourceKeeper: &resourceKeeperFixture{
 						Client: &test.MockClient{
 							MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 								o, _ := obj.(*unstructured.Unstructured)
@@ -402,7 +406,7 @@ func Test_cleanUpWorkflowComponentRevision(t *testing.T) {
 								},
 							},
 							ObjectMeta: metav1.ObjectMeta{}}},
-					cfg: &gcConfig{
+					cfg: &gcConfigFixture{
 						disableComponentRevisionGC: false,
 						appRevisionLimit:           1,
 					},
@@ -413,8 +417,8 @@ func Test_cleanUpWorkflowComponentRevision(t *testing.T) {
 		{
 			name: "deleteComponentRevision failed",
 			args: args{
-				h: &gcHandler{
-					resourceKeeper: &resourceKeeper{
+				h: &gcHandlerFixture{
+					resourceKeeper: &resourceKeeperFixture{
 						_crRT: &v1beta1.ResourceTracker{},
 						Client: &test.MockClient{
 							MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
@@ -452,7 +456,7 @@ func Test_cleanUpWorkflowComponentRevision(t *testing.T) {
 								},
 							},
 							ObjectMeta: metav1.ObjectMeta{}}},
-					cfg: &gcConfig{
+					cfg: &gcConfigFixture{
 						disableComponentRevisionGC: false,
 						appRevisionLimit:           1,
 					},
@@ -463,9 +467,43 @@ func Test_cleanUpWorkflowComponentRevision(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := cleanUpComponentRevision(context.Background(), tt.args.h); (err != nil) != tt.wantErr {
-				t.Errorf("cleanUpWorkflowComponentRevision() error = %v, wantErr %v", err, tt.wantErr)
+			c, st := tt.args.h.collector()
+			if err := c.cleanUpComponentRevision(context.Background(), st); (err != nil) != tt.wantErr {
+				t.Errorf("cleanUpComponentRevision() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// Fixtures for the Application collector: the trackers a garbage-collection pass would have
+// marked, as the CollectState the keeper hands to Options.Collect.
+type resourceKeeperFixture struct {
+	Client client.Client
+	app    *v1beta1.Application
+	_crRT  *v1beta1.ResourceTracker
+}
+
+type gcConfigFixture struct {
+	disableApplicationRevisionGC bool
+	disableComponentRevisionGC   bool
+	appRevisionLimit             int
+}
+
+type gcHandlerFixture struct {
+	resourceKeeper *resourceKeeperFixture
+	cfg            *gcConfigFixture
+}
+
+func (h *gcHandlerFixture) collector() (*appCollector, resourcekeeper.CollectState) {
+	if h.resourceKeeper == nil { // cases that return before touching the keeper
+		h.resourceKeeper = &resourceKeeperFixture{app: &v1beta1.Application{}}
+	}
+	app := h.resourceKeeper.app
+	c := &appCollector{cli: h.resourceKeeper.Client, app: app, tracked: NewAppResourceTracker(app), crRT: h.resourceKeeper._crRT}
+	return c, resourcekeeper.CollectState{
+		Trackers:                   resourcetracker.Trackers{ComponentRevision: h.resourceKeeper._crRT},
+		RevisionLimit:              h.cfg.appRevisionLimit,
+		DisableRevisionGC:          h.cfg.disableApplicationRevisionGC,
+		DisableComponentRevisionGC: h.cfg.disableComponentRevisionGC,
 	}
 }

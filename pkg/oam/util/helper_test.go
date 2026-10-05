@@ -81,8 +81,8 @@ func TestUnstructured(t *testing.T) {
 
 func TestGetGVKFromDef(t *testing.T) {
 	mapper := mock.NewClient(nil, map[schema.GroupVersionResource][]schema.GroupVersionKind{
-		schema.GroupVersionResource{Group: "example.com", Resource: "abcs"}:                {{Group: "example.com", Version: "v1", Kind: "Abc"}},
-		schema.GroupVersionResource{Group: "example.com", Resource: "abcs", Version: "v2"}: {{Group: "example.com", Version: "v2", Kind: "Abc"}},
+		{Group: "example.com", Resource: "abcs"}:                {{Group: "example.com", Version: "v1", Kind: "Abc"}},
+		{Group: "example.com", Resource: "abcs", Version: "v2"}: {{Group: "example.com", Version: "v2", Kind: "Abc"}},
 	}).RESTMapper()
 	gvk, err := util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "abcs.example.com"})
 	assert.NoError(t, err)

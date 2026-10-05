@@ -91,7 +91,7 @@ func TestComponentResourcesRecordsWhatReadsNeed(t *testing.T) {
 	ctx := context.Background()
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
 	app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "shop", Namespace: "shop", Generation: 1}}
-	keeper, err := NewResourceKeeper(ctx, cli, app)
+	keeper, err := newAppKeeper(ctx, cli, app, Policies{})
 	require.NoError(t, err)
 
 	object := func(kind, name string, labels map[string]string) *unstructured.Unstructured {

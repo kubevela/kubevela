@@ -31,7 +31,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -342,4 +344,54 @@ func TestResourceTrackerInvalidMarshal(t *testing.T) {
 	r.ErrorIs(json.Unmarshal([]byte(`{"spec":{"compression":{"type":"invalid"}}}`), rt), compression.NewUnsupportedCompressionTypeError("invalid"))
 	r.NotNil(json.Unmarshal([]byte(`{"spec":{"compression":{"type":"gzip","data":"xxx"}}}`), rt))
 	r.NotNil(json.Unmarshal([]byte(`{"spec":["invalid"]}`), rt))
+}
+
+func manifestsForRecording(n int) []client.Object {
+	objs := make([]client.Object, 0, n)
+	for i := 0; i < n; i++ {
+		o := &unstructured.Unstructured{}
+		o.SetGroupVersionKind(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"})
+		o.SetName(fmt.Sprintf("comp-%d", i))
+		o.SetNamespace("team-a")
+		o.SetLabels(map[string]string{oam.LabelAppComponent: fmt.Sprintf("comp-%d", i)})
+		objs = append(objs, o)
+	}
+	return objs
+}
+
+// AddManagedResources records a batch in one pass over the tracker rather than one pass per
+// resource. It must leave exactly what recording them one by one leaves.
+func TestAddManagedResourcesMatchesAddingOneByOne(t *testing.T) {
+	objs := manifestsForRecording(20)
+	oneByOne, batch := &ResourceTracker{}, &ResourceTracker{}
+	updatedOne := false
+	for _, o := range objs {
+		updatedOne = oneByOne.AddManagedResource(o, false, false, "creator") || updatedOne
+	}
+	updatedBatch := batch.AddManagedResources(objs, false, false, "creator")
+	require.Equal(t, updatedOne, updatedBatch)
+	require.Equal(t, oneByOne.Spec.ManagedResources, batch.Spec.ManagedResources)
+
+	// recording the same batch again changes nothing, and says so
+	require.False(t, batch.AddManagedResources(objs, false, false, "creator"))
+	require.Equal(t, oneByOne.Spec.ManagedResources, batch.Spec.ManagedResources)
+
+	// a changed resource is updated in place, and the rest are left alone
+	changed := objs[5].(*unstructured.Unstructured).DeepCopy()
+	changed.SetLabels(map[string]string{oam.LabelAppComponent: "renamed"})
+	require.True(t, oneByOne.AddManagedResource(changed, false, false, "creator"))
+	require.True(t, batch.AddManagedResources([]client.Object{changed}, false, false, "creator"))
+	require.Equal(t, oneByOne.Spec.ManagedResources, batch.Spec.ManagedResources)
+	require.Len(t, batch.Spec.ManagedResources, 20)
+
+	// a mixed pass: some records already there and unchanged, one changed, two new
+	mixed := append([]client.Object{objs[0], changed}, manifestsForRecording(22)[20:]...)
+	updatedOne = false
+	for _, o := range mixed {
+		updatedOne = oneByOne.AddManagedResource(o, false, false, "creator") || updatedOne
+	}
+	require.True(t, updatedOne)
+	require.True(t, batch.AddManagedResources(mixed, false, false, "creator"))
+	require.Equal(t, oneByOne.Spec.ManagedResources, batch.Spec.ManagedResources)
+	require.Len(t, batch.Spec.ManagedResources, 22)
 }

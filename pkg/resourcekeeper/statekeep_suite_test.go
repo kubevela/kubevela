@@ -124,9 +124,9 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"}}
 		h := &resourceKeeper{
 			Client:     cli,
-			app:        app,
+			owner:      newAppOwner(app),
 			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli, app),
+			cache:      newResourceCache(cli, newAppOwner(app)),
 		}
 
 		h._currentRT = &v1beta1.ResourceTracker{
@@ -189,10 +189,10 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app-apply-once-gc", Namespace: "default"}}
 		h := &resourceKeeper{
 			Client:     cli,
-			app:        app,
+			owner:      newAppOwner(app),
 			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli, app),
-			applyOncePolicy: &v1alpha1.ApplyOncePolicySpec{
+			cache:      newResourceCache(cli, newAppOwner(app)),
+			policies: Policies{ApplyOnce: &v1alpha1.ApplyOncePolicySpec{
 				Enable: true,
 				Rules: []v1alpha1.ApplyOncePolicyRule{{
 					Selector: v1alpha1.ResourcePolicyRuleSelector{
@@ -200,7 +200,7 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 					},
 					Strategy: &v1alpha1.ApplyOnceStrategy{Path: []string{"*"}},
 				}},
-			},
+			}},
 		}
 
 		// Create the ResourceTracker in the API server so the stale-entry
@@ -253,11 +253,11 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "test-shared"}}
 		h := &resourceKeeper{
 			Client:     cli,
-			app:        app,
+			owner:      newAppOwner(app),
 			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli, app),
+			cache:      newResourceCache(cli, newAppOwner(app)),
 		}
-		h.sharedResourcePolicy = &v1alpha1.SharedResourcePolicySpec{Rules: []v1alpha1.SharedResourcePolicyRule{{
+		h.policies.SharedResource = &v1alpha1.SharedResourcePolicySpec{Rules: []v1alpha1.SharedResourcePolicyRule{{
 			Selector: v1alpha1.ResourcePolicyRuleSelector{ResourceTypes: []string{"ConfigMap"}},
 		}}}
 		h._currentRT = &v1beta1.ResourceTracker{
@@ -393,10 +393,10 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 			}}
 		h := &resourceKeeper{
 			Client:     cli,
-			app:        app,
+			owner:      newAppOwner(app),
 			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli, app),
-			applyOncePolicy: &v1alpha1.ApplyOncePolicySpec{
+			cache:      newResourceCache(cli, newAppOwner(app)),
+			policies: Policies{ApplyOnce: &v1alpha1.ApplyOncePolicySpec{
 				Enable: true,
 				Rules: []v1alpha1.ApplyOncePolicyRule{{
 					Selector: v1alpha1.ResourcePolicyRuleSelector{
@@ -406,7 +406,7 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 					Strategy: &v1alpha1.ApplyOnceStrategy{Path: []string{"spec.replicas"}},
 				},
 				},
-			},
+			}},
 		}
 		h._currentRT = &v1beta1.ResourceTracker{
 			Spec: v1beta1.ResourceTrackerSpec{
@@ -416,7 +416,7 @@ var _ = Describe("Test ResourceKeeper StateKeep", func() {
 				}},
 			},
 		}
-		applyOnceStrategy := h.applyOncePolicy.FindStrategy(deploy)
+		applyOnceStrategy := h.policies.ApplyOnce.FindStrategy(deploy)
 		Expect(applyOnceStrategy.Path).Should(Equal([]string{"spec.replicas"}))
 	})
 })

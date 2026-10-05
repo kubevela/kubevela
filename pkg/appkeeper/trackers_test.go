@@ -14,12 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package resourcetracker
+package appkeeper
 
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
@@ -36,6 +35,7 @@ import (
 	apicommon "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -87,26 +87,6 @@ func TestCreateAndListResourceTrackers(t *testing.T) {
 	_, _, _, _, err = ListApplicationResourceTrackers(context.Background(), cli, app)
 	r.Error(err)
 	r.Contains(err.Error(), "controlled by another application")
-}
-
-func TestRecordAndDeleteManifestsInResourceTracker(t *testing.T) {
-	r := require.New(t)
-	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
-	rt := &v1beta1.ResourceTracker{ObjectMeta: v1.ObjectMeta{Name: "rt"}}
-	r.NoError(cli.Create(context.Background(), rt))
-	n := 10
-	var objs []*unstructured.Unstructured
-	for i := 0; i < n; i++ {
-		obj := &unstructured.Unstructured{}
-		obj.SetName(fmt.Sprintf("workload-%d", i))
-		objs = append(objs, obj)
-		r.NoError(RecordManifestsInResourceTracker(context.Background(), cli, rt, []*unstructured.Unstructured{obj}, rand.Int()%2 == 0, false, ""))
-	}
-	rand.Shuffle(len(objs), func(i, j int) { objs[i], objs[j] = objs[j], objs[i] })
-	for i := 0; i < n; i++ {
-		r.NoError(DeletedManifestInResourceTracker(context.Background(), cli, rt, objs[i], true))
-		r.Equal(len(rt.Spec.ManagedResources), n-i-1)
-	}
 }
 
 func TestPublishedVersion(t *testing.T) {
@@ -188,4 +168,58 @@ func (c *clientWithoutRTPermission) List(ctx context.Context, list client.Object
 		return &apimeta.NoKindMatchError{}
 	}
 	return c.Client.List(ctx, list, opts...)
+}
+
+// Application tracker helpers for these tests, over resourcetracker.CreateTracker.
+func CreateRootResourceTracker(ctx context.Context, cli client.Client, app *v1beta1.Application) (*v1beta1.ResourceTracker, error) {
+	return resourcetracker.CreateTracker(ctx, cli, NewAppResourceTracker(app), v1beta1.ResourceTrackerTypeRoot)
+}
+
+func CreateCurrentResourceTracker(ctx context.Context, cli client.Client, app *v1beta1.Application) (*v1beta1.ResourceTracker, error) {
+	return resourcetracker.CreateTracker(ctx, cli, NewAppResourceTracker(app), v1beta1.ResourceTrackerTypeVersioned)
+}
+
+func CreateComponentRevisionResourceTracker(ctx context.Context, cli client.Client, app *v1beta1.Application) (*v1beta1.ResourceTracker, error) {
+	return resourcetracker.CreateTracker(ctx, cli, NewAppResourceTracker(app), v1beta1.ResourceTrackerTypeComponentRevision)
+}
+
+// countingClient records writes so a test can assert a path performs none.
+type countingClient struct {
+	client.Client
+	updates int
+}
+
+func (c *countingClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+	c.updates++
+	return c.Client.Update(ctx, obj, opts...)
+}
+
+func (c *countingClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+	c.updates++
+	return c.Client.Patch(ctx, obj, patch, opts...)
+}
+
+// Without permission on ResourceTrackers the trackers come from vela-prism, as projections
+// of ApplicationResourceTracker: they are not writable objects, and their names are rewritten.
+// Building a keeper over them (vela delete --force does) must not try to label them.
+func TestKeeperOverPrismTrackersWritesNothing(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+	projection := &unstructured.Unstructured{}
+	projection.SetGroupVersionKind(applicationResourceTrackerGroupVersionKind)
+	projection.SetName("app-v1")
+	projection.SetNamespace("example")
+	projection.SetLabels(map[string]string{oam.LabelAppName: "app", oam.LabelAppNamespace: "example"})
+	r.NoError(unstructured.SetNestedField(projection.Object, "versioned", "spec", "type"))
+	r.NoError(unstructured.SetNestedField(projection.Object, int64(1), "spec", "applicationGeneration"))
+	counting := &countingClient{Client: fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(projection).Build()}
+	cli := &clientWithoutRTPermission{Client: counting, recognizeApplicationResourceTracker: true}
+
+	app := &v1beta1.Application{}
+	app.SetName("app")
+	app.SetNamespace("example")
+	app.SetGeneration(1)
+	_, err := New(ctx, cli, app)
+	r.NoError(err)
+	r.Zero(counting.updates, "a read-only view of trackers is never written back")
 }
