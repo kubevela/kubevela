@@ -19,6 +19,7 @@ package sources
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/cel-go/cel"
 
@@ -145,6 +146,53 @@ func NewSourceEngine(opts SourceEngineOptions) (*SourceEngine, error) {
 	}
 	opts.Sensitive = sensitive
 	return &SourceEngine{opts: opts}, nil
+}
+
+// CachePolicy is how a binding's resolved value is cached.
+type CachePolicy struct {
+	// Key is the entry's key: the definition's readable prefix, then a hash of
+	// its template, the binding's properties and the context values KeyInputs
+	// names.
+	Key       string
+	KeyInputs []string
+	TTL       time.Duration
+	// OnStaleFailure is what a failed refresh does with a stale value:
+	// use-stale serves it, fail does not.
+	OnStaleFailure string
+}
+
+// CachePolicy is the cache policy binding resolves with, computed as a
+// resolve computes it but without running this binding's provider functions,
+// which storage never needs. Its properties' expressions are substituted
+// first, as for a resolve, so a property reading another source resolves that
+// source, providers included, reading the cache as a resolve does but never
+// writing to it.
+func (e *SourceEngine) CachePolicy(ctx context.Context, binding string) (CachePolicy, error) {
+	r := newSourceResolver(ctx, e.opts.Context, e.opts.Surface, sourceInputs{
+		Bindings:  e.opts.Bindings,
+		Types:     e.opts.Types,
+		Templates: e.opts.Templates,
+		Sensitive: e.opts.Sensitive,
+		Store:     NewReadOnlySourceCacheStore(e.opts.Store),
+		Compiler:  e.opts.Compiler,
+	})
+	sourceType := e.opts.Types[binding]
+	if sourceType == "" {
+		return CachePolicy{}, fmt.Errorf("source %q not found", binding)
+	}
+	template := e.opts.Templates[sourceType]
+	if template == "" {
+		return CachePolicy{}, fmt.Errorf("source definition %q for source %q is missing cue template", sourceType, binding)
+	}
+	props, err := r.bindingProperties(binding, sourceType)
+	if err != nil {
+		return CachePolicy{}, err
+	}
+	p, _, err := r.keyedCachePolicy(binding, sourceType, template, props)
+	if err != nil {
+		return CachePolicy{}, err
+	}
+	return CachePolicy(p), nil
 }
 
 // Resolve substitutes every $( ) expression in properties.

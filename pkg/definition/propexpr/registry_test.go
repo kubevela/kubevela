@@ -105,3 +105,8 @@ func TestKnownFieldCoversEveryDeclaredField(t *testing.T) {
 	}
 	require.False(t, knownField("noSuchContextField"))
 }
+
+func TestContextSchemaPlural(t *testing.T) {
+	require.Equal(t, "components", ComponentContext.Plural())
+	require.Equal(t, "workflow step templates", WorkflowStepTemplateContext.Plural())
+}

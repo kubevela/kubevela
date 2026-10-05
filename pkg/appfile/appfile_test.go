@@ -25,6 +25,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/sources"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -40,7 +41,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
 
+	"github.com/kubevela/pkg/cue/cuex"
+	cueutil "github.com/kubevela/pkg/cue/util"
+	monitorContext "github.com/kubevela/pkg/monitor/context"
 	"github.com/kubevela/workflow/pkg/cue/model"
+	wfprocess "github.com/kubevela/workflow/pkg/cue/process"
+	"github.com/kubevela/workflow/pkg/tasks/custom"
 
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -2382,4 +2388,104 @@ func TestFilterAndSetAnnotationsOwnValueBeatsInheritedSentinel(t *testing.T) {
 				"the component's own recorded configuration must survive the parent's sentinel")
 		})
 	}
+}
+
+// A step template runs against WorkflowContextData plus the step the workflow
+// engine adds. Every field its surface offers must reach a template and be set,
+// or admission would type an expression that reads nothing at run time.
+func TestWorkflowStepTemplateSurfaceMatchesTheRender(t *testing.T) {
+	readable := propexpr.WorkflowStepTemplateContext.ReadableFields()
+	assert.NotEmpty(t, readable)
+
+	saved := oamtypes.ControlPlaneClusterVersion
+	oamtypes.ControlPlaneClusterVersion = oamtypes.ClusterVersion{Major: "1", Minor: "31", GitVersion: "v1.31.0", Platform: "linux/arm64"}
+	defer func() { oamtypes.ControlPlaneClusterVersion = saved }()
+
+	structured := map[string]string{
+		"clusterVersion": "clusterVersion.major",
+		"appLabels":      `appLabels["team"]`,
+		"appAnnotations": `appAnnotations["owner"]`,
+		"custom":         `custom.region`,
+	}
+	var lines []string
+	for _, f := range readable {
+		read := f
+		if alt, ok := structured[f]; ok {
+			read = alt
+		}
+		lines = append(lines, fmt.Sprintf("\t%q: \"\\(context.%s)\"", f, read))
+	}
+
+	app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{
+		Name:      "drift-app",
+		Namespace: "drift-ns",
+		Labels:    map[string]string{"team": "platform"},
+		// publishVersion and workflowName reach the template from annotations.
+		Annotations: map[string]string{
+			"owner":                      "sre",
+			oam.AnnotationPublishVersion: "v3",
+			oam.AnnotationWorkflowName:   "deploy",
+		},
+	}}
+	goCtx := context.WithValue(context.Background(), oam.PolicyAdditionalContextKey, map[string]interface{}{"region": "eu-west"})
+	pCtx := process.NewContext(WorkflowContextData(goCtx, app, "drift-app-v3"))
+	wfprocess.NewStepRunTimeMeta().Fill(pCtx, []wfprocess.StepMetaKV{
+		wfprocess.WithName("probe-step"),
+		wfprocess.WithSessionID("step-id-1"),
+		wfprocess.WithSpanID("span-1"),
+	})
+	// The probe reads no providers, so an empty compiler stands in for the
+	// workflow engine's.
+	compiler := cuex.NewCompilerWithInternalPackages()
+	basic, err := custom.MakeBasicValue(monitorContext.NewTraceContext(context.Background(), ""), compiler,
+		&runtime.RawExtension{Raw: []byte(`{}`)}, pCtx)
+	if !assert.NoError(t, err) {
+		return
+	}
+	// Joined as the engine joins a step's template to its basic value.
+	basicTempl, err := cueutil.ToString(basic)
+	if !assert.NoError(t, err) {
+		return
+	}
+	v, err := compiler.CompileString(context.Background(), "probe: {\n"+strings.Join(lines, "\n")+"\n}\n"+basicTempl)
+	if !assert.NoError(t, err) {
+		return
+	}
+	for _, f := range readable {
+		got, err := v.LookupPath(cue.MakePath(cue.Str("probe"), cue.Str(f))).String()
+		assert.NoError(t, err, f)
+		assert.NotEmpty(t, got, "context.%s is declared readable in a step template but renders empty", f)
+	}
+}
+
+func TestRenderPolicyKeepsOutputNames(t *testing.T) {
+	af := &Appfile{
+		Name:      "test-app",
+		Namespace: "test-ns",
+		ParsedPolicies: []*Component{{
+			Name:   "guard",
+			Type:   "network-guard",
+			Params: map[string]interface{}{},
+			engine: definition.NewWorkloadAbstractEngine("guard"),
+			FullTemplate: &Template{TemplateStr: `
+				output: {apiVersion: "v1", kind: "ConfigMap", metadata: name: "main"}
+				outputs: extra: {apiVersion: "v1", kind: "ConfigMap"}
+				parameter: {}
+			`},
+		}},
+	}
+	r, err := af.RenderPolicy(af.ParsedPolicies[0])
+	if !assert.NoError(t, err) {
+		return
+	}
+	output, outputs := r.Output, r.Outputs
+	assert.NotNil(t, r.Context, "the context the template rendered against")
+	assert.Equal(t, "main", output.GetName())
+	if !assert.Contains(t, outputs, "extra") {
+		return
+	}
+	// Defaulted as at dispatch: the policy's name, the Application's namespace.
+	assert.Equal(t, "guard", outputs["extra"].GetName())
+	assert.Equal(t, "test-ns", outputs["extra"].GetNamespace())
+	assert.Equal(t, "test-app", outputs["extra"].GetLabels()[oam.LabelAppName])
 }

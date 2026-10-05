@@ -229,6 +229,31 @@ func (af *Appfile) GeneratePolicyManifests(ctx context.Context, cli client.Clien
 }
 
 func (af *Appfile) generatePolicyUnstructured(workload *Component) ([]*unstructured.Unstructured, error) {
+	r, err := af.RenderPolicy(workload)
+	if err != nil {
+		return nil, err
+	}
+	uns := []*unstructured.Unstructured{r.Output}
+	for _, name := range r.outputNames {
+		uns = append(uns, r.Outputs[name])
+	}
+	return uns, nil
+}
+
+// RenderedPolicy is a workload-bearing policy rendered as it is dispatched.
+type RenderedPolicy struct {
+	// Output and Outputs, by name, are defaulted to the policy's name and the
+	// Application's namespace, and labelled as the Application's.
+	Output  *unstructured.Unstructured
+	Outputs map[string]*unstructured.Unstructured
+	// Context is what the template rendered against.
+	Context process.Context
+
+	outputNames []string
+}
+
+// RenderPolicy renders a policy's template as it is dispatched.
+func (af *Appfile) RenderPolicy(workload *Component) (*RenderedPolicy, error) {
 	ctxData := GenerateContextDataFromAppFile(af, workload.Name)
 	// A policy's manifests are rendered once and dispatched to the hub - Dispatch
 	// is called with an empty cluster, which means local. GenerateContextDataFromAppFile
@@ -241,11 +266,15 @@ func (af *Appfile) generatePolicyUnstructured(workload *Component) ([]*unstructu
 	// unusable from a policy, and makes the two cache entries for one ConfigMap
 	// collide on "".
 	ctxData.Cluster = pkgmulticluster.Local
-	uns, err := generatePolicyUnstructuredFromCUEModule(workload, af.Artifacts, ctxData)
+	r, err := generatePolicyUnstructuredFromCUEModule(workload, af.Artifacts, ctxData)
 	if err != nil {
 		return nil, err
 	}
-	for _, un := range uns {
+	all := []*unstructured.Unstructured{r.Output}
+	for _, name := range r.outputNames {
+		all = append(all, r.Outputs[name])
+	}
+	for _, un := range all {
 		if len(un.GetName()) == 0 {
 			un.SetName(workload.Name)
 		}
@@ -253,10 +282,10 @@ func (af *Appfile) generatePolicyUnstructured(workload *Component) ([]*unstructu
 			un.SetNamespace(af.Namespace)
 		}
 	}
-	return uns, nil
+	return r, nil
 }
 
-func generatePolicyUnstructuredFromCUEModule(comp *Component, artifacts []*types.ComponentManifest, ctxData velaprocess.ContextData) ([]*unstructured.Unstructured, error) {
+func generatePolicyUnstructuredFromCUEModule(comp *Component, artifacts []*types.ComponentManifest, ctxData velaprocess.ContextData) (*RenderedPolicy, error) {
 	pCtx := velaprocess.NewContext(ctxData)
 	pCtx.PushData(velaprocess.ContextDataArtifacts, prepareArtifactsData(artifacts))
 	// The policy's own identity, and the surface it renders on - its context is
@@ -274,16 +303,17 @@ func generatePolicyUnstructuredFromCUEModule(comp *Component, artifacts []*types
 	commonLabels := definition.GetCommonLabels(definition.GetBaseContextLabels(pCtx))
 	util.AddLabels(workload, commonLabels)
 
-	var res = []*unstructured.Unstructured{workload}
+	r := &RenderedPolicy{Output: workload, Outputs: map[string]*unstructured.Unstructured{}, Context: pCtx}
 	for _, assist := range auxs {
 		tr, err := assist.Ins.Unstructured()
 		if err != nil {
 			return nil, errors.Wrapf(err, "evaluate auxiliary=%s template for policy=%s app=%s", assist.Name, comp.Name, ctxData.AppName)
 		}
 		util.AddLabels(tr, commonLabels)
-		res = append(res, tr)
+		r.outputNames = append(r.outputNames, assist.Name)
+		r.Outputs[assist.Name] = tr
 	}
-	return res, nil
+	return r, nil
 }
 
 // isApplicationScopedPolicy checks if a policy has a non-default Scope
@@ -930,6 +960,32 @@ func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramVal
 		}
 	}
 	return nil
+}
+
+// WorkflowContextData builds the process context for workflow (non-component)
+// execution: what a workflow step's template sees as its context, before the
+// engine adds the step it is running. The goCtx parameter should contain any
+// policy additionalContext stored by ApplyApplicationScopeTransforms.
+func WorkflowContextData(goCtx context.Context, app *v1beta1.Application, appRev string) velaprocess.ContextData {
+	data := velaprocess.ContextData{
+		Namespace:       app.Namespace,
+		AppName:         app.Name,
+		CompName:        app.Name,
+		AppRevisionName: appRev,
+		Ctx:             goCtx,
+	}
+	if app.Annotations != nil {
+		data.WorkflowName = app.Annotations[oam.AnnotationWorkflowName]
+		data.PublishVersion = app.Annotations[oam.AnnotationPublishVersion]
+	}
+	// pass labels and annotations to workflow context
+	if len(app.Labels) > 0 {
+		data.AppLabels = app.Labels
+	}
+	if len(app.Annotations) > 0 {
+		data.AppAnnotations = app.Annotations
+	}
+	return data
 }
 
 // GenerateContextDataFromAppFile generates process context data from app file

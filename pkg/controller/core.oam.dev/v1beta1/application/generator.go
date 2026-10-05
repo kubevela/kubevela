@@ -86,7 +86,7 @@ func (h *AppHandler) GenerateApplicationSteps(ctx monitorContext.Context,
 		oam.LabelAppName:      app.Name,
 		oam.LabelAppNamespace: app.Namespace,
 	}
-	pCtx := velaprocess.NewContext(generateContextDataFromApp(ctx.GetContext(), app, appRev.Name))
+	pCtx := velaprocess.NewContext(appfile.WorkflowContextData(ctx.GetContext(), app, appRev.Name))
 	ctxWithRuntimeParams := oamprovidertypes.WithRuntimeParams(ctx.GetContext(), oamprovidertypes.RuntimeParams{
 		ComponentApply:       h.applyComponentFunc(appParser, af),
 		ComponentRender:      h.renderComponentFunc(appParser, af),
@@ -592,30 +592,6 @@ func getComponentResources(ctx context.Context, manifest *types.ComponentManifes
 		traits = append(traits, v)
 	}
 	return workload, traits, nil
-}
-
-// generateContextDataFromApp builds the process context for workflow (non-component) execution.
-// The goCtx parameter should contain any policy additionalContext stored by ApplyApplicationScopeTransforms.
-func generateContextDataFromApp(goCtx context.Context, app *v1beta1.Application, appRev string) velaprocess.ContextData {
-	data := velaprocess.ContextData{
-		Namespace:       app.Namespace,
-		AppName:         app.Name,
-		CompName:        app.Name,
-		AppRevisionName: appRev,
-		Ctx:             goCtx,
-	}
-	if app.Annotations != nil {
-		data.WorkflowName = app.Annotations[oam.AnnotationWorkflowName]
-		data.PublishVersion = app.Annotations[oam.AnnotationPublishVersion]
-	}
-	// pass labels and annotations to workflow context
-	if len(app.Labels) > 0 {
-		data.AppLabels = app.Labels
-	}
-	if len(app.Annotations) > 0 {
-		data.AppAnnotations = app.Annotations
-	}
-	return data
 }
 
 // resolveWorkflowStepSources substitutes $(...) expressions in workflow step
