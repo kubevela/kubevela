@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -29,6 +30,28 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// requestRecorder keeps the last request a handler saw, behind a mutex: the
+// handler runs on the server's goroutine and the test reads on its own.
+type requestRecorder struct {
+	mu   sync.Mutex
+	last *http.Request
+}
+
+func (rec *requestRecorder) record(r *http.Request) {
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	rec.last = r.Clone(context.Background())
+}
+
+// request returns the last recorded request, failing the test if there was none.
+func (rec *requestRecorder) request(t *testing.T) *http.Request {
+	t.Helper()
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	require.NotNil(t, rec.last, "the registry was never asked")
+	return rec.last
+}
 
 // manifestServer is a plain-HTTP stand-in for a distribution-spec registry
 // that only answers manifest HEADs. It returns the server, the host the
@@ -43,9 +66,9 @@ func manifestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, s
 }
 
 func TestOCIManifestDigestReadsDigestHeader(t *testing.T) {
-	var seen *http.Request
+	rec := &requestRecorder{}
 	_, host, repoRef := manifestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		seen = r.Clone(context.Background())
+		rec.record(r)
 		w.Header().Set(headerContentDigest, "sha256:aaa")
 		w.WriteHeader(http.StatusOK)
 	})
@@ -54,7 +77,7 @@ func TestOCIManifestDigestReadsDigestHeader(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "sha256:aaa", digest)
 
-	require.NotNil(t, seen)
+	seen := rec.request(t)
 	assert.Equal(t, http.MethodHead, seen.Method, "a revision probe must not pull the manifest body")
 	assert.Equal(t, "/v2/charts/widget/manifests/1.0.0", seen.URL.Path)
 	assert.Equal(t, ociManifestAccept, seen.Header.Get("Accept"))
@@ -62,16 +85,16 @@ func TestOCIManifestDigestReadsDigestHeader(t *testing.T) {
 }
 
 func TestOCIManifestDigestRevalidatesWithLastKnown(t *testing.T) {
-	var ifNoneMatch string
+	rec := &requestRecorder{}
 	_, host, repoRef := manifestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		ifNoneMatch = r.Header.Get("If-None-Match")
+		rec.record(r)
 		w.WriteHeader(http.StatusNotModified)
 	})
 
 	digest, err := OCIManifestDigest(context.Background(), repoRef, host, "", "", "1.0.0", "sha256:aaa", true)
 	require.NoError(t, err)
 	assert.Equal(t, "sha256:aaa", digest, "304 means the digest the caller holds is still current")
-	assert.Equal(t, `"sha256:aaa"`, ifNoneMatch, "the digest is offered as a quoted ETag")
+	assert.Equal(t, `"sha256:aaa"`, rec.request(t).Header.Get("If-None-Match"), "the digest is offered as a quoted ETag")
 }
 
 func TestOCIManifestDigestFallsBackToETag(t *testing.T) {
@@ -107,22 +130,22 @@ func TestOCIManifestDigestReportsOtherStatuses(t *testing.T) {
 }
 
 func TestOCIManifestDigestEscapesTheTag(t *testing.T) {
-	var requestURI string
+	rec := &requestRecorder{}
 	_, host, repoRef := manifestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		requestURI = r.RequestURI
+		rec.record(r)
 		w.Header().Set(headerContentDigest, "sha256:aaa")
 		w.WriteHeader(http.StatusOK)
 	})
 
 	_, err := OCIManifestDigest(context.Background(), repoRef, host, "", "", "v1 beta", "", true)
 	require.NoError(t, err)
-	assert.Equal(t, "/v2/charts/widget/manifests/v1%20beta", requestURI,
+	assert.Equal(t, "/v2/charts/widget/manifests/v1%20beta", rec.request(t).RequestURI,
 		"a tag off an Application spec must not be able to redirect the probe")
 }
 
 func TestOCIManifestDigestSendsCredentialsOnChallenge(t *testing.T) {
 	var requests atomic.Int32
-	var authorization string
+	rec := &requestRecorder{}
 	_, host, repoRef := manifestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
 		if r.Header.Get("Authorization") == "" {
@@ -130,7 +153,7 @@ func TestOCIManifestDigestSendsCredentialsOnChallenge(t *testing.T) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		authorization = r.Header.Get("Authorization")
+		rec.record(r)
 		w.Header().Set(headerContentDigest, "sha256:ccc")
 		w.WriteHeader(http.StatusOK)
 	})
@@ -139,7 +162,7 @@ func TestOCIManifestDigestSendsCredentialsOnChallenge(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "sha256:ccc", digest)
 	assert.EqualValues(t, 2, requests.Load(), "the challenge costs one extra round trip")
-	assert.True(t, strings.HasPrefix(authorization, "Basic "), "the token is sent as the password half of a basic credential")
+	assert.True(t, strings.HasPrefix(rec.request(t).Header.Get("Authorization"), "Basic "), "the token is sent as the password half of a basic credential")
 }
 
 func TestOCIManifestDigestTripsTheGateOn429(t *testing.T) {

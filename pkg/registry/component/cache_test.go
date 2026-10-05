@@ -215,17 +215,22 @@ func TestRevisionCacheResetForgetsEverything(t *testing.T) {
 
 func TestRevisionCacheCollapsesConcurrentReads(t *testing.T) {
 	c := newRevisionCache[string](context.Background(), 8, time.Minute)
-	var reads atomic.Int32
+	var reads, probes atomic.Int32
 	release := make(chan struct{})
 	read := func(string) (string, error) {
 		reads.Add(1)
 		<-release
 		return "v1", nil
 	}
-	revision := func(string) (string, error) { return "r1", nil }
+	// Every caller probes the revision after missing the cache and before
+	// entering the shared read. Counting the probes is therefore proof that
+	// every caller has missed: the cache is only filled once the read returns,
+	// and the read is held until the count is complete.
+	revision := func(string) (string, error) { probes.Add(1); return "r1", nil }
 
+	const callers = 5
 	var wg sync.WaitGroup
-	results := make([]string, 5)
+	results := make([]string, callers)
 	for i := range results {
 		wg.Add(1)
 		go func(i int) {
@@ -235,13 +240,12 @@ func TestRevisionCacheCollapsesConcurrentReads(t *testing.T) {
 			results[i] = got
 		}(i)
 	}
-	// Give every goroutine time to reach the read before letting it finish.
-	assert.Eventually(t, func() bool { return reads.Load() >= 1 }, time.Second, time.Millisecond)
-	time.Sleep(20 * time.Millisecond)
+	require.Eventually(t, func() bool { return probes.Load() == callers }, 5*time.Second, time.Millisecond,
+		"every caller must have missed the cache before the read is released")
 	close(release)
 	wg.Wait()
 
-	assert.EqualValues(t, 1, reads.Load(), "identical concurrent reads must share one registry read")
+	assert.EqualValues(t, 1, reads.Load(), "%d callers that all missed must share one registry read", callers)
 	for _, got := range results {
 		assert.Equal(t, "v1", got)
 	}
