@@ -96,6 +96,97 @@ var _ = Describe("Test Application Mutator", func() {
 		Expect(resp.Result.Message).Should(ContainSubstring("service-account annotation is not permitted when authentication enabled"))
 	})
 
+	It("Test Application Mutator [strip identity annotations when authentication disabled]", func() {
+		Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.AuthenticateApplication))).Should(Succeed())
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "escalate",
+				Namespace: "tenant-a",
+				Annotations: map[string]string{
+					oam.AnnotationApplicationUsername:           "system:masters",
+					oam.AnnotationApplicationGroup:              "system:masters",
+					oam.AnnotationApplicationServiceAccountName: "privileged-sa",
+					"app.oam.dev/keep-me":                       "value",
+				},
+			},
+		}
+		modified, err := mutatingHandler.handleIdentity(ctx, admission.Request{}, nil, app)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(modified).Should(BeTrue())
+		Expect(app.Annotations).ShouldNot(HaveKey(oam.AnnotationApplicationUsername))
+		Expect(app.Annotations).ShouldNot(HaveKey(oam.AnnotationApplicationGroup))
+		Expect(app.Annotations).ShouldNot(HaveKey(oam.AnnotationApplicationServiceAccountName))
+		Expect(app.Annotations).Should(HaveKeyWithValue("app.oam.dev/keep-me", "value"))
+	})
+
+	It("Test Application Mutator [no-op when authentication disabled and no identity annotations]", func() {
+		Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.AuthenticateApplication))).Should(Succeed())
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "clean",
+				Namespace:   "tenant-a",
+				Annotations: map[string]string{"app.oam.dev/keep-me": "value"},
+			},
+		}
+		modified, err := mutatingHandler.handleIdentity(ctx, admission.Request{}, nil, app)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(modified).Should(BeFalse())
+		Expect(app.Annotations).Should(HaveKeyWithValue("app.oam.dev/keep-me", "value"))
+	})
+
+	It("Test Application Mutator [no-op when authentication disabled and annotations nil]", func() {
+		Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.AuthenticateApplication))).Should(Succeed())
+		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "nil-annotations"}}
+		modified, err := mutatingHandler.handleIdentity(ctx, admission.Request{}, nil, app)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(modified).Should(BeFalse())
+	})
+
+	It("Test Application Mutator [strip identity annotations end-to-end via patch]", func() {
+		Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.AuthenticateApplication))).Should(Succeed())
+		req := admission.Request{
+			AdmissionRequest: admissionv1.AdmissionRequest{
+				Operation: admissionv1.Create,
+				Resource:  metav1.GroupVersionResource{Group: v1beta1.Group, Version: v1beta1.Version, Resource: "applications"},
+				Object:    runtime.RawExtension{Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"name":"escalate","namespace":"tenant-a","annotations":{"app.oam.dev/username":"system:masters","app.oam.dev/group":"system:masters","app.oam.dev/keep-me":"value"}}}`)},
+			},
+		}
+		resp := mutatingHandler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeTrue())
+		Expect(resp.Patches).Should(ContainElement(jsonpatch.JsonPatchOperation{
+			Operation: "remove",
+			Path:      "/metadata/annotations/app.oam.dev~1username",
+		}))
+		Expect(resp.Patches).Should(ContainElement(jsonpatch.JsonPatchOperation{
+			Operation: "remove",
+			Path:      "/metadata/annotations/app.oam.dev~1group",
+		}))
+		Expect(resp.Patches).ShouldNot(ContainElement(jsonpatch.JsonPatchOperation{
+			Operation: "remove",
+			Path:      "/metadata/annotations/app.oam.dev~1keep-me",
+		}))
+	})
+
+	It("Test Application Mutator [strip identity annotations on update]", func() {
+		Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.AuthenticateApplication))).Should(Succeed())
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "escalate",
+				Namespace: "tenant-a",
+				Annotations: map[string]string{
+					oam.AnnotationApplicationUsername: "system:masters",
+					oam.AnnotationApplicationGroup:    "system:masters",
+				},
+			},
+		}
+		req := admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{Operation: admissionv1.Update}}
+		modified, err := mutatingHandler.handleIdentity(ctx, req, app.DeepCopy(), app)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(modified).Should(BeTrue())
+		Expect(app.Annotations).ShouldNot(HaveKey(oam.AnnotationApplicationUsername))
+		Expect(app.Annotations).ShouldNot(HaveKey(oam.AnnotationApplicationGroup))
+	})
+
 	It("Test Application Mutator [with patch]", func() {
 		Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.AuthenticateApplication))).Should(Succeed())
 		req := admission.Request{

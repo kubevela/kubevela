@@ -422,7 +422,37 @@ var _ = Describe("Server Tests", func() {
 				Expect(resultConfig).To(BeNil())
 			})
 
+			It("should wire the impersonating round tripper when AuthenticateApplication is enabled", func() {
+				Expect(feature.DefaultMutableFeatureGate.Set("AuthenticateApplication=true")).To(Succeed())
+				defer feature.DefaultMutableFeatureGate.Set("AuthenticateApplication=false")
+
+				k8sConfig := &config.KubernetesConfig{QPS: 50, Burst: 100}
+				configProvider := func() (*rest.Config, error) {
+					return rest.CopyConfig(testConfig), nil
+				}
+
+				resultConfig, err := configureKubernetesClientWithProvider(k8sConfig, configProvider)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(resultConfig.WrapTransport).NotTo(BeNil())
+			})
+
+			It("should NOT wire the impersonating round tripper when AuthenticateApplication is disabled", func() {
+				Expect(feature.DefaultMutableFeatureGate.Set("AuthenticateApplication=false")).To(Succeed())
+
+				k8sConfig := &config.KubernetesConfig{QPS: 50, Burst: 100}
+				configProvider := func() (*rest.Config, error) {
+					return rest.CopyConfig(testConfig), nil
+				}
+
+				resultConfig, err := configureKubernetesClientWithProvider(k8sConfig, configProvider)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(resultConfig.WrapTransport).To(BeNil())
+			})
+
 			It("should apply impersonating round tripper wrapper", func() {
+				Expect(feature.DefaultMutableFeatureGate.Set("AuthenticateApplication=true")).To(Succeed())
+				defer feature.DefaultMutableFeatureGate.Set("AuthenticateApplication=false")
+
 				k8sConfig := &config.KubernetesConfig{
 					QPS:   50,
 					Burst: 100,
