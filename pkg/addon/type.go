@@ -20,6 +20,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/module"
 	"github.com/oam-dev/kubevela/pkg/utils/schema"
 )
 
@@ -76,6 +77,12 @@ type InstallPackage struct {
 	// the rendered addon Application. Empty when the addon has no
 	// modules/_imports.cue file.
 	Imports []ModuleImport `json:"imports,omitempty"`
+
+	// InlineModules are modules developed directly inside the addon's own
+	// modules/<name>/ directories (RFC-109b's inline authoring model) and
+	// parsed from the addon's own bundled files -- no registry, no fetch.
+	// Empty when the addon has no inline modules.
+	InlineModules []*module.Module `json:"inlineModules,omitempty"`
 }
 
 // WholeAddonPackage contains all infos of an addon
