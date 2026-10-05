@@ -187,13 +187,28 @@ e2e-local-cluster:
 	# chartmuseum for the module suites). Each command runs on its own line
 	# under `set -e` so a failed pull stops the loop (a `&&` chain would
 	# swallow the failure as far as `set -e` is concerned).
+	# The images are saved with `--platform` (Docker 28+) and the tarball is
+	# imported, instead of `k3d image import <name>`. With Docker's containerd
+	# image store (Docker Desktop and Rancher Desktop default) a multi-arch
+	# image is stored under its full index, attestation manifests included,
+	# while only this platform's content is pulled. `docker save <name>`
+	# writes that index and `ctr image import` in the node fails on the
+	# missing entries with `ctr: content digest sha256:...: not found`
+	# (k3d-io/k3d#1372), and k3d still exits 0. A platform-filtered save
+	# writes a single-manifest tarball the node accepts. The filtered save is
+	# refused for an image that has no manifest for this platform (the zot
+	# image is amd64 only) and by Docker before 28; such an image is a single
+	# manifest or comes from the classic store, so a plain save works for it.
 	@set -e ; for img in \
 	  ghcr.io/project-zot/zot-minimal-linux-amd64:v2.1.1 \
 	  ghcr.io/helm/chartmuseum:v0.16.2 \
 	  docker.io/library/registry:2 \
 	  docker.io/library/nginx:1.27-alpine ; do \
 	    docker pull $$img ; \
-	    k3d image import $$img -c kubevela-debug ; \
+	    tar=$$(mktemp "$${TMPDIR:-/tmp}/k3d-preload.XXXXXX") ; \
+	    docker save --platform linux/$(HOSTARCH) -o $$tar $$img || docker save -o $$tar $$img ; \
+	    k3d image import $$tar -c kubevela-debug ; \
+	    rm -f $$tar ; \
 	done
 	# Deploy with Helm
 	kubectl delete validatingwebhookconfiguration kubevela-vela-core-admission 2>/dev/null || true
