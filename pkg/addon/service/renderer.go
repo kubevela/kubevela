@@ -378,6 +378,10 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	if err != nil {
 		return nil, fmt.Errorf("render module components for addon %q: %w", req.Name, err)
 	}
+	inlineModuleComps, err := pkgaddon.RenderInlineModuleComponents(installPkg, app.Spec.Components, dependsOn)
+	if err != nil {
+		return nil, fmt.Errorf("render inline module components for addon %q: %w", req.Name, err)
+	}
 	if len(aux) > 0 {
 		// The addon template's own outputs: block (wrapped into addon-auxiliaries
 		// below) can carry arbitrary objects -- including operators/CRDs a
@@ -387,20 +391,28 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 		// it: reserve the same name that call will end up choosing, against
 		// every component already in app.Spec.Components plus every module
 		// component actually emitted (which already excludes skipped imports and
-		// may include collision-avoiding suffixes).
-		used := make(map[string]bool, len(app.Spec.Components)+len(moduleComps))
+		// may include collision-avoiding suffixes). Inline module components
+		// need the exact same wait, for the exact same reason.
+		used := make(map[string]bool, len(app.Spec.Components)+len(moduleComps)+len(inlineModuleComps))
 		for _, c := range app.Spec.Components {
 			used[c.Name] = true
 		}
 		for _, c := range moduleComps {
 			used[c.Name] = true
 		}
+		for _, c := range inlineModuleComps {
+			used[c.Name] = true
+		}
 		auxName := uniqueComponentName(addonAuxiliariesComponentName, used)
 		for i := range moduleComps {
 			moduleComps[i].DependsOn = append(moduleComps[i].DependsOn, auxName)
 		}
+		for i := range inlineModuleComps {
+			inlineModuleComps[i].DependsOn = append(inlineModuleComps[i].DependsOn, auxName)
+		}
 	}
 	app.Spec.Components = append(app.Spec.Components, moduleComps...)
+	app.Spec.Components = append(app.Spec.Components, inlineModuleComps...)
 
 	groups, err := r.auxComponents(ctx, installPkg, req.Properties)
 	if err != nil {

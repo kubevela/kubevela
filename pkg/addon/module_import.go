@@ -127,31 +127,6 @@ func readModuleImportsFile(a *InstallPackage, reader AsyncReader, readPath strin
 	return nil
 }
 
-// existingModuleNames returns the set of module names already declared as
-// type: module components -- e.g. hand-authored directly in the addon's
-// template.cue -- keyed by the module each targets: properties.module when
-// set, else the component's own name, mirroring the type: module component
-// template's own default (module: *context.name | string).
-func existingModuleNames(components []common2.ApplicationComponent) map[string]bool {
-	names := make(map[string]bool, len(components))
-	for _, c := range components {
-		if c.Type != "module" {
-			continue
-		}
-		name := c.Name
-		if c.Properties != nil {
-			var props struct {
-				Module string `json:"module"`
-			}
-			if err := json.Unmarshal(c.Properties.Raw, &props); err == nil && props.Module != "" {
-				name = props.Module
-			}
-		}
-		names[name] = true
-	}
-	return names
-}
-
 func uniqueImportedComponentName(base string, used map[string]bool) string {
 	if !used[base] {
 		return base
@@ -165,14 +140,18 @@ func uniqueImportedComponentName(base string, used map[string]bool) string {
 }
 
 // RenderModuleComponents builds one type: module ApplicationComponent per
-// enabled modules/_imports.cue entry that is not already declared as a
-// type: module component in existingComponents -- an addon author's own
-// template.cue component always wins over an auto-generated one, silently.
-// Each emitted component depends on every name in resourceComponentNames, so
-// the module's XRD/Compositions never apply before the addon's own operators
-// and CRDs are healthy.
+// enabled modules/_imports.cue entry. A module name claimed anywhere else in
+// the addon too -- a hand-written type: module component in template.cue, or
+// an inline modules/<name>/ -- fails the whole render; see
+// checkModuleNameCollisions. Each emitted component depends on every name in
+// resourceComponentNames, so the module's XRD/Compositions never apply
+// before the addon's own operators and CRDs are healthy.
 func RenderModuleComponents(addon *InstallPackage, existingComponents []common2.ApplicationComponent, resourceComponentNames []string) ([]common2.ApplicationComponent, error) {
-	alreadyModules := existingModuleNames(existingComponents)
+	declaredBy := moduleDeclaredBy(existingComponents, addon.Imports, addon.InlineModules)
+	if err := checkModuleNameCollisions(declaredBy); err != nil {
+		return nil, err
+	}
+
 	usedNames := make(map[string]bool, len(existingComponents))
 	for _, c := range existingComponents {
 		usedNames[c.Name] = true
@@ -180,7 +159,7 @@ func RenderModuleComponents(addon *InstallPackage, existingComponents []common2.
 
 	var comps []common2.ApplicationComponent
 	for _, imp := range addon.Imports {
-		if !imp.Enabled || alreadyModules[imp.Module] {
+		if !imp.Enabled {
 			continue
 		}
 		properties := map[string]interface{}{"module": imp.Module}
@@ -201,7 +180,6 @@ func RenderModuleComponents(addon *InstallPackage, existingComponents []common2.
 			Properties: &runtime.RawExtension{Raw: raw},
 			DependsOn:  slices.Clone(resourceComponentNames),
 		})
-		alreadyModules[imp.Module] = true
 		usedNames[componentName] = true
 	}
 	return comps, nil

@@ -25,19 +25,21 @@ import (
 	"time"
 )
 
-// mapFS is a minimal read-only in-memory fs.FS built from files keyed by
+// MapFS is a minimal read-only in-memory fs.FS built from files keyed by
 // slash-separated path relative to the module root. It synthesizes the
 // directories implied by those keys, which is all ParseModule needs
-// (fs.ReadFile + fs.ReadDir). The OCI fetch adapter builds one.
-type mapFS map[string][]byte
+// (fs.ReadFile + fs.ReadDir). The OCI fetch adapter builds one; so does the
+// addon package's inline-module reader (pkg/addon), which is why this type
+// is exported rather than kept private to this package.
+type MapFS map[string][]byte
 
 var (
-	_ fs.FS         = mapFS(nil)
-	_ fs.ReadFileFS = mapFS(nil)
-	_ fs.ReadDirFS  = mapFS(nil)
+	_ fs.FS         = MapFS(nil)
+	_ fs.ReadFileFS = MapFS(nil)
+	_ fs.ReadDirFS  = MapFS(nil)
 )
 
-func (m mapFS) ReadFile(name string) ([]byte, error) {
+func (m MapFS) ReadFile(name string) ([]byte, error) {
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "read", Path: name, Err: fs.ErrInvalid}
 	}
@@ -50,7 +52,7 @@ func (m mapFS) ReadFile(name string) ([]byte, error) {
 	return out, nil
 }
 
-func (m mapFS) ReadDir(name string) ([]fs.DirEntry, error) {
+func (m MapFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrInvalid}
 	}
@@ -88,7 +90,7 @@ func (m mapFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	return entries, nil
 }
 
-func (m mapFS) Open(name string) (fs.File, error) {
+func (m MapFS) Open(name string) (fs.File, error) {
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
 	}
