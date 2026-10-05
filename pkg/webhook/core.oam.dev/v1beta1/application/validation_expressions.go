@@ -70,34 +70,32 @@ func validateExpressions(app *v1beta1.Application, appScoped func(string) bool) 
 		}
 	}
 
-	both := []string{propexpr.SourceIdent, propexpr.ContextIdent}
-	contextOnly := []string{propexpr.ContextIdent}
-
 	for i, comp := range app.Spec.Components {
 		p := field.NewPath("spec", "components").Index(i)
-		check(comp.Properties, p.Child("properties"), both...)
+		check(comp.Properties, p.Child("properties"), sources.RootsFor(sources.SurfaceComponent)...)
 		for j, tr := range comp.Traits {
-			check(tr.Properties, p.Child("traits").Index(j).Child("properties"), both...)
+			check(tr.Properties, p.Child("traits").Index(j).Child("properties"), sources.RootsFor(sources.SurfaceTrait)...)
 		}
 	}
+	if err := appfile.ValidateComponentReads(app.Spec); err != nil {
+		errs = append(errs, field.Invalid(field.NewPath("spec", "components"), "", err.Error()))
+	}
 	for i, src := range app.Spec.Sources {
-		check(src.Properties, field.NewPath("spec", "sources").Index(i).Child("properties"), both...)
+		check(src.Properties, field.NewPath("spec", "sources").Index(i).Child("properties"), sources.RootsFor(sources.SurfaceSource)...)
 	}
 	for i, policy := range app.Spec.Policies {
 		// A policy with a CUE template renders through the same engine a component
 		// does, so a source resolves there; a built-in one has no render at all.
-		roots := contextOnly
-		if sources.SurfaceReadsSource(appfile.PolicySurface(policy.Type, appScoped(policy.Type))) {
-			roots = both
-		}
-		check(policy.Properties, field.NewPath("spec", "policies").Index(i).Child("properties"), roots...)
+		check(policy.Properties, field.NewPath("spec", "policies").Index(i).Child("properties"),
+			sources.RootsFor(appfile.PolicySurface(policy.Type, appScoped(policy.Type)))...)
 	}
 	if app.Spec.Workflow != nil {
+		steps := sources.RootsFor(sources.SurfaceWorkflowStep)
 		for i, step := range app.Spec.Workflow.Steps {
 			p := field.NewPath("spec", "workflow", "steps").Index(i)
-			check(step.Properties, p.Child("properties"), both...)
+			check(step.Properties, p.Child("properties"), steps...)
 			for j, sub := range step.SubSteps {
-				check(sub.Properties, p.Child("subSteps").Index(j).Child("properties"), both...)
+				check(sub.Properties, p.Child("subSteps").Index(j).Child("properties"), steps...)
 			}
 		}
 	}
@@ -366,9 +364,9 @@ func validateExpressionTree(v interface{}, roots ...string) error {
 // types, which a CUE kind cannot express - see celexpr.ElementsCompatible. It is
 // nil whenever there is nothing precise to say: no expression, an interpolated
 // string, or a compile failure.
-// The readable roots are not a parameter: EnvForContext declares source and
-// context and nothing else, so the sandbox is the environment rather than a list
-// passed alongside it.
+// The readable roots are not a parameter: which of source, context and
+// components a surface may read is settled by validateExpressions before this
+// runs.
 func expressionValueType(raw string, schemas map[string]string,
 	ctxSchema propexpr.ContextSchema) (cue.Kind, *cel.Type, error) {
 	parsed, err := propexpr.Parse(raw)

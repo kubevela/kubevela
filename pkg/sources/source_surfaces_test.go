@@ -19,6 +19,10 @@ package sources
 import (
 	"slices"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 )
 
 // ConsumableSurfaces is derived from sourceReadingSurfaces rather than maintained
@@ -63,5 +67,23 @@ func TestUnknownSurfaceDoesNotResolve(t *testing.T) {
 		if SurfaceReadsSource(surface) {
 			t.Errorf("%q must not resolve", surface)
 		}
+	}
+}
+
+// Every surface gets its roots from one place, so the webhook, the parser and
+// the render cannot disagree about what an expression there may read.
+func TestRootsFor(t *testing.T) {
+	both := []string{propexpr.ContextIdent, propexpr.SourceIdent}
+	all := []string{propexpr.ContextIdent, propexpr.SourceIdent, propexpr.ComponentIdent}
+	for surface, want := range map[string][]string{
+		SurfaceComponent:      all,
+		SurfaceTrait:          all,
+		SurfaceSource:         both,
+		SurfaceWorkflowStep:   both,
+		SurfacePolicyRendered: both,
+		SurfacePolicy:         {propexpr.ContextIdent},
+		SurfacePolicyApp:      {propexpr.ContextIdent},
+	} {
+		require.Equal(t, want, RootsFor(surface), surface)
 	}
 }

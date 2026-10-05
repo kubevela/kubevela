@@ -114,10 +114,10 @@ func TestApplyComponentsDepends(t *testing.T) {
 	}
 
 	applyMap := &sync.Map{}
-	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
-		return nil, nil, true, nil
+		return nil, nil, true, "", nil
 	}
 	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
@@ -158,10 +158,10 @@ func TestApplyComponentsIO(t *testing.T) {
 		applyMap    = new(sync.Map)
 		ctx         = context.Background()
 	)
-	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+	apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 		time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 		applyMap.Store(fmt.Sprintf("%s/%s", clusterName, comp.Name), true)
-		return nil, nil, true, nil
+		return nil, nil, true, "", nil
 	}
 	healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		_, found := applyMap.Load(fmt.Sprintf("%s/%s", clusterName, comp.Name))
@@ -293,7 +293,7 @@ func TestApplyComponentsIO(t *testing.T) {
 			output  *unstructured.Unstructured
 			outputs []*unstructured.Unstructured
 		}
-		apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
+		apply := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
 			time.Sleep(time.Duration(rand.Intn(200)+25) * time.Millisecond)
 			key := storeKey(clusterName, comp)
 			result := applyResult{
@@ -318,7 +318,7 @@ func TestApplyComponentsIO(t *testing.T) {
 				},
 			}
 			applyMap.Store(storeKey(clusterName, comp), result)
-			return nil, nil, true, nil
+			return nil, nil, true, "", nil
 		}
 		healthCheck := func(_ context.Context, comp apicommon.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 			key := storeKey(clusterName, comp)
@@ -407,4 +407,20 @@ func TestApplyComponentsIO(t *testing.T) {
 		r.True(healthy)
 
 	})
+}
+
+// A component waiting on a read is reported with its reason, and is not an
+// error: the step retries it as it would any component not yet healthy.
+func TestApplyComponentsReportsAReadWait(t *testing.T) {
+	apply := func(_ context.Context, comp apicommon.ApplicationComponent, _ *cue.Value, _, _ string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
+		return nil, nil, false, `waiting for component "db" in hub to be healthy`, nil
+	}
+	healthCheck := func(context.Context, apicommon.ApplicationComponent, *cue.Value, string, string) (bool, *apicommon.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+		return false, nil, nil, nil, nil
+	}
+	healthy, reason, err := applyComponents(context.Background(), apply, healthCheck,
+		[]apicommon.ApplicationComponent{{Name: "api"}}, []v1alpha1.PlacementDecision{{Cluster: "east"}}, 1)
+	require.NoError(t, err)
+	require.False(t, healthy)
+	require.Equal(t, `east///api is waiting for component "db" in hub to be healthy`, reason)
 }

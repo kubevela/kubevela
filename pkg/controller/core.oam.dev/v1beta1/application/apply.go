@@ -51,6 +51,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/sources"
+	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 // AppHandler handles application reconcile
@@ -80,6 +81,14 @@ type AppHandler struct {
 
 	// policyVersions stores version metadata for each policy (parallel to applicationScopedPolicyDefs)
 	policyVersions map[string]v1beta1.PolicyVersionMetadata
+
+	// readDelivery gives readers rendered outside the workflow their values,
+	// memoised for this reconcile.
+	readDelivery     *componentReadDelivery
+	readDeliveryOnce sync.Once
+	// readsWaiting records that some component was held back on its reads in
+	// this reconcile.
+	readsWaiting bool
 
 	mu sync.Mutex
 }
@@ -775,6 +784,7 @@ func extractOutputs(templateContext map[string]interface{}) []*unstructured.Unst
 // applyPostDispatchTraits applies PostDispatch stage traits for healthy components.
 // This is called after the workflow succeeds and component health is confirmed.
 func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appParser *appfile.Parser, af *appfile.Appfile) error {
+	var readErrs []error
 	for _, svc := range h.services {
 		workloadHealthy := svc.WorkloadHealthy
 		if !workloadHealthy && svc.Healthy {
@@ -816,10 +826,26 @@ func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appPars
 			continue
 		}
 
+		// Rendered from the stored spec, so its component reads are answered here,
+		// for the traits rendered. One that cannot be answered holds back this
+		// component's traits only; any other failure is still reported, once every
+		// component has had its turn.
+		scope, err := h.componentReads().deliver(ctx.GetContext(), withRenderedTraits(comp, wl.Traits, postDispatchTraits),
+			af.Components, svc.Cluster, svc.Namespace)
+		if err != nil {
+			if sources.IsComponentReadNotReady(err) {
+				h.recordWaiting(comp, svc.Cluster, svc.Namespace, err)
+			} else {
+				readErrs = append(readErrs, errors.WithMessagef(err, "failed to deliver component reads to %s for PostDispatch traits", svc.Name))
+			}
+			continue
+		}
+
 		wl.Traits = postDispatchTraits
 
 		// Generate manifest with context that includes live workload status
 		manifest, err := af.GenerateComponentManifest(wl, func(ctxData *velaprocess.ContextData) {
+			withComponentScope(ctxData, scope)
 			if svc.Namespace != "" {
 				ctxData.Namespace = svc.Namespace
 			}
@@ -903,7 +929,7 @@ func (h *AppHandler) applyPostDispatchTraits(ctx monitorContext.Context, appPars
 			ctx.Error(err, "failed to refresh PostDispatch trait status", "component", comp.Name)
 		}
 	}
-	return nil
+	return velaerrors.AggregateErrors(readErrs)
 }
 
 // Phases reported on AppStatus.Sources, from the package that writes them.

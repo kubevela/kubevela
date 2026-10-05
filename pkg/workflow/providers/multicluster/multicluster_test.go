@@ -94,8 +94,8 @@ func TestDeploy(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(commontypes.Scheme).Build()
 
 	// Mock component functions
-	componentApply := func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, error) {
-		return nil, nil, true, nil
+	componentApply := func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
+		return nil, nil, true, "", nil
 	}
 	componentHealthCheck := func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
 		return true, nil, nil, nil, nil
