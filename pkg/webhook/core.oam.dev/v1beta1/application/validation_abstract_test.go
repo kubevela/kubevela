@@ -29,6 +29,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -187,4 +188,82 @@ type erroringClient struct {
 
 func (c *erroringClient) Get(_ context.Context, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
 	return c.err
+}
+
+// listErroringClient fails every List, which is what the module label search
+// behind a Form 2 reference sees from a busy or restrictive API server.
+type listErroringClient struct {
+	client.Client
+	err error
+}
+
+func (c *listErroringClient) List(_ context.Context, _ client.ObjectList, _ ...client.ListOption) error {
+	return c.err
+}
+
+// moduleDef builds a definition the way the module render service installs
+// it: named {module}-{apiVersion}-{name} and carrying the identity labels that
+// Form 1 and Form 2 references resolve through.
+func moduleDef(namespace, module, apiVersion, name string, abstract bool) *v1beta1.ComponentDefinition {
+	cd := componentDef(namespace, module+"-"+apiVersion+"-"+name, "")
+	cd.Labels = map[string]string{
+		velatypes.LabelDefinitionModule:           module,
+		velatypes.LabelDefinitionModuleAPIVersion: apiVersion,
+		velatypes.LabelDefinitionName:             name,
+	}
+	cd.Spec.Abstract = abstract
+	return cd
+}
+
+func TestAModuleScopedAbstractTypeCannotBeNamedDirectly(t *testing.T) {
+	h := handlerWith(moduleDef("team-a", "s3", "v1", "base", true))
+	for _, typ := range []string{"v1/base", "s3/v1/base"} {
+		errs := h.ValidateAbstractTypes(context.Background(), appNaming("team-a", typ))
+		require.Len(t, errs, 1, "%s resolves to an abstract definition", typ)
+		require.Contains(t, errs[0].Error(), "is abstract")
+	}
+}
+
+func TestAModuleScopedTypeThatDoesNotExistIsNotAbstract(t *testing.T) {
+	h := handlerWith(moduleDef("team-a", "s3", "v1", "bucket", false))
+	for _, typ := range []string{"v1/missing", "s3/v1/missing"} {
+		errs := h.ValidateAbstractTypes(context.Background(), appNaming("team-a", typ))
+		require.Empty(t, errs, "%s names nothing, and a type that does not exist is not abstract", typ)
+	}
+}
+
+// A Form 2 reference is resolved through a label listing. When that listing
+// fails, whether the type is abstract is unknown, and unknown must not read as
+// permission: the type-resolution check that would report the failure runs
+// only behind a feature gate, and component rendering is skipped under
+// sharding, so this check is the one that has to hold.
+func TestAFailedModuleLookupDoesNotAdmitAModuleScopedType(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = v1beta1.AddToScheme(scheme)
+	failing := &listErroringClient{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(moduleDef("team-a", "s3", "v1", "base", true)).Build(),
+		err:    apierrors.NewServiceUnavailable("apiserver is having a moment"),
+	}
+	h := &ValidatingHandler{Client: failing}
+
+	errs := h.ValidateAbstractTypes(context.Background(), appNaming("team-a", "v1/base"))
+	require.Len(t, errs, 1, "a failed label search must not be taken as permission")
+	require.Contains(t, errs[0].Error(), "could not be read")
+}
+
+func TestAnAmbiguousModuleScopedTypeIsNotAdmitted(t *testing.T) {
+	h := handlerWith(
+		moduleDef("team-a", "s3", "v1", "bucket", false),
+		moduleDef("team-a", "gcs", "v1", "bucket", true),
+	)
+	errs := h.ValidateAbstractTypes(context.Background(), appNaming("team-a", "v1/bucket"))
+	require.Len(t, errs, 1, "one of the candidates is abstract, so the answer is not known")
+	require.Contains(t, errs[0].Error(), "is ambiguous")
+}
+
+func TestAnUnparsableModuleScopedTypeIsNotAdmitted(t *testing.T) {
+	h := handlerWith()
+	errs := h.ValidateAbstractTypes(context.Background(), appNaming("team-a", "s3/latest/base"))
+	require.Len(t, errs, 1)
+	require.Contains(t, errs[0].Error(), "is not a valid API version")
 }

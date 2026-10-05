@@ -165,6 +165,7 @@ func TestResolveModuleTypeForm2(t *testing.T) {
 		_, err := ResolveModuleType(appCtx(), resolutionClient(t), "v1/bucket", capType)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `no definition found for type "v1/bucket"`)
+		assert.ErrorIs(t, err, ErrNoDefinition, "a confirmed absence is distinguishable from a failed lookup")
 	})
 
 	t.Run("ambiguous across modules", func(t *testing.T) {
@@ -186,6 +187,7 @@ func TestResolveModuleTypeForm2(t *testing.T) {
 		_, err := ResolveModuleType(appCtx(), cli, "v1/bucket", capType)
 		require.ErrorIs(t, err, boom)
 		assert.Contains(t, err.Error(), `resolving type "v1/bucket"`)
+		assert.NotErrorIs(t, err, ErrNoDefinition, "a failed listing is not a confirmed absence")
 	})
 
 	t.Run("unsupported capability type", func(t *testing.T) {
@@ -354,6 +356,7 @@ func TestResolveUniqueNamesEachModuleOnce(t *testing.T) {
 	_, err = resolveUnique("bucket", nil, "pick one")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `no definition found for type "bucket"`)
+	assert.ErrorIs(t, err, ErrNoDefinition)
 }
 
 func TestDefinitionExists(t *testing.T) {

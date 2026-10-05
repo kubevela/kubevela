@@ -18,6 +18,7 @@ package appfile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -228,6 +229,13 @@ func listModuleDefinitions(ctx context.Context, cli client.Reader, capType types
 	return all, nil
 }
 
+// ErrNoDefinition is wrapped by the error ResolveModuleType returns when a
+// Form 2 reference matches no installed definition. It lets a caller tell a
+// confirmed absence apart from a failed lookup: the webhook's abstract check
+// may wave the first through, since a type that does not exist is not
+// abstract, but must not take the second as permission.
+var ErrNoDefinition = errors.New("no definition found")
+
 // resolveUnique returns the single match's Kubernetes name, or an appropriate error
 // for zero or more-than-one matches.
 func resolveUnique(typeName string, matches []client.Object, disambiguateHint string) (string, error) {
@@ -235,7 +243,7 @@ func resolveUnique(typeName string, matches []client.Object, disambiguateHint st
 	case 1:
 		return matches[0].GetName(), nil
 	case 0:
-		return "", fmt.Errorf("no definition found for type %q", typeName)
+		return "", fmt.Errorf("%w for type %q", ErrNoDefinition, typeName)
 	default:
 		mods := make([]string, 0, len(matches))
 		seen := map[string]bool{}

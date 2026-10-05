@@ -18,8 +18,8 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -102,11 +102,16 @@ func (h *ValidatingHandler) isAbstract(ctx context.Context, app *v1beta1.Applica
 	// and so reads here as "could not be read".
 	resolved, err := appfile.ResolveModuleType(ctx, h.Client, typ, capType)
 	if err != nil {
-		// A module-scoped spelling that will not resolve is not judged here: the
-		// type-resolution check reports it, with a message that explains it. A
-		// plain name reaches this only on a failed cluster read, which is exactly
-		// what must not be taken as permission.
-		if strings.Contains(typ, "/") {
+		// Only a confirmed absence is waved through: a Form 2 spelling that
+		// matches no installed definition is not abstract, and the missing type
+		// fails elsewhere with a message that says so. Everything else -- a failed
+		// label listing, an ambiguous match, a spelling that will not parse --
+		// leaves the question open, and admitting on an open question is how a
+		// transient error becomes a way past the check. The type-resolution check
+		// that would otherwise report these runs only behind the
+		// ValidateDefinitionPermissions gate, and component rendering is skipped
+		// under sharding, so nothing downstream can be relied on to catch them.
+		if errors.Is(err, appfile.ErrNoDefinition) {
 			return false, nil
 		}
 		return false, err
