@@ -1,0 +1,29 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: statefulset-integration-test
+  namespace: default
+spec:
+  components:
+    - name: test-postgres
+      type: statefulset
+      properties:
+        image: postgres:16.4
+        cpu: "1"
+        memory: 2Gi
+        exposeType: ClusterIP
+        ports:
+          - port: 5432
+            protocol: TCP
+            expose: true
+        env:
+          - name: POSTGRES_DB
+            value: testdb
+          - name: POSTGRES_USER
+            value: testuser
+          - name: POSTGRES_PASSWORD
+            value: testpass123
+      traits:
+        - type: scaler
+          properties:
+            replicas: 1
