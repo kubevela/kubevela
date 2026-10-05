@@ -28,6 +28,7 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velacache "github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
@@ -267,7 +268,7 @@ func (c *restrictionCheck) checkQuota(def client.Object, kind, name string, path
 			c.app.Namespace, nsrestrict.KindOf(def), name, total, *quota.Limit, c.app.Name)
 		if quota.Warn != nil {
 			c.warnings = append(c.warnings, fmt.Sprintf(
-				"%s %q: namespace %q is over its quota at %d of the %d allowed, and this change does not add to it.",
+				"%s %q in namespace %q is using %d of %d, and this change does not add to it.",
 				nsrestrict.KindOf(def), name, c.app.Namespace, total, *quota.Limit))
 		}
 		return
@@ -284,7 +285,7 @@ func (c *restrictionCheck) checkQuota(def client.Object, kind, name string, path
 			kind, name, c.app.Namespace))
 	case warn:
 		c.warnings = append(c.warnings,
-			quotaWarning(nsrestrict.KindOf(def), name, c.app.Namespace, total, quota.Limit))
+			quotaWarning(nsrestrict.KindOf(def), name, c.app.Namespace, total, quota))
 	}
 }
 
@@ -340,15 +341,14 @@ func (c *restrictionCheck) unevaluable(paths []*field.Path, err error) {
 	}
 }
 
-// quotaWarning phrases how close a namespace is to a quota. With no limit there is
-// no ceiling to name.
-func quotaWarning(kind, name, namespace string, total int, limit *int32) string {
-	if limit != nil {
-		return fmt.Sprintf("%s %q: namespace %q is using %d of the %d allowed.",
-			kind, name, namespace, total, *limit)
+// quotaWarning phrases how close a namespace is to a quota: its use against the
+// limit, or against the warn level when the quota sets no limit.
+func quotaWarning(kind, name, namespace string, total int, quota *common.NamespaceQuota) string {
+	of := quota.Warn
+	if quota.Limit != nil {
+		of = quota.Limit
 	}
-	return fmt.Sprintf("%s %q: namespace %q is using %d, at or above the level this definition asks to be flagged at.",
-		kind, name, namespace, total)
+	return fmt.Sprintf("%s %q in namespace %q is using %d of %d.", kind, name, namespace, total, *of)
 }
 
 func componentTypePaths(indices []int) []*field.Path {
