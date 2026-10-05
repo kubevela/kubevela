@@ -92,6 +92,56 @@ func DisableAddon(ctx context.Context, cli client.Client, name string, config *r
 	return cli.Delete(ctx, app)
 }
 
+// LoadLocalInstallPackage reads the addon in dir, as enabling it from there
+// does, without installing anything.
+func LoadLocalInstallPackage(name string, dir string) (*InstallPackage, error) {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, err
+	}
+	r := component.NewLocalReader(absDir, name)
+	metas, err := r.ListAddonMeta()
+	if err != nil {
+		return nil, err
+	}
+	meta := metas[r.Name()]
+	UIData, err := GetUIDataFromReader(r, &meta, UIMetaOptions)
+	if err != nil {
+		return nil, err
+	}
+	return GetInstallPackageFromReader(r, &meta, UIData)
+}
+
+// PrepareLocalInstallPackage is a local addon's package as enabling it
+// installs it: loaded, with its godef/ Go definitions compiled and merged in,
+// and validated. A Go definition named as a CUE one is refused unless
+// allowGoDefOverride, when it replaces the CUE one.
+func PrepareLocalInstallPackage(ctx context.Context, name string, dir string, allowGoDefOverride bool) (*InstallPackage, error) {
+	pkg, err := LoadLocalInstallPackage(name, dir)
+	if err != nil {
+		return nil, err
+	}
+	if HasGoDefFolder(dir) {
+		compiledDefs, err := CompileGoDefinitionsFromAddon(ctx, dir)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to compile Go definitions")
+		}
+		conflicts := DetectDefinitionConflicts(pkg.CUEDefinitions, compiledDefs)
+		if len(conflicts) > 0 {
+			if !allowGoDefOverride {
+				return nil, fmt.Errorf("definition name conflicts detected between definitions/ and godef/: %v. "+
+					"Use --override-definitions flag to allow Go definitions to override CUE definitions", conflicts)
+			}
+			pkg.CUEDefinitions = removeConflictingDefinitions(pkg.CUEDefinitions, conflicts)
+		}
+		pkg.CUEDefinitions = append(pkg.CUEDefinitions, compiledDefs...)
+	}
+	if err := validateAddonPackage(pkg); err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("invalid addon package in %s", dir))
+	}
+	return pkg, nil
+}
+
 // EnableAddonByLocalDir enable an addon from local dir
 // The allowGoDefOverride parameter allows Go definitions to override CUE definitions when conflicts are detected
 func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli client.Client, dc *discovery.DiscoveryClient, applicator apply.Applicator, config *rest.Config, args map[string]interface{}, allowGoDefOverride bool, opts ...InstallOption) (string, error) {
@@ -99,45 +149,9 @@ func EnableAddonByLocalDir(ctx context.Context, name string, dir string, cli cli
 	if err != nil {
 		return "", err
 	}
-	r := component.NewLocalReader(absDir, name)
-	metas, err := r.ListAddonMeta()
+	pkg, err := PrepareLocalInstallPackage(ctx, name, absDir, allowGoDefOverride)
 	if err != nil {
 		return "", err
-	}
-	meta := metas[r.Name()]
-	UIData, err := GetUIDataFromReader(r, &meta, UIMetaOptions)
-	if err != nil {
-		return "", err
-	}
-	pkg, err := GetInstallPackageFromReader(r, &meta, UIData)
-	if err != nil {
-		return "", err
-	}
-
-	// Compile Go definitions if godef/ folder exists
-	if HasGoDefFolder(absDir) {
-		compiledDefs, err := CompileGoDefinitionsFromAddon(ctx, absDir)
-		if err != nil {
-			return "", errors.Wrap(err, "failed to compile Go definitions")
-		}
-
-		// Check for conflicts between CUE and Go definitions
-		conflicts := DetectDefinitionConflicts(pkg.CUEDefinitions, compiledDefs)
-		if len(conflicts) > 0 {
-			if !allowGoDefOverride {
-				return "", fmt.Errorf("definition name conflicts detected between definitions/ and godef/: %v. "+
-					"Use --override-definitions flag to allow Go definitions to override CUE definitions", conflicts)
-			}
-			// Remove conflicting CUE definitions when override is allowed
-			pkg.CUEDefinitions = removeConflictingDefinitions(pkg.CUEDefinitions, conflicts)
-		}
-
-		// Merge compiled Go definitions with existing CUE definitions
-		pkg.CUEDefinitions = append(pkg.CUEDefinitions, compiledDefs...)
-	}
-
-	if err := validateAddonPackage(pkg); err != nil {
-		return "", errors.Wrap(err, fmt.Sprintf("failed to enable addon by local dir: %s", dir))
 	}
 	h := NewAddonInstaller(ctx, cli, dc, applicator, config, &Registry{Name: LocalAddonRegistryName}, args, nil, nil, opts...)
 	needEnableAddonNames, err := h.checkDependency(pkg)

@@ -18,6 +18,7 @@ package sources
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -266,6 +267,10 @@ parameter: {
 	_, err := resolver.resolve("s")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "validate output against schema")
+	var defErr *DefinitionError
+	require.True(t, errors.As(err, &defErr), "a schema failure is the definition's own, typed")
+	assert.Empty(t, defErr.User)
+	assert.NotEmpty(t, defErr.Schema)
 }
 
 func TestResolveSourceErrsFieldFails(t *testing.T) {
@@ -296,6 +301,10 @@ parameter: {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "reported errors")
 	assert.Contains(t, err.Error(), "value must be non-negative, got -1")
+	var defErr *DefinitionError
+	require.True(t, errors.As(err, &defErr), "an errs failure is the definition's own, typed")
+	assert.Equal(t, []string{"value must be non-negative, got -1"}, defErr.User)
+	assert.Empty(t, defErr.Schema)
 
 	// The authored error is surfaced on the per-source status too. Read off the
 	// resolver: only the bridge pushes these onto a render context, and this test
@@ -504,4 +513,21 @@ func TestResolveSourceExpressionsOnEmptyAndBadInput(t *testing.T) {
 
 	_, err = ResolveSourceExpressions(pCtx, map[string]interface{}{"ch": make(chan int)}, SurfaceComponent)
 	require.Error(t, err, "properties that cannot be normalised are refused rather than half-resolved")
+}
+
+func TestResolveSourceSchemaMismatchesAreListedApart(t *testing.T) {
+	ctx := process.NewContext(process.ContextData{})
+	resolver := newSourceResolver(ctx.GetCtx(), contextValuesFor(ctx), SurfaceComponent, sourceInputsFromContext(ctx))
+	resolver.sourceTypes = map[string]string{"s": "t"}
+	resolver.sourceTemplates = map[string]string{"t": `
+$internal: {key: "test-cache-key-two-mismatches", keyInputs: []}
+schema: {image: string, replicas: int}
+output: {image: 1, replicas: "two"}
+`}
+	resolver.sourceProps = map[string]map[string]interface{}{"s": {}}
+
+	_, err := resolver.resolve("s")
+	var defErr *DefinitionError
+	require.True(t, errors.As(err, &defErr))
+	require.Len(t, defErr.Schema, 2, "one entry per field that does not fit")
 }

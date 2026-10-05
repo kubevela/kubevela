@@ -17,6 +17,7 @@ limitations under the License.
 package sources
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -52,6 +53,7 @@ func evaluateSourceExpression(raw string, resolver *sourceResolver, property str
 	}
 
 	resolved := map[string]map[string]interface{}{}
+	var componentRefs []propexpr.Reference
 	for _, fragment := range parsed.Fragments {
 		if !fragment.IsExpr() {
 			continue
@@ -60,6 +62,7 @@ func evaluateSourceExpression(raw string, resolver *sourceResolver, property str
 		if rerr != nil {
 			return nil, rerr
 		}
+		componentRefs = append(componentRefs, refs...)
 		for _, ref := range refs {
 			// A bare `source` names no binding to resolve. Admission refuses it,
 			// and reaching here means it came from somewhere admission does not
@@ -90,18 +93,38 @@ func evaluateSourceExpression(raw string, resolver *sourceResolver, property str
 		}
 	}
 
-	return celEvalProperty(raw, resolved, resolver.expressionContext())
+	if ComponentPlaceholders(resolver.goCtx) && readsComponent(componentRefs) {
+		return placeholderProperty(parsed, resolved, resolver.expressionContext())
+	}
+	components, err := componentScope(componentRefs, resolver.componentReads)
+	if err != nil {
+		return nil, err
+	}
+	out, err := celEvalProperty(raw, resolved, resolver.expressionContext(), components)
+	if err != nil && readsComponent(componentRefs) && missingFromOutput(err) {
+		// An element or key below a read path, such as the first of a list a
+		// status fills in later, is only found missing here.
+		return nil, ComponentReadNotReady{Reason: fmt.Sprintf("waiting for %s: %v", raw, err)}
+	}
+	return out, err
+}
+
+// missingFromOutput reports an evaluation that failed on an element or key not
+// there, as opposed to one that failed on how the expression is written.
+func missingFromOutput(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "out of bounds") || strings.Contains(msg, "out of range") || strings.Contains(msg, "no such key")
 }
 
 // celEvalProperty evaluates a whole property value with CEL, interpolation
 // included. The $( ) splitting is shared, so only the contents differ.
 func celEvalProperty(raw string, resolved map[string]map[string]interface{},
-	ctx map[string]interface{}) (interface{}, error) {
+	ctx map[string]interface{}, components map[string]interface{}) (interface{}, error) {
 	env, err := celexpr.DynEnv()
 	if err != nil {
 		return nil, err
 	}
-	in := map[string]interface{}{"context": ctx}
+	in := map[string]interface{}{"context": ctx, propexpr.ComponentIdent: components}
 	sources := map[string]interface{}{}
 	for name, values := range resolved {
 		sources[name] = values

@@ -619,6 +619,7 @@ func (p *Parser) parseComponents(ctx context.Context, af *Appfile) error {
 
 	af.ParsedComponents = comps
 	af.Components = af.app.Spec.Components
+	af.Dependencies = sources.Dependencies(af.Components, af.AppAnnotations)
 	setComponentDefinitions(af, comps)
 
 	return nil
@@ -709,6 +710,7 @@ func (p *Parser) parseComponentsFromRevision(af *Appfile) error {
 	}
 	af.ParsedComponents = comps
 	af.Components = af.app.Spec.Components
+	af.Dependencies = sources.Dependencies(af.Components, af.AppAnnotations)
 	// Definitions are already in AppRevision
 	setComponentDefinitionsFromRevision(af)
 	return nil
@@ -841,7 +843,8 @@ func (p *Parser) ValidateComponentNames(app *v1beta1.Application) (int, error) {
 }
 
 // validateExpressionSurfaces rejects an expression that reads a `source` on a
-// surface where no source can be resolved.
+// surface where no source can be resolved, or a `component` read the workflow
+// cannot honour.
 //
 // The admission webhook performs the same check and reports richer field paths,
 // but admission can be disabled (--use-webhook=false). Unlike the other source
@@ -870,16 +873,19 @@ func (p *Parser) validateExpressionSurfaces(ctx context.Context, af *Appfile) er
 		if !propexpr.HasExpression(decoded) {
 			return nil
 		}
-		if sources.SurfaceReadsSource(surface) {
-			return nil
-		}
-		// The surface cannot resolve a source, so only `context` is offered.
-		// ValidateTree reports reading anything else, which is what catches a
-		// `source` read here.
-		if err := celexpr.ValidateTree(decoded, propexpr.ContextIdent); err != nil {
+		// ValidateTree reports reading any root the surface does not offer.
+		if err := celexpr.ValidateTree(decoded, sources.RootsFor(surface)...); err != nil {
 			return fmt.Errorf("%s %q: %w", surface, name, err)
 		}
 		return nil
+	}
+
+	// A placeholder dry-run validates reads against the whole Application before
+	// rendering it one step's slice at a time.
+	if !sources.ComponentPlaceholders(af.Context) {
+		if err := ValidateComponentReads(af.app.Spec); err != nil {
+			return err
+		}
 	}
 
 	for _, policy := range af.Policies {

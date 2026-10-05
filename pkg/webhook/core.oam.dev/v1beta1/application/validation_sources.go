@@ -65,6 +65,8 @@ func (h *ValidatingHandler) ValidateSources(ctx context.Context, app *v1beta1.Ap
 	// typo is reported even when the rest of validation cannot run.
 	appScoped := h.policyScopeLookup(ctx, app)
 	errs = append(errs, validateExpressions(app, appScoped)...)
+	errs = append(errs, h.validatePostDispatchReads(ctx, app)...)
+	errs = append(errs, h.validateReadClusters(ctx, app)...)
 
 	sourceNameToType := map[string]string{}
 	sourceNameToIndex := map[string]int{}

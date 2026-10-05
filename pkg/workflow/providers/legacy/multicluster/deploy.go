@@ -111,6 +111,7 @@ func (executor *deployWorkflowStepExecutor) Deploy(ctx context.Context) (bool, s
 	if err != nil {
 		return false, "", err
 	}
+	components = executor.af.ComponentsWithReadDependencies(components)
 	return applyComponents(ctx, executor.apply, executor.healthCheck, components, placements, int(executor.parameter.Parallelism))
 }
 
@@ -294,6 +295,8 @@ func (t *applyTask) allInputReady(cache *pkgmaps.SyncMap[string, cue.Value]) boo
 
 type applyTaskResult struct {
 	healthy bool
+	// waiting is why the task was not applied yet, when it was not.
+	waiting string
 	err     error
 	task    *applyTask
 	// outputReady indicates whether all declared outputs are ready
@@ -393,7 +396,10 @@ HealthCheck:
 			if err != nil {
 				return &applyTaskResult{healthy: false, err: err, task: task, outputReady: true}
 			}
-			_, _, healthy, err := apply(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace)
+			_, _, healthy, waiting, err := apply(ctx, task.component, nil, task.placement.Cluster, task.placement.Namespace)
+			if waiting != "" {
+				return &applyTaskResult{healthy: false, waiting: waiting, task: task, outputReady: true}
+			}
 			if err != nil {
 				return &applyTaskResult{healthy: healthy, err: err, task: task, outputReady: true}
 			}
@@ -409,6 +415,12 @@ HealthCheck:
 		}
 	}
 	for _, res := range results {
+		if res.waiting != "" {
+			// Not applied yet, and not an error: its reason is the step's message.
+			allHealthy = false
+			reasons = append(reasons, fmt.Sprintf("%s is %s", res.task.key(), res.waiting))
+			continue
+		}
 		if res.err != nil {
 			errs = append(errs, fmt.Errorf("error encountered in cluster %s: %w", res.task.placement.Cluster, res.err))
 		}

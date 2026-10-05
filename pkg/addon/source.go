@@ -16,10 +16,16 @@ limitations under the License.
 
 package addon
 
+import "github.com/oam-dev/kubevela/pkg/utils"
+
 // ClassifyItemByPattern will filter and classify addon data, data will be classified by pattern it meets
 func ClassifyItemByPattern(meta *SourceMeta, r AsyncReader) map[string][]Item {
 	var p = make(map[string][]Item)
 	for _, it := range meta.Items {
+		// Definition tests sit beside what they test; they are not part of the addon.
+		if utils.IsCUETestFile(r.RelativePath(it)) {
+			continue
+		}
 		pt := GetPatternFromItem(it, r, meta.Name)
 		if pt == "" {
 			continue

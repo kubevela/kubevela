@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/sources"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -1154,6 +1155,43 @@ func TestValidateExpressionSurfaces(t *testing.T) {
 			name: "a workflow step in an application that has not opted in is not read",
 			af: &Appfile{app: &v1beta1.Application{},
 				WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{step("notify", raw(`{"text":"deployed at $(date)"}`))}},
+		},
+		{
+			// A step renders outside the component workflow, so there is no
+			// producer it could wait on.
+			name: "a workflow step reading a component is refused",
+			af: &Appfile{WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{
+				step("notify", raw(`{"msg":"$(component.db.output.status.endpoint)"}`)),
+			}},
+			wantErr: `"component" cannot be read here`,
+		},
+		{
+			// A placeholder dry-run validated the whole Application first; this is
+			// one step's slice of it.
+			name: "a dry-run slice without the producer is accepted",
+			af: &Appfile{Context: sources.WithComponentPlaceholders(context.Background()),
+				app: &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{oam.AnnotationCelExpressions: "true"}},
+					Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
+						{Name: "api", Type: "webservice", Properties: raw(`{"image":"$(component.db.output.status.image)"}`)},
+					}}}},
+		},
+		{
+			// Without the opt-in, $( ) is ordinary text - a shell-style variable
+			// here - and must not be parsed as an expression.
+			name: "an application that has not opted in is not read",
+			af: &Appfile{app: &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
+				{Name: "api", Type: "webservice", Properties: raw(`{"cmd":["echo","$(SVC_HOST)"]}`)},
+			}}}},
+		},
+		{
+			name: "a component reading an unknown component is refused",
+			af: &Appfile{app: &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{oam.AnnotationCelExpressions: "true"}},
+				Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
+					{Name: "api", Type: "webservice", Properties: raw(`{"image":"$(component.db.output.status.image)"}`)},
+				}}}},
+			wantErr: `no component "db"`,
 		},
 	}
 

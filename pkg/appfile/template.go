@@ -433,6 +433,18 @@ func DryRunTemplateLoader(defs []*unstructured.Unstructured) TemplateLoaderFn {
 				}
 				return tmpl, nil
 			}
+			if def.GetKind() == v1beta1.PolicyDefinitionKind &&
+				capType == types.TypePolicy && def.GetName() == capName {
+				policyDef := &v1beta1.PolicyDefinition{}
+				if err := runtime.DefaultUnstructuredConverter.FromUnstructured(def.Object, policyDef); err != nil {
+					return nil, errors.Wrap(err, "invalid policy definition")
+				}
+				tmpl, err := newTemplateOfPolicyDefinition(policyDef)
+				if err != nil {
+					return nil, errors.WithMessagef(err, "cannot load template of policy definition %q", capName)
+				}
+				return tmpl, nil
+			}
 		}
 		// not found in provided cap definitions
 		// then try to retrieve from cluster

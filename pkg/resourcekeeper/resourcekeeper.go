@@ -43,6 +43,7 @@ type ResourceKeeper interface {
 	GarbageCollect(context.Context, ...GCOption) (bool, []v1beta1.ManagedResource, error)
 	StateKeep(context.Context) error
 	ContainsResources([]*unstructured.Unstructured) bool
+	ComponentResources(component string) []v1beta1.ManagedResource
 	// PruneComponentResources deletes what a component no longer renders. See
 	// the implementation for why this is not part of Dispatch.
 	PruneComponentResources(context.Context, string, []*unstructured.Unstructured) ([]v1beta1.ManagedResource, error)

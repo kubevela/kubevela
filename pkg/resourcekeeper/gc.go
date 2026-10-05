@@ -45,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
+	"github.com/oam-dev/kubevela/pkg/sources"
 	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	version2 "github.com/oam-dev/kubevela/version"
@@ -430,7 +431,8 @@ func (h *gcHandler) checkDependentComponent(mr v1beta1.ManagedResource) []string
 				outputs = append(outputs, output.Name)
 			}
 		} else {
-			for _, dependsOn := range comp.DependsOn {
+			// A component read beside the reader counts as its dependsOn.
+			for _, dependsOn := range sources.EffectiveDependsOn(comp, h.app.GetAnnotations()) {
 				if dependsOn == mr.Component {
 					dependent = append(dependent, comp.Name)
 					break

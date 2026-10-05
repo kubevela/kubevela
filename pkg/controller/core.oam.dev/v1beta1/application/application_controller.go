@@ -259,6 +259,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// evalStatus, and the workflow's own apply-component steps have already
 	// rendered by this point.
 	app.Status.Sources = handler.sourceStatusList()
+	app.Status.Dependencies = appFile.Dependencies
 
 	// Remove services[] entries for components that no longer exist in spec
 	filteredServices, componentsRemoved := filterRemovedComponentsFromStatus(
@@ -356,6 +357,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// succeeded, so without this a re-resolved source value never reaches the
 	// stored manifest and StateKeep below would keep re-applying the stale one.
 	r.refreshSourceDrivenComponents(logCtx, handler, appParser, appFile, app)
+
+	// A PostDispatch trait or a refresh held back on a component read leaves its
+	// component unhealthy, saying why, until the read can be answered.
+	if handler.readsWaiting {
+		app.Status.Services = handler.services
+		phase = common.ApplicationUnhealthy
+	}
 
 	r.stateKeep(logCtx, handler, app)
 
@@ -484,7 +492,12 @@ func renderedForPrune(logCtx monitorContext.Context, app *v1beta1.Application,
 			continue
 		}
 		seen[key] = struct{}{}
-		workload, traits, _, err := apply(logCtx, comp, nil, svc.Cluster, svc.Namespace)
+		workload, traits, _, waiting, err := apply(logCtx, comp, nil, svc.Cluster, svc.Namespace)
+		if waiting != "" {
+			// Not applied yet, and not failed: nothing to judge its render by.
+			incomplete[comp.Name] = struct{}{}
+			continue
+		}
 		if err != nil {
 			onErr(comp.Name, svc.Cluster, err)
 			incomplete[comp.Name] = struct{}{}

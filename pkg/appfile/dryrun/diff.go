@@ -495,6 +495,10 @@ func generateManifestFromAppRevision(parser *appfile.Parser, appRevision *v1beta
 	if err != nil {
 		return nil, err
 	}
+	if err := validateComponentReads(&appRevision.Spec.Application); err != nil {
+		return nil, err
+	}
+	af.Context = withPlaceholders(af.Context, &appRevision.Spec.Application)
 	comps, err := af.GenerateComponentManifests()
 	if err != nil {
 		return nil, err

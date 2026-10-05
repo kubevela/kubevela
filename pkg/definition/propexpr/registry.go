@@ -45,9 +45,12 @@ var contextRegistrySource string
 // the reason each excluded field is unavailable.
 type contextRegistry struct {
 	surfaces map[string]cue.Value
-	labels   map[string]string
-	plurals  map[string]string
-	excluded map[string]string
+	// templates are what a definition's template reads where no surface is;
+	// they are not places an expression is substituted.
+	templates map[string]cue.Value
+	labels    map[string]string
+	plurals   map[string]string
+	excluded  map[string]string
 }
 
 // registryContext is long-lived: a cue.Value belongs to the context that made
@@ -83,6 +86,16 @@ func loadContextRegistry(source string) (contextRegistry, error) {
 	if len(surfaces) == 0 {
 		return contextRegistry{}, fmt.Errorf("the registry declares no surfaces")
 	}
+	templates := map[string]cue.Value{}
+	if t := v.LookupPath(cue.ParsePath("templates")); t.Exists() {
+		titer, err := t.Fields()
+		if err != nil {
+			return contextRegistry{}, fmt.Errorf("reading templates: %w", err)
+		}
+		for titer.Next() {
+			templates[titer.Selector().Unquoted()] = titer.Value()
+		}
+	}
 
 	labels, err := stringMapAt(v, "labels")
 	if err != nil {
@@ -92,10 +105,17 @@ func loadContextRegistry(source string) (contextRegistry, error) {
 	if err != nil {
 		return contextRegistry{}, err
 	}
+	named := []string{}
 	for name := range surfaces {
+		named = append(named, name)
+	}
+	for name := range templates {
+		named = append(named, name)
+	}
+	for _, name := range named {
 		if labels[name] == "" || plurals[name] == "" {
 			return contextRegistry{}, fmt.Errorf(
-				"surface %q needs both a label and a plural; every surface must name itself for error messages", name)
+				"%q needs both a label and a plural; every surface and template must name itself for error messages", name)
 		}
 	}
 
@@ -103,7 +123,7 @@ func loadContextRegistry(source string) (contextRegistry, error) {
 	if err != nil {
 		return contextRegistry{}, err
 	}
-	return contextRegistry{surfaces: surfaces, labels: labels, plurals: plurals, excluded: excluded}, nil
+	return contextRegistry{surfaces: surfaces, templates: templates, labels: labels, plurals: plurals, excluded: excluded}, nil
 }
 
 // stringMapAt decodes a top-level struct of strings from the registry.
@@ -216,10 +236,14 @@ func surfaceSchema(surface string) ContextSchema {
 	if label == "" {
 		label = surface
 	}
+	value, ok := registry.surfaces[surface]
+	if !ok {
+		value = registry.templates[surface]
+	}
 	return ContextSchema{
 		Surface:  label,
 		key:      surface,
-		value:    registry.surfaces[surface],
+		value:    value,
 		excluded: registry.excluded,
 	}
 }

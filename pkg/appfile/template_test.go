@@ -843,3 +843,21 @@ func TestIsNotFoundInAppRevision(t *testing.T) {
 		})
 	}
 }
+
+func TestDryRunTemplateLoaderServesPolicies(t *testing.T) {
+	policyDef := &v1beta1.PolicyDefinition{
+		TypeMeta:   metav1.TypeMeta{APIVersion: v1beta1.SchemeGroupVersion.String(), Kind: v1beta1.PolicyDefinitionKind},
+		ObjectMeta: metav1.ObjectMeta{Name: "guard"},
+		Spec: v1beta1.PolicyDefinitionSpec{Schematic: &common.Schematic{CUE: &common.CUE{
+			Template: "output: {apiVersion: \"v1\", kind: \"ConfigMap\"}\nparameter: {}",
+		}}},
+	}
+	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(policyDef)
+	assert.NoError(t, err)
+	load := DryRunTemplateLoader([]*unstructured.Unstructured{{Object: obj}})
+	// No client: a provided definition must be served without the cluster.
+	tmpl, err := load(context.Background(), nil, "guard", types.TypePolicy, nil)
+	if assert.NoError(t, err) {
+		assert.Contains(t, tmpl.TemplateStr, `kind: "ConfigMap"`)
+	}
+}

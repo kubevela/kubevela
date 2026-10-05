@@ -54,9 +54,9 @@ const (
 	QLProviderName = "ql"
 )
 
-// compiler is the workflow default compiler
-var compiler = singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, error) {
-	return cuex.NewCompilerWithInternalPackages(
+// WorkflowPackages are the packages a workflow step template can import.
+func WorkflowPackages() []cuexruntime.Package {
+	return []cuexruntime.Package{
 		// legacy packages
 		runtime.Must(cuexruntime.NewInternalPackage(LegacyProviderName, legacy.GetLegacyTemplate(), legacy.GetLegacyProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage(QLProviderName, legacyquery.GetTemplate(), legacyquery.GetProviders())),
@@ -90,7 +90,12 @@ var compiler = singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, e
 		// may import belong here as well as in WorkloadCompiler.
 		velaregistry.Package,
 		velaconfig.Package,
-	), nil
+	}
+}
+
+// compiler is the workflow default compiler
+var compiler = singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, error) {
+	return cuex.NewCompilerWithInternalPackages(WorkflowPackages()...), nil
 })
 
 // DefaultCompiler compiler for cuex to compile

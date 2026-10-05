@@ -1667,3 +1667,46 @@ func TestGitHelperReadRepoUsesTheParsedRef(t *testing.T) {
 		t.Errorf("an unpinned URL must leave the ref empty, got %q", plain.GithubContent.Ref)
 	}
 }
+
+func TestClassifyItemByPatternSkipsCUETestFiles(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "example")
+	files := map[string]string{
+		MetadataFileName:                     "name: example\nversion: 1.0.0\n",
+		"resources/web.cue":                  "output: {}",
+		"resources/web_test.cue":             "x: 1",
+		"definitions/trait.cue":              "x: 1",
+		"definitions/trait_test.cue":         "x: 1",
+		"views/pods.cue":                     "x: 1",
+		"views/pods_test.cue":                "x: 1",
+		"config-templates/registry.cue":      "x: 1",
+		"config-templates/registry_test.cue": "x: 1",
+	}
+	for f, src := range files {
+		assert.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(dir, f)), 0o700))
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, f), []byte(src), 0o600))
+	}
+	reader := component.NewLocalReader(dir, "example")
+	metas, err := reader.ListAddonMeta()
+	assert.NoError(t, err)
+	meta := metas["example"]
+	var classified []string
+	for _, items := range ClassifyItemByPattern(&meta, reader) {
+		for _, it := range items {
+			classified = append(classified, filepath.Base(it.GetPath()))
+		}
+	}
+	assert.Subset(t, classified, []string{"web.cue", "trait.cue", "pods.cue", "registry.cue"})
+	for _, name := range classified {
+		assert.False(t, strings.HasSuffix(name, "_test.cue"), "%s is a test file and must not be read into the addon", name)
+	}
+}
+
+func TestLoadLocalInstallPackage(t *testing.T) {
+	pkg, err := LoadLocalInstallPackage("example", "./testdata/example")
+	require.NoError(t, err)
+	assert.Equal(t, "example", pkg.Name)
+	assert.Equal(t, "1.0.1", pkg.Version)
+	assert.NotEmpty(t, pkg.AppCueTemplate.Data, "template.cue is read")
+	assert.NotEmpty(t, pkg.CUETemplates, "resources/ is read")
+}
