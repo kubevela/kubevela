@@ -17,7 +17,7 @@ jobs:
   e2e-tests:
     runs-on: ubuntu-latest
     env:
-      GO_VERSION: '1.23.8'
+      GO_VERSION: '1.24.4'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

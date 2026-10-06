@@ -26,7 +26,7 @@ uses a separate `Dockerfile.local`:
 
 ```dockerfile
 # Dockerfile.debug
-FROM golang:1.23.8-alpine AS builder
+FROM golang:1.24.4-alpine AS builder
 WORKDIR /workspace
 COPY go.mod go.sum ./
 RUN go mod download
