@@ -104,7 +104,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		"hasSchematic", obj.Spec.Schematic != nil,
 		"version", obj.Spec.Version)
 
-	// Validate CUE template
+	// Validate CUE template and output resources
 	var warnings []string
 	if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
 		logger.WithStep("validate-cue").Info("Validating CUE template for WorkflowStepDefinition schematic")
@@ -117,6 +117,15 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				cueTemplate = upgraded
 			}
 		}
+
+		// Compile the template that will actually be used at render time, i.e.
+		// post-upgrade, so legacy syntax the compat engine already knows how to
+		// fix doesn't get rejected here as though it were unfixable.
+		if err := webhookutils.ValidateWorkflowStepCuexTemplate(ctx, cueTemplate); err != nil {
+			logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template contains syntax errors or invalid constructs - template compilation failed")
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+		}
+		logger.WithStep("validate-cue").WithSuccess(true).Info("CUE template validation completed successfully - template is syntactically correct")
 
 		if err := webhookutils.ValidateOutputResourcesExist(cueTemplate, h.Client.RESTMapper(), obj); err != nil {
 			logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
