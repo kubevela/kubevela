@@ -409,8 +409,14 @@ func ReadIdentityFromKubeConfig(kubeconfigPath string) (*Identity, error) {
 		token = string(bs)
 	}
 	if token != "" {
+		// The token is only read here, never verified. It is parsed without a key, so the parser
+		// always reports it as unverifiable even when the subject was extracted. A missing subject
+		// is the failure that matters.
 		sub, err := utils.GetTokenSubject(token)
-		if err != nil {
+		if sub == "" {
+			if err == nil {
+				err = fmt.Errorf("token has no subject")
+			}
 			return nil, fmt.Errorf("failed to recognize serviceaccount: %w", err)
 		}
 		identity.ServiceAccountNamespace, identity.ServiceAccount, err = serviceaccount.SplitUsername(sub)

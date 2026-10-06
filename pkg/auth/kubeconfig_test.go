@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/form3tech-oss/jwt-go"
 	"github.com/stretchr/testify/require"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	certificatesv1 "k8s.io/api/certificates/v1"
@@ -314,6 +315,45 @@ func TestReadIdentityFromKubeConfig(t *testing.T) {
 		r.NoError(err)
 		r.Equal("alice", id.User)
 		r.Equal([]string{"g1", "g2"}, id.Groups)
+	})
+
+	t.Run("from serviceaccount token", func(t *testing.T) {
+		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"sub": "system:serviceaccount:prod:builder",
+		}).SignedString([]byte("secret"))
+		r.NoError(err)
+
+		kcfg := &clientcmdapi.Config{
+			Clusters:       map[string]*clientcmdapi.Cluster{"c": {Server: "https://example"}},
+			Contexts:       map[string]*clientcmdapi.Context{"ctx": {Cluster: "c", AuthInfo: "ai"}},
+			CurrentContext: "ctx",
+			AuthInfos:      map[string]*clientcmdapi.AuthInfo{"ai": {Token: token}},
+		}
+		path := filepath.Join(dir, "kubeconfig-token")
+		r.NoError(clientcmd.WriteToFile(*kcfg, path))
+
+		id, err := ReadIdentityFromKubeConfig(path)
+		r.NoError(err)
+		r.Equal("builder", id.ServiceAccount)
+		r.Equal("prod", id.ServiceAccountNamespace)
+	})
+
+	t.Run("token without a serviceaccount subject returns error", func(t *testing.T) {
+		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"user": "alice"}).SignedString([]byte("secret"))
+		r.NoError(err)
+
+		kcfg := &clientcmdapi.Config{
+			Clusters:       map[string]*clientcmdapi.Cluster{"c": {Server: "https://example"}},
+			Contexts:       map[string]*clientcmdapi.Context{"ctx": {Cluster: "c", AuthInfo: "ai"}},
+			CurrentContext: "ctx",
+			AuthInfos:      map[string]*clientcmdapi.AuthInfo{"ai": {Token: token}},
+		}
+		path := filepath.Join(dir, "kubeconfig-token-nosub")
+		r.NoError(clientcmd.WriteToFile(*kcfg, path))
+
+		_, err = ReadIdentityFromKubeConfig(path)
+		r.Error(err)
+		r.Contains(err.Error(), "failed to recognize serviceaccount")
 	})
 
 	t.Run("no auth returns error", func(t *testing.T) {
