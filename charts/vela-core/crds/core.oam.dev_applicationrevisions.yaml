@@ -214,8 +214,8 @@ spec:
                                 registry address worth picking up immediately and a feature flag that
                                 should wait for the next rollout can sit side by side.
 
-                                A publishVersion pin overrides this in both directions. An explicit pin is
-                                hard, so nothing re-dispatches until the pin is bumped.
+                                A publishVersion pin freezes only the gate's default. True here keeps the
+                                binding live under a pin: it refreshes data and never cuts a new version.
                               type: boolean
                             name:
                               type: string

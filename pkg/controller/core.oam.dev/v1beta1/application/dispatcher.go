@@ -513,19 +513,23 @@ func liveResolvedSourceHashes(ctx context.Context, cli client.Client, clusterNam
 // one Application routinely reads both. An unset field defers to the
 // controller-wide default so a platform can choose the fleet's posture without
 // editing every Application.
-func sourceAutoUpdateEnabled(src v1beta1.ApplicationSource, defaultOn bool) bool {
+//
+// A publishVersion pin freezes only that default: a binding that says
+// autoUpdate: true asked for live data by name, and a refresh updates data
+// without cutting a new version.
+func sourceAutoUpdateEnabled(src v1beta1.ApplicationSource, defaultOn, pinned bool) bool {
 	if src.AutoUpdate != nil {
 		return *src.AutoUpdate
 	}
-	return defaultOn
+	return defaultOn && !pinned
 }
 
 // autoUpdatingSources is the set of binding names whose changes re-dispatch.
 // Empty means no refresh work is worth doing for this Application at all.
-func autoUpdatingSources(sources []v1beta1.ApplicationSource, defaultOn bool) map[string]struct{} {
+func autoUpdatingSources(sources []v1beta1.ApplicationSource, defaultOn, pinned bool) map[string]struct{} {
 	out := make(map[string]struct{}, len(sources))
 	for _, src := range sources {
-		if sourceAutoUpdateEnabled(src, defaultOn) {
+		if sourceAutoUpdateEnabled(src, defaultOn, pinned) {
 			out[src.Name] = struct{}{}
 		}
 	}
