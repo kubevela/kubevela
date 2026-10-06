@@ -1,0 +1,14 @@
+# Inline-module mirror of widget-platform-1.0.0 (scenario 02's addon): same
+# resources/, template.cue, parameter.cue, and definitions/, but the module
+# (widget-kit-inline, an exact rename of widget-kit-1.0.0) is bundled under
+# modules/widget-kit-inline/ instead of referenced via modules/_imports.cue.
+# The module is renamed (not just relocated) so this addon and widget-platform
+# never contend for the same owned Application name or the same CRDs when
+# both are installed in the same suite.
+name: widget-platform-inline
+version: 1.0.0
+description: Test addon that bundles the widget-kit-inline module inline, plus its own resources, outputs, parameters and one addon-level trait.
+tags:
+  - test
+  - module-inline
+dependencies: []

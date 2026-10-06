@@ -1079,7 +1079,10 @@ func TestResolveAndRenderSkipsDisabledImport(t *testing.T) {
 	}
 }
 
-func TestResolveAndRenderDoesNotDuplicateAuthorDeclaredModuleComponent(t *testing.T) {
+func TestResolveAndRenderErrorsWhenAuthorDeclaredModuleComponentCollidesWithImport(t *testing.T) {
+	// No source silently wins over another: an author's own type: module
+	// component and an import claiming the same module name fails the whole
+	// render, rather than silently deduping to the author's version.
 	authorComponent := common2.ApplicationComponent{
 		Name: "aws-s3",
 		Type: "module",
@@ -1102,22 +1105,12 @@ func TestResolveAndRenderDoesNotDuplicateAuthorDeclaredModuleComponent(t *testin
 		},
 	}
 
-	res, err := r.resolveAndRender(context.Background(), api.AddonRequest{
+	_, err := r.resolveAndRender(context.Background(), api.AddonRequest{
 		Name:                "example",
 		SkipVersionValidate: true,
 	})
-	require.NoError(t, err)
-
-	spec := res.Application["spec"].(map[string]interface{})
-	comps, _ := spec["components"].([]interface{})
-	var moduleComps int
-	for _, item := range comps {
-		comp := item.(map[string]interface{})
-		if comp["type"] == "module" {
-			moduleComps++
-		}
-	}
-	assert.Equal(t, 1, moduleComps, "the author's own component must not be duplicated")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"aws-s3"`)
 }
 
 func TestResolveAndRenderWithoutImportsIsUnchanged(t *testing.T) {

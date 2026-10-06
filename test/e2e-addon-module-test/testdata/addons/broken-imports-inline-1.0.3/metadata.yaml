@@ -1,0 +1,7 @@
+name: broken-imports-inline
+version: 1.0.3
+description: "Deliberately broken addon: an inline module named \"widget-kit\" collides with the same module name imported via modules/_imports.cue."
+tags:
+  - test
+  - module-inline
+dependencies: []

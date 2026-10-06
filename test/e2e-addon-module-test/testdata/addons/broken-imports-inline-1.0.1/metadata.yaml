@@ -1,0 +1,7 @@
+name: broken-imports-inline
+version: 1.0.1
+description: "Deliberately broken inline module: modules/badmod/ has no _module.cue."
+tags:
+  - test
+  - module-inline
+dependencies: []

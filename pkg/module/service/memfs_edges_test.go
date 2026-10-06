@@ -26,7 +26,7 @@ import (
 )
 
 func TestMapFS_RejectsInvalidPaths(t *testing.T) {
-	m := mapFS{"v1/bucket.cue": []byte("x")}
+	m := MapFS{"v1/bucket.cue": []byte("x")}
 	for _, name := range []string{"../escape", "/abs/path", "v1//bucket.cue", ""} {
 		_, err := m.ReadFile(name)
 		assert.ErrorIs(t, err, fs.ErrInvalid, "ReadFile(%q)", name)
@@ -40,7 +40,7 @@ func TestMapFS_RejectsInvalidPaths(t *testing.T) {
 func TestMapFS_ReadDirSkipsAKeyThatIsOnlyADirectory(t *testing.T) {
 	// A key ending in "/" names no file under the directory, so the directory
 	// is as good as absent.
-	m := mapFS{"v1/": []byte{}}
+	m := MapFS{"v1/": []byte{}}
 	_, err := m.ReadDir("v1")
 	assert.ErrorIs(t, err, fs.ErrNotExist)
 
@@ -51,7 +51,7 @@ func TestMapFS_ReadDirSkipsAKeyThatIsOnlyADirectory(t *testing.T) {
 }
 
 func TestMapFS_OpenServesAReadOnlyFile(t *testing.T) {
-	m := mapFS{"v1/bucket.cue": []byte("bucket: {}")}
+	m := MapFS{"v1/bucket.cue": []byte("bucket: {}")}
 
 	_, err := m.Open("v1/missing.cue")
 	assert.ErrorIs(t, err, fs.ErrNotExist)
@@ -78,7 +78,7 @@ func TestMapFS_OpenServesAReadOnlyFile(t *testing.T) {
 }
 
 func TestMapFS_DirEntriesDescribeThemselves(t *testing.T) {
-	m := mapFS{"v1/bucket.cue": []byte("x"), "_module.cue": []byte("y")}
+	m := MapFS{"v1/bucket.cue": []byte("x"), "_module.cue": []byte("y")}
 	entries, err := m.ReadDir(".")
 	require.NoError(t, err)
 	require.Len(t, entries, 2)

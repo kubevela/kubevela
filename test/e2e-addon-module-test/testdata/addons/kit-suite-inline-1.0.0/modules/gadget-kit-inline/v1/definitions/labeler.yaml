@@ -1,0 +1,17 @@
+# Same SHORT name and API line as widget-kit's v1 labeler, on purpose. With
+# both modules installed, `labeler` (Form 1) and `v1/labeler` (Form 2) are
+# ambiguous; `gadget-kit-inline/v1/labeler` (Form 3) is not. Installed as
+# gadget-kit-inline-v1-labeler.
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: labeler
+  annotations:
+    definition.oam.dev/description: Adds gadget-kit-inline labels to the component's workload.
+spec:
+  podDisruptive: false
+  schematic:
+    cue:
+      template: |
+        patch: metadata: labels: "kitinline.example.com/labeled-by": "gadget-kit-inline-v1-labeler"
+        parameter: {}

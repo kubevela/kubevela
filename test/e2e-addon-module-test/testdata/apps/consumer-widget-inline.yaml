@@ -1,0 +1,30 @@
+# Inline-module mirror of consumer-widget.yaml: same shape, naming all
+# renamed to widget-kit-inline's identity (widget-platform-inline-1.0.0's
+# bundled module) and platform-owner-inline (that addon's own trait). Uses
+# what widget-platform-inline's module installed. Applied only after the
+# module is running: type strings are resolved at admission.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: widget-consumer-inline
+  namespace: default
+spec:
+  components:
+    - name: blue-widget
+      type: widget-kit-inline/v1/widget      # Form 3 -> ComponentDefinition widget-kit-inline-v1-widget
+      properties:
+        color: blue
+        replicas: 2
+      traits:
+        - type: widget-kit-inline/v1/labeler # module trait, patch only
+          properties:
+            tier: gold
+        - type: platform-owner-inline         # addon-level trait from widget-platform-inline/definitions
+          properties:
+            team: team-blue
+    - name: big-widget
+      type: widget-kit-inline/v2/widget      # the v2 contract: size instead of color
+      properties:
+        size: L
+      traits:
+        - type: v2/labeler                   # Form 2; unique because only widget-kit-inline has a v2 labeler

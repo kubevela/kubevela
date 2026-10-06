@@ -24,8 +24,10 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	common2 "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/module"
 	modulerender "github.com/oam-dev/kubevela/pkg/module/service"
 )
@@ -34,11 +36,12 @@ import (
 // under modules/ except modules/_imports.cue, which its own exact-path
 // pattern already claims) by module name, builds an in-memory module.MapFS
 // per group (the same fs.FS type the external OCI fetch path builds), and
-// parses each group whose root contains a _module.cue as an
-// inline module -- read from the addon's own bundled files via reader, no
-// registry, no fetch. A modules/<name>/ directory with no _module.cue at its
-// root is not an inline module and is silently ignored, since not every
-// subdirectory under modules/ has to be one.
+// parses each group as an inline module -- read from the addon's own bundled
+// files via reader, no registry, no fetch. Every immediate subdirectory of
+// modules/ is expected to be an inline module; one with no _module.cue at
+// its root is a packaging mistake, not a legitimately-unrelated folder,
+// so it fails --the same way the external path's ParseModule/
+// ParseModuleDir already fails loudly on a tree missing _module.cue.
 //
 // rootPath is the addon's name: every real reader's RelativePath is rooted at
 // it ("<addon>/modules/<name>/..."), the same rootPath GetPatternFromItem
@@ -86,7 +89,9 @@ func readInlineModulesDir(a *InstallPackage, reader AsyncReader, items []Item, r
 	for _, name := range order {
 		fsys := groups[name]
 		if _, ok := fsys["_module.cue"]; !ok {
-			continue
+			return fmt.Errorf("modules/%s: missing _module.cue; every directory directly under "+
+				"modules/ must be an inline module (external references belong in "+
+				"modules/_imports.cue instead)", name)
 		}
 		mod, err := module.ParseModule(fsys)
 		if err != nil {
@@ -163,6 +168,14 @@ func checkModuleNameCollisions(declaredBy map[string][]string) error {
 func RenderInlineModuleComponents(addon *InstallPackage, existingComponents []common2.ApplicationComponent, resourceComponentNames []string) ([]common2.ApplicationComponent, error) {
 	if len(addon.InlineModules) == 0 {
 		return nil, nil
+	}
+	// Mirrors the external path's own gate check (pkg/cue/cuex/providers/module/module.go),
+	// which fires when the type: module component's CueX render actually runs. An inline
+	// module has no CueX render to gate -- RenderApplication is called directly, below --
+	// so without this check it would install regardless of EnableModuleComponent, silently
+	// bypassing the same off-by-default safety property external imports already respect.
+	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableModuleComponent) {
+		return nil, fmt.Errorf("module-as-component is disabled; enable the EnableModuleComponent feature gate to use inline modules")
 	}
 
 	declaredBy := moduleDeclaredBy(existingComponents, addon.Imports, addon.InlineModules)

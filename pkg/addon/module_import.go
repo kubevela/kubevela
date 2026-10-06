@@ -42,9 +42,8 @@ type ModuleImport struct {
 	// means search every configured registry.
 	Registry string
 	// Version is the exact module package version to install; empty means
-	// latest. addon:build/addon:publish already reject a semver range here
-	// (RFC-109b), so this value is trusted as an exact pin by the time it
-	// reaches render time.
+	// latest. addon:build/addon:publish already reject a semver range here,
+	// so this value is trusted as an exact pin by the time it reaches render time.
 	Version string
 }
 
@@ -144,7 +143,7 @@ func uniqueImportedComponentName(base string, used map[string]bool) string {
 // the addon too -- a hand-written type: module component in template.cue, or
 // an inline modules/<name>/ -- fails the whole render; see
 // checkModuleNameCollisions. Each emitted component depends on every name in
-// resourceComponentNames, so the module's XRD/Compositions never apply
+// resourceComponentNames, so the module's resources never apply
 // before the addon's own operators and CRDs are healthy.
 func RenderModuleComponents(addon *InstallPackage, existingComponents []common2.ApplicationComponent, resourceComponentNames []string) ([]common2.ApplicationComponent, error) {
 	declaredBy := moduleDeclaredBy(existingComponents, addon.Imports, addon.InlineModules)

@@ -1,0 +1,17 @@
+# Inline-module mirror of consumer-trait-outputs-form3.yaml. The same "note"
+# trait, referenced with Form 3. The trait emits a ConfigMap through
+# `outputs`, which is labelled trait.oam.dev/type with the installed name
+# widget-kit-inline-v1-note.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: trait-outputs-form3-inline
+  namespace: default
+spec:
+  components:
+    - name: noted-widget
+      type: widget-kit-inline/v1/widget
+      traits:
+        - type: widget-kit-inline/v1/note
+          properties:
+            text: written by a Form 3 trait
