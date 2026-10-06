@@ -17,6 +17,7 @@ limitations under the License.
 package celexpr
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -215,4 +216,72 @@ func TestPlacementCallsOnlyOnAComponent(t *testing.T) {
 	// A non-literal placement argument is reported as that, even mid-chain.
 	_, err = PropertyReferences(`component.db.cluster(context.cluster).namespace("west").output`)
 	require.NoError(t, err, "left to the read's own validation, which names the literal-argument rule")
+}
+
+// A hyphenated component name read with a dot parses as subtraction; the error
+// says to read it by index, and the index form reads it.
+func TestHyphenatedComponentName(t *testing.T) {
+	env, err := DynEnv()
+	require.NoError(t, err)
+
+	_, err = OutputType(env, `component.my-db.output.data.host`)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `write component["my-db"].output.data.host`)
+
+	_, err = PropertyReferences(`"pg://" + component.my-db.cluster("east").output.data.host`)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `write "pg://" + component["my-db"].cluster("east").output.data.host`,
+		"the suggestion is the whole expression, ready to copy")
+
+	refs, err := PropertyReferences(`component["my-db"].output.data.host`)
+	require.NoError(t, err)
+	require.Len(t, refs, 1)
+	require.Equal(t, `component["my-db"].output.data.host`, refs[0].String(), "a read renders as it must be written")
+
+	_, err = OutputType(env, `component.db.output.replicas - 1`)
+	require.NoError(t, err, "subtraction after a component read is still subtraction")
+	_, err = OutputType(env, `undefined_thing`)
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "by index", "only a dotted hyphenated component read gets the hint")
+}
+
+// A component name may start with a digit or hold a run of hyphens, and is
+// still read by index.
+func TestHyphenatedComponentNameShapes(t *testing.T) {
+	env, err := DynEnv()
+	require.NoError(t, err)
+	for name, expr := range map[string]string{
+		"2-tier": `component.2-tier.output.x`,
+		"my--db": `component.my--db.output.x`,
+	} {
+		_, err = OutputType(env, expr)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), fmt.Sprintf(`component[%q]`, name), expr)
+	}
+}
+
+// The hint is for an error the hyphenated read caused, not one elsewhere in an
+// expression that happens to hold such text.
+func TestHyphenatedComponentHintFollowsTheError(t *testing.T) {
+	env, err := DynEnv()
+	require.NoError(t, err)
+	_, err = OutputType(env, `'component.web-db' == missing`)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "undeclared reference to 'missing'")
+	require.NotContains(t, err.Error(), "by index")
+}
+
+// CEL reports an error's location in runes, so text with multi-byte runes
+// before the read still places the error on it.
+func TestHyphenatedComponentHintAfterMultiByteText(t *testing.T) {
+	env, err := DynEnv()
+	require.NoError(t, err)
+	_, err = OutputType(env, `"hé" == component.my-db`)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `write "hé" == component["my-db"]`)
+
+	// Each é is two bytes, enough to move a byte window past the error.
+	_, err = OutputType(env, `"éééééééééééééééééééé" == component.web-db`)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `component["web-db"]`)
 }

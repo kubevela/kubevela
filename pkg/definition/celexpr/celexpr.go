@@ -33,10 +33,12 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/common/types/traits"
@@ -196,6 +198,46 @@ func ValidBindingName(name string) error {
 		name, name, suggestion)
 }
 
+// hyphenatedComponentRead is a component read with a dot whose name has a
+// hyphen. Component names are Kubernetes names, so a hyphen is common, and CEL
+// parses `component.my-db` as `component.my - db`. A name may start with a
+// digit and hold a run of hyphens.
+var hyphenatedComponentRead = regexp.MustCompile(`\bcomponent\.([A-Za-z0-9_][A-Za-z0-9_-]*-[A-Za-z0-9_-]*[A-Za-z0-9])`)
+
+// compileError is an expression's compile failure, naming the index form where
+// an error falls on a hyphenated component name read with a dot. The component
+// root is a map, so component["my-db"] reads it; the suggestion is the whole
+// expression with each such read rewritten.
+func compileError(expr string, iss *cel.Issues) error {
+	err := iss.Err()
+	src := common.NewTextSource(expr)
+	var fixed strings.Builder
+	last, found := 0, false
+	for _, m := range hyphenatedComponentRead.FindAllStringSubmatchIndex(expr, -1) {
+		if !errorWithin(src, iss, utf8.RuneCountInString(expr[:m[0]]), utf8.RuneCountInString(expr[:m[1]])) {
+			continue
+		}
+		fmt.Fprintf(&fixed, "%scomponent[%q]", expr[last:m[0]], expr[m[2]:m[3]])
+		last, found = m[1], true
+	}
+	if !found {
+		return err
+	}
+	fixed.WriteString(expr[last:])
+	return fmt.Errorf("%w; a component whose name has a hyphen is read by index: write %s", err, fixed.String())
+}
+
+// errorWithin reports whether a compile error falls in the runes [start, end)
+// of the source.
+func errorWithin(src common.Source, iss *cel.Issues, start, end int) bool {
+	for _, e := range iss.Errors() {
+		if off, ok := src.LocationOffset(e.Location); ok && int(off) >= start && int(off) < end {
+			return true
+		}
+	}
+	return false
+}
+
 // OutputType compiles an expression and reports the type it produces.
 //
 // This is the whole point of the spike. propexpr needs sentinel values and an
@@ -203,7 +245,7 @@ func ValidBindingName(name string) error {
 func OutputType(env *cel.Env, expr string) (*cel.Type, error) {
 	ast, iss := env.Compile(expr)
 	if iss != nil && iss.Err() != nil {
-		return nil, iss.Err()
+		return nil, compileError(expr, iss)
 	}
 	return ast.OutputType(), nil
 }

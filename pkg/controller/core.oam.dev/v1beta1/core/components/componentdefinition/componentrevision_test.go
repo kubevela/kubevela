@@ -133,7 +133,9 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			schemaStr := cm.Data[apistypes.OpenapiV3JSONSchema]
 			var schema openapi3.Schema
 			Expect(json.Unmarshal([]byte(schemaStr), &schema)).Should(BeNil())
-			Expect(len(schema.Required)).Should(Equal(3))
+			// Fields with a default need not be supplied.
+			Expect(schema.Required).Should(Equal([]string{"image"}))
+			Expect(cm.Data).Should(HaveKey(apistypes.DefaultUISchema))
 		})
 
 		It("Test update ComponentDefinition", func() {

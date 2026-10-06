@@ -135,6 +135,7 @@ func uiDataFromPackage(pkg *WholeAddonPackage) *UIData {
 	return &UIData{
 		Meta:              pkg.Meta,
 		APISchema:         pkg.APISchema,
+		DefaultUISchema:   pkg.DefaultUISchema,
 		Parameters:        pkg.Parameters,
 		Detail:            pkg.Detail,
 		Definitions:       pkg.Definitions,
@@ -289,9 +290,10 @@ func loadAddonPackage(addonName string, files []*loader.BufferedFile) (*WholeAdd
 		return nil, err
 	}
 	return &WholeAddonPackage{
-		InstallPackage: *installPackage,
-		Detail:         addonUIData.Detail,
-		APISchema:      addonUIData.APISchema,
+		InstallPackage:  *installPackage,
+		Detail:          addonUIData.Detail,
+		APISchema:       addonUIData.APISchema,
+		DefaultUISchema: addonUIData.DefaultUISchema,
 	}, nil
 }
 

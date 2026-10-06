@@ -50,6 +50,16 @@ func (d directives) inherits(field string) bool {
 	return true
 }
 
+// Inherits reports whether a level merges a surface field onto its parent's,
+// as its `$inherit` says.
+func Inherits(level Level, field string) (bool, error) {
+	d, err := parseDirectives(level)
+	if err != nil {
+		return false, err
+	}
+	return d.inherits(field), nil
+}
+
 // parseDirectives reads `$inherit` off a template.
 func parseDirectives(level Level) (directives, error) {
 	var d directives

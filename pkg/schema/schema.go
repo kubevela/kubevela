@@ -45,6 +45,10 @@ context: {
 }
 `
 
+// SchemaContext is the context stub the parameter schema generator compiles a
+// template with, for a caller that compiles the template itself.
+const SchemaContext = schemaContext
+
 // ErrGenerateOpenAPIV2JSONSchemaForCapability is the error while generating OpenAPI v3 schema
 const ErrGenerateOpenAPIV2JSONSchemaForCapability = "cannot generate OpenAPI v3 JSON schema for capability %s: %v"
 

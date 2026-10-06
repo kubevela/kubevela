@@ -18,15 +18,19 @@ package sourcedefinition
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -169,4 +173,63 @@ output: {host: "example.com"}
 	r.Equal("atlas", ct.Labels[oam.LabelSourceDefinitionName])
 	r.Equal("vela-system", ct.Labels[apitypes.LabelSourceDefinitionNamespace])
 	r.Contains(ct.Spec.Template, "parameter:", "the schema CUE is carried onto the CR")
+}
+
+func TestReconcileStoresSchemas(t *testing.T) {
+	r := require.New(t)
+	rec := newReconciler(newSourceDef(`
+parameter: project: string
+schema: clusterName: string
+`))
+	ctx := context.Background()
+	_, err := rec.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: "atlas", Namespace: "vela-system"}})
+	r.NoError(err)
+
+	for _, name := range []string{"source-schema-atlas", "source-schema-atlas-v1"} {
+		cm := &corev1.ConfigMap{}
+		r.NoError(rec.Client.Get(ctx, types.NamespacedName{Name: name, Namespace: "vela-system"}, cm), name)
+		r.Contains(cm.Data[apitypes.OpenapiV3JSONSchema], "project", name)
+		r.Contains(cm.Data[apitypes.SourceOutputSchema], "clusterName", name)
+	}
+}
+
+// The schemas only feed VelaUX, so a parameter the generator rejects leaves
+// the definition reconciled.
+func TestReconcileSurvivesAnUnreadableParameter(t *testing.T) {
+	r := require.New(t)
+	rec := newReconciler(newSourceDef(`
+parameter: project: int & string
+schema: clusterName: string
+`))
+	ctx := context.Background()
+	key := types.NamespacedName{Name: "atlas", Namespace: "vela-system"}
+	_, err := rec.Reconcile(ctx, ctrl.Request{NamespacedName: key})
+	r.NoError(err)
+
+	live := &v1beta1.SourceDefinition{}
+	r.NoError(rec.Client.Get(ctx, key, live))
+	r.NotNil(live.Status.ConfigTemplateRef, "the schema template is still generated")
+	err = rec.Client.Get(ctx, types.NamespacedName{Name: "source-schema-atlas", Namespace: "vela-system"}, &corev1.ConfigMap{})
+	r.True(apierrors.IsNotFound(err), "no schema ConfigMap is written: %v", err)
+}
+
+// A schema ConfigMap the API server would not take fails the reconcile, so it
+// is retried; nothing else would bring an unchanged definition back.
+func TestReconcileRetriesAFailedSchemaWrite(t *testing.T) {
+	r := require.New(t)
+	rec := newReconciler(newSourceDef(`
+parameter: project: string
+schema: clusterName: string
+`))
+	boom := errors.New("etcd unavailable")
+	rec.Client = interceptor.NewClient(rec.Client.(client.WithWatch), interceptor.Funcs{
+		Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+			if _, ok := obj.(*corev1.ConfigMap); ok {
+				return boom
+			}
+			return c.Create(ctx, obj, opts...)
+		},
+	})
+	_, err := rec.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Name: "atlas", Namespace: "vela-system"}})
+	r.ErrorContains(err, boom.Error())
 }

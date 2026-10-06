@@ -29,6 +29,9 @@ type UIData struct {
 
 	APISchema *openapi3.Schema      `json:"schema"`
 	UISchema  []*schema.UIParameter `json:"uiSchema"`
+	// DefaultUISchema is the form generated from the addon's parameter, or
+	// nil where it could not be generated.
+	DefaultUISchema []*schema.UIParameter `json:"defaultUISchema,omitempty"`
 
 	// Detail is README.md in an addon
 	Detail string `json:"detail,omitempty"`
@@ -83,6 +86,9 @@ type WholeAddonPackage struct {
 	InstallPackage
 
 	APISchema *openapi3.Schema `json:"schema"`
+	// DefaultUISchema is the form generated from the addon's parameter, or
+	// nil where it could not be generated.
+	DefaultUISchema []*schema.UIParameter `json:"defaultUISchema,omitempty"`
 
 	// Detail is README.md in an addon
 	Detail            string   `json:"detail,omitempty"`
