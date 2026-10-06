@@ -96,33 +96,29 @@ func (r *Reconciler) handleWorkflowRestartAnnotation(ctx context.Context, app *v
 	}
 }
 
+// scheduledRestartDue reports whether the scheduled restart has come: its time
+// has passed, the workflow has finished, and it is later than the last run.
+func scheduledRestartDue(app *v1beta1.Application) bool {
+	if app.Status.WorkflowRestartScheduledAt == nil || app.Status.Workflow == nil || !app.Status.Workflow.Finished {
+		return false
+	}
+	restartTime := app.Status.WorkflowRestartScheduledAt.Time
+	if time.Now().Before(restartTime) {
+		return false
+	}
+	return app.Status.Workflow.EndTime.IsZero() || restartTime.After(app.Status.Workflow.EndTime.Time)
+}
+
 // checkWorkflowRestart checks if application workflow needs restart.
 // Handles three restart scenarios:
 // 1. Scheduled restart (via workflowRestartScheduledAt status field)
 // 2. PublishVersion annotation change
 // 3. Application revision change
 func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1beta1.Application, handler *AppHandler) {
-	// Check for scheduled restart in status field
-	if app.Status.WorkflowRestartScheduledAt != nil {
-		restartTime := app.Status.WorkflowRestartScheduledAt.Time
-
-		if time.Now().Before(restartTime) {
-			// Not yet time to restart, skip for now
-			return
-		}
-		if app.Status.Workflow == nil || !app.Status.Workflow.Finished {
-			// Workflow is still running or hasn't started - don't restart yet
-			return
-		}
-		if app.Status.Workflow != nil && !app.Status.Workflow.EndTime.IsZero() {
-			lastEndTime := app.Status.Workflow.EndTime.Time
-			if !restartTime.After(lastEndTime) {
-				// Restart time is not after last execution, skip
-				return
-			}
-		}
-
-		// All conditions met: time arrived, workflow finished, and restart time > last execution
+	// A scheduled restart that is not due leaves the revision check below to
+	// run, so a new application still starts and a new revision still restarts.
+	if scheduledRestartDue(app) {
+		// Time arrived, workflow finished, and restart time > last execution.
 		// Clear the status field and proceed with restart
 		app.Status.WorkflowRestartScheduledAt = nil
 		if err := r.Status().Update(ctx, app); err != nil {
