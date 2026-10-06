@@ -19,13 +19,12 @@ package resourcekeeper
 import (
 	"context"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/auth"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 )
@@ -56,8 +55,8 @@ func (h *resourceKeeper) Delete(ctx context.Context, manifests []*unstructured.U
 	for _, manifest := range manifests {
 		if manifest != nil {
 			_options := options
-			if h.garbageCollectPolicy != nil {
-				if strategy := h.garbageCollectPolicy.FindStrategy(manifest); strategy != nil {
+			if h.policies.GarbageCollect != nil {
+				if strategy := h.policies.GarbageCollect.FindStrategy(manifest); strategy != nil {
 					_options = append(_options, GarbageCollectStrategyOption(*strategy))
 				}
 			}
@@ -81,12 +80,12 @@ func (h *resourceKeeper) delete(ctx context.Context, manifest *unstructured.Unst
 	if err != nil {
 		return errors.Wrapf(err, "failed to get resourcetracker")
 	}
-	if err = resourcetracker.DeletedManifestInResourceTracker(multicluster.ContextInLocalCluster(ctx), h.Client, rt, manifest, false); err != nil {
+	if err = resourcetracker.DeletedManifestInResourceTracker(localCluster(ctx), h.Client, rt, manifest, false); err != nil {
 		return errors.Wrapf(err, "failed to delete resources in resourcetracker")
 	}
 	// 2. delete manifests
-	deleteCtx := multicluster.ContextWithClusterName(ctx, oam.GetCluster(manifest))
-	deleteCtx = auth.ContextWithUserInfo(deleteCtx, h.app)
+	deleteCtx := pkgmulticluster.WithCluster(ctx, oam.GetCluster(manifest))
+	deleteCtx = h.asRequester(deleteCtx)
 	if err = h.Client.Delete(deleteCtx, manifest); err != nil && !kerrors.IsNotFound(err) {
 		return errors.Wrapf(err, "cannot delete manifest, name: %s apiVersion: %s kind: %s", manifest.GetName(), manifest.GetAPIVersion(), manifest.GetKind())
 	}

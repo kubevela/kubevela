@@ -134,10 +134,10 @@ func TestResourceCache(t *testing.T) {
 
 func TestResourceCacheExistenceCheck(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
-	cache := newResourceCache(cli, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{
+	cache := newResourceCache(cli, newAppOwner(&v1beta1.Application{ObjectMeta: metav1.ObjectMeta{
 		Name:      "app",
 		Namespace: "test",
-	}})
+	}}))
 	r := require.New(t)
 	createResource := func(appName, appNs, sharedBy string) *unstructured.Unstructured {
 		return &unstructured.Unstructured{Object: map[string]interface{}{

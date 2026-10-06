@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/mitchellh/hashstructure/v2"
@@ -32,17 +33,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/kubeutil"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -219,7 +216,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 
 	strategy := applyAct.updateStrategy
 	if strategy.Op == "" {
-		if utilfeature.DefaultMutableFeatureGate.Enabled(features.ApplyResourceByReplace) && isUpdatableResource(desired) {
+		if replaceOnUpdate() && isUpdatableResource(desired) {
 			strategy.Op = v1alpha1.ResourceUpdateStrategyReplace
 		} else {
 			strategy.Op = v1alpha1.ResourceUpdateStrategyPatch
@@ -289,7 +286,7 @@ func generateRenderHash(desired client.Object) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "compute desired hash")
 	}
-	util.AddLabels(desired, map[string]string{
+	kubeutil.AddLabels(desired, map[string]string{
 		LabelRenderHash: desiredHash,
 	})
 	return desiredHash, nil
@@ -327,7 +324,7 @@ func createOrGetExisting(ctx context.Context, act *applyAction, c client.Client,
 	}
 
 	if desired.GetObjectKind().GroupVersionKind().Kind == "" {
-		gvk, err := apiutil.GVKForObject(desired, common.Scheme)
+		gvk, err := apiutil.GVKForObject(desired, scheme())
 		if err == nil {
 			desired.GetObjectKind().SetGroupVersionKind(gvk)
 		}
@@ -427,47 +424,35 @@ func MustBeControllableBy(u types.UID) ApplyOption {
 	}
 }
 
-// MustBeControlledByApp requires that the new object is controllable by versioned resourcetracker
-func MustBeControlledByApp(app *v1beta1.Application) ApplyOption {
+// Owner is whoever may control a resource: its Kind names it in errors, its Key identifies
+// it, and ControlledBy reports who controls an object, in that same key format ("" for
+// nobody). resourcetracker.Tracked satisfies it.
+type Owner interface {
+	Kind() string
+	Key() string
+	ControlledBy(obj client.Object) string
+}
+
+// MustBeControlledBy requires that an existing object is controlled by owner. An existing
+// object nobody controls is only adopted under take-over.
+func MustBeControlledBy(owner Owner) ApplyOption {
+	kind, key := owner.Kind(), owner.Key()
 	return func(act *applyAction, existing, _ client.Object) error {
 		if existing == nil || act.isShared || act.readOnly {
 			return nil
 		}
-		appKey, controlledBy := GetAppKey(app), GetControlledBy(existing)
+		by := controllerOf(existing, owner.ControlledBy)
 		// if the existing object has no resource version, it means this resource is an API response not directly from
 		// an etcd object but from some external services, such as vela-prism. Then the response does not necessarily
 		// contain the owner
-		if controlledBy == "" && !utilfeature.DefaultMutableFeatureGate.Enabled(features.LegacyResourceOwnerValidation) && existing.GetResourceVersion() != "" && !act.takeOver {
-			return fmt.Errorf("%s %s/%s exists but not managed by any application now", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName())
+		if by == "" && !legacyOwnerValidation() && existing.GetResourceVersion() != "" && !act.takeOver {
+			return fmt.Errorf("%s %s/%s exists but not managed by any %s now", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName(), strings.ToLower(kind))
 		}
-		if controlledBy != "" && controlledBy != appKey {
-			return fmt.Errorf("existing object %s %s/%s is managed by other application %s", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName(), controlledBy)
+		if by != "" && !sameOwner(by, key) {
+			return fmt.Errorf("existing object %s %s/%s is managed by other %s %s", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName(), strings.ToLower(kind), by)
 		}
 		return nil
 	}
-}
-
-// GetControlledBy extract the application that controls the current resource
-func GetControlledBy(existing client.Object) string {
-	labels := existing.GetLabels()
-	if labels == nil {
-		return ""
-	}
-	appName := labels[oam.LabelAppName]
-	appNs := labels[oam.LabelAppNamespace]
-	if appName == "" || appNs == "" {
-		return ""
-	}
-	return fmt.Sprintf("%s/%s", appNs, appName)
-}
-
-// GetAppKey construct the key for identifying the application
-func GetAppKey(app *v1beta1.Application) string {
-	ns := app.Namespace
-	if ns == "" {
-		ns = metav1.NamespaceDefault
-	}
-	return fmt.Sprintf("%s/%s", ns, app.GetName())
 }
 
 // MakeCustomApplyOption let user can generate applyOption that restrict change apply action.
@@ -485,34 +470,35 @@ func DisableUpdateAnnotation() ApplyOption {
 	}
 }
 
-// SharedByApp let the resource be sharable
-func SharedByApp(app *v1beta1.Application) ApplyOption {
+// SharedBy lets owner share the resource with whoever else already shares it.
+func SharedBy(owner Owner) ApplyOption {
+	kind, key := owner.Kind(), owner.Key()
 	return func(act *applyAction, existing, desired client.Object) error {
 		// Calculate the shared-by annotation value
 		var sharedBy string
 		if existing != nil && existing.GetAnnotations() != nil {
 			sharedBy = existing.GetAnnotations()[oam.AnnotationAppSharedBy]
 		}
-		sharedBy = AddSharer(sharedBy, app)
+		sharedBy = AddSharer(sharedBy, key)
 
 		// Always add the shared-by annotation to desired (for create case)
-		util.AddAnnotations(desired, map[string]string{oam.AnnotationAppSharedBy: sharedBy})
+		kubeutil.AddAnnotations(desired, map[string]string{oam.AnnotationAppSharedBy: sharedBy})
 
 		if existing == nil {
 			return nil
 		}
 
-		// Resource exists - check if controlled by current application
-		appKey, controlledBy := GetAppKey(app), GetControlledBy(existing)
-		if controlledBy == "" || appKey == controlledBy {
-			// Owner app - use normal three-way merge flow
+		// Resource exists - check if controlled by the current owner
+		by := controllerOf(existing, owner.ControlledBy)
+		if by == "" || sameOwner(key, by) {
+			// Owner - use normal three-way merge flow
 			return nil
 		}
 
-		// Resource exists but not controlled by current application
+		// Resource exists but not controlled by the current owner
 		if existing.GetAnnotations() == nil || existing.GetAnnotations()[oam.AnnotationAppSharedBy] == "" {
 			// Owner doesn't allow sharing
-			return fmt.Errorf("application is controlled by %s but is not sharable", controlledBy)
+			return fmt.Errorf("%s is controlled by %s but is not sharable", strings.ToLower(kind), by)
 		}
 
 		// Non-owner sharer: set flags for short-circuit in Apply()

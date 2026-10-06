@@ -370,7 +370,7 @@ func TestMustBeControllableBy(t *testing.T) {
 
 func TestMustBeControlledByApp(t *testing.T) {
 	app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app"}}
-	ao := MustBeControlledByApp(app)
+	ao := mustBeControlledByApp(app)
 	testCases := map[string]struct {
 		existing client.Object
 		hasError bool
@@ -443,7 +443,7 @@ func TestMustBeControlledByApp(t *testing.T) {
 
 func TestSharedByApp(t *testing.T) {
 	app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app"}}
-	ao := SharedByApp(app)
+	ao := sharedByApp(app)
 	testCases := map[string]struct {
 		existing       client.Object
 		desired        client.Object
@@ -646,8 +646,8 @@ func TestSharedByApp(t *testing.T) {
 
 				// Legacy check: When a resource is shared by another app, updateAnnotation should be false
 				if tc.existing != nil && tc.existing.GetAnnotations() != nil && tc.existing.GetAnnotations()[oam.AnnotationAppSharedBy] != "" {
-					existingController := GetControlledBy(tc.existing)
-					if existingController != "" && existingController != GetAppKey(app) {
+					existingController := appControlledBy(tc.existing)
+					if existingController != "" && existingController != appKey(app) {
 						r.False(act.updateAnnotation, "updateAnnotation should be false when sharing resource controlled by another app")
 					}
 				}
