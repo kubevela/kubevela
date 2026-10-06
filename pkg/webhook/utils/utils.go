@@ -23,9 +23,12 @@ import (
 	"strconv"
 	"strings"
 
+	upstreamcuex "github.com/kubevela/pkg/cue/cuex"
+
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	cueErrors "cuelang.org/go/cue/errors"
 	"github.com/pkg/errors"
@@ -70,7 +73,7 @@ func ValidateCueTemplate(cueTemplate string) error {
 	if e := checkError(val.Err()); e != nil {
 		return e
 	}
-	err := val.Validate()
+	err := val.Validate(cue.Final())
 	return checkError(err)
 }
 
@@ -85,25 +88,33 @@ func ValidateCueTemplate(cueTemplate string) error {
 // install during admission.
 func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
 	ctx = helm.WithDryRun(ctx)
-	val, err := velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx, cueTemplate)
+	val, err := velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx, cueTemplate, upstreamcuex.DisableResolveProviderFunctions{})
 	if err != nil {
 		return err
 	}
 	if e := checkError(val.Err()); e != nil {
 		return e
 	}
-	err = val.Validate()
+	err = val.Validate(cue.Final())
 	return checkError(err)
 }
 
 func checkError(err error) error {
 	re := regexp.MustCompile(ContextRegex)
 	if err != nil {
-		// ignore context not found error
+		// ignore context not found and uninstantiated parameter expressions
 		for _, e := range cueErrors.Errors(err) {
-			if !re.MatchString(e.Error()) {
-				return cueErrors.New(e.Error())
+			if re.MatchString(e.Error()) {
+				continue
 			}
+			format, _ := e.Msg()
+			if format == "cannot reference optional field: %s" ||
+				strings.HasPrefix(format, "incomplete ") ||
+				strings.Contains(e.Error(), "non-concrete value") ||
+				strings.Contains(e.Error(), "must be concrete") {
+				continue
+			}
+			return cueErrors.New(e.Error())
 		}
 	}
 	return nil
