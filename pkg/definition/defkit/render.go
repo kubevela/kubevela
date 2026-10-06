@@ -21,9 +21,41 @@ import (
 	"regexp"
 )
 
+// RenderOption configures Render and RenderAll.
+type RenderOption func(*renderOptions)
+
+type renderOptions struct {
+	skipCompile bool
+}
+
+// SkipCompile disables the default CUE-compile check Render and RenderAll
+// otherwise perform against the component's generated CUE.
+func SkipCompile() RenderOption {
+	return func(o *renderOptions) {
+		o.skipCompile = true
+	}
+}
+
+func buildRenderOptions(opts []RenderOption) *renderOptions {
+	o := &renderOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}
+
 // Render executes the component template with the given test context
-// and returns the rendered primary output resource.
-func (c *ComponentDefinition) Render(ctx *TestContextBuilder) *RenderedResource {
+// and returns the rendered primary output resource. By default it also
+// validates that the component's generated CUE compiles, panicking if it
+// does not; pass SkipCompile() to skip that check.
+func (c *ComponentDefinition) Render(ctx *TestContextBuilder, opts ...RenderOption) *RenderedResource {
+	o := buildRenderOptions(opts)
+	if !o.skipCompile {
+		if err := ValidateGeneratedCUE(c); err != nil {
+			panic(err)
+		}
+	}
+
 	// Build the runtime context
 	rtCtx := ctx.Build()
 
@@ -41,8 +73,17 @@ func (c *ComponentDefinition) Render(ctx *TestContextBuilder) *RenderedResource 
 	return renderResource(tpl.output, rtCtx)
 }
 
-// RenderAll executes the component template and returns all outputs.
-func (c *ComponentDefinition) RenderAll(ctx *TestContextBuilder) *RenderedOutputs {
+// RenderAll executes the component template and returns all outputs. By
+// default it also validates that the component's generated CUE compiles,
+// panicking if it does not; pass SkipCompile() to skip that check.
+func (c *ComponentDefinition) RenderAll(ctx *TestContextBuilder, opts ...RenderOption) *RenderedOutputs {
+	o := buildRenderOptions(opts)
+	if !o.skipCompile {
+		if err := ValidateGeneratedCUE(c); err != nil {
+			panic(err)
+		}
+	}
+
 	rtCtx := ctx.Build()
 	setCurrentTestContext(rtCtx)
 	defer clearCurrentTestContext()
