@@ -1,0 +1,7 @@
+# No namespace: lands in the definition namespace (vela-system).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inline-kit-module-info
+data:
+  moduleVersion: "0.1.0"

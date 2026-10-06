@@ -1,0 +1,8 @@
+# Becomes the inline-mixed-resources component; every module component waits for it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: inline-mixed-marker
+  namespace: vela-system
+data:
+  addon: "inline-mixed"

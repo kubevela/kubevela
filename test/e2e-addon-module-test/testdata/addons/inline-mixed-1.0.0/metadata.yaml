@@ -1,0 +1,7 @@
+name: inline-mixed
+version: 1.0.0
+description: "Addon bundling one inline module and importing widget-kit from the module registry."
+tags:
+  - test
+  - module-inline
+dependencies: []

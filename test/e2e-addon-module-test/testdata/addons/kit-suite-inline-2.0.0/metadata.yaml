@@ -1,0 +1,7 @@
+name: kit-suite-inline
+version: 2.0.0
+description: "Inline-module mirror of kit-suite-2.0.0: bundles widget-kit-inline only (gadget-kit-inline removed)."
+tags:
+  - test
+  - module-inline
+dependencies: []

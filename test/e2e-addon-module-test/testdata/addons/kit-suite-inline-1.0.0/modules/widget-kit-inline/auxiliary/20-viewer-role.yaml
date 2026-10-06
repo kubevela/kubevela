@@ -1,0 +1,13 @@
+# A cluster-scoped module-level object. toObjects still stamps a namespace on
+# it; the resource keeper strips the namespace from cluster-scoped manifests
+# before dispatch, so it lands as a normal ClusterRole.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: widget-kit-inline-viewer
+  labels:
+    kitinline.example.com/tier: module
+rules:
+  - apiGroups: ["kitinline.example.com"]
+    resources: ["widgets", "widgetclasses"]
+    verbs: ["get", "list", "watch"]

@@ -111,7 +111,6 @@ var (
 var (
 	widgetGVK      = schema.GroupVersionKind{Group: "kit.example.com", Version: "v1alpha1", Kind: "Widget"}
 	widgetClassGVK = schema.GroupVersionKind{Group: "kit.example.com", Version: "v1alpha1", Kind: "WidgetClass"}
-	gadgetGVK      = schema.GroupVersionKind{Group: "kit.example.com", Version: "v1alpha1", Kind: "Gadget"}
 )
 
 // --- paths and the CLI ---

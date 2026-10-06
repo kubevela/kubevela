@@ -79,8 +79,8 @@ type InstallPackage struct {
 	Imports []ModuleImport `json:"imports,omitempty"`
 
 	// InlineModules are modules developed directly inside the addon's own
-	// modules/<name>/ directories (RFC-109b's inline authoring model) and
-	// parsed from the addon's own bundled files -- no registry, no fetch.
+	// modules/<name>/ directories and parsed from the addon's own
+	// bundled files -- no registry, no fetch.
 	// Empty when the addon has no inline modules.
 	InlineModules []*module.Module `json:"inlineModules,omitempty"`
 }

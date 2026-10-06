@@ -1,0 +1,52 @@
+# Inline-module mirror of consumer-rejected.yaml. Five Applications that
+# admission refuses. Each is created on its own and its error message
+# checked; nothing is created.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reject-form1-ambiguous-inline
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: widget                       # v1 AND v2 ship "widget"
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reject-disabled-line-inline
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: widget-kit-inline/v1beta1/widget    # the v1beta1 line is enabled: false
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reject-form2-disabled-line-inline
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: v1beta1/widget
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reject-bad-api-version-inline
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: widget-kit-inline/1/widget          # "1" is not v<N>
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reject-too-many-segments-inline
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: kit/widget-kit-inline/v1/widget

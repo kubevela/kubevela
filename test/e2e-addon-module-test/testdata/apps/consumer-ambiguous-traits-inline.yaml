@@ -1,0 +1,27 @@
+# Inline-module mirror of consumer-ambiguous-traits.yaml. Both of these are
+# rejected at admission once both inline modules are installed:
+# widget-kit-inline and gadget-kit-inline each ship a v1 trait called
+# "labeler".
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: ambiguous-form2-inline
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: widget-kit-inline/v1/widget
+      traits:
+        - type: v1/labeler
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: ambiguous-form1-inline
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: widget-kit-inline/v1/widget
+      traits:
+        - type: labeler

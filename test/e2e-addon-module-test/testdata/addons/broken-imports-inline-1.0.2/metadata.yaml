@@ -1,0 +1,7 @@
+name: broken-imports-inline
+version: 1.0.2
+description: "Deliberately broken inline module: modules/badmod/_module.cue is valid but the module has no v<N> line directory."
+tags:
+  - test
+  - module-inline
+dependencies: []

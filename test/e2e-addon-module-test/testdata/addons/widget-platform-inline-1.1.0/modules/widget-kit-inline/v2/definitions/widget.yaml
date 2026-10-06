@@ -1,0 +1,29 @@
+# v2 of the same short name `widget`, written in YAML this time. Installed as
+# widget-kit-inline-v2-widget. The v2 contract is deliberately incompatible with v1:
+# `color` is gone, `size` is required.
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: widget
+  annotations:
+    definition.oam.dev/description: widget-kit-inline v2 Widget (size-based, premium class).
+spec:
+  workload:
+    type: autodetects.core.oam.dev
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "kitinline.example.com/v1alpha1"
+        	kind:       "Widget"
+        	metadata: name: context.name
+        	spec: {
+        		apiLine:  "v2"
+        		classRef: "widget-kit-inline-v2-premium"
+        		size:     parameter.size
+        	}
+        }
+        parameter: {
+        	// +usage=Widget size
+        	size: "S" | "M" | "L"
+        }
