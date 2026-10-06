@@ -17,6 +17,8 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
+
 	"github.com/spf13/pflag"
 
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
@@ -40,6 +42,14 @@ func (c *ResourceConfig) AddFlags(fs *pflag.FlagSet) {
 		"max-dispatch-concurrent",
 		c.MaxDispatchConcurrent,
 		"Set the max dispatch concurrent number, default is 10")
+}
+
+// Validate ensures the resource configuration is valid.
+func (c *ResourceConfig) Validate() error {
+	if c.MaxDispatchConcurrent <= 0 {
+		return fmt.Errorf("max-dispatch-concurrent must be greater than 0")
+	}
+	return nil
 }
 
 // SyncToResourceGlobals syncs the parsed configuration values to resource package global variables.

@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/spf13/pflag"
@@ -46,4 +47,15 @@ func (c *KubernetesConfig) AddFlags(fs *pflag.FlagSet) {
 		"the burst for reconcile clients. Recommend setting it qps*2.")
 	fs.DurationVar(&c.InformerSyncPeriod, "informer-sync-period", c.InformerSyncPeriod,
 		"The re-sync period for informer in controller-runtime. This is a system-level configuration.")
+}
+
+// Validate ensures the Kubernetes client rate limiting parameters are mathematically sound.
+func (c *KubernetesConfig) Validate() error {
+	if c.QPS < 0 {
+		return fmt.Errorf("kubernetes client QPS cannot be negative")
+	}
+	if c.Burst < 0 {
+		return fmt.Errorf("kubernetes client burst cannot be negative")
+	}
+	return nil
 }

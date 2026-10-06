@@ -38,3 +38,8 @@ func NewProfilingConfig() *ProfilingConfig {
 func (c *ProfilingConfig) AddFlags(fs *pflag.FlagSet) {
 	profiling.AddFlags(fs)
 }
+
+// Validate ensures the configuration is valid.
+func (c *ProfilingConfig) Validate() error {
+	return nil
+}
