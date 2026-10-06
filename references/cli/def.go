@@ -110,6 +110,7 @@ func DefinitionCommandGroup(c common.Args, order string, ioStreams util.IOStream
 		NewDefinitionListCommand(c),
 		NewDefinitionEditCommand(c),
 		NewDefinitionRenderCommand(c),
+		NewDefinitionTestCommand(),
 		NewDefinitionApplyCommand(c, ioStreams),
 		NewDefinitionDelCommand(c),
 		NewDefinitionInitCommand(c),
