@@ -57,3 +57,23 @@ func TestWorkloadCompilerWithoutKubeConfig(t *testing.T) {
 		t.Fatal("expected a usable compiler when no kubeconfig is available")
 	}
 }
+
+// TestSourceCompilerWithoutKubeConfig is the same check for SourceCompiler,
+// which loads external packages through the same singletons.
+func TestSourceCompilerWithoutKubeConfig(t *testing.T) {
+	restoreAssumption := kubeconfig.AssumeUnavailable()
+	t.Cleanup(func() {
+		restoreAssumption()
+		velacuex.SourceCompiler.Reload()
+	})
+
+	t.Setenv("KUBECONFIG", filepath.Join(t.TempDir(), "does-not-exist"))
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("KUBERNETES_SERVICE_HOST", "")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
+
+	velacuex.SourceCompiler.Reload()
+	if c := velacuex.SourceCompiler.Get(); c == nil {
+		t.Fatal("expected a usable compiler when no kubeconfig is available")
+	}
+}
