@@ -438,6 +438,32 @@ func (k *kubeConfigFactory) DeleteTemplate(ctx context.Context, ns, name string)
 
 // ListTemplates list the config templates
 func (k *kubeConfigFactory) ListTemplates(ctx context.Context, ns, scope string) ([]*Template, error) {
+	var templates []*Template
+	found := make(map[string]bool)
+
+	var crList configv1alpha1.ConfigTemplateList
+	if err := k.cli.List(ctx, &crList, client.InNamespace(ns)); err == nil {
+		for i := range crList.Items {
+			ct := &crList.Items[i]
+			if _, ok := ct.Labels[types.LabelSourceDefinitionName]; ok {
+				continue
+			}
+			found[ct.Namespace+"/"+ct.Name] = true
+			it, err := configTemplateCRDToTemplate(ctx, ct)
+			if err != nil {
+				klog.Warningf("fail to parse the configtemplate %s", ct.Name)
+				continue
+			}
+			if it != nil {
+				if scope == "" || it.Scope == scope {
+					templates = append(templates, it)
+				}
+			}
+		}
+	} else if !apierrors.IsNotFound(err) && !meta.IsNoMatchError(err) && !runtime.IsNotRegisteredError(err) {
+		return nil, err
+	}
+
 	var list = &v1.ConfigMapList{}
 	selector, err := labels.Parse(fmt.Sprintf("%s=%s", types.LabelConfigCatalog, types.VelaCoreConfig))
 	if err != nil {
@@ -448,13 +474,12 @@ func (k *kubeConfigFactory) ListTemplates(ctx context.Context, ns, scope string)
 		client.InNamespace(ns)); err != nil {
 		return nil, err
 	}
-	var templates []*Template
 	for _, item := range list.Items {
 		it, err := convertConfigMap2Template(item)
 		if err != nil {
 			klog.Warningf("fail to parse the configmap %s:%s", item.Name, err.Error())
 		}
-		if it != nil {
+		if it != nil && !found[it.Namespace+"/"+it.Name] {
 			if scope == "" || it.Scope == scope {
 				templates = append(templates, it)
 			}

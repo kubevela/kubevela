@@ -37,13 +37,14 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
-	"github.com/oam-dev/kubevela/pkg/resourcetracker"
+	"github.com/oam-dev/kubevela/pkg/policy"
 	com "github.com/oam-dev/kubevela/references/common"
 )
 
@@ -184,7 +185,7 @@ func (opt *DeleteOptions) forceDelete(ctx context.Context, f velacmd.Factory, ap
 		if kerrors.IsNotFound(err) {
 			return true, nil
 		}
-		rk, err := resourcekeeper.NewResourceKeeper(ctx, f.Client(), app)
+		rk, err := appkeeper.New(ctx, f.Client(), app)
 		if err != nil {
 			return false, fmt.Errorf("failed to create resource keeper to run garbage collection: %w", err)
 		}
@@ -208,10 +209,13 @@ func (opt *DeleteOptions) deleteResource(ctx context.Context, f velacmd.Factory,
 	if err := f.Client().Get(multicluster.WithCluster(ctx, mr.Cluster), mr.NamespacedName(), obj); err != nil {
 		return client.IgnoreNotFound(err)
 	}
-	if !resourcekeeper.IsResourceManagedByApplication(obj, app) {
+	if !appkeeper.IsResourceManagedByApplication(obj, app) {
 		return nil
 	}
-	return resourcekeeper.DeleteManagedResourceInApplication(ctx, f.Client(), mr, obj, app)
+	// Only the garbage-collect policy matters here, and a malformed one never stopped a
+	// delete, so parse just that one and ignore its error.
+	gcPolicy, _ := policy.ParsePolicy[v1alpha1.GarbageCollectPolicySpec](app)
+	return appkeeper.DeleteManagedResourceInApplication(ctx, f.Client(), mr, obj, app, gcPolicy)
 }
 
 func _getManagedResourceSource(mr v1beta1.ManagedResource) string {
@@ -232,7 +236,7 @@ func _getManagedResourceSource(mr v1beta1.ManagedResource) string {
 
 func (opt *DeleteOptions) interactiveDelete(ctx context.Context, f velacmd.Factory, cmd *cobra.Command, app *v1beta1.Application) error {
 	for {
-		rootRT, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, f.Client(), app)
+		rootRT, currentRT, historyRTs, _, err := appkeeper.ListApplicationResourceTrackers(ctx, f.Client(), app)
 		if err != nil {
 			return fmt.Errorf("failed to get ResourceTrackers for application %s/%s: %w", app.Namespace, app.Name, err)
 		}

@@ -19,7 +19,6 @@ package apply
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -27,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -37,7 +35,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -149,7 +146,7 @@ var _ = Describe("Test apply", func() {
 			Expect(err).Should(Succeed())
 			u1 := &unstructured.Unstructured{Object: obj1}
 			u1.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"})
-			Expect(k8sApplicator.Apply(ctx, u1, MustBeControlledByApp(app))).Should(Satisfy(func(err error) bool {
+			Expect(k8sApplicator.Apply(ctx, u1, mustBeControlledByApp(app))).Should(Satisfy(func(err error) bool {
 				return err != nil && strings.Contains(err.Error(), "exists but not managed by any application now")
 			}))
 			Expect(rawClient.Delete(ctx, cm1)).Should(Succeed())
@@ -165,7 +162,7 @@ var _ = Describe("Test apply", func() {
 			u2 := &unstructured.Unstructured{Object: obj2}
 			u2.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"})
 			Expect(err).Should(Succeed())
-			Expect(k8sApplicator.Apply(ctx, u2, MustBeControlledByApp(app))).Should(Satisfy(func(err error) bool {
+			Expect(k8sApplicator.Apply(ctx, u2, mustBeControlledByApp(app))).Should(Satisfy(func(err error) bool {
 				return err != nil && strings.Contains(err.Error(), "is managed by other application")
 			}))
 			Expect(rawClient.Delete(ctx, cm2)).Should(Succeed())
@@ -185,7 +182,7 @@ var _ = Describe("Test apply", func() {
 			Expect(rawClient.Update(ctx, modifiedDeploy)).Should(Succeed())
 
 			By("Test patch")
-			Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.ApplyResourceByReplace))).Should(Succeed())
+			Configure(Config{ReplaceOnUpdate: func() bool { return false }})
 			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 			copy1 := originalDeploy.DeepCopy()
 			copy1.SetResourceVersion(deploy.ResourceVersion)
@@ -194,7 +191,7 @@ var _ = Describe("Test apply", func() {
 			Expect(len(deploy.Spec.Template.Spec.Containers)).Should(Equal(2))
 
 			By("Test update")
-			Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=true", features.ApplyResourceByReplace))).Should(Succeed())
+			Configure(Config{ReplaceOnUpdate: func() bool { return true }})
 			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 			copy2 := originalDeploy.DeepCopy()
 			copy2.SetResourceVersion(deploy.ResourceVersion)
@@ -202,7 +199,7 @@ var _ = Describe("Test apply", func() {
 			Expect(rawClient.Get(ctx, client.ObjectKeyFromObject(deploy), deploy)).Should(Succeed())
 			Expect(len(deploy.Spec.Template.Spec.Containers)).Should(Equal(1))
 
-			Expect(utilfeature.DefaultMutableFeatureGate.Set(fmt.Sprintf("%s=false", features.ApplyResourceByReplace))).Should(Succeed())
+			Configure(Config{})
 		})
 	})
 })

@@ -18,37 +18,25 @@ package resourcekeeper
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"testing"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/pkg/util/rand"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/features"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
-	"github.com/oam-dev/kubevela/version"
 )
 
 var _ = Describe("Test ResourceKeeper garbage collection", func() {
@@ -66,98 +54,6 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 		Expect(testClient.Delete(context.Background(), ns)).Should(Succeed())
 	})
 
-	It("Test gcHandler garbage collect legacy RT", func() {
-		featuregatetesting.SetFeatureGateDuringTest(&testing.T{}, utilfeature.DefaultFeatureGate, features.LegacyResourceTrackerGC, true)
-		version.VelaVersion = velaVersionNumberToUpgradeResourceTracker
-		ctx := context.Background()
-		cli := multicluster.NewFakeClient(testClient)
-		cli.AddCluster("worker", workerClient)
-		cli.AddCluster("worker-2", workerClient)
-		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "gc-app", Namespace: namespace}}
-		bs, err := json.Marshal(&v1alpha1.EnvBindingSpec{
-			Envs: []v1alpha1.EnvConfig{{
-				Placement: v1alpha1.EnvPlacement{ClusterSelector: &common.ClusterSelector{Name: "worker"}},
-			}},
-		})
-		Expect(err).Should(Succeed())
-		meta.AddAnnotations(app, map[string]string{oam.AnnotationKubeVelaVersion: "v1.1.13"})
-		app.Spec = v1beta1.ApplicationSpec{
-			Components: []common.ApplicationComponent{},
-			Policies: []v1beta1.AppPolicy{{
-				Type:       v1alpha1.EnvBindingPolicyType,
-				Properties: &runtime.RawExtension{Raw: bs},
-			}},
-		}
-		app.Status.AppliedResources = []common.ClusterObjectReference{{
-			Cluster: "worker-2",
-		}}
-		Expect(cli.Create(ctx, app)).Should(Succeed())
-		keeper := &resourceKeeper{Client: cli, app: app}
-		h := gcHandler{resourceKeeper: keeper}
-		rt := &v1beta1.ResourceTracker{}
-		rt.SetName("gc-app-rt-v1-" + namespace)
-		rt.SetLabels(map[string]string{
-			oam.LabelAppName:      h.app.Name,
-			oam.LabelAppNamespace: h.app.Namespace,
-		})
-		rt3 := rt.DeepCopy()
-		rt4 := rt.DeepCopy()
-		rt5 := rt.DeepCopy()
-		rt4.SetName("gc-app-rt-v2-" + namespace)
-		Expect(cli.Create(ctx, rt)).Should(Succeed())
-		rt2 := &v1beta1.ResourceTracker{}
-		rt2.Spec.Type = v1beta1.ResourceTrackerTypeVersioned
-		rt2.SetName("gc-app-rt-v2-" + namespace)
-		rt2.SetLabels(map[string]string{
-			oam.LabelAppName:      h.app.Name,
-			oam.LabelAppNamespace: h.app.Namespace,
-		})
-		Expect(cli.Create(ctx, rt2)).Should(Succeed())
-		Expect(h.GarbageCollectLegacyResourceTrackers(ctx)).Should(Succeed())
-		Expect(cli.Create(multicluster.ContextWithClusterName(ctx, "worker"), rt3)).Should(Succeed())
-		Expect(cli.Create(multicluster.ContextWithClusterName(ctx, "worker-2"), rt4)).Should(Succeed())
-
-		checkRTExists := func(_ctx context.Context, name string, exists bool) {
-			_rt := &v1beta1.ResourceTracker{}
-			err := cli.Get(_ctx, types.NamespacedName{Name: name}, _rt)
-			if exists {
-				Expect(err).Should(Succeed())
-			} else {
-				Expect(errors.IsNotFound(err)).Should(BeTrue())
-			}
-		}
-
-		Expect(h.GarbageCollectLegacyResourceTrackers(ctx)).Should(Succeed())
-		checkRTExists(ctx, rt.GetName(), true)
-		checkRTExists(ctx, rt2.GetName(), true)
-		checkRTExists(multicluster.ContextWithClusterName(ctx, "worker"), rt3.GetName(), true)
-		checkRTExists(multicluster.ContextWithClusterName(ctx, "worker-2"), rt4.GetName(), true)
-
-		h.resourceKeeper._currentRT = rt2
-		Expect(h.GarbageCollectLegacyResourceTrackers(ctx)).Should(Succeed())
-		checkRTExists(ctx, rt.GetName(), false)
-		checkRTExists(ctx, rt2.GetName(), true)
-		checkRTExists(multicluster.ContextWithClusterName(ctx, "worker"), rt3.GetName(), false)
-		checkRTExists(multicluster.ContextWithClusterName(ctx, "worker-2"), rt4.GetName(), false)
-		Expect(app.GetAnnotations()[oam.AnnotationKubeVelaVersion]).Should(Equal("v1.2.0"))
-
-		crd := &apiextensionsv1.CustomResourceDefinition{}
-		Expect(workerClient.Get(ctx, types.NamespacedName{Name: "resourcetrackers.core.oam.dev"}, crd)).Should(Succeed())
-		Expect(workerClient.Delete(ctx, crd)).Should(Succeed())
-		Eventually(func(g Gomega) {
-			g.Expect(workerClient.List(ctx, &v1beta1.ResourceTrackerList{})).ShouldNot(Succeed())
-		}, 10*time.Second).Should(Succeed())
-		metav1.SetMetaDataAnnotation(&app.ObjectMeta, oam.AnnotationKubeVelaVersion, "master")
-		version.VelaVersion = "master"
-		Expect(cli.Update(ctx, app)).Should(Succeed())
-		Expect(h.GarbageCollectLegacyResourceTrackers(ctx)).Should(Succeed())
-		Expect(app.GetAnnotations()[oam.AnnotationKubeVelaVersion]).Should(Equal("v1.2.0"))
-
-		Expect(cli.Create(ctx, rt5)).Should(Succeed())
-		Expect(h.GarbageCollectLegacyResourceTrackers(ctx)).Should(Succeed())
-		checkRTExists(ctx, rt5.GetName(), true)
-	})
-
 	It("Test gcHandler garbage collect shared resources", func() {
 		ctx := context.Background()
 		cli := testClient
@@ -165,9 +61,9 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 
 		keeper := &resourceKeeper{
 			Client:     cli,
-			app:        app,
+			owner:      newAppOwner(app),
 			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli, app),
+			cache:      newResourceCache(cli, newAppOwner(app)),
 		}
 		h := gcHandler{resourceKeeper: keeper, cfg: newGCConfig()}
 		h._currentRT = &v1beta1.ResourceTracker{}
@@ -240,9 +136,9 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: namespace}}
 		keeper := &resourceKeeper{
 			Client:     testClient,
-			app:        app,
+			owner:      newAppOwner(app),
 			applicator: apply.NewAPIApplicator(testClient),
-			cache:      newResourceCache(testClient, app),
+			cache:      newResourceCache(testClient, newAppOwner(app)),
 		}
 		h := gcHandler{resourceKeeper: keeper, cfg: newGCConfig()}
 		h._currentRT = &v1beta1.ResourceTracker{ObjectMeta: metav1.ObjectMeta{Name: "test-cluster-scoped-resource-v2"}}
@@ -259,7 +155,7 @@ var _ = Describe("Test ResourceKeeper garbage collection", func() {
 		Expect(h.Finalize(ctx)).Should(Succeed())
 		Expect(testClient.Get(ctx, client.ObjectKeyFromObject(cr), &rbacv1.ClusterRole{})).Should(Succeed())
 		h._currentRT.Spec.ManagedResources[0].Name = "not-equal"
-		keeper.cache = newResourceCache(testClient, app)
+		keeper.cache = newResourceCache(testClient, newAppOwner(app))
 		h.Init()
 		Expect(h.Finalize(ctx)).Should(Succeed())
 		Expect(testClient.Get(ctx, client.ObjectKeyFromObject(cr), &rbacv1.ClusterRole{})).Should(Satisfy(errors.IsNotFound))

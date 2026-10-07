@@ -23,8 +23,6 @@ import (
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
 var (
@@ -37,7 +35,7 @@ var (
 // AdmissionCheck check whether resources dispatch/deletion is admitted
 func (h *resourceKeeper) AdmissionCheck(ctx context.Context, manifests []*unstructured.Unstructured) error {
 	for _, handler := range []ResourceAdmissionHandler{
-		&NamespaceAdmissionHandler{app: h.app},
+		&NamespaceAdmissionHandler{namespace: h.owner.Namespace()},
 		&ResourceTypeAdmissionHandler{},
 	} {
 		if err := handler.Validate(ctx, manifests); err != nil {
@@ -54,20 +52,22 @@ type ResourceAdmissionHandler interface {
 
 // NamespaceAdmissionHandler defines the handler to validate if the resource namespace is valid to be dispatch/delete
 type NamespaceAdmissionHandler struct {
-	app *v1beta1.Application
+	namespace string
 }
 
 // Validate check if cross namespace is available
 func (h *NamespaceAdmissionHandler) Validate(_ context.Context, manifests []*unstructured.Unstructured) error {
 	if !AllowCrossNamespaceResource {
 		for _, manifest := range manifests {
-			if manifest.GetNamespace() != h.app.GetNamespace() {
-				return errors.Errorf("forbidden resource: %s %s/%s is outside the namespace of application", manifest.GetKind(), manifest.GetNamespace(), manifest.GetName())
+			if manifest.GetNamespace() != h.ownerNamespace() {
+				return errors.Errorf("forbidden resource: %s %s/%s is outside the namespace of its owner", manifest.GetKind(), manifest.GetNamespace(), manifest.GetName())
 			}
 		}
 	}
 	return nil
 }
+
+func (h *NamespaceAdmissionHandler) ownerNamespace() string { return h.namespace }
 
 // ResourceTypeAdmissionHandler defines the handler to validate if the resource type is valid to be dispatch/delete
 type ResourceTypeAdmissionHandler struct {

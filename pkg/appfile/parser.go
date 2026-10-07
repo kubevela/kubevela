@@ -465,8 +465,8 @@ func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {
 		app := af.app
 		mode := wfSpec.Mode
 		if wfSpec.Ref != "" && mode == nil {
-			wf := &wfTypesv1alpha1.Workflow{}
-			if err := af.WorkflowClient(p.client).Get(ctx, ktypes.NamespacedName{Namespace: af.app.Namespace, Name: app.Spec.Workflow.Ref}, wf); err != nil {
+			wf, err := step.GetRefWorkflow(ctx, af.WorkflowClient(p.client), af.app.Namespace, app.Spec.Workflow.Ref)
+			if err != nil {
 				return err
 			}
 			mode = wf.Mode

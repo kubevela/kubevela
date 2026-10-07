@@ -113,10 +113,8 @@ func (p *Provider) listReleaseSecretNames(namespace, releaseName string) []strin
 
 	names := make([]string, 0, len(secretList.Items))
 	for _, s := range secretList.Items {
-		// Only include secrets that have KubeVela ownership labels.
-		// Secrets from vanilla helm installs (before KubeVela adoption) won't
-		// have these labels, and including them would fail the MustBeControlledByApp
-		// check during pre-dispatch dryrun.
+		// Only secrets this Application owns, by its app.oam.dev/* labels. One from a vanilla
+		// helm install has none, and dispatching it would fail the keeper's ownership check.
 		if s.Labels["app.oam.dev/name"] != "" {
 			names = append(names, s.Name)
 		}

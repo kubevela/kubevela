@@ -156,31 +156,17 @@ func NewTemplateListCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				header = append([]interface{}{"NAMESPACE"}, header...)
 			}
 			table.AddRow(header...)
-			if configCRDAvailable(f) {
-				items, err := listConfigTemplateCRDs(context.Background(), f.Client(), options.Namespace)
-				if err != nil {
-					return err
+			inf := config.NewConfigFactory(f.Client())
+			templateList, err := inf.ListTemplates(context.Background(), options.Namespace, "")
+			if err != nil {
+				return err
+			}
+			for _, t := range templateList {
+				row := []interface{}{t.Name, t.Alias, t.Scope, t.Sensitive, t.CreateTime}
+				if options.AllNamespace {
+					row = append([]interface{}{t.Namespace}, row...)
 				}
-				for _, t := range items {
-					row := []interface{}{t.Name, t.Spec.Alias, t.Spec.Scope, t.Spec.Sensitive, t.CreationTimestamp.Time}
-					if options.AllNamespace {
-						row = append([]interface{}{t.Namespace}, row...)
-					}
-					table.AddRow(row...)
-				}
-			} else {
-				inf := config.NewConfigFactory(f.Client())
-				templateList, err := inf.ListTemplates(context.Background(), options.Namespace, "")
-				if err != nil {
-					return err
-				}
-				for _, t := range templateList {
-					row := []interface{}{t.Name, t.Alias, t.Scope, t.Sensitive, t.CreateTime}
-					if options.AllNamespace {
-						row = append([]interface{}{t.Namespace}, row...)
-					}
-					table.AddRow(row...)
-				}
+				table.AddRow(row...)
 			}
 			if _, err := streams.Out.Write(table.Bytes()); err != nil {
 				return err

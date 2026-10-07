@@ -713,6 +713,7 @@ var _ = Describe("Render", func() {
 
 			rendered := comp.Render(
 				defkit.TestContext().WithParam("ports", "not-an-array"),
+				defkit.SkipCompile(), // ports is deliberately typed as string here, which real CUE cannot range over
 			)
 			Expect(rendered.Get("data.hasExposed")).To(BeNil())
 		})

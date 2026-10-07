@@ -35,10 +35,10 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/rollout"
 	kubevelaapp "github.com/oam-dev/kubevela/pkg/utils/app"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
@@ -289,7 +289,7 @@ func (wo appWorkflowOperator) Rollback(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to extract revision number from revision %s", rev.Name)
 	}
-	_, currentRT, historyRTs, _, err := resourcetracker.ListApplicationResourceTrackers(ctx, wo.cli, app)
+	_, currentRT, historyRTs, _, err := appkeeper.ListApplicationResourceTrackers(ctx, wo.cli, app)
 	if err != nil {
 		return errors.Wrapf(err, "failed to list resource trackers for application %s/%s", app.Namespace, app.Name)
 	}
