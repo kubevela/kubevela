@@ -353,7 +353,23 @@ func TestReadIdentityFromKubeConfig(t *testing.T) {
 
 		_, err = ReadIdentityFromKubeConfig(path)
 		r.Error(err)
+		r.Contains(err.Error(), "token has no subject")
+	})
+
+	t.Run("malformed token returns error", func(t *testing.T) {
+		kcfg := &clientcmdapi.Config{
+			Clusters:       map[string]*clientcmdapi.Cluster{"c": {Server: "https://example"}},
+			Contexts:       map[string]*clientcmdapi.Context{"ctx": {Cluster: "c", AuthInfo: "ai"}},
+			CurrentContext: "ctx",
+			AuthInfos:      map[string]*clientcmdapi.AuthInfo{"ai": {Token: "not-a-jwt"}},
+		}
+		path := filepath.Join(dir, "kubeconfig-token-malformed")
+		r.NoError(clientcmd.WriteToFile(*kcfg, path))
+
+		_, err := ReadIdentityFromKubeConfig(path)
+		r.Error(err)
 		r.Contains(err.Error(), "failed to recognize serviceaccount")
+		r.NotContains(err.Error(), "no Keyfunc was provided")
 	})
 
 	t.Run("no auth returns error", func(t *testing.T) {
