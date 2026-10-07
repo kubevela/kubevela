@@ -8,6 +8,7 @@ metadata:
   name: cron-task
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "cron-task" "kind" "ComponentDefinition" "root" $) }}
   schematic:
     cue:
       template: |

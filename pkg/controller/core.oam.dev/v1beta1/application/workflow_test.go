@@ -1075,6 +1075,63 @@ var _ = Describe("Test workflow restart annotation functionality", func() {
 		Expect(app.Status.Workflow.Finished).To(BeTrue())
 	})
 
+	It("Test workflow restart with duration on a new application still runs its first workflow", func() {
+		app := &oamcore.Application{
+			TypeMeta: metav1.TypeMeta{Kind: "Application", APIVersion: "core.oam.dev/v1beta1"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "app-new-with-duration",
+				Namespace:   namespace,
+				Annotations: map[string]string{"app.oam.dev/restart-workflow": "5m"},
+			},
+			Spec: oamcore.ApplicationSpec{
+				Components: []common.ApplicationComponent{{Name: "myweb", Type: "worker"}},
+			},
+		}
+		Expect(reconciler.Client.Create(ctx, app)).Should(Succeed())
+
+		reconciler.handleWorkflowRestartAnnotation(ctx, app)
+		Expect(app.Status.WorkflowRestartScheduledAt).NotTo(BeNil())
+		Expect(app.Status.Workflow).To(BeNil(), "a new application has not run its workflow")
+
+		handler := &AppHandler{currentAppRev: &oamcore.ApplicationRevision{ObjectMeta: metav1.ObjectMeta{Name: "app-v1"}}}
+		reconciler.checkWorkflowRestart(monitorContext.NewTraceContext(ctx, ""), app, handler)
+
+		Expect(app.Status.Workflow).NotTo(BeNil(), "the first workflow starts without waiting for the schedule")
+		Expect(app.Status.Workflow.AppRevision).To(Equal("app-v1"))
+		Expect(app.Status.WorkflowRestartScheduledAt).NotTo(BeNil(), "the recurring schedule is kept")
+	})
+
+	It("Test workflow restart with duration still restarts on a new revision", func() {
+		app := &oamcore.Application{
+			TypeMeta: metav1.TypeMeta{Kind: "Application", APIVersion: "core.oam.dev/v1beta1"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "app-duration-new-revision",
+				Namespace:   namespace,
+				Annotations: map[string]string{"app.oam.dev/restart-workflow": "1h"},
+			},
+			Spec: oamcore.ApplicationSpec{
+				Components: []common.ApplicationComponent{{Name: "myweb", Type: "worker"}},
+			},
+			Status: common.AppStatus{
+				Workflow: &common.WorkflowStatus{
+					AppRevision: "app-v1",
+					Finished:    true,
+					EndTime:     metav1.Time{Time: time.Now().Add(-1 * time.Minute)},
+				},
+			},
+		}
+		Expect(reconciler.Client.Create(ctx, app)).Should(Succeed())
+
+		reconciler.handleWorkflowRestartAnnotation(ctx, app)
+		Expect(app.Status.WorkflowRestartScheduledAt).NotTo(BeNil())
+
+		handler := &AppHandler{currentAppRev: &oamcore.ApplicationRevision{ObjectMeta: metav1.ObjectMeta{Name: "app-v2"}}}
+		reconciler.checkWorkflowRestart(monitorContext.NewTraceContext(ctx, ""), app, handler)
+
+		Expect(app.Status.Workflow).NotTo(BeNil())
+		Expect(app.Status.Workflow.AppRevision).To(Equal("app-v2"), "a spec change does not wait for the schedule")
+	})
+
 	It("Test workflow restart with duration (recurring)", func() {
 		// Initial workflow finished 10 minutes ago
 		firstEndTime := time.Now().Add(-10 * time.Minute)

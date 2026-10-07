@@ -8,6 +8,7 @@ metadata:
   name: task
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "task" "kind" "ComponentDefinition" "root" $) }}
   schematic:
     cue:
       template: |

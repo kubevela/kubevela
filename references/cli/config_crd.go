@@ -86,18 +86,6 @@ func deleteConfigTemplateCRD(ctx context.Context, cli client.Client, ns, name st
 	return nil
 }
 
-func listConfigTemplateCRDs(ctx context.Context, cli client.Client, ns string) ([]configv1alpha1.ConfigTemplate, error) {
-	var list configv1alpha1.ConfigTemplateList
-	var opts []client.ListOption
-	if ns != "" {
-		opts = append(opts, client.InNamespace(ns))
-	}
-	if err := cli.List(ctx, &list, opts...); err != nil {
-		return nil, err
-	}
-	return list.Items, nil
-}
-
 func deleteConfigCRD(ctx context.Context, cli client.Client, ns, name string) error {
 	cfg := &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
 	if err := cli.Delete(ctx, cfg); err != nil {

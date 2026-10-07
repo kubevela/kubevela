@@ -45,6 +45,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/component"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -464,8 +465,8 @@ func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {
 		app := af.app
 		mode := wfSpec.Mode
 		if wfSpec.Ref != "" && mode == nil {
-			wf := &wfTypesv1alpha1.Workflow{}
-			if err := af.WorkflowClient(p.client).Get(ctx, ktypes.NamespacedName{Namespace: af.app.Namespace, Name: app.Spec.Workflow.Ref}, wf); err != nil {
+			wf, err := step.GetRefWorkflow(ctx, af.WorkflowClient(p.client), af.app.Namespace, app.Spec.Workflow.Ref)
+			if err != nil {
 				return err
 			}
 			mode = wf.Mode
@@ -601,7 +602,7 @@ func (p *Parser) convertTemplate2Component(name, typ string, capType types.CapTy
 		CapabilityCategory: templ.CapabilityCategory,
 		FullTemplate:       templ,
 		Params:             settings,
-		engine:             newEngineFor(capType, name),
+		engine:             newEngineFor(capType, name, templ.Ancestors...),
 	}, nil
 }
 
@@ -618,6 +619,7 @@ func (p *Parser) parseComponents(ctx context.Context, af *Appfile) error {
 
 	af.ParsedComponents = comps
 	af.Components = af.app.Spec.Components
+	af.Dependencies = sources.Dependencies(af.Components, af.AppAnnotations)
 	setComponentDefinitions(af, comps)
 
 	return nil
@@ -633,6 +635,14 @@ func setComponentDefinitions(af *Appfile, comps []*Component) {
 			cd.Status = v1beta1.ComponentDefinitionStatus{}
 			af.RelatedComponentDefinitions[comp.FullTemplate.ComponentDefinition.Name] = cd
 		}
+		// Whatever the component extended goes in beside it. A render that went
+		// through a chain is only reproducible from the revision if every level it
+		// went through was written down, and this is the map the revision is built
+		// from. The key is the name the extending definition wrote, so a pinned
+		// `webservice@v3` and a sibling on plain `webservice` each keep their own.
+		for name, ancestor := range comp.FullTemplate.AncestorComponentDefinitions {
+			af.RelatedComponentDefinitions[name] = ancestor.DeepCopy()
+		}
 		for _, t := range comp.Traits {
 			if t == nil {
 				continue
@@ -641,6 +651,9 @@ func setComponentDefinitions(af *Appfile, comps []*Component) {
 				td := t.FullTemplate.TraitDefinition.DeepCopy()
 				td.Status = v1beta1.TraitDefinitionStatus{}
 				af.RelatedTraitDefinitions[t.FullTemplate.TraitDefinition.Name] = td
+			}
+			for name, ancestor := range t.FullTemplate.AncestorTraitDefinitions {
+				af.RelatedTraitDefinitions[name] = ancestor.DeepCopy()
 			}
 		}
 	}
@@ -697,6 +710,7 @@ func (p *Parser) parseComponentsFromRevision(af *Appfile) error {
 	}
 	af.ParsedComponents = comps
 	af.Components = af.app.Spec.Components
+	af.Dependencies = sources.Dependencies(af.Components, af.AppAnnotations)
 	// Definitions are already in AppRevision
 	setComponentDefinitionsFromRevision(af)
 	return nil
@@ -795,7 +809,7 @@ func (p *Parser) convertTemplate2Trait(name string, properties map[string]interf
 		Template:           templ.TemplateStr,
 		CustomStatusFormat: templ.CustomStatus,
 		FullTemplate:       templ,
-		engine:             definition.NewTraitAbstractEngine(traitName),
+		engine:             definition.NewTraitAbstractEngine(traitName, templ.Ancestors...),
 	}, nil
 }
 
@@ -812,7 +826,8 @@ func (p *Parser) ValidateComponentNames(app *v1beta1.Application) (int, error) {
 }
 
 // validateExpressionSurfaces rejects an expression that reads a `source` on a
-// surface where no source can be resolved.
+// surface where no source can be resolved, or a `component` read the workflow
+// cannot honour.
 //
 // The admission webhook performs the same check and reports richer field paths,
 // but admission can be disabled (--use-webhook=false). Unlike the other source
@@ -823,6 +838,11 @@ func (p *Parser) ValidateComponentNames(app *v1beta1.Application) (int, error) {
 // The rule itself lives in pkg/cue/definition, next to the resolver that
 // implements it, so the two enforcement points cannot drift apart.
 func (p *Parser) validateExpressionSurfaces(ctx context.Context, af *Appfile) error {
+	// Without the opt-in, $( ) is ordinary text, a shell command say, and there
+	// is no expression to check: the same decision admission and the render make.
+	if af.app == nil || !sources.ExpressionsEnabledFor(af.app.GetAnnotations()) {
+		return nil
+	}
 	check := func(raw *runtime.RawExtension, surface, name string) error {
 		if raw == nil || len(raw.Raw) == 0 {
 			return nil
@@ -836,16 +856,19 @@ func (p *Parser) validateExpressionSurfaces(ctx context.Context, af *Appfile) er
 		if !propexpr.HasExpression(decoded) {
 			return nil
 		}
-		if sources.SurfaceReadsSource(surface) {
-			return nil
-		}
-		// The surface cannot resolve a source, so only `context` is offered.
-		// ValidateTree reports reading anything else, which is what catches a
-		// `source` read here.
-		if err := celexpr.ValidateTree(decoded, propexpr.ContextIdent); err != nil {
+		// ValidateTree reports reading any root the surface does not offer.
+		if err := celexpr.ValidateTree(decoded, sources.RootsFor(surface)...); err != nil {
 			return fmt.Errorf("%s %q: %w", surface, name, err)
 		}
 		return nil
+	}
+
+	// A placeholder dry-run validates reads against the whole Application before
+	// rendering it one step's slice at a time.
+	if !sources.ComponentPlaceholders(af.Context) {
+		if err := ValidateComponentReads(af.app.Spec); err != nil {
+			return err
+		}
 	}
 
 	for _, policy := range af.Policies {
@@ -1030,11 +1053,13 @@ func nonNilStrings(in map[string]string) map[string]string {
 // newEngineFor picks the render engine for a capability. A PolicyDefinition with
 // a CUE template renders through the same machinery as a component but on its own
 // surface, so its expressions see the context a policy render actually has.
-func newEngineFor(capType types.CapType, name string) definition.AbstractEngine {
+// newEngineFor picks the engine for a capability. Ancestors are only meaningful
+// to the workload engine: a policy cannot extend anything.
+func newEngineFor(capType types.CapType, name string, ancestors ...inherit.Level) definition.AbstractEngine {
 	if capType == types.TypePolicy {
 		return definition.NewPolicyAbstractEngine(name)
 	}
-	return definition.NewWorkloadAbstractEngine(name)
+	return definition.NewWorkloadAbstractEngine(name, ancestors...)
 }
 
 // policyAppScoped reports whether a policy type is an Application-scoped

@@ -451,6 +451,53 @@ func TestValidateHelmSourceCredential(t *testing.T) {
 	}
 }
 
+// TestNewAsyncReaderRejectsUnreadableGitEndpointsInsteadOfPanicking pins the
+// crash in kubevela#7364: a non-GitHub endpoint was accepted by
+// `vela addon registry add --type git` and then took down the CLI on the next
+// `vela addon list` with a nil pointer dereference in gitHelper.readRepo.
+func TestNewAsyncReaderRejectsUnreadableGitEndpointsInsteadOfPanicking(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		baseURL string
+		rdType  ReaderType
+		wantErr error
+	}{
+		{"git scheme", "git://127.0.0.1:9418/poc.git", gitType, ErrUnsupportedGitEndpoint},
+		{"ssh scheme", "ssh://git@github.com/kubevela/catalog", gitType, ErrUnsupportedGitEndpoint},
+		// These parse without error, into content of another type.
+		{"oss scheme", "oss://oss-cn-hangzhou.aliyuncs.com/kubevela-addons", gitType, ErrUnsupportedGitEndpoint},
+		{"file scheme", "file:///tmp/addons", gitType, ErrUnsupportedGitEndpoint},
+		{"a gitee.com URL", "https://gitee.com/kubevela/catalog", gitType, ErrUnsupportedGitEndpoint},
+		{"gitee, git scheme", "git://127.0.0.1:9418/poc.git", giteeType, ErrUnsupportedGiteeEndpoint},
+		{"gitee, a github.com URL", "https://github.com/kubevela/catalog", giteeType, ErrUnsupportedGiteeEndpoint},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// The point is that this returns rather than panics.
+			reader, err := NewAsyncReader(tc.baseURL, "", "", "addons", "", tc.rdType)
+			assert.Nil(t, reader)
+			assert.ErrorIs(t, err, tc.wantErr)
+			// The endpoint is quoted in the message, so the operator can see
+			// which registry of theirs is the bad one.
+			assert.Contains(t, err.Error(), tc.baseURL)
+		})
+	}
+}
+
+// A GitHub endpoint still builds a reader, so the guard above is not a
+// tightening of what already worked.
+func TestNewAsyncReaderStillAcceptsGithubEndpoints(t *testing.T) {
+	for _, tc := range []struct{ baseURL, subPath string }{
+		{"https://github.com/kubevela/catalog", "addons"},
+		{"https://github.com/kubevela/catalog/tree/master/addons", ""},
+		{"https://api.github.com/repos/kubevela/catalog/contents/addons", ""},
+		{"https://github.com/kubevela/catalog.git", "addons"},
+	} {
+		reader, err := NewAsyncReader(tc.baseURL, "", "", tc.subPath, "", gitType)
+		assert.NoError(t, err, tc.baseURL)
+		assert.IsType(t, &gitReader{}, reader)
+	}
+}
+
 // WithRef overrides the revision a registry URL pinned, so one registry can be
 // read at different branches without configuring a second.
 //

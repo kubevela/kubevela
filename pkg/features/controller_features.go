@@ -56,6 +56,11 @@ const (
 	AuthenticateApplication featuregate.Feature = "AuthenticateApplication"
 	// ValidateDefinitionPermissions enables RBAC validation for definition access in applications
 	ValidateDefinitionPermissions featuregate.Feature = "ValidateDefinitionPermissions"
+	// RestrictDefinitionNamespaces enforces a definition's spec.restrictions, or
+	// its definition.oam.dev/restrict-namespaces annotation, when an Application is
+	// written. Defaults on: it does nothing until a definition declares a
+	// restriction, and is here to switch enforcement off, not on.
+	RestrictDefinitionNamespaces featuregate.Feature = "RestrictDefinitionNamespaces"
 	// GzipResourceTracker enables the gzip compression for ResourceTracker. It can be useful if you have large
 	// application that needs to dispatch lots of resources or large resources (like CRD or huge ConfigMap),
 	// which at the cost of slower processing speed due to the extra overhead for compression and decompression.
@@ -179,6 +184,13 @@ const (
 	// has been checked for $(VAR) in env, command and args. Turning it off makes
 	// every Application eligible at once.
 	RequireCelExpressionOptIn featuregate.Feature = "RequireCelExpressionOptIn"
+
+	// EnableDefinitionInheritance enables spec.extends on ComponentDefinition and
+	// TraitDefinition, letting a definition render on top of another. With the
+	// gate off a definition that sets the field is refused rather than ignored,
+	// since ignoring it would render the child's template with an unresolved
+	// `$super`.
+	EnableDefinitionInheritance featuregate.Feature = "EnableDefinitionInheritance"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -191,6 +203,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	ApplyResourceByReplace:                        {Default: false, PreRelease: featuregate.Alpha},
 	AuthenticateApplication:                       {Default: false, PreRelease: featuregate.Alpha},
 	ValidateDefinitionPermissions:                 {Default: false, PreRelease: featuregate.Alpha},
+	RestrictDefinitionNamespaces:                  {Default: true, PreRelease: featuregate.Beta},
 	GzipResourceTracker:                           {Default: false, PreRelease: featuregate.Alpha},
 	ZstdResourceTracker:                           {Default: false, PreRelease: featuregate.Alpha},
 	ApplyOnce:                                     {Default: false, PreRelease: featuregate.Alpha},
@@ -214,6 +227,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	EnableSourceAutoUpdate:                        {Default: false, PreRelease: featuregate.Alpha},
 	EnableCelExpressions:                          {Default: false, PreRelease: featuregate.Alpha},
 	RequireCelExpressionOptIn:                     {Default: true, PreRelease: featuregate.Alpha},
+	EnableDefinitionInheritance:                   {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {

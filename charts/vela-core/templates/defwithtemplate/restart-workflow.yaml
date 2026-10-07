@@ -11,6 +11,7 @@ metadata:
   name: restart-workflow
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "restart-workflow" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |

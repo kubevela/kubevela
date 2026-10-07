@@ -24,11 +24,13 @@ import (
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	wftypes "github.com/kubevela/workflow/pkg/types"
 	"github.com/pkg/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -73,11 +75,27 @@ func (g *RefWorkflowStepGenerator) Generate(app *v1beta1.Application, existingSt
 	if app.Spec.Workflow.Steps != nil {
 		return nil, errors.Errorf("cannot set steps and ref in workflow at the same time")
 	}
-	wf := &wfTypesv1alpha1.Workflow{}
-	if err = g.Client.Get(g.Context, types.NamespacedName{Namespace: app.GetNamespace(), Name: app.Spec.Workflow.Ref}, wf); err != nil {
-		return
+	wf, err := GetRefWorkflow(g.Context, g.Client, app.GetNamespace(), app.Spec.Workflow.Ref)
+	if err != nil {
+		return nil, err
 	}
 	return wf.Steps, nil
+}
+
+// GetRefWorkflow gets the Workflow an Application's workflow ref names: from
+// the Application's namespace, else from the system namespace, the order a
+// definition is looked up in. A Workflow in the Application's namespace wins
+// over a system one of the same name.
+func GetRefWorkflow(ctx context.Context, cli client.Reader, appNamespace, name string) (*wfTypesv1alpha1.Workflow, error) {
+	wf := &wfTypesv1alpha1.Workflow{}
+	err := cli.Get(ctx, types.NamespacedName{Namespace: appNamespace, Name: name}, wf)
+	if err == nil || !apierrors.IsNotFound(err) || appNamespace == oam.SystemDefinitionNamespace {
+		return wf, err
+	}
+	if err := cli.Get(ctx, types.NamespacedName{Namespace: oam.SystemDefinitionNamespace, Name: name}, wf); err != nil {
+		return nil, err
+	}
+	return wf, nil
 }
 
 // ApplyComponentWorkflowStepGenerator generate apply-component workflow steps for all components in the application

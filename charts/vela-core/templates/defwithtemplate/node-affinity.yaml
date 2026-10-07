@@ -14,6 +14,7 @@ spec:
   appliesToWorkloads:
     - '*'
   podDisruptive: true
+  #{{ include "definitionRestrictions" (dict "name" "node-affinity" "kind" "TraitDefinition" "root" $) }}
   schematic:
     cue:
       template: |

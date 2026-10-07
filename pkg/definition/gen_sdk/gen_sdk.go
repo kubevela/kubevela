@@ -45,6 +45,7 @@ import (
 
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/definition"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers"
@@ -125,7 +126,7 @@ func NewLanguageArgs(lang string, langArgs []string) (LanguageArgs, error) {
 	availableArgs := LangArgsRegistry[lang]
 	res := languageArgs{}
 	for _, arg := range langArgs {
-		parts := strings.Split(arg, "=")
+		parts := strings.SplitN(arg, "=", 2)
 		if len(parts) != 2 {
 			return nil, errors.Errorf("argument %s is not in the format of key=value", arg)
 		}
@@ -199,32 +200,42 @@ func (meta *GenMeta) Init(c common.Args, langArgs []string) (err error) {
 
 	meta.packageFunc = packageFuncs[meta.Lang]
 
-	// Analyze the all cue files from meta.File. It can be file or directory. If directory is given, it will recursively
-	// analyze all cue files in the directory.
-	for _, f := range meta.File {
+	meta.cuePaths, err = cuePathsIn(meta.File)
+	if err != nil {
+		return err
+	}
+	return os.MkdirAll(meta.Output, 0750)
+}
+
+// cuePathsIn returns the CUE files among paths. A directory is searched
+// recursively, skipping CUE test files; a file named explicitly is kept.
+func cuePathsIn(paths []string) ([]string, error) {
+	var cuePaths []string
+	for _, f := range paths {
 		info, err := os.Stat(f)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if info.IsDir() {
-			err = filepath.Walk(f, func(path string, info os.FileInfo, err error) error {
-				if err != nil {
-					return err
-				}
-				if !info.IsDir() && strings.HasSuffix(path, ".cue") {
-					meta.cuePaths = append(meta.cuePaths, path)
-				}
-				return nil
-			})
+		if !info.IsDir() {
+			if strings.HasSuffix(f, ".cue") {
+				cuePaths = append(cuePaths, f)
+			}
+			continue
+		}
+		err = filepath.Walk(f, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
-		} else if strings.HasSuffix(f, ".cue") {
-			meta.cuePaths = append(meta.cuePaths, f)
+			if !info.IsDir() && strings.HasSuffix(path, ".cue") && !utils.IsCUETestFile(path) {
+				cuePaths = append(cuePaths, path)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
-
 	}
-	return os.MkdirAll(meta.Output, 0750)
+	return cuePaths, nil
 }
 
 // CreateScaffold will create a scaffold for the given language.

@@ -200,6 +200,37 @@ type ApplicationTraitStatus struct {
 	Message string            `json:"message,omitempty"`
 }
 
+// ComponentDependencySource is where a component's dependency is declared.
+type ComponentDependencySource string
+
+const (
+	// DependencySourceDependsOn is a component named in dependsOn.
+	DependencySourceDependsOn ComponentDependencySource = "dependsOn"
+	// DependencySourceInputs is a component whose outputs the inputs read.
+	DependencySourceInputs ComponentDependencySource = "inputs"
+	// DependencySourceExpression is a component a property expression reads.
+	DependencySourceExpression ComponentDependencySource = "expression"
+)
+
+// ComponentDependency is one component another depends on. A dependency on a
+// component beside the dependent, in its own cluster and namespace, orders the
+// dependent after it. One from an expression that names a cluster or namespace
+// is read there, and is ordered by the workflow instead.
+type ComponentDependency struct {
+	// Component is the component that depends.
+	Component string `json:"component"`
+	// DependsOn is the component depended on.
+	DependsOn string `json:"dependsOn"`
+	// Source is where the dependency is declared.
+	Source ComponentDependencySource `json:"source"`
+	// Cluster is the cluster an expression reads the component in, when it names one.
+	// +optional
+	Cluster string `json:"cluster,omitempty"`
+	// Namespace is the namespace an expression reads the component in, when it names one.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
 // ApplicationSourceStatus records source resolution status.
 type ApplicationSourceStatus struct {
 	// Name is the spec.sources[] binding this reports on.
@@ -419,6 +450,12 @@ type AppStatus struct {
 	// component consumed.
 	// +optional
 	Sources []ApplicationSourceStatus `json:"sources,omitempty"`
+
+	// Dependencies is what each component depends on: the components named in
+	// its dependsOn, those whose outputs its inputs read, and those its property
+	// expressions read.
+	// +optional
+	Dependencies []ComponentDependency `json:"dependencies,omitempty"`
 
 	// PolicyStatus records the status of policy
 	// Deprecated This field is only used by EnvBinding Policy which is deprecated.
@@ -680,4 +717,70 @@ func ContainerStateToString(state corev1.ContainerState) string {
 	default:
 		return "Unknown"
 	}
+}
+
+// DefinitionRestrictions limits where a definition may be used. Absent or empty
+// means it is usable anywhere.
+//
+// The fields are alternatives: a namespace is allowed if it matches Namespaces or
+// NamespaceSelector.
+type DefinitionRestrictions struct {
+	// Namespaces are the namespaces whose Applications may use this definition, as
+	// names or globs ("tenant-*", matched with path.Match).
+	// +optional
+	Namespaces []string `json:"namespaces,omitempty"`
+
+	// NamespaceSelector selects those namespaces by label instead, for membership
+	// that is not a naming convention. An empty selector matches every namespace;
+	// leave the field unset to express no opinion.
+	//
+	// Anyone who can label a namespace can bring it into scope, which a name glob
+	// does not allow without the right to create namespaces.
+	// +optional
+	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
+
+	// Quota limits how many uses of this definition one namespace may contain. The
+	// first entry matching the namespace applies, so an entry with no matcher reads
+	// as the default and belongs last. Absent or empty means unlimited.
+	//
+	// Only ComponentDefinition and TraitDefinition are counted, and a quota on any
+	// other kind is rejected when the definition is written. A namespace
+	// accumulates components and the traits on them; a policy, workflow step or
+	// source is part of how one Application is assembled.
+	//
+	// The system namespace is never subject to a quota: addons install their own
+	// Applications there using these definitions.
+	// +optional
+	Quota []NamespaceQuota `json:"quota,omitempty"`
+}
+
+// NamespaceQuota caps how many uses of a definition the namespaces it matches may
+// contain. Its matcher fields carry the same meaning as the ones on
+// DefinitionRestrictions, and an entry with neither matches every namespace.
+//
+// Warn and Limit are both optional, and at least one must be set. Warn alone never
+// refuses, which is how a quota is introduced before it is enforced.
+type NamespaceQuota struct {
+	// Namespaces are the namespaces this entry applies to, as names or globs
+	// ("tenant-*", matched with path.Match). Leave both matchers unset to make the
+	// entry the default.
+	// +optional
+	Namespaces []string `json:"namespaces,omitempty"`
+
+	// NamespaceSelector selects those namespaces by label instead. It and
+	// Namespaces are alternatives, so either one matching selects the entry.
+	// +optional
+	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
+
+	// Warn is the count at or above which the Application is admitted with a
+	// warning.
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	Warn *int32 `json:"warn,omitempty"`
+
+	// Limit is the most uses of this definition the namespace may contain. Omit to
+	// warn without ever refusing; zero forbids the type outright.
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	Limit *int32 `json:"limit,omitempty"`
 }

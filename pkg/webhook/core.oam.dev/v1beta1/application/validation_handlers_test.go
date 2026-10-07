@@ -200,7 +200,7 @@ func TestValidateCreate(t *testing.T) {
 				},
 			}
 
-			errs := handler.ValidateCreate(context.Background(), tc.app, req)
+			errs, _ := handler.ValidateCreate(context.Background(), tc.app, req)
 			assert.Equal(t, tc.expectedErrorCount, len(errs),
 				"Expected %d errors, got %d: %v", tc.expectedErrorCount, len(errs), errs)
 
@@ -306,7 +306,7 @@ func TestValidateUpdate(t *testing.T) {
 				},
 			}
 
-			errs := handler.ValidateUpdate(context.Background(), tc.newApp, oldApp, req)
+			errs, _ := handler.ValidateUpdate(context.Background(), tc.newApp, oldApp, req)
 			assert.Equal(t, tc.expectedErrorCount, len(errs),
 				"Expected %d errors, got %d: %v", tc.expectedErrorCount, len(errs), errs)
 		})

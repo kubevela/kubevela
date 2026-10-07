@@ -253,6 +253,32 @@ func TestValidateCuexTemplate(t *testing.T) {
 				}`,
 			want: errors.New("output.hello: reference \"world\" not found"),
 		},
+		"nonexistentProviderFunction": {
+			cueTemplate: `
+import "vela/kube"
+
+output: kube.#NotARealFunction & {
+	$params: {}
+}
+`,
+			want: errors.New("output: undefined field: #NotARealFunction"),
+		},
+		"concreteProviderWithoutExecution": {
+			cueTemplate: `
+import "vela/config"
+
+output: config.#ImageRegistry & {
+	$params: {
+		registry: "index.docker.io"
+		auth: {
+			username: "foo"
+			password: "bar"
+		}
+	}
+}
+`,
+			want: nil,
+		},
 	}
 
 	for caseName, cs := range cases {
@@ -260,7 +286,7 @@ func TestValidateCuexTemplate(t *testing.T) {
 			t.Parallel()
 			err := ValidateCuexTemplate(context.Background(), cs.cueTemplate)
 			if cs.want != nil {
-				assert.Equal(t, cs.want.Error(), err.Error())
+				assert.EqualError(t, err, cs.want.Error())
 			} else {
 				assert.NoError(t, err)
 			}
@@ -510,17 +536,24 @@ output: kube.#Read & {
 		assert.Contains(t, err.Error(), "field not allowed")
 	})
 
-	// The two below pin the silent-loss hazard rather than desirable behaviour,
-	// so that collapsing the validators back into one fails loudly here.
+	// Pins the silent-loss hazard rather than desirable behaviour, so that
+	// collapsing the validators back into one fails loudly here.
 	t.Run("step validator does not catch a workload-flavor param", func(t *testing.T) {
 		t.Parallel()
 		assert.NoError(t, ValidateWorkflowStepCuexTemplate(context.Background(), workloadFlavor),
 			"if this now errors, the flavors converged and the split may be revisitable")
 	})
 
-	t.Run("component validator does not catch a workflow-flavor param", func(t *testing.T) {
+	// Component/Trait validation now runs with cue.Final() (see
+	// validateCuexTemplateWith), which closes this one direction: kube.#Read
+	// is not a field the workload flavor's vela/kube defines at all, so
+	// forcing full concreteness surfaces it as "undefined field" instead of
+	// silently passing. The step validator's side above is unaffected,
+	// cue.Final() is not safe there, so the split is still justified.
+	t.Run("component validator now catches an entirely wrong-flavor selector", func(t *testing.T) {
 		t.Parallel()
-		assert.NoError(t, ValidateCuexTemplate(context.Background(), workflowFlavor),
-			"if this now errors, the flavors converged and the split may be revisitable")
+		err := ValidateCuexTemplate(context.Background(), workflowFlavor)
+		assert.Error(t, err, "if this now passes, cue.Final() stopped catching undefined selectors")
+		assert.Contains(t, err.Error(), "undefined field")
 	})
 }

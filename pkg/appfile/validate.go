@@ -25,6 +25,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/jeremywohl/flatten/v2"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
@@ -32,6 +33,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
 	cueutils "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
+
 	// Use WorkloadCompiler instead of the upstream cuex.DefaultCompiler.
 	// The upstream DefaultCompiler does not include provider packages like
 	// "vela/helm". Component templates (e.g., helmchart) import these packages,
@@ -56,11 +59,8 @@ import (
 
 // ValidateCUESchematicAppfile validates CUE schematic workloads in an Appfile
 func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
-	// This render resolves sources for real - it has to, to type-check the
-	// result against the consuming parameter - but it is a validation, so it
-	// must not leave a cache entry behind. Reads still go through: not reading
-	// would make every admission repeat the source's live I/O, and would have
-	// validation resolve different data than the render that follows it.
+	// A guard: a render reached from here without the type-only marker would
+	// write cache entries for an apply that may yet be refused.
 	restore := a.SourceCacheStore
 	a.SourceCacheStore = sources.NewReadOnlySourceCacheStore(sourceCacheStoreFor(a))
 	defer func() { a.SourceCacheStore = restore }()
@@ -79,6 +79,9 @@ func (p *Parser) ValidateCUESchematicAppfile(a *Appfile) error {
 			ctxData.Ctx = context.Background()
 		}
 		ctxData.Ctx = helm.WithDryRun(ctxData.Ctx)
+		// Covers every render this validation performs: the component's and
+		// each of its traits'.
+		ctxData.Ctx = sources.WithTypeOnly(ctxData.Ctx)
 
 		if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCueValidation) {
 			err := p.ValidateComponentParams(ctxData, wl, a)
@@ -159,30 +162,27 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 		return errors.WithStack(err)
 	}
 
-	// Substitute source and context expressions before validating.
+	// Under the type-only marker this types expressions from their schema
+	// instead of resolving them.
 	//
-	// These params are the authored ones, so an unresolved $(source...) reaches
-	// CUE as the literal string it is and collides with any non-string
-	// constraint - "conflicting values int and \"$(source.config.replicas)\"".
-	// The render path substitutes before it evaluates; this one has to as well,
-	// or the same Application is accepted at render and refused here.
-	//
-	// ValidateCUESchematicAppfile installs a read-through, write-discarding cache
-	// store for exactly this: the reads happen, and no entry is left behind by a
-	// validation.
+	// An unresolved $(source...) reaches CUE as the string it is and collides
+	// with any non-string constraint, so something type-compatible has to take
+	// its place. A type and not a value: `replicas: int` unifies with a
+	// `>0 & int` constraint, while a sentinel 0 is refused as out of bound.
+	// Validate(Concrete(false)) below admits the non-concrete result.
 	params, err := sources.ResolveSourceExpressions(ctx, wl.Params, sources.SurfaceComponent)
 	if err != nil {
-		return errors.WithMessagef(err, "component %q: resolve source expressions", wl.Name)
+		return errors.WithMessagef(err, "component %q: type source expressions", wl.Name)
 	}
 	resolvedParams, ok := params.(map[string]interface{})
 	if !ok {
 		resolvedParams = wl.Params
 	}
-
-	paramSnippet, err := cueParamBlock(resolvedParams)
+	paramBody, err := sources.ParamsAsCUE(resolvedParams)
 	if err != nil {
 		return errors.WithMessagef(err, "component %q: invalid params", wl.Name)
 	}
+	paramSnippet := velaprocess.ParameterFieldName + ": " + paramBody
 
 	// Apply the cue compatibility upgrades so that the render path applies
 	templateStr, _ := upgrade.EnsureCueVersionCompatibility(wl.FullTemplate.TemplateStr, wl.Name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
@@ -206,7 +206,25 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 	// them: filterMissing flattens what was provided, so an unresolved
 	// `meta: "$(source.x.meta)"` flattens to the single key `meta` and never
 	// satisfies the required `meta.region` and `meta.zone`.
-	if err := enforceRequiredParams(val, resolvedParams, app); err != nil {
+	//
+	// And a component that extends another declares only part of its parameters,
+	// so the chain is what says which are required, the same schema the
+	// undeclared check below reads. Judging one step against the child alone and
+	// the next against the chain asks two different questions of the same
+	// properties.
+	// The chain's root is used whole rather than having its `parameter` grafted
+	// onto `val`: each cuex CompileString builds its own cue.Context, so the two
+	// are different runtimes and unifying across them panics.
+	required := val
+	if len(wl.FullTemplate.Ancestors) > 0 {
+		root, schemaErr := componentParameterRoot(ctx.GetCtx(), wl, templateStr, baseCtx)
+		if schemaErr != nil {
+			klog.V(4).Infof("component %q: judging required parameters against its own template: %v", wl.Name, schemaErr)
+		} else {
+			required = root
+		}
+	}
+	if err := enforceRequiredParams(required, resolvedParams, app); err != nil {
 		return errors.WithMessagef(err, "component %q", wl.Name)
 	}
 
@@ -222,16 +240,11 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 	// 4. Reject undeclared parameters (feature-gated)
 	// ---------------------------------------------------------------------
 	if utilfeature.DefaultMutableFeatureGate.Enabled(features.ValidateUndeclaredParameters) {
-		// Compile the template WITHOUT user params to get the pure schema.
-		schemaSrc := strings.Join([]string{
-			renderTemplate(templateStr),
-			baseCtx,
-		}, "\n")
-		schemaRoot, schemaErr := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), schemaSrc)
+		// Read the schema WITHOUT user params, so it is the declaration alone.
+		paramSchema, schemaErr := componentParameterSchema(ctx.GetCtx(), wl, templateStr, baseCtx)
 		if schemaErr != nil {
 			klog.V(4).Infof("component %q: skipping undeclared parameter check: schema compilation failed: %v", wl.Name, schemaErr)
 		} else {
-			paramSchema := schemaRoot.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
 			undeclared := findUndeclaredFields(paramSchema, wl.Params, "")
 
 			// Second pass: resolve conditional parameter declarations by
@@ -248,14 +261,9 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 					}
 					condSnippet, fErr := cueParamBlock(filteredParams)
 					if fErr == nil {
-						condSrc := strings.Join([]string{
-							renderTemplate(templateStr),
-							condSnippet,
-							baseCtx,
-						}, "\n")
-						condRoot, condErr := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), condSrc)
+						condSchema, condErr := componentParameterSchema(ctx.GetCtx(), wl,
+							strings.Join([]string{templateStr, condSnippet}, "\n"), baseCtx)
 						if condErr == nil {
-							condSchema := condRoot.LookupPath(value.FieldPath(velaprocess.ParameterFieldName))
 							undeclared = findUndeclaredFields(condSchema, wl.Params, "")
 						}
 					}
@@ -507,6 +515,53 @@ func filterMissing(keys []string, provided map[string]any) ([]string, error) {
 		}
 	}
 	return out, nil
+}
+
+// componentParameterSchema reads the parameter declaration a component is
+// judged against. One that extends another declares only part of its own
+// parameters, so the chain is what says which fields are valid.
+func componentParameterSchema(ctx context.Context, wl *Component, templateStr, baseCtx string) (cue.Value, error) {
+	if len(wl.FullTemplate.Ancestors) == 0 {
+		root, err := velacuex.WorkloadCompiler.Get().CompileString(ctx, strings.Join([]string{
+			renderTemplate(templateStr),
+			baseCtx,
+		}, "\n"))
+		if err != nil {
+			return cue.Value{}, err
+		}
+		return root.LookupPath(value.FieldPath(velaprocess.ParameterFieldName)), nil
+	}
+
+	root, err := inherit.SchemaValue(ctx,
+		inherit.Level{Name: wl.Name, Template: templateStr},
+		baseCtx, inherit.ComponentSurface, compileSchemaLevel)
+	if err != nil {
+		return cue.Value{}, err
+	}
+	return root.LookupPath(value.FieldPath(velaprocess.ParameterFieldName)), nil
+}
+
+// componentParameterRoot is componentParameterSchema before the lookup, for a
+// caller that needs the whole value rather than the parameter alone. Keeping it
+// whole is what keeps it in one cue.Context.
+func componentParameterRoot(ctx context.Context, wl *Component, templateStr, baseCtx string) (cue.Value, error) {
+	if len(wl.FullTemplate.Ancestors) == 0 {
+		return velacuex.WorkloadCompiler.Get().CompileString(ctx, strings.Join([]string{
+			renderTemplate(templateStr),
+			baseCtx,
+		}, "\n"))
+	}
+
+	return inherit.SchemaValue(ctx,
+		inherit.Level{Name: wl.Name, Template: templateStr},
+		baseCtx, inherit.ComponentSurface, compileSchemaLevel)
+}
+
+// compileSchemaLevel compiles one level of a chain for its parameters alone, so
+// provider functions stay unresolved: nothing is supplied for them to run on.
+func compileSchemaLevel(ctx context.Context, src string) (cue.Value, error) {
+	return velacuex.WorkloadCompiler.Get().CompileStringWithOptions(
+		ctx, renderTemplate(src), cuex.DisableResolveProviderFunctions{})
 }
 
 // renderTemplate appends the placeholders expected by KubeVela’s template

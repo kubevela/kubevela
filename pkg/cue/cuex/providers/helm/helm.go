@@ -182,7 +182,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 				"name":      secName,
 				"namespace": releaseNamespace,
 			}
-			// Add KubeVela ownership labels so MustBeControlledByApp passes
+			// Add KubeVela ownership labels so the ownership check (apply.MustBeControlledBy) passes
 			// during pre-dispatch dryrun (especially for adoption of vanilla releases)
 			if renderParams.Context != nil {
 				secretMeta["labels"] = map[string]interface{}{

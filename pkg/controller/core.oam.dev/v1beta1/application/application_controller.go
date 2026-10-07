@@ -59,6 +59,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -68,7 +69,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
-	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/workflow"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 	"github.com/oam-dev/kubevela/version"
@@ -259,6 +259,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// evalStatus, and the workflow's own apply-component steps have already
 	// rendered by this point.
 	app.Status.Sources = handler.sourceStatusList()
+	app.Status.Dependencies = appFile.Dependencies
 
 	// Remove services[] entries for components that no longer exist in spec
 	filteredServices, componentsRemoved := filterRemovedComponentsFromStatus(
@@ -357,13 +358,20 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// stored manifest and StateKeep below would keep re-applying the stale one.
 	r.refreshSourceDrivenComponents(logCtx, handler, appParser, appFile, app)
 
+	// A PostDispatch trait or a refresh held back on a component read leaves its
+	// component unhealthy, saying why, until the read can be answered.
+	if handler.readsWaiting {
+		app.Status.Services = handler.services
+		phase = common.ApplicationUnhealthy
+	}
+
 	r.stateKeep(logCtx, handler, app)
 
 	opts := []resourcekeeper.GCOption{
-		resourcekeeper.AppRevisionLimitGCOption(r.appRevisionLimit),
+		resourcekeeper.RevisionLimitGCOption(r.appRevisionLimit),
 	}
 	if DisableAllApplicationRevision {
-		opts = append(opts, resourcekeeper.DisableApplicationRevisionGCOption{})
+		opts = append(opts, resourcekeeper.DisableRevisionGCOption{})
 	}
 	if DisableAllComponentRevision {
 		opts = append(opts, resourcekeeper.DisableGCComponentRevisionOption{})
@@ -484,7 +492,12 @@ func renderedForPrune(logCtx monitorContext.Context, app *v1beta1.Application,
 			continue
 		}
 		seen[key] = struct{}{}
-		workload, traits, _, err := apply(logCtx, comp, nil, svc.Cluster, svc.Namespace)
+		workload, traits, _, waiting, err := apply(logCtx, comp, nil, svc.Cluster, svc.Namespace)
+		if waiting != "" {
+			// Not applied yet, and not failed: nothing to judge its render by.
+			incomplete[comp.Name] = struct{}{}
+			continue
+		}
 		if err != nil {
 			onErr(comp.Name, svc.Cluster, err)
 			incomplete[comp.Name] = struct{}{}
@@ -619,10 +632,10 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 	}
 
 	options := []resourcekeeper.GCOption{
-		resourcekeeper.AppRevisionLimitGCOption(r.appRevisionLimit),
+		resourcekeeper.RevisionLimitGCOption(r.appRevisionLimit),
 	}
 	if DisableAllApplicationRevision {
-		options = append(options, resourcekeeper.DisableApplicationRevisionGCOption{})
+		options = append(options, resourcekeeper.DisableRevisionGCOption{})
 	}
 	if DisableAllComponentRevision {
 		options = append(options, resourcekeeper.DisableGCComponentRevisionOption{})
@@ -632,11 +645,11 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 			resourcekeeper.DisableMarkStageGCOption{},
 			resourcekeeper.DisableGCComponentRevisionOption{},
 			resourcekeeper.DisableLegacyGCOption{},
-			resourcekeeper.DisableApplicationRevisionGCOption{},
+			resourcekeeper.DisableRevisionGCOption{},
 		)
 	}
 
-	finished, waiting, err := handler.resourceKeeper.GarbageCollect(resourcekeeper.WithPhase(logCtx, phase), options...)
+	finished, waiting, err := handler.resourceKeeper.GarbageCollect(resourcekeeper.WithFailedRun(logCtx, phase == common.ApplicationWorkflowFailed), options...)
 	if err != nil {
 		logCtx.Error(err, "Failed to gc resourcetrackers")
 		cond := condition.Deleting()
@@ -730,7 +743,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 				metrics.AppReconcileStageDurationHistogram.WithLabelValues("remove-finalizer").Observe(v)
 			}))
 			defer subCtx.Commit("finish remove finalizers")
-			rootRT, currentRT, historyRTs, crRT, err := resourcetracker.ListApplicationResourceTrackers(ctx, r.Client, app)
+			rootRT, currentRT, historyRTs, crRT, err := appkeeper.ListApplicationResourceTrackers(ctx, r.Client, app)
 			if err != nil {
 				return r.result(err).end(true)
 			}
@@ -739,7 +752,7 @@ func (r *Reconciler) handleFinalizers(ctx monitorContext.Context, app *v1beta1.A
 				return true, result, err
 			}
 			if rootRT == nil && currentRT == nil && len(historyRTs) == 0 && crRT == nil {
-				if revs, err := resourcekeeper.ListApplicationRevisions(ctx, r.Client, app.Name, app.Namespace); len(revs) > 0 || err != nil {
+				if revs, err := appkeeper.ListApplicationRevisions(ctx, r.Client, app.Name, app.Namespace); len(revs) > 0 || err != nil {
 					klog.Infof("garbage collecting application revisions for application %s/%s, rest: %d, err: %s", app.Namespace, app.Name, len(revs), err)
 					return r.result(err).requeue(baseGCBackoffWaitTime).end(true)
 				}

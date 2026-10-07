@@ -17,6 +17,7 @@ limitations under the License.
 package celexpr
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -58,6 +59,10 @@ func References(env *cel.Env, expr string) ([]propexpr.Reference, error) {
 	}
 	ast := c.ast
 
+	if err := placementCallsOnComponents(ast.NativeRep().Expr()); err != nil {
+		return nil, err
+	}
+
 	seen := map[string]propexpr.Reference{}
 	nav := celast.NavigateAST(ast.NativeRep())
 	for _, n := range celast.MatchDescendants(nav, func(e celast.NavigableExpr) bool {
@@ -73,7 +78,7 @@ func References(env *cel.Env, expr string) ([]propexpr.Reference, error) {
 		return e.Kind() == celast.SelectKind || e.Kind() == celast.CallKind || e.Kind() == celast.IdentKind
 	}) {
 		root, path, ok := chain(n)
-		if !ok || (root != "source" && root != "context") {
+		if !ok || (root != propexpr.SourceIdent && root != propexpr.ContextIdent && root != propexpr.ComponentIdent) {
 			continue
 		}
 		r := propexpr.Reference{Root: root, Path: path, Defaulted: guarded(n, root, path)}
@@ -239,6 +244,11 @@ func pathOf(e celast.Expr) (string, []string, bool) {
 			cur = sel.Operand()
 		case celast.CallKind:
 			call := cur.AsCall()
+			if q, ok := placementQualifier(call); ok {
+				path = append([]string{propexpr.QualifierSegment(q)}, path...)
+				cur = call.Target()
+				continue
+			}
 			if call.FunctionName() != "_[_]" || len(call.Args()) != 2 {
 				return "", nil, false
 			}
@@ -274,7 +284,8 @@ func dropPrefixes(in []propexpr.Reference) []propexpr.Reference {
 			if i == j || r.Root != other.Root || len(other.Path) <= len(r.Path) {
 				continue
 			}
-			if strings.HasPrefix(other.String(), r.String()+".") {
+			// Compared by segment, since a bracketed key is written `[...]`.
+			if samePath(other.Path[:len(r.Path)], r.Path) {
 				prefix = true
 				break
 			}
@@ -311,4 +322,127 @@ func UndefendedReads(env *cel.Env, expr string, optional func(propexpr.Reference
 		}
 	}
 	return out, nil
+}
+
+// placementQualifier reads a cluster or namespace call whose
+// argument is a literal. Anything else is not a placement a read can be resolved
+// against before evaluation.
+func placementQualifier(call celast.CallExpr) (string, bool) {
+	if !call.IsMemberFunction() || len(call.Args()) != 1 || call.Args()[0].Kind() != celast.LiteralKind {
+		return "", false
+	}
+	arg, ok := call.Args()[0].AsLiteral().Value().(string)
+	if !ok {
+		return "", false
+	}
+	switch fn := call.FunctionName(); fn {
+	case propexpr.PlaceCluster, propexpr.PlaceNamespace:
+		return propexpr.PlacementCall(fn, arg), true
+	}
+	return "", false
+}
+
+// placementCallsOnComponents refuses a cluster or namespace call
+// anywhere a read cannot carry it: on anything but a component read, or on one
+// past its name, as after a field or an index. There it could only fail when
+// evaluated. It also refuses a NUL character in a key or a placement argument,
+// which is how a placement is marked inside a read path.
+func placementCallsOnComponents(e celast.Expr) error {
+	var err error
+	celast.PostOrderVisit(e, celast.NewExprVisitor(func(n celast.Expr) {
+		if err != nil || n.Kind() != celast.CallKind {
+			return
+		}
+		call := n.AsCall()
+		fn := call.FunctionName()
+		switch {
+		case fn == "_[_]" && len(call.Args()) == 2:
+			if hasNUL(call.Args()[1]) {
+				err = fmt.Errorf("a key containing a NUL character cannot be read")
+			}
+		case isPlacementCall(call):
+			for _, a := range call.Args() {
+				if hasNUL(a) {
+					err = fmt.Errorf("a placement argument containing a NUL character cannot be read")
+					return
+				}
+			}
+			// Judged by what it is called on; a non-literal argument is a
+			// separate fault, reported against the read.
+			switch {
+			case receiverRoot(call.Target()) != propexpr.ComponentIdent:
+				err = fmt.Errorf("%s() names where a component is placed, so it goes only on a component read: "+
+					"component.<name>.%s(\"...\")", fn, fn)
+			case !placementReceiver(call.Target()):
+				err = fmt.Errorf("cluster and namespace go straight after the component: "+
+					"component.<name>.%s(\"...\")", fn)
+			}
+		}
+	}))
+	return err
+}
+
+func isPlacementCall(call celast.CallExpr) bool {
+	fn := call.FunctionName()
+	return call.IsMemberFunction() &&
+		(fn == propexpr.PlaceCluster || fn == propexpr.PlaceNamespace)
+}
+
+func hasNUL(e celast.Expr) bool {
+	if e.Kind() != celast.LiteralKind {
+		return false
+	}
+	s, ok := e.AsLiteral().Value().(string)
+	return ok && strings.ContainsRune(s, 0)
+}
+
+// placementReceiver reports whether a placement call on e is where one can go:
+// straight on component.<name>, or on another placement call that is.
+func placementReceiver(e celast.Expr) bool {
+	switch e.Kind() {
+	case celast.SelectKind:
+		op := e.AsSelect().Operand()
+		return op.Kind() == celast.IdentKind && op.AsIdent() == propexpr.ComponentIdent
+	case celast.CallKind:
+		call := e.AsCall()
+		if call.FunctionName() == "_[_]" && len(call.Args()) == 2 {
+			container, key := call.Args()[0], call.Args()[1]
+			if container.Kind() != celast.IdentKind || container.AsIdent() != propexpr.ComponentIdent ||
+				key.Kind() != celast.LiteralKind {
+				return false
+			}
+			_, isString := key.AsLiteral().Value().(string)
+			return isString
+		}
+		return isPlacementCall(call) && placementReceiver(call.Target())
+	default:
+		return false
+	}
+}
+
+// receiverRoot is the identifier a chain of selects, indexes and placement calls
+// starts from, whatever their arguments, or "" when it starts from anything else.
+func receiverRoot(e celast.Expr) string {
+	for {
+		switch e.Kind() {
+		case celast.SelectKind:
+			e = e.AsSelect().Operand()
+		case celast.CallKind:
+			call := e.AsCall()
+			fn := call.FunctionName()
+			switch {
+			case fn == "_[_]" && len(call.Args()) == 2:
+				e = call.Args()[0]
+			case call.IsMemberFunction() &&
+				(fn == propexpr.PlaceCluster || fn == propexpr.PlaceNamespace):
+				e = call.Target()
+			default:
+				return ""
+			}
+		case celast.IdentKind:
+			return e.AsIdent()
+		default:
+			return ""
+		}
+	}
 }

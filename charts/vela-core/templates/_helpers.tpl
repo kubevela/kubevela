@@ -77,3 +77,33 @@ systemDefinitionNamespace value defaulter
     {{ .Release.Namespace }}
 {{- end -}}
 {{- end -}}
+
+{{/*
+definitionRestrictions renders spec.restrictions for one builtin definition.
+
+The chart regenerates these definitions on every upgrade, so a restriction on one
+is declared in values and stamped on at render time rather than edited in the
+cluster.
+
+Takes a dict of "name" (the definition) and "root" (the chart context), and emits
+nothing when no restriction applies.
+*/}}
+{{- define "definitionRestrictions" -}}
+{{- $restrictions := dict -}}
+{{- with .root.Values.definitionRestrictions -}}
+{{-   with .default -}}
+{{-     $restrictions = . -}}
+{{-   end -}}
+{{-   with .overrides -}}
+{{-     if hasKey . $.name -}}
+{{-       $restrictions = index . $.name -}}
+{{-     end -}}
+{{-   end -}}
+{{- end -}}
+{{- if and (hasKey $restrictions "quota") (not (has .kind (list "ComponentDefinition" "TraitDefinition"))) -}}
+{{-   fail (printf "definitionRestrictions would put a quota on %s %q, and only components and traits are counted. A quota under `default` reaches every builtin; under `overrides` it has to name a ComponentDefinition or TraitDefinition." .kind .name) -}}
+{{- end -}}
+{{- if $restrictions }}
+{{ printf "restrictions:\n%s" (toYaml $restrictions | indent 2) | indent 2 }}
+{{- end -}}
+{{- end -}}

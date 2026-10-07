@@ -9,6 +9,7 @@ metadata:
   name: vela-cli
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "vela-cli" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |

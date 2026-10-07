@@ -48,6 +48,7 @@ type helmTestContext struct {
 	appNamespace string
 	app          *v1beta1.Application
 	appKey       client.ObjectKey
+	attempted    bool
 }
 
 func newHelmTestContext() *helmTestContext {
@@ -76,6 +77,19 @@ func (h *helmTestContext) cleanup() {
 	By("Deleting target namespace")
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: h.namespace}}
 	_ = k8sClient.Delete(h.ctx, ns, client.PropagationPolicy(metav1.DeletePropagationForeground))
+}
+
+// freshAttempt moves a retried spec to a new namespace, removing the previous
+// attempt's Application and release. FlakeAttempts reruns an It but not its
+// BeforeAll, and a helm install into the first attempt's namespace fails.
+func (h *helmTestContext) freshAttempt() {
+	if h.attempted {
+		h.cleanup()
+		h.app = nil
+		h.namespace = "helm-e2e-" + rand.RandomString(4)
+		h.createNamespace()
+	}
+	h.attempted = true
 }
 
 func (h *helmTestContext) cleanupNamespaceOnly() {
@@ -176,7 +190,9 @@ func (h *helmTestContext) recordPodUIDs() map[types.UID]bool {
 	)).Should(Succeed())
 	uids := make(map[types.UID]bool)
 	for _, pod := range podList.Items {
-		uids[pod.UID] = true
+		if pod.DeletionTimestamp == nil {
+			uids[pod.UID] = true
+		}
 	}
 	return uids
 }
@@ -189,11 +205,19 @@ func (h *helmTestContext) countSurvivingPods(originalUIDs map[types.UID]bool) in
 	)).Should(Succeed())
 	count := 0
 	for _, pod := range podList.Items {
-		if originalUIDs[pod.UID] {
+		if originalUIDs[pod.UID] && pod.DeletionTimestamp == nil {
 			count++
 		}
 	}
 	return count
+}
+
+// podinfoAppResourceFlags are the values testdata/helm/app_helmchart_podinfo.yaml
+// sets besides replicaCount. A vanilla release installed with them has the pod
+// template the Application renders, so adopting it rolls no pods.
+var podinfoAppResourceFlags = []string{
+	"--set", "resources.limits.memory=256Mi",
+	"--set", "resources.limits.cpu=100m",
 }
 
 func runCommand(name string, args ...string) (string, error) {
@@ -213,416 +237,321 @@ func runCommandSucceed(name string, args ...string) string {
 // Self-Healing Scenarios
 // ============================================================================
 
-var _ = Describe("Helmchart Self-Healing", func() {
+// The self-healing scenarios run in sequence against one release. Each
+// disruption ends with the release back at two ready replicas; the destructive
+// ones come last.
+var _ = Describe("Helmchart Self-Healing", Ordered, func() {
+	h := newHelmTestContext()
+	BeforeAll(func() { h.createNamespace() })
+	AfterAll(func() { h.cleanup() })
 
-	Context("Delete a Single Managed Resource (Deployment)", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should deploy podinfo successfully", func() {
-			h.deployApp()
-			h.waitForDeploymentReady()
-			By("Verifying Helm release secret exists")
-			Expect(len(h.getHelmSecrets().Items)).Should(BeNumerically(">=", 1))
-		})
-
-		It("should recover when the Deployment is deleted via kubectl", func() {
-			initialCount := len(h.getHelmSecrets().Items)
-			latestSecret := h.latestHelmSecretName()
-
-			By("Deleting the Deployment via kubectl")
-			runCommandSucceed("kubectl", "delete", "deployment", "podinfo", "-n", h.namespace)
-
-			By("Verifying Deployment is gone")
-			Eventually(func() bool {
-				err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &appsv1.Deployment{})
-				return err != nil
-			}, 10*time.Second, time.Second).Should(BeTrue())
-
-			By("Triggering reconciliation")
-			RequestReconcileNow(h.ctx, h.app)
-
-			By("Verifying KubeVela recreates the Deployment")
-			h.waitForDeploymentReady()
-
-			By("Verifying Helm revision did NOT increment (recovery is via ResourceTracker)")
-			Expect(len(h.getHelmSecrets().Items)).Should(Equal(initialCount))
-			Expect(h.latestHelmSecretName()).Should(Equal(latestSecret))
-
-			By("Verifying pods are back to desired replica count")
-			deploy := &appsv1.Deployment{}
-			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
-			Expect(*deploy.Spec.Replicas).Should(Equal(int32(2)))
-		})
+	It("should deploy podinfo successfully", func() {
+		h.deployApp()
+		h.waitForDeploymentReady()
+		By("Verifying Helm release secret exists")
+		Expect(len(h.getHelmSecrets().Items)).Should(BeNumerically(">=", 1))
 	})
 
-	Context("Helm Uninstall the Release", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
+	It("should preserve user-added annotations and labels across reconciles", func() {
+		By("Adding custom annotation via kubectl annotate")
+		runCommandSucceed("kubectl", "annotate", "deployment", "podinfo", "custom.io/test=test-value", "-n", h.namespace)
+		By("Adding custom label via kubectl label")
+		runCommandSucceed("kubectl", "label", "deployment", "podinfo", "extra.io/label=extra-value", "-n", h.namespace)
 
-		It("should deploy podinfo successfully", func() {
-			h.deployApp()
-			h.waitForDeploymentReady()
-			out := runCommandSucceed("helm", "list", "-n", h.namespace, "-q")
-			Expect(out).Should(ContainSubstring("podinfo"))
-		})
-
-		It("should recover after external helm uninstall", func() {
-			By("Running helm uninstall podinfo externally")
-			runCommandSucceed("helm", "uninstall", "podinfo", "-n", h.namespace)
-
-			By("Verifying helm list no longer shows the release")
-			Eventually(func() string {
-				out, _ := runCommand("helm", "list", "-n", h.namespace, "-q")
-				return out
-			}, 15*time.Second, time.Second).ShouldNot(ContainSubstring("podinfo"))
-
-			By("Verifying Deployment is gone after uninstall")
-			Eventually(func() bool {
-				err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &appsv1.Deployment{})
-				return err != nil
-			}, 30*time.Second, 2*time.Second).Should(BeTrue())
-
-			By("Triggering reconciliation")
-			RequestReconcileNow(h.ctx, h.app)
-
-			By("Verifying KubeVela performs fresh helm install")
-			h.waitForDeploymentReady()
-
-			By("Verifying helm list shows the release again")
-			Eventually(func() string {
-				out, _ := runCommand("helm", "list", "-n", h.namespace, "-q")
-				return out
-			}, 60*time.Second, 3*time.Second).Should(ContainSubstring("podinfo"))
-
-			h.waitForAppRunning()
-		})
+		By("Verifying annotation and label are preserved (3-way merge)")
+		ConsistentlyReconciled(h.ctx, h.app, func(g Gomega) {
+			d := &appsv1.Deployment{}
+			g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
+			g.Expect(d.GetAnnotations()).Should(HaveKeyWithValue("custom.io/test", "test-value"))
+			g.Expect(d.GetLabels()).Should(HaveKeyWithValue("extra.io/label", "extra-value"))
+		}).Should(Succeed())
+		h.waitForAppRunning()
 	})
 
-	Context("Delete ONLY the Helm Release Secret", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
+	It("should revert manual scaling back to 2 replicas", func() {
+		By("Scaling Deployment to 5 replicas via kubectl scale")
+		runCommandSucceed("kubectl", "scale", "deployment", "podinfo", "--replicas=5", "-n", h.namespace)
 
-		It("should deploy podinfo successfully", func() {
-			h.deployApp()
-			h.waitForDeploymentReady()
-		})
+		By("Verifying Deployment scaled to 5")
+		Eventually(func(g Gomega) {
+			d := &appsv1.Deployment{}
+			g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
+			g.Expect(*d.Spec.Replicas).Should(Equal(int32(5)))
+		}, 10*time.Second, time.Second).Should(Succeed())
 
-		It("should recover release secrets without affecting running pods", func() {
-			originalPodUIDs := h.recordPodUIDs()
-			Expect(len(originalPodUIDs)).Should(BeNumerically(">=", 2))
+		By("Triggering force reconcile via annotation")
+		RequestReconcileNow(h.ctx, h.app)
 
-			By("Deleting all Helm release secrets via kubectl")
-			runCommandSucceed("kubectl", "delete", "secrets", "-l", "owner=helm,name=podinfo", "-n", h.namespace)
+		By("Verifying KubeVela reverts replicas to 2")
+		Eventually(func(g Gomega) {
+			d := &appsv1.Deployment{}
+			g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
+			g.Expect(*d.Spec.Replicas).Should(Equal(int32(2)))
+		}, 120*time.Second, 3*time.Second).Should(Succeed())
 
-			By("Verifying Helm release secrets are gone")
-			Eventually(func() int {
-				return len(h.getHelmSecrets().Items)
-			}, 15*time.Second, time.Second).Should(Equal(0))
+		h.waitForDeploymentReady()
+	})
 
-			By("Verifying running pods are NOT affected")
-			Consistently(func() int {
-				pods := &corev1.PodList{}
-				Expect(k8sClient.List(h.ctx, pods, client.InNamespace(h.namespace),
-					client.MatchingLabels{"app.kubernetes.io/name": "podinfo"})).Should(Succeed())
-				count := 0
-				for _, pod := range pods.Items {
-					if pod.Status.Phase == corev1.PodRunning {
-						count++
-					}
+	It("should recover when the Service is deleted via kubectl", func() {
+		originalPodUIDs := h.recordPodUIDs()
+
+		By("Recording old ClusterIP")
+		oldSvc := &corev1.Service{}
+		Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, oldSvc)).Should(Succeed())
+		oldClusterIP := oldSvc.Spec.ClusterIP
+
+		By("Deleting the Service via kubectl")
+		runCommandSucceed("kubectl", "delete", "svc", "podinfo", "-n", h.namespace)
+
+		By("Triggering reconciliation")
+		RequestReconcileNow(h.ctx, h.app)
+
+		By("Verifying KubeVela recreates the Service with a new ClusterIP")
+		var newClusterIP string
+		Eventually(func(g Gomega) {
+			svc := &corev1.Service{}
+			g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, svc)).Should(Succeed())
+			g.Expect(svc.Spec.ClusterIP).ShouldNot(BeEmpty())
+			newClusterIP = svc.Spec.ClusterIP
+		}, 120*time.Second, 3*time.Second).Should(Succeed())
+		Expect(newClusterIP).ShouldNot(Equal(oldClusterIP),
+			"New ClusterIP should be assigned after Service recreation")
+
+		By("Verifying pods are NOT affected")
+		Expect(h.countSurvivingPods(originalPodUIDs)).Should(BeNumerically(">=", 2))
+	})
+
+	It("should recover when the Deployment is deleted via kubectl", func() {
+		initialCount := len(h.getHelmSecrets().Items)
+		latestSecret := h.latestHelmSecretName()
+
+		By("Deleting the Deployment via kubectl")
+		runCommandSucceed("kubectl", "delete", "deployment", "podinfo", "-n", h.namespace)
+
+		By("Verifying Deployment is gone")
+		Eventually(func() bool {
+			err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &appsv1.Deployment{})
+			return err != nil
+		}, 10*time.Second, time.Second).Should(BeTrue())
+
+		By("Triggering reconciliation")
+		RequestReconcileNow(h.ctx, h.app)
+
+		By("Verifying KubeVela recreates the Deployment")
+		h.waitForDeploymentReady()
+
+		By("Verifying Helm revision did NOT increment (recovery is via ResourceTracker)")
+		Expect(len(h.getHelmSecrets().Items)).Should(Equal(initialCount))
+		Expect(h.latestHelmSecretName()).Should(Equal(latestSecret))
+
+		By("Verifying pods are back to desired replica count")
+		deploy := &appsv1.Deployment{}
+		Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
+		Expect(*deploy.Spec.Replicas).Should(Equal(int32(2)))
+	})
+
+	It("should recover release secrets without affecting running pods", func() {
+		originalPodUIDs := h.recordPodUIDs()
+		Expect(len(originalPodUIDs)).Should(BeNumerically(">=", 2))
+
+		By("Deleting all Helm release secrets via kubectl")
+		runCommandSucceed("kubectl", "delete", "secrets", "-l", "owner=helm,name=podinfo", "-n", h.namespace)
+
+		By("Verifying Helm release secrets are gone")
+		Eventually(func() int {
+			return len(h.getHelmSecrets().Items)
+		}, 15*time.Second, time.Second).Should(Equal(0))
+
+		By("Verifying running pods are NOT affected")
+		Consistently(func() int {
+			pods := &corev1.PodList{}
+			Expect(k8sClient.List(h.ctx, pods, client.InNamespace(h.namespace),
+				client.MatchingLabels{"app.kubernetes.io/name": "podinfo"})).Should(Succeed())
+			count := 0
+			for _, pod := range pods.Items {
+				if pod.Status.Phase == corev1.PodRunning {
+					count++
 				}
-				return count
-			}, 10*time.Second, 2*time.Second).Should(BeNumerically(">=", 2))
-
-			By("Triggering reconciliation")
-			RequestReconcileNow(h.ctx, h.app)
-
-			By("Verifying KubeVela restores Helm release secrets")
-			Eventually(func() int {
-				return len(h.getHelmSecrets().Items)
-			}, 120*time.Second, 3*time.Second).Should(BeNumerically(">=", 1))
-
-			By("Verifying helm list shows the release again")
-			Eventually(func() string {
-				out, _ := runCommand("helm", "list", "-n", h.namespace, "-q")
-				return out
-			}, 60*time.Second, 3*time.Second).Should(ContainSubstring("podinfo"))
-
-			By("Verifying original pods still exist (not restarted)")
-			Expect(h.countSurvivingPods(originalPodUIDs)).Should(BeNumerically(">=", 2))
-
-			h.waitForAppRunning()
-		})
-	})
-
-	Context("Mutate a Managed Resource (Scale Deployment)", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should deploy podinfo with replicaCount=2", func() {
-			h.deployApp()
-			h.waitForDeploymentReady()
-		})
-
-		It("should revert manual scaling back to 2 replicas", func() {
-			By("Scaling Deployment to 5 replicas via kubectl scale")
-			runCommandSucceed("kubectl", "scale", "deployment", "podinfo", "--replicas=5", "-n", h.namespace)
-
-			By("Verifying Deployment scaled to 5")
-			Eventually(func(g Gomega) {
-				d := &appsv1.Deployment{}
-				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
-				g.Expect(*d.Spec.Replicas).Should(Equal(int32(5)))
-			}, 10*time.Second, time.Second).Should(Succeed())
-
-			By("Triggering force reconcile via annotation")
-			RequestReconcileNow(h.ctx, h.app)
-
-			By("Verifying KubeVela reverts replicas to 2")
-			Eventually(func(g Gomega) {
-				d := &appsv1.Deployment{}
-				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
-				g.Expect(*d.Spec.Replicas).Should(Equal(int32(2)))
-			}, 120*time.Second, 3*time.Second).Should(Succeed())
-
-			h.waitForDeploymentReady()
-		})
-	})
-
-	Context("Add Extra Annotation/Label", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should deploy podinfo successfully", func() {
-			h.deployApp()
-			h.waitForDeploymentReady()
-		})
-
-		It("should preserve user-added annotations and labels after reconciliation", func() {
-			By("Adding custom annotation via kubectl annotate")
-			runCommandSucceed("kubectl", "annotate", "deployment", "podinfo", "custom.io/test=test-value", "-n", h.namespace)
-			By("Adding custom label via kubectl label")
-			runCommandSucceed("kubectl", "label", "deployment", "podinfo", "extra.io/label=extra-value", "-n", h.namespace)
-
-			By("Waiting 2+ reconcile cycles")
-			time.Sleep(10 * time.Second)
-
-			By("Triggering reconciliation")
-			RequestReconcileNow(h.ctx, h.app)
-			h.waitForAppRunning()
-
-			By("Verifying annotation and label are preserved (3-way merge)")
-			Eventually(func(g Gomega) {
-				d := &appsv1.Deployment{}
-				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
-				g.Expect(d.GetAnnotations()).Should(HaveKeyWithValue("custom.io/test", "test-value"))
-				g.Expect(d.GetLabels()).Should(HaveKeyWithValue("extra.io/label", "extra-value"))
-			}, 30*time.Second, 3*time.Second).Should(Succeed())
-		})
-	})
-
-	Context("Delete the Application CR", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanupNamespaceOnly() })
-
-		It("should deploy podinfo and perform 3 upgrades", func() {
-			h.deployApp()
-			h.waitForDeploymentReady()
-			h.updateAppValues(map[string]interface{}{"ui": map[string]interface{}{"message": "upgrade-1"}})
-			h.updateAppValues(map[string]interface{}{"ui": map[string]interface{}{"message": "upgrade-2"}})
-			h.updateAppValues(map[string]interface{}{"ui": map[string]interface{}{"message": "upgrade-3"}})
-			Expect(len(h.getHelmSecrets().Items)).Should(BeNumerically(">=", 1))
-		})
-
-		It("should clean up all resources when Application is deleted", func() {
-			appName := h.app.Name
-			By("Deleting Application via kubectl")
-			runCommandSucceed("kubectl", "delete", "application", appName, "-n", h.appNamespace)
-
-			By("Verifying Application is gone")
-			Eventually(func() bool {
-				return k8sClient.Get(h.ctx, h.appKey, &v1beta1.Application{}) != nil
-			}, 60*time.Second, 2*time.Second).Should(BeTrue())
-			h.app = nil
-
-			By("Verifying ALL Helm release secrets are deleted")
-			Eventually(func() int { return len(h.getHelmSecrets().Items) }, 60*time.Second, 3*time.Second).Should(Equal(0))
-
-			By("Verifying helm list shows empty")
-			Eventually(func() string {
-				out, _ := runCommand("helm", "list", "-n", h.namespace, "-q")
-				return strings.TrimSpace(out)
-			}, 30*time.Second, 3*time.Second).Should(BeEmpty())
-
-			By("Verifying Deployment, Service, and pods are all deleted")
-			Eventually(func() bool {
-				return k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &appsv1.Deployment{}) != nil
-			}, 30*time.Second, 2*time.Second).Should(BeTrue())
-			Eventually(func() bool {
-				return k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &corev1.Service{}) != nil
-			}, 30*time.Second, 2*time.Second).Should(BeTrue())
-			Eventually(func() int {
-				pods := &corev1.PodList{}
-				_ = k8sClient.List(h.ctx, pods, client.InNamespace(h.namespace),
-					client.MatchingLabels{"app.kubernetes.io/name": "podinfo"})
-				return len(pods.Items)
-			}, 60*time.Second, 2*time.Second).Should(Equal(0))
-
-			By("Verifying ResourceTracker is deleted")
-			Eventually(func() bool {
-				rtList := &v1beta1.ResourceTrackerList{}
-				Expect(k8sClient.List(h.ctx, rtList, client.MatchingLabels{"app.oam.dev/name": appName})).Should(Succeed())
-				return len(rtList.Items) == 0
-			}, 30*time.Second, 2*time.Second).Should(BeTrue())
-		})
-	})
-
-	Context("Delete a Non-Deployment Resource (Service)", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should deploy podinfo successfully", func() {
-			h.deployApp()
-			h.waitForDeploymentReady()
-		})
-
-		It("should recover when the Service is deleted via kubectl", func() {
-			originalPodUIDs := h.recordPodUIDs()
-
-			By("Recording old ClusterIP")
-			oldSvc := &corev1.Service{}
-			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, oldSvc)).Should(Succeed())
-			oldClusterIP := oldSvc.Spec.ClusterIP
-
-			By("Deleting the Service via kubectl")
-			runCommandSucceed("kubectl", "delete", "svc", "podinfo", "-n", h.namespace)
-
-			By("Triggering reconciliation")
-			RequestReconcileNow(h.ctx, h.app)
-
-			By("Verifying KubeVela recreates the Service with a new ClusterIP")
-			var newClusterIP string
-			Eventually(func(g Gomega) {
-				svc := &corev1.Service{}
-				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, svc)).Should(Succeed())
-				g.Expect(svc.Spec.ClusterIP).ShouldNot(BeEmpty())
-				newClusterIP = svc.Spec.ClusterIP
-			}, 120*time.Second, 3*time.Second).Should(Succeed())
-			Expect(newClusterIP).ShouldNot(Equal(oldClusterIP),
-				"New ClusterIP should be assigned after Service recreation")
-
-			By("Verifying pods are NOT affected")
-			Expect(h.countSurvivingPods(originalPodUIDs)).Should(BeNumerically(">=", 2))
-		})
-	})
-
-	Context("Delete the Namespace", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should deploy podinfo successfully", func() {
-			h.deployApp()
-			h.waitForDeploymentReady()
-		})
-
-		It("should recover after namespace deletion", func() {
-			By("Deleting the target namespace via kubectl")
-			runCommandSucceed("kubectl", "delete", "namespace", h.namespace, "--wait=false")
-
-			By("Waiting for namespace to be fully deleted")
-			Eventually(func() bool {
-				return k8sClient.Get(h.ctx, types.NamespacedName{Name: h.namespace}, &corev1.Namespace{}) != nil
-			}, 120*time.Second, 3*time.Second).Should(BeTrue())
-
-			By("Verifying Application CR survives (it is in default namespace)")
-			Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
-
-			By("Applying a spec change to trigger re-render")
-			Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
-			annotations := h.app.GetAnnotations()
-			if annotations == nil {
-				annotations = make(map[string]string)
 			}
-			annotations["test.oam.dev/trigger"] = "ns-delete-recovery"
-			h.app.SetAnnotations(annotations)
-			Expect(k8sClient.Update(h.ctx, h.app)).Should(Succeed())
+			return count
+		}, 10*time.Second, 2*time.Second).Should(BeNumerically(">=", 2))
 
-			By("Verifying namespace is recreated (via createNamespace: true)")
-			Eventually(func(g Gomega) {
-				ns := &corev1.Namespace{}
-				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Name: h.namespace}, ns)).Should(Succeed())
-				g.Expect(ns.Status.Phase).Should(Equal(corev1.NamespaceActive))
-			}, 120*time.Second, 3*time.Second).Should(Succeed())
+		By("Triggering reconciliation")
+		RequestReconcileNow(h.ctx, h.app)
 
-			By("Verifying all resources and Helm release are restored")
-			h.waitForDeploymentReady()
-			Eventually(func() string {
-				out, _ := runCommand("helm", "list", "-n", h.namespace, "-q")
-				return out
-			}, 60*time.Second, 3*time.Second).Should(ContainSubstring("podinfo"))
-			h.waitForAppRunning()
-		})
+		By("Verifying KubeVela restores Helm release secrets")
+		Eventually(func() int {
+			return len(h.getHelmSecrets().Items)
+		}, 120*time.Second, 3*time.Second).Should(BeNumerically(">=", 1))
+
+		By("Verifying helm list shows the release again")
+		Eventually(func() string {
+			out, _ := runCommand("helm", "list", "-n", h.namespace, "-q")
+			return out
+		}, 60*time.Second, 3*time.Second).Should(ContainSubstring("podinfo"))
+
+		By("Verifying original pods still exist (not restarted)")
+		Expect(h.countSurvivingPods(originalPodUIDs)).Should(BeNumerically(">=", 2))
+
+		h.waitForAppRunning()
 	})
 
-	Context("Corrupt the Helm Release Secret", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
+	It("should recover from corrupted Helm release secret", func() {
+		originalPodUIDs := h.recordPodUIDs()
+		latestSecret := h.latestHelmSecretName()
+		Expect(latestSecret).ShouldNot(BeEmpty())
 
-		It("should deploy podinfo successfully", func() {
-			h.deployApp()
-			h.waitForDeploymentReady()
-		})
+		By("Corrupting the release secret via kubectl patch")
+		runCommandSucceed("kubectl", "patch", "secret", latestSecret, "-n", h.namespace,
+			"--type=json", `-p=[{"op":"replace","path":"/data/release","value":"Y29ycnVwdGVk"}]`)
 
-		It("should recover from corrupted Helm release secret", func() {
-			originalPodUIDs := h.recordPodUIDs()
-			latestSecret := h.latestHelmSecretName()
-			Expect(latestSecret).ShouldNot(BeEmpty())
+		By("Applying a spec change to trigger re-render")
+		Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+		annotations := h.app.GetAnnotations()
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+		annotations["test.oam.dev/trigger"] = "corrupt-recovery"
+		h.app.SetAnnotations(annotations)
+		Expect(k8sClient.Update(h.ctx, h.app)).Should(Succeed())
 
-			By("Corrupting the release secret via kubectl patch")
-			runCommandSucceed("kubectl", "patch", "secret", latestSecret, "-n", h.namespace,
-				"--type=json", `-p=[{"op":"replace","path":"/data/release","value":"Y29ycnVwdGVk"}]`)
-
-			By("Applying a spec change to trigger re-render")
-			Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
-			annotations := h.app.GetAnnotations()
-			if annotations == nil {
-				annotations = make(map[string]string)
+		By("Verifying corrupted secret is automatically deleted")
+		Eventually(func() bool {
+			s := &corev1.Secret{}
+			err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: latestSecret}, s)
+			if err != nil {
+				return true
 			}
-			annotations["test.oam.dev/trigger"] = "corrupt-recovery"
-			h.app.SetAnnotations(annotations)
-			Expect(k8sClient.Update(h.ctx, h.app)).Should(Succeed())
+			return string(s.Data["release"]) != "corrupted"
+		}, 60*time.Second, 3*time.Second).Should(BeTrue())
 
-			By("Verifying corrupted secret is automatically deleted")
-			Eventually(func() bool {
-				s := &corev1.Secret{}
-				err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: latestSecret}, s)
-				if err != nil {
-					return true
-				}
-				return string(s.Data["release"]) != "corrupted"
-			}, 60*time.Second, 3*time.Second).Should(BeTrue())
+		By("Verifying helm list shows a clean release")
+		Eventually(func() string {
+			out, _ := runCommand("helm", "list", "-n", h.namespace, "-q")
+			return out
+		}, 120*time.Second, 3*time.Second).Should(ContainSubstring("podinfo"))
 
-			By("Verifying helm list shows a clean release")
-			Eventually(func() string {
-				out, _ := runCommand("helm", "list", "-n", h.namespace, "-q")
-				return out
-			}, 120*time.Second, 3*time.Second).Should(ContainSubstring("podinfo"))
+		h.waitForDeploymentReady()
+		h.waitForAppRunning()
 
-			h.waitForDeploymentReady()
-			h.waitForAppRunning()
+		By("Verifying pods are unaffected during recovery")
+		Expect(h.countSurvivingPods(originalPodUIDs)).Should(BeNumerically(">=", 2))
+	})
 
-			By("Verifying pods are unaffected during recovery")
-			Expect(h.countSurvivingPods(originalPodUIDs)).Should(BeNumerically(">=", 2))
-		})
+	It("should recover after external helm uninstall", func() {
+		By("Running helm uninstall podinfo externally")
+		runCommandSucceed("helm", "uninstall", "podinfo", "-n", h.namespace)
+
+		By("Verifying helm list no longer shows the release")
+		Eventually(func() string {
+			out, _ := runCommand("helm", "list", "-n", h.namespace, "-q")
+			return out
+		}, 15*time.Second, time.Second).ShouldNot(ContainSubstring("podinfo"))
+
+		By("Verifying Deployment is gone after uninstall")
+		Eventually(func() bool {
+			err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &appsv1.Deployment{})
+			return err != nil
+		}, 30*time.Second, 2*time.Second).Should(BeTrue())
+
+		By("Triggering reconciliation")
+		RequestReconcileNow(h.ctx, h.app)
+
+		By("Verifying KubeVela performs fresh helm install")
+		h.waitForDeploymentReady()
+
+		By("Verifying helm list shows the release again")
+		Eventually(func() string {
+			out, _ := runCommand("helm", "list", "-n", h.namespace, "-q")
+			return out
+		}, 60*time.Second, 3*time.Second).Should(ContainSubstring("podinfo"))
+
+		h.waitForAppRunning()
+	})
+
+	It("should recover after namespace deletion", func() {
+		By("Deleting the target namespace via kubectl")
+		runCommandSucceed("kubectl", "delete", "namespace", h.namespace, "--wait=false")
+
+		By("Waiting for namespace to be fully deleted")
+		Eventually(func() bool {
+			return k8sClient.Get(h.ctx, types.NamespacedName{Name: h.namespace}, &corev1.Namespace{}) != nil
+		}, 120*time.Second, 3*time.Second).Should(BeTrue())
+
+		By("Verifying Application CR survives (it is in default namespace)")
+		Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+
+		By("Applying a spec change to trigger re-render")
+		Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+		annotations := h.app.GetAnnotations()
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+		annotations["test.oam.dev/trigger"] = "ns-delete-recovery"
+		h.app.SetAnnotations(annotations)
+		Expect(k8sClient.Update(h.ctx, h.app)).Should(Succeed())
+
+		By("Verifying namespace is recreated (via createNamespace: true)")
+		Eventually(func(g Gomega) {
+			ns := &corev1.Namespace{}
+			g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Name: h.namespace}, ns)).Should(Succeed())
+			g.Expect(ns.Status.Phase).Should(Equal(corev1.NamespaceActive))
+		}, 120*time.Second, 3*time.Second).Should(Succeed())
+
+		By("Verifying all resources and Helm release are restored")
+		h.waitForDeploymentReady()
+		Eventually(func() string {
+			out, _ := runCommand("helm", "list", "-n", h.namespace, "-q")
+			return out
+		}, 60*time.Second, 3*time.Second).Should(ContainSubstring("podinfo"))
+		h.waitForAppRunning()
+	})
+
+	It("should clean up all resources when Application is deleted after several upgrades", func() {
+		h.updateAppValues(map[string]interface{}{"ui": map[string]interface{}{"message": "upgrade-1"}})
+		h.updateAppValues(map[string]interface{}{"ui": map[string]interface{}{"message": "upgrade-2"}})
+		h.updateAppValues(map[string]interface{}{"ui": map[string]interface{}{"message": "upgrade-3"}})
+		Expect(len(h.getHelmSecrets().Items)).Should(BeNumerically(">", 1))
+
+		appName := h.app.Name
+		By("Deleting Application via kubectl")
+		runCommandSucceed("kubectl", "delete", "application", appName, "-n", h.appNamespace)
+
+		By("Verifying Application is gone")
+		Eventually(func() bool {
+			return k8sClient.Get(h.ctx, h.appKey, &v1beta1.Application{}) != nil
+		}, 60*time.Second, 2*time.Second).Should(BeTrue())
+		h.app = nil
+
+		By("Verifying ALL Helm release secrets are deleted")
+		Eventually(func() int { return len(h.getHelmSecrets().Items) }, 60*time.Second, 3*time.Second).Should(Equal(0))
+
+		By("Verifying helm list shows empty")
+		Eventually(func() string {
+			out, _ := runCommand("helm", "list", "-n", h.namespace, "-q")
+			return strings.TrimSpace(out)
+		}, 30*time.Second, 3*time.Second).Should(BeEmpty())
+
+		By("Verifying Deployment, Service, and pods are all deleted")
+		Eventually(func() bool {
+			return k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &appsv1.Deployment{}) != nil
+		}, 30*time.Second, 2*time.Second).Should(BeTrue())
+		Eventually(func() bool {
+			return k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &corev1.Service{}) != nil
+		}, 30*time.Second, 2*time.Second).Should(BeTrue())
+		Eventually(func() int {
+			pods := &corev1.PodList{}
+			_ = k8sClient.List(h.ctx, pods, client.InNamespace(h.namespace),
+				client.MatchingLabels{"app.kubernetes.io/name": "podinfo"})
+			return len(pods.Items)
+		}, 60*time.Second, 2*time.Second).Should(Equal(0))
+
+		By("Verifying ResourceTracker is deleted")
+		Eventually(func() bool {
+			rtList := &v1beta1.ResourceTrackerList{}
+			Expect(k8sClient.List(h.ctx, rtList, client.MatchingLabels{"app.oam.dev/name": appName})).Should(Succeed())
+			return len(rtList.Items) == 0
+		}, 30*time.Second, 2*time.Second).Should(BeTrue())
 	})
 })
 
@@ -632,16 +561,17 @@ var _ = Describe("Helmchart Self-Healing", func() {
 
 var _ = Describe("Helmchart Adoption & Takeover", func() {
 
-	Context("Adopt an Existing Vanilla Helm Release", FlakeAttempts(2), Ordered, func() {
+	Context("Adopt an Existing Vanilla Helm Release", Ordered, func() {
 		h := newHelmTestContext()
 		BeforeAll(func() { h.createNamespace() })
 		AfterAll(func() { h.cleanup() })
 
 		It("should adopt a pre-existing Helm release", func() {
 			By("Installing podinfo via helm install directly (no KubeVela)")
-			runCommandSucceed("helm", "install", "podinfo",
+			runCommandSucceed("helm", append([]string{"install", "podinfo",
 				"--repo", "https://stefanprodan.github.io/podinfo", "podinfo",
-				"--version", "6.11.1", "--set", "replicaCount=2", "-n", h.namespace)
+				"--version", "6.11.1", "--set", "replicaCount=2", "-n", h.namespace},
+				podinfoAppResourceFlags...)...)
 
 			initialSecretCount := len(h.getHelmSecrets().Items)
 
@@ -674,6 +604,9 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 			deploy := &appsv1.Deployment{}
 			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
 			Expect(deploy.GetLabels()).Should(HaveKey("app.oam.dev/name"))
+
+			By("Verifying the pod template was not changed, so no rollout started")
+			Expect(deploy.GetAnnotations()).Should(HaveKeyWithValue("deployment.kubernetes.io/revision", "1"))
 
 			By("Verifying app.oam.dev/* labels appear on Service")
 			svc := &corev1.Service{}
@@ -743,10 +676,12 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 		AfterAll(func() { h.cleanupNamespaceOnly() })
 
 		It("should re-adopt seamlessly after deletion and reinstall", func() {
+			h.freshAttempt()
 			By("Installing podinfo via helm install")
-			runCommandSucceed("helm", "install", "podinfo",
+			runCommandSucceed("helm", append([]string{"install", "podinfo",
 				"--repo", "https://stefanprodan.github.io/podinfo", "podinfo",
-				"--version", "6.11.1", "--set", "replicaCount=2", "-n", h.namespace)
+				"--version", "6.11.1", "--set", "replicaCount=2", "-n", h.namespace},
+				podinfoAppResourceFlags...)...)
 			Eventually(func(g Gomega) {
 				d := &appsv1.Deployment{}
 				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
@@ -768,9 +703,10 @@ var _ = Describe("Helmchart Adoption & Takeover", func() {
 			Eventually(func() int { return len(h.getHelmSecrets().Items) }, 60*time.Second, 3*time.Second).Should(Equal(0))
 
 			By("Installing podinfo via helm install again")
-			runCommandSucceed("helm", "install", "podinfo",
+			runCommandSucceed("helm", append([]string{"install", "podinfo",
 				"--repo", "https://stefanprodan.github.io/podinfo", "podinfo",
-				"--version", "6.11.1", "--set", "replicaCount=2", "-n", h.namespace)
+				"--version", "6.11.1", "--set", "replicaCount=2", "-n", h.namespace},
+				podinfoAppResourceFlags...)...)
 			Eventually(func(g Gomega) {
 				d := &appsv1.Deployment{}
 				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, d)).Should(Succeed())
@@ -860,14 +796,15 @@ var _ = Describe("Helmchart Destructive & Chaos", func() {
 			appBKey := client.ObjectKeyFromObject(appB)
 
 			By("Verifying second application fails with ownership conflict")
-			Eventually(func(g Gomega) {
+			EventuallyReconciled(h.ctx, appB, func(g Gomega) {
 				g.Expect(k8sClient.Get(h.ctx, appBKey, appB)).Should(Succeed())
-				g.Expect(appB.Status.Phase).Should(SatisfyAny(
-					Equal(common2.ApplicationWorkflowFailed),
-					Equal(common2.ApplicationUnhealthy),
-					Equal(common2.ApplicationRunning),
-				))
-			}, 60*time.Second, 3*time.Second).Should(Succeed())
+				g.Expect(appB.Status.Phase).Should(Equal(common2.ApplicationWorkflowFailed), "workflow=%+v", appB.Status.Workflow)
+				var messages []string
+				for _, step := range appB.Status.Workflow.Steps {
+					messages = append(messages, step.Message)
+				}
+				g.Expect(strings.Join(messages, "\n")).Should(ContainSubstring("managed by other application"))
+			}).WithTimeout(90 * time.Second).Should(Succeed())
 
 			By("Verifying the first application remains healthy and unaffected")
 			h.waitForAppRunning()
@@ -1126,13 +1063,13 @@ var _ = Describe("Helmchart Edge Cases", func() {
 			Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
 			h.appKey = client.ObjectKeyFromObject(h.app)
 
-			Eventually(func(g Gomega) {
+			EventuallyReconciled(h.ctx, h.app, func(g Gomega) {
 				g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
 				g.Expect(h.app.Status.Phase).Should(SatisfyAny(
 					Equal(common2.ApplicationWorkflowFailed),
 					Equal(common2.ApplicationUnhealthy),
 				))
-			}, 120*time.Second, 3*time.Second).Should(Succeed())
+			}).WithTimeout(90 * time.Second).Should(Succeed())
 
 			By("Verifying namespace was not created")
 			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Name: h.namespace}, &corev1.Namespace{})).ShouldNot(Succeed())
@@ -1458,16 +1395,14 @@ var _ = Describe("Helmchart Edge Cases", func() {
 			defer os.Remove(tmpFile)
 			runCommandSucceed("kubectl", "apply", "-f", tmpFile, "-n", h.appNamespace)
 
-			time.Sleep(10 * time.Second)
-
-			By("Verifying no Helm upgrade occurred")
-			Expect(len(h.getHelmSecrets().Items)).Should(Equal(initialSecretCount))
-			Expect(h.latestHelmSecretName()).Should(Equal(latestSecret))
-
-			By("Verifying Deployment resourceVersion is stable")
-			deploy = &appsv1.Deployment{}
-			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
-			Expect(deploy.ResourceVersion).Should(Equal(initialResourceVersion))
+			By("Verifying no Helm upgrade occurs and the Deployment is untouched across reconciles")
+			ConsistentlyReconciled(h.ctx, h.app, func(g Gomega) {
+				g.Expect(h.getHelmSecrets().Items).Should(HaveLen(initialSecretCount))
+				g.Expect(h.latestHelmSecretName()).Should(Equal(latestSecret))
+				current := &appsv1.Deployment{}
+				g.Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, current)).Should(Succeed())
+				g.Expect(current.ResourceVersion).Should(Equal(initialResourceVersion))
+			}).Should(Succeed())
 		})
 	})
 })
@@ -1562,34 +1497,38 @@ var _ = Describe("Helmchart valuesFrom", func() {
 		deployAppWithComponents(h, appNamePrefix, []common2.ApplicationComponent{comp})
 	}
 
-	deployPodinfoExpectWorkflowFailure := func(h *helmTestContext, appNamePrefix, releaseName string, props map[string]interface{}, errSubstring string) {
-		comp := buildPodinfoComponent(h, "podinfo", releaseName, props)
-		h.app = &v1beta1.Application{
+	// createPodinfoApp creates an Application without waiting on it, so several
+	// can progress at once.
+	createPodinfoApp := func(h *helmTestContext, appNamePrefix string, comps ...common2.ApplicationComponent) *v1beta1.Application {
+		app := &v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      appNamePrefix + "-" + rand.RandomString(4),
 				Namespace: h.appNamespace,
 			},
-			Spec: v1beta1.ApplicationSpec{Components: []common2.ApplicationComponent{comp}},
+			Spec: v1beta1.ApplicationSpec{Components: comps},
 		}
-		Expect(k8sClient.Create(h.ctx, h.app)).Should(Succeed())
-		h.appKey = client.ObjectKeyFromObject(h.app)
+		Expect(k8sClient.Create(h.ctx, app)).Should(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(h.ctx, app) })
+		return app
+	}
 
-		Eventually(func(g Gomega) {
-			g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
-			g.Expect(h.app.Status.Workflow).ToNot(BeNil())
-			g.Expect(string(h.app.Status.Workflow.Phase)).To(Equal("failed"))
+	expectWorkflowFailure := func(h *helmTestContext, app *v1beta1.Application, releaseName, errSubstring string) {
+		EventuallyReconciled(h.ctx, app, func(g Gomega) {
+			g.Expect(k8sClient.Get(h.ctx, client.ObjectKeyFromObject(app), app)).Should(Succeed())
+			g.Expect(app.Status.Workflow).ToNot(BeNil())
+			g.Expect(string(app.Status.Workflow.Phase)).To(Equal("failed"))
 			var found bool
-			for _, step := range h.app.Status.Workflow.Steps {
+			for _, step := range app.Status.Workflow.Steps {
 				if strings.Contains(step.Message, errSubstring) {
 					found = true
 					break
 				}
 			}
 			g.Expect(found).To(BeTrue(),
-				"no workflow step contained %q; status=%+v", errSubstring, h.app.Status.Workflow)
-		}, 180*time.Second, 5*time.Second).Should(Succeed())
+				"no workflow step contained %q; status=%+v", errSubstring, app.Status.Workflow)
+		}).WithTimeout(90 * time.Second).Should(Succeed())
 
-		err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &appsv1.Deployment{})
+		err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: releaseName}, &appsv1.Deployment{})
 		Expect(err).To(HaveOccurred(), "no Deployment should exist for a failed workflow")
 	}
 
@@ -1628,171 +1567,26 @@ var _ = Describe("Helmchart valuesFrom", func() {
 		return entry
 	}
 
-	Context("Values from ConfigMap", Ordered, func() {
+	// Each merge case is its own release in one Application, so the cases share
+	// one Application and one teardown. Release names contain "podinfo", so the
+	// chart names each Deployment after its release.
+	Context("Merging values from ConfigMaps and Secrets", Ordered, ContinueOnFailure, func() {
 		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should merge values from the referenced ConfigMap", func() {
-			createCMWithReplicas(h, "podinfo-values", 3)
-			deployPodinfo(h, "s27", "podinfo", map[string]interface{}{
-				"valuesFrom": []interface{}{cmRef("podinfo-values")},
-			})
-			waitForReplicas(h, 3)
-		})
-	})
-
-	Context("Values from Secret", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should merge values from the referenced Secret", func() {
-			createSecretWithReplicas(h, "podinfo-values", 2)
-			deployPodinfo(h, "s28", "podinfo", map[string]interface{}{
-				"valuesFrom": []interface{}{secretRef("podinfo-values")},
-			})
-			waitForReplicas(h, 2)
-		})
-	})
-
-	Context("Inline values override ConfigMap-supplied values", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should use inline replicaCount when it also appears in the ConfigMap", func() {
-			createCMWithReplicas(h, "podinfo-values", 2)
-			deployPodinfo(h, "s29", "podinfo", map[string]interface{}{
-				"values":     map[string]interface{}{"replicaCount": 4},
-				"valuesFrom": []interface{}{cmRef("podinfo-values")},
-			})
-			waitForReplicas(h, 4)
-		})
-	})
-
-	Context("Optional missing valuesFrom source is skipped", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should deploy successfully even when the optional ConfigMap is missing", func() {
-			deployPodinfo(h, "s30", "podinfo", map[string]interface{}{
-				"valuesFrom": []interface{}{
-					cmRef("never-created", map[string]interface{}{"optional": true}),
-				},
-			})
-			waitForReplicas(h, 1) // chart default
-		})
-	})
-
-	Context("Required missing valuesFrom source fails the workflow with a clear error", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should fail the workflow and surface the missing-CM error", func() {
-			deployPodinfoExpectWorkflowFailure(h, "s31", "podinfo",
-				map[string]interface{}{
-					"valuesFrom": []interface{}{cmRef("never-created")},
-				},
-				`ConfigMap "never-created"`)
-		})
-	})
-
-	Context("Invalid YAML in a source is never swallowed by optional:true", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should surface the parse error even when the source is marked optional", func() {
-			createCM(h, "podinfo-bad-yaml", "", "replicaCount: [unterminated")
-			deployPodinfoExpectWorkflowFailure(h, "s32", "podinfo",
-				map[string]interface{}{
-					"valuesFrom": []interface{}{
-						cmRef("podinfo-bad-yaml", map[string]interface{}{"optional": true}),
-					},
-				},
-				"invalid YAML")
-		})
-	})
-
-	Context("Custom key selects the right values.yaml inside a multi-env ConfigMap", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should use the specified key and ignore other keys in the ConfigMap", func() {
-			cm := &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{Name: "podinfo-multi-env-values", Namespace: h.namespace},
+		BeforeAll(func() {
+			h.createNamespace()
+			createCMWithReplicas(h, "cm-only", 3)
+			createSecretWithReplicas(h, "secret-only", 2)
+			createCMWithReplicas(h, "inline-override", 2)
+			Expect(k8sClient.Create(h.ctx, &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "multi-env", Namespace: h.namespace},
 				Data: map[string]string{
 					"dev.yaml":  "replicaCount: 1\n",
 					"prod.yaml": "replicaCount: 5\n",
 				},
-			}
-			Expect(k8sClient.Create(h.ctx, cm)).Should(Succeed())
-			deployPodinfo(h, "s33", "podinfo", map[string]interface{}{
-				"valuesFrom": []interface{}{
-					cmRef("podinfo-multi-env-values", map[string]interface{}{"key": "prod.yaml"}),
-				},
-			})
-			waitForReplicas(h, 5)
-		})
-	})
-
-	Context("Cross-namespace valuesFrom references are rejected", Ordered, func() {
-		h := newHelmTestContext()
-		otherNS := "helm-other-tenant-" + rand.RandomString(4)
-		BeforeAll(func() {
-			h.createNamespace()
-			ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: otherNS}}
-			Expect(k8sClient.Create(h.ctx, ns)).Should(Succeed())
-			// Put a real ConfigMap in the other namespace so the failure is
-			// due to the cross-namespace guard, not a NotFound.
-			createCMInNamespace(h, "podinfo-values", otherNS, "replicaCount: 3\n")
-		})
-		AfterAll(func() {
-			h.cleanup()
-			ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: otherNS}}
-			_ = k8sClient.Delete(h.ctx, ns, client.PropagationPolicy(metav1.DeletePropagationForeground))
-		})
-
-		It("should fail the workflow when valuesFrom.namespace != Application namespace", func() {
-			deployPodinfoExpectWorkflowFailure(h, "s34", "podinfo",
-				map[string]interface{}{
-					"valuesFrom": []interface{}{
-						cmRef("podinfo-values", map[string]interface{}{"namespace": otherNS}),
-					},
-				},
-				"cross-namespace valuesFrom")
-		})
-	})
-
-	Context("Two ConfigMaps in valuesFrom — later overrides earlier on conflict", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should resolve replicaCount to the later CM's value", func() {
-			createCMWithReplicas(h, "podinfo-base-values", 2)
-			createCMWithReplicas(h, "podinfo-overlay-values", 4)
-			deployPodinfo(h, "s35", "podinfo", map[string]interface{}{
-				"valuesFrom": []interface{}{
-					cmRef("podinfo-base-values"),
-					cmRef("podinfo-overlay-values"),
-				},
-			})
-			waitForReplicas(h, 4)
-		})
-	})
-
-	Context("Deep merge preserves orthogonal nested keys across sources", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should keep base sibling keys when the overlay touches only one field in a nested map", func() {
-			createCM(h, "podinfo-base-values", "", `resources:
+			})).Should(Succeed())
+			createCMWithReplicas(h, "two-cms-base", 2)
+			createCMWithReplicas(h, "two-cms-overlay", 4)
+			createCM(h, "deep-base", "", `resources:
   limits:
     cpu: 100m
     memory: 256Mi
@@ -1800,19 +1594,88 @@ var _ = Describe("Helmchart valuesFrom", func() {
     cpu: 50m
 replicaCount: 2
 `)
-			createCM(h, "podinfo-overlay-values", "", `resources:
+			createCM(h, "deep-overlay", "", `resources:
   limits:
     memory: 512Mi
 `)
-			deployPodinfo(h, "s36", "podinfo", map[string]interface{}{
-				"valuesFrom": []interface{}{
-					cmRef("podinfo-base-values"),
-					cmRef("podinfo-overlay-values"),
-				},
-			})
-			waitForReplicas(h, 2)
+			createCM(h, "mixed-cm", "", "replicaCount: 2\nimage:\n  tag: 6.11.0\n")
+			createSecret(h, "mixed-secret", "replicaCount: 3\n")
+			createSecretWithReplicas(h, "two-secrets-a", 1)
+			createSecretWithReplicas(h, "two-secrets-b", 4)
+			createCMWithReplicas(h, "after-optional", 3)
+			createCM(h, "arrays-base", "", "extraArgs:\n  - --level=debug\n  - --timeout=30\n")
+			createCM(h, "arrays-overlay", "", "extraArgs:\n  - --level=info\n")
+			createCMWithReplicas(h, "with-health", 2)
+
+			release := func(name string, props map[string]interface{}) common2.ApplicationComponent {
+				return buildPodinfoComponent(h, name, name, props)
+			}
+			valuesFrom := func(refs ...map[string]interface{}) map[string]interface{} {
+				list := make([]interface{}, len(refs))
+				for i, r := range refs {
+					list[i] = r
+				}
+				return map[string]interface{}{"valuesFrom": list}
+			}
+			optional := map[string]interface{}{"optional": true}
+			h.app = createPodinfoApp(h, "vf-merge",
+				release("podinfo-cm", valuesFrom(cmRef("cm-only"))),
+				release("podinfo-secret", valuesFrom(secretRef("secret-only"))),
+				release("podinfo-inline", map[string]interface{}{
+					"values":     map[string]interface{}{"replicaCount": 4},
+					"valuesFrom": []interface{}{cmRef("inline-override")},
+				}),
+				release("podinfo-optional", valuesFrom(cmRef("never-created", optional))),
+				release("podinfo-key", valuesFrom(cmRef("multi-env", map[string]interface{}{"key": "prod.yaml"}))),
+				release("podinfo-two-cms", valuesFrom(cmRef("two-cms-base"), cmRef("two-cms-overlay"))),
+				release("podinfo-deep", valuesFrom(cmRef("deep-base"), cmRef("deep-overlay"))),
+				release("podinfo-mixed", valuesFrom(cmRef("mixed-cm"), secretRef("mixed-secret"))),
+				release("podinfo-two-secrets", valuesFrom(secretRef("two-secrets-a"), secretRef("two-secrets-b"))),
+				release("podinfo-empty", map[string]interface{}{"valuesFrom": []interface{}{}}),
+				release("podinfo-after-optional", valuesFrom(cmRef("never-created", optional), cmRef("after-optional"))),
+				release("podinfo-arrays", valuesFrom(cmRef("arrays-base"), cmRef("arrays-overlay"))),
+				release("podinfo-health", map[string]interface{}{
+					"valuesFrom": []interface{}{cmRef("with-health")},
+					"healthStatus": []interface{}{
+						map[string]interface{}{
+							"resource":  map[string]interface{}{"kind": "Deployment", "name": "podinfo-health"},
+							"condition": map[string]interface{}{"type": "Available"},
+						},
+					},
+				}),
+			)
+			h.appKey = client.ObjectKeyFromObject(h.app)
+		})
+		AfterAll(func() { h.cleanup() })
+
+		It("should merge values from the referenced ConfigMap", func() {
+			waitForNamedReplicas(h, "podinfo-cm", 3)
+		})
+
+		It("should merge values from the referenced Secret", func() {
+			waitForNamedReplicas(h, "podinfo-secret", 2)
+		})
+
+		It("should use inline replicaCount when it also appears in the ConfigMap", func() {
+			waitForNamedReplicas(h, "podinfo-inline", 4)
+		})
+
+		It("should deploy at chart defaults when the only source is optional and missing", func() {
+			waitForNamedReplicas(h, "podinfo-optional", 1)
+		})
+
+		It("should use the specified key and ignore other keys in the ConfigMap", func() {
+			waitForNamedReplicas(h, "podinfo-key", 5)
+		})
+
+		It("should resolve a conflict between two ConfigMaps to the later one", func() {
+			waitForNamedReplicas(h, "podinfo-two-cms", 4)
+		})
+
+		It("should keep base sibling keys when the overlay touches only one field in a nested map", func() {
+			waitForNamedReplicas(h, "podinfo-deep", 2)
 			deploy := &appsv1.Deployment{}
-			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
+			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo-deep"}, deploy)).Should(Succeed())
 			limits := deploy.Spec.Template.Spec.Containers[0].Resources.Limits
 			requests := deploy.Spec.Template.Spec.Containers[0].Resources.Requests
 			Expect(limits.Memory().String()).To(Equal("512Mi"),
@@ -1822,124 +1685,27 @@ replicaCount: 2
 			Expect(requests.Cpu().String()).To(Equal("50m"),
 				"untouched requests.cpu from base must survive")
 		})
-	})
-
-	Context("Mixed ConfigMap and Secret in the same valuesFrom list", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
 
 		It("should merge values from a ConfigMap followed by a Secret", func() {
-			createCM(h, "podinfo-cm-values", "", "replicaCount: 2\nimage:\n  tag: 6.11.0\n")
-			createSecret(h, "podinfo-secret-values", "replicaCount: 3\n")
-			deployPodinfo(h, "s37", "podinfo", map[string]interface{}{
-				"valuesFrom": []interface{}{
-					cmRef("podinfo-cm-values"),
-					secretRef("podinfo-secret-values"),
-				},
-			})
-			waitForReplicas(h, 3)
+			waitForNamedReplicas(h, "podinfo-mixed", 3)
 		})
-	})
 
-	Context("Two Secrets in valuesFrom — later overrides earlier", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should resolve conflicts between two Secrets with later-wins", func() {
-			createSecretWithReplicas(h, "podinfo-secret-a", 1)
-			createSecretWithReplicas(h, "podinfo-secret-b", 4)
-			deployPodinfo(h, "s38", "podinfo", map[string]interface{}{
-				"valuesFrom": []interface{}{
-					secretRef("podinfo-secret-a"),
-					secretRef("podinfo-secret-b"),
-				},
-			})
-			waitForReplicas(h, 4)
+		It("should resolve a conflict between two Secrets to the later one", func() {
+			waitForNamedReplicas(h, "podinfo-two-secrets", 4)
 		})
-	})
-
-	Context("Application with only valuesFrom and no inline values", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should deploy using values sourced entirely from the ConfigMap", func() {
-			createCMWithReplicas(h, "podinfo-values", 2)
-			deployPodinfo(h, "s39", "podinfo", map[string]interface{}{
-				"valuesFrom": []interface{}{cmRef("podinfo-values")},
-			})
-			waitForReplicas(h, 2)
-		})
-	})
-
-	Context("Empty valuesFrom list behaves like no valuesFrom", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
 
 		It("should deploy at chart defaults when valuesFrom is an empty list", func() {
-			deployPodinfo(h, "s40", "podinfo", map[string]interface{}{
-				"valuesFrom": []interface{}{},
-			})
-			waitForReplicas(h, 1) // chart default
+			waitForNamedReplicas(h, "podinfo-empty", 1)
 		})
-	})
 
-	Context("Optional missing source is skipped, subsequent required source is still applied", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should skip the missing optional CM and use the following required CM's values", func() {
-			createCMWithReplicas(h, "podinfo-real-values", 3)
-			deployPodinfo(h, "s41", "podinfo", map[string]interface{}{
-				"valuesFrom": []interface{}{
-					cmRef("never-created", map[string]interface{}{"optional": true}),
-					cmRef("podinfo-real-values"),
-				},
-			})
-			waitForReplicas(h, 3)
+		It("should skip a missing optional source and apply the required one after it", func() {
+			waitForNamedReplicas(h, "podinfo-after-optional", 3)
 		})
-	})
 
-	Context("Non-existent explicit namespace fails required lookup cleanly", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should fail with a not-found error referencing the missing namespace", func() {
-			deployPodinfoExpectWorkflowFailure(h, "s42", "podinfo",
-				map[string]interface{}{
-					"valuesFrom": []interface{}{
-						cmRef("any-cm", map[string]interface{}{"namespace": "does-not-exist-ns"}),
-					},
-				},
-				"does-not-exist-ns")
-		})
-	})
-
-	Context("Array values are replaced wholesale by the later source (Helm semantics)", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should drop base array entries when the overlay sets the same array", func() {
-			createCM(h, "podinfo-extraargs-base", "",
-				"extraArgs:\n  - --level=debug\n  - --timeout=30\n")
-			createCM(h, "podinfo-extraargs-overlay", "",
-				"extraArgs:\n  - --level=info\n")
-			deployPodinfo(h, "s43", "podinfo", map[string]interface{}{
-				"valuesFrom": []interface{}{
-					cmRef("podinfo-extraargs-base"),
-					cmRef("podinfo-extraargs-overlay"),
-				},
-			})
-			waitForReplicas(h, 1)
-
+		It("should replace arrays wholesale with the later source's (Helm semantics)", func() {
+			waitForNamedReplicas(h, "podinfo-arrays", 1)
 			deploy := &appsv1.Deployment{}
-			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, deploy)).Should(Succeed())
+			Expect(k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo-arrays"}, deploy)).Should(Succeed())
 			// podinfo 6.11.1 renders extraArgs into the container's .command
 			// (appended to ["./podinfo", "--port=...", ...]). Check both command
 			// and args to stay robust against chart layout changes.
@@ -1948,79 +1714,88 @@ replicaCount: 2
 			Expect(joined).To(ContainSubstring("--level=info"),
 				"overlay array value must appear in the container's command/args")
 			Expect(joined).ToNot(ContainSubstring("--level=debug"),
-				"base array value must NOT appear — arrays are replaced not merged")
+				"base array value must NOT appear: arrays are replaced not merged")
 			Expect(joined).ToNot(ContainSubstring("--timeout=30"),
-				"base orthogonal array item must NOT appear — arrays are replaced wholesale")
+				"base orthogonal array item must NOT appear: arrays are replaced wholesale")
 		})
-	})
-
-	Context("valuesFrom combined with healthStatus criteria", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
 
 		It("should reach healthy state using CM-supplied replicaCount", func() {
-			createCMWithReplicas(h, "podinfo-values", 2)
-			deployPodinfo(h, "s44", "podinfo", map[string]interface{}{
-				"valuesFrom": []interface{}{cmRef("podinfo-values")},
-				"healthStatus": []interface{}{
-					map[string]interface{}{
-						"resource":  map[string]interface{}{"kind": "Deployment", "name": "podinfo"},
-						"condition": map[string]interface{}{"type": "Available"},
-					},
-				},
-			})
-			waitForReplicas(h, 2)
-			Eventually(func(g Gomega) {
+			waitForNamedReplicas(h, "podinfo-health", 2)
+			EventuallyReconciled(h.ctx, h.app, func(g Gomega) {
 				g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
-				g.Expect(h.app.Status.Services).ShouldNot(BeEmpty())
-				g.Expect(h.app.Status.Services[0].Healthy).Should(BeTrue())
-			}, 120*time.Second, 3*time.Second).Should(Succeed())
-		})
-	})
-
-	Context("Two helmchart components, each with its own valuesFrom source", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should render each component independently without cross-contamination", func() {
-			createCMWithReplicas(h, "podinfo-a-values", 2)
-			createSecretWithReplicas(h, "podinfo-b-values", 3)
-			compA := buildPodinfoComponent(h, "podinfo-a", "podinfo-a", map[string]interface{}{
-				"valuesFrom": []interface{}{cmRef("podinfo-a-values")},
-			})
-			compB := buildPodinfoComponent(h, "podinfo-b", "podinfo-b", map[string]interface{}{
-				"valuesFrom": []interface{}{secretRef("podinfo-b-values")},
-			})
-			deployAppWithComponents(h, "s45", []common2.ApplicationComponent{compA, compB})
-			waitForNamedReplicas(h, "podinfo-a", 2)
-			waitForNamedReplicas(h, "podinfo-b", 3)
-		})
-	})
-
-	Context("Self-healing restores a CM-backed Deployment after manual delete", Ordered, func() {
-		h := newHelmTestContext()
-		BeforeAll(func() { h.createNamespace() })
-		AfterAll(func() { h.cleanup() })
-
-		It("should initially deploy with CM-sourced replicaCount", func() {
-			createCMWithReplicas(h, "podinfo-values", 3)
-			deployPodinfo(h, "s46", "podinfo", map[string]interface{}{
-				"valuesFrom": []interface{}{cmRef("podinfo-values")},
-			})
-			waitForReplicas(h, 3)
+				var healthy *bool
+				for i, svc := range h.app.Status.Services {
+					if svc.Name == "podinfo-health" {
+						healthy = &h.app.Status.Services[i].Healthy
+					}
+				}
+				g.Expect(healthy).ShouldNot(BeNil(), "no status for podinfo-health")
+				g.Expect(*healthy).Should(BeTrue())
+			}).WithTimeout(60 * time.Second).Should(Succeed())
 		})
 
-		It("should recreate the Deployment with the same CM values after it is deleted", func() {
-			runCommandSucceed("kubectl", "delete", "deployment", "podinfo", "-n", h.namespace)
+		It("should bring the Application with every release to running", func() {
+			EventuallyReconciled(h.ctx, h.app, func(g Gomega) {
+				g.Expect(k8sClient.Get(h.ctx, h.appKey, h.app)).Should(Succeed())
+				g.Expect(h.app.Status.Phase).Should(Equal(common2.ApplicationRunning))
+			}).WithTimeout(2 * time.Minute).WithPolling(3 * time.Second).Should(Succeed())
+		})
+
+		It("should recreate a CM-backed Deployment with the same values after it is deleted", func() {
+			runCommandSucceed("kubectl", "delete", "deployment", "podinfo-cm", "-n", h.namespace)
 			Eventually(func() bool {
-				err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo"}, &appsv1.Deployment{})
+				err := k8sClient.Get(h.ctx, types.NamespacedName{Namespace: h.namespace, Name: "podinfo-cm"}, &appsv1.Deployment{})
 				return err != nil
 			}, 10*time.Second, time.Second).Should(BeTrue())
 
 			RequestReconcileNow(h.ctx, h.app)
-			waitForReplicas(h, 3)
+			waitForNamedReplicas(h, "podinfo-cm", 3)
+		})
+	})
+
+	// Each failure is its own Application so one step's error cannot satisfy
+	// another's assertion; they are created together so their retries overlap.
+	Context("Failing valuesFrom sources", Ordered, ContinueOnFailure, func() {
+		h := newHelmTestContext()
+		otherNS := "helm-other-tenant-" + rand.RandomString(4)
+		var missing, badYAML, crossNS, noNS *v1beta1.Application
+		BeforeAll(func() {
+			h.createNamespace()
+			ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: otherNS}}
+			Expect(k8sClient.Create(h.ctx, ns)).Should(Succeed())
+			DeferCleanup(func() {
+				_ = k8sClient.Delete(h.ctx, ns, client.PropagationPolicy(metav1.DeletePropagationForeground))
+			})
+			// A real ConfigMap in the other namespace, so the failure is due to
+			// the cross-namespace guard rather than a NotFound.
+			createCMInNamespace(h, "podinfo-values", otherNS, "replicaCount: 3\n")
+			createCM(h, "podinfo-bad-yaml", "", "replicaCount: [unterminated")
+
+			failing := func(release string, ref map[string]interface{}) *v1beta1.Application {
+				return createPodinfoApp(h, release, buildPodinfoComponent(h, "podinfo", release,
+					map[string]interface{}{"valuesFrom": []interface{}{ref}}))
+			}
+			missing = failing("podinfo-missing", cmRef("never-created"))
+			badYAML = failing("podinfo-bad-yaml", cmRef("podinfo-bad-yaml", map[string]interface{}{"optional": true}))
+			crossNS = failing("podinfo-cross-ns", cmRef("podinfo-values", map[string]interface{}{"namespace": otherNS}))
+			noNS = failing("podinfo-no-ns", cmRef("any-cm", map[string]interface{}{"namespace": "does-not-exist-ns"}))
+		})
+		AfterAll(func() { h.cleanupNamespaceOnly() })
+
+		It("should fail the workflow and surface the missing-CM error for a required source", func() {
+			expectWorkflowFailure(h, missing, "podinfo-missing", `ConfigMap "never-created"`)
+		})
+
+		It("should surface a parse error even when the source is marked optional", func() {
+			expectWorkflowFailure(h, badYAML, "podinfo-bad-yaml", "invalid YAML")
+		})
+
+		It("should fail the workflow when valuesFrom.namespace != Application namespace", func() {
+			expectWorkflowFailure(h, crossNS, "podinfo-cross-ns", "cross-namespace valuesFrom")
+		})
+
+		It("should fail with a not-found error referencing a missing explicit namespace", func() {
+			expectWorkflowFailure(h, noNS, "podinfo-no-ns", "does-not-exist-ns")
 		})
 	})
 
@@ -2030,6 +1805,7 @@ replicaCount: 2
 		AfterAll(func() { h.cleanup() })
 
 		It("should adopt the pre-existing release and merge CM values on the adoption upgrade", func() {
+			h.freshAttempt()
 			By("Installing podinfo via vanilla helm at replicaCount=1")
 			runCommandSucceed("helm", "install", "podinfo",
 				"--repo", "https://stefanprodan.github.io/podinfo", "podinfo",

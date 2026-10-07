@@ -8,6 +8,7 @@ metadata:
   name: take-over
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "take-over" "kind" "PolicyDefinition" "root" $) }}
   schematic:
     cue:
       template: |

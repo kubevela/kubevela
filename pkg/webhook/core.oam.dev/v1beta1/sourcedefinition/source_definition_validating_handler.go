@@ -31,6 +31,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/definition/cachekey"
+	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
 	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
@@ -84,6 +85,14 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	//
 	// An old object that will not decode falls through to full validation rather
 	// than being waved past.
+	// Restrictions can be declared in an annotation, so a spec-unchanged update can
+	// still introduce a malformed one. Validate before the metadata-only shortcut
+	// below, or that glob is stored and silently matches no namespace.
+	if err := nsrestrict.ValidateObject(obj); err != nil {
+		logger.WithStep("validate-namespace-restrictions").WithError(err).Error(err, "SourceDefinition namespace restriction is not a valid list of namespace names or globs")
+		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+	}
+
 	if req.Operation == admissionv1.Update && len(req.OldObject.Raw) > 0 {
 		old := &v1beta1.SourceDefinition{}
 		if err := h.Decoder.DecodeRaw(req.OldObject, old); err == nil &&

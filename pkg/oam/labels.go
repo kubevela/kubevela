@@ -42,6 +42,16 @@ const (
 	// LabelAppUID records the uid of Application
 	LabelAppUID = "app.oam.dev/uid"
 
+	// LabelOwnerKind records the kind of a non-Application owner (e.g. Component) of a
+	// ResourceTracker or of a resource it dispatched
+	LabelOwnerKind = "owner.oam.dev/kind"
+	// LabelOwnerName records the name of a non-Application owner
+	LabelOwnerName = "owner.oam.dev/name"
+	// LabelOwnerNamespace records the namespace of a non-Application owner
+	LabelOwnerNamespace = "owner.oam.dev/namespace"
+	// LabelOwnerUID records the uid of a non-Application owner
+	LabelOwnerUID = "owner.oam.dev/uid"
+
 	// WorkloadTypeLabel indicates the type of the workloadDefinition
 	WorkloadTypeLabel = "workload.oam.dev/type"
 	// TraitTypeLabel indicates the type of the traitDefinition
@@ -151,6 +161,25 @@ const (
 
 	// AnnotationDefinitionRevisionName is used to specify the name of DefinitionRevision in component/trait definition
 	AnnotationDefinitionRevisionName = "definitionrevision.oam.dev/name"
+
+	// AnnotationRestrictNamespaces limits the namespaces whose Applications may use a
+	// definition, as a comma-separated list of namespace names or globs. It is the
+	// channel for definitions whose spec you do not own, such as the builtins helm
+	// installs. A label cannot carry this: label values reject "*" and ",".
+	//
+	// Names only. Restricting by namespace label is spec.restrictions.namespaceSelector
+	// and nothing else, so the annotation stays a flat list with no parsing to get
+	// wrong.
+	AnnotationRestrictNamespaces = "definition.oam.dev/restrict-namespaces"
+
+	// AnnotationQuotaExempt, set to "true" on a Namespace, lifts every definition
+	// quota for that namespace. It is for getting out of the way of an incident,
+	// not for carving out a permanent exception, so each use is logged.
+	//
+	// Namespaces are cluster scoped, so setting this needs cluster level RBAC. It
+	// lifts quotas only; which definitions a namespace may use at all is not
+	// something a namespace gets to decide about itself.
+	AnnotationQuotaExempt = "definition.oam.dev/quota-exempt"
 
 	// AnnotationLastAppliedConfiguration is kubectl annotations for 3-way merge
 	AnnotationLastAppliedConfiguration = "kubectl.kubernetes.io/last-applied-configuration"
@@ -279,6 +308,7 @@ const PolicyAdditionalContextKey policyContextKeyType = "kubevela.oam.dev/policy
 // reading internal platform metadata.
 var internalMetadataPrefixes = map[string]struct{}{
 	"app.oam.dev/":           {},
+	"owner.oam.dev/":         {},
 	"oam.dev/":               {},
 	"kubectl.kubernetes.io/": {},
 	"kubernetes.io/":         {},

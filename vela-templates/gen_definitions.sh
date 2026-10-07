@@ -72,6 +72,9 @@ echo -e "${HEAD_PROMPT}Start generating definitions at ${LIGHTGRAY}${SCRIPT_DIR}
 # Generate Internal definitions
 echo -ne "${HEAD_PROMPT}${YELLOW}(0/3) Generating internal definitions from ${LIGHTGRAY}${INTERNAL_DEFINITION_DIR}${YELLOW} to ${LIGHTGRAY}${INTERNAL_TEMPLATE_DIR}${YELLOW} ... "
 export AS_HELM_CHART=true
+# The builtins take their namespace restrictions from chart values, so a Helm
+# include replaces whatever their sources declare.
+export WITH_RESTRICTION_GEN=true
 render $INTERNAL_DEFINITION_DIR $INTERNAL_TEMPLATE_DIR
 
 # Generate deprecated definitions
@@ -81,6 +84,7 @@ echo -ne "${GREEN}Generated.\n${HEAD_PROMPT}${YELLOW}(2/3) Generating registry d
 
 # Generate registry definitions
 export AS_HELM_CHART=system
+export WITH_RESTRICTION_GEN=false
 render $REGISTRY_DEFINITION_DIR $REGISTRY_TEMPLATE_DIR
 
 echo -ne "${GREEN}Generated.\n${HEAD_PROMPT}${GREEN}(3/3) All done.${NC}\n"

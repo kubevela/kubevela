@@ -139,3 +139,57 @@ func TestByAppliedWorkload(t *testing.T) {
 	// Test not a definition
 	assert.Equal(t, false, f(unstructured.Unstructured{}))
 }
+
+func TestByUsableFrom(t *testing.T) {
+	def := func(patterns []string, selector map[string]string) unstructured.Unstructured {
+		spec := map[string]interface{}{}
+		restrictions := map[string]interface{}{}
+		if patterns != nil {
+			ns := make([]interface{}, 0, len(patterns))
+			for _, p := range patterns {
+				ns = append(ns, p)
+			}
+			restrictions["namespaces"] = ns
+		}
+		if selector != nil {
+			labels := map[string]interface{}{}
+			for k, v := range selector {
+				labels[k] = v
+			}
+			restrictions["namespaceSelector"] = map[string]interface{}{"matchLabels": labels}
+		}
+		if len(restrictions) > 0 {
+			spec["restrictions"] = restrictions
+		}
+		return unstructured.Unstructured{Object: map[string]interface{}{"spec": spec}}
+	}
+
+	testCases := map[string]struct {
+		obj      unstructured.Unstructured
+		ns       string
+		nsLabels map[string]string
+		want     bool
+	}{
+		"an empty namespace keeps everything": {def([]string{"tenant-*"}, nil), "", nil, true},
+		"unrestricted is kept":                {def(nil, nil), "default", nil, true},
+		"a matching glob is kept":             {def([]string{"tenant-*"}, nil), "tenant-a", nil, true},
+		"a non-matching glob is dropped":      {def([]string{"tenant-*"}, nil), "default", nil, false},
+		"a matching selector is kept": {
+			def(nil, map[string]string{"tenant": "true"}), "acme",
+			map[string]string{"tenant": "true"}, true,
+		},
+		"a non-matching selector is dropped": {
+			def(nil, map[string]string{"tenant": "true"}), "acme", map[string]string{}, false,
+		},
+		// nil labels mean they could not be read, so a selector keeps nothing.
+		"unreadable labels drop a selector": {
+			def(nil, map[string]string{"tenant": "true"}), "acme", nil, false,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, ByUsableFrom(tc.ns, tc.nsLabels)(tc.obj))
+		})
+	}
+}

@@ -40,7 +40,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/workflow/pkg/cue/model"
-	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 	"github.com/kubevela/workflow/pkg/cue/process"
 
@@ -48,6 +47,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/render"
 	"github.com/oam-dev/kubevela/pkg/cue/task"
 	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/sources"
@@ -96,6 +96,10 @@ type AbstractEngine interface {
 }
 type def struct {
 	name string
+	// ancestors are the definitions this one extends, nearest parent first.
+	// Empty for a definition that extends nothing, which is the common case and
+	// renders exactly as it always did.
+	ancestors []inherit.Level
 }
 type workloadDef struct {
 	def
@@ -105,11 +109,17 @@ type workloadDef struct {
 	surface string
 }
 
-// NewWorkloadAbstractEngine create Workload Definition AbstractEngine
-// NewWorkloadAbstractEngine create Workload Definition AbstractEngine
-func NewWorkloadAbstractEngine(name string) AbstractEngine {
+// NewWorkloadAbstractEngine create Workload Definition AbstractEngine.
+//
+// Ancestors are the definitions this one extends, nearest parent first. They
+// are variadic so that every existing caller, and every definition that extends
+// nothing, is unaffected.
+func NewWorkloadAbstractEngine(name string, ancestors ...inherit.Level) AbstractEngine {
 	return &workloadDef{
-		def:     def{name: name},
+		def: def{
+			name:      name,
+			ancestors: ancestors,
+		},
 		surface: sources.SurfaceComponent,
 	}
 }
@@ -149,15 +159,12 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		if err != nil {
 			return errors.WithMessagef(err, "resolve source expressions for %s %s", surface, wd.name)
 		}
-		bt, err := json.Marshal(params)
-		if resolved != nil {
-			bt, err = json.Marshal(resolved)
-		}
+		bt, err := renderParams(ctx, params, resolved)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of workload %s", wd.name)
 		}
-		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("%s: %s", velaprocess.ParameterFieldName, string(bt))
+		if bt != "null" {
+			paramFile = fmt.Sprintf("%s: %s", velaprocess.ParameterFieldName, bt)
 		}
 	}
 
@@ -168,39 +175,36 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 
 	abstractTemplate, _ = upgrade.EnsureCueVersionCompatibility(abstractTemplate, wd.name, upgrade.ComponentKind, upgrade.TemplateAreaMain)
 
-	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), strings.Join([]string{
-		render.Template(abstractTemplate), paramFile, c,
-	}, "\n"))
-	if err != nil {
-		return errors.WithMessagef(err, "failed to compile workload %s after merge parameter and context", wd.name)
+	var val cue.Value
+	var userErrors []string
+	if wd.extendsSomething() {
+		res, err := wd.renderChain(ctx, abstractTemplate, paramFile, c, inherit.ComponentSurface)
+		if err != nil {
+			return err
+		}
+		val, userErrors = res.value, res.userErrors
+	} else {
+		val, err = velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), strings.Join([]string{
+			render.Template(abstractTemplate), paramFile, c,
+		}, "\n"))
+		if err != nil {
+			return errors.WithMessagef(err, "failed to compile workload %s after merge parameter and context", wd.name)
+		}
+		userErrors = render.UserErrors(val, "Workload definition", wd.name)
 	}
-
-	userErrors := render.UserErrors(val, "Workload definition", wd.name)
 
 	validationErr := val.Validate()
 
 	if validationErr != nil || len(userErrors) > 0 {
-		var result strings.Builder
-		result.WriteString(fmt.Sprintf("validation failed for workload %s:", wd.name))
-
-		if len(userErrors) > 0 {
-			result.WriteString("\n\nUser Errors:\n")
-			for _, e := range userErrors {
-				result.WriteString(fmt.Sprintf("  %s\n", e))
-			}
-		}
-
-		if validationErr != nil {
-			if fmtErr := FormatCUEError(validationErr, "validation failed for", "workload", wd.name, &val); fmtErr != nil {
-				errMsg := fmtErr.Error()
-				errMsg = strings.TrimPrefix(errMsg, fmt.Sprintf("validation failed for workload %s:", wd.name))
-				result.WriteString(errMsg)
-			}
-		}
-
-		return errors.New(strings.TrimRight(result.String(), "\n"))
+		verr := &ValidationError{Kind: "workload", Name: wd.name, User: userErrors}
+		verr.Parameter, verr.Template = cueErrorMessages(validationErr, &val)
+		return verr
 	}
 	output := val.LookupPath(value.FieldPath(OutputFieldName))
+	// A typed parameter leaves this non-concrete, and the trait renders against
+	// it as JSON. Prune it here, where nothing checks it, rather than in the
+	// parameters, where something does.
+	output = concreteForRender(ctx, output)
 
 	base, err := model.NewBase(output)
 	if err != nil {
@@ -211,7 +215,13 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	}
 
 	// Store template for error context (use workload-specific key to avoid pollution)
-	ctx.PushData(GetWorkloadTemplateKey(wd.name), val)
+	// Skipped when parameters are open (a validation, or a placeholder dry-run):
+	// the whole value is marshalled into every later template's context, which a
+	// typed parameter cannot survive. The render
+	// path falls back to the base when it is absent.
+	if !sources.OpenParams(ctx.GetCtx()) {
+		ctx.PushData(GetWorkloadTemplateKey(wd.name), val)
+	}
 
 	// we will support outputs for workload composition, and it will become trait in AppConfig.
 	outputs := val.LookupPath(value.FieldPath(OutputsFieldName))
@@ -227,7 +237,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		if iter.Selector().IsDefinition() || iter.Selector().PkgPath() != "" || iter.IsOptional() {
 			continue
 		}
-		other, err := model.NewOther(iter.Value())
+		other, err := model.NewOther(concreteForRender(ctx, iter.Value()))
 		name := util.GetIteratorLabel(*iter)
 		if err != nil {
 			return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", name, wd.name)
@@ -304,12 +314,16 @@ type traitDef struct {
 	def
 }
 
-// NewTraitAbstractEngine create Trait Definition AbstractEngine
-// NewTraitAbstractEngine create Trait Definition AbstractEngine
-func NewTraitAbstractEngine(name string) AbstractEngine {
+// NewTraitAbstractEngine create Trait Definition AbstractEngine.
+//
+// Ancestors are the definitions this one extends, nearest parent first. They
+// are variadic so that every existing caller, and every trait that extends
+// nothing, is unaffected.
+func NewTraitAbstractEngine(name string, ancestors ...inherit.Level) AbstractEngine {
 	return &traitDef{
 		def: def{
-			name: name,
+			name:      name,
+			ancestors: ancestors,
 		},
 	}
 }
@@ -329,23 +343,22 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	}()
 
 	abstractTemplate, _ = upgrade.EnsureCueVersionCompatibility(abstractTemplate, td.name, upgrade.TraitKind, upgrade.TemplateAreaMain)
-	buff := abstractTemplate + "\n"
+
+	var paramFile string
 	if params != nil {
 		resolved, err := sources.ResolveSourceExpressions(ctx, params, sources.SurfaceTrait)
 		if err != nil {
 			return errors.WithMessagef(err, "resolve source expressions for trait %s", td.name)
 		}
-		bt, err := json.Marshal(params)
-		if resolved != nil {
-			bt, err = json.Marshal(resolved)
-		}
+		bt, err := renderParams(ctx, params, resolved)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
-		if string(bt) != "null" {
-			buff += fmt.Sprintf("%s: %s\n", velaprocess.ParameterFieldName, string(bt))
+		if bt != "null" {
+			paramFile = fmt.Sprintf("%s: %s\n", velaprocess.ParameterFieldName, bt)
 		}
 	}
+	buff := abstractTemplate + "\n" + paramFile
 
 	multiStageEnabled := feature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply)
 	var statusBytes []byte
@@ -366,36 +379,29 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 
 	buff += c
 
-	val, err := velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), buff)
-
-	if err != nil {
-		return errors.WithMessagef(err, "failed to compile trait %s after merge parameter and context", td.name)
+	var val cue.Value
+	var userErrors []string
+	var levels []cue.Value
+	if td.extendsSomething() {
+		res, err := td.renderChain(ctx, abstractTemplate, paramFile, c, inherit.TraitSurface)
+		if err != nil {
+			return err
+		}
+		val, userErrors, levels = res.value, res.userErrors, res.levels
+	} else {
+		val, err = velacuex.WorkloadCompiler.Get().CompileString(ctx.GetCtx(), buff)
+		if err != nil {
+			return errors.WithMessagef(err, "failed to compile trait %s after merge parameter and context", td.name)
+		}
+		userErrors = render.UserErrors(val, "Trait definition", td.name)
 	}
-
-	userErrors := render.UserErrors(val, "Trait definition", td.name)
 
 	validationErr := val.Validate()
 
 	if validationErr != nil || len(userErrors) > 0 {
-		var result strings.Builder
-		result.WriteString(fmt.Sprintf("validation failed for trait %s:", td.name))
-
-		if len(userErrors) > 0 {
-			result.WriteString("\n\nUser Errors:\n")
-			for _, e := range userErrors {
-				result.WriteString(fmt.Sprintf("  %s\n", e))
-			}
-		}
-
-		if validationErr != nil {
-			if fmtErr := FormatCUEError(validationErr, "validation failed for", "trait", td.name, &val); fmtErr != nil {
-				errMsg := fmtErr.Error()
-				errMsg = strings.TrimPrefix(errMsg, fmt.Sprintf("validation failed for trait %s:", td.name))
-				result.WriteString(errMsg)
-			}
-		}
-
-		return errors.New(strings.TrimRight(result.String(), "\n"))
+		verr := &ValidationError{Kind: "trait", Name: td.name, User: userErrors}
+		verr.Parameter, verr.Template = cueErrorMessages(validationErr, &val)
+		return verr
 	}
 
 	processing := val.LookupPath(value.FieldPath("processing"))
@@ -415,7 +421,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			if iter.Selector().IsDefinition() || iter.Selector().PkgPath() != "" || iter.IsOptional() {
 				continue
 			}
-			other, err := model.NewOther(iter.Value())
+			other, err := model.NewOther(concreteForRender(ctx, iter.Value()))
 			name := util.GetIteratorLabel(*iter)
 			if err != nil {
 				return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", name, td.name)
@@ -432,18 +438,27 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		if base == nil {
 			return fmt.Errorf("patch trait %s into an invalid workload", td.name)
 		}
-		if err := base.Unify(patcher, sets.CreateUnifyOptionsForPatcher(patcher)...); err != nil {
+		if err := base.Unify(patcher, patchOptionsFromLevels(levels, patcher)...); err != nil {
+			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
+		}
+		// The patch carries the trait's own parameters, so a source-fed one
+		// lands here as a type. Pruned after the unification rather than before
+		// it, because the patcher's attributes are what drive patch strategy.
+		if err := repruneBase(ctx, base); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
 	}
 	outputsPatcher := val.LookupPath(value.FieldPath(PatchOutputsFieldName))
 	if outputsPatcher.Exists() {
-		for _, auxiliary := range auxiliaries {
+		for i, auxiliary := range auxiliaries {
 			target := outputsPatcher.LookupPath(value.FieldPath(auxiliary.Name))
 			if !target.Exists() {
 				continue
 			}
 			if err = auxiliary.Ins.Unify(target); err != nil {
+				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
+			}
+			if err = repruneAuxiliary(ctx, auxiliaries, i); err != nil {
 				return errors.WithMessagef(err, "trait=%s, to=%s, invalid patch trait into auxiliary workload", td.name, auxiliary.Name)
 			}
 		}
@@ -606,69 +621,157 @@ func getResourceFromObj(ctx context.Context, pctx process.Context, obj *unstruct
 	return nil, errors.Errorf("no resources found gvk(%v) labels(%v)", obj.GroupVersionKind(), labels)
 }
 
-// FormatCUEError formats CUE errors in a user-friendly grouped format
-// FormatCUEError formats CUE errors in a user-friendly grouped format
+// FormatCUEError returns err as a *ValidationError, its messages grouped into
+// Parameter and Template sections, or nil when there is nothing to report.
 func FormatCUEError(err error, messagePrefix string, entityType, entityName string, val ...*cue.Value) error {
-	var allParamErrors = make(map[string]bool)
-	var allTemplateErrors = make(map[string]bool)
-
-	if err != nil {
-		errList := cueerrors.Errors(err)
-		for _, e := range errList {
-			errMsg := e.Error()
-			if strings.HasPrefix(errMsg, "parameter.") {
-				allParamErrors[errMsg] = true
-			} else {
-				allTemplateErrors[errMsg] = true
-			}
-		}
-
-		if len(val) > 0 && val[0] != nil {
-			if concreteErr := val[0].Validate(cue.Concrete(true)); concreteErr != nil {
-				concreteErrList := cueerrors.Errors(concreteErr)
-				for _, e := range concreteErrList {
-					errMsg := e.Error()
-					if strings.HasPrefix(errMsg, "parameter.") {
-						allParamErrors[errMsg] = true
-					} else {
-						allTemplateErrors[errMsg] = true
-					}
-				}
-			}
-		}
-	}
-
-	if len(allParamErrors) == 0 && len(allTemplateErrors) == 0 {
+	paramErrs, templateErrs := cueErrorMessages(err, val...)
+	if len(paramErrs) == 0 && len(templateErrs) == 0 {
 		return nil
 	}
+	return &ValidationError{
+		Kind:      entityType,
+		Name:      entityName,
+		Parameter: paramErrs,
+		Template:  templateErrs,
+		header:    fmt.Sprintf("%s %s %s:", messagePrefix, entityType, entityName),
+	}
+}
 
-	var result strings.Builder
-	result.WriteString(fmt.Sprintf("%s %s %s:", messagePrefix, entityType, entityName))
-
-	if len(allParamErrors) > 0 {
-		result.WriteString("\n\nParameter errors:\n")
-		// Sort errors for deterministic output
-		paramErrs := make([]string, 0, len(allParamErrors))
-		for errMsg := range allParamErrors {
-			paramErrs = append(paramErrs, errMsg)
-		}
-		sort.Strings(paramErrs)
-		for _, errMsg := range paramErrs {
-			result.WriteString("  " + errMsg + "\n")
+// cueErrorMessages splits a CUE error, and the incomplete values left in
+// val, into parameter and template messages, deduplicated and sorted.
+func cueErrorMessages(err error, val ...*cue.Value) (params, templates []string) {
+	if err == nil {
+		return nil, nil
+	}
+	paramSet, templateSet := map[string]bool{}, map[string]bool{}
+	collect := func(err error) {
+		for _, e := range cueerrors.Errors(err) {
+			if msg := e.Error(); strings.HasPrefix(msg, "parameter.") {
+				paramSet[msg] = true
+			} else {
+				templateSet[msg] = true
+			}
 		}
 	}
-
-	if len(allTemplateErrors) > 0 {
-		result.WriteString("\n\nTemplate errors:\n")
-		templateErrs := make([]string, 0, len(allTemplateErrors))
-		for errMsg := range allTemplateErrors {
-			templateErrs = append(templateErrs, errMsg)
-		}
-		sort.Strings(templateErrs)
-		for _, errMsg := range templateErrs {
-			result.WriteString("  " + errMsg + "\n")
+	collect(err)
+	if len(val) > 0 && val[0] != nil {
+		if concreteErr := val[0].Validate(cue.Concrete(true)); concreteErr != nil {
+			collect(concreteErr)
 		}
 	}
+	return sortedKeys(paramSet), sortedKeys(templateSet)
+}
 
-	return fmt.Errorf("%s", strings.TrimRight(result.String(), "\n"))
+func sortedKeys(set map[string]bool) []string {
+	if len(set) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func writeErrorSection(b *strings.Builder, title string, errs []string) {
+	if len(errs) == 0 {
+		return
+	}
+	b.WriteString("\n\n" + title + ":\n")
+	for _, e := range errs {
+		b.WriteString("  " + e + "\n")
+	}
+}
+
+// ValidationError is a definition that failed validation once rendered: the
+// errors it raised itself through `errs`, and the CUE errors in its parameters
+// and in the rest of its template.
+type ValidationError struct {
+	// Kind is what failed: a workload, trait, component and so on.
+	Kind      string
+	Name      string
+	User      []string
+	Parameter []string
+	Template  []string
+
+	// header opens the message in place of "validation failed for ...".
+	header string
+}
+
+func (e *ValidationError) Error() string {
+	var b strings.Builder
+	if e.header != "" {
+		b.WriteString(e.header)
+	} else {
+		b.WriteString(fmt.Sprintf("validation failed for %s %s:", e.Kind, e.Name))
+	}
+	writeErrorSection(&b, "User Errors", e.User)
+	writeErrorSection(&b, "Parameter errors", e.Parameter)
+	writeErrorSection(&b, "Template errors", e.Template)
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// renderParams writes a component or trait's properties as CUE. An open render
+// may carry types rather than values, and a type cannot survive json.Marshal.
+func renderParams(ctx process.Context, params, resolved interface{}) (string, error) {
+	chosen := params
+	if resolved != nil {
+		chosen = resolved
+	}
+	if typed, ok := chosen.(map[string]interface{}); ok && sources.OpenParams(ctx.GetCtx()) {
+		return sources.ParamsAsCUE(typed)
+	}
+	raw, err := json.Marshal(chosen)
+	if err != nil {
+		return "", err
+	}
+	return string(raw), nil
+}
+
+// concreteForRender makes an open render's resource marshalable. Every
+// resource here is handed to the next template through the context as JSON,
+// which an unknowable leaf cannot survive. A real render has nothing to prune.
+func concreteForRender(ctx process.Context, v cue.Value) cue.Value {
+	if !sources.OpenParams(ctx.GetCtx()) {
+		return v
+	}
+	pruned, _ := sources.ConcreteForOpenRender(ctx.GetCtx(), v)
+	return pruned
+}
+
+// repruneBase prunes a base that a patch has just made non-concrete again, and
+// puts the result back so the next trait can be handed it as JSON.
+func repruneBase(ctx process.Context, base model.Instance) error {
+	if !sources.OpenParams(ctx.GetCtx()) {
+		return nil
+	}
+	pruned, changed := sources.ConcreteForOpenRender(ctx.GetCtx(), base.Value())
+	if !changed {
+		return nil
+	}
+	next, err := model.NewBase(pruned)
+	if err != nil {
+		return err
+	}
+	return ctx.SetBase(next)
+}
+
+// repruneAuxiliary does the same for the i'th auxiliary. Unifying it with its
+// pruned self would keep the open leaf, so the instance is replaced; Output
+// hands back the context's own slice, which is what makes the replacement stick.
+func repruneAuxiliary(ctx process.Context, auxiliaries []process.Auxiliary, i int) error {
+	if !sources.OpenParams(ctx.GetCtx()) {
+		return nil
+	}
+	pruned, changed := sources.ConcreteForOpenRender(ctx.GetCtx(), auxiliaries[i].Ins.Value())
+	if !changed {
+		return nil
+	}
+	next, err := model.NewOther(pruned)
+	if err != nil {
+		return err
+	}
+	auxiliaries[i].Ins = next
+	return nil
 }

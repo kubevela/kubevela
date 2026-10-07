@@ -12,6 +12,7 @@ metadata:
   name: deploy2runtime
   namespace: {{ include "systemDefinitionNamespace" . }}
 spec:
+  #{{ include "definitionRestrictions" (dict "name" "deploy2runtime" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:
     cue:
       template: |

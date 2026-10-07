@@ -47,10 +47,19 @@ import (
 	"strings"
 )
 
-// SourceIdent is the only identifier an expression may reference. Everything a
-// consumer is allowed to read hangs off it, so the sandbox is "this name and
-// nothing else" rather than a denylist.
+// SourceIdent reads a resolved source. It is one of a fixed set of roots, with
+// ContextIdent and ComponentIdent: everything a consumer may read hangs off one
+// of them, so the sandbox is "these names and nothing else" rather than a
+// denylist.
 const SourceIdent = "source"
+
+// ComponentIdent reads another component's live output once it is healthy:
+// component.<name>.output for the workload and
+// component.<name>.outputs.<resource> for a trait resource, beside the reader
+// or at a placement named with cluster or namespace. Only component
+// and trait properties offer it, because only a component's render can wait: a
+// reader whose producer is not ready is simply not healthy yet.
+const ComponentIdent = "component"
 
 const (
 	open   = "$("
@@ -151,6 +160,13 @@ func (p Parsed) SoleExpr() (string, bool) {
 	return "", false
 }
 
+// MayContainExpr reports whether a value is worth parsing. It is false for a
+// plain string, which is almost every property, and never false for a value
+// that does hold an expression or an escape.
+func MayContainExpr(raw string) bool {
+	return strings.Contains(raw, open)
+}
+
 // Parse splits a property value into literal and expression fragments.
 //
 // `$$(` is a literal `$(`, so a value that genuinely contains the delimiter can
@@ -158,6 +174,13 @@ func (p Parsed) SoleExpr() (string, bool) {
 // unbalanced `)`, counting parens so that `$(f((a)))` works.
 func Parse(raw string) (Parsed, error) {
 	var out Parsed
+	if !MayContainExpr(raw) {
+		if raw != "" {
+			out.Fragments = []Fragment{{Text: raw}}
+		}
+		return out, nil
+	}
+
 	var lit strings.Builder
 
 	for i := 0; i < len(raw); {

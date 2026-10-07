@@ -114,3 +114,25 @@ func TestMemoryReader_RelativePath(t *testing.T) {
 		})
 	}
 }
+
+func TestClassifyItemByPatternSkipsCUETestFilesInMemory(t *testing.T) {
+	r := &MemoryReader{Name: "example", Files: []*loader.BufferedFile{
+		{Name: MetadataFileName, Data: []byte("name: example\nversion: 1.0.0\n")},
+		{Name: "resources/web.cue", Data: []byte("output: {}")},
+		{Name: "resources/web_test.cue", Data: []byte("x: 1")},
+		{Name: "definitions/trait.cue", Data: []byte("x: 1")},
+		{Name: "definitions/trait_test.cue", Data: []byte("x: 1")},
+	}}
+	metas, err := r.ListAddonMeta()
+	if !assert.NoError(t, err) {
+		return
+	}
+	meta := metas["example"]
+	var classified []string
+	for _, items := range ClassifyItemByPattern(&meta, r) {
+		for _, it := range items {
+			classified = append(classified, filepath.Base(it.GetName()))
+		}
+	}
+	assert.ElementsMatch(t, []string{MetadataFileName, "web.cue", "trait.cue"}, classified)
+}

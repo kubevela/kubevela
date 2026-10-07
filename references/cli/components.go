@@ -222,10 +222,25 @@ func PrintInstalledCompDef(c common2.Args, io cmdutil.IOStreams, filter filterFu
 		return errors.Wrap(err, "get component definition list error")
 	}
 
+	// Leave out what the namespace the user is working in cannot use, so the list
+	// is what they can build with.
+	workingIn := currentNamespace(c)
+	objs := make([]client.Object, len(list.Items))
+	for i := range list.Items {
+		objs[i] = &list.Items[i]
+	}
+	usable, err := judgeUsability(context.Background(), clt, objs, workingIn)
+	if err != nil {
+		return err
+	}
+
 	table := newUITable()
 	table.AddRow("NAME", "DEFINITION", "DESCRIPTION")
 
-	for _, cd := range list.Items {
+	for i, cd := range list.Items {
+		if !usable[i] {
+			continue
+		}
 		data, err := json.Marshal(cd)
 		if err != nil {
 			io.Infof("error encoding definition: %s\n", cd.Name)

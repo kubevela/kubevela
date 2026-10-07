@@ -88,9 +88,14 @@ type Parameter struct {
 
 // Capability defines the content of a capability
 type Capability struct {
-	Name           string             `json:"name"`
-	Type           CapType            `json:"type"`
-	CueTemplate    string             `json:"template,omitempty"`
+	Name        string  `json:"name"`
+	Type        CapType `json:"type"`
+	CueTemplate string  `json:"template,omitempty"`
+	// Extends names the definition this one builds on, if any. Carried so that
+	// documentation can resolve the chain: an extending definition's template
+	// does not compile on its own, and its parameters are its parent's plus its
+	// own.
+	Extends        string             `json:"extends,omitempty"`
 	CueTemplateURI string             `json:"templateURI,omitempty"`
 	Parameters     []Parameter        `json:"parameters,omitempty"`
 	CrdName        string             `json:"crdName,omitempty"`

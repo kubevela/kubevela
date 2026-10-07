@@ -27,6 +27,8 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	cueparser "cuelang.org/go/cue/parser"
 	"k8s.io/utils/lru"
+
+	"github.com/kubevela/workflow/pkg/cue/process"
 )
 
 // typeToSchema returns values retyped by the source's schema.
@@ -160,11 +162,9 @@ func (r *sourceResolver) validateResolvedOutput(sourceType, sourceTemplate strin
 	if schema.Err() != nil {
 		return schema.Err()
 	}
-	out := schema.Unify(data)
-	if out.Err() != nil {
-		return out.Err()
-	}
-	return out.Validate(cue.Concrete(true))
+	// Validate rather than Err: it reports every field that does not fit, not
+	// the first.
+	return schema.Unify(data).Validate(cue.Concrete(true))
 }
 
 // schemaExprCacheSize bounds the number of distinct definition templates kept.
@@ -216,4 +216,26 @@ func parseSourceSchemaExpr(template string) (string, error) {
 		return string(bt), nil
 	}
 	return "", nil
+}
+
+// SchemasForContext returns each declared binding's output schema, as the CUE
+// text of its schema: block.
+//
+// A binding whose definition declares no schema is absent rather than empty, so
+// a caller can tell "nothing to judge by" from "a schema declaring nothing".
+func SchemasForContext(ctx process.Context) map[string]string {
+	in := sourceInputsFromContext(ctx)
+	out := make(map[string]string, len(in.Types))
+	for binding, sourceType := range in.Types {
+		template := in.Templates[sourceType]
+		if template == "" {
+			continue
+		}
+		schema, err := extractSourceSchemaExpr(template)
+		if err != nil || schema == "" {
+			continue
+		}
+		out[binding] = schema
+	}
+	return out
 }

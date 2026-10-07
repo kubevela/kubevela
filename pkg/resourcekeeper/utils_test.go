@@ -35,9 +35,9 @@ var _ = Describe("Test ResourceKeeper utilities", func() {
 		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"}}
 		h := &resourceKeeper{
 			Client:     cli,
-			app:        app,
+			owner:      newAppOwner(app),
 			applicator: apply.NewAPIApplicator(cli),
-			cache:      newResourceCache(cli, app),
+			cache:      newResourceCache(cli, newAppOwner(app)),
 		}
 		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "example", Namespace: "vela"}}
 		nsObj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(ns)

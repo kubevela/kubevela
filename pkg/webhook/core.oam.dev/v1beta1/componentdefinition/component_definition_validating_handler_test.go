@@ -27,6 +27,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/require"
 	admissionv1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
@@ -678,3 +680,66 @@ outputs: {}`
 
 	})
 })
+
+// An extending definition with no template has nothing to call its parent from,
+// so it inherits no workload and describes nothing. Admitting it defers the
+// failure to render time, where the message is about a missing `$super` block
+// rather than about the definition being empty.
+func TestExtendingWithNoTemplateIsRefused(t *testing.T) {
+	cd := &v1beta1.ComponentDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "empty-child", Namespace: "vela-system"},
+		Spec:       v1beta1.ComponentDefinitionSpec{Extends: "webservice"},
+	}
+
+	err := ValidateWorkload(nil, cd)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no CUE template to call it from")
+}
+
+// The refusal above is reached only when the workload is empty too. A
+// ComponentDefinition that states a workload, extends another and has no
+// template still calls nothing, so the handler has to judge it on the way in.
+func TestExtendsWithAWorkloadButNoTemplateIsRefusedOnWrite(t *testing.T) {
+	sc := runtime.NewScheme()
+	require.NoError(t, v1beta1.SchemeBuilder.AddToScheme(sc))
+	h := &ValidatingHandler{
+		Decoder: admission.NewDecoder(sc),
+		Client:  fake.NewClientBuilder().WithScheme(sc).Build(),
+	}
+
+	def := &v1beta1.ComponentDefinition{
+		TypeMeta:   metav1.TypeMeta{Kind: "ComponentDefinition", APIVersion: "core.oam.dev/v1beta1"},
+		ObjectMeta: metav1.ObjectMeta{Name: "workload-child", Namespace: "vela-system"},
+		Spec: v1beta1.ComponentDefinitionSpec{
+			Extends:  "webservice",
+			Workload: common.WorkloadTypeDescriptor{Type: "deployments.apps"},
+		},
+	}
+	raw, err := json.Marshal(def)
+	require.NoError(t, err)
+
+	resp := h.Handle(context.Background(), admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
+		UID:       "test-uid",
+		Operation: admissionv1.Create,
+		Resource: metav1.GroupVersionResource{
+			Group: componentDefGVR.Group, Version: componentDefGVR.Version, Resource: componentDefGVR.Resource,
+		},
+		Object: runtime.RawExtension{Raw: raw},
+	}})
+
+	require.False(t, resp.Allowed)
+	require.Contains(t, resp.Result.Message, "no CUE template to call it from")
+}
+
+// With a template it is fine: the workload comes from the parent.
+func TestExtendingWithATemplateInheritsTheWorkload(t *testing.T) {
+	cd := &v1beta1.ComponentDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "child", Namespace: "vela-system"},
+		Spec: v1beta1.ComponentDefinitionSpec{
+			Extends:   "webservice",
+			Schematic: &common.Schematic{CUE: &common.CUE{Template: "$super: properties: {}"}},
+		},
+	}
+
+	require.NoError(t, ValidateWorkload(nil, cd))
+}

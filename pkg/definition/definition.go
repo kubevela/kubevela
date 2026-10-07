@@ -316,6 +316,19 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 		if err != nil {
 			return err
 		}
+		// `extends` and `abstract` are spec fields that may also be written at
+		// the top level. Whichever the loop reads last would win, silently, so
+		// declaring one twice is refused instead. Judged before the loop, since
+		// CUE hands fields back in the order they were written and the answer
+		// must not depend on that.
+		for _, field := range []string{"extends", "abstract"} {
+			if v.LookupPath(cue.ParsePath(field)).Exists() &&
+				v.LookupPath(cue.MakePath(cue.Str("attributes"), cue.Str(field))).Exists() {
+				return fmt.Errorf(
+					"%s is declared twice, at the top level and under attributes; keep one", field)
+			}
+		}
+
 		for _fields.Next() {
 			_key := util.GetIteratorLabel(*_fields)
 			_value := _fields.Value()
@@ -328,6 +341,26 @@ func (def *Definition) FromCUE(val *cue.Value, templateString string) error {
 				if err = def.SetType(_type); err != nil {
 					return err
 				}
+			case "extends":
+				// `extends` is a spec field, so `attributes: extends: "..."`
+				// already reaches it. Accepting it at the top level too is not
+				// only sugar: an unrecognised key here is dropped in silence, so
+				// without this the definition applies cleanly and inherits
+				// nothing, which is the hardest kind of mistake to notice.
+				extends, err := _value.String()
+				if err != nil {
+					return fmt.Errorf("extends must be the name of a definition, optionally with a revision as \"webservice@v3\": %w", err)
+				}
+				spec["extends"] = extends
+			case "abstract":
+				// Same reasoning as `extends`: a top-level key nobody recognises
+				// is dropped in silence, and a definition that was meant to be
+				// extend-only and quietly is not defeats the point of saying so.
+				abstract, err := _value.Bool()
+				if err != nil {
+					return fmt.Errorf("abstract must be true or false: %w", err)
+				}
+				spec["abstract"] = abstract
 			case "alias":
 				alias, err := _value.String()
 				if err != nil {
