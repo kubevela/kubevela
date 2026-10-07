@@ -280,7 +280,7 @@ spec:
             {{ if .Values.multicluster.enabled }}
             - "--enable-cluster-gateway"
             {{ if .Values.multicluster.clusterGateway.direct }}
-            - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:9443"
+            - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:{{ .Values.multicluster.clusterGateway.port }}"
             {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
             {{ if .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
             - "--cluster-gateway-ca-file=/cluster-gateway-tls-cert/ca.crt"
