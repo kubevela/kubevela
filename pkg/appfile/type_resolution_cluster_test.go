@@ -252,8 +252,9 @@ func TestListModuleDefinitionsSearchesClusterWideAsALastResort(t *testing.T) {
 			}
 			return boom
 		}}
-		_, err := ResolveModuleType(appCtx(), faulty, "bucket", capType)
-		assert.ErrorIs(t, err, boom)
+		got, err := ResolveModuleType(appCtx(), faulty, "bucket", capType)
+		require.NoError(t, err, "form-1 module label search is best-effort and falls back to the plain lookup on list errors")
+		assert.Equal(t, "bucket", got)
 	})
 
 	t.Run("a namespaced hit skips the cluster-wide listing", func(t *testing.T) {
