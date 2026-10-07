@@ -4,7 +4,7 @@
 //
 // Because "bucket" now matches two definitions, a bare `type: bucket`
 // reference is ambiguous and is rejected with an error naming both modules
-// and lines. Use `type: demo-store/v2/bucket` (or `v2/bucket`) instead.
+// and lines. Use `type: demo-store/v2/bucket` instead.
 "bucket": {
 	type: "component"
 	attributes: workload: type: "autodetects.core.oam.dev"

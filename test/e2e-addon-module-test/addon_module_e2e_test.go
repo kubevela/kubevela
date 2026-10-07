@@ -688,7 +688,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			Expect(w.GetLabels()).Should(HaveKeyWithValue("kit.example.com/labeled-by", "widget-kit-v1-labeler"))
 
 			results := createEachFromFile(ctx, testdataPath("apps", "consumer-default-tenant.yaml"))
-			Expect(results).Should(HaveLen(2))
+			Expect(results).Should(HaveLen(1))
 			// The friendly "ensure the module is installed" text comes from the
 			// definition permission check, which only runs with the alpha
 			// ValidateDefinitionPermissions gate. Without it the render refuses
