@@ -311,7 +311,7 @@ func (e *SourceEngine) Check(properties interface{}) []CheckError {
 			continue
 		}
 		if lp.err != nil {
-			out = append(out, CheckError{Err: lp.err})
+			out = append(out, CheckError{Property: lp.property(""), Err: lp.err})
 			continue
 		}
 		for _, x := range lp.plan.Expressions() {
