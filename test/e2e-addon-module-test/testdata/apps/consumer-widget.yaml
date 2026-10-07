@@ -24,4 +24,4 @@ spec:
       properties:
         size: L
       traits:
-        - type: v2/labeler              # Form 2; unique because only widget-kit has a v2 labeler
+        - type: widget-kit/v2/labeler   # Form 3

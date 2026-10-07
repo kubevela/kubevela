@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/kubevela/pkg/multicluster"
@@ -290,19 +289,6 @@ func resolveRevisionCapabilityName(capName string, capType types.CapType, apprev
 		if revisionCapabilityExists(resolved, capType, apprev) {
 			return resolved, nil
 		}
-	case 2:
-		// Match on the module labels, as resolveForm2 does, rather than on the
-		// name: a non-module definition can end in "-{apiVersion}-{name}" too.
-		matches := revisionModuleDefinitionNames(capType, apprev, apiVersion, shortName)
-		switch len(matches) {
-		case 0:
-		case 1:
-			return matches[0], nil
-		default:
-			sort.Strings(matches)
-			return "", errors.Errorf("type %q is ambiguous in app revision %s: definitions [%s] all match; use a fully qualified type ({module}/{apiVersion}/{name}) to disambiguate",
-				capName, apprev.Name, strings.Join(matches, ", "))
-		}
 	}
 	return capName, nil
 }
@@ -330,38 +316,6 @@ func revisionCapabilityExists(capName string, capType types.CapType, apprev *v1b
 		return ok
 	}
 	return false
-}
-
-// revisionModuleDefinitionNames returns the revision keys of the snapshotted
-// definitions of capType whose module labels match apiVersion and name.
-func revisionModuleDefinitionNames(capType types.CapType, apprev *v1beta1.ApplicationRevision, apiVersion, name string) []string {
-	spec := &apprev.Spec
-	switch capType {
-	case types.TypeComponentDefinition, types.TypeWorkload:
-		return append(
-			moduleLabelMatches(spec.ComponentDefinitions, func(d *v1beta1.ComponentDefinition) map[string]string { return d.Labels }, apiVersion, name),
-			moduleLabelMatches(spec.WorkloadDefinitions, func(d v1beta1.WorkloadDefinition) map[string]string { return d.Labels }, apiVersion, name)...)
-	case types.TypeTrait:
-		return moduleLabelMatches(spec.TraitDefinitions, func(d *v1beta1.TraitDefinition) map[string]string { return d.Labels }, apiVersion, name)
-	case types.TypePolicy:
-		return moduleLabelMatches(spec.PolicyDefinitions, func(d v1beta1.PolicyDefinition) map[string]string { return d.Labels }, apiVersion, name)
-	case types.TypeWorkflowStep:
-		return moduleLabelMatches(spec.WorkflowStepDefinitions, func(d *v1beta1.WorkflowStepDefinition) map[string]string { return d.Labels }, apiVersion, name)
-	case types.TypeSource:
-		return moduleLabelMatches(spec.SourceDefinitions, func(d *v1beta1.SourceDefinition) map[string]string { return d.Labels }, apiVersion, name)
-	}
-	return nil
-}
-
-func moduleLabelMatches[T any](defs map[string]T, labelsOf func(T) map[string]string, apiVersion, name string) []string {
-	var names []string
-	for key, def := range defs {
-		labels := labelsOf(def)
-		if labels[types.LabelDefinitionModuleAPIVersion] == apiVersion && labels[types.LabelDefinitionName] == name {
-			names = append(names, key)
-		}
-	}
-	return names
 }
 
 // IsNotFoundInAppRevision check if the error is `not found in app revision`

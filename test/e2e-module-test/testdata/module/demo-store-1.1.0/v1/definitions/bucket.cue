@@ -8,9 +8,8 @@
 //
 // Both are required; a file missing either is rejected by the parser.
 //
-// Reference it from an Application in any of three forms:
+// Reference it from an Application in either of two forms:
 //   type: demo-store/v1/bucket   fully qualified, no cluster lookup needed
-//   type: v1/bucket              line-scoped, resolved by label
 //   type: bucket                 bare, resolved by label if no legacy
 //                                definition of that name exists
 "bucket": {

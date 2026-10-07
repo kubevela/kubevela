@@ -1,6 +1,7 @@
 # Same SHORT name and API line as widget-kit's v1 labeler, on purpose. With
-# both modules installed, `labeler` (Form 1) and `v1/labeler` (Form 2) are
-# ambiguous; `gadget-kit/v1/labeler` (Form 3) is not. Installed as
+# both modules installed, `labeler` and any two-segment reference like
+# `v1/labeler` are ambiguous/rejected; `gadget-kit/v1/labeler` is not.
+# Installed as
 # gadget-kit-v1-labeler.
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition

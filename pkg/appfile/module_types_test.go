@@ -35,7 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-// How a module type reference (Form 2 or 3) behaves once it has left type
+// How a module type reference (Form 3) behaves once it has left type
 // resolution: in the workload label, in an application revision, in the
 // admission placeholder check and in the runtime-parameter helpers.
 
@@ -64,16 +64,10 @@ parameter: {}
 
 func TestWorkloadTypeLabelForModuleReferences(t *testing.T) {
 	compDef := &v1beta1.ComponentDefinition{ObjectMeta: metav1.ObjectMeta{Name: "s3-v1-bucket"}}
-	wlDef := &v1beta1.WorkloadDefinition{ObjectMeta: metav1.ObjectMeta{Name: "s3-v1-bucket-wl"}}
 
 	t.Run("Form 3 takes the installed ComponentDefinition name", func(t *testing.T) {
 		comp := &Component{Name: "my-bucket", Type: "s3/v1/bucket", FullTemplate: &Template{ComponentDefinition: compDef}}
 		assert.Equal(t, "s3-v1-bucket", renderedWorkloadTypeLabel(t, comp), "a slash is not a valid label value")
-	})
-
-	t.Run("Form 2 falls back to the WorkloadDefinition name", func(t *testing.T) {
-		comp := &Component{Name: "my-bucket", Type: "v1/bucket", FullTemplate: &Template{WorkloadDefinition: wlDef}}
-		assert.Equal(t, "s3-v1-bucket-wl", renderedWorkloadTypeLabel(t, comp))
 	})
 
 	t.Run("a nameless definition does not blank the label", func(t *testing.T) {
@@ -144,18 +138,10 @@ func TestResolveRevisionCapabilityName(t *testing.T) {
 		{"legacy name as is", "legacy", types.TypeComponentDefinition, "legacy", ""},
 		{"Form 3 derives the snapshotted name", "s3/v1/bucket", types.TypeComponentDefinition, "s3-v1-bucket", ""},
 		{"Form 3 not snapshotted is left for the caller", "nope/v1/bucket", types.TypeComponentDefinition, "nope/v1/bucket", ""},
-		{"Form 2 with one match", "v1/widget", types.TypeComponentDefinition, "kit-v1-widget", ""},
-		{"Form 2 with no match is left for the caller", "v1/missing", types.TypeComponentDefinition, "v1/missing", ""},
-		{"Form 2 ambiguous", "v1/bucket", types.TypeComponentDefinition, "",
-			`type "v1/bucket" is ambiguous in app revision app-v3: definitions [gcs-v1-bucket, s3-v1-bucket] all match`},
-		{"Form 2 finds a WorkloadDefinition for a component", "v1/thing", types.TypeComponentDefinition, "wl-v1-thing", ""},
-		{"Form 2 workload", "v1/thing", types.TypeWorkload, "wl-v1-thing", ""},
-		{"Form 2 trait", "v1/note", types.TypeTrait, "kit-v1-note", ""},
-		{"Form 2 policy", "v1/quota", types.TypePolicy, "kit-v1-quota", ""},
-		{"Form 2 workflow step", "v1/step", types.TypeWorkflowStep, "kit-v1-step", ""},
-		{"Form 2 source", "v1/src", types.TypeSource, "kit-v1-src", ""},
+		{"two-segment reference is rejected", "v1/widget", types.TypeComponentDefinition, "", "two-segment references are not supported"},
+		{"two-segment reference is rejected for every kind", "v1/thing", types.TypeWorkload, "", "two-segment references are not supported"},
 		{"Form 1 source exists", "kit-v1-src", types.TypeSource, "kit-v1-src", ""},
-		{"unknown kind has no snapshot to search", "v1/src", types.CapType("scope"), "v1/src", ""},
+		{"unknown kind has no snapshot to search", "scope/v1/src", types.CapType("scope"), "scope/v1/src", ""},
 		{"unparsable", "a/b/c/d", types.TypeComponentDefinition, "", "3 segments"},
 		{"revisioned component found as a workload", "wl-v1-thing@v2", types.TypeComponentDefinition, "wl-v1-thing", ""},
 		{"revisioned workload", "wl-v1-thing@v1", types.TypeWorkload, "wl-v1-thing", ""},

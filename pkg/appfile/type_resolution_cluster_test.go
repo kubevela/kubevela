@@ -134,67 +134,19 @@ func TestResolveModuleTypeForm3IsPureStringMath(t *testing.T) {
 	assert.Equal(t, naming.DefinitionName("s3", "v1", "bucket"), got)
 }
 
-func TestResolveModuleTypeForm2(t *testing.T) {
-	capType := types.TypeComponentDefinition
-
-	t.Run("one match in the app namespace", func(t *testing.T) {
-		cli := resolutionClient(t, definitionOf(capType, appNS, "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")))
-		got, err := ResolveModuleType(appCtx(), cli, "v1/bucket", capType)
-		require.NoError(t, err)
-		assert.Equal(t, "s3-v1-bucket", got)
-	})
-
-	t.Run("one match in vela-system", func(t *testing.T) {
-		cli := resolutionClient(t, definitionOf(capType, oam.SystemDefinitionNamespace, "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")))
-		got, err := ResolveModuleType(appCtx(), cli, "v1/bucket", capType)
-		require.NoError(t, err)
-		assert.Equal(t, "s3-v1-bucket", got)
-	})
-
-	t.Run("the API line is part of the match", func(t *testing.T) {
-		cli := resolutionClient(t,
-			definitionOf(capType, appNS, "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")),
-			definitionOf(capType, appNS, "s3-v2-bucket", stampedLabels("s3", "v2", "bucket")),
-		)
-		got, err := ResolveModuleType(appCtx(), cli, "v2/bucket", capType)
-		require.NoError(t, err)
-		assert.Equal(t, "s3-v2-bucket", got, "two API lines of one name are not ambiguous when the line is given")
-	})
-
-	t.Run("no match", func(t *testing.T) {
-		_, err := ResolveModuleType(appCtx(), resolutionClient(t), "v1/bucket", capType)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), `no definition found for type "v1/bucket"`)
-		assert.ErrorIs(t, err, ErrNoDefinition, "a confirmed absence is distinguishable from a failed lookup")
-	})
-
-	t.Run("ambiguous across modules", func(t *testing.T) {
-		cli := resolutionClient(t,
-			definitionOf(capType, appNS, "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")),
-			definitionOf(capType, oam.SystemDefinitionNamespace, "gcs-v1-bucket", stampedLabels("gcs", "v1", "bucket")),
-		)
-		_, err := ResolveModuleType(appCtx(), cli, "v1/bucket", capType)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), `type "v1/bucket" is ambiguous`)
-		assert.Contains(t, err.Error(), "s3")
-		assert.Contains(t, err.Error(), "gcs")
-		assert.Contains(t, err.Error(), "use a fully qualified type ({module}/{apiVersion}/{name})")
-	})
-
-	t.Run("listing fails", func(t *testing.T) {
-		boom := errors.New("apiserver unavailable")
-		cli := faultyReader{Reader: resolutionClient(t), listErr: func([]client.ListOption) error { return boom }}
-		_, err := ResolveModuleType(appCtx(), cli, "v1/bucket", capType)
-		require.ErrorIs(t, err, boom)
-		assert.Contains(t, err.Error(), `resolving type "v1/bucket"`)
-		assert.NotErrorIs(t, err, ErrNoDefinition, "a failed listing is not a confirmed absence")
-	})
-
-	t.Run("unsupported capability type", func(t *testing.T) {
-		_, err := ResolveModuleType(appCtx(), resolutionClient(t), "v1/bucket", types.CapType("scope"))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), `unsupported capType "scope"`)
-	})
+func TestResolveModuleTypeRejectsTwoSegmentReferencesEverywhere(t *testing.T) {
+	for _, capType := range []types.CapType{
+		types.TypeComponentDefinition, types.TypeWorkload, types.TypeTrait,
+		types.TypePolicy, types.TypeWorkflowStep, types.TypeSource,
+	} {
+		t.Run(string(capType), func(t *testing.T) {
+			_, err := ResolveModuleType(appCtx(), resolutionClient(t), "v1/bucket", capType)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "two-segment references are not supported")
+			assert.Contains(t, err.Error(), "Form 1")
+			assert.Contains(t, err.Error(), "Form 3")
+		})
+	}
 }
 
 func TestResolveModuleTypeForm1(t *testing.T) {
@@ -233,7 +185,7 @@ func TestResolveModuleTypeForm1(t *testing.T) {
 		_, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `type "bucket" is ambiguous`)
-		assert.Contains(t, err.Error(), "use {apiVersion}/{name} (Form 2) or {module}/{apiVersion}/{name} (Form 3)")
+		assert.Contains(t, err.Error(), "use {module}/{apiVersion}/{name} (Form 3)")
 	})
 
 	t.Run("a failed get other than not-found is reported", func(t *testing.T) {
@@ -252,7 +204,7 @@ func TestResolveModuleTypeForm1(t *testing.T) {
 }
 
 // TestResolveModuleTypeCoversEveryDefinitionKind runs the Form 1 legacy get
-// and the Form 2 label listing for each capability type, so the per-kind
+// and the Form 1 label listing for each capability type, so the per-kind
 // branches of definitionObjectFor and listModuleDefinitions are all taken.
 func TestResolveModuleTypeCoversEveryDefinitionKind(t *testing.T) {
 	for _, capType := range []types.CapType{
@@ -269,20 +221,15 @@ func TestResolveModuleTypeCoversEveryDefinitionKind(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, "legacy", got)
 
-			got, err = ResolveModuleType(appCtx(), cli, "v1/thing", capType)
-			require.NoError(t, err)
-			assert.Equal(t, "kit-v1-thing", got)
-
 			got, err = ResolveModuleType(appCtx(), cli, "thing", capType)
 			require.NoError(t, err)
 			assert.Equal(t, "kit-v1-thing", got)
 
 			require.NoError(t, DefinitionExists(appCtx(), cli, "kit-v1-thing", capType))
 
-			boom := errors.New("list refused")
-			faulty := faultyReader{Reader: cli, listErr: func([]client.ListOption) error { return boom }}
-			_, err = ResolveModuleType(appCtx(), faulty, "v1/thing", capType)
-			assert.ErrorIs(t, err, boom, "a failed listing of this kind is reported")
+			_, err = ResolveModuleType(appCtx(), cli, "v1/thing", capType)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "two-segment references are not supported")
 		})
 	}
 }
@@ -293,7 +240,7 @@ func TestListModuleDefinitionsSearchesClusterWideAsALastResort(t *testing.T) {
 	// namespace nor vela-system.
 	cli := resolutionClient(t, definitionOf(capType, "platform-modules", "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")))
 
-	got, err := ResolveModuleType(appCtx(), cli, "v1/bucket", capType)
+	got, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
 	require.NoError(t, err)
 	assert.Equal(t, "s3-v1-bucket", got)
 
@@ -305,7 +252,7 @@ func TestListModuleDefinitionsSearchesClusterWideAsALastResort(t *testing.T) {
 			}
 			return boom
 		}}
-		_, err := ResolveModuleType(appCtx(), faulty, "v1/bucket", capType)
+		_, err := ResolveModuleType(appCtx(), faulty, "bucket", capType)
 		assert.ErrorIs(t, err, boom)
 	})
 
@@ -320,7 +267,7 @@ func TestListModuleDefinitionsSearchesClusterWideAsALastResort(t *testing.T) {
 			}
 			return errors.New("must not be called")
 		}}
-		got, err := ResolveModuleType(appCtx(), faulty, "v1/bucket", capType)
+		got, err := ResolveModuleType(appCtx(), faulty, "bucket", capType)
 		require.NoError(t, err)
 		assert.Equal(t, "gcs-v1-bucket", got, "the definition in a searched namespace wins without widening the search")
 	})
@@ -332,7 +279,7 @@ func TestListModuleDefinitionsDeduplicatesTheSystemNamespace(t *testing.T) {
 
 	// No app namespace in the context means the app namespace is vela-system
 	// itself; the one definition must be listed once, not reported ambiguous.
-	got, err := ResolveModuleType(context.Background(), cli, "v1/bucket", capType)
+	got, err := ResolveModuleType(context.Background(), cli, "bucket", capType)
 	require.NoError(t, err)
 	assert.Equal(t, "s3-v1-bucket", got)
 }

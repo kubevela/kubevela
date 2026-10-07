@@ -10,10 +10,6 @@ spec:
       type: widget-kit/v1/widget          # Form 3: module/line/name
       properties:
         color: red
-    - name: form2-widget
-      type: v2/widget                      # Form 2: line/name, unique across installed modules
-      properties:
-        size: M
     - name: stamped-widget
       type: widget-kit-v1-widget           # the installed name, used as a plain legacy name
       properties:

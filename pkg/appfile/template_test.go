@@ -658,44 +658,48 @@ func TestLoadTemplateFromRevisionModuleReferences(t *testing.T) {
 	}
 	mapper := fakeRESTMapper{}
 
-	t.Run("form 2 resolves trait, policy and workflow step by module labels", func(t *testing.T) {
+	t.Run("two-segment reference is rejected for trait, policy and workflow step", func(t *testing.T) {
 		rev := revision(map[string]*v1beta1.TraitDefinition{
 			"mod-v1-scaler": trait("mod-v1-scaler", moduleLabels("mod", "v1", "scaler")),
 		})
 		tmpl, err := LoadTemplateFromRevision("v1/scaler", types.TypeTrait, rev, mapper)
-		assert.NoError(t, err)
-		assert.Equal(t, "mod-v1-scaler", tmpl.TraitDefinition.Name)
+		assert.Error(t, err)
+		assert.Nil(t, tmpl)
+		assert.Contains(t, err.Error(), "two-segment references are not supported")
 
 		tmpl, err = LoadTemplateFromRevision("v1/pol", types.TypePolicy, rev, mapper)
-		assert.NoError(t, err)
-		assert.Equal(t, "mod-v1-pol", tmpl.PolicyDefinition.Name)
+		assert.Error(t, err)
+		assert.Nil(t, tmpl)
+		assert.Contains(t, err.Error(), "two-segment references are not supported")
 
 		tmpl, err = LoadTemplateFromRevision("v1/step", types.TypeWorkflowStep, rev, mapper)
-		assert.NoError(t, err)
-		assert.Equal(t, "mod-v1-step", tmpl.WorkflowStepDefinition.Name)
+		assert.Error(t, err)
+		assert.Nil(t, tmpl)
+		assert.Contains(t, err.Error(), "two-segment references are not supported")
 	})
 
-	t.Run("form 2 ignores a non-module definition whose name ends in the same suffix", func(t *testing.T) {
+	t.Run("two-segment reference is rejected before matching module labels", func(t *testing.T) {
 		rev := revision(map[string]*v1beta1.TraitDefinition{
 			"foo-v1-scaler": trait("foo-v1-scaler", nil),
 			"mod-v1-scaler": trait("mod-v1-scaler", moduleLabels("mod", "v1", "scaler")),
 		})
 		tmpl, err := LoadTemplateFromRevision("v1/scaler", types.TypeTrait, rev, mapper)
-		assert.NoError(t, err)
-		assert.Equal(t, "mod-v1-scaler", tmpl.TraitDefinition.Name)
+		assert.Error(t, err)
+		assert.Nil(t, tmpl)
+		assert.Contains(t, err.Error(), "two-segment references are not supported")
 	})
 
-	t.Run("form 2 rejects a reference that matches more than one module", func(t *testing.T) {
+	t.Run("two-segment reference is rejected even if it would have been ambiguous", func(t *testing.T) {
 		rev := revision(map[string]*v1beta1.TraitDefinition{
 			"moda-v1-scaler": trait("moda-v1-scaler", moduleLabels("moda", "v1", "scaler")),
 			"modb-v1-scaler": trait("modb-v1-scaler", moduleLabels("modb", "v1", "scaler")),
 		})
 		_, err := LoadTemplateFromRevision("v1/scaler", types.TypeTrait, rev, mapper)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), `type "v1/scaler" is ambiguous in app revision my-app-rev: definitions [moda-v1-scaler, modb-v1-scaler]`)
+		assert.Contains(t, err.Error(), "two-segment references are not supported")
 	})
 
-	t.Run("form 3 still picks the named module when form 2 would be ambiguous", func(t *testing.T) {
+	t.Run("form 3 still picks the named module", func(t *testing.T) {
 		rev := revision(map[string]*v1beta1.TraitDefinition{
 			"moda-v1-scaler": trait("moda-v1-scaler", moduleLabels("moda", "v1", "scaler")),
 			"modb-v1-scaler": trait("modb-v1-scaler", moduleLabels("modb", "v1", "scaler")),

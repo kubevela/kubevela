@@ -33,13 +33,10 @@ import (
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-// parseTypeRef parses a component type string into its KEP-2.20 form (1, 2, or
-// 3) and identity fields. Returns an error for an invalid two-segment string
-// (first segment does not match ^v\d+) and for strings with four or more
-// segments.
+// parseTypeRef parses a component type string into its KEP-2.20 shape (1 or 3)
+// and identity fields. Two-segment strings are always invalid.
 //
 // Form 1: "bucket"         → form=1, name="bucket"
-// Form 2: "v1/bucket"      → form=2, apiVersion="v1", name="bucket"
 // Form 3: "s3/v1/bucket"   → form=3, module="s3", apiVersion="v1", name="bucket"
 func parseTypeRef(typeName string) (form int, module, apiVersion, name string, err error) {
 	parts := strings.Split(typeName, "/")
@@ -47,14 +44,10 @@ func parseTypeRef(typeName string) (form int, module, apiVersion, name string, e
 	case 1:
 		return 1, "", "", parts[0], nil
 	case 2:
-		if !naming.IsValidAPIVersion(parts[0]) {
-			return 0, "", "", "", fmt.Errorf(
-				"invalid type reference %q: %q is not a valid API version; "+
-					"expected v<N>, v<N>alpha<N>, or v<N>beta<N> (e.g. v1, v1alpha1, v2beta2). "+
-					"For a module-scoped reference use {module}/{apiVersion}/{name} (e.g. s3/v1/bucket)",
-				typeName, parts[0])
-		}
-		return 2, "", parts[0], parts[1], nil
+		return 0, "", "", "", fmt.Errorf(
+			"invalid type reference %q: two-segment references are not supported; "+
+				"expected either 1 segment (name, Form 1) or 3 segments (module/v<N>/name, Form 3)",
+			typeName)
 	case 3:
 		if !naming.IsValidAPIVersion(parts[1]) {
 			return 0, "", "", "", fmt.Errorf(
@@ -65,13 +58,13 @@ func parseTypeRef(typeName string) (form int, module, apiVersion, name string, e
 		return 3, parts[0], parts[1], parts[2], nil
 	default:
 		return 0, "", "", "", fmt.Errorf(
-			"invalid type reference %q: expected 1 segment (name), 2 segments (v<N>/name), "+
-				"or 3 segments (module/v<N>/name)",
+			"invalid type reference %q: expected either 1 segment (name, Form 1) "+
+				"or 3 segments (module/v<N>/name, Form 3)",
 			typeName)
 	}
 }
 
-// ResolveModuleType translates a KEP-2.20 Form 1/2/3 type string to the
+// ResolveModuleType translates a KEP-2.20 Form 1/3 type string to the
 // installed Kubernetes definition name. Form 1 names that already exist as
 // legacy definitions are returned unchanged so the existing
 // GetCapabilityDefinition path handles them as before.
@@ -83,8 +76,6 @@ func ResolveModuleType(ctx context.Context, cli client.Reader, typeName string, 
 	switch form {
 	case 3:
 		return resolveForm3(mod, apiVersion, name), nil
-	case 2:
-		return resolveForm2(ctx, cli, typeName, apiVersion, name, capType)
 	default:
 		return resolveForm1(ctx, cli, typeName, name, capType)
 	}
@@ -95,19 +86,6 @@ func ResolveModuleType(ctx context.Context, cli client.Reader, typeName string, 
 // this requires no cluster call and cannot drift from what was installed.
 func resolveForm3(module, apiVersion, name string) string {
 	return naming.DefinitionName(module, apiVersion, name)
-}
-
-// resolveForm2 resolves a version-scoped reference via label selector across
-// the app namespace and vela-system, aggregating results before deciding.
-func resolveForm2(ctx context.Context, cli client.Reader, typeName, apiVersion, name string, capType types.CapType) (string, error) {
-	matches, err := listModuleDefinitions(ctx, cli, capType, map[string]string{
-		types.LabelDefinitionModuleAPIVersion: apiVersion,
-		types.LabelDefinitionName:             name,
-	})
-	if err != nil {
-		return "", fmt.Errorf("resolving type %q: %w", typeName, err)
-	}
-	return resolveUnique(typeName, matches, "use a fully qualified type ({module}/{apiVersion}/{name}) to disambiguate")
 }
 
 // resolveForm1 first tries a plain GET (legacy path). On not-found it falls
@@ -139,7 +117,7 @@ func resolveForm1(ctx context.Context, cli client.Reader, typeName, name string,
 		// Surface the original not-found via the normal GetCapabilityDefinition path.
 		return typeName, nil
 	}
-	return resolveUnique(typeName, matches, "use {apiVersion}/{name} (Form 2) or {module}/{apiVersion}/{name} (Form 3) to disambiguate")
+	return resolveUnique(typeName, matches, "use {module}/{apiVersion}/{name} (Form 3) to disambiguate")
 }
 
 // listModuleDefinitions lists definitions matching the label selector across the
@@ -229,11 +207,11 @@ func listModuleDefinitions(ctx context.Context, cli client.Reader, capType types
 	return all, nil
 }
 
-// ErrNoDefinition is wrapped by the error ResolveModuleType returns when a
-// Form 2 reference matches no installed definition. It lets a caller tell a
-// confirmed absence apart from a failed lookup: the webhook's abstract check
-// may wave the first through, since a type that does not exist is not
-// abstract, but must not take the second as permission.
+// ErrNoDefinition is wrapped by the error ResolveModuleType returns when no
+// definition matches. It lets a caller tell a confirmed absence apart from a
+// failed lookup: the webhook's abstract check may wave the first through,
+// since a type that does not exist is not abstract, but must not take the
+// second as permission.
 var ErrNoDefinition = errors.New("no definition found")
 
 // resolveUnique returns the single match's Kubernetes name, or an appropriate error

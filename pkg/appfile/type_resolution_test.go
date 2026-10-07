@@ -38,23 +38,6 @@ func TestParseTypeRef_Form1(t *testing.T) {
 	assert.Equal(t, "bucket", name)
 }
 
-func TestParseTypeRef_Form2(t *testing.T) {
-	form, mod, av, name, err := parseTypeRef("v1/bucket")
-	require.NoError(t, err)
-	assert.Equal(t, 2, form)
-	assert.Equal(t, "", mod)
-	assert.Equal(t, "v1", av)
-	assert.Equal(t, "bucket", name)
-}
-
-func TestParseTypeRef_Form2_v1beta1(t *testing.T) {
-	form, _, av, name, err := parseTypeRef("v1beta1/rds")
-	require.NoError(t, err)
-	assert.Equal(t, 2, form)
-	assert.Equal(t, "v1beta1", av)
-	assert.Equal(t, "rds", name)
-}
-
 func TestParseTypeRef_Form3(t *testing.T) {
 	form, mod, av, name, err := parseTypeRef("s3/v1/bucket")
 	require.NoError(t, err)
@@ -67,7 +50,7 @@ func TestParseTypeRef_Form3(t *testing.T) {
 func TestParseTypeRef_InvalidTwoSegment(t *testing.T) {
 	_, _, _, _, err := parseTypeRef("s3/bucket")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "is not a valid API version")
+	assert.Contains(t, err.Error(), "two-segment references are not supported")
 }
 
 func TestParseTypeRef_TooManySegments(t *testing.T) {
@@ -102,7 +85,7 @@ func TestParseTypeRef_HyphensInName(t *testing.T) {
 // API version segment must follow the Kubernetes stability convention ^v\d+(alpha\d+|beta\d+)?$.
 // Values like v1.2, v1.0, or "latest" must be rejected.
 func TestParseTypeRef_InvalidAPIVersion_Dot(t *testing.T) {
-	for _, tc := range []string{"v1.2/bucket", "v1.0/widget", "latest/bucket"} {
+	for _, tc := range []string{"s3/v1.2/bucket", "s3/v1.0/widget", "s3/latest/bucket"} {
 		_, _, _, _, err := parseTypeRef(tc)
 		require.Errorf(t, err, "expected error for %q", tc)
 		assert.Contains(t, err.Error(), "is not a valid API version", "input: %q", tc)
@@ -114,7 +97,7 @@ func TestParseTypeRef_InvalidAPIVersion_Dot(t *testing.T) {
 func TestParseTypeRef_SlashSeparatedOnly(t *testing.T) {
 	_, _, _, _, err := parseTypeRef("s3/v1-bucket")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "is not a valid API version")
+	assert.Contains(t, err.Error(), "two-segment references are not supported")
 }
 
 func TestParseTypeRef_HyphenOnlyName_IsForm1(t *testing.T) {

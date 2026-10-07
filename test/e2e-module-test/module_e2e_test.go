@@ -262,22 +262,6 @@ var _ = Describe("Module as a component", Ordered, func() {
 			}, 60*time.Second, 2*time.Second).Should(Succeed())
 		})
 
-		It("resolves Form 2 by label", func() {
-			Expect(applyManifestFile(ctx, k8sClient, "testdata/module/consumer-v1-bucket.yaml")).Should(Succeed())
-			DeferCleanup(func() {
-				// Delete the Application first: deleting only the rendered
-				// ConfigMap leaves the consumer running, so reconciliation
-				// just recreates it and leaks state into later specs.
-				_ = k8sClient.Delete(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "demo-store-consumer-v1", Namespace: "default"}})
-				_ = k8sClient.Delete(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "documents", Namespace: "default"}})
-			})
-			Eventually(func(g Gomega) {
-				var cm corev1.ConfigMap
-				g.Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: "documents", Namespace: "default"}, &cm)).Should(Succeed())
-				g.Expect(cm.Data["renderedBy"]).Should(Equal("demo-store-v1-bucket"))
-			}, 60*time.Second, 2*time.Second).Should(Succeed())
-		})
-
 		It("refuses Form 1 as ambiguous across two lines", func() {
 			err := applyManifestFile(ctx, k8sClient, "testdata/module/consumer-ambiguous.yaml")
 			Expect(err).Should(HaveOccurred())

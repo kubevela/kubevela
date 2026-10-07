@@ -23,7 +23,7 @@ spec:
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: reject-form2-disabled-line
+  name: reject-two-segment-disabled-line
   namespace: default
 spec:
   components:

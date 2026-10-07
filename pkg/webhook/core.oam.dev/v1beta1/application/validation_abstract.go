@@ -96,14 +96,13 @@ func (h *ValidatingHandler) isAbstract(ctx context.Context, app *v1beta1.Applica
 		capType = types.TypeTrait
 	}
 
-	// A KEP-2.20 Form 2/3 reference ("demo-store/v2/bucket") is a module-scoped
+	// A KEP-2.20 Form 3 reference ("demo-store/v2/bucket") is a module-scoped
 	// spelling, not a resource name. Read unresolved it asks the API server for a
 	// name containing '/', which is refused with an error that is not NotFound
 	// and so reads here as "could not be read".
 	resolved, err := appfile.ResolveModuleType(ctx, h.Client, typ, capType)
 	if err != nil {
-		// Only a confirmed absence is waved through: a Form 2 spelling that
-		// matches no installed definition is not abstract, and the missing type
+		// Only a confirmed absence is waved through: a missing type
 		// fails elsewhere with a message that says so. Everything else -- a failed
 		// label listing, an ambiguous match, a spelling that will not parse --
 		// leaves the question open, and admitting on an open question is how a

@@ -3,7 +3,7 @@
 // distinguishes them, not the filename or the directory.
 //
 // Installs as "demo-store-v1-labeler". Referenced from an Application's
-// traits list as demo-store/v1/labeler, v1/labeler, or labeler.
+// traits list as demo-store/v1/labeler or labeler.
 "labeler": {
 	type: "trait"
 	attributes: {

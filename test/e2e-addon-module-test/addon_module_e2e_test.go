@@ -134,7 +134,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			widgetPlatformApp, "kit-suite", "import-options", "tenant-widgets", "widget-latest", "cache-probe",
 			"platform-a", "platform-b", "broken-imports", "missing-addon-version", "missing-addon", "new-platform",
 			"module-direct", "gate-off-probe", "widget-consumer", "suite-consumer", "forms-accepted", "v2-contract",
-			"trait-outputs-form3", "default-consumer", "default-consumer-form2", "gauge-consumer", "v2-consumer",
+			"trait-outputs-form3", "default-consumer", "gauge-consumer", "v2-consumer",
 		} {
 			deleteApp(ctx, testNS, name)
 		}
@@ -350,7 +350,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			Expect(isNotFound(ctx, configMapObj(systemNS, "widget-kit-v1beta1-preview"))).Should(BeTrue())
 		})
 
-		It("a consumer uses Form 3, Form 2, a module trait and the addon-level trait", func() {
+		It("a consumer uses Form 3, a module trait and the addon-level trait", func() {
 			Expect(applyManifestFile(ctx, testdataPath("apps", "consumer-widget.yaml"))).Should(Succeed())
 			waitAppRunning(ctx, testNS, "widget-consumer", shortWait)
 
@@ -456,13 +456,13 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			Expect(names).Should(ConsistOf("gadget-kit-v1-labeler", "widget-kit-v1-labeler", "widget-kit-v2-labeler"))
 		})
 
-		It("rejects a Form 1 or Form 2 trait that both modules ship, at admission", func() {
+		It("rejects a Form 1 trait that both modules ship, at admission", func() {
 			results := createEachFromFile(ctx, testdataPath("apps", "consumer-ambiguous-traits.yaml"))
-			Expect(results).Should(HaveLen(2))
+			Expect(results).Should(HaveLen(1))
 			// The module list in the message follows the order the definitions
 			// were listed in, which is not sorted, so each name is checked on
 			// its own.
-			for name, typeName := range map[string]string{"ambiguous-form2": "v1/labeler", "ambiguous-form1": "labeler"} {
+			for name, typeName := range map[string]string{"ambiguous-form1": "labeler"} {
 				Expect(results[name]).Should(HaveOccurred(), name)
 				Expect(results[name].Error()).Should(SatisfyAll(
 					ContainSubstring(`type "`+typeName+`" is ambiguous: definitions from modules [`),
@@ -515,12 +515,11 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			Expect(findService(mustGetApp(ctx, testNS, widgetPlatformApp), "widget-platform").Message).Should(Equal("Ready:6/6"))
 		})
 
-		It("accepts Form 3, Form 2, the installed name and a unique Form 1 trait", func() {
+		It("accepts Form 3, the installed name and a unique Form 1 trait", func() {
 			Expect(applyManifestFile(ctx, testdataPath("apps", "consumer-forms-accepted.yaml"))).Should(Succeed())
 			waitAppRunning(ctx, testNS, "forms-accepted", shortWait)
 			for name, want := range map[string][2]string{
 				"form3-widget":   {"v1", "widget-kit-v1-widget"},
-				"form2-widget":   {"v2", "widget-kit-v2-widget"},
 				"stamped-widget": {"v1", "widget-kit-v1-widget"},
 			} {
 				w, err := getUnstructured(ctx, widgetGVK, testNS, name)
@@ -540,11 +539,11 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		It("refuses ambiguous, disabled-line and malformed references at admission", func() {
 			results := createEachFromFile(ctx, testdataPath("apps", "consumer-rejected.yaml"))
 			want := map[string]string{
-				"reject-form1-ambiguous":     `type "widget" is ambiguous`,
-				"reject-disabled-line":       "widget-kit-v1beta1-widget",
-				"reject-form2-disabled-line": `no definition found for type "v1beta1/widget"`,
-				"reject-bad-api-version":     `"1" is not a valid API version`,
-				"reject-too-many-segments":   "expected 1 segment (name), 2 segments (v<N>/name), or 3 segments (module/v<N>/name)",
+				"reject-form1-ambiguous":           `type "widget" is ambiguous`,
+				"reject-disabled-line":             "widget-kit-v1beta1-widget",
+				"reject-two-segment-disabled-line": `two-segment references are not supported`,
+				"reject-bad-api-version":           `"1" is not a valid API version`,
+				"reject-too-many-segments":         "expected either 1 segment (name, Form 1) or 3 segments (module/v<N>/name, Form 3)",
 			}
 			Expect(results).Should(HaveLen(len(want)))
 			for name, fragment := range want {

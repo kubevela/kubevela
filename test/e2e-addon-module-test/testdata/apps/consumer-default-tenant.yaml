@@ -8,13 +8,3 @@ spec:
   components:
     - name: w3
       type: widget-kit/v1/widget          # Form 3
----
-apiVersion: core.oam.dev/v1beta1
-kind: Application
-metadata:
-  name: default-consumer-form2
-  namespace: default
-spec:
-  components:
-    - name: w2
-      type: v1/widget                      # Form 2: found cluster-wide, then refused
