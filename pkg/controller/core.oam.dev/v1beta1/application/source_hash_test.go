@@ -156,11 +156,14 @@ func TestSourceAutoUpdateEnabled(t *testing.T) {
 
 	// An explicit value wins over the controller default in both directions,
 	// so a fleet-wide setting is never one-way.
-	assert.True(t, sourceAutoUpdateEnabled(set, false))
-	assert.False(t, sourceAutoUpdateEnabled(off, true))
+	assert.True(t, sourceAutoUpdateEnabled(set, false, false))
+	assert.False(t, sourceAutoUpdateEnabled(off, true, false))
 	// Unset defers.
-	assert.False(t, sourceAutoUpdateEnabled(unset, false))
-	assert.True(t, sourceAutoUpdateEnabled(unset, true))
+	assert.False(t, sourceAutoUpdateEnabled(unset, false, false))
+	assert.True(t, sourceAutoUpdateEnabled(unset, true, false))
+	// A pin freezes only the default; an explicit yes stays live under it.
+	assert.False(t, sourceAutoUpdateEnabled(unset, true, true))
+	assert.True(t, sourceAutoUpdateEnabled(set, false, true))
 }
 
 func TestAutoUpdatingSources(t *testing.T) {
@@ -171,17 +174,21 @@ func TestAutoUpdatingSources(t *testing.T) {
 		{Name: "flags", AutoUpdate: boolPtr(false)},
 		{Name: "cluster"},
 	}
-	on := autoUpdatingSources(sources, false)
+	on := autoUpdatingSources(sources, false, false)
 	assert.Contains(t, on, "registry")
 	assert.NotContains(t, on, "flags")
 	assert.NotContains(t, on, "cluster", "unset follows a default of off")
 
-	on = autoUpdatingSources(sources, true)
+	on = autoUpdatingSources(sources, true, false)
 	assert.Contains(t, on, "registry")
 	assert.NotContains(t, on, "flags", "an explicit no survives a default of on")
 	assert.Contains(t, on, "cluster")
 
-	assert.Empty(t, autoUpdatingSources(nil, true))
+	on = autoUpdatingSources(sources, true, true)
+	assert.Contains(t, on, "registry", "an explicit yes survives a pin")
+	assert.NotContains(t, on, "cluster", "a pin freezes what the default turned on")
+
+	assert.Empty(t, autoUpdatingSources(nil, true, false))
 }
 
 func TestSourceRefreshEnabled(t *testing.T) {
@@ -196,9 +203,11 @@ func TestSourceRefreshEnabled(t *testing.T) {
 	assert.False(t, ok)
 	assert.Contains(t, reason, "no sources declared")
 
-	// A pin freezes the Application regardless of what its bindings ask for.
-	pinned := appWithSources(map[string]string{oam.AnnotationPublishVersion: "v1"}, boolPtr(true))
-	ok, reason = sourceRefreshEnabled(pinned, true)
+	// A pin freezes what the default turned on, but not a binding that opted in.
+	pin := map[string]string{oam.AnnotationPublishVersion: "v1"}
+	ok, _ = sourceRefreshEnabled(appWithSources(pin, boolPtr(true)), false)
+	assert.True(t, ok, "an explicit autoUpdate: true stays live under a pin")
+	ok, reason = sourceRefreshEnabled(appWithSources(pin, nil), true)
 	assert.False(t, ok)
 	assert.Contains(t, reason, "publishVersion")
 }

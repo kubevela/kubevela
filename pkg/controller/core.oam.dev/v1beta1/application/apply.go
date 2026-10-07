@@ -641,17 +641,16 @@ func (h *AppHandler) sourceStatusList() []common.ApplicationSourceStatus {
 				entry.Phase = sourcePhaseResolved
 			}
 		}
-		wanted := sourceAutoUpdateEnabled(src, autoUpdateDefault)
-		effective := wanted && !pinned
+		effective := sourceAutoUpdateEnabled(src, autoUpdateDefault, pinned)
 		entry.AutoUpdate = &effective
 		// A bool cannot say why it is false, and one case is worth the words: the
-		// binding asked for auto-update and a pin took it away. The other two -
+		// default would have turned it on and a pin took it away. The other two -
 		// the gate is off, or the author set autoUpdate: false - need no message.
 		// Being off by default is the normal state of every binding in every
 		// Application, so reporting it would put a sentence nobody needs on all
 		// of them, and an author who set false already knows.
-		if wanted && pinned && entry.Message == "" {
-			entry.Message = "autoUpdate suppressed: the Application is pinned by app.oam.dev/publishVersion"
+		if !effective && pinned && sourceAutoUpdateEnabled(src, autoUpdateDefault, false) && entry.Message == "" {
+			entry.Message = "autoUpdate suppressed: the Application is pinned by app.oam.dev/publishVersion; set autoUpdate: true on the binding to keep it live"
 		}
 		out = append(out, entry)
 	}

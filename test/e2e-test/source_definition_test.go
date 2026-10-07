@@ -37,6 +37,7 @@ import (
 	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apitypes "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 var _ = Describe("SourceDefinition e2e", func() {
@@ -358,6 +359,118 @@ output: {
 		// ...and pruning stayed inside the component that changed.
 		Consistently(cmExists("cm-bystander"), 10*time.Second, 2*time.Second).Should(BeTrue(),
 			"a sibling component's resource must survive a prune")
+	})
+
+	// A publishVersion pin freezes the EnableSourceAutoUpdate default, but a
+	// binding that says autoUpdate: true keeps its data live: the refresh moves
+	// the value without a new revision.
+	It("refreshes a pinned Application's source that opts in by name", func() {
+		input := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: "pinned-input", Namespace: namespaceName},
+			Data:       map[string]string{"value": "one"},
+		}
+		Expect(k8sClient.Create(ctx, input)).Should(Succeed())
+
+		Expect(k8sClient.Create(ctx, &v1beta1.SourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "pinned-source", Namespace: namespaceName},
+			Spec: v1beta1.SourceDefinitionSpec{
+				Schematic: &oamcomm.Schematic{CUE: &oamcomm.CUE{Template: `
+import "vela/kube"
+
+schema: {
+  data: [string]: string
+}
+$internal: {
+  key: "pinned-source-\(context.cluster)-\(context.namespace)"
+  keyInputs: ["cluster", "namespace"]
+}
+storage: {
+  // Short, so the edit below is noticed inside the spec's patience.
+  storageTTL: "5s"
+}
+_cm: kube.#Get & {
+  $params: {
+    cluster: context.cluster
+    resource: {
+      apiVersion: "v1"
+      kind:       "ConfigMap"
+      metadata: {
+        name:      parameter.name
+        namespace: context.namespace
+      }
+    }
+  }
+}
+output: data: _cm.$returns.data
+parameter: {
+  name: string
+}
+`}},
+			},
+		})).Should(Succeed())
+
+		Expect(k8sClient.Create(ctx, exprComponentDefinition(namespaceName, "valued-cm", `
+parameter: {value: string}
+output: {
+  apiVersion: "v1"
+  kind:       "ConfigMap"
+  metadata: name: "pinned-output"
+  data: {value: parameter.value}
+}
+`))).Should(Succeed())
+
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        "pinned-source-app",
+				Namespace:   namespaceName,
+				Annotations: map[string]string{oam.AnnotationPublishVersion: "v1"},
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Sources: []v1beta1.ApplicationSource{{
+					Name:       "live",
+					Type:       "pinned-source",
+					AutoUpdate: ptr.To(true),
+					Properties: &runtime.RawExtension{Raw: []byte(`{"name":"pinned-input"}`)},
+				}},
+				Components: []oamcomm.ApplicationComponent{{
+					Name:       "reader",
+					Type:       "valued-cm",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"value":"$(has(source.live.data.value) ? source.live.data.value : \"none\")"}`)},
+				}},
+			},
+		}
+		Expect(k8sClient.Create(ctx, optIn(app))).Should(Succeed())
+		verifyApplicationPhase(ctx, namespaceName, app.Name, oamcomm.ApplicationRunning)
+
+		outputValue := func() string {
+			cm := &corev1.ConfigMap{}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "pinned-output"}, cm); err != nil {
+				return ""
+			}
+			return cm.Data["value"]
+		}
+		Eventually(outputValue, 90*time.Second, time.Second).Should(Equal("one"))
+
+		latest := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(app), latest)).Should(Succeed())
+		Expect(latest.Status.LatestRevision).ShouldNot(BeNil())
+		revisionBefore := latest.Status.LatestRevision.Name
+		Expect(latest.Status.Sources).Should(HaveLen(1))
+		Expect(latest.Status.Sources[0].AutoUpdate).Should(Equal(ptr.To(true)), "the opt-in is in effect under the pin")
+
+		Eventually(func() error {
+			live := &corev1.ConfigMap{}
+			if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(input), live); err != nil {
+				return err
+			}
+			live.Data["value"] = "two"
+			return k8sClient.Update(ctx, live)
+		}, 20*time.Second, time.Second).Should(Succeed())
+
+		Eventually(outputValue, 180*time.Second, 2*time.Second).Should(Equal("two"),
+			"autoUpdate: true must refresh the pinned Application's data")
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(app), latest)).Should(Succeed())
+		Expect(latest.Status.LatestRevision.Name).Should(Equal(revisionBefore), "a refresh cuts no new revision")
 	})
 
 	// A component's own source kept auto-updating when one of its traits read a
