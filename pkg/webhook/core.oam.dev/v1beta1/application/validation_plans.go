@@ -295,8 +295,9 @@ func contextChecker(bp blobPlan, effective map[string][]string) celengine.Checke
 					continue
 				}
 				out = append(out, celengine.CheckError{Property: read.Property, Read: read, Err: &refusal{
-					value: bp.leafText(read.Property),
-					msg:   contextUnavailableMessage(read.Path[0], surface, bp.binding),
+					value:   bp.leafText(read.Property),
+					msg:     contextUnavailableMessage(read.Path[0], surface, bp.binding),
+					settled: true,
 				}})
 			}
 		}

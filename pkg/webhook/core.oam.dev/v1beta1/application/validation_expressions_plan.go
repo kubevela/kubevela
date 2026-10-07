@@ -33,7 +33,6 @@ type leafPlan struct {
 	// faults are the expressions that do not parse or compile; the plan is
 	// nil when there are any.
 	faults  celengine.CheckErrors
-	byProp  map[string][]celengine.Expression
 	leafFor map[string]inputLeaf
 	// malformed is set when the blob is not JSON, and nothing else is.
 	malformed error
@@ -55,10 +54,6 @@ func planLeaves(raw []byte, base *field.Path) leafPlan {
 		return lp
 	}
 	lp.plan = plan
-	lp.byProp = map[string][]celengine.Expression{}
-	for _, x := range plan.Expressions() {
-		lp.byProp[x.Property] = append(lp.byProp[x.Property], x)
-	}
 	return lp
 }
 

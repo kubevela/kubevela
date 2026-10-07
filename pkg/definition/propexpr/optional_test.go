@@ -196,10 +196,12 @@ func undefendedIn(refs []template.Reference, schemas map[string]string) ([]templ
 }
 
 func TestSchemasKind(t *testing.T) {
-	s := CompileSchemas(map[string]string{"cfg": `{n: number, ratio: float, port: int, items: [...{name: string}], labels: [string]: string, note?: string}`})
+	s := CompileSchemas(map[string]string{"cfg": `{n: number, ratio: float, port: int, items: [...{name: string}], labels: [string]: string, note?: string, ports: *[] | [...int], weights: [...number] | *[1], tags: *{} | {[string]: int}}`})
 	for path, want := range map[string]cue.Kind{
 		"n": cue.NumberKind, "ratio": cue.FloatKind, "port": cue.IntKind,
 		"items.0.name": cue.StringKind, "labels.team": cue.StringKind, "note": cue.StringKind,
+		// A defaulted list or map keeps its element kind through the disjunction.
+		"ports.0": cue.IntKind, "weights.2": cue.NumberKind, "tags.team": cue.IntKind,
 	} {
 		got, ok := s.Kind(srcRef(append([]string{"cfg"}, strings.Split(path, ".")...)...))
 		require.True(t, ok, path)

@@ -40,7 +40,17 @@ type lookupResult struct {
 	ok bool
 }
 
-func pathKey(segs []string) string { return strings.Join(segs, "\x00") }
+// pathKey renders a path as a memo key, each segment prefixed by its length,
+// since a JSON property key may hold any character a separator would use.
+func pathKey(segs []string) string {
+	var b strings.Builder
+	for _, seg := range segs {
+		b.WriteString(strconv.Itoa(len(seg)))
+		b.WriteByte(':')
+		b.WriteString(seg)
+	}
+	return b.String()
+}
 
 // lookup walks a path through the struct, resolving optional fields the same
 // way sourceSchemaValidator does.

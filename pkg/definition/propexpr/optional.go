@@ -89,8 +89,25 @@ func (s Schemas) Kind(ref template.Reference) (cue.Kind, bool) {
 }
 
 // schemaChild steps into a schema by one read segment: a field, optional or
-// not, a key of an open map, or a list index.
+// not, a key of an open map, or a list index. A disjunction, such as a list
+// with a default, is stepped into through the first branch that declares the
+// segment.
 func schemaChild(v cue.Value, seg string) (cue.Value, bool) {
+	if child, ok := schemaChildOf(v, seg); ok {
+		return child, true
+	}
+	// A defaulted value reports its non-default branch here, a plain
+	// disjunction each of its branches.
+	_, branches := v.Expr()
+	for _, b := range branches {
+		if child, ok := schemaChildOf(b, seg); ok {
+			return child, true
+		}
+	}
+	return cue.Value{}, false
+}
+
+func schemaChildOf(v cue.Value, seg string) (cue.Value, bool) {
 	if v.IncompleteKind() == cue.ListKind {
 		i, err := strconv.Atoi(seg)
 		if err != nil {

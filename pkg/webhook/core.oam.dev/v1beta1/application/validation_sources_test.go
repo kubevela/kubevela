@@ -1106,7 +1106,7 @@ func TestValidateSourceContextReads(t *testing.T) {
 	t.Run("component-only context consumed from a component is fine", func(t *testing.T) {
 		errs := validateSourceContextReads(
 			planApplication(app(`{"component":"$(context.componentName)"}`), noAppScope),
-			map[string][]string{"own": {"component"}})
+			map[string][]string{"own": {"component"}}, nil)
 		if len(errs) != 0 {
 			t.Fatalf("expected none, got %v", errs)
 		}
@@ -1115,7 +1115,7 @@ func TestValidateSourceContextReads(t *testing.T) {
 	t.Run("component-only context consumed from a workflow step is refused", func(t *testing.T) {
 		errs := validateSourceContextReads(
 			planApplication(app(`{"component":"$(context.componentName)"}`), noAppScope),
-			map[string][]string{"own": {"workflowstep"}})
+			map[string][]string{"own": {"workflowstep"}}, nil)
 		if len(errs) != 1 {
 			t.Fatalf("expected one error, got %v", errs)
 		}
@@ -1130,7 +1130,7 @@ func TestValidateSourceContextReads(t *testing.T) {
 	t.Run("consumed from two surfaces, one of which lacks the field", func(t *testing.T) {
 		errs := validateSourceContextReads(
 			planApplication(app(`{"component":"$(context.componentName)"}`), noAppScope),
-			map[string][]string{"own": {"component", "workflowstep"}})
+			map[string][]string{"own": {"component", "workflowstep"}}, nil)
 		if len(errs) != 1 {
 			t.Fatalf("expected the workflow step to be refused, got %v", errs)
 		}
@@ -1139,7 +1139,7 @@ func TestValidateSourceContextReads(t *testing.T) {
 	t.Run("universal context is fine everywhere", func(t *testing.T) {
 		errs := validateSourceContextReads(
 			planApplication(app(`{"component":"$(context.appName)"}`), noAppScope),
-			map[string][]string{"own": {"component", "trait", "workflowstep"}})
+			map[string][]string{"own": {"component", "trait", "workflowstep"}}, nil)
 		if len(errs) != 0 {
 			t.Fatalf("appName exists on every surface; got %v", errs)
 		}
@@ -1150,7 +1150,7 @@ func TestValidateSourceContextReads(t *testing.T) {
 	t.Run("source reads are left to the reference pass", func(t *testing.T) {
 		errs := validateSourceContextReads(
 			planApplication(app(`{"component":"$(source.other.field)"}`), noAppScope),
-			map[string][]string{"own": {"workflowstep"}})
+			map[string][]string{"own": {"workflowstep"}}, nil)
 		if len(errs) != 0 {
 			t.Fatalf("expected none, got %v", errs)
 		}
@@ -1159,7 +1159,7 @@ func TestValidateSourceContextReads(t *testing.T) {
 	// An unconsumed binding resolves nowhere, so it constrains nothing.
 	t.Run("an unconsumed binding is not judged", func(t *testing.T) {
 		errs := validateSourceContextReads(
-			planApplication(app(`{"component":"$(context.componentName)"}`), noAppScope), map[string][]string{})
+			planApplication(app(`{"component":"$(context.componentName)"}`), noAppScope), map[string][]string{}, nil)
 		if len(errs) != 0 {
 			t.Fatalf("expected none, got %v", errs)
 		}
@@ -1647,4 +1647,54 @@ func TestACompileFaultIsReportedOnce(t *testing.T) {
 	errs := h.ValidateSources(context.Background(), app)
 	require.Len(t, errs, 1, "%v", errs)
 	require.Contains(t, errs[0].Error(), "cluster() goes only on a component read")
+}
+
+// A context read a consuming surface lacks is one admission error, not that
+// refusal and the type pass's "undefined field" for the same property.
+func TestAnUnavailableContextReadIsReportedOnce(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = v1beta1.AddToScheme(scheme)
+	def := &v1beta1.SourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "named", Namespace: "default"},
+		Spec: v1beta1.SourceDefinitionSpec{
+			Schematic: &common.Schematic{CUE: &common.CUE{Template: `
+schema: {name: string}
+$internal: {key: "named", keyInputs: []}
+output: {name: parameter.name}
+parameter: {name: string}
+`}},
+		},
+	}
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"},
+		Spec: v1beta1.ApplicationSpec{
+			Sources: []v1beta1.ApplicationSource{
+				{Name: "own", Type: "named", Properties: rawJSON(`{"name":"$(context.componentName)"}`)},
+			},
+			Workflow: &v1beta1.Workflow{
+				Steps: []wfv1alpha1.WorkflowStep{{
+					WorkflowStepBase: wfv1alpha1.WorkflowStepBase{
+						Name: "s", Type: "suspend",
+						Properties: rawJSON(`{"message":"$(source.own.name)"}`),
+					},
+				}},
+			},
+		},
+	}
+	h := &ValidatingHandler{Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(def).Build()}
+	errs := h.ValidateSources(context.Background(), app)
+	require.Len(t, errs, 1, "%v", errs)
+	require.Contains(t, errs[0].Error(), "context.componentName is unavailable in workflow steps")
+}
+
+// A property key may hold any character JSON allows, so the lookup memo keys a
+// path by its segments rather than by any joined text.
+func TestCueStructMemoKeysPathsBySegment(t *testing.T) {
+	v := cuecontext.New().CompileString(`root: {a: {b: string}}`)
+	c := &cueStruct{root: v.LookupPath(cue.ParsePath("root"))}
+
+	_, ok := c.lookup([]string{"a", "b"})
+	require.True(t, ok)
+	_, ok = c.lookup([]string{"a\x00b"})
+	require.False(t, ok, "a single key holding a NUL is not the path a.b")
 }
