@@ -10,7 +10,7 @@ metadata:
     custom.definition.oam.dev/scope: Application
     custom.definition.oam.dev/ui-hidden: "true"
   name: deploy2runtime
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "deploy2runtime" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:

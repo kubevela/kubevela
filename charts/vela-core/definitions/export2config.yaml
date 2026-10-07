@@ -7,7 +7,7 @@ metadata:
     custom.definition.oam.dev/category: Resource Management
     definition.oam.dev/description: Export data to specified Kubernetes ConfigMap in your workflow.
   name: export2config
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "export2config" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:

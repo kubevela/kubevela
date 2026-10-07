@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Add startup probe hooks for the specified container of K8s pod for your workload which follows the pod spec in path 'spec.template'.
   name: startup-probe
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   appliesToWorkloads:
     - deployments.apps

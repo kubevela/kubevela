@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Describes long-running, scalable, containerized services used to manage stateful application, like database.
   name: statefulset
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "statefulset" "kind" "ComponentDefinition" "root" $) }}
   schematic:

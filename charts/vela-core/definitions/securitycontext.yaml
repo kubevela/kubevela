@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Adds security context to the container spec in path 'spec.template.spec.containers.[].securityContext'.
   name: securitycontext
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   appliesToWorkloads:
     - deployments.apps

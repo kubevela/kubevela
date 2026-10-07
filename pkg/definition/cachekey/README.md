@@ -105,7 +105,7 @@ To edit in place:
    restamp is correct:
 
    ```bash
-   for f in charts/vela-core/templates/defwithtemplate/*.yaml; do kubectl apply -f "$f"; done
+   for f in charts/vela-core/definitions/*.yaml; do kubectl apply -f "$f"; done
    ```
 
 Comments do not affect the hash — it covers the decoded `keyed` map alone — so

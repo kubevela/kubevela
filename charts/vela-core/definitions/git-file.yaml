@@ -8,7 +8,7 @@ metadata:
     definition.oam.dev/cache-key-rules-version: v1
     definition.oam.dev/description: Reads a file from a registry configured in this cluster, optionally at a given branch or tag. YAML and JSON are parsed; anything else comes back as a string.
   name: git-file
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "git-file" "kind" "SourceDefinition" "root" $) }}
   schematic:

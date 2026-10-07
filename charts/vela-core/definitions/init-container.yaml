@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: add an init container and use shared volume with pod
   name: init-container
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   appliesToWorkloads:
     - deployments.apps

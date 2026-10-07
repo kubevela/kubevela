@@ -8,7 +8,7 @@ metadata:
     definition.oam.dev/cache-key-rules-version: v1
     definition.oam.dev/description: GETs a URL. The response is parsed when Content-Type says JSON or YAML; a non-2xx fails the source rather than becoming its value.
   name: http-get
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "http-get" "kind" "SourceDefinition" "root" $) }}
   schematic:

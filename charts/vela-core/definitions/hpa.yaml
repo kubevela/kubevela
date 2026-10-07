@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Configure k8s HPA for Deployment or Statefulsets
   name: hpa
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   appliesToWorkloads:
     - deployments.apps

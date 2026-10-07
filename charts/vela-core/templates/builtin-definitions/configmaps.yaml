@@ -1,0 +1,23 @@
+{{- $byKind := dict -}}
+{{- range $path, $_ := .Files.Glob "definitions/*.yaml" -}}
+{{-   $content := tpl ($.Files.Get $path) $ -}}
+{{-   $kind := (fromYaml $content).kind -}}
+{{-   $files := get $byKind $kind | default dict -}}
+{{-   $_ := set $files (base $path) $content -}}
+{{-   $_ := set $byKind $kind $files -}}
+{{- end -}}
+{{- range $kind := keys $byKind | sortAlpha }}
+---
+# One ConfigMap per kind keeps each object under the 256KiB annotation limit
+# that client-side `kubectl apply` of the rendered chart would hit.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kubevela.builtinDefinitionsConfigMap" (dict "kind" $kind "root" $) }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: {{ template "kubevela.name" $ }}-builtin-definitions
+    {{- include "kubevela.labels" $ | nindent 4 }}
+data:
+  {{- toYaml (get $byKind $kind) | nindent 2 }}
+{{- end }}

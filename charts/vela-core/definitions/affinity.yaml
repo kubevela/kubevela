@@ -8,7 +8,7 @@ metadata:
   labels:
     custom.definition.oam.dev/ui-hidden: "true"
   name: affinity
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   appliesToWorkloads:
     - deployments.apps

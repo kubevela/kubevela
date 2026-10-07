@@ -84,7 +84,7 @@ $ kubectl apply -f charts/vela-core/crds
 2. Install Definition files
 
 ```shell script
-$ kubectl apply -f charts/vela-core/templates/defwithtemplate
+$ kubectl apply -f charts/vela-core/definitions
 ```
 
 3. Create namespace, vela-core use `vela-system` as default

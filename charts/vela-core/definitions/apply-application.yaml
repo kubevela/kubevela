@@ -11,7 +11,7 @@ metadata:
     custom.definition.oam.dev/scope: Application
     custom.definition.oam.dev/ui-hidden: "true"
   name: apply-application
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "apply-application" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:

@@ -74,6 +74,10 @@ import (
 const (
 	// HelmChartNamespacePlaceholder is used as a placeholder for rendering definitions into helm chart format
 	HelmChartNamespacePlaceholder = "###HELM_NAMESPACE###"
+	// helmChartNamespaceInclude replaces the namespace placeholder. It stays quoted
+	// so the file is valid YAML before Helm expands it: the chart reads these files
+	// with .Files and renders them with tpl, and other callers read them unrendered.
+	helmChartNamespaceInclude = `'{{ include "systemDefinitionNamespace" . }}'`
 	// HelmChartRestrictionsPlaceholder stands in for spec.restrictions while the
 	// definition is a Go value, and is swapped for a Helm include once the YAML is
 	// marshalled.
@@ -1354,7 +1358,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 				if err != nil {
 					return errors.Wrapf(err, "failed to marshal CRD into YAML")
 				}
-				s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", "{{ include \"systemDefinitionNamespace\" . }}") + "\n"
+				s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", helmChartNamespaceInclude) + "\n"
 				s = replaceRestrictionsPlaceholder(s, def.GetName(), def.GetKind())
 				if outputFilename == "" {
 					s = fmt.Sprintf("--- %s ---\n%s", filepath.Base(inputFilename), s)
@@ -1442,7 +1446,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 					if err != nil {
 						return errors.Wrapf(err, "failed to marshal CRD into YAML for %s", result.Definition.FunctionName)
 					}
-					s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", "{{ include \"systemDefinitionNamespace\" . }}") + "\n"
+					s = strings.ReplaceAll(s, "'"+HelmChartNamespacePlaceholder+"'", helmChartNamespaceInclude) + "\n"
 					s = replaceRestrictionsPlaceholder(s, def.GetName(), def.GetKind())
 
 					if outputFilename == "" {

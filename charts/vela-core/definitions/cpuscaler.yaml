@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Automatically scale the component based on CPU usage.
   name: cpuscaler
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   appliesToWorkloads:
     - deployments.apps

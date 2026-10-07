@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Add labels on your workload. if it generates pod, add same label for generated pods.
   name: labels
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   appliesToWorkloads:
     - '*'

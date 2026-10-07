@@ -7,7 +7,7 @@ metadata:
     custom.definition.oam.dev/category: External Integration
     definition.oam.dev/description: Send notifications to Email, DingTalk, Slack, Lark or webhook in your workflow.
   name: notification
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "notification" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:

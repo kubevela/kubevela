@@ -7,7 +7,7 @@ metadata:
     custom.definition.oam.dev/category: Application Delivery
     definition.oam.dev/description: Collect service endpoints for the application.
   name: collect-service-endpoints
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "collect-service-endpoints" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:

@@ -8,7 +8,7 @@ metadata:
     definition.oam.dev/cache-key-rules-version: v1
     definition.oam.dev/description: The status of another KubeVela Application - phase, overall health, workflow state, and per-component status broken down by the cluster each is placed in. Status only; never its spec.
   name: vela-app
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "vela-app" "kind" "SourceDefinition" "root" $) }}
   schematic:

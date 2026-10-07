@@ -8,7 +8,7 @@ metadata:
     definition.oam.dev/cache-key-rules-version: v1
     definition.oam.dev/description: The KubeVela environment an Application is deployed into - its name, namespace, whether the namespace is a managed env, and the labels and annotations a platform keeps there. Reads the Application's own namespace only.
   name: vela-env
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "vela-env" "kind" "SourceDefinition" "root" $) }}
   schematic:

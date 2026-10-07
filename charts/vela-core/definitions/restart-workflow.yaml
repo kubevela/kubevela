@@ -9,7 +9,7 @@ metadata:
   labels:
     custom.definition.oam.dev/scope: Application
   name: restart-workflow
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "restart-workflow" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:

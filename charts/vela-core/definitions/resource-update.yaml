@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Configure the update strategy for selected resources.
   name: resource-update
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "resource-update" "kind" "PolicyDefinition" "root" $) }}
   schematic:

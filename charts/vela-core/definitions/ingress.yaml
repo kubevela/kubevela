@@ -8,7 +8,7 @@ metadata:
   labels:
     custom.definition.oam.dev/deprecated: "true"
   name: ingress
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   podDisruptive: false
   #{{ include "definitionRestrictions" (dict "name" "ingress" "kind" "TraitDefinition" "root" $) }}

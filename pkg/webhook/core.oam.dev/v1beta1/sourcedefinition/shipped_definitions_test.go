@@ -42,7 +42,7 @@ import (
 // real handler over the real generated chart files, so it fails on the change
 // that breaks them.
 func TestShippedSourceDefinitionsPassAdmission(t *testing.T) {
-	dir := "../../../../../charts/vela-core/templates/defwithtemplate"
+	dir := "../../../../../charts/vela-core/definitions"
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 

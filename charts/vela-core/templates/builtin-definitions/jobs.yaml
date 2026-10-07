@@ -1,0 +1,10 @@
+{{- /*
+The builtin definitions are applied by hook Jobs rather than as part of the
+release, so they are validated by this release's webhook. The apply Job runs
+after the admission-patch Job (weight 0) has written the CA bundle.
+*/ -}}
+{{ include "kubevela.builtinDefinitionsJob" (dict "root" . "action" "keep" "hook" "pre-upgrade" "weight" 0) }}
+---
+{{ include "kubevela.builtinDefinitionsJob" (dict "root" . "action" "apply" "hook" "post-install,post-upgrade,post-rollback" "weight" 10) }}
+---
+{{ include "kubevela.builtinDefinitionsJob" (dict "root" . "action" "delete" "hook" "pre-delete" "weight" 0) }}

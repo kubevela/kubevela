@@ -107,3 +107,32 @@ nothing when no restriction applies.
 {{ printf "restrictions:\n%s" (toYaml $restrictions | indent 2) | indent 2 }}
 {{- end -}}
 {{- end -}}
+
+{{/*
+builtinDefinitions indexes the files under definitions/ by kind, as YAML mapping
+each kind to its "resource" (plural, for kubectl) and the "names" of its
+definitions.
+
+The definitions are applied by a post-install/post-upgrade Job rather than as
+part of the release, so the webhook that validates them is the one shipped in
+this release, not the pod being replaced.
+*/}}
+{{- define "kubevela.builtinDefinitions" -}}
+{{- $index := dict -}}
+{{- range $path, $_ := .Files.Glob "definitions/*.yaml" -}}
+{{-   $def := tpl ($.Files.Get $path) $ | fromYaml -}}
+{{-   $kind := $def.kind -}}
+{{-   $entry := get $index $kind | default (dict "resource" (printf "%ss.core.oam.dev" (lower $kind)) "names" list) -}}
+{{-   $_ := set $entry "names" (append $entry.names $def.metadata.name) -}}
+{{-   $_ := set $index $kind $entry -}}
+{{- end -}}
+{{- toYaml $index -}}
+{{- end -}}
+
+{{/*
+builtinDefinitionsConfigMap names the ConfigMap holding the builtin definitions
+of one kind. Takes a dict of "kind" and "root" (the chart context).
+*/}}
+{{- define "kubevela.builtinDefinitionsConfigMap" -}}
+{{- printf "%s-builtin-%ss" (include "kubevela.fullname" .root) (lower .kind) -}}
+{{- end -}}

@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Describes cron jobs that run code or a script to completion.
   name: cron-task
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "cron-task" "kind" "ComponentDefinition" "root" $) }}
   schematic:

@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Describes daemonset services in Kubernetes.
   name: daemon
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "daemon" "kind" "ComponentDefinition" "root" $) }}
   schematic:

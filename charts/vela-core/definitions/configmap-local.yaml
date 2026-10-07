@@ -8,7 +8,7 @@ metadata:
     definition.oam.dev/cache-key-rules-version: v1
     definition.oam.dev/description: Reads a ConfigMap's data from the Application's own namespace on the cluster being rendered for. Values are strings, as Kubernetes stores them.
   name: configmap-local
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "configmap-local" "kind" "SourceDefinition" "root" $) }}
   schematic:

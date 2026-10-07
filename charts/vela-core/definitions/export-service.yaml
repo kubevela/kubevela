@@ -9,7 +9,7 @@ metadata:
   labels:
     custom.definition.oam.dev/scope: Application
   name: export-service
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "export-service" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:

@@ -8,7 +8,7 @@ metadata:
   labels:
     custom.definition.oam.dev/ui-hidden: "true"
   name: ref-objects
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "ref-objects" "kind" "ComponentDefinition" "root" $) }}
   schematic:

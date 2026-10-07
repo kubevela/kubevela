@@ -8,7 +8,7 @@ metadata:
     definition.oam.dev/alias: ""
     definition.oam.dev/description: Build and push image from git url
   name: build-push-image
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "build-push-image" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:

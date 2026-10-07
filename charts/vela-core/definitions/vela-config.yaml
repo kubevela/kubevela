@@ -8,7 +8,7 @@ metadata:
     definition.oam.dev/cache-key-rules-version: v1
     definition.oam.dev/description: 'Reads a KubeVela Config: its properties, the ConfigTemplate it satisfies, and references to the Secret and named objects that template produced. Output values are never returned, only their references. A Config marked sensitive is refused.'
   name: vela-config
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "vela-config" "kind" "SourceDefinition" "root" $) }}
   schematic:

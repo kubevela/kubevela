@@ -8,7 +8,7 @@ metadata:
     definition.oam.dev/cache-key-rules-version: v1
     definition.oam.dev/description: Whether a KubeVela addon is installed and running, and the name and namespace of the Application it built - chain into vela-app for the detail.
   name: vela-addon
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "vela-addon" "kind" "SourceDefinition" "root" $) }}
   schematic:

@@ -8,7 +8,7 @@ metadata:
   labels:
     custom.definition.oam.dev/ui-hidden: "true"
   name: worker
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "worker" "kind" "ComponentDefinition" "root" $) }}
   schematic:

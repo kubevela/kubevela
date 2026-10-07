@@ -7,7 +7,7 @@ metadata:
     custom.definition.oam.dev/category: Config Management
     definition.oam.dev/description: List the configs
   name: list-config
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "list-config" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:

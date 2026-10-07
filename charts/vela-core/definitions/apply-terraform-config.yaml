@@ -8,7 +8,7 @@ metadata:
     definition.oam.dev/alias: ""
     definition.oam.dev/description: Apply terraform configuration in the step
   name: apply-terraform-config
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "apply-terraform-config" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:

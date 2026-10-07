@@ -7,7 +7,7 @@ metadata:
     definition.oam.dev/alias: ""
     definition.oam.dev/description: Set k8s update strategy for Deployment/DaemonSet/StatefulSet
   name: k8s-update-strategy
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   appliesToWorkloads:
     - deployments.apps

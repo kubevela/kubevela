@@ -7,7 +7,7 @@ metadata:
     custom.definition.oam.dev/category: Config Management
     definition.oam.dev/description: Create or update a config
   name: create-config
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "create-config" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:

@@ -89,7 +89,7 @@ Both are identified by the `config.oam.dev/catalog: velacore-config` label, not 
 
 ## Built-in SourceDefinitions
 
-Eight ship with the chart, generated into `charts/vela-core/templates/defwithtemplate/`
+Eight ship with the chart, generated into `charts/vela-core/definitions/`
 from `vela-templates/definitions/internal/source/`. Most Applications never need to
 author one.
 

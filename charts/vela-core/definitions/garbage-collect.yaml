@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Configure the garbage collect behaviour for the application.
   name: garbage-collect
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "garbage-collect" "kind" "PolicyDefinition" "root" $) }}
   schematic:

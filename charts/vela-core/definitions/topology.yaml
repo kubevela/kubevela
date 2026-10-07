@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Describe the destination where components should be deployed to.
   name: topology
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "topology" "kind" "PolicyDefinition" "root" $) }}
   schematic:

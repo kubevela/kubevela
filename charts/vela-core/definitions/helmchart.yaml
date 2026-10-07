@@ -8,7 +8,7 @@ metadata:
   labels:
     custom.definition.oam.dev/category: helm
   name: helmchart
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "helmchart" "kind" "ComponentDefinition" "root" $) }}
   schematic:

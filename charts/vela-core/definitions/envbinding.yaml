@@ -8,7 +8,7 @@ metadata:
   labels:
     custom.definition.oam.dev/deprecated: "true"
   name: envbinding
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "envbinding" "kind" "PolicyDefinition" "root" $) }}
   schematic:

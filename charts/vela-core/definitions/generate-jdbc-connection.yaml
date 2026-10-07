@@ -7,7 +7,7 @@ metadata:
     custom.definition.oam.dev/category: Terraform
     definition.oam.dev/description: Generate a JDBC connection based on Component of alibaba-rds
   name: generate-jdbc-connection
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   #{{ include "definitionRestrictions" (dict "name" "generate-jdbc-connection" "kind" "WorkflowStepDefinition" "root" $) }}
   schematic:

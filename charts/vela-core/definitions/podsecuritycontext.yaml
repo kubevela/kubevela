@@ -6,7 +6,7 @@ metadata:
   annotations:
     definition.oam.dev/description: Adds security context to the pod spec in path 'spec.template.spec.securityContext'.
   name: podsecuritycontext
-  namespace: {{ include "systemDefinitionNamespace" . }}
+  namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
   appliesToWorkloads:
     - deployments.apps
