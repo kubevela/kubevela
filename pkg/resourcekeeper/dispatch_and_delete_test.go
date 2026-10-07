@@ -24,6 +24,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -219,4 +220,106 @@ func TestApplyOnceKeepsTheOwnersMarks(t *testing.T) {
 	r.NoError(cli.Get(ctx, types.NamespacedName{Namespace: "default", Name: "settings"}, live))
 	r.Equal("Component", live.GetLabels()[oam.LabelOwnerKind], "apply-once keeps the live spec, not the ownership marks")
 	r.Equal("backend", live.GetLabels()[oam.LabelOwnerName])
+}
+
+// TestResourceKeeperDeleteGivenOnlyTheResourceIdentity covers what a workflow kube.#Delete step does:
+// it passes a manifest that names the resource but carries none of its annotations or labels. The
+// protections live on the object in the cluster, so Delete has to read them from there.
+func TestResourceKeeperDeleteGivenOnlyTheResourceIdentity(t *testing.T) {
+	never := v1alpha1.GarbageCollectStrategyNever
+	orphan := v1alpha1.GarbageCollectPropagation(v1alpha1.GarbageCollectPropagationOrphan)
+	for name, tc := range map[string]struct {
+		finalizers []string
+		policy     *v1alpha1.GarbageCollectPolicySpec
+		annotation map[string]string
+		labels     map[string]string
+		// kept reports that the resource must survive the delete.
+		kept bool
+		// sharedBy is the sharer list expected on a kept resource, "" when it should be unchanged.
+		sharedBy string
+	}{
+		"a shared resource is only unshared": {
+			annotation: map[string]string{oam.AnnotationAppSharedBy: "default/app,other-ns/other-app"},
+			kept:       true,
+			sharedBy:   "other-ns/other-app",
+		},
+		"a resource selected by an orphan propagation rule is released": {
+			policy: &v1alpha1.GarbageCollectPolicySpec{Rules: []v1alpha1.GarbageCollectPolicyRule{{
+				Selector:    v1alpha1.ResourcePolicyRuleSelector{TraitTypes: []string{"orphaned"}},
+				Propagation: &orphan,
+			}}},
+			labels: map[string]string{oam.TraitTypeLabel: "orphaned"},
+			kept:   true,
+		},
+		"a resource selected by a never strategy rule is released": {
+			policy: &v1alpha1.GarbageCollectPolicySpec{Rules: []v1alpha1.GarbageCollectPolicyRule{{
+				Selector: v1alpha1.ResourcePolicyRuleSelector{TraitTypes: []string{"kept"}},
+				Strategy: never,
+			}}},
+			labels: map[string]string{oam.TraitTypeLabel: "kept"},
+			kept:   true,
+		},
+		"every resource is released when the app is orphaning": {
+			finalizers: []string{oam.FinalizerOrphanResource},
+			kept:       true,
+		},
+		"an unprotected resource is deleted": {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			ctx := context.Background()
+			cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+			_rk, err := newAppKeeper(ctx, cli, &v1beta1.Application{
+				ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "default", Generation: 1, Finalizers: tc.finalizers},
+			}, Policies{GarbageCollect: tc.policy})
+			r.NoError(err)
+			rk := _rk.(*resourceKeeper)
+
+			// The object in the cluster carries the protections and the app's marks.
+			labels := map[string]string{oam.LabelAppName: "app", oam.LabelAppNamespace: "default"}
+			for k, v := range tc.labels {
+				labels[k] = v
+			}
+			r.NoError(cli.Create(ctx, &v1.ConfigMap{ObjectMeta: v12.ObjectMeta{
+				Name: "target", Namespace: "default", Labels: labels, Annotations: tc.annotation,
+			}}))
+
+			// What the workflow step hands over: the identity of the resource and nothing else.
+			bare := &unstructured.Unstructured{}
+			bare.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("ConfigMap"))
+			bare.SetName("target")
+			bare.SetNamespace("default")
+			r.NoError(rk.Delete(ctx, []*unstructured.Unstructured{bare}))
+
+			got := &v1.ConfigMap{}
+			err = cli.Get(ctx, types.NamespacedName{Namespace: "default", Name: "target"}, got)
+			if !tc.kept {
+				r.True(kerrors.IsNotFound(err), "an unprotected resource should be deleted")
+				return
+			}
+			r.NoError(err, "a protected resource must survive")
+			if tc.sharedBy != "" {
+				r.Equal(tc.sharedBy, got.Annotations[oam.AnnotationAppSharedBy])
+				return
+			}
+			r.NotContains(got.Labels, oam.LabelAppName, "a released resource loses the app's marks")
+			r.NotContains(got.Labels, oam.LabelAppNamespace)
+		})
+	}
+}
+
+func TestResourceKeeperDeleteOfAMissingResource(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	_rk, err := newAppKeeper(ctx, cli, &v1beta1.Application{
+		ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "default", Generation: 1},
+	}, Policies{})
+	r.NoError(err)
+
+	gone := &unstructured.Unstructured{}
+	gone.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("ConfigMap"))
+	gone.SetName("gone")
+	gone.SetNamespace("default")
+	r.NoError(_rk.Delete(ctx, []*unstructured.Unstructured{gone}))
 }
