@@ -24,6 +24,7 @@ import (
 	cueext "github.com/kubevela/pkg/cue/cuex/providers/cue"
 	"github.com/kubevela/pkg/cue/cuex/providers/http"
 	"github.com/kubevela/pkg/cue/cuex/providers/kube"
+	"github.com/kubevela/pkg/cue/cuex/providers/util"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/singleton"
 	"k8s.io/klog/v2"
@@ -70,6 +71,7 @@ func SourcePackages() []cuexruntime.Package {
 		registry.Package,
 		velaconfig.Package,
 		cueext.Package,
+		util.Package,
 	}
 }
 
@@ -107,6 +109,7 @@ func WorkloadPackages() []cuexruntime.Package {
 		// of a Config the platform has created.
 		registry.Package,
 		velaconfig.Package,
+		util.Package,
 	}
 }
 
