@@ -481,6 +481,7 @@ func enforceRequiredParams(root cue.Value, params map[string]any, app *Appfile) 
 
 type overrideSpec struct {
 	Components []struct {
+		Name       string         `json:"name"`
 		Properties map[string]any `json:"properties"`
 	} `json:"components"`
 }
@@ -677,9 +678,9 @@ func HasParamsSuppliedAtRuntime(app *Appfile) bool {
 }
 
 // HasComponentParamsSuppliedAtRuntime reports whether the named component takes
-// runtime-only parameter input directly or through an apply-component workflow
-// step. The component-local check avoids suppressing health failures for
-// unrelated components.
+// runtime-only parameter input directly, through an apply-component workflow
+// step, or through an override policy. The component-local check avoids
+// suppressing health failures for unrelated components.
 func HasComponentParamsSuppliedAtRuntime(app *Appfile, componentName string) bool {
 	for _, comp := range app.Components {
 		if comp.Name == componentName {
@@ -698,6 +699,20 @@ func HasComponentParamsSuppliedAtRuntime(app *Appfile, componentName string) boo
 		}
 		if json.Unmarshal(step.Properties.Raw, &props) == nil && props.Component == componentName {
 			return true
+		}
+	}
+	for _, p := range app.Policies {
+		if p.Type != "override" || p.Properties == nil {
+			continue
+		}
+		var spec overrideSpec
+		if err := json.Unmarshal(p.Properties.Raw, &spec); err != nil {
+			continue
+		}
+		for _, c := range spec.Components {
+			if c.Name == componentName && len(c.Properties) > 0 {
+				return true
+			}
 		}
 	}
 	return false

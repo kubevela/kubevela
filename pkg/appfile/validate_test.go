@@ -51,6 +51,45 @@ func TestHasComponentParamsSuppliedAtRuntime(t *testing.T) {
 	assert.False(t, HasComponentParamsSuppliedAtRuntime(app, "myweb2"))
 }
 
+func TestHasComponentParamsSuppliedAtRuntimeCoversOverridePolicies(t *testing.T) {
+	app := &Appfile{
+		Components: []common.ApplicationComponent{
+			{Name: "web", Properties: &runtime.RawExtension{Raw: []byte(`{"port":80}`)}},
+			{Name: "sidecar"},
+		},
+		Policies: []v1beta1.AppPolicy{{
+			Name: "image",
+			Type: "override",
+			Properties: &runtime.RawExtension{Raw: []byte(`{
+				"components": [{"name": "web", "properties": {"image": "nginx:alpine"}}]
+			}`)},
+		}},
+	}
+	assert.True(t, HasComponentParamsSuppliedAtRuntime(app, "web"),
+		"web's image comes from the override policy")
+	assert.False(t, HasComponentParamsSuppliedAtRuntime(app, "sidecar"),
+		"an unrelated component must not be exempted just because some override policy exists")
+	assert.False(t, HasComponentParamsSuppliedAtRuntime(app, "web-not-present"),
+		"a component the Appfile doesn't even have is not supplied by anything")
+}
+
+func TestHasComponentParamsSuppliedAtRuntimeIgnoresMalformedOrEmptyOverridePolicies(t *testing.T) {
+	app := &Appfile{
+		Components: []common.ApplicationComponent{{Name: "web"}},
+		Policies: []v1beta1.AppPolicy{
+			{Name: "broken", Type: "override", Properties: &runtime.RawExtension{Raw: []byte(`{"components": [`)}},
+			{Name: "no-props", Type: "override", Properties: nil},
+			{Name: "empty", Type: "override", Properties: &runtime.RawExtension{Raw: []byte(`{
+				"components": [{"name": "web", "properties": {}}]
+			}`)}},
+			{Name: "unrelated-type", Type: "topology", Properties: &runtime.RawExtension{Raw: []byte(`{
+				"components": [{"name": "web", "properties": {"image": "nginx"}}]
+			}`)}},
+		},
+	}
+	assert.False(t, HasComponentParamsSuppliedAtRuntime(app, "web"))
+}
+
 func TestTrait_EvalContext_OutputNameUniqueness(t *testing.T) {
 	type SubTestCase struct {
 		name          string
