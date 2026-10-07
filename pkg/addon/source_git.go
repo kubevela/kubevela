@@ -48,6 +48,14 @@ func init() {
 	component.RegisterGitReaderBuilder(buildGitReader)
 }
 
+// ErrUnsupportedGitEndpoint is returned when a git registry endpoint is not a
+// GitHub URL the git reader can parse.
+var ErrUnsupportedGitEndpoint = errors.New("addon registry invalid")
+
+// ErrUnsupportedGiteeEndpoint is returned when a gitee registry endpoint is
+// not a Gitee URL the gitee reader can parse.
+var ErrUnsupportedGiteeEndpoint = errors.New("addon registry invalid")
+
 // buildGitReader is the component.GitReaderBuilder for the three Git-family
 // source types. It is the body of what NewAsyncReader's git, gitee and gitlab
 // cases used to do inline.
@@ -66,7 +74,7 @@ func buildGitReader(baseURL, repo, subPath, token string, rdType component.Reade
 			return nil, err
 		}
 		if parsedType != utils.TypeGithub || content == nil {
-			return nil, errors.New("addon registry invalid")
+			return nil, ErrUnsupportedGitEndpoint
 		}
 		if ref != "" {
 			content.GithubContent.Ref = ref
@@ -79,7 +87,7 @@ func buildGitReader(baseURL, repo, subPath, token string, rdType component.Reade
 			return nil, err
 		}
 		if parsedType != utils.TypeGitee || content == nil {
-			return nil, errors.New("addon registry invalid")
+			return nil, ErrUnsupportedGiteeEndpoint
 		}
 		if ref != "" {
 			content.GiteeContent.Ref = ref
