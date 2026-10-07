@@ -38,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	commontypes "github.com/oam-dev/kubevela/pkg/utils/common"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 
@@ -219,6 +220,7 @@ func TestGetPlacementsFromTopologyPolicies(t *testing.T) {
 		expectedPlacements []v1alpha1.PlacementDecision
 		expectError        bool
 		errorContains      string
+		disallowCrossNs    bool
 	}{
 		"Successful placement resolution with single policy": {
 			reason:             "Should resolve placement from a single topology policy",
@@ -249,10 +251,24 @@ func TestGetPlacementsFromTopologyPolicies(t *testing.T) {
 			expectError:   true,
 			errorContains: "policy some-policy not found",
 		},
+		"Cross namespace placement rejected when not allowed": {
+			reason:            "Should return an error if cross namespace resources are not allowed",
+			objectsToCreate:   []client.Object{topologyPolicy},
+			policiesInAppfile: []v1beta1.AppPolicy{appFileTopologyPolicy},
+			policiesToGet:     []string{"my-topology"},
+			disallowCrossNs:   true,
+			expectError:       true,
+			errorContains:     "cannot cross namespace",
+		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
+			if tc.disallowCrossNs {
+				original := resourcekeeper.AllowCrossNamespaceResource
+				resourcekeeper.AllowCrossNamespaceResource = false
+				t.Cleanup(func() { resourcekeeper.AllowCrossNamespaceResource = original })
+			}
 			cli := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tc.objectsToCreate...).Build()
 			af := &appfile.Appfile{
 				Name:      "test-app",
