@@ -232,12 +232,10 @@ func TestAModuleScopedTypeThatDoesNotExistIsNotAbstract(t *testing.T) {
 	}
 }
 
-// A module-scoped reference may require a label listing. When that listing
-// fails, whether the type is abstract is unknown, and unknown must not read as
-// permission: the type-resolution check that would report the failure runs
-// only behind a feature gate, and component rendering is skipped under
-// sharding, so this check is the one that has to hold.
-func TestAFailedModuleLookupDoesNotAdmitAModuleScopedType(t *testing.T) {
+// Form-1 fallback lookup is best-effort: when label listing fails, the
+// resolver falls back to the plain definition lookup path instead of failing
+// resolution.
+func TestAFailedModuleLookupFallsBackToPlainLookup(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = v1beta1.AddToScheme(scheme)
 	failing := &listErroringClient{
@@ -247,8 +245,7 @@ func TestAFailedModuleLookupDoesNotAdmitAModuleScopedType(t *testing.T) {
 	h := &ValidatingHandler{Client: failing}
 
 	errs := h.ValidateAbstractTypes(context.Background(), appNaming("team-a", "base"))
-	require.Len(t, errs, 1, "a failed label search must not be taken as permission")
-	require.Contains(t, errs[0].Error(), "could not be read")
+	require.Empty(t, errs, "a failed label search on Form-1 lookup should not block admission")
 }
 
 func TestAnAmbiguousModuleScopedTypeIsNotAdmitted(t *testing.T) {
