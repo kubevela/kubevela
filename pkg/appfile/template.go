@@ -283,8 +283,7 @@ func resolveRevisionCapabilityName(capName string, capType types.CapType, apprev
 	if err != nil {
 		return "", err
 	}
-	switch form {
-	case 3:
+	if form == 3 {
 		resolved := naming.DefinitionName(moduleName, apiVersion, shortName)
 		if revisionCapabilityExists(resolved, capType, apprev) {
 			return resolved, nil
