@@ -121,6 +121,7 @@ func TestSourceCompilerKeepsFetchingPackages(t *testing.T) {
 		{"vela/base64", "base64.#Decode.#do"},
 		{"vela/registry", "registry.#ReadFile.#do"},
 		{"vela/velaconfig", "velaconfig.#Read.#do"},
+		{"vela/util", "util.#Truncate.#do"},
 	} {
 		t.Run(tc.pkg, func(t *testing.T) {
 			v, err := SourceCompiler.Get().CompileString(context.Background(),
@@ -136,7 +137,7 @@ func TestSourceCompilerKeepsFetchingPackages(t *testing.T) {
 // the new package is a fetch or an action.
 func TestSourceCompilerPackageSetIsDeliberate(t *testing.T) {
 	require.ElementsMatch(t, []string{
-		"base64", "cue", "http", "kube", "registry", "velaconfig",
+		"base64", "cue", "http", "kube", "registry", "util", "velaconfig",
 	}, sourceCompilerPackageNames(),
 		"the source package set changed; a source may fetch, not act")
 }
@@ -147,6 +148,6 @@ func TestWorkloadPackages(t *testing.T) {
 		names = append(names, p.GetName())
 	}
 	require.ElementsMatch(t, []string{
-		"config", "helm", "base64", "http", "kube", "cue", "addon", "registry", "velaconfig",
+		"config", "helm", "base64", "http", "kube", "cue", "addon", "registry", "velaconfig", "util",
 	}, names)
 }
