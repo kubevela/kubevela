@@ -21,7 +21,6 @@ import (
 
 	"github.com/kubevela/pkg/cel/template"
 
-	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 )
 
@@ -115,26 +114,27 @@ func (r *sourceResolver) independentBindings(properties interface{}) []string {
 
 		// A malformed expression is the lazy path's to report: prefetching must
 		// not change an outcome.
-		plan, err := celexpr.Vela.Plan(node)
-		if err != nil {
-			continue
-		}
-		for _, read := range plan.Reads(propexpr.SourceIdent) {
-			if len(read.Path) == 0 {
+		for _, lp := range planEachLeaf(node) {
+			if lp.err != nil {
 				continue
 			}
-			name := read.Path[0]
-			if seen[name] {
-				continue
-			}
-			seen[name] = true
+			for _, read := range lp.plan.Reads(propexpr.SourceIdent) {
+				if len(read.Path) == 0 {
+					continue
+				}
+				name := read.Path[0]
+				if seen[name] {
+					continue
+				}
+				seen[name] = true
 
-			props, ok := r.sourceProps[name]
-			if ok && props != nil && template.HasExpression(props) {
-				queue = append(queue, props)
-				continue
+				props, ok := r.sourceProps[name]
+				if ok && props != nil && template.HasExpression(props) {
+					queue = append(queue, props)
+					continue
+				}
+				order = append(order, name)
 			}
-			order = append(order, name)
 		}
 	}
 	return order

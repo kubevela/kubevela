@@ -109,9 +109,9 @@ func (h *ValidatingHandler) ValidateSources(ctx context.Context, app *v1beta1.Ap
 	rules := &sourceRules{h: h, ctx: ctx, app: app, nameToType: sourceNameToType, nameToIndex: sourceNameToIndex,
 		effective: effective, schemaValidators: schemaValidators,
 		consumableFrom: map[string][]string{}, requiredContext: map[string][]string{}}
-	// Field paths the source rules have settled. The type pass reaches the same
-	// properties and would otherwise restate an undeclared source or an unknown
-	// schema path in its own words.
+	// Field paths the source and context rules have settled. The type pass
+	// reaches the same properties and must not restate an undeclared source, an
+	// unknown schema path or an unavailable context field in its own words.
 	reported := map[string]bool{}
 	for _, bp := range blobs {
 		if bp.plan == nil {
@@ -124,7 +124,7 @@ func (h *ValidatingHandler) ValidateSources(ctx context.Context, app *v1beta1.Ap
 
 	// A source's properties are evaluated in the *consumer's* context, so a
 	// context read there must exist on every surface that consumes the binding.
-	errs = append(errs, validateSourceContextReads(blobs, effective)...)
+	errs = append(errs, validateSourceContextReads(blobs, effective, reported)...)
 
 	// Input contract: each source's properties against that SourceDefinition's
 	// parameter: block (unknown fields and type compatibility).

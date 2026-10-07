@@ -22,8 +22,6 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/google/cel-go/cel"
-	celengine "github.com/kubevela/pkg/cel"
-	apiservercel "k8s.io/apiserver/pkg/cel"
 
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 )
@@ -102,14 +100,5 @@ func TestSurfaceRestrictionParity(t *testing.T) {
 
 // envForSurface is the typed environment a surface offers, from the registry.
 func envForSurface(sources map[string]cue.Value, surface string) (*cel.Env, error) {
-	schema := propexpr.ContextFor(surface)
-	ctx := map[string]*apiservercel.DeclType{}
-	for _, name := range schema.ReadableFields() {
-		v, ok := schema.FieldValue(name)
-		if !ok {
-			continue
-		}
-		ctx[name] = celengine.DeclType(v, "vela.context."+name)
-	}
-	return env(sources, ctx)
+	return env(sources, contextDecls(propexpr.ContextFor(surface)))
 }

@@ -178,6 +178,11 @@ func declsForContext(schemaText map[string]string, ctxSchema propexpr.ContextSch
 		sources[name] = s
 	}
 
+	return rootDecls(sources, contextDecls(ctxSchema))
+}
+
+// contextDecls types each field a surface's context offers.
+func contextDecls(ctxSchema propexpr.ContextSchema) map[string]*apiservercel.DeclType {
 	ctx := map[string]*apiservercel.DeclType{}
 	for _, name := range ctxSchema.ReadableFields() {
 		fv, ok := ctxSchema.FieldValue(name)
@@ -186,5 +191,5 @@ func declsForContext(schemaText map[string]string, ctxSchema propexpr.ContextSch
 		}
 		ctx[name] = celengine.DeclType(fv, "vela.context."+name)
 	}
-	return rootDecls(sources, ctx)
+	return ctx
 }

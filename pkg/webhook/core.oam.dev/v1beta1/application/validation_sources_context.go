@@ -65,14 +65,14 @@ func (h *ValidatingHandler) requiredContext(ctx context.Context, appNamespace, s
 //	    properties: {component: '$(context.componentName)'}
 //
 // Such a binding works only where every surface consuming it offers the field.
-func validateSourceContextReads(blobs []blobPlan, effective map[string][]string) field.ErrorList {
+func validateSourceContextReads(blobs []blobPlan, effective map[string][]string, reported map[string]bool) field.ErrorList {
 	var errs field.ErrorList
 	for _, bp := range blobs {
 		if bp.sourceIndex < 0 || bp.binding == "" || bp.plan == nil {
 			continue
 		}
 		faults := bp.plan.Check(everyRoot, map[string]celengine.Checker{propexpr.ContextIdent: contextChecker(bp, effective)})
-		errs = append(errs, bp.fieldErrors(faults, nil)...)
+		errs = append(errs, bp.fieldErrors(faults, reported)...)
 	}
 	return errs
 }
