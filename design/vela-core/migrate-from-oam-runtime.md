@@ -81,16 +81,19 @@ metadata:
 $ kubectl apply -f charts/vela-core/crds
 ```
 
-2. Install Definition files
-
-```shell script
-$ kubectl apply -f charts/vela-core/definitions
-```
-
-3. Create namespace, vela-core use `vela-system` as default
+2. Create namespace, vela-core use `vela-system` as default
 
 ```shell script
 $ kubectl create ns vela-system
+```
+
+3. Install Definition files
+
+The files under `charts/vela-core/definitions` carry a Helm placeholder for their namespace, so install them with the
+script that fills it in with `vela-system`:
+
+```shell script
+$ make def-install
 ```
 
 4. Install Cert Manager

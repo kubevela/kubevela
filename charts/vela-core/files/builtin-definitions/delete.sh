@@ -8,7 +8,7 @@ set -eu
 # Only during a Helm uninstall. Applied from `helm template` output, where hook
 # annotations mean nothing, this Job would otherwise run at install time and
 # remove the definitions the apply Job installs.
-uninstalling=$(kubectl -n "$CONTROLLER_NAMESPACE" get secrets \
+uninstalling=$(kubectl -n "$CONTROLLER_NAMESPACE" get secrets,configmaps \
   -l "owner=helm,name=$RELEASE_NAME,status=uninstalling" -o name)
 if [ -z "$uninstalling" ]; then
   echo "No Helm uninstall of $RELEASE_NAME in progress, leaving the builtin definitions in place"

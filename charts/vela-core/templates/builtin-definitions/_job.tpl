@@ -25,17 +25,22 @@ Takes a dict of "root" (the chart context), "action", "hook" and "weight".
 {{-     $refs = append $refs (printf "%s/%s" $entry.resource $name) -}}
 {{-   end -}}
 {{- end -}}
+{{- /* Job names and label values are capped at 63 characters, so the base
+     names are cut to leave room for "-builtin-definitions-<action>". */ -}}
+{{- $suffix := printf "-builtin-definitions-%s" .action -}}
+{{- $jobName := printf "%s%s" (include "kubevela.fullname" $root | trunc (sub 63 (len $suffix) | int) | trimSuffix "-") $suffix -}}
+{{- $appLabel := printf "%s%s" (include "kubevela.name" $root | trunc (sub 63 (len $suffix) | int) | trimSuffix "-") $suffix -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ template "kubevela.fullname" $root }}-builtin-definitions-{{ .action }}
+  name: {{ $jobName }}
   namespace: {{ $root.Release.Namespace }}
   annotations:
     "helm.sh/hook": {{ .hook }}
     "helm.sh/hook-weight": {{ .weight | quote }}
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
   labels:
-    app: {{ template "kubevela.name" $root }}-builtin-definitions-{{ .action }}
+    app: {{ $appLabel }}
     {{- include "kubevela.labels" $root | nindent 4 }}
 spec:
   backoffLimit: 1
@@ -45,7 +50,7 @@ spec:
       # of the webhook Service, and the API server would send the definition
       # writes this Job makes to the Job itself.
       labels:
-        app: {{ template "kubevela.name" $root }}-builtin-definitions-{{ .action }}
+        app: {{ $appLabel }}
     spec:
       {{- with $root.Values.imagePullSecrets }}
       imagePullSecrets:
@@ -84,6 +89,8 @@ spec:
               value: {{ $job.applyRetries | quote }}
             - name: BUILTIN_DEFINITIONS
               value: {{ join " " $refs | quote }}
+            - name: WEBHOOK_CONFIGURATION
+              value: {{ ternary (printf "%s-admission" (include "kubevela.fullname" $root)) "" $root.Values.admissionWebhooks.enabled | quote }}
           volumeMounts:
             - name: definitions
               mountPath: /definitions
