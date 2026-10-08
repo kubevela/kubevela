@@ -306,7 +306,7 @@ func (e *SourceEngine) Check(properties interface{}) []CheckError {
 		var faults celengine.CheckErrors
 		if errors.As(lp.err, &faults) {
 			for _, f := range faults {
-				out = append(out, CheckError{Property: lp.property(f.Property), Expr: f.Expr, Err: f.Err})
+				out = append(out, CheckError{Property: lp.property(f.Property), Expr: f.Expr, Err: celexpr.Explain(f.Expr, f.Err)})
 			}
 			continue
 		}
@@ -315,7 +315,7 @@ func (e *SourceEngine) Check(properties interface{}) []CheckError {
 			continue
 		}
 		for _, x := range lp.plan.Expressions() {
-			if _, cerr := celexpr.Vela.OutputType(env, x.Expr); cerr != nil {
+			if _, cerr := celexpr.OutputType(env, x.Expr); cerr != nil {
 				out = append(out, CheckError{Property: lp.property(x.Property), Expr: x.Expr, Err: cerr})
 			}
 		}

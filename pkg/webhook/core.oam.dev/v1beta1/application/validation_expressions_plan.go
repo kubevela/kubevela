@@ -40,6 +40,7 @@ type leafPlan struct {
 
 func planLeaves(raw []byte, base *field.Path) leafPlan {
 	plan, err := celexpr.Vela.PlanJSON(raw)
+	err = celexpr.ExplainFaults(err)
 	var faults celengine.CheckErrors
 	if err != nil && !errors.As(err, &faults) {
 		return leafPlan{malformed: err}

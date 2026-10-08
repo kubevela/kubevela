@@ -41,13 +41,14 @@ func resolveSourceNode(node interface{}, resolver *sourceResolver) (interface{},
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return celexpr.Vela.EvalTree(ctx, node, map[string]celengine.Resolver{
+	out, err := celexpr.Vela.EvalTree(ctx, node, map[string]celengine.Resolver{
 		propexpr.SourceIdent: celengine.ResolverFunc(resolver.resolveReads),
 		propexpr.ContextIdent: celengine.ResolverFunc(func(context.Context, []celengine.Read) (interface{}, error) {
 			return resolver.expressionContext(), nil
 		}),
 		propexpr.ComponentIdent: celengine.ResolverFunc(resolver.componentReadsFor),
 	}, celengine.TreeOptions{Unknown: componentPlaceholder, OnEvalError: waitOnMissingOutput})
+	return out, celexpr.ExplainFaults(err)
 }
 
 // waitOnMissingOutput treats an element or key missing below a component read,

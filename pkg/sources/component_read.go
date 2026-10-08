@@ -127,7 +127,7 @@ func readsIn(raw *runtime.RawExtension, trait int) ([]ComponentRead, error) {
 	var faults celengine.CheckErrors
 	switch {
 	case errors.As(err, &faults):
-		return nil, err
+		return nil, celexpr.ExplainFaults(err)
 	case err != nil:
 		//nolint:nilerr // malformed properties are reported by the consumer's own parsing
 		return nil, nil
