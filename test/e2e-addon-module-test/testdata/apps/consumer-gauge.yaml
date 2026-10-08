@@ -1,0 +1,12 @@
+# widget-kit-v1-gauge exists only from widget-kit 1.1.0 on.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: gauge-consumer
+  namespace: default
+spec:
+  components:
+    - name: fuel-gauge
+      type: widget-kit/v1/gauge
+      properties:
+        reading: 80

@@ -1,0 +1,27 @@
+output: {
+	apiVersion: "core.oam.dev/v1beta1"
+	kind:       "Application"
+	metadata: {
+		name:      "example"
+		namespace: "vela-system"
+	}
+	spec: {
+		workflow: steps: [{
+			name: "apply-ns"
+			type: "apply-component"
+			properties: component: "ns-example-system"
+		}, {
+			name: "apply-resources"
+			type: "apply-remaining"
+		}]
+		components: [{
+			name: "ns-example-system"
+			type: "raw"
+			properties: {
+				apiVersion: "v1"
+				kind:       "Namespace"
+				metadata: name: "example-system"
+			}
+		}]
+	}
+}

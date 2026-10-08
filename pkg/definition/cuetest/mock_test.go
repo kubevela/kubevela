@@ -39,7 +39,7 @@ func TestMockErrors(t *testing.T) {
 	cases := map[string]struct {
 		mocks, err string
 	}{
-		"unknown package":  {`"vela/kub": "#Get": {}`, `mocks."vela/kub": not a provider; mockable: vela/addon, vela/config, vela/helm, vela/http, vela/kube, vela/registry, vela/velaconfig`},
+		"unknown package":  {`"vela/kub": "#Get": {}`, `mocks."vela/kub": not a provider; mockable: vela/addon, vela/config, vela/helm, vela/http, vela/kube, vela/module, vela/registry, vela/velaconfig`},
 		"pure package":     {`"vela/base64": "#Encode": {}`, `mocks."vela/base64": vela/base64 has no side effects, so it runs for real`},
 		"unknown function": {`"vela/kube": "#Gett": {}`, `mocks."vela/kube"."#Gett": vela/kube has no #Gett; it has #Apply, #Get, #List, #Patch`},
 	}

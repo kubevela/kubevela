@@ -18,6 +18,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -38,6 +39,7 @@ func Test_applyComponentHealthToServices(t *testing.T) {
 		components      []common.ApplicationComponent
 		services        []common.ApplicationComponentStatus
 		healthCheckFunc func(string) *common.ApplicationComponentStatus
+		healthCheckErr  error
 		verifyFunc      func(*testing.T, []common.ApplicationComponentStatus)
 	}{
 		{
@@ -145,6 +147,37 @@ func Test_applyComponentHealthToServices(t *testing.T) {
 				}
 			},
 		},
+		{
+			// The health check renders the component without values the workflow
+			// supplied, such as an override policy, so a failed check says nothing
+			// about the workload. It is logged and the recorded status stands.
+			name: "a health check that fails leaves the service status unchanged",
+			components: []common.ApplicationComponent{
+				{Name: "myweb", Type: "webservice", Properties: &runtime.RawExtension{Raw: []byte(`{}`)}},
+			},
+			services: []common.ApplicationComponentStatus{
+				{Name: "myweb", Namespace: "default", Cluster: "local", Healthy: true, Message: "applied by the workflow"},
+			},
+			healthCheckErr: errors.New("GenerateComponentManifest: cannot generate manifests from component myweb:\nparameter.image: incomplete value string"),
+			verifyFunc: func(t *testing.T, services []common.ApplicationComponentStatus) {
+				assert.True(t, services[0].Healthy, "the status the workflow recorded should stand")
+				assert.Equal(t, "applied by the workflow", services[0].Message)
+			},
+		},
+		{
+			name: "a health check that returns no status leaves the service status unchanged",
+			components: []common.ApplicationComponent{
+				{Name: "myweb", Type: "webservice", Properties: &runtime.RawExtension{Raw: []byte(`{}`)}},
+			},
+			services: []common.ApplicationComponentStatus{
+				{Name: "myweb", Namespace: "default", Cluster: "local", Healthy: true, Message: "applied by the workflow"},
+			},
+			healthCheckFunc: func(string) *common.ApplicationComponentStatus { return nil },
+			verifyFunc: func(t *testing.T, services []common.ApplicationComponentStatus) {
+				assert.True(t, services[0].Healthy)
+				assert.Equal(t, "applied by the workflow", services[0].Message)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -169,6 +202,9 @@ func Test_applyComponentHealthToServices(t *testing.T) {
 			}
 
 			mockHealthCheck := func(ctx context.Context, comp common.ApplicationComponent, patcher *cue.Value, clusterName string, overrideNamespace string) (bool, *common.ApplicationComponentStatus, *unstructured.Unstructured, []*unstructured.Unstructured, error) {
+				if tt.healthCheckErr != nil {
+					return false, nil, nil, nil, tt.healthCheckErr
+				}
 				status := tt.healthCheckFunc(comp.Name)
 				return false, status, nil, nil, nil
 			}

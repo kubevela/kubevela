@@ -1,0 +1,51 @@
+# Five Applications that admission refuses. Each is created on its own and its
+# error message checked; nothing is created.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reject-form1-ambiguous
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: widget                       # v1 AND v2 ship "widget"
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reject-disabled-line
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: widget-kit/v1beta1/widget    # the v1beta1 line is enabled: false
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reject-two-segment-disabled-line
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: v1beta1/widget
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reject-bad-api-version
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: widget-kit/1/widget          # "1" is not v<N>
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reject-too-many-segments
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: kit/widget-kit/v1/widget

@@ -1,0 +1,19 @@
+# Expected to FAIL. v2 declares "region: string" with no default, so an
+# Application that omits it has no concrete value to render. The workflow
+# model validates the rendered output with cue.Concrete(true) and cue.Final()
+# before converting it to an object, so the render should stop there rather
+# than emit a ConfigMap with an empty region.
+#
+# This is the check that v2's breaking change is actually enforced, not merely
+# documented. Keep the properties block to bucketName alone.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: demo-store-missing-region
+  namespace: default
+spec:
+  components:
+    - name: broken
+      type: demo-store/v2/bucket
+      properties:
+        bucketName: broken

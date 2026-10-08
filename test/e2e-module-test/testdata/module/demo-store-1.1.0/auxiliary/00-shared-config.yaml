@@ -1,0 +1,31 @@
+# Module-level auxiliary resources live in <module-root>/auxiliary/.
+#
+# They are module-wide: they install once, before every API line, and every
+# line depends on them. The renderer emits them as a single k8s-objects
+# component named "<module>-aux".
+#
+# Ordering: files are read in sorted filename order, and documents within one
+# file in document order, which is why these files are numbered. Everything in
+# this tier lands in ONE component, so the objects here are applied together
+# without waiting on each other -- the numbering controls the order they are
+# written into the component, not a dependency chain between them.
+#
+# Namespace: an object that names its own metadata.namespace keeps it. One
+# that does not gets the namespace the module's definitions install into
+# (the `namespace` parameter on the type: module component, defaulting to
+# vela-system). These deliberately omit it to show that defaulting.
+#
+# A .yaml auxiliary file may hold several documents separated by "---".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-store-shared
+data:
+  # Proves the module-level tier applied before any line-level tier.
+  tier: "module"
+  owner: "demo-store"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: demo-store-runner

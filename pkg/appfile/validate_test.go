@@ -38,6 +38,58 @@ import (
 	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
+func TestHasComponentParamsSuppliedAtRuntime(t *testing.T) {
+	app := &Appfile{
+		Components: []common.ApplicationComponent{{Name: "myweb1"}, {Name: "myweb2"}},
+		WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{{WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+			Type:       "apply-component",
+			Properties: &runtime.RawExtension{Raw: []byte(`{"component":"myweb1"}`)},
+			Inputs:     wfTypesv1alpha1.StepInputs{{From: "image", ParameterKey: "image"}},
+		}}},
+	}
+	assert.True(t, HasComponentParamsSuppliedAtRuntime(app, "myweb1"))
+	assert.False(t, HasComponentParamsSuppliedAtRuntime(app, "myweb2"))
+}
+
+func TestHasComponentParamsSuppliedAtRuntimeCoversOverridePolicies(t *testing.T) {
+	app := &Appfile{
+		Components: []common.ApplicationComponent{
+			{Name: "web", Properties: &runtime.RawExtension{Raw: []byte(`{"port":80}`)}},
+			{Name: "sidecar"},
+		},
+		Policies: []v1beta1.AppPolicy{{
+			Name: "image",
+			Type: "override",
+			Properties: &runtime.RawExtension{Raw: []byte(`{
+				"components": [{"name": "web", "properties": {"image": "nginx:alpine"}}]
+			}`)},
+		}},
+	}
+	assert.True(t, HasComponentParamsSuppliedAtRuntime(app, "web"),
+		"web's image comes from the override policy")
+	assert.False(t, HasComponentParamsSuppliedAtRuntime(app, "sidecar"),
+		"an unrelated component must not be exempted just because some override policy exists")
+	assert.False(t, HasComponentParamsSuppliedAtRuntime(app, "web-not-present"),
+		"a component the Appfile doesn't even have is not supplied by anything")
+}
+
+func TestHasComponentParamsSuppliedAtRuntimeIgnoresMalformedOrEmptyOverridePolicies(t *testing.T) {
+	app := &Appfile{
+		Components: []common.ApplicationComponent{{Name: "web"}},
+		Policies: []v1beta1.AppPolicy{
+			{Name: "broken", Type: "override", Properties: &runtime.RawExtension{Raw: []byte(`{"components": [`)}},
+			{Name: "no-props", Type: "override", Properties: nil},
+			{Name: "empty", Type: "override", Properties: &runtime.RawExtension{Raw: []byte(`{
+				"components": [{"name": "web", "properties": {}}]
+			}`)}},
+			{Name: "unrelated-type", Type: "topology", Properties: &runtime.RawExtension{Raw: []byte(`{
+				"components": [{"name": "web", "properties": {"image": "nginx"}}]
+			}`)}},
+		},
+	}
+	assert.False(t, HasComponentParamsSuppliedAtRuntime(app, "web"))
+}
+
 func TestTrait_EvalContext_OutputNameUniqueness(t *testing.T) {
 	type SubTestCase struct {
 		name          string
@@ -615,6 +667,51 @@ func TestParser_ValidateCUESchematicAppfile(t *testing.T) {
 		err := p.ValidateCUESchematicAppfile(appfile)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "missing parameters: image")
+	})
+
+	t.Run("should skip traits on placeholder-rendered components", func(t *testing.T) {
+		for _, compType := range []string{"addon", "module"} {
+			t.Run(compType, func(t *testing.T) {
+				appfile := &Appfile{
+					Name:      "test-app",
+					Namespace: "test-ns",
+					ParsedComponents: []*Component{
+						{
+							Name:               "my-comp",
+							Type:               compType,
+							CapabilityCategory: types.CUECategory,
+							Params:             map[string]any{},
+							FullTemplate: &Template{
+								TemplateStr: `
+									parameter: {}
+									output: {
+										apiVersion: "core.oam.dev/v1beta1"
+										kind: "Application"
+										spec: components: []
+									}
+								`,
+							},
+							engine: definition.NewWorkloadAbstractEngine("my-comp"),
+							Traits: []*Trait{
+								{
+									Name:               "reads-rendered-components",
+									CapabilityCategory: types.CUECategory,
+									Template: `
+										parameter: {}
+										patch: metadata: labels: first: context.output.spec.components[0].name
+									`,
+									Params: map[string]any{},
+									engine: definition.NewTraitAbstractEngine("reads-rendered-components"),
+								},
+							},
+						},
+					},
+				}
+
+				err := (&Parser{}).ValidateCUESchematicAppfile(appfile)
+				assert.NoError(t, err)
+			})
+		}
 	})
 
 	t.Run("should skip non-CUE components", func(t *testing.T) {

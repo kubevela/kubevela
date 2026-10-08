@@ -129,6 +129,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.enableAddonComponent`                          | enable installing an addon as an Application component via the type: addon ComponentDefinition (Alpha)                                                                                                                           | `false` |
 | `featureGates.restrictDefinitionNamespaces`                  | enforce a definition's spec.restrictions or definition.oam.dev/restrict-namespaces annotation when an Application is created or updated (Beta, on by default; a no-op until a definition declares a restriction)                 | `true`  |
 | `featureGates.enableDefinitionInheritance`                   | enable spec.extends on ComponentDefinition and TraitDefinition                                                                                                                                                                   | `false` |
+| `featureGates.enableModuleComponent`                         | enable installing a module as an Application component via the type: module ComponentDefinition (Alpha)                                                                                                                          | `false` |
 
 ### Definition restriction parameters
 

@@ -129,7 +129,10 @@ func (comp *Component) EvalStatus(templateContext map[string]interface{}) (*heal
 // Trait is ComponentTrait
 type Trait struct {
 	// The Name is name of TraitDefinition, actually it's a type of the trait instance
-	Name               string
+	Name string
+	// TypeLabel is the trait.oam.dev/type value on the objects the trait emits.
+	// It equals Name except for a module trait, where it is the installed name.
+	TypeLabel          string
 	CapabilityCategory types.CapabilityCategory
 	Params             map[string]interface{}
 
@@ -141,6 +144,15 @@ type Trait struct {
 
 	FullTemplate *Template
 	engine       definition.AbstractEngine
+}
+
+// GetTypeLabel returns TypeLabel, falling back to Name for a Trait built
+// without one.
+func (trait *Trait) GetTypeLabel() string {
+	if trait.TypeLabel != "" {
+		return trait.TypeLabel
+	}
+	return trait.Name
 }
 
 // EvalContext eval trait template and set result to context
@@ -809,7 +821,21 @@ func makeWorkloadWithContext(pCtx process.Context, comp *Component, ns, appName 
 		}
 	}
 	commonLabels := definition.GetCommonLabels(definition.GetBaseContextLabels(pCtx))
-	util.AddLabels(workload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: comp.Type}))
+	// Keep revisioned definition names such as "configmap-component-v1" in the
+	// label. Resolve to the installed definition name only for module references
+	// containing slashes (e.g. "s3/v1/bucket"), which are invalid label values.
+	// The name has to be non-empty to be preferred: a template loaded from a file
+	// or an application revision (dry-run, live-diff) carries a ComponentDefinition
+	// with no metadata.name, and taking it blindly would blank the label.
+	resolvedType := comp.Type
+	if strings.Contains(comp.Type, "/") && comp.FullTemplate != nil {
+		if comp.FullTemplate.ComponentDefinition != nil && comp.FullTemplate.ComponentDefinition.Name != "" {
+			resolvedType = comp.FullTemplate.ComponentDefinition.Name
+		} else if comp.FullTemplate.WorkloadDefinition != nil && comp.FullTemplate.WorkloadDefinition.Name != "" {
+			resolvedType = comp.FullTemplate.WorkloadDefinition.Name
+		}
+	}
+	util.AddLabels(workload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: resolvedType}))
 	return workload, nil
 }
 
