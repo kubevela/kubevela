@@ -200,7 +200,7 @@ func (t *paramTyper) typeOfLeaf(raw string) (any, error) {
 // Reports false for anything else, including a read of a binding with no schema
 // to judge by.
 func (t *paramTyper) fromSchema(expr string) (any, bool) {
-	refs, err := celexpr.Vela.PropertyReferences(expr)
+	refs, err := celexpr.PropertyReferences(expr)
 	if err != nil || len(refs) != 1 {
 		return nil, false
 	}
@@ -314,7 +314,7 @@ func (t *paramTyper) fromCEL(expr string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	out, err := celexpr.Vela.OutputType(env, expr)
+	out, err := celexpr.OutputType(env, expr)
 	if err != nil {
 		// The expression validator reports this properly. Leaving it untyped
 		// here keeps one failure to one message.

@@ -877,7 +877,7 @@ func (p *Parser) validateExpressionSurfaces(ctx context.Context, af *Appfile) er
 		}
 		plan, err := celexpr.Vela.Plan(decoded)
 		if err != nil {
-			return fmt.Errorf("%s %q: %w", surface, name, err)
+			return fmt.Errorf("%s %q: %w", surface, name, celexpr.ExplainFaults(err))
 		}
 		// Reading any root the surface does not offer is refused.
 		if faults := plan.Check(sources.RootsFor(surface), nil); len(faults) > 0 {

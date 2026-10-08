@@ -1388,7 +1388,7 @@ func substituteScopedPolicyExpressions(pCtx wfprocess.Context, params map[string
 		propexpr.ContextIdent: celengine.Static(ctxValues),
 	}, celengine.TreeOptions{})
 	if err != nil {
-		return nil, err
+		return nil, celexpr.ExplainFaults(err)
 	}
 	out, ok := resolved.(map[string]interface{})
 	if !ok {

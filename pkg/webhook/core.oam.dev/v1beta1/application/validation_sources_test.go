@@ -1698,3 +1698,21 @@ func TestCueStructMemoKeysPathsBySegment(t *testing.T) {
 	_, ok = c.lookup([]string{"a\x00b"})
 	require.False(t, ok, "a single key holding a NUL is not the path a.b")
 }
+
+// A hyphenated component name read with a dot is refused at admission with the
+// index form to write instead.
+func TestAdmissionSuggestsIndexForHyphenatedComponent(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = v1beta1.AddToScheme(scheme)
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"},
+		Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{{
+			Name: "api", Type: "webservice",
+			Properties: rawJSON(`{"env":[{"name":"DB","value":"$(component.my-db.output.host)"}]}`),
+		}}},
+	}
+	h := &ValidatingHandler{Client: fake.NewClientBuilder().WithScheme(scheme).Build()}
+	errs := h.ValidateSources(context.Background(), app)
+	require.Len(t, errs, 1, "%v", errs)
+	require.Contains(t, errs[0].Error(), `write component["my-db"].output.host`)
+}

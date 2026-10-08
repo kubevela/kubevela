@@ -224,8 +224,8 @@ func TestPlacementCallsOnlyOnAComponent(t *testing.T) {
 // A hyphenated component name read with a dot parses as subtraction; the error
 // says to read it by index, and the index form reads it.
 func TestHyphenatedComponentName(t *testing.T) {
-	env, err := DynEnv()
-	require.NoError(t, err)
+	env := Vela.DynEnv()
+	var err error
 
 	_, err = OutputType(env, `component.my-db.output.data.host`)
 	require.Error(t, err)
@@ -251,8 +251,8 @@ func TestHyphenatedComponentName(t *testing.T) {
 // A component name may start with a digit or hold a run of hyphens, and is
 // still read by index.
 func TestHyphenatedComponentNameShapes(t *testing.T) {
-	env, err := DynEnv()
-	require.NoError(t, err)
+	env := Vela.DynEnv()
+	var err error
 	for name, expr := range map[string]string{
 		"2-tier": `component.2-tier.output.x`,
 		"my--db": `component.my--db.output.x`,
@@ -266,8 +266,8 @@ func TestHyphenatedComponentNameShapes(t *testing.T) {
 // The hint is for an error the hyphenated read caused, not one elsewhere in an
 // expression that happens to hold such text.
 func TestHyphenatedComponentHintFollowsTheError(t *testing.T) {
-	env, err := DynEnv()
-	require.NoError(t, err)
+	env := Vela.DynEnv()
+	var err error
 	_, err = OutputType(env, `'component.web-db' == missing`)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "undeclared reference to 'missing'")
@@ -277,8 +277,8 @@ func TestHyphenatedComponentHintFollowsTheError(t *testing.T) {
 // CEL reports an error's location in runes, so text with multi-byte runes
 // before the read still places the error on it.
 func TestHyphenatedComponentHintAfterMultiByteText(t *testing.T) {
-	env, err := DynEnv()
-	require.NoError(t, err)
+	env := Vela.DynEnv()
+	var err error
 	_, err = OutputType(env, `"hé" == component.my-db`)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), `write "hé" == component["my-db"]`)
