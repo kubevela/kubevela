@@ -87,16 +87,30 @@ func ValidateCueTemplate(cueTemplate string) error {
 // arguments to helm.#Render could trigger a real chart fetch and helm
 // install during admission.
 func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
-	ctx = helm.WithDryRun(ctx)
-	val, err := velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx, cueTemplate, upstreamcuex.DisableResolveProviderFunctions{})
+	val, err := CompileCuexTemplate(ctx, cueTemplate)
 	if err != nil {
 		return err
 	}
+	return ValidateCompiledCuexTemplate(val)
+}
+
+// CompileCuexTemplate compiles cueTemplate exactly as ValidateCuexTemplate
+// does, against the workload compiler with provider functions left unresolved,
+// and returns the value instead of a verdict. A caller that runs more than one
+// check against a template compiles it once here, then hands the value to
+// ValidateCompiledCuexTemplate and to its own checks.
+func CompileCuexTemplate(ctx context.Context, cueTemplate string) (cue.Value, error) {
+	ctx = helm.WithDryRun(ctx)
+	return velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx, cueTemplate, upstreamcuex.DisableResolveProviderFunctions{})
+}
+
+// ValidateCompiledCuexTemplate is ValidateCuexTemplate for a value already
+// produced by CompileCuexTemplate.
+func ValidateCompiledCuexTemplate(val cue.Value) error {
 	if e := checkError(val.Err()); e != nil {
 		return e
 	}
-	err = val.Validate(cue.Final())
-	return checkError(err)
+	return checkError(val.Validate(cue.Final()))
 }
 
 func checkError(err error) error {
