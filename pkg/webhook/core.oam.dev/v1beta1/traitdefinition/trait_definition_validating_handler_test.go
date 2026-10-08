@@ -342,4 +342,36 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 			Expect(resp.Allowed).Should(BeTrue())
 		})
 	})
+
+	Context("Test conflictsWith admission validation", func() {
+		DescribeTable("validates label selector rules on create and update",
+			func(operation admissionv1.Operation, rules []string, allowed bool) {
+				handler.Validators = []TraitDefValidator{
+					TraitDefValidatorFn(ValidateConflictsWith),
+				}
+				traitDef := v1beta1.TraitDefinition{
+					Spec: v1beta1.TraitDefinitionSpec{ConflictsWith: rules},
+				}
+				raw, err := json.Marshal(traitDef)
+				Expect(err).Should(BeNil())
+				request := admission.Request{
+					AdmissionRequest: admissionv1.AdmissionRequest{
+						Operation: operation,
+						Resource:  reqResource,
+						Object:    runtime.RawExtension{Raw: raw},
+					},
+				}
+
+				response := handler.Handle(context.TODO(), request)
+
+				Expect(response.Allowed).Should(Equal(allowed))
+				if !allowed {
+					Expect(response.Result.Message).Should(ContainSubstring(`invalid spec.conflictsWith rule "labelSelector:@@@"`))
+				}
+			},
+			Entry("allows a valid selector on create", admissionv1.Create, []string{"labelSelector:team=platform"}, true),
+			Entry("rejects an invalid selector on create", admissionv1.Create, []string{"labelSelector:@@@"}, false),
+			Entry("rejects an invalid selector on update", admissionv1.Update, []string{"labelSelector:@@@"}, false),
+		)
+	})
 })

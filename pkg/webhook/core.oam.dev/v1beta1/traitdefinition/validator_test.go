@@ -19,14 +19,51 @@ package traitdefinition
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
+
+func TestValidateConflictsWith(t *testing.T) {
+	tests := map[string]struct {
+		rules       []string
+		wantErrText string
+	}{
+		"definition rules": {
+			rules: []string{"scaler", "services.k8s.io", "*.networking.k8s.io"},
+		},
+		"valid label selector": {
+			rules: []string{"labelSelector:team=platform,tier in (api,worker)"},
+		},
+		"invalid label selector": {
+			rules:       []string{"labelSelector:@@@"},
+			wantErrText: `invalid spec.conflictsWith rule "labelSelector:@@@"`,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := ValidateConflictsWith(context.Background(), v1beta1.TraitDefinition{
+				Spec: v1beta1.TraitDefinitionSpec{ConflictsWith: tt.rules},
+			})
+			if tt.wantErrText == "" {
+				if err != nil {
+					t.Fatalf("ValidateConflictsWith() unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErrText) {
+				t.Fatalf("ValidateConflictsWith() error = %v, want error containing %q", err, tt.wantErrText)
+			}
+		})
+	}
+}
 
 func TestValidateDefinitionReference(t *testing.T) {
 	cases := map[string]struct {
