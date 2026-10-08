@@ -414,7 +414,8 @@ func ReadIdentityFromKubeConfig(kubeconfigPath string) (*Identity, error) {
 		// token is always reported as unverifiable. That is the one error to ignore, any other
 		// error means the token itself could not be read.
 		sub, err := utils.GetTokenSubject(token)
-		if ve, ok := err.(*jwt.ValidationError); err != nil && (!ok || ve.Errors != jwt.ValidationErrorUnverifiable) {
+		var ve *jwt.ValidationError
+		if err != nil && !(errors.As(err, &ve) && ve.Errors == jwt.ValidationErrorUnverifiable) {
 			return nil, fmt.Errorf("failed to recognize serviceaccount: %w", err)
 		}
 		if sub == "" {
