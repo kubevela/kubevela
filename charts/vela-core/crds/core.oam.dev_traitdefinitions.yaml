@@ -64,6 +64,12 @@ spec:
                   It is not inherited: a definition that extends an abstract one is usable
                   unless it marks itself abstract too.
                 type: boolean
+              apiVersion:
+                description: |-
+                  APIVersion is the API line of the module this definition belongs to, for
+                  example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                pattern: ^v\d+(alpha\d+|beta\d+)?$
+                type: string
               appliesToWorkloads:
                 description: |-
                   AppliesToWorkloads specifies the list of workload kinds this trait
@@ -127,6 +133,12 @@ spec:
                 description: ManageWorkload defines the trait would be responsible
                   for creating the workload
                 type: boolean
+              module:
+                description: |-
+                  Module names the module this definition was published in, for example
+                  "s3". It identifies a versioned definition on the spec itself, not only
+                  through labels. Set it together with apiVersion, or leave both empty.
+                type: string
               podDisruptive:
                 description: |-
                   PodDisruptive indicates that this trait is disruptive to the pod: applying or

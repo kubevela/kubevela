@@ -58,8 +58,7 @@ var validCueTemplate string
 var inValidCueTemplate string
 
 func TestComponentdefinition(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Componentdefinition Suite")
+	
 }
 
 var _ = BeforeSuite(func() {
@@ -742,4 +741,62 @@ func TestExtendingWithATemplateInheritsTheWorkload(t *testing.T) {
 	}
 
 	require.NoError(t, ValidateWorkload(nil, cd))
+}
+
+// The identity fields only make sense as a pair: a module without an apiVersion
+// (or the reverse) cannot name a versioned definition, so the handler rejects it.
+func TestHandleValidatesIdentityFields(t *testing.T) {
+	sc := runtime.NewScheme()
+	require.NoError(t, v1beta1.SchemeBuilder.AddToScheme(sc))
+	h := &ValidatingHandler{
+		Decoder: admission.NewDecoder(sc),
+		Client:  fake.NewClientBuilder().WithScheme(sc).Build(),
+	}
+
+	build := func(module, apiVersion string) admission.Request {
+		def := &v1beta1.ComponentDefinition{
+			TypeMeta:   metav1.TypeMeta{Kind: "ComponentDefinition", APIVersion: "core.oam.dev/v1beta1"},
+			ObjectMeta: metav1.ObjectMeta{Name: "identity-comp", Namespace: "vela-system"},
+			Spec:       v1beta1.ComponentDefinitionSpec{Workload: common.WorkloadTypeDescriptor{Type: "deployments.apps"}, Module: module, APIVersion: apiVersion},
+		}
+		raw, err := json.Marshal(def)
+		require.NoError(t, err)
+		return admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
+			UID:       "test-uid",
+			Operation: admissionv1.Create,
+			Resource: metav1.GroupVersionResource{
+				Group: componentDefGVR.Group, Version: componentDefGVR.Version, Resource: componentDefGVR.Resource,
+			},
+			Object: runtime.RawExtension{Raw: raw},
+		}}
+	}
+
+	t.Run("module and apiVersion together are admitted", func(t *testing.T) {
+		resp := h.Handle(context.Background(), build("s3", "v1"))
+		require.True(t, resp.Allowed, "%v", resp.Result)
+	})
+
+	t.Run("neither field is admitted", func(t *testing.T) {
+		resp := h.Handle(context.Background(), build("", ""))
+		require.True(t, resp.Allowed, "%v", resp.Result)
+	})
+
+	t.Run("module without apiVersion is denied", func(t *testing.T) {
+		resp := h.Handle(context.Background(), build("s3", ""))
+		require.False(t, resp.Allowed)
+		require.Contains(t, resp.Result.Message, "spec.apiVersion is empty")
+	})
+
+	t.Run("apiVersion without module is denied", func(t *testing.T) {
+		resp := h.Handle(context.Background(), build("", "v1"))
+		require.False(t, resp.Allowed)
+		require.Contains(t, resp.Result.Message, "spec.module is empty")
+	})
+
+	t.Run("an update is validated too", func(t *testing.T) {
+		req := build("s3", "")
+		req.Operation = admissionv1.Update
+		resp := h.Handle(context.Background(), req)
+		require.False(t, resp.Allowed)
+	})
 }

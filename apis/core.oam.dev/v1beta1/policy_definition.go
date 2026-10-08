@@ -54,6 +54,18 @@ type PolicyDefinitionSpec struct {
 	//+optional
 	Version string `json:"version,omitempty"`
 
+	// Module names the module this definition was published in, for example
+	// "s3". It identifies a versioned definition on the spec itself, not only
+	// through labels. Set it together with apiVersion, or leave both empty.
+	// +optional
+	Module string `json:"module,omitempty"`
+
+	// APIVersion is the API line of the module this definition belongs to, for
+	// example "v1" or "v1beta2". Set it together with module, or leave both empty.
+	// +kubebuilder:validation:Pattern=`^v\d+(alpha\d+|beta\d+)?$`
+	// +optional
+	APIVersion string `json:"apiVersion,omitempty"`
+
 	// Scope defines the scope at which this policy operates.
 	// - DefaultScope (empty/omitted): Standard output-based or builtin policies (topology, override, etc.)
 	//   These can generate Kubernetes resources from CUE templates with an 'output' field or apply Go-logic in the controller

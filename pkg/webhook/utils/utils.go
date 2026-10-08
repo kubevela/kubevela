@@ -254,3 +254,16 @@ func ValidateMultipleDefVersionsNotPresent(version, revisionName, objectType str
 	}
 	return nil
 }
+
+// ValidateDefinitionIdentity validates that a Definition's spec.module and
+// spec.apiVersion are set together or both left empty. The apiVersion format is
+// enforced by the CRD schema, not here.
+func ValidateDefinitionIdentity(module, apiVersion string) error {
+	switch {
+	case module != "" && apiVersion == "":
+		return errors.New("spec.module is set but spec.apiVersion is empty: set both or neither")
+	case module == "" && apiVersion != "":
+		return errors.New("spec.apiVersion is set but spec.module is empty: set both or neither")
+	}
+	return nil
+}
