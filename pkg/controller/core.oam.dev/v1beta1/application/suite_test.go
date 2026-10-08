@@ -55,6 +55,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	_ "github.com/oam-dev/kubevela/pkg/features" // Import to register feature gates
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/utils/kubeconfig"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -68,6 +69,7 @@ var testScheme = runtime.NewScheme()
 var reconciler *Reconciler
 var appParser *appfile.Parser
 var controllerDone context.CancelFunc
+var restoreKubeConfigAssumption func()
 var mgr ctrl.Manager
 var appRevisionLimit = 5
 
@@ -126,6 +128,13 @@ var _ = BeforeSuite(func() {
 	singleton.KubeClient.Set(k8sClient)
 	fakeDynamicClient := fake.NewSimpleDynamicClient(testScheme)
 	singleton.DynamicClient.Set(fakeDynamicClient)
+	// PolicyDefinition validation compiles through the cuex workload compiler,
+	// which loads external CUE packages through the shared client singletons.
+	// Hand them the envtest config, and tell the kubeconfig guard so, since it
+	// only consults the environment and would otherwise skip the load. This
+	// matches the policydefinition webhook suite's setup.
+	singleton.KubeConfig.Set(cfg)
+	restoreKubeConfigAssumption = kubeconfig.AssumeAvailable()
 	appParser = appfile.NewApplicationParser(k8sClient)
 
 	reconciler = &Reconciler{
@@ -163,6 +172,10 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	if controllerDone != nil {
 		controllerDone()
+	}
+	// The envtest config is about to go away, so stop vouching for it.
+	if restoreKubeConfigAssumption != nil {
+		restoreKubeConfigAssumption()
 	}
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
