@@ -184,7 +184,9 @@ func (opt *ListPrivilegesOptions) Complete(f velacmd.Factory, cmd *cobra.Command
 		cmdutil.CheckErr(err)
 		opt.Identity = *identity
 	}
-	if opt.Identity.ServiceAccount != "" {
+	// A serviceaccount read from a kubeconfig already carries the namespace of its token, only
+	// an explicit --serviceaccount takes its namespace from the command line.
+	if opt.KubeConfig == "" && opt.Identity.ServiceAccount != "" {
 		opt.Identity.ServiceAccountNamespace = velacmd.GetNamespace(f, cmd)
 	}
 	opt.Clusters = velacmd.GetClusters(cmd)
@@ -318,7 +320,9 @@ func (opt *GrantPrivilegesOptions) Complete(f velacmd.Factory, cmd *cobra.Comman
 		opt.Identity = *identity
 		opt.Identity.Groups = nil
 	}
-	if opt.Identity.ServiceAccount != "" {
+	// A serviceaccount read from a kubeconfig already carries the namespace of its token, only
+	// an explicit --serviceaccount takes its namespace from the command line.
+	if opt.KubeConfig == "" && opt.Identity.ServiceAccount != "" {
 		opt.Identity.ServiceAccountNamespace = velacmd.GetNamespace(f, cmd)
 	}
 	opt.Regularize()
