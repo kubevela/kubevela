@@ -73,7 +73,8 @@ func (h *resourceKeeper) delete(ctx context.Context, manifest *unstructured.Unst
 	// A caller can pass only the identity of a resource, which is all a workflow kube.#Delete step
 	// has. What protects the resource, such as its sharer list and the labels a garbage-collect rule
 	// selects on, is on the live object, so that is what the checks below run against. It is read as
-	// the keeper, as garbage collection reads it, so deleting needs no permission to get.
+	// the keeper, so the requester needs no permission to get, but the keeper must be able to read it.
+	// If it cannot, the protections cannot be checked, and nothing is deleted.
 	live := &unstructured.Unstructured{}
 	live.SetGroupVersionKind(manifest.GroupVersionKind())
 	if err = h.Client.Get(asSelf(clusterCtx), client.ObjectKeyFromObject(manifest), live); err != nil {

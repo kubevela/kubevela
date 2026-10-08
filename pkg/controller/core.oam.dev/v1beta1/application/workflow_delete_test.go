@@ -65,7 +65,10 @@ func TestWorkflowKubeDeleteRespectsSharedResource(t *testing.T) {
 
 			r.NoError(cli.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
 				Name: "target", Namespace: "default", Annotations: tc.annotations,
-				Labels: map[string]string{oam.LabelAppName: "app", oam.LabelAppNamespace: "default"},
+				Labels: map[string]string{
+					oam.LabelAppName: "app", oam.LabelAppNamespace: "default",
+					oam.LabelOwnerKind: "Application", oam.LabelOwnerNamespace: "default", oam.LabelOwnerName: "app",
+				},
 			}}))
 
 			// What the step carries: the resource's identity, nothing else.
@@ -95,6 +98,8 @@ func TestWorkflowKubeDeleteRespectsSharedResource(t *testing.T) {
 			}
 			r.NoError(err, "a resource shared with another application must survive")
 			r.Equal(tc.sharedBy, got.Annotations[oam.AnnotationAppSharedBy])
+			r.Equal("other-app", got.Labels[oam.LabelOwnerName], "the resource is handed to the next sharer")
+			r.Equal("other-ns", got.Labels[oam.LabelOwnerNamespace])
 		})
 	}
 }

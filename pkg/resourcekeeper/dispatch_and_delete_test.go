@@ -277,6 +277,9 @@ func TestResourceKeeperDeleteGivenOnlyTheResourceIdentity(t *testing.T) {
 
 			// The object in the cluster carries the protections and the app's marks.
 			labels := map[string]string{oam.LabelAppName: "app", oam.LabelAppNamespace: "default"}
+			for k, v := range resourcetracker.LabelsForKey("Application/default/app") {
+				labels[k] = v
+			}
 			for k, v := range tc.labels {
 				labels[k] = v
 			}
@@ -300,6 +303,10 @@ func TestResourceKeeperDeleteGivenOnlyTheResourceIdentity(t *testing.T) {
 			r.NoError(err, "a protected resource must survive")
 			if tc.sharedBy != "" {
 				r.Equal(tc.sharedBy, got.Annotations[oam.AnnotationAppSharedBy])
+				// The resource is handed to the next sharer, so it is marked as theirs and no longer ours.
+				r.Equal("other-app", got.Labels[oam.LabelOwnerName])
+				r.Equal("other-ns", got.Labels[oam.LabelOwnerNamespace])
+				r.Equal("Application", got.Labels[oam.LabelOwnerKind])
 				return
 			}
 			r.NotContains(got.Labels, oam.LabelAppName, "a released resource loses the app's marks")
