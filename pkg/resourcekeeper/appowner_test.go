@@ -68,6 +68,8 @@ func (a *appOwner) ControlledBy(obj client.Object) string {
 func (a *appOwner) Stamp(*unstructured.Unstructured) {}
 
 func (a *appOwner) Release(obj *unstructured.Unstructured) {
+	// As the Application's own Tracked does: the owner marks go first, then the app's.
+	a.Base.Release(obj)
 	if labels := obj.GetLabels(); labels != nil {
 		delete(labels, oam.LabelAppName)
 		delete(labels, oam.LabelAppNamespace)

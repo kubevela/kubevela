@@ -311,6 +311,9 @@ func TestResourceKeeperDeleteGivenOnlyTheResourceIdentity(t *testing.T) {
 			}
 			r.NotContains(got.Labels, oam.LabelAppName, "a released resource loses the app's marks")
 			r.NotContains(got.Labels, oam.LabelAppNamespace)
+			r.NotContains(got.Labels, oam.LabelOwnerName, "and no longer says the app owns it")
+			r.NotContains(got.Labels, oam.LabelOwnerNamespace)
+			r.NotContains(got.Labels, oam.LabelOwnerKind)
 		})
 	}
 }
