@@ -94,6 +94,21 @@ func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
 	return validateCuexTemplateWith(ctx, velacuex.WorkloadCompiler.Get(), cueTemplate, cue.Final())
 }
 
+// CompileCuexTemplate compiles cueTemplate exactly as ValidateCuexTemplate
+// does, against the workload compiler with provider functions left unresolved,
+// and returns the value instead of a verdict. A caller that runs more than one
+// check against a template compiles it once here, then hands the value to
+// ValidateCompiledCuexTemplate and to its own checks.
+func CompileCuexTemplate(ctx context.Context, cueTemplate string) (cue.Value, error) {
+	return compileForValidation(ctx, velacuex.WorkloadCompiler.Get(), cueTemplate)
+}
+
+// ValidateCompiledCuexTemplate is ValidateCuexTemplate for a value already
+// produced by CompileCuexTemplate.
+func ValidateCompiledCuexTemplate(val cue.Value) error {
+	return validateCompiled(val, cue.Final())
+}
+
 // ValidateCuexTemplateWithoutProviders validates a template's shape without
 // executing the provider functions in it.
 //
@@ -171,15 +186,26 @@ func ValidateWorkflowStepCuexTemplate(ctx context.Context, cueTemplate string) e
 // erroring either way, since templates are legitimately incomplete until an
 // Application supplies parameter values.
 func validateCuexTemplateWith(ctx context.Context, compiler *upstreamcuex.Compiler, cueTemplate string, opts ...cue.Option) error {
-	val, err := compiler.CompileStringWithOptions(ctx, cueTemplate, upstreamcuex.DisableResolveProviderFunctions{})
+	val, err := compileForValidation(ctx, compiler, cueTemplate)
 	if err != nil {
 		return err
 	}
+	return validateCompiled(val, opts...)
+}
+
+// compileForValidation is the compile half of validateCuexTemplateWith, shared
+// with CompileCuexTemplate so both compile with provider functions off.
+func compileForValidation(ctx context.Context, compiler *upstreamcuex.Compiler, cueTemplate string) (cue.Value, error) {
+	return compiler.CompileStringWithOptions(ctx, cueTemplate, upstreamcuex.DisableResolveProviderFunctions{})
+}
+
+// validateCompiled is the check half of validateCuexTemplateWith, shared with
+// ValidateCompiledCuexTemplate so both judge a compiled value the same way.
+func validateCompiled(val cue.Value, opts ...cue.Option) error {
 	if e := checkError(val.Err()); e != nil {
 		return e
 	}
-	err = val.Validate(opts...)
-	return checkError(err)
+	return checkError(val.Validate(opts...))
 }
 
 func checkError(err error) error {

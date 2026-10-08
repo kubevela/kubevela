@@ -21,14 +21,12 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
-	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 	"github.com/pkg/errors"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/features"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
 )
@@ -44,9 +42,14 @@ func (r *PolicyValidationResult) IsValid() bool {
 	return len(r.Errors) == 0
 }
 
-// ValidatePolicyDefinition validates a PolicyDefinition
+// ValidatePolicyDefinition validates a PolicyDefinition.
+// cueTemplate and val are the effective (post-upgrade) template and its
+// compiled cue.Value, computed once by the caller: this function and
+// validateNoRequiredParameters both check against them rather than each
+// compiling the template again. Neither is read when the policy has no CUE
+// schematic, since that case is rejected before either is touched.
 // Returns validation result with errors (blocking) and warnings (informational)
-func ValidatePolicyDefinition(policy *v1beta1.PolicyDefinition) *PolicyValidationResult {
+func ValidatePolicyDefinition(policy *v1beta1.PolicyDefinition, cueTemplate string, val cue.Value) *PolicyValidationResult {
 	result := &PolicyValidationResult{
 		Errors:   []string{},
 		Warnings: []string{},
@@ -61,7 +64,7 @@ func ValidatePolicyDefinition(policy *v1beta1.PolicyDefinition) *PolicyValidatio
 	// Validate global policies have specific requirements
 	if policy.Spec.Global {
 		// No required parameters
-		if err := validateNoRequiredParameters(policy); err != nil {
+		if err := validateNoRequiredParameters(policy, val); err != nil {
 			result.Errors = append(result.Errors, err.Error())
 		}
 
@@ -86,10 +89,7 @@ func ValidatePolicyDefinition(policy *v1beta1.PolicyDefinition) *PolicyValidatio
 	}
 
 	// CUE syntax validation (output field structure is validated at render time).
-	// Upgrade legacy syntax before validating so definitions using deprecated constructs
-	// are accepted and auto-upgraded at render time.
-	cueTemplate, _ := upgrade.EnsureCueVersionCompatibility(policy.Spec.Schematic.CUE.Template, policy.Name, upgrade.PolicyKind, upgrade.TemplateAreaMain)
-	if err := webhookutils.ValidateCueTemplate(cueTemplate); err != nil {
+	if err := webhookutils.ValidateCompiledCuexTemplate(val); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 	} else if err := validateEnabledFieldType(cueTemplate); err != nil {
 		result.Errors = append(result.Errors, err.Error())
@@ -153,17 +153,17 @@ func isASTBoolExpr(expr ast.Expr) bool {
 }
 
 // validateNoRequiredParameters checks that all parameters have default values
-// For global policies, ALL parameters must have defaults since users can't provide values
-func validateNoRequiredParameters(policy *v1beta1.PolicyDefinition) error {
-	cueTemplate, _ := upgrade.EnsureCueVersionCompatibility(policy.Spec.Schematic.CUE.Template, policy.Name, upgrade.PolicyKind, upgrade.TemplateAreaMain)
-
-	ctx := cuecontext.New()
-	value := ctx.CompileString(cueTemplate)
-	if value.Err() != nil {
-		return errors.Wrap(value.Err(), "failed to compile CUE template")
+// For global policies, ALL parameters must have defaults since users can't provide values.
+// val is the already-compiled template. One that carries an error is refused
+// rather than skipped: the CUE validation tolerates some errors, such as a
+// reference to context, that still leave the parameters unreadable, and a
+// global policy whose parameters cannot be read cannot be shown to need none.
+func validateNoRequiredParameters(policy *v1beta1.PolicyDefinition, val cue.Value) error {
+	if val.Err() != nil {
+		return errors.Wrap(val.Err(), "failed to compile CUE template")
 	}
 
-	paramField := value.LookupPath(cue.ParsePath("parameter"))
+	paramField := val.LookupPath(cue.ParsePath("parameter"))
 	if !paramField.Exists() {
 		return nil
 	}
