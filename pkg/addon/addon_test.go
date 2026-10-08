@@ -1710,3 +1710,12 @@ func TestLoadLocalInstallPackage(t *testing.T) {
 	assert.NotEmpty(t, pkg.AppCueTemplate.Data, "template.cue is read")
 	assert.NotEmpty(t, pkg.CUETemplates, "resources/ is read")
 }
+
+// A parameter both generators reject is reported with the schema generator's
+// cause, not the CUE encoder's.
+func TestGenAddonAPISchemaReportsTheGeneratorsError(t *testing.T) {
+	addon := &UIData{Parameters: `parameter: {ns: int & context.namespace}`}
+	err := genAddonAPISchema(addon)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "conflicting values int and string")
+}

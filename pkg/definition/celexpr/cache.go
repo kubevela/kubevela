@@ -70,7 +70,7 @@ func compiledFor(env *cel.Env, expr string) (*compiled, error) {
 
 	ast, iss := env.Compile(expr)
 	if iss != nil && iss.Err() != nil {
-		return nil, iss.Err()
+		return nil, compileError(expr, iss)
 	}
 	prg, err := env.Program(ast)
 	if err != nil {

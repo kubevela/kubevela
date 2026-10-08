@@ -553,6 +553,7 @@ func readAddonPackage(ctx context.Context, r component.Registry, addonName strin
 			return &WholeAddonPackage{
 				InstallPackage:    *installPackage,
 				APISchema:         uiData.APISchema,
+				DefaultUISchema:   uiData.DefaultUISchema,
 				Detail:            uiData.Detail,
 				AvailableVersions: uiData.AvailableVersions,
 				RegistryName:      uiData.RegistryName,

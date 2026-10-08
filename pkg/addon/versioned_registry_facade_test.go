@@ -286,3 +286,20 @@ func TestHelmRegistryKeepsPackageVersionsWhenBackendEnumeratesNone(t *testing.T)
 		assert.Equal(t, []string{"2.0.0", "1.0.0"}, resolveWith(t, []string{"2.0.0", "1.0.0"}))
 	})
 }
+
+// A versioned addon's UI data carries the form generated from its parameter,
+// as a directory registry's does.
+func TestVersionedAddonUIDataCarriesTheDefaultUISchema(t *testing.T) {
+	r := &helmRegistry{name: "reg", backend: &fakeBackend{
+		resolveFn: func(_ context.Context, _, _ string) (*resolvedChart, error) {
+			return &resolvedChart{files: []*loader.BufferedFile{
+				{Name: "fluxcd/metadata.yaml", Data: []byte("name: fluxcd\nversion: 1.0.0\n")},
+				{Name: "fluxcd/parameter.cue", Data: []byte("parameter: {\n\t// +usage=the namespace\n\tnamespace: string\n}\n")},
+			}}, nil
+		},
+	}}
+	ui, err := r.GetAddonUIData(context.Background(), "fluxcd", "")
+	require.NoError(t, err)
+	require.Len(t, ui.DefaultUISchema, 1)
+	assert.Equal(t, "namespace", ui.DefaultUISchema[0].JSONKey)
+}

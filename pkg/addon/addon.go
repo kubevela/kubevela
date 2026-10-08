@@ -500,10 +500,19 @@ func readReadme(a *UIData, reader AsyncReader, readPath string) error {
 	return nil
 }
 
+// genAddonAPISchema generates the addon's parameter schemas. A parameter the
+// generator cannot read gets the CUE encoder's OpenAPI and no UI schema; one
+// neither can read is reported with the generator's error.
 func genAddonAPISchema(addonRes *UIData) error {
+	ps, genErr := schema.GenerateParameterSchemas(context.Background(), addonRes.Parameters)
+	if genErr == nil {
+		addonRes.APISchema, addonRes.DefaultUISchema = ps.OpenAPI, ps.UI
+		return nil
+	}
+	klog.Warningf("addon %s: falling back to the CUE OpenAPI encoder, no default UI schema: %v", addonRes.Name, genErr)
 	s, err := schema.ParsePropertiesToSchema(context.Background(), addonRes.Parameters)
 	if err != nil {
-		return err
+		return genErr
 	}
 	addonRes.APISchema = s
 	return nil

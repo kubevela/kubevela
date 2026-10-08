@@ -58,6 +58,17 @@ const (
 	OpenapiV3JSONSchema string = "openapi-v3-json-schema"
 	// UISchema is the key to store ui custom schema
 	UISchema string = "ui-schema"
+	// DefaultUISchema is the key to store the ui schema generated from a definition's parameter
+	DefaultUISchema string = "default-ui-schema"
+	// SourceOutputSchema is the key to store the OpenAPI schema of a SourceDefinition's `schema`,
+	// the value an Application reads with $(source.<name>)
+	SourceOutputSchema string = "source-output-schema"
+	// OutputSchema is the key to store the OpenAPI schema of a ComponentDefinition's `output`,
+	// the value an Application reads with $(component.<name>.output)
+	OutputSchema string = "output-schema"
+	// OutputsSchema is the key to store the OpenAPI schema of each resource in a component or
+	// trait template's `outputs`, by resource name, read with $(component.<name>.outputs.<resource>)
+	OutputsSchema string = "outputs-schema"
 	// VelaQLConfigmapKey is the key to store velaql view
 	VelaQLConfigmapKey string = "template"
 )

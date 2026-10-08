@@ -44,6 +44,24 @@ func inheritedTraitSchema(ctx context.Context, td *v1beta1.TraitDefinition) ([]b
 	return inheritedSchema(ctx, td.Name, td.Spec.Schematic.CUE.Template, inherit.TraitSurface)
 }
 
+// inheritedSchemas is inheritedSchema with the default UI schema beside it.
+// It compiles with the generator's context stub, as GenerateParameterSchemas
+// does. A definition the generator cannot read gets the CUE encoder's OpenAPI
+// and no UI schema.
+func inheritedSchemas(ctx context.Context, name, template string, surface inherit.Surface) ([]byte, []byte, error) {
+	marked := schema.InstrumentClauses(template)
+	val, err := inherit.SchemaValue(ctx,
+		inherit.Level{Name: name, Template: marked}, schema.SchemaContext, surface, schemaCompiler)
+	if err != nil {
+		return nil, nil, err
+	}
+	if ps, err := schema.GenerateParameterSchemasFromValue(val, marked); err == nil {
+		return marshalSchemas(ps)
+	}
+	openAPI, err := inheritedSchema(ctx, name, template, surface)
+	return openAPI, nil, err
+}
+
 func inheritedSchema(ctx context.Context, name, template string, surface inherit.Surface) ([]byte, error) {
 	val, err := inherit.SchemaValue(ctx,
 		inherit.Level{Name: name, Template: template}, schema.BaseTemplate, surface, schemaCompiler)

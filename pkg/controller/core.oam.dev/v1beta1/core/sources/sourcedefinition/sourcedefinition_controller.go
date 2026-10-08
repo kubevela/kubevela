@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -43,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/config"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -101,7 +103,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Revision first, so the schema template below is stored against a revision
 	// that already exists - the same order componentdefinition uses.
-	_, result, err := coredef.ReconcileDefinitionRevision(ctx, r.Client, r.record, &sourceDefinition, r.defRevLimit,
+	defRev, result, err := coredef.ReconcileDefinitionRevision(ctx, r.Client, r.record, &sourceDefinition, r.defRevLimit,
 		func(revision *common.Revision) error {
 			sourceDefinition.Status.LatestRevision = revision
 			return r.UpdateStatus(ctx, &sourceDefinition)
@@ -111,6 +113,18 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 	if err != nil {
 		return ctrl.Result{}, err
+	}
+
+	// The schemas only drive VelaUX's forms and expression hints, so a
+	// template the generator cannot read does not fail the definition. A
+	// failed write does, so the reconcile is retried.
+	capability := utils.NewCapabilitySourceDef(&sourceDefinition)
+	if _, err := capability.StoreOpenAPISchema(ctx, r.Client, req.Namespace, defRev.Name); err != nil {
+		klog.InfoS("Could not store SourceDefinition schemas in ConfigMap", "sourceDefinition", klog.KObj(&sourceDefinition), "err", err)
+		r.record.Event(&sourceDefinition, event.Warning("Could not store SourceDefinition schemas in ConfigMap", err))
+		if !errors.Is(err, utils.ErrGenerateSourceSchemas) {
+			return ctrl.Result{}, fmt.Errorf(util.ErrStoreCapabilityInConfigMap, sourceDefinition.Name, err)
+		}
 	}
 
 	nextRef, err := r.reconcileSchemaTemplate(ctx, &sourceDefinition)
