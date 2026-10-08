@@ -118,7 +118,7 @@ func NewTemplateApplyCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 			if err != nil {
 				return err
 			}
-			if configCRDAvailable(f) {
+			if configCRDInstalled(f) {
 				if err := applyConfigTemplateCRD(cmd.Context(), f.Client(), options.Namespace, template); err != nil {
 					return err
 				}
@@ -156,7 +156,7 @@ func NewTemplateListCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				header = append([]interface{}{"NAMESPACE"}, header...)
 			}
 			table.AddRow(header...)
-			if configCRDAvailable(f) {
+			if configCRDInstalled(f) {
 				items, err := listConfigTemplateCRDs(context.Background(), f.Client(), options.Namespace)
 				if err != nil {
 					return err
@@ -257,7 +257,7 @@ func NewTemplateDeleteCommand(f velacmd.Factory, streams util.IOStreams) *cobra.
 					return fmt.Errorf("stopping deleting")
 				}
 			}
-			if configCRDAvailable(f) {
+			if configCRDInstalled(f) {
 				if err := deleteConfigTemplateCRD(context.Background(), f.Client(), options.Namespace, options.Name); err != nil {
 					return err
 				}
@@ -384,7 +384,7 @@ func NewListConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Comm
 			if options.AllNamespace {
 				options.Namespace = ""
 			}
-			if configCRDAvailable(f) {
+			if configCRDInstalled(f) {
 				items, err := listConfigCRDs(context.Background(), f.Client(), options.Namespace, name)
 				if err != nil {
 					return err
@@ -535,12 +535,13 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 			// the Config controller materializes template.output and template.outputs,
 			// but not the expandedWriter feature (e.g. Nacos)
 			usesUnsupportedCRDFeatures := configItem.Template.ExpandedWriter.Nacos != nil
-			if configCRDAvailable(f) && !usesUnsupportedCRDFeatures {
+			crdInstalled := configCRDInstalled(f)
+			if crdInstalled && !usesUnsupportedCRDFeatures {
 				if err := createConfigCRD(cmd.Context(), f.Client(), options.Namespace, options.Name, name, namespace, configItem.Template.Sensitive, options.Properties, options.Alias, options.Description); err != nil {
 					return err
 				}
 			} else {
-				if configCRDAvailable(f) {
+				if crdInstalled {
 					streams.Infof("the config template uses an expanded writer, which the Config CRD controller doesn't yet support; falling back to the legacy config storage\n")
 				}
 				if err := inf.CreateOrUpdateConfig(context.Background(), configItem, options.Namespace); err != nil {
@@ -572,10 +573,8 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				if err := inf.CreateOrUpdateDistribution(context.Background(), options.Namespace, name, ads); err != nil {
 					return err
 				}
-				if configCRDAvailable(f) {
-					if err := setDistributionOwner(cmd.Context(), f.Client(), options.Namespace, options.Name, name); err != nil {
-						return err
-					}
+				if err := setDistributionOwner(cmd.Context(), f.Client(), options.Namespace, options.Name, name); err != nil {
+					return err
 				}
 			}
 			streams.Infof("the config %s applied successfully\n", options.Name)
@@ -664,10 +663,8 @@ func NewDistributeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 			if err := inf.CreateOrUpdateDistribution(context.Background(), options.Namespace, name, ads); err != nil {
 				return err
 			}
-			if configCRDAvailable(f) {
-				if err := setDistributionOwner(cmd.Context(), f.Client(), options.Namespace, options.Config, name); err != nil {
-					return err
-				}
+			if err := setDistributionOwner(cmd.Context(), f.Client(), options.Namespace, options.Config, name); err != nil {
+				return err
 			}
 			streams.Infof("the distribution %s applied successfully\n", name)
 			return nil
@@ -711,11 +708,12 @@ func NewDeleteConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 			}
 
 			distributionName := config.DefaultDistributionName(options.Name)
+			crdInstalled := configCRDInstalled(f)
 			if !options.NotRecall {
 				if err := inf.DeleteDistribution(context.Background(), options.Namespace, distributionName); err != nil && !errors.Is(err, config.ErrNotFoundDistribution) {
 					return err
 				}
-			} else if configCRDAvailable(f) {
+			} else if crdInstalled {
 				// a CRD-backed config's distribution Application is owned by the Config (see
 				// setDistributionOwner), so deleting the Config always recalls it - --not-recall
 				// can't be honored for these; fail rather than silently ignoring the flag.
@@ -729,7 +727,7 @@ func NewDeleteConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				}
 			}
 
-			if configCRDAvailable(f) {
+			if crdInstalled {
 				if err := deleteConfigCRD(context.Background(), f.Client(), options.Namespace, options.Name); err != nil {
 					return err
 				}

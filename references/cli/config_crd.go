@@ -23,6 +23,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
@@ -37,21 +38,18 @@ import (
 
 const defaultPropertiesSecretKey = "properties"
 
-// configCRDAvailable reports whether the config.oam.dev CRDs should be used.
-// It respects the global --config-mode flag:
-//   - "legacy": always returns false (use ConfigMaps/Secrets)
-//   - "crd": always returns true (use ConfigTemplate/Config CRDs)
-//   - "auto" (default): auto-detect by probing the API server for the CRDs
-func configCRDAvailable(f velacmd.Factory) bool {
-	switch configMode {
-	case "legacy":
-		return false
-	case "crd":
-		return true
-	default:
-		_, err := f.Client().RESTMapper().RESTMapping(configv1alpha1.ConfigGroupVersionKind.GroupKind(), configv1alpha1.Version)
-		return err == nil
-	}
+// configCRDInstalled reports whether the config.oam.dev CRDs are served by the
+// API server. Call it once per command and reuse the result.
+func configCRDInstalled(f velacmd.Factory) bool {
+	_, err := f.Client().RESTMapper().RESTMapping(configv1alpha1.ConfigGroupVersionKind.GroupKind(), configv1alpha1.Version)
+	return err == nil
+}
+
+// crdTypeMissing reports whether err means the config.oam.dev types are not served
+// by the API server or not registered in the client scheme. Dual-backend paths treat
+// that the same as a CR that doesn't exist.
+func crdTypeMissing(err error) bool {
+	return meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err)
 }
 
 func applyConfigTemplateCRD(ctx context.Context, cli client.Client, ns string, t *config.Template) error {
@@ -175,14 +173,13 @@ func createConfigCRD(ctx context.Context, cli client.Client, ns, name, templateN
 // Application, so deleting the Config (via the CLI, kubectl, or GitOps removing the
 // manifest) always recalls the distributed resources instead of orphaning the
 // Application and the copies it manages in target namespaces/clusters.
-// configCRDAvailable only reports whether the Config CRD type is installed, not
-// whether this particular config is CRD-backed (--config-mode legacy can still create
-// a plain Secret on a CRD-enabled cluster), so a missing Config CR here is expected
-// and not an error - it just means there's no owner to attach.
+// A config may still be legacy (a plain Secret, created by an older CLI or by the
+// Nacos interim path), and the cluster may not serve the Config type at all, so a
+// missing Config CR here is expected and not an error - there's just no owner to attach.
 func setDistributionOwner(ctx context.Context, cli client.Client, ns, configName, distributionName string) error {
 	cfg := &configv1alpha1.Config{}
 	if err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: configName}, cfg); err != nil {
-		if apierrors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) || crdTypeMissing(err) {
 			return nil
 		}
 		return fmt.Errorf("failed to load config %s to own its distribution: %w", configName, err)
