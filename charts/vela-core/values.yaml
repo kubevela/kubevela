@@ -246,6 +246,26 @@ featureGates:
 ## @param definitionRestrictions Restrictions stamped onto the builtin definitions, as `default` (applied to every one) and `overrides` (per definition name, replacing the default)
 definitionRestrictions: {}
 
+## @section Builtin definitions parameters
+
+## The builtin definitions are applied by a hook Job once the controller has
+## rolled out, so they are validated by this release's webhook rather than by
+## the pod being replaced. The image only needs a shell and kubectl.
+##
+## @param builtinDefinitions.job.image.repository Image the builtin definitions Job runs kubectl from
+## @param builtinDefinitions.job.image.tag Image tag of the builtin definitions Job
+## @param builtinDefinitions.job.image.pullPolicy Image pull policy of the builtin definitions Job
+## @param builtinDefinitions.job.rolloutTimeoutSeconds How long the Job waits for the controller to roll out before applying
+## @param builtinDefinitions.job.applyRetries How many times the Job applies the definitions before failing
+builtinDefinitions:
+  job:
+    image:
+      repository: alpine/k8s
+      tag: 1.31.13
+      pullPolicy: IfNotPresent
+    rolloutTimeoutSeconds: 300
+    applyRetries: 6
+
 ## @section MultiCluster parameters
 
 ## @param multicluster.enabled Whether to enable multi-cluster

@@ -12,20 +12,29 @@ _web: {
 		output: {apiVersion: "apps/v1", kind: "Deployment", spec?: _|_}
 		outputs: {
 			ingress: {
-				apiVersion: "networking.k8s.io/v1beta1"
+				apiVersion: "networking.k8s.io/v1"
 				kind:       "Ingress"
 				metadata: name: "web"
 				spec: rules: [{
 					host: "shop.example.com"
 					http: {
 						paths: [
-							{path: "/", backend: {serviceName: "web", servicePort: 8080}},
-							{path: "/api", backend: {serviceName: "web", servicePort: 9090}},
+							{path: "/", pathType: "ImplementationSpecific", backend: service: {name: "web", port: number: 8080}},
+							{path: "/api", pathType: "ImplementationSpecific", backend: service: {name: "web", port: number: 9090}},
 						] @contains()
 					}
 				}]
 			}
 		} @exact()
+	}
+}
+
+"clusters before 1.19 get the beta Ingress": test.#TraitRender & _web & {
+	context: clusterVersion: {major: "1", minor: 18, gitVersion: "v1.18.20", platform: "linux/amd64"}
+	parameter: {domain: "shop.example.com", http: "/": 80}
+	expect: outputs: ingress: {
+		apiVersion: "networking.k8s.io/v1beta1"
+		spec: rules: [{http: paths: [{path: "/", backend: {serviceName: "web", servicePort: 80}}]}]
 	}
 }
 

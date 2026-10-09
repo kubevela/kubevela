@@ -137,6 +137,16 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
 | `definitionRestrictions` | Restrictions stamped onto the builtin definitions, as `default` (applied to every one) and `overrides` (per definition name, replacing the default) | `{}`  |
 
+### Builtin definitions parameters
+
+| Name                                           | Description                                                           | Value          |
+| ---------------------------------------------- | --------------------------------------------------------------------- | -------------- |
+| `builtinDefinitions.job.image.repository`      | Image the builtin definitions Job runs kubectl from                   | `alpine/k8s`   |
+| `builtinDefinitions.job.image.tag`             | Image tag of the builtin definitions Job                              | `1.31.13`      |
+| `builtinDefinitions.job.image.pullPolicy`      | Image pull policy of the builtin definitions Job                      | `IfNotPresent` |
+| `builtinDefinitions.job.rolloutTimeoutSeconds` | How long the Job waits for the controller to roll out before applying | `300`          |
+| `builtinDefinitions.job.applyRetries`          | How many times the Job applies the definitions before failing         | `6`            |
+
 ### MultiCluster parameters
 
 | Name                                                          | Description                                                                                 | Value                            |

@@ -40,6 +40,11 @@ rules:
   - apiGroups: ["apps"]
     resources: ["controllerrevisions"]
     verbs: ["*"]
+  # Read by the builtin definitions Job, which runs as this ServiceAccount and
+  # waits for the controller's rollout before applying them.
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["apiregistration.k8s.io"]
     resources: ["apiservices"]
     verbs: ["get", "list", "watch", "update"]

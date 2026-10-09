@@ -43,7 +43,7 @@ var helmTemplateExpr = regexp.MustCompile(`\{\{[^}]*\}\}`)
 func TestValidateCuexTemplate_BundledDefinitions(t *testing.T) {
 	t.Parallel()
 
-	dir := filepath.Join("..", "..", "..", "charts", "vela-core", "templates", "defwithtemplate")
+	dir := filepath.Join("..", "..", "..", "charts", "vela-core", "definitions")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatalf("bundled definitions not readable at %s: %v", dir, err)
