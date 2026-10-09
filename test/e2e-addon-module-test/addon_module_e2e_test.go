@@ -17,7 +17,9 @@ limitations under the License.
 // This file is the cluster suite for addons that import modules. The
 // synchronized suite setup publishes immutable fixtures once for all workers.
 // The ordered Describe owns the shared controller, definition and CRD
-// lifecycle; independent registry-publication checks are outside it.
+// lifecycle. CI selects disjoint labeled groups on separate clusters; within
+// each cluster the selected scenarios stay ordered. Independent publication
+// checks are outside it.
 //
 // The Contexts run in the order written. Two orderings matter: "latest vs
 // pinned" (scenario 08) has to run while widget-kit 1.0.0 is the only tag in
@@ -149,7 +151,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	BeforeAll(func() { ctx = context.Background() })
 
 	// --- Scenario 01 ---
-	Context("publish and inspect artifacts (scenario 01)", func() {
+	Context("publish and inspect artifacts (scenario 01)", Label("addon-module-install"), func() {
 		It("published widget-kit 1.0.0 as the only tag of its repository", func() {
 			Expect(ociTags(moduleRegistry.hostBase, "modules/widget-kit")).Should(ConsistOf("1.0.0"),
 				"the latest-vs-pinned scenario needs 1.0.0 to be the highest widget-kit tag; a registry left over from an earlier run breaks that")
@@ -170,7 +172,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 02 ---
-	Context("single-module addon install (scenario 02)", func() {
+	Context("single-module addon install (scenario 02)", Label("addon-module-install"), func() {
 		BeforeAll(func() {
 			By("installing widget-platform 1.0.0 with addon parameters")
 			Expect(k8sClient.Create(ctx, addonApplication(widgetPlatformApp, "widget-platform", "1.0.0", map[string]interface{}{
@@ -383,7 +385,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 03 ---
-	Context("one addon, two modules (scenario 03)", func() {
+	Context("one addon, two modules (scenario 03)", Label("addon-module-install"), func() {
 		BeforeAll(func() {
 			Expect(k8sClient.Create(ctx, addonApplication("kit-suite", "kit-suite", "1.0.0", nil))).Should(Succeed())
 			waitAppRunning(ctx, testNS, "kit-suite", installWait)
@@ -478,7 +480,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 04 ---
-	Context("type reference forms (scenario 04)", func() {
+	Context("type reference forms (scenario 04)", Label("addon-module-install"), func() {
 		BeforeAll(func() {
 			Expect(k8sClient.Create(ctx, addonApplication(widgetPlatformApp, "widget-platform", "1.0.0", nil))).Should(Succeed())
 			waitAppRunning(ctx, testNS, widgetPlatformApp, installWait)
@@ -559,7 +561,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 05 ---
-	Context("_imports.cue options and defaults (scenario 05)", func() {
+	Context("_imports.cue options and defaults (scenario 05)", Label("addon-module-install"), func() {
 		BeforeAll(func() {
 			Expect(k8sClient.Create(ctx, addonApplication("import-options", "import-options", "1.0.0", nil))).Should(Succeed())
 			waitAppRunning(ctx, testNS, "import-options", installWait)
@@ -620,7 +622,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 06 ---
-	Context("a type: module component declared in template.cue with a tenant namespace (scenario 06)", func() {
+	Context("a type: module component declared in template.cue with a tenant namespace (scenario 06)", Label("addon-module-install"), func() {
 		BeforeAll(func() {
 			Expect(k8sClient.Create(ctx, addonApplication("tenant-widgets", "tenant-widgets", "1.0.0", nil))).Should(Succeed())
 			waitAppRunning(ctx, testNS, "tenant-widgets", installWait)
@@ -687,7 +689,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 08 (before 07: it needs 1.0.0 to be the highest tag) ---
-	Context("latest vs pinned module version (scenario 08)", func() {
+	Context("latest vs pinned module version (scenario 08)", Label("addon-module-versions"), func() {
 		// "" while module-widget-kit does not exist, so Eventually and
 		// Consistently keep polling instead of aborting on a NotFound.
 		moduleVersion := func() string {
@@ -766,7 +768,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 07 ---
-	Context("upgrade the addon and so the module, add a definition, remove an API line, roll back (scenario 07)", func() {
+	Context("upgrade the addon and so the module, add a definition, remove an API line, roll back (scenario 07)", Label("addon-module-versions"), func() {
 		moduleState := func(g Gomega, version string, tiers []string) {
 			mod := mustGetApp(ctx, systemNS, moduleWidgetKit)
 			g.Expect(mod.Annotations).Should(HaveKeyWithValue(veltypes.AnnoDefinitionModuleVersion, version))
@@ -853,7 +855,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 09 ---
-	Context("re-pushing the same tag: revision cache vs pinned render cache (scenario 09)", func() {
+	Context("re-pushing the same tag: revision cache vs pinned render cache (scenario 09)", Label("addon-module-cache"), func() {
 		type builds struct{ addon, module, line, def string }
 		read := func() builds {
 			var b builds
@@ -924,7 +926,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 10 ---
-	Context("removing a module from an addon deletes its CRDs and every custom resource of them (scenario 10)", func() {
+	Context("removing a module from an addon deletes its CRDs and every custom resource of them (scenario 10)", Label("addon-module-versions"), func() {
 		BeforeAll(func() {
 			Expect(k8sClient.Create(ctx, addonApplication("kit-suite", "kit-suite", "1.0.0", nil))).Should(Succeed())
 			waitAppRunning(ctx, testNS, "kit-suite", installWait)
@@ -979,7 +981,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 11 ---
-	Context("deleting things by hand at every level: the Application one level up restores them (scenario 11)", func() {
+	Context("deleting things by hand at every level: the Application one level up restores them (scenario 11)", Label("addon-module-recovery"), func() {
 		uidOf := func(obj client.Object) k8stypes.UID {
 			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(obj), obj)).Should(Succeed())
 			return obj.GetUID()
@@ -1073,7 +1075,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 12 ---
-	Context("deleting the addon while something still uses it (scenario 12)", func() {
+	Context("deleting the addon while something still uses it (scenario 12)", Label("addon-module-recovery"), func() {
 		install := func() {
 			Expect(k8sClient.Create(ctx, addonApplication(widgetPlatformApp, "widget-platform", "1.0.0", nil))).Should(Succeed())
 			waitAppRunning(ctx, testNS, widgetPlatformApp, installWait)
@@ -1127,7 +1129,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 13 ---
-	Context("one owner per addon and per module (scenario 13)", func() {
+	Context("one owner per addon and per module (scenario 13)", Label("addon-module-recovery"), func() {
 		It("refuses a second user Application for the same addon until the first is gone", func() {
 			Expect(k8sClient.Create(ctx, addonApplication("platform-a", "widget-platform", "1.0.0", nil))).Should(Succeed())
 			DeferCleanup(func() {
@@ -1204,7 +1206,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 14 ---
-	Context("broken _imports.cue files and resolution failures (scenario 14)", func() {
+	Context("broken _imports.cue files and resolution failures (scenario 14)", Label("addon-module-errors"), func() {
 		const appName = "broken-imports"
 
 		BeforeAll(func() {
@@ -1311,7 +1313,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 15 ---
-	Context("registries disappear, credentials go bad (scenario 15)", func() {
+	Context("registries disappear, credentials go bad (scenario 15)", Label("addon-module-cache"), func() {
 		health := func(g Gomega, ready string) {
 			svc := findService(mustGetApp(ctx, testNS, widgetPlatformApp), "widget-platform")
 			g.Expect(svc).ShouldNot(BeNil())
@@ -1387,7 +1389,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 16 ---
-	Context("vela addon enable installs the same addon without its modules (scenario 16)", func() {
+	Context("vela addon enable installs the same addon without its modules (scenario 16)", Label("addon-module-install"), func() {
 		BeforeAll(func() {
 			// The legacy installer downloads the addon in the CLI process,
 			// through the stored registry record.
@@ -1429,7 +1431,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	})
 
 	// --- Scenario 18 (last: it restarts the controller with gates toggled) ---
-	Context("turning the feature gates off under a running install (scenario 18)", func() {
+	Context("turning the feature gates off under a running install (scenario 18)", Label("addon-module-errors"), func() {
 		BeforeAll(func() {
 			addon, module := featureGateArgs(ctx)
 			Expect(addon).Should(Equal("true"), "EnableAddonComponent must be on for this suite")
@@ -1512,7 +1514,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 // do not depend on the ordered controller lifecycle or mutate its Applications,
 // definitions, CRDs, or registry records, so another Ginkgo worker can run them.
 var _ = Describe("Addons that import modules", func() {
-	Context("publish and inspect artifacts (scenario 01)", func() {
+	Context("publish and inspect artifacts (scenario 01)", Label("addon-module-install"), func() {
 		It("refuses to republish an existing version without --force", func() {
 			out, err := runVela("module", "publish", testdataPath("modules", "widget-kit-1.0.0"), moduleRegistry.host)
 			Expect(err).Should(HaveOccurred(), out)

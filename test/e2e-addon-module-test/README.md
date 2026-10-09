@@ -60,10 +60,42 @@ make e2e-test-local                 # the same setup, then this suite and test/e
 make e2e-addon-module-test          # against an already prepared cluster
 ```
 
-The suite is `Ordered`. It publishes the fixtures once, then runs one
-`Context` per scenario; every scenario removes what it installed. Two
-scenarios restart vela-core and one toggles its feature gates, so do not run
-it against a cluster that other tests share.
+Live scenarios are `Ordered`. They publish fixtures once, then run one
+`Context` per scenario; every scenario removes what it installed. They own
+fixed-name CRDs, ClusterRoles, definitions, registry records and nested
+Applications. Some restart vela-core or toggle its feature gates, so do not
+run this suite against a cluster that other tests share.
+
+CI runs the following disjoint groups concurrently, each on its own KinD
+cluster. It does not try to parallelize conflicting lifecycle steps on the
+same cluster. Each job still uses CPU-count Ginkgo workers for independent
+checks; its selected live scenarios remain in declaration order.
+
+| Make target | Scenarios | Specs |
+| --- | --- | ---: |
+| `e2e-addon-module-install-test` | 01–06, 16, offline 01/17 | 44 |
+| `e2e-addon-module-versions-test` | 08 then 07, 10 | 13 |
+| `e2e-addon-module-recovery-test` | 11–13 | 12 |
+| `e2e-addon-module-cache-test` | 09, 15 | 7 |
+| `e2e-addon-module-errors-test` | 14, 18 | 6 |
+
+The full target remains available with `E2E_PROCS=1` for serial execution
+or `E2E_PROCS=auto` (the default) for worker parallelism. A selected-group
+target takes the same options, plus `E2E_REPORT_DIR`; JSON/JUnit filenames
+include the group. For example:
+
+```bash
+KUBECONFIG=/absolute/path/to/fresh-cluster.kubeconfig make e2e-addon-module-versions-test
+make e2e-addon-module-discovery  # no live cluster needed
+```
+
+Do not run multiple selected-group targets with `make -j` against the same
+cluster: namespaces do not isolate the shared CRDs and controller. Start
+each run with fresh registry storage. Scenario 08 intentionally checks that
+widget-kit 1.0.0 is the only tag, then publishes versions used by scenario
+07, so those scenarios must stay together and in that order. The discovery
+check verifies nonempty groups, unique assignment and unchanged coverage
+using actual Ginkgo selection; the install CI job runs it automatically.
 
 ## Layout
 

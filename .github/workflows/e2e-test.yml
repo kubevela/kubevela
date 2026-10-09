@@ -39,7 +39,7 @@ jobs:
         continue-on-error: true
 
   e2e-tests:
-    name: ${{ matrix.suite }} / Kubernetes ${{ matrix.k8s-version }}
+    name: ${{ matrix.package }}${{ matrix.group && format(' ({0})', matrix.group) || '' }} / Kubernetes ${{ matrix.k8s-version }}
     runs-on: ubuntu-22.04
     needs: [ detect-noop ]
     if: needs.detect-noop.outputs.noop != 'true'
@@ -49,22 +49,50 @@ jobs:
       matrix:
         include:
           - suite: core-application
+            package: e2e-application-test
             k8s-version: v1.31.9
           - suite: core-definitions
+            package: e2e-definition-test
             k8s-version: v1.31.9
           - suite: core-config
+            package: e2e-config-test
             k8s-version: v1.31.9
           - suite: core-helm
+            package: e2e-helm-test
             k8s-version: v1.31.9
           - suite: core-helm-auth
+            package: e2e-helm-auth-test
             k8s-version: v1.31.9
           - suite: module
+            package: e2e-module-test
             k8s-version: v1.31.9
           - suite: source
+            package: e2e-source-test
             k8s-version: v1.31.9
           - suite: addon
+            package: e2e-addon-test
             k8s-version: v1.31.9
-          - suite: addon-module
+          # Each addon/module group needs exclusive CRDs, registry state and
+          # controller configuration. Scenario steps remain ordered per job.
+          - suite: addon-module-install
+            package: e2e-addon-module-test
+            group: install
+            k8s-version: v1.31.9
+          - suite: addon-module-versions
+            package: e2e-addon-module-test
+            group: versions
+            k8s-version: v1.31.9
+          - suite: addon-module-recovery
+            package: e2e-addon-module-test
+            group: recovery
+            k8s-version: v1.31.9
+          - suite: addon-module-cache
+            package: e2e-addon-module-test
+            group: cache
+            k8s-version: v1.31.9
+          - suite: addon-module-errors
+            package: e2e-addon-module-test
+            group: errors
             k8s-version: v1.31.9
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}-${{ matrix.suite }}
@@ -103,7 +131,7 @@ jobs:
           docker image prune -f --filter "until=24h"
 
   e2e-api:
-    name: Existing API E2E coverage
+    name: e2e/ + test/e2e-addon-component-test / Kubernetes v1.31.9
     runs-on: ubuntu-22.04
     needs: [ detect-noop ]
     if: ${{ !cancelled() && needs.detect-noop.outputs.noop != 'true' }}
