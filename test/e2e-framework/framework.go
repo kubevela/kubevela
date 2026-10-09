@@ -236,13 +236,31 @@ func (r *reconcileRequester) request(g gomega.Gomega) {
 	r.seenRV, r.seenAt = rv, now
 }
 
+func (f *Framework) requesters(ctx context.Context, objs []client.Object) func(g gomega.Gomega) {
+	rs := make([]*reconcileRequester, 0, len(objs))
+	for _, o := range objs {
+		rs = append(rs, &reconcileRequester{framework: f, ctx: ctx, obj: o})
+	}
+	return func(g gomega.Gomega) {
+		for _, r := range rs {
+			r.request(g)
+		}
+	}
+}
+
 // EventuallyReconciled polls assertion, requesting a reconcile of o whenever the
 // controller has left it alone for quietPeriod. Every reconcile also re-runs a
 // failing workflow step, so the long gaps of the step backoff are cut short.
 func (f *Framework) EventuallyReconciled(ctx context.Context, o client.Object, assertion func(g gomega.Gomega)) gomega.AsyncAssertion {
-	r := &reconcileRequester{framework: f, ctx: ctx, obj: o}
+	return f.EventuallyReconciledAll(ctx, []client.Object{o}, assertion)
+}
+
+// EventuallyReconciledAll is EventuallyReconciled for an assertion that spans
+// several objects, each requested independently.
+func (f *Framework) EventuallyReconciledAll(ctx context.Context, objs []client.Object, assertion func(g gomega.Gomega)) gomega.AsyncAssertion {
+	request := f.requesters(ctx, objs)
 	return gomega.Eventually(func(g gomega.Gomega) {
-		r.request(g)
+		request(g)
 		assertion(g)
 	}).WithPolling(time.Second).WithTimeout(2 * time.Minute)
 }
@@ -252,9 +270,15 @@ func (f *Framework) EventuallyReconciled(ctx context.Context, o client.Object, a
 // nothing when a requested reconcile completes, so the window spans three
 // requests rather than relying on the first one finishing.
 func (f *Framework) ConsistentlyReconciled(ctx context.Context, o client.Object, assertion func(g gomega.Gomega)) gomega.AsyncAssertion {
-	r := &reconcileRequester{framework: f, ctx: ctx, obj: o}
+	return f.ConsistentlyReconciledAll(ctx, []client.Object{o}, assertion)
+}
+
+// ConsistentlyReconciledAll is ConsistentlyReconciled for an assertion that
+// spans several objects, each requested independently.
+func (f *Framework) ConsistentlyReconciledAll(ctx context.Context, objs []client.Object, assertion func(g gomega.Gomega)) gomega.AsyncAssertion {
+	request := f.requesters(ctx, objs)
 	return gomega.Consistently(func(g gomega.Gomega) {
-		r.request(g)
+		request(g)
 		assertion(g)
 	}).WithPolling(time.Second).WithTimeout(4 * quietPeriod)
 }

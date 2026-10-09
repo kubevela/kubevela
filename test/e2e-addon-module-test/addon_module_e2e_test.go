@@ -669,12 +669,12 @@ var _ = Describe("Addons that import modules", func() {
 
 			By("a registry named catalog makes the empty registry resolve again")
 			runVelaSucceed("module", "registry", "add", "catalog", moduleRegistry.cluster, "--type", "oci")
-			Eventually(func(g Gomega) {
+			eventuallyReconciled(ctx, []client.Object{appRef(systemNS, scope.Text("addon-import-options"))}, reconcileWait, func(g Gomega) {
 				svc := findService(getAppG(g, ctx, systemNS, scope.Text("addon-import-options")), scope.Text("widget-kit-2"))
 				g.Expect(svc).ShouldNot(BeNil())
 				g.Expect(svc.Healthy).Should(BeTrue(), svc.Message)
 				g.Expect(svc.Message).Should(Equal("Ready:5/5"))
-			}, reconcileWait, pollInterval).Should(Succeed())
+			})
 		})
 	})
 
@@ -830,13 +830,15 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		It("does not move when a newer tag is published: renders after a succeeded workflow are health checks only", func() {
 			publishModuleFixture("widget-kit-1.1.0")
 			Expect(ociTags(moduleRegistry.hostBase, scope.Text("modules/widget-kit"))).Should(ConsistOf("1.0.0", "1.1.0"))
-			Consistently(func(g Gomega) {
+			consistentlyReconciled(ctx, []client.Object{
+				appRef(testNS, scope.Text("widget-latest")), appRef(systemNS, scope.Text("addon-widget-latest")), appRef(systemNS, moduleWidgetKit),
+			}, func(g Gomega) {
 				g.Expect(moduleVersion()).Should(Equal("1.0.0"))
 				g.Expect(isNotFound(ctx, componentDefinitionObj(systemNS, scope.Text("widget-kit-v1-gauge")))).Should(BeTrue())
 				for _, svc := range mustGetApp(ctx, systemNS, scope.Text("addon-widget-latest")).Status.Services {
 					g.Expect(svc.Healthy).Should(BeTrue(), "%s: %s", svc.Name, svc.Message)
 				}
-			}, 80*time.Second, 5*time.Second).Should(Succeed(), "one full resync (reSyncPeriod=1m) must not dispatch the new version")
+			}, "reconciles after a succeeded workflow must not dispatch the new version")
 		})
 
 		It("does not move when the user Application's workflow re-runs: the addon render is unchanged", func() {
@@ -845,7 +847,9 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 				return getAppG(g, ctx, testNS, scope.Text("widget-latest")).Annotations[oam.AnnotationWorkflowRestart]
 			}, shortWait, pollInterval).Should(BeEmpty(), "a one-shot restart annotation is removed once used")
 			waitAppRunning(ctx, testNS, scope.Text("widget-latest"), shortWait)
-			Consistently(moduleVersion, 45*time.Second, 5*time.Second).Should(Equal("1.0.0"))
+			consistentlyReconciled(ctx, []client.Object{appRef(testNS, scope.Text("widget-latest")), appRef(systemNS, scope.Text("addon-widget-latest"))}, func(g Gomega) {
+				g.Expect(moduleVersion()).Should(Equal("1.0.0"))
+			})
 		})
 
 		It("moves when the Application that renders the module component re-runs its workflow", func() {
@@ -860,14 +864,19 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		})
 
 		It("follows the registry with a recurring restart, including a publish that switches a line off", func() {
-			restartWorkflow(ctx, systemNS, scope.Text("addon-widget-latest"), "2m")
+			const every = "30s"
+			restartWorkflow(ctx, systemNS, scope.Text("addon-widget-latest"), every)
 			publishModuleFixture("widget-kit-1.2.0")
-			Eventually(moduleVersion, 6*time.Minute, 10*time.Second).Should(Equal("1.2.0"))
+			// A requested reconcile alone redispatches nothing (see above); it
+			// only lets the controller notice the scheduled restart is due.
+			eventuallyReconciled(ctx, []client.Object{appRef(systemNS, scope.Text("addon-widget-latest"))}, 6*time.Minute, func(g Gomega) {
+				g.Expect(moduleVersion()).Should(Equal("1.2.0"))
+			})
 			Eventually(func(g Gomega) []string {
 				return componentNames(getAppG(g, ctx, systemNS, moduleWidgetKit))
 			}, shortWait, pollInterval).Should(Equal([]string{scope.Text("widget-kit-aux"), scope.Text("widget-kit-v1-aux"), scope.Text("widget-kit-v1-defs")}))
 			waitGone(ctx, componentDefinitionObj(systemNS, scope.Text("widget-kit-v2-widget")), reconcileWait)
-			Expect(mustGetApp(ctx, systemNS, scope.Text("addon-widget-latest")).Annotations).Should(HaveKeyWithValue(oam.AnnotationWorkflowRestart, "2m"), "a duration is recurring and stays")
+			Expect(mustGetApp(ctx, systemNS, scope.Text("addon-widget-latest")).Annotations).Should(HaveKeyWithValue(oam.AnnotationWorkflowRestart, every), "a duration is recurring and stays")
 		})
 	})
 
@@ -1055,7 +1064,11 @@ var _ = Describe("Addons that import modules", func() {
 		It("changes nothing on the cluster when both tags are re-pushed and the workflows do not run", func() {
 			publishModuleFixture("probe-kit-1.0.0-b")
 			pushAddonFixture("cache-probe-1.0.0-b")
-			Consistently(read, 130*time.Second, 10*time.Second).Should(Equal(buildA), "two resyncs render for health only")
+			consistentlyReconciled(ctx, []client.Object{
+				appRef(testNS, scope.Text("cache-probe")), appRef(systemNS, scope.Text("addon-cache-probe")), appRef(systemNS, moduleProbeKit),
+			}, func(g Gomega) {
+				g.Expect(read()).Should(Equal(buildA))
+			}, "reconciles without a workflow run render for health only")
 		})
 
 		It("picks up the module's new digest once the addon Application's workflow re-runs, while the pinned addon stays cached", func() {
@@ -1068,7 +1081,9 @@ var _ = Describe("Addons that import modules", func() {
 				return getAppG(g, ctx, testNS, scope.Text("cache-probe")).Annotations[oam.AnnotationWorkflowRestart]
 			}, shortWait, pollInterval).Should(BeEmpty())
 			waitAppRunning(ctx, testNS, scope.Text("cache-probe"), shortWait)
-			Consistently(func() string { return read().addon }, 45*time.Second, 5*time.Second).Should(Equal("a"), "the pinned addon render comes from vela-core's in-memory cache")
+			consistentlyReconciled(ctx, []client.Object{appRef(testNS, scope.Text("cache-probe")), appRef(systemNS, scope.Text("addon-cache-probe"))}, func(g Gomega) {
+				g.Expect(read().addon).Should(Equal("a"))
+			}, "the pinned addon render comes from vela-core's in-memory cache")
 		})
 
 		It("delivers the re-pushed addon only after a controller restart and a re-run of the user Application's workflow", func() {
@@ -1194,10 +1209,18 @@ var _ = Describe("Addons that import modules", func() {
 			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(obj), obj)).Should(Succeed())
 			return obj.GetUID()
 		}
+		// Restoring is state keep, which runs on every reconcile of the owning
+		// Application. The chain is listed owner first: a request for an object
+		// that is gone fails that poll, and its owner has been requested by then.
+		// The consumer is left out: while its definitions are gone, admission
+		// refuses its updates, a reconcile request included.
 		waitBack := func(obj client.Object, timeout time.Duration) {
-			Eventually(func() error {
-				return k8sClient.Get(ctx, client.ObjectKeyFromObject(obj), obj)
-			}, timeout, pollInterval).Should(Succeed(), "%T %s did not come back", obj, client.ObjectKeyFromObject(obj))
+			chain := []client.Object{
+				appRef(testNS, widgetPlatformApp), appRef(systemNS, addonWidgetPlatform), appRef(systemNS, moduleWidgetKit),
+			}
+			eventuallyReconciled(ctx, chain, timeout, func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(obj), obj)).Should(Succeed())
+			}, "%T %s did not come back", obj, client.ObjectKeyFromObject(obj))
 		}
 
 		BeforeAll(func() {
@@ -1233,13 +1256,11 @@ var _ = Describe("Addons that import modules", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			cm.Data["configRevision"] = "tampered"
 			Expect(k8sClient.Update(ctx, cm)).Should(Succeed())
-			Eventually(func() string {
+			eventuallyReconciled(ctx, []client.Object{appRef(systemNS, moduleWidgetKit)}, reconcileWait, func(g Gomega) {
 				got, err := getConfigMap(ctx, systemNS, scope.Text("widget-kit-v1-line-config"))
-				if err != nil {
-					return ""
-				}
-				return got.Data["configRevision"]
-			}, reconcileWait, pollInterval).Should(Equal("1"))
+				g.Expect(err).ShouldNot(HaveOccurred())
+				g.Expect(got.Data["configRevision"]).Should(Equal("1"))
+			})
 		})
 
 		It("recreates a deleted line auxiliary custom resource", func() {
@@ -1495,7 +1516,11 @@ var _ = Describe("Addons that import modules", func() {
 				if i > 0 {
 					setAddonVersion(ctx, appName, tc.version)
 				}
-				Eventually(func(g Gomega) {
+				// Only the user Application: admission accepts it with a broken
+				// version (setAddonVersion is such an update), but refuses
+				// updates to the addon Application whose imports cannot resolve.
+				brokenChain := []client.Object{appRef(testNS, appName)}
+				eventuallyReconciled(ctx, brokenChain, reconcileWait, func(g Gomega) {
 					addonApp := getAppG(g, ctx, systemNS, scope.Text("addon-broken-imports"))
 					g.Expect(addonApp.Labels).Should(HaveKeyWithValue(oam.LabelAddonVersion, tc.version))
 					g.Expect(addonApp.Status.Phase).ShouldNot(Equal(common.ApplicationRunning))
@@ -1514,15 +1539,15 @@ var _ = Describe("Addons that import modules", func() {
 					marker, err := getConfigMap(ctx, systemNS, scope.Text("broken-imports-marker"))
 					g.Expect(err).ShouldNot(HaveOccurred())
 					g.Expect(marker.Data).Should(HaveKeyWithValue("variant", tc.version))
-				}, reconcileWait, pollInterval).Should(Succeed())
+				})
 				// The user Application's addon status only counts components with
 				// a service entry, so it shows Ready:1/1 workflowFailed (#19, #22).
-				Eventually(func(g Gomega) {
+				eventuallyReconciled(ctx, brokenChain, reconcileWait, func(g Gomega) {
 					svc := findService(getAppG(g, ctx, testNS, appName), appName)
 					g.Expect(svc).ShouldNot(BeNil())
 					g.Expect(svc.Healthy).Should(BeFalse())
 					g.Expect(svc.Message).Should(ContainSubstring("workflowFailed"))
-				}, reconcileWait, pollInterval).Should(Succeed())
+				})
 				Expect(isNotFound(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: moduleWidgetKit, Namespace: systemNS}})).Should(BeTrue())
 				Expect(isNotFound(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: scope.Text("module-ghost-kit"), Namespace: systemNS}})).Should(BeTrue())
 			}
@@ -1614,8 +1639,16 @@ var _ = Describe("Addons that import modules", func() {
 		// logged: the service keeps the health it last recorded, so the failure
 		// is not surfaced in status. That is a known limitation of addon and
 		// module health; what must hold is that nothing is removed meanwhile.
+		chain := func() []client.Object {
+			return []client.Object{appRef(testNS, widgetPlatformApp), appRef(systemNS, addonWidgetPlatform), appRef(systemNS, moduleWidgetKit)}
+		}
+		// Admission renders every update, so while a registry is gone a reconcile
+		// request would be refused; this window waits for real resyncs instead.
 		staysInstalled := func() {
 			Consistently(installed, 30*time.Second, 5*time.Second).Should(Succeed())
+		}
+		becomesHealthy := func() {
+			eventuallyReconciled(ctx, chain(), reconcileWait, func(g Gomega) { health(g, "Ready:6/6") })
 		}
 		restoreModuleRegistry := func() {
 			runVelaSucceed("module", "registry", "add", moduleRegistryName, moduleRegistry.cluster, "--type", "oci")
@@ -1639,7 +1672,7 @@ var _ = Describe("Addons that import modules", func() {
 			staysInstalled()
 
 			restoreModuleRegistry()
-			Eventually(func(g Gomega) { health(g, "Ready:6/6") }, reconcileWait, pollInterval).Should(Succeed())
+			becomesHealthy()
 		})
 
 		It("refuses a credential for a plain-HTTP module registry instead of storing a bad one", func() {
@@ -1651,7 +1684,7 @@ var _ = Describe("Addons that import modules", func() {
 			Expect(err).Should(HaveOccurred(), out)
 			restoreModuleRegistry()
 			Expect(runVelaSucceed("module", "registry", "list")).Should(ContainSubstring(moduleRegistryName))
-			Consistently(func(g Gomega) { health(g, "Ready:6/6") }, 30*time.Second, 5*time.Second).Should(Succeed())
+			consistentlyReconciled(ctx, chain(), func(g Gomega) { health(g, "Ready:6/6") })
 		})
 
 		It("a deleted addon registry removes nothing, even across a controller restart, and admission still checks the name", func() {
@@ -1668,7 +1701,7 @@ var _ = Describe("Addons that import modules", func() {
 
 			By("adding the registry back")
 			restoreAddonRegistry()
-			Eventually(func(g Gomega) { health(g, "Ready:6/6") }, reconcileWait, pollInterval).Should(Succeed())
+			becomesHealthy()
 		})
 	})
 
@@ -1782,6 +1815,15 @@ var _ = Describe("Addons that import modules", func() {
 		// service keeps the health it last recorded. So the gate message is not
 		// surfaced on running installs, a known limitation of addon and module
 		// health. What must hold is that turning a gate off removes nothing.
+		chain := func() []client.Object {
+			return []client.Object{
+				appRef(testNS, widgetPlatformApp), appRef(systemNS, addonWidgetPlatform), appRef(systemNS, moduleWidgetKit),
+				appRef(testNS, "module-direct"), appRef(systemNS, moduleGadgetKit),
+			}
+		}
+
+		// While a gate is off admission refuses updates to these Applications, a
+		// reconcile request included, so these windows wait for real resyncs.
 		It("with the module gate off, nothing is garbage-collected", func() {
 			setFeatureGates(ctx, true, false)
 			Consistently(func(g Gomega) {
@@ -1820,18 +1862,18 @@ var _ = Describe("Addons that import modules", func() {
 
 		It("turning both gates back on heals everything on the next reconcile", func() {
 			setFeatureGates(ctx, true, true)
-			Eventually(func(g Gomega) {
+			eventuallyReconciled(ctx, chain(), reconcileWait, func(g Gomega) {
 				svc := findService(getAppG(g, ctx, testNS, widgetPlatformApp), scope.Text("widget-platform"))
 				g.Expect(svc).ShouldNot(BeNil())
 				g.Expect(svc.Healthy).Should(BeTrue(), svc.Message)
 				g.Expect(svc.Message).Should(Equal("Ready:6/6"))
-			}, reconcileWait, pollInterval).Should(Succeed())
-			Eventually(func(g Gomega) {
+			})
+			eventuallyReconciled(ctx, chain(), reconcileWait, func(g Gomega) {
 				svc := findService(getAppG(g, ctx, testNS, "module-direct"), scope.Text("gadget-kit"))
 				g.Expect(svc).ShouldNot(BeNil())
 				g.Expect(svc.Healthy).Should(BeTrue(), svc.Message)
 				g.Expect(svc.Message).Should(Equal("Ready:3/3"))
-			}, reconcileWait, pollInterval).Should(Succeed())
+			})
 		})
 	})
 })

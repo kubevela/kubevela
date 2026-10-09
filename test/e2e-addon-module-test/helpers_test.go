@@ -49,6 +49,7 @@ import (
 	veltypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	regcomponent "github.com/oam-dev/kubevela/pkg/registry/component"
+	framework "github.com/oam-dev/kubevela/test/e2e-framework"
 )
 
 // systemNS is where every addon-<name> and module-<name> Application, and
@@ -595,6 +596,28 @@ func annotateApp(ctx context.Context, ns, name, key, value string) {
 // one-shot (the annotation is removed once used); a duration recurs.
 func restartWorkflow(ctx context.Context, ns, name, value string) {
 	annotateApp(ctx, ns, name, oam.AnnotationWorkflowRestart, value)
+}
+
+func appRef(ns, name string) client.Object {
+	return &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: name}}
+}
+
+// eventuallyReconciled polls assertion while requesting reconciles of apps
+// whenever the controller leaves them alone, so a wait for the next resync or
+// for a failing step's backoff is cut short. A requested reconcile takes the
+// resync path: it changes no spec, so no workflow runs because of it.
+func eventuallyReconciled(ctx context.Context, apps []client.Object, timeout time.Duration, assertion func(g Gomega), description ...interface{}) {
+	GinkgoHelper()
+	(&framework.Framework{Client: k8sClient}).EventuallyReconciledAll(ctx, apps, assertion).
+		WithTimeout(timeout).Should(Succeed(), description...)
+}
+
+// consistentlyReconciled holds assertion across several requested reconciles
+// of every app, so "nothing changes" is checked across renders that really
+// ran instead of across a wall-clock window sized to the resync period.
+func consistentlyReconciled(ctx context.Context, apps []client.Object, assertion func(g Gomega), description ...interface{}) {
+	GinkgoHelper()
+	(&framework.Framework{Client: k8sClient}).ConsistentlyReconciledAll(ctx, apps, assertion).Should(Succeed(), description...)
 }
 
 // expectPublishVersionRefused tries to bump publishVersion on an Application
