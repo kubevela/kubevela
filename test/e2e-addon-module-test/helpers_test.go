@@ -108,10 +108,7 @@ var (
 	addonRegistry  registryEndpoints
 )
 
-var (
-	widgetGVK      = schema.GroupVersionKind{Group: "kit.example.com", Version: "v1alpha1", Kind: "Widget"}
-	widgetClassGVK = schema.GroupVersionKind{Group: "kit.example.com", Version: "v1alpha1", Kind: "WidgetClass"}
-)
+var widgetGVK = schema.GroupVersionKind{Group: "kit.example.com", Version: "v1alpha1", Kind: "Widget"}
 
 // --- paths and the CLI ---
 
