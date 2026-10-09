@@ -94,6 +94,19 @@ image-load:
 	docker build -t $(VELA_CORE_TEST_IMAGE) -f Dockerfile.e2e .
 	kind load docker-image $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
 
+E2E_IMAGE_ARCHIVE ?= _artifacts/image/vela-core-test.tar
+
+## image-archive: build the e2e image once and save it for image-load-archive
+image-archive:
+	docker build -t $(VELA_CORE_TEST_IMAGE) -f Dockerfile.e2e .
+	mkdir -p $(dir $(E2E_IMAGE_ARCHIVE))
+	docker save -o $(E2E_IMAGE_ARCHIVE) $(VELA_CORE_TEST_IMAGE)
+
+## image-load-archive: load an image-archive tarball into the kind cluster
+image-load-archive:
+	tar -xOf $(E2E_IMAGE_ARCHIVE) manifest.json | grep -q '"$(VELA_CORE_TEST_IMAGE)"' || { echo >&2 "$(E2E_IMAGE_ARCHIVE) does not contain $(VELA_CORE_TEST_IMAGE)"; exit 1; }
+	kind load image-archive $(E2E_IMAGE_ARCHIVE) || { echo >&2 "kind not installed or error loading archive: $(E2E_IMAGE_ARCHIVE)"; exit 1; }
+
 ## core-test: Run tests
 core-test:
 	go test ./pkg/... -coverprofile cover.out

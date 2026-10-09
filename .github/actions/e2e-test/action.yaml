@@ -22,6 +22,14 @@ inputs:
     description: 'Ginkgo workers: auto uses all available CPUs; or a positive integer'
     required: false
     default: 'auto'
+  image-artifact:
+    description: 'Artifact of this run holding a prebuilt vela-core e2e image archive; empty when setup-kind-cluster loaded the image'
+    required: false
+    default: ''
+  image-job:
+    description: 'Name of the job that uploads image-artifact, watched so its failure ends the wait'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -64,6 +72,30 @@ runs:
           core|core-application|core-definitions|core-config|module|addon|addon-module) make e2e-vela-cli ;;
           source|core-helm|core-helm-auth) : ;;
         esac
+
+    # ========================================================================
+    # Prebuilt image: built once per run while this job set up the cluster
+    # ========================================================================
+    - name: Wait for prebuilt vela-core image
+      if: ${{ inputs.image-artifact != '' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        IMAGE_ARTIFACT: ${{ inputs.image-artifact }}
+        IMAGE_JOB: ${{ inputs.image-job }}
+      run: bash hack/e2e/wait_for_artifact.sh "$IMAGE_ARTIFACT" "$IMAGE_JOB"
+
+    - name: Download prebuilt vela-core image
+      if: ${{ inputs.image-artifact != '' }}
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: ${{ inputs.image-artifact }}
+        path: _artifacts/image
+
+    - name: Load prebuilt vela-core image
+      if: ${{ inputs.image-artifact != '' }}
+      shell: bash
+      run: make image-load-archive E2E_IMAGE_ARCHIVE=_artifacts/image/vela-core-test.tar
 
     # ========================================================================
     # E2E Test Environment Preparation

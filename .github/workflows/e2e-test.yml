@@ -19,6 +19,11 @@ permissions:
 env:
   # Common versions
   GO_VERSION: '1.23.8'
+  # Every suite job loads the same image, built once by build-image. Suite jobs
+  # do not wait for that job: they set up their cluster meanwhile and wait for
+  # the artifact just before installing the chart.
+  E2E_IMAGE_ARTIFACT: vela-core-e2e-image-${{ github.run_id }}
+  E2E_IMAGE_JOB: Build vela-core e2e image
 
 jobs:
 
@@ -38,12 +43,37 @@ jobs:
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
         continue-on-error: true
 
+  build-image:
+    name: Build vela-core e2e image
+    runs-on: ubuntu-22.04
+    needs: [ detect-noop ]
+    if: needs.detect-noop.outputs.noop != 'true'
+    timeout-minutes: 30
+    steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+      - name: Build and save image
+        run: make image-archive E2E_IMAGE_ARCHIVE=_artifacts/image/vela-core-test.tar
+
+      - name: Upload image
+        uses: actions/upload-artifact@134dcf33c0b9454c4b17a936843d7e21dccdc335 # v4.3.6
+        with:
+          name: ${{ env.E2E_IMAGE_ARTIFACT }}
+          path: _artifacts/image/vela-core-test.tar
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
   e2e-tests:
     name: ${{ matrix.package }} / Kubernetes ${{ matrix.k8s-version }}
     runs-on: ubuntu-22.04
     needs: [ detect-noop ]
     if: needs.detect-noop.outputs.noop != 'true'
     timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix:
@@ -84,6 +114,7 @@ jobs:
         uses: ./.github/actions/setup-kind-cluster
         with:
           k8s-version: ${{ matrix.k8s-version }}
+          load-image: 'false'
 
       # ========================================================================
       # E2E Test Execution
@@ -93,6 +124,8 @@ jobs:
         with:
           suite: ${{ matrix.suite }}
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
+          image-artifact: ${{ env.E2E_IMAGE_ARTIFACT }}
+          image-job: ${{ env.E2E_IMAGE_JOB }}
 
       - name: Upload suite reports
         if: ${{ always() }}
@@ -114,6 +147,9 @@ jobs:
     needs: [ detect-noop ]
     if: ${{ !cancelled() && needs.detect-noop.outputs.noop != 'true' }}
     timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-v1.31.9-api
       cancel-in-progress: true
@@ -124,6 +160,7 @@ jobs:
         uses: ./.github/actions/setup-kind-cluster
         with:
           k8s-version: v1.31.9
+          load-image: 'false'
       - name: Run existing API E2E tests
         uses: ./.github/actions/e2e-test
         with:
@@ -131,6 +168,8 @@ jobs:
           procs: '1'
           codecov-enable: true
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
+          image-artifact: ${{ env.E2E_IMAGE_ARTIFACT }}
+          image-job: ${{ env.E2E_IMAGE_JOB }}
       - name: Cleanup image
         if: ${{ always() }}
         run: |

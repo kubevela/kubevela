@@ -8,6 +8,10 @@ inputs:
   name:
     description: 'Name of the kind cluster'
     required: false
+  load-image:
+    description: 'Build the vela-core e2e image and load it into the cluster; set false when a prebuilt image is loaded later'
+    required: false
+    default: 'true'
 runs:
   using: 'composite'
   steps:
@@ -28,6 +32,7 @@ runs:
       shell: bash
 
     - name: Load image
+      if: ${{ inputs.load-image == 'true' }}
       run: |
         if [ -z "${{ inputs.name }}" ]; then
           mkdir -p $HOME/tmp/
