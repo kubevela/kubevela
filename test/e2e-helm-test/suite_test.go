@@ -37,7 +37,6 @@ func TestAPIs(t *testing.T) {
 
 var randomNamespaceName = framework.RandomNamespaceName
 var testDataPath = framework.TestDataPath
-var createNamespace = support.CreateNamespace
 var RequestReconcileNow = support.RequestReconcileNow
 var EventuallyReconciled = support.EventuallyReconciled
 var ConsistentlyReconciled = support.ConsistentlyReconciled

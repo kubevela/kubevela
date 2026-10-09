@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,7 +36,7 @@ import (
 
 func (f *Framework) CreateNamespace(ctx context.Context, namespaceName string) corev1.Namespace {
 	ns, err := CreateFreshNamespace(ctx, f.Client, namespaceName)
-	Expect(err).To(Succeed())
+	gomega.Expect(err).To(gomega.Succeed())
 	return ns
 }
 
@@ -55,24 +55,23 @@ func (f *Framework) CreateServiceAccount(ctx context.Context, ns, name string) {
 			Name:      name,
 		},
 	}
-	Eventually(
+	gomega.Eventually(
 		func() error {
 			return f.Client.Create(ctx, &sa)
 		},
-		time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		time.Second*3, time.Millisecond*300).Should(gomega.SatisfyAny(gomega.BeNil(), &util.AlreadyExistMatcher{}))
 }
 
 func (f *Framework) ApplyApp(ctx context.Context, namespaceName, source string, app *v1beta1.Application) {
-	By("Apply an application")
+	ginkgo.By("Apply an application")
 	var newApp v1beta1.Application
-	Expect(common.ReadYamlToObject(TestDataPath("app", source), &newApp)).Should(BeNil())
+	gomega.Expect(common.ReadYamlToObject(TestDataPath("app", source), &newApp)).Should(gomega.BeNil())
 	newApp.Namespace = namespaceName
-	Eventually(func() error {
+	gomega.Eventually(func() error {
 		return f.Client.Create(ctx, newApp.DeepCopy())
-	}, 10*time.Second, 500*time.Millisecond).Should(Succeed())
-
-	By("Get Application latest status")
-	Eventually(
+	}, 10*time.Second, 500*time.Millisecond).Should(gomega.Succeed())
+	ginkgo.By("Get Application latest status")
+	gomega.Eventually(
 		func() *oamcomm.Revision {
 			_ = f.Client.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: newApp.Name}, app)
 			if app.Status.LatestRevision != nil {
@@ -80,25 +79,24 @@ func (f *Framework) ApplyApp(ctx context.Context, namespaceName, source string, 
 			}
 			return nil
 		},
-		time.Second*30, time.Millisecond*500).ShouldNot(BeNil())
+		time.Second*30, time.Millisecond*500).ShouldNot(gomega.BeNil())
 }
 
 func (f *Framework) UpdateApp(ctx context.Context, namespaceName, target string, app *v1beta1.Application) {
-	By("Update the application to target spec during rolling")
+	ginkgo.By("Update the application to target spec during rolling")
 	var targetApp v1beta1.Application
-	Expect(common.ReadYamlToObject(TestDataPath("app", target), &targetApp)).Should(BeNil())
-
-	Eventually(
+	gomega.Expect(common.ReadYamlToObject(TestDataPath("app", target), &targetApp)).Should(gomega.BeNil())
+	gomega.Eventually(
 		func() error {
 			_ = f.Client.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: app.Name}, app)
 			app.Spec = targetApp.Spec
 			return f.Client.Update(ctx, app)
-		}, time.Second*5, time.Millisecond*500).Should(Succeed())
+		}, time.Second*5, time.Millisecond*500).Should(gomega.Succeed())
 }
 
 func (f *Framework) VerifyApplicationPhase(ctx context.Context, ns, appName string, expected oamcomm.ApplicationPhase) {
 	var testApp v1beta1.Application
-	Eventually(func() error {
+	gomega.Eventually(func() error {
 		err := f.Client.Get(ctx, client.ObjectKey{Namespace: ns, Name: appName}, &testApp)
 		if err != nil {
 			return err
@@ -107,12 +105,12 @@ func (f *Framework) VerifyApplicationPhase(ctx context.Context, ns, appName stri
 			return fmt.Errorf("application status wants %s, actually %s", expected, testApp.Status.Phase)
 		}
 		return nil
-	}, 120*time.Second, time.Second).Should(BeNil())
+	}, 120*time.Second, time.Second).Should(gomega.BeNil())
 }
 
 func (f *Framework) VerifyApplicationDelaySuspendExpected(ctx context.Context, ns, appName, suspendStep, nextStep, duration string) {
 	var testApp v1beta1.Application
-	Eventually(func() error {
+	gomega.Eventually(func() error {
 		waitDuration, err := time.ParseDuration(duration)
 		if err != nil {
 			return err
@@ -160,13 +158,13 @@ func (f *Framework) VerifyApplicationDelaySuspendExpected(ctx context.Context, n
 			return nil
 		}
 		return fmt.Errorf("application status workflow finished wants true, actually false")
-	}, 120*time.Second, time.Second).Should(BeNil())
+	}, 120*time.Second, time.Second).Should(gomega.BeNil())
 }
 
 func (f *Framework) VerifyWorkloadRunningExpected(ctx context.Context, namespaceName, workloadName string, replicas int32, image string) {
 	var workload v1.Deployment
-	By("Verify Workload running as expected")
-	Eventually(
+	ginkgo.By("Verify Workload running as expected")
+	gomega.Eventually(
 		func() error {
 			if err := f.Client.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: workloadName}, &workload); err != nil {
 				return err
@@ -179,5 +177,5 @@ func (f *Framework) VerifyWorkloadRunningExpected(ctx context.Context, namespace
 			}
 			return nil
 		},
-		time.Second*60, time.Millisecond*500).Should(BeNil())
+		time.Second*60, time.Millisecond*500).Should(gomega.BeNil())
 }

@@ -35,8 +35,6 @@ func TestAPIs(t *testing.T) {
 	RunSpecs(t, "Helm Authentication E2E Suite")
 }
 
-var createNamespace = support.CreateNamespace
-
 type helmTestContext = framework.HelmTestContext
 
 var newHelmTestContext = support.NewHelmTestContext

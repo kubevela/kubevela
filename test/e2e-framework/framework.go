@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -66,19 +66,19 @@ func (f *Framework) bootstrap() {
 	if f.Client != nil {
 		return
 	}
-	By("Bootstrapping test environment")
+	ginkgo.By("Bootstrapping test environment")
 	rand.Seed(time.Now().UnixNano())
-	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
+	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(ginkgo.GinkgoWriter)))
 	err := clientgoscheme.AddToScheme(f.Scheme)
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 	err = core.AddToScheme(f.Scheme)
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 	err = crdv1.AddToScheme(f.Scheme)
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 	err = kruise.AddToScheme(f.Scheme)
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 	err = configoam.AddToScheme(f.Scheme)
-	Expect(err).Should(BeNil())
+	gomega.Expect(err).Should(gomega.BeNil())
 	depExample := &unstructured.Unstructured{}
 	depExample.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "example.com",
@@ -89,19 +89,19 @@ func (f *Framework) bootstrap() {
 	depSchemeBuilder := &controllerscheme.Builder{GroupVersion: depSchemeGroupVersion}
 	depSchemeBuilder.Register(depExample.DeepCopyObject())
 	err = depSchemeBuilder.AddToScheme(f.Scheme)
-	Expect(err).Should(BeNil())
-	By("Setting up kubernetes client")
+	gomega.Expect(err).Should(gomega.BeNil())
+	ginkgo.By("Setting up kubernetes client")
 	f.Client, err = client.New(config.GetConfigOrDie(), client.Options{Scheme: f.Scheme})
 	if err != nil {
 		logf.Log.Error(err, "failed to create Kubernetes client")
-		Fail("setup failed")
+		ginkgo.Fail("setup failed")
 	}
-	By("Finished setting up test environment")
+	ginkgo.By("Finished setting up test environment")
 }
 
 // Register synchronizes shared setup and waits for all workers before cleanup.
 func (f *Framework) Register(auth bool, ready func(client.Client)) bool {
-	SynchronizedBeforeSuite(func() {
+	ginkgo.SynchronizedBeforeSuite(func() {
 		f.bootstrap()
 		ready(f.Client)
 
@@ -117,43 +117,42 @@ func (f *Framework) Register(auth bool, ready func(client.Client)) bool {
 				},
 			},
 		}
-		Expect(f.Client.Create(context.Background(), &wdDeploy)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		By("Created deployments.apps")
+		gomega.Expect(f.Client.Create(context.Background(), &wdDeploy)).Should(gomega.SatisfyAny(gomega.BeNil(), &util.AlreadyExistMatcher{}))
+		ginkgo.By("Created deployments.apps")
 
 		var token [12]byte
 		_, err := cryptorand.Read(token[:])
-		Expect(err).NotTo(HaveOccurred())
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		runID := hex.EncodeToString(token[:])
 		ownedRBAC, err := installCoreSuiteRBAC(context.Background(), f.Client, runID)
-		Expect(err).NotTo(HaveOccurred())
-		DeferCleanup(func() {
-			Expect(ownedRBAC.cleanup(context.Background(), f.Client)).To(Succeed())
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		ginkgo.DeferCleanup(func() {
+			gomega.Expect(ownedRBAC.cleanup(context.Background(), f.Client)).To(gomega.Succeed())
 		})
-		By("Created example.com cluster role and binding for the test service account")
+		ginkgo.By("Created example.com cluster role and binding for the test service account")
 
 		if auth && os.Getenv("KUBEVELA_E2E_AUTH") == "1" {
 			var ns corev1.Namespace
 			err := f.Client.Get(context.Background(), client.ObjectKey{Name: authTestNamespace}, &ns)
-			Expect(apierrors.IsNotFound(err)).To(BeTrue(), "auth-test namespace already exists or could not be checked: %v", err)
+			gomega.Expect(apierrors.IsNotFound(err)).To(gomega.BeTrue(), "auth-test namespace already exists or could not be checked: %v", err)
 			f.authSetupStarted = true
-			By("Bringing up auth-test registries")
-			Expect(setupAuthRegistries(context.Background(), f.Client)).To(Succeed())
-
-			By("Pushing test chart to auth-test registries")
+			ginkgo.By("Bringing up auth-test registries")
+			gomega.Expect(setupAuthRegistries(context.Background(), f.Client)).To(gomega.Succeed())
+			ginkgo.By("Pushing test chart to auth-test registries")
 			cfg, err := authTestRestConfig()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(pushTestChartToRegistries(context.Background(), cfg)).To(Succeed())
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(pushTestChartToRegistries(context.Background(), cfg)).To(gomega.Succeed())
 		} else {
-			By("Skipping auth-test registries setup for this suite")
+			ginkgo.By("Skipping auth-test registries setup for this suite")
 		}
 		f.waitForControllerReconciling(context.Background())
 
 	}, func() { f.bootstrap(); ready(f.Client) })
-	SynchronizedAfterSuite(func() {}, func() {
-		By("Tearing down the test environment")
+	ginkgo.SynchronizedAfterSuite(func() {}, func() {
+		ginkgo.By("Tearing down the test environment")
 		if f.authSetupStarted {
-			By("Tearing down auth-test registries")
-			Expect(tearDownAuthRegistries(context.Background(), f.Client)).To(Succeed())
+			ginkgo.By("Tearing down auth-test registries")
+			gomega.Expect(tearDownAuthRegistries(context.Background(), f.Client)).To(gomega.Succeed())
 		}
 	})
 	return true
@@ -164,7 +163,7 @@ func (f *Framework) Register(auth bool, ready func(client.Client)) bool {
 // still waits on the leader lease, and the auth setup restarts it to inject a
 // CA, so without this the first spec races the controller's start.
 func (f *Framework) waitForControllerReconciling(ctx context.Context) {
-	By("Waiting for the controller to reconcile a canary Application")
+	ginkgo.By("Waiting for the controller to reconcile a canary Application")
 	name := RandomNamespaceName("e2e-canary")
 	app := &v1beta1.Application{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
@@ -174,13 +173,13 @@ func (f *Framework) waitForControllerReconciling(ctx context.Context) {
 			Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"objects":[{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":%q}}]}`, name))},
 		}}},
 	}
-	Eventually(func() error { return f.Client.Create(ctx, app) }, 30*time.Second, time.Second).Should(Succeed())
-	DeferCleanup(func() { _ = f.Client.Delete(ctx, app) })
-	Eventually(func(g Gomega) {
+	gomega.Eventually(func() error { return f.Client.Create(ctx, app) }, 30*time.Second, time.Second).Should(gomega.Succeed())
+	ginkgo.DeferCleanup(func() { _ = f.Client.Delete(ctx, app) })
+	gomega.Eventually(func(g gomega.Gomega) {
 		current := &v1beta1.Application{}
-		g.Expect(f.Client.Get(ctx, client.ObjectKeyFromObject(app), current)).To(Succeed())
-		g.Expect(current.Status.Phase).To(Equal(commontypes.ApplicationRunning))
-	}, 2*time.Minute, 500*time.Millisecond).Should(Succeed())
+		g.Expect(f.Client.Get(ctx, client.ObjectKeyFromObject(app), current)).To(gomega.Succeed())
+		g.Expect(current.Status.Phase).To(gomega.Equal(commontypes.ApplicationRunning))
+	}, 2*time.Minute, 500*time.Millisecond).Should(gomega.Succeed())
 }
 
 // RequestReconcileNow queues o for an immediate reconcile. The Application
@@ -188,9 +187,9 @@ func (f *Framework) waitForControllerReconciling(ctx context.Context) {
 // workloads it applies, so a change to them is otherwise seen on the next
 // resync.
 func (f *Framework) RequestReconcileNow(ctx context.Context, o client.Object) {
-	By(fmt.Sprintf("Request reconcile %q now", o.GetName()))
+	ginkgo.By(fmt.Sprintf("Request reconcile %q now", o.GetName()))
 	_, err := f.requestReconcile(ctx, o)
-	Expect(err).Should(Succeed())
+	gomega.Expect(err).Should(gomega.Succeed())
 }
 
 // requestReconcile stamps an annotation, which passes the Application
@@ -222,9 +221,9 @@ type reconcileRequester struct {
 
 const quietPeriod = 3 * time.Second
 
-func (r *reconcileRequester) request(g Gomega) {
+func (r *reconcileRequester) request(g gomega.Gomega) {
 	current := r.obj.DeepCopyObject().(client.Object)
-	g.Expect(r.framework.Client.Get(r.ctx, client.ObjectKeyFromObject(r.obj), current)).To(Succeed())
+	g.Expect(r.framework.Client.Get(r.ctx, client.ObjectKeyFromObject(r.obj), current)).To(gomega.Succeed())
 	now := time.Now()
 	if rv := current.GetResourceVersion(); rv != r.seenRV {
 		r.seenRV, r.seenAt = rv, now
@@ -233,16 +232,16 @@ func (r *reconcileRequester) request(g Gomega) {
 		return
 	}
 	rv, err := r.framework.requestReconcile(r.ctx, r.obj)
-	g.Expect(err).To(Succeed())
+	g.Expect(err).To(gomega.Succeed())
 	r.seenRV, r.seenAt = rv, now
 }
 
 // EventuallyReconciled polls assertion, requesting a reconcile of o whenever the
 // controller has left it alone for quietPeriod. Every reconcile also re-runs a
 // failing workflow step, so the long gaps of the step backoff are cut short.
-func (f *Framework) EventuallyReconciled(ctx context.Context, o client.Object, assertion func(g Gomega)) AsyncAssertion {
+func (f *Framework) EventuallyReconciled(ctx context.Context, o client.Object, assertion func(g gomega.Gomega)) gomega.AsyncAssertion {
 	r := &reconcileRequester{framework: f, ctx: ctx, obj: o}
-	return Eventually(func(g Gomega) {
+	return gomega.Eventually(func(g gomega.Gomega) {
 		r.request(g)
 		assertion(g)
 	}).WithPolling(time.Second).WithTimeout(2 * time.Minute)
@@ -252,9 +251,9 @@ func (f *Framework) EventuallyReconciled(ctx context.Context, o client.Object, a
 // "nothing changed" is checked across real reconciles. The controller records
 // nothing when a requested reconcile completes, so the window spans three
 // requests rather than relying on the first one finishing.
-func (f *Framework) ConsistentlyReconciled(ctx context.Context, o client.Object, assertion func(g Gomega)) AsyncAssertion {
+func (f *Framework) ConsistentlyReconciled(ctx context.Context, o client.Object, assertion func(g gomega.Gomega)) gomega.AsyncAssertion {
 	r := &reconcileRequester{framework: f, ctx: ctx, obj: o}
-	return Consistently(func(g Gomega) {
+	return gomega.Consistently(func(g gomega.Gomega) {
 		r.request(g)
 		assertion(g)
 	}).WithPolling(time.Second).WithTimeout(4 * quietPeriod)
@@ -272,7 +271,7 @@ func RandomNamespaceName(basic string) string {
 	if basic == "" {
 		return suffix
 	}
-	worker := fmt.Sprintf("-p%d", GinkgoParallelProcess())
+	worker := fmt.Sprintf("-p%d", ginkgo.GinkgoParallelProcess())
 	suffix = worker + suffix
 	var readable strings.Builder
 	lastWasSeparator := false
