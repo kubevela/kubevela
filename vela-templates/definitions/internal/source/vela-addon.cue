@@ -27,7 +27,8 @@ template: {
 		namespace: *"vela-system" | string
 	}
 
-	_addonNamespace: parameter.namespace
+	// interpolated, so the parameter's default is settled before it meets kube.#List's own default for filter.namespace
+	_addonNamespace: "\(parameter.namespace)"
 
 	_apps: kube.#List & {
 		$params: {

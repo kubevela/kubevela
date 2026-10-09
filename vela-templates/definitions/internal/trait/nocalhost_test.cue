@@ -80,3 +80,36 @@ _web: {
 	parameter: image: "go"
 	expect: error:    =~"portForward"
 }
+
+"the dev container's shell, commands, debugging, sync and resources are carried in the configuration": test.#TraitRender & _web & {
+	parameter: {
+		image:       "go"
+		serviceType: "statefulset"
+		shell:       "zsh"
+		workDir:     "/src"
+		command: {run: ["make", "run"], debug: ["make", "debug"]}
+		debug: remoteDebugPort: 2345
+		hotReload: false
+		sync: {type: "sendAndReceive", filePattern: ["./src"], ignoreFilePattern: [".git"]}
+		resources: {
+			limits: {memory: "4Gi", cpu: "4"}
+			requests: {memory: "1Gi", cpu: "1"}
+		}
+	}
+	expect: output: metadata: annotations: "dev.nocalhost": =~"^\\{\"name\":\"web\",\"serviceType\":\"statefulset\"," &
+		=~"\"shell\":\"zsh\",\"workDir\":\"/src\"," &
+		=~"\"resources\":\\{\"limits\":\\{\"memory\":\"4Gi\",\"cpu\":\"4\"\\},\"requests\":\\{\"memory\":\"1Gi\",\"cpu\":\"1\"\\}\\}" &
+		=~"\"command\":\\{\"run\":\\[\"make\",\"run\"\\],\"debug\":\\[\"make\",\"debug\"\\]\\}" &
+		=~"\"debug\":\\{\"remoteDebugPort\":2345\\}" &
+		=~"\"hotReload\":false" &
+		=~"\"sync\":\\{\"type\":\"sendAndReceive\",\"filePattern\":\\[\"./src\"\\],\"ignoreFilePattern\":\\[\".git\"\\]\\}"
+}
+
+"the dev container defaults its shell, commands, sync and resources": test.#TraitRender & _web & {
+	parameter: image: "go"
+	expect: output: metadata: annotations: "dev.nocalhost": =~"\"shell\":\"bash\",\"workDir\":\"/home/nocalhost-dev\"," &
+		=~"\"resources\":\\{\"limits\":\\{\"memory\":\"2Gi\",\"cpu\":\"2\"\\},\"requests\":\\{\"memory\":\"512Mi\",\"cpu\":\"0.5\"\\}\\}" &
+		=~"\"command\":\\{\"run\":\\[\"sh\",\"run.sh\"\\],\"debug\":\\[\"sh\",\"debug.sh\"\\]\\}" &
+		=~"\"hotReload\":true" &
+		!~"\"debug\":\\{"
+}

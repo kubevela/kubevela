@@ -46,7 +46,7 @@ _ready: {
 	definition: "apply-deployment"
 	parameter: image: "nginx:1.25"
 	expect: phase:    "running"
-} @pending(the wait reads status.readyReplicas without guarding it, so an unreported count fails the step with reason Execute instead of waiting)
+}
 
 "succeeds once the replicas are ready": test.#WorkflowStepExec & _ready & {
 	definition: "apply-deployment"
@@ -67,6 +67,13 @@ _ready: {
 	_n:         3
 	definition: "apply-deployment"
 	parameter: {image: "nginx:1.25", replicas: 3}
+	expect: phase: "succeeded"
+}
+
+// A Deployment scaled to zero never reports readyReplicas.
+"succeeds at once with zero replicas": test.#WorkflowStepExec & {
+	definition: "apply-deployment"
+	parameter: {image: "nginx:1.25", replicas: 0}
 	expect: phase: "succeeded"
 }
 

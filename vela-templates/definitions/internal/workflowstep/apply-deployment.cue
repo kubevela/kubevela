@@ -43,8 +43,10 @@ template: {
 			}
 		}
 	}
+	// Kubernetes omits readyReplicas while it is zero.
+	let readyReplicas = [if output.$returns.value.status.readyReplicas != _|_ {output.$returns.value.status.readyReplicas}, 0][0]
 	wait: builtin.#ConditionalWait & {
-		$params: continue: output.$returns.value.status.readyReplicas == parameter.replicas
+		$params: continue: readyReplicas == parameter.replicas
 	}
 	parameter: {
 		image:    string

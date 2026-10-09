@@ -19,6 +19,15 @@ spec:
   schematic:
     cue:
       template: |
+        // rollingStrategy is optional; its fields take their defaults when it is left out
+        let rolling = {
+        	maxSurge:       *"25%" | string
+        	maxUnavailable: *"25%" | string
+        	partition:      *0 | int
+        	if parameter.strategy.rollingStrategy != _|_ {
+        		parameter.strategy.rollingStrategy
+        	}
+        }
         patch: spec: {
         	if parameter.targetKind == "Deployment" && parameter.strategy.type != "OnDelete" {
         		// +patchStrategy=retainKeys
@@ -26,8 +35,8 @@ spec:
         			type: parameter.strategy.type
         			if parameter.strategy.type == "RollingUpdate" {
         				rollingUpdate: {
-        					maxSurge:       parameter.strategy.rollingStrategy.maxSurge
-        					maxUnavailable: parameter.strategy.rollingStrategy.maxUnavailable
+        					maxSurge:       rolling.maxSurge
+        					maxUnavailable: rolling.maxUnavailable
         				}
         			}
         		}
@@ -38,7 +47,7 @@ spec:
         		updateStrategy: {
         			type: parameter.strategy.type
         			if parameter.strategy.type == "RollingUpdate" {
-        				rollingUpdate: partition: parameter.strategy.rollingStrategy.partition
+        				rollingUpdate: partition: rolling.partition
         			}
         		}
         	}
@@ -49,8 +58,8 @@ spec:
         			type: parameter.strategy.type
         			if parameter.strategy.type == "RollingUpdate" {
         				rollingUpdate: {
-        					maxSurge:       parameter.strategy.rollingStrategy.maxSurge
-        					maxUnavailable: parameter.strategy.rollingStrategy.maxUnavailable
+        					maxSurge:       rolling.maxSurge
+        					maxUnavailable: rolling.maxUnavailable
         				}
         			}
         		}

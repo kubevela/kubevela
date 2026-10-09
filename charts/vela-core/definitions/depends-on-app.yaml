@@ -28,6 +28,7 @@ spec:
         		}
         	}
         }
+        // An Application has no status.status until it is first reconciled, and the step waits for it.
         load: {
         	if dependsOn.$returns.err != _|_ {
         		configMap: kube.#Read & {
@@ -45,13 +46,13 @@ spec:
         			$params: value: yaml.Unmarshal(template)
         		}
         		wait: builtin.#ConditionalWait & {
-        			$params: continue: apply.$returns.value.status.status == "running"
+        			$params: continue: [if apply.$returns.value.status.status != _|_ {apply.$returns.value.status.status == "running"}, false][0]
         		}
         	}
 
         	if dependsOn.$returns.err == _|_ {
         		wait: builtin.#ConditionalWait & {
-        			$params: continue: dependsOn.$returns.value.status.status == "running"
+        			$params: continue: [if dependsOn.$returns.value.status.status != _|_ {dependsOn.$returns.value.status.status == "running"}, false][0]
         		}
         	}
         }

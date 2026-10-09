@@ -85,3 +85,14 @@ _web: {
 	parameter: containers: [{command: ["work"]}]
 	expect: error: user: [=~"container name must be set for containers"]
 }
+
+"containers can add and delete args per container": test.#TraitRender & _web & {
+	parameter: containers: [
+		{containerName: "web", addArgs: ["--trace"], delArgs: ["--debug"]},
+		{containerName: "proxy", addArgs: ["--concurrency", "2"]},
+	]
+	expect: output: spec: template: spec: containers: [
+		{name: "web", command: ["shop"], args: ["--port", "80", "--trace"]},
+		{name: "proxy", args: ["--log-level", "info", "--concurrency", "2"]},
+	]
+}

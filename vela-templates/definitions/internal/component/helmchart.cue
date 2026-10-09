@@ -21,13 +21,14 @@ import (
 					if len(_criteria) > 0 {
 						_criteriaResults: [ for criterion in _criteria {
 							_targetKind: criterion.resource.kind
-							_targetName: criterion.resource.name
+							// an empty name matches any resource of the kind
+							_targetName: [if criterion.resource.name != _|_ {criterion.resource.name}, ""][0]
 							_conditionType: criterion.condition.type
 							_conditionStatus: *"True" | criterion.condition.status
 							// Search through all outputs for matching resource
 							_matchingResources: [ for outputKey, resource in context.outputs 
 								if resource.kind == _targetKind && 
-									(_targetName == _|_ || resource.metadata.name == _targetName) { 
+									(_targetName == "" || resource.metadata.name == _targetName) { 
 									resource 
 								} 
 							]

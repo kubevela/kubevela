@@ -389,7 +389,7 @@ template: {
 							if parameter.email.from.alias != _|_ {
 								alias: parameter.email.from.alias
 							}
-							password: stringValue.str
+							password: stringValue.$returns.str
 							host:     parameter.email.from.host
 							port:     parameter.email.from.port
 						}

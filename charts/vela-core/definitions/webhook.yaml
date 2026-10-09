@@ -14,12 +14,19 @@ spec:
     cue:
       template: |
         import (
+        	"vela/builtin"
         	"vela/http"
         	"vela/kube"
         	"vela/util"
         	"encoding/json"
         	"encoding/base64"
         )
+        // url is required, but a missing one is unresolved rather than absent, so test both of its forms
+        if parameter.url.value == _|_ && parameter.url.secretRef == _|_ {
+        	validateParams: builtin.#Fail & {
+        		$params: message: "url is required: set url.value or url.secretRef"
+        	}
+        }
         data: {
         	if parameter.data == _|_ {
         		read: kube.#Read & {

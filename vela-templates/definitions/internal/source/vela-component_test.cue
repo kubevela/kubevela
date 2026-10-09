@@ -66,3 +66,17 @@ _shop: {
 	resources: [_shop]
 	expect: storage: {ttl: "1m", onStaleFailure: "fail", keyInputs: ["namespace"]}
 }
+
+"reads an Application in another namespace": test.#SourceExec & {
+	definition: "vela-component"
+	parameter: {app: "shop", component: "web", namespace: "team-a"}
+	resources: [_shop & {metadata: namespace: "team-a"}]
+	expect: output: {name: "web", cluster: "local", healthy: true, namespace: "default"}
+}
+
+"an Application in another namespace is not found from this one": test.#SourceExec & {
+	definition: "vela-component"
+	parameter: {app: "shop", component: "web"}
+	resources: [_shop & {metadata: namespace: "team-a"}]
+	expect: error: message: =~"applications.core.oam.dev \"shop\" not found"
+}

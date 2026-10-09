@@ -49,12 +49,12 @@ _dependsOn: {
 		calls: "vela/kube": "#Apply": [{$params: value: {kind: "Application", metadata: name: "upstream"}}]
 		resources: [_app]
 	}
-} @pending(the definition compares status.status of the Application it applies before that has any status, so the step fails instead of waiting)
+}
 
 "waits while the Application has no status yet": test.#WorkflowStepExec & _dependsOn & {
 	resources: [_app]
 	expect: phase: "running"
-} @pending(the definition compares status.status of the Application before it has any status, so the step fails instead of waiting)
+}
 
 "fails when neither the Application nor its ConfigMap exists": test.#WorkflowStepExec & _dependsOn & {
 	expect: phase: "failed"
