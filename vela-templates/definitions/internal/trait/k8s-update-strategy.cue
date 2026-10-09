@@ -13,6 +13,15 @@
 }
 
 template: {
+	// rollingStrategy is optional; its fields take their defaults when it is left out
+	let rolling = {
+		maxSurge:       *"25%" | string
+		maxUnavailable: *"25%" | string
+		partition:      *0 | int
+		if parameter.strategy.rollingStrategy != _|_ {
+			parameter.strategy.rollingStrategy
+		}
+	}
 	patch: {
 		spec: {
 			if parameter.targetKind == "Deployment" && parameter.strategy.type != "OnDelete" {
@@ -21,8 +30,8 @@ template: {
 					type: parameter.strategy.type
 					if parameter.strategy.type == "RollingUpdate" {
 						rollingUpdate: {
-							maxSurge:       parameter.strategy.rollingStrategy.maxSurge
-							maxUnavailable: parameter.strategy.rollingStrategy.maxUnavailable
+							maxSurge:       rolling.maxSurge
+							maxUnavailable: rolling.maxUnavailable
 						}
 					}
 				}
@@ -34,7 +43,7 @@ template: {
 					type: parameter.strategy.type
 					if parameter.strategy.type == "RollingUpdate" {
 						rollingUpdate: {
-							partition: parameter.strategy.rollingStrategy.partition
+							partition: rolling.partition
 						}
 					}
 				}
@@ -46,8 +55,8 @@ template: {
 					type: parameter.strategy.type
 					if parameter.strategy.type == "RollingUpdate" {
 						rollingUpdate: {
-							maxSurge:       parameter.strategy.rollingStrategy.maxSurge
-							maxUnavailable: parameter.strategy.rollingStrategy.maxUnavailable
+							maxSurge:       rolling.maxSurge
+							maxUnavailable: rolling.maxUnavailable
 						}
 					}
 				}

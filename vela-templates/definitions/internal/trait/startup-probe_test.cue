@@ -70,7 +70,7 @@ _web: {
 		{name: "web", startupProbe: {httpGet: port: 8080, tcpSocket?: _|_}},
 		{name: "log", startupProbe: {tcpSocket: port: 2020, periodSeconds: 5}},
 	]
-} @pending(the probes branch reads each probe as c.name, but a probe only has containerName, so the branch cannot render)
+}
 
 "an unknown container is an error": test.#TraitRender & _web & {
 	parameter: {containerName: "proxy", tcpSocket: port: 80}
@@ -80,4 +80,67 @@ _web: {
 "each of several probes must name its container": test.#TraitRender & _web & {
 	parameter: probes: [{tcpSocket: port: 80}]
 	expect: error: user: ["containerName must be set when specifying startup probe for multiple containers"]
-} @pending(the probes branch reads each probe as c.name, but a probe only has containerName, so the branch cannot render)
+}
+
+"an HTTP probe's host, scheme and headers, and every timing": test.#TraitRender & _web & {
+	parameter: {
+		httpGet: {
+			path:   "/healthz"
+			port:   8443
+			host:   "web.internal"
+			scheme: "HTTPS"
+			httpHeaders: [{name: "X-Probe", value: "startup"}]
+		}
+		initialDelaySeconds: 5
+		periodSeconds:       20
+		timeoutSeconds:      2
+		successThreshold:    1
+	}
+	expect: output: spec: template: spec: containers: [{startupProbe: {
+		httpGet: {
+			path:   "/healthz"
+			port:   8443
+			host:   "web.internal"
+			scheme: "HTTPS"
+			httpHeaders: [{name: "X-Probe", value: "startup"}]
+		} @exact()
+		initialDelaySeconds: 5
+		periodSeconds:       20
+		timeoutSeconds:      2
+		successThreshold:    1
+	}}, _]
+}
+
+"a TCP probe can name its host": test.#TraitRender & _web & {
+	parameter: tcpSocket: {port: 8080, host: "web.internal"}
+	expect: output: spec: template: spec: containers: [{startupProbe: {
+		tcpSocket: {port: 8080, host: "web.internal"} @exact()
+	}}, _]
+}
+
+"each of several probes keeps its own handler and timings": test.#TraitRender & _web & {
+	parameter: probes: [
+		{
+			containerName: "web"
+			exec: command: ["cat", "/tmp/ready"]
+			initialDelaySeconds:           5
+			timeoutSeconds:                2
+			successThreshold:              1
+			failureThreshold:              30
+			terminationGracePeriodSeconds: 20
+		},
+		{containerName: "log", grpc: {port: 9000, service: "health"}},
+	]
+	expect: output: spec: template: spec: containers: [
+		{name: "web", startupProbe: {
+			exec: command: ["cat", "/tmp/ready"]
+			initialDelaySeconds:           5
+			timeoutSeconds:                2
+			successThreshold:              1
+			failureThreshold:              30
+			terminationGracePeriodSeconds: 20
+			grpc?:                         _|_
+		}},
+		{name: "log", startupProbe: {grpc: {port: 9000, service: "health"}, exec?: _|_}},
+	]
+}

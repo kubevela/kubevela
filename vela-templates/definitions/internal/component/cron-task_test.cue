@@ -210,4 +210,85 @@ _cron: {
 		livenessProbe: exec: command: ["cat", "/alive"]
 		readinessProbe: tcpSocket: port: 8080
 	}]
-} @pending(livenessProbe and readinessProbe are accepted as parameters but never rendered into the container)
+}
+
+"every probe field passes through": test.#ComponentRender & _cron & {
+	parameter: {
+		image:    "shop-report:1.0"
+		schedule: "0 2 * * *"
+		livenessProbe: {
+			httpGet: {path: "/healthz", port: 8080}
+			initialDelaySeconds: 5
+			periodSeconds:       20
+			timeoutSeconds:      2
+			successThreshold:    1
+			failureThreshold:    6
+		}
+		readinessProbe: {
+			exec: command: ["cat", "/alive"]
+			initialDelaySeconds: 3
+			periodSeconds:       15
+			timeoutSeconds:      4
+			successThreshold:    2
+			failureThreshold:    5
+		}
+	}
+	expect: output: spec: jobTemplate: spec: template: spec: containers: [{
+		livenessProbe: {
+			httpGet: {path: "/healthz", port: 8080}
+			initialDelaySeconds: 5
+			periodSeconds:       20
+			timeoutSeconds:      2
+			successThreshold:    1
+			failureThreshold:    6
+		}
+		readinessProbe: {
+			exec: command: ["cat", "/alive"]
+			initialDelaySeconds: 3
+			periodSeconds:       15
+			timeoutSeconds:      4
+			successThreshold:    2
+			failureThreshold:    5
+		}
+	}]
+}
+
+"a tcpSocket liveness and an httpGet readiness probe pass through": test.#ComponentRender & _cron & {
+	parameter: {
+		image:    "shop-report:1.0"
+		schedule: "0 2 * * *"
+		livenessProbe: tcpSocket: port: 8080
+		readinessProbe: httpGet: {path: "/ready", port: 8080}
+	}
+	expect: output: spec: jobTemplate: spec: template: spec: containers: [{
+		livenessProbe: tcpSocket: port: 8080
+		readinessProbe: httpGet: {path: "/ready", port: 8080}
+	}]
+}
+
+"environment can come from a Secret or a ConfigMap": test.#ComponentRender & _cron & {
+	parameter: {
+		image:    "shop-report:1.0"
+		schedule: "0 2 * * *"
+		env: [
+			{name: "PASSWORD", valueFrom: secretKeyRef: {name: "shop-db", key: "password"}},
+			{name: "MODE", valueFrom: configMapKeyRef: {name: "shop-conf", key: "mode"}},
+		]
+	}
+	expect: output: spec: jobTemplate: spec: template: spec: containers: [{env: [
+		{name: "PASSWORD", valueFrom: secretKeyRef: {name: "shop-db", key: "password"}},
+		{name: "MODE", valueFrom: configMapKeyRef: {name: "shop-conf", key: "mode"}},
+	]}]
+}
+
+"a deprecated emptyDir volume keeps its medium": test.#ComponentRender & _cron & {
+	parameter: {
+		image:    "shop-report:1.0"
+		schedule: "0 2 * * *"
+		volumes: [{name: "cache", mountPath: "/cache", type: "emptyDir", medium: "Memory"}]
+	}
+	expect: output: spec: jobTemplate: spec: template: spec: {
+		containers: [{volumeMounts: [{name: "cache", mountPath: "/cache"}]}]
+		volumes: [{name: "cache", emptyDir: medium: "Memory"}]
+	}
+}

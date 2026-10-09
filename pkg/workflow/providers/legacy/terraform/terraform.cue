@@ -190,8 +190,9 @@
 				update: #Apply & {
 					value: {
 						metadata: {
+							// fields the API server sets are left for it to set again
 							for k, v in secret.metadata {
-								if k != "labels" {
+								if k != "labels" && k != "resourceVersion" && k != "managedFields" && k != "uid" && k != "creationTimestamp" && k != "generation" && k != "deletionTimestamp" && k != "deletionGracePeriodSeconds" {
 									(k): v
 								}
 							}
@@ -210,6 +211,7 @@
 								}
 								...
 							}
+							...
 						}
 						for k, v in secret {
 							if k != "metadata" {

@@ -123,6 +123,12 @@ template: {
 				if v.subPath != _|_ {
 					subPath: v.subPath
 				}
+				if v.readOnly != _|_ {
+					readOnly: v.readOnly
+				}
+				if v.mountPropagation != _|_ {
+					mountPropagation: v.mountPropagation
+				}
 				name: v.name
 			}
 		},

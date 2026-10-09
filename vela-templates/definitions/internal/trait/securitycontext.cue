@@ -90,7 +90,8 @@ template: {
 		}
 	}
 
-	parameter: #PatchParams | close({
+	// with no fields set, the single-container form applies
+	parameter: *#PatchParams | close({
 		// +usage=Specify the container image for multiple containers
 		containers: [...#PatchParams]
 	})

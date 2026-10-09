@@ -25,6 +25,12 @@ unit-test-core:
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -coverprofile=coverage.txt $(shell go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test $(shell go list ./references/... | grep -v apiserver)
 
+## test-definitions: Run the shipped definitions' tests (failing any @pending case that now passes), then check every definition and parameter is covered
+test-definitions: envtest
+	$(GOBUILD_ENV) go build -o bin/vela -ldflags $(LDFLAGS) ./references/cmd/cli/main.go
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" ./bin/vela def test vela-templates/definitions/internal --check-pending
+	VELA_SHIPPED_DEFINITION_TESTS=1 go test ./pkg/definition/cuetest/ -run 'TestShippedDefinitionsAreTested|TestShippedParametersAreCovered'
+
 ## build: Build vela cli binary
 build: vela-cli kubectl-vela
 	@$(OK) build succeed

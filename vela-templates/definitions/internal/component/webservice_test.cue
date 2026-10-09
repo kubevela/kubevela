@@ -228,3 +228,80 @@ _web: {
 	}
 	expect: {healthy: true, message: "Ready:0/2"}
 }
+
+"every probe field passes through": test.#ComponentRender & _web & {
+	parameter: {
+		image: "shop:1.0"
+		livenessProbe: {
+			exec: command: ["cat", "/alive"]
+			initialDelaySeconds: 5
+			periodSeconds:       20
+			timeoutSeconds:      2
+			successThreshold:    1
+			failureThreshold:    6
+		}
+		readinessProbe: {
+			tcpSocket: port: 8080
+			initialDelaySeconds: 3
+			periodSeconds:       15
+			timeoutSeconds:      4
+			successThreshold:    2
+			failureThreshold:    5
+		}
+	}
+	expect: output: spec: template: spec: containers: [{
+		livenessProbe: {
+			exec: command: ["cat", "/alive"]
+			initialDelaySeconds: 5
+			periodSeconds:       20
+			timeoutSeconds:      2
+			successThreshold:    1
+			failureThreshold:    6
+		}
+		readinessProbe: {
+			tcpSocket: port: 8080
+			initialDelaySeconds: 3
+			periodSeconds:       15
+			timeoutSeconds:      4
+			successThreshold:    2
+			failureThreshold:    5
+		}
+	}]
+}
+
+"a tcpSocket liveness and an httpGet readiness probe pass through": test.#ComponentRender & _web & {
+	parameter: {
+		image: "shop:1.0"
+		livenessProbe: tcpSocket: port: 8080
+		readinessProbe: httpGet: {path: "/ready", port: 8080}
+	}
+	expect: output: spec: template: spec: containers: [{
+		livenessProbe: tcpSocket: port: 8080
+		readinessProbe: httpGet: {path: "/ready", port: 8080}
+	}]
+}
+
+"environment can come from a Secret or a ConfigMap": test.#ComponentRender & _web & {
+	parameter: {
+		image: "shop:1.0"
+		env: [
+			{name: "PASSWORD", valueFrom: secretKeyRef: {name: "shop-db", key: "password"}},
+			{name: "MODE", valueFrom: configMapKeyRef: {name: "shop-conf", key: "mode"}},
+		]
+	}
+	expect: output: spec: template: spec: containers: [{env: [
+		{name: "PASSWORD", valueFrom: secretKeyRef: {name: "shop-db", key: "password"}},
+		{name: "MODE", valueFrom: configMapKeyRef: {name: "shop-conf", key: "mode"}},
+	]}]
+}
+
+"a deprecated emptyDir volume keeps its medium": test.#ComponentRender & _web & {
+	parameter: {
+		image: "shop:1.0"
+		volumes: [{name: "cache", mountPath: "/cache", type: "emptyDir", medium: "Memory"}]
+	}
+	expect: output: spec: template: spec: {
+		containers: [{volumeMounts: [{name: "cache", mountPath: "/cache"}]}]
+		volumes: [{name: "cache", emptyDir: medium: "Memory"}]
+	}
+}

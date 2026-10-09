@@ -266,3 +266,25 @@ func TestEvalPropertyCollapsesEscapesWithoutAnExpression(t *testing.T) {
 		})
 	}
 }
+
+// A null comes out as nil, whether it was read from a source or written in the
+// expression.
+func TestEvalKeepsNull(t *testing.T) {
+	env, err := DynEnv()
+	require.NoError(t, err)
+	in := map[string]interface{}{
+		"source": map[string]interface{}{"file": map[string]interface{}{"found": false, "content": nil}},
+	}
+	for expr, want := range map[string]interface{}{
+		`null`:                nil,
+		`source.file.content`: nil,
+		`source.file`:         map[string]interface{}{"found": false, "content": nil},
+		`{"content": null}`:   map[string]interface{}{"content": nil},
+		`[null, 1]`:           []interface{}{nil, int64(1)},
+		`source["file"]`:      map[string]interface{}{"found": false, "content": nil},
+	} {
+		got, err := Eval(env, expr, in)
+		require.NoError(t, err, expr)
+		require.Equal(t, want, got, expr)
+	}
+}

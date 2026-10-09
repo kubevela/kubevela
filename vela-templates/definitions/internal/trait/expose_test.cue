@@ -89,12 +89,10 @@ _web: {
 	expect: {healthy: true, message: ""}
 }
 
-// The top-level message default and the LoadBalancer branch's default are
-// both marked, so neither wins.
 "a LoadBalancer Service waits for its external IP": test.#TraitStatus & _web & {
 	parameter: {type: "LoadBalancer", ports: [{port: 80}]}
 	expect: {healthy: false, message: "ExternalIP: Pending"}
-} @pending(message is defaulted twice, to empty and to ExternalIP: Pending, so it is non-concrete until an IP is assigned)
+}
 
 "a LoadBalancer Service is healthy once it has an external IP": test.#TraitStatus & _web & {
 	parameter: {type: "LoadBalancer", ports: [{port: 80}]}

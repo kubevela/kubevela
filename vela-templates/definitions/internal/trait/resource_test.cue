@@ -62,7 +62,7 @@ _deployment: {
 		requests: {cpu: "500m", memory: "2048Mi"}
 		limits: {cpu: "500m", memory: "2048Mi"}
 	}}]
-} @pending(the cpu and memory branch needs both set, so cpu alone renders no requests or limits)
+}
 
 "a CronJob's pods are reached through its job template": test.#TraitRender & _web & {
 	_workload: {
@@ -86,4 +86,12 @@ _deployment: {
 	expect: error: {
 		parameter: [=~"memory"] @contains()
 	}
+}
+
+"memory alone is both request and limit, with the default cpu": test.#TraitRender & _web & {
+	parameter: memory: "256Mi"
+	expect: output: spec: template: spec: containers: [{resources: {
+		requests: {cpu: 1, memory: "256Mi"}
+		limits: {cpu: 1, memory: "256Mi"}
+	}}]
 }
