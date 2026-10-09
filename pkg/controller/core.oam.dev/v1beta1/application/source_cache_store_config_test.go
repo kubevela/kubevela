@@ -112,6 +112,9 @@ func (f *fakeConfigFactory) DeleteTemplate(context.Context, string, string) erro
 func (f *fakeConfigFactory) ListTemplates(context.Context, string, string) ([]*config.Template, error) {
 	return nil, nil
 }
+func (f *fakeConfigFactory) ListLegacyTemplates(context.Context, string, string) ([]*config.Template, error) {
+	return nil, nil
+}
 func (f *fakeConfigFactory) ReadConfig(context.Context, string, string) (map[string]interface{}, error) {
 	return nil, nil
 }
