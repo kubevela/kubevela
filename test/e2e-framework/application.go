@@ -18,14 +18,23 @@ package framework
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
+	"net"
 	"time"
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -41,11 +50,58 @@ func (f *Framework) CreateNamespace(ctx context.Context, namespaceName string) c
 }
 
 func CreateFreshNamespace(ctx context.Context, cli client.Client, name string) (corev1.Namespace, error) {
-	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}
-	if err := cli.Create(ctx, &ns); err != nil {
+	var token [12]byte
+	if _, err := cryptorand.Read(token[:]); err != nil {
 		return corev1.Namespace{}, err
 	}
+	const ownerLabel = "e2e.kubevela.io/namespace-owner"
+	owner := hex.EncodeToString(token[:])
+	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name, Labels: map[string]string{ownerLabel: owner}}}
+	var lastErr error
+	hadTransientFailure := false
+	err := wait.PollUntilContextTimeout(ctx, 300*time.Millisecond, 3*time.Second, true, func(pollCtx context.Context) (bool, error) {
+		attempt := ns.DeepCopy()
+		lastErr = cli.Create(pollCtx, attempt)
+		if lastErr == nil {
+			ns = *attempt
+			return true, nil
+		}
+		if apierrors.IsAlreadyExists(lastErr) && !hadTransientFailure {
+			return false, lastErr
+		}
+		if !apierrors.IsAlreadyExists(lastErr) && !transientNamespaceAPIError(lastErr) {
+			return false, lastErr
+		}
+		hadTransientFailure = true
+		// A timeout may lose the response after the API server accepted the
+		// create. Recover only a namespace carrying this attempt's token.
+		var existing corev1.Namespace
+		getErr := cli.Get(pollCtx, client.ObjectKey{Name: name}, &existing)
+		if getErr == nil {
+			if existing.Labels[ownerLabel] != owner {
+				return false, apierrors.NewAlreadyExists(schema.GroupResource{Resource: "namespaces"}, name)
+			}
+			ns = existing
+			return true, nil
+		}
+		if !apierrors.IsNotFound(getErr) && !transientNamespaceAPIError(getErr) {
+			return false, getErr
+		}
+		return false, nil
+	})
+	if err != nil {
+		return corev1.Namespace{}, errors.Join(err, lastErr)
+	}
 	return ns, nil
+}
+
+func transientNamespaceAPIError(err error) bool {
+	var networkErr net.Error
+	return apierrors.IsTimeout(err) || apierrors.IsServerTimeout(err) ||
+		apierrors.IsServiceUnavailable(err) || apierrors.IsTooManyRequests(err) ||
+		apierrors.IsInternalError(err) || errors.Is(err, io.EOF) ||
+		utilnet.IsConnectionRefused(err) || utilnet.IsConnectionReset(err) ||
+		(errors.As(err, &networkErr) && networkErr.Timeout())
 }
 
 func (f *Framework) CreateServiceAccount(ctx context.Context, ns, name string) {

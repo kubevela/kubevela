@@ -326,16 +326,24 @@ var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 		h := newHelmTestContext()
 		BeforeAll(func() {
 			h.CreateNamespace()
+			h.AppNamespace = randomNamespaceName("helm-auth-app")
+			appNamespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: h.AppNamespace}}
+			Expect(k8sClient.Create(h.Ctx, appNamespace)).To(Succeed())
+			DeferCleanup(func() {
+				Expect(client.IgnoreNotFound(k8sClient.Delete(h.Ctx, appNamespace,
+					client.PropagationPolicy(metav1.DeletePropagationForeground)))).To(Succeed())
+			})
 		})
 		AfterAll(func() {
 			h.Cleanup()
 		})
 
 		It("resolves the Secret when secretRef.namespace == Application namespace", func() {
-			Expect(createSecretInline(h, "creds", corev1.SecretTypeOpaque, map[string]string{
+			Expect(h.AppNamespace).NotTo(Equal(h.Namespace))
+			Expect(createSecretInNamespace(h, "creds", h.AppNamespace, corev1.SecretTypeOpaque, map[string]string{
 				"username": authTestUser, "password": authTestPass,
 			})).To(Succeed())
-			deployAuthAppSuccess(h, "auth-ns-app", "podinfo", chartWithRepoAuth(chartMuseumURL, "creds", h.Namespace))
+			deployAuthAppSuccess(h, "auth-ns-app", "podinfo", chartWithRepoAuth(chartMuseumURL, "creds", h.AppNamespace))
 		})
 	})
 

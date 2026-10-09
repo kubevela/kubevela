@@ -1,8 +1,12 @@
-# Safe E2E Parallel Execution Implementation Plan
+# Safe E2E Parallel Execution Implementation Plan (superseded)
 
-Implementation note (2026-09-28): the checked-in workflow uses fixed defaults of three core/module workers, two addon workers, and one envtest worker, with no matrix job cap. See `test/E2E_PARALLEL.md` for commands, live probe results and remaining full-suite validation. The checklist below records the original planning tasks and is not a claim that every step has been completed.
+Status: historical, non-executable plan from the initial September 27 research, superseded by the rebase onto `guidewire-oss/master` and subsequent implementation. Use [E2E suite execution](../../../test/E2E_PARALLEL.md) for current commands, architecture, validation results and remaining checks. The scope, fixed worker budgets, discovery counts, envtest assumptions, checklist and commands below describe the earlier checkout and must not be applied to the current tree.
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+The current workflow has eight matrix suite jobs (four core groups, module, source, addon and addon/module), plus the API/addon-component compatibility job. Each matrix job has its own live cluster and defaults to `auto`, using all available logical CPUs with no fixed worker cap; the compatibility job keeps its original execution settings. Addon/module is now an 82-spec live-cluster suite, not the one-spec envtest package described in this historical plan. Historical measurements below have not been reinterpreted as post-rebase validation.
+
+Historical implementation note (2026-09-28, superseded): this plan recorded fixed defaults of three core/module workers, two addon workers, and one envtest worker, with no matrix job cap. The checklist records original planning tasks and is not a claim that every step was completed.
+
+> **Historical agent handoff (inactive):** The original plan requested superpowers:subagent-driven-development or superpowers:executing-plans for task-by-task implementation. Do not execute this checklist; use the current execution documentation linked above.
 
 **Goal:** Safely parallelize the four requested E2E packages across CI jobs and independent Ginkgo cases while preserving coverage.
 
@@ -142,12 +146,12 @@ Implementation note (2026-09-28): the checked-in workflow uses fixed defaults of
 - [ ] Measure at least three comparable serial/parallel runs when practical. Record suite setup/test/cleanup and complete workflow elapsed times, machine resources and seeds. Report medians and individual runs; distinguish added envtest coverage from the former workflow's work. Do not compare dry-run timings to the user's approximately 50-minute estimate.
 - [ ] Review final diff against the scope and user changes. Only report successful commands actually executed. If live infrastructure remains unavailable, list exact remaining commands and do not claim collision safety or speed improvement as measured.
 
-## Validation command sheet
+## Historical validation command sheet (do not execute)
 
 Commands from repository root; those using new Make variables/targets apply **after implementation**. Provision each live suite's dedicated cluster with the existing image-load, e2e-setup-core and Helm-test preparation from the CI action. Do not concurrently prepare several clusters from one checkout because modify_charts.sh edits shared files. Use distinct checkouts for concurrent local suite jobs, with separate KUBECONFIG files.
 
 ```bash
-# Current and future: compile and inventory without touching a cluster.
+# Historical inventory command for the pre-rebase packages.
 go run github.com/onsi/ginkgo/v2/ginkgo --dry-run --procs=1 --no-color --keep-going \
   ./test/e2e-addon-module-test ./test/e2e-addon-test \
   ./test/e2e-module-test ./test/e2e-test
@@ -186,4 +190,4 @@ KUBECONFIG=/absolute/path/core-parallel.kubeconfig KUBEVELA_E2E_AUTH=1 \
 - Serial dry-run compiled all four packages successfully: 277 specs, 276 active, one pending. Wall time 16.137627102s is compilation/discovery only.
 - Two-worker dry-run rejected by Ginkgo's serial-only dry-run rule. This attempted check is recorded as failed, not parallel validation.
 - Live Kubernetes connection refused; Docker daemon socket unavailable. No live E2E runs, repeated collision tests or speedup measurement performed. The envtest scenario was compiled/discovered but not executed in this planning pass.
-- Only design/plan documents are changed by this pass. The next model should read both documents, recheck repository drift, and execute task-by-task using `superpowers:executing-plans` unless the user chooses delegated execution.
+- Only design/plan documents were changed by the original research pass. Its task-by-task implementation handoff is superseded; use the current execution documentation linked above.

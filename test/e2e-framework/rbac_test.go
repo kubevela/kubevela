@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -51,6 +52,12 @@ func TestCoreSuiteRBACCleanupOwnsOnlyItsRun(t *testing.T) {
 	}
 	if err := first.cleanup(ctx, cli); err != nil {
 		t.Fatal(err)
+	}
+	if err := cli.Get(ctx, client.ObjectKey{Name: first.roleName}, &rbacv1.ClusterRole{}); !apierrors.IsNotFound(err) {
+		t.Errorf("cleanup did not remove its ClusterRole: %v", err)
+	}
+	if err := cli.Get(ctx, client.ObjectKey{Name: first.bindingName}, &rbacv1.ClusterRoleBinding{}); !apierrors.IsNotFound(err) {
+		t.Errorf("cleanup did not remove its ClusterRoleBinding: %v", err)
 	}
 	for _, name := range []string{"oam-example-com", second.roleName} {
 		if err := cli.Get(ctx, client.ObjectKey{Name: name}, &rbacv1.ClusterRole{}); err != nil {

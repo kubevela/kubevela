@@ -18,6 +18,7 @@ package controllers_test
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	sysruntime "runtime"
@@ -28,6 +29,7 @@ import (
 	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	common "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	// +kubebuilder:scaffold:imports
 )
@@ -86,9 +89,74 @@ var _ = SynchronizedBeforeSuite(func() {
 	By("Install Addon Workflow")
 	prepareAddonCleanup("vela-workflow")
 	enableAddonForSuite("vela-workflow")
+	// CLI success waits for Application phase, but raw addon resources can be
+	// healthy before their controllers and custom-resource endpoints are ready.
+	By("Wait for addon controllers and CRDs before releasing workload workers")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	Eventually(ctx, func() error {
+		return addonSuiteReady(ctx, k8sClient)
+	}, 5*time.Minute, 2*time.Second).Should(Succeed())
 }, func() {
 	initializeAddonClient()
 })
+
+func addonSuiteReady(ctx context.Context, cli client.Client) error {
+	for _, name := range []string{"addon-terraform-alibaba", "addon-vela-workflow"} {
+		var app v1beta1.Application
+		if err := cli.Get(ctx, client.ObjectKey{Name: name, Namespace: "vela-system"}, &app); err != nil {
+			return fmt.Errorf("addon Application %s: %w", name, err)
+		}
+		if app.Status.Phase != common.ApplicationRunning || app.Status.ObservedGeneration < app.Generation {
+			return fmt.Errorf("addon Application %s is not running at its current generation: phase=%s, observed=%d, generation=%d",
+				name, app.Status.Phase, app.Status.ObservedGeneration, app.Generation)
+		}
+	}
+	for _, key := range []client.ObjectKey{
+		{Namespace: "vela-system", Name: "terraform-controller"},
+		{Namespace: "vela-system", Name: "vela-workflow"},
+	} {
+		var deployment appsv1.Deployment
+		if err := cli.Get(ctx, key, &deployment); err != nil {
+			return fmt.Errorf("addon controller Deployment %s: %w", key, err)
+		}
+		replicas := int32(1)
+		if deployment.Spec.Replicas != nil {
+			replicas = *deployment.Spec.Replicas
+		}
+		if replicas < 1 || deployment.Status.ObservedGeneration < deployment.Generation ||
+			deployment.Status.UpdatedReplicas != replicas || deployment.Status.ReadyReplicas < replicas ||
+			deployment.Status.AvailableReplicas < replicas {
+			return fmt.Errorf("addon controller Deployment %s is not ready: desired=%d, status=%+v", key, replicas, deployment.Status)
+		}
+	}
+	for _, required := range []struct{ name, version string }{
+		{"configurations.terraform.core.oam.dev", "v1beta1"},
+		{"providers.terraform.core.oam.dev", "v1beta1"},
+		{"workflowruns.core.oam.dev", "v1alpha1"},
+	} {
+		var crd crdv1.CustomResourceDefinition
+		if err := cli.Get(ctx, client.ObjectKey{Name: required.name}, &crd); err != nil {
+			return fmt.Errorf("addon CRD %s: %w", required.name, err)
+		}
+		established, served := false, false
+		for _, condition := range crd.Status.Conditions {
+			if condition.Type == crdv1.Established && condition.Status == crdv1.ConditionTrue {
+				established = true
+			}
+		}
+		for _, version := range crd.Spec.Versions {
+			if version.Name == required.version && version.Served {
+				served = true
+			}
+		}
+		if !established || !served {
+			return fmt.Errorf("addon CRD %s is not established and serving %s: established=%t, served=%t",
+				required.name, required.version, established, served)
+		}
+	}
+	return nil
+}
 
 func enableAddonForSuite(name string, args ...string) {
 	output, err := runVelaAddonCommand(append([]string{"addon", "enable", name}, args...)...)

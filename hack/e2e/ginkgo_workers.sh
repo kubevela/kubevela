@@ -2,7 +2,7 @@
 # Resolve the same worker setting for CI and local Make targets.
 set -euo pipefail
 
-requested=${1:-auto}
+requested=${1-auto}
 if [[ "$requested" == auto ]]; then
   if ! workers=$(nproc 2>/dev/null); then
     workers=$(getconf _NPROCESSORS_ONLN)

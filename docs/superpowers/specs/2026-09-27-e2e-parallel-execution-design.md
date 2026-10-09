@@ -1,8 +1,10 @@
-# Safe parallel execution of the four E2E packages
+# Safe parallel execution of the four E2E packages (superseded)
 
-Status: research baseline. The implemented worker defaults and current validation results are recorded in `test/E2E_PARALLEL.md`.
+Status: historical research baseline from September 27, superseded by the rebase onto `guidewire-oss/master` and subsequent implementation. This is not an executable design for the current checkout. Use [E2E suite execution](../../../test/E2E_PARALLEL.md) for current architecture, commands and validation results. All scope, counts, worker budgets, envtest descriptions and measurements below refer to the original research checkout; they are not current coverage or post-rebase validation.
 
-## Scope and intended outcome
+The current workflow has eight matrix suite jobs (four core groups, module, source, addon and addon/module), plus the API/addon-component compatibility job. Matrix jobs run on separate live clusters with CPU-based `auto` worker defaults and no fixed worker cap; the compatibility job keeps its original execution settings. The current addon/module package uses a live cluster and has 82 specs, rather than the one-spec envtest package researched below. The historical discovery timings remain evidence only for the earlier revision.
+
+## Historical scope and intended outcome
 
 Reduce the ordinary E2E workflow's elapsed time while preserving assertions, discovery, failures, diagnostics, and local serial execution. Include exactly these packages in the new parallel execution work:
 
@@ -13,7 +15,7 @@ Reduce the ordinary E2E workflow's elapsed time while preserving assertions, dis
 
 Exclude multi-cluster tests and workflows. Preserve the existing `make e2e-api-test` coverage as an unchanged compatibility lane; it is not a fifth package to refactor. The user's final instruction requests research and a plan, with implementation in a subsequent lower-model pass.
 
-## Evidence and current execution model
+## Evidence and historical execution model
 
 Research baseline: KubeVela commit `799c7af7e31fdd760386eb15210e7336f51d4c04`. The working tree already has user changes in `Makefile` and `hack/utils/golangci-lint-wrapper.sh`; preserve both. No `AGENTS.md` was found in the repository or checked ancestor locations.
 
@@ -99,4 +101,4 @@ Cluster-wide fixtures remain job-owned. Overlapping full live-suite invocations 
 4. Suite failure does not cancel other matrix rows. Setup failure fails its row; diagnostics/report upload still run. Teardown waits for all workers, including workers that finish early.
 5. Measure before/after workflow elapsed time and suite elapsed time on comparable images, hardware, revisions and cluster setup. Report setup/build costs and failures. No claimed speedup until measured.
 
-Research validation: the serial Ginkgo dry run compiled all four packages and discovered the counts above (command wall time 16.137627102s; **not an E2E runtime**). A two-process dry-run attempt was rejected by v2.23.3 because dry runs are serial-only; it does not validate parallel execution. Local Go is 1.27.1, different from CI's 1.23.8. Current kubeconfig points at `k3d-kubevela-pr7367`, whose API endpoint refused connections; Docker has no available daemon socket. No live E2E run or runtime improvement was measured.
+Historical research validation: the serial Ginkgo dry run compiled all four packages and discovered the counts above (command wall time 16.137627102s; **not an E2E runtime**). A two-process dry-run attempt was rejected by v2.23.3 because dry runs are serial-only; it does not validate parallel execution. At that time local Go was 1.27.1, different from CI's 1.23.8, the kubeconfig pointed at `k3d-kubevela-pr7367`, whose API endpoint refused connections, and Docker had no available daemon socket. No live E2E run or runtime improvement was measured in that research pass.

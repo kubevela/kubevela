@@ -34,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	framework "github.com/oam-dev/kubevela/test/e2e-framework"
 )
 
 var _ = Describe("Application required-parameter validation", Label("core-definitions"), func() {
@@ -48,10 +49,10 @@ var _ = Describe("Application required-parameter validation", Label("core-defini
 		ctx = context.Background()
 		namespaceCreated = false
 		nsName = randomNamespaceName("requiredparam-validation-test")
-		namespace = corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: nsName}}
-
 		By("creating the test namespace")
-		Expect(k8sClient.Create(ctx, &namespace)).To(Succeed())
+		var err error
+		namespace, err = framework.CreateFreshNamespace(ctx, k8sClient, nsName)
+		Expect(err).To(Succeed())
 		namespaceCreated = true
 
 		By("Apply the component definition")
