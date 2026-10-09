@@ -96,6 +96,7 @@ type TemplateCommandOptions struct {
 type TemplateListCommandOptions struct {
 	Namespace    string
 	AllNamespace bool
+	ConfigMode   string
 }
 
 // NewTemplateApplyCommand command for creating and updating the config template
@@ -156,52 +157,35 @@ func NewTemplateListCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 		},
 		Args: cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateConfigMode(options.ConfigMode); err != nil {
+				return err
+			}
 			if options.AllNamespace {
 				options.Namespace = ""
 			}
+			rows, err := listTemplateRows(cmd.Context(), f.Client(), options.Namespace, options.ConfigMode)
+			if err != nil {
+				return err
+			}
 			table := newUITable()
-			header := []interface{}{"NAME", "ALIAS", "SCOPE", "SENSITIVE", "CREATED-TIME"}
+			header := []interface{}{"NAME", "ALIAS", "SCOPE", "SENSITIVE", "SOURCE", "CREATED-TIME"}
 			if options.AllNamespace {
 				header = append([]interface{}{"NAMESPACE"}, header...)
 			}
 			table.AddRow(header...)
-			if configCRDInstalled(f) {
-				items, err := listConfigTemplateCRDs(context.Background(), f.Client(), options.Namespace)
-				if err != nil {
-					return err
+			for _, r := range rows {
+				row := []interface{}{r.name, r.alias, r.scope, r.sensitive, r.source, r.created}
+				if options.AllNamespace {
+					row = append([]interface{}{r.namespace}, row...)
 				}
-				for _, t := range items {
-					row := []interface{}{t.Name, t.Spec.Alias, t.Spec.Scope, t.Spec.Sensitive, t.CreationTimestamp.Time}
-					if options.AllNamespace {
-						row = append([]interface{}{t.Namespace}, row...)
-					}
-					table.AddRow(row...)
-				}
-			} else {
-				inf := config.NewConfigFactory(f.Client())
-				templateList, err := inf.ListTemplates(context.Background(), options.Namespace, "")
-				if err != nil {
-					return err
-				}
-				for _, t := range templateList {
-					row := []interface{}{t.Name, t.Alias, t.Scope, t.Sensitive, t.CreateTime}
-					if options.AllNamespace {
-						row = append([]interface{}{t.Namespace}, row...)
-					}
-					table.AddRow(row...)
-				}
+				table.AddRow(row...)
 			}
-			if _, err := streams.Out.Write(table.Bytes()); err != nil {
-				return err
-			}
-			if _, err := streams.Out.Write([]byte("\n")); err != nil {
-				return err
-			}
-			return nil
+			return writeTable(streams, table)
 		},
 	}
 	cmd.Flags().StringVarP(&options.Namespace, "namespace", "n", types.DefaultKubeVelaNS, "specify the namespace of the template")
 	cmd.Flags().BoolVarP(&options.AllNamespace, "all-namespaces", "A", false, "If true, check the specified action in all namespaces.")
+	cmd.Flags().StringVar(&options.ConfigMode, "config-mode", "", configModeFlagUsage)
 	return cmd
 }
 
@@ -344,6 +328,7 @@ type ConfigListCommandOptions struct {
 	Namespace    string
 	Template     string
 	AllNamespace bool
+	ConfigMode   string
 }
 
 // formatDistributionTargets renders targets for the DISTRIBUTION column, colored by status.
@@ -374,7 +359,7 @@ func distributionColumn(ctx context.Context, inf config.Factory, name, namespace
 	return formatDistributionTargets(tmp.Targets)
 }
 
-// NewListConfigCommand command for listing the config secrets
+// NewListConfigCommand command for listing the configs from both backends
 func NewListConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 	var options ConfigListCommandOptions
 	cmd := &cobra.Command{
@@ -385,6 +370,9 @@ func NewListConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Comm
 		},
 		Args: cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateConfigMode(options.ConfigMode); err != nil {
+				return err
+			}
 			name := options.Template
 			if strings.Contains(options.Template, "/") {
 				namespacedName := strings.SplitN(options.Template, "/", 2)
@@ -393,70 +381,30 @@ func NewListConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Comm
 			if options.AllNamespace {
 				options.Namespace = ""
 			}
-			if configCRDInstalled(f) {
-				items, err := listConfigCRDs(context.Background(), f.Client(), options.Namespace, name)
-				if err != nil {
-					return err
-				}
-				inf := config.NewConfigFactory(f.Client())
-				table := newUITable()
-				header := []interface{}{"NAME", "ALIAS", "PHASE", "DISTRIBUTION", "TEMPLATE", "CREATED-TIME", "DESCRIPTION"}
-				if options.AllNamespace {
-					header = append([]interface{}{"NAMESPACE"}, header...)
-				}
-				table.AddRow(header...)
-				for _, c := range items {
-					tmplRef := ""
-					if c.Spec.TemplateRef != nil {
-						tmplNs := c.Spec.TemplateRef.Namespace
-						if tmplNs == "" {
-							tmplNs = types.DefaultKubeVelaNS
-						}
-						tmplRef = fmt.Sprintf("%s/%s", tmplNs, c.Spec.TemplateRef.Name)
-					}
-					distShow := distributionColumn(context.Background(), inf, c.Name, c.Namespace)
-					row := []interface{}{c.Name, c.Spec.Alias, c.Status.Phase, distShow, tmplRef, c.CreationTimestamp.Time, c.Spec.Description}
-					if options.AllNamespace {
-						row = append([]interface{}{c.Namespace}, row...)
-					}
-					table.AddRow(row...)
-				}
-				if _, err := streams.Out.Write(table.Bytes()); err != nil {
-					return err
-				}
-				_, err = streams.Out.Write([]byte("\n"))
-				return err
-			}
-			inf := config.NewConfigFactory(f.Client())
-			configs, err := inf.ListConfigs(context.Background(), options.Namespace, name, "", true)
+			rows, err := listConfigRows(cmd.Context(), f.Client(), options.Namespace, name, options.ConfigMode)
 			if err != nil {
 				return err
 			}
 			table := newUITable()
-			header := []interface{}{"NAME", "ALIAS", "DISTRIBUTION", "TEMPLATE", "CREATED-TIME", "DESCRIPTION"}
+			header := []interface{}{"NAME", "ALIAS", "SOURCE", "PHASE", "DISTRIBUTION", "TEMPLATE", "CREATED-TIME", "DESCRIPTION"}
 			if options.AllNamespace {
 				header = append([]interface{}{"NAMESPACE"}, header...)
 			}
 			table.AddRow(header...)
-			for _, t := range configs {
-				row := []interface{}{t.Name, t.Alias, formatDistributionTargets(t.Targets), fmt.Sprintf("%s/%s", t.Template.Namespace, t.Template.Name), t.CreateTime, t.Description}
+			for _, r := range rows {
+				row := []interface{}{r.name, r.alias, r.source, r.phase, r.distribution, r.template, r.created, r.description}
 				if options.AllNamespace {
-					row = append([]interface{}{t.Namespace}, row...)
+					row = append([]interface{}{r.namespace}, row...)
 				}
 				table.AddRow(row...)
 			}
-			if _, err := streams.Out.Write(table.Bytes()); err != nil {
-				return err
-			}
-			if _, err := streams.Out.Write([]byte("\n")); err != nil {
-				return err
-			}
-			return nil
+			return writeTable(streams, table)
 		},
 	}
 	cmd.Flags().StringVarP(&options.Namespace, "namespace", "n", types.DefaultKubeVelaNS, "specify the namespace of the config")
 	cmd.Flags().StringVarP(&options.Template, "template", "t", "", "specify the template of the config")
 	cmd.Flags().BoolVarP(&options.AllNamespace, "all-namespaces", "A", false, "If true, check the specified action in all namespaces.")
+	cmd.Flags().StringVar(&options.ConfigMode, "config-mode", "", configModeFlagUsage)
 	return cmd
 }
 

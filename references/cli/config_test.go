@@ -19,6 +19,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"strings"
 
@@ -99,6 +100,95 @@ var _ = Describe("Test the commands of the config", func() {
 		Expect(strings.Contains(buffer.String(), "\n")).Should(Equal(true))
 	})
 
+	It("Test listing templates merges both backends and marks a shadowed legacy one", func() {
+		inf := config.NewConfigFactory(k8sClient)
+		body, err := os.ReadFile("./test-data/config-templates/image-registry.cue")
+		Expect(err).Should(BeNil())
+		for _, name := range []string{"legacy-only", "shadow-me"} {
+			t, err := inf.ParseTemplate(context.TODO(), name, body)
+			Expect(err).Should(BeNil())
+			Expect(inf.CreateOrUpdateConfigTemplate(context.TODO(), "default", t)).Should(Succeed())
+		}
+		apply := TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
+		apply.SetArgs([]string{"apply", "-f", "./test-data/config-templates/image-registry.cue", "--name", "shadow-me", "-n", "default"})
+		Expect(apply.Execute()).Should(Succeed())
+		DeferCleanup(func() {
+			for _, name := range []string{"legacy-only", "shadow-me"} {
+				cm := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: config.TemplateConfigMapNamePrefix + name}}
+				Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), cm))).Should(Succeed())
+			}
+			ct := &configv1alpha1.ConfigTemplate{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "shadow-me"}}
+			Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), ct))).Should(Succeed())
+		})
+
+		list := func(extra ...string) []string {
+			buffer := bytes.NewBuffer(nil)
+			cmd := TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+			cmd.SetArgs(append([]string{"list", "-n", "default"}, extra...))
+			Expect(cmd.Execute()).Should(Succeed())
+			return strings.Split(strings.TrimRight(buffer.String(), "\n"), "\n")
+		}
+
+		// merged: CR rows first, then legacy rows, the legacy twin marked shadowed
+		lines := list()
+		Expect(lines).Should(HaveLen(4))
+		Expect(lines[0]).Should(MatchRegexp(`^NAME\s+ALIAS\s+SCOPE\s+SENSITIVE\s+SOURCE\s+CREATED-TIME`))
+		Expect(lines[1]).Should(MatchRegexp(`^shadow-me\s.*\scrd\s+\d{4}-`))
+		Expect(lines[2]).Should(MatchRegexp(`^legacy-only\s.*\slegacy\s+\d{4}-`))
+		Expect(lines[3]).Should(MatchRegexp(`^shadow-me\s.*\slegacy \(shadowed\)\s+\d{4}-`))
+
+		lines = list("--config-mode", "crd")
+		Expect(lines).Should(HaveLen(2))
+		Expect(lines[1]).Should(MatchRegexp(`^shadow-me\s.*\scrd\s+\d{4}-`))
+
+		// legacy only: no CR rows, so nothing to shadow
+		lines = list("--config-mode", "legacy")
+		Expect(lines).Should(HaveLen(3))
+		Expect(lines[1]).Should(MatchRegexp(`^legacy-only\s.*\slegacy\s+\d{4}-`))
+		Expect(lines[2]).Should(MatchRegexp(`^shadow-me\s.*\slegacy\s+\d{4}-`))
+	})
+
+	It("Test listing templates rejects an unknown --config-mode before any API call", func() {
+		cmd := TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
+		cmd.SetArgs([]string{"list", "--config-mode", "auto"})
+		Expect(cmd.Execute()).Should(MatchError(`invalid --config-mode "auto": use legacy or crd`))
+	})
+
+	It("Test listing templates on a cluster without the CRD shows legacy rows only", func() {
+		noCRDClient := fake.NewClientBuilder().WithScheme(clientgoscheme.Scheme).Build()
+		inf := config.NewConfigFactory(noCRDClient)
+		body, err := os.ReadFile("./test-data/config-templates/image-registry.cue")
+		Expect(err).Should(BeNil())
+		t, err := inf.ParseTemplate(context.TODO(), "only-legacy-here", body)
+		Expect(err).Should(BeNil())
+		Expect(inf.CreateOrUpdateConfigTemplate(context.TODO(), "default", t)).Should(Succeed())
+
+		buffer := bytes.NewBuffer(nil)
+		cmd := TemplateCommandGroup(cmd.NewTestFactory(cfg, noCRDClient), "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"list", "-n", "default"})
+		Expect(cmd.Execute()).Should(Succeed())
+		lines := strings.Split(strings.TrimRight(buffer.String(), "\n"), "\n")
+		Expect(lines).Should(HaveLen(2))
+		Expect(lines[1]).Should(MatchRegexp(`^only-legacy-here\s.*\slegacy\s+\d{4}-`))
+	})
+
+	It("Test --config-mode is rejected on every command but list", func() {
+		for _, args := range [][]string{
+			{"config-template", "apply", "-f", "./test-data/config-templates/image-registry.cue"},
+			{"config-template", "show", "test"},
+			{"config-template", "delete", "test"},
+			{"config", "create", "x", "-t", "test"},
+			{"config", "delete", "test"},
+			{"config", "distribute", "test"},
+		} {
+			root := NewCommandWithIOStreams(util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
+			root.SetOut(io.Discard)
+			root.SetErr(io.Discard)
+			root.SetArgs(append(args, "--config-mode", "crd"))
+			Expect(root.Execute()).Should(MatchError(ContainSubstring("unknown flag: --config-mode")), strings.Join(args, " "))
+		}
+	})
+
 	It("Test show the templates", func() {
 		buffer := bytes.NewBuffer(nil)
 		cmd := TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
@@ -169,6 +259,49 @@ var _ = Describe("Test the commands of the config", func() {
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())
 		Expect(line(buffer.String())).Should(Equal(2))
+	})
+
+	It("Test listing configs merges both backends with SOURCE and an empty legacy PHASE", func() {
+		inf := config.NewConfigFactory(k8sClient)
+		item, err := inf.ParseConfig(context.TODO(),
+			config.NamespacedName{Name: "test2", Namespace: types.DefaultKubeVelaNS},
+			config.Metadata{
+				NamespacedName: config.NamespacedName{Name: "legacy-cfg", Namespace: "default"},
+				Properties: map[string]interface{}{
+					"registry": "docker.io",
+					"auth":     map[string]interface{}{"username": "u", "password": "p"},
+					"useHTTP":  true,
+				},
+			})
+		Expect(err).Should(BeNil())
+		Expect(inf.CreateOrUpdateConfig(context.TODO(), item, "default")).Should(Succeed())
+		DeferCleanup(func() {
+			secret := &v1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "legacy-cfg"}}
+			Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), secret))).Should(Succeed())
+		})
+
+		list := func(extra ...string) []string {
+			buffer := bytes.NewBuffer(nil)
+			cmd := ConfigCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+			cmd.SetArgs(append([]string{"list", "-n", "default"}, extra...))
+			Expect(cmd.Execute()).Should(Succeed())
+			return strings.Split(strings.TrimRight(buffer.String(), "\n"), "\n")
+		}
+
+		// merged: the three CR configs created above, then the legacy Secret
+		lines := list()
+		Expect(lines).Should(HaveLen(5))
+		Expect(lines[0]).Should(MatchRegexp(`^NAME\s+ALIAS\s+SOURCE\s+PHASE\s+DISTRIBUTION\s+TEMPLATE\s+CREATED-TIME\s+DESCRIPTION`))
+		for _, l := range lines[1:4] {
+			Expect(l).Should(MatchRegexp(`\scrd\s`))
+		}
+		// alias, PHASE and DISTRIBUTION are all empty, so SOURCE is followed directly by TEMPLATE
+		Expect(lines[4]).Should(MatchRegexp(`^legacy-cfg\s+legacy\s+vela-system/test2\s+\d{4}-`))
+
+		Expect(list("--config-mode", "crd")).Should(HaveLen(4))
+		Expect(list("--config-mode", "legacy")).Should(HaveLen(2))
+		// the template filter applies to both backends: testfile (CR) and legacy-cfg
+		Expect(list("-t", "test2")).Should(HaveLen(3))
 	})
 
 	It("Test dry run the config", func() {

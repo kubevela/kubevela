@@ -100,6 +100,8 @@ func deleteConfigTemplateCRD(ctx context.Context, cli client.Client, ns, name st
 	return nil
 }
 
+// listConfigTemplateCRDs lists ConfigTemplate CRs in ns, or everywhere when ns is
+// "". A cluster that does not serve the type yields no items and no error.
 func listConfigTemplateCRDs(ctx context.Context, cli client.Client, ns string) ([]configv1alpha1.ConfigTemplate, error) {
 	var list configv1alpha1.ConfigTemplateList
 	var opts []client.ListOption
@@ -107,6 +109,9 @@ func listConfigTemplateCRDs(ctx context.Context, cli client.Client, ns string) (
 		opts = append(opts, client.InNamespace(ns))
 	}
 	if err := cli.List(ctx, &list, opts...); err != nil {
+		if crdTypeMissing(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return list.Items, nil
@@ -123,6 +128,9 @@ func deleteConfigCRD(ctx context.Context, cli client.Client, ns, name string) er
 	return nil
 }
 
+// listConfigCRDs lists Config CRs in ns, or everywhere when ns is "", keeping
+// only those referencing template when it is set. A cluster that does not serve
+// the type yields no items and no error.
 func listConfigCRDs(ctx context.Context, cli client.Client, ns, template string) ([]configv1alpha1.Config, error) {
 	var list configv1alpha1.ConfigList
 	var opts []client.ListOption
@@ -130,6 +138,9 @@ func listConfigCRDs(ctx context.Context, cli client.Client, ns, template string)
 		opts = append(opts, client.InNamespace(ns))
 	}
 	if err := cli.List(ctx, &list, opts...); err != nil {
+		if crdTypeMissing(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if template == "" {
