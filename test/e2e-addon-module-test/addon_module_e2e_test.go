@@ -617,7 +617,14 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 
 			It("fans one addon Application out into two module components and two module Applications", func() {
 				app := mustGetApp(ctx, systemNS, "addon-"+v.addonSlug)
-				Expect(componentNames(app)).Should(Equal([]string{v.addonSlug + "-resources", v.widgetModule, v.gadgetModule}))
+				names := componentNames(app)
+				Expect(names).Should(HaveLen(3))
+				Expect(names[0]).Should(Equal(v.addonSlug + "-resources"))
+				// The two module components' relative order is not asserted: for
+				// "external" it follows modules/_imports.cue's declaration order,
+				// but for "inline" it follows modules/ directory enumeration,
+				// which carries no author-declared order to preserve.
+				Expect(names[1:]).Should(ConsistOf(v.widgetModule, v.gadgetModule))
 				for _, name := range []string{v.widgetModule, v.gadgetModule} {
 					c := findComponent(app, name)
 					Expect(c.Type).Should(Equal(v.moduleCompType))
