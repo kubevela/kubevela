@@ -160,7 +160,7 @@ var _ = Describe("Module publish and deploy", Serial, func() {
 // modulePublishRepoRoot returns the repository root, computed from this
 // file's own path rather than the process working directory: ginkgo runs the
 // test binary with its working directory set to the package under test
-// (test/e2e-test), so relative paths written against the repo root (matching
+// (test/e2e-module-test), so relative paths written against the repo root (matching
 // how the CI job invokes "bin/vela" and names the module fixture) need to be
 // resolved explicitly.
 func modulePublishRepoRoot() string {

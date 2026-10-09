@@ -141,8 +141,8 @@ ginkgo -v --focus="<some spec description>" ./test/e2e-application-test
 ginkgo -v --repeat=2 --focus="<some spec description>" ./test/e2e-application-test
 ```
 
-Choose the corresponding definition, config, Helm or Helm-auth package for
-other core specs. `make e2e-test` runs all five core packages; their individual
+Choose the corresponding definition, config or combined Helm lifecycle/authentication package for
+other core specs. `make e2e-test` runs all four core packages; their individual
 targets and CPU-based worker defaults are documented in
 [`test/E2E_PARALLEL.md`](../../test/E2E_PARALLEL.md).
 

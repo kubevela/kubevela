@@ -19,8 +19,8 @@ limitations under the License.
 // reconciler behaviour, uninstall, ownership between the two install paths,
 // version movement, and admission refusals.
 //
-// It is separate from test/e2e-test so a failure anywhere else in that
-// larger, longer-running suite cannot prevent this one from running, and
+// It is separate from the core E2E packages so a failure anywhere else in those
+// larger, longer-running suites cannot prevent this one from running, and
 // separate from e2e/addon-component (one spec against the mock OSS registry)
 // because this suite needs a registry it can push to.
 package controllers_test

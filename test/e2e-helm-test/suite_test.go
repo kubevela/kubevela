@@ -28,11 +28,11 @@ import (
 
 var support = framework.New()
 var k8sClient client.Client
-var _ = support.Register(false, func(cli client.Client) { k8sClient = cli })
+var _ = support.Register(true, func(cli client.Client) { k8sClient = cli })
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Helm Lifecycle E2E Suite")
+	RunSpecs(t, "Helm Lifecycle and Authentication E2E Suite")
 }
 
 var randomNamespaceName = framework.RandomNamespaceName

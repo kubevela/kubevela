@@ -8,7 +8,7 @@ report_dir=$(mktemp -d "${TMPDIR:-/tmp}/kubevela-core-discovery.XXXXXX")
 trap 'rm -f "$report_dir"/*.json; rmdir "$report_dir"' EXIT
 
 go test ./test/e2e-framework -count=1
-for suite in application definition config helm helm-auth; do
+for suite in application definition config helm; do
   go test "./test/e2e-${suite}-test" -run '^TestAPIs$' -count=1 -ginkgo.dry-run \
     -ginkgo.json-report="$report_dir/$suite.json"
 done
@@ -20,8 +20,7 @@ jq -e -r -s '
     "e2e-application-test": "core-application",
     "e2e-definition-test": "core-definitions",
     "e2e-config-test": "core-config",
-    "e2e-helm-test": "core-helm",
-    "e2e-helm-auth-test": "core-helm-auth"
+    "e2e-helm-test": "core-helm"
   };
   def group: .[0].SuitePath | split("/")[-1] | groups[.];
   def core_labels: ((.ContainerHierarchyLabels | flatten) + (.LeafNodeLabels // []))
@@ -37,4 +36,4 @@ jq -e -r -s '
     (.[] | group as $group | "\($group): \(specs | length) specs")
   end
 ' "$report_dir/application.json" "$report_dir/definition.json" \
-  "$report_dir/config.json" "$report_dir/helm.json" "$report_dir/helm-auth.json"
+  "$report_dir/config.json" "$report_dir/helm.json"

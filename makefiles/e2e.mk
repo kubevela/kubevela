@@ -5,7 +5,7 @@ E2E_REPORT_DIR ?= _artifacts/e2e
 E2E_CORE_LABEL_FILTER ?=
 E2E_CORE_AUTH ?= 1
 E2E_CORE_REPORT ?= e2e-test
-E2E_CORE_PACKAGES ?= ./test/e2e-application-test ./test/e2e-definition-test ./test/e2e-config-test ./test/e2e-helm-test ./test/e2e-helm-auth-test
+E2E_CORE_PACKAGES ?= ./test/e2e-application-test ./test/e2e-definition-test ./test/e2e-config-test ./test/e2e-helm-test
 E2E_ADDON_MODULE_LABEL_FILTER ?=
 E2E_ADDON_MODULE_REPORT ?= e2e-addon-module-test
 
@@ -137,10 +137,11 @@ e2e-core-config-test:
 	$(MAKE) e2e-test E2E_CORE_PACKAGES=./test/e2e-config-test E2E_CORE_AUTH=0 E2E_CORE_REPORT=e2e-core-config-test
 
 e2e-core-helm-test:
-	$(MAKE) e2e-test E2E_CORE_PACKAGES=./test/e2e-helm-test E2E_CORE_AUTH=0 E2E_CORE_REPORT=e2e-core-helm-test
+	$(MAKE) e2e-test E2E_CORE_PACKAGES=./test/e2e-helm-test E2E_CORE_AUTH=1 E2E_CORE_REPORT=e2e-core-helm-test
 
+# Compatibility target for running only authentication cases in the merged suite.
 e2e-core-helm-auth-test:
-	$(MAKE) e2e-test E2E_CORE_PACKAGES=./test/e2e-helm-auth-test E2E_CORE_AUTH=1 E2E_CORE_REPORT=e2e-core-helm-auth-test
+	$(MAKE) e2e-test E2E_CORE_PACKAGES=./test/e2e-helm-test E2E_CORE_AUTH=1 E2E_CORE_LABEL_FILTER=helm-auth E2E_CORE_REPORT=e2e-core-helm-auth-test
 
 e2e-core-discovery:
 	bash hack/e2e/verify_core_shards.sh
@@ -254,7 +255,7 @@ e2e-local-cluster:
 	docker build -t vela-core:e2e-test -f Dockerfile . --build-arg=VERSION=e2e-test --build-arg=GITVERSION=test
 	k3d image import vela-core:e2e-test -c kubevela-debug
 	# Pre-load the registry images the suites deploy (zot/chartmuseum/nginx
-	# for test/e2e-helm-auth-test, registry:2 and
+	# for test/e2e-helm-test, registry:2 and
 	# chartmuseum for the module suites). Each command runs on its own line
 	# under `set -e` so a failed pull stops the loop (a `&&` chain would
 	# swallow the failure as far as `set -e` is concerned).

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package helmauth_test
+package helm_test
 
 import (
 	"encoding/json"
@@ -39,7 +39,7 @@ import (
 // from test/e2e-framework/testdata/auth/manifests/) are running and the test chart
 // has been pushed to each.
 // ============================================================================
-var _ = Describe("Helmchart Auth", Label("core-helm-auth"), func() {
+var _ = Describe("Helmchart Auth", Label("core-helm", "helm-auth"), func() {
 
 	BeforeEach(func() {
 		if os.Getenv("KUBEVELA_E2E_AUTH") != "1" {

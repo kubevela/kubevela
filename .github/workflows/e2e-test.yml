@@ -60,9 +60,6 @@ jobs:
           - suite: core-helm
             package: e2e-helm-test
             k8s-version: v1.31.9
-          - suite: core-helm-auth
-            package: e2e-helm-auth-test
-            k8s-version: v1.31.9
           - suite: module
             package: e2e-module-test
             k8s-version: v1.31.9
