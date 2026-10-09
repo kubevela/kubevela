@@ -250,17 +250,32 @@ func NewTemplateDeleteCommand(f velacmd.Factory, streams util.IOStreams) *cobra.
 					return fmt.Errorf("stopping deleting")
 				}
 			}
-			if configCRDInstalled(f) {
-				if err := deleteConfigTemplateCRD(context.Background(), f.Client(), options.Namespace, options.Name); err != nil {
-					return err
-				}
-			} else {
+			// CR first; a template held only as a legacy ConfigMap is deleted
+			// through the factory. Not found means neither backend had it.
+			removed, err := deleteConfigTemplateCRD(cmd.Context(), f.Client(), options.Namespace, options.Name)
+			if err != nil {
+				return err
+			}
+			if !removed {
 				inf := config.NewConfigFactory(f.Client())
-				if err := inf.DeleteTemplate(context.Background(), options.Namespace, options.Name); err != nil {
+				if err := inf.DeleteTemplate(cmd.Context(), options.Namespace, options.Name); err != nil {
 					return err
 				}
 			}
 			streams.Infof("the config template %s deleted successfully\n", options.Name)
+			if !removed {
+				return nil
+			}
+			// Only the CR went; a legacy twin is left for the user to decide on.
+			remains, err := legacyTemplateExists(cmd.Context(), f.Client(), options.Namespace, options.Name)
+			if err != nil {
+				streams.Errorf("warning: could not check for a legacy template ConfigMap: %v\n", err)
+				return nil
+			}
+			if remains {
+				streams.Infof("note: legacy template ConfigMap %s%s in %s remains and is visible again\n",
+					config.TemplateConfigMapNamePrefix, options.Name, options.Namespace)
+			}
 			return nil
 		},
 	}
@@ -665,16 +680,21 @@ func NewDeleteConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 			}
 
 			distributionName := config.DefaultDistributionName(options.Name)
-			crdInstalled := configCRDInstalled(f)
+			// Route on what holds the config: a Config CR takes the CRD path, anything
+			// else is a legacy Secret and gets the pre-CRD path.
+			crBacked, err := configCRDExists(cmd.Context(), f.Client(), options.Namespace, options.Name)
+			if err != nil {
+				return err
+			}
 			if !options.NotRecall {
-				if err := inf.DeleteDistribution(context.Background(), options.Namespace, distributionName); err != nil && !errors.Is(err, config.ErrNotFoundDistribution) {
+				if err := inf.DeleteDistribution(cmd.Context(), options.Namespace, distributionName); err != nil && !errors.Is(err, config.ErrNotFoundDistribution) {
 					return err
 				}
-			} else if crdInstalled {
+			} else if crBacked {
 				// a CRD-backed config's distribution Application is owned by the Config (see
 				// setDistributionOwner), so deleting the Config always recalls it - --not-recall
 				// can't be honored for these; fail rather than silently ignoring the flag.
-				switch err := f.Client().Get(context.Background(), client.ObjectKey{Namespace: options.Namespace, Name: distributionName}, &v1beta1.Application{}); {
+				switch err := f.Client().Get(cmd.Context(), client.ObjectKey{Namespace: options.Namespace, Name: distributionName}, &v1beta1.Application{}); {
 				case err == nil:
 					return fmt.Errorf("--not-recall is not supported for this config: its distribution %q is owned by the Config and will be recalled automatically when the Config is deleted; run \"vela config distribute %s --recall\" first if you want to keep the config without its distribution", distributionName, options.Name)
 				case apierrors.IsNotFound(err):
@@ -684,11 +704,11 @@ func NewDeleteConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				}
 			}
 
-			if crdInstalled {
-				if err := deleteConfigCRD(context.Background(), f.Client(), options.Namespace, options.Name); err != nil {
+			if crBacked {
+				if err := deleteConfigCRD(cmd.Context(), f.Client(), options.Namespace, options.Name); err != nil {
 					return err
 				}
-			} else if err := inf.DeleteConfig(context.Background(), options.Namespace, options.Name); err != nil {
+			} else if err := inf.DeleteConfig(cmd.Context(), options.Namespace, options.Name); err != nil {
 				return err
 			}
 

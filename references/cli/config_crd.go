@@ -48,17 +48,23 @@ func configCRDInstalled(f velacmd.Factory) bool {
 
 var errConfigTemplateCRDMissing = errors.New("the ConfigTemplate CRD is not installed; upgrade vela-core before applying config templates")
 
-// legacyTemplateExists reports whether a legacy template ConfigMap with the given
-// template name exists in ns.
-func legacyTemplateExists(ctx context.Context, cli client.Client, ns, name string) (bool, error) {
-	err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + name}, &corev1.ConfigMap{})
-	if apierrors.IsNotFound(err) {
+// objectExists reports whether obj can be read at key. Not found, and a type
+// the cluster does not serve, both count as absent.
+func objectExists(ctx context.Context, cli client.Client, key client.ObjectKey, obj client.Object) (bool, error) {
+	err := cli.Get(ctx, key, obj)
+	if apierrors.IsNotFound(err) || crdTypeMissing(err) {
 		return false, nil
 	}
 	if err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+// legacyTemplateExists reports whether a legacy template ConfigMap with the given
+// template name exists in ns.
+func legacyTemplateExists(ctx context.Context, cli client.Client, ns, name string) (bool, error) {
+	return objectExists(ctx, cli, client.ObjectKey{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + name}, &corev1.ConfigMap{})
 }
 
 // crdTypeMissing reports whether err means the config.oam.dev types are not served
@@ -89,15 +95,24 @@ func applyConfigTemplateCRD(ctx context.Context, cli client.Client, ns string, t
 	return err
 }
 
-func deleteConfigTemplateCRD(ctx context.Context, cli client.Client, ns, name string) error {
+// deleteConfigTemplateCRD deletes the ConfigTemplate CR and reports whether one
+// was there. No CR, or a cluster that does not serve the type, is false and no
+// error, so the caller can fall back to the legacy ConfigMap.
+func deleteConfigTemplateCRD(ctx context.Context, cli client.Client, ns, name string) (bool, error) {
 	ct := &configv1alpha1.ConfigTemplate{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
 	if err := cli.Delete(ctx, ct); err != nil {
-		if apierrors.IsNotFound(err) {
-			return fmt.Errorf("the config template %s not found", name)
+		if apierrors.IsNotFound(err) || crdTypeMissing(err) {
+			return false, nil
 		}
-		return err
+		return false, err
 	}
-	return nil
+	return true, nil
+}
+
+// configCRDExists reports whether a Config CR with the given name exists in ns.
+// A cluster that does not serve the type counts as no CR.
+func configCRDExists(ctx context.Context, cli client.Client, ns, name string) (bool, error) {
+	return objectExists(ctx, cli, client.ObjectKey{Namespace: ns, Name: name}, &configv1alpha1.Config{})
 }
 
 // listConfigTemplateCRDs lists ConfigTemplate CRs in ns, or everywhere when ns is
@@ -117,6 +132,8 @@ func listConfigTemplateCRDs(ctx context.Context, cli client.Client, ns string) (
 	return list.Items, nil
 }
 
+// deleteConfigCRD deletes the Config CR. Callers route here only after
+// configCRDExists said yes, so a missing CR is reported as not found.
 func deleteConfigCRD(ctx context.Context, cli client.Client, ns, name string) error {
 	cfg := &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
 	if err := cli.Delete(ctx, cfg); err != nil {

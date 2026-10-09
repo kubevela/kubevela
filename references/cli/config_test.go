@@ -404,27 +404,13 @@ var _ = Describe("Test the commands of the config", func() {
 	})
 
 	// The CLI no longer produces legacy configs (create writes a Config CR once the
-	// CRDs are installed), so this case seeds one through the factory. Pending until
-	// config delete routes by backend: today the CLI only looks for a Config CR on a
-	// CRD-enabled cluster and reports the legacy Secret as not found.
-	PIt("Test --not-recall still works for a legacy config (no owner reference involved)", func() {
-		inf := config.NewConfigFactory(k8sClient)
-		item, err := inf.ParseConfig(context.Background(),
-			config.NamespacedName{Name: "test2", Namespace: "default"},
-			config.Metadata{
-				NamespacedName: config.NamespacedName{Name: "legacy-dist", Namespace: "default"},
-				Properties: map[string]interface{}{
-					"registry": "docker.io",
-					"auth":     map[string]interface{}{"username": "zhangsan", "password": "lisi"},
-					"useHTTP":  true,
-				},
-			})
-		Expect(err).Should(BeNil())
-		Expect(inf.CreateOrUpdateConfig(context.Background(), item, "default")).Should(BeNil())
-		Expect(inf.CreateOrUpdateDistribution(context.Background(), "default", config.DefaultDistributionName("legacy-dist"), &config.CreateDistributionSpec{
-			Targets: []*config.ClusterTarget{{ClusterName: types.ClusterLocalName, Namespace: "test"}},
-			Configs: []*config.NamespacedName{{Name: "legacy-dist", Namespace: "default"}},
-		})).Should(BeNil())
+	// CRDs are installed), so these cases seed one through the factory.
+	It("Test --not-recall still works for a legacy config (no owner reference involved)", func() {
+		seedLegacyConfigWithDistribution(k8sClient, "legacy-dist")
+		DeferCleanup(func() {
+			app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "distribute-legacy-dist"}}
+			Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), app))).Should(Succeed())
+		})
 
 		buffer := bytes.NewBuffer(nil)
 		cmd := ConfigCommandGroup(arg, "", util.IOStreams{In: strings.NewReader("y\n"), Out: buffer, ErrOut: buffer})
@@ -434,12 +420,142 @@ var _ = Describe("Test the commands of the config", func() {
 
 		// the config is gone, but its distribution was intentionally left alone
 		var secret v1.Secret
-		err = k8sClient.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: "legacy-dist"}, &secret)
+		err := k8sClient.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: "legacy-dist"}, &secret)
 		Expect(apierrors.IsNotFound(err)).Should(BeTrue())
 		var app v1beta1.Application
 		Expect(k8sClient.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: "distribute-legacy-dist"}, &app)).Should(BeNil())
 	})
+
+	It("Test deleting a legacy config recalls its distribution by default", func() {
+		seedLegacyConfigWithDistribution(k8sClient, "legacy-recall")
+
+		buffer := bytes.NewBuffer(nil)
+		cmd := ConfigCommandGroup(arg, "", util.IOStreams{In: strings.NewReader("y\n"), Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"delete", "legacy-recall", "-n", "default"})
+		assumeYes = false
+		Expect(cmd.Execute()).Should(Succeed())
+		Expect(buffer.String()).Should(HaveSuffix("the config legacy-recall deleted successfully\n"))
+
+		var secret v1.Secret
+		err := k8sClient.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: "legacy-recall"}, &secret)
+		Expect(apierrors.IsNotFound(err)).Should(BeTrue())
+		var app v1beta1.Application
+		err = k8sClient.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: "distribute-legacy-recall"}, &app)
+		Expect(apierrors.IsNotFound(err)).Should(BeTrue())
+	})
+
+	It("Test deleting a config that neither backend holds reports not found", func() {
+		cmd := ConfigCommandGroup(arg, "", util.IOStreams{In: strings.NewReader("y\n"), Out: io.Discard, ErrOut: io.Discard})
+		cmd.SetArgs([]string{"delete", "nothing-here", "-n", "default"})
+		assumeYes = false
+		Expect(cmd.Execute()).Should(MatchError("the config nothing-here not found"))
+	})
+
+	It("Test deleting a template held only as a legacy ConfigMap", func() {
+		seedLegacyTemplate(k8sClient, "default", "legacy-del")
+
+		buffer := bytes.NewBuffer(nil)
+		cmd := TemplateCommandGroup(arg, "", util.IOStreams{In: strings.NewReader("y\n"), Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"delete", "legacy-del", "-n", "default"})
+		assumeYes = false
+		Expect(cmd.Execute()).Should(Succeed())
+		Expect(buffer.String()).Should(Equal("Do you want to delete this template (y/n)the config template legacy-del deleted successfully\n"))
+
+		var cm v1.ConfigMap
+		err := k8sClient.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: config.TemplateConfigMapNamePrefix + "legacy-del"}, &cm)
+		Expect(apierrors.IsNotFound(err)).Should(BeTrue())
+	})
+
+	It("Test deleting a template held by both backends removes the CR and reports the legacy twin", func() {
+		seedLegacyTemplate(k8sClient, "default", "del-both")
+		apply := TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
+		apply.SetArgs([]string{"apply", "-f", "./test-data/config-templates/image-registry.cue", "--name", "del-both", "-n", "default"})
+		Expect(apply.Execute()).Should(Succeed())
+		DeferCleanup(func() {
+			cm := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: config.TemplateConfigMapNamePrefix + "del-both"}}
+			Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), cm))).Should(Succeed())
+		})
+
+		del := func() string {
+			buffer := bytes.NewBuffer(nil)
+			cmd := TemplateCommandGroup(arg, "", util.IOStreams{In: strings.NewReader("y\n"), Out: buffer, ErrOut: buffer})
+			cmd.SetArgs([]string{"delete", "del-both", "-n", "default"})
+			assumeYes = false
+			Expect(cmd.Execute()).Should(Succeed())
+			return buffer.String()
+		}
+
+		// first delete: the CR goes, the ConfigMap stays and the user is told
+		Expect(del()).Should(Equal("Do you want to delete this template (y/n)the config template del-both deleted successfully\n" +
+			"note: legacy template ConfigMap config-template-del-both in default remains and is visible again\n"))
+		var ct configv1alpha1.ConfigTemplate
+		err := k8sClient.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: "del-both"}, &ct)
+		Expect(apierrors.IsNotFound(err)).Should(BeTrue())
+		var cm v1.ConfigMap
+		Expect(k8sClient.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: config.TemplateConfigMapNamePrefix + "del-both"}, &cm)).Should(Succeed())
+
+		// second delete: the ConfigMap goes, no note
+		Expect(del()).Should(Equal("Do you want to delete this template (y/n)the config template del-both deleted successfully\n"))
+		err = k8sClient.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: config.TemplateConfigMapNamePrefix + "del-both"}, &cm)
+		Expect(apierrors.IsNotFound(err)).Should(BeTrue())
+	})
+
+	It("Test deleting a template that neither backend holds reports not found", func() {
+		cmd := TemplateCommandGroup(arg, "", util.IOStreams{In: strings.NewReader("y\n"), Out: io.Discard, ErrOut: io.Discard})
+		cmd.SetArgs([]string{"delete", "nothing-here", "-n", "default"})
+		assumeYes = false
+		Expect(cmd.Execute()).Should(MatchError("the config template nothing-here not found"))
+	})
+
+	It("Test deleting a legacy template on a cluster without the CRD", func() {
+		noCRDClient := fake.NewClientBuilder().WithScheme(clientgoscheme.Scheme).Build()
+		seedLegacyTemplate(noCRDClient, "default", "legacy-no-crd")
+
+		buffer := bytes.NewBuffer(nil)
+		cmd := TemplateCommandGroup(cmd.NewTestFactory(cfg, noCRDClient), "", util.IOStreams{In: strings.NewReader("y\n"), Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"delete", "legacy-no-crd", "-n", "default"})
+		assumeYes = false
+		Expect(cmd.Execute()).Should(Succeed())
+		Expect(buffer.String()).Should(HaveSuffix("the config template legacy-no-crd deleted successfully\n"))
+		var cm v1.ConfigMap
+		err := noCRDClient.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: config.TemplateConfigMapNamePrefix + "legacy-no-crd"}, &cm)
+		Expect(apierrors.IsNotFound(err)).Should(BeTrue())
+	})
 })
+
+// seedLegacyTemplate writes template name as a legacy ConfigMap in ns through the
+// factory, the way a pre-CRD CLI did.
+func seedLegacyTemplate(cli client.Client, ns, name string) {
+	inf := config.NewConfigFactory(cli)
+	body, err := os.ReadFile("./test-data/config-templates/image-registry.cue")
+	Expect(err).Should(BeNil())
+	t, err := inf.ParseTemplate(context.TODO(), name, body)
+	Expect(err).Should(BeNil())
+	Expect(inf.CreateOrUpdateConfigTemplate(context.TODO(), ns, t)).Should(Succeed())
+}
+
+// seedLegacyConfigWithDistribution writes config name in default as a legacy
+// Secret from the vela-system test2 template, plus a distribution Application
+// with no owner reference, the way a pre-CRD CLI did.
+func seedLegacyConfigWithDistribution(cli client.Client, name string) {
+	inf := config.NewConfigFactory(cli)
+	item, err := inf.ParseConfig(context.Background(),
+		config.NamespacedName{Name: "test2", Namespace: types.DefaultKubeVelaNS},
+		config.Metadata{
+			NamespacedName: config.NamespacedName{Name: name, Namespace: "default"},
+			Properties: map[string]interface{}{
+				"registry": "docker.io",
+				"auth":     map[string]interface{}{"username": "zhangsan", "password": "lisi"},
+				"useHTTP":  true,
+			},
+		})
+	Expect(err).Should(BeNil())
+	Expect(inf.CreateOrUpdateConfig(context.Background(), item, "default")).Should(BeNil())
+	Expect(inf.CreateOrUpdateDistribution(context.Background(), "default", config.DefaultDistributionName(name), &config.CreateDistributionSpec{
+		Targets: []*config.ClusterTarget{{ClusterName: types.ClusterLocalName, Namespace: "test"}},
+		Configs: []*config.NamespacedName{{Name: name, Namespace: "default"}},
+	})).Should(BeNil())
+}
 
 func line(data string) int {
 	return len(strings.Split(strings.TrimRight(data, "\n"), "\n"))
