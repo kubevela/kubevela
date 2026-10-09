@@ -90,7 +90,7 @@ spec:
             - name: BUILTIN_DEFINITIONS
               value: {{ join " " $refs | quote }}
             - name: WEBHOOK_CONFIGURATION
-              value: {{ ternary (printf "%s-admission" (include "kubevela.fullname" $root)) "" $root.Values.admissionWebhooks.enabled | quote }}
+              value: {{ ternary (printf "%s-admission" (include "kubevela.fullname" $root)) "" (and $root.Values.admissionWebhooks.enabled $root.Values.admissionWebhooks.certManager.enabled) | quote }}
           volumeMounts:
             - name: definitions
               mountPath: /definitions
