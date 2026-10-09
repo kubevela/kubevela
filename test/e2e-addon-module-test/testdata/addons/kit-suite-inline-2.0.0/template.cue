@@ -1,5 +1,5 @@
 // Minimal addon template: the Application only carries what resources/ and
-// modules/_imports.cue add to it.
+// the inline module under modules/ add to it.
 package main
 
 output: {

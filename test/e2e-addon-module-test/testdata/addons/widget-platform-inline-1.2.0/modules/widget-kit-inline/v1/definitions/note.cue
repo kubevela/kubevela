@@ -1,6 +1,6 @@
 // A trait that emits an extra object through `outputs`. Used by scenario 04 to
-// show how the trait type string ends up in the trait.oam.dev/type label of
-// that object (see architecture.md, "Known defects").
+// show that the trait's installed name labels that object's trait.oam.dev/type,
+// not the widget-kit-inline/v1/note string it was written as.
 note: {
 	type:        "trait"
 	description: "Writes a ConfigMap note next to the component."

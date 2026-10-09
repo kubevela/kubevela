@@ -378,7 +378,12 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	if err != nil {
 		return nil, fmt.Errorf("render module components for addon %q: %w", req.Name, err)
 	}
-	inlineModuleComps, err := pkgaddon.RenderInlineModuleComponents(installPkg, app.Spec.Components, dependsOn)
+	// Seed inline naming with moduleComps too, not just app.Spec.Components:
+	// RenderModuleComponents may have already claimed a collision-avoiding name
+	// (e.g. "foo-2") that RenderInlineModuleComponents would otherwise pick
+	// again independently, since each only sees app.Spec.Components on its own.
+	existingForInline := append(append([]common2.ApplicationComponent{}, app.Spec.Components...), moduleComps...)
+	inlineModuleComps, err := pkgaddon.RenderInlineModuleComponents(installPkg, existingForInline, dependsOn)
 	if err != nil {
 		return nil, fmt.Errorf("render inline module components for addon %q: %w", req.Name, err)
 	}
