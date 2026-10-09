@@ -151,7 +151,7 @@ func TestGenerateOutputSchemasWithoutOutputs(t *testing.T) {
 // shipped reads a definition's CUE template from the vela-core chart.
 func shipped(t *testing.T, name string) string {
 	t.Helper()
-	raw, err := os.ReadFile("../../charts/vela-core/templates/defwithtemplate/" + name + ".yaml")
+	raw, err := os.ReadFile("../../charts/vela-core/definitions/" + name + ".yaml")
 	require.NoError(t, err)
 	// The chart wraps each definition in Helm conditionals; the CUE sits in the
 	// one template block.

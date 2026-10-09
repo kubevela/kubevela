@@ -71,7 +71,7 @@ func TestDefinitionRequestsRedispatch(t *testing.T) {
 func TestAddonAndModuleDefinitionsRequestRedispatch(t *testing.T) {
 	for _, name := range []string{"addon", "module"} {
 		t.Run(name, func(t *testing.T) {
-			raw, err := os.ReadFile("../../../../../charts/vela-core/templates/defwithtemplate/" + name + ".yaml")
+			raw, err := os.ReadFile("../../../../../charts/vela-core/definitions/" + name + ".yaml")
 			require.NoError(t, err)
 			var def struct {
 				Metadata metav1.ObjectMeta `json:"metadata"`
