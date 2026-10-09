@@ -202,3 +202,80 @@ _worker: {
 	observed: output: spec: replicas: 1
 	expect: {healthy: false, message: "Ready:0/1"}
 }
+
+"every probe field passes through": test.#ComponentRender & _worker & {
+	parameter: {
+		image: "shop-worker:1.0"
+		livenessProbe: {
+			httpGet: {path: "/alive", port: 8080}
+			initialDelaySeconds: 5
+			periodSeconds:       20
+			timeoutSeconds:      2
+			successThreshold:    1
+			failureThreshold:    6
+		}
+		readinessProbe: {
+			exec: command: ["cat", "/ready"]
+			initialDelaySeconds: 3
+			periodSeconds:       15
+			timeoutSeconds:      4
+			successThreshold:    2
+			failureThreshold:    5
+		}
+	}
+	expect: output: spec: template: spec: containers: [{
+		livenessProbe: {
+			httpGet: {path: "/alive", port: 8080}
+			initialDelaySeconds: 5
+			periodSeconds:       20
+			timeoutSeconds:      2
+			successThreshold:    1
+			failureThreshold:    6
+		}
+		readinessProbe: {
+			exec: command: ["cat", "/ready"]
+			initialDelaySeconds: 3
+			periodSeconds:       15
+			timeoutSeconds:      4
+			successThreshold:    2
+			failureThreshold:    5
+		}
+	}]
+}
+
+"an exec liveness and an httpGet or tcpSocket readiness probe pass through": test.#ComponentRender & _worker & {
+	parameter: {
+		image: "shop-worker:1.0"
+		livenessProbe: exec: command: ["cat", "/alive"]
+		readinessProbe: {
+			httpGet: {path: "/ready", port: 8080}
+			tcpSocket: port: 8080
+		}
+	}
+	expect: output: spec: template: spec: containers: [{
+		livenessProbe: exec: command: ["cat", "/alive"]
+		readinessProbe: {
+			httpGet: {path: "/ready", port: 8080}
+			tcpSocket: port: 8080
+		}
+	}]
+}
+
+"a tcpSocket liveness probe passes through": test.#ComponentRender & _worker & {
+	parameter: {
+		image: "shop-worker:1.0"
+		livenessProbe: tcpSocket: port: 8080
+	}
+	expect: output: spec: template: spec: containers: [{livenessProbe: tcpSocket: port: 8080}]
+}
+
+"a deprecated emptyDir volume keeps its medium": test.#ComponentRender & _worker & {
+	parameter: {
+		image: "shop-worker:1.0"
+		volumes: [{name: "cache", mountPath: "/cache", type: "emptyDir", medium: "Memory"}]
+	}
+	expect: output: spec: template: spec: {
+		containers: [{volumeMounts: [{name: "cache", mountPath: "/cache"}]}]
+		volumes: [{name: "cache", emptyDir: medium: "Memory"}]
+	}
+}

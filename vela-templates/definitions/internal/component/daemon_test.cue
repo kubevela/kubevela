@@ -152,7 +152,7 @@ _daemon: {
 	expect: output: spec: template: spec: containers: [{volumeMounts: [
 		{name: "varlog", mountPath: "/var/log", readOnly: true, mountPropagation: "HostToContainer"},
 	]}]
-} @pending(the hostPath readOnly and mountPropagation parameters are accepted but never rendered into the volumeMount)
+}
 
 "the deprecated volumes still mount": test.#ComponentRender & _daemon & {
 	parameter: {
@@ -226,4 +226,81 @@ _daemon: {
 		status: {desiredNumberScheduled: 1, currentNumberScheduled: 1, updatedNumberScheduled: 1, numberReady: 1, observedGeneration: 1}
 	}
 	expect: healthy: false
+}
+
+"every probe field passes through": test.#ComponentRender & _daemon & {
+	parameter: {
+		image: "log-agent:1.0"
+		livenessProbe: {
+			exec: command: ["cat", "/alive"]
+			initialDelaySeconds: 5
+			periodSeconds:       20
+			timeoutSeconds:      2
+			successThreshold:    1
+			failureThreshold:    6
+		}
+		readinessProbe: {
+			httpGet: {path: "/ready", port: 8080}
+			initialDelaySeconds: 3
+			periodSeconds:       15
+			timeoutSeconds:      4
+			successThreshold:    2
+			failureThreshold:    5
+		}
+	}
+	expect: output: spec: template: spec: containers: [{
+		livenessProbe: {
+			exec: command: ["cat", "/alive"]
+			initialDelaySeconds: 5
+			periodSeconds:       20
+			timeoutSeconds:      2
+			successThreshold:    1
+			failureThreshold:    6
+		}
+		readinessProbe: {
+			httpGet: {path: "/ready", port: 8080}
+			initialDelaySeconds: 3
+			periodSeconds:       15
+			timeoutSeconds:      4
+			successThreshold:    2
+			failureThreshold:    5
+		}
+	}]
+}
+
+"a tcpSocket liveness and an exec readiness probe pass through": test.#ComponentRender & _daemon & {
+	parameter: {
+		image: "log-agent:1.0"
+		livenessProbe: tcpSocket: port: 8080
+		readinessProbe: exec: command: ["cat", "/alive"]
+	}
+	expect: output: spec: template: spec: containers: [{
+		livenessProbe: tcpSocket: port: 8080
+		readinessProbe: exec: command: ["cat", "/alive"]
+	}]
+}
+
+"environment can come from a Secret or a ConfigMap": test.#ComponentRender & _daemon & {
+	parameter: {
+		image: "log-agent:1.0"
+		env: [
+			{name: "PASSWORD", valueFrom: secretKeyRef: {name: "shop-db", key: "password"}},
+			{name: "MODE", valueFrom: configMapKeyRef: {name: "shop-conf", key: "mode"}},
+		]
+	}
+	expect: output: spec: template: spec: containers: [{env: [
+		{name: "PASSWORD", valueFrom: secretKeyRef: {name: "shop-db", key: "password"}},
+		{name: "MODE", valueFrom: configMapKeyRef: {name: "shop-conf", key: "mode"}},
+	]}]
+}
+
+"a deprecated emptyDir volume keeps its medium": test.#ComponentRender & _daemon & {
+	parameter: {
+		image: "log-agent:1.0"
+		volumes: [{name: "cache", mountPath: "/cache", type: "emptyDir", medium: "Memory"}]
+	}
+	expect: output: spec: template: spec: {
+		containers: [{volumeMounts: [{name: "cache", mountPath: "/cache"}]}]
+		volumes: [{name: "cache", emptyDir: medium: "Memory"}]
+	}
 }

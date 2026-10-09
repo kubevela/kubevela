@@ -238,6 +238,49 @@ func TestDefinitionTestCommandPending(t *testing.T) {
 	require.Equal(t, "waiting on a fix", results[0]["reason"])
 }
 
+func TestDefinitionTestCommandCheckPending(t *testing.T) {
+	const parked = `import "vela/test"
+"still broken": test.#ComponentRender & {definition: "web", expect: output: spec: replicas: 99} @pending(waiting on a fix)
+"since fixed": test.#ComponentRender & {definition: "web", expect: output: spec: replicas: 1} @pending(fixed upstream)
+`
+	run := func(args ...string) (string, error) {
+		dir := writeDefWithTests(t)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "parked_test.cue"), []byte(parked), 0o600))
+		cmd := NewDefinitionTestCommand()
+		initCommand(cmd)
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetArgs(append([]string{dir, "--skip", "on purpose"}, args...))
+		err := cmd.Execute()
+		return strings.ReplaceAll(out.String(), dir+string(filepath.Separator), ""), err
+	}
+
+	out, err := run()
+	require.NoError(t, err, "without the flag, pending cases do not run")
+	require.True(t, strings.HasSuffix(out, "2 passed, 0 failed, 1 skipped, 2 pending\n"), out)
+
+	out, err = run("--check-pending")
+	require.EqualError(t, err, "1 pending definition test now passes; remove its @pending marker")
+	require.Contains(t, out, "FAIL parked_test.cue:3 web / since fixed\n"+
+		"  passes, but is marked @pending(fixed upstream): the defect is fixed, so remove the marker\n")
+	require.NotContains(t, out, "still broken", "a pending case that still fails stays quiet")
+	require.True(t, strings.HasSuffix(out, "2 passed, 0 failed, 1 skipped, 1 pending, 1 no longer pending\n"), out)
+
+	out, err = run("--check-pending", "--json")
+	require.Error(t, err)
+	var results []map[string]any
+	require.NoError(t, json.Unmarshal([]byte(out), &results))
+	byCase := map[string]map[string]any{}
+	for _, r := range results {
+		byCase[r["case"].(string)] = r
+	}
+	require.Equal(t, true, byCase["still broken"]["pending"])
+	require.Nil(t, byCase["still broken"]["failures"])
+	require.Equal(t, true, byCase["since fixed"]["pending"])
+	require.Equal(t, false, byCase["since fixed"]["passed"])
+	require.Equal(t, "fixed upstream", byCase["since fixed"]["reason"])
+}
+
 func TestDefinitionTestCommandUpgrade(t *testing.T) {
 	run := func(args ...string) (string, error) {
 		dir := t.TempDir()

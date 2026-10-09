@@ -68,7 +68,18 @@ _web: {
 		selector: matchLabels: tier: "gold"
 		dataSource?: _|_
 	}
-} @pending(the template writes the selector to spec.dataSource instead of spec.selector)
+}
+
+"a selector's match expressions are a list of requirements": test.#TraitRender & _web & {
+	parameter: pvc: [{name: "data", mountPath: "/data", selector: matchExpressions: [
+		{key: "tier", operator: "In", values: ["gold", "silver"]},
+		{key: "zone", operator: "Exists"},
+	]}]
+	expect: outputs: "pvc-data": spec: selector: matchExpressions: [
+		{key: "tier", operator: "In", values: ["gold", "silver"]},
+		{key: "zone", operator: "Exists"},
+	]
+}
 
 "a block PVC is attached as a device": test.#TraitRender & _web & {
 	parameter: pvc: [{name: "raw", mountPath: "/dev/xvda", volumeMode: "Block"}]
@@ -81,7 +92,7 @@ _web: {
 "a block PVC is not mounted": test.#TraitRender & _web & {
 	parameter: pvc: [{name: "raw", mountPath: "/dev/xvda", volumeMode: "Block"}]
 	expect: output: spec: template: spec: containers: [{volumeMounts: []}, _]
-} @pending(the mount comprehension yields an empty volumeMount for a block PVC, which Kubernetes rejects for lacking a name and mountPath)
+}
 
 "mountOnly mounts an existing PVC without creating it": test.#TraitRender & _web & {
 	parameter: pvc: [{name: "data", mountPath: "/data", mountOnly: true}]
@@ -242,4 +253,68 @@ _web: {
 	expect: error: {
 		parameter: [=~"type"] @contains()
 	}
+}
+
+"a PVC can be filled from a data source reference": test.#TraitRender & _web & {
+	parameter: pvc: [{
+		name:      "data"
+		mountPath: "/data"
+		dataSourceRef: {name: "seed", kind: "VolumePopulator", apiGroup: "populator.example.com"}
+	}]
+	expect: outputs: "pvc-data": spec: {
+		dataSourceRef: {name: "seed", kind: "VolumePopulator", apiGroup: "populator.example.com"} @exact()
+		dataSource?: _|_
+	}
+}
+
+"a ConfigMap, Secret and emptyDir can each mount at a subPath": test.#TraitRender & _web & {
+	parameter: {
+		configMap: [{name: "shop-config", mountPath: "/etc/shop/shop.yaml", subPath: "shop.yaml", mountOnly: true}]
+		secret: [{name: "db-conn", mountPath: "/etc/db/password", subPath: "password", mountOnly: true}]
+		emptyDir: [{name: "cache", mountPath: "/cache", subPath: "web"}]
+	}
+	expect: output: spec: template: spec: containers: [{volumeMounts: [
+		{name: "configmap-shop-config", mountPath: "/etc/shop/shop.yaml", subPath: "shop.yaml"},
+		{name: "secret-db-conn", mountPath: "/etc/db/password", subPath: "password"},
+		{name: "emptydir-cache", mountPath: "/cache", subPath: "web"},
+	]}, _]
+}
+
+"a Secret's data, mode and items, and a list of environment variables": test.#TraitRender & _web & {
+	parameter: secret: [{
+		name:        "db-conn"
+		mountPath:   "/etc/db"
+		defaultMode: 256
+		data: password: "aHVudGVyMg=="
+		items: [{key: "password", path: "db-password"}]
+		mountToEnvs: [
+			{envName: "DB_PASSWORD", secretKey: "password"},
+			{envName: "DB_USER", secretKey: "user"},
+		]
+	}]
+	expect: {
+		output: spec: template: spec: {
+			volumes: [{name: "secret-db-conn", secret: {
+				secretName:  "db-conn"
+				defaultMode: 256
+				items: [{key: "password", path: "db-password", mode: 511}]
+			}}]
+			containers: [{env: [
+				{name: "DB_PASSWORD", valueFrom: secretKeyRef: {name: "db-conn", key: "password"}},
+				{name: "DB_USER", valueFrom: secretKeyRef: {name: "db-conn", key: "user"}},
+			]}, _]
+		}
+		outputs: "secret-db-conn": {data: password: "aHVudGVyMg==", stringData?: _|_}
+	}
+}
+
+"a read-only ConfigMap or Secret is mounted read-only": test.#TraitRender & _web & {
+	parameter: {
+		configMap: [{name: "shop-config", mountPath: "/etc/shop", readOnly: true, mountOnly: true}]
+		secret: [{name: "db-conn", mountPath: "/etc/db", readOnly: true, mountOnly: true}]
+	}
+	expect: output: spec: template: spec: containers: [{volumeMounts: [
+		{name: "configmap-shop-config", readOnly: true},
+		{name: "secret-db-conn", readOnly: true},
+	]}, _]
 }

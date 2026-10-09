@@ -72,11 +72,9 @@ _noResponse: {
 	expect: phase: "running"
 }
 
-// The template declares its wait message optional, message?:, so it is never
-// set.
 "says what it waits for": test.#WorkflowStepExec & _noResponse & {
 	expect: message: "Waiting for response from https://api.example.com/version"
-} @pending(request declares its wait message as an optional field, so the status message is always empty)
+}
 
 "a response body that is not JSON fails the step": test.#WorkflowStepExec & {
 	definition: "request"

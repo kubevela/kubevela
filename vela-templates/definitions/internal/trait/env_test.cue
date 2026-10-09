@@ -77,3 +77,28 @@ _web: {
 	parameter: containers: [{env: REGION: "eu-west-1"}]
 	expect: error: user: [=~"containerName must be set for containers"]
 }
+
+"a container can unset its own variables": test.#TraitRender & _web & {
+	parameter: containers: [
+		{containerName: "web", unset: ["LOG_LEVEL"], env: REGION: "eu-west-1"},
+		{containerName: "proxy", env: ENVOY_UID: "0"},
+	]
+	expect: output: spec: template: spec: containers: [
+		{name: "web", env: [
+			{name: "DB_PASSWORD", valueFrom: secretKeyRef: {name: "db", key: "password"}},
+			{name: "REGION", value: "eu-west-1"},
+		]},
+		{name: "proxy", env: [{name: "ENVOY_UID", value: "0"}]},
+	]
+}
+
+"a container can replace its env, dropping what it had": test.#TraitRender & _web & {
+	parameter: containers: [
+		{containerName: "web", replace: true, env: REGION: "eu-west-1"},
+		{containerName: "proxy", env: ENVOY_UID: "0"},
+	]
+	expect: output: spec: template: spec: containers: [
+		{name: "web", env: [{name: "REGION", value: "eu-west-1"}]},
+		{name: "proxy", env: [{name: "ENVOY_UID", value: "0"}]},
+	]
+}

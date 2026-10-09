@@ -104,6 +104,7 @@ template: {
 		tenantID:       string
 		clientID:       string
 		clientSecret:   string
+		type:           "azure"
 		name:           *"azure-provider" | string
 	}
 	#BaiduProvider: {

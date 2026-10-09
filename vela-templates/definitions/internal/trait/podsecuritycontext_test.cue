@@ -51,3 +51,10 @@ _web: {
 		parameter: [=~"seccompProfile.type"] @contains()
 	}
 }
+
+"a Localhost AppArmor profile names its profile": test.#TraitRender & _web & {
+	parameter: appArmorProfile: {type: "Localhost", localhostProfile: "shop-apparmor"}
+	expect: output: spec: template: spec: securityContext: {
+		appArmorProfile: {type: "Localhost", localhostProfile: "shop-apparmor"} @exact()
+	}
+}

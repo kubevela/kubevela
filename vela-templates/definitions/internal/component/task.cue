@@ -95,6 +95,13 @@ template: {
 							}
 						}
 
+						if parameter["livenessProbe"] != _|_ {
+							livenessProbe: parameter.livenessProbe
+						}
+						if parameter["readinessProbe"] != _|_ {
+							readinessProbe: parameter.readinessProbe
+						}
+
 						if parameter["volumes"] != _|_ {
 							volumeMounts: [for v in parameter.volumes {
 								{

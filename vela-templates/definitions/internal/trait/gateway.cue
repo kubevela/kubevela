@@ -11,41 +11,28 @@ gateway: {
 
 		status: {
 			customStatus: #"""
-				let nameSuffix = {
-				  if parameter.name != _|_ { "-" + parameter.name }
-				  if parameter.name == _|_ { "" }
-				}
-				let ingressMetaName = context.name + nameSuffix
-				let igList = [for i in context.outputs if (i.kind == "Ingress") && (i.metadata.name == ingressMetaName) {i}]
-				ig: *_|_ | _
-				if len(igList) > 0 {
-				  ig: igList[0]
-				}
-				igs: *{} | {}
-				if ig != _|_ if ig.status != _|_ if ig.status.loadbalancer != _|_ if len(ig.status.loadbalancer.ingress) > 0 {
-				  igs: ig.status.loadbalancer.ingress[0]
-				}
-				igr: *{} | {}
-				if ig != _|_ if ig.spec != _|_ if len(ig.spec.rules) > 0 {
-				  igr: ig.spec.rules[0]
-				}
-				if igs == _|_ {
+				_ingressMetaName: context.name + [if parameter.name != _|_ {"-" + parameter.name}, ""][0]
+				_igList: [for i in context.outputs if (i.kind == "Ingress") && (i.metadata.name == _ingressMetaName) {i}]
+				_igsList: [for ig in _igList if ig.status != _|_ if ig.status.loadBalancer != _|_ if ig.status.loadBalancer.ingress != _|_ for lb in ig.status.loadBalancer.ingress {lb}]
+				_hosts: [for ig in _igList if ig.spec != _|_ if ig.spec.rules != _|_ for r in ig.spec.rules if r.host != _|_ {r.host}]
+				if len(_igsList) == 0 {
 				  message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + "'\n"
 				}
-				if igs != _|_ {
-				  if igs.ip != _|_ {
-				    if igr.host != _|_ {
-				      message: "Visiting URL: " + igr.host + ", IP: " + igs.ip + "\n"
+				if len(_igsList) > 0 {
+				  _igs: _igsList[0]
+				  if _igs.ip != _|_ {
+				    if len(_hosts) > 0 {
+				      message: "Visiting URL: " + _hosts[0] + ", IP: " + _igs.ip + "\n"
 				    }
-				    if igr.host == _|_ {
-				      message: "Host not specified, visit the cluster or load balancer in front of the cluster, IP: " + igs.ip + "\n"
+				    if len(_hosts) == 0 {
+				      message: "Host not specified, visit the cluster or load balancer in front of the cluster, IP: " + _igs.ip + "\n"
 				    }
 				  }
-				  if igs.ip == _|_ {
-				    if igr.host != _|_ {
-				      message: "Visiting URL: " + igr.host + "\n"
+				  if _igs.ip == _|_ {
+				    if len(_hosts) > 0 {
+				      message: "Visiting URL: " + _hosts[0] + "\n"
 				    }
-				    if igr.host == _|_ {
+				    if len(_hosts) == 0 {
 				      message: "Host not specified, visit the cluster or load balancer in front of the cluster\n"
 				    }
 				  }

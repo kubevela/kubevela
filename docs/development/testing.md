@@ -10,6 +10,7 @@ gotchas that trip people up.
 | Goal | Command |
 |---|---|
 | Unit tests | `make test` |
+| Shipped definition tests (`*_test.cue` beside `vela-templates/definitions/internal`) | `make test-definitions` |
 | Controller e2e (self-provisions a cluster) | `make e2e-test-local` |
 | Controller e2e against a cluster you already deployed to | `make e2e-test` |
 | One e2e spec / flake check | `ginkgo -v --focus="<text>" ./test/e2e-test` |
@@ -84,6 +85,25 @@ go test ./pkg/<subpath>/... -count=1
 > All three pass in CI, where egress is open and the Docker daemon is local.
 > If exactly these three fail and everything else is green, that's this, not
 > a regression.
+
+
+## Shipped definition tests
+
+```bash
+make test-definitions
+```
+
+Runs every `*_test.cue` beside the built-in definitions in
+`vela-templates/definitions/internal` through `vela def test --check-pending`, which also
+runs each `@pending` case and fails any that now passes: the defect it pinned is fixed,
+so its marker comes off in the same PR. Then two guards:
+every definition has a test file (or is listed in `untested` in
+`pkg/definition/cuetest/shipped_test.go`, with why), and every parameter it
+declares, two levels deep, is set by a case that runs (or is listed in
+`uncovered`, with why). Step and source cases start envtest, as unit tests do;
+no cluster or kubeconfig is needed. CI runs this as its own workflow,
+`Definition-Test`, so `make test` leaves these tests out; to run them through
+`go test` instead, set `VELA_SHIPPED_DEFINITION_TESTS=1`.
 
 ## Controller e2e tests
 

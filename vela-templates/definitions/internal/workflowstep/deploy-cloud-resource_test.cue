@@ -53,12 +53,9 @@ _mocked: {
 	}
 }
 
-// Relabelling the connection Secret applies it with the resourceVersion it was
-// read at, so the step fails after its writes; until that is fixed, cases that
-// get that far assert the writes and not the phase.
 "succeeds once it has labelled the connection Secret": test.#WorkflowStepExec & _app & {
 	expect: phase: "succeeded"
-} @pending(the legacy DeployCloudResource copies the read Secret metadata into its update apply, so the resourceVersion the apply returns conflicts with the one it was given)
+}
 
 "deploys the terraform component for the env and labels its connection Secret": test.#WorkflowStepExec & _app & {
 	expect: {
@@ -104,7 +101,7 @@ _mocked: {
 		phase: "succeeded"
 		calls: "vela/op": "#MakePlacementDecisions": [{$params: inputs: policyName: "env-bindings"}]
 	}
-} @pending(the legacy LoadEnvBindingEnv declares envBindingPolicies as an empty list, so any env-binding policy it finds conflicts with it)
+}
 
 "deploys only the components that are terraform": test.#WorkflowStepExec & _app & {
 	_components: [_web, _db]

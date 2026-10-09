@@ -102,9 +102,66 @@ _chart: {
 	expect: healthy: false
 }
 
-// resource.name is optional, but the health policy reads it unguarded.
 "a criterion without a name matches any resource of its kind": test.#ComponentStatus & _chart & {
 	parameter: healthStatus: [{resource: kind: "StatefulSet", condition: type: "Ready"}]
 	observed: outputs: "helm-resource-0": status: conditions: [{type: "Ready", status: "True"}]
 	expect: healthy: true
-} @pending(the health policy reads resource.name unguarded, so a criterion without one fails)
+}
+
+"a criterion without a name is not met by another kind": test.#ComponentStatus & _chart & {
+	parameter: healthStatus: [{resource: kind: "Deployment", condition: type: "Available"}]
+	observed: outputs: "helm-resource-0": status: conditions: [{type: "Ready", status: "True"}]
+	expect: healthy: false
+}
+
+"every rendering option passes through, the cache key still defaulted": test.#ComponentRender & _chart & {
+	parameter: options: {
+		includeCRDs:     false
+		skipTests:       false
+		skipHooks:       true
+		createNamespace: false
+		timeout:         "10m"
+		maxHistory:      3
+		atomic:          true
+		wait:            true
+		force:           true
+		recreatePods:    true
+		cleanupOnFail:   true
+	}
+	expect: calls: "vela/helm": "#Render": [{$params: options: {
+		includeCRDs:     false
+		skipTests:       false
+		skipHooks:       true
+		createNamespace: false
+		timeout:         "10m"
+		maxHistory:      3
+		atomic:          true
+		wait:            true
+		force:           true
+		recreatePods:    true
+		cleanupOnFail:   true
+		cache: key: "shop-redis"
+	}}]
+}
+
+"chart credentials, a release namespace and values sources pass through": test.#ComponentRender & _chart & {
+	parameter: {
+		chart: auth: secretRef: {name: "charts-login", namespace: "cache"}
+		release: {name: "cache", namespace: "cache"}
+		valuesFrom: [
+			{kind: "ConfigMap", name: "redis-defaults"},
+			{kind: "Secret", name: "redis-auth", namespace: "cache", key: "values.yaml", optional: true},
+		]
+	}
+	expect: {
+		output: metadata: {name: "cache-helm-release", namespace: "cache"}
+		calls: "vela/helm": "#Render": [{$params: {
+			chart: auth: secretRef: {name: "charts-login", namespace: "cache"}
+			release: {name: "cache", namespace: "cache"}
+			valuesFrom: [
+				{kind: "ConfigMap", name: "redis-defaults", optional?: _|_},
+				{kind: "Secret", name: "redis-auth", namespace: "cache", key: "values.yaml", optional: true},
+			]
+		}}]
+	}
+}

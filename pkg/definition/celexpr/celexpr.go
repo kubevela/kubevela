@@ -418,6 +418,9 @@ func CheckTarget(env *cel.Env, expr string, target *cel.Type) error {
 // requires; a non-string key would not survive JSON anyway.
 func native(v ref.Val) interface{} {
 	switch t := v.(type) {
+	case types.Null:
+		// Its Value() is the protobuf enum NullValue, which marshals as 0.
+		return nil
 	case traits.Lister:
 		n, ok := t.Size().Value().(int64)
 		if !ok {

@@ -226,7 +226,7 @@ _email: {
 		phase: "succeeded"
 		calls: "vela/email": "#SendEmail": [{$params: from: password: "s3cret"}]
 	}
-} @pending(the definition passes stringValue.str rather than the returned str as the password, so the call never has one)
+}
 
 "notifies every channel given": test.#WorkflowStepExec & _posted & _sent & {
 	definition: "notification"

@@ -59,14 +59,19 @@ template: {
 				}]
 			}
 			if _basePorts != _|_ {
-				_basePortsMap: {for _basePort in _basePorts {(strings.ToLower(_basePort.protocol) + strconv.FormatInt(_basePort.containerPort, 10)): _basePort}}
+				// an existing port without a protocol is TCP, the API server's default
+				_basePortsMap: {for _basePort in _basePorts {(strings.ToLower([if _basePort.protocol != _|_ {_basePort.protocol}, "TCP"][0]) + strconv.FormatInt(_basePort.containerPort, 10)): _basePort}}
 				_portsMap: {for port in _params.ports {(strings.ToLower(port.protocol) + strconv.FormatInt(port.containerPort, 10)): port}}
 				// +patchStrategy=replace
 				ports: list.Concat([[for portVar in _basePorts {
 					containerPort: portVar.containerPort
-					protocol:      portVar.protocol
-					name:          portVar.name
-					_uniqueKey:    strings.ToLower(portVar.protocol) + strconv.FormatInt(portVar.containerPort, 10)
+					if portVar.protocol != _|_ {
+						protocol: portVar.protocol
+					}
+					if portVar.name != _|_ {
+						name: portVar.name
+					}
+					_uniqueKey: strings.ToLower([if portVar.protocol != _|_ {portVar.protocol}, "TCP"][0]) + strconv.FormatInt(portVar.containerPort, 10)
 					if _portsMap[_uniqueKey] != _|_ {
 						if _portsMap[_uniqueKey].hostPort != _|_ {
 							hostPort: _portsMap[_uniqueKey].hostPort

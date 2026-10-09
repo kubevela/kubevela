@@ -1,4 +1,5 @@
 import (
+	"vela/builtin"
 	"vela/http"
 	"vela/kube"
 	"vela/util"
@@ -15,6 +16,12 @@ import (
 	description: "Send a POST request to the specified Webhook URL. If no request body is specified, the current Application body will be sent by default."
 }
 template: {
+	// url is required, but a missing one is unresolved rather than absent, so test both of its forms
+	if parameter.url.value == _|_ && parameter.url.secretRef == _|_ {
+		validateParams: builtin.#Fail & {
+			$params: message: "url is required: set url.value or url.secretRef"
+		}
+	}
 	data: {
 		if parameter.data == _|_ {
 			read: kube.#Read & {

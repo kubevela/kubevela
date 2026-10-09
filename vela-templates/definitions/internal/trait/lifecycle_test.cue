@@ -56,3 +56,18 @@ _web: {
 	parameter: preStop: httpGet: port: 70000
 	expect: error: parameter: [=~"port"]
 }
+
+"an HTTP postStart and a TCP preStop hook": test.#TraitRender & _web & {
+	parameter: {
+		postStart: httpGet: {path: "/warm", port: 8080, host: "localhost", scheme: "HTTPS", httpHeaders: [{name: "X-Warm", value: "1"}]}
+		preStop: tcpSocket: port: 8080
+	}
+	_hooks: {
+		postStart: httpGet: {path: "/warm", port: 8080, host: "localhost", scheme: "HTTPS", httpHeaders: [{name: "X-Warm", value: "1"}]}
+		preStop: tcpSocket: port: 8080
+	}
+	expect: output: spec: template: spec: containers: [
+		{name: "web", lifecycle: _hooks @exact()},
+		{name: "proxy", lifecycle: _hooks @exact()},
+	]
+}

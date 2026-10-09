@@ -33,18 +33,16 @@ _read: {
 	expect: output: content: "1.4.2"
 }
 
-// The check is a hidden field the engine never evaluates, so a missing
-// required file resolves as found: false; errs is what would fail it.
 "a missing required file fails the source, saying how to allow it": test.#SourceExec & _read & {
 	mocks: "vela/registry": "#ReadFile": $returns: {found: false, content: ""}
 	expect: error: =~"set required: false"
-} @pending(the required check is a hidden field the source engine never evaluates)
+}
 
 "a missing optional file reads as null": test.#SourceExec & _read & {
 	parameter: required: false
 	mocks: "vela/registry": "#ReadFile": $returns: {found: false, content: ""}
 	expect: output: {found: false, content: null}
-} @pending(a null in a source output reads as 0 through source expressions)
+}
 
 "a missing optional file is not found": test.#SourceExec & _read & {
 	parameter: required: false

@@ -50,7 +50,7 @@ _daemonset: {
 
 "a rolling update needs no parameters": test.#TraitRender & _deployment & {
 	expect: output: spec: strategy: {type: "RollingUpdate", rollingUpdate: {maxSurge: "25%", maxUnavailable: "25%"}}
-} @pending(the default strategy is RollingUpdate but rollingStrategy is optional with no default, so its settings are referenced while absent and the patch fails)
+}
 
 "Recreate drops the Deployment's rolling update settings": test.#TraitRender & _deployment & {
 	parameter: strategy: type: "Recreate"
@@ -106,4 +106,9 @@ _daemonset: {
 	expect: error: {
 		parameter: [=~"targetKind"] @contains()
 	}
+}
+
+"a StatefulSet rolls out from partition zero with no rolling settings": test.#TraitRender & _statefulset & {
+	parameter: targetKind: "StatefulSet"
+	expect: output: spec: updateStrategy: {type: "RollingUpdate", rollingUpdate: partition: 0}
 }

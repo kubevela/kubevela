@@ -97,7 +97,55 @@ _state: {
 	definition: "apply-terraform-config"
 	parameter: variable: {}
 	expect: {
-		phase: "failed"
+		phase:   "failed"
+		message: "source is required: set source.hcl, or source.remote with an optional source.path"
 		calls: "vela/kube"?: _|_
 	}
-} @pending(source is required but nothing reads it unless a branch field is set, so leaving it out applies a Configuration with no hcl, remote or path and the step waits)
+}
+
+"provider, connection secret, region, job env and deletion settings pass through": test.#WorkflowStepExec & {
+	definition: "apply-terraform-config"
+	parameter: {
+		source: hcl: _hcl
+		variable: {}
+		deleteResource: false
+		forceDelete:    true
+		providerRef: {name: "aws", namespace: "vela-system"}
+		writeConnectionSecretToRef: {name: "bucket-conn", namespace: "shop"}
+		region: "eu-west-1"
+		jobEnv: TF_LOG: "DEBUG"
+	}
+	expect: resources: [{
+		apiVersion: "terraform.core.oam.dev/v1beta2"
+		kind:       "Configuration"
+		metadata: name: _name
+		spec: {
+			deleteResource: false
+			forceDelete:    true
+			providerRef: {name: "aws", namespace: "vela-system"}
+			writeConnectionSecretToRef: {name: "bucket-conn", namespace: "shop"}
+			region: "eu-west-1"
+			jobEnv: TF_LOG: "DEBUG"
+		}
+	}]
+}
+
+"provider and connection secret default to the step's namespace": test.#WorkflowStepExec & {
+	definition: "apply-terraform-config"
+	context: namespace: "shop"
+	parameter: {
+		source: hcl: _hcl
+		variable: {}
+		providerRef: name:                "aws"
+		writeConnectionSecretToRef: name: "bucket-conn"
+	}
+	expect: resources: [{
+		apiVersion: "terraform.core.oam.dev/v1beta2"
+		kind:       "Configuration"
+		metadata: {name: _name, namespace: "shop"}
+		spec: {
+			providerRef: {name: "aws", namespace: "shop"}
+			writeConnectionSecretToRef: {name: "bucket-conn", namespace: "shop"}
+		}
+	}]
+}

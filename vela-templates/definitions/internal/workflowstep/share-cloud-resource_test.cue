@@ -69,7 +69,7 @@ _mocked: {
 		phase: "succeeded"
 		calls: "vela/op": "#Apply": [{$params: cluster: "local"}]
 	}
-} @pending(the legacy ShareCloudResource defaults a decision cluster to local while the Apply it feeds defaults cluster to empty, so the cluster is ambiguous)
+}
 
 "copies the connection Secret to every placement": test.#WorkflowStepExec & _app & {
 	parameter: placements: [{cluster: "local", namespace: "cloud-share-apps"}, {cluster: "eu-1"}]
@@ -145,7 +145,7 @@ _mocked: {
 		phase: "succeeded"
 		calls: "vela/op": "#MakePlacementDecisions": [{$params: inputs: policyName: "env-bindings"}]
 	}
-} @pending(the legacy LoadEnvBindingEnv declares envBindingPolicies as an empty list, so any env-binding policy it finds conflicts with it)
+}
 
 "waits until the cloud resource is healthy": test.#WorkflowStepExec & _app & {
 	_healthy: false
