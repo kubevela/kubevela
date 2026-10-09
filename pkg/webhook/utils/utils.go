@@ -94,17 +94,43 @@ func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
 	return validateCuexTemplateWith(ctx, velacuex.WorkloadCompiler.Get(), cueTemplate, cue.Final())
 }
 
-// CompileCuexTemplate compiles cueTemplate exactly as ValidateCuexTemplate
-// does, against the workload compiler with provider functions left unresolved,
-// and returns the value instead of a verdict. A caller that runs more than one
-// check against a template compiles it once here, then hands the value to
-// ValidateCompiledCuexTemplate and to its own checks.
-func CompileCuexTemplate(ctx context.Context, cueTemplate string) (cue.Value, error) {
-	return compileForValidation(ctx, velacuex.WorkloadCompiler.Get(), cueTemplate)
+// CompilePolicyTemplate compiles a PolicyDefinition template the way
+// ValidateCuexTemplate compiles a component's, with provider functions left
+// unresolved, but against the compiler that renders a policy of the given
+// scope. It returns the value instead of a verdict: a caller that runs more
+// than one check against a template compiles it once here, then hands the
+// value to ValidateCompiledCuexTemplate and to its own checks.
+func CompilePolicyTemplate(ctx context.Context, scope v1beta1.PolicyScope, cueTemplate string) (cue.Value, error) {
+	return compileForValidation(ctx, policyCompiler(scope), cueTemplate)
+}
+
+// CompileOpenPolicyTemplate is CompilePolicyTemplate with the fields a render
+// supplies, context and parameter, opened. A template that reads context does
+// not compile on its own, so this is what its parameter declaration is read
+// from.
+func CompileOpenPolicyTemplate(ctx context.Context, scope v1beta1.PolicyScope, cueTemplate string) (cue.Value, error) {
+	return compileForValidation(ctx, policyCompiler(scope), openTemplate(cueTemplate))
+}
+
+// policyCompiler returns the compiler a PolicyDefinition of the given scope is
+// rendered with, so admission checks the template against the packages render
+// will offer it.
+//
+// A default-scope policy is parsed into a component and rendered by the
+// workload engine, which compiles with WorkloadCompiler. Any other scope is
+// skipped by the parser and rendered in application_policies.go with the
+// upstream DefaultCompiler. The two register different packages: only the
+// upstream one has "vela/util", and only WorkloadCompiler has "vela/helm",
+// "vela/config" and the other KubeVela providers.
+func policyCompiler(scope v1beta1.PolicyScope) *upstreamcuex.Compiler {
+	if scope == v1beta1.DefaultScope {
+		return velacuex.WorkloadCompiler.Get()
+	}
+	return upstreamcuex.DefaultCompiler.Get()
 }
 
 // ValidateCompiledCuexTemplate is ValidateCuexTemplate for a value already
-// produced by CompileCuexTemplate.
+// produced by CompilePolicyTemplate.
 func ValidateCompiledCuexTemplate(val cue.Value) error {
 	return validateCompiled(val, cue.Final())
 }
@@ -194,7 +220,7 @@ func validateCuexTemplateWith(ctx context.Context, compiler *upstreamcuex.Compil
 }
 
 // compileForValidation is the compile half of validateCuexTemplateWith, shared
-// with CompileCuexTemplate so both compile with provider functions off.
+// with CompilePolicyTemplate so both compile with provider functions off.
 func compileForValidation(ctx context.Context, compiler *upstreamcuex.Compiler, cueTemplate string) (cue.Value, error) {
 	return compiler.CompileStringWithOptions(ctx, cueTemplate, upstreamcuex.DisableResolveProviderFunctions{})
 }

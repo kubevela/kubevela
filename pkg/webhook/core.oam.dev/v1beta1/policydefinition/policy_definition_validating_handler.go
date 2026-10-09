@@ -102,7 +102,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			}
 
 			var err error
-			cueVal, err = webhookutils.CompileCuexTemplate(ctx, cueTemplate)
+			cueVal, err = webhookutils.CompilePolicyTemplate(ctx, obj.Spec.Scope, cueTemplate)
 			if err != nil {
 				logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template contains syntax errors or invalid constructs - template compilation failed")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
@@ -149,7 +149,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		}
 
 		// Validate Application-scoped policy constraints (global=true rules, scope consistency)
-		validationResult := applicationcontroller.ValidatePolicyDefinition(obj, cueTemplate, cueVal)
+		validationResult := applicationcontroller.ValidatePolicyDefinition(ctx, obj, cueTemplate, cueVal)
 		validationResult.Warnings = append(validationResult.Warnings, cueWarnings...)
 		if !validationResult.IsValid() {
 			logger.WithStep("validate-policy-definition").Error(nil, "PolicyDefinition failed Application-scoped policy validation", "errors", validationResult.Errors)
