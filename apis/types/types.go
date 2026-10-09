@@ -56,10 +56,28 @@ const (
 	AnnoDefinitionIcon = "definition.oam.dev/icon"
 	// AnnoDefinitionAppliedWorkloads is the annotation which describe what is the workloads used for in a TraitDefinition Object
 	AnnoDefinitionAppliedWorkloads = "definition.oam.dev/appliedWorkloads"
+	// AnnoDefinitionRedispatchOnWorkflowRun, set to "true" on a ComponentDefinition,
+	// makes every workflow run apply its components again, as
+	// app.oam.dev/autoUpdate does for a whole Application. It is for definitions
+	// whose output can change while the component's properties stay the same,
+	// such as addon and module, which fetch from a registry when they render.
+	AnnoDefinitionRedispatchOnWorkflowRun = "definition.oam.dev/redispatch-on-workflow-run"
 	// LabelDefinition is the label for definition
 	LabelDefinition = "definition.oam.dev"
 	// LabelDefinitionName is the label for definition name
 	LabelDefinitionName = "definition.oam.dev/name"
+	// LabelDefinitionModule is the module a definition came from.
+	LabelDefinitionModule = "definition.oam.dev/module"
+	// LabelDefinitionModuleAPIVersion is the module API line a definition belongs to.
+	LabelDefinitionModuleAPIVersion = "definition.oam.dev/module-api-version"
+	// AnnoDefinitionModuleFullName carries the untruncated {module}-{apiVersion}-{name}
+	// identity, for definitions whose full name exceeds the 253-char object-name
+	// limit and therefore had to be truncated and hashed.
+	AnnoDefinitionModuleFullName = "definition.oam.dev/module-full-name"
+	// AnnoDefinitionModuleVersion carries the concrete module package version
+	// (the OCI/ECR tag) that was fetched and installed, on the module's owned
+	// Application.
+	AnnoDefinitionModuleVersion = "definition.oam.dev/module-version"
 	// LabelDefinitionDeprecated is the label which describe whether the capability is deprecated
 	LabelDefinitionDeprecated = "custom.definition.oam.dev/deprecated"
 	// LabelDefinitionHidden is the label which describe whether the capability is hidden by UI

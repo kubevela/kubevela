@@ -28,7 +28,9 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/schema"
 )
 
 func schemaComponent(namespace, name, extends, template string) *v1beta1.ComponentDefinition {
@@ -114,4 +116,28 @@ func TestAMissingParentDoesNotStopTheSchemaPublishing(t *testing.T) {
 	props, ok := doc["properties"].(map[string]interface{})
 	require.True(t, ok)
 	require.Contains(t, props, "tenant")
+}
+
+// An extending definition is generated with the same context as any other, so
+// a parameter defaulting from a context field keeps its type.
+func TestAnExtendingDefinitionDefaultingFromContextKeepsItsType(t *testing.T) {
+	param := `
+parameter: {
+	replicas: *context.appRevisionNum | int
+	ann:      context.appAnnotations
+}
+`
+	openAPI, ui, err := inheritedSchemas(context.Background(), "tenant-webservice",
+		"$super: parameter: {}\n"+param, inherit.ComponentSurface)
+	require.NoError(t, err)
+
+	want, err := schema.GenerateParameterSchemas(context.Background(), param)
+	require.NoError(t, err)
+	wantOpenAPI, err := json.Marshal(want.OpenAPI)
+	require.NoError(t, err)
+	wantUI, err := json.Marshal(want.UI)
+	require.NoError(t, err)
+
+	require.JSONEq(t, string(wantOpenAPI), string(openAPI))
+	require.JSONEq(t, string(wantUI), string(ui))
 }

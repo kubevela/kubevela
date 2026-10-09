@@ -1,0 +1,20 @@
+# Every reference here resolves to exactly one installed definition.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: forms-accepted
+  namespace: default
+spec:
+  components:
+    - name: form3-widget
+      type: widget-kit/v1/widget          # Form 3: module/line/name
+      properties:
+        color: red
+    - name: stamped-widget
+      type: widget-kit-v1-widget           # the installed name, used as a plain legacy name
+      properties:
+        color: green
+      traits:
+        - type: note                       # Form 1: only widget-kit v1 ships a trait "note"
+          properties:
+            text: written by a Form 1 trait

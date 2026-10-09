@@ -1,0 +1,22 @@
+# Uses definitions from both modules of the kit-suite addon.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: suite-consumer
+  namespace: default
+spec:
+  components:
+    - name: suite-widget
+      type: widget-kit/v1/widget
+      properties:
+        color: green
+      traits:
+        - type: widget-kit/v1/labeler      # Form 3: fine even though gadget-kit also has v1/labeler
+          properties:
+            tier: platinum
+    - name: suite-gadget
+      type: gadget                          # Form 1: unique, only gadget-kit ships "gadget"
+      properties:
+        mode: turbo
+      traits:
+        - type: gadget-kit/v1/labeler

@@ -43,6 +43,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
+	"github.com/oam-dev/kubevela/pkg/componenthealth"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -101,7 +103,7 @@ func NewAppHandler(ctx context.Context, r *Reconciler, app *v1beta1.Application)
 		}))
 		defer subCtx.Commit("finish create appHandler")
 	}
-	resourceHandler, err := resourcekeeper.NewResourceKeeper(ctx, r.Client, app)
+	resourceHandler, err := appkeeper.New(ctx, r.Client, app)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create resourceKeeper")
 	}
@@ -441,26 +443,9 @@ collectNext:
 			break
 		}
 	}
-	traitHealthy := true
-	for _, ts := range traitStatusByKey {
-		if ts.Pending {
-			continue
-		}
-		if !ts.Healthy {
-			traitHealthy = false
-			break
-		}
-	}
-	if !skipWorkload {
-		status.Healthy = status.WorkloadHealthy && traitHealthy
-	} else if !traitHealthy {
-		status.Healthy = false
-		if status.Message == "" {
-			status.Message = "traits are not healthy"
-		}
-	}
-	h.recordComponentSourceReads(comp, &status)
 	status.Traits = slices.Collect(maps.Values(traitStatusByKey))
+	componenthealth.Rollup(&status, !skipWorkload)
+	h.recordComponentSourceReads(comp, &status)
 	h.addServiceStatus(true, status)
 	return &status, output, outputs, isHealth, nil
 }
@@ -656,17 +641,16 @@ func (h *AppHandler) sourceStatusList() []common.ApplicationSourceStatus {
 				entry.Phase = sourcePhaseResolved
 			}
 		}
-		wanted := sourceAutoUpdateEnabled(src, autoUpdateDefault)
-		effective := wanted && !pinned
+		effective := sourceAutoUpdateEnabled(src, autoUpdateDefault, pinned)
 		entry.AutoUpdate = &effective
 		// A bool cannot say why it is false, and one case is worth the words: the
-		// binding asked for auto-update and a pin took it away. The other two -
+		// default would have turned it on and a pin took it away. The other two -
 		// the gate is off, or the author set autoUpdate: false - need no message.
 		// Being off by default is the normal state of every binding in every
 		// Application, so reporting it would put a sentence nobody needs on all
 		// of them, and an author who set false already knows.
-		if wanted && pinned && entry.Message == "" {
-			entry.Message = "autoUpdate suppressed: the Application is pinned by app.oam.dev/publishVersion"
+		if !effective && pinned && sourceAutoUpdateEnabled(src, autoUpdateDefault, false) && entry.Message == "" {
+			entry.Message = "autoUpdate suppressed: the Application is pinned by app.oam.dev/publishVersion; set autoUpdate: true on the binding to keep it live"
 		}
 		out = append(out, entry)
 	}

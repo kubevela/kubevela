@@ -1,0 +1,16 @@
+# The same "note" trait as in consumer-forms-accepted.yaml, referenced with
+# Form 3. The trait emits a ConfigMap through `outputs`, which is labelled
+# trait.oam.dev/type with the installed name widget-kit-v1-note.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: trait-outputs-form3
+  namespace: default
+spec:
+  components:
+    - name: noted-widget
+      type: widget-kit/v1/widget
+      traits:
+        - type: widget-kit/v1/note
+          properties:
+            text: written by a Form 3 trait

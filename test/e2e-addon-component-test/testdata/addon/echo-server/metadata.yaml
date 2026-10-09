@@ -1,0 +1,21 @@
+name: echo-server
+version: 1.0.0
+description: Deploys an HTTP echo server and registers an echo-server component type.
+icon: https://kubevela.io/img/logo.svg
+url: https://github.com/Ealenn/Echo-Server
+
+tags:
+  - networking
+  - e2e
+
+deployTo:
+  control_plane: true
+  runtime_cluster: false
+
+dependencies: []
+
+# No `system:` block on purpose. The vela version check reads the vela-core
+# Deployment's image tag, which an e2e cluster running a locally built image
+# does not always satisfy, and a requirement here would make every spec depend
+# on skipVersionValidation rather than on what it is actually asserting.
+invisible: false

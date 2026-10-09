@@ -33,6 +33,7 @@ import (
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/config"
 )
@@ -118,8 +119,10 @@ func configCRDExists(ctx context.Context, cli client.Client, ns, name string) (b
 	return objectExists(ctx, cli, client.ObjectKey{Namespace: ns, Name: name}, &configv1alpha1.Config{})
 }
 
-// listConfigTemplateCRDs lists ConfigTemplate CRs in ns, or everywhere when ns is
-// "". A cluster that does not serve the type yields no items and no error.
+// listConfigTemplateCRDs lists the user-managed ConfigTemplate CRs in ns, or
+// everywhere when ns is "". Templates generated from a SourceDefinition are
+// skipped, as Factory.ListTemplates skips them. A cluster that does not serve
+// the type yields no items and no error.
 func listConfigTemplateCRDs(ctx context.Context, cli client.Client, ns string) ([]configv1alpha1.ConfigTemplate, error) {
 	var list configv1alpha1.ConfigTemplateList
 	var opts []client.ListOption
@@ -132,7 +135,14 @@ func listConfigTemplateCRDs(ctx context.Context, cli client.Client, ns string) (
 		}
 		return nil, err
 	}
-	return list.Items, nil
+	items := make([]configv1alpha1.ConfigTemplate, 0, len(list.Items))
+	for _, ct := range list.Items {
+		if _, generated := ct.Labels[types.LabelSourceDefinitionName]; generated {
+			continue
+		}
+		items = append(items, ct)
+	}
+	return items, nil
 }
 
 // deleteConfigCRD deletes the Config CR. Callers route here only after

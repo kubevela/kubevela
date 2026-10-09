@@ -1387,6 +1387,35 @@ func TestTraitPatchSingleOutput(t *testing.T) {
 	r.Equal("val", val)
 }
 
+func TestTraitOutputsCarryTypeLabel(t *testing.T) {
+	traitTemplate := `
+	outputs: note: {
+		apiVersion: "v1"
+		kind:       "ConfigMap"
+		metadata: name: context.name + "-note"
+	}
+	parameter: {}
+`
+	for name, tc := range map[string]struct {
+		engine AbstractEngine
+		want   string
+	}{
+		"plain trait uses its name":            {engine: NewTraitAbstractEngine("note"), want: "note"},
+		"module trait uses the installed name": {engine: NewTraitAbstractEngineWithTypeLabel("note", "widget-kit-v1-note"), want: "widget-kit-v1-note"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			ctx := process.NewContext(process.ContextData{AppName: "myapp", CompName: "test", Namespace: "default", AppRevisionName: "myapp-v1"})
+			r.NoError(NewWorkloadAbstractEngine("-").Complete(ctx, `output: {apiVersion: "v1", kind: "ConfigMap"}
+parameter: {}`, map[string]interface{}{}))
+			r.NoError(tc.engine.Complete(ctx, traitTemplate, map[string]interface{}{}))
+			_, assists := ctx.Output()
+			r.Len(assists, 1)
+			r.Equal(tc.want, assists[0].Type)
+		})
+	}
+}
+
 func TestTraitCompleteErrorCases(t *testing.T) {
 	cases := map[string]struct {
 		ctx       wfprocess.Context

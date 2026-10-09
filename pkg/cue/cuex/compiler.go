@@ -32,8 +32,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/config"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/kuberead"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/module"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/registry"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
+	"github.com/oam-dev/kubevela/pkg/utils/kubeconfig"
 )
 
 // ConfigCompiler ...
@@ -84,7 +86,11 @@ func sourceCompilerPackageNames() []string {
 // SourceCompiler is the compiler a SourceDefinition's template is resolved with.
 var SourceCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compiler {
 	compiler := cuex.NewCompilerWithInternalPackages(SourcePackages()...)
+	// Guarded for the same reason as WorkloadCompiler below.
 	if cuex.EnableExternalPackageForDefaultCompiler {
+		if err := kubeconfig.CheckFor("external CUE packages for the source compiler"); err != nil {
+			return compiler
+		}
 		if err := compiler.LoadExternalPackages(context.Background()); err != nil {
 			klog.Errorf("failed to load external packages for source compiler: %v", err.Error())
 		}
@@ -107,12 +113,21 @@ func WorkloadPackages() []cuexruntime.Package {
 		// of a Config the platform has created.
 		registry.Package,
 		velaconfig.Package,
+		module.Package,
 	}
 }
 
 // WorkloadCompiler is the compiler for workload/component definitions
 var WorkloadCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compiler {
 	compiler := cuex.NewCompilerWithInternalPackages(WorkloadPackages()...)
+	// See the note in pkg/workflow/providers/compiler.go: LoadExternalPackages
+	// and ListenExternalPackages reach config.GetConfigOrDie, which exits the
+	// process instead of returning an error when no kubeconfig exists.
+	if cuex.EnableExternalPackageForDefaultCompiler || cuex.EnableExternalPackageWatchForDefaultCompiler {
+		if err := kubeconfig.CheckFor("external CUE packages for the workload compiler"); err != nil {
+			return compiler
+		}
+	}
 	if cuex.EnableExternalPackageForDefaultCompiler {
 		if err := compiler.LoadExternalPackages(context.Background()); err != nil {
 			klog.Errorf("failed to load external packages for workload compiler: %v", err.Error())

@@ -28,6 +28,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/form3tech-oss/jwt-go"
 	"github.com/pkg/errors"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	certificatesv1 "k8s.io/api/certificates/v1"
@@ -409,9 +410,16 @@ func ReadIdentityFromKubeConfig(kubeconfigPath string) (*Identity, error) {
 		token = string(bs)
 	}
 	if token != "" {
+		// The token is only read here, never verified. It is parsed without a key, so a readable
+		// token is always reported as unverifiable. That is the one error to ignore, any other
+		// error means the token itself could not be read.
 		sub, err := utils.GetTokenSubject(token)
-		if err != nil {
+		var ve *jwt.ValidationError
+		if err != nil && !(errors.As(err, &ve) && ve.Errors == jwt.ValidationErrorUnverifiable) {
 			return nil, fmt.Errorf("failed to recognize serviceaccount: %w", err)
+		}
+		if sub == "" {
+			return nil, fmt.Errorf("failed to recognize serviceaccount: token has no subject")
 		}
 		identity.ServiceAccountNamespace, identity.ServiceAccount, err = serviceaccount.SplitUsername(sub)
 		if err != nil {

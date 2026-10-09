@@ -456,7 +456,7 @@ func TestRenderCueResourceError(t *testing.T) {
  type: "webservice"
  name: "velaux3"
 }`
-	comp, err := renderResources(&InstallPackage{
+	comp, err := RenderResources(&InstallPackage{
 		CUETemplates: []ElementFile{
 			{
 				Data: cueTemplate1,

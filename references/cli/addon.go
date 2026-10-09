@@ -1083,7 +1083,7 @@ func listAddons(ctx context.Context, clt client.Client, registry string) (*uitab
 				}
 				continue
 			}
-			addonList, err = r.ListUIData(meta, pkgaddon.CLIMetaOptions)
+			addonList, err = pkgaddon.ListUIData(&r, meta, pkgaddon.CLIMetaOptions)
 			if err != nil {
 				if registry != "" {
 					return nil, err

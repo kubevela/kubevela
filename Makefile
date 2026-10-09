@@ -117,6 +117,9 @@ HOSTARCH := $(shell uname -m)
 ifeq ($(HOSTARCH),x86_64)
 HOSTARCH := amd64
 endif
+ifeq ($(HOSTARCH),aarch64)
+HOSTARCH := arm64
+endif
 
 
 ## check-license-header: Check license header

@@ -60,6 +60,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/logging"
+	moduleservice "github.com/oam-dev/kubevela/pkg/module/service"
 	"github.com/oam-dev/kubevela/pkg/monitor/watcher"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -143,6 +144,14 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 		klog.InfoS("Addon-as-component enabled, registered the addon render service")
 	}
 
+	// Same shape for the vela/module CueX provider: always on the compilers,
+	// inert until a renderer is installed, so the gate decides whether type: module
+	// works rather than whether the package compiles.
+	if utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableModuleComponent) {
+		moduleservice.Register()
+		klog.InfoS("Module-as-component enabled, registered the module render service")
+	}
+
 	// Start profiling server
 	klog.V(2).InfoS("Starting profiling server in background")
 	go profiling.StartProfilingServer(nil)
@@ -162,6 +171,7 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 	// Configure feature gates
 	klog.V(2).InfoS("Configuring feature gates")
 	configureFeatureGates(coreOptions)
+	publishFeatureGates(ctx, kubeConfig)
 
 	// Create controller manager
 	klog.InfoS("Creating controller manager",
@@ -347,6 +357,27 @@ func configureFeatureGates(coreOptions *options.CoreOptions) {
 			"period", coreOptions.Kubernetes.InformerSyncPeriod)
 		commonconfig.ApplicationReSyncPeriod = coreOptions.Kubernetes.InformerSyncPeriod
 	}
+}
+
+// publishFeatureGatesTimeout bounds publishFeatureGates, retries included.
+const publishFeatureGatesTimeout = 30 * time.Second
+
+// publishFeatureGates writes KubeVela's feature gates, as the controller has
+// them, to a ConfigMap in the system namespace, so other processes running KubeVela code can match
+// them. Failing to is logged, not fatal: the controller does not need it, so
+// startup waits for it no longer than publishFeatureGatesTimeout.
+func publishFeatureGates(ctx context.Context, kubeConfig *rest.Config) {
+	ctx, cancel := context.WithTimeout(ctx, publishFeatureGatesTimeout)
+	defer cancel()
+	cli, err := ctrlclient.New(kubeConfig, ctrlclient.Options{})
+	if err == nil {
+		err = features.Publish(ctx, cli, oam.SystemDefinitionNamespace, version.VelaVersion, utilfeature.DefaultFeatureGate, features.KubeVelaFeatures())
+	}
+	if err != nil {
+		klog.ErrorS(err, "Failed to publish feature gates", "configMap", features.FeatureGatesConfigMapName)
+		return
+	}
+	klog.InfoS("Published feature gates", "configMap", klog.KRef(oam.SystemDefinitionNamespace, features.FeatureGatesConfigMapName))
 }
 
 // buildManagerOptions constructs ctrl.Options from CoreOptions for creating a controller manager.

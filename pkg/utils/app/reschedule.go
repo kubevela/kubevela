@@ -28,8 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appkeeper"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
-	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 )
 
 func reschedule(ctx context.Context, cli client.Client, o client.Object, shardID string) error {
@@ -46,7 +46,7 @@ func reschedule(ctx context.Context, cli client.Client, o client.Object, shardID
 
 // RescheduleAppRevAndRT reschedule ApplicationRevision and ResourceTracker of app to given shard
 func RescheduleAppRevAndRT(ctx context.Context, cli client.Client, app *v1beta1.Application, shardID string) error {
-	rt, currentRT, ts, crRT, err := resourcetracker.ListApplicationResourceTrackers(ctx, cli, app)
+	rt, currentRT, ts, crRT, err := appkeeper.ListApplicationResourceTrackers(ctx, cli, app)
 	if err != nil {
 		return err
 	}

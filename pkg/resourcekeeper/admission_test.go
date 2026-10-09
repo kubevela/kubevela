@@ -21,10 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
 func TestNamespaceAdmissionHandler_Validate(t *testing.T) {
@@ -33,7 +30,7 @@ func TestNamespaceAdmissionHandler_Validate(t *testing.T) {
 		AllowCrossNamespaceResource = true
 	}()
 	handler := &NamespaceAdmissionHandler{
-		app: &v1beta1.Application{ObjectMeta: v1.ObjectMeta{Namespace: "test"}},
+		namespace: "test",
 	}
 	objs := []*unstructured.Unstructured{{
 		Object: map[string]interface{}{

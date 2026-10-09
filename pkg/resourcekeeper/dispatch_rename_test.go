@@ -69,7 +69,7 @@ func TestRenamedResourceIsNotLeaked(t *testing.T) {
 	app := &v1beta1.Application{
 		ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "default", Generation: 1},
 	}
-	_rk, err := NewResourceKeeper(ctx, cli, app)
+	_rk, err := newAppKeeper(ctx, cli, app, Policies{})
 	r.NoError(err)
 	rk := _rk.(*resourceKeeper)
 
@@ -114,9 +114,9 @@ func TestPruneLeavesOtherComponentsAlone(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
-	_rk, err := NewResourceKeeper(ctx, cli, &v1beta1.Application{
+	_rk, err := newAppKeeper(ctx, cli, &v1beta1.Application{
 		ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "default", Generation: 1},
-	})
+	}, Policies{})
 	r.NoError(err)
 	rk := _rk.(*resourceKeeper)
 
@@ -139,17 +139,16 @@ func TestPruneRespectsGarbageCollectPolicy(t *testing.T) {
 	r := require.New(t)
 	ctx := context.Background()
 	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
-	_rk, err := NewResourceKeeper(ctx, cli, &v1beta1.Application{
+	_rk, err := newAppKeeper(ctx, cli, &v1beta1.Application{
 		ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "default", Generation: 1},
-	})
-	r.NoError(err)
-	rk := _rk.(*resourceKeeper)
-	rk.garbageCollectPolicy = &v1alpha1.GarbageCollectPolicySpec{
+	}, Policies{GarbageCollect: &v1alpha1.GarbageCollectPolicySpec{
 		Rules: []v1alpha1.GarbageCollectPolicyRule{{
 			Selector: v1alpha1.ResourcePolicyRuleSelector{ResourceNames: []string{"web-eternal"}},
 			Strategy: v1alpha1.GarbageCollectStrategyNever,
 		}},
-	}
+	}})
+	r.NoError(err)
+	rk := _rk.(*resourceKeeper)
 
 	r.NoError(rk.Dispatch(ctx, []*unstructured.Unstructured{componentResource("web-eternal", "web")}, nil))
 	_, err = rk.PruneComponentResources(ctx, "web", nil)
@@ -176,7 +175,7 @@ func TestPrunedResourceKeepsItsCluster(t *testing.T) {
 	app := &v1beta1.Application{
 		ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "default", Generation: 1},
 	}
-	_rk, err := NewResourceKeeper(ctx, cli, app)
+	_rk, err := newAppKeeper(ctx, cli, app, Policies{})
 	r.NoError(err)
 	rk := _rk.(*resourceKeeper)
 

@@ -82,6 +82,9 @@ func sortTemplateRows(rows []templateRow) {
 // namespace then name. In merged mode a legacy template whose name a CR also
 // holds in the same namespace is marked shadowed. ns "" means all namespaces.
 // A cluster without the ConfigTemplate CRD contributes no CR rows and no error.
+// The two backends are listed separately on purpose: Factory.ListTemplates
+// merges them and drops the hidden legacy twin, which is the row this list
+// must show as shadowed.
 func listTemplateRows(ctx context.Context, cli client.Client, ns, mode string) ([]templateRow, error) {
 	var rows []templateRow
 	crNames := map[config.NamespacedName]bool{}
@@ -100,7 +103,7 @@ func listTemplateRows(ctx context.Context, cli client.Client, ns, mode string) (
 		sortTemplateRows(rows)
 	}
 	if mode != configModeCRD {
-		legacy, err := config.NewConfigFactory(cli).ListTemplates(ctx, ns, "")
+		legacy, err := config.NewConfigFactory(cli).ListLegacyTemplates(ctx, ns, "")
 		if err != nil {
 			return nil, err
 		}

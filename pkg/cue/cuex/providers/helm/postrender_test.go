@@ -80,6 +80,10 @@ metadata:
 				Expect(labels["app.oam.dev/name"]).To(Equal("my-app"))
 				Expect(labels["app.oam.dev/namespace"]).To(Equal("my-app-ns"))
 				Expect(labels["app.oam.dev/component"]).To(Equal("my-component"))
+				// owner.oam.dev/*, as every resource an Application owns carries
+				Expect(labels["owner.oam.dev/kind"]).To(Equal("Application"))
+				Expect(labels["owner.oam.dev/name"]).To(Equal("my-app"))
+				Expect(labels["owner.oam.dev/namespace"]).To(Equal("my-app-ns"))
 
 				annotations := obj.GetAnnotations()
 				Expect(annotations["app.oam.dev/owner"]).To(Equal("helm-provider"))
@@ -123,6 +127,9 @@ metadata:
 			Expect(labels["app.oam.dev/name"]).To(Equal("my-app"))
 			Expect(labels["app.oam.dev/namespace"]).To(Equal("my-ns"))
 			Expect(labels["app.oam.dev/component"]).To(Equal("my-component"))
+			Expect(labels["owner.oam.dev/kind"]).To(Equal("Application"))
+			Expect(labels["owner.oam.dev/name"]).To(Equal("my-app"))
+			Expect(labels["owner.oam.dev/namespace"]).To(Equal("my-ns"))
 		})
 
 		It("should return nil for nil context", func() {

@@ -1,0 +1,10 @@
+# Same content in the default namespace: the definitions are not visible here.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: default-consumer
+  namespace: default
+spec:
+  components:
+    - name: w3
+      type: widget-kit/v1/widget          # Form 3

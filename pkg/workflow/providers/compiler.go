@@ -34,8 +34,10 @@ import (
 	"github.com/kubevela/workflow/pkg/providers/util"
 
 	addonprovider "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/addon"
+	moduleprovider "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/module"
 	velaregistry "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/registry"
 	velaconfig "github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig"
+	"github.com/oam-dev/kubevela/pkg/utils/kubeconfig"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/config"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/helm"
 	"github.com/oam-dev/kubevela/pkg/workflow/providers/legacy"
@@ -77,10 +79,13 @@ func WorkflowPackages() []cuexruntime.Package {
 		runtime.Must(cuexruntime.NewInternalPackage("query", query.GetTemplate(), query.GetProviders())),
 		runtime.Must(cuexruntime.NewInternalPackage("terraform", terraform.GetTemplate(), terraform.GetProviders())),
 
-		// Reuse the package the provider already exports rather than rebuilding
-		// it here: the name would otherwise be spelled in two places and the
-		// provider's own ProviderName in a third.
+		// Component provider packages, so definitions importing "vela/addon" and
+		// "vela/module" can be compiled for OpenAPI schema generation and
+		// definition validation. Reuse the package each provider already exports
+		// rather than rebuilding it here: the name would otherwise be spelled in
+		// two places and the provider's own ProviderName in a third.
 		addonprovider.Package,
+		moduleprovider.Package,
 		// SourceDefinitions compile against this compiler too - vela def render,
 		// the SDK generator and dry-run all reach it - so the packages a source
 		// may import belong here as well as in WorkloadCompiler.
@@ -97,6 +102,17 @@ var compiler = singleton.NewSingletonE[*cuex.Compiler](func() (*cuex.Compiler, e
 // DefaultCompiler compiler for cuex to compile
 var DefaultCompiler = singleton.NewSingleton[*cuex.Compiler](func() *cuex.Compiler {
 	c := compiler.Get()
+	// Both calls below reach the shared client singletons, which resolve their
+	// REST config through config.GetConfigOrDie. Without a kubeconfig that
+	// exits the process rather than returning an error, so the error handling
+	// here would never run. Checking first keeps it reachable, and keeps
+	// cluster-free callers (vela def render, unit tests, make manifests) alive
+	// with external packages simply absent.
+	if cuex.EnableExternalPackageForDefaultCompiler || cuex.EnableExternalPackageWatchForDefaultCompiler {
+		if err := kubeconfig.CheckFor("external CUE packages for the cuex default compiler"); err != nil {
+			return c
+		}
+	}
 	if cuex.EnableExternalPackageForDefaultCompiler {
 		if err := c.LoadExternalPackages(context.Background()); err != nil {
 			klog.Errorf("failed to load external packages for cuex default compiler: %v", err.Error())

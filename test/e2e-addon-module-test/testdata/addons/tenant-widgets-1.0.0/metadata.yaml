@@ -1,0 +1,7 @@
+name: tenant-widgets
+version: 1.0.0
+description: "Test addon that declares its type: module component in template.cue to install widget-kit definitions into the kit-tenant namespace."
+tags:
+  - test
+  - module-import
+dependencies: []

@@ -228,9 +228,77 @@ var _ = Describe("test config factory", func() {
 	})
 
 	It("list all templates", func() {
+		// 1. Create a ConfigTemplate CR
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-crd-template",
+				Namespace: "default",
+			},
+			Spec: configv1alpha1.ConfigTemplateSpec{
+				Template: `
+metadata: name: "test-crd-template"
+template: {
+  parameter: url: string
+}`,
+			},
+		}
+		Expect(k8sClient.Create(context.TODO(), ct)).Should(BeNil())
+
+		// 2. Create an internal template that should be filtered out
+		ctInternal := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-crd-internal",
+				Namespace: "default",
+				Labels: map[string]string{
+					types.LabelSourceDefinitionName: "true",
+				},
+			},
+			Spec: configv1alpha1.ConfigTemplateSpec{
+				Template: `
+metadata: name: "test-crd-internal"
+template: {
+  parameter: url: string
+}`,
+			},
+		}
+		Expect(k8sClient.Create(context.TODO(), ctInternal)).Should(BeNil())
+
 		templates, err := fac.ListTemplates(context.TODO(), "", "")
 		Expect(err).Should(BeNil())
-		Expect(len(templates)).Should(Equal(2))
+		// Initially 2 templates + 1 new CRD template (internal is filtered) -> 3
+		Expect(len(templates)).Should(Equal(3))
+
+		found := false
+		for _, t := range templates {
+			if t.Name == "test-crd-template" {
+				found = true
+			}
+		}
+		Expect(found).Should(BeTrue())
+
+		// 3. Test collision: create a legacy configmap with the same name as the CR
+		cm := &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      TemplateConfigMapNamePrefix + "test-crd-template",
+				Namespace: "default",
+				Labels: map[string]string{
+					types.LabelConfigCatalog: types.VelaCoreConfig,
+				},
+			},
+			Data: map[string]string{
+				SaveTemplateKey: `
+metadata: name: "test-crd-template"
+template: {
+  parameter: url: string
+}`,
+			},
+		}
+		Expect(k8sClient.Create(context.TODO(), cm)).Should(BeNil())
+
+		// List again, length should still be 3 (the CR overrides the ConfigMap)
+		templates, err = fac.ListTemplates(context.TODO(), "", "")
+		Expect(err).Should(BeNil())
+		Expect(len(templates)).Should(Equal(3))
 	})
 
 	It("list all configs", func() {

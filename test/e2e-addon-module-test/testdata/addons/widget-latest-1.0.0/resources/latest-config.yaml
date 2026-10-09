@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: widget-latest-config
+  namespace: vela-system
+data:
+  pin: none

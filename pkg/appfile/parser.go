@@ -465,8 +465,8 @@ func (p *Parser) loadWorkflowToAppfile(ctx context.Context, af *Appfile) error {
 		app := af.app
 		mode := wfSpec.Mode
 		if wfSpec.Ref != "" && mode == nil {
-			wf := &wfTypesv1alpha1.Workflow{}
-			if err := af.WorkflowClient(p.client).Get(ctx, ktypes.NamespacedName{Namespace: af.app.Namespace, Name: app.Spec.Workflow.Ref}, wf); err != nil {
+			wf, err := step.GetRefWorkflow(ctx, af.WorkflowClient(p.client), af.app.Namespace, app.Spec.Workflow.Ref)
+			if err != nil {
 				return err
 			}
 			mode = wf.Mode
@@ -802,15 +802,32 @@ func (p *Parser) convertTemplate2Trait(name string, properties map[string]interf
 	if err != nil {
 		traitName = name
 	}
+	typeLabel := traitTypeLabel(traitName, templ)
 	return &Trait{
 		Name:               traitName,
+		TypeLabel:          typeLabel,
 		CapabilityCategory: templ.CapabilityCategory,
 		Params:             properties,
 		Template:           templ.TemplateStr,
 		CustomStatusFormat: templ.CustomStatus,
 		FullTemplate:       templ,
-		engine:             definition.NewTraitAbstractEngine(traitName, templ.Ancestors...),
+		engine:             definition.NewTraitAbstractEngineWithTypeLabel(traitName, typeLabel, templ.Ancestors...),
 	}, nil
+}
+
+// traitTypeLabel returns the trait.oam.dev/type value for a trait's outputs.
+// A module trait is labelled with its installed name whichever form it was
+// referenced by, so that the label is valid and matches the key the revision
+// stores the definition under. Every other trait keeps its name, so legacy and
+// revisioned traits ("scaler", "scaler-v1") are labelled as before.
+func traitTypeLabel(traitName string, templ *Template) string {
+	if templ == nil || templ.TraitDefinition == nil || templ.TraitDefinition.Name == "" {
+		return traitName
+	}
+	if templ.TraitDefinition.Labels[types.LabelDefinitionModule] == "" {
+		return traitName
+	}
+	return templ.TraitDefinition.Name
 }
 
 // ValidateComponentNames validate all component names whether repeat in app

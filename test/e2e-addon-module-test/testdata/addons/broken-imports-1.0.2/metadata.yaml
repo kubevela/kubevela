@@ -1,0 +1,7 @@
+name: broken-imports
+version: 1.0.2
+description: "Deliberately broken _imports.cue: module that was never published."
+tags:
+  - test
+  - module-import
+dependencies: []

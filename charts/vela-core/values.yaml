@@ -168,6 +168,7 @@ optimize:
 ##@param featureGates.enableAddonComponent enable installing an addon as an Application component via the type: addon ComponentDefinition (Alpha)
 ##@param featureGates.restrictDefinitionNamespaces enforce a definition's spec.restrictions or definition.oam.dev/restrict-namespaces annotation when an Application is created or updated (Beta, on by default; a no-op until a definition declares a restriction)
 ##@param featureGates.enableDefinitionInheritance enable spec.extends on ComponentDefinition and TraitDefinition
+##@param featureGates.enableModuleComponent enable installing a module as an Application component via the type: module ComponentDefinition (Alpha)
 ##@param
 featureGates:
   gzipResourceTracker: false
@@ -194,6 +195,7 @@ featureGates:
   validateUndeclaredParameters: false
   enableCueExpVariable: true
   enableAddonComponent: false
+  enableModuleComponent: false
   restrictDefinitionNamespaces: true
   enableDefinitionInheritance: false
 

@@ -23,8 +23,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -128,12 +131,20 @@ func TestSourceStatusAutoUpdateIsResolvedNotDeclared(t *testing.T) {
 	off := handlerFor(nil, v1beta1.ApplicationSource{Name: "a", AutoUpdate: &no}).sourceStatusList()
 	r.False(*off[0].AutoUpdate)
 
-	// A pin beats the binding. The bool says false; the message says why, since a
-	// bool alone cannot distinguish pinned from opted-out from gate-off.
-	pinned := handlerFor(map[string]string{oam.AnnotationPublishVersion: "v1"},
-		v1beta1.ApplicationSource{Name: "a", AutoUpdate: &yes}).sourceStatusList()
-	r.False(*pinned[0].AutoUpdate)
-	r.Contains(pinned[0].Message, "publishVersion")
+	// A binding that opts in stays live under a pin.
+	pin := map[string]string{oam.AnnotationPublishVersion: "v1"}
+	optedIn := handlerFor(pin, v1beta1.ApplicationSource{Name: "a", AutoUpdate: &yes}).sourceStatusList()
+	r.True(*optedIn[0].AutoUpdate)
+	r.Empty(optedIn[0].Message)
+
+	// One the default would have turned on is frozen by the pin. The bool says
+	// false; the message says why and what keeps it live, since a bool alone
+	// cannot distinguish pinned from opted-out from gate-off.
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EnableSourceAutoUpdate, true)
+	frozen := handlerFor(pin, v1beta1.ApplicationSource{Name: "a"}).sourceStatusList()
+	r.False(*frozen[0].AutoUpdate)
+	r.Contains(frozen[0].Message, "publishVersion")
+	r.Contains(frozen[0].Message, "autoUpdate: true")
 }
 
 // A read has to say where the value went, not just what was read. Once a

@@ -26,8 +26,9 @@ import (
 	upstreamcuex "github.com/kubevela/pkg/cue/cuex"
 
 	velacuex "github.com/oam-dev/kubevela/pkg/cue/cuex"
-	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
+	workflowproviders "github.com/oam-dev/kubevela/pkg/workflow/providers"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	cueErrors "cuelang.org/go/cue/errors"
 	"github.com/pkg/errors"
@@ -72,21 +73,40 @@ func ValidateCueTemplate(cueTemplate string) error {
 	if e := checkError(val.Err()); e != nil {
 		return e
 	}
-	err := val.Validate()
+	err := val.Validate(cue.Final())
 	return checkError(err)
 }
 
-// ValidateCuexTemplate validate cueTemplate with CueX for types utilising it.
-// Uses WorkloadCompiler so that templates referencing internal provider
-// packages (e.g. "vela/helm") parse during admission validation.
+// ValidateCuexTemplate validates a ComponentDefinition or TraitDefinition CUE
+// template with CueX, using the workload compiler that renders those kinds.
 //
-// The compile runs under helm.WithDryRun so that any provider package that
-// honors the dry-run signal short-circuits to a side-effect-free path.
-// Without this, a ComponentDefinition whose CUE supplies fully concrete
-// arguments to helm.#Render could trigger a real chart fetch and helm
-// install during admission.
+// The compiler must match the one that renders the definition. Three import
+// paths, "vela/kube", "vela/http" and "vela/config", are registered by both the
+// workload and the workflow compiler but resolve to different packages with
+// different selectors and different $params schemas. Compiling against the wrong
+// flavor does not raise an error: a selector the flavor does not define is
+// silently accepted, and the $params schema check that would have caught a
+// misspelled or mistyped argument disappears with it. Validating a component
+// template against the workflow compiler therefore turns a checked template into
+// an unchecked one, quietly. See ValidateWorkflowStepCuexTemplate for the
+// counterpart used by workflow steps.
 func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
-	return validateCuexTemplate(ctx, cueTemplate)
+	return validateCuexTemplateWith(ctx, velacuex.WorkloadCompiler.Get(), cueTemplate, cue.Final())
+}
+
+// CompileCuexTemplate compiles cueTemplate exactly as ValidateCuexTemplate
+// does, against the workload compiler with provider functions left unresolved,
+// and returns the value instead of a verdict. A caller that runs more than one
+// check against a template compiles it once here, then hands the value to
+// ValidateCompiledCuexTemplate and to its own checks.
+func CompileCuexTemplate(ctx context.Context, cueTemplate string) (cue.Value, error) {
+	return compileForValidation(ctx, velacuex.WorkloadCompiler.Get(), cueTemplate)
+}
+
+// ValidateCompiledCuexTemplate is ValidateCuexTemplate for a value already
+// produced by CompileCuexTemplate.
+func ValidateCompiledCuexTemplate(val cue.Value) error {
+	return validateCompiled(val, cue.Final())
 }
 
 // ValidateCuexTemplateWithoutProviders validates a template's shape without
@@ -101,8 +121,12 @@ func ValidateCuexTemplate(ctx context.Context, cueTemplate string) error {
 //
 // The shape checks that matter - the schema block, the storage block, the
 // generated key - are all static and unaffected.
+//
+// Every validator here now disables provider resolution, so this is equivalent
+// to ValidateCuexTemplate and is kept only so the SourceDefinition work that
+// introduced it keeps its API. It can be dropped once that is confirmed.
 func ValidateCuexTemplateWithoutProviders(ctx context.Context, cueTemplate string) error {
-	return validateCuexTemplate(ctx, cueTemplate, upstreamcuex.DisableResolveProviderFunctions{})
+	return validateCuexTemplateWith(ctx, velacuex.WorkloadCompiler.Get(), cueTemplate, cue.Final())
 }
 
 // ValidateSourceTemplate validates a SourceDefinition's template against the
@@ -112,39 +136,94 @@ func ValidateCuexTemplateWithoutProviders(ctx context.Context, cueTemplate strin
 // an acting package at apply time. Without it a source importing vela/helm would
 // be accepted and then install a chart on its first cache miss, since the render
 // path sets no dry-run.
+//
+// Not validated with cue.Final(): see validateCuexTemplateWith.
 func ValidateSourceTemplate(ctx context.Context, cueTemplate string) error {
-	val, err := velacuex.SourceCompiler.Get().CompileStringWithOptions(
-		ctx, cueTemplate, upstreamcuex.DisableResolveProviderFunctions{})
-	if err != nil {
-		return err
-	}
-	if e := checkError(val.Err()); e != nil {
-		return e
-	}
-	return checkError(val.Validate())
+	return validateCuexTemplateWith(ctx, velacuex.SourceCompiler.Get(), cueTemplate)
 }
 
-func validateCuexTemplate(ctx context.Context, cueTemplate string, opts ...upstreamcuex.CompileOption) error {
-	ctx = helm.WithDryRun(ctx)
-	val, err := velacuex.WorkloadCompiler.Get().CompileStringWithOptions(ctx, cueTemplate, opts...)
+// ValidateWorkflowStepCuexTemplate validates a WorkflowStepDefinition CUE
+// template against the workflow provider compiler.
+//
+// Step templates import workflow-only builtin packages that the workload
+// compiler does not register, "vela/op" above all. Validating them with
+// ValidateCuexTemplate rejects 27 of the 37 bundled step definitions with
+// `builtin package "vela/op" undefined`, so the two kinds cannot share a
+// compiler. They also cannot share the workflow one, for the reason described on
+// ValidateCuexTemplate.
+//
+// Not validated with cue.Final(): see validateCuexTemplateWith. op.#ApplyApplication
+// and friends carry internal fields a provider only fills in at run time (e.g.
+// apply-application.yaml's bare `op.#ApplyApplication & {}`); cue.Final() rejects
+// those as "undefined field", not as one of the incomplete/non-concrete shapes
+// checkError already tolerates. Confirmed empirically against the bundled
+// WorkflowStepDefinitions before adding this parameter.
+func ValidateWorkflowStepCuexTemplate(ctx context.Context, cueTemplate string) error {
+	return validateCuexTemplateWith(ctx, workflowproviders.DefaultCompiler.Get(), cueTemplate)
+}
+
+// validateCuexTemplateWith compiles cueTemplate against the given compiler and
+// reports whether it is a valid definition template.
+//
+// Compiles with DisableResolveProviderFunctions so provider functions are never
+// executed. Admission is a type check, and resolving would let a definition
+// whose CUE supplies fully concrete arguments trigger real side effects (a chart
+// fetch and helm install, a cluster read) merely by being submitted. Skipping
+// resolution also removes the need for the previous helm.WithDryRun guard, which
+// only protected the one provider that honored the signal; its other caller in
+// pkg/appfile stays, so the helper is not orphaned.
+//
+// Provider function arguments are still type-checked, because imports and
+// package schemas are resolved by BuildInstance before resolution would run.
+//
+// opts is cue.Final() for the kinds it is proven safe on (Component, Trait,
+// via ValidateCuexTemplate), which is what surfaces a reference to a provider
+// function CUE does not define, e.g. kube.#NotARealFunction, as an error
+// instead of silently passing. It is omitted for Source and WorkflowStep,
+// where it produces false positives on templates that ship today; see the
+// doc comments on ValidateSourceTemplate and ValidateWorkflowStepCuexTemplate.
+// Unresolved provider outputs ($returns) are left incomplete rather than
+// erroring either way, since templates are legitimately incomplete until an
+// Application supplies parameter values.
+func validateCuexTemplateWith(ctx context.Context, compiler *upstreamcuex.Compiler, cueTemplate string, opts ...cue.Option) error {
+	val, err := compileForValidation(ctx, compiler, cueTemplate)
 	if err != nil {
 		return err
 	}
+	return validateCompiled(val, opts...)
+}
+
+// compileForValidation is the compile half of validateCuexTemplateWith, shared
+// with CompileCuexTemplate so both compile with provider functions off.
+func compileForValidation(ctx context.Context, compiler *upstreamcuex.Compiler, cueTemplate string) (cue.Value, error) {
+	return compiler.CompileStringWithOptions(ctx, cueTemplate, upstreamcuex.DisableResolveProviderFunctions{})
+}
+
+// validateCompiled is the check half of validateCuexTemplateWith, shared with
+// ValidateCompiledCuexTemplate so both judge a compiled value the same way.
+func validateCompiled(val cue.Value, opts ...cue.Option) error {
 	if e := checkError(val.Err()); e != nil {
 		return e
 	}
-	err = val.Validate()
-	return checkError(err)
+	return checkError(val.Validate(opts...))
 }
 
 func checkError(err error) error {
 	re := regexp.MustCompile(ContextRegex)
 	if err != nil {
-		// ignore context not found error
+		// ignore context not found and uninstantiated parameter expressions
 		for _, e := range cueErrors.Errors(err) {
-			if !re.MatchString(e.Error()) {
-				return cueErrors.New(e.Error())
+			if re.MatchString(e.Error()) {
+				continue
 			}
+			format, _ := e.Msg()
+			if format == "cannot reference optional field: %s" ||
+				strings.HasPrefix(format, "incomplete ") ||
+				strings.Contains(e.Error(), "non-concrete value") ||
+				strings.Contains(e.Error(), "must be concrete") {
+				continue
+			}
+			return cueErrors.New(e.Error())
 		}
 	}
 	return nil

@@ -248,7 +248,13 @@ type Factory interface {
 	// CLI still selects in legacy mode.
 	CreateOrUpdateConfigTemplateCR(ctx context.Context, ns string, it *Template) error
 	DeleteTemplate(ctx context.Context, ns, name string) error
+	// ListTemplates returns ConfigTemplate CRs and legacy ConfigMap templates,
+	// one entry per name: a CR hides a legacy template of the same name.
 	ListTemplates(ctx context.Context, ns, scope string) ([]*Template, error)
+	// ListLegacyTemplates returns only the legacy config-template-* ConfigMaps,
+	// including those a CR hides. Callers that must say where a template came
+	// from, such as the CLI's merged list, use it next to the CR list.
+	ListLegacyTemplates(ctx context.Context, ns, scope string) ([]*Template, error)
 
 	ReadConfig(ctx context.Context, namespace, name string) (map[string]interface{}, error)
 	GetConfig(ctx context.Context, namespace, name string, withStatus bool) (*Config, error)
@@ -438,6 +444,46 @@ func (k *kubeConfigFactory) DeleteTemplate(ctx context.Context, ns, name string)
 
 // ListTemplates list the config templates
 func (k *kubeConfigFactory) ListTemplates(ctx context.Context, ns, scope string) ([]*Template, error) {
+	var templates []*Template
+	found := make(map[string]bool)
+
+	var crList configv1alpha1.ConfigTemplateList
+	if err := k.cli.List(ctx, &crList, client.InNamespace(ns)); err == nil {
+		for i := range crList.Items {
+			ct := &crList.Items[i]
+			if _, ok := ct.Labels[types.LabelSourceDefinitionName]; ok {
+				continue
+			}
+			found[ct.Namespace+"/"+ct.Name] = true
+			it, err := configTemplateCRDToTemplate(ctx, ct)
+			if err != nil {
+				klog.Warningf("fail to parse the configtemplate %s", ct.Name)
+				continue
+			}
+			if it != nil {
+				if scope == "" || it.Scope == scope {
+					templates = append(templates, it)
+				}
+			}
+		}
+	} else if !apierrors.IsNotFound(err) && !meta.IsNoMatchError(err) && !runtime.IsNotRegisteredError(err) {
+		return nil, err
+	}
+
+	legacy, err := k.ListLegacyTemplates(ctx, ns, scope)
+	if err != nil {
+		return nil, err
+	}
+	for _, it := range legacy {
+		if !found[it.Namespace+"/"+it.Name] {
+			templates = append(templates, it)
+		}
+	}
+	return templates, nil
+}
+
+// ListLegacyTemplates lists the legacy config-template-* ConfigMaps only.
+func (k *kubeConfigFactory) ListLegacyTemplates(ctx context.Context, ns, scope string) ([]*Template, error) {
 	var list = &v1.ConfigMapList{}
 	selector, err := labels.Parse(fmt.Sprintf("%s=%s", types.LabelConfigCatalog, types.VelaCoreConfig))
 	if err != nil {

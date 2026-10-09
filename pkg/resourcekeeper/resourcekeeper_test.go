@@ -34,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/resourcetracker"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -45,24 +46,8 @@ func TestNewResourceKeeper(t *testing.T) {
 		Namespace:  "default",
 		Generation: 6,
 	}}
-	app.Spec.Policies = []v1beta1.AppPolicy{{
-		Type:       "apply-once",
-		Properties: &runtime.RawExtension{Raw: []byte(`bad value`)},
-	}}
-	_, err := NewResourceKeeper(context.Background(), cli, app)
-	r.Error(err)
-	r.Contains(err.Error(), "failed to parse apply-once policy")
-	app.Spec.Policies = []v1beta1.AppPolicy{{
-		Type:       "garbage-collect",
-		Properties: &runtime.RawExtension{Raw: []byte(`bad value`)},
-	}}
-	_, err = NewResourceKeeper(context.Background(), cli, app)
-	r.Error(err)
-	r.Contains(err.Error(), "failed to parse garbage-collect policy")
-	app.Spec.Policies = []v1beta1.AppPolicy{{
-		Type:       "garbage-collect",
-		Properties: &runtime.RawExtension{Raw: []byte(`{"keepLegacyResource":true}`)},
-	}}
+	// Parsing policies from the spec, and defaulting apply-once for addons, is appkeeper's
+	// job (see its tests); the keeper takes policies as data.
 	util.AddLabels(app, map[string]string{oam.LabelAddonName: "test"})
 	for i := 1; i <= 5; i++ {
 		appName := "app"
@@ -84,17 +69,19 @@ func TestNewResourceKeeper(t *testing.T) {
 		}
 		r.NoError(cli.Create(context.Background(), rt))
 	}
-	_rk, err := NewResourceKeeper(context.Background(), cli, app)
+	_rk, err := newAppKeeper(context.Background(), cli, app, Policies{
+		GarbageCollect: &v1alpha1.GarbageCollectPolicySpec{KeepLegacyResource: true},
+	})
 	r.NoError(err)
 	rk := _rk.(*resourceKeeper)
-	r.NotNil(rk.applyOncePolicy)
-	r.True(rk.applyOncePolicy.Enable)
-	r.NotNil(rk.garbageCollectPolicy)
-	r.True(rk.garbageCollectPolicy.KeepLegacyResource)
+	r.Nil(rk.policies.ApplyOnce, "the keeper adds no policy of its own")
+	r.NotNil(rk.policies.GarbageCollect)
+	r.True(rk.policies.GarbageCollect.KeepLegacyResource)
 	rootRT, err := rk.getRootRT(context.Background())
 	r.NoError(err)
 	r.NotNil(rootRT)
-	crRT, err := rk.getComponentRevisionRT(context.Background())
+	// Only the Application kind has a component-revision tracker (legacy clean-up creates it).
+	crRT, err := resourcetracker.CreateTracker(context.Background(), cli, rk.owner, v1beta1.ResourceTrackerTypeComponentRevision)
 	r.NoError(err)
 	r.NotNil(crRT)
 	currentRT, err := rk.getCurrentRT(context.Background())
@@ -115,11 +102,15 @@ func TestAddonExplicitDisabledApplyOnceKeepsRawResourceData(t *testing.T) {
 		Properties: &runtime.RawExtension{Raw: []byte(`{"enable":false}`)},
 	}}
 
-	keeper, err := NewResourceKeeper(context.Background(), cli, app)
+	// As appkeeper.Policies parses it from the spec above: an explicit disable must win
+	// over the addon default.
+	keeper, err := newAppKeeper(context.Background(), cli, app, Policies{
+		ApplyOnce: &v1alpha1.ApplyOncePolicySpec{Enable: false},
+	})
 	r.NoError(err)
 	rk := keeper.(*resourceKeeper)
-	r.NotNil(rk.applyOncePolicy)
-	r.False(rk.applyOncePolicy.Enable)
+	r.NotNil(rk.policies.ApplyOnce)
+	r.False(rk.policies.ApplyOnce.Enable)
 
 	cm := &unstructured.Unstructured{Object: map[string]interface{}{}}
 	cm.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))

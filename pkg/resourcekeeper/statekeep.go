@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/maps"
 	"github.com/kubevela/pkg/util/slices"
 	"github.com/pkg/errors"
@@ -31,18 +32,15 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/auth"
-	"github.com/oam-dev/kubevela/pkg/multicluster"
-	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 // StateKeep run this function to keep resources up-to-date
 func (h *resourceKeeper) StateKeep(ctx context.Context) error {
-	if h.applyOncePolicy != nil && h.applyOncePolicy.Enable && h.applyOncePolicy.Rules == nil {
+	if h.policies.ApplyOnce != nil && h.policies.ApplyOnce.Enable && h.policies.ApplyOnce.Rules == nil {
 		return nil
 	}
-	ctx = auth.ContextWithUserInfo(ctx, h.app)
+	ctx = h.asRequester(ctx)
 	mrs := make(map[string]v1beta1.ManagedResource)
 	belongs := make(map[string]*v1beta1.ResourceTracker)
 	for _, rt := range []*v1beta1.ResourceTracker{h._currentRT, h._rootRT} {
@@ -64,7 +62,7 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 		}
 		if mr.Deleted {
 			if entry.exists && entry.obj != nil && entry.obj.GetDeletionTimestamp() == nil {
-				deleteCtx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
+				deleteCtx := pkgmulticluster.WithCluster(ctx, mr.Cluster)
 				if err := h.Client.Delete(deleteCtx, entry.obj); err != nil {
 					return errors.Wrapf(err, "failed to delete outdated resource %s in resourcetracker %s", mr.ResourceKey(), rt.Name)
 				}
@@ -78,10 +76,16 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 			if err != nil {
 				return errors.Wrapf(err, "failed to decode resource %s from resourcetracker", mr.ResourceKey())
 			}
-			applyCtx := multicluster.ContextWithClusterName(ctx, mr.Cluster)
-			manifest, err = ApplyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppStateKeep)
+			applyCtx := pkgmulticluster.WithCluster(ctx, mr.Cluster)
+			manifest, err = applyStrategies(applyCtx, h, manifest, v1alpha1.ApplyOnceStrategyOnAppStateKeep)
 			if err != nil {
 				return errors.Wrapf(err, "failed to apply once resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
+			}
+			// Migration: owner labels. A record may predate the owner's current marks, and an
+			// idle owner never dispatches again, so stamp it here as Dispatch does. After
+			// applyStrategies, which can replace the manifest with the live object.
+			if manifest != nil {
+				h.owner.Stamp(manifest)
 			}
 			if manifest == nil {
 				stalesMu.Lock()
@@ -89,19 +93,8 @@ func (h *resourceKeeper) StateKeep(ctx context.Context) error {
 				stalesMu.Unlock()
 				return nil
 			}
-			ao := []apply.ApplyOption{apply.MustBeControlledByApp(h.app)}
-			if h.isShared(manifest) {
-				ao = append([]apply.ApplyOption{apply.SharedByApp(h.app)}, ao...)
-			}
-			if h.isReadOnly(manifest) {
-				ao = append([]apply.ApplyOption{apply.ReadOnly()}, ao...)
-			}
-			if h.canTakeOver(manifest) {
-				ao = append([]apply.ApplyOption{apply.TakeOver()}, ao...)
-			}
-			if strategy := h.getUpdateStrategy(manifest); strategy != nil {
-				ao = append([]apply.ApplyOption{apply.WithUpdateStrategy(*strategy)}, ao...)
-			}
+
+			ao := append(h.policyApplyOptions(manifest), h.mustBeControlled())
 			if err = h.applicator.Apply(applyCtx, manifest, ao...); err != nil {
 				return errors.Wrapf(err, "failed to re-apply resource %s from resourcetracker %s", mr.ResourceKey(), rt.Name)
 			}
@@ -143,19 +136,19 @@ func (h *resourceKeeper) cleanupStaleEntries(ctx context.Context, entries []stal
 			obj := mr.ToUnstructured()
 			rt.DeleteManagedResource(obj, true)
 		}
-		if err := h.Client.Update(multicluster.ContextInLocalCluster(ctx), rt); err != nil {
+		if err := h.Client.Update(localCluster(ctx), rt); err != nil {
 			errs = append(errs, errors.Wrapf(err, "failed to remove stale entries from resourcetracker %s", rt.Name))
 		}
 	}
 	return velaerrors.AggregateErrors(errs)
 }
 
-// ApplyStrategies will generate manifest with applyOnceStrategy
-func ApplyStrategies(ctx context.Context, h *resourceKeeper, manifest *unstructured.Unstructured, matchedAffectStage v1alpha1.ApplyOnceAffectStrategy) (*unstructured.Unstructured, error) {
-	if h.applyOncePolicy == nil {
+// applyStrategies generates a manifest with the owner's apply-once strategy applied
+func applyStrategies(ctx context.Context, h *resourceKeeper, manifest *unstructured.Unstructured, matchedAffectStage v1alpha1.ApplyOnceAffectStrategy) (*unstructured.Unstructured, error) {
+	if h.policies.ApplyOnce == nil {
 		return manifest, nil
 	}
-	strategy := h.applyOncePolicy.FindStrategy(manifest)
+	strategy := h.policies.ApplyOnce.FindStrategy(manifest)
 	if strategy != nil {
 		affectStage := strategy.ApplyOnceAffectStrategy
 		if shouldMerge(affectStage, matchedAffectStage) {
