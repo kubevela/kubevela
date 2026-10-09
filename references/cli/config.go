@@ -109,6 +109,9 @@ func NewTemplateApplyCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 		},
 		Args: cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if !configCRDInstalled(f) {
+				return errConfigTemplateCRDMissing
+			}
 			body, err := pkgUtils.ReadRemoteOrLocalPath(options.File, false)
 			if err != nil {
 				return err
@@ -118,14 +121,20 @@ func NewTemplateApplyCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 			if err != nil {
 				return err
 			}
-			if configCRDInstalled(f) {
-				if err := applyConfigTemplateCRD(cmd.Context(), f.Client(), options.Namespace, template); err != nil {
-					return err
-				}
-			} else if err := inf.CreateOrUpdateConfigTemplate(context.Background(), options.Namespace, template); err != nil {
+			if err := applyConfigTemplateCRD(cmd.Context(), f.Client(), options.Namespace, template); err != nil {
 				return err
 			}
 			streams.Infof("the config template %s applied successfully\n", template.Name)
+			shadowed, err := legacyTemplateExists(cmd.Context(), f.Client(), options.Namespace, template.Name)
+			if err != nil {
+				// The CR is already written; a failed lookup only loses the note below.
+				streams.Errorf("warning: could not check for a legacy template ConfigMap: %v\n", err)
+				return nil
+			}
+			if shadowed {
+				streams.Infof("note: legacy template ConfigMap %s%s in %s is now shadowed by the ConfigTemplate CR; run \"vela config-template migrate %s -n %s\" to adopt it\n",
+					config.TemplateConfigMapNamePrefix, template.Name, options.Namespace, template.Name, options.Namespace)
+			}
 			return nil
 		},
 	}

@@ -27,7 +27,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
@@ -60,6 +62,30 @@ var _ = Describe("Test the commands of the config", func() {
 		err := cmd.Execute()
 		Expect(err).Should(BeNil())
 		Expect(buffer.String()).Should(Equal("the config template test2 applied successfully\n"))
+	})
+
+	It("Test applying a template notes a legacy ConfigMap it shadows", func() {
+		legacy := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: types.DefaultKubeVelaNS, Name: config.TemplateConfigMapNamePrefix + "shadowed"}}
+		Expect(k8sClient.Create(context.TODO(), legacy)).Should(Succeed())
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), legacy))).Should(Succeed())
+			Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), &configv1alpha1.ConfigTemplate{ObjectMeta: metav1.ObjectMeta{Namespace: types.DefaultKubeVelaNS, Name: "shadowed"}}))).Should(Succeed())
+		})
+
+		buffer := bytes.NewBuffer(nil)
+		cmd := TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"apply", "-f", "./test-data/config-templates/image-registry.cue", "--name", "shadowed"})
+		Expect(cmd.Execute()).Should(Succeed())
+		Expect(buffer.String()).Should(Equal("the config template shadowed applied successfully\n" +
+			"note: legacy template ConfigMap config-template-shadowed in vela-system is now shadowed by the ConfigTemplate CR; run \"vela config-template migrate shadowed -n vela-system\" to adopt it\n"))
+	})
+
+	It("Test applying a template fails when the ConfigTemplate CRD is not installed", func() {
+		noCRD := cmd.NewTestFactory(cfg, fake.NewClientBuilder().WithScheme(clientgoscheme.Scheme).Build())
+		buffer := bytes.NewBuffer(nil)
+		cmd := TemplateCommandGroup(noCRD, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"apply", "-f", "./test-data/config-templates/image-registry.cue", "--name", "no-crd"})
+		Expect(cmd.Execute()).Should(MatchError(errConfigTemplateCRDMissing))
 	})
 
 	It("Test list the templates", func() {

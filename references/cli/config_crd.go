@@ -19,6 +19,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -43,6 +44,21 @@ const defaultPropertiesSecretKey = "properties"
 func configCRDInstalled(f velacmd.Factory) bool {
 	_, err := f.Client().RESTMapper().RESTMapping(configv1alpha1.ConfigGroupVersionKind.GroupKind(), configv1alpha1.Version)
 	return err == nil
+}
+
+var errConfigTemplateCRDMissing = errors.New("the ConfigTemplate CRD is not installed; upgrade vela-core before applying config templates")
+
+// legacyTemplateExists reports whether a legacy template ConfigMap with the given
+// template name exists in ns.
+func legacyTemplateExists(ctx context.Context, cli client.Client, ns, name string) (bool, error) {
+	err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + name}, &corev1.ConfigMap{})
+	if apierrors.IsNotFound(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // crdTypeMissing reports whether err means the config.oam.dev types are not served
