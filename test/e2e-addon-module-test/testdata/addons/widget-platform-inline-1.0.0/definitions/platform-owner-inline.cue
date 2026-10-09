@@ -7,6 +7,6 @@
 	attributes: podDisruptive: false
 }
 template: {
-	patch: metadata: annotations: "kit.example.com/owner": parameter.team
+	patch: metadata: annotations: "kitinline.example.com/owner": parameter.team
 	parameter: team: *"platform" | string
 }
