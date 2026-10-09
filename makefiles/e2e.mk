@@ -178,7 +178,10 @@ e2e-addon-component-test:
 	# Kept as its own package/target for the same reason as e2e-module-test:
 	# a failure elsewhere in e2e-api-test or e2e-test must not stop it running.
 	# Requires featureGates.enableAddonComponent=true on the installed chart.
-	ginkgo -v ./test/e2e-addon-component-test
+	mkdir -p "$(E2E_REPORT_DIR)"
+	set -eu; workers=$$(bash hack/e2e/ginkgo_workers.sh "$(E2E_PROCS)"); \
+	echo "Ginkgo workers: $$workers"; \
+	ginkgo -v --procs="$$workers" --timeout=$(E2E_TIMEOUT) --fail-on-empty --json-report="$(E2E_REPORT_DIR)/e2e-addon-component-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-component-test.xml" ./test/e2e-addon-component-test
 	@$(OK) tests pass
 
 # Bring up everything the addon-component suite needs on a local k3d cluster,

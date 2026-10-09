@@ -196,9 +196,11 @@ runs:
       # featureGates.enableAddonComponent=true.
       if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'api') }}
       shell: bash
+      env:
+        E2E_ADDON_PROCS: ${{ steps.workers.outputs.addon-procs }}
       run: |
         echo "Running addon-component e2e tests..."
-        make e2e-addon-component-test
+        make e2e-addon-component-test E2E_PROCS="$E2E_ADDON_PROCS"
 
     - name: Upload coverage report
       if: ${{ inputs.codecov-enable == 'true' }}
