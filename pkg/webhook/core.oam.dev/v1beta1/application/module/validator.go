@@ -82,20 +82,26 @@ func NewValidator(cli client.Client) *Validator {
 // componentProperties is the subset of a type: module component's properties
 // this validator can check without contacting the registry.
 //
-// Module, Namespace and Version are decoded but not otherwise inspected. They
-// stay on the struct because decoding is itself the check: a component that
-// writes a map for module, or a number for version, fails to decode and is
-// rejected.
+// Module and Version are decoded but not otherwise inspected. They stay on the
+// struct because decoding is itself the check: a component that writes a map
+// for module, or a number for version, fails to decode and is rejected.
+//
+// Namespace is no longer a property. It is decoded only to refuse it: a module's
+// definitions install into the namespace of the Application that installs it,
+// and a pointer tells an explicit empty value apart from an absent one.
 type componentProperties struct {
-	Module    string `json:"module"`
-	Registry  string `json:"registry"`
-	Namespace string `json:"namespace"`
-	Version   string `json:"version"`
+	Module    string  `json:"module"`
+	Registry  string  `json:"registry"`
+	Namespace *string `json:"namespace"`
+	Version   string  `json:"version"`
 }
 
+// namespaceRemovedDetail explains why a namespace property is refused.
+const namespaceRemovedDetail = "namespace is no longer accepted: a module's definitions install into the namespace of the Application that installs it"
+
 // ValidateComponents rejects type: module components that cannot resolve for a
-// reason visible locally: properties that do not decode, or a named registry
-// that is Git backed.
+// reason visible locally: properties that do not decode, a namespace property,
+// or a named registry that is Git backed.
 //
 // A component that names no registry is not checked for its source. Resolving
 // which registry an empty name selects is module.ResolveRegistry's policy --
@@ -137,6 +143,10 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 					"cannot be decoded as module component properties: "+err.Error()))
 				continue
 			}
+		}
+
+		if properties.Namespace != nil {
+			errs = append(errs, field.Forbidden(path.Child("namespace"), namespaceRemovedDetail))
 		}
 
 		if properties.Registry == "" {

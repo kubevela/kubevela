@@ -11,14 +11,17 @@ _rendered: $returns: application: {
 
 "the module Application is the output": test.#ComponentRender & {
 	definition: "module"
-	context: name: "widget"
+	context: {
+		name:      "widget"
+		namespace: "team-a"
+	}
 	mocks: "vela/module": "#Render": _rendered
 	expect: {
 		output: {kind: "Application", metadata: name: "module-widget"}
 		calls: "vela/module": "#Render": [{$params: {
 			module:    "widget"
 			registry:  ""
-			namespace: ""
+			namespace: "team-a"
 			version:   ""
 		}}]
 	}
@@ -26,18 +29,54 @@ _rendered: $returns: application: {
 
 "parameters pass through to module render": test.#ComponentRender & {
 	definition: "module"
-	context: name: "ignored"
+	context: {
+		name:      "ignored"
+		namespace: "team-a"
+	}
 	parameter: {
-		module:    "widget-kit"
-		registry:  "internal"
-		namespace: "acme-system"
-		version:   "1.2.3"
+		module:   "widget-kit"
+		registry: "internal"
+		version:  "1.2.3"
 	}
 	mocks: "vela/module": "#Render": _rendered
 	expect: calls: "vela/module": "#Render": [{$params: {
 		module:    "widget-kit"
 		registry:  "internal"
-		namespace: "acme-system"
+		namespace: "team-a"
 		version:   "1.2.3"
 	}}]
+}
+
+"an owned addon Application installs into the recorded namespace": test.#ComponentRender & {
+	definition: "module"
+	context: {
+		name:      "widget"
+		namespace: "vela-system"
+		appLabels: "addons.oam.dev/name": "tenant-widgets"
+		appAnnotations: "modules.oam.dev/install-namespace": "kit-tenant"
+	}
+	mocks: "vela/module": "#Render": _rendered
+	expect: calls: "vela/module": "#Render": [{$params: namespace: "kit-tenant", ...}]
+}
+
+"the recorded namespace is ignored on a user Application": test.#ComponentRender & {
+	definition: "module"
+	context: {
+		name:      "widget"
+		namespace: "team-a"
+		appAnnotations: "modules.oam.dev/install-namespace": "elsewhere"
+	}
+	mocks: "vela/module": "#Render": _rendered
+	expect: calls: "vela/module": "#Render": [{$params: namespace: "team-a", ...}]
+}
+
+"a namespace property is refused": test.#ComponentRender & {
+	definition: "module"
+	context: {
+		name:      "widget"
+		namespace: "team-a"
+	}
+	parameter: namespace: "acme-system"
+	mocks: "vela/module": "#Render": _rendered
+	expect: error: =~"namespace is no longer accepted"
 }

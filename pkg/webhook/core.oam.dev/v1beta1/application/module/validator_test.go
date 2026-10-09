@@ -27,6 +27,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -107,6 +108,18 @@ func TestValidateComponents(t *testing.T) {
 				moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "version": 2}),
 			},
 			wantFields: []string{"spec.components[0].properties"},
+		},
+		"a namespace property is forbidden": {
+			components: []common.ApplicationComponent{
+				moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "namespace": "kit-tenant"}),
+			},
+			wantFields: []string{"spec.components[0].properties.namespace"},
+		},
+		"an empty namespace property is still forbidden": {
+			components: []common.ApplicationComponent{
+				moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "namespace": ""}),
+			},
+			wantFields: []string{"spec.components[0].properties.namespace"},
 		},
 		"an OCI registry is accepted": {
 			components: []common.ApplicationComponent{
@@ -199,6 +212,18 @@ func TestValidateComponentsReportsTheOffendingValueAndRemedy(t *testing.T) {
 		"the admission detail is the same sentence the resolver reports")
 	assert.Contains(t, errs[0].Detail, "use an OCI registry")
 	assert.NotContains(t, errs[0].Detail, "Helm repository", "modules never read a Helm chart repository")
+}
+
+func TestValidateComponentsExplainsTheRemovedNamespaceProperty(t *testing.T) {
+	v := NewValidator(nil)
+	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
+		moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "namespace": "kit-tenant"}),
+	}}}
+
+	errs := v.ValidateComponents(context.Background(), app)
+	require.Len(t, errs, 1)
+	assert.Equal(t, field.ErrorTypeForbidden, errs[0].Type)
+	assert.Contains(t, errs[0].Detail, "namespace of the Application that installs it")
 }
 
 func TestValidateComponentsRedactsUndecodableProperties(t *testing.T) {

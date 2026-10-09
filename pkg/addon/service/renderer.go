@@ -245,7 +245,8 @@ func (r *rendererImpl) restConfig() *rest.Config {
 
 // cacheKey builds the resolve-once cache key from every input that can change
 // the rendered output, including SkipVersionValidate so a validated request and
-// a skipped request never alias to the same cached result.
+// a skipped request never alias to the same cached result, and Namespace, which
+// the render records on the owned Application.
 //
 // It reports false when the properties cannot be hashed, in which case the
 // request must not participate in the cache at all: any placeholder key would be
@@ -255,7 +256,7 @@ func cacheKey(req api.AddonRequest) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	return fmt.Sprintf("%s|%s|%s|%t|%s", req.Name, req.Version, req.Registry, req.SkipVersionValidate, hash), true
+	return fmt.Sprintf("%s|%s|%s|%t|%s|%s", req.Name, req.Version, req.Registry, req.SkipVersionValidate, req.Namespace, hash), true
 }
 
 // hashProperties returns a stable SHA-256 hex digest of the properties map.
@@ -392,7 +393,7 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	for _, c := range moduleComps {
 		existingForInline = append(existingForInline, common2.ApplicationComponent{Name: c.Name})
 	}
-	inlineModuleComps, err := pkgaddon.RenderInlineModuleComponents(installPkg, existingForInline, dependsOn)
+	inlineModuleComps, err := pkgaddon.RenderInlineModuleComponents(installPkg, existingForInline, dependsOn, req.Namespace)
 	if err != nil {
 		return nil, fmt.Errorf("render inline module components for addon %q: %w", req.Name, err)
 	}

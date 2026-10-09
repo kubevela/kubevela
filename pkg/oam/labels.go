@@ -272,6 +272,14 @@ const (
 	// AnnotationAddonDefinitionBondCompKey indicates the definition in addon bond component.
 	AnnotationAddonDefinitionBondCompKey = "addon.oam.dev/bind-component"
 
+	// AnnotationModuleInstallNamespace is set by the addon renderer on an owned
+	// addon Application to the namespace of the Application that installed the
+	// addon. The owned Application itself always lives in vela-system, so a
+	// type: module component inside it installs its definitions here instead.
+	// The module definition honors it only on Applications carrying
+	// LabelAddonName.
+	AnnotationModuleInstallNamespace = "modules.oam.dev/install-namespace"
+
 	// AnnotationSkipResume annotation indicates that the resource does not need to be resumed.
 	AnnotationSkipResume = "controller.core.oam.dev/skip-resume"
 

@@ -9,7 +9,10 @@ _rendered: $returns: {
 
 "the addon's Application is the output": test.#ComponentRender & {
 	definition: "addon"
-	context: name: "fluxcd"
+	context: {
+		name:      "fluxcd"
+		namespace: "team-a"
+	}
 	mocks: "vela/addon": "#Render": _rendered
 	expect: {
 		output: {kind: "Application", metadata: name: "addon-fluxcd"}
@@ -21,13 +24,19 @@ _rendered: $returns: {
 			registry: ""
 			properties: {} @exact()
 			skipVersionValidate: false
+			// The installing Application's namespace, where the addon's
+			// modules install their definitions.
+			namespace: "team-a"
 		}}]
 	}
 }
 
 "parameters pass through to the render": test.#ComponentRender & {
 	definition: "addon"
-	context: name: "gitops"
+	context: {
+		name:      "gitops"
+		namespace: "team-a"
+	}
 	parameter: {
 		addon:    "fluxcd"
 		version:  "2.3.0"
@@ -42,5 +51,6 @@ _rendered: $returns: {
 		registry: "internal"
 		properties: onlyHelmComponents: true
 		skipVersionValidate: true
+		namespace:           "team-a"
 	}}]
 }

@@ -16,11 +16,32 @@ spec:
         import (
         	"vela/module"
         )
+        // The definitions install into the namespace of the Application that
+        // installs this module, never one a property picks. An addon's owned
+        // Application always lives in vela-system, so the addon renderer records
+        // the installing Application's namespace on it in an annotation; that is
+        // honored only on an owned addon Application, so a user's own Application
+        // cannot use it to redirect a module.
+        _namespace: string
+        _fromAddon: context.appLabels["addons.oam.dev/name"] != _|_ && context.appAnnotations["modules.oam.dev/install-namespace"] != _|_
+        if _fromAddon {
+        	_namespace: context.appAnnotations["modules.oam.dev/install-namespace"]
+        }
+        if !_fromAddon {
+        	_namespace: context.namespace
+        }
+
+        // namespace used to be a parameter. A component still setting it must fail
+        // rather than install somewhere its author did not ask for.
+        if parameter.namespace != _|_ {
+        	_namespace: "namespace is no longer accepted: a module's definitions install into the namespace of the Application that installs it"
+        }
+
         _render: module.#Render & {
         	$params: {
         		module:    parameter.module
         		registry:  parameter.registry
-        		namespace: parameter.namespace
+        		namespace: _namespace
         		version:   parameter.version
         	}
         }
@@ -32,10 +53,6 @@ spec:
         	module: *context.name | string
         	// Registry name; empty means the configured default.
         	registry: *"" | string
-        	// Namespace the module's definitions install into; empty means the default
-        	// system namespace (vela-system). The Application this renders always lives
-        	// in vela-system whatever this is set to.
-        	namespace: *"" | string
         	// Module package version (the OCI/ECR tag vela module publish writes from
         	// _module.cue's version field). Empty means the latest published version.
         	// This is not the API line (apiVersion v1/v2), which is unaffected.

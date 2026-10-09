@@ -79,6 +79,13 @@ func parsedInlineModule(t *testing.T, name string) *module.Module {
 
 func renderWith(t *testing.T, pkg pkgaddon.InstallPackage) (map[string]interface{}, error) {
 	t.Helper()
+	return renderInNamespace(t, pkg, "")
+}
+
+// renderInNamespace renders pkg as if a type: addon component in an
+// Application in namespace had asked for it.
+func renderInNamespace(t *testing.T, pkg pkgaddon.InstallPackage, namespace string) (map[string]interface{}, error) {
+	t.Helper()
 	pkg.Meta = pkgaddon.Meta{Name: "inline-addon", Version: "1.0.0"}
 	r := &rendererImpl{
 		cli: fakeClientWithRegistry(t),
@@ -86,7 +93,7 @@ func renderWith(t *testing.T, pkg pkgaddon.InstallPackage) (map[string]interface
 			return []*pkgaddon.WholeAddonPackage{{InstallPackage: pkg, RegistryName: "fixture"}}, nil
 		},
 	}
-	res, err := r.resolveAndRender(context.Background(), api.AddonRequest{Name: "inline-addon", SkipVersionValidate: true})
+	res, err := r.resolveAndRender(context.Background(), api.AddonRequest{Name: "inline-addon", SkipVersionValidate: true, Namespace: namespace})
 	if err != nil {
 		return nil, err
 	}
@@ -231,4 +238,54 @@ func TestResolveAndRenderWithoutInlineModulesAddsNoModuleComponents(t *testing.T
 		assert.NotEqual(t, "module", c["type"], name)
 		assert.NotContains(t, name, "aws-")
 	}
+}
+
+// definitionNamespaces returns the namespace of every ComponentDefinition the
+// owned module Application rendered for an inline module component carries.
+func definitionNamespaces(t *testing.T, comp map[string]interface{}) []string {
+	t.Helper()
+	objs := comp["properties"].(map[string]interface{})["objects"].([]interface{})
+	require.Len(t, objs, 1)
+	owned := objs[0].(map[string]interface{})
+	var namespaces []string
+	for _, item := range owned["spec"].(map[string]interface{})["components"].([]interface{}) {
+		props, ok := item.(map[string]interface{})["properties"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		tierObjs, _ := props["objects"].([]interface{})
+		for _, o := range tierObjs {
+			obj := o.(map[string]interface{})
+			if obj["kind"] == "ComponentDefinition" {
+				namespaces = append(namespaces, obj["metadata"].(map[string]interface{})["namespace"].(string))
+			}
+		}
+	}
+	return namespaces
+}
+
+func TestResolveAndRenderInstallsInlineModuleIntoTheInstallingNamespace(t *testing.T) {
+	enableModuleComponentForInlineTest(t)
+	app, err := renderInNamespace(t, pkgaddon.InstallPackage{
+		AppTemplate:   &v1beta1.Application{},
+		InlineModules: []*module.Module{parsedInlineModule(t, "aws-s3")},
+	}, "kit-tenant")
+	require.NoError(t, err)
+
+	c := componentsByName(t, app)["aws-s3"]
+	require.NotNil(t, c, "inline module component must be present")
+	assert.Equal(t, []string{"kit-tenant"}, definitionNamespaces(t, c))
+	owned := c["properties"].(map[string]interface{})["objects"].([]interface{})[0].(map[string]interface{})
+	assert.Equal(t, "vela-system", owned["metadata"].(map[string]interface{})["namespace"],
+		"the owned module Application stays in vela-system")
+}
+
+func TestResolveAndRenderInlineModuleWithoutANamespaceUsesVelaSystem(t *testing.T) {
+	enableModuleComponentForInlineTest(t)
+	app, err := renderWith(t, pkgaddon.InstallPackage{
+		AppTemplate:   &v1beta1.Application{},
+		InlineModules: []*module.Module{parsedInlineModule(t, "aws-s3")},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"vela-system"}, definitionNamespaces(t, componentsByName(t, app)["aws-s3"]))
 }

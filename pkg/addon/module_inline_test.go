@@ -206,7 +206,7 @@ func TestReadInlineModulesDirDoesNotMisreadModulesImportsFile(t *testing.T) {
 }
 
 func TestRenderInlineModuleComponentsNoInlineModulesIsEmpty(t *testing.T) {
-	comps, err := RenderInlineModuleComponents(&InstallPackage{}, nil, nil)
+	comps, err := RenderInlineModuleComponents(&InstallPackage{}, nil, nil, "")
 	require.NoError(t, err)
 	assert.Empty(t, comps)
 }
@@ -220,7 +220,7 @@ func TestRenderInlineModuleComponentsRefusesWhenGateOff(t *testing.T) {
 	pkg := &InstallPackage{Meta: Meta{Name: "example"}}
 	require.NoError(t, readInlineModulesDir(pkg, mapFileReader{files: files}, itemsFor(files), ""))
 
-	_, err := RenderInlineModuleComponents(pkg, nil, nil)
+	_, err := RenderInlineModuleComponents(pkg, nil, nil, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "EnableModuleComponent")
 }
@@ -231,7 +231,7 @@ func TestRenderInlineModuleComponentsEmitsK8sObjectsComponent(t *testing.T) {
 	pkg := &InstallPackage{Meta: Meta{Name: "example"}}
 	require.NoError(t, readInlineModulesDir(pkg, mapFileReader{files: files}, itemsFor(files), ""))
 
-	comps, err := RenderInlineModuleComponents(pkg, nil, []string{"example-resources"})
+	comps, err := RenderInlineModuleComponents(pkg, nil, []string{"example-resources"}, "")
 	require.NoError(t, err)
 	require.Len(t, comps, 1)
 
@@ -289,7 +289,7 @@ func TestRenderInlineModuleComponentsOrdersAfterResources(t *testing.T) {
 	pkg := &InstallPackage{Meta: Meta{Name: "example"}}
 	require.NoError(t, readInlineModulesDir(pkg, mapFileReader{files: files}, itemsFor(files), ""))
 
-	comps, err := RenderInlineModuleComponents(pkg, nil, []string{"example-resources", "example-config"})
+	comps, err := RenderInlineModuleComponents(pkg, nil, []string{"example-resources", "example-config"}, "")
 	require.NoError(t, err)
 	require.Len(t, comps, 1)
 	assert.Equal(t, []string{"example-resources", "example-config"}, comps[0].DependsOn)
@@ -304,7 +304,7 @@ func TestRenderInlineModuleComponentsErrorsOnCollisionWithImport(t *testing.T) {
 	}
 	require.NoError(t, readInlineModulesDir(pkg, mapFileReader{files: files}, itemsFor(files), ""))
 
-	_, err := RenderInlineModuleComponents(pkg, nil, nil)
+	_, err := RenderInlineModuleComponents(pkg, nil, nil, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `"aws-s3"`)
 	assert.Contains(t, err.Error(), "modules/_imports.cue")
@@ -324,7 +324,7 @@ func TestRenderInlineModuleComponentsErrorsOnCollisionWithHandWrittenComponent(t
 			Properties: &runtime.RawExtension{Raw: []byte(`{"module":"aws-s3"}`)},
 		},
 	}
-	_, err := RenderInlineModuleComponents(pkg, existing, nil)
+	_, err := RenderInlineModuleComponents(pkg, existing, nil, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `"aws-s3"`)
 }
@@ -343,7 +343,7 @@ func TestMixedAddonRendersBothInlineAndImportedModules(t *testing.T) {
 	require.Len(t, importComps, 1)
 	assert.Equal(t, "aws-efs", importComps[0].Name)
 
-	inlineComps, err := RenderInlineModuleComponents(pkg, nil, nil)
+	inlineComps, err := RenderInlineModuleComponents(pkg, nil, nil, "")
 	require.NoError(t, err)
 	require.Len(t, inlineComps, 1)
 	assert.Equal(t, "aws-s3", inlineComps[0].Name)

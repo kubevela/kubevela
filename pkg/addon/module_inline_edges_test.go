@@ -31,7 +31,7 @@ import (
 // module's k8s-objects component.
 func ownedApplication(t *testing.T, pkg *InstallPackage) map[string]interface{} {
 	t.Helper()
-	comps, err := RenderInlineModuleComponents(pkg, nil, nil)
+	comps, err := RenderInlineModuleComponents(pkg, nil, nil, "")
 	require.NoError(t, err)
 	require.Len(t, comps, 1)
 	var props struct {
@@ -77,7 +77,7 @@ func TestReadInlineModulesDirTwoDirectoriesClaimingOneModuleNameCollide(t *testi
 	require.NoError(t, readInlineModulesDir(pkg, mapFileReader{files: files}, itemsFor(files), ""))
 	require.Len(t, pkg.InlineModules, 2)
 
-	_, err := RenderInlineModuleComponents(pkg, nil, nil)
+	_, err := RenderInlineModuleComponents(pkg, nil, nil, "")
 	require.Error(t, err, "two inline modules with the same module name must not both render")
 	assert.Contains(t, err.Error(), `"dup"`)
 }
@@ -91,7 +91,7 @@ func TestRenderInlineModuleComponentsDisabledImportDoesNotCollide(t *testing.T) 
 	}
 	require.NoError(t, readInlineModulesDir(pkg, mapFileReader{files: files}, itemsFor(files), ""))
 
-	comps, err := RenderInlineModuleComponents(pkg, nil, nil)
+	comps, err := RenderInlineModuleComponents(pkg, nil, nil, "")
 	require.NoError(t, err)
 	require.Len(t, comps, 1)
 }
@@ -102,7 +102,7 @@ func TestRenderInlineModuleComponentsAvoidsNameClashWithNonModuleComponent(t *te
 	pkg := &InstallPackage{Meta: Meta{Name: "example"}}
 	require.NoError(t, readInlineModulesDir(pkg, mapFileReader{files: files}, itemsFor(files), ""))
 
-	comps, err := RenderInlineModuleComponents(pkg, []common2.ApplicationComponent{{Name: "aws-s3", Type: "webservice"}}, nil)
+	comps, err := RenderInlineModuleComponents(pkg, []common2.ApplicationComponent{{Name: "aws-s3", Type: "webservice"}}, nil, "")
 	require.NoError(t, err)
 	require.Len(t, comps, 1)
 	assert.NotEqual(t, "aws-s3", comps[0].Name, "must not reuse a component name the app already has")
