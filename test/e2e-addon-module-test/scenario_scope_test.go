@@ -24,18 +24,19 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	veltypes "github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile"
-	pkgmodule "github.com/oam-dev/kubevela/pkg/module"
-	moduleservice "github.com/oam-dev/kubevela/pkg/module/service"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	veltypes "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	pkgmodule "github.com/oam-dev/kubevela/pkg/module"
+	moduleservice "github.com/oam-dev/kubevela/pkg/module/service"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 func TestScenarioScopeIdentities(t *testing.T) {
