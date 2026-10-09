@@ -1,6 +1,6 @@
 // A trait that emits an extra object through `outputs`. Used by scenario 04 to
-// show how the trait type string ends up in the trait.oam.dev/type label of
-// that object (see architecture.md, "Known defects").
+// verify this trait's outputs use the installed name in trait.oam.dev/type,
+// not the Form 3 reference string.
 note: {
 	type:        "trait"
 	description: "Writes a ConfigMap note next to the component."

@@ -4,8 +4,7 @@
 // Components that come from THIS file are not part of the dependsOn list the
 // renderer gives the generated type: module component. Only resources/ files
 // rendered as their own components (YAML files, and .cue files WITHOUT a
-// package header) and the `outputs` block are waited for. See architecture.md
-// section 5.3.
+// package header) and the `outputs` block are waited for.
 package main
 
 output: {

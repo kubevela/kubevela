@@ -1,5 +1,5 @@
-// Minimal addon template: the Application only carries what resources/ and
-// modules/_imports.cue add to it.
+// Minimal addon template: addon rendering adds resources and inline modules
+// to the Application; no template outputs are defined here.
 package main
 
 output: {
