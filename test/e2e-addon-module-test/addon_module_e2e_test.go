@@ -21,9 +21,9 @@ limitations under the License.
 // kit.example.com CRDs).
 //
 // The Contexts run in the order written. Two orderings matter: "latest vs
-// pinned" (scenario 08) has to run while widget-kit 1.0.0 is the only tag in
+// pinned" (scenario 06) has to run while widget-kit 1.0.0 is the only tag in
 // the module registry, so it comes before the upgrade scenario (07) and
-// publishes 1.1.0 and 1.2.0 itself; and "feature gates off" (18) restarts the
+// publishes 1.1.0 and 1.2.0 itself; and "feature gates off" (17) restarts the
 // controller with gates toggled, so it comes last.
 package addonmoduletest
 
@@ -99,7 +99,7 @@ type widgetVariant struct {
 	tiers          []string
 	definitions    []string
 
-	// selfHealConsumerApp/selfHealConsumerFile are scenario 11's own consumer
+	// selfHealConsumerApp/selfHealConsumerFile are scenario 10's own consumer
 	// fixture: one Form 3 Widget plus a module trait, no addon-level trait --
 	// distinct from consumerApp/consumerFile, which scenario 02 uses.
 	selfHealConsumerApp  string
@@ -158,7 +158,7 @@ type suiteVariant struct {
 	ambiguousFile     string
 	ambiguousForm1App string
 
-	// keepDoomedFile is scenario 10's own consumer fixture: one component per
+	// keepDoomedFile is scenario 09's own consumer fixture: one component per
 	// module, so dropping the gadget module's import/inline bundle takes only
 	// the Gadget component's definition and CRD with it.
 	keepDoomedFile string
@@ -273,7 +273,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			"widget-platform-1.0.0", "widget-platform-1.1.0", "widget-platform-1.2.0",
 			"widget-platform-inline-1.0.0", "widget-platform-inline-1.1.0", "widget-platform-inline-1.2.0",
 			"kit-suite-1.0.0", "kit-suite-2.0.0", "kit-suite-inline-1.0.0", "kit-suite-inline-2.0.0",
-			"widget-latest-1.0.0", "import-options-1.0.0", "tenant-widgets-1.0.0",
+			"widget-latest-1.0.0", "import-options-1.0.0",
 			"cache-probe-1.0.0-a",
 			"broken-imports-1.0.1", "broken-imports-1.0.2", "broken-imports-1.0.3", "broken-imports-1.0.4",
 			"broken-imports-1.0.5", "broken-imports-1.0.6", "broken-imports-1.0.7",
@@ -288,7 +288,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 	AfterAll(func() {
 		By("removing whatever a failed scenario may have left behind")
 		for _, name := range []string{
-			widgetPlatformApp, "widget-platform-inline", "kit-suite", "kit-suite-inline", "import-options", "tenant-widgets", "widget-latest", "cache-probe",
+			widgetPlatformApp, "widget-platform-inline", "kit-suite", "kit-suite-inline", "import-options", "widget-latest", "cache-probe",
 			"platform-a", "platform-b", "broken-imports", "missing-addon-version", "missing-addon", "new-platform",
 			"module-direct", "gate-off-probe", "widget-consumer", "widget-consumer-inline", "suite-consumer", "suite-consumer-inline", "forms-accepted", "v2-contract",
 			"trait-outputs-form3", "default-consumer", "gauge-consumer", "v2-consumer",
@@ -296,7 +296,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		} {
 			deleteApp(ctx, testNS, name)
 		}
-		for _, name := range []string{addonWidgetPlatform, "addon-widget-platform-inline", "addon-kit-suite", "addon-kit-suite-inline", "addon-import-options", "addon-tenant-widgets",
+		for _, name := range []string{addonWidgetPlatform, "addon-widget-platform-inline", "addon-kit-suite", "addon-kit-suite-inline", "addon-import-options",
 			"addon-widget-latest", "addon-cache-probe", "addon-broken-imports", "addon-broken-imports-inline",
 			"addon-inline-mixed"} {
 			waitAppGone(ctx, systemNS, name, reconcileWait)
@@ -326,7 +326,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		It("stores the addons in the ChartMuseum index, modules/_imports.cue included", func() {
 			index, err := httpGet(addonRegistry.host+"/index.yaml", "")
 			Expect(err).ShouldNot(HaveOccurred(), index)
-			for _, addon := range []string{"widget-platform", "kit-suite", "widget-latest", "import-options", "tenant-widgets", "cache-probe", "broken-imports"} {
+			for _, addon := range []string{"widget-platform", "kit-suite", "widget-latest", "import-options", "cache-probe", "broken-imports"} {
 				Expect(index).Should(ContainSubstring(addon+"-"), "index.yaml should list %s", addon)
 			}
 			Expect(index).Should(ContainSubstring("widget-platform-1.2.0.tgz"))
@@ -856,75 +856,8 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		})
 	})
 
-	// --- Scenario 06 ---
-	Context("a type: module component declared in template.cue with a tenant namespace (scenario 06)", func() {
-		BeforeAll(func() {
-			Expect(k8sClient.Create(ctx, addonApplication("tenant-widgets", "tenant-widgets", "1.0.0", nil))).Should(Succeed())
-			waitAppRunning(ctx, testNS, "tenant-widgets", installWait)
-			waitAppRunning(ctx, systemNS, moduleWidgetKit, shortWait)
-			DeferCleanup(func() {
-				deleteApp(ctx, "kit-tenant", "tenant-consumer")
-				waitGone(ctx, unstructuredObj(widgetGVK, "kit-tenant", "tenant-widget"), shortWait)
-				uninstall("tenant-widgets", "addon-tenant-widgets", moduleWidgetKit)
-				waitGone(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "kit-tenant"}}, reconcileWait)
-			})
-		})
-
-		It("lets the template's module component win over the matching _imports.cue entry", func() {
-			app := mustGetApp(ctx, systemNS, "addon-tenant-widgets")
-			Expect(componentNames(app)).Should(ConsistOf("tenant-kit", "tenant-widgets-resources"))
-			Expect(componentNames(app)).ShouldNot(ContainElement("widget-kit"))
-			mod := findComponent(app, "tenant-kit")
-			Expect(mod.Type).Should(Equal("module"))
-			Expect(mod.DependsOn).Should(Equal([]string{"tenant-widgets-resources"}), "a hand-written module component gets no automatic dependsOn")
-			Expect(propertiesOf(mod.Properties)).Should(Equal(map[string]interface{}{
-				"module": "widget-kit", "namespace": "kit-tenant", "registry": moduleRegistryName, "version": "1.0.0",
-			}))
-			Expect(mustGetApp(ctx, systemNS, moduleWidgetKit).Labels).Should(HaveKeyWithValue(oam.LabelAppComponent, "tenant-kit"))
-		})
-
-		It("installs definitions and namespaced auxiliary objects into the tenant namespace only", func() {
-			Expect(moduleDefinitionNames(ctx, "kit-tenant", "widget-kit")).Should(ConsistOf(widgetKitDefinitions))
-			Expect(moduleDefinitionNames(ctx, systemNS, "widget-kit")).Should(BeEmpty())
-			for _, cm := range []string{"widget-kit-module-info", "widget-kit-v1-line-config", "widget-kit-v2-line-config"} {
-				_, err := getConfigMap(ctx, "kit-tenant", cm)
-				Expect(err).ShouldNot(HaveOccurred(), cm)
-				Expect(isNotFound(ctx, configMapObj(systemNS, cm))).Should(BeTrue(), cm)
-			}
-			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: widgetsCRD}, crd(widgetsCRD))).Should(Succeed(), "cluster-scoped objects are unaffected")
-			_, err := getUnstructured(ctx, widgetClassGVK, "", "widget-kit-v1-standard")
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: "widget-kit-viewer"}, &rbacv1.ClusterRole{})).Should(Succeed())
-		})
-
-		It("is usable from the tenant namespace and refused from another", func() {
-			Expect(applyManifestFile(ctx, testdataPath("apps", "consumer-tenant.yaml"))).Should(Succeed())
-			waitAppRunning(ctx, "kit-tenant", "tenant-consumer", shortWait)
-			w, err := getUnstructured(ctx, widgetGVK, "kit-tenant", "tenant-widget")
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(nestedString(w, "spec", "classRef")).Should(Equal("widget-kit-v1-standard"))
-			Expect(w.GetLabels()).Should(HaveKeyWithValue("kit.example.com/labeled-by", "widget-kit-v1-labeler"))
-
-			results := createEachFromFile(ctx, testdataPath("apps", "consumer-default-tenant.yaml"))
-			Expect(results).Should(HaveLen(1))
-			// The friendly "ensure the module is installed" text comes from the
-			// definition permission check, which only runs with the alpha
-			// ValidateDefinitionPermissions gate. Without it the render refuses
-			// the Application with the template loader's error, so only the
-			// installed name and "not found" are checked.
-			for name, err := range results {
-				Expect(err).Should(HaveOccurred(), "%s must be denied from the default namespace", name)
-				Expect(err.Error()).Should(SatisfyAll(
-					ContainSubstring(`"widget-kit-v1-widget"`),
-					ContainSubstring("not found"),
-				), name)
-				Expect(isNotFound(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: testNS}})).Should(BeTrue(), name)
-			}
-		})
-	})
-
-	// --- Scenario 08 (before 07: it needs 1.0.0 to be the highest tag) ---
-	Context("latest vs pinned module version (scenario 08)", func() {
+	// --- Scenario 06 (it needs 1.0.0 to be the highest tag) ---
+	Context("latest vs pinned module version (scenario 06)", func() {
 		// "" while module-widget-kit does not exist, so Eventually and
 		// Consistently keep polling instead of aborting on a NotFound.
 		moduleVersion := func() string {
@@ -1106,8 +1039,8 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		})
 	}
 
-	// --- Scenario 09 ---
-	Context("re-pushing the same tag: revision cache vs pinned render cache (scenario 09)", func() {
+	// --- Scenario 08 ---
+	Context("re-pushing the same tag: revision cache vs pinned render cache (scenario 08)", func() {
 		type builds struct{ addon, module, line, def string }
 		read := func() builds {
 			var b builds
@@ -1177,10 +1110,10 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		})
 	})
 
-	// --- Scenario 10 ---
+	// --- Scenario 09 ---
 	for _, v := range []suiteVariant{externalSuiteVariant, inlineSuiteVariant} {
 		v := v
-		Context(fmt.Sprintf("removing a module from an addon deletes its CRDs and every custom resource of them, %s modules (scenario 10)", v.label), func() {
+		Context(fmt.Sprintf("removing a module from an addon deletes its CRDs and every custom resource of them, %s modules (scenario 09)", v.label), func() {
 			widgetGVK := schema.GroupVersionKind{Group: v.crdGroup, Version: "v1alpha1", Kind: "Widget"}
 			gadgetGVK := schema.GroupVersionKind{Group: v.crdGroup, Version: "v1alpha1", Kind: "Gadget"}
 			gadgetsCRD := "gadgets." + v.crdGroup
@@ -1245,10 +1178,10 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		})
 	}
 
-	// --- Scenario 11 ---
+	// --- Scenario 10 ---
 	for _, v := range []widgetVariant{externalWidgetVariant, inlineWidgetVariant} {
 		v := v
-		Context(fmt.Sprintf("deleting things by hand at every level: the Application one level up restores them, %s module (scenario 11)", v.label), func() {
+		Context(fmt.Sprintf("deleting things by hand at every level: the Application one level up restores them, %s module (scenario 10)", v.label), func() {
 			widgetGVK := schema.GroupVersionKind{Group: v.crdGroup, Version: "v1alpha1", Kind: "Widget"}
 			widgetClassGVK := schema.GroupVersionKind{Group: v.crdGroup, Version: "v1alpha1", Kind: "WidgetClass"}
 			widgetsCRD := "widgets." + v.crdGroup
@@ -1350,10 +1283,10 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		})
 	}
 
-	// --- Scenario 12 ---
+	// --- Scenario 11 ---
 	for _, v := range []widgetVariant{externalWidgetVariant, inlineWidgetVariant} {
 		v := v
-		Context(fmt.Sprintf("deleting the addon while something still uses it, %s module (scenario 12)", v.label), func() {
+		Context(fmt.Sprintf("deleting the addon while something still uses it, %s module (scenario 11)", v.label), func() {
 			widgetGVK := schema.GroupVersionKind{Group: v.crdGroup, Version: "v1alpha1", Kind: "Widget"}
 			widgetsCRD := "widgets." + v.crdGroup
 			widgetDef := v.moduleSlug + "-v1-widget"
@@ -1412,8 +1345,8 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		})
 	}
 
-	// --- Scenario 13 ---
-	Context("one owner per addon and per module (scenario 13)", func() {
+	// --- Scenario 12 ---
+	Context("one owner per addon and per module (scenario 12)", func() {
 		It("refuses a second user Application for the same addon until the first is gone", func() {
 			Expect(k8sClient.Create(ctx, addonApplication("platform-a", "widget-platform", "1.0.0", nil))).Should(Succeed())
 			DeferCleanup(func() {
@@ -1534,8 +1467,8 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		})
 	})
 
-	// --- Scenario 14 ---
-	Context("broken _imports.cue files and resolution failures (scenario 14)", func() {
+	// --- Scenario 13 ---
+	Context("broken _imports.cue files and resolution failures (scenario 13)", func() {
 		const appName = "broken-imports"
 
 		const inlineAppName = "broken-imports-inline"
@@ -1680,8 +1613,8 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		})
 	})
 
-	// --- Scenario 15 ---
-	Context("registries disappear, credentials go bad (scenario 15)", func() {
+	// --- Scenario 14 ---
+	Context("registries disappear, credentials go bad (scenario 14)", func() {
 		health := func(g Gomega, ready string) {
 			svc := findService(mustGetApp(ctx, testNS, widgetPlatformApp), "widget-platform")
 			g.Expect(svc).ShouldNot(BeNil())
@@ -1756,8 +1689,8 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		})
 	})
 
-	// --- Scenario 16 ---
-	Context("vela addon enable installs the same addon without its modules (scenario 16)", func() {
+	// --- Scenario 15 ---
+	Context("vela addon enable installs the same addon without its modules (scenario 15)", func() {
 		BeforeAll(func() {
 			// The legacy installer downloads the addon in the CLI process,
 			// through the stored registry record.
@@ -1814,12 +1747,12 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		})
 	})
 
-	// --- Scenario 17 ---
+	// --- Scenario 16 ---
 	// An addon that bundles a module under modules/<name>/ renders it eagerly,
 	// in the controller, into a type: k8s-objects component holding the
 	// module-<name> Application; no registry is involved, so every spec here
 	// works without publishing anything.
-	Context("inline and imported modules in one addon (scenario 17)", func() {
+	Context("inline and imported modules in one addon (scenario 16)", func() {
 		const appName = "inline-mixed"
 
 		It("renders an inline k8s-objects component and an imported type: module component side by side", func() {
@@ -1842,8 +1775,8 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		})
 	})
 
-	// --- Scenario 18 (last: it restarts the controller with gates toggled) ---
-	Context("turning the feature gates off under a running install (scenario 18)", func() {
+	// --- Scenario 17 (last: it restarts the controller with gates toggled) ---
+	Context("turning the feature gates off under a running install (scenario 17)", func() {
 		BeforeAll(func() {
 			addon, module := featureGateArgs(ctx)
 			Expect(addon).Should(Equal("true"), "EnableAddonComponent must be on for this suite")
