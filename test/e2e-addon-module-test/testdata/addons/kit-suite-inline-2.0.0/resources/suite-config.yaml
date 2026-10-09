@@ -1,5 +1,5 @@
-# Becomes the kit-suite-resources component; both module components wait
-# for it.
+# Becomes the kit-suite-resources component; the widget-kit-inline module
+# component waits for it.
 apiVersion: v1
 kind: ConfigMap
 metadata:

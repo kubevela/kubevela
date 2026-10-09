@@ -156,7 +156,6 @@ type suiteVariant struct {
 	consumerApp       string
 	consumerFile      string
 	ambiguousFile     string
-	ambiguousForm2App string
 	ambiguousForm1App string
 
 	// keepDoomedFile is scenario 10's own consumer fixture: one component per
@@ -177,7 +176,6 @@ var externalSuiteVariant = suiteVariant{
 	consumerApp:       "suite-consumer",
 	consumerFile:      "consumer-suite.yaml",
 	ambiguousFile:     "consumer-ambiguous-traits.yaml",
-	ambiguousForm2App: "ambiguous-form2",
 	ambiguousForm1App: "ambiguous-form1",
 	keepDoomedFile:    "consumer-suite-keep-doomed.yaml",
 }
@@ -194,7 +192,6 @@ var inlineSuiteVariant = suiteVariant{
 	consumerApp:       "suite-consumer-inline",
 	consumerFile:      "consumer-suite-inline.yaml",
 	ambiguousFile:     "consumer-ambiguous-traits-inline.yaml",
-	ambiguousForm2App: "ambiguous-form2-inline",
 	ambiguousForm1App: "ambiguous-form1-inline",
 	keepDoomedFile:    "consumer-suite-keep-doomed-inline.yaml",
 }
@@ -294,7 +291,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			widgetPlatformApp, "widget-platform-inline", "kit-suite", "kit-suite-inline", "import-options", "tenant-widgets", "widget-latest", "cache-probe",
 			"platform-a", "platform-b", "broken-imports", "missing-addon-version", "missing-addon", "new-platform",
 			"module-direct", "gate-off-probe", "widget-consumer", "widget-consumer-inline", "suite-consumer", "suite-consumer-inline", "forms-accepted", "v2-contract",
-			"trait-outputs-form3", "default-consumer", "default-consumer-form2", "gauge-consumer", "v2-consumer",
+			"trait-outputs-form3", "default-consumer", "gauge-consumer", "v2-consumer",
 			"gauge-consumer-inline", "v2-consumer-inline", "broken-imports-inline",
 		} {
 			deleteApp(ctx, testNS, name)
@@ -544,7 +541,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 				Expect(isNotFound(ctx, configMapObj(systemNS, v.moduleSlug+"-v1beta1-preview"))).Should(BeTrue())
 			})
 
-			It("a consumer uses Form 3, Form 2, a module trait and the addon-level trait", func() {
+			It("a consumer uses Form 3, a module trait and the addon-level trait", func() {
 				Expect(applyManifestFile(ctx, testdataPath("apps", v.consumerFile))).Should(Succeed())
 				waitAppRunning(ctx, testNS, v.consumerApp, shortWait)
 
@@ -664,24 +661,17 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 				Expect(names).Should(ConsistOf(v.gadgetModule+"-v1-labeler", v.widgetModule+"-v1-labeler", v.widgetModule+"-v2-labeler"))
 			})
 
-			It("rejects a Form 1 or Form 2 trait that both modules ship, at admission", func() {
+			It("rejects a Form 1 trait that both modules ship, at admission", func() {
 				results := createEachFromFile(ctx, testdataPath("apps", v.ambiguousFile))
-				Expect(results).Should(HaveLen(2))
-				// The module list in the message follows the order the definitions
-				// were listed in, which is not sorted, so each name is checked on
-				// its own.
-				for name, typeName := range map[string]string{v.ambiguousForm2App: "v1/labeler", v.ambiguousForm1App: "labeler"} {
-					Expect(results[name]).Should(HaveOccurred(), name)
-					Expect(results[name].Error()).Should(SatisfyAll(
-						ContainSubstring(`type "`+typeName+`" is ambiguous: definitions from modules [`),
-						ContainSubstring(v.gadgetModule),
-						ContainSubstring(v.widgetModule),
-						ContainSubstring("] all match"),
-					), name)
-				}
-				for name := range results {
-					Expect(isNotFound(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: testNS}})).Should(BeTrue(), name)
-				}
+				Expect(results).Should(HaveLen(1))
+				Expect(results[v.ambiguousForm1App]).Should(HaveOccurred(), v.ambiguousForm1App)
+				Expect(results[v.ambiguousForm1App].Error()).Should(SatisfyAll(
+					ContainSubstring(`type "labeler" is ambiguous: definitions from modules [`),
+					ContainSubstring(v.gadgetModule),
+					ContainSubstring(v.widgetModule),
+					ContainSubstring("] all match"),
+				))
+				Expect(isNotFound(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: v.ambiguousForm1App, Namespace: testNS}})).Should(BeTrue())
 			})
 
 			It("resolves Form 3 always and Form 1 when the short name is unique", func() {
@@ -733,13 +723,12 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 				Expect(findService(mustGetApp(ctx, testNS, v.appName), v.addonSlug).Message).Should(Equal("Ready:6/6"))
 			})
 
-			It("accepts Form 3, Form 2, the installed name and a unique Form 1 trait", func() {
+			It("accepts Form 3, the installed name and a unique Form 1 trait", func() {
 				widgetGVK := schema.GroupVersionKind{Group: v.crdGroup, Version: "v1alpha1", Kind: "Widget"}
 				Expect(applyManifestFile(ctx, testdataPath("apps", "consumer-forms-accepted"+v.suffix+".yaml"))).Should(Succeed())
 				waitAppRunning(ctx, testNS, "forms-accepted"+v.suffix, shortWait)
 				for name, want := range map[string][2]string{
 					"form3-widget":   {"v1", v.moduleSlug + "-v1-widget"},
-					"form2-widget":   {"v2", v.moduleSlug + "-v2-widget"},
 					"stamped-widget": {"v1", v.moduleSlug + "-v1-widget"},
 				} {
 					w, err := getUnstructured(ctx, widgetGVK, testNS, name)
@@ -759,11 +748,11 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			It("refuses ambiguous, disabled-line and malformed references at admission", func() {
 				results := createEachFromFile(ctx, testdataPath("apps", "consumer-rejected"+v.suffix+".yaml"))
 				want := map[string]string{
-					"reject-form1-ambiguous" + v.suffix:     `type "widget" is ambiguous`,
-					"reject-disabled-line" + v.suffix:       v.moduleSlug + "-v1beta1-widget",
-					"reject-form2-disabled-line" + v.suffix: `no definition found for type "v1beta1/widget"`,
-					"reject-bad-api-version" + v.suffix:     `"1" is not a valid API version`,
-					"reject-too-many-segments" + v.suffix:   "expected 1 segment (name), 2 segments (v<N>/name), or 3 segments (module/v<N>/name)",
+					"reject-form1-ambiguous" + v.suffix:           `type "widget" is ambiguous`,
+					"reject-disabled-line" + v.suffix:             v.moduleSlug + "-v1beta1-widget",
+					"reject-two-segment-disabled-line" + v.suffix: "two-segment references are not supported",
+					"reject-bad-api-version" + v.suffix:           `"1" is not a valid API version`,
+					"reject-too-many-segments" + v.suffix:         "expected either 1 segment (name, Form 1) or 3 segments (module/v<N>/name, Form 3)",
 				}
 				Expect(results).Should(HaveLen(len(want)))
 				for name, fragment := range want {
@@ -910,7 +899,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			Expect(w.GetLabels()).Should(HaveKeyWithValue("kit.example.com/labeled-by", "widget-kit-v1-labeler"))
 
 			results := createEachFromFile(ctx, testdataPath("apps", "consumer-default-tenant.yaml"))
-			Expect(results).Should(HaveLen(2))
+			Expect(results).Should(HaveLen(1))
 			// The friendly "ensure the module is installed" text comes from the
 			// definition permission check, which only runs with the alpha
 			// ValidateDefinitionPermissions gate. Without it the render refuses
