@@ -716,6 +716,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			BeforeAll(func() {
 				Expect(k8sClient.Create(ctx, addonApplication(v.appName, v.addonSlug, "1.0.0", nil))).Should(Succeed())
 				waitAppRunning(ctx, testNS, v.appName, installWait)
+				waitAppRunning(ctx, systemNS, v.moduleAppName(), shortWait)
 				Expect(moduleDefinitionNames(ctx, systemNS, v.moduleSlug)).Should(ConsistOf(v.definitions))
 				DeferCleanup(func() {
 					for _, name := range []string{"forms-accepted" + v.suffix, "v2-contract" + v.suffix, "trait-outputs-form3" + v.suffix} {
