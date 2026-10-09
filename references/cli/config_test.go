@@ -27,7 +27,9 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -170,6 +172,28 @@ var _ = Describe("Test the commands of the config", func() {
 		lines := strings.Split(strings.TrimRight(buffer.String(), "\n"), "\n")
 		Expect(lines).Should(HaveLen(2))
 		Expect(lines[1]).Should(MatchRegexp(`^only-legacy-here\s.*\slegacy\s+\d{4}-`))
+	})
+
+	It("Test apply and create each probe the CRD they write, not the other one", func() {
+		body := []string{"apply", "-f", "./test-data/config-templates/image-registry.cue", "--name", "partial", "-n", "default"}
+
+		// only ConfigTemplate served: apply works, create cannot write a Config
+		templateOnly := fakeClientServing(configv1alpha1.ConfigTemplateGroupVersionKind)
+		apply := TemplateCommandGroup(cmd.NewTestFactory(cfg, templateOnly), "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
+		apply.SetArgs(body)
+		Expect(apply.Execute()).Should(Succeed())
+		var ct configv1alpha1.ConfigTemplate
+		Expect(templateOnly.Get(context.TODO(), client.ObjectKey{Namespace: "default", Name: "partial"}, &ct)).Should(Succeed())
+		seedLegacyTemplate(templateOnly, "default", "partial-legacy")
+		create := ConfigCommandGroup(cmd.NewTestFactory(cfg, templateOnly), "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
+		create.SetArgs([]string{"create", "x", "--template=default/partial-legacy", "--namespace=default", "-f", "./test-data/config/registry.yaml"})
+		Expect(create.Execute()).Should(MatchError(errConfigCRDMissing))
+
+		// only Config served: apply must not pretend the ConfigTemplate CRD is there
+		configOnly := fakeClientServing(configv1alpha1.ConfigGroupVersionKind)
+		apply = TemplateCommandGroup(cmd.NewTestFactory(cfg, configOnly), "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
+		apply.SetArgs(body)
+		Expect(apply.Execute()).Should(MatchError(errConfigTemplateCRDMissing))
 	})
 
 	It("Test --config-mode is rejected on every command but list", func() {
@@ -577,6 +601,17 @@ var _ = Describe("Test the commands of the config", func() {
 		Expect(line(buffer.String())).Should(Equal(24))
 	})
 })
+
+// fakeClientServing returns a fake client whose REST mapper serves only the
+// given kinds. The fake client's default mapper is empty, so this is how a test
+// makes the API server appear to have one CRD installed and not the other.
+func fakeClientServing(gvks ...schema.GroupVersionKind) client.Client {
+	mapper := meta.NewDefaultRESTMapper(nil)
+	for _, gvk := range gvks {
+		mapper.Add(gvk, meta.RESTScopeNamespace)
+	}
+	return fake.NewClientBuilder().WithScheme(clientgoscheme.Scheme).WithRESTMapper(mapper).Build()
+}
 
 // seedLegacyTemplate writes template name as a legacy ConfigMap in ns through the
 // factory, the way a pre-CRD CLI did.

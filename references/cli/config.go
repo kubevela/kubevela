@@ -34,6 +34,7 @@ import (
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
+	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
@@ -110,7 +111,7 @@ func NewTemplateApplyCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 		},
 		Args: cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !configCRDInstalled(f) {
+			if !kindServed(f, configv1alpha1.ConfigTemplateGroupVersionKind) {
 				return errConfigTemplateCRDMissing
 			}
 			body, err := pkgUtils.ReadRemoteOrLocalPath(options.File, false)
@@ -504,7 +505,7 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				_, err = streams.Out.Write(outBuilder.Bytes())
 				return err
 			}
-			crdInstalled := configCRDInstalled(f)
+			crdInstalled := kindServed(f, configv1alpha1.ConfigGroupVersionKind)
 			// Interim until the expanded writer (Nacos) moves into the Config controller:
 			// such a template still gets a legacy Secret, whatever the cluster serves.
 			if configItem.Template.ExpandedWriter.Nacos != nil {

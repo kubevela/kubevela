@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -40,10 +41,11 @@ import (
 
 const defaultPropertiesSecretKey = "properties"
 
-// configCRDInstalled reports whether the config.oam.dev CRDs are served by the
-// API server. Call it once per command and reuse the result.
-func configCRDInstalled(f velacmd.Factory) bool {
-	_, err := f.Client().RESTMapper().RESTMapping(configv1alpha1.ConfigGroupVersionKind.GroupKind(), configv1alpha1.Version)
+// kindServed reports whether the API server serves gvk. The Config and
+// ConfigTemplate CRDs are installed separately, so each command probes the kind
+// it is about to write. Call it once per command and reuse the result.
+func kindServed(f velacmd.Factory, gvk schema.GroupVersionKind) bool {
+	_, err := f.Client().RESTMapper().RESTMapping(gvk.GroupKind(), gvk.Version)
 	return err == nil
 }
 
