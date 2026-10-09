@@ -14,13 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package propexpr
+package celexpr
 
-// The placement calls a component read may make.
-const (
-	// PlaceCluster names a cluster: component.db.cluster("data").
-	PlaceCluster = "cluster"
-	// PlaceNamespace names a namespace, in the reader's cluster unless a cluster
-	// call precedes it: component.db.namespace("orders").
-	PlaceNamespace = "namespace"
+import (
+	"cuelang.org/go/cue"
+	"github.com/google/cel-go/cel"
+	apiservercel "k8s.io/apiserver/pkg/cel"
 )
+
+// env is Vela's typed environment from binding schemas and context field types.
+func env(sources map[string]cue.Value, ctx map[string]*apiservercel.DeclType) (*cel.Env, error) {
+	return Vela.TypedEnv("", func() (map[string]*apiservercel.DeclType, error) {
+		return rootDecls(sources, ctx)
+	})
+}

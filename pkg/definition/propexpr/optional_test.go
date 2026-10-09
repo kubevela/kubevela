@@ -17,18 +17,25 @@ limitations under the License.
 package propexpr
 
 import (
+	"strings"
 	"testing"
 
+	"cuelang.org/go/cue"
+	"github.com/kubevela/pkg/cel/template"
 	"github.com/stretchr/testify/require"
 )
 
-func srcRef(path ...string) Reference { return Reference{Root: SourceIdent, Path: path} }
-func ctxRef(path ...string) Reference { return Reference{Root: ContextIdent, Path: path} }
+func srcRef(path ...string) template.Reference {
+	return template.Reference{Root: SourceIdent, Path: path}
+}
+func ctxRef(path ...string) template.Reference {
+	return template.Reference{Root: ContextIdent, Path: path}
+}
 
 // A schema is a contract: a declared, non-optional field is always there, and
 // demanding a default for it would be noise on every expression. A default is
 // required exactly where the schema stops promising the value.
-func TestUndefendedInNeedsADefaultOnlyWhereTheSchemaStopsPromising(t *testing.T) {
+func TestUndefendedNeedsADefaultOnlyWhereTheSchemaStopsPromising(t *testing.T) {
 	schemas := map[string]string{
 		"cfg": `{
 	host: string
@@ -41,7 +48,7 @@ func TestUndefendedInNeedsADefaultOnlyWhereTheSchemaStopsPromising(t *testing.T)
 
 	for _, tc := range []struct {
 		name       string
-		ref        Reference
+		ref        template.Reference
 		undefended bool
 		why        string
 	}{
@@ -59,7 +66,7 @@ func TestUndefendedInNeedsADefaultOnlyWhereTheSchemaStopsPromising(t *testing.T)
 			"unknowable here, so it fails open rather than demanding a default"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := UndefendedIn([]Reference{tc.ref}, schemas)
+			got, err := undefendedIn([]template.Reference{tc.ref}, schemas)
 			require.NoError(t, err)
 			if tc.undefended {
 				require.Len(t, got, 1, tc.why)
@@ -72,10 +79,10 @@ func TestUndefendedInNeedsADefaultOnlyWhereTheSchemaStopsPromising(t *testing.T)
 
 // A read that carries its own fallback survives the value being absent, which is
 // the whole point of writing one.
-func TestUndefendedInSkipsDefaultedReads(t *testing.T) {
+func TestUndefendedSkipsDefaultedReads(t *testing.T) {
 	ref := srcRef("cfg", "note")
 	ref.Defaulted = true
-	got, err := UndefendedIn([]Reference{ref}, map[string]string{"cfg": `{note?: string}`})
+	got, err := undefendedIn([]template.Reference{ref}, map[string]string{"cfg": `{note?: string}`})
 	require.NoError(t, err)
 	require.Empty(t, got)
 }
@@ -86,18 +93,18 @@ func TestUndefendedInSkipsDefaultedReads(t *testing.T) {
 // An unguarded read of an absent label fails the render with "no such key", so
 // admission has to catch it for the same reason it catches an optional source
 // field. Judging only source reads leaves this one to blow up at render.
-func TestUndefendedInJudgesContextStructurally(t *testing.T) {
-	got, err := UndefendedIn([]Reference{ctxRef("cluster")}, nil)
+func TestUndefendedJudgesContextStructurally(t *testing.T) {
+	got, err := undefendedIn([]template.Reference{ctxRef("cluster")}, nil)
 	require.NoError(t, err)
 	require.Empty(t, got, "a plain context field is always supplied")
 
-	got, err = UndefendedIn([]Reference{ctxRef("appLabels", "team")}, nil)
+	got, err = undefendedIn([]template.Reference{ctxRef("appLabels", "team")}, nil)
 	require.NoError(t, err)
 	require.Len(t, got, 1, "a label may simply not be set")
 
 	guarded := ctxRef("appLabels", "team")
 	guarded.Defaulted = true
-	got, err = UndefendedIn([]Reference{guarded}, nil)
+	got, err = undefendedIn([]template.Reference{guarded}, nil)
 	require.NoError(t, err)
 	require.Empty(t, got, "a guarded read survives the label being absent")
 }
@@ -105,16 +112,16 @@ func TestUndefendedInJudgesContextStructurally(t *testing.T) {
 // An unknown binding is reported by the type check, which names it properly.
 // Complaining here as well would tell the author the same thing twice, in worse
 // words.
-func TestUndefendedInStaysQuietAboutAnUnknownBinding(t *testing.T) {
-	got, err := UndefendedIn([]Reference{srcRef("nosuch", "field")}, map[string]string{})
+func TestUndefendedStaysQuietAboutAnUnknownBinding(t *testing.T) {
+	got, err := undefendedIn([]template.Reference{srcRef("nosuch", "field")}, map[string]string{})
 	require.NoError(t, err)
 	require.Empty(t, got)
 }
 
 // A schema that will not compile is not a reason to fail the expression check:
 // the definition's own validation reports it.
-func TestUndefendedInIgnoresASchemaThatWillNotCompile(t *testing.T) {
-	got, err := UndefendedIn([]Reference{srcRef("cfg", "host")},
+func TestUndefendedIgnoresASchemaThatWillNotCompile(t *testing.T) {
+	got, err := undefendedIn([]template.Reference{srcRef("cfg", "host")},
 		map[string]string{"cfg": `{this is not cue`})
 	require.NoError(t, err)
 	require.Empty(t, got)
@@ -122,67 +129,30 @@ func TestUndefendedInIgnoresASchemaThatWillNotCompile(t *testing.T) {
 
 // A list index is a real position in the schema, and reading past the end is a
 // read that may find nothing.
-func TestUndefendedInHandlesListIndices(t *testing.T) {
+func TestUndefendedHandlesListIndices(t *testing.T) {
 	schemas := map[string]string{"cfg": `{items: [{name: string}]}`}
 
-	got, err := UndefendedIn([]Reference{srcRef("cfg", "items", "0", "name")}, schemas)
+	got, err := undefendedIn([]template.Reference{srcRef("cfg", "items", "0", "name")}, schemas)
 	require.NoError(t, err)
 	require.Empty(t, got, "position 0 is pinned by the schema")
 
-	got, err = UndefendedIn([]Reference{srcRef("cfg", "items", "5", "name")}, schemas)
+	got, err = undefendedIn([]template.Reference{srcRef("cfg", "items", "5", "name")}, schemas)
 	require.NoError(t, err)
 	require.Len(t, got, 1, "position 5 is not promised by a one-element list")
 }
 
-func TestIsIndexSegment(t *testing.T) {
-	require.True(t, isIndexSegment("0"))
-	require.True(t, isIndexSegment("42"))
-	require.False(t, isIndexSegment(""))
-	require.False(t, isIndexSegment("name"))
-	require.False(t, isIndexSegment("1a"), "a field cannot start with a digit, so this is a name")
-	require.False(t, isIndexSegment("-1"))
-}
-
-func TestIsCUEIdent(t *testing.T) {
-	require.True(t, isCUEIdent("name"))
-	require.True(t, isCUEIdent("_name"))
-	require.True(t, isCUEIdent("$name"))
-	require.True(t, isCUEIdent("n4me"))
-	require.False(t, isCUEIdent(""))
-	require.False(t, isCUEIdent("4name"), "cannot start with a digit")
-	require.False(t, isCUEIdent("my-name"), "a hyphen needs bracket syntax")
-	require.False(t, isCUEIdent("a.b"))
-}
-
-// The rendered form has to be an expression the author can paste, because the
-// errors using it say "supply a default with *<ref> | <fallback>".
-func TestReferenceStringRendersSomethingThatParses(t *testing.T) {
-	for _, tc := range []struct {
-		ref  Reference
-		want string
-	}{
-		{srcRef("cfg", "host"), `source.cfg.host`},
-		{srcRef("cfg", "items", "0", "name"), `source.cfg.items[0].name`},
-		{srcRef("my-source", "host"), `source["my-source"].host`},
-		{ctxRef("appLabels", "a.b/c"), `context.appLabels["a.b/c"]`},
-		{ctxRef("cluster"), `context.cluster`},
-	} {
-		require.Equal(t, tc.want, tc.ref.String())
-	}
-}
-
 func TestReferenceIsSource(t *testing.T) {
-	require.True(t, srcRef("cfg").IsSource())
-	require.False(t, ctxRef("cluster").IsSource())
+	require.True(t, IsSource(srcRef("cfg")))
+	require.False(t, IsSource(ctxRef("cluster")))
 }
 
 // Context reads were judged by path length alone: anything below the first
 // segment was treated as a lookup into an open map and demanded a fallback. But
 // context.clusterVersion is a struct with declared fields, so a read of
 // .major is as certain as a read of context.namespace.
-func TestUndefendedInReadsContextShapeNotPathLength(t *testing.T) {
+func TestUndefendedReadsContextShapeNotPathLength(t *testing.T) {
 	undefended := func(path ...string) bool {
-		out, err := UndefendedIn([]Reference{{Root: "context", Path: path}}, nil)
+		out, err := undefendedIn([]template.Reference{{Root: "context", Path: path}}, nil)
 		require.NoError(t, err)
 		return len(out) > 0
 	}
@@ -195,4 +165,50 @@ func TestUndefendedInReadsContextShapeNotPathLength(t *testing.T) {
 	require.True(t, undefended("appLabels", "team"),
 		"a key of an open map may find nothing")
 	require.True(t, undefended("appAnnotations", "owner"))
+}
+
+// A component read waits for its value rather than failing on its absence, so
+// it never needs a default, whatever its path looks like.
+func TestUndefendedNeverFlagsAComponentRead(t *testing.T) {
+	got, err := undefendedIn([]template.Reference{{Root: ComponentIdent, Path: []string{"appLabels", "team"}}}, nil)
+	require.NoError(t, err)
+	require.Empty(t, got)
+}
+
+// undefendedIn is the has()-default rule over a set of reads: those that may be
+// absent and carry no guard.
+func undefendedIn(refs []template.Reference, schemas map[string]string) ([]template.Reference, error) {
+	compiled := CompileSchemas(schemas)
+	var out []template.Reference
+	for _, ref := range refs {
+		if ref.Defaulted {
+			continue
+		}
+		may, err := compiled.CanBeAbsent(ref)
+		if err != nil {
+			return nil, err
+		}
+		if may {
+			out = append(out, ref)
+		}
+	}
+	return out, nil
+}
+
+func TestSchemasKind(t *testing.T) {
+	s := CompileSchemas(map[string]string{"cfg": `{n: number, ratio: float, port: int, items: [...{name: string}], labels: [string]: string, note?: string, ports: *[] | [...int], weights: [...number] | *[1], tags: *{} | {[string]: int}}`})
+	for path, want := range map[string]cue.Kind{
+		"n": cue.NumberKind, "ratio": cue.FloatKind, "port": cue.IntKind,
+		"items.0.name": cue.StringKind, "labels.team": cue.StringKind, "note": cue.StringKind,
+		// A defaulted list or map keeps its element kind through the disjunction.
+		"ports.0": cue.IntKind, "weights.2": cue.NumberKind, "tags.team": cue.IntKind,
+	} {
+		got, ok := s.Kind(srcRef(append([]string{"cfg"}, strings.Split(path, ".")...)...))
+		require.True(t, ok, path)
+		require.Equal(t, want, got, path)
+	}
+	_, ok := s.Kind(srcRef("cfg", "undeclared"))
+	require.False(t, ok)
+	_, ok = s.Kind(template.Reference{Root: ComponentIdent, Path: []string{"db", "output"}})
+	require.False(t, ok, "a component's live output has no schema")
 }

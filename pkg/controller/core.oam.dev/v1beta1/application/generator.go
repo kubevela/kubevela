@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	wfTypesv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
+	celtemplate "github.com/kubevela/pkg/cel/template"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/slices"
@@ -51,7 +52,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application/assemble"
 	ctrlutil "github.com/oam-dev/kubevela/pkg/controller/utils"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
-	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
@@ -615,7 +615,7 @@ func resolveWorkflowStepSources(af *appfile.Appfile, steps []wfTypesv1alpha1.Wor
 			//nolint:nilerr // reported elsewhere, deliberately not twice
 			return nil
 		}
-		if !propexpr.HasExpression(decoded) {
+		if !celtemplate.HasExpression(decoded) {
 			return nil
 		}
 		ctxData := appfile.GenerateContextDataFromAppFile(af, name)

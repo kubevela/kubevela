@@ -271,3 +271,23 @@ func TestSourceEngineValidateOnResolve(t *testing.T) {
 	r.NoError(err)
 	r.Equal("eu-west", res.Properties.(map[string]interface{})["x"])
 }
+
+// A malformed expression does not hide a type error elsewhere in the same blob.
+func TestSourceEngineCheckReportsPastAMalformedExpression(t *testing.T) {
+	r := require.New(t)
+	engine, err := NewSourceEngine(demoEngineOptions())
+	r.NoError(err)
+
+	found := engine.Check(map[string]interface{}{
+		"broken": "$(source.cfg.region +)",
+		"nested": map[string]interface{}{"typed": "$(source.cfg.nosuchfield)"},
+		"fine":   "$(source.cfg.region)",
+	})
+	byProp := map[string]CheckError{}
+	for _, f := range found {
+		byProp[f.Property] = f
+	}
+	r.Len(found, 2, "%v", found)
+	r.Contains(byProp, "broken")
+	r.Contains(byProp, "nested.typed")
+}

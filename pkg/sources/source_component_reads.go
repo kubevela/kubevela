@@ -21,11 +21,10 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
+	celengine "github.com/kubevela/pkg/cel"
 	"github.com/kubevela/workflow/pkg/cue/process"
 
-	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 )
 
@@ -50,19 +49,25 @@ func componentScopeFor(ctx process.Context, surface string) map[string]interface
 	return scope
 }
 
-// componentScope checks the delivered `component` value against the reads an
-// expression makes, before it is evaluated.
+// componentReadsFor answers the component reads of one render from the scope the
+// controller delivered, checking each before anything is evaluated.
 //
 // A producer missing altogether means nothing was delivered: this render is not
 // one the controller answers reads for, such as a CLI dry-run. A field missing
 // from a delivered output, read without a guard, is not ready yet: a status field
-// is commonly filled in after the resource is first healthy.
-func componentScope(refs []propexpr.Reference, delivered map[string]interface{}) (map[string]interface{}, error) {
-	for _, ref := range refs {
-		if !ref.IsComponent() || len(ref.Path) == 0 {
+// is commonly filled in after the resource is first healthy. In a dry-run with
+// placeholders, nothing is checked and every read renders as its own text.
+func (r *sourceResolver) componentReadsFor(ctx context.Context, reads []celengine.Read) (interface{}, error) {
+	if ComponentPlaceholders(ctx) {
+		return celengine.Unknown, nil
+	}
+	delivered := r.componentReads
+	for _, read := range reads {
+		ref := read.Reference
+		if len(ref.Path) == 0 {
 			continue
 		}
-		calls, path := ref.Placement()
+		calls, path := propexpr.Placement(ref)
 		entry, ok := delivered[path[0]].(map[string]interface{})
 		if !ok {
 			return nil, fmt.Errorf("%s has no value in this render: component reads are answered by the "+
@@ -74,7 +79,7 @@ func componentScope(refs []propexpr.Reference, delivered map[string]interface{})
 		view := interface{}(entry)
 		for _, call := range calls {
 			m, _ := view.(map[string]interface{})
-			qualified, _ := m[propexpr.QualifiedKey].(map[string]interface{})
+			qualified, _ := m[celengine.QualifiedKey].(map[string]interface{})
 			view = qualified[call]
 		}
 		if _, found := lookupPath(view, path[1:]); !found {
@@ -89,17 +94,27 @@ func componentScope(refs []propexpr.Reference, delivered map[string]interface{})
 }
 
 // lookupPath follows path through a delivered view. A field that is there but
-// null is there.
+// null is there. A segment indexes a list when the value is one, since a read
+// carries indices as decimal text.
 func lookupPath(v interface{}, path []string) (interface{}, bool) {
 	if v == nil {
 		return nil, false
 	}
 	for _, seg := range path {
-		m, ok := v.(map[string]interface{})
-		if !ok {
-			return nil, false
-		}
-		if v, ok = m[seg]; !ok {
+		switch t := v.(type) {
+		case map[string]interface{}:
+			next, ok := t[seg]
+			if !ok {
+				return nil, false
+			}
+			v = next
+		case []interface{}:
+			i, err := strconv.Atoi(seg)
+			if err != nil || i < 0 || i >= len(t) {
+				return nil, false
+			}
+			v = t[i]
+		default:
 			return nil, false
 		}
 	}
@@ -114,11 +129,14 @@ type ComponentReadNotReady struct{ Reason string }
 
 func (e ComponentReadNotReady) Error() string { return e.Reason }
 
-// IsComponentReadNotReady reports whether err, or anything it wraps, is a
-// ComponentReadNotReady.
+// Is makes a ComponentReadNotReady match celengine.ErrNotReady.
+func (e ComponentReadNotReady) Is(target error) bool { return target == celengine.ErrNotReady }
+
+// IsComponentReadNotReady reports whether err, or anything it wraps, means a
+// read is waiting: a ComponentReadNotReady, or any resolver's
+// celengine.ErrNotReady.
 func IsComponentReadNotReady(err error) bool {
-	var nr ComponentReadNotReady
-	return errors.As(err, &nr)
+	return errors.Is(err, celengine.ErrNotReady)
 }
 
 type componentPlaceholdersKey struct{}
@@ -139,46 +157,15 @@ func ComponentPlaceholders(ctx context.Context) bool {
 	return on
 }
 
-func readsComponent(refs []propexpr.Reference) bool {
-	for _, r := range refs {
-		if r.IsComponent() {
-			return true
-		}
-	}
-	return false
-}
-
-// placeholderProperty renders a property value whose expressions read a
-// component: each such expression becomes its own text in angle brackets, and
-// the rest evaluate as usual.
+// componentPlaceholder renders a component read in a dry-run as its own text in
+// angle brackets.
 //
 // A value that is only a component read has no knowable type, so it is not
 // checked: it defaults to the placeholder where the parameter takes text and is
 // otherwise left open, and a render in this mode prunes what stays open.
-func placeholderProperty(parsed propexpr.Parsed, resolved map[string]map[string]interface{},
-	ctx map[string]interface{}) (interface{}, error) {
-	if expr, whole := parsed.SoleExpr(); whole {
+func componentPlaceholder(expr string, whole bool) (interface{}, error) {
+	if whole {
 		return CUEType("*" + strconv.Quote("<"+expr+">") + " | _"), nil
 	}
-	var b strings.Builder
-	for _, f := range parsed.Fragments {
-		if !f.IsExpr() {
-			b.WriteString(f.Text)
-			continue
-		}
-		refs, err := celexpr.PropertyReferences(f.Expr)
-		if err != nil {
-			return nil, err
-		}
-		if readsComponent(refs) {
-			b.WriteString("<" + f.Expr + ">")
-			continue
-		}
-		v, err := celEvalProperty("$("+f.Expr+")", resolved, ctx, nil)
-		if err != nil {
-			return nil, err
-		}
-		fmt.Fprintf(&b, "%v", v)
-	}
-	return b.String(), nil
+	return "<" + expr + ">", nil
 }

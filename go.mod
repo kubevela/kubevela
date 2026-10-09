@@ -38,7 +38,7 @@ require (
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/imdario/mergo v0.3.16
 	github.com/jeremywohl/flatten/v2 v2.0.0-20211013061545-07e4a09fb8e4
-	github.com/kubevela/pkg v1.11.1-0.20260826024906-a4214d8d3c39
+	github.com/kubevela/pkg v1.11.1-0.20261006163713-fcae6f49068f
 	github.com/kubevela/workflow v0.7.3-0.20260827155917-6b7aedc67359
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/magiconair/properties v1.8.7
@@ -318,3 +318,5 @@ replace (
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
 	sigs.k8s.io/apiserver-runtime => github.com/kmodules/apiserver-runtime v1.1.2-0.20250422194347-c5ac4abaf2ae
 )
+
+replace github.com/kubevela/pkg => github.com/briankane/pkg v0.0.0-20261008214255-8e12a5f0bbb5
