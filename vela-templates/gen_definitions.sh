@@ -17,7 +17,7 @@ pushd "$SCRIPT_DIR" &> /dev/null
 DEPRECATED_DEFINITION_DIR="definitions/deprecated"
 INTERNAL_DEFINITION_DIR="definitions/internal"
 REGISTRY_DEFINITION_DIR="definitions/registry"
-INTERNAL_TEMPLATE_DIR="../charts/vela-core/templates/defwithtemplate"
+INTERNAL_TEMPLATE_DIR="../charts/vela-core/definitions"
 REGISTRY_TEMPLATE_DIR="registry/auto-gen"
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
