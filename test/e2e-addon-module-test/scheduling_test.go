@@ -29,6 +29,7 @@ func TestAddonModuleScheduling(t *testing.T) {
 	report := ginkgo.PreviewSpecs("Addon/module scheduling")
 	serialScenarios := map[string]bool{"05": true, "09": true, "15": true, "18": true}
 	versionLocations := map[string][]types.CodeLocation{}
+	independentOutermost := map[types.CodeLocation]bool{}
 	serial, parallel := 0, 0
 	for _, spec := range report.SpecReports {
 		if spec.LeafNodeType != types.NodeTypeIt {
@@ -61,10 +62,17 @@ func TestAddonModuleScheduling(t *testing.T) {
 			if len(spec.ContainerHierarchyTexts) != 2 {
 				t.Errorf("unexpected scenario hierarchy: %v", spec.ContainerHierarchyTexts)
 			}
+			independentOutermost[spec.ContainerHierarchyLocations[0]] = true
 		}
 	}
 	if serial == 0 || parallel == 0 {
 		t.Fatalf("empty scheduling phase: serial=%d parallel=%d", serial, parallel)
+	}
+	// The report cannot say which container level is Ordered, so a single
+	// outermost container for every independent scenario is the only visible
+	// sign of a suite-wide Ordered Describe.
+	if len(independentOutermost) < 2 {
+		t.Errorf("independent ordered scenarios share %d outermost container(s); want them split across several Describes", len(independentOutermost))
 	}
 	if err := checkVersionScenarioLocations(versionLocations); err != nil {
 		t.Fatal(err)

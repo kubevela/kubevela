@@ -144,6 +144,10 @@ e2e-core-helm-auth-test:
 e2e-core-discovery:
 	bash hack/e2e/verify_core_shards.sh
 
+.PHONY: e2e-workers-test
+e2e-workers-test:
+	bash hack/e2e/ginkgo_workers_test.sh
+
 .PHONY: e2e-module-test
 e2e-module-test:
 	# Run the module-as-a-component e2e suite (KUBEVELA_E2E_AUTH=1 enables

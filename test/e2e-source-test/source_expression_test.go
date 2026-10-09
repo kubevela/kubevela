@@ -51,17 +51,6 @@ func exprComponentDefinition(namespace, name, template string) *v1beta1.Componen
 	}
 }
 
-func exprTraitDefinition(namespace, name, template string) *v1beta1.TraitDefinition {
-	return &v1beta1.TraitDefinition{
-		TypeMeta:   metav1.TypeMeta{Kind: "TraitDefinition", APIVersion: "core.oam.dev/v1beta1"},
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
-		Spec: v1beta1.TraitDefinitionSpec{
-			AppliesToWorkloads: []string{"*"},
-			Schematic:          &oamcomm.Schematic{CUE: &oamcomm.CUE{Template: template}},
-		},
-	}
-}
-
 // These specs cover property expressions across every surface that carries them,
 // and across the type surface: scalars, arithmetic, concatenation, optional
 // fields with defaults, structs, lists and nested reads.

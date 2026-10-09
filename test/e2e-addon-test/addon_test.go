@@ -29,6 +29,7 @@ import (
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -63,7 +64,10 @@ var _ = Describe("Addon tests", func() {
 		if app.Name != "" {
 			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &app))).To(Succeed())
 		}
-		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).To(Succeed())
+		Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground)))).To(Succeed())
+		Eventually(func() bool {
+			return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKey{Name: namespaceName}, &corev1.Namespace{}))
+		}, 120*time.Second, 500*time.Millisecond).Should(BeTrue(), "namespace %s did not finish terminating", namespaceName)
 	})
 
 	It("Addon Terraform is successfully enabled and Terraform application works", func() {

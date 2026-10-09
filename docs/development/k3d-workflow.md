@@ -124,6 +124,11 @@ go test ./pkg/... -count=1
 KUBEVELA_E2E_AUTH=1 go test ./test/e2e-helm-test/ -v -count=1 -timeout=30m -ginkgo.focus=Helmchart
 ```
 
+`KUBEVELA_E2E_AUTH=1` leaves the controller modified: setup writes the
+`auth-test-ca` ConfigMap in `vela-system` and patches the `vela-core`
+Deployment to mount it, and teardown does not undo either. Reinstall the chart
+(step 5) when you need an unmodified controller again.
+
 ## Alternative: push to ttl.sh instead of importing
 
 Steps 2-4 skip a registry entirely by importing straight into k3d's

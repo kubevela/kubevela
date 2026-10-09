@@ -79,7 +79,7 @@ var _ = Describe("Test application controller clean up appRevision", Label("core
 		Eventually(func() error {
 			err := k8sClient.Create(ctx, app)
 			return err
-		}, 15*time.Second, 300*time.Millisecond).Should(BeNil())
+		}, revisionWaitTimeout, 300*time.Millisecond).Should(BeNil())
 		checkApp := new(v1beta1.Application)
 		for i := 0; i < appRevisionLimit; i++ {
 			Eventually(func() error {
@@ -127,7 +127,7 @@ var _ = Describe("Test application controller clean up appRevision", Label("core
 				return fmt.Errorf("error appRevison number wants %d, actually %d", appRevisionLimit+1, len(appRevisionList.Items))
 			}
 			return nil
-		}, time.Second*30, time.Millisecond*500).Should(BeNil())
+		}, revisionWaitTimeout, time.Millisecond*500).Should(BeNil())
 		By("create new appRevision will remove appRevision v1")
 		Eventually(func() error {
 			err := k8sClient.Get(ctx, appKey, checkApp)
@@ -157,7 +157,7 @@ var _ = Describe("Test application controller clean up appRevision", Label("core
 				return fmt.Errorf("appRevision collection mismatch")
 			}
 			return nil
-		}, time.Second*30, time.Millisecond*500).Should(BeNil())
+		}, revisionWaitTimeout, time.Millisecond*500).Should(BeNil())
 
 		By("update app again will gc appRevision2")
 		Eventually(func() error {
@@ -188,7 +188,7 @@ var _ = Describe("Test application controller clean up appRevision", Label("core
 				return fmt.Errorf("appRevision collection mismatch")
 			}
 			return nil
-		}, time.Second*30, time.Millisecond*500).Should(BeNil())
+		}, revisionWaitTimeout, time.Millisecond*500).Should(BeNil())
 	})
 })
 

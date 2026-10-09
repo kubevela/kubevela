@@ -38,6 +38,7 @@ runs:
           all|api|addon|core|core-application|core-definitions|core-config|core-helm|core-helm-auth|module|source|addon-module) ;;
           *) echo "Unknown E2E suite: $E2E_SUITE" >&2; exit 1 ;;
         esac
+        bash hack/e2e/ginkgo_workers_test.sh
         workers=$(bash hack/e2e/ginkgo_workers.sh "$E2E_WORKERS")
         addon_workers=$(bash hack/e2e/ginkgo_workers.sh "$E2E_ADDON_WORKERS")
         echo "Ginkgo workers: $workers; addon workers: $addon_workers"

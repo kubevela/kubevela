@@ -124,7 +124,12 @@ func (f *Framework) ApplyApp(ctx context.Context, namespaceName, source string, 
 	gomega.Expect(common.ReadYamlToObject(TestDataPath("app", source), &newApp)).Should(gomega.BeNil())
 	newApp.Namespace = namespaceName
 	gomega.Eventually(func() error {
-		return f.Client.Create(ctx, newApp.DeepCopy())
+		err := f.Client.Create(ctx, newApp.DeepCopy())
+		if apierrors.IsAlreadyExists(err) {
+			// A retry after a create whose response was lost.
+			return f.Client.Get(ctx, client.ObjectKeyFromObject(&newApp), &v1beta1.Application{})
+		}
+		return err
 	}, 10*time.Second, 500*time.Millisecond).Should(gomega.Succeed())
 	ginkgo.By("Get Application latest status")
 	gomega.Eventually(
