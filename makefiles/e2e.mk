@@ -6,8 +6,6 @@ E2E_CORE_LABEL_FILTER ?=
 E2E_CORE_AUTH ?= 1
 E2E_CORE_REPORT ?= e2e-test
 E2E_CORE_PACKAGES ?= ./test/e2e-application-test ./test/e2e-definition-test ./test/e2e-config-test ./test/e2e-helm-test
-E2E_ADDON_MODULE_LABEL_FILTER ?=
-E2E_ADDON_MODULE_REPORT ?= e2e-addon-module-test
 
 .PHONY: e2e-vela-cli
 e2e-vela-cli:
@@ -220,19 +218,12 @@ e2e-addon-module-test:
 	mkdir -p "$(E2E_REPORT_DIR)"
 	set -eu; workers=$$(bash hack/e2e/ginkgo_workers.sh "$(E2E_PROCS)"); \
 	echo "Ginkgo workers: $$workers"; \
-	ginkgo -v --procs="$$workers" --timeout=$(E2E_TIMEOUT) --fail-on-empty --label-filter="$(E2E_ADDON_MODULE_LABEL_FILTER)" --json-report="$(E2E_REPORT_DIR)/$(E2E_ADDON_MODULE_REPORT).json" --junit-report="$(E2E_REPORT_DIR)/$(E2E_ADDON_MODULE_REPORT).xml" ./test/e2e-addon-module-test
+	ginkgo -v --procs="$$workers" --timeout=$(E2E_TIMEOUT) --fail-on-empty --json-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.xml" ./test/e2e-addon-module-test
 	@$(OK) tests pass
 
-# Fixed module/addon names, CRDs, registries and controller mutations require
-# a separate cluster per concurrent group. Never run these with make -j on
-# the same kubeconfig. The full target above still runs every scenario locally.
-E2E_ADDON_MODULE_TARGETS := $(addprefix e2e-addon-module-,$(addsuffix -test,install versions recovery cache errors))
-.PHONY: $(E2E_ADDON_MODULE_TARGETS) e2e-addon-module-discovery
-$(E2E_ADDON_MODULE_TARGETS): e2e-addon-module-%-test:
-	$(MAKE) e2e-addon-module-test E2E_ADDON_MODULE_LABEL_FILTER=addon-module-$* E2E_ADDON_MODULE_REPORT=e2e-addon-module-$*-test
-
+.PHONY: e2e-addon-module-discovery
 e2e-addon-module-discovery:
-	bash hack/e2e/verify_addon_module_shards.sh
+	bash hack/e2e/verify_addon_module_execution.sh
 
 # Bring up (or reuse) the k3d cluster the local e2e targets share, build and
 # load the vela-core image, preload the registry images, and install the chart

@@ -15,7 +15,7 @@ inputs:
     required: false
     default: 'auto'
   suite:
-    description: 'Suite: all, api, addon, core (all core tests), core-application, core-definitions, core-config, core-helm, core-helm-auth, module, source, addon-module (all scenarios), or addon-module-{install,versions,recovery,cache,errors}'
+    description: 'Suite: all, api, addon, core (all core tests), core-application, core-definitions, core-config, core-helm, core-helm-auth, module, source, or addon-module'
     required: false
     default: 'all'
   procs:
@@ -35,7 +35,7 @@ runs:
         E2E_ADDON_WORKERS: ${{ inputs.addon-procs }}
       run: |
         case "$E2E_SUITE" in
-          all|api|addon|core|core-application|core-definitions|core-config|core-helm|core-helm-auth|module|source|addon-module|addon-module-install|addon-module-versions|addon-module-recovery|addon-module-cache|addon-module-errors) ;;
+          all|api|addon|core|core-application|core-definitions|core-config|core-helm|core-helm-auth|module|source|addon-module) ;;
           *) echo "Unknown E2E suite: $E2E_SUITE" >&2; exit 1 ;;
         esac
         workers=$(bash hack/e2e/ginkgo_workers.sh "$E2E_WORKERS")
@@ -60,7 +60,7 @@ runs:
       run: |
         case "$E2E_SUITE" in
           all|api) make ;;
-          core|core-application|core-definitions|core-config|module|addon|addon-module|addon-module-*) make e2e-vela-cli ;;
+          core|core-application|core-definitions|core-config|module|addon|addon-module) make e2e-vela-cli ;;
           source|core-helm|core-helm-auth) : ;;
         esac
 
@@ -76,7 +76,7 @@ runs:
         echo "Preparing e2e test environment..."
         make e2e-cleanup
         case "$E2E_SUITE" in
-          module|addon-module|addon-module-*|source|core-helm|core-helm-auth) make e2e-setup-core-minimal ;;
+          module|addon-module|source|core-helm|core-helm-auth) make e2e-setup-core-minimal ;;
           *) make e2e-setup-core ;;
         esac
 
@@ -91,8 +91,8 @@ runs:
       shell: bash
       run: make e2e-core-discovery
 
-    - name: Verify addon/module partition preserves coverage
-      if: ${{ inputs.suite == 'addon-module-install' }}
+    - name: Verify addon/module discovery and scheduling
+      if: ${{ inputs.suite == 'addon-module' }}
       shell: bash
       run: make e2e-addon-module-discovery
 
@@ -147,17 +147,14 @@ runs:
       run: |
         make e2e-source-test E2E_PROCS="$E2E_WORKERS"
 
-    - name: Run test/e2e-addon-module-test (${{ inputs.suite }})
-      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'addon-module' || startsWith(inputs.suite, 'addon-module-')) }}
+    - name: Run test/e2e-addon-module-test
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'addon-module') }}
       shell: bash
       env:
         E2E_WORKERS: ${{ steps.workers.outputs.procs }}
         E2E_SUITE: ${{ inputs.suite }}
       run: |
-        case "$E2E_SUITE" in
-          all|addon-module) make e2e-addon-module-test E2E_PROCS="$E2E_WORKERS" ;;
-          addon-module-*) make "e2e-${E2E_SUITE}-test" E2E_PROCS="$E2E_WORKERS" ;;
-        esac
+        make e2e-addon-module-test E2E_PROCS="$E2E_WORKERS"
 
     - name: Run test/e2e-addon-component-test
       # Same reasoning as the module step above. The suite brings up its own

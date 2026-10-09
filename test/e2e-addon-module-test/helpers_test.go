@@ -102,7 +102,7 @@ const (
 	retryWait = 8 * time.Minute
 )
 
-// The two registries, resolved once in the suite's BeforeAll.
+// The two registries, resolved in synchronized suite setup on every worker.
 var (
 	moduleRegistry registryEndpoints
 	addonRegistry  registryEndpoints
@@ -151,31 +151,6 @@ func runVelaSucceed(args ...string) string {
 	out, err := runVela(args...)
 	Expect(err).Should(Succeed(), "vela %v failed\noutput:\n%s", args, out)
 	return out
-}
-
-// publishModuleFixture publishes testdata/modules/<dir> to the module
-// registry through its host-side URL (the positional reference form, which
-// does not read the stored registry record). --force makes a re-run against
-// a registry that still holds the tag succeed; the content of a version is
-// the same wherever it is published.
-func publishModuleFixture(dir string, extra ...string) string {
-	args := append([]string{"module", "publish", testdataPath("modules", dir), moduleRegistry.host, "--force"}, extra...)
-	return runVelaSucceed(args...)
-}
-
-// pushAddonFixture pushes testdata/addons/<dir> to ChartMuseum through its
-// host-side URL. "vela addon push" writes a Chart.yaml into the folder it
-// packages, so the fixture is copied to a temporary directory first and
-// testdata stays as committed. -f lets a version that is already there be
-// replaced, which the same-tag republish scenario needs and every other push
-// tolerates.
-func pushAddonFixture(dir string) string {
-	tmp, err := os.MkdirTemp("", "addon-push-")
-	Expect(err).ShouldNot(HaveOccurred())
-	DeferCleanup(func() { _ = os.RemoveAll(tmp) })
-	target := filepath.Join(tmp, dir)
-	Expect(copyDir(testdataPath("addons", dir), target)).Should(Succeed())
-	return runVelaSucceed("addon", "push", target, addonRegistry.host, "-f")
 }
 
 // addAddonRegistry writes the addon registry record (a Helm repository at the
@@ -459,11 +434,11 @@ func propertiesOf(raw *k8sruntime.RawExtension) map[string]interface{} {
 }
 
 // addonApplication is the one thing a platform user writes: an Application in
-// testNS with a single "type: addon" component named after the addon (the
+// the given namespace with a single "type: addon" component named after the addon (the
 // addon name defaults to the component name), pinned to version, from the
 // suite's addon registry. props, when non-nil, becomes the addon's own
 // parameters (its parameter.cue).
-func addonApplication(name, addon, version string, props map[string]interface{}) *v1beta1.Application {
+func addonApplication(namespace, name, addon, version string, props map[string]interface{}) *v1beta1.Application {
 	properties := map[string]interface{}{
 		"registry": addonRegistryName,
 		"version":  version,
@@ -472,7 +447,7 @@ func addonApplication(name, addon, version string, props map[string]interface{})
 		properties["properties"] = props
 	}
 	return &v1beta1.Application{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: testNS},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 		Spec: v1beta1.ApplicationSpec{
 			Components: []common.ApplicationComponent{{
 				Name:       addon,
@@ -592,8 +567,8 @@ func updateApp(ctx context.Context, ns, name string, mutate func(app *v1beta1.Ap
 
 // setAddonVersion changes the pinned version of the first component of an
 // addon Application, which is how a user upgrades or rolls back.
-func setAddonVersion(ctx context.Context, name, version string) {
-	updateApp(ctx, testNS, name, func(app *v1beta1.Application) {
+func setAddonVersion(ctx context.Context, namespace, name, version string) {
+	updateApp(ctx, namespace, name, func(app *v1beta1.Application) {
 		props := propertiesOf(app.Spec.Components[0].Properties)
 		props["version"] = version
 		app.Spec.Components[0].Properties = rawExtension(props)
@@ -653,18 +628,18 @@ func expectPublishVersionRefused(ctx context.Context, ns, name, value string) er
 //     reconcile, fails, and reports the definition with phase rendering;
 //   - no new revision is created, and its applied workload (if widget names
 //     one) is left in place.
-func expectConsumerOfRemovedDefinition(ctx context.Context, name, definition, widget, publishVersion string) {
-	before := mustGetApp(ctx, testNS, name)
-	err := expectPublishVersionRefused(ctx, testNS, name, publishVersion)
+func expectConsumerOfRemovedDefinition(ctx context.Context, namespace string, gvk schema.GroupVersionKind, name, definition, widget, publishVersion string) {
+	before := mustGetApp(ctx, namespace, name)
+	err := expectPublishVersionRefused(ctx, namespace, name, publishVersion)
 	Expect(err.Error()).Should(SatisfyAll(ContainSubstring(`"`+definition+`"`), ContainSubstring("not found")), name)
 
-	waitAppStatusContains(ctx, testNS, name, definition, reconcileWait)
-	after := mustGetApp(ctx, testNS, name)
+	waitAppStatusContains(ctx, namespace, name, definition, reconcileWait)
+	after := mustGetApp(ctx, namespace, name)
 	Expect(after.Status.Phase).Should(Equal(common.ApplicationRendering), name)
 	Expect(after.Annotations).ShouldNot(HaveKeyWithValue(oam.AnnotationPublishVersion, publishVersion), name)
 	Expect(after.Status.LatestRevision).Should(Equal(before.Status.LatestRevision), "%s: no new revision", name)
 	if widget != "" {
-		_, err := getUnstructured(ctx, widgetGVK, testNS, widget)
+		_, err := getUnstructured(ctx, gvk, namespace, widget)
 		Expect(err).ShouldNot(HaveOccurred(), "nothing deletes a consumer's already-applied objects")
 	}
 }

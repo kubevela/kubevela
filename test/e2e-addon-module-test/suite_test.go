@@ -40,6 +40,9 @@ package addonmoduletest
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -108,11 +111,39 @@ func prepareAddonModuleWorkerHome() (func() error, error) {
 	}, nil
 }
 
-var _ = SynchronizedBeforeSuite(func() {
+type scenarioSuiteState struct {
+	RunID string
+	Root  string
+}
+
+func initializeScenarioScopes(state scenarioSuiteState) {
+	for _, id := range scenarioIDs {
+		*scenarioScopes[id] = *newScenarioScope(state.RunID, id, state.Root)
+	}
+}
+
+var _ = SynchronizedBeforeSuite(func() []byte {
 	initializeAddonModuleClient()
+	var token [8]byte
+	_, err := cryptorand.Read(token[:])
+	Expect(err).NotTo(HaveOccurred())
+	root, err := os.MkdirTemp("", "kubevela-addon-module-fixtures-")
+	Expect(err).NotTo(HaveOccurred())
+	DeferCleanup(func() { Expect(os.RemoveAll(root)).To(Succeed()) })
+	state := scenarioSuiteState{RunID: hex.EncodeToString(token[:]), Root: root}
+	initializeScenarioScopes(state)
+	for _, id := range scenarioIDs {
+		Expect(scenarioScopes[id].Materialize(testdataPath())).To(Succeed())
+	}
 	setupAddonModuleFixtures(context.Background())
-}, func() {
+	data, err := json.Marshal(state)
+	Expect(err).NotTo(HaveOccurred())
+	return data
+}, func(data []byte) {
 	initializeAddonModuleClient()
+	var state scenarioSuiteState
+	Expect(json.Unmarshal(data, &state)).To(Succeed())
+	initializeScenarioScopes(state)
 	resolveAddonModuleRegistries(context.Background())
 })
 
