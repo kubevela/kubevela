@@ -19,39 +19,65 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/config"
 )
 
 const defaultPropertiesSecretKey = "properties"
 
-// configCRDAvailable reports whether the config.oam.dev CRDs should be used.
-// It respects the global --config-mode flag:
-//   - "legacy": always returns false (use ConfigMaps/Secrets)
-//   - "crd": always returns true (use ConfigTemplate/Config CRDs)
-//   - "auto" (default): auto-detect by probing the API server for the CRDs
-func configCRDAvailable(f velacmd.Factory) bool {
-	switch configMode {
-	case "legacy":
-		return false
-	case "crd":
-		return true
-	default:
-		_, err := f.Client().RESTMapper().RESTMapping(configv1alpha1.ConfigGroupVersionKind.GroupKind(), configv1alpha1.Version)
-		return err == nil
+// kindServed reports whether the API server serves gvk. The Config and
+// ConfigTemplate CRDs are installed separately, so each command probes the kind
+// it is about to write. Call it once per command and reuse the result.
+func kindServed(f velacmd.Factory, gvk schema.GroupVersionKind) bool {
+	_, err := f.Client().RESTMapper().RESTMapping(gvk.GroupKind(), gvk.Version)
+	return err == nil
+}
+
+var (
+	errConfigTemplateCRDMissing = errors.New("the ConfigTemplate CRD is not installed; upgrade vela-core before applying config templates")
+	errConfigCRDMissing         = errors.New("the Config CRD is not installed; upgrade vela-core before creating configs")
+)
+
+// objectExists reports whether obj can be read at key. Not found, and a type
+// the cluster does not serve, both count as absent.
+func objectExists(ctx context.Context, cli client.Client, key client.ObjectKey, obj client.Object) (bool, error) {
+	err := cli.Get(ctx, key, obj)
+	if apierrors.IsNotFound(err) || crdTypeMissing(err) {
+		return false, nil
 	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// legacyTemplateExists reports whether a legacy template ConfigMap with the given
+// template name exists in ns.
+func legacyTemplateExists(ctx context.Context, cli client.Client, ns, name string) (bool, error) {
+	return objectExists(ctx, cli, client.ObjectKey{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + name}, &corev1.ConfigMap{})
+}
+
+// crdTypeMissing reports whether err means the config.oam.dev types are not served
+// by the API server or not registered in the client scheme. Dual-backend paths treat
+// that the same as a CR that doesn't exist.
+func crdTypeMissing(err error) bool {
+	return meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err)
 }
 
 func applyConfigTemplateCRD(ctx context.Context, cli client.Client, ns string, t *config.Template) error {
@@ -75,17 +101,54 @@ func applyConfigTemplateCRD(ctx context.Context, cli client.Client, ns string, t
 	return err
 }
 
-func deleteConfigTemplateCRD(ctx context.Context, cli client.Client, ns, name string) error {
+// deleteConfigTemplateCRD deletes the ConfigTemplate CR and reports whether one
+// was there. No CR, or a cluster that does not serve the type, is false and no
+// error, so the caller can fall back to the legacy ConfigMap.
+func deleteConfigTemplateCRD(ctx context.Context, cli client.Client, ns, name string) (bool, error) {
 	ct := &configv1alpha1.ConfigTemplate{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
 	if err := cli.Delete(ctx, ct); err != nil {
-		if apierrors.IsNotFound(err) {
-			return fmt.Errorf("the config template %s not found", name)
+		if apierrors.IsNotFound(err) || crdTypeMissing(err) {
+			return false, nil
 		}
-		return err
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
+// configCRDExists reports whether a Config CR with the given name exists in ns.
+// A cluster that does not serve the type counts as no CR.
+func configCRDExists(ctx context.Context, cli client.Client, ns, name string) (bool, error) {
+	return objectExists(ctx, cli, client.ObjectKey{Namespace: ns, Name: name}, &configv1alpha1.Config{})
+}
+
+// listConfigTemplateCRDs lists the user-managed ConfigTemplate CRs in ns, or
+// everywhere when ns is "". Templates generated from a SourceDefinition are
+// skipped, as Factory.ListTemplates skips them. A cluster that does not serve
+// the type yields no items and no error.
+func listConfigTemplateCRDs(ctx context.Context, cli client.Client, ns string) ([]configv1alpha1.ConfigTemplate, error) {
+	var list configv1alpha1.ConfigTemplateList
+	var opts []client.ListOption
+	if ns != "" {
+		opts = append(opts, client.InNamespace(ns))
+	}
+	if err := cli.List(ctx, &list, opts...); err != nil {
+		if crdTypeMissing(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	items := make([]configv1alpha1.ConfigTemplate, 0, len(list.Items))
+	for _, ct := range list.Items {
+		if _, generated := ct.Labels[types.LabelSourceDefinitionName]; generated {
+			continue
+		}
+		items = append(items, ct)
+	}
+	return items, nil
+}
+
+// deleteConfigCRD deletes the Config CR. Callers route here only after
+// configCRDExists said yes, so a missing CR is reported as not found.
 func deleteConfigCRD(ctx context.Context, cli client.Client, ns, name string) error {
 	cfg := &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
 	if err := cli.Delete(ctx, cfg); err != nil {
@@ -97,6 +160,9 @@ func deleteConfigCRD(ctx context.Context, cli client.Client, ns, name string) er
 	return nil
 }
 
+// listConfigCRDs lists Config CRs in ns, or everywhere when ns is "", keeping
+// only those referencing template when it is set. A cluster that does not serve
+// the type yields no items and no error.
 func listConfigCRDs(ctx context.Context, cli client.Client, ns, template string) ([]configv1alpha1.Config, error) {
 	var list configv1alpha1.ConfigList
 	var opts []client.ListOption
@@ -104,6 +170,9 @@ func listConfigCRDs(ctx context.Context, cli client.Client, ns, template string)
 		opts = append(opts, client.InNamespace(ns))
 	}
 	if err := cli.List(ctx, &list, opts...); err != nil {
+		if crdTypeMissing(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if template == "" {
@@ -163,14 +232,13 @@ func createConfigCRD(ctx context.Context, cli client.Client, ns, name, templateN
 // Application, so deleting the Config (via the CLI, kubectl, or GitOps removing the
 // manifest) always recalls the distributed resources instead of orphaning the
 // Application and the copies it manages in target namespaces/clusters.
-// configCRDAvailable only reports whether the Config CRD type is installed, not
-// whether this particular config is CRD-backed (--config-mode legacy can still create
-// a plain Secret on a CRD-enabled cluster), so a missing Config CR here is expected
-// and not an error - it just means there's no owner to attach.
+// A config may still be legacy (a plain Secret, created by an older CLI or by the
+// Nacos interim path), and the cluster may not serve the Config type at all, so a
+// missing Config CR here is expected and not an error - there's just no owner to attach.
 func setDistributionOwner(ctx context.Context, cli client.Client, ns, configName, distributionName string) error {
 	cfg := &configv1alpha1.Config{}
 	if err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: configName}, cfg); err != nil {
-		if apierrors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) || crdTypeMissing(err) {
 			return nil
 		}
 		return fmt.Errorf("failed to load config %s to own its distribution: %w", configName, err)

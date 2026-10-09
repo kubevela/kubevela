@@ -248,7 +248,13 @@ type Factory interface {
 	// CLI still selects in legacy mode.
 	CreateOrUpdateConfigTemplateCR(ctx context.Context, ns string, it *Template) error
 	DeleteTemplate(ctx context.Context, ns, name string) error
+	// ListTemplates returns ConfigTemplate CRs and legacy ConfigMap templates,
+	// one entry per name: a CR hides a legacy template of the same name.
 	ListTemplates(ctx context.Context, ns, scope string) ([]*Template, error)
+	// ListLegacyTemplates returns only the legacy config-template-* ConfigMaps,
+	// including those a CR hides. Callers that must say where a template came
+	// from, such as the CLI's merged list, use it next to the CR list.
+	ListLegacyTemplates(ctx context.Context, ns, scope string) ([]*Template, error)
 
 	ReadConfig(ctx context.Context, namespace, name string) (map[string]interface{}, error)
 	GetConfig(ctx context.Context, namespace, name string, withStatus bool) (*Config, error)
@@ -464,6 +470,20 @@ func (k *kubeConfigFactory) ListTemplates(ctx context.Context, ns, scope string)
 		return nil, err
 	}
 
+	legacy, err := k.ListLegacyTemplates(ctx, ns, scope)
+	if err != nil {
+		return nil, err
+	}
+	for _, it := range legacy {
+		if !found[it.Namespace+"/"+it.Name] {
+			templates = append(templates, it)
+		}
+	}
+	return templates, nil
+}
+
+// ListLegacyTemplates lists the legacy config-template-* ConfigMaps only.
+func (k *kubeConfigFactory) ListLegacyTemplates(ctx context.Context, ns, scope string) ([]*Template, error) {
 	var list = &v1.ConfigMapList{}
 	selector, err := labels.Parse(fmt.Sprintf("%s=%s", types.LabelConfigCatalog, types.VelaCoreConfig))
 	if err != nil {
@@ -474,12 +494,13 @@ func (k *kubeConfigFactory) ListTemplates(ctx context.Context, ns, scope string)
 		client.InNamespace(ns)); err != nil {
 		return nil, err
 	}
+	var templates []*Template
 	for _, item := range list.Items {
 		it, err := convertConfigMap2Template(item)
 		if err != nil {
 			klog.Warningf("fail to parse the configmap %s:%s", item.Name, err.Error())
 		}
-		if it != nil && !found[it.Namespace+"/"+it.Name] {
+		if it != nil {
 			if scope == "" || it.Scope == scope {
 				templates = append(templates, it)
 			}

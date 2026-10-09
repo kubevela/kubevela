@@ -34,6 +34,7 @@ import (
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
+	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
@@ -96,6 +97,7 @@ type TemplateCommandOptions struct {
 type TemplateListCommandOptions struct {
 	Namespace    string
 	AllNamespace bool
+	ConfigMode   string
 }
 
 // NewTemplateApplyCommand command for creating and updating the config template
@@ -109,6 +111,9 @@ func NewTemplateApplyCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 		},
 		Args: cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if !kindServed(f, configv1alpha1.ConfigTemplateGroupVersionKind) {
+				return errConfigTemplateCRDMissing
+			}
 			body, err := pkgUtils.ReadRemoteOrLocalPath(options.File, false)
 			if err != nil {
 				return err
@@ -118,14 +123,20 @@ func NewTemplateApplyCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 			if err != nil {
 				return err
 			}
-			if configCRDAvailable(f) {
-				if err := applyConfigTemplateCRD(cmd.Context(), f.Client(), options.Namespace, template); err != nil {
-					return err
-				}
-			} else if err := inf.CreateOrUpdateConfigTemplate(context.Background(), options.Namespace, template); err != nil {
+			if err := applyConfigTemplateCRD(cmd.Context(), f.Client(), options.Namespace, template); err != nil {
 				return err
 			}
 			streams.Infof("the config template %s applied successfully\n", template.Name)
+			shadowed, err := legacyTemplateExists(cmd.Context(), f.Client(), options.Namespace, template.Name)
+			if err != nil {
+				// The CR is already written; a failed lookup only loses the note below.
+				streams.Errorf("warning: could not check for a legacy template ConfigMap: %v\n", err)
+				return nil
+			}
+			if shadowed {
+				streams.Infof("note: legacy template ConfigMap %s%s in %s is now shadowed by the ConfigTemplate CR; run \"vela config-template migrate %s -n %s\" to adopt it\n",
+					config.TemplateConfigMapNamePrefix, template.Name, options.Namespace, template.Name, options.Namespace)
+			}
 			return nil
 		},
 	}
@@ -147,38 +158,35 @@ func NewTemplateListCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 		},
 		Args: cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateConfigMode(options.ConfigMode); err != nil {
+				return err
+			}
 			if options.AllNamespace {
 				options.Namespace = ""
 			}
+			rows, err := listTemplateRows(cmd.Context(), f.Client(), options.Namespace, options.ConfigMode)
+			if err != nil {
+				return err
+			}
 			table := newUITable()
-			header := []interface{}{"NAME", "ALIAS", "SCOPE", "SENSITIVE", "CREATED-TIME"}
+			header := []interface{}{"NAME", "ALIAS", "SCOPE", "SENSITIVE", "SOURCE", "CREATED-TIME"}
 			if options.AllNamespace {
 				header = append([]interface{}{"NAMESPACE"}, header...)
 			}
 			table.AddRow(header...)
-			inf := config.NewConfigFactory(f.Client())
-			templateList, err := inf.ListTemplates(context.Background(), options.Namespace, "")
-			if err != nil {
-				return err
-			}
-			for _, t := range templateList {
-				row := []interface{}{t.Name, t.Alias, t.Scope, t.Sensitive, t.CreateTime}
+			for _, r := range rows {
+				row := []interface{}{r.name, r.alias, r.scope, r.sensitive, r.source, r.created}
 				if options.AllNamespace {
-					row = append([]interface{}{t.Namespace}, row...)
+					row = append([]interface{}{r.namespace}, row...)
 				}
 				table.AddRow(row...)
 			}
-			if _, err := streams.Out.Write(table.Bytes()); err != nil {
-				return err
-			}
-			if _, err := streams.Out.Write([]byte("\n")); err != nil {
-				return err
-			}
-			return nil
+			return writeTable(streams, table)
 		},
 	}
 	cmd.Flags().StringVarP(&options.Namespace, "namespace", "n", types.DefaultKubeVelaNS, "specify the namespace of the template")
 	cmd.Flags().BoolVarP(&options.AllNamespace, "all-namespaces", "A", false, "If true, check the specified action in all namespaces.")
+	cmd.Flags().StringVar(&options.ConfigMode, "config-mode", "", configModeFlagUsage)
 	return cmd
 }
 
@@ -243,17 +251,32 @@ func NewTemplateDeleteCommand(f velacmd.Factory, streams util.IOStreams) *cobra.
 					return fmt.Errorf("stopping deleting")
 				}
 			}
-			if configCRDAvailable(f) {
-				if err := deleteConfigTemplateCRD(context.Background(), f.Client(), options.Namespace, options.Name); err != nil {
-					return err
-				}
-			} else {
+			// CR first; a template held only as a legacy ConfigMap is deleted
+			// through the factory. Not found means neither backend had it.
+			removed, err := deleteConfigTemplateCRD(cmd.Context(), f.Client(), options.Namespace, options.Name)
+			if err != nil {
+				return err
+			}
+			if !removed {
 				inf := config.NewConfigFactory(f.Client())
-				if err := inf.DeleteTemplate(context.Background(), options.Namespace, options.Name); err != nil {
+				if err := inf.DeleteTemplate(cmd.Context(), options.Namespace, options.Name); err != nil {
 					return err
 				}
 			}
 			streams.Infof("the config template %s deleted successfully\n", options.Name)
+			if !removed {
+				return nil
+			}
+			// Only the CR went; a legacy twin is left for the user to decide on.
+			remains, err := legacyTemplateExists(cmd.Context(), f.Client(), options.Namespace, options.Name)
+			if err != nil {
+				streams.Errorf("warning: could not check for a legacy template ConfigMap: %v\n", err)
+				return nil
+			}
+			if remains {
+				streams.Infof("note: legacy template ConfigMap %s%s in %s remains and is visible again\n",
+					config.TemplateConfigMapNamePrefix, options.Name, options.Namespace)
+			}
 			return nil
 		},
 	}
@@ -321,6 +344,7 @@ type ConfigListCommandOptions struct {
 	Namespace    string
 	Template     string
 	AllNamespace bool
+	ConfigMode   string
 }
 
 // formatDistributionTargets renders targets for the DISTRIBUTION column, colored by status.
@@ -351,7 +375,7 @@ func distributionColumn(ctx context.Context, inf config.Factory, name, namespace
 	return formatDistributionTargets(tmp.Targets)
 }
 
-// NewListConfigCommand command for listing the config secrets
+// NewListConfigCommand command for listing the configs from both backends
 func NewListConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Command {
 	var options ConfigListCommandOptions
 	cmd := &cobra.Command{
@@ -362,6 +386,9 @@ func NewListConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Comm
 		},
 		Args: cobra.ExactArgs(0),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := validateConfigMode(options.ConfigMode); err != nil {
+				return err
+			}
 			name := options.Template
 			if strings.Contains(options.Template, "/") {
 				namespacedName := strings.SplitN(options.Template, "/", 2)
@@ -370,70 +397,30 @@ func NewListConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Comm
 			if options.AllNamespace {
 				options.Namespace = ""
 			}
-			if configCRDAvailable(f) {
-				items, err := listConfigCRDs(context.Background(), f.Client(), options.Namespace, name)
-				if err != nil {
-					return err
-				}
-				inf := config.NewConfigFactory(f.Client())
-				table := newUITable()
-				header := []interface{}{"NAME", "ALIAS", "PHASE", "DISTRIBUTION", "TEMPLATE", "CREATED-TIME", "DESCRIPTION"}
-				if options.AllNamespace {
-					header = append([]interface{}{"NAMESPACE"}, header...)
-				}
-				table.AddRow(header...)
-				for _, c := range items {
-					tmplRef := ""
-					if c.Spec.TemplateRef != nil {
-						tmplNs := c.Spec.TemplateRef.Namespace
-						if tmplNs == "" {
-							tmplNs = types.DefaultKubeVelaNS
-						}
-						tmplRef = fmt.Sprintf("%s/%s", tmplNs, c.Spec.TemplateRef.Name)
-					}
-					distShow := distributionColumn(context.Background(), inf, c.Name, c.Namespace)
-					row := []interface{}{c.Name, c.Spec.Alias, c.Status.Phase, distShow, tmplRef, c.CreationTimestamp.Time, c.Spec.Description}
-					if options.AllNamespace {
-						row = append([]interface{}{c.Namespace}, row...)
-					}
-					table.AddRow(row...)
-				}
-				if _, err := streams.Out.Write(table.Bytes()); err != nil {
-					return err
-				}
-				_, err = streams.Out.Write([]byte("\n"))
-				return err
-			}
-			inf := config.NewConfigFactory(f.Client())
-			configs, err := inf.ListConfigs(context.Background(), options.Namespace, name, "", true)
+			rows, err := listConfigRows(cmd.Context(), f.Client(), options.Namespace, name, options.ConfigMode)
 			if err != nil {
 				return err
 			}
 			table := newUITable()
-			header := []interface{}{"NAME", "ALIAS", "DISTRIBUTION", "TEMPLATE", "CREATED-TIME", "DESCRIPTION"}
+			header := []interface{}{"NAME", "ALIAS", "SOURCE", "PHASE", "DISTRIBUTION", "TEMPLATE", "CREATED-TIME", "DESCRIPTION"}
 			if options.AllNamespace {
 				header = append([]interface{}{"NAMESPACE"}, header...)
 			}
 			table.AddRow(header...)
-			for _, t := range configs {
-				row := []interface{}{t.Name, t.Alias, formatDistributionTargets(t.Targets), fmt.Sprintf("%s/%s", t.Template.Namespace, t.Template.Name), t.CreateTime, t.Description}
+			for _, r := range rows {
+				row := []interface{}{r.name, r.alias, r.source, r.phase, r.distribution, r.template, r.created, r.description}
 				if options.AllNamespace {
-					row = append([]interface{}{t.Namespace}, row...)
+					row = append([]interface{}{r.namespace}, row...)
 				}
 				table.AddRow(row...)
 			}
-			if _, err := streams.Out.Write(table.Bytes()); err != nil {
-				return err
-			}
-			if _, err := streams.Out.Write([]byte("\n")); err != nil {
-				return err
-			}
-			return nil
+			return writeTable(streams, table)
 		},
 	}
 	cmd.Flags().StringVarP(&options.Namespace, "namespace", "n", types.DefaultKubeVelaNS, "specify the namespace of the config")
 	cmd.Flags().StringVarP(&options.Template, "template", "t", "", "specify the template of the config")
 	cmd.Flags().BoolVarP(&options.AllNamespace, "all-namespaces", "A", false, "If true, check the specified action in all namespaces.")
+	cmd.Flags().StringVar(&options.ConfigMode, "config-mode", "", configModeFlagUsage)
 	return cmd
 }
 
@@ -518,18 +505,23 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				_, err = streams.Out.Write(outBuilder.Bytes())
 				return err
 			}
-			// the Config controller materializes template.output and template.outputs,
-			// but not the expandedWriter feature (e.g. Nacos)
-			usesUnsupportedCRDFeatures := configItem.Template.ExpandedWriter.Nacos != nil
-			if configCRDAvailable(f) && !usesUnsupportedCRDFeatures {
-				if err := createConfigCRD(cmd.Context(), f.Client(), options.Namespace, options.Name, name, namespace, configItem.Template.Sensitive, options.Properties, options.Alias, options.Description); err != nil {
+			crdInstalled := kindServed(f, configv1alpha1.ConfigGroupVersionKind)
+			// Interim until the expanded writer (Nacos) moves into the Config controller:
+			// such a template still gets a legacy Secret, whatever the cluster serves.
+			if configItem.Template.ExpandedWriter.Nacos != nil {
+				if crdInstalled {
+					streams.Infof("the config template uses an expanded writer, which the Config CRD controller doesn't yet support; falling back to the legacy config storage\n")
+				}
+				if err := inf.CreateOrUpdateConfig(cmd.Context(), configItem, options.Namespace); err != nil {
 					return err
 				}
 			} else {
-				if configCRDAvailable(f) {
-					streams.Infof("the config template uses an expanded writer, which the Config CRD controller doesn't yet support; falling back to the legacy config storage\n")
+				// Everything else is a Config CR. A cluster without the CRD gets the
+				// upgrade error rather than a legacy Secret it did not ask for.
+				if !crdInstalled {
+					return errConfigCRDMissing
 				}
-				if err := inf.CreateOrUpdateConfig(context.Background(), configItem, options.Namespace); err != nil {
+				if err := createConfigCRD(cmd.Context(), f.Client(), options.Namespace, options.Name, name, namespace, configItem.Template.Sensitive, options.Properties, options.Alias, options.Description); err != nil {
 					return err
 				}
 			}
@@ -558,10 +550,8 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				if err := inf.CreateOrUpdateDistribution(context.Background(), options.Namespace, name, ads); err != nil {
 					return err
 				}
-				if configCRDAvailable(f) {
-					if err := setDistributionOwner(cmd.Context(), f.Client(), options.Namespace, options.Name, name); err != nil {
-						return err
-					}
+				if err := setDistributionOwner(cmd.Context(), f.Client(), options.Namespace, options.Name, name); err != nil {
+					return err
 				}
 			}
 			streams.Infof("the config %s applied successfully\n", options.Name)
@@ -650,10 +640,8 @@ func NewDistributeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 			if err := inf.CreateOrUpdateDistribution(context.Background(), options.Namespace, name, ads); err != nil {
 				return err
 			}
-			if configCRDAvailable(f) {
-				if err := setDistributionOwner(cmd.Context(), f.Client(), options.Namespace, options.Config, name); err != nil {
-					return err
-				}
+			if err := setDistributionOwner(cmd.Context(), f.Client(), options.Namespace, options.Config, name); err != nil {
+				return err
 			}
 			streams.Infof("the distribution %s applied successfully\n", name)
 			return nil
@@ -697,15 +685,21 @@ func NewDeleteConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 			}
 
 			distributionName := config.DefaultDistributionName(options.Name)
+			// Route on what holds the config: a Config CR takes the CRD path, anything
+			// else is a legacy Secret and gets the pre-CRD path.
+			crBacked, err := configCRDExists(cmd.Context(), f.Client(), options.Namespace, options.Name)
+			if err != nil {
+				return err
+			}
 			if !options.NotRecall {
-				if err := inf.DeleteDistribution(context.Background(), options.Namespace, distributionName); err != nil && !errors.Is(err, config.ErrNotFoundDistribution) {
+				if err := inf.DeleteDistribution(cmd.Context(), options.Namespace, distributionName); err != nil && !errors.Is(err, config.ErrNotFoundDistribution) {
 					return err
 				}
-			} else if configCRDAvailable(f) {
+			} else if crBacked {
 				// a CRD-backed config's distribution Application is owned by the Config (see
 				// setDistributionOwner), so deleting the Config always recalls it - --not-recall
 				// can't be honored for these; fail rather than silently ignoring the flag.
-				switch err := f.Client().Get(context.Background(), client.ObjectKey{Namespace: options.Namespace, Name: distributionName}, &v1beta1.Application{}); {
+				switch err := f.Client().Get(cmd.Context(), client.ObjectKey{Namespace: options.Namespace, Name: distributionName}, &v1beta1.Application{}); {
 				case err == nil:
 					return fmt.Errorf("--not-recall is not supported for this config: its distribution %q is owned by the Config and will be recalled automatically when the Config is deleted; run \"vela config distribute %s --recall\" first if you want to keep the config without its distribution", distributionName, options.Name)
 				case apierrors.IsNotFound(err):
@@ -715,11 +709,11 @@ func NewDeleteConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				}
 			}
 
-			if configCRDAvailable(f) {
-				if err := deleteConfigCRD(context.Background(), f.Client(), options.Namespace, options.Name); err != nil {
+			if crBacked {
+				if err := deleteConfigCRD(cmd.Context(), f.Client(), options.Namespace, options.Name); err != nil {
 					return err
 				}
-			} else if err := inf.DeleteConfig(context.Background(), options.Namespace, options.Name); err != nil {
+			} else if err := inf.DeleteConfig(cmd.Context(), options.Namespace, options.Name); err != nil {
 				return err
 			}
 
