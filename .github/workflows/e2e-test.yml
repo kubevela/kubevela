@@ -48,18 +48,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - suite: core
+          - suite: core-application
             k8s-version: v1.31.9
-            procs: '3'
+          - suite: core-definitions
+            k8s-version: v1.31.9
+          - suite: core-config
+            k8s-version: v1.31.9
+          - suite: core-helm
+            k8s-version: v1.31.9
+          - suite: core-helm-auth
+            k8s-version: v1.31.9
           - suite: module
             k8s-version: v1.31.9
-            procs: '3'
+          - suite: source
+            k8s-version: v1.31.9
           - suite: addon
             k8s-version: v1.31.9
-            procs: '2'
           - suite: addon-module
             k8s-version: v1.31.9
-            procs: '1'
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}-${{ matrix.suite }}
       cancel-in-progress: true
@@ -69,7 +75,6 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
 
       - name: Setup KinD
-        if: ${{ matrix.suite != 'addon-module' }}
         uses: ./.github/actions/setup-kind-cluster
         with:
           k8s-version: ${{ matrix.k8s-version }}
@@ -81,8 +86,6 @@ jobs:
         uses: ./.github/actions/e2e-test
         with:
           suite: ${{ matrix.suite }}
-          procs: ${{ matrix.procs }}
-          addon-procs: ${{ matrix.procs }}
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload suite reports
@@ -94,7 +97,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Cleanup image
-        if: ${{ always() && matrix.suite != 'addon-module' }}
+        if: ${{ always() }}
         run: |
           make image-cleanup
           docker image prune -f --filter "until=24h"

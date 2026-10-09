@@ -14,11 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This file is the ordered cluster suite for addons that import modules. One
-// Describe shares the two in-cluster registries and the published fixtures;
-// each Context is one scenario of testing/addon-module-cr-based-single-cluster
-// and leaves the cluster the way it found it (no Applications of ours, no
-// kit.example.com CRDs).
+// This file is the cluster suite for addons that import modules. The
+// synchronized suite setup publishes immutable fixtures once for all workers.
+// The ordered Describe owns the shared controller, definition and CRD
+// lifecycle; independent registry-publication checks are outside it.
 //
 // The Contexts run in the order written. Two orderings matter: "latest vs
 // pinned" (scenario 08) has to run while widget-kit 1.0.0 is the only tag in
@@ -66,6 +65,62 @@ var widgetKitTiers = []string{"widget-kit-aux", "widget-kit-v1-aux", "widget-kit
 // widgetKitDefinitions is every definition widget-kit 1.0.0 installs.
 var widgetKitDefinitions = []string{"widget-kit-v1-widget", "widget-kit-v2-widget", "widget-kit-v1-labeler", "widget-kit-v1-note", "widget-kit-v2-labeler"}
 
+func resolveAddonModuleRegistries(ctx context.Context) {
+	moduleRegistry = resolveRegistryEndpoints(ctx, moduleRegistryURLEnv, moduleRegistryHostURLEnv, moduleRegistryNodePort, "/modules", "/v2/")
+	addonRegistry = resolveRegistryEndpoints(ctx, addonRegistryURLEnv, addonRegistryHostURLEnv, addonRegistryNodePort, "", "/index.yaml")
+}
+
+func setupAddonModuleFixtures(ctx context.Context) {
+	By("bringing up the in-cluster registries: registry:2 for modules, ChartMuseum for addons")
+	Expect(applyManifestFile(ctx, testdataPath("registry.yaml"))).Should(Succeed())
+	waitForDeploymentAvailable(ctx, "default", "oci-registry")
+	waitForDeploymentAvailable(ctx, "default", "addon-module-chartmuseum")
+	resolveAddonModuleRegistries(ctx)
+
+	By("registering the module registry and publishing the modules the early scenarios need")
+	// The latest-vs-pinned scenario publishes later versions itself.
+	runVelaSucceed("module", "registry", "add", moduleRegistryName, moduleRegistry.cluster, "--type", "oci")
+	publishModuleFixture("widget-kit-1.0.0")
+	publishModuleFixture("gadget-kit-1.0.0")
+	publishModuleFixture("probe-kit-1.0.0-a")
+
+	By("pushing every addon version to ChartMuseum, then registering it as a Helm addon registry")
+	// Publish before any render so the controller's index cache cannot hide a version.
+	for _, dir := range []string{
+		"widget-platform-1.0.0", "widget-platform-1.1.0", "widget-platform-1.2.0",
+		"kit-suite-1.0.0", "kit-suite-2.0.0",
+		"widget-latest-1.0.0", "import-options-1.0.0", "tenant-widgets-1.0.0",
+		"cache-probe-1.0.0-a",
+		"broken-imports-1.0.1", "broken-imports-1.0.2", "broken-imports-1.0.3", "broken-imports-1.0.4",
+		"broken-imports-1.0.5", "broken-imports-1.0.6", "broken-imports-1.0.7",
+	} {
+		pushAddonFixture(dir)
+	}
+	addAddonRegistry(ctx)
+}
+
+func cleanupAddonModuleFixtures(ctx context.Context) {
+	By("removing whatever a failed scenario may have left behind")
+	for _, name := range []string{
+		widgetPlatformApp, "kit-suite", "import-options", "tenant-widgets", "widget-latest", "cache-probe",
+		"platform-a", "platform-b", "broken-imports", "missing-addon-version", "missing-addon", "new-platform",
+		"module-direct", "gate-off-probe", "widget-consumer", "suite-consumer", "forms-accepted", "v2-contract",
+		"trait-outputs-form3", "default-consumer", "gauge-consumer", "v2-consumer",
+	} {
+		deleteApp(ctx, testNS, name)
+	}
+	for _, name := range []string{addonWidgetPlatform, "addon-kit-suite", "addon-import-options", "addon-tenant-widgets",
+		"addon-widget-latest", "addon-cache-probe", "addon-broken-imports"} {
+		waitAppGone(ctx, systemNS, name, reconcileWait)
+	}
+	for _, name := range []string{moduleWidgetKit, moduleGadgetKit, moduleProbeKit} {
+		waitAppGone(ctx, systemNS, name, reconcileWait)
+	}
+	_, _ = runVela("module", "registry", "delete", moduleRegistryName)
+	_, _ = runVela("addon", "registry", "delete", addonRegistryName)
+	deleteManifestFile(ctx, testdataPath("registry.yaml"))
+}
+
 var _ = Describe("Addons that import modules", Ordered, func() {
 	var ctx context.Context
 
@@ -91,87 +146,13 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 		}
 	}
 
-	BeforeAll(func() {
-		ctx = context.Background()
-
-		By("bringing up the in-cluster registries: registry:2 for modules, ChartMuseum for addons")
-		Expect(applyManifestFile(ctx, testdataPath("registry.yaml"))).Should(Succeed())
-		waitForDeploymentAvailable(ctx, "default", "oci-registry")
-		waitForDeploymentAvailable(ctx, "default", "addon-module-chartmuseum")
-		moduleRegistry = resolveRegistryEndpoints(ctx, moduleRegistryURLEnv, moduleRegistryHostURLEnv, moduleRegistryNodePort, "/modules", "/v2/")
-		addonRegistry = resolveRegistryEndpoints(ctx, addonRegistryURLEnv, addonRegistryHostURLEnv, addonRegistryNodePort, "", "/index.yaml")
-
-		By("registering the module registry and publishing the modules the early scenarios need")
-		// The record carries the cluster URL; "vela module registry add" only
-		// writes the ConfigMap and Secret, it does not dial the registry.
-		// widget-kit 1.1.0 and 1.2.0 are deliberately NOT published here: the
-		// "latest vs pinned" scenario needs 1.0.0 to be the highest tag when it
-		// installs, and publishes the two newer versions itself.
-		runVelaSucceed("module", "registry", "add", moduleRegistryName, moduleRegistry.cluster, "--type", "oci")
-		publishModuleFixture("widget-kit-1.0.0")
-		publishModuleFixture("gadget-kit-1.0.0")
-		publishModuleFixture("probe-kit-1.0.0-a")
-
-		By("pushing every addon version to ChartMuseum, then registering it as a Helm addon registry")
-		// Every version is pushed before the first render so the controller's
-		// index cache (3 minutes for a small repository) never hides one.
-		for _, dir := range []string{
-			"widget-platform-1.0.0", "widget-platform-1.1.0", "widget-platform-1.2.0",
-			"kit-suite-1.0.0", "kit-suite-2.0.0",
-			"widget-latest-1.0.0", "import-options-1.0.0", "tenant-widgets-1.0.0",
-			"cache-probe-1.0.0-a",
-			"broken-imports-1.0.1", "broken-imports-1.0.2", "broken-imports-1.0.3", "broken-imports-1.0.4",
-			"broken-imports-1.0.5", "broken-imports-1.0.6", "broken-imports-1.0.7",
-		} {
-			pushAddonFixture(dir)
-		}
-		addAddonRegistry(ctx)
-	})
-
-	AfterAll(func() {
-		By("removing whatever a failed scenario may have left behind")
-		for _, name := range []string{
-			widgetPlatformApp, "kit-suite", "import-options", "tenant-widgets", "widget-latest", "cache-probe",
-			"platform-a", "platform-b", "broken-imports", "missing-addon-version", "missing-addon", "new-platform",
-			"module-direct", "gate-off-probe", "widget-consumer", "suite-consumer", "forms-accepted", "v2-contract",
-			"trait-outputs-form3", "default-consumer", "gauge-consumer", "v2-consumer",
-		} {
-			deleteApp(ctx, testNS, name)
-		}
-		for _, name := range []string{addonWidgetPlatform, "addon-kit-suite", "addon-import-options", "addon-tenant-widgets",
-			"addon-widget-latest", "addon-cache-probe", "addon-broken-imports"} {
-			waitAppGone(ctx, systemNS, name, reconcileWait)
-		}
-		for _, name := range []string{moduleWidgetKit, moduleGadgetKit, moduleProbeKit} {
-			waitAppGone(ctx, systemNS, name, reconcileWait)
-		}
-		_, _ = runVela("module", "registry", "delete", moduleRegistryName)
-		_, _ = runVela("addon", "registry", "delete", addonRegistryName)
-		deleteManifestFile(ctx, testdataPath("registry.yaml"))
-	})
+	BeforeAll(func() { ctx = context.Background() })
 
 	// --- Scenario 01 ---
 	Context("publish and inspect artifacts (scenario 01)", func() {
 		It("published widget-kit 1.0.0 as the only tag of its repository", func() {
 			Expect(ociTags(moduleRegistry.hostBase, "modules/widget-kit")).Should(ConsistOf("1.0.0"),
 				"the latest-vs-pinned scenario needs 1.0.0 to be the highest widget-kit tag; a registry left over from an earlier run breaks that")
-		})
-
-		It("refuses to republish an existing version without --force", func() {
-			out, err := runVela("module", "publish", testdataPath("modules", "widget-kit-1.0.0"), moduleRegistry.host)
-			Expect(err).Should(HaveOccurred(), out)
-			Expect(out).Should(ContainSubstring("is already published"))
-			Expect(out).Should(ContainSubstring("--force"))
-		})
-
-		It("stores the addons in the ChartMuseum index, modules/_imports.cue included", func() {
-			index, err := httpGet(addonRegistry.host+"/index.yaml", "")
-			Expect(err).ShouldNot(HaveOccurred(), index)
-			for _, addon := range []string{"widget-platform", "kit-suite", "widget-latest", "import-options", "tenant-widgets", "cache-probe", "broken-imports"} {
-				Expect(index).Should(ContainSubstring(addon+"-"), "index.yaml should list %s", addon)
-			}
-			Expect(index).Should(ContainSubstring("widget-platform-1.2.0.tgz"))
-			Expect(index).Should(ContainSubstring("broken-imports-1.0.7.tgz"), "vela addon push does not parse _imports.cue, so every broken variant is accepted")
 		})
 
 		It("vela module deploy --dry-run fetches the module and prints the wrapper Application", func() {
@@ -1523,6 +1504,30 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 				g.Expect(svc.Healthy).Should(BeTrue(), svc.Message)
 				g.Expect(svc.Message).Should(Equal("Ready:3/3"))
 			}, reconcileWait, pollInterval).Should(Succeed())
+		})
+	})
+})
+
+// These checks read immutable publications directly from the registries. They
+// do not depend on the ordered controller lifecycle or mutate its Applications,
+// definitions, CRDs, or registry records, so another Ginkgo worker can run them.
+var _ = Describe("Addons that import modules", func() {
+	Context("publish and inspect artifacts (scenario 01)", func() {
+		It("refuses to republish an existing version without --force", func() {
+			out, err := runVela("module", "publish", testdataPath("modules", "widget-kit-1.0.0"), moduleRegistry.host)
+			Expect(err).Should(HaveOccurred(), out)
+			Expect(out).Should(ContainSubstring("is already published"))
+			Expect(out).Should(ContainSubstring("--force"))
+		})
+
+		It("stores the addons in the ChartMuseum index, modules/_imports.cue included", func() {
+			index, err := httpGet(addonRegistry.host+"/index.yaml", "")
+			Expect(err).ShouldNot(HaveOccurred(), index)
+			for _, addon := range []string{"widget-platform", "kit-suite", "widget-latest", "import-options", "tenant-widgets", "cache-probe", "broken-imports"} {
+				Expect(index).Should(ContainSubstring(addon+"-"), "index.yaml should list %s", addon)
+			}
+			Expect(index).Should(ContainSubstring("widget-platform-1.2.0.tgz"))
+			Expect(index).Should(ContainSubstring("broken-imports-1.0.7.tgz"), "vela addon push does not parse _imports.cue, so every broken variant is accepted")
 		})
 	})
 })

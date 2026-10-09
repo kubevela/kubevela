@@ -121,7 +121,7 @@ the running pod, so it's fast (roughly 30-90s depending on build time).
 go test ./pkg/... -count=1
 
 # e2e tests do:
-go test ./test/e2e-test/ -v -count=1 -timeout=30m -ginkgo.focus=Helmchart
+go test ./test/e2e-helm-test/ -v -count=1 -timeout=30m -ginkgo.focus=Helmchart
 ```
 
 ## Alternative: push to ttl.sh instead of importing

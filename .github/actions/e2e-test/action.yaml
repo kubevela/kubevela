@@ -11,35 +11,37 @@ inputs:
     required: false
     default: 'false'
   addon-procs:
-    description: 'Ginkgo worker processes for the addon E2E suite (1 to 4)'
+    description: 'Addon Ginkgo workers: auto uses all available CPUs; or a positive integer'
     required: false
-    default: '2'
+    default: 'auto'
   suite:
-    description: 'Suite to run: all, api, addon, core, module, or addon-module'
+    description: 'Suite: all, api, addon, core (all core tests), core-application, core-definitions, core-config, core-helm, core-helm-auth, module, source, or addon-module'
     required: false
     default: 'all'
   procs:
-    description: 'Ginkgo workers for a selected live-cluster suite (1 to 4)'
+    description: 'Ginkgo workers: auto uses all available CPUs; or a positive integer'
     required: false
-    default: '2'
+    default: 'auto'
 
 runs:
   using: "composite"
   steps:
     - name: Validate suite selection
+      id: workers
       shell: bash
       env:
         E2E_SUITE: ${{ inputs.suite }}
         E2E_WORKERS: ${{ inputs.procs }}
+        E2E_ADDON_WORKERS: ${{ inputs.addon-procs }}
       run: |
         case "$E2E_SUITE" in
-          all|api|addon|core|module|addon-module) ;;
+          all|api|addon|core|core-application|core-definitions|core-config|core-helm|core-helm-auth|module|source|addon-module) ;;
           *) echo "Unknown E2E suite: $E2E_SUITE" >&2; exit 1 ;;
         esac
-        case "$E2E_WORKERS" in
-          1|2|3|4) ;;
-          *) echo "procs must be between 1 and 4" >&2; exit 1 ;;
-        esac
+        workers=$(bash hack/e2e/ginkgo_workers.sh "$E2E_WORKERS")
+        addon_workers=$(bash hack/e2e/ginkgo_workers.sh "$E2E_ADDON_WORKERS")
+        echo "Ginkgo workers: $workers; addon workers: $addon_workers"
+        printf 'procs=%s\naddon-procs=%s\n' "$workers" "$addon_workers" >> "$GITHUB_OUTPUT"
 
     # ========================================================================
     # Environment Setup
@@ -48,18 +50,18 @@ runs:
       uses: ./.github/actions/env-setup
       with:
         install-ginkgo: 'true'
-        install-setup-envtest: ${{ inputs.suite == 'addon-module' && 'true' || 'false' }}
+        install-setup-envtest: 'false'
         install-kustomize: 'false'
 
     - name: Build project
-      if: ${{ inputs.suite != 'addon-module' }}
       shell: bash
       env:
         E2E_SUITE: ${{ inputs.suite }}
       run: |
         case "$E2E_SUITE" in
           all|api) make ;;
-          core|module|addon) make e2e-vela-cli ;;
+          core|core-application|core-definitions|core-config|module|addon|addon-module) make e2e-vela-cli ;;
+          source|core-helm|core-helm-auth) : ;;
         esac
 
     # ========================================================================
@@ -67,16 +69,16 @@ runs:
     # ========================================================================
     - name: Prepare e2e environment
       id: prepare
-      if: ${{ inputs.suite != 'addon-module' }}
       shell: bash
+      env:
+        E2E_SUITE: ${{ inputs.suite }}
       run: |
         echo "Preparing e2e test environment..."
         make e2e-cleanup
-        if [ "$E2E_SUITE" = module ]; then
-          make e2e-setup-core-module
-        else
-          make e2e-setup-core
-        fi
+        case "$E2E_SUITE" in
+          module|addon-module|source|core-helm|core-helm-auth) make e2e-setup-core-minimal ;;
+          *) make e2e-setup-core ;;
+        esac
 
         echo "Running Helm tests..."
         helm test -n vela-system kubevela --timeout 5m
@@ -84,6 +86,11 @@ runs:
     # ========================================================================
     # E2E Test Execution
     # ========================================================================
+    - name: Verify core suite partition preserves coverage
+      if: ${{ inputs.suite == 'core-application' }}
+      shell: bash
+      run: make e2e-core-discovery
+
     - name: Run API e2e tests
       if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'api') }}
       shell: bash
@@ -95,25 +102,23 @@ runs:
       if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'addon') }}
       shell: bash
       env:
-        E2E_ADDON_PROCS: ${{ inputs.addon-procs }}
+        E2E_ADDON_PROCS: ${{ steps.workers.outputs.addon-procs }}
       run: |
         echo "Running addon e2e tests..."
-        case "$E2E_ADDON_PROCS" in
-          1|2|3|4) ;;
-          *) echo "addon-procs must be between 1 and 4" >&2; exit 1 ;;
-        esac
         make e2e-addon-test E2E_PROCS="$E2E_ADDON_PROCS"
 
     - name: Run general e2e tests
-      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'core') }}
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'core' || startsWith(inputs.suite, 'core-')) }}
       shell: bash
       env:
-        E2E_WORKERS: ${{ inputs.procs }}
+        E2E_WORKERS: ${{ steps.workers.outputs.procs }}
         E2E_SUITE: ${{ inputs.suite }}
       run: |
         echo "Running general e2e tests..."
-        if [ "$E2E_SUITE" = all ]; then E2E_WORKERS=1; fi
-        make e2e-test E2E_PROCS="$E2E_WORKERS"
+        case "$E2E_SUITE" in
+          all|core) make e2e-test E2E_PROCS="$E2E_WORKERS" ;;
+          core-*) make "e2e-${E2E_SUITE}-test" E2E_PROCS="$E2E_WORKERS" ;;
+        esac
 
     - name: Run module e2e tests
       # Its own step, own package, and always() so a failure in an earlier
@@ -122,37 +127,40 @@ runs:
       if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'module') }}
       shell: bash
       env:
-        E2E_WORKERS: ${{ inputs.procs }}
+        E2E_WORKERS: ${{ steps.workers.outputs.procs }}
         E2E_SUITE: ${{ inputs.suite }}
       run: |
         echo "Running module e2e tests..."
-        if [ "$E2E_SUITE" = all ]; then E2E_WORKERS=1; fi
         make e2e-module-test E2E_PROCS="$E2E_WORKERS"
 
-    - name: Run addon/module envtest suite
-      if: ${{ inputs.suite == 'addon-module' }}
+    - name: Run source e2e tests
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'source') }}
       shell: bash
-      run: make e2e-addon-module-test
+      env:
+        E2E_WORKERS: ${{ steps.workers.outputs.procs }}
+        E2E_SUITE: ${{ inputs.suite }}
+      run: |
+        make e2e-source-test E2E_PROCS="$E2E_WORKERS"
+
+    - name: Run addon/module e2e suite
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'addon-module') }}
+      shell: bash
+      env:
+        E2E_WORKERS: ${{ steps.workers.outputs.procs }}
+        E2E_SUITE: ${{ inputs.suite }}
+      run: |
+        make e2e-addon-module-test E2E_PROCS="$E2E_WORKERS"
 
     - name: Run addon-component e2e tests
       # Same reasoning as the module step above. The suite brings up its own
       # in-cluster ChartMuseum and pushes its fixtures into it, so it needs no
       # external registry; e2e-setup-core has already installed the chart with
       # featureGates.enableAddonComponent=true.
-      if: always()
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'api') }}
       shell: bash
       run: |
         echo "Running addon-component e2e tests..."
         make e2e-addon-component-test
-
-    - name: Run addon-module e2e tests
-      # This test installs addons that import modules. It makes sure that
-      # KubeVela installs, upgrades and removes these addons and modules correctly.
-      if: always()
-      shell: bash
-      run: |
-        echo "Running addon-module e2e tests..."
-        make e2e-addon-module-test
 
     - name: Upload coverage report
       if: ${{ inputs.codecov-enable == 'true' }}
@@ -168,7 +176,7 @@ runs:
     # Failure Diagnostics
     # ========================================================================
     - name: Collect failure diagnostics
-      if: ${{ failure() && inputs.suite != 'addon-module' }}
+      if: ${{ failure() }}
       shell: bash
       run: |
         echo "=== FAILURE DIAGNOSTICS ==="
