@@ -182,6 +182,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	r.emitPolicyEvents(app)
+	if handler.policySecretErr != nil {
+		r.Recorder.Event(app, event.Warning("PolicySecretFailed", handler.policySecretErr))
+	}
 
 	appFile, err := appParser.GenerateAppFile(logCtx, app)
 	if err != nil {

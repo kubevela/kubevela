@@ -70,6 +70,7 @@ const annotationValueTrue = "true"
 // then explicit spec.policies, in priority order. Results are cached with a 1-minute TTL and written
 // to a ConfigMap for observability (backing store for `vela policy show`).
 func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context, app *v1beta1.Application) (monitorContext.Context, error) {
+	hadPolicies := len(app.Status.AppliedApplicationPolicies) > 0
 	app.Status.AppliedApplicationPolicies = nil
 
 	if !utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableApplicationScopedPolicies) {
@@ -175,6 +176,11 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 	if policyContext, ok := renderedMetadata["context"].(map[string]interface{}); ok && len(policyContext) > 0 {
 		ctx = storeAdditionalContextInCtx(ctx, policyContext)
 	}
+	// sensitiveCtx is readable as context.custom just like ctx, but it is kept out of
+	// renderedMetadata because that map is written to the observability ConfigMap.
+	if sensitiveContext := extractSensitiveContext(renderedResults); len(sensitiveContext) > 0 {
+		ctx = storeAdditionalContextInCtx(ctx, sensitiveContext)
+	}
 
 	// For observability we always render, but on subsequent reconciliations we restore from
 	// the ApplicationRevision to avoid creating spurious new revisions.
@@ -214,6 +220,20 @@ func (h *AppHandler) ApplyApplicationScopeTransforms(ctx monitorContext.Context,
 	// Write results to ConfigMap for `vela policy show`.
 	if len(renderedResults) > 0 {
 		h.writePolicyObservabilityConfigMap(ctx, app, renderedResults, renderedSpec, renderedMetadata, autoRevision, cacheHit)
+	}
+
+	// Sensitive policy context goes to an Application-owned Secret, never the
+	// ConfigMap (kubevela#6840). It also runs when the previous reconcile applied
+	// policies but none render now, so removing the last policy clears credentials
+	// stored earlier; Applications that never had policies skip the Secret lookup.
+	// A dry-run must not write it. On failure the data is dropped rather than
+	// falling back to the ConfigMap; the Reconciler reports it as a Warning event.
+	_, dryRun := ctx.GetContext().Value(dryRunCaptureKey).(*dryRunCapture)
+	if !dryRun && (hadPolicies || len(renderedResults) > 0) {
+		h.policySecretErr = reconcilePolicySecret(ctx, h.Client, app, collectSensitivePolicyContext(renderedResults))
+		if h.policySecretErr != nil {
+			ctx.Error(h.policySecretErr, "Failed to reconcile sensitive policy Secret; sensitive context not persisted")
+		}
 	}
 
 	ctx.Info("Policy transforms completed",
@@ -258,7 +278,7 @@ func recordPolicyStatuses(app *v1beta1.Application, results []RenderedPolicyResu
 				SpecModified:           specModified,
 				LabelsCount:            labelsCount,
 				AnnotationsCount:       annotationsCount,
-				HasContext:             len(result.AdditionalContext) > 0,
+				HasContext:             len(result.AdditionalContext) > 0 || len(result.SensitiveContext) > 0,
 				DefinitionRevisionName: result.DefinitionRevisionName,
 				Revision:               result.Revision,
 				RevisionHash:           result.RevisionHash,
@@ -326,17 +346,20 @@ func (h *AppHandler) writePolicyObservabilityConfigMap(ctx monitorContext.Contex
 			app.Status.ApplicationPoliciesConfigMap = policyConfigMapName(app.Namespace, app.Name)
 		}
 	}
+}
 
-	// Sensitive policy context (values a policy derived from Secrets and routed
-	// through output.sensitiveCtx) is persisted to an Application-owned Secret so
-	// it never lands in the plaintext observability ConfigMap. See kubevela#6840.
-	// Always reconcile (even when empty) so that removing sensitiveCtx, disabling a
-	// policy, or deleting the last policy CLEARS previously stored credentials
-	// instead of leaving them behind. Fail-safe: on error sensitive data is simply
-	// not persisted — it is never written to the ConfigMap as a fallback.
-	if err := reconcilePolicySecret(ctx, h.Client, app, collectSensitivePolicyContext(results)); err != nil {
-		ctx.Info("Failed to reconcile sensitive policy Secret; sensitive context not persisted", "error", err)
+// extractSensitiveContext merges output.sensitiveCtx from all enabled policies.
+func extractSensitiveContext(results []RenderedPolicyResult) map[string]interface{} {
+	merged := make(map[string]interface{})
+	for _, result := range results {
+		if !result.Enabled {
+			continue
+		}
+		for k, v := range result.SensitiveContext {
+			merged[k] = v
+		}
 	}
+	return merged
 }
 
 // collectSensitivePolicyContext gathers the sensitive context contributed by each
@@ -689,7 +712,8 @@ type PolicyOutput struct {
 	// (e.g. via kube.#Read of a Secret). It is the sensitivity marker described
 	// in kubevela/kubevela#6840: anything a policy routes through output.sensitiveCtx
 	// is persisted to an Application-owned Secret instead of the plaintext
-	// observability ConfigMap. Non-sensitive context continues to use output.ctx.
+	// observability ConfigMap. Like ctx, templates read it as context.custom.<key>.
+	// Non-sensitive context continues to use output.ctx.
 	SensitiveCtx map[string]interface{} `json:"sensitiveCtx,omitempty"`
 }
 

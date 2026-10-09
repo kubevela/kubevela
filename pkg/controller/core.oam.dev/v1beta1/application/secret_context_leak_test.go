@@ -125,6 +125,9 @@ func TestPolicyContext_SensitiveCtxNotInConfigMap(t *testing.T) {
 
 	monCtx := monitorContext.NewTraceContext(context.Background(), "leak-fixed")
 	h.writePolicyObservabilityConfigMap(monCtx, app, results, &v1beta1.ApplicationSpec{}, nil, false, false)
+	if err := reconcilePolicySecret(context.Background(), cli, app, collectSensitivePolicyContext(results)); err != nil {
+		t.Fatalf("reconcilePolicySecret: %v", err)
+	}
 
 	// 1. The ConfigMap must NOT contain the sensitive value...
 	cm := &corev1.ConfigMap{}
@@ -166,10 +169,10 @@ func TestPolicyContext_SensitiveCtxNotInConfigMap(t *testing.T) {
 // TestPolicyContext_SensitiveCtxClearedWhenEmpty verifies that once sensitive
 // context stops being produced (sensitiveCtx removed / policy disabled), the
 // previously stored credentials are cleared from the owned Secret rather than
-// lingering indefinitely.
+// lingering indefinitely. Removing the last policy is covered end to end through
+// ApplyApplicationScopeTransforms in app_policy_apply_test.go.
 func TestPolicyContext_SensitiveCtxClearedWhenEmpty(t *testing.T) {
 	cli := secretLeakTestClient(t)
-	h := &AppHandler{Client: cli}
 	app := secretLeakTestApp()
 
 	// First reconcile: policy contributes a secret → Secret is populated.
@@ -179,8 +182,9 @@ func TestPolicyContext_SensitiveCtxClearedWhenEmpty(t *testing.T) {
 		Transforms:       &PolicyOutput{SensitiveCtx: map[string]interface{}{"dbPassword": leakedSecretValue}},
 		SensitiveContext: map[string]interface{}{"dbPassword": leakedSecretValue},
 	}}
-	monCtx := monitorContext.NewTraceContext(context.Background(), "clear-1")
-	h.writePolicyObservabilityConfigMap(monCtx, app, withSensitive, &v1beta1.ApplicationSpec{}, nil, false, false)
+	if err := reconcilePolicySecret(context.Background(), cli, app, collectSensitivePolicyContext(withSensitive)); err != nil {
+		t.Fatalf("reconcilePolicySecret: %v", err)
+	}
 
 	secret := &corev1.Secret{}
 	key := client.ObjectKey{Name: policySecretName(app.Namespace, app.Name), Namespace: app.Namespace}
@@ -197,8 +201,9 @@ func TestPolicyContext_SensitiveCtxClearedWhenEmpty(t *testing.T) {
 		Enabled:    true,
 		Transforms: &PolicyOutput{Ctx: map[string]interface{}{"dbHost": "db.internal"}},
 	}}
-	monCtx = monitorContext.NewTraceContext(context.Background(), "clear-2")
-	h.writePolicyObservabilityConfigMap(monCtx, app, noSensitive, &v1beta1.ApplicationSpec{}, nil, false, false)
+	if err := reconcilePolicySecret(context.Background(), cli, app, collectSensitivePolicyContext(noSensitive)); err != nil {
+		t.Fatalf("reconcilePolicySecret: %v", err)
+	}
 
 	if err := cli.Get(context.Background(), key, secret); err != nil {
 		t.Fatalf("expected Secret to still exist (cleared, not deleted): %v", err)
@@ -240,7 +245,6 @@ func TestPolicyContext_DoesNotOverwriteForeignSecret(t *testing.T) {
 // Secrets when no policy contributes sensitive context (no needless RBAC use).
 func TestPolicyContext_NoSecretWhenNoSensitiveData(t *testing.T) {
 	cli := secretLeakTestClient(t)
-	h := &AppHandler{Client: cli}
 	app := secretLeakTestApp()
 
 	results := []RenderedPolicyResult{
@@ -252,8 +256,9 @@ func TestPolicyContext_NoSecretWhenNoSensitiveData(t *testing.T) {
 		},
 	}
 
-	monCtx := monitorContext.NewTraceContext(context.Background(), "no-sensitive")
-	h.writePolicyObservabilityConfigMap(monCtx, app, results, &v1beta1.ApplicationSpec{}, nil, false, false)
+	if err := reconcilePolicySecret(context.Background(), cli, app, collectSensitivePolicyContext(results)); err != nil {
+		t.Fatalf("reconcilePolicySecret: %v", err)
+	}
 
 	secret := &corev1.Secret{}
 	err := cli.Get(context.Background(), client.ObjectKey{
