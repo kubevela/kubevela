@@ -521,6 +521,61 @@ var _ = Describe("Test the commands of the config", func() {
 		err := noCRDClient.Get(context.Background(), client.ObjectKey{Namespace: "default", Name: config.TemplateConfigMapNamePrefix + "legacy-no-crd"}, &cm)
 		Expect(apierrors.IsNotFound(err)).Should(BeTrue())
 	})
+
+	It("Test creating a config against a legacy template writes a Config CR", func() {
+		seedLegacyTemplate(k8sClient, "default", "legacy-tpl")
+		DeferCleanup(func() {
+			cm := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: config.TemplateConfigMapNamePrefix + "legacy-tpl"}}
+			Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), cm))).Should(Succeed())
+			cfgObj := &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "created-on-legacy"}}
+			Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), cfgObj))).Should(Succeed())
+		})
+		// the template is held only as a ConfigMap
+		var ct configv1alpha1.ConfigTemplate
+		Expect(apierrors.IsNotFound(k8sClient.Get(context.TODO(), client.ObjectKey{Namespace: "default", Name: "legacy-tpl"}, &ct))).Should(BeTrue())
+
+		buffer := bytes.NewBuffer(nil)
+		cmd := ConfigCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"create", "created-on-legacy", "--template=default/legacy-tpl", "--namespace=default", "-f", "./test-data/config/registry.yaml"})
+		Expect(cmd.Execute()).Should(Succeed())
+		Expect(buffer.String()).Should(Equal("the config created-on-legacy applied successfully\n"))
+
+		var cfgObj configv1alpha1.Config
+		Expect(k8sClient.Get(context.TODO(), client.ObjectKey{Namespace: "default", Name: "created-on-legacy"}, &cfgObj)).Should(Succeed())
+		Expect(cfgObj.Spec.TemplateRef).ShouldNot(BeNil())
+		Expect(cfgObj.Spec.TemplateRef.Name).Should(Equal("legacy-tpl"))
+		Expect(cfgObj.Spec.TemplateRef.Namespace).Should(Equal("default"))
+		// the CLI wrote no legacy Secret; the controller renders one from the CR
+		var secret v1.Secret
+		Expect(apierrors.IsNotFound(k8sClient.Get(context.TODO(), client.ObjectKey{Namespace: "default", Name: "created-on-legacy"}, &secret))).Should(BeTrue())
+	})
+
+	It("Test creating a config fails when the Config CRD is not installed", func() {
+		noCRDClient := fake.NewClientBuilder().WithScheme(clientgoscheme.Scheme).Build()
+		seedLegacyTemplate(noCRDClient, "default", "legacy-no-crd")
+
+		cmd := ConfigCommandGroup(cmd.NewTestFactory(cfg, noCRDClient), "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
+		cmd.SetArgs([]string{"create", "x", "--template=default/legacy-no-crd", "--namespace=default", "-f", "./test-data/config/registry.yaml"})
+		Expect(cmd.Execute()).Should(MatchError(errConfigCRDMissing))
+		// and nothing was written as a legacy Secret instead
+		var secret v1.Secret
+		Expect(apierrors.IsNotFound(noCRDClient.Get(context.TODO(), client.ObjectKey{Namespace: "default", Name: "x"}, &secret))).Should(BeTrue())
+	})
+
+	It("Test show renders a legacy template", func() {
+		seedLegacyTemplate(k8sClient, "default", "legacy-show")
+		DeferCleanup(func() {
+			cm := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: config.TemplateConfigMapNamePrefix + "legacy-show"}}
+			Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), cm))).Should(Succeed())
+		})
+
+		buffer := bytes.NewBuffer(nil)
+		cmd := TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		cmd.SetArgs([]string{"show", "legacy-show", "-n", "default"})
+		Expect(cmd.Execute()).Should(Succeed())
+		Expect(buffer.String()).Should(ContainSubstring("registry"))
+		Expect(line(buffer.String())).Should(Equal(24))
+	})
 })
 
 // seedLegacyTemplate writes template name as a legacy ConfigMap in ns through the

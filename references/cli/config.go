@@ -504,19 +504,23 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				_, err = streams.Out.Write(outBuilder.Bytes())
 				return err
 			}
-			// the Config controller materializes template.output and template.outputs,
-			// but not the expandedWriter feature (e.g. Nacos)
-			usesUnsupportedCRDFeatures := configItem.Template.ExpandedWriter.Nacos != nil
 			crdInstalled := configCRDInstalled(f)
-			if crdInstalled && !usesUnsupportedCRDFeatures {
-				if err := createConfigCRD(cmd.Context(), f.Client(), options.Namespace, options.Name, name, namespace, configItem.Template.Sensitive, options.Properties, options.Alias, options.Description); err != nil {
-					return err
-				}
-			} else {
+			// Interim until the expanded writer (Nacos) moves into the Config controller:
+			// such a template still gets a legacy Secret, whatever the cluster serves.
+			if configItem.Template.ExpandedWriter.Nacos != nil {
 				if crdInstalled {
 					streams.Infof("the config template uses an expanded writer, which the Config CRD controller doesn't yet support; falling back to the legacy config storage\n")
 				}
-				if err := inf.CreateOrUpdateConfig(context.Background(), configItem, options.Namespace); err != nil {
+				if err := inf.CreateOrUpdateConfig(cmd.Context(), configItem, options.Namespace); err != nil {
+					return err
+				}
+			} else {
+				// Everything else is a Config CR. A cluster without the CRD gets the
+				// upgrade error rather than a legacy Secret it did not ask for.
+				if !crdInstalled {
+					return errConfigCRDMissing
+				}
+				if err := createConfigCRD(cmd.Context(), f.Client(), options.Namespace, options.Name, name, namespace, configItem.Template.Sensitive, options.Properties, options.Alias, options.Description); err != nil {
 					return err
 				}
 			}

@@ -46,7 +46,10 @@ func configCRDInstalled(f velacmd.Factory) bool {
 	return err == nil
 }
 
-var errConfigTemplateCRDMissing = errors.New("the ConfigTemplate CRD is not installed; upgrade vela-core before applying config templates")
+var (
+	errConfigTemplateCRDMissing = errors.New("the ConfigTemplate CRD is not installed; upgrade vela-core before applying config templates")
+	errConfigCRDMissing         = errors.New("the Config CRD is not installed; upgrade vela-core before creating configs")
+)
 
 // objectExists reports whether obj can be read at key. Not found, and a type
 // the cluster does not serve, both count as absent.
