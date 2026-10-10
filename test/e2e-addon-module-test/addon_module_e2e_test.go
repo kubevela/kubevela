@@ -1022,7 +1022,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 				Expect(err).ShouldNot(HaveOccurred(), "nothing deletes a consumer's already-applied objects")
 
 				By("the v2 consumer cannot be updated, and fails to parse on its next reconcile")
-				expectConsumerOfRemovedDefinition(ctx, v.v2ConsumerApp, v2WidgetDef, "premium-widget", "after-1.2.0")
+				expectConsumerOfRemovedDefinition(ctx, widgetGVK, v.v2ConsumerApp, v2WidgetDef, "premium-widget", "after-1.2.0")
 			})
 
 			It("rolling back to 1.0.0 brings v2 back and drops the gauge", func() {
@@ -1036,7 +1036,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 
 				// The gauge definition only exists from 1.1.0, so the gauge
 				// consumer is now in the position the v2 consumer was in on 1.2.0.
-				expectConsumerOfRemovedDefinition(ctx, v.gaugeConsumerApp, gaugeDef, "", "after-rollback")
+				expectConsumerOfRemovedDefinition(ctx, widgetGVK, v.gaugeConsumerApp, gaugeDef, "", "after-rollback")
 				_, err := getConfigMap(ctx, testNS, gaugeConfigMap)
 				Expect(err).ShouldNot(HaveOccurred(), "nothing deletes a consumer's already-applied objects")
 			})
@@ -1165,7 +1165,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			It("leaves the consumer broken: its Gadget is gone with the kind and a new render finds no definition", func() {
 				// Deleting the CRD deleted every Gadget, so unlike scenario 07 the
 				// consumer's applied object of the removed module is gone too.
-				expectConsumerOfRemovedDefinition(ctx, v.consumerApp, gadgetDef, "", "after-removal")
+				expectConsumerOfRemovedDefinition(ctx, widgetGVK, v.consumerApp, gadgetDef, "", "after-removal")
 				Expect(isNotFound(ctx, crd(gadgetsCRD))).Should(BeTrue(), "the Gadget kind no longer exists")
 				_, err := getUnstructured(ctx, widgetGVK, testNS, "keep-widget")
 				Expect(err).ShouldNot(HaveOccurred(), "the other module's object is untouched")
@@ -1326,7 +1326,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 
 				// The Widget went with its CRD, so only the refusal and the parse
 				// failure are left to check.
-				expectConsumerOfRemovedDefinition(ctx, v.selfHealConsumerApp, widgetDef, "", "after-uninstall")
+				expectConsumerOfRemovedDefinition(ctx, widgetGVK, v.selfHealConsumerApp, widgetDef, "", "after-uninstall")
 				_, err = getConfigMap(ctx, testNS, "blue-widget-card")
 				Expect(err).ShouldNot(HaveOccurred(), "the built-in object is still there while the consumer fails to parse")
 			})
