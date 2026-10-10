@@ -977,6 +977,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 
 			It("starts from 1.0.0 with both lines", func() {
 				Eventually(func(g Gomega) { moduleState(g, "1.0.0", v.tiers) }, shortWait, pollInterval).Should(Succeed())
+				waitAppRunning(ctx, systemNS, v.moduleAppName(), shortWait)
 				Expect(moduleDefinitionNames(ctx, systemNS, v.moduleSlug)).Should(ConsistOf(v.definitions))
 			})
 
@@ -984,6 +985,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 				setAddonVersion(ctx, v.appName, "1.1.0")
 				Eventually(func(g Gomega) { moduleState(g, "1.1.0", v.tiers) }, installWait, pollInterval).Should(Succeed())
 				waitAppRunning(ctx, testNS, v.appName, installWait)
+				waitAppRunning(ctx, systemNS, v.moduleAppName(), installWait)
 				Expect(mustGetApp(ctx, systemNS, v.addonAppName()).Labels).Should(HaveKeyWithValue(oam.LabelAddonVersion, "1.1.0"))
 				Expect(moduleDefinitionNames(ctx, systemNS, v.moduleSlug)).Should(ConsistOf(append([]string{gaugeDef}, v.definitions...)))
 				info, err := getConfigMap(ctx, systemNS, moduleInfo)
@@ -1006,6 +1008,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 					moduleState(g, "1.2.0", v1OnlyTiers)
 				}, installWait, pollInterval).Should(Succeed())
 				waitAppRunning(ctx, testNS, v.appName, installWait)
+				waitAppRunning(ctx, systemNS, v.moduleAppName(), installWait)
 				waitGone(ctx, componentDefinitionObj(systemNS, v2WidgetDef), reconcileWait)
 				waitGone(ctx, traitDefinitionObj(systemNS, v2LabelerDef), shortWait)
 				waitGone(ctx, unstructuredObj(widgetClassGVK, "", v2PremiumCR), shortWait)
@@ -1156,7 +1159,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 				Expect(isNotFound(ctx, configMapObj(systemNS, gadgetDefaults))).Should(BeTrue())
 				_, err := getUnstructured(ctx, widgetGVK, testNS, "keep-widget")
 				Expect(err).ShouldNot(HaveOccurred())
-				Expect(mustGetApp(ctx, systemNS, moduleWidgetApp).Status.Phase).Should(Equal(common.ApplicationRunning))
+				waitAppRunning(ctx, systemNS, moduleWidgetApp, shortWait)
 			})
 
 			It("leaves the consumer broken: its Gadget is gone with the kind and a new render finds no definition", func() {
