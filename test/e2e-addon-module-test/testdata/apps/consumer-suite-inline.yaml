@@ -1,0 +1,23 @@
+# Inline-module mirror of consumer-suite.yaml. Uses definitions from both
+# modules of the kit-suite-inline addon.
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: suite-consumer-inline
+  namespace: default
+spec:
+  components:
+    - name: suite-widget
+      type: widget-kit-inline/v1/widget
+      properties:
+        color: green
+      traits:
+        - type: widget-kit-inline/v1/labeler   # Form 3: fine even though gadget-kit-inline also has v1/labeler
+          properties:
+            tier: platinum
+    - name: suite-gadget
+      type: gadget                              # Form 1: unique, only gadget-kit-inline ships "gadget"
+      properties:
+        mode: turbo
+      traits:
+        - type: gadget-kit-inline/v1/labeler

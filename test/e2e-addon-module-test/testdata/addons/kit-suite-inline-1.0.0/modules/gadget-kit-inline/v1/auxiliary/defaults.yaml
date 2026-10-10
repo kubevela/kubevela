@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gadget-kit-inline-v1-defaults
+  labels:
+    kitinline.example.com/tier: line
+    kitinline.example.com/line: v1
+data:
+  line: v1
+  defaultMode: eco

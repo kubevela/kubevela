@@ -378,6 +378,24 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	if err != nil {
 		return nil, fmt.Errorf("render module components for addon %q: %w", req.Name, err)
 	}
+	// Seed inline naming with moduleComps' names too, not just
+	// app.Spec.Components: RenderModuleComponents may have already claimed a
+	// collision-avoiding name (e.g. "foo-2") that RenderInlineModuleComponents
+	// would otherwise pick again independently, since each only sees
+	// app.Spec.Components on its own. The reserved entries carry no Type, so
+	// moduleDeclaredBy's hand-written-component check (which only looks at
+	// Type == "module") skips them -- moduleComps are already accounted for
+	// there via addon.Imports directly, and re-adding them as type: module
+	// would double-count the same import as a second, independent
+	// declaration of the same module.
+	existingForInline := append([]common2.ApplicationComponent{}, app.Spec.Components...)
+	for _, c := range moduleComps {
+		existingForInline = append(existingForInline, common2.ApplicationComponent{Name: c.Name})
+	}
+	inlineModuleComps, err := pkgaddon.RenderInlineModuleComponents(installPkg, existingForInline, dependsOn)
+	if err != nil {
+		return nil, fmt.Errorf("render inline module components for addon %q: %w", req.Name, err)
+	}
 	if len(aux) > 0 {
 		// The addon template's own outputs: block (wrapped into addon-auxiliaries
 		// below) can carry arbitrary objects -- including operators/CRDs a
@@ -387,20 +405,28 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 		// it: reserve the same name that call will end up choosing, against
 		// every component already in app.Spec.Components plus every module
 		// component actually emitted (which already excludes skipped imports and
-		// may include collision-avoiding suffixes).
-		used := make(map[string]bool, len(app.Spec.Components)+len(moduleComps))
+		// may include collision-avoiding suffixes). Inline module components
+		// need the exact same wait, for the exact same reason.
+		used := make(map[string]bool, len(app.Spec.Components)+len(moduleComps)+len(inlineModuleComps))
 		for _, c := range app.Spec.Components {
 			used[c.Name] = true
 		}
 		for _, c := range moduleComps {
 			used[c.Name] = true
 		}
+		for _, c := range inlineModuleComps {
+			used[c.Name] = true
+		}
 		auxName := uniqueComponentName(addonAuxiliariesComponentName, used)
 		for i := range moduleComps {
 			moduleComps[i].DependsOn = append(moduleComps[i].DependsOn, auxName)
 		}
+		for i := range inlineModuleComps {
+			inlineModuleComps[i].DependsOn = append(inlineModuleComps[i].DependsOn, auxName)
+		}
 	}
 	app.Spec.Components = append(app.Spec.Components, moduleComps...)
+	app.Spec.Components = append(app.Spec.Components, inlineModuleComps...)
 
 	groups, err := r.auxComponents(ctx, installPkg, req.Properties)
 	if err != nil {

@@ -108,12 +108,6 @@ var (
 	addonRegistry  registryEndpoints
 )
 
-var (
-	widgetGVK      = schema.GroupVersionKind{Group: "kit.example.com", Version: "v1alpha1", Kind: "Widget"}
-	widgetClassGVK = schema.GroupVersionKind{Group: "kit.example.com", Version: "v1alpha1", Kind: "WidgetClass"}
-	gadgetGVK      = schema.GroupVersionKind{Group: "kit.example.com", Version: "v1alpha1", Kind: "Gadget"}
-)
-
 // --- paths and the CLI ---
 
 // repoRoot is computed from this file's own path rather than the process
@@ -653,7 +647,11 @@ func expectPublishVersionRefused(ctx context.Context, ns, name, value string) er
 //     reconcile, fails, and reports the definition with phase rendering;
 //   - no new revision is created, and its applied workload (if widget names
 //     one) is left in place.
-func expectConsumerOfRemovedDefinition(ctx context.Context, name, definition, widget, publishVersion string) {
+//
+// gvk is the caller's own Widget GVK (its crdGroup varies by variant -- the
+// inline module source uses a different CRD group than the external one, so
+// there is no single package-level GVK this check could assume).
+func expectConsumerOfRemovedDefinition(ctx context.Context, gvk schema.GroupVersionKind, name, definition, widget, publishVersion string) {
 	before := mustGetApp(ctx, testNS, name)
 	err := expectPublishVersionRefused(ctx, testNS, name, publishVersion)
 	Expect(err.Error()).Should(SatisfyAll(ContainSubstring(`"`+definition+`"`), ContainSubstring("not found")), name)
@@ -664,7 +662,7 @@ func expectConsumerOfRemovedDefinition(ctx context.Context, name, definition, wi
 	Expect(after.Annotations).ShouldNot(HaveKeyWithValue(oam.AnnotationPublishVersion, publishVersion), name)
 	Expect(after.Status.LatestRevision).Should(Equal(before.Status.LatestRevision), "%s: no new revision", name)
 	if widget != "" {
-		_, err := getUnstructured(ctx, widgetGVK, testNS, widget)
+		_, err := getUnstructured(ctx, gvk, testNS, widget)
 		Expect(err).ShouldNot(HaveOccurred(), "nothing deletes a consumer's already-applied objects")
 	}
 }

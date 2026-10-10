@@ -1,0 +1,14 @@
+# Line-level auxiliary (tier 3): the v1 "logic" object, the way a v1
+# Composition would be. It is a custom resource of the CRD installed by the
+# module-level tier, so it can only be applied after that tier.
+apiVersion: kitinline.example.com/v1alpha1
+kind: WidgetClass
+metadata:
+  name: widget-kit-inline-v1-standard
+  labels:
+    kitinline.example.com/tier: line
+    kitinline.example.com/line: v1
+spec:
+  line: v1
+  maxReplicas: 3
+  colors: ["blue", "red", "green"]

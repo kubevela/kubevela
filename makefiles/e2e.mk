@@ -159,7 +159,11 @@ e2e-addon-module-test:
 	# enabled, reSyncPeriod=1m, bin/vela built from this source, and the
 	# images below loaded (registry:2 for modules, chartmuseum for addons;
 	# see test/e2e-addon-module-test/testdata/registry.yaml).
-	ginkgo -v ./test/e2e-addon-module-test
+	# --timeout=2h: Ginkgo's own default (1h) is too tight for this suite --
+	# 17 Ordered scenarios, several doing multiple install/upgrade/uninstall
+	# cycles against installWait=6m/reconcileWait=4m -- and a loaded CI runner
+	# can push the real total past an hour with no single step actually hung.
+	ginkgo -v --timeout=2h ./test/e2e-addon-module-test
 	@$(OK) tests pass
 
 # Bring up (or reuse) the k3d cluster the local e2e targets share, build and
@@ -234,14 +238,14 @@ e2e-local-cluster:
 # routable from the host, which only a Linux host or CI runner has.
 .PHONY: e2e-test-local
 e2e-test-local: e2e-local-cluster
-	ginkgo -v ./test/e2e-addon-module-test
+	ginkgo -v --timeout=2h ./test/e2e-addon-module-test
 	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-module-test
 	@$(OK) tests pass
 
 # Run only the addon-module e2e suite against the local k3d cluster.
 .PHONY: e2e-addon-module-test-local
 e2e-addon-module-test-local: e2e-local-cluster
-	ginkgo -v ./test/e2e-addon-module-test
+	ginkgo -v --timeout=2h ./test/e2e-addon-module-test
 	@$(OK) tests pass
 
 # Run e2e application tests with k3d and webhook validation

@@ -142,7 +142,7 @@ func (s *Service) sourceFS(ctx context.Context, reg *component.Registry, moduleN
 }
 
 // readerFS is the source->tree adapter. It reads the module's files from a
-// component.AsyncReader and assembles a mapFS keyed module-root-relative. It
+// component.AsyncReader and assembles a MapFS keyed module-root-relative. It
 // uses RelativePath (not the raw item path) because that is the reader-agnostic
 // path MemoryReader accepts for ReadFile: it returns "<module>/<rel>", which
 // starts with "<module>/", and readerFS then strips that prefix.
@@ -157,7 +157,7 @@ func readerFS(r component.AsyncReader, moduleName string) (fs.FS, error) {
 		return nil, fmt.Errorf("list modules: %w", err)
 	}
 	prefix := moduleName + "/"
-	files := mapFS{}
+	files := MapFS{}
 	for _, item := range meta.Items {
 		if item.GetType() != component.FileType {
 			continue
