@@ -64,4 +64,4 @@ jobs:
 ### Go Development
 - **Go Runtime**: Specified version with module caching enabled
 - **Go Modules**: Downloaded and verified dependencies
-- **Ginkgo v2.14.0**: BDD testing framework for Go
+- **Ginkgo v2** (the version required in `go.mod`): BDD testing framework for Go

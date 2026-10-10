@@ -10,9 +10,9 @@ gotchas that trip people up.
 | Goal | Command |
 |---|---|
 | Unit tests | `make test` |
-| Controller e2e (self-provisions a cluster) | `make e2e-test-local` |
+| Module/addon-module e2e (self-provisions a cluster) | `make e2e-test-local` |
 | Controller e2e against a cluster you already deployed to | `make e2e-test` |
-| One e2e spec / flake check | `ginkgo -v --focus="<text>" ./test/e2e-test` |
+| One application e2e spec / flake check | `ginkgo -v --focus="<text>" ./test/e2e-application-test` |
 | CLI-driven application e2e | `make e2e-application-test-local` |
 | Coverage-instrumented main e2e | `make e2e-test-main-local` |
 | Addon / multicluster / API e2e | `make e2e-addon-test`, `make e2e-multicluster-test`, `make e2e-api-test` |
@@ -91,10 +91,11 @@ go test ./pkg/<subpath>/... -count=1
 
 The most self-contained option. It creates (or reuses) a `kubevela-debug` k3d
 cluster, builds and imports a `vela-core:e2e-test` image, pre-loads the
-public registry images the "Helmchart Auth" suite needs
-(`ghcr.io/project-zot/zot-minimal-linux-amd64`, `ghcr.io/helm/chartmuseum`,
-`docker.io/library/nginx`), installs the chart with the webhook enabled, and
-runs `./test/e2e-test`:
+public registry images the module and addon-module packages pull (zot for the
+module suite's credentialed-registry test, ChartMuseum and nginx for their
+registries: `ghcr.io/project-zot/zot-minimal-linux-amd64`,
+`ghcr.io/helm/chartmuseum`, `docker.io/library/nginx`), installs the chart with
+the webhook enabled, and runs those two packages:
 
 ```bash
 make e2e-test-local
@@ -135,11 +136,16 @@ It` path. Focus on the parent `Describe` if the spec you care about depends
 on a sibling setup spec; focusing too narrowly will skip it.
 
 ```bash
-ginkgo -v --focus="<some spec description>" ./test/e2e-test
+ginkgo -v --focus="<some spec description>" ./test/e2e-application-test
 
 # Run it a few times in a row to rule out a timing-sensitive flake:
-ginkgo -v --repeat=2 --focus="<some spec description>" ./test/e2e-test
+ginkgo -v --repeat=2 --focus="<some spec description>" ./test/e2e-application-test
 ```
+
+Choose the corresponding definition, config or combined Helm lifecycle/authentication package for
+other core specs. `make e2e-test` runs all four core packages; their individual
+targets and CPU-based worker defaults are documented in
+[`test/E2E_PARALLEL.md`](../../test/E2E_PARALLEL.md).
 
 A handful of controller e2e specs are known to be timing-sensitive under CPU
 load (they assert on a resource reaching some state without a generous

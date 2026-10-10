@@ -32,7 +32,7 @@ import (
 // run validates and packages, then stops before the push.
 const offlineOCIRef = "oci://registry.invalid/modules"
 
-var _ = Describe("Module publish validation (scenario 17, offline)", func() {
+var _ = Describe("Module publish validation (scenario 17, offline)", Label("addon-module-offline"), func() {
 	// invalidModules maps each tree under testdata/modules/invalid to the
 	// fragment of the parser error "vela module publish" must print for it.
 	invalidModules := map[string]string{
@@ -79,7 +79,7 @@ var _ = Describe("Module publish validation (scenario 17, offline)", func() {
 	})
 })
 
-var _ = Describe("Module publish dry run (scenario 01, offline)", func() {
+var _ = Describe("Module publish dry run (scenario 01, offline)", Label("addon-module-offline"), func() {
 	It("prints the target and the line annotations, with disabled lines left out of enabled-lines", func() {
 		out := runVelaSucceed("module", "publish", testdataPath("modules", "widget-kit-1.0.0"), offlineOCIRef, "--dry-run")
 		Expect(out).Should(ContainSubstring("Would publish registry.invalid/modules/widget-kit:1.0.0"))

@@ -39,8 +39,14 @@ limitations under the License.
 package addonmoduletest
 
 import (
+	"context"
+	cryptorand "crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
+	"os"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -54,6 +60,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
 var k8sClient client.Client
@@ -64,16 +71,84 @@ func TestAddonModuleE2E(t *testing.T) {
 	RunSpecs(t, "Addon Module Component E2E Suite")
 }
 
-var _ = BeforeSuite(func() {
+func initializeAddonModuleClient() {
+	if k8sClient != nil {
+		return
+	}
+	cleanupHome, err := prepareAddonModuleWorkerHome()
+	Expect(err).NotTo(HaveOccurred())
+	DeferCleanup(func() { Expect(cleanupHome()).To(Succeed()) })
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 
 	Expect(clientgoscheme.AddToScheme(scheme)).Should(Succeed())
 	Expect(core.AddToScheme(scheme)).Should(Succeed())
 	Expect(apiextensionsv1.AddToScheme(scheme)).Should(Succeed())
 
-	var err error
 	k8sClient, err = client.New(config.GetConfigOrDie(), client.Options{Scheme: scheme})
 	Expect(err).ShouldNot(HaveOccurred())
+}
+
+// CLI subprocesses in different Ginkgo workers must not share writable
+// registry configuration or caches. The kubeconfig remains unchanged.
+func prepareAddonModuleWorkerHome() (func() error, error) {
+	home, err := os.MkdirTemp("", fmt.Sprintf("kubevela-addon-module-e2e-p%d-", GinkgoParallelProcess()))
+	if err != nil {
+		return nil, err
+	}
+	previous, existed := os.LookupEnv(system.VelaHomeEnv)
+	if err := os.Setenv(system.VelaHomeEnv, home); err != nil {
+		_ = os.RemoveAll(home)
+		return nil, err
+	}
+	return func() error {
+		var restoreErr error
+		if existed {
+			restoreErr = os.Setenv(system.VelaHomeEnv, previous)
+		} else {
+			restoreErr = os.Unsetenv(system.VelaHomeEnv)
+		}
+		return errors.Join(restoreErr, os.RemoveAll(home))
+	}, nil
+}
+
+type scenarioSuiteState struct {
+	RunID string
+	Root  string
+}
+
+func initializeScenarioScopes(state scenarioSuiteState) {
+	for _, id := range scenarioIDs {
+		*scenarioScopes[id] = *newScenarioScope(state.RunID, id, state.Root)
+	}
+}
+
+var _ = SynchronizedBeforeSuite(func() []byte {
+	initializeAddonModuleClient()
+	var token [8]byte
+	_, err := cryptorand.Read(token[:])
+	Expect(err).NotTo(HaveOccurred())
+	root, err := os.MkdirTemp("", "kubevela-addon-module-fixtures-")
+	Expect(err).NotTo(HaveOccurred())
+	DeferCleanup(func() { Expect(os.RemoveAll(root)).To(Succeed()) })
+	state := scenarioSuiteState{RunID: hex.EncodeToString(token[:]), Root: root}
+	initializeScenarioScopes(state)
+	for _, id := range scenarioIDs {
+		Expect(scenarioScopes[id].Materialize(testdataPath())).To(Succeed())
+	}
+	setupAddonModuleFixtures(context.Background())
+	data, err := json.Marshal(state)
+	Expect(err).NotTo(HaveOccurred())
+	return data
+}, func(data []byte) {
+	initializeAddonModuleClient()
+	var state scenarioSuiteState
+	Expect(json.Unmarshal(data, &state)).To(Succeed())
+	initializeScenarioScopes(state)
+	resolveAddonModuleRegistries(context.Background())
+})
+
+var _ = SynchronizedAfterSuite(func() {}, func() {
+	cleanupAddonModuleFixtures(context.Background())
 })
 
 // randomName appends a random suffix to basic so a spec that needs its own

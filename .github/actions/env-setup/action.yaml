@@ -89,8 +89,10 @@ runs:
       if: ${{ inputs.install-ginkgo == 'true' }}
       shell: bash
       run: |
-        echo "Installing Ginkgo testing framework..."
-        go install github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
+        # The CLI must match the ginkgo/v2 library the suites are built with.
+        version=$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)
+        echo "Installing Ginkgo testing framework ${version}..."
+        go install "github.com/onsi/ginkgo/v2/ginkgo@${version}"
         echo "Ginkgo installed successfully"
 
     - name: Install setup-envtest
@@ -105,7 +107,7 @@ runs:
 
         # Download and cache the Kubernetes binaries for envtest
         echo "Downloading Kubernetes binaries for envtest..."
-        KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.31.0 --bin-dir ./bin -p path)
+        KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.31.0 --bin-dir "$(pwd)/bin" -p path)
         echo "Kubernetes binaries downloaded successfully"
         echo "KUBEBUILDER_ASSETS=${KUBEBUILDER_ASSETS}"
         # Export for subsequent steps

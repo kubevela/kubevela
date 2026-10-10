@@ -122,6 +122,9 @@ jobs:
 
       - name: Setup kinD
         uses: ./.github/actions/setup-kind-cluster
+        with:
+          # Nothing in check-diff deploys vela-core, so skip building its image.
+          load-image: 'false'
 
       - name: Run cross-build
         run: make cross-build

@@ -1,3 +1,16 @@
+.PHONY: e2e-addon-test
+E2E_PROCS ?= auto
+E2E_TIMEOUT ?= 1h
+E2E_REPORT_DIR ?= _artifacts/e2e
+E2E_CORE_LABEL_FILTER ?=
+E2E_CORE_AUTH ?= 1
+E2E_CORE_REPORT ?= e2e-test
+E2E_CORE_PACKAGES ?= ./test/e2e-application-test ./test/e2e-definition-test ./test/e2e-config-test ./test/e2e-helm-test
+
+.PHONY: e2e-vela-cli
+e2e-vela-cli:
+	$(GOBUILD_ENV) go build -o bin/vela -ldflags $(LDFLAGS) ./references/cmd/cli/main.go
+
 .PHONY: e2e-setup-core-pre-hook
 e2e-setup-core-pre-hook:
 	sh ./hack/e2e/modify_charts.sh
@@ -83,6 +96,13 @@ e2e-setup-core-w-auth:
 .PHONY: e2e-setup-core
 e2e-setup-core: e2e-setup-core-pre-hook e2e-setup-core-wo-auth e2e-setup-core-post-hook
 
+.PHONY: e2e-setup-core-module
+e2e-setup-core-module: e2e-setup-core-pre-hook e2e-setup-core-wo-auth
+	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
+
+.PHONY: e2e-setup-core-minimal
+e2e-setup-core-minimal: e2e-setup-core-module
+
 .PHONY: e2e-setup-core-auth
 e2e-setup-core-auth: e2e-setup-core-pre-hook e2e-setup-core-w-auth e2e-setup-core-post-hook
 
@@ -96,8 +116,37 @@ e2e-api-test:
 .PHONY: e2e-test
 e2e-test:
 	# Run e2e test (KUBEVELA_E2E_AUTH=1 enables auth-test registry setup)
-	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-test
+	mkdir -p "$(E2E_REPORT_DIR)"
+	set -eu; workers=$$(bash hack/e2e/ginkgo_workers.sh "$(E2E_PROCS)"); \
+	echo "Ginkgo workers: $$workers"; \
+	KUBEVELA_E2E_AUTH=$(E2E_CORE_AUTH) ginkgo -v --procs="$$workers" --timeout=$(E2E_TIMEOUT) --label-filter="$(E2E_CORE_LABEL_FILTER)" --json-report="$(E2E_REPORT_DIR)/$(E2E_CORE_REPORT).json" --junit-report="$(E2E_REPORT_DIR)/$(E2E_CORE_REPORT).xml" $(E2E_CORE_PACKAGES)
 	@$(OK) tests pass
+
+# Each execution suite owns its test package; common helpers live in e2e-framework.
+# Simultaneous suite runs must use separate clusters and kubeconfigs.
+.PHONY: e2e-core-application-test e2e-core-definitions-test e2e-core-config-test e2e-core-helm-test e2e-core-helm-auth-test e2e-core-discovery
+e2e-core-application-test:
+	$(MAKE) e2e-test E2E_CORE_PACKAGES=./test/e2e-application-test E2E_CORE_AUTH=0 E2E_CORE_REPORT=e2e-core-application-test
+
+e2e-core-definitions-test:
+	$(MAKE) e2e-test E2E_CORE_PACKAGES=./test/e2e-definition-test E2E_CORE_AUTH=0 E2E_CORE_REPORT=e2e-core-definitions-test
+
+e2e-core-config-test:
+	$(MAKE) e2e-test E2E_CORE_PACKAGES=./test/e2e-config-test E2E_CORE_AUTH=0 E2E_CORE_REPORT=e2e-core-config-test
+
+e2e-core-helm-test:
+	$(MAKE) e2e-test E2E_CORE_PACKAGES=./test/e2e-helm-test E2E_CORE_AUTH=1 E2E_CORE_REPORT=e2e-core-helm-test
+
+# Compatibility target for running only authentication cases in the merged suite.
+e2e-core-helm-auth-test:
+	$(MAKE) e2e-test E2E_CORE_PACKAGES=./test/e2e-helm-test E2E_CORE_AUTH=1 E2E_CORE_LABEL_FILTER=helm-auth E2E_CORE_REPORT=e2e-core-helm-auth-test
+
+e2e-core-discovery:
+	bash hack/e2e/verify_core_shards.sh
+
+.PHONY: e2e-workers-test
+e2e-workers-test:
+	bash hack/e2e/ginkgo_workers_test.sh
 
 .PHONY: e2e-module-test
 e2e-module-test:
@@ -105,7 +154,18 @@ e2e-module-test:
 	# the zot auth-test registry, used by one credentialed-registry test).
 	# Kept as its own package/target so a failure elsewhere in e2e-api-test
 	# or e2e-test cannot prevent this from running.
-	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-module-test
+	mkdir -p "$(E2E_REPORT_DIR)"
+	set -eu; workers=$$(bash hack/e2e/ginkgo_workers.sh "$(E2E_PROCS)"); \
+	echo "Ginkgo workers: $$workers"; \
+	KUBEVELA_E2E_AUTH=1 ginkgo -v --procs="$$workers" --timeout=$(E2E_TIMEOUT) --json-report="$(E2E_REPORT_DIR)/e2e-module-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-module-test.xml" ./test/e2e-module-test
+	@$(OK) tests pass
+
+.PHONY: e2e-source-test
+e2e-source-test:
+	mkdir -p "$(E2E_REPORT_DIR)"
+	set -eu; workers=$$(bash hack/e2e/ginkgo_workers.sh "$(E2E_PROCS)"); \
+	echo "Ginkgo workers: $$workers"; \
+	ginkgo -v --procs="$$workers" --timeout=$(E2E_TIMEOUT) --json-report="$(E2E_REPORT_DIR)/e2e-source-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-source-test.xml" ./test/e2e-source-test
 	@$(OK) tests pass
 
 .PHONY: e2e-addon-component-test
@@ -118,7 +178,10 @@ e2e-addon-component-test:
 	# Kept as its own package/target for the same reason as e2e-module-test:
 	# a failure elsewhere in e2e-api-test or e2e-test must not stop it running.
 	# Requires featureGates.enableAddonComponent=true on the installed chart.
-	ginkgo -v ./test/e2e-addon-component-test
+	mkdir -p "$(E2E_REPORT_DIR)"
+	set -eu; workers=$$(bash hack/e2e/ginkgo_workers.sh "$(E2E_PROCS)"); \
+	echo "Ginkgo workers: $$workers"; \
+	ginkgo -v --procs="$$workers" --timeout=$(E2E_TIMEOUT) --fail-on-empty --json-report="$(E2E_REPORT_DIR)/e2e-addon-component-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-component-test.xml" ./test/e2e-addon-component-test
 	@$(OK) tests pass
 
 # Bring up everything the addon-component suite needs on a local k3d cluster,
@@ -159,8 +222,15 @@ e2e-addon-module-test:
 	# enabled, reSyncPeriod=1m, bin/vela built from this source, and the
 	# images below loaded (registry:2 for modules, chartmuseum for addons;
 	# see test/e2e-addon-module-test/testdata/registry.yaml).
-	ginkgo -v ./test/e2e-addon-module-test
+	mkdir -p "$(E2E_REPORT_DIR)"
+	set -eu; workers=$$(bash hack/e2e/ginkgo_workers.sh "$(E2E_PROCS)"); \
+	echo "Ginkgo workers: $$workers"; \
+	ginkgo -v --procs="$$workers" --timeout=$(E2E_TIMEOUT) --fail-on-empty --json-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.xml" ./test/e2e-addon-module-test
 	@$(OK) tests pass
+
+.PHONY: e2e-addon-module-discovery
+e2e-addon-module-discovery:
+	bash hack/e2e/verify_addon_module_execution.sh
 
 # Bring up (or reuse) the k3d cluster the local e2e targets share, build and
 # load the vela-core image, preload the registry images, and install the chart
@@ -183,7 +253,7 @@ e2e-local-cluster:
 	docker build -t vela-core:e2e-test -f Dockerfile . --build-arg=VERSION=e2e-test --build-arg=GITVERSION=test
 	k3d image import vela-core:e2e-test -c kubevela-debug
 	# Pre-load the registry images the suites deploy (zot/chartmuseum/nginx
-	# for Describe("Helmchart Auth") in test/e2e-test, registry:2 and
+	# for test/e2e-helm-test, registry:2 and
 	# chartmuseum for the module suites). Each command runs on its own line
 	# under `set -e` so a failed pull stops the loop (a `&&` chain would
 	# swallow the failure as far as `set -e` is concerned).
@@ -234,14 +304,14 @@ e2e-local-cluster:
 # routable from the host, which only a Linux host or CI runner has.
 .PHONY: e2e-test-local
 e2e-test-local: e2e-local-cluster
-	ginkgo -v ./test/e2e-addon-module-test
-	KUBEVELA_E2E_AUTH=1 ginkgo -v ./test/e2e-module-test
+	$(MAKE) e2e-addon-module-test
+	$(MAKE) e2e-module-test
 	@$(OK) tests pass
 
 # Run only the addon-module e2e suite against the local k3d cluster.
 .PHONY: e2e-addon-module-test-local
 e2e-addon-module-test-local: e2e-local-cluster
-	ginkgo -v ./test/e2e-addon-module-test
+	$(MAKE) e2e-addon-module-test
 	@$(OK) tests pass
 
 # Run e2e application tests with k3d and webhook validation
@@ -342,10 +412,11 @@ e2e-test-main-clean:
 	@echo "==> Cleanup complete"
 
 
-.PHONY: e2e-addon-test
 e2e-addon-test:
-	cp bin/vela /tmp/
-	ginkgo -v ./test/e2e-addon-test
+	mkdir -p "$(E2E_REPORT_DIR)"
+	set -eu; workers=$$(bash hack/e2e/ginkgo_workers.sh "$(E2E_PROCS)"); \
+	echo "Ginkgo workers: $$workers"; \
+	ginkgo -v --procs="$$workers" --timeout=$(E2E_TIMEOUT) --json-report="$(E2E_REPORT_DIR)/e2e-addon-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-test.xml" ./test/e2e-addon-test
 	@$(OK) tests pass
 
 .PHONY: e2e-multicluster-test

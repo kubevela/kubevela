@@ -60,10 +60,56 @@ make e2e-test-local                 # the same setup, then this suite and test/e
 make e2e-addon-module-test          # against an already prepared cluster
 ```
 
-The suite is `Ordered`. It publishes the fixtures once, then runs one
-`Context` per scenario; every scenario removes what it installed. Two
-scenarios restart vela-core and one toggles its feature gates, so do not run
-it against a cluster that other tests share.
+CI runs one job with one Ginkgo worker per available CPU. Scenarios with
+dependent steps use separate `Ordered` containers (08 and 07 share one chain);
+the read-only scenario 01 is not ordered. Each scenario has a namespace, module/addon
+identities, exported definition aliases, CRD API group and ClusterRole names
+specific to that scenario and run. The original fixture files remain intact;
+synchronized setup materializes private copies and publishes initial versions
+before tests can render. Each worker has its own `VELA_HOME`.
+
+Scenarios 08 and 07 stay together because the first publishes versions the
+second uses. Scenarios 05, 09, 15 and 18 use `Serial, Ordered`: they change
+default-registry resolution, restart the shared controller or toggle gates.
+This leaves 69 specs in parallel-capable scenarios and 13 serial specs. The
+same observation windows and parameter/version/line contracts are retained.
+
+Use `E2E_PROCS=1` for serial execution or `E2E_PROCS=auto` (the default)
+for parallel workers. `E2E_REPORT_DIR` selects the JSON/JUnit output directory.
+For example:
+
+```bash
+KUBECONFIG=/absolute/path/to/test-cluster.kubeconfig make e2e-addon-module-test E2E_PROCS=2
+make e2e-addon-module-discovery  # no live cluster needed
+```
+
+Use a dedicated cluster per complete invocation; separate invocations cannot
+coordinate their controller restarts through Ginkgo's `Serial` decorator.
+Avoid focusing only scenario 07, since it needs scenario 08 to publish its
+module versions. The discovery target verifies fixture parsing, definition
+resolution, cleanup ownership, real Ginkgo scheduling metadata and complete
+spec discovery. The single addon/module CI job runs it automatically.
+
+After building `bin/vela` and preparing the dedicated cluster, compare
+`make e2e-addon-module-test E2E_PROCS=1` with `E2E_PROCS=2` and the default
+`E2E_PROCS=auto`. Repeat the parallel run with distinct seeds and keep reports:
+
+```bash
+set -euo pipefail
+mkdir -p _artifacts/e2e
+workers=$(bash hack/e2e/ginkgo_workers.sh auto)
+for seed in 101 202 303; do
+  ginkgo -v --procs="$workers" --seed="$seed" --timeout=1h --fail-on-empty \
+    --json-report="_artifacts/e2e/addon-module-$seed.json" \
+    --junit-report="_artifacts/e2e/addon-module-$seed.xml" ./test/e2e-addon-module-test
+done
+```
+
+Inspect process assignments and timestamps for overlapping independent
+scenarios, absence of overlap during the serial phase, all 82 specs passing,
+and no scenario namespaces, CRDs, definitions, roles or Applications left
+after cleanup. A dry run proves discovery and scheduling configuration, not
+live concurrent execution or a runtime improvement.
 
 ## Layout
 
@@ -73,7 +119,10 @@ it against a cluster that other tests share.
 | `testdata/addons/` | `widget-platform` 1.0.0/1.1.0/1.2.0, `kit-suite` 1.0.0/2.0.0, `widget-latest`, `import-options`, `tenant-widgets`, `cache-probe` builds a and b, `broken-imports` 1.0.1 to 1.0.7 |
 | `testdata/apps/` | consumer Applications that use the module definitions |
 | `publish_validation_test.go` | CLI-only checks (`vela module publish --dry-run`) |
-| `addon_module_e2e_test.go` | the ordered cluster scenarios |
+| `addon_module_e2e_test.go` | independent ordered scenarios and the narrow serial phase |
+| `scenario_scope_helpers_test.go` | generated fixture identities and structured YAML/CUE materialization |
+| `scenario_runtime_helpers_test.go` | scenario ownership, cleanup and publication helpers |
+| `scenario_scope_test.go`, `scheduling_test.go` | cluster-free isolation and execution-contract tests |
 
 The fixtures are copies of `testing/addon-module-cr-based-single-cluster/test-*`
 with the registry names changed to `e2e-modules` and `e2e-addons`.

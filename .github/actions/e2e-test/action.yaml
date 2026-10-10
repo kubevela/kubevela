@@ -10,10 +10,48 @@ inputs:
     description: 'Enable codecov coverage upload'
     required: false
     default: 'false'
+  addon-procs:
+    description: 'Addon Ginkgo workers: auto uses all available CPUs; or a positive integer'
+    required: false
+    default: 'auto'
+  suite:
+    description: 'Suite: all, api, addon, core (all core tests), core-application, core-definitions, core-config, core-helm, core-helm-auth, module, source, or addon-module'
+    required: false
+    default: 'all'
+  procs:
+    description: 'Ginkgo workers: auto uses all available CPUs; or a positive integer'
+    required: false
+    default: 'auto'
+  image-artifact:
+    description: 'Artifact of this run holding a prebuilt vela-core e2e image archive; empty when setup-kind-cluster loaded the image'
+    required: false
+    default: ''
+  image-job:
+    description: 'Name of the job that uploads image-artifact, watched so its failure ends the wait'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
   steps:
+    - name: Validate suite selection
+      id: workers
+      shell: bash
+      env:
+        E2E_SUITE: ${{ inputs.suite }}
+        E2E_WORKERS: ${{ inputs.procs }}
+        E2E_ADDON_WORKERS: ${{ inputs.addon-procs }}
+      run: |
+        case "$E2E_SUITE" in
+          all|api|addon|core|core-application|core-definitions|core-config|core-helm|core-helm-auth|module|source|addon-module) ;;
+          *) echo "Unknown E2E suite: $E2E_SUITE" >&2; exit 1 ;;
+        esac
+        bash hack/e2e/ginkgo_workers_test.sh
+        workers=$(bash hack/e2e/ginkgo_workers.sh "$E2E_WORKERS")
+        addon_workers=$(bash hack/e2e/ginkgo_workers.sh "$E2E_ADDON_WORKERS")
+        echo "Ginkgo workers: $workers; addon workers: $addon_workers"
+        printf 'procs=%s\naddon-procs=%s\n' "$workers" "$addon_workers" >> "$GITHUB_OUTPUT"
+
     # ========================================================================
     # Environment Setup
     # ========================================================================
@@ -26,17 +64,54 @@ runs:
 
     - name: Build project
       shell: bash
-      run: make
+      env:
+        E2E_SUITE: ${{ inputs.suite }}
+      run: |
+        case "$E2E_SUITE" in
+          all|api) make ;;
+          core|core-application|core-definitions|core-config|module|addon|addon-module) make e2e-vela-cli ;;
+          source|core-helm|core-helm-auth) : ;;
+        esac
+
+    # ========================================================================
+    # Prebuilt image: built once per run while this job set up the cluster
+    # ========================================================================
+    - name: Wait for prebuilt vela-core image
+      if: ${{ inputs.image-artifact != '' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        IMAGE_ARTIFACT: ${{ inputs.image-artifact }}
+        IMAGE_JOB: ${{ inputs.image-job }}
+      run: bash hack/e2e/wait_for_artifact.sh "$IMAGE_ARTIFACT" "$IMAGE_JOB"
+
+    - name: Download prebuilt vela-core image
+      if: ${{ inputs.image-artifact != '' }}
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: ${{ inputs.image-artifact }}
+        path: _artifacts/image
+
+    - name: Load prebuilt vela-core image
+      if: ${{ inputs.image-artifact != '' }}
+      shell: bash
+      run: make image-load-archive E2E_IMAGE_ARCHIVE=_artifacts/image/vela-core-test.tar
 
     # ========================================================================
     # E2E Test Environment Preparation
     # ========================================================================
     - name: Prepare e2e environment
+      id: prepare
       shell: bash
+      env:
+        E2E_SUITE: ${{ inputs.suite }}
       run: |
         echo "Preparing e2e test environment..."
         make e2e-cleanup
-        make e2e-setup-core
+        case "$E2E_SUITE" in
+          module|addon-module|source|core-helm|core-helm-auth) make e2e-setup-core-minimal ;;
+          *) make e2e-setup-core ;;
+        esac
 
         echo "Running Helm tests..."
         helm test -n vela-system kubevela --timeout 5m
@@ -44,53 +119,89 @@ runs:
     # ========================================================================
     # E2E Test Execution
     # ========================================================================
-    - name: Run API e2e tests
+    - name: Verify core suite partition preserves coverage
+      if: ${{ inputs.suite == 'core-application' }}
+      shell: bash
+      run: make e2e-core-discovery
+
+    - name: Verify addon/module discovery and scheduling
+      if: ${{ inputs.suite == 'addon-module' }}
+      shell: bash
+      run: make e2e-addon-module-discovery
+
+    - name: Run e2e/ API tests
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'api') }}
       shell: bash
       run: |
         echo "Running API e2e tests..."
         make e2e-api-test
 
-    - name: Run addon e2e tests
+    - name: Run test/e2e-addon-test
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'addon') }}
       shell: bash
+      env:
+        E2E_ADDON_PROCS: ${{ steps.workers.outputs.addon-procs }}
       run: |
         echo "Running addon e2e tests..."
-        make e2e-addon-test
+        make e2e-addon-test E2E_PROCS="$E2E_ADDON_PROCS"
 
-    - name: Run general e2e tests
+    - name: Run selected core test package
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'core' || startsWith(inputs.suite, 'core-')) }}
       shell: bash
+      env:
+        E2E_WORKERS: ${{ steps.workers.outputs.procs }}
+        E2E_SUITE: ${{ inputs.suite }}
       run: |
         echo "Running general e2e tests..."
-        make e2e-test
+        case "$E2E_SUITE" in
+          all|core) make e2e-test E2E_PROCS="$E2E_WORKERS" ;;
+          core-*) make "e2e-${E2E_SUITE}-test" E2E_PROCS="$E2E_WORKERS" ;;
+        esac
 
-    - name: Run module e2e tests
-      # Its own step, own package, and always() so a failure in an earlier
-      # step (e.g. an unrelated e2e-api-test flake) cannot prevent this from
-      # running.
-      if: always()
+    - name: Run test/e2e-module-test
+      # Its own step and package, gated on !cancelled() and a successful
+      # environment preparation rather than on earlier test steps, so a
+      # failure in another suite (e.g. an e2e-api-test flake) cannot prevent
+      # this from running. The steps below are gated the same way.
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'module') }}
       shell: bash
+      env:
+        E2E_WORKERS: ${{ steps.workers.outputs.procs }}
+        E2E_SUITE: ${{ inputs.suite }}
       run: |
         echo "Running module e2e tests..."
-        make e2e-module-test
+        make e2e-module-test E2E_PROCS="$E2E_WORKERS"
 
-    - name: Run addon-component e2e tests
+    - name: Run test/e2e-source-test
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'source') }}
+      shell: bash
+      env:
+        E2E_WORKERS: ${{ steps.workers.outputs.procs }}
+        E2E_SUITE: ${{ inputs.suite }}
+      run: |
+        make e2e-source-test E2E_PROCS="$E2E_WORKERS"
+
+    - name: Run test/e2e-addon-module-test
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'addon-module') }}
+      shell: bash
+      env:
+        E2E_WORKERS: ${{ steps.workers.outputs.procs }}
+        E2E_SUITE: ${{ inputs.suite }}
+      run: |
+        make e2e-addon-module-test E2E_PROCS="$E2E_WORKERS"
+
+    - name: Run test/e2e-addon-component-test
       # Same reasoning as the module step above. The suite brings up its own
       # in-cluster ChartMuseum and pushes its fixtures into it, so it needs no
       # external registry; e2e-setup-core has already installed the chart with
       # featureGates.enableAddonComponent=true.
-      if: always()
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'api') }}
       shell: bash
+      env:
+        E2E_ADDON_PROCS: ${{ steps.workers.outputs.addon-procs }}
       run: |
         echo "Running addon-component e2e tests..."
-        make e2e-addon-component-test
-
-    - name: Run addon-module e2e tests
-      # This test installs addons that import modules. It makes sure that
-      # KubeVela installs, upgrades and removes these addons and modules correctly.
-      if: always()
-      shell: bash
-      run: |
-        echo "Running addon-module e2e tests..."
-        make e2e-addon-module-test
+        make e2e-addon-component-test E2E_PROCS="$E2E_ADDON_PROCS"
 
     - name: Upload coverage report
       if: ${{ inputs.codecov-enable == 'true' }}
@@ -106,7 +217,7 @@ runs:
     # Failure Diagnostics
     # ========================================================================
     - name: Collect failure diagnostics
-      if: failure()
+      if: ${{ failure() }}
       shell: bash
       run: |
         echo "=== FAILURE DIAGNOSTICS ==="
@@ -121,6 +232,12 @@ runs:
 
         echo "--- Recent Events ---"
         kubectl get events -A --sort-by='.lastTimestamp' --field-selector type!=Normal || true
+
+        echo "--- APIServices Not Available ---"
+        kubectl get apiservices | grep -v ' True ' || true
+
+        echo "--- Namespaces Still Terminating ---"
+        kubectl get namespaces --field-selector status.phase=Terminating -o jsonpath='{range .items[*]}{.metadata.name}{": "}{.status.conditions}{"\n"}{end}' || true
 
         echo "--- Helm Release Status ---"
         helm list -A || true

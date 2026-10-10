@@ -7,6 +7,8 @@ A GitHub Action that sets up a Kubernetes testing environment using Kind (Kubern
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
 | `k8s-version` | Kubernetes version for the kind cluster | No | `v1.31.9` |
+| `name` | Name of the kind cluster; a named cluster skips the image load | No | |
+| `load-image` | Build the vela-core e2e image and load it into the cluster. Set `'false'` when the job loads a prebuilt image later, as the E2E Test workflow does with `make image-load-archive` | No | `'true'` |
 
 ## Quick Start
 
@@ -41,38 +43,12 @@ jobs:
 2. **Cleans up** - Removes any existing Kind clusters
 3. **Creates cluster** - Spins up Kubernetes v1.31.9 cluster
 4. **Sets up environment** - Configures KUBECONFIG for kubectl access
-5. **Loads images** - Builds and loads Docker images using `make image-load`
+5. **Loads images** - Builds and loads Docker images using `make image-load`,
+   unless `load-image` is `'false'`. The E2E Test workflow builds the image once
+   in a separate job (`make image-archive`) and each suite job loads that
+   archive with `make image-load-archive` instead.
 
 ## File Structure
 
-Save as `.github/actions/setup-kind-cluster/action.yaml`:
-
-```yaml
-name: 'SetUp kind cluster'
-description: 'Sets up complete testing environment for Kubevela with Go, Kubernetes tools, and Ginkgo framework for E2E testing.'
-
-inputs:
-  k8s-version:
-    description: 'Kubernetes version for the kind cluster'
-    required: false
-    default: 'v1.31.9'
-
-runs:
-  using: 'composite'
-  steps:
-    # ========================================================================
-    # Kind cluster Setup
-    # ========================================================================
-    - name: Setup KinD
-      run: |
-        go install sigs.k8s.io/kind@v0.29.0
-        kind delete cluster || true
-        kind create cluster --image=kindest/node:${{ inputs.k8s-version }}
-      shell: bash
-
-    - name: Load image
-      run: |
-        mkdir -p $HOME/tmp/
-        TMPDIR=$HOME/tmp/ make image-load
-      shell: bash
-```
+The action is defined in [`action.yaml`](action.yaml) in this directory; read
+it there rather than from a copy here, so the steps and inputs stay current.

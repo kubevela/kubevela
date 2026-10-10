@@ -19,6 +19,11 @@ permissions:
 env:
   # Common versions
   GO_VERSION: '1.23.8'
+  # Every suite job loads the same image, built once by build-image. Suite jobs
+  # do not wait for that job: they set up their cluster meanwhile and wait for
+  # the artifact just before installing the chart.
+  E2E_IMAGE_ARTIFACT: vela-core-e2e-image-${{ github.run_id }}
+  E2E_IMAGE_JOB: Build vela-core e2e image
 
 jobs:
 
@@ -38,15 +43,67 @@ jobs:
           do_not_skip: '["workflow_dispatch", "schedule", "push"]'
         continue-on-error: true
 
-  e2e-tests:
+  build-image:
+    name: Build vela-core e2e image
     runs-on: ubuntu-22.04
     needs: [ detect-noop ]
     if: needs.detect-noop.outputs.noop != 'true'
+    timeout-minutes: 30
+    steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+
+      - name: Build and save image
+        run: make image-archive E2E_IMAGE_ARCHIVE=_artifacts/image/vela-core-test.tar
+
+      - name: Upload image
+        uses: actions/upload-artifact@134dcf33c0b9454c4b17a936843d7e21dccdc335 # v4.3.6
+        with:
+          name: ${{ env.E2E_IMAGE_ARTIFACT }}
+          path: _artifacts/image/vela-core-test.tar
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
+
+  e2e-tests:
+    name: ${{ matrix.package }} / Kubernetes ${{ matrix.k8s-version }}
+    runs-on: ubuntu-22.04
+    needs: [ detect-noop ]
+    if: needs.detect-noop.outputs.noop != 'true'
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
     strategy:
+      fail-fast: false
       matrix:
-        k8s-version: ["v1.31"]
+        include:
+          - suite: core-application
+            package: e2e-application-test
+            k8s-version: v1.31.9
+          - suite: core-definitions
+            package: e2e-definition-test
+            k8s-version: v1.31.9
+          - suite: core-config
+            package: e2e-config-test
+            k8s-version: v1.31.9
+          - suite: core-helm
+            package: e2e-helm-test
+            k8s-version: v1.31.9
+          - suite: module
+            package: e2e-module-test
+            k8s-version: v1.31.9
+          - suite: source
+            package: e2e-source-test
+            k8s-version: v1.31.9
+          - suite: addon
+            package: e2e-addon-test
+            k8s-version: v1.31.9
+          - suite: addon-module
+            package: e2e-addon-module-test
+            k8s-version: v1.31.9
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}-${{ matrix.suite }}
       cancel-in-progress: true
 
     steps:
@@ -55,24 +112,27 @@ jobs:
 
       - name: Setup KinD
         uses: ./.github/actions/setup-kind-cluster
+        with:
+          k8s-version: ${{ matrix.k8s-version }}
+          load-image: 'false'
 
       # ========================================================================
       # E2E Test Execution
       # ========================================================================
-      - name: Run upgrade e2e tests
+      - name: Run E2E suite
         uses: ./.github/actions/e2e-test
         with:
-          codecov-enable: true
-          codecov-token: ${{ secrets.CODECOV_TOKEN }}
+          suite: ${{ matrix.suite }}
+          image-artifact: ${{ env.E2E_IMAGE_ARTIFACT }}
+          image-job: ${{ env.E2E_IMAGE_JOB }}
 
-      - name: Clean e2e profile
-        run: |
-          if [ -f /tmp/e2e-profile.out ]; then
-            rm /tmp/e2e-profile.out
-            echo "E2E profile cleaned"
-          else
-            echo "E2E profile not found, skipping cleanup"
-          fi
+      - name: Upload suite reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@134dcf33c0b9454c4b17a936843d7e21dccdc335 # v4.3.6
+        with:
+          name: e2e-${{ matrix.suite }}-${{ matrix.k8s-version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: _artifacts/e2e/
+          if-no-files-found: warn
 
       - name: Cleanup image
         if: ${{ always() }}
@@ -80,3 +140,36 @@ jobs:
           make image-cleanup
           docker image prune -f --filter "until=24h"
 
+  e2e-api:
+    name: e2e/ + test/e2e-addon-component-test / Kubernetes v1.31.9
+    runs-on: ubuntu-22.04
+    needs: [ detect-noop ]
+    if: ${{ !cancelled() && needs.detect-noop.outputs.noop != 'true' }}
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-v1.31.9-api
+      cancel-in-progress: true
+    steps:
+      - name: Check out code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - name: Setup KinD
+        uses: ./.github/actions/setup-kind-cluster
+        with:
+          k8s-version: v1.31.9
+          load-image: 'false'
+      - name: Run existing API E2E tests
+        uses: ./.github/actions/e2e-test
+        with:
+          suite: api
+          codecov-enable: true
+          codecov-token: ${{ secrets.CODECOV_TOKEN }}
+          image-artifact: ${{ env.E2E_IMAGE_ARTIFACT }}
+          image-job: ${{ env.E2E_IMAGE_JOB }}
+      - name: Cleanup image
+        if: ${{ always() }}
+        run: |
+          make image-cleanup
+          docker image prune -f --filter "until=24h"
