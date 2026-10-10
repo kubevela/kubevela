@@ -44,10 +44,10 @@ func TestAddonModuleWorkerHomeIsPrivateAndRestored(t *testing.T) {
 	if _, err := os.Stat(home); err != nil {
 		t.Fatal(err)
 	}
-	cleaned = true
 	if err := cleanup(); err != nil {
 		t.Fatal(err)
 	}
+	cleaned = true
 	if got := os.Getenv(system.VelaHomeEnv); got != prior {
 		t.Fatalf("restored VELA_HOME = %q, want %q", got, prior)
 	}

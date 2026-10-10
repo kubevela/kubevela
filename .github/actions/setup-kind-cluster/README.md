@@ -50,34 +50,5 @@ jobs:
 
 ## File Structure
 
-Save as `.github/actions/setup-kind-cluster/action.yaml`:
-
-```yaml
-name: 'SetUp kind cluster'
-description: 'Sets up complete testing environment for Kubevela with Go, Kubernetes tools, and Ginkgo framework for E2E testing.'
-
-inputs:
-  k8s-version:
-    description: 'Kubernetes version for the kind cluster'
-    required: false
-    default: 'v1.31.9'
-
-runs:
-  using: 'composite'
-  steps:
-    # ========================================================================
-    # Kind cluster Setup
-    # ========================================================================
-    - name: Setup KinD
-      run: |
-        go install sigs.k8s.io/kind@v0.29.0
-        kind delete cluster || true
-        kind create cluster --image=kindest/node:${{ inputs.k8s-version }}
-      shell: bash
-
-    - name: Load image
-      run: |
-        mkdir -p $HOME/tmp/
-        TMPDIR=$HOME/tmp/ make image-load
-      shell: bash
-```
+The action is defined in [`action.yaml`](action.yaml) in this directory; read
+it there rather than from a copy here, so the steps and inputs stay current.

@@ -10,7 +10,8 @@ trap 'rm -f "$report_dir"/all.json; rmdir "$report_dir"' EXIT
 unit_tests='^Test(Scenario|Scoped|AddonModuleScheduling|AddonModuleWorker)'
 # go test -run succeeds when nothing matches, which would turn this check into
 # a no-op after a rename.
-if ! go test ./test/e2e-addon-module-test -list "$unit_tests" | grep -q '^Test'; then
+listed=$(go test ./test/e2e-addon-module-test -list "$unit_tests")
+if ! grep -q '^Test' <<<"$listed"; then
   echo "no addon/module scheduling or scope tests match $unit_tests" >&2
   exit 1
 fi

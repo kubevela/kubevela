@@ -12,9 +12,14 @@ deadline=$((SECONDS + timeout))
 
 while ((SECONDS < deadline)); do
   # "pending" while the job runs; empty when this attempt does not include it.
-  state=$(gh api "${runs}/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100" \
-    --jq ".jobs[] | select(.name == \"${job}\") | .conclusion // \"pending\"")
-  listed=$(gh api "${runs}/artifacts?name=${artifact}" --jq '.artifacts[].id')
+  # A failed lookup is retried on the next poll rather than ending the wait.
+  if ! state=$(gh api "${runs}/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100" \
+    --jq ".jobs[] | select(.name == \"${job}\") | .conclusion // \"pending\""); then
+    echo "Looking up job '${job}' failed; retrying"
+    sleep 10
+    continue
+  fi
+  listed=$(gh api "${runs}/artifacts?name=${artifact}" --jq '.artifacts[].id') || listed=""
   case "${state}" in
     success)
       # The job finishes only after its upload step has finalized the
