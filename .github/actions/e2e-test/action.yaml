@@ -232,6 +232,12 @@ runs:
         echo "--- Recent Events ---"
         kubectl get events -A --sort-by='.lastTimestamp' --field-selector type!=Normal || true
 
+        echo "--- APIServices Not Available ---"
+        kubectl get apiservices | grep -v ' True ' || true
+
+        echo "--- Namespaces Still Terminating ---"
+        kubectl get namespaces --field-selector status.phase=Terminating -o jsonpath='{range .items[*]}{.metadata.name}{": "}{.status.conditions}{"\n"}{end}' || true
+
         echo "--- Helm Release Status ---"
         helm list -A || true
         helm status kubevela -n vela-system || true

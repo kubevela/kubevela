@@ -29,6 +29,7 @@ import (
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -280,9 +281,20 @@ var _ = Describe("Helmchart Self-Healing", Label("core-helm"), Ordered, func() {
 		runCommandSucceed("kubectl", "delete", "namespace", h.Namespace, "--wait=false")
 
 		By("Waiting for namespace to be fully deleted")
-		Eventually(func() bool {
-			return k8sClient.Get(h.Ctx, types.NamespacedName{Name: h.Namespace}, &corev1.Namespace{}) != nil
-		}, 120*time.Second, 3*time.Second).Should(BeTrue())
+		// Deletion is the namespace controller's work, normally seconds, but it
+		// backs off when it cannot list or remove the content on a busy cluster.
+		// The conditions in the failure say what it was still waiting for.
+		Eventually(func() error {
+			ns := &corev1.Namespace{}
+			err := k8sClient.Get(h.Ctx, types.NamespacedName{Name: h.Namespace}, ns)
+			if apierrors.IsNotFound(err) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			return fmt.Errorf("namespace %s is still %s: %+v", ns.Name, ns.Status.Phase, ns.Status.Conditions)
+		}, 5*time.Minute, 3*time.Second).Should(Succeed())
 
 		By("Verifying Application CR survives (it is in default namespace)")
 		Expect(k8sClient.Get(h.Ctx, h.AppKey, h.App)).Should(Succeed())
