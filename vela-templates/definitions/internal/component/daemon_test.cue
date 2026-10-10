@@ -75,6 +75,26 @@ _daemon: {
 	}
 }
 
+"a containerPort is what the container listens on and the Service targets": test.#ComponentRender & _daemon & {
+	parameter: {
+		image: "log-agent:1.0"
+		ports: [
+			{port: 80, containerPort: 8080, expose: true},
+			{port: 443, containerPort: 8443, name: "https", expose: true},
+		]
+	}
+	expect: {
+		output: spec: template: spec: containers: [{ports: [
+			{containerPort: 8080, protocol: "TCP", name: "port-8080"},
+			{containerPort: 8443, protocol: "TCP", name: "https"},
+		]}]
+		outputs: webserviceExpose: spec: ports: [
+			{port: 80, targetPort: 8080, name: "port-8080"},
+			{port: 443, targetPort: 8443, name: "https"},
+		]
+	}
+}
+
 "ports take precedence over port": test.#ComponentRender & _daemon & {
 	parameter: {image: "log-agent:1.0", port: 8080, ports: [{port: 9090}]}
 	expect: output: spec: template: spec: containers: [{ports: [{containerPort: 9090}]}]
