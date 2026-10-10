@@ -76,6 +76,11 @@ func ExprTraitDefinition(namespace, name, template string) *v1beta1.TraitDefinit
 // sleep, which would be both slower and still racy.
 func ApplyDefinition(ctx context.Context, cli client.Client, obj client.Object) {
 	ginkgo.GinkgoHelper()
+	switch obj.(type) {
+	case *v1beta1.SourceDefinition, *v1beta1.ComponentDefinition, *v1beta1.PolicyDefinition, *v1beta1.TraitDefinition:
+	default:
+		ginkgo.Fail(fmt.Sprintf("ApplyDefinition does not know when a %T has been reconciled", obj))
+	}
 	gomega.Expect(cli.Create(ctx, obj)).Should(gomega.SatisfyAny(gomega.BeNil(), &util.AlreadyExistMatcher{}))
 
 	key := client.ObjectKeyFromObject(obj)

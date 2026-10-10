@@ -91,10 +91,11 @@ go test ./pkg/<subpath>/... -count=1
 
 The most self-contained option. It creates (or reuses) a `kubevela-debug` k3d
 cluster, builds and imports a `vela-core:e2e-test` image, pre-loads the
-public registry images the "Helmchart Auth" suite needs
-(`ghcr.io/project-zot/zot-minimal-linux-amd64`, `ghcr.io/helm/chartmuseum`,
-`docker.io/library/nginx`), installs the chart with the webhook enabled, and
-runs the module and addon-module packages:
+public registry images the module and addon-module packages pull (zot for the
+module suite's credentialed-registry test, ChartMuseum and nginx for their
+registries: `ghcr.io/project-zot/zot-minimal-linux-amd64`,
+`ghcr.io/helm/chartmuseum`, `docker.io/library/nginx`), installs the chart with
+the webhook enabled, and runs those two packages:
 
 ```bash
 make e2e-test-local

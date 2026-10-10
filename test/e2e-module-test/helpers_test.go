@@ -38,6 +38,38 @@ import (
 // behind does not fail. The kinds handled are exactly the ones this suite's
 // fixtures use.
 func applyManifestFile(ctx context.Context, k8sClient client.Client, path string) error {
+	return eachFixtureObject(path, func(obj client.Object) error {
+		if err := k8sClient.Create(ctx, obj); err != nil && !apierrIsAlreadyExists(err) {
+			return err
+		}
+		return nil
+	})
+}
+
+// createOCIRegistry installs the registry fixture in a namespace owned by one
+// test scenario. It never adopts an existing registry: doing so would let one
+// scenario tear down a Service still used by another.
+func createOCIRegistry(ctx context.Context, k8sClient client.Client, namespace string) error {
+	if namespace == "" {
+		return fmt.Errorf("registry namespace must not be empty")
+	}
+	return eachFixtureObject("testdata/module/registry.yaml", func(obj client.Object) error {
+		switch obj.(type) {
+		case *appsv1.Deployment, *corev1.Service:
+		default:
+			return fmt.Errorf("registry fixture contains unexpected %T", obj)
+		}
+		if obj.GetNamespace() != "" {
+			return fmt.Errorf("registry fixture must not hardcode namespace %q", obj.GetNamespace())
+		}
+		obj.SetNamespace(namespace)
+		return k8sClient.Create(ctx, obj)
+	})
+}
+
+// eachFixtureObject decodes every document of a multi-document YAML/JSON
+// fixture and passes each object to visit, skipping empty documents.
+func eachFixtureObject(path string, visit func(client.Object) error) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return err
@@ -59,50 +91,7 @@ func applyManifestFile(ctx context.Context, k8sClient client.Client, path string
 		if err != nil {
 			return err
 		}
-		if err := k8sClient.Create(ctx, obj); err != nil && !apierrIsAlreadyExists(err) {
-			return err
-		}
-	}
-}
-
-// createOCIRegistry installs the registry fixture in a namespace owned by one
-// test scenario. It never adopts an existing registry: doing so would let one
-// scenario tear down a Service still used by another.
-func createOCIRegistry(ctx context.Context, k8sClient client.Client, namespace string) error {
-	if namespace == "" {
-		return fmt.Errorf("registry namespace must not be empty")
-	}
-	f, err := os.Open("testdata/module/registry.yaml")
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	decoder := yaml.NewYAMLOrJSONDecoder(bufio.NewReader(f), 4096)
-	for {
-		raw := map[string]any{}
-		if err := decoder.Decode(&raw); err != nil {
-			if err == io.EOF {
-				return nil
-			}
-			return err
-		}
-		if len(raw) == 0 {
-			continue
-		}
-		obj, err := decodeKubeObject(raw)
-		if err != nil {
-			return err
-		}
-		switch obj.(type) {
-		case *appsv1.Deployment, *corev1.Service:
-		default:
-			return fmt.Errorf("registry fixture contains unexpected %T", obj)
-		}
-		if obj.GetNamespace() != "" {
-			return fmt.Errorf("registry fixture must not hardcode namespace %q", obj.GetNamespace())
-		}
-		obj.SetNamespace(namespace)
-		if err := k8sClient.Create(ctx, obj); err != nil {
+		if err := visit(obj); err != nil {
 			return err
 		}
 	}

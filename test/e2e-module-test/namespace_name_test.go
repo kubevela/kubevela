@@ -17,9 +17,11 @@ limitations under the License.
 package controllers_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
+	. "github.com/onsi/ginkgo/v2"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
@@ -34,6 +36,11 @@ func TestRandomNamespaceNameIsUniqueAcrossRuns(t *testing.T) {
 		if !strings.HasPrefix(name, "module-tenant-") {
 			t.Fatalf("namespace %q lost its restriction prefix", name)
 		}
+		// Random tokens alone collide across workers only by chance; the
+		// worker number makes names from different workers distinct.
+		if worker := fmt.Sprintf("-%d-", GinkgoParallelProcess()); !strings.Contains(name, worker) {
+			t.Fatalf("namespace %q lost its worker token %q", name, worker)
+		}
 		if errs := validation.IsDNS1123Label(name); len(errs) != 0 {
 			t.Fatalf("invalid namespace %q: %v", name, errs)
 		}
@@ -44,6 +51,9 @@ func TestRandomNamespaceNameTruncatesOnlyReadablePrefix(t *testing.T) {
 	name := randomNamespaceName(strings.Repeat("Long.Prefix_", 12))
 	if len(name) > 63 {
 		t.Fatalf("namespace exceeds DNS label limit: %q", name)
+	}
+	if !strings.HasPrefix(name, "long-prefix") {
+		t.Fatalf("namespace %q lost its readable prefix after truncation", name)
 	}
 	if errs := validation.IsDNS1123Label(name); len(errs) != 0 {
 		t.Fatalf("invalid namespace %q: %v", name, errs)

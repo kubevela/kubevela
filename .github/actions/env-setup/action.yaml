@@ -89,8 +89,10 @@ runs:
       if: ${{ inputs.install-ginkgo == 'true' }}
       shell: bash
       run: |
-        echo "Installing Ginkgo testing framework..."
-        go install github.com/onsi/ginkgo/v2/ginkgo
+        # The CLI must match the ginkgo/v2 library the suites are built with.
+        version=$(go list -m -f '{{.Version}}' github.com/onsi/ginkgo/v2)
+        echo "Installing Ginkgo testing framework ${version}..."
+        go install "github.com/onsi/ginkgo/v2/ginkgo@${version}"
         echo "Ginkgo installed successfully"
 
     - name: Install setup-envtest

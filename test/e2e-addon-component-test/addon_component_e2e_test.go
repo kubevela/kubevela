@@ -128,7 +128,9 @@ var _ = Describe("Addon as a component", func() {
 
 	// --- Scenario 1: registry management ---
 
-	Context("registry management (scenario 1)", Ordered, func() {
+	// Serial: it adds and deletes entries in the cluster-wide registry
+	// ConfigMap that every other group reads.
+	Context("registry management (scenario 1)", Ordered, Serial, func() {
 		const secondRegistry = "addon-e2e-cm-2"
 
 		AfterEach(func() {

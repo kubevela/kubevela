@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package controllers_test contains E2E tests for Application-scoped PolicyDefinitions.
+// Package config_test contains E2E tests for Application-scoped PolicyDefinitions.
 //
 // PREREQUISITE: The KubeVela controller must be deployed with the following feature gates enabled:
 //

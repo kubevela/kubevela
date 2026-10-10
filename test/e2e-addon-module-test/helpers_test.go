@@ -605,7 +605,8 @@ func appRef(ns, name string) client.Object {
 // eventuallyReconciled polls assertion while requesting reconciles of apps
 // whenever the controller leaves them alone, so a wait for the next resync or
 // for a failing step's backoff is cut short. A requested reconcile takes the
-// resync path: it changes no spec, so no workflow runs because of it.
+// resync path: it changes no spec, so it starts no new workflow run; like a
+// resync, it retries a step that is failing.
 func eventuallyReconciled(ctx context.Context, apps []client.Object, timeout time.Duration, assertion func(g Gomega), description ...interface{}) {
 	GinkgoHelper()
 	(&framework.Framework{Client: k8sClient}).EventuallyReconciledAll(ctx, apps, assertion).
@@ -645,7 +646,7 @@ func expectPublishVersionRefused(ctx context.Context, ns, name, value string) er
 }
 
 // expectConsumerOfRemovedDefinition checks what happens to an Application in
-// testNS whose definition a module upgrade or rollback removed:
+// the given namespace whose definition a module upgrade or rollback removed:
 //   - admission refuses any update of it, here a publishVersion bump;
 //   - the controller re-parses it from the live definitions on its next
 //     reconcile, fails, and reports the definition with phase rendering;

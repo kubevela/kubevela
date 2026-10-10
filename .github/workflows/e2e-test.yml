@@ -123,7 +123,6 @@ jobs:
         uses: ./.github/actions/e2e-test
         with:
           suite: ${{ matrix.suite }}
-          codecov-token: ${{ secrets.CODECOV_TOKEN }}
           image-artifact: ${{ env.E2E_IMAGE_ARTIFACT }}
           image-job: ${{ env.E2E_IMAGE_JOB }}
 
@@ -165,7 +164,6 @@ jobs:
         uses: ./.github/actions/e2e-test
         with:
           suite: api
-          procs: '1'
           codecov-enable: true
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
           image-artifact: ${{ env.E2E_IMAGE_ARTIFACT }}

@@ -72,4 +72,32 @@ func TestCoreSuiteRBACCleanupOwnsOnlyItsRun(t *testing.T) {
 	if _, err := installCoreSuiteRBAC(ctx, cli, "second"); err == nil {
 		t.Fatal("a collision must fail, not adopt an existing run's RBAC")
 	}
+
+	// Same generated names, but now owned by another run: cleanup must refuse
+	// rather than delete by name.
+	role := &rbacv1.ClusterRole{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: second.roleName}, role); err != nil {
+		t.Fatal(err)
+	}
+	role.Labels[coreSuiteOwnerLabel] = "another-run"
+	if err := cli.Update(ctx, role); err != nil {
+		t.Fatal(err)
+	}
+	binding := &rbacv1.ClusterRoleBinding{}
+	if err := cli.Get(ctx, client.ObjectKey{Name: second.bindingName}, binding); err != nil {
+		t.Fatal(err)
+	}
+	binding.Labels[coreSuiteOwnerLabel] = "another-run"
+	if err := cli.Update(ctx, binding); err != nil {
+		t.Fatal(err)
+	}
+	if err := second.cleanup(ctx, cli); err == nil {
+		t.Fatal("cleanup must refuse RBAC owned by another run")
+	}
+	if err := cli.Get(ctx, client.ObjectKey{Name: second.roleName}, &rbacv1.ClusterRole{}); err != nil {
+		t.Errorf("cleanup removed a ClusterRole owned by another run: %v", err)
+	}
+	if err := cli.Get(ctx, client.ObjectKey{Name: second.bindingName}, &rbacv1.ClusterRoleBinding{}); err != nil {
+		t.Errorf("cleanup removed a ClusterRoleBinding owned by another run: %v", err)
+	}
 }

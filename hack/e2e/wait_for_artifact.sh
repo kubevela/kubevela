@@ -11,19 +11,34 @@ runs="repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 deadline=$((SECONDS + timeout))
 
 while ((SECONDS < deadline)); do
-  if [[ -n "$(gh api "${runs}/artifacts?name=${artifact}" --jq '.artifacts[].id')" ]]; then
-    echo "Artifact ${artifact} is ready after ${SECONDS}s"
-    exit 0
-  fi
-  # A successful job may finish moments before its artifact is listed, so
-  # only a job that finished any other way ends the wait early.
-  conclusion=$(gh api "${runs}/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100" \
-    --jq ".jobs[] | select(.name == \"${job}\") | .conclusion // empty")
-  if [[ -n "${conclusion}" && "${conclusion}" != "success" ]]; then
-    echo "Job '${job}' finished with ${conclusion}; artifact ${artifact} will not arrive" >&2
-    exit 1
-  fi
-  echo "Waiting for artifact ${artifact} from job '${job}' (${SECONDS}s)"
+  # "pending" while the job runs; empty when this attempt does not include it.
+  state=$(gh api "${runs}/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100" \
+    --jq ".jobs[] | select(.name == \"${job}\") | .conclusion // \"pending\"")
+  listed=$(gh api "${runs}/artifacts?name=${artifact}" --jq '.artifacts[].id')
+  case "${state}" in
+    success)
+      # The job finishes only after its upload step has finalized the
+      # artifact; it can take a moment to appear in the list.
+      if [[ -n "${listed}" ]]; then
+        echo "Artifact ${artifact} is ready after ${SECONDS}s"
+        exit 0
+      fi
+      ;;
+    "")
+      # A re-run of failed jobs only: the image comes from an earlier attempt,
+      # whose upload finished with that attempt.
+      if [[ -n "${listed}" ]]; then
+        echo "Artifact ${artifact} from an earlier attempt is ready"
+        exit 0
+      fi
+      ;;
+    pending) ;;
+    *)
+      echo "Job '${job}' finished with ${state}; artifact ${artifact} will not arrive" >&2
+      exit 1
+      ;;
+  esac
+  echo "Waiting for artifact ${artifact} from job '${job}' (${SECONDS}s, job ${state:-not in this attempt})"
   sleep 10
 done
 

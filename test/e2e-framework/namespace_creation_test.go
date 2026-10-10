@@ -18,6 +18,7 @@ package framework
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -39,8 +40,8 @@ func TestCreateFreshNamespaceRejectsCollisionWithoutDeleting(t *testing.T) {
 	cli := fake.NewClientBuilder().WithScheme(s).WithObjects(
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "occupied", Labels: map[string]string{"owner": "someone-else"}}},
 	).Build()
-	if _, err := CreateFreshNamespace(ctx, cli, "occupied"); err == nil {
-		t.Fatal("existing namespace must be reported as a collision")
+	if _, err := CreateFreshNamespace(ctx, cli, "occupied"); !apierrors.IsAlreadyExists(err) {
+		t.Fatalf("existing namespace must be reported as a collision, got %v", err)
 	}
 	var existing corev1.Namespace
 	if err := cli.Get(ctx, client.ObjectKey{Name: "occupied"}, &existing); err != nil {
@@ -147,7 +148,14 @@ func TestCreateFreshNamespaceDoesNotRetryForbiddenOrIgnoreCancellation(t *testin
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
-	if _, err := CreateFreshNamespace(ctx, cli, "cancelled"); err == nil {
-		t.Fatal("cancelled create returned success")
+	start := time.Now()
+	_, err := CreateFreshNamespace(ctx, cli, "cancelled")
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("cancelled create must report the caller's deadline, got %v", err)
+	}
+	// Its own poll also times out with DeadlineExceeded, after 3s; returning
+	// well before that shows the caller's deadline was honored.
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("cancelled create kept retrying for %s", elapsed)
 	}
 }

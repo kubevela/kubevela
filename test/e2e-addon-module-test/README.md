@@ -60,8 +60,9 @@ make e2e-test-local                 # the same setup, then this suite and test/e
 make e2e-addon-module-test          # against an already prepared cluster
 ```
 
-CI runs one job with one Ginkgo worker per available CPU. Independent
-scenarios use separate `Ordered` containers, with a namespace, module/addon
+CI runs one job with one Ginkgo worker per available CPU. Scenarios with
+dependent steps use separate `Ordered` containers (08 and 07 share one chain);
+the read-only scenario 01 is not ordered. Each scenario has a namespace, module/addon
 identities, exported definition aliases, CRD API group and ClusterRole names
 specific to that scenario and run. The original fixture files remain intact;
 synchronized setup materializes private copies and publishes initial versions

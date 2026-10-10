@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -67,7 +68,7 @@ func (h *HelmTestContext) CreateNamespace() {
 	}
 	ginkgo.By("Creating target namespace for Helm release: " + h.Namespace)
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: h.Namespace}}
-	gomega.Expect(h.Framework.Client.Create(h.Ctx, ns)).Should(gomega.SatisfyAny(gomega.Succeed(), gomega.Not(gomega.HaveOccurred())))
+	gomega.Expect(h.Framework.Client.Create(h.Ctx, ns)).Should(gomega.Succeed())
 }
 
 func (h *HelmTestContext) Cleanup() {
@@ -152,12 +153,20 @@ func (h *HelmTestContext) WaitForAppRunning() {
 	}, 180*time.Second, 3*time.Second).Should(gomega.Succeed())
 }
 
+// LatestHelmSecretName returns the release secret with the highest revision.
+// Secrets are named sh.helm.release.v1.<release>.v<N>, so the revision is
+// compared as a number: v10 is newer than v9.
 func (h *HelmTestContext) LatestHelmSecretName() string {
 	secrets := h.GetHelmSecrets()
 	var latest string
+	latestRevision := -1
 	for _, s := range secrets.Items {
-		if latest == "" || s.Name > latest {
-			latest = s.Name
+		revision, err := strconv.Atoi(s.Name[strings.LastIndex(s.Name, ".v")+2:])
+		if err != nil {
+			continue
+		}
+		if revision > latestRevision {
+			latest, latestRevision = s.Name, revision
 		}
 	}
 	return latest

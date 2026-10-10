@@ -74,7 +74,7 @@ var _ = Describe("Application required-parameter validation", Label("core-defini
 	// -------------------------------------------------------------------------
 	It("fails when the required parameter is missing", func() {
 		// The webhook uses an informer-cached client. After creating the
-		// ComponentDefinition in BeforeAll the cache may not have synced yet,
+		// ComponentDefinition in BeforeEach the cache may not have synced yet,
 		// so retry until the webhook can actually find the definition and
 		// return the expected "missing parameters" validation error.
 		Eventually(func(g Gomega) {

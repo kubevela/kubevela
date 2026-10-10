@@ -103,8 +103,10 @@ image-archive:
 	docker save -o $(E2E_IMAGE_ARCHIVE) $(VELA_CORE_TEST_IMAGE)
 
 ## image-load-archive: load an image-archive tarball into the kind cluster
+# The tag is in manifest.json for the classic image store and in index.json for
+# the containerd image store, so look in both and match it literally.
 image-load-archive:
-	tar -xOf $(E2E_IMAGE_ARCHIVE) manifest.json | grep -q '"$(VELA_CORE_TEST_IMAGE)"' || { echo >&2 "$(E2E_IMAGE_ARCHIVE) does not contain $(VELA_CORE_TEST_IMAGE)"; exit 1; }
+	{ tar -xOf $(E2E_IMAGE_ARCHIVE) manifest.json; tar -xOf $(E2E_IMAGE_ARCHIVE) index.json; } 2>/dev/null | grep -qF '$(VELA_CORE_TEST_IMAGE)' || { echo >&2 "$(E2E_IMAGE_ARCHIVE) does not contain $(VELA_CORE_TEST_IMAGE)"; exit 1; }
 	kind load image-archive $(E2E_IMAGE_ARCHIVE) || { echo >&2 "kind not installed or error loading archive: $(E2E_IMAGE_ARCHIVE)"; exit 1; }
 
 ## core-test: Run tests

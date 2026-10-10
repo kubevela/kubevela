@@ -1,7 +1,7 @@
 # E2E auth test fixtures
 
 Committed artifacts used by `Describe("Helmchart Auth")` in
-`test/e2e-helm-auth-test/helmchart_auth_test.go`. All files are test-only.
+`test/e2e-helm-test/helmchart_auth_test.go`. All files are test-only.
 
 ## What's here
 

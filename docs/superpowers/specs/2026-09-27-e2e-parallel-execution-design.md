@@ -13,7 +13,7 @@ Reduce the ordinary E2E workflow's elapsed time while preserving assertions, dis
 - `test/e2e-module-test`
 - `test/e2e-test`
 
-Exclude multi-cluster tests and workflows. Preserve the existing `make e2e-api-test` coverage as an unchanged compatibility lane; it is not a fifth package to refactor. The user's final instruction requests research and a plan, with implementation in a subsequent lower-model pass.
+Exclude multi-cluster tests and workflows. Preserve the existing `make e2e-api-test` coverage as an unchanged compatibility lane; it is not a fifth package to refactor.
 
 ## Evidence and historical execution model
 

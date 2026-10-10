@@ -159,9 +159,10 @@ runs:
         esac
 
     - name: Run test/e2e-module-test
-      # Its own step, own package, and always() so a failure in an earlier
-      # step (e.g. an unrelated e2e-api-test flake) cannot prevent this from
-      # running.
+      # Its own step and package, gated on !cancelled() and a successful
+      # environment preparation rather than on earlier test steps, so a
+      # failure in another suite (e.g. an e2e-api-test flake) cannot prevent
+      # this from running. The steps below are gated the same way.
       if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'module') }}
       shell: bash
       env:

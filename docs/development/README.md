@@ -46,6 +46,7 @@ test/e2e-application-test/       # Application, resource and trait e2e suite
 test/e2e-definition-test/        # Definition and validation e2e suite
 test/e2e-config-test/            # Config and policy e2e suite
 test/e2e-helm-test/              # Helm lifecycle and authentication e2e suite
+test/e2e-source-test/            # Source definitions and expressions e2e suite
 test/e2e-framework/              # Shared e2e support and fixtures
 hack/debug-webhook-setup.sh      # generates local webhook TLS certs + config
 Makefile, makefiles/*.mk         # build/test/debug targets (see each guide)
