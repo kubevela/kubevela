@@ -28,7 +28,6 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -466,7 +465,7 @@ func (k *kubeConfigFactory) ListTemplates(ctx context.Context, ns, scope string)
 				}
 			}
 		}
-	} else if !apierrors.IsNotFound(err) && !meta.IsNoMatchError(err) && !runtime.IsNotRegisteredError(err) {
+	} else if !apierrors.IsNotFound(err) && !IsCRDTypeMissing(err) {
 		return nil, err
 	}
 
@@ -551,7 +550,7 @@ func (k *kubeConfigFactory) LoadTemplate(ctx context.Context, name, ns string) (
 	switch err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: ns, Name: name}, &ct); {
 	case err == nil:
 		return configTemplateCRDToTemplate(ctx, &ct)
-	case apierrors.IsNotFound(err), meta.IsNoMatchError(err), runtime.IsNotRegisteredError(err):
+	case apierrors.IsNotFound(err), IsCRDTypeMissing(err):
 		// fall back to the legacy ConfigMap convention
 	default:
 		return nil, err

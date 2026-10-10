@@ -550,7 +550,7 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				if err := inf.CreateOrUpdateDistribution(context.Background(), options.Namespace, name, ads); err != nil {
 					return err
 				}
-				if err := setDistributionOwner(cmd.Context(), f.Client(), options.Namespace, options.Name, name); err != nil {
+				if err := config.SetDistributionOwner(cmd.Context(), f.Client(), options.Namespace, options.Name, name); err != nil {
 					return err
 				}
 			}
@@ -640,7 +640,7 @@ func NewDistributeConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobr
 			if err := inf.CreateOrUpdateDistribution(context.Background(), options.Namespace, name, ads); err != nil {
 				return err
 			}
-			if err := setDistributionOwner(cmd.Context(), f.Client(), options.Namespace, options.Config, name); err != nil {
+			if err := config.SetDistributionOwner(cmd.Context(), f.Client(), options.Namespace, options.Config, name); err != nil {
 				return err
 			}
 			streams.Infof("the distribution %s applied successfully\n", name)
@@ -697,7 +697,7 @@ func NewDeleteConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				}
 			} else if crBacked {
 				// a CRD-backed config's distribution Application is owned by the Config (see
-				// setDistributionOwner), so deleting the Config always recalls it - --not-recall
+				// config.SetDistributionOwner), so deleting the Config always recalls it - --not-recall
 				// can't be honored for these; fail rather than silently ignoring the flag.
 				switch err := f.Client().Get(cmd.Context(), client.ObjectKey{Namespace: options.Namespace, Name: distributionName}, &v1beta1.Application{}); {
 				case err == nil:
