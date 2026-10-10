@@ -1131,6 +1131,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			BeforeAll(func() {
 				Expect(k8sClient.Create(ctx, addonApplication(v.appName, v.addonSlug, "1.0.0", nil))).Should(Succeed())
 				waitAppRunning(ctx, testNS, v.appName, installWait)
+				waitAppRunning(ctx, systemNS, moduleWidgetApp, shortWait)
 				waitAppRunning(ctx, systemNS, moduleGadgetApp, shortWait)
 				Expect(applyManifestFile(ctx, testdataPath("apps", v.keepDoomedFile))).Should(Succeed())
 				waitAppRunning(ctx, testNS, v.consumerApp, shortWait)
@@ -1207,6 +1208,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			BeforeAll(func() {
 				Expect(k8sClient.Create(ctx, addonApplication(v.appName, v.addonSlug, "1.0.0", nil))).Should(Succeed())
 				waitAppRunning(ctx, testNS, v.appName, installWait)
+				waitAppRunning(ctx, systemNS, v.moduleAppName(), shortWait)
 				Expect(applyManifestFile(ctx, testdataPath("apps", v.selfHealConsumerFile))).Should(Succeed())
 				waitAppRunning(ctx, testNS, v.selfHealConsumerApp, shortWait)
 				DeferCleanup(func() {
@@ -1303,6 +1305,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 
 			BeforeAll(func() {
 				install()
+				waitAppRunning(ctx, systemNS, v.moduleAppName(), shortWait)
 				Expect(applyManifestFile(ctx, testdataPath("apps", v.selfHealConsumerFile))).Should(Succeed())
 				waitAppRunning(ctx, testNS, v.selfHealConsumerApp, shortWait)
 				_, err := getConfigMap(ctx, testNS, "blue-widget-card")
