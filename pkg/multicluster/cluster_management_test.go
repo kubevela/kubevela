@@ -203,11 +203,12 @@ func TestRegisterByVelaSecret(t *testing.T) {
 	t.Cleanup(func() { ClusterGatewaySecretNamespace = oldNS })
 
 	testCases := []struct {
-		name      string
-		cfg       *KubeClusterConfig
-		cli       client.Client
-		expectErr bool
-		verify    func(t *testing.T, cli client.Client, cfg *KubeClusterConfig)
+		name        string
+		cfg         *KubeClusterConfig
+		cli         client.Client
+		expectErr   bool
+		expectErrIs error
+		verify      func(t *testing.T, cli client.Client, cfg *KubeClusterConfig)
 	}{
 		{
 			name: "Token and endpoint",
@@ -291,6 +292,34 @@ func TestRegisterByVelaSecret(t *testing.T) {
 			},
 		},
 		{
+			name: "Declined overwrite returns sentinel error, does not touch existing secret",
+			cfg: func() *KubeClusterConfig {
+				cfg := makeBaseClusterConfig("c-declined")
+				cfg.AuthInfo.Token = "new-token"
+				cfg.ClusterAlreadyExistCallback = func(string) bool { return false }
+				return cfg
+			}(),
+			cli: func() client.Client {
+				clusterName := "c-declined"
+				existing := &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      clusterName,
+						Namespace: ClusterGatewaySecretNamespace,
+						Labels:    map[string]string{clustercommon.LabelKeyClusterCredentialType: string(clusterv1alpha1.CredentialTypeServiceAccountToken)},
+					},
+					Data: map[string][]byte{"token": []byte("old-token"), "endpoint": []byte("https://old-endpoint:6443")},
+				}
+				return fake.NewClientBuilder().WithScheme(scheme).WithObjects(existing).Build()
+			}(),
+			expectErr:   true,
+			expectErrIs: ErrClusterAlreadyExistDeclined,
+			verify: func(t *testing.T, cli client.Client, cfg *KubeClusterConfig) {
+				var sec corev1.Secret
+				require.NoError(t, cli.Get(ctx, client.ObjectKey{Name: cfg.ClusterName, Namespace: ClusterGatewaySecretNamespace}, &sec))
+				require.Equal(t, []byte("old-token"), sec.Data["token"])
+			},
+		},
+		{
 			name: "Get error from createOrUpdate",
 			cfg: func() *KubeClusterConfig {
 				cfg := makeBaseClusterConfig("c-get-err")
@@ -322,6 +351,9 @@ func TestRegisterByVelaSecret(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
+			}
+			if tc.expectErrIs != nil {
+				require.ErrorIs(t, err, tc.expectErrIs)
 			}
 			if tc.verify != nil {
 				tc.verify(t, tc.cli, tc.cfg)
