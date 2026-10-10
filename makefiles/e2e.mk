@@ -1,6 +1,7 @@
 .PHONY: e2e-addon-test
 E2E_PROCS ?= auto
 E2E_TIMEOUT ?= 1h
+E2E_ADDON_MODULE_TIMEOUT ?= 2h
 E2E_REPORT_DIR ?= _artifacts/e2e
 E2E_CORE_LABEL_FILTER ?=
 E2E_CORE_AUTH ?= 1
@@ -222,10 +223,14 @@ e2e-addon-module-test:
 	# enabled, reSyncPeriod=1m, bin/vela built from this source, and the
 	# images below loaded (registry:2 for modules, chartmuseum for addons;
 	# see test/e2e-addon-module-test/testdata/registry.yaml).
+	# Ginkgo's own default (1h) can be too tight for this suite: several
+	# scenarios run multiple install/upgrade/uninstall cycles against
+	# installWait=6m/reconcileWait=4m, and a loaded CI runner can push the
+	# total past an hour with no single step hung.
 	mkdir -p "$(E2E_REPORT_DIR)"
 	set -eu; workers=$$(bash hack/e2e/ginkgo_workers.sh "$(E2E_PROCS)"); \
 	echo "Ginkgo workers: $$workers"; \
-	ginkgo -v --procs="$$workers" --timeout=$(E2E_TIMEOUT) --fail-on-empty --json-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.xml" ./test/e2e-addon-module-test
+	ginkgo -v --procs="$$workers" --timeout=$(E2E_ADDON_MODULE_TIMEOUT) --fail-on-empty --json-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.xml" ./test/e2e-addon-module-test
 	@$(OK) tests pass
 
 .PHONY: e2e-addon-module-discovery
