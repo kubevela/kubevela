@@ -17,11 +17,19 @@ limitations under the License.
 package apply
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func TestShare(t *testing.T) {
@@ -83,4 +91,44 @@ func TestFirstSharerSkipsEmptyEntries(t *testing.T) {
 	require.Empty(t, FirstSharer(","))
 	require.Equal(t, "team-b/other", RemoveSharer(",team-a/shop,team-b/other", "team-a/shop"),
 		"removing a sharer drops the empty entries with it")
+}
+
+// An owner that left the list while a sharer was adding itself must not be written back.
+func TestSharedApplyKeepsAConcurrentChangeToTheSharerList(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+	raced := false
+	cli := fake.NewClientBuilder().WithInterceptorFuncs(interceptor.Funcs{
+		Patch: func(ctx context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+			if !raced {
+				raced = true
+				live := &corev1.ConfigMap{}
+				if err := c.Get(ctx, client.ObjectKeyFromObject(obj), live); err != nil {
+					return err
+				}
+				live.Annotations[oam.AnnotationAppSharedBy] = "x/owner"
+				if err := c.Update(ctx, live); err != nil {
+					return err
+				}
+			}
+			return c.Patch(ctx, obj, patch, opts...)
+		},
+	}).Build()
+	r.NoError(cli.Create(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
+		Name: "shared", Namespace: "default",
+		Labels:      map[string]string{oam.LabelAppName: "owner", oam.LabelAppNamespace: "x"},
+		Annotations: map[string]string{oam.AnnotationAppSharedBy: "x/owner,x/leaving"},
+	}}))
+
+	app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"}}
+	desired := &unstructured.Unstructured{}
+	desired.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
+	desired.SetName("shared")
+	desired.SetNamespace("default")
+	r.NoError(NewAPIApplicator(cli).Apply(ctx, desired, sharedByApp(app)))
+
+	r.True(raced, "the test must have raced the patch")
+	got := &corev1.ConfigMap{}
+	r.NoError(cli.Get(ctx, client.ObjectKey{Namespace: "default", Name: "shared"}, got))
+	r.Equal("x/owner,default/app", got.Annotations[oam.AnnotationAppSharedBy])
 }

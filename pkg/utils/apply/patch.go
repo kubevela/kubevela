@@ -94,6 +94,32 @@ func threeWayMergePatch(currentObj, modifiedObj client.Object, a *applyAction) (
 	return client.RawPatch(patchType, patchData), nil
 }
 
+// withResourceVersion makes a merge patch apply only to the version of obj it was computed from.
+func withResourceVersion(patch client.Patch, obj client.Object) (client.Patch, error) {
+	rv := obj.GetResourceVersion()
+	if rv == "" {
+		return patch, nil
+	}
+	data, err := patch.Data(obj)
+	if err != nil {
+		return nil, err
+	}
+	content := map[string]interface{}{}
+	if err = json.Unmarshal(data, &content); err != nil {
+		return nil, err
+	}
+	metadata, _ := content["metadata"].(map[string]interface{})
+	if metadata == nil {
+		metadata = map[string]interface{}{}
+	}
+	metadata["resourceVersion"] = rv
+	content["metadata"] = metadata
+	if data, err = json.Marshal(content); err != nil {
+		return nil, err
+	}
+	return client.RawPatch(patch.Type(), data), nil
+}
+
 // addLastAppliedConfigAnnotation creates annotation recording current configuration as
 // original configuration for latter use in computing a three way diff
 func addLastAppliedConfigAnnotation(obj runtime.Object) error {
