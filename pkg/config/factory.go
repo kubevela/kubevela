@@ -409,6 +409,7 @@ func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
 		Scope:       cm.Labels[types.LabelConfigScope],
 		CreateTime:  cm.CreationTimestamp.Time,
 		Template:    script.CUE(cm.Data[SaveTemplateKey]),
+		ConfigMap:   cm.DeepCopy(),
 	}
 	if cm.Data[SaveSchemaKey] != "" {
 		var schema openapi3.Schema
@@ -774,25 +775,32 @@ func (k *kubeConfigFactory) CreateOrUpdateConfigTemplateCR(ctx context.Context, 
 	if it == nil {
 		return nil
 	}
-	scope := configv1alpha1.ConfigTemplateScopeNamespace
-	if it.Scope == string(configv1alpha1.ConfigTemplateScopeSystem) {
-		scope = configv1alpha1.ConfigTemplateScopeSystem
-	}
 	ct := &configv1alpha1.ConfigTemplate{
 		ObjectMeta: metav1.ObjectMeta{Name: it.Name, Namespace: ns},
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, k.cli, ct, func() error {
 		applyTemplateLabels(ct, it.Labels)
-		ct.Spec = configv1alpha1.ConfigTemplateSpec{
-			Template:    string(it.Template),
-			Scope:       scope,
-			Sensitive:   it.Sensitive,
-			Alias:       it.Alias,
-			Description: it.Description,
-		}
+		ct.Spec = configTemplateSpecFromTemplate(it)
 		return nil
 	})
 	return err
+}
+
+// configTemplateSpecFromTemplate maps a template, legacy or parsed, onto the CR
+// spec. Legacy scope strings other than "system" (project, env, global written by
+// older tools) all become "namespace"; only "system" carries a distinct meaning.
+func configTemplateSpecFromTemplate(it *Template) configv1alpha1.ConfigTemplateSpec {
+	scope := configv1alpha1.ConfigTemplateScopeNamespace
+	if it.Scope == string(configv1alpha1.ConfigTemplateScopeSystem) {
+		scope = configv1alpha1.ConfigTemplateScopeSystem
+	}
+	return configv1alpha1.ConfigTemplateSpec{
+		Template:    string(it.Template),
+		Scope:       scope,
+		Sensitive:   it.Sensitive,
+		Alias:       it.Alias,
+		Description: it.Description,
+	}
 }
 
 func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config, _ string) error {
