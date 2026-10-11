@@ -17,6 +17,7 @@ limitations under the License.
 package apply
 
 import (
+	"bytes"
 	"encoding/json"
 	"time"
 
@@ -105,7 +106,9 @@ func withResourceVersion(patch client.Patch, obj client.Object) (client.Patch, e
 		return nil, err
 	}
 	content := map[string]interface{}{}
-	if err = json.Unmarshal(data, &content); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber() // keep large integers exact
+	if err = decoder.Decode(&content); err != nil {
 		return nil, err
 	}
 	metadata, _ := content["metadata"].(map[string]interface{})

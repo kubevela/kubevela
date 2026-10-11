@@ -27,8 +27,11 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestAddLastAppliedConfig(t *testing.T) {
@@ -116,4 +119,15 @@ func TestGetOriginalConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWithResourceVersionKeepsLargeIntegers(t *testing.T) {
+	obj := &unstructured.Unstructured{}
+	obj.SetResourceVersion("42")
+	patch, err := withResourceVersion(client.RawPatch(types.MergePatchType, []byte(`{"spec":{"n":9007199254740993}}`)), obj)
+	require.NoError(t, err)
+	data, err := patch.Data(obj)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"n":9007199254740993`)
+	require.Contains(t, string(data), `"resourceVersion":"42"`)
 }

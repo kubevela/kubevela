@@ -401,6 +401,7 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 // again and the decision is taken again.
 func DeleteManagedResource(ctx context.Context, cli client.Client, mr v1beta1.ManagedResource, obj *unstructured.Unstructured, owner resourcetracker.Tracked, garbageCollectPolicy *v1alpha1.GarbageCollectPolicySpec) error {
 	_ctx := pkgmulticluster.WithCluster(ctx, mr.Cluster)
+	uid := obj.GetUID()
 	refresh := false
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if refresh {
@@ -412,6 +413,9 @@ func DeleteManagedResource(ctx context.Context, cli client.Client, mr v1beta1.Ma
 					return nil
 				}
 				return errors.Wrapf(err, "failed to get resource %s", mr.ResourceKey())
+			}
+			if latest.GetUID() != uid {
+				return nil // replaced by another object: the one owner held is gone
 			}
 			obj.Object = latest.Object
 		}
@@ -445,11 +449,15 @@ func deleteManagedResource(ctx context.Context, cli client.Client, mr v1beta1.Ma
 		return errors.Wrapf(cli.Update(ctx, obj), "skipping deletion for resource")
 	}
 
-	// do not delete a resource that another owner started sharing since it was read
-	if rv := obj.GetResourceVersion(); lastSharer && rv != "" {
-		uid := obj.GetUID()
-		opts = append(opts, client.Preconditions{UID: &uid, ResourceVersion: &rv})
+	// delete only the object that was read, and a sharable one only if nobody joined since
+	preconditions := client.Preconditions{}
+	if uid := obj.GetUID(); uid != "" {
+		preconditions.UID = &uid
 	}
+	if rv := obj.GetResourceVersion(); lastSharer && rv != "" {
+		preconditions.ResourceVersion = &rv
+	}
+	opts = append(opts, preconditions)
 	if err := cli.Delete(ctx, obj, opts...); err != nil && !kerrors.IsNotFound(err) {
 		return errors.Wrapf(err, "failed to delete resource %s", mr.ResourceKey())
 	}

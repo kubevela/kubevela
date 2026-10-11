@@ -19,7 +19,6 @@ package resourcekeeper
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -29,9 +28,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var _ = Describe("Test shared resources under concurrent share and delete", func() {
@@ -54,83 +55,80 @@ var _ = Describe("Test shared resources under concurrent share and delete", func
 		Expect(testClient.Delete(ctx, cm)).Should(Succeed())
 	})
 
-	It("keeps the sharer list consistent", func() {
-		const apps, configMaps, rounds = 4, 5, 150
-		ctx := context.Background()
-		appName := func(i int) string { return fmt.Sprintf("churn-app%d", i) }
-		cmName := func(i int) string { return fmt.Sprintf("churn-shared-%d", i) }
-		keepers := map[string]ResourceKeeper{}
-		for i := 1; i <= apps; i++ {
-			rk, err := newAppKeeper(ctx, testClient, &v1beta1.Application{
-				ObjectMeta: v12.ObjectMeta{Name: appName(i), Namespace: "default", Generation: 1},
-			}, sharedConfigMapPolicies())
-			Expect(err).Should(Succeed())
-			keepers[appName(i)] = rk
-		}
-		eventually := func(do func() error) error {
-			var err error
-			for i := 0; i < 100; i++ {
-				if err = do(); err == nil {
-					return nil
-				}
+	// racingClient changes the sharer list of the named ConfigMap just before the first write of
+	// the given kind reaches the API server.
+	racingClient := func(name, sharedBy string, onDelete bool) client.Client {
+		c, err := client.NewWithWatch(testEnv.Config, client.Options{Scheme: common.Scheme})
+		Expect(err).Should(Succeed())
+		raced := false
+		race := func(ctx context.Context, obj client.Object) error {
+			if obj.GetName() != name || raced {
+				return nil
 			}
-			return err
+			raced = true
+			live := &v1.ConfigMap{}
+			if err := c.Get(ctx, client.ObjectKeyFromObject(obj), live); err != nil {
+				return err
+			}
+			live.Annotations[oam.AnnotationAppSharedBy] = sharedBy
+			return c.Update(ctx, live)
 		}
-		dispatch := func(app string) error {
-			return eventually(func() error {
-				var manifests []*unstructured.Unstructured
-				for i := 0; i < configMaps; i++ {
-					manifests = append(manifests, renderedConfigMap(app, cmName(i)))
-				}
-				return keepers[app].Dispatch(ctx, manifests, nil)
-			})
-		}
-		remove := func(app string) error {
-			return eventually(func() error {
-				var manifests []*unstructured.Unstructured
-				for i := 0; i < configMaps; i++ {
-					manifests = append(manifests, bareConfigMap(cmName(i)))
-				}
-				return keepers[app].Delete(ctx, manifests)
-			})
-		}
-
-		Expect(dispatch(appName(1))).Should(Succeed())
-		var wg sync.WaitGroup
-		errs := make(chan error, apps)
-		for i := 2; i <= apps; i++ {
-			wg.Add(1)
-			go func(app string) {
-				defer wg.Done()
-				for n := 0; n < rounds; n++ {
-					if err := dispatch(app); err != nil {
-						errs <- fmt.Errorf("%s dispatch: %w", app, err)
-						return
-					}
-					if err := remove(app); err != nil {
-						errs <- fmt.Errorf("%s delete: %w", app, err)
-						return
+		return interceptor.NewClient(c, interceptor.Funcs{
+			Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				if onDelete {
+					if err := race(ctx, obj); err != nil {
+						return err
 					}
 				}
-			}(appName(i))
-		}
-		wg.Wait()
-		close(errs)
-		for err := range errs {
-			Expect(err).Should(Succeed())
-		}
+				return c.Delete(ctx, obj, opts...)
+			},
+			Patch: func(ctx context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				// the pre-dispatch dry run patches too: race the real write
+				if !onDelete && len((&client.PatchOptions{}).ApplyOptions(opts).DryRun) == 0 {
+					if err := race(ctx, obj); err != nil {
+						return err
+					}
+				}
+				return c.Patch(ctx, obj, patch, opts...)
+			},
+		})
+	}
+	sharedConfigMap := func(name, owner, sharedBy string) *v1.ConfigMap {
+		return &v1.ConfigMap{ObjectMeta: v12.ObjectMeta{
+			Name: name, Namespace: "default",
+			Labels:      map[string]string{oam.LabelAppName: owner, oam.LabelAppNamespace: "default"},
+			Annotations: map[string]string{oam.AnnotationAppSharedBy: sharedBy},
+		}}
+	}
 
-		for i := 0; i < configMaps; i++ {
-			got := &v1.ConfigMap{}
-			Expect(testClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: cmName(i)}, got)).Should(Succeed())
-			Expect(got.Annotations[oam.AnnotationAppSharedBy]).Should(Equal("default/" + appName(1)))
-			Expect(got.Labels[oam.LabelAppName]).Should(Equal(appName(1)))
-		}
+	It("hands the resource to a sharer that joins just before the last sharer deletes it", func() {
+		ctx := context.Background()
+		Expect(testClient.Create(ctx, sharedConfigMap("race-join", "race-join-app", "default/race-join-app"))).Should(Succeed())
+		rk, err := newAppKeeper(ctx, racingClient("race-join", "default/race-join-app,default/race-late", true), &v1beta1.Application{
+			ObjectMeta: v12.ObjectMeta{Name: "race-join-app", Namespace: "default", Generation: 1},
+		}, Policies{})
+		Expect(err).Should(Succeed())
+		Expect(rk.Delete(ctx, []*unstructured.Unstructured{bareConfigMap("race-join")})).Should(Succeed())
 
-		Expect(remove(appName(1))).Should(Succeed())
-		for i := 0; i < configMaps; i++ {
-			err := testClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: cmName(i)}, &v1.ConfigMap{})
-			Expect(kerrors.IsNotFound(err)).Should(BeTrue(), "%s: %v", cmName(i), err)
-		}
+		got := &v1.ConfigMap{}
+		Expect(testClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "race-join"}, got)).Should(Succeed())
+		Expect(got.Annotations[oam.AnnotationAppSharedBy]).Should(Equal("default/race-late"))
+		Expect(got.Labels[oam.LabelOwnerName]).Should(Equal("race-late"))
+		Expect(testClient.Delete(ctx, got)).Should(Succeed())
+	})
+
+	It("does not write back a sharer that leaves while another joins", func() {
+		ctx := context.Background()
+		Expect(testClient.Create(ctx, sharedConfigMap("race-leave", "race-owner", "default/race-owner,default/race-leaving"))).Should(Succeed())
+		rk, err := newAppKeeper(ctx, racingClient("race-leave", "default/race-owner", false), &v1beta1.Application{
+			ObjectMeta: v12.ObjectMeta{Name: "race-leave-app", Namespace: "default", Generation: 1},
+		}, sharedConfigMapPolicies())
+		Expect(err).Should(Succeed())
+		Expect(rk.Dispatch(ctx, []*unstructured.Unstructured{renderedConfigMap("race-leave-app", "race-leave")}, nil)).Should(Succeed())
+
+		got := &v1.ConfigMap{}
+		Expect(testClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "race-leave"}, got)).Should(Succeed())
+		Expect(got.Annotations[oam.AnnotationAppSharedBy]).Should(Equal("default/race-owner,default/race-leave-app"))
+		Expect(testClient.Delete(ctx, got)).Should(Succeed())
 	})
 })

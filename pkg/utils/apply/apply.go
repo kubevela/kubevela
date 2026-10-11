@@ -257,7 +257,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 		if isEmptyPatch(patch) {
 			return nil
 		}
-		if applyAct.writesSharers {
+		if applyAct.writesSharers && !applyAct.dryRun {
 			// the sharer list in the patch only holds for the version it was computed from
 			if patch, err = withResourceVersion(patch, existing); err != nil {
 				return errors.Wrap(err, "cannot make patch conditional on resource version")
