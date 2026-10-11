@@ -102,6 +102,40 @@ func TestResourceKeeperDeleteWhenASharerJoinsMeanwhile(t *testing.T) {
 	r.Equal("late", got.Labels[oam.LabelOwnerName], "and is handed to that owner")
 }
 
+// A sharer joins and the resource is then removed before the delete is retried: nothing is left to do.
+func TestResourceKeeperDeleteWhenTheResourceGoesMeanwhile(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+	gone := false
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithInterceptorFuncs(interceptor.Funcs{
+		Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+			if obj.GetName() != "target" || gone {
+				return c.Delete(ctx, obj, opts...)
+			}
+			gone = true
+			live := &v1.ConfigMap{}
+			if err := c.Get(ctx, client.ObjectKeyFromObject(obj), live); err != nil {
+				return err
+			}
+			if err := c.Delete(ctx, live); err != nil {
+				return err
+			}
+			return kerrors.NewConflict(v1.Resource("configmaps"), "target", nil)
+		},
+	}).Build()
+	_rk, err := newAppKeeper(ctx, cli, &v1beta1.Application{
+		ObjectMeta: v12.ObjectMeta{Name: "app", Namespace: "default", Generation: 1},
+	}, Policies{})
+	r.NoError(err)
+	r.NoError(cli.Create(ctx, &v1.ConfigMap{ObjectMeta: v12.ObjectMeta{
+		Name: "target", Namespace: "default",
+		Labels:      map[string]string{oam.LabelAppName: "app", oam.LabelAppNamespace: "default"},
+		Annotations: map[string]string{oam.AnnotationAppSharedBy: "default/app"},
+	}}))
+	r.NoError(_rk.Delete(ctx, []*unstructured.Unstructured{bareConfigMap("target")}))
+	r.True(gone)
+}
+
 // Several apps share and delete the same ConfigMaps at once while app1 keeps them: they must
 // survive, shared by app1 alone, and go when app1 lets go.
 func TestResourceKeeperConcurrentSharedResourceChurn(t *testing.T) {

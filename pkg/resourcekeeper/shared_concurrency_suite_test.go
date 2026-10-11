@@ -117,6 +117,38 @@ var _ = Describe("Test shared resources under concurrent share and delete", func
 		Expect(testClient.Delete(ctx, got)).Should(Succeed())
 	})
 
+	It("leaves alone an object that replaced the one it was deleting", func() {
+		ctx := context.Background()
+		Expect(testClient.Create(ctx, sharedConfigMap("race-replace", "race-replace-app", "default/race-replace-app"))).Should(Succeed())
+		c, err := client.NewWithWatch(testEnv.Config, client.Options{Scheme: common.Scheme})
+		Expect(err).Should(Succeed())
+		replaced := false
+		racing := interceptor.NewClient(c, interceptor.Funcs{
+			Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				if obj.GetName() == "race-replace" && !replaced {
+					replaced = true
+					if err := c.Delete(ctx, sharedConfigMap("race-replace", "", "")); err != nil {
+						return err
+					}
+					if err := c.Create(ctx, sharedConfigMap("race-replace", "race-other", "")); err != nil {
+						return err
+					}
+				}
+				return c.Delete(ctx, obj, opts...)
+			},
+		})
+		rk, err := newAppKeeper(ctx, racing, &v1beta1.Application{
+			ObjectMeta: v12.ObjectMeta{Name: "race-replace-app", Namespace: "default", Generation: 1},
+		}, Policies{})
+		Expect(err).Should(Succeed())
+		Expect(rk.Delete(ctx, []*unstructured.Unstructured{bareConfigMap("race-replace")})).Should(Succeed())
+
+		got := &v1.ConfigMap{}
+		Expect(testClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "race-replace"}, got)).Should(Succeed())
+		Expect(got.Labels[oam.LabelAppName]).Should(Equal("race-other"))
+		Expect(testClient.Delete(ctx, got)).Should(Succeed())
+	})
+
 	It("does not write back a sharer that leaves while another joins", func() {
 		ctx := context.Background()
 		Expect(testClient.Create(ctx, sharedConfigMap("race-leave", "race-owner", "default/race-owner,default/race-leaving"))).Should(Succeed())
