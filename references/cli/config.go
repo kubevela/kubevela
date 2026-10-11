@@ -59,6 +59,7 @@ func ConfigCommandGroup(f velacmd.Factory, order string, streams util.IOStreams)
 	cmd.AddCommand(NewCreateConfigCommand(f, streams))
 	cmd.AddCommand(NewDistributeConfigCommand(f, streams))
 	cmd.AddCommand(NewDeleteConfigCommand(f, streams))
+	cmd.AddCommand(NewConfigMigrateCommand(f, streams))
 	return cmd
 }
 
@@ -77,6 +78,7 @@ func TemplateCommandGroup(f velacmd.Factory, order string, streams util.IOStream
 	cmd.AddCommand(NewTemplateListCommand(f, streams))
 	cmd.AddCommand(NewTemplateDeleteCommand(f, streams))
 	cmd.AddCommand(NewTemplateShowCommand(f, streams))
+	cmd.AddCommand(NewTemplateMigrateCommand(f, streams))
 	return cmd
 }
 
@@ -127,7 +129,7 @@ func NewTemplateApplyCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 				return err
 			}
 			streams.Infof("the config template %s applied successfully\n", template.Name)
-			shadowed, err := legacyTemplateExists(cmd.Context(), f.Client(), options.Namespace, template.Name)
+			shadowed, err := legacyTemplateShadowed(cmd.Context(), f.Client(), options.Namespace, template.Name)
 			if err != nil {
 				// The CR is already written; a failed lookup only loses the note below.
 				streams.Errorf("warning: could not check for a legacy template ConfigMap: %v\n", err)

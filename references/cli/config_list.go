@@ -44,6 +44,7 @@ const (
 	sourceCRD            = "crd"
 	sourceLegacy         = "legacy"
 	sourceLegacyShadowed = "legacy (shadowed)"
+	sourceLegacyMigrated = "legacy (migrated)"
 )
 
 // validateConfigMode rejects anything but legacy, crd or the empty default. It
@@ -80,21 +81,30 @@ func sortTemplateRows(rows []templateRow) {
 
 // listTemplateRows returns CR rows first, then legacy rows, each group sorted by
 // namespace then name. In merged mode a legacy template whose name a CR also
-// holds in the same namespace is marked shadowed. ns "" means all namespaces.
+// holds in the same namespace is marked shadowed, unless migration adopted it,
+// in which case the CR row stands for it and the legacy row is dropped; legacy
+// mode keeps that row as "legacy (migrated)". ns "" means all namespaces.
 // A cluster without the ConfigTemplate CRD contributes no CR rows and no error.
 // The two backends are listed separately on purpose: Factory.ListTemplates
 // merges them and drops the hidden legacy twin, which is the row this list
 // must show as shadowed.
 func listTemplateRows(ctx context.Context, cli client.Client, ns, mode string) ([]templateRow, error) {
 	var rows []templateRow
-	crNames := map[config.NamespacedName]bool{}
+	// crUIDs holds every CR, generated ones included, so a legacy ConfigMap adopted
+	// by a CR that is hidden from the rows still counts as migrated; shadowing is
+	// decided on the rows that show.
+	crUIDs := map[config.NamespacedName]string{}
+	shown := map[config.NamespacedName]bool{}
 	if mode != configModeLegacy {
-		items, err := listConfigTemplateCRDs(ctx, cli, ns)
+		all, err := listAllConfigTemplateCRDs(ctx, cli, ns)
 		if err != nil {
 			return nil, err
 		}
-		for _, t := range items {
-			crNames[config.NamespacedName{Namespace: t.Namespace, Name: t.Name}] = true
+		for _, t := range all {
+			crUIDs[config.NamespacedName{Namespace: t.Namespace, Name: t.Name}] = string(t.UID)
+		}
+		for _, t := range userManagedConfigTemplates(all) {
+			shown[config.NamespacedName{Namespace: t.Namespace, Name: t.Name}] = true
 			rows = append(rows, templateRow{
 				namespace: t.Namespace, name: t.Name, alias: t.Spec.Alias, scope: string(t.Spec.Scope),
 				sensitive: t.Spec.Sensitive, source: sourceCRD, created: t.CreationTimestamp.Time,
@@ -110,7 +120,23 @@ func listTemplateRows(ctx context.Context, cli client.Client, ns, mode string) (
 		var legacyRows []templateRow
 		for _, t := range legacy {
 			source := sourceLegacy
-			if crNames[config.NamespacedName{Namespace: t.Namespace, Name: t.Name}] {
+			key := config.NamespacedName{Namespace: t.Namespace, Name: t.Name}
+			var migrated bool
+			if mode == configModeLegacy {
+				// no CR list in this mode: one GET per annotated ConfigMap
+				var err error
+				if migrated, err = legacyTemplateMigrated(ctx, cli, t.ConfigMap); err != nil {
+					return nil, err
+				}
+			} else if uid := migratedToUID(t.ConfigMap); uid != "" {
+				migrated = crUIDs[key] == uid
+			}
+			switch {
+			case migrated && mode != configModeLegacy:
+				continue
+			case migrated:
+				source = sourceLegacyMigrated
+			case shown[key]:
 				source = sourceLegacyShadowed
 			}
 			legacyRows = append(legacyRows, templateRow{

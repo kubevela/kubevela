@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -70,6 +71,51 @@ func legacyTemplateExists(ctx context.Context, cli client.Client, ns, name strin
 	return objectExists(ctx, cli, client.ObjectKey{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + name}, &corev1.ConfigMap{})
 }
 
+// legacyTemplateMigrated reports whether cm, a legacy template ConfigMap, was
+// adopted by migration: it names a ConfigTemplate UID and that CR still exists in
+// the same namespace. Once the CR is gone the ConfigMap counts as plain legacy
+// again, which is the downgrade story.
+func legacyTemplateMigrated(ctx context.Context, cli client.Client, cm *corev1.ConfigMap) (bool, error) {
+	uid := migratedToUID(cm)
+	if uid == "" {
+		return false, nil
+	}
+	name := strings.TrimPrefix(cm.Name, config.TemplateConfigMapNamePrefix)
+	var ct configv1alpha1.ConfigTemplate
+	if err := cli.Get(ctx, client.ObjectKey{Namespace: cm.Namespace, Name: name}, &ct); err != nil {
+		if apierrors.IsNotFound(err) || config.IsCRDTypeMissing(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return string(ct.UID) == uid, nil
+}
+
+// migratedToUID returns the ConfigTemplate UID a legacy template ConfigMap says
+// adopted it, or "" when it was never migrated.
+func migratedToUID(cm *corev1.ConfigMap) string {
+	if cm == nil {
+		return ""
+	}
+	return cm.Annotations[types.AnnotationConfigMigratedTo]
+}
+
+// legacyTemplateShadowed reports whether a legacy template ConfigMap for name
+// exists in ns that migration has not adopted, so a ConfigTemplate CR of that
+// name hides it rather than standing for it.
+func legacyTemplateShadowed(ctx context.Context, cli client.Client, ns, name string) (bool, error) {
+	var cm corev1.ConfigMap
+	exists, err := objectExists(ctx, cli, client.ObjectKey{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + name}, &cm)
+	if err != nil || !exists {
+		return false, err
+	}
+	migrated, err := legacyTemplateMigrated(ctx, cli, &cm)
+	if err != nil {
+		return false, err
+	}
+	return !migrated, nil
+}
+
 func applyConfigTemplateCRD(ctx context.Context, cli client.Client, ns string, t *config.Template) error {
 	// legacy scope strings (e.g. "project") map to "namespace"; only "system" carries distinct meaning
 	scope := configv1alpha1.ConfigTemplateScopeNamespace
@@ -111,11 +157,10 @@ func configCRDExists(ctx context.Context, cli client.Client, ns, name string) (b
 	return objectExists(ctx, cli, client.ObjectKey{Namespace: ns, Name: name}, &configv1alpha1.Config{})
 }
 
-// listConfigTemplateCRDs lists the user-managed ConfigTemplate CRs in ns, or
-// everywhere when ns is "". Templates generated from a SourceDefinition are
-// skipped, as Factory.ListTemplates skips them. A cluster that does not serve
-// the type yields no items and no error.
-func listConfigTemplateCRDs(ctx context.Context, cli client.Client, ns string) ([]configv1alpha1.ConfigTemplate, error) {
+// listAllConfigTemplateCRDs lists every ConfigTemplate CR in ns, or everywhere
+// when ns is "", generated ones included. A cluster that does not serve the type
+// yields no items and no error.
+func listAllConfigTemplateCRDs(ctx context.Context, cli client.Client, ns string) ([]configv1alpha1.ConfigTemplate, error) {
 	var list configv1alpha1.ConfigTemplateList
 	var opts []client.ListOption
 	if ns != "" {
@@ -127,14 +172,21 @@ func listConfigTemplateCRDs(ctx context.Context, cli client.Client, ns string) (
 		}
 		return nil, err
 	}
-	items := make([]configv1alpha1.ConfigTemplate, 0, len(list.Items))
-	for _, ct := range list.Items {
+	return list.Items, nil
+}
+
+// userManagedConfigTemplates drops the templates generated from a
+// SourceDefinition, as Factory.ListTemplates drops them: they are the
+// application controller's cache, not something a user lists or edits.
+func userManagedConfigTemplates(items []configv1alpha1.ConfigTemplate) []configv1alpha1.ConfigTemplate {
+	kept := make([]configv1alpha1.ConfigTemplate, 0, len(items))
+	for _, ct := range items {
 		if _, generated := ct.Labels[types.LabelSourceDefinitionName]; generated {
 			continue
 		}
-		items = append(items, ct)
+		kept = append(kept, ct)
 	}
-	return items, nil
+	return kept
 }
 
 // deleteConfigCRD deletes the Config CR. Callers route here only after
