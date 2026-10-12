@@ -1,0 +1,9 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: form1-pos-app
+  namespace: default
+spec:
+  components:
+    - name: ok
+      type: form1-pos

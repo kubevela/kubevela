@@ -29,6 +29,8 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	admissionv1 "k8s.io/api/admission/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -43,6 +45,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/module"
+	modulerender "github.com/oam-dev/kubevela/pkg/module/service"
 )
 
 var handler ValidatingHandler
@@ -58,7 +62,8 @@ var validCueTemplate string
 var inValidCueTemplate string
 
 func TestComponentdefinition(t *testing.T) {
-	
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Componentdefinition Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -800,3 +805,128 @@ func TestHandleValidatesIdentityFields(t *testing.T) {
 		require.False(t, resp.Allowed)
 	})
 }
+
+// The TestHandleValidatesIdentityFields tests above build their
+// ValidatingHandler over a fake.NewClientBuilder() client, which never runs
+// CRD schema/structural validation -- they prove the webhook's own pairing
+// check, nothing about whether the apiserver actually persists the fields.
+// These specs go through testEnv's real envtest apiserver instead, loaded
+// with the real shipped CRDs (charts/vela-core/crds), so they are the only
+// place that proves GWCP-106678's actual claim: declaring module/apiVersion
+// as schema properties is what stops the apiserver from pruning them.
+var _ = Describe("Identity fields survive a real apiserver apply", func() {
+	var identityCli client.Client
+
+	BeforeEach(func() {
+		var err error
+		identityCli, err = client.New(cfg, client.Options{Scheme: testScheme})
+		Expect(err).Should(BeNil())
+
+		// This envtest control plane starts with no namespaces beyond "default";
+		// every other Describe block here creates its definitions without a
+		// namespace, so nothing has needed vela-system until now.
+		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
+		err = identityCli.Create(context.Background(), ns)
+		Expect(err == nil || apierrors.IsAlreadyExists(err)).Should(BeTrue(), "%v", err)
+	})
+
+	It("persists spec.module and spec.apiVersion on a hand-authored definition", func() {
+		def := &v1beta1.ComponentDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "identity-persist", Namespace: "vela-system"},
+			Spec: v1beta1.ComponentDefinitionSpec{
+				Workload:   common.WorkloadTypeDescriptor{Type: "deployments.apps"},
+				Module:     "s3",
+				APIVersion: "v1",
+			},
+		}
+		Expect(identityCli.Create(context.Background(), def)).Should(Succeed())
+		defer func() { _ = identityCli.Delete(context.Background(), def) }()
+
+		got := &v1beta1.ComponentDefinition{}
+		Expect(identityCli.Get(context.Background(), client.ObjectKeyFromObject(def), got)).Should(Succeed())
+		Expect(got.Spec.Module).Should(Equal("s3"), "the apiserver pruned spec.module")
+		Expect(got.Spec.APIVersion).Should(Equal("v1"), "the apiserver pruned spec.apiVersion")
+	})
+
+	It("accepts a legacy definition with neither identity field set, unchanged", func() {
+		def := &v1beta1.ComponentDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "identity-legacy", Namespace: "vela-system"},
+			Spec:       v1beta1.ComponentDefinitionSpec{Workload: common.WorkloadTypeDescriptor{Type: "deployments.apps"}},
+		}
+		Expect(identityCli.Create(context.Background(), def)).Should(Succeed())
+		defer func() { _ = identityCli.Delete(context.Background(), def) }()
+
+		got := &v1beta1.ComponentDefinition{}
+		Expect(identityCli.Get(context.Background(), client.ObjectKeyFromObject(def), got)).Should(Succeed())
+		Expect(got.Spec.Module).Should(BeEmpty())
+		Expect(got.Spec.APIVersion).Should(BeEmpty())
+	})
+
+	It("rejects an apiVersion that does not match the CRD schema pattern", func() {
+		def := &v1beta1.ComponentDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "identity-bad-pattern", Namespace: "vela-system"},
+			Spec: v1beta1.ComponentDefinitionSpec{
+				Workload:   common.WorkloadTypeDescriptor{Type: "deployments.apps"},
+				Module:     "s3",
+				APIVersion: "1.0",
+			},
+		}
+		err := identityCli.Create(context.Background(), def)
+		Expect(err).Should(HaveOccurred(), "the CRD schema pattern should reject a non-matching apiVersion")
+		Expect(err.Error()).Should(ContainSubstring("apiVersion"))
+	})
+
+	It("persists the identity the real module render path stamps, through RenderApplication/stampIdentity", func() {
+		mod := &module.Module{
+			Name:    "identity-render",
+			Version: "1.0.0",
+			Lines: map[string]module.Line{
+				"v1": {
+					APIVersion: "v1",
+					Enabled:    true,
+					Definitions: []map[string]interface{}{{
+						"apiVersion": "core.oam.dev/v1beta1",
+						"kind":       "ComponentDefinition",
+						"metadata":   map[string]interface{}{"name": "bucket"},
+						"spec":       map[string]interface{}{},
+					}},
+				},
+			},
+		}
+
+		app, err := modulerender.RenderApplication(mod, "vela-system")
+		Expect(err).ShouldNot(HaveOccurred())
+
+		spec, ok := app["spec"].(map[string]interface{})
+		Expect(ok).Should(BeTrue(), "owned Application has no spec")
+		comps, ok := spec["components"].([]interface{})
+		Expect(ok).Should(BeTrue(), "owned Application has no spec.components")
+		Expect(comps).Should(HaveLen(1), "one line, no module/line auxiliary: only the defs tier renders")
+		defsComp, ok := comps[0].(map[string]interface{})
+		Expect(ok).Should(BeTrue())
+		props, ok := defsComp["properties"].(map[string]interface{})
+		Expect(ok).Should(BeTrue())
+		objects, ok := props["objects"].([]interface{})
+		Expect(ok).Should(BeTrue())
+		Expect(objects).Should(HaveLen(1))
+		stampedDef, ok := objects[0].(map[string]interface{})
+		Expect(ok).Should(BeTrue())
+
+		raw, err := json.Marshal(stampedDef)
+		Expect(err).ShouldNot(HaveOccurred())
+		rendered := &v1beta1.ComponentDefinition{}
+		Expect(json.Unmarshal(raw, rendered)).Should(Succeed())
+
+		// stampIdentity's own output, before this ever reaches the apiserver.
+		Expect(rendered.Spec.Module).Should(Equal("identity-render"))
+		Expect(rendered.Spec.APIVersion).Should(Equal("v1"))
+
+		Expect(identityCli.Create(context.Background(), rendered)).Should(Succeed())
+		defer func() { _ = identityCli.Delete(context.Background(), rendered) }()
+
+		got := &v1beta1.ComponentDefinition{}
+		Expect(identityCli.Get(context.Background(), client.ObjectKeyFromObject(rendered), got)).Should(Succeed())
+		Expect(got.Spec.Module).Should(Equal("identity-render"), "the apiserver pruned the render path's spec.module")
+		Expect(got.Spec.APIVersion).Should(Equal("v1"), "the apiserver pruned the render path's spec.apiVersion")
+	})
+})

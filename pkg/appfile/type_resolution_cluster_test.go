@@ -164,6 +164,23 @@ func TestResolveModuleTypeForm1(t *testing.T) {
 		assert.Equal(t, "bucket", got)
 	})
 
+	t.Run("exact-name module-backed definition is rejected", func(t *testing.T) {
+		moduleBacked := &v1beta1.ComponentDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "bucket",
+				Namespace: oam.SystemDefinitionNamespace,
+			},
+			Spec: v1beta1.ComponentDefinitionSpec{
+				Module: "s3",
+			},
+		}
+		cli := resolutionClient(t, moduleBacked)
+		_, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `module-backed definition`)
+		assert.Contains(t, err.Error(), `use {module}/{apiVersion}/{name} (Form 3)`)
+	})
+
 	t.Run("falls back to the module label", func(t *testing.T) {
 		cli := resolutionClient(t, definitionOf(capType, appNS, "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")))
 		got, err := ResolveModuleType(appCtx(), cli, "bucket", capType)

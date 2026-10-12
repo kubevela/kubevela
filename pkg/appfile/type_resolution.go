@@ -93,6 +93,11 @@ func resolveForm3(module, apiVersion, name string) string {
 func resolveForm1(ctx context.Context, cli client.Reader, typeName, name string, capType types.CapType) (string, error) {
 	obj := definitionObjectFor(capType)
 	if err := oamutil.GetDefinition(ctx, cli, obj, name); err == nil {
+		if mod := definitionModule(obj); mod != "" {
+			return "", fmt.Errorf(
+				"type %q resolves to module-backed definition %q (spec.module=%q); use {module}/{apiVersion}/{name} (Form 3)",
+				typeName, name, mod)
+		}
 		// Found as a legacy definition; return unchanged so the caller's
 		// GetCapabilityDefinition path (which handles revisions etc.) runs normally.
 		return typeName, nil
@@ -257,6 +262,21 @@ func definitionObjectFor(capType types.CapType) client.Object {
 		return new(v1beta1.SourceDefinition)
 	default:
 		return new(v1beta1.ComponentDefinition)
+	}
+}
+
+func definitionModule(obj client.Object) string {
+	switch d := obj.(type) {
+	case *v1beta1.ComponentDefinition:
+		return d.Spec.Module
+	case *v1beta1.TraitDefinition:
+		return d.Spec.Module
+	case *v1beta1.PolicyDefinition:
+		return d.Spec.Module
+	case *v1beta1.WorkflowStepDefinition:
+		return d.Spec.Module
+	default:
+		return ""
 	}
 }
 

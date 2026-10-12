@@ -1,0 +1,9 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: form1-neg-app
+  namespace: default
+spec:
+  components:
+    - name: bad
+      type: form1-neg

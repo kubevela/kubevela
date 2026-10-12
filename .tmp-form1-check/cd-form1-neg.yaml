@@ -1,0 +1,40 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: form1-neg
+  namespace: vela-system
+spec:
+  module: demo
+  apiVersion: v1
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        output: {
+          apiVersion: "apps/v1"
+          kind:       "Deployment"
+          metadata: {
+            labels: {
+              "app.oam.dev/component": context.name
+            }
+          }
+          spec: {
+            selector: matchLabels: {
+              "app.oam.dev/component": context.name
+            }
+            template: {
+              metadata: labels: {
+                "app.oam.dev/component": context.name
+              }
+              spec: {
+                containers: [{
+                  name:  "main"
+                  image: "nginx:1.27-alpine"
+                }]
+              }
+            }
+          }
+        }
