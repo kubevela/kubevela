@@ -181,7 +181,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			Expect(team.Data).Should(HaveKeyWithValue("team", "team-blue"))
 
 			var secret corev1.Secret
-			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Namespace: systemNS, Name: scope.Text("addon-secret-widget-platform")}, &secret)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Namespace: systemNS, Name: scope.Text("addon-secret-widget-platform-inline")}, &secret)).Should(Succeed())
 			Expect(string(secret.Data["addonParameterDataKey"])).Should(SatisfyAll(
 				ContainSubstring(`"greeting":"hello from scenario 02"`), ContainSubstring(`"team":"team-blue"`)))
 
@@ -241,7 +241,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			// labels onto every object it dispatches
 			// (generateAndFilterCommonLabels in pkg/appfile/appfile.go), so the
 			// addons.oam.dev/{name,version,registry} labels the renderer put on
-			// addon-widget-platform travel onto module-widget-kit and from there
+			// addon-widget-platform-inline travel onto module-widget-kit-inline and from there
 			// onto the definitions, overriding the module's stamp. A module
 			// installed through "vela module deploy" keeps the module name here;
 			// one installed through an addon is grouped under that addon.
@@ -345,12 +345,12 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			waitAppRunning(ctx, systemNS, moduleGadgetKit, shortWait)
 			DeferCleanup(func() {
 				deleteApp(ctx, testNS, "suite-consumer-inline")
-				uninstall(scope.Text("kit-suite-inline"), scope.Text("addon-kit-suite"), moduleWidgetKit, moduleGadgetKit)
+				uninstall(scope.Text("kit-suite-inline"), scope.Text("addon-kit-suite-inline"), moduleWidgetKit, moduleGadgetKit)
 			})
 		})
 
 		It("fans one addon Application out into two module components and two module Applications", func() {
-			app := mustGetApp(ctx, systemNS, scope.Text("addon-kit-suite"))
+			app := mustGetApp(ctx, systemNS, scope.Text("addon-kit-suite-inline"))
 			names := componentNames(app)
 			Expect(names).Should(HaveLen(3))
 			Expect(names[0]).Should(Equal(scope.Text("kit-suite-inline-resources")))
@@ -367,7 +367,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 
 			for _, name := range []string{moduleWidgetKit, moduleGadgetKit} {
 				mod := mustGetApp(ctx, systemNS, name)
-				Expect(mod.Labels).Should(HaveKeyWithValue(oam.LabelAppName, scope.Text("addon-kit-suite")))
+				Expect(mod.Labels).Should(HaveKeyWithValue(oam.LabelAppName, scope.Text("addon-kit-suite-inline")))
 				Expect(mod.Labels).Should(HaveKeyWithValue(oam.LabelAppComponent, strings.TrimPrefix(name, "module-")))
 			}
 		})
@@ -698,7 +698,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			DeferCleanup(func() {
 				deleteApp(ctx, testNS, "suite-consumer-inline")
 				waitAppGone(ctx, testNS, "suite-consumer-inline", reconcileWait)
-				uninstall(scope.Text("kit-suite-inline"), scope.Text("addon-kit-suite"), moduleWidgetKit, moduleGadgetKit)
+				uninstall(scope.Text("kit-suite-inline"), scope.Text("addon-kit-suite-inline"), moduleWidgetKit, moduleGadgetKit)
 			})
 		})
 
@@ -713,7 +713,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			setAddonVersion(ctx, scope.Text("kit-suite-inline"), "2.0.0")
 			waitAppGone(ctx, systemNS, moduleGadgetKit, installWait)
 			waitAppRunning(ctx, testNS, scope.Text("kit-suite-inline"), installWait)
-			Expect(componentNames(mustGetApp(ctx, systemNS, scope.Text("addon-kit-suite")))).Should(Equal([]string{scope.Text("kit-suite-inline-resources"), scope.Text("widget-kit-inline")}))
+			Expect(componentNames(mustGetApp(ctx, systemNS, scope.Text("addon-kit-suite-inline")))).Should(Equal([]string{scope.Text("kit-suite-inline-resources"), scope.Text("widget-kit-inline")}))
 			waitGone(ctx, crd(gadgetsCRD), shortWait)
 			Expect(isNotFound(ctx, componentDefinitionObj(systemNS, scope.Text("gadget-kit-inline-v1-gadget")))).Should(BeTrue())
 			Expect(isNotFound(ctx, &rbacv1.ClusterRole{ObjectMeta: metav1.ObjectMeta{Name: scope.Text("gadget-kit-inline-editor")}})).Should(BeTrue())
@@ -802,7 +802,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 		})
 
 		It("recreates a deleted module definition with a new UID", func() {
-			// module-widget-kit inherits addons.oam.dev/name from the addon
+			// module-widget-kit-inline inherits addons.oam.dev/name from the addon
 			// Application, which on its own would make the resource keeper treat
 			// it as apply-once and skip state keep; the module renderer declares
 			// apply-once off to prevent that.

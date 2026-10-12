@@ -20,6 +20,7 @@ import (
 	"context"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -28,6 +29,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -208,5 +210,22 @@ func TestScenarioCleanupPreservesUnownedNamespace(t *testing.T) {
 	s.cleanup(context.Background())
 	if err := cli.Get(context.Background(), client.ObjectKey{Namespace: s.Namespace, Name: "do-not-delete"}, &v1beta1.Application{}); err != nil {
 		t.Fatalf("cleanup removed another run's Application: %v", err)
+	}
+}
+
+// Scoped definition names reach label values (the workload and trait type
+// labels of what consumers render), which Kubernetes caps at 63 characters.
+func TestScopedDefinitionNamesFitLabelValues(t *testing.T) {
+	runID := strings.Repeat("f", 2*runIDBytes)
+	names := append(append([]string{}, fixtureWidgetKitDefinitions...), fixtureWidgetKitInlineDefinitions...)
+	names = append(names, "widget-kit-v1-gauge", "widget-kit-inline-v1-gauge", "gadget-kit-v1-gadget", "gadget-kit-v1-labeler",
+		"gadget-kit-inline-v1-gadget", "gadget-kit-inline-v1-labeler", "probe-kit-v1-probe")
+	for _, id := range scenarioIDs {
+		s := newScenarioScope(runID, id, t.TempDir())
+		for _, name := range names {
+			if errs := validation.IsValidLabelValue(s.Text(name)); len(errs) != 0 {
+				t.Errorf("scenario %s: %q is not a valid label value: %v", id, s.Text(name), errs)
+			}
+		}
 	}
 }

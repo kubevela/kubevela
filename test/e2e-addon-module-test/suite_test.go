@@ -111,6 +111,12 @@ func prepareAddonModuleWorkerHome() (func() error, error) {
 	}, nil
 }
 
+// runIDBytes sizes the per-run token in every scoped name. The token is
+// appended twice to a scoped definition name, which also ends up in label
+// values, so it must keep the longest fixture definition name within 63
+// characters (TestScopedDefinitionNamesFitLabelValues).
+const runIDBytes = 4
+
 type scenarioSuiteState struct {
 	RunID string
 	Root  string
@@ -124,7 +130,7 @@ func initializeScenarioScopes(state scenarioSuiteState) {
 
 var _ = SynchronizedBeforeSuite(func() []byte {
 	initializeAddonModuleClient()
-	var token [8]byte
+	var token [runIDBytes]byte
 	_, err := cryptorand.Read(token[:])
 	Expect(err).NotTo(HaveOccurred())
 	root, err := os.MkdirTemp("", "kubevela-addon-module-fixtures-")
