@@ -25,17 +25,26 @@ else
 GOLANGCILINT=$(GOBIN)/golangci-lint
 endif
 
+STATICCHECK_VERSION ?= 0.8.1
+GLOBAL_STATICCHECK := $(shell which staticcheck)
+GOBIN_STATICCHECK := $(shell which $(GOBIN)/staticcheck)
+
+# `staticcheck -version` prints e.g. "staticcheck 2026.2.1 (0.8.1)"; the module version is in parentheses.
 .PHONY: staticchecktool
 staticchecktool:
-ifeq (, $(shell which staticcheck))
+ifeq ($(shell $(GLOBAL_STATICCHECK) -version 2>/dev/null | awk -F'[()]' '{print $$2}'), $(STATICCHECK_VERSION))
+	@$(OK) staticcheck is already installed
+STATICCHECK=$(GLOBAL_STATICCHECK)
+else ifeq ($(shell $(GOBIN_STATICCHECK) -version 2>/dev/null | awk -F'[()]' '{print $$2}'), $(STATICCHECK_VERSION))
+	@$(OK) staticcheck is already installed
+STATICCHECK=$(GOBIN_STATICCHECK)
+else
 	@{ \
 	set -e ;\
-	echo 'installing honnef.co/go/tools/cmd/staticcheck ' ;\
-	go install honnef.co/go/tools/cmd/staticcheck@v0.8.1 ;\
+	echo 'installing staticcheck-$(STATICCHECK_VERSION)' ;\
+	GOBIN=$(GOBIN) go install honnef.co/go/tools/cmd/staticcheck@v$(STATICCHECK_VERSION) ;\
 	}
 STATICCHECK=$(GOBIN)/staticcheck
-else
-STATICCHECK=$(shell which staticcheck)
 endif
 
 .PHONY: goimports
