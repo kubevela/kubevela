@@ -20,7 +20,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"

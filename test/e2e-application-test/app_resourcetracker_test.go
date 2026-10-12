@@ -310,7 +310,7 @@ var _ = Describe("Test application cross namespace resource", Label("core-applic
 				return fmt.Errorf("failed generate cross namespace trait")
 			}
 			if len(resourceTracker.Spec.ManagedResources) != 2 {
-				return fmt.Errorf("expect track %q resources, but got %q", 2, len(resourceTracker.Spec.ManagedResources))
+				return fmt.Errorf("expect track %d resources, but got %d", 2, len(resourceTracker.Spec.ManagedResources))
 			}
 			return nil
 		}, time.Second*5, time.Millisecond*500).Should(BeNil())
@@ -424,7 +424,7 @@ var _ = Describe("Test application cross namespace resource", Label("core-applic
 				return fmt.Errorf("container image not match")
 			}
 			if len(resourceTracker.Spec.ManagedResources) != 1 {
-				return fmt.Errorf("expect track %q resources, but got %q", 1, len(resourceTracker.Spec.ManagedResources))
+				return fmt.Errorf("expect track %d resources, but got %d", 1, len(resourceTracker.Spec.ManagedResources))
 			}
 			return nil
 		}, time.Second*50, time.Millisecond*300).Should(BeNil())
@@ -449,7 +449,7 @@ var _ = Describe("Test application cross namespace resource", Label("core-applic
 				return err
 			}
 			if len(resourceTracker.Spec.ManagedResources) != 1 {
-				return fmt.Errorf("expect track %q resources, but got %q", 1, len(resourceTracker.Spec.ManagedResources))
+				return fmt.Errorf("expect track %d resources, but got %d", 1, len(resourceTracker.Spec.ManagedResources))
 			}
 			depolys := new(appsv1.DeploymentList)
 			opts := []client.ListOption{
@@ -560,7 +560,7 @@ var _ = Describe("Test application cross namespace resource", Label("core-applic
 			deploy1 := workloads.Items[0]
 			deploy2 := workloads.Items[1]
 			if len(resourceTracker.Spec.ManagedResources) != 2 {
-				return fmt.Errorf("expect track %q resources, but got %q", 2, len(resourceTracker.Spec.ManagedResources))
+				return fmt.Errorf("expect track %d resources, but got %d", 2, len(resourceTracker.Spec.ManagedResources))
 			}
 			if resourceTracker.Spec.ManagedResources[0].Namespace != crossNamespace || resourceTracker.Spec.ManagedResources[1].Namespace != crossNamespace {
 				return fmt.Errorf("resourceTracker recorde namespace mismatch")
@@ -609,7 +609,7 @@ var _ = Describe("Test application cross namespace resource", Label("core-applic
 				return fmt.Errorf("error get resourceTracker")
 			}
 			if len(checkRt.Spec.ManagedResources) != 1 {
-				return fmt.Errorf("expect track %q resources, but got %q", 1, len(checkRt.Spec.ManagedResources))
+				return fmt.Errorf("expect track %d resources, but got %d", 1, len(checkRt.Spec.ManagedResources))
 			}
 			return nil
 		}, time.Second*5, time.Millisecond*500).Should(BeNil())

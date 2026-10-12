@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/kubevela/pkg/cue/cuex"
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	"github.com/pkg/errors"

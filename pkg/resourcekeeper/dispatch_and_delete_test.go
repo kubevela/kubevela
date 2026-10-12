@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"

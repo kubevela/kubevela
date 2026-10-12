@@ -27,7 +27,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/Netflix/go-expect"
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"sigs.k8s.io/controller-runtime/pkg/client"

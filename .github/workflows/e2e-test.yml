@@ -18,7 +18,7 @@ permissions:
 
 env:
   # Common versions
-  GO_VERSION: '1.23.8'
+  GO_VERSION: '1.27.1'
   # Every suite job loads the same image, built once by build-image. Suite jobs
   # do not wait for that job: they set up their cluster meanwhile and wait for
   # the artifact just before installing the chart.
@@ -80,28 +80,28 @@ jobs:
         include:
           - suite: core-application
             package: e2e-application-test
-            k8s-version: v1.31.9
+            k8s-version: v1.37.0
           - suite: core-definitions
             package: e2e-definition-test
-            k8s-version: v1.31.9
+            k8s-version: v1.37.0
           - suite: core-config
             package: e2e-config-test
-            k8s-version: v1.31.9
+            k8s-version: v1.37.0
           - suite: core-helm
             package: e2e-helm-test
-            k8s-version: v1.31.9
+            k8s-version: v1.37.0
           - suite: module
             package: e2e-module-test
-            k8s-version: v1.31.9
+            k8s-version: v1.37.0
           - suite: source
             package: e2e-source-test
-            k8s-version: v1.31.9
+            k8s-version: v1.37.0
           - suite: addon
             package: e2e-addon-test
-            k8s-version: v1.31.9
+            k8s-version: v1.37.0
           - suite: addon-module
             package: e2e-addon-module-test
-            k8s-version: v1.31.9
+            k8s-version: v1.37.0
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}-${{ matrix.suite }}
       cancel-in-progress: true
@@ -141,7 +141,7 @@ jobs:
           docker image prune -f --filter "until=24h"
 
   e2e-api:
-    name: e2e/ + test/e2e-addon-component-test / Kubernetes v1.31.9
+    name: e2e/ + test/e2e-addon-component-test / Kubernetes v1.37.0
     runs-on: ubuntu-22.04
     needs: [ detect-noop ]
     if: ${{ !cancelled() && needs.detect-noop.outputs.noop != 'true' }}
@@ -150,7 +150,7 @@ jobs:
       contents: read
       actions: read
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-v1.31.9-api
+      group: ${{ github.workflow }}-${{ github.ref }}-v1.37.0-api
       cancel-in-progress: true
     steps:
       - name: Check out code
@@ -158,7 +158,7 @@ jobs:
       - name: Setup KinD
         uses: ./.github/actions/setup-kind-cluster
         with:
-          k8s-version: v1.31.9
+          k8s-version: v1.37.0
           load-image: 'false'
       - name: Run existing API E2E tests
         uses: ./.github/actions/e2e-test

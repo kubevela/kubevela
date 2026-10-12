@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 env:
-  GO_VERSION: '1.23.8'
+  GO_VERSION: '1.27.1'
 
 jobs:
   detect-noop:
@@ -50,16 +50,20 @@ jobs:
 
       - name: Setup KinD
         run: |
-          go install sigs.k8s.io/kind@v0.29.0
+          go install sigs.k8s.io/kind@v0.33.0
           kind delete cluster || true
-          kind create cluster --image=kindest/node:v1.31.9
+          kind create cluster --image=kindest/node:v1.37.0
 
       - name: Install KubeVela CLI
         run: curl -fsSL https://kubevela.io/script/install.sh | bash
 
       - name: Install KubeVela baseline
         run: |
-          vela install --set featureGates.enableCueValidation=true
+          # The released chart can't finish a fresh install on Kubernetes 1.36+ with
+          # secure TLS for cluster-gateway (https://github.com/kubevela/kubevela/issues/7452).
+          # Drop this --set once the baseline release has the chart fix.
+          vela install --set featureGates.enableCueValidation=true \
+            --set multicluster.clusterGateway.secureTLS.enabled=false
           kubectl wait --namespace vela-system --for=condition=Available deployment/kubevela-vela-core --timeout=300s
 
       - name: Prepare failing chart changes

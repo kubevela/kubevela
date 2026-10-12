@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/kubevela/pkg/util/rand"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

@@ -5,7 +5,7 @@ inputs:
   go-version:
     description: 'Go version to use for testing'
     required: false
-    default: '1.23.8'
+    default: '1.27.1'
   install-ginkgo:
     description: 'Install Ginkgo testing framework'
     required: false
@@ -51,7 +51,7 @@ runs:
 
         # Install kubectl using a known stable version to avoid network issues
         # The dl.k8s.io/release/stable.txt endpoint can return garbage due to CDN issues
-        KUBECTL_VERSION="v1.31.0"
+        KUBECTL_VERSION="v1.37.1"
         echo "Installing kubectl version: $KUBECTL_VERSION for architecture: $ARCH"
         curl -LO --retry 3 --fail "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${ARCH}/kubectl"
         chmod +x kubectl
@@ -101,13 +101,13 @@ runs:
       run: |
         echo "Installing setup-envtest for integration testing..."
         mkdir -p ./bin
-        GOBIN=$(pwd)/bin go install sigs.k8s.io/controller-runtime/tools/setup-envtest@v0.0.0-20240522175850-2e9781e9fc60
+        GOBIN=$(pwd)/bin go install sigs.k8s.io/controller-runtime/tools/setup-envtest@v0.25.2
         echo "setup-envtest installed successfully at ./bin/setup-envtest"
         ls -la ./bin/setup-envtest
 
         # Download and cache the Kubernetes binaries for envtest
         echo "Downloading Kubernetes binaries for envtest..."
-        KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.31.0 --bin-dir "$(pwd)/bin" -p path)
+        KUBEBUILDER_ASSETS=$(./bin/setup-envtest use 1.37.0 --bin-dir "$(pwd)/bin" -p path)
         echo "Kubernetes binaries downloaded successfully"
         echo "KUBEBUILDER_ASSETS=${KUBEBUILDER_ASSETS}"
         # Export for subsequent steps

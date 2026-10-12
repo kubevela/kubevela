@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/slices"
 	"github.com/spf13/cobra"

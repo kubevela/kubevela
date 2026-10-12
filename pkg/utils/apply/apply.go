@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/fieldpath"
 	"github.com/mitchellh/hashstructure/v2"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"

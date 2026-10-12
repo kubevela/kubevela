@@ -160,24 +160,40 @@ spec:
     namespace: {{ .Release.Namespace }}
     port: {{ .Values.multicluster.clusterGateway.port }}
   versionPriority: 10
-  insecureSkipTLSVerify: {{ not .Values.multicluster.clusterGateway.secureTLS.enabled }}
-  {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
-  {{- /* Preserve an already-valid caBundle on upgrade so we don't reset it to  the
-         Cg== placeholder before the patch Job re-runs 
-         $apiSvc is the existing APIService looked up above; fall back to the
-         placeholder only on fresh install or when it still holds the placeholder. */}}
-  {{- $caBundle := "Cg==" }}
+  {{- if not .Values.multicluster.clusterGateway.secureTLS.enabled }}
+  insecureSkipTLSVerify: true
+  {{- else }}
+  {{- /* Preserve an already-valid caBundle on upgrade so we don't reset it before
+         the patch Job re-runs. $apiSvc is the existing APIService looked up above. */}}
+  {{- $caBundle := "" }}
   {{- if $apiSvc }}
     {{- if $apiSvc.spec }}
       {{- if hasKey $apiSvc.spec "caBundle" }}
-        {{- if ne $apiSvc.spec.caBundle "Cg==" }}
+        {{- if and $apiSvc.spec.caBundle (ne $apiSvc.spec.caBundle "Cg==") }}
           {{- $caBundle = $apiSvc.spec.caBundle }}
         {{- end }}
       {{- end }}
     {{- end }}
   {{- end }}
+  {{- if $caBundle }}
+  insecureSkipTLSVerify: false
   caBundle: {{ $caBundle }}
-  {{ end }}
+  {{- else if .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
+  {{- /* cert-manager's cainjector fills in the caBundle on its own. */}}
+  insecureSkipTLSVerify: false
+  caBundle: Cg==
+  {{- else }}
+  {{- /* No CA yet: the tls-secret-create Job makes it during the install and the
+         post-install tls-secret-patch Job writes it here and sets
+         insecureSkipTLSVerify to false. Until then TLS is not verified. A
+         placeholder caBundle would not work: since Kubernetes 1.36 the aggregator
+         verifies TLS with it for the availability check
+         (kubernetes/kubernetes#137157), so the APIService would never become
+         Available, vela-core would never become ready, and `helm install --wait`
+         would never reach the post-install patch Job. */}}
+  insecureSkipTLSVerify: true
+  {{- end }}
+  {{- end }}
 {{ end }}
 
 ---

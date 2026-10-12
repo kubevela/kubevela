@@ -28,7 +28,7 @@ import (
 	"cuelang.org/go/cue/ast"
 	cueformat "cuelang.org/go/cue/format"
 	cueparser "cuelang.org/go/cue/parser"
-	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	ctrlrec "github.com/kubevela/pkg/controller/reconciler"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"

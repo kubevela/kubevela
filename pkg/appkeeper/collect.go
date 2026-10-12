@@ -23,7 +23,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"

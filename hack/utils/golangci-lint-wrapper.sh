@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Wrapper script to run golangci-lint and ignore typecheck errors
-# This script filters out false positive typecheck errors from golangci-lint v1.60.1
+# This script filters out false positive typecheck errors from golangci-lint
 
 set -euo pipefail
 
@@ -14,7 +14,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-if ${GOLANGCILINT:-golangci-lint} run --config .golangci.yml --fix --verbose --exclude-dirs 'scaffold' > "$tmpfile" 2>&1; then
+if ${GOLANGCILINT:-golangci-lint} run --config .golangci.yml --fix --verbose > "$tmpfile" 2>&1; then
     exit_code=0
 else
     exit_code=$?

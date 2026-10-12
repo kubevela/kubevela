@@ -6,7 +6,7 @@ A GitHub Action that sets up a Kubernetes testing environment using Kind (Kubern
 
 | Input | Description | Required | Default |
 |-------|-------------|----------|---------|
-| `k8s-version` | Kubernetes version for the kind cluster | No | `v1.31.9` |
+| `k8s-version` | Kubernetes version for the kind cluster | No | `v1.37.0` |
 | `name` | Name of the kind cluster; a named cluster skips the image load | No | |
 | `load-image` | Build the vela-core e2e image and load it into the cluster. Set `'false'` when the job loads a prebuilt image later, as the E2E Test workflow does with `make image-load-archive` | No | `'true'` |
 
@@ -29,7 +29,7 @@ jobs:
       - name: Setup Kind Cluster
         uses: ./.github/actions/setup-kind-cluster
         with:
-          k8s-version: 'v1.31.9'
+          k8s-version: 'v1.37.0'
       
       - name: Run tests
         run: |
@@ -39,9 +39,9 @@ jobs:
 
 ## What it does
 
-1. **Installs Kind CLI** - Downloads Kind v0.29.0 using Go
+1. **Installs Kind CLI** - Downloads Kind v0.33.0 using Go
 2. **Cleans up** - Removes any existing Kind clusters
-3. **Creates cluster** - Spins up Kubernetes v1.31.9 cluster
+3. **Creates cluster** - Spins up Kubernetes v1.37.0 cluster
 4. **Sets up environment** - Configures KUBECONFIG for kubectl access
 5. **Loads images** - Builds and loads Docker images using `make image-load`,
    unless `load-image` is `'false'`. The E2E Test workflow builds the image once
