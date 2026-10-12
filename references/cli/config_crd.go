@@ -21,19 +21,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 	"github.com/oam-dev/kubevela/pkg/config"
@@ -58,7 +56,7 @@ var (
 // the cluster does not serve, both count as absent.
 func objectExists(ctx context.Context, cli client.Client, key client.ObjectKey, obj client.Object) (bool, error) {
 	err := cli.Get(ctx, key, obj)
-	if apierrors.IsNotFound(err) || crdTypeMissing(err) {
+	if apierrors.IsNotFound(err) || config.IsCRDTypeMissing(err) {
 		return false, nil
 	}
 	if err != nil {
@@ -73,11 +71,49 @@ func legacyTemplateExists(ctx context.Context, cli client.Client, ns, name strin
 	return objectExists(ctx, cli, client.ObjectKey{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + name}, &corev1.ConfigMap{})
 }
 
-// crdTypeMissing reports whether err means the config.oam.dev types are not served
-// by the API server or not registered in the client scheme. Dual-backend paths treat
-// that the same as a CR that doesn't exist.
-func crdTypeMissing(err error) bool {
-	return meta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err)
+// legacyTemplateMigrated reports whether cm, a legacy template ConfigMap, was
+// adopted by migration: it names a ConfigTemplate UID and that CR still exists in
+// the same namespace. Once the CR is gone the ConfigMap counts as plain legacy
+// again, which is the downgrade story.
+func legacyTemplateMigrated(ctx context.Context, cli client.Client, cm *corev1.ConfigMap) (bool, error) {
+	uid := migratedToUID(cm)
+	if uid == "" {
+		return false, nil
+	}
+	name := strings.TrimPrefix(cm.Name, config.TemplateConfigMapNamePrefix)
+	var ct configv1alpha1.ConfigTemplate
+	if err := cli.Get(ctx, client.ObjectKey{Namespace: cm.Namespace, Name: name}, &ct); err != nil {
+		if apierrors.IsNotFound(err) || config.IsCRDTypeMissing(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return string(ct.UID) == uid, nil
+}
+
+// migratedToUID returns the ConfigTemplate UID a legacy template ConfigMap says
+// adopted it, or "" when it was never migrated.
+func migratedToUID(cm *corev1.ConfigMap) string {
+	if cm == nil {
+		return ""
+	}
+	return cm.Annotations[types.AnnotationConfigMigratedTo]
+}
+
+// legacyTemplateShadowed reports whether a legacy template ConfigMap for name
+// exists in ns that migration has not adopted, so a ConfigTemplate CR of that
+// name hides it rather than standing for it.
+func legacyTemplateShadowed(ctx context.Context, cli client.Client, ns, name string) (bool, error) {
+	var cm corev1.ConfigMap
+	exists, err := objectExists(ctx, cli, client.ObjectKey{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + name}, &cm)
+	if err != nil || !exists {
+		return false, err
+	}
+	migrated, err := legacyTemplateMigrated(ctx, cli, &cm)
+	if err != nil {
+		return false, err
+	}
+	return !migrated, nil
 }
 
 func applyConfigTemplateCRD(ctx context.Context, cli client.Client, ns string, t *config.Template) error {
@@ -107,7 +143,7 @@ func applyConfigTemplateCRD(ctx context.Context, cli client.Client, ns string, t
 func deleteConfigTemplateCRD(ctx context.Context, cli client.Client, ns, name string) (bool, error) {
 	ct := &configv1alpha1.ConfigTemplate{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
 	if err := cli.Delete(ctx, ct); err != nil {
-		if apierrors.IsNotFound(err) || crdTypeMissing(err) {
+		if apierrors.IsNotFound(err) || config.IsCRDTypeMissing(err) {
 			return false, nil
 		}
 		return false, err
@@ -121,30 +157,36 @@ func configCRDExists(ctx context.Context, cli client.Client, ns, name string) (b
 	return objectExists(ctx, cli, client.ObjectKey{Namespace: ns, Name: name}, &configv1alpha1.Config{})
 }
 
-// listConfigTemplateCRDs lists the user-managed ConfigTemplate CRs in ns, or
-// everywhere when ns is "". Templates generated from a SourceDefinition are
-// skipped, as Factory.ListTemplates skips them. A cluster that does not serve
-// the type yields no items and no error.
-func listConfigTemplateCRDs(ctx context.Context, cli client.Client, ns string) ([]configv1alpha1.ConfigTemplate, error) {
+// listAllConfigTemplateCRDs lists every ConfigTemplate CR in ns, or everywhere
+// when ns is "", generated ones included. A cluster that does not serve the type
+// yields no items and no error.
+func listAllConfigTemplateCRDs(ctx context.Context, cli client.Client, ns string) ([]configv1alpha1.ConfigTemplate, error) {
 	var list configv1alpha1.ConfigTemplateList
 	var opts []client.ListOption
 	if ns != "" {
 		opts = append(opts, client.InNamespace(ns))
 	}
 	if err := cli.List(ctx, &list, opts...); err != nil {
-		if crdTypeMissing(err) {
+		if config.IsCRDTypeMissing(err) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	items := make([]configv1alpha1.ConfigTemplate, 0, len(list.Items))
-	for _, ct := range list.Items {
+	return list.Items, nil
+}
+
+// userManagedConfigTemplates drops the templates generated from a
+// SourceDefinition, as Factory.ListTemplates drops them: they are the
+// application controller's cache, not something a user lists or edits.
+func userManagedConfigTemplates(items []configv1alpha1.ConfigTemplate) []configv1alpha1.ConfigTemplate {
+	kept := make([]configv1alpha1.ConfigTemplate, 0, len(items))
+	for _, ct := range items {
 		if _, generated := ct.Labels[types.LabelSourceDefinitionName]; generated {
 			continue
 		}
-		items = append(items, ct)
+		kept = append(kept, ct)
 	}
-	return items, nil
+	return kept
 }
 
 // deleteConfigCRD deletes the Config CR. Callers route here only after
@@ -170,7 +212,7 @@ func listConfigCRDs(ctx context.Context, cli client.Client, ns, template string)
 		opts = append(opts, client.InNamespace(ns))
 	}
 	if err := cli.List(ctx, &list, opts...); err != nil {
-		if crdTypeMissing(err) {
+		if config.IsCRDTypeMissing(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -226,40 +268,4 @@ func createConfigCRD(ctx context.Context, cli client.Client, ns, name, templateN
 		return nil
 	})
 	return err
-}
-
-// setDistributionOwner makes the Config the controller owner of its distribution
-// Application, so deleting the Config (via the CLI, kubectl, or GitOps removing the
-// manifest) always recalls the distributed resources instead of orphaning the
-// Application and the copies it manages in target namespaces/clusters.
-// A config may still be legacy (a plain Secret, created by an older CLI or by the
-// Nacos interim path), and the cluster may not serve the Config type at all, so a
-// missing Config CR here is expected and not an error - there's just no owner to attach.
-func setDistributionOwner(ctx context.Context, cli client.Client, ns, configName, distributionName string) error {
-	cfg := &configv1alpha1.Config{}
-	if err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: configName}, cfg); err != nil {
-		if apierrors.IsNotFound(err) || crdTypeMissing(err) {
-			return nil
-		}
-		return fmt.Errorf("failed to load config %s to own its distribution: %w", configName, err)
-	}
-	// the Application controller reconciles (and updates status on) the distribution
-	// concurrently, so the update below can lose an optimistic-concurrency race; retry.
-	err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		app := &v1beta1.Application{}
-		if err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: distributionName}, app); err != nil {
-			return err
-		}
-		if metav1.IsControlledBy(app, cfg) {
-			return nil
-		}
-		if err := controllerutil.SetControllerReference(cfg, app, cli.Scheme()); err != nil {
-			return err
-		}
-		return cli.Update(ctx, app)
-	})
-	if err != nil {
-		return fmt.Errorf("failed to set owner reference on distribution %s: %w", distributionName, err)
-	}
-	return nil
 }

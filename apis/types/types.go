@@ -114,6 +114,18 @@ const (
 	AnnotationConfigDescription = "config.oam.dev/description"
 	// AnnotationConfigAlias is the annotation for config alias
 	AnnotationConfigAlias = "config.oam.dev/alias"
+	// LabelConfigCreatedBy records which tool created a Config or ConfigTemplate CR.
+	// Migration sets it so a later run can tell its own CRs from hand-made ones.
+	LabelConfigCreatedBy = "config.oam.dev/created-by"
+	// ConfigCreatedByMigration is the LabelConfigCreatedBy value for CRs written by
+	// legacy-to-CRD migration.
+	ConfigCreatedByMigration = "migration"
+	// AnnotationConfigMigratedTo is set on a legacy template ConfigMap or config Secret
+	// once migration has adopted it, holding the UID of the CR that now owns it.
+	AnnotationConfigMigratedTo = "config.oam.dev/migrated-to"
+	// AnnotationConfigMigrate set to "false" on a legacy object tells migration to
+	// leave it alone.
+	AnnotationConfigMigrate = "config.oam.dev/migrate"
 	// AnnotationConfigDistributionSpec is the annotation key of the application that distributes the configs
 	AnnotationConfigDistributionSpec = "config.oam.dev/distribution-spec"
 	// AnnotationConfigLastSyncAt is the annotation recording when a source cache entry was last refreshed (RFC3339).
