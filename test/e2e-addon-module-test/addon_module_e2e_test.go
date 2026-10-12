@@ -853,7 +853,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			Eventually(func(g Gomega) { moduleState(g, "1.1.0", widgetKitTiers) }, installWait, pollInterval).Should(Succeed())
 			waitAppRunning(ctx, testNS, widgetPlatformApp, installWait)
 			Expect(mustGetApp(ctx, systemNS, addonWidgetPlatform).Labels).Should(HaveKeyWithValue(oam.LabelAddonVersion, "1.1.0"))
-			Expect(moduleDefinitionNames(ctx, systemNS, scope.Text("widget-kit"))).Should(ConsistOf(append([]string{scope.Text("widget-kit-v1-gauge")}, widgetKitDefinitions...)))
+			Eventually(func() []string { return moduleDefinitionNames(ctx, systemNS, scope.Text("widget-kit")) }, reconcileWait, pollInterval).Should(ConsistOf(append([]string{scope.Text("widget-kit-v1-gauge")}, widgetKitDefinitions...)))
 			info, err := getConfigMap(ctx, systemNS, scope.Text("widget-kit-module-info"))
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(info.Data).Should(HaveKeyWithValue("moduleVersion", "1.1.0"))

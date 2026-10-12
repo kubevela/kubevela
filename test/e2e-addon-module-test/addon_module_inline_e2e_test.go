@@ -582,6 +582,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 		BeforeAll(func() {
 			Expect(k8sClient.Create(ctx, addonApplication(widgetPlatformApp, scope.Text("widget-platform-inline"), "1.0.0", nil))).Should(Succeed())
 			waitAppRunning(ctx, testNS, widgetPlatformApp, installWait)
+			waitAppRunning(ctx, systemNS, moduleWidgetKit, installWait)
 			Expect(applyManifestFile(ctx, testdataPath("apps", "consumer-v2-inline.yaml"))).Should(Succeed())
 			waitAppRunning(ctx, testNS, "v2-consumer-inline", shortWait)
 			DeferCleanup(func() {
@@ -605,7 +606,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			waitAppRunning(ctx, testNS, widgetPlatformApp, installWait)
 			waitAppRunning(ctx, systemNS, moduleWidgetKit, installWait)
 			Expect(mustGetApp(ctx, systemNS, addonWidgetPlatform).Labels).Should(HaveKeyWithValue(oam.LabelAddonVersion, "1.1.0"))
-			Expect(moduleDefinitionNames(ctx, systemNS, scope.Text("widget-kit-inline"))).Should(ConsistOf(append([]string{scope.Text("widget-kit-inline-v1-gauge")}, widgetKitDefinitions...)))
+			Eventually(func() []string { return moduleDefinitionNames(ctx, systemNS, scope.Text("widget-kit-inline")) }, reconcileWait, pollInterval).Should(ConsistOf(append([]string{scope.Text("widget-kit-inline-v1-gauge")}, widgetKitDefinitions...)))
 			info, err := getConfigMap(ctx, systemNS, scope.Text("widget-kit-inline-module-info"))
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(info.Data).Should(HaveKeyWithValue("moduleVersion", "1.1.0"))
