@@ -35,7 +35,7 @@ gen-cue:
 # Webhook Debug and Development Targets
 
 K3D_CLUSTER_NAME ?= kubevela-debug
-K3D_VERSION ?= v1.31.5
+K3D_VERSION ?= v1.37.1
 
 ## webhook-help: Show webhook debugging help
 .PHONY: webhook-help

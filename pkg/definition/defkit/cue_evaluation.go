@@ -68,7 +68,7 @@ func isNilDefinition(def Definition) bool {
 		return true
 	}
 	v := reflect.ValueOf(def)
-	return v.Kind() == reflect.Ptr && v.IsNil()
+	return v.Kind() == reflect.Pointer && v.IsNil()
 }
 
 // EvaluateCUE evaluates the generated CUE for a component using the supplied

@@ -26,7 +26,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"

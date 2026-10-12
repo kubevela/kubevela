@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -106,7 +107,7 @@ func GetClusterGatewayService(ctx context.Context, c client.Client) (*apiregistr
 	if status == apiregistrationv1.ConditionTrue {
 		return svc, nil
 	}
-	return svc, fmt.Errorf("ClusterGateway APIService (%s/%s:%d) is not ready, current status: %s", svc.Namespace, svc.Name, svc.Port, status)
+	return svc, fmt.Errorf("ClusterGateway APIService (%s/%s:%d) is not ready, current status: %s", svc.Namespace, svc.Name, ptr.Deref(svc.Port, 443), status)
 }
 
 // WaitUntilClusterGatewayReady wait cluster gateway service to be ready to serve

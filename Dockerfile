@@ -2,7 +2,7 @@ ARG BASE_IMAGE
 # Build the manager binary. The builder runs on the build host's platform and
 # cross-compiles for TARGETARCH (CGO is off), so a multi-arch build does not
 # run the Go toolchain under QEMU emulation.
-FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.25.12-alpine@sha256:56961d79ea8129efddcc0b8643fd8a5416b4e6228cfd477e3fd61deb2672c587 AS builder
+FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.27.1-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
