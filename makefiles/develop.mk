@@ -35,7 +35,7 @@ gen-cue:
 # Webhook Debug and Development Targets
 
 K3D_CLUSTER_NAME ?= kubevela-debug
-K3D_VERSION ?= v1.37.1
+K3D_VERSION ?= v1.31.5
 
 ## webhook-help: Show webhook debugging help
 .PHONY: webhook-help
@@ -60,7 +60,6 @@ k3d-create:
 		echo "k3d cluster $(K3D_CLUSTER_NAME) already exists"; \
 	else \
 		k3d cluster create "$(K3D_CLUSTER_NAME)" \
-			--image "rancher/k3s:$(K3D_VERSION)-k3s1" \
 			--servers 1 \
 			--agents 1 \
 			--wait || (echo "Failed to create k3d cluster" && exit 1); \
