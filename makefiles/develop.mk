@@ -60,6 +60,7 @@ k3d-create:
 		echo "k3d cluster $(K3D_CLUSTER_NAME) already exists"; \
 	else \
 		k3d cluster create "$(K3D_CLUSTER_NAME)" \
+			--image "rancher/k3s:$(K3D_VERSION)-k3s1" \
 			--servers 1 \
 			--agents 1 \
 			--wait || (echo "Failed to create k3d cluster" && exit 1); \

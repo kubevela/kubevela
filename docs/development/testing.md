@@ -42,7 +42,7 @@ make test
 This chains three targets:
 
 1. `envtest`: downloads the pinned Kubernetes control-plane test binaries
-   (currently **1.31.0**) via `setup-envtest`, so unit tests can talk to a
+   (currently **1.37.0**) via `setup-envtest`, so unit tests can talk to a
    real (in-memory) API server without a full cluster.
 2. `unit-test-core`: runs `go test` over `./pkg/... ./cmd/... ./apis/...`
    and `./references/...` (excluding `apiserver` and
@@ -55,10 +55,10 @@ package's result instead of stopping early), both `go test` invocations,
 matching the Makefile exactly:
 
 ```bash
-KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.31.0 -p path)" \
+KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.37.0 -p path)" \
   go test $(go list ./pkg/... ./cmd/... ./apis/... | grep -v apiserver | grep -v applicationconfiguration)
 
-KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.31.0 -p path)" \
+KUBEBUILDER_ASSETS="$(bin/setup-envtest use 1.37.0 -p path)" \
   go test $(go list ./references/... | grep -v apiserver)
 ```
 

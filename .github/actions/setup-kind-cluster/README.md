@@ -39,7 +39,7 @@ jobs:
 
 ## What it does
 
-1. **Installs Kind CLI** - Downloads Kind v0.29.0 using Go
+1. **Installs Kind CLI** - Downloads Kind v0.33.0 using Go
 2. **Cleans up** - Removes any existing Kind clusters
 3. **Creates cluster** - Spins up Kubernetes v1.37.0 cluster
 4. **Sets up environment** - Configures KUBECONFIG for kubectl access
