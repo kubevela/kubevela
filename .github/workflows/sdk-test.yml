@@ -51,7 +51,9 @@ jobs:
           linters:
             exclusions:
               rules:
-                - text: "exported:"
-                - text: "dot-imports"
+                - linters: [revive]
+                  text: "exported:"
+                - linters: [revive]
+                  text: "dot-imports"
           EOF
           golangci-lint run --timeout 5m ./...
