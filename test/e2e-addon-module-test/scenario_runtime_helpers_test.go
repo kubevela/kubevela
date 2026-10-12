@@ -66,7 +66,7 @@ func (s *scenarioScope) cleanup(ctx context.Context) {
 	}
 	Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, namespace))).To(Succeed())
 	waitGone(ctx, namespace, reconcileWait)
-	for _, ns := range []string{s.Text("widget-platform-system"), s.Text("kit-tenant")} {
+	for _, ns := range []string{s.Text("widget-platform-system"), s.Text("widget-platform-inline-system")} {
 		// Their owning addon Applications remove these namespaces. Do not
 		// forcibly delete an unrelated namespace if addon creation collided.
 		waitGone(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}}, reconcileWait)
@@ -83,6 +83,10 @@ func (s *scenarioScope) setAddonVersion(ctx context.Context, name, version strin
 
 func (s *scenarioScope) expectConsumerOfRemovedDefinition(ctx context.Context, name, definition, widget, publishVersion string) {
 	expectConsumerOfRemovedDefinition(ctx, s.Namespace, s.GVK("Widget"), name, definition, widget, publishVersion)
+}
+
+func (s *scenarioScope) expectInlineConsumerOfRemovedDefinition(ctx context.Context, name, definition, widget, publishVersion string) {
+	expectConsumerOfRemovedDefinition(ctx, s.Namespace, s.InlineGVK("Widget"), name, definition, widget, publishVersion)
 }
 
 func (s *scenarioScope) publishModuleFixture(dir string, extra ...string) string {
@@ -111,6 +115,10 @@ func (s *scenarioScope) uninstall(ctx context.Context, appName, addonAppName str
 			name = s.Text("widgets.kit.example.com")
 		case s.Text("module-gadget-kit"):
 			name = s.Text("gadgets.kit.example.com")
+		case s.Text("module-widget-kit-inline"):
+			name = s.Text("widgets.kitinline.example.com")
+		case s.Text("module-gadget-kit-inline"):
+			name = s.Text("gadgets.kitinline.example.com")
 		}
 		if name != "" {
 			waitGone(ctx, &apiextensionsv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: name}}, shortWait)
@@ -126,7 +134,7 @@ func (s *scenarioScope) publishInitialFixtures() {
 	switch s.ID {
 	case "01":
 		modules = append(modules, "gadget-kit-1.0.0", "probe-kit-1.0.0-a")
-		addons = []string{"widget-platform-1.0.0", "widget-platform-1.1.0", "widget-platform-1.2.0", "kit-suite-1.0.0", "kit-suite-2.0.0", "widget-latest-1.0.0", "import-options-1.0.0", "tenant-widgets-1.0.0", "cache-probe-1.0.0-a"}
+		addons = []string{"widget-platform-1.0.0", "widget-platform-1.1.0", "widget-platform-1.2.0", "kit-suite-1.0.0", "kit-suite-2.0.0", "widget-latest-1.0.0", "import-options-1.0.0", "cache-probe-1.0.0-a"}
 		for _, version := range []string{"1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7"} {
 			addons = append(addons, "broken-imports-"+version)
 		}
@@ -135,8 +143,19 @@ func (s *scenarioScope) publishInitialFixtures() {
 		addons = []string{"kit-suite-1.0.0", "kit-suite-2.0.0"}
 	case "05":
 		addons = []string{"import-options-1.0.0"}
-	case "06":
-		addons = []string{"tenant-widgets-1.0.0"}
+	// Inline modules ship inside the addon, so these publish no module.
+	case "02i", "04i", "11i", "12i", "16i":
+		modules, addons = nil, []string{"widget-platform-inline-1.0.0"}
+	case "07i":
+		modules, addons = nil, []string{"widget-platform-inline-1.0.0", "widget-platform-inline-1.1.0", "widget-platform-inline-1.2.0"}
+	case "03i", "10i":
+		modules, addons = nil, []string{"kit-suite-inline-1.0.0", "kit-suite-inline-2.0.0"}
+	case "13i":
+		modules, addons = nil, []string{"widget-platform-inline-1.0.0", "kit-suite-inline-1.0.0"}
+	case "14i":
+		addons = []string{"broken-imports-inline-1.0.1", "broken-imports-inline-1.0.2", "broken-imports-inline-1.0.3"}
+	case "19":
+		addons = []string{"inline-mixed-1.0.0"}
 	case "08":
 		addons = []string{"widget-latest-1.0.0", "widget-platform-1.0.0", "widget-platform-1.1.0", "widget-platform-1.2.0"}
 	case "09":
@@ -145,6 +164,8 @@ func (s *scenarioScope) publishInitialFixtures() {
 		modules = append(modules, "gadget-kit-1.0.0")
 		if s.ID == "13" {
 			addons = append(addons, "kit-suite-1.0.0")
+		} else {
+			addons = append(addons, "widget-platform-inline-1.0.0")
 		}
 	case "14":
 		for _, version := range []string{"1.0.1", "1.0.2", "1.0.3", "1.0.4", "1.0.5", "1.0.6", "1.0.7"} {

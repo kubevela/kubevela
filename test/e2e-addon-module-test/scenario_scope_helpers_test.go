@@ -39,14 +39,20 @@ import (
 // in vela-system. The original fixture trees remain untouched. Scope fields are
 // initialized on every worker by the synchronized setup before any specs run.
 type scenarioScope struct {
-	ID        string
-	Root      string
-	Namespace string
-	Group     string
-	suffix    string
+	ID          string
+	Root        string
+	Namespace   string
+	Group       string
+	InlineGroup string
+	suffix      string
 }
 
-var scenarioIDs = []string{"01", "02", "03", "04", "05", "06", "08", "09", "10", "11", "12", "13", "14", "15", "16", "18"}
+// IDs ending in "i" run a scenario against a module bundled inline in the
+// addon instead of one imported from the module registry.
+var scenarioIDs = []string{
+	"01", "02", "03", "04", "05", "08", "09", "10", "11", "12", "13", "14", "15", "16", "18",
+	"02i", "03i", "04i", "07i", "10i", "11i", "12i", "13i", "14i", "16i", "19",
+}
 var scenarioScopes = func() map[string]*scenarioScope {
 	scopes := make(map[string]*scenarioScope, len(scenarioIDs))
 	for _, id := range scenarioIDs {
@@ -55,9 +61,14 @@ var scenarioScopes = func() map[string]*scenarioScope {
 	return scopes
 }()
 
-var fixtureModules = []string{"widget-kit", "gadget-kit", "probe-kit", "ghost-kit"}
-var fixtureAddons = []string{"widget-platform", "widget-latest", "kit-suite", "import-options", "tenant-widgets", "cache-probe", "broken-imports", "ghost-addon"}
-var fixtureExports = []string{"widget", "gadget", "probe", "labeler", "note", "gauge", "platform-owner"}
+// Names are matched as prefixes in list order, so an inline name must come
+// before the external name it starts with.
+var fixtureModules = []string{"widget-kit-inline", "gadget-kit-inline", "inline-kit", "widget-kit", "gadget-kit", "probe-kit", "ghost-kit"}
+var fixtureAddons = []string{
+	"widget-platform-inline", "kit-suite-inline", "broken-imports-inline", "inline-mixed",
+	"widget-platform", "widget-latest", "kit-suite", "import-options", "cache-probe", "broken-imports", "ghost-addon",
+}
+var fixtureExports = []string{"widget", "gadget", "probe", "labeler", "note", "gauge", "platform-owner", "platform-owner-inline"}
 var fixtureToken = regexp.MustCompile(`[A-Za-z0-9][A-Za-z0-9._/-]*`)
 
 func newScenarioScope(runID, id, root string) *scenarioScope {
@@ -65,6 +76,7 @@ func newScenarioScope(runID, id, root string) *scenarioScope {
 	return &scenarioScope{
 		ID: id, Root: filepath.Join(root, id), suffix: suffix,
 		Namespace: "am" + suffix, Group: "s" + id + "-" + runID + ".kit.example.com",
+		InlineGroup: "s" + id + "-" + runID + ".kitinline.example.com",
 	}
 }
 
@@ -74,6 +86,12 @@ func (s *scenarioScope) Path(parts ...string) string {
 
 func (s *scenarioScope) GVK(kind string) schema.GroupVersionKind {
 	return schema.GroupVersionKind{Group: s.Group, Version: "v1alpha1", Kind: kind}
+}
+
+// InlineGVK is GVK for the CRDs of the inline module fixtures, which declare
+// kitinline.example.com so they never share CRDs with the external ones.
+func (s *scenarioScope) InlineGVK(kind string) schema.GroupVersionKind {
+	return schema.GroupVersionKind{Group: s.InlineGroup, Version: "v1alpha1", Kind: kind}
 }
 
 func (s *scenarioScope) Texts(values []string) []string {
@@ -102,21 +120,24 @@ func (s *scenarioScope) identity(value string) string {
 	if value == "kit-tenant" {
 		return value + s.suffix
 	}
-	if value == "kit.example.com" {
-		return s.Group
+	groups := map[string]string{"kit.example.com": s.Group, "kitinline.example.com": s.InlineGroup}
+	if group, ok := groups[value]; ok {
+		return group
 	}
-	for _, plural := range []string{"widgets", "widgetclasses", "gadgets"} {
-		if value == plural+".kit.example.com" {
-			return plural + "." + s.Group
+	for base, group := range groups {
+		for _, plural := range []string{"widgets", "widgetclasses", "gadgets"} {
+			if value == plural+"."+base {
+				return plural + "." + group
+			}
 		}
 	}
 	if containsFixtureName(fixtureExports, value) {
 		return value + s.suffix
 	}
 	if parts := strings.Split(value, "/"); len(parts) > 1 {
-		if parts[0] == "kit.example.com" {
+		if group, ok := groups[parts[0]]; ok {
 			if parts[1] == "v1alpha1" {
-				return s.Group + "/" + strings.Join(parts[1:], "/")
+				return group + "/" + strings.Join(parts[1:], "/")
 			}
 			return value // Label keys retain their fixed domain.
 		}

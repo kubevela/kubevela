@@ -20,7 +20,7 @@ go test ./test/e2e-addon-module-test -run '^TestAddonModuleE2E$' -count=1 \
   -ginkgo.dry-run -ginkgo.fail-on-empty -ginkgo.json-report="$report_dir/all.json"
 
 # Update when addon/module coverage changes intentionally.
-expected_specs=82
+expected_specs=119
 
 jq -e -r --argjson expected "$expected_specs" '
   .[0].SpecReports | map(select(.LeafNodeType == "It")) as $specs |
