@@ -19,6 +19,8 @@ package writer
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 
@@ -168,7 +170,11 @@ func (n *NacosData) client(ctx context.Context, configReader icontext.ReadConfig
 }
 
 // clientParam turns the endpoint config (the properties of the config made from the
-// nacos-server template) into the SDK's client parameters.
+// nacos-server template) into the SDK's client parameters. The client config is always
+// built: the SDK's defaults put its log and cache directories under the process working
+// directory, which is the repository for the CLI and / for the controller, so they go
+// under the temp directory instead; and the block's appName and namespaceId reach the
+// client whether or not the endpoint config has a client section.
 func (n *NacosData) clientParam(config map[string]interface{}) vo.NacosClientParam {
 	readString := func(data map[string]interface{}, key string) string {
 		if v, ok := data[key]; ok {
@@ -207,14 +213,17 @@ func (n *NacosData) clientParam(config map[string]interface{}) vo.NacosClientPar
 		}
 		nacosParam.ServerConfigs = servers
 	}
+	options := []constant.ClientOption{
+		constant.WithAppName(n.Metadata.AppName),
+		constant.WithNamespaceId(n.Metadata.NamespaceID),
+		constant.WithLogDir(filepath.Join(os.TempDir(), "nacos", "log")),
+		constant.WithCacheDir(filepath.Join(os.TempDir(), "nacos", "cache")),
+	}
 	// Discover the server endpoint
 	if clientConfigs, ok := config["client"]; ok {
-		client, _ := clientConfigs.(map[string]interface{})
-		if client != nil {
-			nacosParam.ClientConfig = constant.NewClientConfig(
+		if client, _ := clientConfigs.(map[string]interface{}); client != nil {
+			options = append(options,
 				constant.WithEndpoint(readString(client, "endpoint")),
-				constant.WithAppName(n.Metadata.AppName),
-				constant.WithNamespaceId(n.Metadata.NamespaceID),
 				constant.WithUsername(readString(client, "username")),
 				constant.WithPassword(readString(client, "password")),
 				constant.WithRegionId(readString(client, "regionId")),
@@ -224,6 +233,7 @@ func (n *NacosData) clientParam(config map[string]interface{}) vo.NacosClientPar
 			)
 		}
 	}
+	nacosParam.ClientConfig = constant.NewClientConfig(options...)
 	return nacosParam
 }
 

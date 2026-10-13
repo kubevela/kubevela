@@ -19,6 +19,8 @@ package writer
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -224,6 +226,9 @@ func TestNewNacosClientSeam(t *testing.T) {
 	r.Equal("127.0.0.1", gotParam.ServerConfigs[0].IpAddr)
 	r.Equal(uint64(8848), gotParam.ServerConfigs[0].Port)
 	r.Nil(data.Client, "write does not keep the client it built")
+	r.NotNil(gotParam.ClientConfig, "the client config is built without a client section in the endpoint config")
+	r.Equal(filepath.Join(os.TempDir(), "nacos", "log"), gotParam.ClientConfig.LogDir)
+	r.Equal(filepath.Join(os.TempDir(), "nacos", "cache"), gotParam.ClientConfig.CacheDir)
 
 	// Read goes through the same seam
 	mock.EXPECT().GetConfig(gomock.Any()).Return("", nil)
@@ -235,4 +240,37 @@ func TestNewNacosClientSeam(t *testing.T) {
 	// a seam error surfaces
 	NewNacosClient = func(vo.NacosClientParam) (config_client.IConfigClient, error) { return nil, errors.New("no client") }
 	r.EqualError(data.write(context.TODO(), readConfigFor("nacos")), "no client")
+}
+
+func TestClientParamCarriesTheBlockMetadata(t *testing.T) {
+	r := require.New(t)
+	data := &NacosData{NacosConfig: NacosConfig{Metadata: NacosConfigMetadata{AppName: "app", NamespaceID: "tenant-a"}}}
+
+	t.Run("without a client section", func(t *testing.T) {
+		param := data.clientParam(map[string]interface{}{
+			"servers": []interface{}{map[string]interface{}{"ipAddr": "10.0.0.1", "port": float64(8848), "grpcPort": float64(9848)}},
+		})
+		r.Len(param.ServerConfigs, 1)
+		r.Equal(uint64(9848), param.ServerConfigs[0].GrpcPort)
+		r.NotNil(param.ClientConfig)
+		r.Equal("app", param.ClientConfig.AppName)
+		r.Equal("tenant-a", param.ClientConfig.NamespaceId)
+		r.Equal("", param.ClientConfig.Username)
+	})
+
+	t.Run("with a client section", func(t *testing.T) {
+		param := data.clientParam(map[string]interface{}{
+			"client": map[string]interface{}{"endpoint": "acm.example", "username": "u", "password": "p", "accessKey": "ak", "secretKey": "sk", "regionId": "r", "openKMS": true},
+		})
+		r.Empty(param.ServerConfigs)
+		r.Equal("acm.example", param.ClientConfig.Endpoint)
+		r.Equal("u", param.ClientConfig.Username)
+		r.Equal("p", param.ClientConfig.Password)
+		r.Equal("ak", param.ClientConfig.AccessKey)
+		r.Equal("sk", param.ClientConfig.SecretKey)
+		r.Equal("r", param.ClientConfig.RegionId)
+		r.True(param.ClientConfig.OpenKMS)
+		r.Equal("tenant-a", param.ClientConfig.NamespaceId)
+		r.Equal(filepath.Join(os.TempDir(), "nacos", "cache"), param.ClientConfig.CacheDir)
+	})
 }
