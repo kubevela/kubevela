@@ -61,7 +61,9 @@ windows) rather than owning telemetry.
 
 ### Non-Goals
 
-1. Owning or proxying logs, metrics, traces, cost or DORA data.
+1. Owning or proxying log search, metrics, traces, cost or DORA data. A bounded, redacted
+   log tail for a managed component is in scope because it comes from the same API server
+   read as status; search, retention and correlation across time are not.
 2. Wrapping raw Kubernetes CRUD, `exec` or `port-forward`.
 3. A built-in LLM agent in vela-core or VelaUX.
 4. Replacing YAML, VelaUX or GitOps as the primary developer interface.
@@ -146,7 +148,7 @@ those commands unit-testable. Handlers never shell out and never call a model.
 | `list_applications` | read | `vela ls` | P0 |
 | `get_application` | read | Live Application + status; endpoints from VelaQL `endpoints` view | P0 |
 | `explain_application` | read | `status --tree --detail`, VelaQL `resource-tree`, events; dependency walk; every claim cites an object | P0 |
-| `get_managed_resource` | read | ResourceTracker-scoped live GET of any managed object in its cluster; refuses unmanaged | P0 |
+| `get_managed_resource` | read | ResourceTracker-scoped live GET of any managed object in its cluster; refuses unmanaged objects; refuses Secret kinds before the GET and returns only metadata for them | P0 |
 | `get_workflow` | read | `vela workflow` status | P0 |
 | `get_logs` | read | VelaQL `component-pod` + bounded, redacted tail | P0 |
 | `list_clusters` | read | `vela cluster list`; never credentials | P0 |
@@ -224,7 +226,7 @@ and a check that no status response ever reports `source: cached`.
 |---|---|---|---|
 | `gitops` | Returns deterministic YAML and the diff; writes nothing | Namespaces declared GitOps | Pull-request review |
 | `gated` | Injects a `suspend` step before the first deploy step, records initiator, applies | Everything else | A human with resume rights |
-| `direct` | Applies after verifying the diff token | Only namespaces on an explicit allowlist | Nobody; reconciles at once |
+| `direct` | Applies after verifying the diff token | Only namespaces on an explicit allowlist that also do not match the production pattern; a namespace matching both is refused at startup | Nobody; reconciles at once |
 
 Gated mode adds no new object type. It edits the Application's own workflow:
 
@@ -247,12 +249,27 @@ spec:
 ```
 
 Requested mode can be downgraded by policy (direct to gated, gated to gitops), never
-upgraded. If a suspend step already precedes the first deploy, none is added.
+upgraded. If a suspend step already precedes the first deploy, none is added. The server
+strips any `mcp.oam.dev/*` annotation present in the submitted Application and writes its
+own, so the initiator record cannot be forged by the input.
+
+Where the gate is enforced, and where it is not: within the MCP path the server never
+exposes `resume_workflow` unless started with its flag, so an agent confined to MCP cannot
+resume. An agent that also holds the user's kubeconfig and a shell can run
+`vela workflow resume`, because the agent is the user and the user may resume. That is a
+property of the user's RBAC, not of this server. Deployments that need the gate to hold
+against shell access must restrict who may resume at the cluster, for example an
+admission policy that permits the resume annotation only from an approver group, which
+then applies equally to humans. The skills forbid agents from resuming and the evaluation
+suite tests for it, but those are behavioural controls and the KEP does not present them
+as enforcement.
 
 The **risk class** is the maximum over rules on the live-diff output, with every fired
-rule listed: image tag only is LOW; scaling is LOW; config and env are MEDIUM; additions
+rule listed: image tag only is LOW; scaling is LOW; a new Application with no existing
+managed resources is LOW; config and env are MEDIUM; additions to an existing Application
 are MEDIUM; any deletion, replace, placement change, security-surface change, stateful
-change or removed gate is HIGH. The classifier is a pure function with golden tests.
+change or removed gate is HIGH, including in a new Application. The classifier is a pure
+function with golden tests.
 
 ### Identity
 
@@ -285,11 +302,13 @@ boundaries written into tool descriptions and skills.
 ```text
 $ vela mcp setup --client claude-code
 Detected: Claude Code, kubeconfig context prod-hub, Grafana addon in vela-system
-Writing servers: kubevela (read + plan), kubernetes-mcp-server@0.x --read-only, mcp-grafana@0.x
+Writing servers: kubevela (read + plan), kubernetes-mcp-server@<pinned>, mcp-grafana@<pinned>
 Installing skills: kubevela-developer, kubevela-sre (grafana appendix)
 ```
 
-Setup pins third-party versions the release was tested against, never stores a
+Setup writes the exact third-party versions from a table embedded in the vela binary at
+release time, after the evaluation suite has passed against them (`<pinned>` above stands
+for those exact versions). It never stores a
 third-party credential, and has no option to make the Kubernetes MCP writable.
 
 Honest boundary: the developer and platform-engineer loops are complete with Vela MCP
@@ -370,7 +389,7 @@ sequenceDiagram
     Agent->>MCP: dryrun_application(app v2)
     MCP-->>Agent: Deployment, Service, RDSInstance, HPA
     Agent->>MCP: diff_application(app v2)
-    MCP-->>Agent: 4 added, risk LOW, token
+    MCP-->>Agent: 4 added, new Application, risk LOW, token
     Agent-->>Dev: YAML, change set, risk. Deploy?
     Dev->>Agent: Yes
     Agent->>MCP: apply_application(app v2, token)
@@ -415,7 +434,7 @@ state whether traffic changed. Deterministic, one round trip per cluster.
 | Separate `vela-mcp` binary and repository | Must import core as a module (lockstep, replace directives), loses zero-install, and ecosystem repos here go stale |
 | Build a semantic API layer first, then MCP on top | Months of new concepts before any user value; P0 maps to existing code and can ship in one release |
 | Built-in agent in VelaUX | Model-provider dependency, agent-runtime maintenance, and no portal team to carry it; kube-trigger plus the team's own agent covers the need |
-| Expose every CLI flag as a tool | Large surfaces degrade weaker models and cost tokens; twelve well-described tools evaluate better |
+| Expose every CLI flag as a tool | Large surfaces degrade weaker models and cost tokens; the fifteen well-described P0 tools evaluate better |
 
 ## Risks
 
@@ -439,6 +458,14 @@ state whether traffic changed. Deterministic, one round trip per cluster.
 
 P0 does not depend on VelaUX and should not wait for it. P3 does not start before the
 cluster CRDs exist.
+
+Three open issues break code paths P0 wraps and are prerequisites for it:
+
+| Issue | What it breaks | Tool affected |
+|---|---|---|
+| 6731 | `vela dry-run --offline` returns empty output since 1.10.2 | `dryrun_application` without a cluster |
+| 6847 | `vela show` omits parameters for workflow steps that import `vela/kube` | `describe_definition` |
+| 5767 | OpenAPI schema generation fails on CUE constraints such as `>=1 & <=3599` | `describe_definition`, and the capability snapshot VelaUX reads |
 
 ## Unresolved questions
 
