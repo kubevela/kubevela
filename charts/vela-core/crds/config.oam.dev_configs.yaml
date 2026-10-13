@@ -134,6 +134,35 @@ spec:
                   - type
                   type: object
                 type: array
+              expandedWriter:
+                description: |-
+                  ExpandedWriter records what the controller last published for the template's
+                  expanded writer block (today: nacos). Unset when the template has no such block.
+                properties:
+                  nacos:
+                    description: |-
+                      NacosSyncStatus is the last successful publish of the template's nacos block: where
+                      it went and a hash of what went there, so the next reconcile publishes again only
+                      when the rendered content or its target changes.
+                    properties:
+                      contentHash:
+                        type: string
+                      dataId:
+                        type: string
+                      group:
+                        type: string
+                      lastSyncTime:
+                        description: |-
+                          LastSyncTime is when the content was last confirmed current in Nacos, by a
+                          publish or by a read that found it already there.
+                        format: date-time
+                        type: string
+                    required:
+                    - contentHash
+                    - dataId
+                    - group
+                    type: object
+                type: object
               phase:
                 description: ConfigPhase describes the lifecycle phase of a Config.
                 type: string
