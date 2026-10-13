@@ -88,13 +88,10 @@ runs:
       shell: bash
       env:
         E2E_SUITE: ${{ inputs.suite }}
-        IMAGE_ARTIFACT: ${{ inputs.image-artifact }}
       run: |
         case "$E2E_SUITE" in
           all|api) make ;;
-          # With a prebuilt image artifact, bin/vela comes with it below.
-          core|core-application|core-definitions|core-config|module|addon|addon-module)
-            [[ -n "$IMAGE_ARTIFACT" ]] || make e2e-vela-cli ;;
+          core|core-application|core-definitions|core-config|module|addon|addon-module) make e2e-vela-cli ;;
           source|core-helm|core-helm-auth) : ;;
         esac
 
@@ -121,14 +118,6 @@ runs:
       if: ${{ inputs.image-artifact != '' }}
       shell: bash
       run: make image-load-archive E2E_IMAGE_ARCHIVE=_artifacts/image/vela-core-test.tar
-
-    # Before the environment preparation: its post-hook enables addons with bin/vela.
-    - name: Install prebuilt vela CLI
-      if: ${{ inputs.image-artifact != '' && contains(fromJSON('["core","core-application","core-definitions","core-config","module","addon","addon-module"]'), inputs.suite) }}
-      shell: bash
-      run: |
-        install -D -m 0755 _artifacts/image/vela bin/vela
-        bin/vela version
 
     - name: Load vela-core image into the serial cluster
       if: ${{ inputs.suite == 'addon-module' }}
