@@ -125,11 +125,11 @@ func listTemplateRows(ctx context.Context, cli client.Client, ns, mode string) (
 			if mode == configModeLegacy {
 				// no CR list in this mode: one GET per annotated ConfigMap
 				var err error
-				if migrated, err = legacyTemplateMigrated(ctx, cli, t.ConfigMap); err != nil {
+				if migrated, err = legacyTemplateMigrated(ctx, cli, t.Namespace, t.Name, t.MigratedTo); err != nil {
 					return nil, err
 				}
-			} else if uid := migratedToUID(t.ConfigMap); uid != "" {
-				migrated = crUIDs[key] == uid
+			} else if t.MigratedTo != "" {
+				migrated = crUIDs[key] == t.MigratedTo
 			}
 			switch {
 			case migrated && mode != configModeLegacy:

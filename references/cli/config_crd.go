@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -71,33 +70,23 @@ func legacyTemplateExists(ctx context.Context, cli client.Client, ns, name strin
 	return objectExists(ctx, cli, client.ObjectKey{Namespace: ns, Name: config.TemplateConfigMapNamePrefix + name}, &corev1.ConfigMap{})
 }
 
-// legacyTemplateMigrated reports whether cm, a legacy template ConfigMap, was
-// adopted by migration: it names a ConfigTemplate UID and that CR still exists in
-// the same namespace. Once the CR is gone the ConfigMap counts as plain legacy
-// again, which is the downgrade story.
-func legacyTemplateMigrated(ctx context.Context, cli client.Client, cm *corev1.ConfigMap) (bool, error) {
-	uid := migratedToUID(cm)
-	if uid == "" {
+// legacyTemplateMigrated reports whether the legacy template name in ns was
+// adopted by migration: its ConfigMap names a ConfigTemplate UID (migratedTo, the
+// migrated-to annotation) and that CR still exists in the same namespace. Once
+// the CR is gone the ConfigMap counts as plain legacy again, which is the
+// downgrade story.
+func legacyTemplateMigrated(ctx context.Context, cli client.Client, ns, name, migratedTo string) (bool, error) {
+	if migratedTo == "" {
 		return false, nil
 	}
-	name := strings.TrimPrefix(cm.Name, config.TemplateConfigMapNamePrefix)
 	var ct configv1alpha1.ConfigTemplate
-	if err := cli.Get(ctx, client.ObjectKey{Namespace: cm.Namespace, Name: name}, &ct); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &ct); err != nil {
 		if apierrors.IsNotFound(err) || config.IsCRDTypeMissing(err) {
 			return false, nil
 		}
 		return false, err
 	}
-	return string(ct.UID) == uid, nil
-}
-
-// migratedToUID returns the ConfigTemplate UID a legacy template ConfigMap says
-// adopted it, or "" when it was never migrated.
-func migratedToUID(cm *corev1.ConfigMap) string {
-	if cm == nil {
-		return ""
-	}
-	return cm.Annotations[types.AnnotationConfigMigratedTo]
+	return string(ct.UID) == migratedTo, nil
 }
 
 // legacyTemplateShadowed reports whether a legacy template ConfigMap for name
@@ -109,7 +98,7 @@ func legacyTemplateShadowed(ctx context.Context, cli client.Client, ns, name str
 	if err != nil || !exists {
 		return false, err
 	}
-	migrated, err := legacyTemplateMigrated(ctx, cli, &cm)
+	migrated, err := legacyTemplateMigrated(ctx, cli, ns, name, cm.Annotations[types.AnnotationConfigMigratedTo])
 	if err != nil {
 		return false, err
 	}
