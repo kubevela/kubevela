@@ -55,17 +55,17 @@ const (
 
 // Event reasons recorded on legacy objects while they are migrated.
 const (
-	EventMigrationAdopted        = "MigrationAdopted"
-	EventMigrationSkipped        = "MigrationSkipped"
-	EventMigrationConflict       = "MigrationConflict"
-	EventMigrationFailed         = "MigrationFailed"
-	EventMigrationOutputsUnowned = "MigrationOutputsUnowned"
+	EventMigrationAdopted  = "MigrationAdopted"
+	EventMigrationSkipped  = "MigrationSkipped"
+	EventMigrationConflict = "MigrationConflict"
+	EventMigrationFailed   = "MigrationFailed"
 )
 
 const (
 	reasonAlreadyMigrated   = "already migrated"
 	reasonOptedOut          = "opted out"
 	reasonAdoptionCompleted = "adoption completed"
+	reasonSourceCacheEntry  = "source cache entry managed by the controller"
 	migrateOptOutValue      = "false"
 	propertiesSecretSuffix  = "-properties"
 	propertiesSecretKey     = "properties"
@@ -123,8 +123,11 @@ type MigrationOptions struct {
 
 // Migrator adopts legacy config templates (config-template-* ConfigMaps) and
 // configs (velacore-config Secrets) into ConfigTemplate and Config CRs. The legacy
-// objects are never deleted: the CR becomes their controller owner, and they are
-// annotated with the CR's UID so a second run skips them.
+// objects are never deleted. A config Secret becomes owned by its Config, which
+// then renders into it as it would into its own Secret. A template ConfigMap is
+// only annotated with the ConfigTemplate's UID: templates are shared across
+// namespaces and the ConfigMap must outlive the CR for a downgrade. Both carry
+// the annotation so a second run skips them.
 type Migrator struct {
 	cli client.Client
 }
@@ -149,7 +152,9 @@ func (m *Migrator) MigrateTemplate(ctx context.Context, ns, name string, opts Mi
 	if cm.Labels[types.LabelConfigCatalog] != types.VelaCoreConfig {
 		return report, fmt.Errorf("found a configmap but is not a config template")
 	}
-	m.migrateTemplateAndConfigs(ctx, &cm, opts, &report, map[client.ObjectKey]bool{})
+	if err := m.migrateTemplateAndConfigs(ctx, &cm, opts, &report, map[client.ObjectKey]bool{}); err != nil {
+		return report, err
+	}
 	return report, nil
 }
 
@@ -186,42 +191,162 @@ func (m *Migrator) MigrateConfigs(ctx context.Context, ns string, opts Migration
 
 // MigrateNamespace migrates every legacy template in ns, each with its configs
 // wherever they live, then every legacy config left in ns: template-less ones and
-// those whose template lives in another namespace.
+// those whose template lives in another namespace. The configs come from one
+// cluster-wide list grouped by template; when that list is refused, ns alone is
+// listed and one skipped row says what was not covered.
 func (m *Migrator) MigrateNamespace(ctx context.Context, ns string, opts MigrationOptions) (MigrationReport, error) {
+	return m.migrateTemplatesAndConfigs(ctx, ns, opts)
+}
+
+// MigrateAll migrates every legacy template in the cluster, each with its configs
+// wherever they live, then every legacy config left anywhere. Templates are visited
+// in namespace then name order. One ConfigMap list and one Secret list serve the
+// whole run, however many templates there are. The error return is for a refused
+// list only; per-object problems are rows.
+func (m *Migrator) MigrateAll(ctx context.Context, opts MigrationOptions) (MigrationReport, error) {
+	return m.migrateTemplatesAndConfigs(ctx, "", opts)
+}
+
+// migrateTemplatesAndConfigs is MigrateNamespace for one namespace and MigrateAll
+// for ns == "".
+func (m *Migrator) migrateTemplatesAndConfigs(ctx context.Context, ns string, opts MigrationOptions) (MigrationReport, error) {
 	var report MigrationReport
-	var cms corev1.ConfigMapList
-	if err := m.cli.List(ctx, &cms, client.InNamespace(ns), client.MatchingLabels{types.LabelConfigCatalog: types.VelaCoreConfig}); err != nil {
-		return report, err
-	}
-	sort.Slice(cms.Items, func(i, j int) bool { return cms.Items[i].Name < cms.Items[j].Name })
-	seen := map[client.ObjectKey]bool{}
-	for i := range cms.Items {
-		if !strings.HasPrefix(cms.Items[i].Name, TemplateConfigMapNamePrefix) {
-			continue
-		}
-		m.migrateTemplateAndConfigs(ctx, &cms.Items[i], opts, &report, seen)
-	}
-	secrets, err := m.listLegacyConfigs(ctx, ns)
+	cms, err := m.listLegacyTemplates(ctx, ns)
 	if err != nil {
 		return report, err
 	}
-	m.migrateConfigList(ctx, secrets, opts, &report, seen)
+	groups, err := m.listLegacyConfigGroups(ctx, ns)
+	if err != nil {
+		return report, err
+	}
+	seen := map[client.ObjectKey]bool{}
+	for i := range cms {
+		name := strings.TrimPrefix(cms[i].Name, TemplateConfigMapNamePrefix)
+		m.migrateTemplateConfigMap(ctx, &cms[i], opts, &report)
+		m.migrateConfigList(ctx, groups.of(cms[i].Namespace, name), opts, &report, seen)
+	}
+	if groups.unlisted != nil {
+		report.add(unlistedNamespacesRow(groups.unlisted))
+	}
+	m.migrateConfigList(ctx, groups.remaining(ns), opts, &report, seen)
 	return report, nil
 }
 
 // migrateTemplateAndConfigs migrates one template ConfigMap, then the configs that
-// reference it. Configs already reported in this run (seen) are skipped.
-func (m *Migrator) migrateTemplateAndConfigs(ctx context.Context, cm *corev1.ConfigMap, opts MigrationOptions, report *MigrationReport, seen map[client.ObjectKey]bool) {
+// reference it. Configs already reported in this run (seen) are skipped. The configs
+// are listed before anything is written, so a failed list leaves the cluster as it was.
+func (m *Migrator) migrateTemplateAndConfigs(ctx context.Context, cm *corev1.ConfigMap, opts MigrationOptions, report *MigrationReport, seen map[client.ObjectKey]bool) error {
 	name := strings.TrimPrefix(cm.Name, TemplateConfigMapNamePrefix)
-	m.migrateTemplateConfigMap(ctx, cm, opts, report)
-	secrets, listErr := m.listConfigsOfTemplate(ctx, cm.Namespace, name)
-	m.migrateConfigList(ctx, secrets, opts, report, seen)
-	if listErr != nil {
-		report.add(MigrationResult{
-			Kind: kindSecret, Namespace: "*", Name: "*", Outcome: MigrationFailed,
-			Reason: fmt.Sprintf("could not list configs in other namespaces: %v", listErr),
-		})
+	secrets, unlisted, err := m.listConfigsOfTemplate(ctx, cm.Namespace, name)
+	if err != nil {
+		return err
 	}
+	m.migrateTemplateConfigMap(ctx, cm, opts, report)
+	m.migrateConfigList(ctx, secrets, opts, report, seen)
+	if unlisted != nil {
+		report.add(unlistedNamespacesRow(unlisted))
+	}
+	return nil
+}
+
+// unlistedNamespacesRow is the one row a run adds when the cluster-wide Secret
+// list was refused and only one namespace was covered. It is skipped, not failed:
+// everything the caller could reach was handled, and a namespace-scoped user is
+// not wrong to be namespace-scoped. The reason names the namespaces it could not
+// see so an operator with wider rights knows to run it again.
+func unlistedNamespacesRow(err error) MigrationResult {
+	return MigrationResult{
+		Kind: kindSecret, Namespace: "*", Name: "*", Outcome: MigrationSkipped,
+		Reason: fmt.Sprintf("configs in other namespaces were not listed: %v", err),
+	}
+}
+
+// listLegacyTemplates lists the legacy template ConfigMaps in ns, or everywhere
+// for ns == "", in namespace then name order.
+func (m *Migrator) listLegacyTemplates(ctx context.Context, ns string) ([]corev1.ConfigMap, error) {
+	var list corev1.ConfigMapList
+	if err := m.cli.List(ctx, &list, client.InNamespace(ns), client.MatchingLabels{types.LabelConfigCatalog: types.VelaCoreConfig}); err != nil {
+		return nil, err
+	}
+	var cms []corev1.ConfigMap
+	for _, cm := range list.Items {
+		if strings.HasPrefix(cm.Name, TemplateConfigMapNamePrefix) {
+			cms = append(cms, cm)
+		}
+	}
+	sort.Slice(cms, func(i, j int) bool {
+		if cms[i].Namespace != cms[j].Namespace {
+			return cms[i].Namespace < cms[j].Namespace
+		}
+		return cms[i].Name < cms[j].Name
+	})
+	return cms, nil
+}
+
+// legacyConfigGroups is one listing of legacy config Secrets, grouped by the
+// template they were made from. Template-less configs sit under the empty key.
+type legacyConfigGroups struct {
+	byTemplate map[NamespacedName][]corev1.Secret
+	// unlisted is the error of a refused cluster-wide list, when the listing then
+	// covered one namespace only.
+	unlisted error
+}
+
+// listLegacyConfigGroups lists the legacy config Secrets across the cluster in one
+// call. When the call is forbidden and fallbackNS is set, that namespace is listed
+// instead and the refusal is kept in unlisted for the report. Any other error is
+// returned: a timeout or a server error is not a visibility limit, and reporting it
+// as one would let a transient failure end a run with exit 0.
+func (m *Migrator) listLegacyConfigGroups(ctx context.Context, fallbackNS string) (legacyConfigGroups, error) {
+	groups := legacyConfigGroups{byTemplate: map[NamespacedName][]corev1.Secret{}}
+	selector := client.MatchingLabels{types.LabelConfigCatalog: types.VelaCoreConfig}
+	var list corev1.SecretList
+	if err := m.cli.List(ctx, &list, selector); err != nil {
+		if fallbackNS == "" || !apierrors.IsForbidden(err) {
+			return groups, err
+		}
+		groups.unlisted = err
+		list = corev1.SecretList{}
+		if err := m.cli.List(ctx, &list, selector, client.InNamespace(fallbackNS)); err != nil {
+			return groups, err
+		}
+	}
+	for i := range list.Items {
+		secret := &list.Items[i]
+		if !isLegacyConfig(secret) {
+			continue
+		}
+		key := NamespacedName{Name: secret.Labels[types.LabelConfigType]}
+		if key.Name != "" {
+			key.Namespace = templateNamespaceOf(secret)
+		}
+		groups.byTemplate[key] = append(groups.byTemplate[key], *secret)
+	}
+	for key := range groups.byTemplate {
+		sortSecrets(groups.byTemplate[key])
+	}
+	return groups, nil
+}
+
+// of returns the configs made from template name in templateNS, in namespace then
+// name order.
+func (g legacyConfigGroups) of(templateNS, name string) []corev1.Secret {
+	return g.byTemplate[NamespacedName{Namespace: templateNS, Name: name}]
+}
+
+// remaining returns every listed config in ns, or everywhere for ns == "", in
+// namespace then name order; the caller's seen set drops the ones already done.
+func (g legacyConfigGroups) remaining(ns string) []corev1.Secret {
+	var secrets []corev1.Secret
+	for _, group := range g.byTemplate {
+		for _, secret := range group {
+			if ns == "" || secret.Namespace == ns {
+				secrets = append(secrets, secret)
+			}
+		}
+	}
+	sortSecrets(secrets)
+	return secrets
 }
 
 func (m *Migrator) migrateConfigList(ctx context.Context, secrets []corev1.Secret, opts MigrationOptions, report *MigrationReport, seen map[client.ObjectKey]bool) {
@@ -238,21 +363,23 @@ func (m *Migrator) migrateConfigList(ctx context.Context, secrets []corev1.Secre
 // listConfigsOfTemplate finds the legacy configs made from template name in
 // templateNS, across all namespaces. A Secret without a template-namespace
 // annotation counts as made from vela-system, the pre-CRD default. When the
-// cluster-wide list is denied the namespace of the template is listed instead and
-// the error is returned next to those results, so the caller can report that
-// configs elsewhere may remain.
-func (m *Migrator) listConfigsOfTemplate(ctx context.Context, templateNS, name string) ([]corev1.Secret, error) {
+// cluster-wide list is forbidden the namespace of the template is listed instead
+// and the refusal comes back as unlisted, so the caller can report that configs
+// elsewhere may remain. Any other list error is returned as err: it is a failure
+// of this run, not a limit of the caller's rights.
+func (m *Migrator) listConfigsOfTemplate(ctx context.Context, templateNS, name string) (secrets []corev1.Secret, unlisted error, err error) {
 	selector := client.MatchingLabels{types.LabelConfigCatalog: types.VelaCoreConfig, types.LabelConfigType: name}
 	var list corev1.SecretList
-	var listErr error
 	if err := m.cli.List(ctx, &list, selector); err != nil {
-		listErr = err
+		if !apierrors.IsForbidden(err) {
+			return nil, nil, err
+		}
+		unlisted = err
 		list = corev1.SecretList{}
 		if err := m.cli.List(ctx, &list, selector, client.InNamespace(templateNS)); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	var secrets []corev1.Secret
 	for _, secret := range list.Items {
 		if !isLegacyConfig(&secret) || templateNamespaceOf(&secret) != templateNS {
 			continue
@@ -260,7 +387,7 @@ func (m *Migrator) listConfigsOfTemplate(ctx context.Context, templateNS, name s
 		secrets = append(secrets, secret)
 	}
 	sortSecrets(secrets)
-	return secrets, listErr
+	return secrets, unlisted, nil
 }
 
 // listLegacyConfigs lists the legacy config Secrets in ns.
@@ -407,8 +534,8 @@ func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.Conf
 }
 
 // migrateConfigSecret adopts one legacy config Secret into a Config CR of the same
-// name in the same namespace, which then owns the Secret, its same-namespace output
-// objects and its distribution Application.
+// name in the same namespace, which then owns the Secret, its output objects and
+// its distribution Application.
 func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secret, opts MigrationOptions, report *MigrationReport) {
 	res := MigrationResult{Kind: kindSecret, Namespace: secret.Namespace, Name: secret.Name}
 	finish := func(outcome MigrationOutcome, reason string) {
@@ -417,8 +544,18 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		m.recordOutcome(opts, secret, res)
 	}
 
+	// What is not a legacy config is settled before any Config lookup: the Secret a
+	// Config CR wrote for itself has a Config of its name, and that is no conflict.
 	if optedOut(secret) {
 		finish(MigrationSkipped, reasonOptedOut)
+		return
+	}
+	if isSourceCacheEntry(secret) {
+		finish(MigrationSkipped, reasonSourceCacheEntry)
+		return
+	}
+	if writer := configWriterOf(secret); writer != "" {
+		finish(MigrationSkipped, fmt.Sprintf("not a legacy config: written by Config %s", writer))
 		return
 	}
 
@@ -454,23 +591,23 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		return
 	}
 
-	if isSourceCacheEntry(secret) {
-		finish(MigrationSkipped, "source cache entry managed by the controller")
-		return
-	}
-	if !isLegacyConfig(secret) {
-		finish(MigrationSkipped, "owned by a Config already")
-		return
-	}
-
 	refs, err := objectReferences(secret)
 	if err != nil {
 		finish(MigrationFailed, err.Error())
 		return
 	}
-	cfg, propsSecret, err := m.buildConfig(ctx, secret)
+	if outside := outputsOutside(refs, secret.Namespace); len(outside) > 0 {
+		finish(MigrationConflict, fmt.Sprintf("%d output object(s) outside %s would be recreated there by the controller: %s",
+			len(outside), secret.Namespace, strings.Join(outside, ", ")))
+		return
+	}
+	cfg, propsSecret, block, err := m.buildConfig(ctx, secret)
 	if err != nil {
 		finish(MigrationFailed, err.Error())
+		return
+	}
+	if block != nil {
+		finish(block.outcome, block.reason)
 		return
 	}
 	res.Target = cfg
@@ -486,10 +623,6 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		}
 	}
 	reason := fmt.Sprintf("Config %s created", secret.Name)
-	unowned := outputsOutside(refs, secret.Namespace)
-	if len(unowned) > 0 {
-		reason += fmt.Sprintf("; %d output object(s) outside %s left unowned", len(unowned), secret.Namespace)
-	}
 	if opts.DryRun {
 		finish(MigrationAdopted, reason)
 		return
@@ -509,20 +642,39 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		return
 	}
 	finish(MigrationAdopted, reason)
-	if len(unowned) > 0 {
-		m.event(opts, secret, corev1.EventTypeWarning, EventMigrationOutputsUnowned,
-			fmt.Sprintf("output objects outside %s were not adopted and keep no owner: %s", secret.Namespace, strings.Join(unowned, ", ")))
-	}
 }
 
-// buildConfig maps a legacy config Secret onto the Config CR that adopts it. A
-// sensitive template's input goes into a companion Secret the Config references;
-// the input never enters the CR. The template must exist as a CR or a legacy
-// ConfigMap, otherwise the Config could never become Available.
-func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*configv1alpha1.Config, *corev1.Secret, error) {
+// configWriterOf returns the name of the Config that wrote secret for itself: a
+// controller owner of kind Config with no migrated-to annotation on the Secret,
+// which an adopted legacy Secret always carries. "" means a legacy config.
+func configWriterOf(secret *corev1.Secret) string {
+	if secret.Annotations[types.AnnotationConfigMigratedTo] != "" {
+		return ""
+	}
+	for _, ref := range secret.OwnerReferences {
+		if ref.Kind == configv1alpha1.ConfigKind && ref.APIVersion == configv1alpha1.SchemeGroupVersion.String() {
+			return ref.Name
+		}
+	}
+	return ""
+}
+
+// templateBlock says a config cannot be adopted in this run because of the state
+// of its template; the row takes this outcome and reason instead of a Config.
+type templateBlock struct {
+	outcome MigrationOutcome
+	reason  string
+}
+
+// buildConfig maps a legacy config Secret onto the Config CR that adopts it. The
+// input goes into a companion Secret the Config references when the template or
+// the Secret's own annotation says sensitive; it never enters the CR then. The
+// template must exist as a CR or a legacy ConfigMap, otherwise the Config could
+// never become Available, and it must not block (see templateLookup.block).
+func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*configv1alpha1.Config, *corev1.Secret, *templateBlock, error) {
 	legacy, err := convertSecret2Config(secret)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	cfg := &configv1alpha1.Config{
 		TypeMeta: metav1.TypeMeta{APIVersion: configv1alpha1.SchemeGroupVersion.String(), Kind: configv1alpha1.ConfigKind},
@@ -537,27 +689,28 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 		raw = nil
 	}
 	templateName := secret.Labels[types.LabelConfigType]
-	if templateName == "" {
-		if len(raw) > 0 {
-			cfg.Spec.Properties = &runtime.RawExtension{Raw: raw}
+	sensitive := secretSensitive(secret)
+	if templateName != "" {
+		templateNS := templateNamespaceOf(secret)
+		cfg.Spec.TemplateRef = &configv1alpha1.ConfigTemplateReference{Name: templateName, Namespace: templateNS}
+		tpl, err := m.lookupTemplate(ctx, templateNS, templateName)
+		if err != nil {
+			return nil, nil, nil, err
 		}
-		return cfg, nil, nil
-	}
-	templateNS := templateNamespaceOf(secret)
-	cfg.Spec.TemplateRef = &configv1alpha1.ConfigTemplateReference{Name: templateName, Namespace: templateNS}
-	sensitive, found, err := m.templateSensitive(ctx, templateNS, templateName)
-	if err != nil {
-		return nil, nil, err
-	}
-	if !found {
-		return nil, nil, fmt.Errorf("template %s/%s not found", templateNS, templateName)
+		if tpl.cr == nil && tpl.legacy == nil {
+			return nil, nil, nil, fmt.Errorf("template %s/%s not found", templateNS, templateName)
+		}
+		if block := tpl.block(templateNS, templateName); block != nil {
+			return nil, nil, block, nil
+		}
+		sensitive = sensitive || tpl.sensitive()
 	}
 	if len(raw) == 0 {
-		return cfg, nil, nil
+		return cfg, nil, nil, nil
 	}
 	if !sensitive {
 		cfg.Spec.Properties = &runtime.RawExtension{Raw: raw}
-		return cfg, nil, nil
+		return cfg, nil, nil, nil
 	}
 	propsSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -569,7 +722,14 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 	cfg.Spec.PropertiesFrom = &configv1alpha1.PropertiesReference{
 		SecretRef: configv1alpha1.SecretKeySelector{Name: propsSecret.Name},
 	}
-	return cfg, propsSecret, nil
+	return cfg, propsSecret, nil, nil
+}
+
+// secretSensitive reports whether the legacy Secret itself says it was made from
+// a sensitive template. The template may have been flipped since; the Secret's
+// word keeps its input out of the CR either way.
+func secretSensitive(secret *corev1.Secret) bool {
+	return secret.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue
 }
 
 // propertiesSecretForeign reports whether a Secret already holds the companion
@@ -588,26 +748,67 @@ func (m *Migrator) propertiesSecretForeign(ctx context.Context, want *corev1.Sec
 	return !createdByMigration(&existing) || !bytes.Equal(existing.Data[propertiesSecretKey], want.Data[propertiesSecretKey]), nil
 }
 
-// templateSensitive looks the template up as a CR, then as a legacy ConfigMap, and
-// reports whether it exists and whether it is sensitive.
-func (m *Migrator) templateSensitive(ctx context.Context, ns, name string) (sensitive, found bool, err error) {
+// templateLookup is a config's template as it exists now: a CR, a legacy
+// ConfigMap, both, or neither.
+type templateLookup struct {
+	cr     *configv1alpha1.ConfigTemplate
+	legacy *corev1.ConfigMap
+}
+
+// lookupTemplate fetches both forms of the template name in ns.
+func (m *Migrator) lookupTemplate(ctx context.Context, ns, name string) (templateLookup, error) {
+	var tpl templateLookup
 	var ct configv1alpha1.ConfigTemplate
 	switch err := m.cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &ct); {
 	case err == nil:
-		return ct.Spec.Sensitive, true, nil
+		tpl.cr = &ct
 	case apierrors.IsNotFound(err) || IsCRDTypeMissing(err):
 	default:
-		return false, false, err
+		return tpl, err
 	}
 	var cm corev1.ConfigMap
 	switch err := m.cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: TemplateConfigMapNamePrefix + name}, &cm); {
 	case err == nil:
-		return cm.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue, true, nil
+		tpl.legacy = &cm
 	case apierrors.IsNotFound(err):
-		return false, false, nil
 	default:
-		return false, false, err
+		return tpl, err
 	}
+	return tpl, nil
+}
+
+// block reports why the template keeps its configs from being adopted in this run.
+// A CR that migration did not create, while the legacy ConfigMap is still there,
+// is a conflict: the configs were made from the ConfigMap, and binding them to a
+// foreign CR would have the controller re-render their Secrets from its CUE. The
+// ConfigMap's own migrated-to annotation counts as proof of adoption too, so a CR
+// that lost the migration label (relabelled by hand or by a controller) still
+// stands for its ConfigMap. A legacy ConfigMap that opted out keeps its configs
+// legacy with it. A CR alone means the operator removed the ConfigMap and wants
+// the rebinding; a ConfigMap alone is the config-first path, where the template
+// follows later.
+func (t templateLookup) block(ns, name string) *templateBlock {
+	if t.cr != nil && t.legacy != nil && !createdByMigration(t.cr) && !t.adoptedInto() {
+		return &templateBlock{MigrationConflict, fmt.Sprintf("template %s/%s: ConfigTemplate exists and was not created by migration", ns, name)}
+	}
+	if t.cr == nil && t.legacy != nil && optedOut(t.legacy) {
+		return &templateBlock{MigrationSkipped, fmt.Sprintf("template %s/%s opted out", ns, name)}
+	}
+	return nil
+}
+
+// adoptedInto reports whether the legacy ConfigMap records the CR as the one that
+// adopted it.
+func (t templateLookup) adoptedInto() bool {
+	return t.cr != nil && t.legacy != nil && t.legacy.Annotations[types.AnnotationConfigMigratedTo] == string(t.cr.UID)
+}
+
+// sensitive is the template's own flag, the CR's when there is one.
+func (t templateLookup) sensitive() bool {
+	if t.cr != nil {
+		return t.cr.Spec.Sensitive
+	}
+	return t.legacy != nil && t.legacy.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue
 }
 
 // objectReferences returns the output objects recorded on a legacy config Secret.
@@ -626,9 +827,10 @@ func objectReferences(secret *corev1.Secret) ([]corev1.ObjectReference, error) {
 }
 
 // outputsOutside names the output objects that do not live in the Secret's
-// namespace, cluster-scoped ones included. An owner reference across namespaces
-// is invalid and would get the object garbage-collected, so migration leaves them
-// alone and reports them.
+// namespace, cluster-scoped ones included. The Config controller renders every
+// output into the Config's namespace, so adopting such a config would make it
+// recreate the object there, repoint objects-reference at the copy and orphan the
+// original. Migration reports these as a conflict for the operator to settle.
 func outputsOutside(refs []corev1.ObjectReference, namespace string) []string {
 	var names []string
 	for _, ref := range refs {
@@ -641,8 +843,10 @@ func outputsOutside(refs []corev1.ObjectReference, namespace string) []string {
 }
 
 // adopt makes cfg the controller owner of everything the legacy config left
-// behind, patching in this order: same-namespace output objects, the distribution
-// Application, the companion properties Secret, and the config Secret last. The
+// behind, patching in this order: output objects, the distribution Application,
+// the companion properties Secret, and the config Secret last. Outputs outside the
+// namespace are a conflict before this point; the guard here is for a Config left
+// by an earlier run that still records one, which is never owned. The
 // Config reconciler refuses output objects it does not own and only a Secret
 // update re-enqueues it, so the Secret patch has to be the final trigger. The
 // Secret also receives the migrated-to annotation. Every step is idempotent, so a

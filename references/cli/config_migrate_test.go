@@ -19,6 +19,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"strings"
 
@@ -26,8 +27,12 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -324,6 +329,60 @@ var _ = Describe("Test the migrate commands of the config", func() {
 		Expect(err).Should(Succeed())
 		Expect(out).Should(MatchRegexp(`adopted 0, skipped [5-9][0-9]*, conflict 0, failed 0`))
 		Expect(out).ShouldNot(ContainSubstring(" adopted "))
+	})
+
+	// #7449 review item 4: the Secret a Config CR wrote for itself is skipped, exit 0
+	It("Test config migrate skips a Secret a Config CR wrote and exits 0", func() {
+		seedLegacyTemplate(k8sClient, ns, "mig-writer")
+		DeferCleanup(func() { cleanup([]string{"mig-writer"}, []string{"mig-fresh"}) })
+		fresh := &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: "mig-fresh"}, Spec: configv1alpha1.ConfigSpec{Alias: "mine"}}
+		Expect(k8sClient.Create(ctx, fresh)).Should(Succeed())
+		written := &v1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: "mig-fresh", Labels: map[string]string{types.LabelConfigCatalog: types.VelaCoreConfig, types.LabelConfigType: "mig-writer"}}}
+		Expect(controllerutil.SetControllerReference(fresh, written, k8sClient.Scheme())).Should(Succeed())
+		Expect(k8sClient.Create(ctx, written)).Should(Succeed())
+
+		out, err := run(ConfigCommandGroup, "migrate", "mig-fresh", "-n", ns)
+		Expect(err).Should(Succeed())
+		got := lines(out)
+		Expect(got[1]).Should(MatchRegexp(`^Secret\s+mig-fresh\s+default\s+skipped\s+not a legacy config: written by Config mig-fresh\s*$`))
+		Expect(got[2]).Should(Equal("adopted 0, skipped 1, conflict 0, failed 0"))
+		out, err = run(ConfigCommandGroup, "migrate", "--all", "-n", ns)
+		Expect(err).Should(Succeed())
+		Expect(out).ShouldNot(ContainSubstring("mig-fresh"))
+	})
+
+	// #7449 review item 6: a user who cannot list Secrets cluster-wide gets one
+	// skipped row for the namespaces they cannot see, and exit 0
+	It("Test config-template migrate --all as a namespace-scoped user prints one skipped row and exits 0", func() {
+		seedLegacyTemplate(k8sClient, ns, "mig-lim-a")
+		seedLegacyTemplate(k8sClient, ns, "mig-lim-b")
+		seedLegacyConfigFrom("mig-lim-a", "mig-lim-a-cfg")
+		DeferCleanup(func() { cleanup([]string{"mig-lim-a", "mig-lim-b"}, []string{"mig-lim-a-cfg"}) })
+		watchClient, err := client.NewWithWatch(cfg, client.Options{Scheme: k8sClient.Scheme()})
+		Expect(err).Should(Succeed())
+		forbidden := interceptor.NewClient(watchClient, interceptor.Funcs{
+			List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+				var lo client.ListOptions
+				lo.ApplyOptions(opts)
+				if _, isSecrets := list.(*v1.SecretList); isSecrets && lo.Namespace == "" {
+					return apierrors.NewForbidden(schema.GroupResource{Resource: "secrets"}, "", errors.New("no cluster-wide list"))
+				}
+				return c.List(ctx, list, opts...)
+			},
+		})
+		arg = cmd.NewTestFactory(cfg, forbidden)
+
+		out, err := run(TemplateCommandGroup, "migrate", "--all", "-n", ns)
+		Expect(err).Should(Succeed())
+		got := lines(out)
+		Expect(got[1]).Should(MatchRegexp(`^ConfigMap\s+mig-lim-a\s+default\s+adopted\s`))
+		Expect(got[2]).Should(MatchRegexp(`^Secret\s+mig-lim-a-cfg\s+default\s+adopted\s`))
+		Expect(got[3]).Should(MatchRegexp(`^ConfigMap\s+mig-lim-b\s+default\s+adopted\s`))
+		// the table wraps a long reason onto a second line, so match the row's head and the tail separately
+		Expect(got[4]).Should(MatchRegexp(`^Secret\s+\*\s+\*\s+skipped\s+configs in other namespaces were not listed: `))
+		Expect(out).Should(ContainSubstring("no cluster-wide list"))
+		Expect(strings.Count(out, "*")).Should(Equal(2), "one star row, not one per template")
+		Expect(got[len(got)-1]).Should(Equal("adopted 3, skipped 1, conflict 0, failed 0"))
 	})
 
 	It("Test the migrate commands are registered", func() {
