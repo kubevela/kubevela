@@ -69,18 +69,3 @@ jobs:
         with:
           codecov-enable: true
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Clean e2e profile
-        run: |
-          if [ -f /tmp/e2e-profile.out ]; then
-            rm /tmp/e2e-profile.out
-            echo "E2E profile cleaned"
-          else
-            echo "E2E profile not found, skipping cleanup"
-          fi
-
-      - name: Cleanup image
-        if: ${{ always() }}
-        run: |
-          make image-cleanup
-          docker image prune -f --filter "until=24h"

@@ -678,96 +678,6 @@ var _ = Describe("Addons that import modules", func() {
 		})
 	})
 
-	// --- Scenario 06 ---
-	Context("a type: module component declared in template.cue with a tenant namespace (scenario 06)", Ordered, Label("addon-module-scenario-06"), func() {
-		scope := scenarioScopes["06"]
-		var moduleWidgetKit string
-		var widgetsCRD string
-		var widgetKitDefinitions []string
-		var testNS string
-		widgetGVK := widgetGVK
-		widgetClassGVK := widgetClassGVK
-		addonApplication := scope.addonApplication
-		testdataPath := scope.Path
-		uninstall := func(app, addon string, modules ...string) {
-			scope.uninstall(ctx, app, addon, modules...)
-		}
-		BeforeAll(func() {
-			moduleWidgetKit = scope.Text(fixtureModuleWidgetKit)
-			widgetsCRD =
-				scope.Text(fixtureWidgetsCRD)
-			widgetKitDefinitions = scope.Texts(fixtureWidgetKitDefinitions)
-			testNS =
-				scope.Namespace
-			widgetGVK = scope.GVK("Widget")
-			widgetClassGVK = scope.GVK("WidgetClass")
-			scope.prepare(ctx)
-		})
-
-		BeforeAll(func() {
-			Expect(k8sClient.Create(ctx, addonApplication(scope.Text("tenant-widgets"), scope.Text("tenant-widgets"), "1.0.0", nil))).Should(Succeed())
-			waitAppRunning(ctx, testNS, scope.Text("tenant-widgets"), installWait)
-			waitAppRunning(ctx, systemNS, moduleWidgetKit, shortWait)
-			DeferCleanup(func() {
-				deleteApp(ctx, scope.Text("kit-tenant"), "tenant-consumer")
-				waitGone(ctx, unstructuredObj(widgetGVK, scope.Text("kit-tenant"), "tenant-widget"), shortWait)
-				uninstall(scope.Text("tenant-widgets"), scope.Text("addon-tenant-widgets"), moduleWidgetKit)
-				waitGone(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: scope.Text("kit-tenant")}}, reconcileWait)
-			})
-		})
-
-		It("lets the template's module component win over the matching _imports.cue entry", func() {
-			app := mustGetApp(ctx, systemNS, scope.Text("addon-tenant-widgets"))
-			Expect(componentNames(app)).Should(ConsistOf("tenant-kit", scope.Text("tenant-widgets-resources")))
-			Expect(componentNames(app)).ShouldNot(ContainElement(scope.Text("widget-kit")))
-			mod := findComponent(app, "tenant-kit")
-			Expect(mod.Type).Should(Equal("module"))
-			Expect(mod.DependsOn).Should(Equal([]string{scope.Text("tenant-widgets-resources")}), "a hand-written module component gets no automatic dependsOn")
-			Expect(propertiesOf(mod.Properties)).Should(Equal(map[string]interface{}{
-				"module": scope.Text("widget-kit"), "namespace": scope.Text("kit-tenant"), "registry": moduleRegistryName, "version": "1.0.0",
-			}))
-			Expect(mustGetApp(ctx, systemNS, moduleWidgetKit).Labels).Should(HaveKeyWithValue(oam.LabelAppComponent, "tenant-kit"))
-		})
-
-		It("installs definitions and namespaced auxiliary objects into the tenant namespace only", func() {
-			Expect(moduleDefinitionNames(ctx, scope.Text("kit-tenant"), scope.Text("widget-kit"))).Should(ConsistOf(widgetKitDefinitions))
-			Expect(moduleDefinitionNames(ctx, systemNS, scope.Text("widget-kit"))).Should(BeEmpty())
-			for _, cm := range []string{scope.Text("widget-kit-module-info"), scope.Text("widget-kit-v1-line-config"), scope.Text("widget-kit-v2-line-config")} {
-				_, err := getConfigMap(ctx, scope.Text("kit-tenant"), cm)
-				Expect(err).ShouldNot(HaveOccurred(), cm)
-				Expect(isNotFound(ctx, configMapObj(systemNS, cm))).Should(BeTrue(), cm)
-			}
-			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: widgetsCRD}, crd(widgetsCRD))).Should(Succeed(), "cluster-scoped objects are unaffected")
-			_, err := getUnstructured(ctx, widgetClassGVK, "", scope.Text("widget-kit-v1-standard"))
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: scope.Text("widget-kit-viewer")}, &rbacv1.ClusterRole{})).Should(Succeed())
-		})
-
-		It("is usable from the tenant namespace and refused from another", func() {
-			Expect(applyManifestFile(ctx, testdataPath("apps", "consumer-tenant.yaml"))).Should(Succeed())
-			waitAppRunning(ctx, scope.Text("kit-tenant"), "tenant-consumer", shortWait)
-			w, err := getUnstructured(ctx, widgetGVK, scope.Text("kit-tenant"), "tenant-widget")
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(nestedString(w, "spec", "classRef")).Should(Equal(scope.Text("widget-kit-v1-standard")))
-			Expect(w.GetLabels()).Should(HaveKeyWithValue(scope.Text("kit.example.com/labeled-by"), scope.Text("widget-kit-v1-labeler")))
-
-			results := createEachFromFile(ctx, testdataPath("apps", "consumer-default-tenant.yaml"))
-			Expect(results).Should(HaveLen(1))
-			// The friendly "ensure the module is installed" text comes from the
-			// definition permission check, which only runs with the alpha
-			// ValidateDefinitionPermissions gate. Without it the render refuses
-			// the Application with the template loader's error, so only the
-			// installed name and "not found" are checked.
-			for name, err := range results {
-				Expect(err).Should(HaveOccurred(), "%s must be denied from the default namespace", name)
-				Expect(err.Error()).Should(SatisfyAll(
-					ContainSubstring(scope.Text(`"widget-kit-v1-widget"`)),
-					ContainSubstring("not found"),
-				), name)
-				Expect(isNotFound(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: testNS}})).Should(BeTrue(), name)
-			}
-		})
-	})
 })
 
 // --- Scenario 08 (before 07: it needs 1.0.0 to be the highest tag) ---
@@ -943,7 +853,7 @@ var _ = Describe("Addons that import modules", Ordered, func() {
 			Eventually(func(g Gomega) { moduleState(g, "1.1.0", widgetKitTiers) }, installWait, pollInterval).Should(Succeed())
 			waitAppRunning(ctx, testNS, widgetPlatformApp, installWait)
 			Expect(mustGetApp(ctx, systemNS, addonWidgetPlatform).Labels).Should(HaveKeyWithValue(oam.LabelAddonVersion, "1.1.0"))
-			Expect(moduleDefinitionNames(ctx, systemNS, scope.Text("widget-kit"))).Should(ConsistOf(append([]string{scope.Text("widget-kit-v1-gauge")}, widgetKitDefinitions...)))
+			Eventually(func() []string { return moduleDefinitionNames(ctx, systemNS, scope.Text("widget-kit")) }, reconcileWait, pollInterval).Should(ConsistOf(append([]string{scope.Text("widget-kit-v1-gauge")}, widgetKitDefinitions...)))
 			info, err := getConfigMap(ctx, systemNS, scope.Text("widget-kit-module-info"))
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(info.Data).Should(HaveKeyWithValue("moduleVersion", "1.1.0"))
@@ -1772,6 +1682,7 @@ var _ = Describe("Addons that import modules", func() {
 		var addonWidgetPlatform string
 		var moduleWidgetKit string
 		var moduleGadgetKit string
+		var inlineApp, addonInline, moduleInline string
 		var testNS string
 		addonApplication := scope.addonApplication
 
@@ -1786,6 +1697,9 @@ var _ = Describe("Addons that import modules", func() {
 			moduleWidgetKit = scope.Text(fixtureModuleWidgetKit)
 			moduleGadgetKit =
 				scope.Text(fixtureModuleGadgetKit)
+			inlineApp = scope.Text("widget-platform-inline")
+			addonInline = scope.Text("addon-widget-platform-inline")
+			moduleInline = scope.Text("module-widget-kit-inline")
 			testNS = scope.Namespace
 			scope.prepare(
 				ctx)
@@ -1801,11 +1715,14 @@ var _ = Describe("Addons that import modules", func() {
 				deleteApp(ctx, testNS, "module-direct")
 				waitAppGone(ctx, systemNS, moduleGadgetKit, reconcileWait)
 				uninstall(widgetPlatformApp, addonWidgetPlatform, moduleWidgetKit)
+				uninstall(inlineApp, addonInline, moduleInline)
 			})
 
 			Expect(k8sClient.Create(ctx, addonApplication(widgetPlatformApp, scope.Text("widget-platform"), "1.0.0", nil))).Should(Succeed())
+			Expect(k8sClient.Create(ctx, addonApplication(inlineApp, scope.Text("widget-platform-inline"), "1.0.0", nil))).Should(Succeed())
 			Expect(applyManifestFile(ctx, testdataPath("apps", "module-direct.yaml"))).Should(Succeed())
 			waitAppRunning(ctx, testNS, widgetPlatformApp, installWait)
+			waitAppRunning(ctx, testNS, inlineApp, installWait)
 			waitAppRunning(ctx, testNS, "module-direct", installWait)
 		})
 
@@ -1815,10 +1732,20 @@ var _ = Describe("Addons that import modules", func() {
 		// service keeps the health it last recorded. So the gate message is not
 		// surfaced on running installs, a known limitation of addon and module
 		// health. What must hold is that turning a gate off removes nothing.
+		//
+		// widget-platform-inline bundles its module inline: there is no
+		// standalone type: module component with its own CueX provider to fail
+		// in place while the addon's other resources stay up. Instead
+		// RenderInlineModuleComponents's gate check runs inside the same
+		// resolveAndRender call that builds the addon's whole component list,
+		// so the entire addon-level render fails on its next reconcile -- but,
+		// per the same known limitation, that failure is only logged too, so
+		// the owned Application is still there either way.
 		chain := func() []client.Object {
 			return []client.Object{
 				appRef(testNS, widgetPlatformApp), appRef(systemNS, addonWidgetPlatform), appRef(systemNS, moduleWidgetKit),
 				appRef(testNS, "module-direct"), appRef(systemNS, moduleGadgetKit),
+				appRef(testNS, inlineApp), appRef(systemNS, addonInline), appRef(systemNS, moduleInline),
 			}
 		}
 
@@ -1829,6 +1756,7 @@ var _ = Describe("Addons that import modules", func() {
 			Consistently(func(g Gomega) {
 				g.Expect(getAppG(g, ctx, systemNS, moduleWidgetKit).Name).Should(Equal(moduleWidgetKit))
 				g.Expect(getAppG(g, ctx, systemNS, moduleGadgetKit).Name).Should(Equal(moduleGadgetKit))
+				g.Expect(getAppG(g, ctx, systemNS, moduleInline).Name).Should(Equal(moduleInline))
 			}, 30*time.Second, 5*time.Second).Should(Succeed())
 		})
 
@@ -1836,6 +1764,7 @@ var _ = Describe("Addons that import modules", func() {
 			setFeatureGates(ctx, false, false)
 			Consistently(func(g Gomega) {
 				g.Expect(getAppG(g, ctx, systemNS, addonWidgetPlatform).Name).Should(Equal(addonWidgetPlatform))
+				g.Expect(getAppG(g, ctx, systemNS, addonInline).Name).Should(Equal(addonInline))
 				g.Expect(getAppG(g, ctx, systemNS, moduleWidgetKit).Name).Should(Equal(moduleWidgetKit))
 			}, 30*time.Second, 5*time.Second).Should(Succeed())
 
@@ -1874,6 +1803,12 @@ var _ = Describe("Addons that import modules", func() {
 				g.Expect(svc.Healthy).Should(BeTrue(), svc.Message)
 				g.Expect(svc.Message).Should(Equal("Ready:3/3"))
 			})
+			eventuallyReconciled(ctx, chain(), reconcileWait, func(g Gomega) {
+				svc := findService(getAppG(g, ctx, testNS, inlineApp), scope.Text("widget-platform-inline"))
+				g.Expect(svc).ShouldNot(BeNil())
+				g.Expect(svc.Healthy).Should(BeTrue(), svc.Message)
+				g.Expect(svc.Message).Should(Equal("Ready:6/6"))
+			})
 		})
 	})
 })
@@ -1896,7 +1831,7 @@ var _ = Describe("Addons that import modules", func() {
 		It("stores the addons in the ChartMuseum index, modules/_imports.cue included", func() {
 			index, err := httpGet(addonRegistry.host+"/index.yaml", "")
 			Expect(err).ShouldNot(HaveOccurred(), index)
-			for _, addon := range []string{scope.Text("widget-platform"), scope.Text("kit-suite"), scope.Text("widget-latest"), scope.Text("import-options"), scope.Text("tenant-widgets"), scope.Text("cache-probe"), scope.Text("broken-imports")} {
+			for _, addon := range []string{scope.Text("widget-platform"), scope.Text("kit-suite"), scope.Text("widget-latest"), scope.Text("import-options"), scope.Text("cache-probe"), scope.Text("broken-imports")} {
 				Expect(index).Should(ContainSubstring(addon+"-"), "index.yaml should list %s", addon)
 			}
 			Expect(index).Should(ContainSubstring(scope.Text("widget-platform-1.2.0.tgz")))

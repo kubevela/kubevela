@@ -20,8 +20,8 @@ env:
   # Common versions
   GO_VERSION: '1.27.1'
   # Every suite job loads the same image, built once by build-image. Suite jobs
-  # do not wait for that job: they set up their cluster meanwhile and wait for
-  # the artifact just before installing the chart.
+  # do not wait for that job: they set up their cluster and build bin/vela
+  # meanwhile, and wait for the artifact just before installing the chart.
   E2E_IMAGE_ARTIFACT: vela-core-e2e-image-${{ github.run_id }}
   E2E_IMAGE_JOB: Build vela-core e2e image
 
@@ -66,7 +66,7 @@ jobs:
           overwrite: true
 
   e2e-tests:
-    name: ${{ matrix.package }} / Kubernetes ${{ matrix.k8s-version }}
+    name: ${{ matrix.package }}
     runs-on: ubuntu-22.04
     needs: [ detect-noop ]
     if: needs.detect-noop.outputs.noop != 'true'
@@ -102,6 +102,12 @@ jobs:
           - suite: addon-module
             package: e2e-addon-module-test
             k8s-version: v1.37.0
+          - suite: addon-component
+            package: e2e-addon-component-test
+            k8s-version: v1.37.0
+          - suite: api-application
+            package: e2e-cli-application-test
+            k8s-version: v1.37.0
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}-${{ matrix.suite }}
       cancel-in-progress: true
@@ -134,14 +140,8 @@ jobs:
           path: _artifacts/e2e/
           if-no-files-found: warn
 
-      - name: Cleanup image
-        if: ${{ always() }}
-        run: |
-          make image-cleanup
-          docker image prune -f --filter "until=24h"
-
   e2e-api:
-    name: e2e/ + test/e2e-addon-component-test / Kubernetes v1.37.0
+    name: e2e/ API tests
     runs-on: ubuntu-22.04
     needs: [ detect-noop ]
     if: ${{ !cancelled() && needs.detect-noop.outputs.noop != 'true' }}
@@ -163,13 +163,8 @@ jobs:
       - name: Run existing API E2E tests
         uses: ./.github/actions/e2e-test
         with:
-          suite: api
+          suite: api-cli
           codecov-enable: true
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
           image-artifact: ${{ env.E2E_IMAGE_ARTIFACT }}
           image-job: ${{ env.E2E_IMAGE_JOB }}
-      - name: Cleanup image
-        if: ${{ always() }}
-        run: |
-          make image-cleanup
-          docker image prune -f --filter "until=24h"

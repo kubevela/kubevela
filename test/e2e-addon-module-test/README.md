@@ -71,8 +71,17 @@ before tests can render. Each worker has its own `VELA_HOME`.
 Scenarios 08 and 07 stay together because the first publishes versions the
 second uses. Scenarios 05, 09, 15 and 18 use `Serial, Ordered`: they change
 default-registry resolution, restart the shared controller or toggle gates.
-This leaves 69 specs in parallel-capable scenarios and 13 serial specs. The
-same observation windows and parameter/version/line contracts are retained.
+With `E2E_ADDON_MODULE_SERIAL_KUBECONFIG` set to a second cluster prepared the
+same way, `make e2e-addon-module-test` runs them there (the labels in
+`serial-label-filter`) while the rest run on the current cluster, both at once.
+Scenarios with an `i` suffix (02i, 03i, 04i, 07i, 10i, 11i, 12i, 13i, 14i, 16i)
+repeat their external counterpart against a module bundled inline in the addon
+(`addon_module_inline_e2e_test.go`), and scenario 19 installs an inline and an
+imported module from one addon. Inline scenarios need no module registry, so
+07i does not join the 08/07 chain. Scenario 18 also checks an inline install
+while the gates are off. This leaves 106 specs in parallel-capable scenarios
+and 13 serial specs. The same observation windows and parameter/version/line
+contracts are retained.
 
 Use `E2E_PROCS=1` for serial execution or `E2E_PROCS=auto` (the default)
 for parallel workers. `E2E_REPORT_DIR` selects the JSON/JUnit output directory.
@@ -106,7 +115,7 @@ done
 ```
 
 Inspect process assignments and timestamps for overlapping independent
-scenarios, absence of overlap during the serial phase, all 82 specs passing,
+scenarios, absence of overlap during the serial phase, all 119 specs passing,
 and no scenario namespaces, CRDs, definitions, roles or Applications left
 after cleanup. A dry run proves discovery and scheduling configuration, not
 live concurrent execution or a runtime improvement.
@@ -116,7 +125,7 @@ live concurrent execution or a runtime improvement.
 | path | content |
 | --- | --- |
 | `testdata/modules/` | `widget-kit` 1.0.0/1.1.0/1.2.0, `gadget-kit`, `probe-kit` builds a and b, and `invalid/` trees the publisher must refuse |
-| `testdata/addons/` | `widget-platform` 1.0.0/1.1.0/1.2.0, `kit-suite` 1.0.0/2.0.0, `widget-latest`, `import-options`, `tenant-widgets`, `cache-probe` builds a and b, `broken-imports` 1.0.1 to 1.0.7 |
+| `testdata/addons/` | `widget-platform` 1.0.0/1.1.0/1.2.0, `kit-suite` 1.0.0/2.0.0, `widget-latest`, `import-options`, `cache-probe` builds a and b, `broken-imports` 1.0.1 to 1.0.7; inline-module counterparts `widget-platform-inline` 1.0.0/1.1.0/1.2.0, `kit-suite-inline` 1.0.0/2.0.0, `broken-imports-inline` 1.0.1 to 1.0.3, and `inline-mixed` |
 | `testdata/apps/` | consumer Applications that use the module definitions |
 | `publish_validation_test.go` | CLI-only checks (`vela module publish --dry-run`) |
 | `addon_module_e2e_test.go` | independent ordered scenarios and the narrow serial phase |

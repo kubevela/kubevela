@@ -35,9 +35,6 @@ runs:
         echo "Building KubeVela CLI..."
         make vela-cli
 
-        echo "Cleaning up previous test artifacts..."
-        make e2e-cleanup
-
         echo "Setting up core authentication for e2e tests..."
         make e2e-setup-core-auth
 

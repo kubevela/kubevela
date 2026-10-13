@@ -1,0 +1,9 @@
+# Becomes the kit-suite-resources component; both module components wait
+# for it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kit-suite-inline-config
+  namespace: vela-system
+data:
+  suiteVersion: "1.0.0"

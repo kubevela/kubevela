@@ -112,9 +112,14 @@ const (
 	// GoDefModuleFileName is the module.yaml file name in godef/
 	GoDefModuleFileName string = "module.yaml"
 
+	// ModulesDirName is the addon's modules/ directory. Everything under it
+	// except ModulesImportsFileName (claimed by its own, more specific
+	// pattern) is a candidate inline module, read by readInlineModulesDir.
+	ModulesDirName string = "modules"
+
 	// ModulesImportsFileName is the addon's modules/_imports.cue file name:
 	// the external-module-import declaration read by GetInstallPackageFromReader.
-	ModulesImportsFileName string = "modules/_imports.cue"
+	ModulesImportsFileName string = ModulesDirName + "/_imports.cue"
 
 	// AddonParameterDataKey is the key of parameter in addon args secrets
 	AddonParameterDataKey string = "addonParameterDataKey"
@@ -172,8 +177,12 @@ var Patterns = []Pattern{
 	{Value: ReadmeFileName}, {Value: MetadataFileName}, {Value: TemplateFileName},
 	// parameter in resource directory
 	{Value: ParameterFileName},
-	// external module imports
+	// external module imports -- exact-path, so it must be checked before the
+	// broader modules/ directory pattern below (GetPatternFromItem returns on
+	// first match)
 	{Value: ModulesImportsFileName},
+	// inline modules: everything else under modules/
+	{IsDir: true, Value: ModulesDirName},
 	// directory files
 	{IsDir: true, Value: ResourcesDirName}, {IsDir: true, Value: DefinitionsDirName}, {IsDir: true, Value: DefSchemaName}, {IsDir: true, Value: ViewDirName},
 	// Go-based definitions directory
@@ -330,6 +339,13 @@ func GetInstallPackageFromReader(r AsyncReader, meta *SourceMeta, uiData *UIData
 				return nil, fmt.Errorf("fail to read addon %s file %s: %w", meta.Name, r.RelativePath(it), err)
 			}
 		}
+	}
+
+	// Inline modules are grouped by name before they can be parsed, so unlike
+	// every other content type above, this one is not a per-item dispatch
+	// entry: it reads the whole modules/ bucket at once.
+	if err := readInlineModulesDir(addon, r, ptItems[ModulesDirName], meta.Name); err != nil {
+		return nil, fmt.Errorf("fail to read addon %s inline modules: %w", meta.Name, err)
 	}
 
 	return addon, nil
