@@ -116,6 +116,62 @@ func TestResolveConfigTemplate(t *testing.T) {
 		r.Equal("template: {}", string(tmpl.CUE))
 	})
 
+	t.Run("a template without a nacos block has no expanded writer", func(t *testing.T) {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "plain", Namespace: apitypes.DefaultKubeVelaNS},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: "template: { output: {}, parameter: {} }"},
+			Status:     configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+		}
+		cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(ct).Build()
+
+		tmpl, _, err := ResolveConfigTemplate(context.Background(), cli, &configv1alpha1.ConfigTemplateReference{Name: "plain"})
+		r.NoError(err)
+		r.Nil(tmpl.ExpandedWriter.Nacos)
+	})
+
+	t.Run("the nacos block travels with a CRD template", func(t *testing.T) {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "nc-app", Namespace: "nw-nacos"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: nacosTemplateCUE},
+			Status:     configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+		}
+		cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(ct).Build()
+
+		tmpl, _, err := ResolveConfigTemplate(context.Background(), cli, &configv1alpha1.ConfigTemplateReference{Name: "nc-app", Namespace: "nw-nacos"})
+		r.NoError(err)
+		r.NotNil(tmpl.ExpandedWriter.Nacos)
+		r.Equal("nacos", tmpl.ExpandedWriter.Nacos.Endpoint.Name)
+		r.Equal(apitypes.DefaultKubeVelaNS, tmpl.ExpandedWriter.Nacos.Endpoint.Namespace)
+		r.Equal("properties", tmpl.ExpandedWriter.Nacos.Format)
+	})
+
+	t.Run("the nacos block travels with a legacy ConfigMap template", func(t *testing.T) {
+		cm := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: TemplateConfigMapNamePrefix + "nc-app", Namespace: "nw-nacos"},
+			Data:       map[string]string{SaveTemplateKey: nacosTemplateCUE},
+		}
+		cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(cm).Build()
+
+		tmpl, _, err := ResolveConfigTemplate(context.Background(), cli, &configv1alpha1.ConfigTemplateReference{Name: "nc-app", Namespace: "nw-nacos"})
+		r.NoError(err)
+		r.NotNil(tmpl.ExpandedWriter.Nacos)
+		r.Equal("nacos", tmpl.ExpandedWriter.Nacos.Endpoint.Name)
+		r.Equal("properties", tmpl.ExpandedWriter.Nacos.Format)
+	})
+
+	t.Run("a template whose CUE does not compile has no expanded writer and still resolves", func(t *testing.T) {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "broken", Namespace: apitypes.DefaultKubeVelaNS},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: "template: { nacos: { endpoint: name: } }"},
+			Status:     configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+		}
+		cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(ct).Build()
+
+		tmpl, _, err := ResolveConfigTemplate(context.Background(), cli, &configv1alpha1.ConfigTemplateReference{Name: "broken"})
+		r.NoError(err)
+		r.Nil(tmpl.ExpandedWriter.Nacos)
+	})
+
 	t.Run("neither CRD nor legacy ConfigMap exist", func(t *testing.T) {
 		cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
 
@@ -153,3 +209,35 @@ func TestResolveConfigTemplate(t *testing.T) {
 		r.Nil(tmpl)
 	})
 }
+
+// nacosTemplateCUE is the shape of testdata/mysql-db-nacos.cue: a concrete endpoint, metadata
+// from the parameter, properties content.
+const nacosTemplateCUE = `
+template: {
+	nacos: {
+		endpoint: name: "nacos"
+		format: "properties"
+		metadata: {
+			dataId: parameter.dataId
+			group:  parameter.group
+		}
+		content: parameter.content
+	}
+	output: {
+		apiVersion: "v1"
+		kind:       "Secret"
+		metadata: {
+			name:      context.name
+			namespace: context.namespace
+		}
+	}
+	parameter: {
+		dataId: string
+		group:  *"DEFAULT_GROUP" | string
+		content: {
+			mysqlHost: string
+			mysqlPort: int
+		}
+	}
+}
+`
