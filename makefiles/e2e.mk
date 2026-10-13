@@ -114,8 +114,16 @@ e2e-setup-core-auth: e2e-setup-core-pre-hook e2e-setup-core-w-auth e2e-setup-cor
 
 .PHONY: e2e-api-test
 e2e-api-test:
-	# Run e2e test
+	$(MAKE) e2e-api-cli-test
+	$(MAKE) e2e-api-application-test
+
+# e2e/application switches the current vela env, so it runs in its own ginkgo
+# invocation, never alongside the rest of e2e/; CI gives it its own job.
+.PHONY: e2e-api-cli-test e2e-api-application-test
+e2e-api-cli-test:
 	ginkgo -v -skipPackage capability,setup,application -r e2e
+
+e2e-api-application-test:
 	ginkgo -v -r e2e/application
 
 

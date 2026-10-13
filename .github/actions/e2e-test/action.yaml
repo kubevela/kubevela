@@ -15,7 +15,7 @@ inputs:
     required: false
     default: 'auto'
   suite:
-    description: 'Suite: all, api, addon, core (all core tests), core-application, core-definitions, core-config, core-helm, core-helm-auth, module, source, or addon-module'
+    description: 'Suite: all, api (all of e2e/ plus addon-component), api-cli (e2e/ without e2e/application), api-application, addon-component, addon, core (all core tests), core-application, core-definitions, core-config, core-helm, core-helm-auth, module, source, or addon-module'
     required: false
     default: 'all'
   procs:
@@ -43,7 +43,7 @@ runs:
         E2E_ADDON_WORKERS: ${{ inputs.addon-procs }}
       run: |
         case "$E2E_SUITE" in
-          all|api|addon|core|core-application|core-definitions|core-config|core-helm|core-helm-auth|module|source|addon-module) ;;
+          all|api|api-cli|api-application|addon-component|addon|core|core-application|core-definitions|core-config|core-helm|core-helm-auth|module|source|addon-module) ;;
           *) echo "Unknown E2E suite: $E2E_SUITE" >&2; exit 1 ;;
         esac
         bash hack/e2e/ginkgo_workers_test.sh
@@ -90,8 +90,8 @@ runs:
         E2E_SUITE: ${{ inputs.suite }}
       run: |
         case "$E2E_SUITE" in
-          all|api) make ;;
-          core|core-application|core-definitions|core-config|module|addon|addon-module) make e2e-vela-cli ;;
+          all|api|api-cli|api-application) make ;;
+          core|core-application|core-definitions|core-config|module|addon|addon-module|addon-component) make e2e-vela-cli ;;
           source|core-helm|core-helm-auth) : ;;
         esac
 
@@ -176,11 +176,16 @@ runs:
       run: bash hack/e2e/background_job.sh wait addon-module-discovery 1200
 
     - name: Run e2e/ API tests
-      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'api') }}
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && contains(fromJSON('["all","api","api-cli"]'), inputs.suite) }}
       shell: bash
       run: |
         echo "Running API e2e tests..."
-        make e2e-api-test
+        make e2e-api-cli-test
+
+    - name: Run e2e/application tests
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && contains(fromJSON('["all","api","api-application"]'), inputs.suite) }}
+      shell: bash
+      run: make e2e-api-application-test
 
     - name: Run test/e2e-addon-test
       if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'addon') }}
@@ -244,7 +249,7 @@ runs:
       # in-cluster ChartMuseum and pushes its fixtures into it, so it needs no
       # external registry; e2e-setup-core has already installed the chart with
       # featureGates.enableAddonComponent=true.
-      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'api') }}
+      if: ${{ !cancelled() && steps.prepare.outcome == 'success' && contains(fromJSON('["all","api","addon-component"]'), inputs.suite) }}
       shell: bash
       env:
         E2E_ADDON_PROCS: ${{ steps.workers.outputs.addon-procs }}

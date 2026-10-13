@@ -102,6 +102,12 @@ jobs:
           - suite: addon-module
             package: e2e-addon-module-test
             k8s-version: v1.37.0
+          - suite: addon-component
+            package: e2e-addon-component-test
+            k8s-version: v1.37.0
+          - suite: api-application
+            package: e2e/application
+            k8s-version: v1.37.0
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}-${{ matrix.suite }}
       cancel-in-progress: true
@@ -135,7 +141,7 @@ jobs:
           if-no-files-found: warn
 
   e2e-api:
-    name: e2e/ + test/e2e-addon-component-test / Kubernetes v1.37.0
+    name: e2e/ API tests / Kubernetes v1.37.0
     runs-on: ubuntu-22.04
     needs: [ detect-noop ]
     if: ${{ !cancelled() && needs.detect-noop.outputs.noop != 'true' }}
@@ -157,7 +163,7 @@ jobs:
       - name: Run existing API E2E tests
         uses: ./.github/actions/e2e-test
         with:
-          suite: api
+          suite: api-cli
           codecov-enable: true
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
           image-artifact: ${{ env.E2E_IMAGE_ARTIFACT }}
