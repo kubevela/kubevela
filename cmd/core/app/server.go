@@ -520,11 +520,16 @@ func prepareRun(ctx context.Context, manager manager.Manager, coreOptions *optio
 	klog.V(2).InfoS("Initializing provider registry")
 	bootstrapProviderRegistry()
 
+	// The controllers learn whether the webhook server will run; the config migration
+	// sweep only borrows its started checker when it does.
+	args := coreOptions.Controller.Args
+	args.UseWebhook = coreOptions.Webhook.UseWebhook
+
 	if coreOptions.Webhook.UseWebhook {
 		klog.InfoS("Webhook enabled, registering OAM webhooks",
 			"port", coreOptions.Webhook.WebhookPort,
 			"certDir", coreOptions.Webhook.CertDir)
-		oamwebhook.Register(manager, coreOptions.Controller.Args)
+		oamwebhook.Register(manager, args)
 		configwebhook.Register(manager)
 		klog.V(2).InfoS("Waiting for webhook secret volume",
 			"timeout", waitSecretTimeout,
@@ -537,14 +542,14 @@ func prepareRun(ctx context.Context, manager manager.Manager, coreOptions *optio
 	}
 
 	klog.InfoS("Setting up OAM controllers")
-	if err := oamv1beta1.Setup(manager, coreOptions.Controller.Args); err != nil {
+	if err := oamv1beta1.Setup(manager, args); err != nil {
 		klog.ErrorS(err, "Unable to setup the OAM controller")
 		return err
 	}
 	klog.InfoS("OAM controllers setup completed successfully")
 
 	klog.InfoS("Setting up config controllers")
-	if err := configv1alpha1.Setup(manager, coreOptions.Controller.Args); err != nil {
+	if err := configv1alpha1.Setup(manager, args); err != nil {
 		klog.ErrorS(err, "Unable to setup the config controller")
 		return err
 	}

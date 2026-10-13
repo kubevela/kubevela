@@ -33,7 +33,12 @@ const recorderName = "ConfigMigration"
 // Setup adds the startup sweep to the manager when AutoMigrateLegacyConfigs is on
 // and does nothing otherwise. It runs through the same loop as the config
 // controllers, so the gate decides at startup and nothing is wired for an off gate.
-func Setup(mgr ctrl.Manager, _ controller.Args) error {
+//
+// The sweep waits for the webhook server only when the webhooks are enabled
+// (args.UseWebhook). mgr.GetWebhookServer is not a plain getter: its first call adds
+// the server to the manager, and with --use-webhook=false no certificates are
+// mounted, so that server would fail to start and take the manager down with it.
+func Setup(mgr ctrl.Manager, args controller.Args) error {
 	if !feature.DefaultMutableFeatureGate.Enabled(features.AutoMigrateLegacyConfigs) {
 		return nil
 	}
@@ -42,10 +47,12 @@ func Setup(mgr ctrl.Manager, _ controller.Args) error {
 		return err
 	}
 	var ready healthz.Checker
-	if srv := mgr.GetWebhookServer(); srv != nil {
-		ready = srv.StartedChecker()
+	if args.UseWebhook {
+		if srv := mgr.GetWebhookServer(); srv != nil {
+			ready = srv.StartedChecker()
+		}
 	}
-	klog.InfoS("AutoMigrateLegacyConfigs is on; the legacy config migration sweep will run on the leader")
+	klog.InfoS("AutoMigrateLegacyConfigs is on; the legacy config migration sweep will run on the leader", "waitForWebhook", ready != nil)
 	return mgr.Add(&StartupSweep{
 		Client:   cli,
 		Recorder: mgr.GetEventRecorderFor(recorderName),

@@ -39,8 +39,9 @@ import (
 // else panics through the nil embedded interface, which is what we want.
 type recordingManager struct {
 	manager.Manager
-	webhook webhook.Server
-	added   []manager.Runnable
+	webhook      webhook.Server
+	webhookAsked int // GetWebhookServer calls; in controller-runtime the first one starts the server
+	added        []manager.Runnable
 }
 
 // stubWebhookServer is the slice of webhook.Server that Setup touches: a server
@@ -49,9 +50,12 @@ type stubWebhookServer struct{ webhook.Server }
 
 func (stubWebhookServer) StartedChecker() healthz.Checker { return healthz.Ping }
 
-func (m *recordingManager) GetConfig() *rest.Config          { return cfg }
-func (m *recordingManager) GetScheme() *runtime.Scheme       { return scheme.Scheme }
-func (m *recordingManager) GetWebhookServer() webhook.Server { return m.webhook }
+func (m *recordingManager) GetConfig() *rest.Config    { return cfg }
+func (m *recordingManager) GetScheme() *runtime.Scheme { return scheme.Scheme }
+func (m *recordingManager) GetWebhookServer() webhook.Server {
+	m.webhookAsked++
+	return m.webhook
+}
 func (m *recordingManager) GetEventRecorderFor(string) record.EventRecorder {
 	return record.NewFakeRecorder(1)
 }
@@ -71,7 +75,7 @@ var _ = Describe("Setup of the startup migration sweep", func() {
 	It("registers one leader-elected sweep when the gate is on", func() {
 		featuregatetesting.SetFeatureGateDuringTest(GinkgoT(), utilfeature.DefaultMutableFeatureGate, features.AutoMigrateLegacyConfigs, true)
 		mgr := &recordingManager{}
-		Expect(Setup(mgr, controller.Args{})).Should(Succeed())
+		Expect(Setup(mgr, controller.Args{UseWebhook: true})).Should(Succeed())
 		Expect(mgr.added).Should(HaveLen(1))
 		sweep, ok := mgr.added[0].(*StartupSweep)
 		Expect(ok).Should(BeTrue())
@@ -81,13 +85,27 @@ var _ = Describe("Setup of the startup migration sweep", func() {
 		Expect(sweep.Ready).Should(BeNil(), "no webhook server on this manager")
 	})
 
-	It("hands the sweep the webhook server's started checker when the manager has one", func() {
+	It("hands the sweep the webhook server's started checker when the webhooks are enabled", func() {
 		featuregatetesting.SetFeatureGateDuringTest(GinkgoT(), utilfeature.DefaultMutableFeatureGate, features.AutoMigrateLegacyConfigs, true)
 		mgr := &recordingManager{webhook: stubWebhookServer{}}
-		Expect(Setup(mgr, controller.Args{})).Should(Succeed())
+		Expect(Setup(mgr, controller.Args{UseWebhook: true})).Should(Succeed())
 		Expect(mgr.added).Should(HaveLen(1))
 		sweep := mgr.added[0].(*StartupSweep)
+		Expect(mgr.webhookAsked).Should(Equal(1))
 		Expect(sweep.Ready).ShouldNot(BeNil())
 		Expect(sweep.Ready(&http.Request{})).Should(Succeed())
+	})
+
+	It("never asks for the webhook server when the webhooks are disabled", func() {
+		// The manager always carries a webhook server, enabled or not. Asking for it
+		// would add it to the manager, and with --use-webhook=false there are no
+		// certificates for it to start with.
+		featuregatetesting.SetFeatureGateDuringTest(GinkgoT(), utilfeature.DefaultMutableFeatureGate, features.AutoMigrateLegacyConfigs, true)
+		mgr := &recordingManager{webhook: stubWebhookServer{}}
+		Expect(Setup(mgr, controller.Args{UseWebhook: false})).Should(Succeed())
+		Expect(mgr.added).Should(HaveLen(1))
+		sweep := mgr.added[0].(*StartupSweep)
+		Expect(mgr.webhookAsked).Should(BeZero())
+		Expect(sweep.Ready).Should(BeNil())
 	})
 })
