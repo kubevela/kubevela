@@ -89,10 +89,12 @@ endif
 
 endif
 
-## image-load: load docker image to the kind cluster
+KIND_CLUSTER_NAME ?= kind
+
+## image-load: load docker image to the kind cluster KIND_CLUSTER_NAME
 image-load:
 	docker build -t $(VELA_CORE_TEST_IMAGE) -f Dockerfile.e2e .
-	kind load docker-image $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
+	kind load docker-image --name $(KIND_CLUSTER_NAME) $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
 
 E2E_IMAGE_ARCHIVE ?= _artifacts/image/vela-core-test.tar
 
@@ -102,14 +104,14 @@ image-archive:
 	mkdir -p $(dir $(E2E_IMAGE_ARCHIVE))
 	docker save -o $(E2E_IMAGE_ARCHIVE) $(VELA_CORE_TEST_IMAGE)
 
-## image-load-archive: load an image-archive tarball into the kind cluster
+## image-load-archive: load an image-archive tarball into the kind cluster KIND_CLUSTER_NAME
 # The tag is in manifest.json for the classic image store and in index.json for
 # the containerd image store, so look in both and match it literally. Listing
 # the archive first lets a missing or corrupt archive fail with tar's own error.
 image-load-archive:
 	tar -tf $(E2E_IMAGE_ARCHIVE) >/dev/null
 	{ tar -xOf $(E2E_IMAGE_ARCHIVE) manifest.json 2>/dev/null; tar -xOf $(E2E_IMAGE_ARCHIVE) index.json 2>/dev/null; } | grep -qF '$(VELA_CORE_TEST_IMAGE)' || { echo >&2 "$(E2E_IMAGE_ARCHIVE) does not contain $(VELA_CORE_TEST_IMAGE)"; exit 1; }
-	kind load image-archive $(E2E_IMAGE_ARCHIVE) || { echo >&2 "kind not installed or error loading archive: $(E2E_IMAGE_ARCHIVE)"; exit 1; }
+	kind load image-archive --name $(KIND_CLUSTER_NAME) $(E2E_IMAGE_ARCHIVE) || { echo >&2 "kind not installed or error loading archive: $(E2E_IMAGE_ARCHIVE)"; exit 1; }
 
 ## core-test: Run tests
 core-test:

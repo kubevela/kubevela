@@ -22,11 +22,9 @@ runs:
       run: |
         go install sigs.k8s.io/kind@v0.33.0
         if [ -n "${{ inputs.name }}" ]; then
-          kind delete cluster --name="${{ inputs.name }}" || true
           kind create cluster --name="${{ inputs.name }}" --image=kindest/node:${{ inputs.k8s-version }}
           kind export kubeconfig --internal --name="${{ inputs.name }}" --kubeconfig /tmp/${{ inputs.name }}.kubeconfig
         else
-          kind delete cluster || true
           kind create cluster --image=kindest/node:${{ inputs.k8s-version }}
         fi
       shell: bash

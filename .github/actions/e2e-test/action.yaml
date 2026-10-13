@@ -47,6 +47,7 @@ runs:
           *) echo "Unknown E2E suite: $E2E_SUITE" >&2; exit 1 ;;
         esac
         bash hack/e2e/ginkgo_workers_test.sh
+        bash hack/e2e/background_job_test.sh
         workers=$(bash hack/e2e/ginkgo_workers.sh "$E2E_WORKERS")
         addon_workers=$(bash hack/e2e/ginkgo_workers.sh "$E2E_ADDON_WORKERS")
         echo "Ginkgo workers: $workers; addon workers: $addon_workers"
@@ -62,14 +63,38 @@ runs:
         install-setup-envtest: 'false'
         install-kustomize: 'false'
 
+    # The addon/module Serial scenarios restart vela-core, toggle its feature
+    # gates or change the default registry, so they get a cluster of their own
+    # and run alongside the rest instead of after it. Its kubeconfig is kept
+    # apart so the default context stays on the first cluster.
+    - name: Create the addon/module serial cluster
+      if: ${{ inputs.suite == 'addon-module' }}
+      shell: bash
+      env:
+        SERIAL_KUBECONFIG: ${{ runner.temp }}/addon-module-serial.kubeconfig
+      run: |
+        node_version=$(kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.kubeletVersion}')
+        bash hack/e2e/background_job.sh start addon-module-serial-cluster \
+          kind create cluster --name addon-module-serial --image "kindest/node:${node_version}" \
+          --kubeconfig "$SERIAL_KUBECONFIG" --wait 3m
+
+    # Needs no cluster, so it compiles and runs while the chart installs.
+    - name: Start addon/module discovery and scheduling check
+      if: ${{ inputs.suite == 'addon-module' }}
+      shell: bash
+      run: bash hack/e2e/background_job.sh start addon-module-discovery make e2e-addon-module-discovery
+
     - name: Build project
       shell: bash
       env:
         E2E_SUITE: ${{ inputs.suite }}
+        IMAGE_ARTIFACT: ${{ inputs.image-artifact }}
       run: |
         case "$E2E_SUITE" in
           all|api) make ;;
-          core|core-application|core-definitions|core-config|module|addon|addon-module) make e2e-vela-cli ;;
+          # With a prebuilt image artifact, bin/vela comes with it below.
+          core|core-application|core-definitions|core-config|module|addon|addon-module)
+            [[ -n "$IMAGE_ARTIFACT" ]] || make e2e-vela-cli ;;
           source|core-helm|core-helm-auth) : ;;
         esac
 
@@ -97,6 +122,28 @@ runs:
       shell: bash
       run: make image-load-archive E2E_IMAGE_ARCHIVE=_artifacts/image/vela-core-test.tar
 
+    # Before the environment preparation: its post-hook enables addons with bin/vela.
+    - name: Install prebuilt vela CLI
+      if: ${{ inputs.image-artifact != '' && contains(fromJSON('["core","core-application","core-definitions","core-config","module","addon","addon-module"]'), inputs.suite) }}
+      shell: bash
+      run: |
+        install -D -m 0755 _artifacts/image/vela bin/vela
+        bin/vela version
+
+    - name: Load vela-core image into the serial cluster
+      if: ${{ inputs.suite == 'addon-module' }}
+      shell: bash
+      env:
+        IMAGE_ARTIFACT: ${{ inputs.image-artifact }}
+      run: |
+        bash hack/e2e/background_job.sh wait addon-module-serial-cluster 600
+        if [[ -n "$IMAGE_ARTIFACT" ]]; then
+          make image-load-archive E2E_IMAGE_ARCHIVE=_artifacts/image/vela-core-test.tar KIND_CLUSTER_NAME=addon-module-serial
+        else
+          mkdir -p "$HOME/tmp"
+          TMPDIR="$HOME/tmp" make image-load KIND_CLUSTER_NAME=addon-module-serial
+        fi
+
     # ========================================================================
     # E2E Test Environment Preparation
     # ========================================================================
@@ -105,11 +152,21 @@ runs:
       shell: bash
       env:
         E2E_SUITE: ${{ inputs.suite }}
+        SERIAL_KUBECONFIG: ${{ runner.temp }}/addon-module-serial.kubeconfig
       run: |
         echo "Preparing e2e test environment..."
-        make e2e-cleanup
         case "$E2E_SUITE" in
-          module|addon-module|source|core-helm|core-helm-auth) make e2e-setup-core-minimal ;;
+          addon-module)
+            # Patch the chart once, then install it on both clusters at once.
+            make e2e-setup-core-pre-hook
+            KUBECONFIG="$SERIAL_KUBECONFIG" bash hack/e2e/background_job.sh start addon-module-serial-core \
+              make e2e-setup-core-module-install
+            make e2e-setup-core-module-install
+            bash hack/e2e/background_job.sh wait addon-module-serial-core 900
+            echo "Running Helm tests on the serial cluster..."
+            KUBECONFIG="$SERIAL_KUBECONFIG" helm test -n vela-system kubevela --timeout 5m
+            ;;
+          module|source|core-helm|core-helm-auth) make e2e-setup-core-minimal ;;
           *) make e2e-setup-core ;;
         esac
 
@@ -127,7 +184,7 @@ runs:
     - name: Verify addon/module discovery and scheduling
       if: ${{ inputs.suite == 'addon-module' }}
       shell: bash
-      run: make e2e-addon-module-discovery
+      run: bash hack/e2e/background_job.sh wait addon-module-discovery 1200
 
     - name: Run e2e/ API tests
       if: ${{ !cancelled() && steps.prepare.outcome == 'success' && (inputs.suite == 'all' || inputs.suite == 'api') }}
@@ -187,8 +244,11 @@ runs:
       env:
         E2E_WORKERS: ${{ steps.workers.outputs.procs }}
         E2E_SUITE: ${{ inputs.suite }}
+        SERIAL_KUBECONFIG: ${{ runner.temp }}/addon-module-serial.kubeconfig
       run: |
-        make e2e-addon-module-test E2E_PROCS="$E2E_WORKERS"
+        # Suite "all" has no serial cluster, so its Serial scenarios run here last.
+        [[ -f "$SERIAL_KUBECONFIG" ]] || SERIAL_KUBECONFIG=
+        make e2e-addon-module-test E2E_PROCS="$E2E_WORKERS" E2E_ADDON_MODULE_SERIAL_KUBECONFIG="$SERIAL_KUBECONFIG"
 
     - name: Run test/e2e-addon-component-test
       # Same reasoning as the module step above. The suite brings up its own
@@ -242,6 +302,15 @@ runs:
         echo "--- Helm Release Status ---"
         helm list -A || true
         helm status kubevela -n vela-system || true
+
+        serial_kubeconfig="${{ runner.temp }}/addon-module-serial.kubeconfig"
+        if [ -f "$serial_kubeconfig" ]; then
+          echo "--- Addon/module serial cluster ---"
+          KUBECONFIG="$serial_kubeconfig" kubectl get pods -A || true
+          KUBECONFIG="$serial_kubeconfig" kubectl logs -n vela-system -l app.kubernetes.io/name=vela-core --tail=100 || true
+          KUBECONFIG="$serial_kubeconfig" kubectl get events -A --sort-by='.lastTimestamp' --field-selector type!=Normal || true
+          KUBECONFIG="$serial_kubeconfig" helm status kubevela -n vela-system || true
+        fi
 
         echo "--- Test Artifacts ---"
         find . -name "*.log" -type f -exec echo "=== {} ===" \; -exec cat {} \; || true

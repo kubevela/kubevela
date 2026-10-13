@@ -19,9 +19,9 @@ permissions:
 env:
   # Common versions
   GO_VERSION: '1.27.1'
-  # Every suite job loads the same image, built once by build-image. Suite jobs
-  # do not wait for that job: they set up their cluster meanwhile and wait for
-  # the artifact just before installing the chart.
+  # Every suite job loads the same image, and uses the same bin/vela, built once
+  # by build-image. Suite jobs do not wait for that job: they set up their
+  # cluster meanwhile and wait for the artifact just before installing the chart.
   E2E_IMAGE_ARTIFACT: vela-core-e2e-image-${{ github.run_id }}
   E2E_IMAGE_JOB: Build vela-core e2e image
 
@@ -53,14 +53,28 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
 
-      - name: Build and save image
-        run: make image-archive E2E_IMAGE_ARCHIVE=_artifacts/image/vela-core-test.tar
+      - name: Setup Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # The suite jobs that need bin/vela take it from this artifact instead of
+      # each compiling it. It builds on the host while the image builds in Docker.
+      - name: Build and save image and vela CLI
+        run: |
+          bash hack/e2e/background_job.sh start vela-cli make e2e-vela-cli
+          make image-archive E2E_IMAGE_ARCHIVE=_artifacts/image/vela-core-test.tar
+          bash hack/e2e/background_job.sh wait vela-cli 1200
+          cp bin/vela _artifacts/image/vela
 
       - name: Upload image
         uses: actions/upload-artifact@134dcf33c0b9454c4b17a936843d7e21dccdc335 # v4.3.6
         with:
           name: ${{ env.E2E_IMAGE_ARTIFACT }}
-          path: _artifacts/image/vela-core-test.tar
+          path: |
+            _artifacts/image/vela-core-test.tar
+            _artifacts/image/vela
           if-no-files-found: error
           retention-days: 1
           overwrite: true
@@ -134,12 +148,6 @@ jobs:
           path: _artifacts/e2e/
           if-no-files-found: warn
 
-      - name: Cleanup image
-        if: ${{ always() }}
-        run: |
-          make image-cleanup
-          docker image prune -f --filter "until=24h"
-
   e2e-api:
     name: e2e/ + test/e2e-addon-component-test / Kubernetes v1.37.0
     runs-on: ubuntu-22.04
@@ -168,8 +176,3 @@ jobs:
           codecov-token: ${{ secrets.CODECOV_TOKEN }}
           image-artifact: ${{ env.E2E_IMAGE_ARTIFACT }}
           image-job: ${{ env.E2E_IMAGE_JOB }}
-      - name: Cleanup image
-        if: ${{ always() }}
-        run: |
-          make image-cleanup
-          docker image prune -f --filter "until=24h"

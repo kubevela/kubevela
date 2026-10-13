@@ -51,7 +51,6 @@ jobs:
       - name: Setup KinD
         run: |
           go install sigs.k8s.io/kind@v0.33.0
-          kind delete cluster || true
           kind create cluster --image=kindest/node:v1.37.0
 
       - name: Install KubeVela CLI
@@ -181,7 +180,3 @@ jobs:
 
       - name: Verify webhook validation remains active
         run: ginkgo -v --focus-file requiredparam_validation_test.go ./test/e2e-definition-test
-
-      - name: Cleanup kind cluster
-        if: ${{ always() }}
-        run: kind delete cluster --name kind

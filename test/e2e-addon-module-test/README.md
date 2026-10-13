@@ -71,6 +71,9 @@ before tests can render. Each worker has its own `VELA_HOME`.
 Scenarios 08 and 07 stay together because the first publishes versions the
 second uses. Scenarios 05, 09, 15 and 18 use `Serial, Ordered`: they change
 default-registry resolution, restart the shared controller or toggle gates.
+With `E2E_ADDON_MODULE_SERIAL_KUBECONFIG` set to a second cluster prepared the
+same way, `make e2e-addon-module-test` runs them there (the labels in
+`serial-label-filter`) while the rest run on the current cluster, both at once.
 Scenarios with an `i` suffix (02i, 03i, 04i, 07i, 10i, 11i, 12i, 13i, 14i, 16i)
 repeat their external counterpart against a module bundled inline in the addon
 (`addon_module_inline_e2e_test.go`), and scenario 19 installs an inline and an

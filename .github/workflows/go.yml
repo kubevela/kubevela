@@ -152,9 +152,6 @@ jobs:
           export PATH=$(pwd)/bin/:$PATH
           make check-diff
 
-      - name: Cleanup binary
-        run: make build-cleanup
-
   check-windows:
     runs-on: windows-latest
     needs: detect-noop

@@ -2,6 +2,7 @@
 E2E_PROCS ?= auto
 E2E_TIMEOUT ?= 1h
 E2E_ADDON_MODULE_TIMEOUT ?= 2h
+E2E_ADDON_MODULE_SERIAL_KUBECONFIG ?=
 E2E_REPORT_DIR ?= _artifacts/e2e
 E2E_CORE_LABEL_FILTER ?=
 E2E_CORE_AUTH ?= 1
@@ -97,8 +98,12 @@ e2e-setup-core-w-auth:
 .PHONY: e2e-setup-core
 e2e-setup-core: e2e-setup-core-pre-hook e2e-setup-core-wo-auth e2e-setup-core-post-hook
 
-.PHONY: e2e-setup-core-module
-e2e-setup-core-module: e2e-setup-core-pre-hook e2e-setup-core-wo-auth
+.PHONY: e2e-setup-core-module e2e-setup-core-module-install
+e2e-setup-core-module: e2e-setup-core-pre-hook e2e-setup-core-module-install
+
+# Installs the chart without patching it: e2e-setup-core-pre-hook edits the
+# chart in place and must run only once, however many clusters get it.
+e2e-setup-core-module-install: e2e-setup-core-wo-auth
 	kubectl wait --for=condition=Available deployment/kubevela-vela-core -n vela-system --timeout=180s
 
 .PHONY: e2e-setup-core-minimal
@@ -227,10 +232,30 @@ e2e-addon-module-test:
 	# scenarios run multiple install/upgrade/uninstall cycles against
 	# installWait=6m/reconcileWait=4m, and a loaded CI runner can push the
 	# total past an hour with no single step hung.
+	#
+	# With E2E_ADDON_MODULE_SERIAL_KUBECONFIG set, the Serial scenarios
+	# (selected by test/e2e-addon-module-test/serial-label-filter: they
+	# restart vela-core, toggle its feature gates or change the default
+	# registry) run on that second cluster while the rest run here, at the
+	# same time. The second cluster needs the same setup as this one. Its
+	# output is printed once it finishes.
 	mkdir -p "$(E2E_REPORT_DIR)"
 	set -eu; workers=$$(bash hack/e2e/ginkgo_workers.sh "$(E2E_PROCS)"); \
 	echo "Ginkgo workers: $$workers"; \
-	ginkgo -v --procs="$$workers" --timeout=$(E2E_ADDON_MODULE_TIMEOUT) --fail-on-empty --json-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.xml" ./test/e2e-addon-module-test
+	if [ -z "$(E2E_ADDON_MODULE_SERIAL_KUBECONFIG)" ]; then \
+	  ginkgo -v --procs="$$workers" --timeout=$(E2E_ADDON_MODULE_TIMEOUT) --fail-on-empty --json-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.xml" ./test/e2e-addon-module-test; \
+	else \
+	  serial_filter=$$(<test/e2e-addon-module-test/serial-label-filter); \
+	  suite_bin=test/e2e-addon-module-test/e2e-addon-module-test.test; \
+	  ginkgo build ./test/e2e-addon-module-test; \
+	  KUBECONFIG="$(E2E_ADDON_MODULE_SERIAL_KUBECONFIG)" bash hack/e2e/background_job.sh start addon-module-serial \
+	    ginkgo -v --procs=1 --timeout=$(E2E_ADDON_MODULE_TIMEOUT) --fail-on-empty --label-filter="$$serial_filter" --json-report="$(E2E_REPORT_DIR)/e2e-addon-module-test-serial.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-module-test-serial.xml" "$$suite_bin"; \
+	  rc=0; \
+	  ginkgo -v --procs="$$workers" --timeout=$(E2E_ADDON_MODULE_TIMEOUT) --fail-on-empty --label-filter="!($$serial_filter)" --json-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.json" --junit-report="$(E2E_REPORT_DIR)/e2e-addon-module-test.xml" "$$suite_bin" || rc=$$?; \
+	  echo "=== Serial scenarios on the second cluster ==="; \
+	  bash hack/e2e/background_job.sh wait addon-module-serial 7200 || rc=$$?; \
+	  exit $$rc; \
+	fi
 	@$(OK) tests pass
 
 .PHONY: e2e-addon-module-discovery
