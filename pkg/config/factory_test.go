@@ -377,6 +377,13 @@ template: {
 		Expect(template.Name).Should(Equal("crd-template"))
 	})
 
+	It("refuses to write a template that has no ConfigMap instead of panicking", func() {
+		// Only ParseTemplate builds the ConfigMap; LoadTemplate and ListTemplates do not.
+		loaded := &Template{NamespacedName: NamespacedName{Name: "no-cm", Namespace: "default"}}
+		Expect(fac.CreateOrUpdateConfigTemplate(context.TODO(), "default", loaded)).Should(MatchError(ContainSubstring("ParseTemplate")))
+		Expect(fac.CreateOrUpdateConfigTemplate(context.TODO(), "default", nil)).Should(MatchError(ContainSubstring("ParseTemplate")))
+	})
+
 	It("should fail to parse config when template not found", func() {
 		_, err := fac.ParseConfig(context.TODO(), NamespacedName{Name: "non-existent-template", Namespace: "default"}, Metadata{})
 		Expect(err).To(Equal(ErrTemplateNotFound))
@@ -454,6 +461,30 @@ template: { parameter: { key: string } }
 		Expect(err).To(HaveOccurred())
 	})
 })
+
+// #7449 review item 7: a Template read from a legacy ConfigMap carries the one
+// thing the list code needs, the migrated-to UID, and not the stored object with
+// its resourceVersion, managedFields and owner references.
+func TestConvertConfigMap2TemplateCarriesMigratedToOnly(t *testing.T) {
+	r := require.New(t)
+	cm := v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: TemplateConfigMapNamePrefix + "adopted", Namespace: "default", ResourceVersion: "42", UID: "cm-uid",
+			Labels:      map[string]string{types.LabelConfigCatalog: types.VelaCoreConfig},
+			Annotations: map[string]string{types.AnnotationConfigMigratedTo: "ct-uid"},
+		},
+		Data: map[string]string{SaveTemplateKey: "template: {}"},
+	}
+	tmpl, err := convertConfigMap2Template(cm)
+	r.NoError(err)
+	r.Equal("ct-uid", tmpl.MigratedTo)
+	r.Nil(tmpl.ConfigMap)
+
+	delete(cm.Annotations, types.AnnotationConfigMigratedTo)
+	tmpl, err = convertConfigMap2Template(cm)
+	r.NoError(err)
+	r.Empty(tmpl.MigratedTo)
+}
 
 // A caller that needs its own labels on a template - the SourceDefinition
 // controller stamps the owning definition so a sweep can find it - must not have

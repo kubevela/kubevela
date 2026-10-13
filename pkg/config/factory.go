@@ -146,6 +146,15 @@ type Template struct {
 	// ConfigTemplate read back from the CRD has no ConfigMap at all.
 	Labels map[string]string `json:"-"`
 
+	// MigratedTo is the UID of the ConfigTemplate CR that adopted this legacy
+	// ConfigMap, read from its config.oam.dev/migrated-to annotation. Empty for a
+	// template that is a CR and for a ConfigMap migration never touched. It is
+	// the one piece of the stored object the list code needs; the object itself
+	// is not carried, so a Template read back is safe to write again.
+	MigratedTo string `json:"-"`
+
+	// ConfigMap is the legacy object ParseTemplate builds for the writer; a
+	// Template read from the cluster does not carry one.
 	ConfigMap *v1.ConfigMap `json:"-"`
 }
 
@@ -380,6 +389,12 @@ func IsFieldNotExist(err error) bool {
 
 // CreateOrUpdateConfigTemplate parse and update the config template
 func (k *kubeConfigFactory) CreateOrUpdateConfigTemplate(ctx context.Context, ns string, it *Template) error {
+	if it == nil || it.ConfigMap == nil {
+		// Only ParseTemplate builds the ConfigMap. A template read back with
+		// LoadTemplate or ListTemplates carries none, so writing it here would be a
+		// nil dereference; say so instead.
+		return fmt.Errorf("the template has no ConfigMap to write; parse it with ParseTemplate before CreateOrUpdateConfigTemplate")
+	}
 	if ns != "" {
 		it.ConfigMap.Namespace = ns
 	}
@@ -409,7 +424,7 @@ func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
 		Scope:       cm.Labels[types.LabelConfigScope],
 		CreateTime:  cm.CreationTimestamp.Time,
 		Template:    script.CUE(cm.Data[SaveTemplateKey]),
-		ConfigMap:   cm.DeepCopy(),
+		MigratedTo:  cm.Annotations[types.AnnotationConfigMigratedTo],
 	}
 	if cm.Data[SaveSchemaKey] != "" {
 		var schema openapi3.Schema

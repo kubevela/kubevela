@@ -75,8 +75,9 @@ func NewTemplateMigrateCommand(f velacmd.Factory, streams util.IOStreams) *cobra
 		Use:   "migrate",
 		Short: i18n.T("Adopt a legacy config template and its configs into ConfigTemplate and Config CRs."),
 		Long: i18n.T(`Adopt a legacy config template (a config-template-<name> ConfigMap) and every legacy
-config made from it, in any namespace, into ConfigTemplate and Config CRs. The legacy objects
-are kept and become owned by the CRs; a second run skips them. --all does this for every legacy
+config made from it, in any namespace, into ConfigTemplate and Config CRs. Nothing is deleted:
+each config Secret becomes owned by its Config, the template ConfigMap is annotated with the
+ConfigTemplate that replaced it, and a second run skips both. --all does this for every legacy
 template in the namespace, then for the legacy configs left there.`),
 		Example: `  vela config-template migrate my-template -n vela-system
   vela config-template migrate my-template -n vela-system --dry-run
@@ -109,7 +110,8 @@ func NewConfigMigrateCommand(f velacmd.Factory, streams util.IOStreams) *cobra.C
 		Use:   "migrate",
 		Short: i18n.T("Adopt a legacy config into a Config CR."),
 		Long: i18n.T(`Adopt a legacy config (a velacore-config Secret) into a Config CR of the same name.
-The template may already be a ConfigTemplate CR or still a legacy ConfigMap; both work. The
+The template may already be a ConfigTemplate CR or still a legacy ConfigMap; both work, unless a
+ConfigTemplate that migration did not create shadows the legacy ConfigMap, which is a conflict. The
 Secret is kept and becomes owned by the Config; a second run skips it. --all does this for
 every legacy config in the namespace, with or without a template.`),
 		Example: `  vela config migrate my-config -n my-team
