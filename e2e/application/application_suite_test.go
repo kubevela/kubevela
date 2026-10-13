@@ -34,6 +34,8 @@ func TestApplication(t *testing.T) {
 // none is set, which a fresh vela home does not have. Ginkgo also shuffles the
 // top-level containers, so no spec can rely on another having run env sw.
 var _ = ginkgo.BeforeSuite(func() {
+	// e2e.Exec does not report the exit code, so check the success message.
 	output, err := e2e.Exec("vela env sw default")
 	gomega.Expect(err).NotTo(gomega.HaveOccurred(), output)
+	gomega.Expect(output).To(gomega.ContainSubstring("Current environment switched to default (namespace = default)"))
 })
