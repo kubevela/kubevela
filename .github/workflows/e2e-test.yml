@@ -106,7 +106,7 @@ jobs:
             package: e2e-addon-component-test
             k8s-version: v1.37.0
           - suite: api-application
-            package: e2e/application
+            package: e2e-cli-application-test
             k8s-version: v1.37.0
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.k8s-version }}-${{ matrix.suite }}
