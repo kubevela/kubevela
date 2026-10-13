@@ -67,6 +67,9 @@ type Options struct {
 	// exists so tests can run without an API server; the default uses the
 	// discovery client.
 	ServerVersion func(cfg *rest.Config) (string, error)
+	// PodLogs opens a pod log stream. The default uses a clientset on the
+	// factory's config; tests supply their own.
+	PodLogs PodLogsFunc
 }
 
 func (o *Options) complete() {

@@ -123,6 +123,40 @@ func registerTools(s *Server, d *deps) {
 			"description, plus its current revision. Use the returned schema as the only source of parameter names.",
 	}, d.describeDefinition)
 
+	addTool(s, ToolClassRead, &sdk.Tool{
+		Name: "list_applications",
+		Description: "List KubeVela Applications with phase, health, components, workflow state and whether the recorded " +
+			"status is stale. Namespace narrows the list; the server's namespace restriction always applies.",
+	}, d.listApplications)
+
+	addTool(s, ToolClassRead, &sdk.Tool{
+		Name: "get_application",
+		Description: "Read one Application live: its declared components, traits, policies and workflow with secret-like " +
+			"values removed, plus the controller's status for every service, the conditions, applied resources and the " +
+			"workflow steps. Use get_managed_resource for the live objects and get_workflow for step detail.",
+	}, d.getApplication)
+
+	addTool(s, ToolClassRead, &sdk.Tool{
+		Name: "get_workflow",
+		Description: "Read an Application's workflow: declared steps, each step's phase, reason, message and timing, which " +
+			"steps are suspended or failed, and the exact vela command that moves it forward. The server never resumes.",
+	}, d.getWorkflow)
+
+	addTool(s, ToolClassRead, &sdk.Tool{
+		Name: "get_managed_resource",
+		Description: "Read the objects an Application manages, from its ResourceTrackers, with the live resource tree and " +
+			"health of each (Deployment, ReplicaSet, Pod and so on) in the cluster where it runs. Narrow by component, " +
+			"cluster, kind and resourceName; a single match also returns the live object. Secrets return metadata only " +
+			"and objects the Application does not manage are refused.",
+	}, d.getManagedResource)
+
+	addTool(s, ToolClassRead, &sdk.Tool{
+		Name: "get_logs",
+		Description: "Return a bounded, redacted tail of container logs for an Application's pods, found through its " +
+			"managed resources. Narrow by component, cluster, pod and container; use previous for crash loops. Default " +
+			"200 lines per pod, at most five pods per call.",
+	}, d.getLogs)
+
 	// Plan and write tools follow in later changes; AllowWrite and AllowResume
 	// are parsed now so the command's contract is stable from the first release.
 }

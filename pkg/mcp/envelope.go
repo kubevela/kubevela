@@ -21,6 +21,8 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/client-go/kubernetes"
+
 	velacmd "github.com/oam-dev/kubevela/pkg/cmd"
 )
 
@@ -74,24 +76,32 @@ type deps struct {
 	platform    *platformInfo
 	platformAt  time.Time
 	platformErr error
+	cs          kubernetes.Interface
 }
 
+// newDeps completes the per-handler defaults that need the deps themselves,
+// which Options.complete cannot do.
 func newDeps(f velacmd.Factory, opts Options) *deps {
-	return &deps{f: f, opts: opts}
+	d := &deps{f: f, opts: opts}
+	if d.opts.PodLogs == nil {
+		d.opts.PodLogs = d.streamPodLogs
+	}
+	return d
 }
 
-// meta builds the envelope for a response. Platform lookups are cached for
+// meta builds the envelope for a live response. Plan tools set Source to
+// SourceRendered on the result they return. Platform lookups are cached for
 // platformCacheTTL; a failed lookup is reported inside the envelope rather
 // than failing the tool, because an answer with "vela-core: unknown" is
 // still more useful than no answer.
-func (d *deps) meta(ctx context.Context, source string) Meta {
+func (d *deps) meta(ctx context.Context) Meta {
 	info, err := d.cachedPlatform(ctx)
 	m := Meta{
 		VelaCLI:    info.VelaCLI,
 		VelaCore:   info.VelaCore,
 		Kubernetes: info.Kubernetes,
 		ObservedAt: time.Now().UTC(),
-		Source:     source,
+		Source:     SourceLive,
 	}
 	if len(info.FeatureGates) > 0 {
 		m.FeatureGates = info.FeatureGates

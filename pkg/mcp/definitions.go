@@ -119,7 +119,7 @@ func (d *deps) listDefinitions(ctx context.Context, _ *sdk.CallToolRequest, in L
 		}
 		return a.Name < b.Name
 	})
-	out.Meta = d.meta(ctx, SourceLive)
+	out.Meta = d.meta(ctx)
 	return nil, out, nil
 }
 
@@ -144,7 +144,7 @@ func (d *deps) describeDefinition(ctx context.Context, _ *sdk.CallToolRequest, i
 	if err != nil {
 		return nil, out, fmt.Errorf("parameter schema for %s %q: %w", summary.Type, summary.Name, err)
 	}
-	out.Meta = d.meta(ctx, SourceLive)
+	out.Meta = d.meta(ctx)
 	return nil, out, nil
 }
 

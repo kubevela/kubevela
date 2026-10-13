@@ -76,7 +76,7 @@ type GetPlatformInfoOutput struct {
 // returned and the lookup error is repeated in the envelope's warnings.
 func (d *deps) getPlatformInfo(ctx context.Context, _ *sdk.CallToolRequest, _ GetPlatformInfoInput) (*sdk.CallToolResult, GetPlatformInfoOutput, error) {
 	info, _ := d.cachedPlatform(ctx)
-	return nil, GetPlatformInfoOutput{platformInfo: info, Meta: d.meta(ctx, SourceLive)}, nil
+	return nil, GetPlatformInfoOutput{platformInfo: info, Meta: d.meta(ctx)}, nil
 }
 
 // readPlatform gathers versions and gates. Each part degrades independently:
