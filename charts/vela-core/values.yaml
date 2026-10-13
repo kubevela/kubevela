@@ -169,6 +169,7 @@ optimize:
 ##@param featureGates.restrictDefinitionNamespaces enforce a definition's spec.restrictions or definition.oam.dev/restrict-namespaces annotation when an Application is created or updated (Beta, on by default; a no-op until a definition declares a restriction)
 ##@param featureGates.enableDefinitionInheritance enable spec.extends on ComponentDefinition and TraitDefinition
 ##@param featureGates.enableModuleComponent enable installing a module as an Application component via the type: module ComponentDefinition (Alpha)
+##@param featureGates.autoMigrateLegacyConfigs adopt legacy config templates and configs into ConfigTemplate and Config CRs once at controller startup, the same as running vela config-template migrate --all in every namespace; legacy objects are kept (Alpha)
 ##@param
 featureGates:
   gzipResourceTracker: false
@@ -198,6 +199,7 @@ featureGates:
   enableModuleComponent: false
   restrictDefinitionNamespaces: true
   enableDefinitionInheritance: false
+  autoMigrateLegacyConfigs: false
 
 ## @section Definition restriction parameters
 

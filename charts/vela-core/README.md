@@ -130,6 +130,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `featureGates.restrictDefinitionNamespaces`                  | enforce a definition's spec.restrictions or definition.oam.dev/restrict-namespaces annotation when an Application is created or updated (Beta, on by default; a no-op until a definition declares a restriction)                 | `true`  |
 | `featureGates.enableDefinitionInheritance`                   | enable spec.extends on ComponentDefinition and TraitDefinition                                                                                                                                                                   | `false` |
 | `featureGates.enableModuleComponent`                         | enable installing a module as an Application component via the type: module ComponentDefinition (Alpha)                                                                                                                          | `false` |
+| `featureGates.autoMigrateLegacyConfigs`                      | adopt legacy config templates and configs into ConfigTemplate and Config CRs once at controller startup, the same as running vela config-template migrate --all in every namespace; legacy objects are kept (Alpha)              | `false` |
 
 ### Definition restriction parameters
 
