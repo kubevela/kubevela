@@ -302,7 +302,7 @@ boundaries written into tool descriptions and skills.
 ```text
 $ vela mcp setup --client claude-code
 Detected: Claude Code, kubeconfig context prod-hub, Grafana addon in vela-system
-Writing servers: kubevela (read + plan), kubernetes-mcp-server@<pinned>, mcp-grafana@<pinned>
+Writing servers: kubevela (read + plan), kubernetes-mcp-server@<pinned> --config kubernetes-mcp.toml (read_only = true, Secret and RBAC kinds denied), mcp-grafana@<pinned> --disable-write
 Installing skills: kubevela-developer, kubevela-sre (grafana appendix)
 ```
 
