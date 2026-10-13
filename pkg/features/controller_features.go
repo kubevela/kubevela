@@ -200,6 +200,16 @@ const (
 	// When disabled, an Application using type: module fails at render with an actionable
 	// message.
 	EnableModuleComponent featuregate.Feature = "EnableModuleComponent"
+
+	// AutoMigrateLegacyConfigs runs one adoption sweep when the controller starts:
+	// every legacy config template (config-template-* ConfigMap) and legacy config
+	// (velacore-config Secret) in the cluster is adopted into a ConfigTemplate or
+	// Config CR, the same as `vela config-template migrate --all` in every
+	// namespace. Legacy objects are kept; conflicts and failures are reported as
+	// Events, log lines and the kubevela_config_migration_total metric, never as a
+	// startup error. Off by default: the CLI command is the on-demand path, this
+	// gate is for operators who want the upgrade itself to do it.
+	AutoMigrateLegacyConfigs featuregate.Feature = "AutoMigrateLegacyConfigs"
 )
 
 var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
@@ -238,6 +248,7 @@ var defaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	RequireCelExpressionOptIn:                     {Default: true, PreRelease: featuregate.Alpha},
 	EnableDefinitionInheritance:                   {Default: false, PreRelease: featuregate.Alpha},
 	EnableModuleComponent:                         {Default: false, PreRelease: featuregate.Alpha},
+	AutoMigrateLegacyConfigs:                      {Default: false, PreRelease: featuregate.Alpha},
 }
 
 func init() {
