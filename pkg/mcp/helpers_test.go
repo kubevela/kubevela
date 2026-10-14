@@ -107,6 +107,13 @@ func errorText(res *sdk.CallToolResult) string {
 	return tc.Text
 }
 
+// toJSON renders a value for substring assertions on whole payloads.
+func toJSON(v any) string {
+	raw, err := json.Marshal(v)
+	Expect(err).NotTo(HaveOccurred())
+	return string(raw)
+}
+
 func (h *harness) close() {
 	if h.session != nil {
 		_ = h.session.Close()

@@ -36,8 +36,10 @@ var (
 		The server exposes the vela CLI's code paths as tools an agent can call:
 		platform version and feature gates, the definitions a cluster publishes
 		and their parameter schemas, Applications with their recorded status,
-		workflow state, the live resource tree behind each component, and a
-		bounded, redacted tail of pod logs. Every response states the vela-core
+		workflow state, the live resource tree behind each component, a bounded,
+		redacted tail of pod logs, explanations of definitions and Applications
+		with every finding tied to an object, and the clusters and addons the
+		control plane knows. Every response states the vela-core
 		version and the time the data was read, so an agent explains the running
 		system rather than a remembered one.
 

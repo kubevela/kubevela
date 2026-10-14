@@ -157,6 +157,33 @@ func registerTools(s *Server, d *deps) {
 			"200 lines per pod, at most five pods per call.",
 	}, d.getLogs)
 
+	addTool(s, ToolClassRead, &sdk.Tool{
+		Name: "explain_definition",
+		Description: "Explain one KubeVela definition from its live object: what kinds its template produces, which " +
+			"parameters flow into which fields, its parameter schema, health and custom status rules, trait " +
+			"behaviour and restrictions, revision history, and how many Applications use it. Static inspection; " +
+			"nothing is rendered or applied.",
+	}, d.explainDefinition)
+
+	addTool(s, ToolClassRead, &sdk.Tool{
+		Name: "explain_application",
+		Description: "Explain an Application end to end: each component with its definition, declared dependencies and " +
+			"data flow, recorded status per cluster, live managed resources with unhealthy descendants and pod " +
+			"phases, workflow state, recent events, and a list of findings ordered by severity, each citing the " +
+			"object it came from. Start here when asked why an application is not working.",
+	}, d.explainApplication)
+
+	addTool(s, ToolClassRead, &sdk.Tool{
+		Name:        "list_clusters",
+		Description: "List the clusters KubeVela can deploy to, with alias, credential type, endpoint and labels. Credentials are never returned.",
+	}, d.listClusters)
+
+	addTool(s, ToolClassRead, &sdk.Tool{
+		Name: "list_addons",
+		Description: "List the addons enabled on this control plane with version, registry, phase, health and the clusters " +
+			"they reach, read from the Applications the addons installed. Registry catalogues are not queried.",
+	}, d.listAddons)
+
 	// Plan and write tools follow in later changes; AllowWrite and AllowResume
 	// are parsed now so the command's contract is stable from the first release.
 }
