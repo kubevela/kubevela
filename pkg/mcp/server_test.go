@@ -44,10 +44,10 @@ var _ = Describe("vela mcp server", func() {
 	})
 
 	Context("registry", func() {
-		It("registers only read tools by default and annotates them read-only", func() {
+		It("registers only read and plan tools by default and annotates them read-only", func() {
 			h = startHarness(Options{}, platformFixtures()...)
 			for _, t := range h.srv.Tools() {
-				Expect(t.Class).To(Equal(ToolClassRead))
+				Expect(t.Class).To(BeElementOf(ToolClassRead, ToolClassPlan), t.Name)
 			}
 			res, err := h.session.ListTools(h.ctx, nil)
 			Expect(err).NotTo(HaveOccurred())
@@ -57,11 +57,11 @@ var _ = Describe("vela mcp server", func() {
 			}
 			for _, name := range []string{"get_platform_info", "list_definitions", "describe_definition", "explain_definition",
 				"list_applications", "get_application", "explain_application", "get_workflow", "get_managed_resource", "get_logs",
-				"list_clusters", "list_addons"} {
+				"list_clusters", "list_addons", "dryrun_application", "diff_application"} {
 				Expect(names).To(HaveKey(name))
 				Expect(names[name].Annotations.ReadOnlyHint).To(BeTrue(), name)
 			}
-			Expect(names).To(HaveLen(12))
+			Expect(names).To(HaveLen(14))
 			Expect(names).NotTo(HaveKey("apply_application"))
 			Expect(names).NotTo(HaveKey("resume_workflow"))
 		})

@@ -37,6 +37,7 @@ var errNoConfig = errors.New("no kubernetes configuration available")
 type Server struct {
 	srv   *sdk.Server
 	opts  Options
+	deps  *deps
 	tools []registeredTool
 }
 
@@ -58,8 +59,8 @@ func NewServer(f velacmd.Factory, opts Options) (*Server, error) {
 		Title:   "KubeVela",
 		Version: version.VelaVersion,
 	}, &sdk.ServerOptions{Instructions: serverInstructions})
-	s := &Server{srv: srv, opts: opts}
 	d := newDeps(f, opts)
+	s := &Server{srv: srv, opts: opts, deps: d}
 	registerTools(s, d)
 	return s, nil
 }
@@ -218,6 +219,21 @@ func registerTools(s *Server, d *deps) {
 			"they reach, read from the Applications the addons installed. Registry catalogues are not queried.",
 	}, d.listAddons)
 
-	// Plan and write tools follow in later changes; AllowWrite and AllowResume
-	// are parsed now so the command's contract is stable from the first release.
+	addTool(s, ToolClassPlan, &sdk.Tool{
+		Name: "dryrun_application",
+		Description: "Render an Application document the way vela dry-run does, without saving it: every Kubernetes " +
+			"object each component and trait would produce, plus policy objects. Pass local definitions to render " +
+			"against definitions not yet on the cluster. Use it until the draft renders clean, then diff_application.",
+	}, d.dryRunApplication)
+
+	addTool(s, ToolClassPlan, &sdk.Tool{
+		Name: "diff_application",
+		Description: "Compare an Application document with what runs: renders both, lists every resource added, " +
+			"modified or removed with the fields that differ, flags placement, policy, component and approval-gate " +
+			"changes, and classifies risk LOW, MEDIUM or HIGH with every rule that fired. Returns a token that " +
+			"apply_application requires, so show this result to the user before any apply.",
+	}, d.diffApplication)
+
+	// Write tools follow in a later change; AllowWrite and AllowResume are
+	// parsed now so the command's contract is stable from the first release.
 }

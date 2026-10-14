@@ -294,7 +294,7 @@ var _ = Describe("security properties", func() {
 	It("registers no write tools whatever the flags say until they are implemented", func() {
 		h = startHarness(Options{AllowWrite: true, AllowResume: true}, platformFixtures()...)
 		for _, t := range h.srv.Tools() {
-			Expect(t.Class).To(Equal(ToolClassRead), t.Name)
+			Expect(t.Class).To(BeElementOf(ToolClassRead, ToolClassPlan), t.Name)
 			Expect(strings.HasPrefix(t.Name, "apply_") || strings.HasPrefix(t.Name, "resume_")).To(BeFalse(), t.Name)
 		}
 	})

@@ -77,6 +77,8 @@ type deps struct {
 	platformAt  time.Time
 	platformErr error
 	cs          kubernetes.Interface
+	// diffs holds tokens issued by diff_application for apply_application.
+	diffs diffCache
 }
 
 // newDeps completes the per-handler defaults that need the deps themselves,
