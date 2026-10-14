@@ -89,6 +89,9 @@ template: {
 			registry:            parameter.registry
 			properties:          parameter.properties
 			skipVersionValidate: parameter.skipVersionValidation
+			// The owned addon Application lives in vela-system, so this is the
+			// only record of where its modules install their definitions.
+			namespace: context.namespace
 		}
 	}
 

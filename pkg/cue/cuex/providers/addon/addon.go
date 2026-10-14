@@ -47,6 +47,8 @@ type RenderVars struct {
 	Registry            string                 `json:"registry"`
 	Properties          map[string]interface{} `json:"properties"`
 	SkipVersionValidate bool                   `json:"skipVersionValidate"`
+	// Namespace is the namespace of the Application that installs the addon.
+	Namespace string `json:"namespace"`
 }
 
 // ResultVars is the $returns shape.
@@ -86,6 +88,7 @@ func Render(ctx context.Context, params *RenderParams) (*RenderReturns, error) {
 		Registry:            p.Registry,
 		Properties:          p.Properties,
 		SkipVersionValidate: p.SkipVersionValidate,
+		Namespace:           p.Namespace,
 	})
 	if err != nil {
 		return nil, err

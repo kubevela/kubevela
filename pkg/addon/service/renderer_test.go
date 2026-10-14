@@ -61,6 +61,24 @@ func TestSetAddonRegistryLabel(t *testing.T) {
 	assert.Equal(t, "true", app.Labels["preserved"])
 }
 
+func TestSetModuleInstallNamespace(t *testing.T) {
+	t.Run("records installing namespace when present", func(t *testing.T) {
+		app := &v1beta1.Application{}
+		setModuleInstallNamespace(app, "kit-tenant")
+		assert.Equal(t, "kit-tenant", app.GetAnnotations()[oam.AnnotationModuleInstallNamespace])
+	})
+
+	t.Run("keeps existing marker when namespace is empty", func(t *testing.T) {
+		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+			oam.AnnotationModuleInstallNamespace: "stale",
+			"kept":                               "yes",
+		}}}
+		setModuleInstallNamespace(app, "")
+		assert.Equal(t, "stale", app.GetAnnotations()[oam.AnnotationModuleInstallNamespace])
+		assert.Equal(t, "yes", app.GetAnnotations()["kept"])
+	})
+}
+
 func TestNewRenderer(t *testing.T) {
 	r := NewRenderer()
 	require.NotNil(t, r)
@@ -187,6 +205,12 @@ func TestRenderAddonCachesByKey(t *testing.T) {
 	_, err = r.RenderAddon(context.Background(), api.AddonRequest{Name: "example", Version: "1.0.0", Properties: map[string]interface{}{"replicas": 2}})
 	require.NoError(t, err)
 	assert.Equal(t, 3, calls, "distinct requests must each resolve")
+
+	// The installing namespace ends up on the rendered Application, so two
+	// installers in different namespaces must not share one render.
+	_, err = r.RenderAddon(context.Background(), api.AddonRequest{Name: "example", Version: "1.0.0", Properties: map[string]interface{}{"replicas": 1}, Namespace: "team-a"})
+	require.NoError(t, err)
+	assert.Equal(t, 4, calls, "a different installing namespace must resolve again")
 }
 
 // TestRenderAddonConcurrentMissesResolveOnce pins the singleflight collapse:
@@ -703,6 +727,39 @@ func TestResolveAndRenderFinalizesApplication(t *testing.T) {
 		}
 	}
 	assert.True(t, foundDisabledApplyOnce, "resolveAndRender must disable implicit apply-once")
+}
+
+func TestResolveAndRenderRecordsTheInstallingNamespace(t *testing.T) {
+	render := func(t *testing.T, namespace string) map[string]interface{} {
+		t.Helper()
+		r := &rendererImpl{
+			cli: fakeClientWithRegistry(t),
+			findPackagesFn: func(_ context.Context, _ client.Client, _, _ []string) ([]*pkgaddon.WholeAddonPackage, error) {
+				return []*pkgaddon.WholeAddonPackage{{
+					InstallPackage: pkgaddon.InstallPackage{
+						Meta:        pkgaddon.Meta{Name: "example", Version: "1.0.0"},
+						AppTemplate: &v1beta1.Application{},
+					},
+					RegistryName: "fixture",
+				}}, nil
+			},
+		}
+		res, err := r.resolveAndRender(context.Background(), api.AddonRequest{
+			Name: "example", SkipVersionValidate: true, Namespace: namespace,
+		})
+		require.NoError(t, err)
+		metadata := res.Application["metadata"].(map[string]interface{})
+		assert.Equal(t, "vela-system", metadata["namespace"], "the owned addon Application stays in vela-system")
+		annotations, _ := metadata["annotations"].(map[string]interface{})
+		return annotations
+	}
+
+	t.Run("an installing namespace is recorded on the owned Application", func(t *testing.T) {
+		assert.Equal(t, "kit-tenant", render(t, "kit-tenant")[oam.AnnotationModuleInstallNamespace])
+	})
+	t.Run("no installing namespace records nothing", func(t *testing.T) {
+		assert.NotContains(t, render(t, ""), oam.AnnotationModuleInstallNamespace)
+	})
 }
 
 // TestAppendAuxComponentsAvoidsNameCollisions covers an addon whose own template

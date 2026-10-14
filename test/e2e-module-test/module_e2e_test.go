@@ -271,6 +271,72 @@ var _ = Describe("Module as a component", Ordered, func() {
 			Expect(err.Error()).Should(ContainSubstring("is ambiguous"))
 		})
 
+		It("rejects Form 1 when the exact-name hit is module-backed, while keeping legacy Form 1 accepted", func() {
+			legacyDef := &v1beta1.ComponentDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "form1-legacy",
+					Namespace: "default",
+				},
+				Spec: v1beta1.ComponentDefinitionSpec{
+					Workload: common.WorkloadTypeDescriptor{
+						Definition: common.WorkloadGVK{
+							APIVersion: "apps/v1",
+							Kind:       "Deployment",
+						},
+					},
+					Schematic: &common.Schematic{
+						CUE: &common.CUE{
+							Template: `output: {
+  apiVersion: "v1"
+  kind:       "ConfigMap"
+  metadata: name: context.name
+  data: renderedBy: "legacy"
+}`,
+						},
+					},
+				},
+			}
+			moduleBackedDef := legacyDef.DeepCopy()
+			moduleBackedDef.Name = "form1-module-backed"
+			moduleBackedDef.Spec.Module = "demo-store"
+			moduleBackedDef.Spec.APIVersion = "v1"
+
+			Expect(k8sClient.Create(ctx, legacyDef)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, moduleBackedDef)).Should(Succeed())
+			DeferCleanup(func() {
+				_ = k8sClient.Delete(ctx, legacyDef)
+				_ = k8sClient.Delete(ctx, moduleBackedDef)
+				_ = k8sClient.Delete(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "form1-legacy-ok", Namespace: "default"}})
+				_ = k8sClient.Delete(ctx, &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "form1-module-backed-bad", Namespace: "default"}})
+				_ = k8sClient.Delete(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "legacy-ok", Namespace: "default"}})
+			})
+
+			By("accepting Form 1 on a non-module legacy definition")
+			Expect(k8sClient.Create(ctx, &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "form1-legacy-ok", Namespace: "default"},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "legacy-ok",
+						Type: "form1-legacy",
+					}},
+				},
+			})).Should(Succeed())
+
+			By("rejecting Form 1 when the exact-name definition is module-backed")
+			err := k8sClient.Create(ctx, &v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "form1-module-backed-bad", Namespace: "default"},
+				Spec: v1beta1.ApplicationSpec{
+					Components: []common.ApplicationComponent{{
+						Name: "module-backed-bad",
+						Type: "form1-module-backed",
+					}},
+				},
+			})
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring("module-backed definition"))
+			Expect(err.Error()).Should(ContainSubstring("Form 3"))
+		})
+
 		It("stops the render when a required parameter has no value", func() {
 			err := applyManifestFile(ctx, k8sClient, "testdata/module/consumer-missing-region.yaml")
 			if err != nil {

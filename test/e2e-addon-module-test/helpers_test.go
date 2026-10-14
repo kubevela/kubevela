@@ -52,8 +52,8 @@ import (
 	framework "github.com/oam-dev/kubevela/test/e2e-framework"
 )
 
-// systemNS is where every addon-<name> and module-<name> Application, and
-// every module definition installed without a namespace, lands.
+// systemNS is where every addon-<name> and module-<name> Application lands,
+// along with the built-in definitions and an addon's own objects.
 var systemNS = veltypes.DefaultKubeVelaNS
 
 const (

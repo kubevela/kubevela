@@ -34,6 +34,11 @@ type AddonRequest struct {
 	// SkipVersionValidate skips the addon SystemRequirements (vela/kubernetes
 	// version) compatibility check before rendering.
 	SkipVersionValidate bool
+	// Namespace is the namespace of the Application that installs the addon,
+	// captured where the type: addon component renders. The owned addon
+	// Application always lives in vela-system, so this is the only record of
+	// where the addon's modules install their definitions.
+	Namespace string
 }
 
 // AddonResult is the rendered output: the addon Application (with its

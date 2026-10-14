@@ -165,7 +165,10 @@ func checkModuleNameCollisions(declaredBy map[string][]string) error {
 // in resourceComponentNames, so a module's XRD/Compositions never apply
 // before the addon's own operators and CRDs are healthy, the same ordering
 // rule RenderModuleComponents already applies to external imports.
-func RenderInlineModuleComponents(addon *InstallPackage, existingComponents []common2.ApplicationComponent, resourceComponentNames []string) ([]common2.ApplicationComponent, error) {
+//
+// namespace is the namespace of the Application that installs the addon, where
+// the modules' definitions install; empty means vela-system.
+func RenderInlineModuleComponents(addon *InstallPackage, existingComponents []common2.ApplicationComponent, resourceComponentNames []string, namespace string) ([]common2.ApplicationComponent, error) {
 	if len(addon.InlineModules) == 0 {
 		return nil, nil
 	}
@@ -190,7 +193,7 @@ func RenderInlineModuleComponents(addon *InstallPackage, existingComponents []co
 
 	var comps []common2.ApplicationComponent
 	for _, mod := range addon.InlineModules {
-		app, err := modulerender.RenderApplication(mod, "")
+		app, err := modulerender.RenderApplication(mod, namespace)
 		if err != nil {
 			return nil, fmt.Errorf("render inline module %q for addon %q: %w", mod.Name, addon.Name, err)
 		}

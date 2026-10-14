@@ -30,6 +30,18 @@ type ComponentDefinitionSpec struct {
 	// +optional
 	Version string `json:"version,omitempty"`
 
+	// Module names the module this definition was published in, for example
+	// "s3". It identifies a versioned definition on the spec itself, not only
+	// through labels. Set it together with apiVersion, or leave both empty.
+	// +optional
+	Module string `json:"module,omitempty"`
+
+	// APIVersion is the API line of the module this definition belongs to, for
+	// example "v1" or "v1beta2". Set it together with module, or leave both empty.
+	// +kubebuilder:validation:Pattern=`^v\d+(alpha\d+|beta\d+)?$`
+	// +optional
+	APIVersion string `json:"apiVersion,omitempty"`
+
 	// Extends names a ComponentDefinition this one builds on. The parent renders
 	// with the parameters this definition's template passes it in its `$super`
 	// block, and its output, outputs and parameter schema are inherited unless

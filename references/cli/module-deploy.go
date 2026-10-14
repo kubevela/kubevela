@@ -52,10 +52,9 @@ const moduleComponentType = "module"
 // It is a struct rather than a map so the rendered manifest has a stable field
 // order.
 type moduleComponentProperties struct {
-	Module    string `json:"module"`
-	Registry  string `json:"registry"`
-	Namespace string `json:"namespace"`
-	Version   string `json:"version"`
+	Module   string `json:"module"`
+	Registry string `json:"registry"`
+	Version  string `json:"version"`
 }
 
 // moduleDeployAppName is the name of the Application the deploy command
@@ -80,10 +79,9 @@ func ownedModuleAppName(moduleName string) string {
 // module package version; empty installs latest.
 func buildModuleApplication(moduleName, registryName, namespace, version string) (*v1beta1.Application, error) {
 	props, err := json.Marshal(moduleComponentProperties{
-		Module:    moduleName,
-		Registry:  registryName,
-		Namespace: namespace,
-		Version:   version,
+		Module:   moduleName,
+		Registry: registryName,
+		Version:  version,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the module component properties: %w", err)

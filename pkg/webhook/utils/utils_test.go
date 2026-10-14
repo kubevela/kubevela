@@ -557,3 +557,39 @@ output: kube.#Read & {
 		assert.Contains(t, err.Error(), "undefined field")
 	})
 }
+
+func TestValidateDefinitionIdentity(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		module     string
+		apiVersion string
+		wantErr    string
+	}{
+		"bothSet":         {module: "s3", apiVersion: "v1"},
+		"bothEmpty":       {},
+		"moduleOnly":      {module: "s3", wantErr: "spec.module is set but spec.apiVersion is empty"},
+		"apiVersionOnly":  {apiVersion: "v1", wantErr: "spec.apiVersion is set but spec.module is empty"},
+		"prereleaseValid": {module: "s3", apiVersion: "v1beta2"},
+		"moduleHasUppercase": {
+			module:     "Widget-Kit",
+			apiVersion: "v1",
+			wantErr:    "spec.module \"Widget-Kit\" is not a valid DNS-1123 label",
+		},
+		"moduleHasSpace": {
+			module:     "widget kit",
+			apiVersion: "v1",
+			wantErr:    "spec.module \"widget kit\" is not a valid DNS-1123 label",
+		},
+	}
+	for caseName, cs := range cases {
+		t.Run(caseName, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateDefinitionIdentity(cs.module, cs.apiVersion)
+			if cs.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorContains(t, err, cs.wantErr)
+		})
+	}
+}

@@ -245,7 +245,8 @@ func (r *rendererImpl) restConfig() *rest.Config {
 
 // cacheKey builds the resolve-once cache key from every input that can change
 // the rendered output, including SkipVersionValidate so a validated request and
-// a skipped request never alias to the same cached result.
+// a skipped request never alias to the same cached result, and Namespace, which
+// the render records on the owned Application.
 //
 // It reports false when the properties cannot be hashed, in which case the
 // request must not participate in the cache at all: any placeholder key would be
@@ -255,7 +256,7 @@ func cacheKey(req api.AddonRequest) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	return fmt.Sprintf("%s|%s|%s|%t|%s", req.Name, req.Version, req.Registry, req.SkipVersionValidate, hash), true
+	return fmt.Sprintf("%s|%s|%s|%t|%s|%s", req.Name, req.Version, req.Registry, req.SkipVersionValidate, req.Namespace, hash), true
 }
 
 // hashProperties returns a stable SHA-256 hex digest of the properties map.
@@ -392,7 +393,9 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	for _, c := range moduleComps {
 		existingForInline = append(existingForInline, common2.ApplicationComponent{Name: c.Name})
 	}
-	inlineModuleComps, err := pkgaddon.RenderInlineModuleComponents(installPkg, existingForInline, dependsOn)
+	// Inline modules keep installing into vela-system: they are bundled and
+	// rendered at addon render time, not resolved as module components.
+	inlineModuleComps, err := pkgaddon.RenderInlineModuleComponents(installPkg, existingForInline, dependsOn, "")
 	if err != nil {
 		return nil, fmt.Errorf("render inline module components for addon %q: %w", req.Name, err)
 	}
@@ -437,6 +440,7 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	groups = append(groups, auxComponent{name: addonAuxiliariesComponentName, objects: aux})
 
 	setAddonRegistryLabel(app, registryName)
+	setModuleInstallNamespace(app, req.Namespace)
 
 	appMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(app)
 	if err != nil {
@@ -464,6 +468,23 @@ func setAddonRegistryLabel(app metav1.Object, registryName string) {
 	}
 	labels[oam.LabelAddonRegistry] = registryName
 	app.SetLabels(labels)
+}
+
+// setModuleInstallNamespace records the installing Application's namespace on
+// the owned addon Application. That Application always lives in vela-system, so
+// a type: module component inside it reads its namespace from here instead of
+// from its own context. Nothing is recorded when the namespace is unknown, and
+// the modules then install into vela-system.
+func setModuleInstallNamespace(app metav1.Object, namespace string) {
+	if namespace == "" {
+		return
+	}
+	annotations := app.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[oam.AnnotationModuleInstallNamespace] = namespace
+	app.SetAnnotations(annotations)
 }
 
 // sanitizeManifest removes the root status subresource and every

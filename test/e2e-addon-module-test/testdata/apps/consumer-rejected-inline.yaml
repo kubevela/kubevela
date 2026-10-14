@@ -1,4 +1,4 @@
-# Inline-module mirror of consumer-rejected.yaml. Five Applications that
+# Inline-module mirror of consumer-rejected.yaml. Six Applications that
 # admission refuses. Each is created on its own and its error message
 # checked; nothing is created.
 apiVersion: core.oam.dev/v1beta1
@@ -50,3 +50,15 @@ spec:
   components:
     - name: w
       type: kit/widget-kit-inline/v1/widget
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reject-installed-name-inline
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: widget-kit-inline-v1-widget
+      properties:
+        color: green

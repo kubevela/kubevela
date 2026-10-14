@@ -61,6 +61,12 @@ spec:
                   It is not inherited: a definition that extends an abstract one is usable
                   unless it marks itself abstract too.
                 type: boolean
+              apiVersion:
+                description: |-
+                  APIVersion is the API line of the module this definition belongs to, for
+                  example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                pattern: ^v\d+(alpha\d+|beta\d+)?$
+                type: string
               childResourceKinds:
                 description: ChildResourceKinds are the list of GVK of the child resources
                   this workload generates
@@ -102,6 +108,12 @@ spec:
                   builders
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
+              module:
+                description: |-
+                  Module names the module this definition was published in, for example
+                  "s3". It identifies a versioned definition on the spec itself, not only
+                  through labels. Set it together with apiVersion, or leave both empty.
+                type: string
               podSpecPath:
                 description: |-
                   PodSpecPath indicates where/if this workload has K8s podSpec field

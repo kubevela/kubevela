@@ -144,6 +144,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		logger.WithStep("validate-version").Info("WorkflowStepDefinition version follows semantic versioning format", "version", obj.Spec.Version)
 	}
 
+	// Validate identity fields: module and apiVersion are set together or not at all.
+	if err := webhookutils.ValidateDefinitionIdentity(obj.Spec.Module, obj.Spec.APIVersion); err != nil {
+		logger.WithStep("validate-identity").WithError(err).Error(err, "WorkflowStepDefinition identity fields are inconsistent", "module", obj.Spec.Module, "apiVersion", obj.Spec.APIVersion)
+		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+	}
+
 	// Validate namespace restrictions. A malformed glob would otherwise deny
 	// silently at render time, far from where it was written.
 	if err := nsrestrict.ValidateObject(obj); err != nil {

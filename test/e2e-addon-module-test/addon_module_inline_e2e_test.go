@@ -414,7 +414,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			}
 		})
 
-		It("resolves Form 3 always and Form 1 when the short name is unique", func() {
+		It("resolves Form 3 references for module-backed definitions", func() {
 			Expect(applyManifestFile(ctx, testdataPath("apps", "consumer-suite-inline.yaml"))).Should(Succeed())
 			waitAppRunning(ctx, testNS, "suite-consumer-inline", shortWait)
 
@@ -427,10 +427,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(nestedString(gadget, "spec", "mode")).Should(Equal("turbo"))
 			Expect(gadget.GetLabels()).Should(HaveKeyWithValue(scope.Text("kitinline.example.com/labeled-by"), scope.Text("gadget-kit-inline-v1-labeler")))
-			// Only a type containing a slash is swapped for the installed name
-			// (makeWorkloadWithContext, pkg/appfile/appfile.go). A Form 1 name
-			// is already a valid label value and is kept as written.
-			Expect(gadget.GetLabels()).Should(HaveKeyWithValue(oam.WorkloadTypeLabel, scope.Text("gadget")), "Form 1 gadget keeps its short name in the label")
+			Expect(gadget.GetLabels()).Should(HaveKeyWithValue(oam.WorkloadTypeLabel, scope.Text("gadget-kit-inline-v1-gadget")))
 		})
 	})
 
@@ -478,25 +475,13 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			Expect(findService(mustGetApp(ctx, testNS, widgetPlatformApp), scope.Text("widget-platform-inline")).Message).Should(Equal("Ready:6/6"))
 		})
 
-		It("accepts Form 3, the installed name and a unique Form 1 trait", func() {
+		It("accepts Form 3 references for module-backed definitions", func() {
 			Expect(applyManifestFile(ctx, testdataPath("apps", "consumer-forms-accepted-inline.yaml"))).Should(Succeed())
 			waitAppRunning(ctx, testNS, "forms-accepted-inline", shortWait)
-			for name, want := range map[string][2]string{
-				"form3-widget":   {"v1", scope.Text("widget-kit-inline-v1-widget")},
-				"stamped-widget": {"v1", scope.Text("widget-kit-inline-v1-widget")},
-			} {
-				w, err := getUnstructured(ctx, widgetGVK, testNS, name)
-				Expect(err).ShouldNot(HaveOccurred(), name)
-				Expect(nestedString(w, "spec", "apiLine")).Should(Equal(want[0]), name)
-				Expect(w.GetLabels()).Should(HaveKeyWithValue(oam.WorkloadTypeLabel, want[1]), name)
-			}
-			note, err := getConfigMap(ctx, testNS, "stamped-widget-note")
+			w, err := getUnstructured(ctx, widgetGVK, testNS, "form3-widget")
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(note.Data).Should(HaveKeyWithValue("text", "written by a Form 1 trait"))
-			// Trait outputs of a module trait carry the installed name whatever
-			// form the trait was written in, so the dispatcher finds it in the
-			// revision (unlike the workload label, which keeps a Form 1 name).
-			Expect(note.Labels).Should(HaveKeyWithValue(oam.TraitTypeLabel, scope.Text("widget-kit-inline-v1-note")))
+			Expect(nestedString(w, "spec", "apiLine")).Should(Equal("v1"))
+			Expect(w.GetLabels()).Should(HaveKeyWithValue(oam.WorkloadTypeLabel, scope.Text("widget-kit-inline-v1-widget")))
 		})
 
 		It("refuses ambiguous, disabled-line and malformed references at admission", func() {
@@ -507,6 +492,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 				"reject-two-segment-disabled-line-inline": `two-segment references are not supported`,
 				"reject-bad-api-version-inline":           `"1" is not a valid API version`,
 				"reject-too-many-segments-inline":         "expected either 1 segment (name, Form 1) or 3 segments (module/v<N>/name, Form 3)",
+				"reject-installed-name-inline":            "use {module}/{apiVersion}/{name} (Form 3)",
 			}
 			Expect(results).Should(HaveLen(len(want)))
 			for name, fragment := range want {
