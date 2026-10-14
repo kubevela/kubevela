@@ -553,7 +553,9 @@ func (g *WorkflowStepCUEGenerator) GenerateFullDefinition(w *WorkflowStepDefinit
 
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, w.GetDescription()))
 	if w.GetVersion() != "" {
-		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, w.GetVersion()))
+		sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
+		writeVersion(&sb, w.GetVersion(), strings.Repeat(g.indent, 2))
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 	}
 	sb.WriteString("}\n")
 
