@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
@@ -187,6 +188,20 @@ func (p *PolicyDefinition) NotRunOn(conditions ...placement.Condition) *PolicyDe
 	return p
 }
 
+// RestrictNamespaces limits the definition to namespaces matching any of the
+// names or path.Match globs. With RestrictNamespaceSelector, matching either is enough.
+func (p *PolicyDefinition) RestrictNamespaces(namespaces ...string) *PolicyDefinition {
+	p.addRestrictNamespaces(namespaces...)
+	return p
+}
+
+// RestrictNamespaceSelector limits the definition to namespaces matching the
+// selector. With RestrictNamespaces, matching either is enough.
+func (p *PolicyDefinition) RestrictNamespaceSelector(selector *metav1.LabelSelector) *PolicyDefinition {
+	p.setRestrictNamespaceSelector(selector)
+	return p
+}
+
 // DefName implements Definition.DefName.
 func (p *PolicyDefinition) DefName() string { return p.GetName() }
 
@@ -246,6 +261,8 @@ func (p *PolicyDefinition) ToYAML() ([]byte, error) {
 	if p.GetVersion() != "" {
 		cr["spec"].(map[string]any)["version"] = p.GetVersion()
 	}
+
+	setRestrictionsSpec(cr["spec"].(map[string]any), p.GetRestrictions())
 
 	return yaml.Marshal(cr)
 }
@@ -352,13 +369,14 @@ func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string 
 
 // writeAttributes writes the attributes block, which FromCUE copies into the spec.
 func (g *PolicyCUEGenerator) writeAttributes(sb *strings.Builder, p *PolicyDefinition) {
-	if p.GetVersion() == "" && !p.manageHealthCheck {
+	if p.GetVersion() == "" && !p.manageHealthCheck && p.GetRestrictions() == nil {
 		sb.WriteString(fmt.Sprintf("%sattributes: {}\n", g.indent))
 		return
 	}
 	indent := strings.Repeat(g.indent, 2)
 	sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
 	writeVersion(sb, p.GetVersion(), indent)
+	writeRestrictions(sb, p.GetRestrictions(), indent)
 	if p.manageHealthCheck {
 		sb.WriteString(fmt.Sprintf("%smanageHealthCheck: true\n", indent))
 	}

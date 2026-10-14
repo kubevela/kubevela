@@ -433,6 +433,7 @@ func (g *CUEGenerator) GenerateFullDefinition(c *ComponentDefinition) string {
 	// Write attributes
 	sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
 	writeVersion(&sb, c.GetVersion(), strings.Repeat(g.indent, 2))
+	writeRestrictions(&sb, c.GetRestrictions(), strings.Repeat(g.indent, 2))
 	g.writeWorkload(&sb, c, 2)
 	g.writeStatus(&sb, c, 2)
 	sb.WriteString(fmt.Sprintf("%s}\n", g.indent))

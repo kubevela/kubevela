@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue/format"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
@@ -306,6 +307,32 @@ func (t *TraitDefinition) NotRunOn(conditions ...placement.Condition) *TraitDefi
 	return t
 }
 
+// RestrictNamespaces limits the definition to namespaces matching any of the
+// names or path.Match globs. With RestrictNamespaceSelector, matching either is enough.
+func (t *TraitDefinition) RestrictNamespaces(namespaces ...string) *TraitDefinition {
+	t.addRestrictNamespaces(namespaces...)
+	return t
+}
+
+// RestrictNamespaceSelector limits the definition to namespaces matching the
+// selector. With RestrictNamespaces, matching either is enough.
+func (t *TraitDefinition) RestrictNamespaceSelector(selector *metav1.LabelSelector) *TraitDefinition {
+	t.setRestrictNamespaceSelector(selector)
+	return t
+}
+
+// Quota caps how many times each namespace may use the definition. The first
+// entry matching a namespace applies.
+//
+//	Quota(
+//	    defkit.QuotaFor("tenant-dev-*").Limit(3),
+//	    defkit.DefaultQuota().Warn(5),
+//	)
+func (t *TraitDefinition) Quota(entries ...*NamespaceQuota) *TraitDefinition {
+	t.addQuota(entries...)
+	return t
+}
+
 // DefName implements Definition.DefName.
 func (t *TraitDefinition) DefName() string { return t.name }
 
@@ -445,6 +472,8 @@ func (t *TraitDefinition) ToYAML() ([]byte, error) {
 	if t.revisionEnabled {
 		cr["spec"].(map[string]any)["revisionEnabled"] = true
 	}
+
+	setRestrictionsSpec(cr["spec"].(map[string]any), t.GetRestrictions())
 
 	return yaml.Marshal(cr)
 }
@@ -619,6 +648,7 @@ func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinit
 	indent := strings.Repeat(g.indent, depth)
 
 	writeVersion(sb, t.GetVersion(), indent)
+	writeRestrictions(sb, t.GetRestrictions(), indent)
 
 	// podDisruptive (always emit — vela CUE always includes this attribute)
 	sb.WriteString(fmt.Sprintf("%spodDisruptive: %v\n", indent, t.IsPodDisruptive()))
