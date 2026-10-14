@@ -161,7 +161,6 @@ func readConfigFor(name string) configcontext.ReadConfigProvider {
 }
 
 func TestRead(t *testing.T) {
-	r := require.New(t)
 	data := &NacosData{NacosConfig: NacosConfig{
 		Endpoint: ConfigRef{Name: "nacos", Namespace: "vela-system"},
 		Format:   "properties",
@@ -169,6 +168,7 @@ func TestRead(t *testing.T) {
 	}}
 
 	t.Run("through the caller's client", func(t *testing.T) {
+		r := require.New(t)
 		ctl := gomock.NewController(t)
 		mock := nacosmock.NewMockIConfigClient(ctl)
 		mock.EXPECT().GetConfig(gomock.Eq(vo.ConfigParam{DataId: "nc-db", Group: "DEFAULT_GROUP"})).Return("mysqlPort = 3306\n", nil)
@@ -180,6 +180,7 @@ func TestRead(t *testing.T) {
 	})
 
 	t.Run("a read error is reported", func(t *testing.T) {
+		r := require.New(t)
 		ctl := gomock.NewController(t)
 		mock := nacosmock.NewMockIConfigClient(ctl)
 		mock.EXPECT().GetConfig(gomock.Any()).Return("", errors.New("boom"))
@@ -191,6 +192,7 @@ func TestRead(t *testing.T) {
 	})
 
 	t.Run("an unreadable endpoint is reported before any client is built", func(t *testing.T) {
+		r := require.New(t)
 		_, err := Read(context.TODO(), data, readConfigFor("other"))
 		r.Error(err)
 		r.Equal("fail to read the config of the nacos server:config not found", err.Error())
@@ -243,10 +245,10 @@ func TestNewNacosClientSeam(t *testing.T) {
 }
 
 func TestClientParamCarriesTheBlockMetadata(t *testing.T) {
-	r := require.New(t)
 	data := &NacosData{NacosConfig: NacosConfig{Metadata: NacosConfigMetadata{AppName: "app", NamespaceID: "tenant-a"}}}
 
 	t.Run("without a client section", func(t *testing.T) {
+		r := require.New(t)
 		param := data.clientParam(map[string]interface{}{
 			"servers": []interface{}{map[string]interface{}{"ipAddr": "10.0.0.1", "port": float64(8848), "grpcPort": float64(9848)}},
 		})
@@ -259,6 +261,7 @@ func TestClientParamCarriesTheBlockMetadata(t *testing.T) {
 	})
 
 	t.Run("with a client section", func(t *testing.T) {
+		r := require.New(t)
 		param := data.clientParam(map[string]interface{}{
 			"client": map[string]interface{}{"endpoint": "acm.example", "username": "u", "password": "p", "accessKey": "ak", "secretKey": "sk", "regionId": "r", "openKMS": true},
 		})

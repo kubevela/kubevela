@@ -80,8 +80,9 @@ type ConfigStatus struct {
 	Phase     ConfigPhase                  `json:"phase,omitempty"`
 	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
 
-	// ExpandedWriter records what the controller last published for the template's
-	// expanded writer block (today: nacos). Unset when the template has no such block.
+	// ExpandedWriter records the last confirmed sync of the template's expanded writer
+	// block (today: nacos), published or found current. Unset when the template has no
+	// such block.
 	ExpandedWriter *ExpandedWriterStatus `json:"expandedWriter,omitempty"`
 }
 
@@ -90,9 +91,11 @@ type ExpandedWriterStatus struct {
 	Nacos *NacosSyncStatus `json:"nacos,omitempty"`
 }
 
-// NacosSyncStatus is the last successful publish of the template's nacos block: where
-// it went and a hash of what went there, so the next reconcile publishes again only
-// when the rendered content or its target changes.
+// NacosSyncStatus is the last confirmed sync of the template's nacos block: where the
+// content lives in Nacos and a hash of the content and its target, recorded both when
+// the controller published and when it found Nacos already current (a config adopted
+// from the CLI, say), so the next reconcile publishes again only when the rendered
+// content or its target changes.
 type NacosSyncStatus struct {
 	DataID      string `json:"dataId"`
 	Group       string `json:"group"`

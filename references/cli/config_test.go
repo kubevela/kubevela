@@ -250,6 +250,12 @@ var _ = Describe("Test the commands of the config", func() {
 	})
 
 	It("Test creating a config from a nacos template writes a Config CR, no legacy Secret, and says who publishes", func() {
+		// leave the namespace as the list specs below expect it, whether or not an
+		// assertion in this spec fails
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "nc-cli"}}))).Should(Succeed())
+			Expect(client.IgnoreNotFound(k8sClient.Delete(context.TODO(), &configv1alpha1.ConfigTemplate{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "nacos-config"}}))).Should(Succeed())
+		})
 		apply := TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
 		apply.SetArgs([]string{"apply", "-f", "./test-data/config-templates/nacos-config.cue", "--name", "nacos-config", "-n", "default"})
 		Expect(apply.Execute()).Should(Succeed())
@@ -267,12 +273,6 @@ var _ = Describe("Test the commands of the config", func() {
 		// controller does both when it reconciles the CR (no controller runs in this suite)
 		var secret v1.Secret
 		Expect(apierrors.IsNotFound(k8sClient.Get(context.TODO(), client.ObjectKey{Namespace: "default", Name: "nc-cli"}, &secret))).Should(BeTrue())
-
-		// leave the namespace as the list specs below expect it
-		Expect(k8sClient.Delete(context.TODO(), &cr)).Should(Succeed())
-		var ct configv1alpha1.ConfigTemplate
-		Expect(k8sClient.Get(context.TODO(), client.ObjectKey{Namespace: "default", Name: "nacos-config"}, &ct)).Should(Succeed())
-		Expect(k8sClient.Delete(context.TODO(), &ct)).Should(Succeed())
 	})
 
 	It("Test creating a config from a nacos template on a cluster without the Config CRD fails like any other", func() {

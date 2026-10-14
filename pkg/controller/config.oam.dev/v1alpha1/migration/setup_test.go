@@ -39,8 +39,10 @@ import (
 // else panics through the nil embedded interface, which is what we want.
 type recordingManager struct {
 	manager.Manager
-	webhook      webhook.Server
-	webhookAsked int // GetWebhookServer calls; in controller-runtime the first one starts the server
+	webhook webhook.Server
+	// webhookAsked counts GetWebhookServer calls; in controller-runtime the first one adds
+	// the server to the manager, which then starts it
+	webhookAsked int
 	added        []manager.Runnable
 }
 
