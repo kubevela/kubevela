@@ -19,9 +19,12 @@ package writer
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 	"github.com/stretchr/testify/require"
 
@@ -143,4 +146,134 @@ func TestNacosWriter(t *testing.T) {
 		return nil, errors.New("config not found")
 	})
 	r.Equal(err, nil)
+}
+
+// readConfigFor returns an endpoint reader that answers for the given config name.
+func readConfigFor(name string) configcontext.ReadConfigProvider {
+	return func(ctx context.Context, namespace, configName string) (map[string]interface{}, error) {
+		if configName == name {
+			return map[string]interface{}{
+				"servers": []interface{}{map[string]interface{}{"ipAddr": "127.0.0.1", "port": float64(8848)}},
+			}, nil
+		}
+		return nil, errors.New("config not found")
+	}
+}
+
+func TestRead(t *testing.T) {
+	data := &NacosData{NacosConfig: NacosConfig{
+		Endpoint: ConfigRef{Name: "nacos", Namespace: "vela-system"},
+		Format:   "properties",
+		Metadata: NacosConfigMetadata{DataID: "nc-db", Group: "DEFAULT_GROUP"},
+	}}
+
+	t.Run("through the caller's client", func(t *testing.T) {
+		r := require.New(t)
+		ctl := gomock.NewController(t)
+		mock := nacosmock.NewMockIConfigClient(ctl)
+		mock.EXPECT().GetConfig(gomock.Eq(vo.ConfigParam{DataId: "nc-db", Group: "DEFAULT_GROUP"})).Return("mysqlPort = 3306\n", nil)
+		data.Client = mock
+		got, err := Read(context.TODO(), data, readConfigFor("nacos"))
+		r.NoError(err)
+		r.Equal("mysqlPort = 3306\n", string(got))
+		data.Client = nil
+	})
+
+	t.Run("a read error is reported", func(t *testing.T) {
+		r := require.New(t)
+		ctl := gomock.NewController(t)
+		mock := nacosmock.NewMockIConfigClient(ctl)
+		mock.EXPECT().GetConfig(gomock.Any()).Return("", errors.New("boom"))
+		data.Client = mock
+		_, err := Read(context.TODO(), data, readConfigFor("nacos"))
+		r.Error(err)
+		r.Contains(err.Error(), "fail to read the config from the nacos server:boom")
+		data.Client = nil
+	})
+
+	t.Run("an unreadable endpoint is reported before any client is built", func(t *testing.T) {
+		r := require.New(t)
+		_, err := Read(context.TODO(), data, readConfigFor("other"))
+		r.Error(err)
+		r.Equal("fail to read the config of the nacos server:config not found", err.Error())
+	})
+}
+
+func TestNewNacosClientSeam(t *testing.T) {
+	r := require.New(t)
+	ctl := gomock.NewController(t)
+	mock := nacosmock.NewMockIConfigClient(ctl)
+	var gotParam vo.NacosClientParam
+	previous := NewNacosClient
+	NewNacosClient = func(param vo.NacosClientParam) (config_client.IConfigClient, error) {
+		gotParam = param
+		return mock, nil
+	}
+	t.Cleanup(func() { NewNacosClient = previous })
+
+	data := &NacosData{
+		NacosConfig: NacosConfig{
+			Endpoint: ConfigRef{Name: "nacos", Namespace: "vela-system"},
+			Format:   "properties",
+			Metadata: NacosConfigMetadata{DataID: "nc-db", Group: "DEFAULT_GROUP"},
+		},
+		Content: []byte("mysqlPort = 3306\n"),
+	}
+	// write: Client nil, so the seam builds the client from the endpoint config and the
+	// client is closed afterwards
+	mock.EXPECT().PublishConfig(gomock.Eq(vo.ConfigParam{DataId: "nc-db", Group: "DEFAULT_GROUP", Content: "mysqlPort = 3306\n", Type: "properties"})).Return(true, nil)
+	mock.EXPECT().CloseClient()
+	r.NoError(data.write(context.TODO(), readConfigFor("nacos")))
+	r.Len(gotParam.ServerConfigs, 1)
+	r.Equal("127.0.0.1", gotParam.ServerConfigs[0].IpAddr)
+	r.Equal(uint64(8848), gotParam.ServerConfigs[0].Port)
+	r.Nil(data.Client, "write does not keep the client it built")
+	r.NotNil(gotParam.ClientConfig, "the client config is built without a client section in the endpoint config")
+	r.Equal(filepath.Join(os.TempDir(), "nacos", "log"), gotParam.ClientConfig.LogDir)
+	r.Equal(filepath.Join(os.TempDir(), "nacos", "cache"), gotParam.ClientConfig.CacheDir)
+
+	// Read goes through the same seam
+	mock.EXPECT().GetConfig(gomock.Any()).Return("", nil)
+	mock.EXPECT().CloseClient()
+	got, err := Read(context.TODO(), data, readConfigFor("nacos"))
+	r.NoError(err)
+	r.Empty(got)
+
+	// a seam error surfaces
+	NewNacosClient = func(vo.NacosClientParam) (config_client.IConfigClient, error) { return nil, errors.New("no client") }
+	r.EqualError(data.write(context.TODO(), readConfigFor("nacos")), "no client")
+}
+
+func TestClientParamCarriesTheBlockMetadata(t *testing.T) {
+	data := &NacosData{NacosConfig: NacosConfig{Metadata: NacosConfigMetadata{AppName: "app", NamespaceID: "tenant-a"}}}
+
+	t.Run("without a client section", func(t *testing.T) {
+		r := require.New(t)
+		param := data.clientParam(map[string]interface{}{
+			"servers": []interface{}{map[string]interface{}{"ipAddr": "10.0.0.1", "port": float64(8848), "grpcPort": float64(9848)}},
+		})
+		r.Len(param.ServerConfigs, 1)
+		r.Equal(uint64(9848), param.ServerConfigs[0].GrpcPort)
+		r.NotNil(param.ClientConfig)
+		r.Equal("app", param.ClientConfig.AppName)
+		r.Equal("tenant-a", param.ClientConfig.NamespaceId)
+		r.Equal("", param.ClientConfig.Username)
+	})
+
+	t.Run("with a client section", func(t *testing.T) {
+		r := require.New(t)
+		param := data.clientParam(map[string]interface{}{
+			"client": map[string]interface{}{"endpoint": "acm.example", "username": "u", "password": "p", "accessKey": "ak", "secretKey": "sk", "regionId": "r", "openKMS": true},
+		})
+		r.Empty(param.ServerConfigs)
+		r.Equal("acm.example", param.ClientConfig.Endpoint)
+		r.Equal("u", param.ClientConfig.Username)
+		r.Equal("p", param.ClientConfig.Password)
+		r.Equal("ak", param.ClientConfig.AccessKey)
+		r.Equal("sk", param.ClientConfig.SecretKey)
+		r.Equal("r", param.ClientConfig.RegionId)
+		r.True(param.ClientConfig.OpenKMS)
+		r.Equal("tenant-a", param.ClientConfig.NamespaceId)
+		r.Equal(filepath.Join(os.TempDir(), "nacos", "cache"), param.ClientConfig.CacheDir)
+	})
 }

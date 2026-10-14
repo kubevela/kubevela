@@ -95,12 +95,23 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.markError(ctx, &cfg, fmt.Errorf("config template %s/%s is sensitive: spec.properties must not be set, use spec.propertiesFrom instead", tmpl.Namespace, tmpl.Name))
 	}
 
+	// the webhook's check of the template's nacos block, repeated here for a template
+	// that reached the cluster with the webhooks off
+	if err := validateExpandedWriter(ctx, tmpl); err != nil {
+		return r.markError(ctx, &cfg, err)
+	}
+
 	props, err := r.resolveProperties(ctx, &cfg)
 	if err != nil {
 		return r.markError(ctx, &cfg, err)
 	}
 
 	secret, outputs, err := r.renderSecret(ctx, &cfg, tmpl, props)
+	if err != nil {
+		return r.markError(ctx, &cfg, err)
+	}
+
+	nacosData, err := renderExpandedWriter(&cfg, tmpl, props)
 	if err != nil {
 		return r.markError(ctx, &cfg, err)
 	}
@@ -120,6 +131,16 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	cfg.Status.Phase = configv1alpha1.ConfigPhaseAvailable
 	cfg.Status.SecretRef = &corev1.LocalObjectReference{Name: secret.Name}
 	cfg.Status.SetConditions(condition.ReconcileSuccess())
+
+	// The Secret and the outputs are in place, so the phase is Available whatever Nacos
+	// says; a Nacos failure lives on the NacosSynced condition and is retried with the
+	// controller's backoff.
+	if err := r.syncNacos(ctx, &cfg, nacosData); err != nil {
+		if uerr := r.UpdateStatus(ctx, &cfg); uerr != nil {
+			return ctrl.Result{}, uerr
+		}
+		return ctrl.Result{}, err
+	}
 	return ctrl.Result{}, r.UpdateStatus(ctx, &cfg)
 }
 

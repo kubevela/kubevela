@@ -42,4 +42,11 @@ type Args struct {
 
 	// IgnoreDefinitionWithoutControllerRequirement indicates that trait/component/workflowstep definition controller will not process the definition without 'definition.oam.dev/controller-version-require' annotation.
 	IgnoreDefinitionWithoutControllerRequirement bool
+
+	// UseWebhook mirrors --use-webhook: the admission webhooks are registered and the
+	// manager's webhook server will start. Controllers that want to wait for that
+	// server (through mgr.GetWebhookServer) must check this first: in controller-runtime
+	// the first GetWebhookServer call adds the server to the manager, and without the
+	// serving certificates the manager fails to start.
+	UseWebhook bool
 }

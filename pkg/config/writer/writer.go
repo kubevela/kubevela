@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -31,6 +32,7 @@ import (
 	"go.yaml.in/yaml/v3"
 	"k8s.io/klog/v2"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
@@ -59,6 +61,11 @@ func ParseExpandedWriterConfig(template cue.Value) ExpandedWriterConfig {
 		nacosConfig := &NacosConfig{}
 		if err := nacos.Decode(&nacosConfig); err != nil {
 			klog.Warningf("failed to decode the nacos config: %s", err.Error())
+		}
+		// The endpoint config lives in the system namespace unless the template says
+		// otherwise; settle that here so every reader of the block sees the same address.
+		if nacosConfig.Endpoint.Namespace == "" {
+			nacosConfig.Endpoint.Namespace = types.DefaultKubeVelaNS
 		}
 		ewc.Nacos = nacosConfig
 	}
@@ -108,7 +115,7 @@ func encodingOutput(input cue.Value, format string) ([]byte, error) {
 		if err := convertMap2PropertiesKV("", data, kv); err != nil {
 			return nil, err
 		}
-		return []byte(properties.LoadMap(kv).String()), nil
+		return propertiesBytes(kv), nil
 	default:
 		return yaml.Marshal(data)
 	}
@@ -170,4 +177,21 @@ func convertMap2PropertiesKV(last string, input map[string]interface{}, result m
 		}
 	}
 	return nil
+}
+
+// propertiesBytes renders the pairs in key order. The properties library keeps insertion
+// order, and a Go map iterates randomly, so without the sort the same config renders to
+// different bytes on every call; a controller comparing content would then republish
+// every reconcile.
+func propertiesBytes(kv map[string]string) []byte {
+	keys := make([]string, 0, len(kv))
+	for k := range kv {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	p := properties.NewProperties()
+	for _, k := range keys {
+		_, _, _ = p.Set(k, kv[k])
+	}
+	return []byte(p.String())
 }

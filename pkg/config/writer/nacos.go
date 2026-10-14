@@ -19,6 +19,8 @@ package writer
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 
@@ -60,6 +62,11 @@ type NacosData struct {
 	Content []byte                      `json:"-"`
 	Client  config_client.IConfigClient `json:"-"`
 }
+
+// NewNacosClient builds the client write and Read use when NacosData.Client is nil.
+// A package variable so the controller tests can hand in a mock per spec; the CLI and
+// the controller use the SDK's constructor.
+var NewNacosClient func(param vo.NacosClientParam) (config_client.IConfigClient, error) = clients.NewConfigClient
 
 // parseNacosConfig parse the nacos server config
 func parseNacosConfig(templateField cue.Value, wc *ExpandedWriterConfig) {
@@ -115,18 +122,60 @@ func renderNacos(config *NacosConfig, template script.CUE, context icontext.Conf
 	return &nacosData, nil
 }
 
-func (n *NacosData) write(ctx context.Context, configReader icontext.ReadConfigProvider) (err error) {
+// Read returns the content Nacos holds for the dataId and group of d, through the same
+// endpoint config and client construction as the write. An empty string with no error
+// means Nacos has no such config. The reconciler calls it once per Config, on the first
+// sync, so a legacy config whose content the CLI already published is not published
+// again (Nacos keeps a history entry per publish).
+func Read(ctx context.Context, d *NacosData, configReader icontext.ReadConfigProvider) (content []byte, err error) {
 	defer func() {
 		if rec := recover(); rec != nil {
-			err = fmt.Errorf("panic when writing the data to nacos:%v", rec)
+			err = fmt.Errorf("panic when reading the data from nacos:%v", rec)
 			debug.PrintStack()
 		}
 	}()
+	cli, closeClient, err := d.client(ctx, configReader)
+	if err != nil {
+		return nil, err
+	}
+	defer closeClient()
+	got, err := cli.GetConfig(vo.ConfigParam{
+		DataId: d.Metadata.DataID,
+		Group:  d.Metadata.Group,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("fail to read the config from the nacos server:%w", err)
+	}
+	return []byte(got), nil
+}
+
+// client returns the client to talk to the endpoint of n and the function to release
+// it: n.Client when set (the caller owns it, release is a no-op), otherwise one built
+// from the endpoint config through NewNacosClient and closed by the release function.
+func (n *NacosData) client(ctx context.Context, configReader icontext.ReadConfigProvider) (config_client.IConfigClient, func(), error) {
+	if n.Client != nil {
+		return n.Client, func() {}, nil
+	}
 	// the config of the nacos server saving in the default system namespace
 	config, err := configReader(ctx, n.Endpoint.Namespace, n.Endpoint.Name)
 	if err != nil {
-		return fmt.Errorf("fail to read the config of the nacos server:%w", err)
+		return nil, nil, fmt.Errorf("fail to read the config of the nacos server:%w", err)
 	}
+	param := n.clientParam(config)
+	nacosClient, err := NewNacosClient(param)
+	if err != nil {
+		return nil, nil, err
+	}
+	return nacosClient, nacosClient.CloseClient, nil
+}
+
+// clientParam turns the endpoint config (the properties of the config made from the
+// nacos-server template) into the SDK's client parameters. The client config is always
+// built: the SDK's defaults put its log and cache directories under the process working
+// directory, which is the repository for the CLI and / for the controller, so they go
+// under the temp directory instead; and the block's appName and namespaceId reach the
+// client whether or not the endpoint config has a client section.
+func (n *NacosData) clientParam(config map[string]interface{}) vo.NacosClientParam {
 	readString := func(data map[string]interface{}, key string) string {
 		if v, ok := data[key]; ok {
 			str, _ := v.(string)
@@ -164,14 +213,17 @@ func (n *NacosData) write(ctx context.Context, configReader icontext.ReadConfigP
 		}
 		nacosParam.ServerConfigs = servers
 	}
+	options := []constant.ClientOption{
+		constant.WithAppName(n.Metadata.AppName),
+		constant.WithNamespaceId(n.Metadata.NamespaceID),
+		constant.WithLogDir(filepath.Join(os.TempDir(), "nacos", "log")),
+		constant.WithCacheDir(filepath.Join(os.TempDir(), "nacos", "cache")),
+	}
 	// Discover the server endpoint
 	if clientConfigs, ok := config["client"]; ok {
-		client, _ := clientConfigs.(map[string]interface{})
-		if client != nil {
-			nacosParam.ClientConfig = constant.NewClientConfig(
+		if client, _ := clientConfigs.(map[string]interface{}); client != nil {
+			options = append(options,
 				constant.WithEndpoint(readString(client, "endpoint")),
-				constant.WithAppName(n.Metadata.AppName),
-				constant.WithNamespaceId(n.Metadata.NamespaceID),
 				constant.WithUsername(readString(client, "username")),
 				constant.WithPassword(readString(client, "password")),
 				constant.WithRegionId(readString(client, "regionId")),
@@ -181,16 +233,23 @@ func (n *NacosData) write(ctx context.Context, configReader icontext.ReadConfigP
 			)
 		}
 	}
-	// The mock client creates on the outer.
-	if n.Client == nil {
-		nacosClient, err := clients.NewConfigClient(nacosParam)
-		if err != nil {
-			return err
+	nacosParam.ClientConfig = constant.NewClientConfig(options...)
+	return nacosParam
+}
+
+func (n *NacosData) write(ctx context.Context, configReader icontext.ReadConfigProvider) (err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			err = fmt.Errorf("panic when writing the data to nacos:%v", rec)
+			debug.PrintStack()
 		}
-		defer nacosClient.CloseClient()
-		n.Client = nacosClient
+	}()
+	cli, closeClient, err := n.client(ctx, configReader)
+	if err != nil {
+		return err
 	}
-	_, err = n.Client.PublishConfig(vo.ConfigParam{
+	defer closeClient()
+	_, err = cli.PublishConfig(vo.ConfigParam{
 		DataId:  n.Metadata.DataID,
 		Group:   n.Metadata.Group,
 		Content: string(n.Content),

@@ -27,6 +27,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/config/writer"
+	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
 
 var configTemplateGVR = configv1alpha1.ConfigTemplateGVR
@@ -51,6 +53,16 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	// The shape of the nacos block is admission's question, so the mistake shows at
+	// apply time rather than on the first Config made from the template. Only the
+	// shape: whether the endpoint config exists is reconcile-time, reported through the
+	// Config's NacosSynced condition. A template that does not compile is admitted, as
+	// before: the ConfigTemplate controller reports that through status.phase=Error.
+	// The Config reconciler repeats the same check (writer.ValidateTemplate), so a
+	// cluster running without the webhooks gets the message on the Config instead.
+	if err := writer.ValidateTemplate(ctx, script.CUE(obj.Spec.Template)); err != nil {
+		return admission.Denied(err.Error())
+	}
 	return admission.ValidationResponse(true, "")
 }
 

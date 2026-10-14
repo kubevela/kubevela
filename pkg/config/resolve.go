@@ -19,12 +19,14 @@ package config
 import (
 	"context"
 
+	"cuelang.org/go/cue"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	apitypes "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/config/writer"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
 
@@ -37,6 +39,11 @@ type ResolvedTemplate struct {
 	CUE       script.CUE
 	Scope     string
 	Sensitive bool
+	// ExpandedWriter is the template's nacos block, read from the CUE on both paths so
+	// the controller and the webhook agree on whether a template writes to Nacos. Nil
+	// Nacos when the template has no block or its CUE does not compile; the reconciler's
+	// own parse reports the latter.
+	ExpandedWriter writer.ExpandedWriterConfig
 }
 
 // ResolveConfigTemplate looks up the referenced template, CRD first, falling back to a
@@ -56,11 +63,12 @@ func ResolveConfigTemplate(ctx context.Context, cli client.Client, ref *configv1
 			return nil, true, nil
 		}
 		return &ResolvedTemplate{
-			Name:      ct.Name,
-			Namespace: ns,
-			CUE:       script.CUE(ct.Spec.Template),
-			Scope:     string(ct.Spec.Scope),
-			Sensitive: ct.Spec.Sensitive,
+			Name:           ct.Name,
+			Namespace:      ns,
+			CUE:            script.CUE(ct.Spec.Template),
+			Scope:          string(ct.Spec.Scope),
+			Sensitive:      ct.Spec.Sensitive,
+			ExpandedWriter: expandedWriterOf(ctx, script.CUE(ct.Spec.Template)),
 		}, false, nil
 	case apierrors.IsNotFound(err):
 	default:
@@ -76,10 +84,26 @@ func ResolveConfigTemplate(ctx context.Context, cli client.Client, ref *configv1
 		return nil, false, err
 	}
 	return &ResolvedTemplate{
-		Name:      ref.Name,
-		Namespace: ns,
-		CUE:       script.CUE(cm.Data[SaveTemplateKey]),
-		Scope:     cm.Labels[apitypes.LabelConfigScope],
-		Sensitive: cm.Annotations[apitypes.AnnotationConfigSensitive] == sensitiveAnnotationValue,
+		Name:           ref.Name,
+		Namespace:      ns,
+		CUE:            script.CUE(cm.Data[SaveTemplateKey]),
+		Scope:          cm.Labels[apitypes.LabelConfigScope],
+		Sensitive:      cm.Annotations[apitypes.AnnotationConfigSensitive] == sensitiveAnnotationValue,
+		ExpandedWriter: expandedWriterOf(ctx, script.CUE(cm.Data[SaveTemplateKey])),
 	}, false, nil
+}
+
+// expandedWriterOf reads the nacos block of a template's CUE. The legacy ConfigMap also
+// carries it as yaml under the expanded-writer key; parsing the CUE on both paths keeps
+// one code path and one set of tests. The parse is the CueX one the Secret render uses,
+// with provider functions disabled, so a template that imports a vela package keeps its
+// block; the plain compiler would reject the import and the block would go missing
+// without a word. A template that does not compile at all has no block: the
+// ConfigTemplate controller reports that.
+func expandedWriterOf(ctx context.Context, cueScript script.CUE) writer.ExpandedWriterConfig {
+	v, err := cueScript.ParseToValueWithCueX(ctx)
+	if err != nil {
+		return writer.ExpandedWriterConfig{}
+	}
+	return writer.ParseExpandedWriterConfig(v.LookupPath(cue.ParsePath("template")))
 }

@@ -79,7 +79,55 @@ type ConfigStatus struct {
 
 	Phase     ConfigPhase                  `json:"phase,omitempty"`
 	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
+
+	// ExpandedWriter records the last confirmed sync of the template's expanded writer
+	// block (today: nacos), published or found current. Unset when the template has no
+	// such block.
+	ExpandedWriter *ExpandedWriterStatus `json:"expandedWriter,omitempty"`
 }
+
+// ExpandedWriterStatus holds one entry per expanded writer the template declares.
+type ExpandedWriterStatus struct {
+	Nacos *NacosSyncStatus `json:"nacos,omitempty"`
+}
+
+// NacosSyncStatus is the last confirmed sync of the template's nacos block: where the
+// content lives in Nacos and a hash of the content and its target, recorded both when
+// the controller published and when it found Nacos already current (a config adopted
+// from the CLI, say), so the next reconcile publishes again only when the rendered
+// content or its target changes.
+type NacosSyncStatus struct {
+	DataID      string `json:"dataId"`
+	Group       string `json:"group"`
+	ContentHash string `json:"contentHash"`
+	// LastSyncTime is when the content was last confirmed current in Nacos, by a
+	// publish or by a read that found it already there.
+	LastSyncTime *metav1.Time `json:"lastSyncTime,omitempty"`
+}
+
+// ConditionNacosSynced reports whether the content rendered from the template's nacos
+// block is what Nacos holds. False carries the reason and the error of the last attempt;
+// the controller keeps retrying with backoff, and the Config's phase stays Available
+// because its Secret and outputs are already in place.
+const ConditionNacosSynced condition.ConditionType = "NacosSynced"
+
+// Reasons of the NacosSynced condition.
+const (
+	// ReasonNacosAlreadyCurrent: the first sync found the content already in Nacos, so
+	// nothing was published (a config the CLI published before the controller took over).
+	ReasonNacosAlreadyCurrent condition.ConditionReason = "AlreadyCurrent"
+	// ReasonNacosPublished: the controller published the rendered content.
+	ReasonNacosPublished condition.ConditionReason = "Published"
+	// ReasonNacosEndpointNotFound: the endpoint config named by the template does not exist.
+	ReasonNacosEndpointNotFound condition.ConditionReason = "EndpointNotFound"
+	// ReasonNacosEndpointUnreadable: the endpoint config exists but cannot be used (sensitive,
+	// no properties, undecodable, or the API refused the read).
+	ReasonNacosEndpointUnreadable condition.ConditionReason = "EndpointUnreadable"
+	// ReasonNacosReadFailed: the first-sync read from Nacos failed.
+	ReasonNacosReadFailed condition.ConditionReason = "ReadFailed"
+	// ReasonNacosPublishFailed: the publish to Nacos failed.
+	ReasonNacosPublishFailed condition.ConditionReason = "PublishFailed"
+)
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
