@@ -108,7 +108,7 @@ func (d *deps) meta(ctx context.Context) Meta {
 	}
 	m.Warnings = append(m.Warnings, info.Warnings...)
 	if err != nil {
-		m.Warnings = append(m.Warnings, "platform information incomplete: "+err.Error())
+		m.Warnings = append(m.Warnings, "platform information incomplete: "+redactLine(err.Error()))
 	}
 	return m
 }

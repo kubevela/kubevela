@@ -39,6 +39,11 @@ const (
 	featureGatesFlag  = "--feature-gates="
 	unknownVersion    = "unknown"
 	localCluster      = "local"
+	// gatewayNameSuffix is how the chart names the cluster-gateway Deployment.
+	gatewayNameSuffix = "cluster-gateway"
+	// identityPenetrationGate is the cluster-gateway feature gate that makes
+	// it impersonate the caller in managed clusters.
+	identityPenetrationGate = "ClientIdentityPenetration"
 )
 
 // platformInfo is what get_platform_info returns and what the envelope is
@@ -50,7 +55,20 @@ type platformInfo struct {
 	Kubernetes   map[string]string `json:"kubernetes"`
 	FeatureGates map[string]bool   `json:"featureGates,omitempty"`
 	Controller   controllerInfo    `json:"controller"`
-	Warnings     []string          `json:"warnings,omitempty"`
+	// Gateway describes how reads in other clusters are authenticated.
+	Gateway  gatewayInfo `json:"clusterGateway"`
+	Warnings []string    `json:"warnings,omitempty"`
+}
+
+// gatewayInfo records whether cluster-gateway forwards the caller's
+// identity to managed clusters. When ClientIdentityPenetration is off, a
+// remote read runs as the credential stored for that cluster, which is
+// usually an administrator; the server says so on every remote read.
+type gatewayInfo struct {
+	Found bool `json:"found"`
+	// IdentityPenetration is true when the gateway impersonates the caller
+	// in the managed cluster, false when it does not, nil when unknown.
+	IdentityPenetration *bool `json:"identityPenetration"`
 }
 
 // controllerInfo describes the vela-core Deployment as found.
@@ -122,7 +140,66 @@ func (d *deps) readPlatform(ctx context.Context) (platformInfo, error) {
 	if w := versionSkew(info.VelaCLI, info.VelaCore); w != "" {
 		info.Warnings = append(info.Warnings, w)
 	}
+
+	gateway, err := d.findGateway(ctx)
+	switch {
+	case err != nil:
+		note(fmt.Errorf("cluster-gateway deployment: %w", err))
+	case gateway != nil:
+		info.Gateway.Found = true
+		if v, ok := parseFeatureGates(gateway)[identityPenetrationGate]; ok {
+			info.Gateway.IdentityPenetration = &v
+		} else {
+			off := false
+			info.Gateway.IdentityPenetration = &off
+		}
+	}
 	return info, firstErr
+}
+
+// findGateway returns the cluster-gateway Deployment in the system
+// namespace, found by the name suffix the chart gives it, or nil.
+func (d *deps) findGateway(ctx context.Context) (*appsv1.Deployment, error) {
+	cli := d.f.Client()
+	if cli == nil {
+		return nil, errNoConfig
+	}
+	var list appsv1.DeploymentList
+	if err := cli.List(ctx, &list, client.InNamespace(d.opts.SystemNamespace)); err != nil {
+		return nil, err
+	}
+	for i := range list.Items {
+		if strings.HasSuffix(list.Items[i].Name, gatewayNameSuffix) {
+			return &list.Items[i], nil
+		}
+	}
+	return nil, nil
+}
+
+// remoteReadWarning is appended to the envelope when a result includes
+// data read from a cluster other than the control plane and the gateway
+// does not forward the caller's identity. It is the honest version of
+// "never elevates": the hub call is the caller's, the remote one may not be.
+func (d *deps) remoteReadWarning(ctx context.Context, clusters map[string]bool) string {
+	remote := false
+	for c := range clusters {
+		if c != "" && c != localCluster {
+			remote = true
+			break
+		}
+	}
+	if !remote {
+		return ""
+	}
+	info, _ := d.cachedPlatform(ctx)
+	switch {
+	case info.Gateway.IdentityPenetration != nil && *info.Gateway.IdentityPenetration:
+		return ""
+	case info.Gateway.Found:
+		return "remote cluster reads ran with the credential stored for each cluster, not your identity: cluster-gateway has " + identityPenetrationGate + " disabled"
+	default:
+		return "remote cluster reads may have run with the credential stored for each cluster: cluster-gateway configuration could not be read"
+	}
 }
 
 // findController returns the vela-core Deployment in the system namespace,

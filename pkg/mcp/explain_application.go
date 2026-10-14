@@ -102,9 +102,13 @@ type EventSummary struct {
 }
 
 // Finding is one deterministic observation with the object it came from.
+// Message is written by this server and names what was checked; Observed
+// carries the text the cluster recorded, kept apart so a message planted
+// in an event or a status cannot read as the server's conclusion.
 type Finding struct {
 	Severity string `json:"severity"`
 	Message  string `json:"message"`
+	Observed string `json:"observed,omitempty"`
 	Evidence string `json:"evidence"`
 }
 
@@ -140,13 +144,18 @@ func (d *deps) explainApplication(ctx context.Context, _ *sdk.CallToolRequest, i
 		out.Policies = append(out.Policies, PolicySpec{Name: p.Name, Type: p.Type, Properties: rawToRedactedMap(p.Properties)})
 	}
 
-	applied, err := d.listAppliedResources(ctx, app, "", "")
+	applied, withheld, err := d.listAppliedResources(ctx, app, "", "")
 	if err != nil {
-		out.Unknowns = append(out.Unknowns, "managed resources: "+err.Error())
+		out.Unknowns = append(out.Unknowns, "managed resources: "+redactLine(err.Error()))
+	}
+	if withheld > 0 {
+		out.Unknowns = append(out.Unknowns, withheldWarning(withheld)[0])
 	}
 	byComponent := map[string][]querytypes.AppliedResource{}
+	clusters := map[string]bool{}
 	for i := range applied {
 		byComponent[applied[i].Component] = append(byComponent[applied[i].Component], applied[i])
+		clusters[applied[i].Cluster] = true
 	}
 
 	services := map[string][]ServiceStatus{}
@@ -175,6 +184,8 @@ func (d *deps) explainApplication(ctx context.Context, _ *sdk.CallToolRequest, i
 			ce.Outputs = append(ce.Outputs, DataFlow{Name: o.Name, ValueFrom: o.ValueFrom})
 		}
 		if summary, _, err := d.findDefinition(ctx, cli, DescribeDefinitionInput{Name: c.Type, Type: DefinitionTypeComponent, Namespace: app.Namespace}); err == nil {
+			// The namespace was allowed by loadApplication, so this lookup
+			// stays inside the allowlist plus the system namespace.
 			ce.DefinitionFound = true
 			ce.Description = summary.Description
 			out.Evidence = append(out.Evidence, fmt.Sprintf("ComponentDefinition %s/%s", summary.Namespace, summary.Name))
@@ -194,19 +205,22 @@ func (d *deps) explainApplication(ctx context.Context, _ *sdk.CallToolRequest, i
 
 	events, err := d.applicationEvents(ctx, cli, app, applied)
 	if err != nil {
-		out.Unknowns = append(out.Unknowns, "events: "+err.Error())
+		out.Unknowns = append(out.Unknowns, "events: "+redactLine(err.Error()))
 	} else {
 		out.Events = events
 		out.Evidence = append(out.Evidence, fmt.Sprintf("%d Event objects in namespace %s involving the application or its resources", len(events), app.Namespace))
 		for _, e := range events {
 			if e.Type == corev1.EventTypeWarning {
-				out.Findings = append(out.Findings, Finding{Severity: SeverityWarning, Message: fmt.Sprintf("%s: %s %s", e.Object, e.Reason, e.Message), Evidence: "Event on " + e.Object})
+				out.Findings = append(out.Findings, Finding{Severity: SeverityWarning, Message: fmt.Sprintf("warning event %s on %s, seen %d times", e.Reason, e.Object, e.Count), Observed: e.Message, Evidence: "Event on " + e.Object})
 			}
 		}
 	}
 	out.Unknowns = append(out.Unknowns, "metrics, traces and historical logs are outside vela; use the observability MCP for them")
 	sortFindings(out.Findings)
 	out.Meta = d.meta(ctx)
+	if w := d.remoteReadWarning(ctx, clusters); w != "" {
+		out.Meta.Warnings = append(out.Meta.Warnings, w)
+	}
 	return nil, out, nil
 }
 
@@ -241,6 +255,9 @@ func summarizeResource(res querytypes.AppliedResource) ResourceSummary {
 		if n.Health.Status != string(querytypes.HealthStatusHealthy) {
 			rs.Unhealthy = append(rs.Unhealthy, strings.TrimSpace(fmt.Sprintf("%s/%s: %s %s %s", n.Kind, n.Name, n.Health.Status, n.Health.Reason, n.Health.Message)))
 		}
+		if len(rs.Unhealthy) >= maxTreeNodes {
+			break
+		}
 	}
 	return rs
 }
@@ -253,10 +270,10 @@ func resourceFindings(component string, rs ResourceSummary) []Finding {
 		if rs.Health.Status == string(querytypes.HealthStatusProgressing) {
 			severity = SeverityWarning
 		}
-		findings = append(findings, Finding{Severity: severity, Message: fmt.Sprintf("component %q: %s %s is %s %s", component, rs.Kind, rs.Name, rs.Health.Status, strings.TrimSpace(rs.Health.Reason+" "+rs.Health.Message)), Evidence: ref})
+		findings = append(findings, Finding{Severity: severity, Message: fmt.Sprintf("component %q: %s %s is %s", component, rs.Kind, rs.Name, rs.Health.Status), Observed: strings.TrimSpace(rs.Health.Reason + " " + rs.Health.Message), Evidence: ref})
 	}
-	for _, u := range rs.Unhealthy {
-		findings = append(findings, Finding{Severity: SeverityWarning, Message: fmt.Sprintf("component %q: %s", component, u), Evidence: ref})
+	if n := len(rs.Unhealthy); n > 0 {
+		findings = append(findings, Finding{Severity: SeverityWarning, Message: fmt.Sprintf("component %q: %d objects under %s %s are not healthy", component, n, rs.Kind, rs.Name), Observed: strings.Join(rs.Unhealthy, "; "), Evidence: ref})
 	}
 	if rs.Restarts > 0 {
 		findings = append(findings, Finding{Severity: SeverityWarning, Message: fmt.Sprintf("component %q: pods under %s %s have restarted %d times", component, rs.Kind, rs.Name, rs.Restarts), Evidence: ref})
@@ -275,11 +292,11 @@ func serviceFindings(component string, services []ServiceStatus, appRef string) 
 			where += "/" + s.Namespace
 		}
 		if !s.Healthy {
-			findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("component %q in %s reports unhealthy: %s", component, where, s.Message), Evidence: appRef + " status.services"})
+			findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("component %q in %s reports unhealthy", component, where), Observed: s.Message, Evidence: appRef + " status.services"})
 		}
 		for _, t := range s.Traits {
 			if !t.Healthy {
-				findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("trait %q on component %q in %s reports unhealthy: %s", t.Type, component, where, t.Message), Evidence: appRef + " status.services"})
+				findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("trait %q on component %q in %s reports unhealthy", t.Type, component, where), Observed: t.Message, Evidence: appRef + " status.services"})
 			}
 		}
 	}
@@ -307,13 +324,13 @@ func applicationFindings(app *v1beta1.Application, wf *WorkflowDetail, appRef st
 		}
 		for _, s := range wf.Steps {
 			if s.Phase == "failed" {
-				findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("workflow step %q (%s) failed: %s %s", s.Name, s.Type, s.Reason, s.Message), Evidence: appRef + " status.workflow.steps"})
+				findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("workflow step %q (%s) failed", s.Name, s.Type), Observed: strings.TrimSpace(s.Reason + " " + s.Message), Evidence: appRef + " status.workflow.steps"})
 			}
 		}
 	}
 	for _, c := range app.Status.Conditions {
 		if c.Status == corev1.ConditionFalse {
-			findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("condition %s is False: %s %s", c.Type, c.Reason, c.Message), Evidence: appRef + " status.conditions"})
+			findings = append(findings, Finding{Severity: SeverityError, Message: fmt.Sprintf("condition %s is False", c.Type), Observed: text(strings.TrimSpace(string(c.Reason) + " " + c.Message)), Evidence: appRef + " status.conditions"})
 		}
 	}
 	return findings
@@ -332,7 +349,7 @@ func (d *deps) applicationEvents(ctx context.Context, cli client.Client, app *v1
 		}
 	}
 	var list corev1.EventList
-	if err := cli.List(ctx, &list, client.InNamespace(app.Namespace)); err != nil {
+	if err := cli.List(ctx, &list, client.InNamespace(app.Namespace), client.Limit(int64(maxListItems))); err != nil {
 		return nil, err
 	}
 	events := []EventSummary{}
@@ -353,7 +370,7 @@ func (d *deps) applicationEvents(ctx context.Context, cli client.Client, app *v1
 		if count == 0 && e.Series != nil {
 			count = e.Series.Count
 		}
-		events = append(events, EventSummary{Object: key, Type: e.Type, Reason: e.Reason, Message: redactLine(e.Message), Count: count, Last: timePtr(last)})
+		events = append(events, EventSummary{Object: key, Type: e.Type, Reason: text(e.Reason), Message: text(e.Message), Count: count, Last: timePtr(last)})
 	}
 	sort.SliceStable(events, func(i, j int) bool {
 		li, lj := time.Time{}, time.Time{}

@@ -96,6 +96,9 @@ var _ = Describe("explain_application", func() {
 		Expect(out.Events).To(HaveLen(2), "the event on the unmanaged object is excluded")
 		Expect(out.Events[0].Object).To(Equal("Pod/web-abc-2"))
 		Expect(out.Events[0].Message).To(Equal("Back-off restarting failed container web; token=" + redactedValue))
+		for _, f := range out.Findings {
+			Expect(f.Message).NotTo(ContainSubstring("Back-off"), "observed text stays out of the server's sentence")
+		}
 		Expect(out.Events[1].Object).To(Equal("Application/web"))
 
 		messages := []string{}
@@ -107,7 +110,7 @@ var _ = Describe("explain_application", func() {
 			ContainSubstring(`error: component "db" uses type "helm" which is not published`),
 			ContainSubstring("warning: status describes generation 2 but the spec is at generation 3"),
 			ContainSubstring(`warning: component "web": pods under Deployment web have restarted 4 times`),
-			ContainSubstring("warning: Pod/web-abc-2: BackOff"),
+			ContainSubstring("warning: warning event BackOff on Pod/web-abc-2, seen 3 times"),
 			ContainSubstring("info: workflow is suspended at approve; next action: vela workflow resume web -n team-a"),
 			ContainSubstring("info: application phase is workflowSuspending"),
 		))
@@ -131,13 +134,18 @@ var _ = Describe("explain_application", func() {
 		Expect(out.Components).To(HaveLen(1))
 		Expect(out.Components[0].Resources).To(BeEmpty())
 		Expect(out.Findings[0].Severity).To(Equal(SeverityError))
+		observed := []string{}
+		for _, f := range out.Findings {
+			observed = append(observed, f.Observed)
+		}
+		Expect(observed).To(ContainElement("Timeout"))
 		messages := []string{}
 		for _, f := range out.Findings {
 			messages = append(messages, f.Message)
 		}
 		Expect(messages).To(ContainElements(
 			ContainSubstring("application phase is workflowFailed"),
-			ContainSubstring(`workflow step "run" (deploy) failed: Timeout`),
+			ContainSubstring(`workflow step "run" (deploy) failed`),
 			ContainSubstring("no component status has been recorded yet"),
 		))
 	})

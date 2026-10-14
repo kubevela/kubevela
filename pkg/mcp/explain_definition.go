@@ -35,6 +35,9 @@ import (
 const (
 	maxRevisionsListed = 10
 	maxConsumersListed = 20
+	// maxConsumerScan bounds the Applications read per namespace when
+	// counting consumers; the count says when it hit the bound.
+	maxConsumerScan = 2000
 )
 
 // ExplainDefinitionInput names the definition to explain.
@@ -139,6 +142,9 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 	if in.Type != "" && !validDefinitionType(in.Type) {
 		return nil, out, fmt.Errorf("unknown definition type %q", in.Type)
 	}
+	if err := d.definitionNamespaceAllowed(in.Namespace); err != nil {
+		return nil, out, err
+	}
 	cli := d.f.Client()
 	if cli == nil {
 		return nil, out, errNoConfig
@@ -148,7 +154,7 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 		return nil, out, err
 	}
 	out.DefinitionSummary = facts.summary
-	out.Alias = facts.annotations[types.AnnoDefinitionAlias]
+	out.Alias = text(facts.annotations[types.AnnoDefinitionAlias])
 	out.Deprecated = facts.labels[types.LabelDefinitionDeprecated] == "true"
 	out.Hidden = facts.labels[types.LabelDefinitionHidden] == "true"
 	out.Extends = facts.extends
@@ -175,7 +181,7 @@ func (d *deps) explainDefinition(ctx context.Context, _ *sdk.CallToolRequest, in
 
 	out.Revisions, err = listDefinitionRevisions(ctx, cli, facts)
 	if err != nil {
-		out.Meta.Warnings = append(out.Meta.Warnings, "revision history unavailable: "+err.Error())
+		out.Meta.Warnings = append(out.Meta.Warnings, "revision history unavailable: "+redactLine(err.Error()))
 	} else {
 		out.Evidence = append(out.Evidence, fmt.Sprintf("%d DefinitionRevision objects labelled %s=%s", len(out.Revisions), facts.revLabel, facts.summary.Name))
 	}
@@ -298,7 +304,7 @@ func healthRules(s *oamcommon.Status) HealthRules {
 	if s == nil {
 		return HealthRules{}
 	}
-	return HealthRules{HealthPolicy: s.HealthPolicy, CustomStatus: s.CustomStatus, Details: s.Details}
+	return HealthRules{HealthPolicy: redactLine(s.HealthPolicy), CustomStatus: redactLine(s.CustomStatus), Details: redactLine(s.Details)}
 }
 
 // listDefinitionRevisions returns the newest revisions first, capped.
@@ -331,13 +337,16 @@ func (d *deps) countConsumers(ctx context.Context, cli client.Client, defType, n
 	}
 	for _, ns := range namespaces {
 		var list v1beta1.ApplicationList
-		opts := []client.ListOption{}
+		opts := []client.ListOption{client.Limit(int64(maxConsumerScan))}
 		if ns != "" {
 			opts = append(opts, client.InNamespace(ns))
 		}
 		if err := cli.List(ctx, &list, opts...); err != nil {
-			sum.Error = fmt.Sprintf("list applications in %s: %v", nsLabel(ns), err)
+			sum.Error = redactLine(fmt.Sprintf("list applications in %s: %v", nsLabel(ns), err))
 			return sum
+		}
+		if list.Continue != "" {
+			sum.Error = fmt.Sprintf("more than %d applications in %s; the count covers the first %d only", maxConsumerScan, nsLabel(ns), maxConsumerScan)
 		}
 		for i := range list.Items {
 			app := &list.Items[i]

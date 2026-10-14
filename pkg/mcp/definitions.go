@@ -96,6 +96,9 @@ func (d *deps) listDefinitions(ctx context.Context, _ *sdk.CallToolRequest, in L
 		}
 		typesToList = []string{in.Type}
 	}
+	if err := d.definitionNamespaceAllowed(in.Namespace); err != nil {
+		return nil, out, err
+	}
 	cli := d.f.Client()
 	if cli == nil {
 		return nil, out, errNoConfig
@@ -119,7 +122,15 @@ func (d *deps) listDefinitions(ctx context.Context, _ *sdk.CallToolRequest, in L
 		}
 		return a.Name < b.Name
 	})
+	truncated := false
+	if len(out.Definitions) > maxListItems {
+		out.Definitions, truncated = out.Definitions[:maxListItems], true
+	}
 	out.Meta = d.meta(ctx)
+	if truncated {
+		out.Meta.Truncated = true
+		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("more than %d definitions; narrow by type or namespace", maxListItems))
+	}
 	return nil, out, nil
 }
 
@@ -130,6 +141,9 @@ func (d *deps) describeDefinition(ctx context.Context, _ *sdk.CallToolRequest, i
 	}
 	if in.Type != "" && !validDefinitionType(in.Type) {
 		return nil, out, fmt.Errorf("unknown definition type %q; use one of %s", in.Type, strings.Join(definitionTypes, ", "))
+	}
+	if err := d.definitionNamespaceAllowed(in.Namespace); err != nil {
+		return nil, out, err
 	}
 	cli := d.f.Client()
 	if cli == nil {
@@ -146,6 +160,16 @@ func (d *deps) describeDefinition(ctx context.Context, _ *sdk.CallToolRequest, i
 	}
 	out.Meta = d.meta(ctx)
 	return nil, out, nil
+}
+
+// definitionNamespaceAllowed applies the namespace restriction to a
+// definition lookup. The system namespace is always readable because it
+// is the platform catalogue; any other namespace must be on the allowlist.
+func (d *deps) definitionNamespaceAllowed(ns string) error {
+	if ns == "" || ns == d.opts.SystemNamespace {
+		return nil
+	}
+	return d.namespaceAllowed(ns)
 }
 
 // listNamespaces decides which namespaces a list covers. An explicit
@@ -171,7 +195,7 @@ func (d *deps) listNamespaces(requested string) []string {
 }
 
 func (d *deps) listDefinitionType(ctx context.Context, cli client.Client, defType, ns string) ([]DefinitionSummary, error) {
-	opts := []client.ListOption{}
+	opts := []client.ListOption{client.Limit(int64(maxListItems) + 1)}
 	if ns != "" {
 		opts = append(opts, client.InNamespace(ns))
 	}
@@ -283,7 +307,7 @@ func summarize(defType string, meta interface {
 		Name:        meta.GetName(),
 		Type:        defType,
 		Namespace:   meta.GetNamespace(),
-		Description: meta.GetAnnotations()[types.AnnoDefinitionDescription],
+		Description: text(meta.GetAnnotations()[types.AnnoDefinitionDescription]),
 		Version:     ver,
 	}
 	if rev != nil {

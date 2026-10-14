@@ -37,7 +37,7 @@ func clusterFixtures() []client.Object {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:        "prod-east",
 				Namespace:   types.DefaultKubeVelaNS,
-				Labels:      map[string]string{clustercommon.LabelKeyClusterCredentialType: string(v1alpha1.CredentialTypeX509Certificate), "region": "east"},
+				Labels:      map[string]string{clustercommon.LabelKeyClusterCredentialType: string(v1alpha1.CredentialTypeX509Certificate), clustercommon.LabelKeyClusterEndpointType: "Const", "region": "east"},
 				Annotations: map[string]string{v1alpha1.AnnotationClusterAlias: "Production East"},
 			},
 			Data: map[string][]byte{"endpoint": []byte("https://10.0.0.1:6443"), "tls.key": []byte("never-returned")},
@@ -83,11 +83,13 @@ var _ = Describe("cluster and addon tools", func() {
 		Expect(east.Name).To(Equal("prod-east"))
 		Expect(east.Alias).To(Equal("Production East"))
 		Expect(east.Type).To(Equal("X509Certificate"))
-		Expect(east.Endpoint).To(Equal("https://10.0.0.1:6443"))
+		Expect(east.EndpointType).To(Equal("Const"))
+		Expect(east.Source).To(Equal("cluster secret"))
 		Expect(east.Labels).To(HaveKeyWithValue("region", "east"))
 		raw, _ := res.StructuredContent.(map[string]any)
 		Expect(raw).NotTo(BeNil())
 		Expect(toJSON(raw)).NotTo(ContainSubstring("never-returned"))
+		Expect(toJSON(raw)).NotTo(ContainSubstring("10.0.0.1"), "endpoint lives in secret data, which is not read")
 	})
 
 	It("lists enabled addons with version, phase, health and clusters", func() {

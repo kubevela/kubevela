@@ -30,6 +30,17 @@ const (
 	TransportStdio = "stdio"
 )
 
+// Output bounds. They are variables so tests can lower them; nothing else
+// assigns them.
+var (
+	// maxListItems caps list_applications and list_definitions rows.
+	maxListItems = 500
+	// maxObjectBytes caps a live object returned by get_managed_resource.
+	maxObjectBytes = 256 << 10
+	// maxTreeNodes caps the descendants listed under one managed resource.
+	maxTreeNodes = 200
+)
+
 // ToolClass says what a tool may do. The class decides whether a tool is
 // registered at all and lets an administrator reason about a server from
 // its flags alone.

@@ -18,6 +18,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -113,11 +114,13 @@ func (d *deps) getManagedResource(ctx context.Context, _ *sdk.CallToolRequest, i
 	out.Application, out.Namespace = app.Name, app.Namespace
 	out.Evidence = []string{applicationEvidence(app)}
 
-	applied, err := d.listAppliedResources(ctx, app, in.Component, in.Cluster)
+	applied, withheld, err := d.listAppliedResources(ctx, app, in.Component, in.Cluster)
 	if err != nil {
 		return nil, out, err
 	}
+	clusters := map[string]bool{}
 	for i := range applied {
+		clusters[applied[i].Cluster] = true
 		res := applied[i]
 		if in.Kind != "" && !strings.EqualFold(res.Kind, in.Kind) {
 			continue
@@ -130,19 +133,43 @@ func (d *deps) getManagedResource(ctx context.Context, _ *sdk.CallToolRequest, i
 	if in.ResourceName != "" && len(out.Resources) == 0 {
 		return nil, out, fmt.Errorf("%s %q is not managed by application %s/%s; only managed objects are read", kindLabel(in.Kind), in.ResourceName, app.Namespace, app.Name)
 	}
+	out.Meta = d.meta(ctx)
+	out.Meta.Warnings = append(out.Meta.Warnings, withheldWarning(withheld)...)
+	if w := d.remoteReadWarning(ctx, clusters); w != "" {
+		out.Meta.Warnings = append(out.Meta.Warnings, w)
+	}
+	for i := range out.Resources {
+		if len(out.Resources[i].Tree) > maxTreeNodes {
+			out.Resources[i].Tree = out.Resources[i].Tree[:maxTreeNodes]
+			out.Meta.Truncated = true
+			out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("%s %s has more than %d descendants; only the first %d are listed", out.Resources[i].Kind, out.Resources[i].Name, maxTreeNodes, maxTreeNodes))
+		}
+	}
 	if len(out.Resources) == 1 && (in.ResourceName != "" || in.Kind != "") {
 		d.attachLiveObject(ctx, &out.Resources[0], &out)
 	}
-	out.Meta = d.meta(ctx)
 	return nil, out, nil
 }
 
+// withheldWarning explains resources dropped by the namespace allowlist.
+func withheldWarning(withheld int) []string {
+	if withheld == 0 {
+		return nil
+	}
+	return []string{fmt.Sprintf("%d managed resources are outside this server's allowed namespaces and were withheld", withheld)}
+}
+
 // listAppliedResources runs the same collector VelaQL's resource views use,
-// so the tree and health here match vela status --tree.
-func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Application, component, cluster string) ([]querytypes.AppliedResource, error) {
+// so the tree and health here match vela status --tree. When the server
+// has a namespace allowlist, resources recorded in other namespaces are
+// dropped before anything is read from them and the count is returned:
+// an Application can record objects anywhere a topology or read-only
+// policy points, and the allowlist must hold for those too. Cluster-scoped
+// objects have no namespace and are withheld under an allowlist.
+func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Application, component, cluster string) ([]querytypes.AppliedResource, int, error) {
 	cli := d.f.Client()
 	if cli == nil {
-		return nil, errNoConfig
+		return nil, 0, errNoConfig
 	}
 	opt := query.Option{
 		Name:      app.Name,
@@ -153,11 +180,45 @@ func (d *deps) listAppliedResources(ctx context.Context, app *v1beta1.Applicatio
 	if component != "" {
 		opt.Filter.Components = []string{component}
 	}
+	if len(d.opts.Namespaces) > 0 {
+		// Without a tree the collector only reads ResourceTrackers, so the
+		// allowlist can be applied before any object in a foreign namespace
+		// is touched; the tree is then built for the survivors only.
+		opt.WithTree = false
+		recorded, err := query.NewAppCollector(cli, opt).ListApplicationResources(ctx, app)
+		if err != nil {
+			return nil, 0, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
+		}
+		withheld := 0
+		allowed := []querytypes.AppliedResource{}
+		for i := range recorded {
+			if recorded[i].Namespace == "" || d.namespaceAllowed(recorded[i].Namespace) != nil {
+				withheld++
+				continue
+			}
+			allowed = append(allowed, recorded[i])
+		}
+		if len(allowed) == 0 {
+			return allowed, withheld, nil
+		}
+		opt.WithTree = true
+		applied, err := query.NewAppCollector(cli, opt).ListApplicationResources(ctx, app)
+		if err != nil {
+			return nil, withheld, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
+		}
+		kept := applied[:0]
+		for i := range applied {
+			if applied[i].Namespace != "" && d.namespaceAllowed(applied[i].Namespace) == nil {
+				kept = append(kept, applied[i])
+			}
+		}
+		return kept, withheld, nil
+	}
 	applied, err := query.NewAppCollector(cli, opt).ListApplicationResources(ctx, app)
 	if err != nil {
-		return nil, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
+		return nil, 0, fmt.Errorf("list managed resources of %s/%s: %w", app.Namespace, app.Name, err)
 	}
-	return applied, nil
+	return applied, 0, nil
 }
 
 // attachLiveObject reads the selected object from its cluster. Secrets are
@@ -173,12 +234,11 @@ func (d *deps) attachLiveObject(ctx context.Context, res *ManagedResource, out *
 		cctx = multicluster.ContextWithClusterName(ctx, res.Cluster)
 	}
 	if err := d.f.Client().Get(cctx, key, obj); err != nil {
-		res.ObjectNote = "live read failed: " + err.Error()
+		res.ObjectNote = "live read failed: " + redactLine(err.Error())
 		return
 	}
 	out.Evidence = append(out.Evidence, fmt.Sprintf("%s %s/%s in cluster %s resourceVersion %s", res.Kind, res.Namespace, res.Name, res.Cluster, obj.GetResourceVersion()))
-	content := obj.DeepCopy().Object
-	unstructured.RemoveNestedField(content, "metadata", "managedFields")
+	content := redactObject(obj.DeepCopy().Object)
 	if res.Kind == secretKind {
 		res.Object = map[string]any{
 			"apiVersion": content["apiVersion"],
@@ -189,7 +249,24 @@ func (d *deps) attachLiveObject(ctx context.Context, res *ManagedResource, out *
 		res.ObjectNote = "Secret content is never returned; metadata only"
 		return
 	}
-	res.Object, _ = redactMap(content).(map[string]any)
+	if res.Kind == "ConfigMap" {
+		res.ObjectNote = "ConfigMap values are not returned, only their keys; read values through the Kubernetes MCP under its own policy"
+	}
+	if size := jsonSize(content); size > maxObjectBytes {
+		res.ObjectNote = fmt.Sprintf("live object is %d bytes, over the %d byte limit; read it with the Kubernetes MCP or kubectl", size, maxObjectBytes)
+		out.Meta.Truncated = true
+		return
+	}
+	res.Object = content
+}
+
+// jsonSize is the encoded size of v, or 0 when it cannot be encoded.
+func jsonSize(v any) int {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return 0
+	}
+	return len(raw)
 }
 
 func viewManagedResource(res querytypes.AppliedResource) ManagedResource {
@@ -235,8 +312,8 @@ func viewResourceNode(n *querytypes.ResourceTreeNode, depth int, parent string) 
 		Name:       n.Name,
 		Health: ResourceHealth{
 			Status:  string(n.HealthStatus.Status),
-			Reason:  n.HealthStatus.Reason,
-			Message: n.HealthStatus.Message,
+			Reason:  text(n.HealthStatus.Reason),
+			Message: text(n.HealthStatus.Message),
 		},
 		CreatedAt: timePtr(n.CreationTimestamp),
 		Deleting:  !n.DeletionTimestamp.IsZero(),

@@ -27,4 +27,38 @@ limitations under the License.
 // Handlers never shell out to the vela binary and never call a language
 // model. See design/vela-cli/kep-vela-mcp.md for the proposal this
 // implements.
+//
+// # Security model
+//
+// The server runs as a child process of the agent harness and speaks only
+// over stdio; there is no listener. On the control plane it acts with the
+// caller's kubeconfig identity through the same Factory the rest of the
+// CLI uses, so Kubernetes RBAC is the authorization boundary. Reads in
+// other clusters go through cluster-gateway and carry the caller's identity
+// only when the gateway's ClientIdentityPenetration gate is on; otherwise
+// they run as the credential stored for that cluster, exactly as vela
+// status and vela logs do, and every such result says so in its warnings.
+//
+// The --namespace flag narrows reads further. It is checked before any
+// Application is read, so it reveals nothing about other namespaces, and
+// it applies to the objects an Application manages as well as to the
+// Application itself: resources recorded in a namespace outside the
+// allowlist, or with no namespace, are withheld and counted. Reads of the
+// platform itself are not narrowed by the flag: definitions, addons and
+// clusters live in the system namespace and are the catalogue every
+// namespace builds on.
+//
+// Secret objects come back as metadata only and ConfigMap values as keys
+// only. Annotations that embed a serialized object are dropped. Secret-like
+// keys and env entries are replaced, and credential-shaped substrings and
+// control characters are removed from strings, log lines, event messages
+// and error text. That last step is pattern based and therefore best
+// effort; the structural rules above are what make Secret and ConfigMap
+// values safe. Lists, tree walks, log tails and live objects are bounded
+// and say so in the envelope, and each call has a deadline.
+//
+// Free text that originates in the cluster is data about the system, never
+// an instruction to the agent. Findings keep the server's own sentence and
+// the observed text in separate fields, and the server's initialize
+// instructions say the same to the model.
 package mcp

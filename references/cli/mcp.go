@@ -46,8 +46,11 @@ var (
 		Tools are grouped into read, plan and write classes. Only read and plan
 		tools are available unless --allow-write is set, and resume_workflow is
 		gated separately by --allow-resume because resuming bypasses the approval
-		step a gated apply relies on. The server acts with the caller's kubeconfig
-		identity and never elevates it.
+		step a gated apply relies on. On the control plane the server acts with
+		the caller's kubeconfig identity. Reads in other clusters go through
+		cluster-gateway, which forwards that identity only when its
+		ClientIdentityPenetration gate is on; results read from other clusters
+		say which identity applied.
 
 		The default transport is stdio, which is what desktop agents and coding
 		assistants spawn directly. Standard output carries the protocol, so
@@ -129,6 +132,6 @@ func NewMCPCommand(f velacmd.Factory, order string) *cobra.Command {
 	cmd.Flags().StringVar(&o.Transport, "transport", o.Transport, "Transport to serve on. Only stdio is supported.")
 	cmd.Flags().BoolVar(&o.AllowWrite, "allow-write", false, "Register write tools such as apply_application. Off by default.")
 	cmd.Flags().BoolVar(&o.AllowResume, "allow-resume", false, "Register resume_workflow, which continues a workflow paused for approval. Off by default.")
-	cmd.Flags().StringArrayVar(&o.Namespaces, "namespace", nil, "Restrict every tool to this namespace. Repeat for more than one; empty means any namespace RBAC allows.")
+	cmd.Flags().StringArrayVar(&o.Namespaces, "namespace", nil, "Restrict Application, resource and log reads to this namespace, including resources an Application manages elsewhere. Repeat for more than one; empty means any namespace RBAC allows. Definitions, addons and clusters in the system namespace stay readable.")
 	return velacmd.NewCommandBuilder(f, cmd).WithResponsiveWriter().Build()
 }

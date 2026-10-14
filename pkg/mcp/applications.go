@@ -271,15 +271,17 @@ func (d *deps) listApplications(ctx context.Context, _ *sdk.CallToolRequest, in 
 	if err != nil {
 		return nil, out, err
 	}
+	paged := false
 	for _, ns := range namespaces {
 		var list v1beta1.ApplicationList
-		opts := []client.ListOption{}
+		opts := []client.ListOption{client.Limit(int64(maxListItems) + 1)}
 		if ns != "" {
 			opts = append(opts, client.InNamespace(ns))
 		}
 		if err := cli.List(ctx, &list, opts...); err != nil {
 			return nil, out, fmt.Errorf("list applications in %s: %w", nsLabel(ns), err)
 		}
+		paged = paged || list.Continue != ""
 		for i := range list.Items {
 			out.Applications = append(out.Applications, summarizeApplication(&list.Items[i]))
 		}
@@ -292,6 +294,13 @@ func (d *deps) listApplications(ctx context.Context, _ *sdk.CallToolRequest, in 
 		return a.Name < b.Name
 	})
 	out.Meta = d.meta(ctx)
+	if paged || len(out.Applications) > maxListItems {
+		if len(out.Applications) > maxListItems {
+			out.Applications = out.Applications[:maxListItems]
+		}
+		out.Meta.Truncated = true
+		out.Meta.Warnings = append(out.Meta.Warnings, fmt.Sprintf("more than %d applications; narrow by namespace", maxListItems))
+	}
 	return nil, out, nil
 }
 
@@ -302,8 +311,8 @@ func (d *deps) getApplication(ctx context.Context, _ *sdk.CallToolRequest, in Ge
 		return nil, out, err
 	}
 	out.ApplicationSummary = summarizeApplication(app)
-	out.Labels = app.Labels
-	out.Annotations = app.Annotations
+	out.Labels = redactStringMap(app.Labels)
+	out.Annotations = redactStringMap(app.Annotations)
 	out.Spec = viewApplicationSpec(app)
 	out.Status = viewApplicationStatus(app)
 	out.Evidence = []string{applicationEvidence(app)}
@@ -408,7 +417,7 @@ func summarizeWorkflow(wf *oamcommon.WorkflowStatus) WorkflowSummary {
 		Suspended:  wf.Suspend,
 		Terminated: wf.Terminated,
 		Finished:   wf.Finished,
-		Message:    wf.Message,
+		Message:    text(wf.Message),
 	}
 }
 
@@ -506,14 +515,14 @@ func viewApplicationStatus(app *v1beta1.Application) ApplicationStatusView {
 			Namespace: s.Namespace,
 			Env:       s.Env,
 			Healthy:   s.Healthy,
-			Message:   s.Message,
-			Details:   s.Details,
+			Message:   text(s.Message),
+			Details:   redactStringMap(s.Details),
 		}
 		if s.WorkloadDefinition.Kind != "" {
 			ss.Workload = s.WorkloadDefinition.APIVersion + "/" + s.WorkloadDefinition.Kind
 		}
 		for _, t := range s.Traits {
-			ss.Traits = append(ss.Traits, TraitStatus{Type: t.Type, Healthy: t.Healthy, Pending: t.Pending, Message: t.Message})
+			ss.Traits = append(ss.Traits, TraitStatus{Type: t.Type, Healthy: t.Healthy, Pending: t.Pending, Message: text(t.Message)})
 		}
 		st.Services = append(st.Services, ss)
 	}
@@ -522,7 +531,7 @@ func viewApplicationStatus(app *v1beta1.Application) ApplicationStatusView {
 			Type:    string(c.Type),
 			Status:  string(c.Status),
 			Reason:  string(c.Reason),
-			Message: c.Message,
+			Message: text(c.Message),
 		})
 	}
 	for _, r := range app.Status.AppliedResources {
@@ -587,8 +596,8 @@ func viewStepStatus(s workflowv1alpha1.StepStatus) SubStepStatus {
 		Name:             s.Name,
 		Type:             s.Type,
 		Phase:            string(s.Phase),
-		Reason:           s.Reason,
-		Message:          s.Message,
+		Reason:           text(s.Reason),
+		Message:          text(s.Message),
 		FirstExecuteTime: timePtr(s.FirstExecuteTime.Time),
 		LastExecuteTime:  timePtr(s.LastExecuteTime.Time),
 	}

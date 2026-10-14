@@ -100,7 +100,7 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 	out.Application, out.Namespace = app.Name, app.Namespace
 	out.Evidence = []string{applicationEvidence(app)}
 
-	applied, err := d.listAppliedResources(ctx, app, in.Component, in.Cluster)
+	applied, withheld, err := d.listAppliedResources(ctx, app, in.Component, in.Cluster)
 	if err != nil {
 		return nil, out, err
 	}
@@ -115,6 +115,14 @@ func (d *deps) getLogs(ctx context.Context, _ *sdk.CallToolRequest, in GetLogsIn
 		return nil, out, fmt.Errorf("application %s/%s has no pods matching the filter", app.Namespace, app.Name)
 	}
 	meta := d.meta(ctx)
+	meta.Warnings = append(meta.Warnings, withheldWarning(withheld)...)
+	clusters := map[string]bool{}
+	for _, t := range targets {
+		clusters[t.cluster] = true
+	}
+	if w := d.remoteReadWarning(ctx, clusters); w != "" {
+		meta.Warnings = append(meta.Warnings, w)
+	}
 	if len(targets) > maxLogPods {
 		meta.Warnings = append(meta.Warnings, fmt.Sprintf("%d pods matched; only the first %d were read, name a pod to read another", len(targets), maxLogPods))
 		meta.Truncated = true

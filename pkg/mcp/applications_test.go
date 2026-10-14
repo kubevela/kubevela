@@ -176,7 +176,7 @@ var _ = Describe("application tools", func() {
 			Expect(web.Properties).To(HaveKeyWithValue("apiToken", redactedValue))
 			env := web.Properties["env"].([]any)[0].(map[string]any)
 			Expect(env).To(HaveKeyWithValue("name", "DB_PASSWORD"))
-			Expect(env).To(HaveKeyWithValue("value", "hunter2"), "only keys are matched, env values are a later redaction pass")
+			Expect(env).To(HaveKeyWithValue("value", redactedValue), "env entries with a secret-like name are redacted")
 			Expect(web.Traits[0].Properties).To(HaveKeyWithValue("replicas", BeEquivalentTo(2)))
 			Expect(out.Spec.Components[1].Properties).To(HaveKeyWithValue("password", redactedValue))
 			Expect(out.Spec.Components[1].DependsOn).To(ConsistOf("web"))
