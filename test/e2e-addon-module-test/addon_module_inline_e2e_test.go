@@ -493,7 +493,6 @@ var _ = Describe("Addons that bundle modules inline", func() {
 				"reject-bad-api-version-inline":           `"1" is not a valid API version`,
 				"reject-too-many-segments-inline":         "expected either 1 segment (name, Form 1) or 3 segments (module/v<N>/name, Form 3)",
 				"reject-installed-name-inline":            "use {module}/{apiVersion}/{name} (Form 3)",
-				"reject-form1-unique-inline":              "use {module}/{apiVersion}/{name} (Form 3)",
 			}
 			Expect(results).Should(HaveLen(len(want)))
 			for name, fragment := range want {

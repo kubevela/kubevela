@@ -61,12 +61,6 @@ const (
 	// same namespace the manual scenarios use.
 	testNS = "default"
 
-	// installNS is where a module installs its definitions and namespaced
-	// auxiliary objects: the namespace of the Application that installs it,
-	// directly or through an addon. The suite's installing Applications live in
-	// testNS.
-	installNS = testNS
-
 	moduleRegistryName = "e2e-modules"
 	addonRegistryName  = "e2e-addons"
 
