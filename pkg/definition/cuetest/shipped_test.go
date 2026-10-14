@@ -125,7 +125,6 @@ func TestShippedDefinitions(t *testing.T) {
 // definition as "<kind>/<name>", or one parameter as "<kind>/<name>:<path>".
 // A listed one that gains a case must come off the list.
 var uncovered = map[string]string{
-	"workflowstep/suspend:message":               "only its @pending case sets it, until kubevela/workflow's builtin.#Suspend reads it",
 	"trait/k8s-update-strategy:targetAPIVersion": "declared but never read by the template, so a case has nothing to assert",
 }
 

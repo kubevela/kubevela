@@ -22,10 +22,13 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/google/cel-go/cel"
 	celengine "github.com/kubevela/pkg/cel"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	wfv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -96,6 +99,11 @@ func planApplication(app *v1beta1.Application, appScoped func(string) bool) []bl
 			add(step.Properties, blobPlan{base: p.Child("properties"), surface: sources.SurfaceWorkflowStep,
 				ctxSchema: propexpr.WorkflowStepContext, sourceIndex: -1, targetKind: "workflowstep", targetType: step.Type,
 				targetDesc: fmt.Sprintf("workflow step %q parameter", step.Type)})
+			// forEach.items resolves on the step's surface, and feeds no definition: it
+			// is typed as a list instead.
+			add(forEachItems(step), blobPlan{base: p.Child("forEach", "items"), surface: sources.SurfaceWorkflowStep,
+				ctxSchema: propexpr.WorkflowStepContext, sourceIndex: -1, targetKind: forEachItemsTarget,
+				targetDesc: "forEach.items"})
 			for j, sub := range step.SubSteps {
 				add(sub.Properties, blobPlan{base: p.Child("subSteps").Index(j).Child("properties"),
 					surface: sources.SurfaceWorkflowStep, ctxSchema: propexpr.WorkflowStepContext, sourceIndex: -1,
@@ -110,6 +118,18 @@ func planApplication(app *v1beta1.Application, appScoped func(string) bool) []bl
 			targetKind: "source", targetType: src.Type})
 	}
 	return out
+}
+
+// forEachItemsTarget marks the blob planned for a step's forEach.items.
+const forEachItemsTarget = "forEach.items"
+
+// forEachItems is a step's forEach.items as raw JSON, the shape the property passes
+// walk, or nil when the step does not loop over items.
+func forEachItems(step wfv1alpha1.WorkflowStep) *runtime.RawExtension {
+	if step.ForEach == nil || step.ForEach.Items == nil {
+		return nil
+	}
+	return &runtime.RawExtension{Raw: step.ForEach.Items.Raw}
 }
 
 // refusal is an admission refusal carried through a CheckError, with the value
@@ -357,6 +377,15 @@ func (t *typing) env(ctxSchema propexpr.ContextSchema) (*cel.Env, error) {
 // faults types a blob's expressions, read in ctxSchema, against param, keyed by
 // the leaf property each fault is at.
 func (t *typing) faults(bp blobPlan, ctxSchema propexpr.ContextSchema, param *cueStruct) (map[string]celengine.CheckError, error) {
+	var target celengine.Target
+	if param != nil {
+		target = bp.target(param)
+	}
+	return t.faultsAgainst(bp, ctxSchema, target)
+}
+
+// faultsAgainst is faults with the target given directly.
+func (t *typing) faultsAgainst(bp blobPlan, ctxSchema propexpr.ContextSchema, target celengine.Target) (map[string]celengine.CheckError, error) {
 	if bp.plan == nil {
 		return nil, nil
 	}
@@ -364,15 +393,36 @@ func (t *typing) faults(bp blobPlan, ctxSchema propexpr.ContextSchema, param *cu
 	if err != nil {
 		return nil, err
 	}
-	var target celengine.Target
-	if param != nil {
-		target = bp.target(param)
-	}
 	out := map[string]celengine.CheckError{}
 	for _, f := range bp.plan.CheckTypes(env, target, t.opts) {
 		out[f.Property] = f
 	}
 	return out, nil
+}
+
+// forEachItemsList is the whole of forEach.items as the engine's Target: given as
+// one expression it must be a list, and a required one, since the loop has no
+// default to fall back on. An expression inside a literal list feeds one item,
+// which may be any type, so only the whole value is typed.
+var forEachItemsList = func() celengine.Target {
+	list := cuecontext.New().CompileString("[...]")
+	return celengine.TargetFunc(func(property string) (cue.Value, bool, bool) {
+		if property != "" {
+			return cue.Value{}, false, false
+		}
+		return list, true, true
+	})
+}()
+
+// forEachItemsWording names forEach.items, which feeds the loop rather than a
+// parameter.
+var forEachItemsWording = wording{
+	mismatch: func(lf inputLeaf, m *celengine.TypeMismatch) string {
+		return fmt.Sprintf("type mismatch: expression %v is %s but forEach.items expects list", lf.literal, m.Got)
+	},
+	absent: func(_ inputLeaf, read string) string {
+		return fmt.Sprintf("%s may be absent and feeds forEach.items; %s", read, defaultHint(read))
+	},
 }
 
 // wording is how a refusal names the parameter a value feeds.

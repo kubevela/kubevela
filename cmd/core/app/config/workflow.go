@@ -27,6 +27,7 @@ type WorkflowConfig struct {
 	MaxWaitBackoffTime     int
 	MaxFailedBackoffTime   int
 	MaxStepErrorRetryTimes int
+	MaxForEachItems        int
 }
 
 // NewWorkflowConfig creates a new WorkflowConfig with defaults.
@@ -35,6 +36,7 @@ func NewWorkflowConfig() *WorkflowConfig {
 		MaxWaitBackoffTime:     60,
 		MaxFailedBackoffTime:   300,
 		MaxStepErrorRetryTimes: 10,
+		MaxForEachItems:        50,
 	}
 }
 
@@ -52,6 +54,10 @@ func (c *WorkflowConfig) AddFlags(fs *pflag.FlagSet) {
 		"max-workflow-step-error-retry-times",
 		c.MaxStepErrorRetryTimes,
 		"Set the max workflow step error retry times, default is 10")
+	fs.IntVar(&c.MaxForEachItems,
+		"max-for-each-items",
+		c.MaxForEachItems,
+		"Set the max number of items a forEach step may iterate, each of which is recorded in the Application's status, default is 50")
 }
 
 // SyncToWorkflowGlobals syncs the parsed configuration values to workflow package global variables.
@@ -66,4 +72,5 @@ func (c *WorkflowConfig) SyncToWorkflowGlobals() {
 	wfTypes.MaxWorkflowWaitBackoffTime = c.MaxWaitBackoffTime
 	wfTypes.MaxWorkflowFailedBackoffTime = c.MaxFailedBackoffTime
 	wfTypes.MaxWorkflowStepErrorRetryTimes = c.MaxStepErrorRetryTimes
+	wfTypes.MaxForEachItems = c.MaxForEachItems
 }
