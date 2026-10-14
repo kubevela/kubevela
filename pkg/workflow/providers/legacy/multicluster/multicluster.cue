@@ -100,7 +100,7 @@
 
 	loadPolicies: #LoadPolicies
 	policy_:      string
-	envBindingPolicies: []
+	envBindingPolicies: *[] | [...string]
 	if inputs.policy == "" && loadPolicies.value != _|_ {
 		envBindingPolicies: [for k, v in loadPolicies.value if v.type == "env-binding" {k}]
 		if len(envBindingPolicies) > 0 {

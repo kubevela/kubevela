@@ -1,3 +1,8 @@
+import (
+	"list"
+	"strings"
+)
+
 hostalias: {
 	type: "trait"
 	annotations: {}
@@ -8,9 +13,27 @@ hostalias: {
 	}
 }
 template: {
-	patch: {
-		// +patchKey=ip
-		spec: template: spec: hostAliases: parameter.hostAliases
+	// each IP appears once, in order: the pod's aliases first, then the trait's, with every hostname listed once.
+	// The patch is checked without context, so its values reach the pod's aliases only through loop variables.
+	let existing = [if context.output.spec.template.spec.hostAliases != _|_ {context.output.spec.template.spec.hostAliases}, []][0]
+	let existingIPs = [for e in existing {e.ip}]
+	errs: [for a in parameter.hostAliases if a.ip == _|_ {"a host alias needs an ip: \(strings.Join(a.hostnames, ", "))"}]
+	patch: spec: template: spec: {
+		// +patchStrategy=replace
+		hostAliases: list.Concat([
+			[for e in existing {
+				// a pod's alias may have no hostnames
+				let have = [if e.hostnames != _|_ {e.hostnames}, []][0]
+				let extra = list.Concat([for a in parameter.hostAliases if a.ip == e.ip {a.hostnames}])
+				ip: e.ip
+				hostnames: list.Concat([have, [for i, h in extra if !list.Contains(have, h) && !list.Contains(list.Slice(extra, 0, i), h) {h}]])
+			}],
+			[for i, a in parameter.hostAliases if !list.Contains(existingIPs, a.ip) && !list.Contains([for b in list.Slice(parameter.hostAliases, 0, i) {b.ip}], a.ip) {
+				let names = list.Concat([for b in parameter.hostAliases if b.ip == a.ip {b.hostnames}])
+				ip: a.ip
+				hostnames: [for j, h in names if !list.Contains(list.Slice(names, 0, j), h) {h}]
+			}],
+		])
 	}
 	parameter: {
 		// +usage=Specify the hostAliases to add

@@ -32,14 +32,12 @@ _addon: {
 	expect: output: {installed: false, running: false, app: ""}
 }
 
-// kube.#List's filter.namespace defaults to "" and this parameter to
-// "vela-system"; unified, neither default holds, so the call cannot be made.
 "reads vela-system by default": test.#SourceExec & {
 	definition: "vela-addon"
 	parameter: name: "fluxcd"
 	resources: [_addon]
 	expect: output: {installed: true, namespace: "vela-system"}
-} @pending(filter.namespace has two defaults when namespace is left unset)
+}
 
 "caches for a minute, failing rather than serving stale": test.#SourceExec & {
 	definition: "vela-addon"

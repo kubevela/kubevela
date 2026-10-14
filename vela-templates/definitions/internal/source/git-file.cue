@@ -44,13 +44,8 @@ template: {
 		}
 	}
 
-	// CUE has no error construct, so the message is carried inside the conflict:
-	// unifying it against true is what names the missing file to the user.
-	if parameter.required {
-		_mustExist: true & [
-			if _file.$returns.found {true},
-			"required file \"\(parameter.path)\" is not in registry \"\(parameter.registry)\"; set required: false to read it as an optional file",
-		][0]
+	if parameter.required && !_file.$returns.found {
+		errs: ["required file \"\(parameter.path)\" is not in registry \"\(parameter.registry)\"; set required: false to read it as an optional file"]
 	}
 
 	_isYAML: strings.HasSuffix(parameter.path, ".yaml") || strings.HasSuffix(parameter.path, ".yml")
