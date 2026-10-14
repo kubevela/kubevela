@@ -18,6 +18,7 @@ package writer
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -27,20 +28,35 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/magiconair/properties"
+
+	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
 
 // Formats the nacos writer encodes. Anything else renders as yaml today, silently;
 // ValidateExpandedWriter names the choice instead.
 var supportedFormats = []string{"json", "yaml", "toml", "properties"}
 
-// ValidateExpandedWriter is the strict reading of a template's nacos block, for the
-// ConfigTemplate webhook and, as the second line of defence, the Config reconciler.
-// ParseExpandedWriterConfig stays lenient for the CLI. A template without the block is
-// valid. With it: the block is a struct, endpoint.name is a concrete non-empty string,
-// metadata is a struct that defines dataId and group (incomplete is fine, they usually
-// reference the parameter), and format, when concrete, is one of the supported ones.
-// The checks are structural because the block is not decodable before the parameters
-// are merged in.
+// ValidateTemplate is the check the ConfigTemplate webhook and the Config reconciler
+// share, so the two cannot drift: it parses the whole template script the way the Secret
+// render does (CueX, provider functions disabled, so a template that imports a vela
+// package is read like any other) and validates its nacos block. A script that does not
+// compile passes here: the ConfigTemplate controller reports that through status.phase,
+// and in the reconciler the Secret render fails on it right after this check.
+func ValidateTemplate(ctx context.Context, template script.CUE) error {
+	if v, err := template.ParseToValueWithCueX(ctx); err == nil {
+		return ValidateExpandedWriter(v.LookupPath(cue.ParsePath("template")))
+	}
+	return nil
+}
+
+// ValidateExpandedWriter is the strict reading of a template's nacos block, behind
+// ValidateTemplate. ParseExpandedWriterConfig stays lenient for the CLI. A template
+// without the block is valid. With it: the block is a struct, endpoint.name is a
+// concrete non-empty string, metadata is a struct that defines dataId and group as
+// strings (incomplete is fine, they usually reference the parameter, but a concrete
+// non-string is refused), and format, a string, is one of the supported ones when
+// concrete. The checks are structural because the block is not decodable before the
+// parameters are merged in.
 func ValidateExpandedWriter(template cue.Value) error {
 	nacos := template.LookupPath(cue.ParsePath("nacos"))
 	if !nacos.Exists() {
@@ -67,17 +83,36 @@ func ValidateExpandedWriter(template cue.Value) error {
 		return errors.New("nacos.metadata must be a struct")
 	}
 	for _, field := range []string{"dataId", "group"} {
-		if !metadata.LookupPath(cue.ParsePath(field)).Exists() {
+		v := metadata.LookupPath(cue.ParsePath(field))
+		if !v.Exists() {
 			return fmt.Errorf("nacos.metadata.%s is required", field)
+		}
+		if !mayBeString(v) {
+			return fmt.Errorf("nacos.metadata.%s must be a string", field)
 		}
 	}
 	format := nacos.LookupPath(cue.ParsePath("format"))
 	if format.Exists() {
+		if !mayBeString(format) {
+			return errors.New("nacos.format must be a string")
+		}
 		if s, err := format.String(); err == nil && !isSupportedFormat(s) {
 			return fmt.Errorf("nacos.format %q is not one of %s", s, strings.Join(supportedFormats, ", "))
 		}
 	}
 	return nil
+}
+
+// mayBeString reports whether v can still become a string. Only a value whose kind is
+// settled and is not a string is refused: 42, or a reference to an int parameter. A
+// concrete string, a reference to a string parameter and an open value pass, and so
+// does anything CUE cannot evaluate before the parameters are merged in, such as an
+// interpolation "\(context.name)-db" or a reference to an optional parameter: those
+// carry an incomplete error here and the render decides. The error can only be the
+// incomplete kind: a settled conflict would have failed the template's compile before
+// anything looked at this field.
+func mayBeString(v cue.Value) bool {
+	return v.Err() != nil || v.IncompleteKind()&cue.StringKind != 0
 }
 
 func isSupportedFormat(format string) bool {
@@ -90,11 +125,12 @@ func isSupportedFormat(format string) bool {
 }
 
 // ContentHash identifies what a NacosData would publish and where: the endpoint, the
-// dataId, group and namespaceId, the format and the content. The Config status stores
-// it and the reconciler compares it, so a change to any of them publishes again and a
-// reconcile that changes none of them does not. Properties content is hashed in its
-// canonical form (see SameContent) so that bytes written before the renderer sorted its
-// keys still compare equal.
+// dataId, group, namespaceId, appName and tag, the format and the content. The Config
+// status stores it and the reconciler compares it, so a change to any of them publishes
+// again and a reconcile that changes none of them does not. appName and tag reach the
+// Nacos client and the publish request, so a change to either must publish too.
+// Properties content is hashed in its canonical form (see SameContent) so that bytes
+// written before the renderer sorted its keys still compare equal.
 func ContentHash(d *NacosData) string {
 	h := sha256.New()
 	for _, part := range []string{
@@ -102,6 +138,8 @@ func ContentHash(d *NacosData) string {
 		d.Metadata.DataID,
 		d.Metadata.Group,
 		d.Metadata.NamespaceID,
+		d.Metadata.AppName,
+		d.Metadata.Tag,
 		strings.ToLower(d.Format),
 	} {
 		h.Write([]byte(part))

@@ -17,6 +17,7 @@ limitations under the License.
 package writer
 
 import (
+	"context"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -86,6 +87,20 @@ func TestValidateExpandedWriter(t *testing.T) {
 		{name: "no metadata", cue: `template: { nacos: { endpoint: name: "nacos" }, parameter: {} }`, wantErr: "nacos.metadata is required"},
 		{name: "metadata not a struct", cue: `template: { nacos: { endpoint: name: "nacos", metadata: "m" }, parameter: {} }`, wantErr: "nacos.metadata must be a struct"},
 		{name: "metadata without group", cue: `template: { nacos: { endpoint: name: "nacos", metadata: { dataId: "d" } }, parameter: {} }`, wantErr: "nacos.metadata.group is required"},
+		{name: "dataId from an interpolation", cue: `template: {
+			nacos: { endpoint: name: "nacos", metadata: { dataId: "\(context.name)-db", group: "g" }, content: {} }
+			parameter: {}
+		}`},
+		{name: "group from an optional parameter", cue: `template: {
+			nacos: { endpoint: name: "nacos", metadata: { dataId: "d", group: parameter.g }, content: {} }
+			parameter: g?: string
+		}`},
+		{name: "dataId not a string", cue: `template: { nacos: { endpoint: name: "nacos", metadata: { dataId: 42, group: "g" } }, parameter: {} }`, wantErr: "nacos.metadata.dataId must be a string"},
+		{name: "group from an int parameter", cue: `template: {
+			nacos: { endpoint: name: "nacos", metadata: { dataId: "d", group: parameter.n } }
+			parameter: n: int
+		}`, wantErr: "nacos.metadata.group must be a string"},
+		{name: "format not a string", cue: `template: { nacos: { endpoint: name: "nacos", format: 42, metadata: { dataId: "d", group: "g" } }, parameter: {} }`, wantErr: "nacos.format must be a string"},
 		{name: "unknown format", cue: `template: { nacos: { endpoint: name: "nacos", format: "xml", metadata: { dataId: "d", group: "g" } }, parameter: {} }`, wantErr: `nacos.format "xml" is not one of json, yaml, toml, properties`},
 		{name: "format case-insensitive", cue: `template: { nacos: { endpoint: name: "nacos", format: "JSON", metadata: { dataId: "d", group: "g" } }, parameter: {} }`},
 	}
@@ -100,6 +115,28 @@ func TestValidateExpandedWriter(t *testing.T) {
 			require.Contains(t, err.Error(), tc.wantErr)
 		})
 	}
+}
+
+// ValidateTemplate is the shared entry point: a vela import is no obstacle, a block
+// behind it is checked, and a script that does not compile is left to the template
+// controller.
+func TestValidateTemplate(t *testing.T) {
+	ctx := context.Background()
+	r := require.New(t)
+	r.NoError(ValidateTemplate(ctx, script.CUE(nacosTemplate)))
+	r.NoError(ValidateTemplate(ctx, script.CUE("template: { output: {} , parameter: {} }")))
+	r.NoError(ValidateTemplate(ctx, script.CUE("template: { nacos: { endpoint: name: } }")), "a script that does not compile is not this check's concern")
+	imported := `import "vela/config"
+
+template: {
+	validation: config.#ImageRegistry & { $params: registry: "index.docker.io" }
+	nacos: { endpoint: name: "nacos", format: "ini", metadata: { dataId: parameter.dataId, group: "g" }, content: {} }
+	parameter: dataId: string
+}
+`
+	err := ValidateTemplate(ctx, script.CUE(imported))
+	r.Error(err, "the plain compiler cannot read the import; the CueX parse must still see the block")
+	r.Contains(err.Error(), `nacos.format "ini" is not one of`)
 }
 
 func TestValidateExpandedWriterAgreesWithTheLenientParse(t *testing.T) {
@@ -149,11 +186,14 @@ func TestContentHash(t *testing.T) {
 	r.Equal(base, ContentHash(nacosData()), "stable across calls")
 
 	t.Run("changes with each part of the target and the content", func(t *testing.T) {
+		r := require.New(t)
 		for name, mutate := range map[string]func(d *NacosData){
 			"content":     func(d *NacosData) { d.Content = []byte("mysqlHost = other\nmysqlPort = 3306\n") },
 			"dataId":      func(d *NacosData) { d.Metadata.DataID = "nc-db-2" },
 			"group":       func(d *NacosData) { d.Metadata.Group = "OTHER" },
 			"namespaceId": func(d *NacosData) { d.Metadata.NamespaceID = "tenant-a" },
+			"appName":     func(d *NacosData) { d.Metadata.AppName = "billing" },
+			"tag":         func(d *NacosData) { d.Metadata.Tag = "canary" },
 			"format":      func(d *NacosData) { d.Format = "yaml" },
 			"endpoint":    func(d *NacosData) { d.Endpoint.Name = "nacos-b" },
 			"endpoint ns": func(d *NacosData) { d.Endpoint.Namespace = "other" },
@@ -163,15 +203,18 @@ func TestContentHash(t *testing.T) {
 	})
 
 	t.Run("not with the order or spacing of properties pairs", func(t *testing.T) {
+		r := require.New(t)
 		r.Equal(base, ContentHash(nacosData(func(d *NacosData) { d.Content = []byte("mysqlPort = 3306\nmysqlHost = db\n") })))
 		r.Equal(base, ContentHash(nacosData(func(d *NacosData) { d.Content = []byte("mysqlPort=3306\nmysqlHost=db\n") })))
 	})
 
 	t.Run("the format case does not matter", func(t *testing.T) {
+		r := require.New(t)
 		r.Equal(base, ContentHash(nacosData(func(d *NacosData) { d.Format = "Properties" })))
 	})
 
 	t.Run("other formats hash their bytes", func(t *testing.T) {
+		r := require.New(t)
 		a := ContentHash(nacosData(func(d *NacosData) { d.Format = "json"; d.Content = []byte(`{"a":1,"b":2}`) }))
 		b := ContentHash(nacosData(func(d *NacosData) { d.Format = "json"; d.Content = []byte(`{"b":2,"a":1}`) }))
 		r.NotEqual(a, b)
