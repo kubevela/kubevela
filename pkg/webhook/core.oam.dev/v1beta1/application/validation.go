@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	wfexpressions "github.com/kubevela/workflow/pkg/expressions"
 	wfbuiltin "github.com/kubevela/workflow/pkg/tasks/builtin"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -45,6 +46,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	velacache "github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
+	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -74,10 +76,15 @@ func (h *ValidatingHandler) ValidateWorkflow(_ context.Context, app *v1beta1.App
 				}
 			}
 		}
-		// forEach.items may be an expression only where this Application's
-		// expressions are resolved before the workflow runs.
-		errs = append(errs, wfbuiltin.ValidateForEachSteps(field.NewPath("spec", "workflow", "steps"),
-			app.Spec.Workflow.Steps, sources.ExpressionsEnabledFor(app.GetAnnotations()))...)
+		// forEach.items may be an expression only in an Application that opts in,
+		// where the workflow resolves it when the loop starts.
+		stepsPath := field.NewPath("spec", "workflow", "steps")
+		enabled := sources.ExpressionsEnabledFor(app.GetAnnotations())
+		errs = append(errs, wfbuiltin.ValidateForEachSteps(stepsPath, app.Spec.Workflow.Steps, enabled)...)
+		if enabled {
+			errs = append(errs, wfexpressions.Validate(stepsPath, app.Spec.Workflow.Steps, app.Spec.Workflow.Mode,
+				celexpr.Roots...)...)
+		}
 	}
 	return errs
 }

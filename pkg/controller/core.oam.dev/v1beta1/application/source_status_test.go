@@ -26,6 +26,9 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 
+	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -92,6 +95,62 @@ func TestSourceStatusListRecordsNonComponentReaders(t *testing.T) {
 	r.Equal(sourceKindWorkflowStep, out[0].ConsumedBy[0].DefinitionKind)
 	r.Equal("notify", out[0].ConsumedBy[0].Name)
 	r.Empty(out[0].ConsumedBy[0].Cluster, "a workflow step is not placed in a cluster")
+}
+
+// A step resolves its sources when it runs, so a reconcile in which it does not
+// run records nothing for it. What it read stays reported for the rest of its run.
+func TestSourceStatusKeepsWhatThisRunsStepsRead(t *testing.T) {
+	r := require.New(t)
+	previous := common.ApplicationSourceStatus{Name: "registry", Type: "configmap", Phase: sourcePhaseResolved,
+		Resolutions: []common.SourceResolution{{StorageKey: "configmap-local-default-abc", ExpiresAt: "2026-10-14T19:00:00Z"}},
+		ConsumedBy: []common.SourceConsumer{
+			{DefinitionKind: sourceKindWorkflowStep, Name: "notify", Type: "notification",
+				Values: []common.SourceValue{{SourceAttr: "data.channel", Property: "channel"}}},
+			{DefinitionKind: sourceKindComponent, Name: "web", Type: "webservice", Cluster: "local"},
+		}}
+	withRun := func(steps ...string) *AppHandler {
+		h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+		h.app.Status.Sources = []common.ApplicationSourceStatus{previous}
+		h.app.Status.Workflow = &common.WorkflowStatus{}
+		for _, s := range steps {
+			h.app.Status.Workflow.Steps = append(h.app.Status.Workflow.Steps,
+				workflowv1alpha1.WorkflowStepStatus{StepStatus: workflowv1alpha1.StepStatus{Name: s}})
+		}
+		h.keepStepSourceReads()
+		return h
+	}
+
+	out := withRun("notify").sourceStatusList()
+	r.Equal(sourcePhaseResolved, out[0].Phase)
+	r.Equal([]common.SourceConsumer{previous.ConsumedBy[0]}, out[0].ConsumedBy,
+		"the step is kept; a component records itself on every render")
+	r.Equal(previous.Resolutions, out[0].Resolutions, "and where its value came from")
+
+	out = withRun().sourceStatusList()
+	r.Equal(sourcePhaseUnused, out[0].Phase, "a new run has read nothing yet")
+}
+
+// What a step reads this reconcile replaces what the last report said, so a
+// source that failed once and resolved on the retry is reported resolved.
+func TestSourceStatusRecoversWhenAKeptStepReadsAgain(t *testing.T) {
+	r := require.New(t)
+	h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+	h.app.Status.Sources = []common.ApplicationSourceStatus{{Name: "registry", Type: "configmap", Phase: sourcePhaseFailed,
+		Resolutions: []common.SourceResolution{{Phase: sourcePhaseFailed, Message: "fetch timed out"}},
+		ConsumedBy:  []common.SourceConsumer{{DefinitionKind: sourceKindWorkflowStep, Name: "notify", Type: "notification"}}}}
+	h.app.Status.Workflow = &common.WorkflowStatus{Steps: []workflowv1alpha1.WorkflowStepStatus{
+		{StepStatus: workflowv1alpha1.StepStatus{Name: "notify"}}}}
+	h.keepStepSourceReads()
+
+	h.recordSourceResolution(sourceKindWorkflowStep, "notify", "notification", "", "",
+		map[string]sources.SourceResolutionStatus{"registry": {Name: "registry", Phase: sourcePhaseResolved,
+			Config: "configmap-local-default-abc", ConsumedFields: map[string]interface{}{"data.channel": "#deploys"}}})
+
+	out := h.sourceStatusList()
+	r.Equal(sourcePhaseResolved, out[0].Phase)
+	r.Len(out[0].Resolutions, 1)
+	r.Equal("configmap-local-default-abc", out[0].Resolutions[0].StorageKey)
+	r.Len(out[0].ConsumedBy, 1, "the step once, as it read this time")
 }
 
 // A failure seen by any reader is the one worth surfacing, even if another

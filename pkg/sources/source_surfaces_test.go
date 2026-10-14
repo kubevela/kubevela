@@ -79,7 +79,7 @@ func TestRootsFor(t *testing.T) {
 		SurfaceComponent:      all,
 		SurfaceTrait:          all,
 		SurfaceSource:         both,
-		SurfaceWorkflowStep:   both,
+		SurfaceWorkflowStep:   {propexpr.ContextIdent, propexpr.SourceIdent, propexpr.StepsIdent, propexpr.EachIdent},
 		SurfacePolicyRendered: both,
 		SurfacePolicy:         {propexpr.ContextIdent},
 		SurfacePolicyApp:      {propexpr.ContextIdent},

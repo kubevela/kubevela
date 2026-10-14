@@ -76,6 +76,12 @@ type AppHandler struct {
 	// render in this reconcile. Keyed by binding name, because a binding is
 	// declared once for the whole Application even though many surfaces read it.
 	sourceStatuses map[string]*common.ApplicationSourceStatus
+	// keptSourceReads is, by source, what the current run's steps read as the
+	// last report gave it, for steps that do not read again this reconcile.
+	keptSourceReads map[string]*common.ApplicationSourceStatus
+	// stepReads is, by workflow step, the steps it waits on because a component
+	// it applies reads theirs (appfile.StepReadDependencies).
+	stepReads map[string][]string
 
 	// Application-scoped PolicyDefinitions that were resolved and applied
 	// These need to be stored in the ApplicationRevision for version pinning
@@ -506,7 +512,7 @@ func sourceMaskSet(src v1beta1.ApplicationSource, rs sources.SourceResolutionSta
 //
 // Called for every surface that resolves sources, not just components: a
 // workflow step has nowhere of its own to report, since its status type belongs
-// to the workflow repo and that engine is deliberately unaware sources exist.
+// to the workflow repo, which knows nothing of sources.
 func (h *AppHandler) recordSourceResolution(kind, name, readerType, cluster, namespace string,
 	resolved map[string]sources.SourceResolutionStatus) {
 	if len(resolved) == 0 {
@@ -619,6 +625,69 @@ func addCluster(res *common.SourceResolution, cluster string) {
 	res.Clusters = append(res.Clusters, cluster)
 }
 
+// keepStepSourceReads keeps, for this reconcile's report, what the current run's
+// workflow steps read as the last report gave it. A step resolves its sources
+// when it runs, so a reconcile in which it does not run records nothing for it;
+// a new run starts with no step run, and so with nothing kept.
+func (h *AppHandler) keepStepSourceReads() {
+	if h.app.Status.Workflow == nil {
+		return
+	}
+	ran := map[string]bool{}
+	for _, s := range h.app.Status.Workflow.Steps {
+		ran[s.Name] = true
+		for _, sub := range s.SubStepsStatus {
+			ran[sub.Name] = true
+		}
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, prev := range h.app.Status.Sources {
+		var kept []common.SourceConsumer
+		for _, c := range prev.ConsumedBy {
+			if c.DefinitionKind == sourceKindWorkflowStep && ran[c.Name] {
+				kept = append(kept, c)
+			}
+		}
+		if len(kept) == 0 {
+			continue
+		}
+		if h.keptSourceReads == nil {
+			h.keptSourceReads = map[string]*common.ApplicationSourceStatus{}
+		}
+		entry := prev.DeepCopy()
+		entry.ConsumedBy = kept
+		h.keptSourceReads[prev.Name] = entry
+	}
+}
+
+// withKeptReads is a source's entry for the report: what was read this
+// reconcile, which wins, with the kept step readers that did not read again; or,
+// where nothing read the source this reconcile, the kept entry as it was.
+func withKeptReads(live, kept *common.ApplicationSourceStatus) *common.ApplicationSourceStatus {
+	if kept == nil {
+		return live
+	}
+	if live == nil {
+		return kept
+	}
+	out := live.DeepCopy()
+	for _, c := range kept.ConsumedBy {
+		found := false
+		for _, have := range out.ConsumedBy {
+			if have.DefinitionKind == c.DefinitionKind && have.Name == c.Name &&
+				have.Cluster == c.Cluster && have.Namespace == c.Namespace {
+				found = true
+				break
+			}
+		}
+		if !found {
+			out.ConsumedBy = append(out.ConsumedBy, c)
+		}
+	}
+	return out
+}
+
 // sourceStatusList renders the accumulated view in spec order, so the report
 // reads in the order the bindings were declared rather than in map order.
 //
@@ -635,7 +704,7 @@ func (h *AppHandler) sourceStatusList() []common.ApplicationSourceStatus {
 	_, pinned := h.app.GetAnnotations()[oam.AnnotationPublishVersion]
 	for _, src := range h.app.Spec.Sources {
 		entry := common.ApplicationSourceStatus{Name: src.Name, Type: src.Type, Phase: sourcePhaseUnused}
-		if got := h.sourceStatuses[src.Name]; got != nil {
+		if got := withKeptReads(h.sourceStatuses[src.Name], h.keptSourceReads[src.Name]); got != nil {
 			entry = *got
 			if entry.Phase == "" {
 				entry.Phase = sourcePhaseResolved

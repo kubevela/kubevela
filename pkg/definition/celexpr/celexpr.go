@@ -44,23 +44,28 @@ import (
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 )
 
+// Roots are KubeVela's expression roots: component, with the placement calls a
+// component read may make, context and source, then steps and each, which only
+// a workflow step reads. They are resolved in this order: component and context
+// are answered from memory, and a component read that must wait ends the render
+// before any source is fetched.
+var Roots = []celengine.Root{
+	{Name: propexpr.ComponentIdent, QualifiedAt: 1, Qualifiers: []celengine.Qualifier{
+		{Name: propexpr.PlaceCluster},
+		{Name: propexpr.PlaceNamespace},
+	}},
+	{Name: propexpr.ContextIdent},
+	{Name: propexpr.SourceIdent},
+	{Name: propexpr.StepsIdent},
+	{Name: propexpr.EachIdent},
+}
+
 // Vela is the engine every KubeVela property expression is compiled and
-// evaluated with: the source, context and component roots, and the placement
-// calls a component read may make.
+// evaluated with, over Roots.
 var Vela = mustEngine()
 
 func mustEngine() *celengine.Engine {
-	// Resolved in this order: component and context are answered from memory,
-	// and a component read that must wait ends the render before any source is
-	// fetched.
-	e, err := celengine.NewEngine(
-		celengine.Root{Name: propexpr.ComponentIdent, QualifiedAt: 1, Qualifiers: []celengine.Qualifier{
-			{Name: propexpr.PlaceCluster},
-			{Name: propexpr.PlaceNamespace},
-		}},
-		celengine.Root{Name: propexpr.ContextIdent},
-		celengine.Root{Name: propexpr.SourceIdent},
-	)
+	e, err := celengine.NewEngine(Roots...)
 	if err != nil {
 		panic(err)
 	}
@@ -68,8 +73,8 @@ func mustEngine() *celengine.Engine {
 }
 
 // rootDecls types source from its bindings' schemas and context from its fields.
-// component stays dyn: its values are a live object's status, which has no
-// schema at admission.
+// component, steps and each stay dyn: their values are a live object's status, a
+// step's output and a list's item, none of which has a schema at admission.
 func rootDecls(sources map[string]cue.Value, ctx map[string]*apiservercel.DeclType) (map[string]*apiservercel.DeclType, error) {
 	srcFields := map[string]*apiservercel.DeclField{}
 	for name, schema := range sources {

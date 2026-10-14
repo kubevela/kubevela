@@ -1081,8 +1081,7 @@ func TestValidateExpressionSurfaces(t *testing.T) {
 			wantErr: `"source" cannot be read here`,
 		},
 		{
-			// Workflow steps resolve via a pre-pass in generateWorkflowInstance
-			// that substitutes before the workflow engine sees the properties.
+			// The workflow resolves a step's sources when the step runs.
 			name: "workflow step reading a source is accepted",
 			af:   &Appfile{WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{step("notify", raw(`{"url":"$(source.cfg.webhook)"}`))}},
 		},
@@ -1155,6 +1154,19 @@ func TestValidateExpressionSurfaces(t *testing.T) {
 			name: "a workflow step in an application that has not opted in is not read",
 			af: &Appfile{app: &v1beta1.Application{},
 				WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{step("notify", raw(`{"text":"deployed at $(date)"}`))}},
+		},
+		{
+			name: "a workflow step reading an earlier step's output and the iteration is accepted",
+			af: &Appfile{WorkflowSteps: []wfTypesv1alpha1.WorkflowStep{
+				step("notify", raw(`{"msg":"$(steps.build.outputs.image) for $(each.item.name)"}`)),
+			}},
+		},
+		{
+			name: "a policy reading a step's output is refused",
+			af: &Appfile{Policies: []v1beta1.AppPolicy{
+				{Name: "override-image", Type: "override", Properties: raw(`{"image":"$(steps.build.outputs.image)"}`)},
+			}},
+			wantErr: `"steps" cannot be read here`,
 		},
 		{
 			// A step renders outside the component workflow, so there is no

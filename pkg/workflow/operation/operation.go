@@ -28,7 +28,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	oamv1alpha1 "github.com/kubevela/pkg/apis/oam/v1alpha1"
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
+	wfexpressions "github.com/kubevela/workflow/pkg/expressions"
 	wfTypes "github.com/kubevela/workflow/pkg/types"
 	wfUtils "github.com/kubevela/workflow/pkg/utils"
 
@@ -38,8 +40,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appkeeper"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/rollout"
+	"github.com/oam-dev/kubevela/pkg/sources"
 	kubevelaapp "github.com/oam-dev/kubevela/pkg/utils/app"
 	errors3 "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
@@ -442,7 +446,8 @@ func (wo appWorkflowStepOperator) Restart(ctx context.Context, step string) erro
 	if err != nil {
 		return fmt.Errorf("failed to parse appfile: %w", err)
 	}
-	stepStatus, cm, err := wfUtils.CleanStatusFromStep(appFile.WorkflowSteps, status.Steps, *appFile.WorkflowMode, cm, step)
+	// A step reading the one restarted waits on it, so restarts with it.
+	stepStatus, cm, err := wfUtils.CleanStatusFromStep(stepsAsRun(appFile), status.Steps, *appFile.WorkflowMode, cm, step)
 	if err != nil {
 		return err
 	}
@@ -520,4 +525,15 @@ func writeOutputF(outputWriter io.Writer, format string, a ...interface{}) error
 	}
 	_, err := fmt.Fprintf(outputWriter, format, a...)
 	return err
+}
+
+// stepsAsRun is the Application's workflow steps with the dependsOn a run adds:
+// for component reads, and, for an Application that opts in, for the reads of
+// its steps' expressions.
+func stepsAsRun(af *appfile.Appfile) []oamv1alpha1.WorkflowStep {
+	steps := af.StepsWithReadDependencies(af.WorkflowSteps)
+	if sources.ExpressionsEnabledFor(af.AppAnnotations) {
+		steps = wfexpressions.StepsWithReadDependencies(steps, af.WorkflowMode, celexpr.Roots...)
+	}
+	return steps
 }
