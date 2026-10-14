@@ -507,25 +507,14 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				_, err = streams.Out.Write(outBuilder.Bytes())
 				return err
 			}
-			crdInstalled := kindServed(f, configv1alpha1.ConfigGroupVersionKind)
-			// Interim until the expanded writer (Nacos) moves into the Config controller:
-			// such a template still gets a legacy Secret, whatever the cluster serves.
-			if configItem.Template.ExpandedWriter.Nacos != nil {
-				if crdInstalled {
-					streams.Infof("the config template uses an expanded writer, which the Config CRD controller doesn't yet support; falling back to the legacy config storage\n")
-				}
-				if err := inf.CreateOrUpdateConfig(cmd.Context(), configItem, options.Namespace); err != nil {
-					return err
-				}
-			} else {
-				// Everything else is a Config CR. A cluster without the CRD gets the
-				// upgrade error rather than a legacy Secret it did not ask for.
-				if !crdInstalled {
-					return errConfigCRDMissing
-				}
-				if err := createConfigCRD(cmd.Context(), f.Client(), options.Namespace, options.Name, name, namespace, configItem.Template.Sensitive, options.Properties, options.Alias, options.Description); err != nil {
-					return err
-				}
+			// Every create writes a Config CR, a template with a nacos block included:
+			// the Config controller publishes its content. A cluster without the CRD
+			// gets the upgrade error rather than a legacy Secret it did not ask for.
+			if !kindServed(f, configv1alpha1.ConfigGroupVersionKind) {
+				return errConfigCRDMissing
+			}
+			if err := createConfigCRD(cmd.Context(), f.Client(), options.Namespace, options.Name, name, namespace, configItem.Template.Sensitive, options.Properties, options.Alias, options.Description); err != nil {
+				return err
 			}
 			if len(options.Targets) > 0 {
 				ads := &config.CreateDistributionSpec{
@@ -557,6 +546,9 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				}
 			}
 			streams.Infof("the config %s applied successfully\n", options.Name)
+			if configItem.Template.ExpandedWriter.Nacos != nil {
+				streams.Infof("the controller publishes the content to Nacos; see the NacosSynced condition on the Config\n")
+			}
 			return nil
 		},
 	}

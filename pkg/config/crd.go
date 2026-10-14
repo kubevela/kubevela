@@ -44,9 +44,9 @@ func IsCRDTypeMissing(err error) bool {
 // Application, so deleting the Config (via the CLI, kubectl, or GitOps removing the
 // manifest) always recalls the distributed resources instead of orphaning the
 // Application and the copies it manages in target namespaces/clusters.
-// A config may still be legacy (a plain Secret, created by an older CLI or by the
-// Nacos interim path), and the cluster may not serve the Config type at all, so a
-// missing Config CR here is expected and not an error - there's just no owner to attach.
+// A config may still be legacy (a plain Secret created by an older CLI), and the
+// cluster may not serve the Config type at all, so a missing Config CR here is
+// expected and not an error - there's just no owner to attach.
 func SetDistributionOwner(ctx context.Context, cli client.Client, ns, configName, distributionName string) error {
 	cfg := &configv1alpha1.Config{}
 	if err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: configName}, cfg); err != nil {

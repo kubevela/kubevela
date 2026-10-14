@@ -249,6 +249,48 @@ var _ = Describe("Test the commands of the config", func() {
 		Expect(buffer.String()).Should(Equal("the config without-template applied successfully\n"))
 	})
 
+	It("Test creating a config from a nacos template writes a Config CR, no legacy Secret, and says who publishes", func() {
+		apply := TemplateCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
+		apply.SetArgs([]string{"apply", "-f", "./test-data/config-templates/nacos-config.cue", "--name", "nacos-config", "-n", "default"})
+		Expect(apply.Execute()).Should(Succeed())
+
+		buffer := bytes.NewBuffer(nil)
+		create := ConfigCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
+		create.SetArgs([]string{"create", "nc-cli", "--template=default/nacos-config", "--namespace=default", "dataId=nc-cli", "content.mysqlHost=db", "content.mysqlPort=3306"})
+		Expect(create.Execute()).Should(Succeed())
+		Expect(buffer.String()).Should(Equal("the config nc-cli applied successfully\nthe controller publishes the content to Nacos; see the NacosSynced condition on the Config\n"))
+
+		var cr configv1alpha1.Config
+		Expect(k8sClient.Get(context.TODO(), client.ObjectKey{Namespace: "default", Name: "nc-cli"}, &cr)).Should(Succeed())
+		Expect(cr.Spec.TemplateRef.Name).Should(Equal("nacos-config"))
+		// the CLI no longer writes the legacy Secret and publishes from here: the Config
+		// controller does both when it reconciles the CR (no controller runs in this suite)
+		var secret v1.Secret
+		Expect(apierrors.IsNotFound(k8sClient.Get(context.TODO(), client.ObjectKey{Namespace: "default", Name: "nc-cli"}, &secret))).Should(BeTrue())
+
+		// leave the namespace as the list specs below expect it
+		Expect(k8sClient.Delete(context.TODO(), &cr)).Should(Succeed())
+		var ct configv1alpha1.ConfigTemplate
+		Expect(k8sClient.Get(context.TODO(), client.ObjectKey{Namespace: "default", Name: "nacos-config"}, &ct)).Should(Succeed())
+		Expect(k8sClient.Delete(context.TODO(), &ct)).Should(Succeed())
+	})
+
+	It("Test creating a config from a nacos template on a cluster without the Config CRD fails like any other", func() {
+		templateOnly := fakeClientServing(configv1alpha1.ConfigTemplateGroupVersionKind)
+		inf := config.NewConfigFactory(templateOnly)
+		body, err := os.ReadFile("./test-data/config-templates/nacos-config.cue")
+		Expect(err).Should(BeNil())
+		t, err := inf.ParseTemplate(context.TODO(), "nacos-legacy", body)
+		Expect(err).Should(BeNil())
+		Expect(inf.CreateOrUpdateConfigTemplate(context.TODO(), "default", t)).Should(Succeed())
+
+		create := ConfigCommandGroup(cmd.NewTestFactory(cfg, templateOnly), "", util.IOStreams{In: os.Stdin, Out: io.Discard, ErrOut: io.Discard})
+		create.SetArgs([]string{"create", "nc-nocrd", "--template=default/nacos-legacy", "--namespace=default", "dataId=nc-nocrd", "content.mysqlHost=db", "content.mysqlPort=3306"})
+		Expect(create.Execute()).Should(MatchError(errConfigCRDMissing))
+		var secret v1.Secret
+		Expect(apierrors.IsNotFound(templateOnly.Get(context.TODO(), client.ObjectKey{Namespace: "default", Name: "nc-nocrd"}, &secret))).Should(BeTrue())
+	})
+
 	It("Test creating and distributing the config", func() {
 		buffer := bytes.NewBuffer(nil)
 		cmd := ConfigCommandGroup(arg, "", util.IOStreams{In: os.Stdin, Out: buffer, ErrOut: buffer})
