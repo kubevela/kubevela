@@ -24,11 +24,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
+	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/sources"
 
 	"cuelang.org/go/cue"
-	"github.com/google/cel-go/cel"
+	celengine "github.com/kubevela/pkg/cel"
+	"github.com/kubevela/pkg/cel/template"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -36,7 +37,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 
-	"github.com/oam-dev/kubevela/pkg/definition/cachekey"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/sourcedefinition"
@@ -61,10 +61,24 @@ func (h *ValidatingHandler) ValidateSources(ctx context.Context, app *v1beta1.Ap
 		return errs
 	}
 
-	// Expression syntax and sandbox first: it needs no definition lookups, so a
-	// typo is reported even when the rest of validation cannot run.
+	// Every properties blob is planned once, and every pass below reads that plan.
 	appScoped := h.policyScopeLookup(ctx, app)
-	errs = append(errs, validateExpressions(app, appScoped)...)
+	blobs := planApplication(app, appScoped)
+
+	// Expression syntax and roots first: they need no definition lookups, so a
+	// typo is reported even when the rest of validation cannot run.
+	compiled := true
+	for _, bp := range blobs {
+		errs = append(errs, bp.syntaxAndRoots()...)
+		compiled = compiled && bp.malformed == nil && len(bp.faults) == 0
+	}
+	// The component-read rules read every expression again, so an expression
+	// that does not compile would be reported twice.
+	if compiled {
+		if err := appfile.ValidateComponentReads(app.Spec); err != nil {
+			errs = append(errs, field.Invalid(field.NewPath("spec", "components"), "", err.Error()))
+		}
+	}
 	errs = append(errs, h.validatePostDispatchReads(ctx, app)...)
 	errs = append(errs, h.validateReadClusters(ctx, app)...)
 
@@ -84,206 +98,93 @@ func (h *ValidatingHandler) ValidateSources(ctx context.Context, app *v1beta1.Ap
 		sourceNameToType[src.Name] = src.Type
 	}
 
-	var refs []sourceReference
-	for i, comp := range app.Spec.Components {
-		compRefs, refErrs := collectSourceRefs(comp.Properties, field.NewPath("spec", "components").Index(i).Child("properties"), -1)
-		errs = append(errs, refErrs...)
-		refs = append(refs, withSurface(compRefs, sources.SurfaceComponent)...)
-		for j, tr := range comp.Traits {
-			trRefs, trErrs := collectSourceRefs(tr.Properties, field.NewPath("spec", "components").Index(i).Child("traits").Index(j).Child("properties"), -1)
-			errs = append(errs, trErrs...)
-			refs = append(refs, withSurface(trRefs, sources.SurfaceTrait)...)
-		}
-	}
-	for i, policy := range app.Spec.Policies {
-		policyRefs, policyErrs := collectSourceRefs(policy.Properties, field.NewPath("spec", "policies").Index(i).Child("properties"), -1)
-		errs = append(errs, policyErrs...)
-		refs = append(refs, withSurface(policyRefs, appfile.PolicySurface(policy.Type, appScoped(policy.Type)))...)
-	}
-	if app.Spec.Workflow != nil {
-		for i, step := range app.Spec.Workflow.Steps {
-			stepRefs, stepErrs := collectSourceRefs(step.Properties, field.NewPath("spec", "workflow", "steps").Index(i).Child("properties"), -1)
-			errs = append(errs, stepErrs...)
-			refs = append(refs, withSurface(stepRefs, sources.SurfaceWorkflowStep)...)
-			for j, sub := range step.SubSteps {
-				subRefs, subErrs := collectSourceRefs(sub.Properties, field.NewPath("spec", "workflow", "steps").Index(i).Child("subSteps").Index(j).Child("properties"), -1)
-				errs = append(errs, subErrs...)
-				refs = append(refs, withSurface(subRefs, sources.SurfaceWorkflowStep)...)
-			}
-		}
-	}
-	for i, src := range app.Spec.Sources {
-		srcRefs, srcErrs := collectSourceRefs(src.Properties, field.NewPath("spec", "sources").Index(i).Child("properties"), i)
-		errs = append(errs, srcErrs...)
-		refs = append(refs, withSurface(srcRefs, sources.SurfaceSource)...)
-	}
-
-	schemaValidators := map[string]*sourceSchemaValidator{}
-	consumableFromCache := map[string][]string{}
-	requiredContextCache := map[string][]string{}
 	// Which surfaces each binding actually resolves on, chains followed.
 	bindingAt := map[int]string{}
 	for name, idx := range sourceNameToIndex {
 		bindingAt[idx] = name
 	}
-	effective := effectiveSurfaces(refs, bindingAt)
-	// Field paths this pass has already faulted. The type pass below reaches the
-	// same properties by a different route and would otherwise restate an
-	// undeclared source or an unknown schema path in its own words.
-	reported := map[string]bool{}
-	fault := func(ref sourceReference, value interface{}, msg string) {
-		errs = append(errs, field.Invalid(ref.FieldPath, value, msg))
-		reported[ref.FieldPath.String()] = true
-	}
-	for _, ref := range refs {
-		sourceType, ok := sourceNameToType[ref.SourceName]
-		if !ok {
-			fault(ref, ref.SourceName, "source is not declared in spec.sources")
-			continue
-		}
-		if ref.SourceIndex >= 0 {
-			depIdx, exists := sourceNameToIndex[ref.SourceName]
-			if !exists {
-				fault(ref, ref.SourceName, "source is not declared in spec.sources")
-				continue
-			}
-			if depIdx >= ref.SourceIndex {
-				fault(ref, ref.SourceName,
-					fmt.Sprintf("source at index %d can only depend on prior sources, but %q is at index %d", ref.SourceIndex, ref.SourceName, depIdx))
-				continue
-			}
-		}
-		// No surface check here: validateExpressions above already restricts
-		// which roots each surface offers, and reading `source` where it cannot
-		// resolve is exactly what that refuses. Checking it again produced two
-		// errors for one mistake.
-		if sourceType == "" {
-			continue
-		}
-		// A SourceDefinition may restrict where it can be consumed from. That
-		// restriction holds wherever the value is consumed, not only in a
-		// component or a trait: a workflow step or a rendered policy reading a
-		// component-only source is exactly what consumableFrom refuses.
-		//
-		// A chained read is consumed wherever the outer binding is, so it is
-		// judged against those surfaces rather than against "source".
-		consumedAt := []string{ref.Surface}
-		if ref.SourceIndex >= 0 {
-			consumedAt = effective[ref.SourceName]
-		}
-		if refused, surfaces, err := h.refusedSurface(ctx, app, sourceType, consumableFromCache, consumedAt); err != nil {
-			errs = append(errs, field.Invalid(ref.FieldPath, ref.Path,
-				fmt.Sprintf("failed to load SourceDefinition %q: %v", sourceType, err)))
-			continue
-		} else if refused != "" {
-			errs = append(errs, field.Invalid(ref.FieldPath, ref.Path,
-				fmt.Sprintf("SourceDefinition %q declares consumableFrom %v and cannot be consumed from a %s", sourceType, surfaces, refused)))
-			continue
-		}
+	effective := effectiveSurfaces(sourceRefs(blobs), bindingAt)
 
-		// A source resolves in its call site's context, so it can only be consumed
-		// where every field its template reads exists.
-		//
-		// Which surfaces that means depends on how this reference reaches the
-		// source. A direct read resolves right here, at this one call site, so
-		// only this surface has to satisfy it - a per-component source consumed by
-		// a component is fine even when the same binding is also read from a
-		// workflow step, and it is that second read alone that is wrong. A chained
-		// read resolves inside whichever render triggered the outer binding, so it
-		// must satisfy the outer binding's consumers - which is what
-		// effectiveSurfaces works out.
-		required, rerr := h.requiredContext(ctx, app.Namespace, sourceType, app.GetAnnotations(), requiredContextCache)
-		if rerr == nil && len(required) > 0 {
-			mustSatisfy := []string{ref.Surface}
-			if ref.SourceIndex >= 0 {
-				mustSatisfy = effective[ref.SourceName]
-			}
-			for _, surface := range mustSatisfy {
-				if cerr := cachekey.CheckSurface(required, surface); cerr != nil {
-					fault(ref, ref.Path, fmt.Sprintf("SourceDefinition %q %v", sourceType, cerr))
-					break
-				}
-			}
-		}
-		validator, exists := schemaValidators[sourceType]
-		if !exists {
-			var err error
-			validator, err = h.loadSourceSchemaValidator(ctx, app.Namespace, sourceType, app.GetAnnotations())
-			if err != nil {
-				errs = append(errs, field.Invalid(ref.FieldPath, ref.Path, fmt.Sprintf("failed to load SourceDefinition %q schema: %v", sourceType, err)))
-				continue
-			}
-			schemaValidators[sourceType] = validator
-		}
-		if validator == nil {
+	schemaValidators := map[string]*sourceSchemaValidator{}
+	rules := &sourceRules{h: h, ctx: ctx, app: app, nameToType: sourceNameToType, nameToIndex: sourceNameToIndex,
+		effective: effective, schemaValidators: schemaValidators,
+		consumableFrom: map[string][]string{}, requiredContext: map[string][]string{}}
+	// Field paths the source and context rules have settled. The type pass
+	// reaches the same properties and must not restate an undeclared source, an
+	// unknown schema path or an unavailable context field in its own words.
+	reported := map[string]bool{}
+	for _, bp := range blobs {
+		if bp.plan == nil {
 			continue
 		}
-		// An empty path is a read of the binding entire, which is in contract by
-		// definition: there is no field to look up, only the whole output.
-		if ref.Path != "" && !ref.OpaquePath && !validator.HasPath(ref.Path) {
-			fault(ref, ref.Path,
-				fmt.Sprintf("path %q is not declared in schema of SourceDefinition %q", ref.Path, sourceType))
-			continue
-		}
-		// The "optional source field consumed without a default" check is
-		// target-aware (KEP: a default is required only when the optional field
-		// feeds a REQUIRED target parameter). It is enforced in the target-aware
-		// passes below (validateSourceInputs for source-property targets,
-		// validateExpressionTargetTypes for component/trait targets), which know
-		// the target parameter's optional/required marker.
+		// Which roots a surface offers was judged above.
+		faults := bp.plan.Check(everyRoot, map[string]celengine.Checker{propexpr.SourceIdent: rules.checker(bp)})
+		errs = append(errs, bp.fieldErrors(faults, reported)...)
 	}
 
 	// A source's properties are evaluated in the *consumer's* context, so a
 	// context read there must exist on every surface that consumes the binding.
-	errs = append(errs, validateSourceContextReads(app, effective)...)
+	errs = append(errs, validateSourceContextReads(blobs, effective, reported)...)
 
-	// Input contract: validate each source's properties against that
-	// SourceDefinition's parameter: block (unknown fields + type compatibility).
-	errs = append(errs, h.validateSourceInputs(ctx, app, sourceNameToType, schemaValidators)...)
+	// Input contract: each source's properties against that SourceDefinition's
+	// parameter: block (unknown fields and type compatibility).
+	t := newTyping(h.sourceSchemaTexts(ctx, app.GetAnnotations(), app.Namespace, sourceNameToType, schemaValidators))
+	errs = append(errs, h.validateSourceInputs(ctx, app, blobs, t, effective, reported)...)
 
-	// Target contract: each expression's result type must be compatible with the
-	// consuming component/trait parameter it is substituted into.
-	errs = append(errs, h.validateExpressionTargetTypes(ctx, app, sourceNameToType, schemaValidators, reported)...)
+	// Target contract: each expression's result against the parameter it feeds.
+	errs = append(errs, h.validateExpressionTargetTypes(ctx, app, blobs, t, reported)...)
 
 	return errs
 }
 
-// validateSourceInputs checks that every source binding's properties conform to
-// the referenced SourceDefinition's parameter: block: no undeclared fields, and
-// each provided value's type is compatible with the declared parameter type.
-// Values fed by an expression take their type from the referenced source's schema:
-// output field, so a chained value's type is checked without resolving it.
-func (h *ValidatingHandler) validateSourceInputs(ctx context.Context, app *v1beta1.Application, sourceNameToType map[string]string, schemaValidators map[string]*sourceSchemaValidator) field.ErrorList {
+func (h *ValidatingHandler) validateSourceInputs(ctx context.Context, app *v1beta1.Application, blobs []blobPlan,
+	t *typing, effective map[string][]string, reported map[string]bool) field.ErrorList {
 	var errs field.ErrorList
 	paramValidators := map[string]*cueStruct{}
-	for i, src := range app.Spec.Sources {
-		if src.Type == "" || src.Properties == nil || len(src.Properties.Raw) == 0 {
+	for _, bp := range blobs {
+		if bp.sourceIndex < 0 || bp.targetType == "" {
 			continue
 		}
-		basePath := field.NewPath("spec", "sources").Index(i).Child("properties")
-		pv, cached := paramValidators[src.Type]
+		pv, cached := paramValidators[bp.targetType]
 		if !cached {
 			var err error
-			pv, err = h.loadSourceParameter(ctx, app.Namespace, src.Type, app.GetAnnotations())
+			pv, err = h.loadSourceParameter(ctx, app.Namespace, bp.targetType, app.GetAnnotations())
 			if err != nil {
-				errs = append(errs, field.Invalid(basePath, src.Type, fmt.Sprintf("failed to load SourceDefinition %q parameter schema: %v", src.Type, err)))
-				paramValidators[src.Type] = nil
+				errs = append(errs, field.Invalid(bp.base, bp.targetType, fmt.Sprintf("failed to load SourceDefinition %q parameter schema: %v", bp.targetType, err)))
+				paramValidators[bp.targetType] = nil
 				continue
 			}
-			paramValidators[src.Type] = pv
+			paramValidators[bp.targetType] = pv
 		}
 		if pv == nil {
 			// Definition declares no parameter block; any provided property is
 			// undeclared. Only flag when properties are actually supplied.
-			leaves := flattenLeafPaths(src.Properties.Raw, basePath)
-			for _, lf := range leaves {
+			for _, lf := range bp.leaves {
 				errs = append(errs, field.Invalid(lf.fieldPath, lf.path,
-					fmt.Sprintf("SourceDefinition %q declares no parameters, but property %q was supplied", src.Type, lf.path)))
+					fmt.Sprintf("SourceDefinition %q declares no parameters, but property %q was supplied", bp.targetType, lf.path)))
 			}
 			continue
 		}
-		for _, lf := range flattenLeafPaths(src.Properties.Raw, basePath) {
-			errs = append(errs, h.checkInputLeaf(lf, pv, src.Type, sourceNameToType, schemaValidators, ctx, app.Namespace, app.GetAnnotations())...)
+		// A chained value's type comes from the source it reads, without
+		// resolving it, and in the context of every surface consuming the
+		// binding.
+		faults := map[string]celengine.CheckError{}
+		var envErr error
+		for _, ctxSchema := range consumerContexts(effective[bp.binding]) {
+			fs, err := t.faults(bp, ctxSchema, pv)
+			if err != nil {
+				envErr = err
+				break
+			}
+			for prop, f := range fs {
+				if _, seen := faults[prop]; !seen {
+					faults[prop] = f
+				}
+			}
+		}
+		w := sourceParameterWording(bp.targetType)
+		for _, lf := range bp.leaves {
+			errs = append(errs, checkInputLeaf(lf, pv, bp.targetType, faults, envErr, w, reported)...)
 		}
 	}
 	return errs
@@ -312,11 +213,14 @@ type inputLeaf struct {
 	segments  []string    // the same path unsplit, since a key may contain a dot
 	fieldPath *field.Path // full field path for error reporting
 	literal   interface{} // the value at this path
+	// property is the path as the expression engine names it, "env[0].value",
+	// so a leaf can be found in a plan of the same blob.
+	property string
 }
 
 // flattenLeafPaths walks a properties JSON blob and returns one inputLeaf per
 // scalar node, addressed by its path segments. Array elements are addressed by
-// index. Returns nothing on unparseable input, which the collection pass reports.
+// index. Returns nothing on unparseable input, which syntaxAndRoots reports.
 //
 // An empty object or list is a leaf too. It has nothing under it to recurse
 // into, so emitting nothing would mean `{"nope": {}}` was never checked against
@@ -327,40 +231,41 @@ func flattenLeafPaths(raw []byte, basePath *field.Path) []inputLeaf {
 		return nil
 	}
 	var out []inputLeaf
-	emit := func(segs []string, fp *field.Path, node interface{}) {
+	emit := func(segs []string, fp *field.Path, prop string, node interface{}) {
 		out = append(out, inputLeaf{
 			path:      strings.Join(segs, "."),
 			segments:  segs,
 			fieldPath: fp,
 			literal:   node,
+			property:  prop,
 		})
 	}
-	var walk func(node interface{}, segs []string, fp *field.Path)
-	walk = func(node interface{}, segs []string, fp *field.Path) {
+	var walk func(node interface{}, segs []string, fp *field.Path, prop string)
+	walk = func(node interface{}, segs []string, fp *field.Path, prop string) {
 		switch v := node.(type) {
 		case map[string]interface{}:
 			if len(v) == 0 {
-				emit(segs, fp, node)
+				emit(segs, fp, prop, node)
 				return
 			}
 			for k, child := range v {
 				// A fresh slice per child: appending into segs would share the
 				// backing array between siblings.
-				walk(child, append(append([]string{}, segs...), k), fp.Child(k))
+				walk(child, append(append([]string{}, segs...), k), fp.Child(k), template.JoinPath(prop, k))
 			}
 		case []interface{}:
 			if len(v) == 0 {
-				emit(segs, fp, node)
+				emit(segs, fp, prop, node)
 				return
 			}
 			for idx, child := range v {
-				walk(child, append(append([]string{}, segs...), strconv.Itoa(idx)), fp.Index(idx))
+				walk(child, append(append([]string{}, segs...), strconv.Itoa(idx)), fp.Index(idx), template.IndexPath(prop, idx))
 			}
 		default:
-			emit(segs, fp, node)
+			emit(segs, fp, prop, node)
 		}
 	}
-	walk(decoded, nil, basePath)
+	walk(decoded, nil, basePath, "")
 	return out
 }
 
@@ -372,11 +277,12 @@ func jsonKind(v interface{}) cue.Kind {
 	case bool:
 		return cue.BoolKind
 	case float64:
-		// JSON numbers decode to float64; treat integral values as int-compatible.
+		// JSON numbers decode to float64: an integral one is an int, and one
+		// with a fraction a float.
 		if n == float64(int64(n)) {
 			return cue.IntKind
 		}
-		return cue.NumberKind
+		return cue.FloatKind
 	case nil:
 		return cue.NullKind
 	case map[string]interface{}:
@@ -387,11 +293,8 @@ func jsonKind(v interface{}) cue.Kind {
 	return cue.BottomKind
 }
 
-// checkInputLeaf validates one properties leaf against the target parameter
-// block: the field must be declared, and its type must be compatible with the
-// declared parameter type. Expression-fed leaves take their type from the
-// referenced source's schema output field.
-func (h *ValidatingHandler) checkInputLeaf(lf inputLeaf, param *cueStruct, sourceType string, sourceNameToType map[string]string, schemaValidators map[string]*sourceSchemaValidator, ctx context.Context, appNamespace string, annotations map[string]string) field.ErrorList {
+func checkInputLeaf(lf inputLeaf, param *cueStruct, sourceType string, faults map[string]celengine.CheckError,
+	envErr error, w wording, reported map[string]bool) field.ErrorList {
 	var errs field.ErrorList
 	if lf.path == "" {
 		return errs
@@ -402,46 +305,33 @@ func (h *ValidatingHandler) checkInputLeaf(lf inputLeaf, param *cueStruct, sourc
 			fmt.Sprintf("property %q is not declared in the parameter schema of SourceDefinition %q", lf.path, sourceType)))
 		return errs
 	}
-	// Determine the incoming value's type.
-	var srcKind cue.Kind
-	var srcType *cel.Type
-	if raw, isString := lf.literal.(string); isString && hasSourceExpression(raw) {
-		// A source's own properties may be fed by an expression - that is how
-		// chaining is written without the directive. Typing it as the string it
-		// literally is would reject every non-string target.
-		k, kt, terr := h.expressionKind(ctx, annotations, appNamespace, raw, sourceNameToType, schemaValidators)
-		if terr != nil {
-			errs = append(errs, field.Invalid(lf.fieldPath, raw, terr.Error()))
-			return errs
+	if raw, isString := lf.literal.(string); isString && holdsExpression(raw) {
+		// A source's own properties may be fed by an expression, which is how
+		// chaining is written; it was typed against the parameter already. A
+		// leaf the source rules refused is not restated, and one that does not
+		// parse is reported by syntaxAndRoots.
+		switch f, faulted := faults[lf.property]; {
+		case reported[lf.fieldPath.String()]:
+		case envErr != nil:
+			errs = append(errs, field.Invalid(lf.fieldPath, raw, envErr.Error()))
+		case faulted:
+			errs = append(errs, w.fieldError(lf, f))
 		}
-		srcKind, srcType = k, kt
-
-		// The same optional-feeds-required rule the directive follows.
-		if undefended := h.undefendedExpressionReads(ctx, annotations, appNamespace, raw, sourceNameToType, schemaValidators); len(undefended) > 0 {
-			if param.requiredAt(lf.segments) {
-				errs = append(errs, field.Invalid(lf.fieldPath, lf.path,
-					fmt.Sprintf("%s may be absent and feeds required parameter %q of SourceDefinition %q; guard it with has(%s) ? %s : <fallback>",
-						undefended[0], lf.path, sourceType, undefended[0], undefended[0])))
-			}
-		}
-	} else {
-		srcKind = jsonKind(lf.literal)
+		return errs
 	}
-	if !kindsCompatible(srcKind, dstKind) {
+	if srcKind := jsonKind(lf.literal); !celengine.KindFits(srcKind, dstKind) {
 		errs = append(errs, field.Invalid(lf.fieldPath, lf.path,
 			fmt.Sprintf("type mismatch for parameter %q of SourceDefinition %q: expected %s, got %s",
 				lf.path, sourceType, kindName(dstKind), kindName(srcKind))))
-		return errs
-	}
-	// The kinds agree, which for a collection means only "both lists".
-	if dv, ok := param.valueAt(lf.segments); ok {
-		if agree, want, got := celexpr.ElementsCompatible(srcType, dv); !agree {
-			errs = append(errs, field.Invalid(lf.fieldPath, lf.path,
-				fmt.Sprintf("type mismatch for parameter %q of SourceDefinition %q: expected %s, got %s",
-					lf.path, sourceType, want, got)))
-		}
 	}
 	return errs
+}
+
+// holdsExpression reports a property value that holds an expression, or tries
+// to: one that does not parse is an expression gone wrong, not a literal.
+func holdsExpression(raw string) bool {
+	parsed, err := template.Parse(raw)
+	return err != nil || parsed.HasExpr()
 }
 
 // parameterBlockSources memoises the reduction below, keyed on the template.

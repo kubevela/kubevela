@@ -24,6 +24,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	celengine "github.com/kubevela/pkg/cel"
 	"golang.org/x/sync/singleflight"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -33,7 +34,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
-	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	velamulticluster "github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/sources"
@@ -198,16 +198,16 @@ func (d *componentReadDelivery) resolve(ctx context.Context, reader string, prod
 }
 
 // placeAlong stores a resolved view where the placement calls will look it up:
-// each call is a key in the propexpr.QualifiedKey entry of the one before, and
+// each call is a key in the celengine.QualifiedKey entry of the one before, and
 // no calls at all is the component's own entry. Every map it writes into is its
 // own; a cached view is copied in, never stored.
 func placeAlong(entry map[string]interface{}, calls []string, v interface{}) {
 	node := entry
 	for _, call := range calls {
-		qualified, _ := node[propexpr.QualifiedKey].(map[string]interface{})
+		qualified, _ := node[celengine.QualifiedKey].(map[string]interface{})
 		if qualified == nil {
 			qualified = map[string]interface{}{}
-			node[propexpr.QualifiedKey] = qualified
+			node[celengine.QualifiedKey] = qualified
 		}
 		next, _ := qualified[call].(map[string]interface{})
 		if next == nil {

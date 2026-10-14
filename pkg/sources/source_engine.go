@@ -18,10 +18,13 @@ package sources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/cel-go/cel"
+	celengine "github.com/kubevela/pkg/cel"
+	"github.com/kubevela/pkg/cel/template"
 
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
@@ -299,24 +302,61 @@ func (e *SourceEngine) Check(properties interface{}) []CheckError {
 		return []CheckError{{Err: err}}
 	}
 	var out []CheckError
-	_ = propexpr.Walk(properties, "", func(path, raw string) error {
-		parsed, perr := propexpr.Parse(raw)
-		if perr != nil {
-			out = append(out, CheckError{Property: path, Expr: raw, Err: perr})
-			//nolint:nilerr // collected, not raised: the walk reports every bad expression, not the first
-			return nil
-		}
-		if !parsed.HasExpr() {
-			return nil
-		}
-		for _, fragment := range parsed.Fragments {
-			if !fragment.IsExpr() {
-				continue
+	for _, lp := range planEachLeaf(properties) {
+		var faults celengine.CheckErrors
+		if errors.As(lp.err, &faults) {
+			for _, f := range faults {
+				out = append(out, CheckError{Property: lp.property(f.Property), Expr: f.Expr, Err: celexpr.Explain(f.Expr, f.Err)})
 			}
-			if _, cerr := celexpr.OutputType(env, fragment.Expr); cerr != nil {
-				out = append(out, CheckError{Property: path, Expr: fragment.Expr, Err: cerr})
+			continue
+		}
+		if lp.err != nil {
+			out = append(out, CheckError{Property: lp.property(""), Err: lp.err})
+			continue
+		}
+		for _, x := range lp.plan.Expressions() {
+			if _, cerr := celexpr.OutputType(env, x.Expr); cerr != nil {
+				out = append(out, CheckError{Property: lp.property(x.Property), Expr: x.Expr, Err: cerr})
 			}
 		}
+	}
+	return out
+}
+
+// leafPlanResult is one plan from planEachLeaf, or why it could not be made.
+type leafPlanResult struct {
+	plan *celengine.Plan
+	err  error
+	// at is the leaf's path when the plan is of that leaf alone.
+	at string
+}
+
+// property is where a property the plan names sits in the whole tree.
+func (lp leafPlanResult) property(p string) string {
+	if lp.at != "" {
+		return lp.at
+	}
+	return p
+}
+
+// planEachLeaf plans properties as one tree when every expression in it
+// compiles. When one does not, each string leaf is planned on its own, so a
+// malformed expression costs only its own property: the rest are still
+// checked, and still prefetched. Properties keep their full paths either way.
+func planEachLeaf(properties interface{}) []leafPlanResult {
+	plan, err := celexpr.Vela.Plan(properties)
+	if err == nil {
+		return []leafPlanResult{{plan: plan}}
+	}
+	var faults celengine.CheckErrors
+	if !errors.As(err, &faults) {
+		return []leafPlanResult{{err: err}}
+	}
+	var out []leafPlanResult
+	//nolint:errcheck // the visitor never fails
+	_ = template.Walk(properties, "", func(at, raw string) error {
+		p, perr := celexpr.Vela.Plan(raw)
+		out = append(out, leafPlanResult{plan: p, err: perr, at: at})
 		return nil
 	})
 	return out
