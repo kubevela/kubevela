@@ -166,6 +166,25 @@ names: ["from-a", "from-b"]
 			Should(ConsistOf("apply-0=succeeded", "apply-1=succeeded"))
 	})
 
+	It("names the items by a key read from the source", func() {
+		keyed := items(`"$(source.inv.clusters)"`)
+		keyed.Key = []string{"name"}
+		createApp(&v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "keyed", Namespace: namespaceName},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []oamcomm.ApplicationComponent{},
+				Sources:    []v1beta1.ApplicationSource{{Name: "inv", Type: "cluster-inventory"}},
+				Workflow: &v1beta1.Workflow{Steps: []wfTypesv1alpha1.WorkflowStep{
+					applyObject("apply", keyed, "each.item.name"),
+				}},
+			},
+		})
+		Eventually(configMapExists("c1"), 60*time.Second, time.Second).Should(Succeed())
+		Eventually(configMapExists("c2"), 60*time.Second, time.Second).Should(Succeed())
+		Eventually(subStepNames("keyed", "apply"), 60*time.Second, time.Second).
+			Should(ConsistOf("apply-c1=succeeded", "apply-c2=succeeded"))
+	})
+
 	It("reads the list from an earlier step's output", func() {
 		applyDefinition(ctx, &v1beta1.WorkflowStepDefinition{
 			ObjectMeta: metav1.ObjectMeta{Name: "make-names", Namespace: namespaceName},
