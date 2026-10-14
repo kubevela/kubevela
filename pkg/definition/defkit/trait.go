@@ -42,6 +42,8 @@ var topLevelTemplateRegex = regexp.MustCompile(`(?m)^[^\S\n]*template:`)
 // with ComponentDefinition and other definition types.
 type TraitDefinition struct {
 	baseDefinition                       // embedded common fields (name, description, params, template, etc.)
+	inheritance                          // extends and abstract
+	parent             *TraitDefinition  // the definition Extends names, when typed
 	appliesToWorkloads []string          // e.g., ["deployments.apps", "statefulsets.apps"]
 	conflictsWith      []string          // traits that conflict with this one
 	conflictsWithSet   bool              // true when ConflictsWith() was explicitly called
@@ -475,6 +477,7 @@ func (t *TraitDefinition) ToYAML() ([]byte, error) {
 	}
 
 	setRestrictionsSpec(cr["spec"].(map[string]any), t.GetRestrictions())
+	setInheritanceSpec(cr["spec"].(map[string]any), t.inheritance)
 
 	return yaml.Marshal(cr)
 }
@@ -650,6 +653,7 @@ func (g *TraitCUEGenerator) writeAttributes(sb *strings.Builder, t *TraitDefinit
 
 	writeVersion(sb, t.GetVersion(), indent)
 	writeRestrictions(sb, t.GetRestrictions(), indent)
+	writeInheritance(sb, t.inheritance, indent)
 
 	// podDisruptive (always emit — vela CUE always includes this attribute)
 	sb.WriteString(fmt.Sprintf("%spodDisruptive: %v\n", indent, t.IsPodDisruptive()))
@@ -783,6 +787,8 @@ func (g *TraitCUEGenerator) writeUnifiedTemplate(sb *strings.Builder, t *TraitDe
 
 	indent := strings.Repeat(g.indent, depth)
 	gen := NewCUEGenerator()
+
+	gen.writeInheritanceBlock(sb, tpl, depth)
 
 	// Generate PatchContainer pattern if configured
 	if config := tpl.GetPatchContainerConfig(); config != nil {
