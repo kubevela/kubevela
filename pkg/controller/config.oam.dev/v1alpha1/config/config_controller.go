@@ -97,7 +97,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// the webhook's check of the template's nacos block, repeated here for a template
 	// that reached the cluster with the webhooks off
-	if err := validateExpandedWriter(tmpl); err != nil {
+	if err := validateExpandedWriter(ctx, tmpl); err != nil {
 		return r.markError(ctx, &cfg, err)
 	}
 

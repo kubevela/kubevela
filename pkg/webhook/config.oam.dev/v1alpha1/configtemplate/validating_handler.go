@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"cuelang.org/go/cue"
 	admissionv1 "k8s.io/api/admission/v1"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -54,24 +53,17 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	if err := validateNacosBlock(obj.Spec.Template); err != nil {
+	// The shape of the nacos block is admission's question, so the mistake shows at
+	// apply time rather than on the first Config made from the template. Only the
+	// shape: whether the endpoint config exists is reconcile-time, reported through the
+	// Config's NacosSynced condition. A template that does not compile is admitted, as
+	// before: the ConfigTemplate controller reports that through status.phase=Error.
+	// The Config reconciler repeats the same check (writer.ValidateTemplate), so a
+	// cluster running without the webhooks gets the message on the Config instead.
+	if err := writer.ValidateTemplate(ctx, script.CUE(obj.Spec.Template)); err != nil {
 		return admission.Denied(err.Error())
 	}
 	return admission.ValidationResponse(true, "")
-}
-
-// validateNacosBlock refuses a template whose nacos block has the wrong shape, with the
-// reason, so the mistake shows at apply time rather than on the first Config made from
-// it. Only the shape is checked: whether the endpoint config exists is a reconcile-time
-// question, reported through the Config's NacosSynced condition. A template that does
-// not compile is admitted here, as before: the ConfigTemplate controller reports that
-// through status.phase=Error. The Config reconciler repeats this check, so a cluster
-// running without the webhooks gets the same message on the Config instead.
-func validateNacosBlock(template string) error {
-	if v, err := script.CUE(template).ParseToValue(); err == nil {
-		return writer.ValidateExpandedWriter(v.LookupPath(cue.ParsePath("template")))
-	}
-	return nil
 }
 
 // RegisterValidatingHandler registers ConfigTemplate validation to the webhook server.

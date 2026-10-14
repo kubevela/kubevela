@@ -68,7 +68,7 @@ func ResolveConfigTemplate(ctx context.Context, cli client.Client, ref *configv1
 			CUE:            script.CUE(ct.Spec.Template),
 			Scope:          string(ct.Spec.Scope),
 			Sensitive:      ct.Spec.Sensitive,
-			ExpandedWriter: expandedWriterOf(script.CUE(ct.Spec.Template)),
+			ExpandedWriter: expandedWriterOf(ctx, script.CUE(ct.Spec.Template)),
 		}, false, nil
 	case apierrors.IsNotFound(err):
 	default:
@@ -89,15 +89,19 @@ func ResolveConfigTemplate(ctx context.Context, cli client.Client, ref *configv1
 		CUE:            script.CUE(cm.Data[SaveTemplateKey]),
 		Scope:          cm.Labels[apitypes.LabelConfigScope],
 		Sensitive:      cm.Annotations[apitypes.AnnotationConfigSensitive] == sensitiveAnnotationValue,
-		ExpandedWriter: expandedWriterOf(script.CUE(cm.Data[SaveTemplateKey])),
+		ExpandedWriter: expandedWriterOf(ctx, script.CUE(cm.Data[SaveTemplateKey])),
 	}, false, nil
 }
 
 // expandedWriterOf reads the nacos block of a template's CUE. The legacy ConfigMap also
 // carries it as yaml under the expanded-writer key; parsing the CUE on both paths keeps
-// one code path and one set of tests.
-func expandedWriterOf(cueScript script.CUE) writer.ExpandedWriterConfig {
-	v, err := cueScript.ParseToValue()
+// one code path and one set of tests. The parse is the CueX one the Secret render uses,
+// with provider functions disabled, so a template that imports a vela package keeps its
+// block; the plain compiler would reject the import and the block would go missing
+// without a word. A template that does not compile at all has no block: the
+// ConfigTemplate controller reports that.
+func expandedWriterOf(ctx context.Context, cueScript script.CUE) writer.ExpandedWriterConfig {
+	v, err := cueScript.ParseToValueWithCueX(ctx)
 	if err != nil {
 		return writer.ExpandedWriterConfig{}
 	}

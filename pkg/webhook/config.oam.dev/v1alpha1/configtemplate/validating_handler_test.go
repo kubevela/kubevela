@@ -250,3 +250,48 @@ func TestHandle_NacosBlockWithUnknownFormatIsDenied(t *testing.T) {
 	assert.False(t, resp.Allowed)
 	assert.Contains(t, resp.Result.Message, `nacos.format "ini" is not one of`)
 }
+
+// A template that imports a vela package, as the shipped image-registry template does,
+// is parsed with the CueX compiler: its block is checked like any other rather than
+// admitted because the plain compiler could not read it.
+func TestHandle_NacosBlockBehindAVelaImportIsStillChecked(t *testing.T) {
+	h := newHandler(t)
+	ct := &configv1alpha1.ConfigTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "ct-nacos-import", Namespace: "default"},
+		Spec:       configv1alpha1.ConfigTemplateSpec{Template: nacosTemplateWithImportAndUnknownFormat},
+	}
+	req := newRequest(t, admissionv1.Create, metav1.GroupVersionResource(configTemplateGVR), ct)
+	resp := h.Handle(context.TODO(), req)
+	assert.False(t, resp.Allowed)
+	assert.Contains(t, resp.Result.Message, `nacos.format "ini" is not one of`)
+}
+
+// nacosTemplateWithImportAndUnknownFormat is nacosTemplateWithUnknownFormat behind an
+// import of vela/config, the way the shipped image-registry template validates itself.
+const nacosTemplateWithImportAndUnknownFormat = `
+import "vela/config"
+
+template: {
+	validation: config.#ImageRegistry & {
+		$params: registry: "index.docker.io"
+	}
+	nacos: {
+		endpoint: name: "nacos"
+		format: "ini"
+		metadata: {
+			dataId: parameter.dataId
+			group:  parameter.group
+		}
+		content: parameter.content
+	}
+	output: {
+		apiVersion: "v1"
+		kind:       "Secret"
+	}
+	parameter: {
+		dataId:  string
+		group:   *"DEFAULT_GROUP" | string
+		content: {...}
+	}
+}
+`

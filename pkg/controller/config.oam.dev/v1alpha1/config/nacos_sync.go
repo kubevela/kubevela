@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 
-	"cuelang.org/go/cue"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,17 +53,14 @@ var (
 )
 
 // validateExpandedWriter repeats the ConfigTemplate webhook's structural check of the
-// nacos block, so a broken template is never silently ignored when the webhooks are off.
-// A failure is a template error: the Config goes to Error with the message.
-func validateExpandedWriter(tmpl *legacyconfig.ResolvedTemplate) error {
+// nacos block (the same writer.ValidateTemplate), so a broken template is never silently
+// ignored when the webhooks are off. A failure is a template error: the Config goes to
+// Error with the message.
+func validateExpandedWriter(ctx context.Context, tmpl *legacyconfig.ResolvedTemplate) error {
 	if tmpl == nil || tmpl.ExpandedWriter.Nacos == nil {
 		return nil
 	}
-	v, err := tmpl.CUE.ParseToValue()
-	if err != nil {
-		return fmt.Errorf("config template %s/%s does not compile: %w", tmpl.Namespace, tmpl.Name, err)
-	}
-	if err := writer.ValidateExpandedWriter(v.LookupPath(cue.ParsePath("template"))); err != nil {
+	if err := writer.ValidateTemplate(ctx, tmpl.CUE); err != nil {
 		return fmt.Errorf("config template %s/%s: %w", tmpl.Namespace, tmpl.Name, err)
 	}
 	return nil

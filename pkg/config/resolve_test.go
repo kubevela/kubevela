@@ -208,7 +208,48 @@ func TestResolveConfigTemplate(t *testing.T) {
 		r.False(waiting)
 		r.Nil(tmpl)
 	})
+
+	t.Run("a template that imports a vela package keeps its nacos block", func(t *testing.T) {
+		r := require.New(t)
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "nc-validated", Namespace: "nw-nacos"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: nacosTemplateWithImportCUE},
+			Status:     configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+		}
+		cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(ct).Build()
+
+		tmpl, _, err := ResolveConfigTemplate(context.Background(), cli, &configv1alpha1.ConfigTemplateReference{Name: "nc-validated", Namespace: "nw-nacos"})
+		r.NoError(err)
+		r.NotNil(tmpl.ExpandedWriter.Nacos, "the plain CUE compiler rejects the import; the CueX parse must keep the block")
+		r.Equal("nacos", tmpl.ExpandedWriter.Nacos.Endpoint.Name)
+	})
 }
+
+// nacosTemplateWithImportCUE imports a vela package, as the shipped image-registry
+// template does for its validation. Only the CueX compiler can parse it.
+const nacosTemplateWithImportCUE = `
+import "vela/config"
+
+template: {
+	validation: config.#ImageRegistry & {
+		$params: registry: "index.docker.io"
+	}
+	nacos: {
+		endpoint: name: "nacos"
+		format: "properties"
+		metadata: {
+			dataId: parameter.dataId
+			group:  "DEFAULT_GROUP"
+		}
+		content: parameter.content
+	}
+	output: {}
+	parameter: {
+		dataId:  string
+		content: {...}
+	}
+}
+`
 
 // nacosTemplateCUE is the shape of testdata/mysql-db-nacos.cue: a concrete endpoint, metadata
 // from the parameter, properties content.
