@@ -321,8 +321,7 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 	streams.Infof("\n%s\n", module.Summary())
 
 	// Get kubernetes client
-	config, err := c.GetConfig()
-	if err != nil {
+	if _, err := c.GetConfig(); err != nil {
 		return errors.Wrap(err, "failed to get kubernetes config")
 	}
 	k8sClient, err := c.GetClient()
@@ -395,27 +394,26 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 	var failedDefs []string
 	defApplyStart := time.Now()
 
+	prepared, err := prepareModuleDefinitions(module.Definitions, opts.prefix)
+	if err != nil {
+		return err
+	}
+
 	// Apply each definition
-	for _, result := range module.Definitions {
+	for _, md := range prepared {
+		result := md.result
 		if result.Error != nil {
 			stats.Failed++
 			failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", result.Definition.FilePath, result.Error))
 			continue
 		}
-
-		// Parse CUE to definition
-		def := pkgdef.Definition{}
-		if err := def.FromCUEString(result.CUE, config); err != nil {
+		if md.err != nil {
 			stats.Failed++
-			failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", result.Definition.Name, err))
+			failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", result.Definition.Name, md.err))
 			continue
 		}
+		def := md.def
 		def.SetNamespace(opts.namespace)
-
-		// Apply name prefix if specified
-		if opts.prefix != "" {
-			def.SetName(opts.prefix + def.GetName())
-		}
 
 		// Check placement constraints (combine module-level and definition-level)
 		if checkPlacement {
