@@ -105,6 +105,12 @@ spec:
                           It is not inherited: a definition that extends an abstract one is usable
                           unless it marks itself abstract too.
                         type: boolean
+                      apiVersion:
+                        description: |-
+                          APIVersion is the API line of the module this definition belongs to, for
+                          example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                        pattern: ^v\d+(alpha\d+|beta\d+)?$
+                        type: string
                       childResourceKinds:
                         description: ChildResourceKinds are the list of GVK of the
                           child resources this workload generates
@@ -146,6 +152,12 @@ spec:
                           platform builders
                         type: object
                         x-kubernetes-preserve-unknown-fields: true
+                      module:
+                        description: |-
+                          Module names the module this definition was published in, for example
+                          "s3". It identifies a versioned definition on the spec itself, not only
+                          through labels. Set it together with apiVersion, or leave both empty.
+                        type: string
                       podSpecPath:
                         description: |-
                           PodSpecPath indicates where/if this workload has K8s podSpec field
@@ -564,6 +576,12 @@ spec:
                     description: PolicyDefinitionSpec defines the desired state of
                       PolicyDefinition
                     properties:
+                      apiVersion:
+                        description: |-
+                          APIVersion is the API line of the module this definition belongs to, for
+                          example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                        pattern: ^v\d+(alpha\d+|beta\d+)?$
+                        type: string
                       definitionRef:
                         description: Reference to the CustomResourceDefinition that
                           defines this trait kind.
@@ -592,6 +610,12 @@ spec:
                           ManageHealthCheck means the policy will handle health checking and skip application controller
                           built-in health checking.
                         type: boolean
+                      module:
+                        description: |-
+                          Module names the module this definition was published in, for example
+                          "s3". It identifies a versioned definition on the spec itself, not only
+                          through labels. Set it together with apiVersion, or leave both empty.
+                        type: string
                       priority:
                         description: |-
                           Priority defines the order in which global policies are applied.
@@ -1362,6 +1386,12 @@ spec:
                           It is not inherited: a definition that extends an abstract one is usable
                           unless it marks itself abstract too.
                         type: boolean
+                      apiVersion:
+                        description: |-
+                          APIVersion is the API line of the module this definition belongs to, for
+                          example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                        pattern: ^v\d+(alpha\d+|beta\d+)?$
+                        type: string
                       appliesToWorkloads:
                         description: |-
                           AppliesToWorkloads specifies the list of workload kinds this trait
@@ -1425,6 +1455,12 @@ spec:
                         description: ManageWorkload defines the trait would be responsible
                           for creating the workload
                         type: boolean
+                      module:
+                        description: |-
+                          Module names the module this definition was published in, for example
+                          "s3". It identifies a versioned definition on the spec itself, not only
+                          through labels. Set it together with apiVersion, or leave both empty.
+                        type: string
                       podDisruptive:
                         description: |-
                           PodDisruptive indicates that this trait is disruptive to the pod: applying or
@@ -1834,6 +1870,12 @@ spec:
                     description: WorkflowStepDefinitionSpec defines the desired state
                       of WorkflowStepDefinition
                     properties:
+                      apiVersion:
+                        description: |-
+                          APIVersion is the API line of the module this definition belongs to, for
+                          example "v1" or "v1beta2". Set it together with module, or leave both empty.
+                        pattern: ^v\d+(alpha\d+|beta\d+)?$
+                        type: string
                       definitionRef:
                         description: Reference to the CustomResourceDefinition that
                           defines this trait kind.
@@ -1849,6 +1891,12 @@ spec:
                         required:
                         - name
                         type: object
+                      module:
+                        description: |-
+                          Module names the module this definition was published in, for example
+                          "s3". It identifies a versioned definition on the spec itself, not only
+                          through labels. Set it together with apiVersion, or leave both empty.
+                        type: string
                       restrictions:
                         description: |-
                           Restrictions limits where this definition may be used. Absent or empty means

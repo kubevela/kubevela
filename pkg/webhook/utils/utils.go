@@ -265,5 +265,10 @@ func ValidateDefinitionIdentity(module, apiVersion string) error {
 	case module == "" && apiVersion != "":
 		return errors.New("spec.apiVersion is set but spec.module is empty: set both or neither")
 	}
+	if module != "" {
+		if errs := validation.IsDNS1123Label(module); len(errs) != 0 {
+			return errors.Errorf("spec.module %q is not a valid DNS-1123 label: %s", module, strings.Join(errs, ","))
+		}
+	}
 	return nil
 }

@@ -89,13 +89,16 @@ template: {
 	// honored only on an owned addon Application, so a user's own Application
 	// cannot use it to redirect a module.
 	_namespace: string
-	_fromAddon: context.appLabels["addons.oam.dev/name"] != _|_ && context.appAnnotations["modules.oam.dev/install-namespace"] != _|_
+	_fromAddon: context.namespace == "vela-system" &&
+		context.appLabels["addons.oam.dev/name"] != _|_ &&
+		context.appAnnotations["modules.oam.dev/install-namespace"] != _|_
 	if _fromAddon {
 		_namespace: context.appAnnotations["modules.oam.dev/install-namespace"]
 	}
 	if !_fromAddon {
 		_namespace: context.namespace
 	}
+
 	// namespace used to be a parameter. A component still setting it must fail
 	// rather than install somewhere its author did not ask for.
 	if parameter.namespace != _|_ {

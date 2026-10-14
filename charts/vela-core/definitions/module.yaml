@@ -23,7 +23,9 @@ spec:
         // honored only on an owned addon Application, so a user's own Application
         // cannot use it to redirect a module.
         _namespace: string
-        _fromAddon: context.appLabels["addons.oam.dev/name"] != _|_ && context.appAnnotations["modules.oam.dev/install-namespace"] != _|_
+        _fromAddon: context.namespace == "vela-system" &&
+        	context.appLabels["addons.oam.dev/name"] != _|_ &&
+        	context.appAnnotations["modules.oam.dev/install-namespace"] != _|_
         if _fromAddon {
         	_namespace: context.appAnnotations["modules.oam.dev/install-namespace"]
         }

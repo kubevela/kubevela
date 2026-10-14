@@ -323,6 +323,7 @@ var internalMetadataPrefixes = map[string]struct{}{
 	"k8s.io/":                {},
 	"helm.sh/":               {},
 	"app.kubernetes.io/":     {},
+	"modules.oam.dev/":       {},
 }
 
 // FilterInternalMetadata returns a copy of metadata with internal platform keys removed.

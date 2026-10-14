@@ -474,10 +474,15 @@ func setAddonRegistryLabel(app metav1.Object, registryName string) {
 // from its own context. Nothing is recorded when the namespace is unknown, and
 // the modules then install into vela-system.
 func setModuleInstallNamespace(app metav1.Object, namespace string) {
+	annotations := app.GetAnnotations()
 	if namespace == "" {
+		if len(annotations) == 0 {
+			return
+		}
+		delete(annotations, oam.AnnotationModuleInstallNamespace)
+		app.SetAnnotations(annotations)
 		return
 	}
-	annotations := app.GetAnnotations()
 	if annotations == nil {
 		annotations = map[string]string{}
 	}

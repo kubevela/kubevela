@@ -61,6 +61,24 @@ func TestSetAddonRegistryLabel(t *testing.T) {
 	assert.Equal(t, "true", app.Labels["preserved"])
 }
 
+func TestSetModuleInstallNamespace(t *testing.T) {
+	t.Run("records installing namespace when present", func(t *testing.T) {
+		app := &v1beta1.Application{}
+		setModuleInstallNamespace(app, "kit-tenant")
+		assert.Equal(t, "kit-tenant", app.GetAnnotations()[oam.AnnotationModuleInstallNamespace])
+	})
+
+	t.Run("removes stale marker when namespace is empty", func(t *testing.T) {
+		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+			oam.AnnotationModuleInstallNamespace: "stale",
+			"kept":                               "yes",
+		}}}
+		setModuleInstallNamespace(app, "")
+		assert.NotContains(t, app.GetAnnotations(), oam.AnnotationModuleInstallNamespace)
+		assert.Equal(t, "yes", app.GetAnnotations()["kept"])
+	})
+}
+
 func TestNewRenderer(t *testing.T) {
 	r := NewRenderer()
 	require.NotNil(t, r)

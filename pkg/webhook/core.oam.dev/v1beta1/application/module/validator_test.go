@@ -121,6 +121,12 @@ func TestValidateComponents(t *testing.T) {
 			},
 			wantFields: []string{"spec.components[0].properties.namespace"},
 		},
+		"a null namespace property is still forbidden": {
+			components: []common.ApplicationComponent{
+				moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "namespace": nil}),
+			},
+			wantFields: []string{"spec.components[0].properties.namespace"},
+		},
 		"an OCI registry is accepted": {
 			components: []common.ApplicationComponent{
 				moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "registry": "ecr-modules"}),

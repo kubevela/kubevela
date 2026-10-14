@@ -52,7 +52,7 @@ _rendered: $returns: application: {
 	context: {
 		name:      "widget"
 		namespace: "vela-system"
-		appLabels: "addons.oam.dev/name": "tenant-widgets"
+		appLabels: "addons.oam.dev/name":                    "tenant-widgets"
 		appAnnotations: "modules.oam.dev/install-namespace": "kit-tenant"
 	}
 	mocks: "vela/module": "#Render": _rendered
@@ -64,6 +64,18 @@ _rendered: $returns: application: {
 	context: {
 		name:      "widget"
 		namespace: "team-a"
+		appAnnotations: "modules.oam.dev/install-namespace": "elsewhere"
+	}
+	mocks: "vela/module": "#Render": _rendered
+	expect: calls: "vela/module": "#Render": [{$params: namespace: "team-a", ...}]
+}
+
+"a spoofed addon marker outside vela-system is ignored": test.#ComponentRender & {
+	definition: "module"
+	context: {
+		name:      "widget"
+		namespace: "team-a"
+		appLabels: "addons.oam.dev/name":                    "tenant-widgets"
 		appAnnotations: "modules.oam.dev/install-namespace": "elsewhere"
 	}
 	mocks: "vela/module": "#Render": _rendered

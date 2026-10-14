@@ -133,7 +133,17 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 		path := field.NewPath("spec", "components").Index(i).Child("properties")
 
 		properties := componentProperties{}
+		var rawProperties map[string]json.RawMessage
 		if comp.Properties != nil && len(comp.Properties.Raw) > 0 {
+			if err := json.Unmarshal(comp.Properties.Raw, &rawProperties); err != nil {
+				// Reject rather than skip. The Application itself is malformed,
+				// the render will fail later anyway, and admitting it silently
+				// is the one outcome that leaves the author with no idea why.
+				logger.Error(err, "Rejecting malformed module component properties", "component", comp.Name)
+				errs = append(errs, field.Invalid(path, "<redacted>",
+					"cannot be decoded as module component properties: "+err.Error()))
+				continue
+			}
 			if err := json.Unmarshal(comp.Properties.Raw, &properties); err != nil {
 				// Reject rather than skip. The Application itself is malformed,
 				// the render will fail later anyway, and admitting it silently
@@ -145,7 +155,9 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 			}
 		}
 
-		if properties.Namespace != nil {
+		// namespace is no longer a supported property, so reject any explicit key,
+		// including "namespace": null.
+		if _, hasNamespaceKey := rawProperties["namespace"]; hasNamespaceKey || properties.Namespace != nil {
 			errs = append(errs, field.Forbidden(path.Child("namespace"), namespaceRemovedDetail))
 		}
 
