@@ -96,6 +96,8 @@ type Context struct {
 	ReplicaKey     string            `json:"replicaKey,omitempty"`
 	Custom         map[string]any    `json:"custom,omitempty"`
 	StepName       string            `json:"stepName,omitempty"`
+	// Each runs a workflow step as one pass of a forEach.
+	Each *LoopPass `json:"each,omitempty"`
 	// ComponentType is the type of the workload a trait under test patches.
 	ComponentType string `json:"componentType,omitempty"`
 	// PolicyName and the revision fields are an Application-scoped policy's.
@@ -103,6 +105,12 @@ type Context struct {
 	PolicyRevisionName string `json:"policyRevisionName,omitempty"`
 	PolicyRevisionHash string `json:"policyRevisionHash,omitempty"`
 	PolicyRevision     int64  `json:"policyRevision,omitempty"`
+}
+
+// LoopPass is the `context.each` a step sees inside a forEach.
+type LoopPass struct {
+	Item  any `json:"item"`
+	Index int `json:"index"`
 }
 
 // ClusterVersion is the `context.clusterVersion` a template sees.

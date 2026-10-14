@@ -117,6 +117,11 @@ func (c ContextSchema) field(name string) (cue.Value, bool) {
 		return cue.Value{}, false
 	}
 	v := c.value.LookupPath(cue.MakePath(cue.Str(name)))
+	if !v.Exists() {
+		// An optional field is offered only where the render sets it, as each
+		// is inside a forEach. readable leaves it out for that reason.
+		v = c.value.LookupPath(cue.MakePath(cue.Str(name).Optional()))
+	}
 	return v, v.Exists()
 }
 

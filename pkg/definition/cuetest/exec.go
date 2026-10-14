@@ -30,6 +30,7 @@ import (
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 	"github.com/kubevela/pkg/util/singleton"
 	wfcontext "github.com/kubevela/workflow/pkg/context"
+	wfprocess "github.com/kubevela/workflow/pkg/cue/process"
 	"github.com/kubevela/workflow/pkg/tasks/custom"
 	wftypes "github.com/kubevela/workflow/pkg/types"
 
@@ -123,6 +124,9 @@ func runStep(cl *TestCluster, ns string, s Subject, in Input, objs []map[string]
 	data := appfile.WorkflowContextData(goCtx, app, or(c.AppRevision, app.Name+"-v1"))
 	data.ClusterVersion = clusterVersion(c.ClusterVersion)
 	pCtx := process.NewContext(data)
+	if c.Each != nil {
+		wfprocess.NewStepRunTimeMeta().Fill(pCtx, []wfprocess.StepMetaKV{wfprocess.WithLoop(c.Each.Item, c.Each.Index)})
+	}
 
 	loader := custom.NewTaskLoader(func(context.Context, string) (string, error) { return s.Template, nil }, 0, pCtx, compiler)
 	generate, err := loader.GetTaskGenerator(goCtx, s.Name)
