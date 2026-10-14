@@ -24,6 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
 )
 
@@ -35,6 +36,9 @@ type PolicyDefinition struct {
 	policyTemplate    func(tpl *PolicyTemplate) // template function for policy logic (type-specific)
 	labels            map[string]string
 	manageHealthCheck bool
+	scope             v1beta1.PolicyScope
+	global            bool
+	priority          *int32
 }
 
 // PolicyTemplate provides the building context for policy templates.
@@ -42,6 +46,9 @@ type PolicyDefinition struct {
 type PolicyTemplate struct {
 	// Policies usually don't have output resources, but may have computed values
 	computedFields map[string]Value
+	// enabled and output are only honoured on an Application-scoped policy
+	enabled Condition
+	output  *PolicyOutput
 }
 
 // NewPolicy creates a new PolicyDefinition builder.
@@ -257,6 +264,15 @@ func (p *PolicyDefinition) ToYAML() ([]byte, error) {
 	if p.manageHealthCheck {
 		cr["spec"].(map[string]any)["manageHealthCheck"] = true
 	}
+	if p.scope != "" {
+		cr["spec"].(map[string]any)["scope"] = string(p.scope)
+	}
+	if p.global {
+		cr["spec"].(map[string]any)["global"] = true
+	}
+	if p.priority != nil {
+		cr["spec"].(map[string]any)["priority"] = *p.priority
+	}
 
 	if p.GetVersion() != "" {
 		cr["spec"].(map[string]any)["version"] = p.GetVersion()
@@ -369,7 +385,7 @@ func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string 
 
 // writeAttributes writes the attributes block, which FromCUE copies into the spec.
 func (g *PolicyCUEGenerator) writeAttributes(sb *strings.Builder, p *PolicyDefinition) {
-	if p.GetVersion() == "" && !p.manageHealthCheck && p.GetRestrictions() == nil {
+	if p.GetVersion() == "" && !p.manageHealthCheck && p.GetRestrictions() == nil && p.scope == "" && p.priority == nil {
 		sb.WriteString(fmt.Sprintf("%sattributes: {}\n", g.indent))
 		return
 	}
@@ -377,6 +393,7 @@ func (g *PolicyCUEGenerator) writeAttributes(sb *strings.Builder, p *PolicyDefin
 	sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
 	writeVersion(sb, p.GetVersion(), indent)
 	writeRestrictions(sb, p.GetRestrictions(), indent)
+	writeAppScopeAttributes(sb, p, indent)
 	if p.manageHealthCheck {
 		sb.WriteString(fmt.Sprintf("%smanageHealthCheck: true\n", indent))
 	}
@@ -404,6 +421,12 @@ func (g *PolicyCUEGenerator) GenerateTemplate(p *PolicyDefinition) string {
 		for _, name := range sortedKeys(pt.GetComputedFields()) {
 			val := pt.GetComputedFields()[name]
 			sb.WriteString(fmt.Sprintf("%s%s: %s\n", g.indent, name, gen.valueToCUE(val)))
+		}
+		if pt.enabled != nil {
+			sb.WriteString(fmt.Sprintf("%sconfig: enabled: %s\n", g.indent, gen.conditionToCUE(pt.enabled)))
+		}
+		if pt.output != nil {
+			g.writePolicyOutput(&sb, gen, pt.output)
 		}
 	}
 

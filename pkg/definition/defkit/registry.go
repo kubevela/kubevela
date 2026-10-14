@@ -83,6 +83,11 @@ func Register(def Definition) {
 		}
 	}
 
+	if v, ok := def.(interface{ validateDefinition() error }); ok {
+		if err := v.validateDefinition(); err != nil {
+			panic("defkit: invalid definition '" + def.DefName() + "': " + err.Error())
+		}
+	}
 	if r, ok := def.(interface {
 		GetRestrictions() *common.DefinitionRestrictions
 	}); ok {
