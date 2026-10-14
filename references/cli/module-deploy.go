@@ -54,7 +54,6 @@ const moduleComponentType = "module"
 type moduleComponentProperties struct {
 	Module    string `json:"module"`
 	Registry  string `json:"registry"`
-	Namespace string `json:"namespace"`
 	Version   string `json:"version"`
 }
 
@@ -82,7 +81,6 @@ func buildModuleApplication(moduleName, registryName, namespace, version string)
 	props, err := json.Marshal(moduleComponentProperties{
 		Module:    moduleName,
 		Registry:  registryName,
-		Namespace: namespace,
 		Version:   version,
 	})
 	if err != nil {
