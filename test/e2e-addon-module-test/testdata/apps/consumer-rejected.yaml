@@ -49,3 +49,31 @@ spec:
   components:
     - name: w
       type: kit/widget-kit/v1/widget
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reject-installed-name
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: widget-kit-v1-widget
+      properties:
+        color: green
+---
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: reject-form1-unique
+  namespace: default
+spec:
+  components:
+    - name: w
+      type: widget-kit/v1/widget
+      properties:
+        color: green
+      traits:
+        - type: note
+          properties:
+            text: should-be-rejected

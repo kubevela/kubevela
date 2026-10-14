@@ -264,7 +264,7 @@ func definitionNamespaces(t *testing.T, comp map[string]interface{}) []string {
 	return namespaces
 }
 
-func TestResolveAndRenderInstallsInlineModuleIntoTheInstallingNamespace(t *testing.T) {
+func TestResolveAndRenderInlineModuleDefinitionsStayInVelaSystem(t *testing.T) {
 	enableModuleComponentForInlineTest(t)
 	app, err := renderInNamespace(t, pkgaddon.InstallPackage{
 		AppTemplate:   &v1beta1.Application{},
@@ -274,7 +274,7 @@ func TestResolveAndRenderInstallsInlineModuleIntoTheInstallingNamespace(t *testi
 
 	c := componentsByName(t, app)["aws-s3"]
 	require.NotNil(t, c, "inline module component must be present")
-	assert.Equal(t, []string{"kit-tenant"}, definitionNamespaces(t, c))
+	assert.Equal(t, []string{"vela-system"}, definitionNamespaces(t, c))
 	owned := c["properties"].(map[string]interface{})["objects"].([]interface{})[0].(map[string]interface{})
 	assert.Equal(t, "vela-system", owned["metadata"].(map[string]interface{})["namespace"],
 		"the owned module Application stays in vela-system")

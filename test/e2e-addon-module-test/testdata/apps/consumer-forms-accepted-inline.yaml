@@ -1,5 +1,5 @@
-# Inline-module mirror of consumer-forms-accepted.yaml. Every reference here
-# resolves to exactly one installed definition.
+# Inline-module mirror of consumer-forms-accepted.yaml. Module-backed
+# definitions must now be referenced with Form 3.
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
@@ -11,11 +11,3 @@ spec:
       type: widget-kit-inline/v1/widget          # Form 3: module/line/name
       properties:
         color: red
-    - name: stamped-widget
-      type: widget-kit-inline-v1-widget           # the installed name, used as a plain legacy name
-      properties:
-        color: green
-      traits:
-        - type: note                              # Form 1: only widget-kit-inline v1 ships a trait "note"
-          properties:
-            text: written by a Form 1 trait
