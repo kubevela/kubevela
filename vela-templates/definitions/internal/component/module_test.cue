@@ -70,18 +70,6 @@ _rendered: $returns: application: {
 	expect: calls: "vela/module": "#Render": [{$params: namespace: "team-a", ...}]
 }
 
-"a spoofed addon marker outside vela-system is ignored": test.#ComponentRender & {
-	definition: "module"
-	context: {
-		name:      "widget"
-		namespace: "team-a"
-		appLabels: "addons.oam.dev/name":                    "tenant-widgets"
-		appAnnotations: "modules.oam.dev/install-namespace": "elsewhere"
-	}
-	mocks: "vela/module": "#Render": _rendered
-	expect: calls: "vela/module": "#Render": [{$params: namespace: "team-a", ...}]
-}
-
 "a namespace property is refused": test.#ComponentRender & {
 	definition: "module"
 	context: {

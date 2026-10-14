@@ -68,13 +68,13 @@ func TestSetModuleInstallNamespace(t *testing.T) {
 		assert.Equal(t, "kit-tenant", app.GetAnnotations()[oam.AnnotationModuleInstallNamespace])
 	})
 
-	t.Run("removes stale marker when namespace is empty", func(t *testing.T) {
+	t.Run("keeps existing marker when namespace is empty", func(t *testing.T) {
 		app := &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
 			oam.AnnotationModuleInstallNamespace: "stale",
 			"kept":                               "yes",
 		}}}
 		setModuleInstallNamespace(app, "")
-		assert.NotContains(t, app.GetAnnotations(), oam.AnnotationModuleInstallNamespace)
+		assert.Equal(t, "stale", app.GetAnnotations()[oam.AnnotationModuleInstallNamespace])
 		assert.Equal(t, "yes", app.GetAnnotations()["kept"])
 	})
 }

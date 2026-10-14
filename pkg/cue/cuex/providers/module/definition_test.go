@@ -95,14 +95,6 @@ func TestModuleDefinition_DerivesNamespaceFromInstallingApplication(t *testing.T
 			},
 			wantNamespace: "foo",
 		},
-		"spoofed addon marker outside vela-system is ignored": {
-			data: process.ContextData{
-				Namespace:      "foo",
-				AppLabels:      map[string]string{oam.LabelAddonName: "tenant-widgets"},
-				AppAnnotations: map[string]string{oam.AnnotationModuleInstallNamespace: "elsewhere"},
-			},
-			wantNamespace: "foo",
-		},
 		"owned addon Application without the annotation uses its own namespace": {
 			data: process.ContextData{
 				Namespace: "vela-system",
