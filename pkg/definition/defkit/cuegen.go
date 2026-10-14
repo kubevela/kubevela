@@ -434,7 +434,10 @@ func (g *CUEGenerator) GenerateFullDefinition(c *ComponentDefinition) string {
 	sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
 	writeVersion(&sb, c.GetVersion(), strings.Repeat(g.indent, 2))
 	writeRestrictions(&sb, c.GetRestrictions(), strings.Repeat(g.indent, 2))
-	g.writeWorkload(&sb, c, 2)
+	writeInheritance(&sb, c.inheritance, strings.Repeat(g.indent, 2))
+	if c.GetExtends() == "" || c.hasDeclaredWorkload() {
+		g.writeWorkload(&sb, c, 2)
+	}
 	g.writeStatus(&sb, c, 2)
 	sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 
@@ -484,6 +487,8 @@ func (g *CUEGenerator) GenerateTemplate(c *ComponentDefinition) string {
 	for _, helper := range tpl.GetHelpersBeforeOutput() {
 		g.writeHelper(&sb, helper, 1)
 	}
+
+	g.writeInheritanceBlock(&sb, tpl, 1)
 
 	// Emit raw header block (let bindings, helpers like _claimName)
 	if rawHeader := tpl.GetRawHeaderBlock(); rawHeader != "" {

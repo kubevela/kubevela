@@ -49,6 +49,7 @@ func buildRenderOptions(opts []RenderOption) *renderOptions {
 // validates that the component's generated CUE compiles, panicking if it
 // does not; pass SkipCompile() to skip that check.
 func (c *ComponentDefinition) Render(ctx *TestContextBuilder, opts ...RenderOption) *RenderedResource {
+	c.refuseInheritedRender()
 	o := buildRenderOptions(opts)
 	if !o.skipCompile {
 		if err := ValidateGeneratedCUE(c); err != nil {
@@ -77,6 +78,7 @@ func (c *ComponentDefinition) Render(ctx *TestContextBuilder, opts ...RenderOpti
 // default it also validates that the component's generated CUE compiles,
 // panicking if it does not; pass SkipCompile() to skip that check.
 func (c *ComponentDefinition) RenderAll(ctx *TestContextBuilder, opts ...RenderOption) *RenderedOutputs {
+	c.refuseInheritedRender()
 	o := buildRenderOptions(opts)
 	if !o.skipCompile {
 		if err := ValidateGeneratedCUE(c); err != nil {
@@ -694,4 +696,14 @@ func applyFieldMap(item map[string]any, mapping FieldMap) map[string]any {
 		}
 	}
 	return result
+}
+
+// refuseInheritedRender stops Render on a component that extends another. Render
+// interprets this component's own template, which for a child is only what it
+// adds on top of its parent.
+func (c *ComponentDefinition) refuseInheritedRender() {
+	if c.GetExtends() != "" {
+		panic(fmt.Sprintf("defkit: component %s extends %s, and Render sees only its own template; use EvaluateCUE, which renders the chain as the controller does",
+			c.GetName(), c.GetExtends()))
+	}
 }

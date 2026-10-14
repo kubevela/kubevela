@@ -35,6 +35,8 @@ type ComponentDefinition struct {
 	labels             map[string]string // metadata labels for the component definition
 	childResourceKinds []common.ChildResourceKind
 	podSpecPath        string
+	inheritance                             // extends and abstract
+	parent             *ComponentDefinition // the definition Extends names, when typed
 }
 
 // WorkloadType represents the workload type for a component.
@@ -380,6 +382,10 @@ func (c *ComponentDefinition) ToYAML() ([]byte, error) {
 	}
 
 	setRestrictionsSpec(cr["spec"].(map[string]any), c.GetRestrictions())
+	setInheritanceSpec(cr["spec"].(map[string]any), c.inheritance)
+	if c.GetExtends() != "" && !c.hasDeclaredWorkload() {
+		delete(cr["spec"].(map[string]any), "workload")
+	}
 
 	return yaml.Marshal(cr)
 }
