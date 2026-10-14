@@ -438,6 +438,7 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	groups = append(groups, auxComponent{name: addonAuxiliariesComponentName, objects: aux})
 
 	setAddonRegistryLabel(app, registryName)
+	setModuleInstallNamespace(app, req.Namespace)
 
 	appMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(app)
 	if err != nil {
@@ -465,6 +466,23 @@ func setAddonRegistryLabel(app metav1.Object, registryName string) {
 	}
 	labels[oam.LabelAddonRegistry] = registryName
 	app.SetLabels(labels)
+}
+
+// setModuleInstallNamespace records the installing Application's namespace on
+// the owned addon Application. That Application always lives in vela-system, so
+// a type: module component inside it reads its namespace from here instead of
+// from its own context. Nothing is recorded when the namespace is unknown, and
+// the modules then install into vela-system.
+func setModuleInstallNamespace(app metav1.Object, namespace string) {
+	if namespace == "" {
+		return
+	}
+	annotations := app.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[oam.AnnotationModuleInstallNamespace] = namespace
+	app.SetAnnotations(annotations)
 }
 
 // sanitizeManifest removes the root status subresource and every
