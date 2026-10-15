@@ -180,3 +180,12 @@ func TestMayBeAbsentAt(t *testing.T) {
 		require.False(t, MayBeAbsentAt(labels, []string{"labels"}))
 	})
 }
+
+func TestKindAtRefusesANegativeIndex(t *testing.T) {
+	list := openAPI(t, `{"type":"array","items":{"type":"string"}}`)
+	_, ok := KindAt(list, []string{"-1"})
+	require.False(t, ok, "no list has an element at -1")
+	kind, ok := KindAt(list, []string{"0"})
+	require.True(t, ok)
+	require.Equal(t, cue.StringKind, kind)
+}

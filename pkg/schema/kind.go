@@ -42,7 +42,7 @@ func KindAt(s *openapi3.Schema, path []string) (cue.Kind, bool) {
 		}
 		switch {
 		case s.Type.Is(openapi3.TypeArray):
-			if _, err := strconv.Atoi(seg); err != nil || s.Items == nil {
+			if i, err := strconv.Atoi(seg); err != nil || i < 0 || s.Items == nil {
 				return cue.BottomKind, false
 			}
 			s = s.Items.Value
