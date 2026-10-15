@@ -71,6 +71,10 @@ for k, v in parameter.labels {
 }
 parameter: labels: [string]: string
 `, true, false},
+		"an embedded value it cannot read may be either": {`
+_patches: {patch: spec: replicas: 1}
+_patches
+`, true, true},
 		"a computed label may be either": {`
 (parameter.field): spec: replicas: 1
 parameter: field: string

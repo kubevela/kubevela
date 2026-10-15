@@ -63,8 +63,11 @@ func walkTopLevel(decls []ast.Decl, fn func(name string, known bool)) {
 				walkTopLevel(s.Elts, fn)
 			}
 		case *ast.EmbedDecl:
+			// An embedded value the syntax does not spell out may hold any field.
 			if s, ok := x.Expr.(*ast.StructLit); ok {
 				walkTopLevel(s.Elts, fn)
+			} else {
+				fn("", false)
 			}
 		}
 	}
