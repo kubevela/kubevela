@@ -32,6 +32,13 @@ type moduleDefinition struct {
 	def    pkgdef.Definition
 	// err is why the definition could not be loaded or parsed.
 	err error
+	// key identifies the definition in the module, by kind and unprefixed name.
+	key string
+	// parentKey is the key of the definition it extends, when that is in the
+	// module too.
+	parentKey string
+	// extendsRev is the revision pinned on the parent, as in "@v3", or "".
+	extendsRev string
 }
 
 // prepareModuleDefinitions parses a module's definitions, orders them so each
@@ -47,9 +54,27 @@ func prepareModuleDefinitions(results []goloader.LoadResult, prefix string) ([]m
 			md.err = md.def.FromCUEString(result.CUE, nil)
 		}
 		if md.err == nil {
-			byKey[definitionKey(md.def.GetKind(), md.def.GetName())] = len(defs)
+			md.key = definitionKey(md.def.GetKind(), md.def.GetName())
+		} else if kind := kindForType(result.Definition.Type); kind != "" && result.Definition.Name != "" {
+			// Keyed from the loader's metadata, so a child of a broken parent is
+			// held back rather than applied against whatever is installed.
+			md.key = definitionKey(kind, result.Definition.Name)
+		}
+		if md.key != "" {
+			byKey[md.key] = len(defs)
 		}
 		defs = append(defs, md)
+	}
+	for i := range defs {
+		if defs[i].err != nil {
+			continue
+		}
+		extends := definitionExtends(defs[i].def)
+		parentKey := definitionKey(defs[i].def.GetKind(), extendsBase(extends))
+		if _, ok := byKey[parentKey]; ok && extends != "" {
+			defs[i].parentKey = parentKey
+			defs[i].extendsRev = strings.TrimPrefix(extends, extendsBase(extends))
+		}
 	}
 
 	ordered := make([]moduleDefinition, 0, len(defs))
@@ -70,11 +95,9 @@ func prepareModuleDefinitions(results []goloader.LoadResult, prefix string) ([]m
 				defs[i].def.GetKind(), cycle[0], strings.Join(cycle[1:], ", which extends "))
 		}
 		state[i] = visiting
-		if defs[i].err == nil {
-			if parent, ok := byKey[definitionKey(defs[i].def.GetKind(), extendsBase(definitionExtends(defs[i].def)))]; ok {
-				if err := visit(parent, append(path, defs[i].def.GetName())); err != nil {
-					return err
-				}
+		if defs[i].parentKey != "" {
+			if err := visit(byKey[defs[i].parentKey], append(path, defs[i].def.GetName())); err != nil {
+				return err
 			}
 		}
 		state[i] = done
@@ -93,17 +116,40 @@ func prepareModuleDefinitions(results []goloader.LoadResult, prefix string) ([]m
 				continue
 			}
 			def := &ordered[i].def
-			if extends := definitionExtends(*def); extends != "" {
-				if _, ok := byKey[definitionKey(def.GetKind(), extendsBase(extends))]; ok {
-					if err := unstructured.SetNestedField(def.Object, prefix+extends, "spec", "extends"); err != nil {
-						return nil, err
-					}
+			if ordered[i].parentKey != "" {
+				if err := unstructured.SetNestedField(def.Object, prefix+definitionExtends(*def), "spec", "extends"); err != nil {
+					return nil, err
 				}
 			}
 			def.SetName(prefix + def.GetName())
 		}
 	}
 	return ordered, nil
+}
+
+// linkToAppliedParent points a definition at the name its in-module parent was
+// applied under, which --conflict=rename may have changed. It refuses when the
+// parent was not applied, so the child never lands on a stale or missing one.
+func linkToAppliedParent(md *moduleDefinition, applied map[string]string) error {
+	if md.parentKey == "" {
+		return nil
+	}
+	name, ok := applied[md.parentKey]
+	if !ok {
+		return fmt.Errorf("not applied, because %s, which it extends, was not applied", strings.TrimPrefix(md.parentKey, md.def.GetKind()+"/"))
+	}
+	return unstructured.SetNestedField(md.def.Object, name+md.extendsRev, "spec", "extends")
+}
+
+// kindForType maps a loader definition type to the kinds that can be extended.
+func kindForType(defType string) string {
+	switch defType {
+	case "component":
+		return "ComponentDefinition"
+	case "trait":
+		return "TraitDefinition"
+	}
+	return ""
 }
 
 // definitionExtends returns the spec.extends of a definition, or "".
