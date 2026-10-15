@@ -65,20 +65,18 @@ func TestRestartingAStepRestartsTheStepsThatReadIt(t *testing.T) {
 		},
 	}
 	af.Dependencies = sources.Dependencies(af.Components, af.AppAnnotations)
-	// failed failed, and reader was skipped for it; the rest succeeded.
-	kept := func(failed, reader string) []string {
+	// from failed and every other step succeeded, so only a step's edges decide
+	// whether restarting from the failed one restarts it too.
+	kept := func(from string, steps []wfv1alpha1.WorkflowStep) []string {
 		var status []workflowv1alpha1.WorkflowStepStatus
 		for _, n := range []string{"db", "api", "build", "notify", "lint"} {
 			phase := workflowv1alpha1.WorkflowStepPhaseSucceeded
-			switch n {
-			case failed:
+			if n == from {
 				phase = workflowv1alpha1.WorkflowStepPhaseFailed
-			case reader:
-				phase = workflowv1alpha1.WorkflowStepPhaseSkipped
 			}
 			status = append(status, workflowv1alpha1.WorkflowStepStatus{StepStatus: workflowv1alpha1.StepStatus{Name: n, Phase: phase}})
 		}
-		got, _, err := wfUtils.CleanStatusFromStep(stepsAsRun(af), status, *af.WorkflowMode, &corev1.ConfigMap{}, failed)
+		got, _, err := wfUtils.CleanStatusFromStep(steps, status, *af.WorkflowMode, &corev1.ConfigMap{}, from)
 		require.NoError(t, err)
 		var names []string
 		for _, s := range got {
@@ -86,6 +84,10 @@ func TestRestartingAStepRestartsTheStepsThatReadIt(t *testing.T) {
 		}
 		return names
 	}
-	require.Equal(t, []string{"db", "api", "lint"}, kept("build", "notify"), "notify reads build's output")
-	require.Equal(t, []string{"build", "notify", "lint"}, kept("db", "api"), "api reads db's output")
+	require.Equal(t, []string{"db", "api", "lint"}, kept("build", stepsAsRun(af)), "notify reads build's output")
+	require.Equal(t, []string{"build", "notify", "lint"}, kept("db", stepsAsRun(af)), "api reads db's output")
+
+	// Without the edges the reads add, the readers would be kept.
+	require.Equal(t, []string{"db", "api", "notify", "lint"}, kept("build", af.WorkflowSteps))
+	require.Equal(t, []string{"api", "build", "notify", "lint"}, kept("db", af.WorkflowSteps))
 }
