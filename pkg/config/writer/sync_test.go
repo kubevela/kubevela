@@ -86,7 +86,9 @@ func TestValidateExpandedWriter(t *testing.T) {
 		{name: "empty endpoint name", cue: `template: { nacos: { endpoint: name: "", metadata: { dataId: "d", group: "g" } }, parameter: {} }`, wantErr: "concrete, non-empty string"},
 		{name: "no metadata", cue: `template: { nacos: { endpoint: name: "nacos" }, parameter: {} }`, wantErr: "nacos.metadata is required"},
 		{name: "metadata not a struct", cue: `template: { nacos: { endpoint: name: "nacos", metadata: "m" }, parameter: {} }`, wantErr: "nacos.metadata must be a struct"},
-		{name: "metadata without group", cue: `template: { nacos: { endpoint: name: "nacos", metadata: { dataId: "d" } }, parameter: {} }`, wantErr: "nacos.metadata.group is required"},
+		{name: "metadata without group", cue: `template: { nacos: { endpoint: name: "nacos", metadata: { dataId: "d" } }, parameter: {} }`},
+		{name: "metadata without dataId", cue: `template: { nacos: { endpoint: name: "nacos", metadata: { group: "g" } }, parameter: {} }`, wantErr: "nacos.metadata.dataId is required"},
+		{name: "group not a string", cue: `template: { nacos: { endpoint: name: "nacos", metadata: { dataId: "d", group: 42 } }, parameter: {} }`, wantErr: "nacos.metadata.group must be a string"},
 		{name: "dataId from an interpolation", cue: `template: {
 			nacos: { endpoint: name: "nacos", metadata: { dataId: "\(context.name)-db", group: "g" }, content: {} }
 			parameter: {}
@@ -219,6 +221,35 @@ func TestContentHash(t *testing.T) {
 		b := ContentHash(nacosData(func(d *NacosData) { d.Format = "json"; d.Content = []byte(`{"b":2,"a":1}`) }))
 		r.NotEqual(a, b)
 	})
+}
+
+func TestEndpointHash(t *testing.T) {
+	r := require.New(t)
+	endpoint := func(port float64, client map[string]interface{}) map[string]interface{} {
+		return map[string]interface{}{
+			EndpointServersKey: []interface{}{map[string]interface{}{"ipAddr": "10.0.0.1", "port": port}},
+			EndpointClientKey:  client,
+		}
+	}
+	creds := map[string]interface{}{"username": "nacos", "password": "secret"}
+	hash := func(m map[string]interface{}) string {
+		h, err := EndpointHash(m)
+		r.NoError(err)
+		return h
+	}
+	base := hash(endpoint(8848, creds))
+	r.Len(base, 64)
+	r.Equal(base, hash(endpoint(8848, creds)), "stable across calls and key order")
+	r.NotEqual(base, hash(endpoint(8849, creds)), "another server is another endpoint")
+	r.Equal(base, hash(endpoint(8848, map[string]interface{}{"username": "nacos", "password": "rotated"})), "credentials are not part of the digest: it is readable in the status, and rotating them changes nothing in Nacos")
+	r.Equal(base, hash(endpoint(8848, map[string]interface{}{})), "with or without credentials, the same endpoint")
+	r.NotEqual(base, hash(endpoint(8848, map[string]interface{}{"endpoint": "acm.example"})), "the discovery endpoint is part of the server side")
+	r.Len(hash(nil), 64)
+	original := endpoint(8848, creds)
+	_, _ = EndpointHash(original)
+	r.Contains(creds, "password", "the caller's maps are not modified")
+	_, err := EndpointHash(map[string]interface{}{EndpointServersKey: make(chan int)})
+	r.ErrorContains(err, "cannot be digested")
 }
 
 func TestSameContent(t *testing.T) {

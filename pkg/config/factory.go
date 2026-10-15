@@ -636,9 +636,9 @@ func (k *kubeConfigFactory) ParseConfig(ctx context.Context,
 			Name:      meta.Name,
 			Namespace: meta.Namespace,
 		}
-		// Compile the config template
-		val, err := template.Template.RunAndOutputWithCueX(ctx, contextValue, meta.Properties)
-		if err != nil && !velacue.IsFieldNotExist(err) {
+		// Compile the config template, once for the Secret, the outputs and the nacos block
+		val, err := RenderTemplate(ctx, template.Template, template.ExpandedWriter, contextValue, meta.Properties)
+		if err != nil {
 			return nil, err
 		}
 		// Render the validation response and check validation result
@@ -677,8 +677,8 @@ func (k *kubeConfigFactory) ParseConfig(ctx context.Context,
 		secret.Annotations[types.AnnotationConfigTemplateNamespace] = template.Namespace
 		config.Template = *template
 
-		// Render the expanded writer configuration
-		data, err := writer.RenderForExpandedWriter(template.ExpandedWriter, config.Template.Template, contextValue, meta.Properties)
+		// Render the expanded writer configuration from the same compile as the Secret
+		data, err := writer.RenderForExpandedWriter(template.ExpandedWriter, val)
 		if err != nil {
 			return nil, fmt.Errorf("fail to render the content for the expanded writer:%w ", err)
 		}
@@ -745,15 +745,40 @@ func (k *kubeConfigFactory) ReadConfig(ctx context.Context, namespace, name stri
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
 		return nil, err
 	}
-	if secret.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue {
+	return ReadConfigSecret(&secret)
+}
+
+// ReadConfigSecret returns the input properties a config Secret holds, refusing a
+// sensitive one: the Secret-level half of ReadConfig, shared with the Config controller,
+// which reads a template's Nacos endpoint config the same way.
+func ReadConfigSecret(secret *v1.Secret) (map[string]interface{}, error) {
+	if secretSensitive(secret) {
 		return nil, ErrSensitiveConfig
 	}
-	properties := secret.Data[SaveInputPropertiesKey]
+	properties, ok := secret.Data[SaveInputPropertiesKey]
+	if !ok || len(properties) == 0 {
+		return nil, fmt.Errorf("secret %s/%s has no %s", secret.Namespace, secret.Name, SaveInputPropertiesKey)
+	}
 	var input = map[string]interface{}{}
 	if err := json.Unmarshal(properties, &input); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s of secret %s/%s is not json: %w", SaveInputPropertiesKey, secret.Namespace, secret.Name, err)
 	}
 	return input, nil
+}
+
+// RenderTemplate compiles a config template with CueX for the render context and the
+// properties, and returns the value the Secret, the outputs and the nacos block are read
+// from. The one rule on partial renders lives here, for the CLI and the controller
+// alike: an error that says a field does not exist is tolerated for a template without
+// a nacos block (the output is then read as absent, as the legacy path always did), and
+// never for a template with the block, which is read from this value and would
+// otherwise fail with a message about a missing block instead of the real error.
+func RenderTemplate(ctx context.Context, template script.CUE, ewc writer.ExpandedWriterConfig, renderCtx icontext.ConfigRenderContext, properties map[string]interface{}) (cue.Value, error) {
+	val, err := template.RunAndOutputWithCueX(ctx, renderCtx, properties)
+	if err != nil && (!velacue.IsFieldNotExist(err) || ewc.Nacos != nil) {
+		return cue.Value{}, err
+	}
+	return val, nil
 }
 
 func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name string, withStatus bool) (*Config, error) {

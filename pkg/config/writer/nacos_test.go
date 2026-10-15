@@ -28,6 +28,7 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 	"github.com/stretchr/testify/require"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 
 	configcontext "github.com/oam-dev/kubevela/pkg/config/context"
@@ -46,12 +47,11 @@ func TestNacosWriter(t *testing.T) {
 	}
 	`)
 	r.Equal(v.Err(), nil)
-	ewc := &ExpandedWriterConfig{}
-	parseNacosConfig(v, ewc)
+	ewc := ParseExpandedWriterConfig(v)
 	r.Equal(ewc.Nacos.Endpoint.Name, "test-nacos-server")
 	r.Equal(ewc.Nacos.Format, "json")
 	renderContext := configcontext.ConfigRenderContext{Name: "nacos-config", Namespace: "vela"}
-	data, err := renderNacos(ewc.Nacos, script.CUE(`
+	rendered, err := script.CUE(`
 	template: {
 		nacos: {
 			// The endpoint can not references the parameter.
@@ -100,7 +100,7 @@ func TestNacosWriter(t *testing.T) {
 			tag?: string
 		}
 	}
-	`), renderContext, map[string]interface{}{
+	`).RunAndOutputWithCueX(context.TODO(), renderContext, map[string]interface{}{
 		"dataId": "hello",
 		"content": map[string]interface{}{
 			"c1": 1,
@@ -111,7 +111,10 @@ func TestNacosWriter(t *testing.T) {
 		"tenant":      "tenant",
 		"tag":         "tag",
 	})
-	r.Equal(err, nil)
+	r.NoError(err)
+	data, err := renderNacos(ewc.Nacos, rendered)
+	r.NoError(err)
+	r.Equal("vela-system", data.Endpoint.Namespace, "the endpoint namespace defaults to the system namespace")
 
 	ctl := gomock.NewController(t)
 	nacosClient := nacosmock.NewMockIConfigClient(ctl)
@@ -230,7 +233,8 @@ func TestNewNacosClientSeam(t *testing.T) {
 	r.Nil(data.Client, "write does not keep the client it built")
 	r.NotNil(gotParam.ClientConfig, "the client config is built without a client section in the endpoint config")
 	r.Equal(filepath.Join(os.TempDir(), "nacos", "log"), gotParam.ClientConfig.LogDir)
-	r.Equal(filepath.Join(os.TempDir(), "nacos", "cache"), gotParam.ClientConfig.CacheDir)
+	r.Equal(filepath.Join(os.TempDir(), "nacos", "cache", "vela-system", "nacos"), gotParam.ClientConfig.CacheDir, "a cache directory per endpoint")
+	r.True(gotParam.ClientConfig.DisableUseSnapShot, "a read never falls back to the SDK's snapshot of an earlier read")
 
 	// Read goes through the same seam
 	mock.EXPECT().GetConfig(gomock.Any()).Return("", nil)
@@ -241,11 +245,14 @@ func TestNewNacosClientSeam(t *testing.T) {
 
 	// a seam error surfaces
 	NewNacosClient = func(vo.NacosClientParam) (config_client.IConfigClient, error) { return nil, errors.New("no client") }
-	r.EqualError(data.write(context.TODO(), readConfigFor("nacos")), "no client")
+	r.ErrorContains(data.write(context.TODO(), readConfigFor("nacos")), "no client")
 }
 
 func TestClientParamCarriesTheBlockMetadata(t *testing.T) {
-	data := &NacosData{NacosConfig: NacosConfig{Metadata: NacosConfigMetadata{AppName: "app", NamespaceID: "tenant-a"}}}
+	data := &NacosData{NacosConfig: NacosConfig{
+		Endpoint: ConfigRef{Name: "nacos", Namespace: "vela-system"},
+		Metadata: NacosConfigMetadata{AppName: "app", NamespaceID: "tenant-a"},
+	}}
 
 	t.Run("without a client section", func(t *testing.T) {
 		r := require.New(t)
@@ -274,6 +281,107 @@ func TestClientParamCarriesTheBlockMetadata(t *testing.T) {
 		r.Equal("r", param.ClientConfig.RegionId)
 		r.True(param.ClientConfig.OpenKMS)
 		r.Equal("tenant-a", param.ClientConfig.NamespaceId)
-		r.Equal(filepath.Join(os.TempDir(), "nacos", "cache"), param.ClientConfig.CacheDir)
+		r.Equal(filepath.Join(os.TempDir(), "nacos", "cache", "vela-system", "nacos"), param.ClientConfig.CacheDir)
+	})
+
+	t.Run("two endpoints never share a cache directory", func(t *testing.T) {
+		r := require.New(t)
+		other := &NacosData{NacosConfig: NacosConfig{Endpoint: ConfigRef{Name: "nacos", Namespace: "team-b"}}}
+		a := data.clientParam(map[string]interface{}{}).ClientConfig
+		b := other.clientParam(map[string]interface{}{}).ClientConfig
+		r.NotEqual(a.CacheDir, b.CacheDir)
+		r.True(a.DisableUseSnapShot)
+		r.True(b.DisableUseSnapShot)
+	})
+}
+
+// TestNewClientIsTheSharedSeam pins what the controller relies on: a client built once
+// from the endpoint config and set as NacosData.Client serves the read and the publish
+// without another construction, and the release function closes it once.
+func TestNewClientIsTheSharedSeam(t *testing.T) {
+	r := require.New(t)
+	ctl := gomock.NewController(t)
+	mock := nacosmock.NewMockIConfigClient(ctl)
+	built := 0
+	previous := NewNacosClient
+	NewNacosClient = func(vo.NacosClientParam) (config_client.IConfigClient, error) {
+		built++
+		return mock, nil
+	}
+	t.Cleanup(func() { NewNacosClient = previous })
+
+	data := &NacosData{NacosConfig: NacosConfig{
+		Endpoint: ConfigRef{Name: "nacos", Namespace: "vela-system"},
+		Format:   "properties",
+		Metadata: NacosConfigMetadata{DataID: "nc-db", Group: "DEFAULT_GROUP"},
+	}, Content: []byte("mysqlPort = 3306\n")}
+	cli, release, err := data.NewClient(map[string]interface{}{"servers": []interface{}{map[string]interface{}{"ipAddr": "127.0.0.1", "port": float64(8848)}}})
+	r.NoError(err)
+	data.Client = cli
+
+	mock.EXPECT().GetConfig(gomock.Any()).Return("", nil)
+	mock.EXPECT().PublishConfig(gomock.Any()).Return(true, nil)
+	mock.EXPECT().CloseClient().Times(1)
+	failing := func(context.Context, string, string) (map[string]interface{}, error) {
+		return nil, errors.New("must not read the endpoint again")
+	}
+	_, err = Read(context.TODO(), data, failing)
+	r.NoError(err)
+	r.NoError(data.write(context.TODO(), failing))
+	release()
+	r.Equal(1, built, "one construction for the read and the publish")
+
+	NewNacosClient = func(vo.NacosClientParam) (config_client.IConfigClient, error) {
+		return nil, errors.New("bad server config")
+	}
+	_, _, err = data.NewClient(map[string]interface{}{})
+	r.EqualError(err, "fail to build the nacos client for the endpoint vela-system/nacos: bad server config")
+}
+
+// TestRenderNacosReadsTheRenderedValue: the block comes out of the CueX render the Secret
+// uses, so a template that imports a vela package renders (the plain compiler refused
+// the import), and an empty group becomes the SDK's default.
+func TestRenderNacosReadsTheRenderedValue(t *testing.T) {
+	ctx := context.TODO()
+	renderContext := configcontext.ConfigRenderContext{Name: "nc-imp", Namespace: "nw-nacos"}
+	props := map[string]interface{}{"dataId": "nc-imp", "content": map[string]interface{}{"mysqlHost": "db", "mysqlPort": 3306}}
+
+	t.Run("behind a vela import, group left out", func(t *testing.T) {
+		r := require.New(t)
+		imported := script.CUE(`
+import "vela/config"
+
+template: {
+	_registryParams: config.#ImageRegistry.$params
+	nacos: {
+		endpoint: name: "nacos"
+		format: "properties"
+		metadata: dataId: parameter.dataId
+		content: parameter.content
+	}
+	output: { apiVersion: "v1", kind: "Secret", stringData: dataId: parameter.dataId }
+	parameter: { dataId: string, content: { mysqlHost: string, mysqlPort: int } }
+}
+`)
+		_, err := imported.ParseToValue()
+		r.Error(err, "the plain compiler cannot read the import")
+		rendered, err := imported.RunAndOutputWithCueX(ctx, renderContext, props)
+		r.NoError(err)
+		ewc := ParseExpandedWriterConfig(rendered.LookupPath(cue.ParsePath("template")))
+		r.NotNil(ewc.Nacos)
+		data, err := RenderForExpandedWriter(ewc, rendered)
+		r.NoError(err)
+		r.Equal("nc-imp", data.Nacos.Metadata.DataID)
+		r.Equal("DEFAULT_GROUP", data.Nacos.Metadata.Group, "an empty group is the SDK's default group")
+		r.Equal("vela-system", data.Nacos.Endpoint.Namespace)
+		r.Equal("mysqlHost = db\nmysqlPort = 3306\n", string(data.Nacos.Content))
+	})
+
+	t.Run("a rendered value without the block", func(t *testing.T) {
+		r := require.New(t)
+		rendered, err := script.CUE(`template: { output: {}, parameter: {} }`).RunAndOutputWithCueX(ctx, renderContext, nil)
+		r.NoError(err)
+		_, err = renderNacos(&NacosConfig{}, rendered)
+		r.EqualError(err, "the rendered template has no nacos block")
 	})
 }

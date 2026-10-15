@@ -110,6 +110,18 @@ func (f *fakeNacos) clientsBuilt() int {
 	return f.built
 }
 
+func (f *fakeNacos) clientsClosed() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.closed
+}
+
+func (f *fakeNacos) readCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.reads
+}
+
 func (f *fakeNacos) setFailing(err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -119,6 +131,11 @@ func (f *fakeNacos) setFailing(err error) {
 // nacosTemplateCUE is the shape of pkg/config/testdata/mysql-db-nacos.cue with the
 // endpoint name substituted: concrete endpoint, metadata from the parameter, properties.
 func nacosTemplateCUE(endpoint string) string {
+	return nacosTemplateWith(endpoint, "dataId: parameter.dataId\n\t\t\tgroup:  parameter.group")
+}
+
+// nacosTemplateWith is nacosTemplateCUE with the metadata block supplied by the caller.
+func nacosTemplateWith(endpoint, metadata string) string {
 	return fmt.Sprintf(`
 template: {
 	nacos: {
@@ -128,8 +145,7 @@ template: {
 		}
 		format: "properties"
 		metadata: {
-			dataId: parameter.dataId
-			group:  parameter.group
+			%s
 		}
 		content: parameter.content
 	}
@@ -149,7 +165,7 @@ template: {
 		}
 	}
 }
-`, endpoint)
+`, endpoint, metadata)
 }
 
 var _ = Describe("Config controller: the template's nacos block", func() {
@@ -263,9 +279,14 @@ var _ = Describe("Config controller: the template's nacos block", func() {
 		Expect(got.Status.ExpandedWriter.Nacos.DataID).Should(Equal("nc-db-a"))
 		Expect(got.Status.ExpandedWriter.Nacos.Group).Should(Equal("DEFAULT_GROUP"))
 		Expect(got.Status.ExpandedWriter.Nacos.ContentHash).Should(HaveLen(64))
+		Expect(got.Status.ExpandedWriter.Nacos.EndpointHash).Should(HaveLen(64))
+		Expect(got.Status.ExpandedWriter.Nacos.Endpoint).Should(Equal(&configv1alpha1.NacosEndpointReference{Name: "nacos-a", Namespace: "vela-system"}))
 		Expect(got.Status.ExpandedWriter.Nacos.LastSyncTime).ShouldNot(BeNil())
 		hash := got.Status.ExpandedWriter.Nacos.ContentHash
 		Expect(got.Status.GetCondition("Synced").Status).Should(Equal(corev1.ConditionTrue))
+		// one client per sync (each sync reads exactly once), released afterwards
+		Expect(fake.clientsBuilt()).Should(Equal(fake.readCount()))
+		Expect(fake.clientsClosed()).Should(Equal(fake.clientsBuilt()))
 
 		By("a reconcile with the same spec publishes nothing")
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
@@ -340,7 +361,12 @@ var _ = Describe("Config controller: the template's nacos block", func() {
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
 		Expect(got.Status.Phase).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
 		Expect(got.Status.SecretRef).ShouldNot(BeNil())
-		Expect(got.Status.ExpandedWriter).Should(BeNil())
+		// the endpoint the template names is recorded while the Config waits, so the
+		// endpoint Secret watch finds it by name; no sync has been confirmed yet
+		Expect(got.Status.ExpandedWriter).ShouldNot(BeNil())
+		Expect(got.Status.ExpandedWriter.Nacos.Endpoint).Should(Equal(&configv1alpha1.NacosEndpointReference{Name: "nacos-d", Namespace: "vela-system"}))
+		Expect(got.Status.ExpandedWriter.Nacos.ContentHash).Should(BeEmpty())
+		Expect(got.Status.ExpandedWriter.Nacos.LastSyncTime).Should(BeNil())
 		Expect(got.Status.GetCondition(configv1alpha1.ConditionNacosSynced).Message).Should(ContainSubstring("vela-system/nacos-d"))
 		Expect(fake.calls()).Should(Equal(0))
 
@@ -379,7 +405,8 @@ var _ = Describe("Config controller: the template's nacos block", func() {
 		Expect(got.Status.Phase).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
 		Expect(got.Status.SecretRef).ShouldNot(BeNil())
 		Expect(got.Status.GetCondition(configv1alpha1.ConditionNacosSynced).Message).Should(ContainSubstring("nacos: 503"))
-		Expect(got.Status.ExpandedWriter).Should(BeNil(), "no successful sync recorded yet")
+		Expect(got.Status.ExpandedWriter.Nacos.ContentHash).Should(BeEmpty(), "no successful sync recorded yet")
+		Expect(got.Status.ExpandedWriter.Nacos.Endpoint.Name).Should(Equal("nacos-f"), "the endpoint is recorded on a failed attempt too")
 		By("the requeue keeps trying while Nacos keeps failing")
 		Eventually(fake.publishCount, 15*time.Second, time.Second).Should(BeNumerically(">=", 2))
 
@@ -426,6 +453,55 @@ var _ = Describe("Config controller: the template's nacos block", func() {
 		fake.mu.Lock()
 		Expect(fake.store["DEFAULT_GROUP/nc-db-g"]).Should(Equal("mysqlHost = db\nmysqlPort = 3306\n"))
 		fake.mu.Unlock()
+	})
+
+	It("re-syncs through the endpoint Secret watch when the endpoint config changes: read first, nothing published", func() {
+		Expect(k8sClient.Create(ctx, legacyEndpoint("nacos-i"))).Should(Succeed())
+		availableTemplate("nc-app-i", nacosTemplateCUE("nacos-i"))
+		cfg := newConfig("nc-db-i", "nc-app-i", 3306)
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(HavePrefix("True/"))
+		var got configv1alpha1.Config
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
+		endpointHash := got.Status.ExpandedWriter.Nacos.EndpointHash
+		Expect(endpointHash).Should(HaveLen(64))
+		contentHash := got.Status.ExpandedWriter.Nacos.ContentHash
+		publishes := fake.publishCount()
+		reads := fake.readCount()
+
+		By("the endpoint points at another server: nothing but the Secret changes, the Config re-syncs")
+		var endpoint corev1.Secret
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "vela-system", Name: "nacos-i"}, &endpoint)).Should(Succeed())
+		endpoint.Data[legacyconfig.SaveInputPropertiesKey] = []byte(`{"servers":[{"ipAddr":"10.0.0.2","port":8848}]}`)
+		Expect(k8sClient.Update(ctx, &endpoint)).Should(Succeed())
+		Eventually(func() string {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
+			return got.Status.ExpandedWriter.Nacos.EndpointHash
+		}, 15*time.Second, time.Second).ShouldNot(Equal(endpointHash))
+		Expect(got.Status.ExpandedWriter.Nacos.ContentHash).Should(Equal(contentHash), "the content did not change")
+		Expect(nacosSynced(cfg)()).Should(Equal("True/AlreadyCurrent"), "the other server (the same fake) already holds the content")
+		Expect(fake.readCount()).Should(BeNumerically(">", reads))
+		Expect(fake.publishCount()).Should(Equal(publishes))
+
+		By("a reconcile with nothing changed is the fast path again")
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
+		got.Annotations = map[string]string{"touch": "1"}
+		Expect(k8sClient.Update(ctx, &got)).Should(Succeed())
+		reads = fake.readCount()
+		Consistently(fake.readCount, 3*time.Second, time.Second).Should(Equal(reads))
+	})
+
+	It("publishes to DEFAULT_GROUP for a template whose metadata has no group", func() {
+		Expect(k8sClient.Create(ctx, legacyEndpoint("nacos-j"))).Should(Succeed())
+		availableTemplate("nc-app-j", nacosTemplateWith("nacos-j", "dataId: parameter.dataId"))
+		cfg := newConfig("nc-db-j", "nc-app-j", 3306)
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+		Eventually(nacosSynced(cfg), 15*time.Second, time.Second).Should(HavePrefix("True/"))
+		Expect(fake.lastPublish().Group).Should(Equal("DEFAULT_GROUP"))
+		var got configv1alpha1.Config
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), &got)).Should(Succeed())
+		Expect(got.Status.Phase).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+		Expect(got.Status.ExpandedWriter.Nacos.Group).Should(Equal("DEFAULT_GROUP"))
 	})
 
 	It("puts the Config in Error when the template's nacos block fails validation", func() {

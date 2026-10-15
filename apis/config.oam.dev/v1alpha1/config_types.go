@@ -100,9 +100,26 @@ type NacosSyncStatus struct {
 	DataID      string `json:"dataId"`
 	Group       string `json:"group"`
 	ContentHash string `json:"contentHash"`
+	// Endpoint is the endpoint config (the config made from the nacos-server template) the
+	// template names, recorded on every sync attempt whether it succeeded or not, so a
+	// change to that config re-triggers exactly the Configs that use it, including the
+	// ones still waiting for it to exist.
+	Endpoint *NacosEndpointReference `json:"endpoint,omitempty"`
+	// EndpointHash is a digest of that endpoint config's server part (addresses, ports,
+	// discovery endpoint, region), never its credentials. A changed endpoint, another
+	// server say, is re-synced like changed content: read first, published only when the
+	// server does not hold it. Rotated credentials change nothing in Nacos and are not
+	// part of it; the status is readable by whoever can read Configs.
+	EndpointHash string `json:"endpointHash,omitempty"`
 	// LastSyncTime is when the content was last confirmed current in Nacos, by a
 	// publish or by a read that found it already there.
 	LastSyncTime *metav1.Time `json:"lastSyncTime,omitempty"`
+}
+
+// NacosEndpointReference names an endpoint config Secret.
+type NacosEndpointReference struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
 }
 
 // ConditionNacosSynced reports whether the content rendered from the template's nacos
@@ -121,7 +138,8 @@ const (
 	// ReasonNacosEndpointNotFound: the endpoint config named by the template does not exist.
 	ReasonNacosEndpointNotFound condition.ConditionReason = "EndpointNotFound"
 	// ReasonNacosEndpointUnreadable: the endpoint config exists but cannot be used (sensitive,
-	// no properties, undecodable, or the API refused the read).
+	// no properties, undecodable, the API refused the read, or no Nacos client can be built
+	// from what it holds).
 	ReasonNacosEndpointUnreadable condition.ConditionReason = "EndpointUnreadable"
 	// ReasonNacosReadFailed: the first-sync read from Nacos failed.
 	ReasonNacosReadFailed condition.ConditionReason = "ReadFailed"

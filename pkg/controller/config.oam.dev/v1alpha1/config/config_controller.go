@@ -44,7 +44,6 @@ import (
 	legacyconfig "github.com/oam-dev/kubevela/pkg/config"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -106,12 +105,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.markError(ctx, &cfg, err)
 	}
 
-	secret, outputs, err := r.renderSecret(ctx, &cfg, tmpl, props)
+	// one compile serves the Secret, the outputs and the nacos block
+	rendered, err := renderTemplate(ctx, &cfg, tmpl, props)
+	if err != nil {
+		return r.markError(ctx, &cfg, err)
+	}
+	secret, outputs, err := r.renderSecret(&cfg, tmpl, rendered, props)
 	if err != nil {
 		return r.markError(ctx, &cfg, err)
 	}
 
-	nacosData, err := renderExpandedWriter(&cfg, tmpl, props)
+	nacosData, err := renderExpandedWriter(tmpl, rendered)
 	if err != nil {
 		return r.markError(ctx, &cfg, err)
 	}
@@ -182,17 +186,27 @@ func (r *Reconciler) resolveProperties(ctx context.Context, cfg *configv1alpha1.
 	return props, nil
 }
 
-func (r *Reconciler) renderSecret(ctx context.Context, cfg *configv1alpha1.Config, tmpl *legacyconfig.ResolvedTemplate, props map[string]interface{}) (*corev1.Secret, []*unstructured.Unstructured, error) {
+// renderTemplate compiles the Config's template once, for the Secret, the outputs and
+// the nacos block (legacyconfig.RenderTemplate holds the one rule on partial renders).
+// A Config without a template has nothing to render.
+func renderTemplate(ctx context.Context, cfg *configv1alpha1.Config, tmpl *legacyconfig.ResolvedTemplate, props map[string]interface{}) (cue.Value, error) {
+	if tmpl == nil {
+		return cue.Value{}, nil
+	}
+	contextValue := icontext.ConfigRenderContext{Name: cfg.Name, Namespace: cfg.Namespace}
+	val, err := legacyconfig.RenderTemplate(ctx, tmpl.CUE, tmpl.ExpandedWriter, contextValue, props)
+	if err != nil {
+		return cue.Value{}, fmt.Errorf("failed to render config template: %w", err)
+	}
+	return val, nil
+}
+
+// renderSecret builds the Secret and the outputs from the rendered template value.
+func (r *Reconciler) renderSecret(cfg *configv1alpha1.Config, tmpl *legacyconfig.ResolvedTemplate, val cue.Value, props map[string]interface{}) (*corev1.Secret, []*unstructured.Unstructured, error) {
 	secret := &corev1.Secret{}
 	var outputs []*unstructured.Unstructured
 
 	if tmpl != nil {
-		contextValue := icontext.ConfigRenderContext{Name: cfg.Name, Namespace: cfg.Namespace}
-		val, err := tmpl.CUE.RunAndOutputWithCueX(ctx, contextValue, props)
-		if err != nil && !velacue.IsFieldNotExist(err) {
-			return nil, nil, fmt.Errorf("failed to render config template: %w", err)
-		}
-
 		validReturns := val.LookupPath(cue.ParsePath(legacyconfig.TemplateValidationReturns))
 		if validReturns.Exists() {
 			var validation legacyconfig.Validation
@@ -215,6 +229,7 @@ func (r *Reconciler) renderSecret(ctx context.Context, cfg *configv1alpha1.Confi
 			secret.Type = corev1.SecretType(fmt.Sprintf("%s/%s", "", tmpl.Name))
 		}
 
+		var err error
 		outputs, err = renderOutputs(val, cfg.Namespace)
 		if err != nil {
 			return nil, nil, err
@@ -434,18 +449,19 @@ func (r *Reconciler) findConfigsForTemplate(ctx context.Context, obj client.Obje
 	return requests
 }
 
-// findConfigsForSecret re-triggers Configs when their spec.propertiesFrom Secret changes.
+// findConfigsForSecret re-triggers Configs when their spec.propertiesFrom Secret changes,
+// and the Configs with a nacos block when a Nacos endpoint config Secret does.
 func (r *Reconciler) findConfigsForSecret(ctx context.Context, obj client.Object) []reconcile.Request {
 	secret, ok := obj.(*corev1.Secret)
 	if !ok {
 		return nil
 	}
+	requests := r.findConfigsForEndpoint(ctx, secret)
 	var list configv1alpha1.ConfigList
 	if err := r.List(ctx, &list, client.InNamespace(secret.Namespace)); err != nil {
 		klog.ErrorS(err, "failed to list Configs for Secret watch", "secret", klog.KObj(secret))
-		return nil
+		return requests
 	}
-	var requests []reconcile.Request
 	for i := range list.Items {
 		cfg := &list.Items[i]
 		ref := cfg.Spec.PropertiesFrom
@@ -494,6 +510,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithAnnotations("controller", "Config")
 	if r.applicator == nil {
 		r.applicator = apply.NewAPIApplicator(mgr.GetClient())
+	}
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &configv1alpha1.Config{}, nacosEndpointIndex, nacosEndpointIndexValue); err != nil {
+		return err
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.Options{

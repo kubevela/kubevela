@@ -34,7 +34,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
-	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
 
 // ExpandedWriterConfig define the supported output ways.
@@ -73,12 +72,14 @@ func ParseExpandedWriterConfig(template cue.Value) ExpandedWriterConfig {
 	return ewc
 }
 
-// RenderForExpandedWriter render the configuration for all expanded writers
-func RenderForExpandedWriter(ewc ExpandedWriterConfig, template script.CUE, context icontext.ConfigRenderContext, properties map[string]interface{}) (*ExpandedWriterData, error) {
+// RenderForExpandedWriter renders the configuration for all expanded writers from the
+// rendered template value: the CueX compile of the script with the render context and
+// the parameters merged in, the same value the Secret output is read from.
+func RenderForExpandedWriter(ewc ExpandedWriterConfig, rendered cue.Value) (*ExpandedWriterData, error) {
 	var ewd = ExpandedWriterData{}
 	var err error
 	if ewc.Nacos != nil {
-		ewd.Nacos, err = renderNacos(ewc.Nacos, template, context, properties)
+		ewd.Nacos, err = renderNacos(ewc.Nacos, rendered)
 		if err != nil {
 			return nil, err
 		}
