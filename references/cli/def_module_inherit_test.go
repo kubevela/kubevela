@@ -111,3 +111,30 @@ func TestPrepareModuleDefinitionsKeepsParseErrors(t *testing.T) {
 	assert.Error(t, defs[0].err)
 	assert.Equal(t, "fine", defs[1].def.GetName())
 }
+
+func TestPrepareModuleDefinitionsKeysABrokenParent(t *testing.T) {
+	defs, err := prepareModuleDefinitions([]goloader.LoadResult{
+		component("child", "base"),
+		{CUE: "not: [cue", Definition: goloader.DefinitionInfo{Name: "base", Type: "component"}},
+	}, "")
+	require.NoError(t, err)
+	require.Len(t, defs, 2)
+	assert.Error(t, defs[0].err, "the broken parent is ordered first")
+	assert.Equal(t, "ComponentDefinition/base", defs[1].parentKey)
+	assert.ErrorContains(t, linkToAppliedParent(&defs[1], map[string]string{}), "base, which it extends, was not applied")
+}
+
+func TestLinkToAppliedParentFollowsARename(t *testing.T) {
+	defs, err := prepareModuleDefinitions([]goloader.LoadResult{
+		component("base", ""),
+		component("child", "base@v2"),
+		component("external-child", "webservice"),
+	}, "")
+	require.NoError(t, err)
+	applied := map[string]string{"ComponentDefinition/base": "base-1"}
+	for i := range defs {
+		require.NoError(t, linkToAppliedParent(&defs[i], applied))
+	}
+	assert.Equal(t, "base-1@v2", definitionExtends(defs[1].def))
+	assert.Equal(t, "webservice", definitionExtends(defs[2].def), "a parent outside the module is left alone")
+}

@@ -186,6 +186,14 @@ var _ = Describe("Definition inheritance", func() {
 			}))
 		})
 
+		It("refuses a chain that loops back on itself", func() {
+			base := baseWeb()
+			child := tenantWeb(base)
+			base.Extends(child)
+			_, err := child.EvaluateCUE(defkit.TestContext())
+			Expect(err).To(MatchError(ContainSubstring("tenant-web extends itself through tenant-web")))
+		})
+
 		It("asks for the CUE of a parent it only references", func() {
 			_, err := defkit.NewComponent("c").Extends(defkit.ComponentRef("webservice")).
 				Template(func(tpl *defkit.Template) { tpl.Super() }).

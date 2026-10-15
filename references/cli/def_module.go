@@ -399,6 +399,10 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 		return err
 	}
 
+	// applied maps each definition applied, or kept as installed, to its final
+	// name, for the children applied after it.
+	applied := map[string]string{}
+
 	// Apply each definition
 	for _, md := range prepared {
 		result := md.result
@@ -439,6 +443,12 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			}
 		}
 
+		if err := linkToAppliedParent(&md, applied); err != nil {
+			stats.Failed++
+			failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", def.GetName(), err))
+			continue
+		}
+
 		// Track definition type
 		trackDefinitionType(stats, result.Definition.Type)
 
@@ -453,6 +463,7 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			streams.Info(s)
 			streams.Info("---\n")
 			stats.Created++
+			applied[md.key] = def.GetName()
 			continue
 		}
 
@@ -477,6 +488,7 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			case ConflictStrategySkip:
 				streams.Infof("Skipping %s %s (already exists)\n", def.GetKind(), def.GetName())
 				stats.Skipped++
+				applied[md.key] = def.GetName()
 				continue
 			case ConflictStrategyFail:
 				return errors.Errorf("definition %s %s already exists in namespace %s (use --conflict=overwrite to update)",
@@ -522,6 +534,7 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			}
 			streams.Infof("%s %s updated in namespace %s\n", def.GetKind(), def.GetName(), opts.namespace)
 			stats.Updated++
+			applied[md.key] = def.GetName()
 		} else {
 			// Create new
 			if err = k8sClient.Create(ctx, &def); err != nil {
@@ -531,6 +544,7 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			}
 			streams.Infof("%s %s created in namespace %s\n", def.GetKind(), def.GetName(), opts.namespace)
 			stats.Created++
+			applied[md.key] = def.GetName()
 		}
 	}
 	stats.DefApplyTime = time.Since(defApplyStart)

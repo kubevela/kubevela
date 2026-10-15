@@ -132,7 +132,12 @@ func (c *ComponentDefinition) validateDefinition() error {
 // componentChain returns the component and every typed ancestor, child first.
 func componentChain(c *ComponentDefinition) ([]inherit.Level, error) {
 	var chain []inherit.Level
+	seen := map[*ComponentDefinition]bool{}
 	for d := c; d != nil; d = d.parent {
+		if seen[d] {
+			return nil, fmt.Errorf("%s extends itself through %s, so it cannot be rendered", c.GetName(), d.GetName())
+		}
+		seen[d] = true
 		if !hasTemplate(d) {
 			return nil, fmt.Errorf("%s extends %s, which has no template here to render it on; supply it with ComponentRef(%q).WithCUE(...)",
 				c.GetName(), d.GetName(), d.GetName())
