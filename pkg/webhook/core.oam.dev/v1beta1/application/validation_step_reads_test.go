@@ -73,15 +73,18 @@ func TestValidateWorkflowStepReads(t *testing.T) {
 	t.Run("a read of a later step in a workflow run in order is refused", func(t *testing.T) {
 		errs := h.ValidateWorkflow(context.Background(), stepReadsApp(
 			readStep("notify", `{"message":"$(steps.build.outputs.image)"}`), readStep("build", "", "image")))
+		require.NotEmpty(t, errs)
 		require.Contains(t, errs.ToAggregate().Error(), "build runs after notify")
 	})
 	t.Run("each outside a forEach body is refused", func(t *testing.T) {
 		errs := h.ValidateWorkflow(context.Background(), stepReadsApp(readStep("notify", `{"message":"$(each.item)"}`)))
+		require.NotEmpty(t, errs)
 		require.Contains(t, errs.ToAggregate().Error(), "each is only set inside a forEach body")
 	})
 	t.Run("a component read in a step is refused", func(t *testing.T) {
 		app := stepReadsApp(readStep("notify", `{"message":"$(component.db.output.status.endpoint)"}`))
 		errs := append(h.ValidateWorkflow(context.Background(), app), h.ValidateSources(context.Background(), app)...)
+		require.NotEmpty(t, errs)
 		require.Contains(t, errs.ToAggregate().Error(), `"component" cannot be read here`)
 	})
 	t.Run("an Application that has not opted in is not read", func(t *testing.T) {
