@@ -79,12 +79,13 @@ func StepDependencies(in []common.WorkflowStepDependency) []workflowv1alpha1.Ste
 	return out
 }
 
-// WithStepReads is deps, the workflow engine's record of what each step waits
-// on, with the reads KubeVela knows of: reads is, by step, the steps a component
-// the step applies reads (appfile.StepReadDependencies). An entry of deps that
-// is one of those reads is marked an expression's, a read deps does not have
-// (the order answered it without a dependsOn) is added as an expression's, and
-// the result is sorted by step, each step's entries kept in order.
+// WithStepReads adds KubeVela's component reads to deps, the workflow engine's
+// record of what each step waits on. reads maps each step to the steps whose
+// components the components it applies read (appfile.StepReadDependencies).
+// An entry of deps that is one of those reads is marked as an expression
+// dependency; a read missing from deps, because the order answered it without a
+// dependsOn, is added as one. The result is sorted by step, each step's entries
+// in their original order.
 func WithStepReads(deps []common.WorkflowStepDependency, reads map[string][]string) []common.WorkflowStepDependency {
 	if len(reads) == 0 {
 		return deps
