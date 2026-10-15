@@ -211,7 +211,7 @@ func cueTemplate(s *common.Schematic) string {
 
 // outputSchemaCache keeps generated output schemas by the templates they came
 // from: the same few definitions are typed against over and over, and a
-// generation evaluates CUE. A template that cannot be generated is kept as nil.
+// generation evaluates CUE. Only a schema that was generated is kept.
 var outputSchemaCache = &schemaCache{entries: map[string]*OutputSchemas{}}
 
 // maxCachedSchemas bounds the cache; past it, it starts again.
@@ -239,8 +239,10 @@ func (c *schemaCache) get(ctx context.Context, levels []inherit.Level) *OutputSc
 	}
 	s, err := ChainOutputSchemas(ctx, levels)
 	if err != nil {
+		// Not kept: generation can read packages from the cluster, so a later
+		// admission may succeed.
 		klog.V(4).InfoS("skip typing component reads: output schemas not generated", "definition", levels[0].Name, "err", err)
-		s = nil
+		return nil
 	}
 	c.mu.Lock()
 	if len(c.entries) >= maxCachedSchemas {

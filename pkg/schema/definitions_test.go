@@ -32,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 	"github.com/oam-dev/kubevela/pkg/features"
 )
 
@@ -262,4 +263,15 @@ parameter: replicas: *1 | int
 	k, ok := ComponentReadKind(produced, readOf(t, "component.svc.output.spec.replicas"))
 	require.True(t, ok)
 	require.Equal(t, cue.IntKind, k)
+}
+
+// A failed generation is not cached, so a later admission tries again.
+func TestTheSchemaCacheKeepsOnlyWhatItGenerated(t *testing.T) {
+	c := &schemaCache{entries: map[string]*OutputSchemas{}}
+	broken := []inherit.Level{{Name: "broken", Template: "output: {"}}
+	require.Nil(t, c.get(context.Background(), broken))
+	require.Empty(t, c.entries, "a failure is not kept")
+	good := []inherit.Level{{Name: "good", Template: "output: {kind: \"ConfigMap\"}\nparameter: {}\n"}}
+	require.NotNil(t, c.get(context.Background(), good))
+	require.Len(t, c.entries, 1)
 }
