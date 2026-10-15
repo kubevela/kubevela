@@ -43,7 +43,7 @@ const ComponentIdent = "component"
 
 // StepsIdent reads an earlier workflow step's output, as
 // steps.<name>.outputs.<output>, and EachIdent the current forEach iteration, as
-// each.item and each.index. Only workflow steps offer them, and the workflow
+// each.item, each.index and each.key. Only workflow steps offer them, and the workflow
 // answers them when the step runs; they are named here so that a step's
 // expressions plan and type like any other.
 const (

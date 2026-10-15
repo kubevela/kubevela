@@ -185,6 +185,30 @@ names: ["from-a", "from-b"]
 			Should(ConsistOf("apply-c1=succeeded", "apply-c2=succeeded"))
 	})
 
+	It("reads an item's key as each.key", func() {
+		keyed := items(`"$(source.inv.clusters)"`)
+		keyed.Key = []string{"name"}
+		createApp(&v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "each-key", Namespace: namespaceName},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []oamcomm.ApplicationComponent{},
+				Sources:    []v1beta1.ApplicationSource{{Name: "inv", Type: "cluster-inventory"}},
+				Workflow: &v1beta1.Workflow{Steps: []wfTypesv1alpha1.WorkflowStep{{
+					WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{
+						Name: "apply",
+						Type: "apply-object",
+						Properties: &runtime.RawExtension{Raw: []byte(fmt.Sprintf(
+							`{"value":{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"key-$(each.key)","namespace":%q},"data":{"loop":"yes"}}}`,
+							namespaceName))},
+					},
+					ForEach: keyed,
+				}}},
+			},
+		})
+		Eventually(configMapExists("key-c1"), 60*time.Second, time.Second).Should(Succeed())
+		Eventually(configMapExists("key-c2"), 60*time.Second, time.Second).Should(Succeed())
+	})
+
 	It("reads the list from an earlier step's output", func() {
 		applyDefinition(ctx, &v1beta1.WorkflowStepDefinition{
 			ObjectMeta: metav1.ObjectMeta{Name: "make-names", Namespace: namespaceName},
