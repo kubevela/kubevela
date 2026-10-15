@@ -214,8 +214,8 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: widgetsCRD}, crd(widgetsCRD))).Should(Succeed())
 			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: widgetClassesCRD}, crd(widgetClassesCRD))).Should(Succeed())
 			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: scope.Text("widget-kit-inline-viewer")}, &rbacv1.ClusterRole{})).Should(Succeed())
-			info, err := getConfigMap(ctx, systemNS, scope.Text("widget-kit-inline-module-info"))
-			Expect(err).ShouldNot(HaveOccurred(), "an auxiliary object without a namespace lands in the definition namespace")
+			info, err := getConfigMap(ctx, testNS, scope.Text("widget-kit-inline-module-info"))
+			Expect(err).ShouldNot(HaveOccurred(), "an auxiliary object without a namespace lands in the installing Application's namespace")
 			Expect(info.Data).Should(HaveKeyWithValue("moduleVersion", "1.0.0"))
 
 			By("line-level auxiliary objects: a WidgetClass and a ConfigMap per enabled line")
@@ -224,13 +224,13 @@ var _ = Describe("Addons that bundle modules inline", func() {
 				class, err := getUnstructured(ctx, widgetClassGVK, "", className)
 				Expect(err).ShouldNot(HaveOccurred(), className)
 				Expect(class.GetLabels()).Should(HaveKeyWithValue(scope.Text("kitinline.example.com/line"), line))
-				_, err = getConfigMap(ctx, systemNS, scope.Text("widget-kit-inline-")+line+"-line-config")
+				_, err = getConfigMap(ctx, testNS, scope.Text("widget-kit-inline-")+line+"-line-config")
 				Expect(err).ShouldNot(HaveOccurred())
 			}
 
 			By("five stamped definitions with module labels")
-			Expect(moduleDefinitionNames(ctx, systemNS, scope.Text("widget-kit-inline"))).Should(ConsistOf(widgetKitDefinitions))
-			cd, err := getComponentDefinition(ctx, systemNS, scope.Text("widget-kit-inline-v1-widget"))
+			Expect(moduleDefinitionNames(ctx, testNS, scope.Text("widget-kit-inline"))).Should(ConsistOf(widgetKitDefinitions))
+			cd, err := getComponentDefinition(ctx, testNS, scope.Text("widget-kit-inline-v1-widget"))
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(cd.Labels).Should(HaveKeyWithValue(veltypes.LabelDefinitionModuleAPIVersion, "v1"))
 			Expect(cd.Labels).Should(HaveKeyWithValue(veltypes.LabelDefinitionName, scope.Text("widget")))
@@ -248,13 +248,13 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			Expect(cd.Labels).Should(HaveKeyWithValue(oam.LabelAddonName, scope.Text("widget-platform-inline")))
 			Expect(cd.Labels).Should(HaveKeyWithValue(oam.LabelAddonVersion, "1.0.0"))
 			Expect(cd.Labels).Should(HaveKeyWithValue(oam.LabelAddonRegistry, addonRegistryName))
-			v2, err := getComponentDefinition(ctx, systemNS, scope.Text("widget-kit-inline-v2-widget"))
+			v2, err := getComponentDefinition(ctx, testNS, scope.Text("widget-kit-inline-v2-widget"))
 			Expect(err).ShouldNot(HaveOccurred(), "a YAML definition installs like a CUE one")
 			Expect(v2.Labels).Should(HaveKeyWithValue(veltypes.LabelDefinitionModuleAPIVersion, "v2"))
 
 			By("the disabled v1beta1 line leaving nothing behind")
-			Expect(isNotFound(ctx, componentDefinitionObj(systemNS, scope.Text("widget-kit-inline-v1beta1-widget")))).Should(BeTrue())
-			Expect(isNotFound(ctx, configMapObj(systemNS, scope.Text("widget-kit-inline-v1beta1-preview")))).Should(BeTrue())
+			Expect(isNotFound(ctx, componentDefinitionObj(testNS, scope.Text("widget-kit-inline-v1beta1-widget")))).Should(BeTrue())
+			Expect(isNotFound(ctx, configMapObj(testNS, scope.Text("widget-kit-inline-v1beta1-preview")))).Should(BeTrue())
 		})
 
 		It("a consumer uses Form 3, a module trait and the addon-level trait", func() {
@@ -303,9 +303,9 @@ var _ = Describe("Addons that bundle modules inline", func() {
 
 			uninstall(widgetPlatformApp, addonWidgetPlatform, moduleWidgetKit)
 			waitGone(ctx, crd(widgetClassesCRD), shortWait)
-			waitGone(ctx, componentDefinitionObj(systemNS, scope.Text("widget-kit-inline-v1-widget")), shortWait)
+			waitGone(ctx, componentDefinitionObj(testNS, scope.Text("widget-kit-inline-v1-widget")), shortWait)
 			waitGone(ctx, traitDefinitionObj(systemNS, scope.Text("platform-owner-inline")), shortWait)
-			waitGone(ctx, configMapObj(systemNS, scope.Text("widget-kit-inline-module-info")), shortWait)
+			waitGone(ctx, configMapObj(testNS, scope.Text("widget-kit-inline-module-info")), shortWait)
 			waitGone(ctx, configMapObj(systemNS, scope.Text("widget-platform-inline-notes")), shortWait)
 			waitGone(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: scope.Text("widget-platform-inline-system")}}, reconcileWait)
 		})
@@ -380,7 +380,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: gadgetsCRD}, crd(gadgetsCRD))).Should(Succeed())
 			Expect(k8sClient.Get(ctx, k8stypes.NamespacedName{Name: scope.Text("gadget-kit-inline-editor")}, &rbacv1.ClusterRole{})).Should(Succeed())
 			for _, cm := range []string{scope.Text("gadget-kit-inline-v1-defaults"), scope.Text("gadget-kit-inline-v1-profile")} {
-				_, err := getConfigMap(ctx, systemNS, cm)
+				_, err := getConfigMap(ctx, testNS, cm)
 				Expect(err).ShouldNot(HaveOccurred(), cm)
 			}
 
@@ -461,7 +461,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			Expect(k8sClient.Create(ctx, addonApplication(widgetPlatformApp, scope.Text("widget-platform-inline"), "1.0.0", nil))).Should(Succeed())
 			waitAppRunning(ctx, testNS, widgetPlatformApp, installWait)
 			waitAppRunning(ctx, systemNS, moduleWidgetKit, shortWait)
-			Expect(moduleDefinitionNames(ctx, systemNS, scope.Text("widget-kit-inline"))).Should(ConsistOf(widgetKitDefinitions))
+			Expect(moduleDefinitionNames(ctx, testNS, scope.Text("widget-kit-inline"))).Should(ConsistOf(widgetKitDefinitions))
 			DeferCleanup(func() {
 				for _, name := range []string{"forms-accepted-inline", "v2-contract-inline", "trait-outputs-form3-inline"} {
 					deleteApp(ctx, testNS, name)
@@ -583,7 +583,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 		It("starts from 1.0.0 with both lines", func() {
 			Eventually(func(g Gomega) { moduleState(g, "1.0.0", widgetKitTiers) }, shortWait, pollInterval).Should(Succeed())
 			waitAppRunning(ctx, systemNS, moduleWidgetKit, shortWait)
-			Expect(moduleDefinitionNames(ctx, systemNS, scope.Text("widget-kit-inline"))).Should(ConsistOf(widgetKitDefinitions))
+			Expect(moduleDefinitionNames(ctx, testNS, scope.Text("widget-kit-inline"))).Should(ConsistOf(widgetKitDefinitions))
 		})
 
 		It("1.1.0 adds a definition and updates auxiliary objects in place", func() {
@@ -592,11 +592,11 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			waitAppRunning(ctx, testNS, widgetPlatformApp, installWait)
 			waitAppRunning(ctx, systemNS, moduleWidgetKit, installWait)
 			Expect(mustGetApp(ctx, systemNS, addonWidgetPlatform).Labels).Should(HaveKeyWithValue(oam.LabelAddonVersion, "1.1.0"))
-			Eventually(func() []string { return moduleDefinitionNames(ctx, systemNS, scope.Text("widget-kit-inline")) }, reconcileWait, pollInterval).Should(ConsistOf(append([]string{scope.Text("widget-kit-inline-v1-gauge")}, widgetKitDefinitions...)))
-			info, err := getConfigMap(ctx, systemNS, scope.Text("widget-kit-inline-module-info"))
+			Eventually(func() []string { return moduleDefinitionNames(ctx, testNS, scope.Text("widget-kit-inline")) }, reconcileWait, pollInterval).Should(ConsistOf(append([]string{scope.Text("widget-kit-inline-v1-gauge")}, widgetKitDefinitions...)))
+			info, err := getConfigMap(ctx, testNS, scope.Text("widget-kit-inline-module-info"))
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(info.Data).Should(HaveKeyWithValue("moduleVersion", "1.1.0"))
-			line, err := getConfigMap(ctx, systemNS, scope.Text("widget-kit-inline-v1-line-config"))
+			line, err := getConfigMap(ctx, testNS, scope.Text("widget-kit-inline-v1-line-config"))
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(line.Data).Should(HaveKeyWithValue("configRevision", "2"))
 
@@ -614,11 +614,11 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			}, installWait, pollInterval).Should(Succeed())
 			waitAppRunning(ctx, testNS, widgetPlatformApp, installWait)
 			waitAppRunning(ctx, systemNS, moduleWidgetKit, installWait)
-			waitGone(ctx, componentDefinitionObj(systemNS, scope.Text("widget-kit-inline-v2-widget")), reconcileWait)
-			waitGone(ctx, traitDefinitionObj(systemNS, scope.Text("widget-kit-inline-v2-labeler")), shortWait)
+			waitGone(ctx, componentDefinitionObj(testNS, scope.Text("widget-kit-inline-v2-widget")), reconcileWait)
+			waitGone(ctx, traitDefinitionObj(testNS, scope.Text("widget-kit-inline-v2-labeler")), shortWait)
 			waitGone(ctx, unstructuredObj(widgetClassGVK, "", scope.Text("widget-kit-inline-v2-premium")), shortWait)
-			waitGone(ctx, configMapObj(systemNS, scope.Text("widget-kit-inline-v2-line-config")), shortWait)
-			info, err := getConfigMap(ctx, systemNS, scope.Text("widget-kit-inline-module-info"))
+			waitGone(ctx, configMapObj(testNS, scope.Text("widget-kit-inline-v2-line-config")), shortWait)
+			info, err := getConfigMap(ctx, testNS, scope.Text("widget-kit-inline-module-info"))
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(info.Data).Should(HaveKeyWithValue("servedLines", "v1"))
 			Expect(info.Data).Should(HaveKeyWithValue("disabledLines", "v1beta1,v2"))
@@ -634,7 +634,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			setAddonVersion(ctx, widgetPlatformApp, "1.0.0")
 			Eventually(func(g Gomega) { moduleState(g, "1.0.0", widgetKitTiers) }, installWait, pollInterval).Should(Succeed())
 			waitAppRunning(ctx, testNS, widgetPlatformApp, installWait)
-			Eventually(func() []string { return moduleDefinitionNames(ctx, systemNS, scope.Text("widget-kit-inline")) }, reconcileWait, pollInterval).Should(ConsistOf(widgetKitDefinitions))
+			Eventually(func() []string { return moduleDefinitionNames(ctx, testNS, scope.Text("widget-kit-inline")) }, reconcileWait, pollInterval).Should(ConsistOf(widgetKitDefinitions))
 
 			bumpPublishVersion(ctx, testNS, "v2-consumer-inline", "after-rollback")
 			waitAppRunning(ctx, testNS, "v2-consumer-inline", reconcileWait)
@@ -702,9 +702,9 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			waitAppRunning(ctx, testNS, scope.Text("kit-suite-inline"), installWait)
 			Expect(componentNames(mustGetApp(ctx, systemNS, scope.Text("addon-kit-suite-inline")))).Should(Equal([]string{scope.Text("kit-suite-inline-resources"), scope.Text("widget-kit-inline")}))
 			waitGone(ctx, crd(gadgetsCRD), shortWait)
-			Expect(isNotFound(ctx, componentDefinitionObj(systemNS, scope.Text("gadget-kit-inline-v1-gadget")))).Should(BeTrue())
+			Expect(isNotFound(ctx, componentDefinitionObj(testNS, scope.Text("gadget-kit-inline-v1-gadget")))).Should(BeTrue())
 			Expect(isNotFound(ctx, &rbacv1.ClusterRole{ObjectMeta: metav1.ObjectMeta{Name: scope.Text("gadget-kit-inline-editor")}})).Should(BeTrue())
-			Expect(isNotFound(ctx, configMapObj(systemNS, scope.Text("gadget-kit-inline-v1-defaults")))).Should(BeTrue())
+			Expect(isNotFound(ctx, configMapObj(testNS, scope.Text("gadget-kit-inline-v1-defaults")))).Should(BeTrue())
 			_, err := getUnstructured(ctx, widgetGVK, testNS, "keep-widget")
 			Expect(err).ShouldNot(HaveOccurred())
 			waitAppRunning(ctx, systemNS, moduleWidgetKit, shortWait)
@@ -797,20 +797,20 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			Expect(mod.Labels).Should(HaveKey(oam.LabelAddonName))
 			Expect(policyNames(mod)).Should(ContainElement("module-state-keep"))
 
-			td := traitDefinitionObj(systemNS, scope.Text("widget-kit-inline-v1-labeler"))
+			td := traitDefinitionObj(testNS, scope.Text("widget-kit-inline-v1-labeler"))
 			before := uidOf(td)
 			Expect(k8sClient.Delete(ctx, td)).Should(Succeed())
-			waitBack(traitDefinitionObj(systemNS, scope.Text("widget-kit-inline-v1-labeler")), reconcileWait)
-			Expect(uidOf(traitDefinitionObj(systemNS, scope.Text("widget-kit-inline-v1-labeler")))).ShouldNot(Equal(before))
+			waitBack(traitDefinitionObj(testNS, scope.Text("widget-kit-inline-v1-labeler")), reconcileWait)
+			Expect(uidOf(traitDefinitionObj(testNS, scope.Text("widget-kit-inline-v1-labeler")))).ShouldNot(Equal(before))
 		})
 
 		It("reverts an edited line auxiliary ConfigMap", func() {
-			cm, err := getConfigMap(ctx, systemNS, scope.Text("widget-kit-inline-v1-line-config"))
+			cm, err := getConfigMap(ctx, testNS, scope.Text("widget-kit-inline-v1-line-config"))
 			Expect(err).ShouldNot(HaveOccurred())
 			cm.Data["configRevision"] = "tampered"
 			Expect(k8sClient.Update(ctx, cm)).Should(Succeed())
 			eventuallyReconciled(ctx, []client.Object{appRef(systemNS, moduleWidgetKit)}, reconcileWait, func(g Gomega) {
-				got, err := getConfigMap(ctx, systemNS, scope.Text("widget-kit-inline-v1-line-config"))
+				got, err := getConfigMap(ctx, testNS, scope.Text("widget-kit-inline-v1-line-config"))
 				g.Expect(err).ShouldNot(HaveOccurred())
 				g.Expect(got.Data["configRevision"]).Should(Equal("1"))
 			})
@@ -838,7 +838,7 @@ var _ = Describe("Addons that bundle modules inline", func() {
 			deleteApp(ctx, systemNS, moduleWidgetKit)
 			waitAppGone(ctx, systemNS, moduleWidgetKit, reconcileWait)
 			Expect(isNotFound(ctx, crd(widgetsCRD))).Should(BeTrue(), "the finalizer removed the CRD")
-			Expect(isNotFound(ctx, componentDefinitionObj(systemNS, scope.Text("widget-kit-inline-v1-widget")))).Should(BeTrue())
+			Expect(isNotFound(ctx, componentDefinitionObj(testNS, scope.Text("widget-kit-inline-v1-widget")))).Should(BeTrue())
 			waitBack(&v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: moduleWidgetKit, Namespace: systemNS}}, reconcileWait)
 			waitAppRunning(ctx, systemNS, moduleWidgetKit, installWait)
 			Expect(uidOf(&v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: moduleWidgetKit, Namespace: systemNS}})).ShouldNot(Equal(before))

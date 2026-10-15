@@ -32,10 +32,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
+	"github.com/oam-dev/kubevela/pkg/logging"
 )
 
 // TestMain disables external package loading so these tests run without a
@@ -592,4 +594,22 @@ func TestValidateDefinitionIdentity(t *testing.T) {
 			assert.ErrorContains(t, err, cs.wantErr)
 		})
 	}
+}
+
+func TestDenyOnInvalidIdentity(t *testing.T) {
+	logger := logging.New()
+
+	t.Run("consistent identity is not denied", func(t *testing.T) {
+		resp, denied := DenyOnInvalidIdentity(logger, "ComponentDefinition", "s3", "v1", types.UID("req-1"))
+		assert.False(t, denied)
+		assert.Equal(t, admission.Response{}, resp)
+	})
+
+	t.Run("inconsistent identity is denied, naming the kind and the requestUID", func(t *testing.T) {
+		resp, denied := DenyOnInvalidIdentity(logger, "ComponentDefinition", "s3", "", types.UID("req-2"))
+		assert.True(t, denied)
+		assert.False(t, resp.Allowed)
+		assert.Contains(t, resp.Result.Message, "spec.module is set but spec.apiVersion is empty")
+		assert.Contains(t, resp.Result.Message, "requestUID=req-2")
+	})
 }

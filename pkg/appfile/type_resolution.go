@@ -90,6 +90,10 @@ func resolveForm3(module, apiVersion, name string) string {
 
 // resolveForm1 first tries a plain GET (legacy path). On not-found it falls
 // back to a label-selector search across the app namespace and vela-system.
+// Design 01 never infers the module from a bare name, so every match this
+// function finds, by the exact GET or by the label fallback, is rejected
+// toward Form 3 -- a bare name is only ever accepted for a legacy, non-module
+// definition.
 func resolveForm1(ctx context.Context, cli client.Reader, typeName, name string, capType types.CapType) (string, error) {
 	obj := definitionObjectFor(capType)
 	if err := oamutil.GetDefinition(ctx, cli, obj, name); err == nil {
@@ -118,11 +122,28 @@ func resolveForm1(ctx context.Context, cli client.Reader, typeName, name string,
 			"type", typeName, "err", err)
 		return typeName, nil
 	}
-	if len(matches) == 0 {
+	switch len(matches) {
+	case 0:
 		// Surface the original not-found via the normal GetCapabilityDefinition path.
 		return typeName, nil
+	case 1:
+		// The search only filters on LabelDefinitionName, not
+		// LabelDefinitionModule, so a hit is not automatically module-backed:
+		// nothing stops a legacy definition from carrying the name label
+		// without the module label (hand-labeled, or copied from elsewhere).
+		// Only reject when the module label is actually present; otherwise
+		// this is a legacy definition the fallback search happened to find,
+		// and it resolves like any other unique match.
+		mod := matches[0].GetLabels()[types.LabelDefinitionModule]
+		if mod == "" {
+			return matches[0].GetName(), nil
+		}
+		return "", fmt.Errorf(
+			"type %q resolves to module-backed definition %q (module=%q); use {module}/{apiVersion}/{name} (Form 3)",
+			typeName, matches[0].GetName(), mod)
+	default:
+		return resolveUnique(typeName, matches, "use {module}/{apiVersion}/{name} (Form 3) to disambiguate")
 	}
-	return resolveUnique(typeName, matches, "use {module}/{apiVersion}/{name} (Form 3) to disambiguate")
 }
 
 // listModuleDefinitions lists definitions matching the label selector across the
@@ -265,19 +286,18 @@ func definitionObjectFor(capType types.CapType) client.Object {
 	}
 }
 
+// moduleGetter is implemented by every X-Definition kind that carries a
+// module identity (apis/core.oam.dev/v1beta1/module_identity.go), so a new
+// kind only needs its own GetModule method there, not a new case here.
+type moduleGetter interface {
+	GetModule() string
+}
+
 func definitionModule(obj client.Object) string {
-	switch d := obj.(type) {
-	case *v1beta1.ComponentDefinition:
-		return d.Spec.Module
-	case *v1beta1.TraitDefinition:
-		return d.Spec.Module
-	case *v1beta1.PolicyDefinition:
-		return d.Spec.Module
-	case *v1beta1.WorkflowStepDefinition:
-		return d.Spec.Module
-	default:
-		return ""
+	if m, ok := obj.(moduleGetter); ok {
+		return m.GetModule()
 	}
+	return ""
 }
 
 // DefinitionExists verifies that the resolved definition name exists in the app

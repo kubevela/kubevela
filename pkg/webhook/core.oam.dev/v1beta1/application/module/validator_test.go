@@ -232,6 +232,18 @@ func TestValidateComponentsExplainsTheRemovedNamespaceProperty(t *testing.T) {
 	assert.Contains(t, errs[0].Detail, "namespace of the Application that installs it")
 }
 
+func TestValidateComponentsCatchesTheRemovedNamespacePropertyInAnyCase(t *testing.T) {
+	v := NewValidator(nil)
+	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
+		moduleComponent(t, "kit", map[string]interface{}{"module": "widget-kit", "Namespace": "kit-tenant"}),
+	}}}
+
+	errs := v.ValidateComponents(context.Background(), app)
+	require.Len(t, errs, 1, "a differently-cased key must not bypass the removed-property check")
+	assert.Equal(t, field.ErrorTypeForbidden, errs[0].Type)
+	assert.Contains(t, errs[0].Detail, "namespace of the Application that installs it")
+}
+
 func TestValidateComponentsRedactsUndecodableProperties(t *testing.T) {
 	v := NewValidator(nil)
 	app := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{

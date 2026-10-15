@@ -86,9 +86,13 @@ func NewValidator(cli client.Client) *Validator {
 // struct because decoding is itself the check: a component that writes a map
 // for module, or a number for version, fails to decode and is rejected.
 //
-// Namespace is no longer a property. It is decoded only to refuse it: a module's
-// definitions install into the namespace of the Application that installs it,
-// and a pointer tells an explicit empty value apart from an absent one.
+// Namespace is decoded but not otherwise inspected either. It stays on the
+// struct, rather than being checked only through the raw map below, because
+// encoding/json's struct-field matching is case-insensitive ("Namespace",
+// "NAMESPACE", ... all bind to it) while a map[string]json.RawMessage key
+// lookup is exact-case only. The raw map is still needed alongside it: an
+// explicit "namespace": null decodes to the same nil as the key being
+// absent, so only the map's own key-presence check catches that case.
 type componentProperties struct {
 	Module    string  `json:"module"`
 	Registry  string  `json:"registry"`
@@ -155,8 +159,8 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 			}
 		}
 
-		// namespace is no longer a supported property, so reject any explicit key,
-		// including "namespace": null.
+		// namespace is no longer a supported property, so reject any explicit key
+		// in any case ("Namespace", "NAMESPACE", ...), including "namespace": null.
 		if _, hasNamespaceKey := rawProperties["namespace"]; hasNamespaceKey || properties.Namespace != nil {
 			errs = append(errs, field.Forbidden(path.Child("namespace"), namespaceRemovedDetail))
 		}

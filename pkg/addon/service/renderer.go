@@ -393,9 +393,12 @@ func (r *rendererImpl) resolveAndRender(ctx context.Context, req api.AddonReques
 	for _, c := range moduleComps {
 		existingForInline = append(existingForInline, common2.ApplicationComponent{Name: c.Name})
 	}
-	// Inline modules keep installing into vela-system: they are bundled and
-	// rendered at addon render time, not resolved as module components.
-	inlineModuleComps, err := pkgaddon.RenderInlineModuleComponents(installPkg, existingForInline, dependsOn, "")
+	// Unlike the external-import path (module.cue's _namespace, resolved from
+	// the install-namespace annotation when the type: module component's own
+	// CueX render runs later), an inline module renders eagerly, right here,
+	// so req.Namespace -- the addon's own installing namespace -- is already
+	// in hand and can be passed straight through with no annotation needed.
+	inlineModuleComps, err := pkgaddon.RenderInlineModuleComponents(installPkg, existingForInline, dependsOn, req.Namespace)
 	if err != nil {
 		return nil, fmt.Errorf("render inline module components for addon %q: %w", req.Name, err)
 	}

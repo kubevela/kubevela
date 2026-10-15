@@ -181,11 +181,19 @@ func TestResolveModuleTypeForm1(t *testing.T) {
 		assert.Contains(t, err.Error(), `use {module}/{apiVersion}/{name} (Form 3)`)
 	})
 
-	t.Run("falls back to the module label", func(t *testing.T) {
+	t.Run("a unique module-label match is rejected the same way an exact-name match is", func(t *testing.T) {
 		cli := resolutionClient(t, definitionOf(capType, appNS, "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")))
+		_, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
+		require.Error(t, err, "a unique module-backed hit must not be silently accepted")
+		assert.Contains(t, err.Error(), `module-backed definition "s3-v1-bucket"`)
+		assert.Contains(t, err.Error(), `use {module}/{apiVersion}/{name} (Form 3)`)
+	})
+
+	t.Run("a unique match carrying only the name label, not the module label, is not module-backed and resolves normally", func(t *testing.T) {
+		cli := resolutionClient(t, definitionOf(capType, appNS, "hand-labeled-bucket", map[string]string{types.LabelDefinitionName: "bucket"}))
 		got, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
-		require.NoError(t, err)
-		assert.Equal(t, "s3-v1-bucket", got)
+		require.NoError(t, err, "the label search only filters on the name label, so a hit with no module label is not module-backed")
+		assert.Equal(t, "hand-labeled-bucket", got)
 	})
 
 	t.Run("no definition at all returns the name for the caller to report", func(t *testing.T) {
@@ -238,9 +246,9 @@ func TestResolveModuleTypeCoversEveryDefinitionKind(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, "legacy", got)
 
-			got, err = ResolveModuleType(appCtx(), cli, "thing", capType)
-			require.NoError(t, err)
-			assert.Equal(t, "kit-v1-thing", got)
+			_, err = ResolveModuleType(appCtx(), cli, "thing", capType)
+			require.Error(t, err, "a bare name falling back to a unique module-label match is still rejected toward Form 3")
+			assert.Contains(t, err.Error(), `module-backed definition "kit-v1-thing"`)
 
 			require.NoError(t, DefinitionExists(appCtx(), cli, "kit-v1-thing", capType))
 
@@ -257,9 +265,9 @@ func TestListModuleDefinitionsSearchesClusterWideAsALastResort(t *testing.T) {
 	// namespace nor vela-system.
 	cli := resolutionClient(t, definitionOf(capType, "platform-modules", "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")))
 
-	got, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
-	require.NoError(t, err)
-	assert.Equal(t, "s3-v1-bucket", got)
+	_, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
+	require.Error(t, err, "the cluster-wide listing still finds the module-backed definition, which is still rejected toward Form 3")
+	assert.Contains(t, err.Error(), `module-backed definition "s3-v1-bucket"`)
 
 	t.Run("the cluster-wide listing can fail on its own", func(t *testing.T) {
 		boom := errors.New("forbidden at cluster scope")
@@ -285,9 +293,9 @@ func TestListModuleDefinitionsSearchesClusterWideAsALastResort(t *testing.T) {
 			}
 			return errors.New("must not be called")
 		}}
-		got, err := ResolveModuleType(appCtx(), faulty, "bucket", capType)
-		require.NoError(t, err)
-		assert.Equal(t, "gcs-v1-bucket", got, "the definition in a searched namespace wins without widening the search")
+		_, err := ResolveModuleType(appCtx(), faulty, "bucket", capType)
+		require.Error(t, err, "the definition in a searched namespace wins without widening the search, and is still rejected toward Form 3")
+		assert.Contains(t, err.Error(), `module-backed definition "gcs-v1-bucket"`)
 	})
 }
 
@@ -296,10 +304,11 @@ func TestListModuleDefinitionsDeduplicatesTheSystemNamespace(t *testing.T) {
 	cli := resolutionClient(t, definitionOf(capType, oam.SystemDefinitionNamespace, "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")))
 
 	// No app namespace in the context means the app namespace is vela-system
-	// itself; the one definition must be listed once, not reported ambiguous.
-	got, err := ResolveModuleType(context.Background(), cli, "bucket", capType)
-	require.NoError(t, err)
-	assert.Equal(t, "s3-v1-bucket", got)
+	// itself; the one definition must be listed once, not reported ambiguous
+	// (and, listed once, is still rejected toward Form 3).
+	_, err := ResolveModuleType(context.Background(), cli, "bucket", capType)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `module-backed definition "s3-v1-bucket"`)
 }
 
 func TestResolveUniqueNamesEachModuleOnce(t *testing.T) {

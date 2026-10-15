@@ -36,9 +36,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/core"
+	"github.com/oam-dev/kubevela/pkg/logging"
 )
 
 // ContextRegex to match '**: reference "context" not found'
@@ -271,4 +273,28 @@ func ValidateDefinitionIdentity(module, apiVersion string) error {
 		}
 	}
 	return nil
+}
+
+// DenyOnInvalidIdentity runs ValidateDefinitionIdentity and, on failure, logs
+// it and builds the admission.Denied response every definition webhook uses
+// for it, so the four definition handlers (ComponentDefinition,
+// TraitDefinition, PolicyDefinition, WorkflowStepDefinition) share one call
+// instead of each copying the block with only the kind name changed.
+//
+// kind names the definition type in the log line (e.g. "ComponentDefinition").
+// The second return value is true when the request should be denied; the
+// caller returns the response immediately in that case and otherwise
+// continues to its next check.
+//
+// Logged at Info, not Error: an inconsistent module/apiVersion pair is the
+// requester's bad input, not a server-side fault, and WithError already
+// attaches the error to the structured log fields, so passing err again to
+// Error would log it twice for no extra signal.
+func DenyOnInvalidIdentity(logger logging.Logger, kind, module, apiVersion string, requestUID types.UID) (admission.Response, bool) {
+	if err := ValidateDefinitionIdentity(module, apiVersion); err != nil {
+		logger.WithStep("validate-identity").WithError(err).Info(
+			kind+" identity fields are inconsistent", "module", module, "apiVersion", apiVersion)
+		return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), requestUID)), true
+	}
+	return admission.Response{}, false
 }

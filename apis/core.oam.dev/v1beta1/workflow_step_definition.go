@@ -93,6 +93,10 @@ type WorkflowStepDefinition struct {
 	Status WorkflowStepDefinitionStatus `json:"status,omitempty"`
 }
 
+// GetModule returns the module this definition was published in, or "" for a
+// legacy, non-module definition.
+func (wd *WorkflowStepDefinition) GetModule() string { return wd.Spec.Module }
+
 // +kubebuilder:object:root=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 

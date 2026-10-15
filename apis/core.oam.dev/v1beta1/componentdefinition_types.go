@@ -141,6 +141,12 @@ func (cd *ComponentDefinition) GetCondition(conditionType condition.ConditionTyp
 	return cd.Status.GetCondition(conditionType)
 }
 
+// GetModule returns the module this definition was published in, or "" for a
+// legacy, non-module definition. One accessor per X-Definition kind, so a
+// caller that only needs the module identity (e.g. Form 1 resolution) does
+// not need a type switch over every kind that carries one.
+func (cd *ComponentDefinition) GetModule() string { return cd.Spec.Module }
+
 // +kubebuilder:object:root=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
