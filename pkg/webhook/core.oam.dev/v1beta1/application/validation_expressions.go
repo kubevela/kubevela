@@ -86,6 +86,9 @@ func forEachItemsTypes(bp blobPlan, t *typing, reported map[string]bool) field.E
 	return errs
 }
 
+// anyType is the schema of a binding whose definition declares none.
+const anyType = "_"
+
 // sourceSchemaTexts maps binding names to their SourceDefinition schema text,
 // which is what sentinel typing needs.
 func (h *ValidatingHandler) sourceSchemaTexts(ctx context.Context, annotations map[string]string, appNamespace string,
@@ -95,6 +98,10 @@ func (h *ValidatingHandler) sourceSchemaTexts(ctx context.Context, annotations m
 		if sourceType == "" {
 			continue
 		}
+		// A binding is declared whatever its definition says: one with no schema,
+		// or one that cannot be loaded (which the source rules report), is of any
+		// type, so its reads fit anything rather than reading as undeclared.
+		out[name] = anyType
 		sv, ok := schemaValidators[sourceType]
 		if !ok {
 			var err error

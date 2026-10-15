@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	velaschema "github.com/oam-dev/kubevela/pkg/schema"
 
 	"cuelang.org/go/cue"
 	cueast "cuelang.org/go/cue/ast"
@@ -28,8 +29,6 @@ import (
 	cueformat "cuelang.org/go/cue/format"
 	cueparser "cuelang.org/go/cue/parser"
 	upstreamcuex "github.com/kubevela/pkg/cue/cuex"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -60,14 +59,7 @@ func (h *ValidatingHandler) loadConsumableFrom(ctx context.Context, appNamespace
 }
 
 func (h *ValidatingHandler) loadSourceSchemaValidator(ctx context.Context, appNamespace, sourceType string, annotations map[string]string) (*sourceSchemaValidator, error) {
-	def, err := h.getSourceDefinition(ctx, appNamespace, sourceType, annotations)
-	if err != nil {
-		return nil, err
-	}
-	if def.Spec.Schematic == nil || def.Spec.Schematic.CUE == nil {
-		return nil, nil
-	}
-	schemaExpr, err := extractSourceSchemaExprForAdmission(def.Spec.Schematic.CUE.Template)
+	schemaExpr, err := velaschema.SourceSchemaText(ctx, h.Client, appNamespace, sourceType, annotations)
 	if err != nil {
 		return nil, err
 	}
@@ -297,14 +289,5 @@ func (h *ValidatingHandler) getDefinitionTemplate(ctx context.Context, appNamesp
 // revision the render will use.
 func (h *ValidatingHandler) getSourceDefinition(ctx context.Context, appNamespace, sourceType string,
 	annotations map[string]string) (*v1beta1.SourceDefinition, error) {
-	def := &v1beta1.SourceDefinition{}
-	lookupCtx := oamutil.SetNamespaceInCtx(ctx, appNamespace)
-	if err := oamutil.GetCapabilityDefinition(lookupCtx, h.Client, def, sourceType, annotations); err != nil {
-		if errors.IsNotFound(err) {
-			return nil, errors.NewNotFound(schema.GroupVersionResource{
-				Group: v1beta1.Group, Version: v1beta1.Version, Resource: "sourcedefinitions"}.GroupResource(), sourceType)
-		}
-		return nil, err
-	}
-	return def, nil
+	return velaschema.SourceDefinitionFor(ctx, h.Client, appNamespace, sourceType, annotations)
 }
