@@ -18,6 +18,8 @@ package schema
 
 import (
 	"math"
+	"slices"
+	"sort"
 	"strconv"
 
 	"cuelang.org/go/cue"
@@ -60,6 +62,37 @@ func KindAt(s *openapi3.Schema, path []string) (cue.Kind, bool) {
 	return declaredKind(s)
 }
 
+// MayBeAbsentAt reports whether a value s describes may lack path: an object's
+// field it declares but does not require, or a map's key, at any segment. A
+// list index is taken as present, and a path s does not declare, or that runs
+// below a value of any type, is not reported, as for a definition's schema.
+func MayBeAbsentAt(s *openapi3.Schema, path []string) bool {
+	for _, seg := range path {
+		if s == nil {
+			return false
+		}
+		switch {
+		case s.Type.Is(openapi3.TypeArray):
+			if _, err := strconv.Atoi(seg); err != nil || s.Items == nil {
+				return false
+			}
+			s = s.Items.Value
+		case s.Type.Is(openapi3.TypeObject):
+			p, ok := s.Properties[seg]
+			if !ok || p == nil {
+				return s.AdditionalProperties.Schema != nil
+			}
+			if !slices.Contains(s.Required, seg) {
+				return true
+			}
+			s = p.Value
+		default:
+			return false
+		}
+	}
+	return false
+}
+
 func declaredKind(s *openapi3.Schema) (cue.Kind, bool) {
 	if s == nil || s.Nullable || s.Extensions[preserveUnknownFields] == true {
 		return cue.BottomKind, false
@@ -84,8 +117,8 @@ func declaredKind(s *openapi3.Schema) (cue.Kind, bool) {
 // LiteralSchema is the schema of a decoded JSON value as written: a list's
 // elements share one schema, which declares a kind only where every element
 // agrees on it, and an object's fields are merged the same way across the
-// elements that have them. A string that is one $( ) expression, and null,
-// are of any type.
+// elements that have them, required only where every object element has them.
+// A string that is one $( ) expression, and null, are of any type.
 func LiteralSchema(v interface{}) *openapi3.Schema {
 	switch x := v.(type) {
 	case string:
@@ -118,7 +151,9 @@ func LiteralSchema(v interface{}) *openapi3.Schema {
 		obj := openapi3.NewObjectSchema()
 		for k, e := range x {
 			obj.Properties[k] = openapi3.NewSchemaRef("", LiteralSchema(e))
+			obj.Required = append(obj.Required, k)
 		}
+		sort.Strings(obj.Required)
 		return obj
 	}
 	return &openapi3.Schema{}
@@ -147,6 +182,11 @@ func merge(a, b *openapi3.Schema) *openapi3.Schema {
 				p = openapi3.NewSchemaRef("", merge(q.Value, p.Value))
 			}
 			obj.Properties[k] = p
+		}
+		for _, k := range a.Required {
+			if slices.Contains(b.Required, k) {
+				obj.Required = append(obj.Required, k)
+			}
 		}
 		return obj
 	case ka == cue.ListKind:

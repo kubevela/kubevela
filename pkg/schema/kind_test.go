@@ -131,3 +131,35 @@ func TestLiteralSchema(t *testing.T) {
 		})
 	}
 }
+
+func TestMayBeAbsentAt(t *testing.T) {
+	mayBeAbsent := func(t *testing.T, literal string, path ...string) bool {
+		t.Helper()
+		var v interface{}
+		require.NoError(t, json.Unmarshal([]byte(literal), &v))
+		return MayBeAbsentAt(LiteralSchema(v), path)
+	}
+	for name, tc := range map[string]struct {
+		literal string
+		path    []string
+		absent  bool
+	}{
+		"a field every element has":             {`[{"region":"eu","wave":1},{"region":"us","wave":2}]`, []string{"0", "wave"}, false},
+		"a field some elements leave out":       {`[{"region":"eu","wave":1},{"region":"us"}]`, []string{"0", "wave"}, true},
+		"below a field some elements leave out": {`[{"spec":{"wave":1}},{}]`, []string{"0", "spec", "wave"}, true},
+		"a nested field every element has":      {`[{"spec":{"wave":1}},{"spec":{"wave":2}}]`, []string{"0", "spec", "wave"}, false},
+		"a field no element has":                {`[{"region":"eu"}]`, []string{"0", "zone"}, false},
+		"the element itself":                    {`[{"region":"eu"}]`, []string{"0"}, false},
+		"below a value of any type":             {`[{"x":"$(source.cfg.x)"}]`, []string{"0", "x", "y"}, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tc.absent, mayBeAbsent(t, tc.literal, tc.path...))
+		})
+	}
+
+	t.Run("a map's key", func(t *testing.T) {
+		labels := openAPI(t, `{"type":"object","properties":{"labels":{"type":"object","additionalProperties":{"type":"string"}}},"required":["labels"]}`)
+		require.True(t, MayBeAbsentAt(labels, []string{"labels", "team"}))
+		require.False(t, MayBeAbsentAt(labels, []string{"labels"}))
+	})
+}

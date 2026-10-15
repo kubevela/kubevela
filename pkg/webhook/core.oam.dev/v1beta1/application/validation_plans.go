@@ -362,7 +362,6 @@ func (bp blobPlan) target(param *cueStruct) celengine.Target {
 type typing struct {
 	schemas      map[string]string
 	compiled     propexpr.Schemas
-	opts         celengine.TypeOptions
 	envs         map[string]*cel.Env
 	loadProduced func() map[string]schema.Produced
 	produced     map[string]schema.Produced
@@ -370,15 +369,7 @@ type typing struct {
 
 func newTyping(schemas map[string]string, loadProduced func() map[string]schema.Produced) *typing {
 	compiled := propexpr.CompileSchemas(schemas)
-	return &typing{schemas: schemas, compiled: compiled, envs: map[string]*cel.Env{}, loadProduced: loadProduced,
-		opts: celengine.TypeOptions{
-			// The has()-default rule: a read that may be missing, unguarded, is
-			// refused where it feeds a required parameter.
-			Optional: func(r celengine.Read) bool {
-				may, err := compiled.CanBeAbsent(r.Reference)
-				return err == nil && may
-			},
-		}}
+	return &typing{schemas: schemas, compiled: compiled, envs: map[string]*cel.Env{}, loadProduced: loadProduced}
 }
 
 func (t *typing) env(ctxSchema propexpr.ContextSchema) (*cel.Env, error) {
@@ -414,8 +405,7 @@ func (t *typing) faultsAgainst(bp blobPlan, ctxSchema propexpr.ContextSchema, ta
 	// A read is judged by the kind its schema declares where CEL cannot see
 	// one: a component's live object and a loop's items are dyn to CEL, and a
 	// schema's number may hold an integer, which CEL's double loses.
-	opts := t.opts
-	opts.DeclaredKind = t.readKinds(bp)
+	opts := celengine.TypeOptions{DeclaredKind: t.readKinds(bp), Optional: t.mayBeAbsent(bp)}
 	out := map[string]celengine.CheckError{}
 	for _, f := range bp.plan.CheckTypes(env, target, opts) {
 		out[f.Property] = f

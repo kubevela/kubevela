@@ -97,3 +97,30 @@ func TestLoopItemKind(t *testing.T) {
 		require.Nil(t, LoopItemKind([]byte(items), readKind), "items %q declare nothing", items)
 	}
 }
+
+func TestLoopItemMayBeAbsent(t *testing.T) {
+	// A source's list whose elements' zone is optional, at source.cfg.regions.
+	mayBeAbsent := func(ref template.Reference) bool {
+		return ref.Root == propexpr.SourceIdent && strings.Join(ref.Path, ".") == "cfg.regions.0.zone"
+	}
+	for _, tc := range []struct {
+		name   string
+		items  string
+		path   []string
+		absent bool
+	}{
+		{"a field every literal item has", `[{"wave":1},{"wave":2}]`, []string{"wave"}, false},
+		{"a field some literal items leave out", `[{"wave":1},{"region":"us"}]`, []string{"wave"}, true},
+		{"a source item's optional field", `"$(source.cfg.regions)"`, []string{"zone"}, true},
+		{"a source item's required field", `"$(source.cfg.regions)"`, []string{"name"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			item := LoopItemMayBeAbsent([]byte(tc.items), mayBeAbsent)
+			require.NotNil(t, item)
+			require.Equal(t, tc.absent, item(tc.path))
+		})
+	}
+	for _, items := range []string{"", `{"a":1}`, `"$(source.cfg.regions.filter(r, r.wave > 1))"`, `"$(each.item)"`} {
+		require.Nil(t, LoopItemMayBeAbsent([]byte(items), mayBeAbsent), "items %q say nothing", items)
+	}
+}

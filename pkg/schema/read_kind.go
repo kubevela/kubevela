@@ -80,3 +80,12 @@ func EachReadKind(item func(path []string) (cue.Kind, bool), ref template.Refere
 	}
 	return cue.BottomKind, false
 }
+
+// EachMayBeAbsent reports whether an each read may find nothing, given item,
+// what may be missing within one item of the loop: only each.item's fields can.
+func EachMayBeAbsent(item func(path []string) bool, ref template.Reference) bool {
+	if ref.Root != propexpr.EachIdent || len(ref.Path) < 2 || ref.Path[0] != "item" || item == nil {
+		return false
+	}
+	return item(ref.Path[1:])
+}

@@ -51,6 +51,22 @@ func (t *typing) readKinds(bp blobPlan) func(celengine.Read) (cue.Kind, bool) {
 	return func(r celengine.Read) (cue.Kind, bool) { return ofRef(r.Reference) }
 }
 
+// mayBeAbsent is the has()-default rule's judge for a read in one blob: a read
+// that may be missing, unguarded, is refused where it feeds a required
+// parameter. A source's and context's come from their schemas, and the loop's
+// from the items of the forEach the blob runs in.
+func (t *typing) mayBeAbsent(bp blobPlan) func(celengine.Read) bool {
+	var ofRef func(template.Reference) bool
+	ofRef = func(ref template.Reference) bool {
+		if ref.Root == propexpr.EachIdent {
+			return schema.EachMayBeAbsent(schema.LoopItemMayBeAbsent(bp.loopItems, ofRef), ref)
+		}
+		may, err := t.compiled.CanBeAbsent(ref)
+		return err == nil && may
+	}
+	return func(r celengine.Read) bool { return ofRef(r.Reference) }
+}
+
 // producedSchemas loads what the Application's components apply the first time a
 // component read is typed, so one that reads none loads nothing.
 func (t *typing) producedSchemas() map[string]schema.Produced {

@@ -118,7 +118,7 @@ parameter: {
 		&v1beta1.SourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{Name: "regions", Namespace: "vela-system"},
 			Spec: v1beta1.SourceDefinitionSpec{Schematic: cue(`
-schema: list: [...{name: string, wave: int}]
+schema: list: [...{name: string, wave: int, zone?: string}]
 output: list: [{name: "eu", wave: 1}]
 parameter: {}
 `)},
@@ -292,6 +292,17 @@ func TestLoopReadsAreTypedFromTheItems(t *testing.T) {
 			refused: "is int but"},
 		{name: "a source item's string field",
 			steps: []wfv1alpha1.WorkflowStep{loop(items(`"$(source.r.list)"`), `{"text":"$(each.item.name)"}`)}},
+		{name: "a field some items leave out may be absent",
+			steps:   []wfv1alpha1.WorkflowStep{loop(items(`[{"region":"eu"},{"wave":2}]`), `{"text":"$(each.item.region)"}`)},
+			refused: "each.item.region may be absent"},
+		{name: "unless the read is guarded",
+			steps: []wfv1alpha1.WorkflowStep{loop(items(`[{"region":"eu"},{"wave":2}]`),
+				`{"text":"$(has(each.item.region) ? each.item.region : \"none\")"}`)}},
+		{name: "or feeds an optional parameter",
+			steps: []wfv1alpha1.WorkflowStep{loop(items(`[{"wave":1},{"region":"us"}]`), `{"text":"hi","count":"$(each.item.wave)"}`)}},
+		{name: "a source item's optional field may be absent",
+			steps:   []wfv1alpha1.WorkflowStep{loop(items(`"$(source.r.list)"`), `{"text":"$(each.item.zone)"}`)},
+			refused: "each.item.zone may be absent"},
 		{name: "items computed from a source fit anything",
 			steps: []wfv1alpha1.WorkflowStep{loop(items(`"$(source.r.list.filter(x, x.wave > 1))"`), `{"text":"$(each.item.wave)"}`)}},
 		{name: "a sub-step of a looping group is typed",
