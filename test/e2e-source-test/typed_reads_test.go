@@ -53,10 +53,22 @@ output: {
 	data: parameter.data
 }
 `
+	// typed-note writes the text it is given to a ConfigMap named after it.
 	const textStep = `
-import "vela/builtin"
+import (
+	"strings"
+	"vela/kube"
+)
 parameter: {text: string}
-log: builtin.#Log & {$params: data: parameter.text}
+apply: kube.#Apply & {$params: value: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata: {
+		name:      strings.Replace(strings.ToLower(parameter.text), " ", "-", -1)
+		namespace: context.namespace
+	}
+	data: text: parameter.text
+}}
 `
 	component := func(name, props string) oamcomm.ApplicationComponent {
 		return oamcomm.ApplicationComponent{Name: name, Type: "typed-cm",
@@ -133,12 +145,21 @@ log: builtin.#Log & {$params: data: parameter.text}
 		Expect(err.Error()).To(ContainSubstring("expects string"))
 	})
 
-	It("admits loop items that fit, and text built from any item", func() {
+	It("admits loop items that fit, and text built from any item, and renders them", func() {
 		Expect(k8sClient.Create(ctx, app("typed-loop",
-			[]oamcomm.ApplicationComponent{component("db", `{"data":{}}`)},
+			[]oamcomm.ApplicationComponent{component("typed-db", `{"data":{}}`)},
 			loop(`[1, 2]`, `{"text":"wave $(each.item) of $(each.index)"}`)))).To(Succeed())
 		Expect(k8sClient.Create(ctx, app("string-loop",
-			[]oamcomm.ApplicationComponent{component("db", `{"data":{}}`)},
+			[]oamcomm.ApplicationComponent{component("string-db", `{"data":{}}`)},
 			loop(`["eu", "us"]`, `{"text":"$(each.item)"}`)))).To(Succeed())
+		verifyApplicationPhase(ctx, namespaceName, "typed-loop", oamcomm.ApplicationRunning)
+		verifyApplicationPhase(ctx, namespaceName, "string-loop", oamcomm.ApplicationRunning)
+		for name, text := range map[string]string{
+			"wave-1-of-0": "wave 1 of 0", "wave-2-of-1": "wave 2 of 1", "eu": "eu", "us": "us",
+		} {
+			cm := &corev1.ConfigMap{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: name}, cm)).To(Succeed(), name)
+			Expect(cm.Data).To(Equal(map[string]string{"text": text}), name)
+		}
 	})
 })
