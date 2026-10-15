@@ -17,6 +17,7 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/google/cel-go/cel"
 	celengine "github.com/kubevela/pkg/cel"
+	wfexpressions "github.com/kubevela/workflow/pkg/expressions"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -114,6 +116,10 @@ func planApplication(app *v1beta1.Application, appScoped func(string) bool) []bl
 			add(step.Properties, blobPlan{base: p.Child("properties"), surface: sources.SurfaceWorkflowStep,
 				ctxSchema: propexpr.WorkflowStepContext, sourceIndex: -1, targetKind: "workflowstep", targetType: step.Type,
 				targetDesc: fmt.Sprintf("workflow step %q parameter", step.Type), loopItems: items})
+			// A step's $( ) if is decided once, before any pass of its loop, and feeds
+			// no definition: it is typed as a bool instead.
+			add(conditionValue(step.If), blobPlan{base: p.Child("if"), surface: sources.SurfaceWorkflowStep,
+				ctxSchema: propexpr.WorkflowStepContext, sourceIndex: -1, targetKind: conditionTarget, targetDesc: "if"})
 			// forEach.items resolves on the step's surface, and feeds no definition: it
 			// is typed as a list instead.
 			add(forEachItems(step), blobPlan{base: p.Child("forEach", "items"), surface: sources.SurfaceWorkflowStep,
@@ -124,6 +130,9 @@ func planApplication(app *v1beta1.Application, appScoped func(string) bool) []bl
 					surface: sources.SurfaceWorkflowStep, ctxSchema: propexpr.WorkflowStepContext, sourceIndex: -1,
 					targetKind: "workflowstep", targetType: sub.Type,
 					targetDesc: fmt.Sprintf("workflow step %q parameter", sub.Type), loopItems: items})
+				add(conditionValue(sub.If), blobPlan{base: p.Child("subSteps").Index(j).Child("if"),
+					surface: sources.SurfaceWorkflowStep, ctxSchema: propexpr.WorkflowStepContext, sourceIndex: -1,
+					targetKind: conditionTarget, targetDesc: "if", loopItems: items})
 			}
 		}
 	}
@@ -145,6 +154,22 @@ func forEachItems(step wfv1alpha1.WorkflowStep) *runtime.RawExtension {
 		return nil
 	}
 	return &runtime.RawExtension{Raw: step.ForEach.Items.Raw}
+}
+
+// conditionTarget marks the blob planned for a step's $( ) if.
+const conditionTarget = "if"
+
+// conditionValue is a step's if as raw JSON, the shape the property passes walk,
+// when it is a $( ) condition; nil for a CUE if, which these passes do not read.
+func conditionValue(cond string) *runtime.RawExtension {
+	if !wfexpressions.IsCondition(cond) {
+		return nil
+	}
+	raw, err := json.Marshal(strings.TrimSpace(cond))
+	if err != nil {
+		return nil
+	}
+	return &runtime.RawExtension{Raw: raw}
 }
 
 // refusal is an admission refusal carried through a CheckError, with the value
@@ -426,6 +451,29 @@ var forEachItemsList = func() celengine.Target {
 		return list, true, true
 	})
 }()
+
+// conditionBool is a $( ) if as the engine's Target: a required bool, since a
+// condition that may be absent decides nothing.
+var conditionBool = func() celengine.Target {
+	b := cuecontext.New().CompileString("bool")
+	return celengine.TargetFunc(func(property string) (cue.Value, bool, bool) {
+		if property != "" {
+			return cue.Value{}, false, false
+		}
+		return b, true, true
+	})
+}()
+
+// conditionWording names a step's if, which decides the step rather than feeding a
+// parameter.
+var conditionWording = wording{
+	mismatch: func(lf inputLeaf, m *celengine.TypeMismatch) string {
+		return fmt.Sprintf("type mismatch: expression %v is %s but if expects bool", lf.literal, m.Got)
+	},
+	absent: func(_ inputLeaf, read string) string {
+		return fmt.Sprintf("%s may be absent and decides the step; %s", read, defaultHint(read))
+	},
+}
 
 // forEachItemsWording names forEach.items, which feeds the loop rather than a
 // parameter.

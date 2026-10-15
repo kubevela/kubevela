@@ -22,6 +22,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	celengine "github.com/kubevela/pkg/cel"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -46,8 +48,12 @@ func (h *ValidatingHandler) validateExpressionTargetTypes(ctx context.Context, a
 		if bp.plan == nil || bp.sourceIndex >= 0 {
 			continue
 		}
-		if bp.targetKind == forEachItemsTarget {
-			errs = append(errs, forEachItemsTypes(bp, t, reported)...)
+		switch bp.targetKind {
+		case forEachItemsTarget:
+			errs = append(errs, wholeValueTypes(bp, t, reported, forEachItemsList, forEachItemsWording)...)
+			continue
+		case conditionTarget:
+			errs = append(errs, wholeValueTypes(bp, t, reported, conditionBool, conditionWording)...)
 			continue
 		}
 		faults, err := t.faults(bp, bp.ctxSchema, loadTarget(bp.targetKind, bp.targetType))
@@ -69,18 +75,24 @@ func (h *ValidatingHandler) validateExpressionTargetTypes(ctx context.Context, a
 	return errs
 }
 
-// forEachItemsTypes refuses forEach.items given as one expression that does not
-// type as a list. A read below an untyped region types as dyn, which the engine
-// checks once it has the value.
-func forEachItemsTypes(bp blobPlan, t *typing, reported map[string]bool) field.ErrorList {
-	faults, err := t.faultsAgainst(bp, bp.ctxSchema, forEachItemsList)
+// wholeValueTypes refuses a value given as one expression, forEach.items or a
+// step's if, whose type does not fit target. A read below an untyped region types
+// as dyn, which the engine checks once it has the value.
+func wholeValueTypes(bp blobPlan, t *typing, reported map[string]bool, target celengine.Target, w wording) field.ErrorList {
+	faults, err := t.faultsAgainst(bp, bp.ctxSchema, target)
 	if err != nil {
 		return field.ErrorList{field.Invalid(bp.base, string(bp.raw), err.Error())}
 	}
 	var errs field.ErrorList
 	for _, lf := range bp.leaves {
 		if f, faulted := faults[lf.property]; faulted && !reported[lf.fieldPath.String()] {
-			errs = append(errs, forEachItemsWording.fieldError(lf, f))
+			err := w.fieldError(lf, f)
+			// The value is the expression itself, which names it better than its
+			// empty path within the value.
+			if lf.path == "" {
+				err.BadValue = lf.literal
+			}
+			errs = append(errs, err)
 		}
 	}
 	return errs
