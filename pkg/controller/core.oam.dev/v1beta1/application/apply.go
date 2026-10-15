@@ -689,8 +689,11 @@ func (h *AppHandler) keepStepSourceReads() {
 }
 
 // withKeptReads is a source's entry for the report: what was read this
-// reconcile, which wins, with the kept step readers that did not read again; or,
-// where nothing read the source this reconcile, the kept entry as it was.
+// reconcile, which wins, with the kept step readers that did not read again and
+// the kept resolutions whose storage key no live read resolved; or, where
+// nothing read the source this reconcile, the kept entry as it was. Kept
+// resolutions travel with kept readers, so a step that read again reports only
+// what it read this time.
 func withKeptReads(live, kept *common.ApplicationSourceStatus) *common.ApplicationSourceStatus {
 	if kept == nil {
 		return live
@@ -699,6 +702,7 @@ func withKeptReads(live, kept *common.ApplicationSourceStatus) *common.Applicati
 		return kept
 	}
 	out := live.DeepCopy()
+	keptAny := false
 	for _, c := range kept.ConsumedBy {
 		found := false
 		for _, have := range out.ConsumedBy {
@@ -710,6 +714,22 @@ func withKeptReads(live, kept *common.ApplicationSourceStatus) *common.Applicati
 		}
 		if !found {
 			out.ConsumedBy = append(out.ConsumedBy, c)
+			keptAny = true
+		}
+	}
+	if !keptAny {
+		return out
+	}
+	for _, res := range kept.Resolutions {
+		found := false
+		for _, have := range out.Resolutions {
+			if have.StorageKey == res.StorageKey {
+				found = true
+				break
+			}
+		}
+		if !found {
+			out.Resolutions = append(out.Resolutions, res)
 		}
 	}
 	return out

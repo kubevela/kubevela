@@ -525,3 +525,33 @@ func TestAStepReadingOneSourceTwiceKeepsBothReads(t *testing.T) {
 	}
 	r.Equal([]string{"channel<-data.channel", "forEach.items<-data.regions"}, read)
 }
+
+// A kept step that did not read again keeps where its value came from, even
+// when another reader resolved the same binding this reconcile.
+func TestAKeptStepKeepsItsResolutionBesideALiveReader(t *testing.T) {
+	r := require.New(t)
+	h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+	h.app.Status.Sources = []common.ApplicationSourceStatus{{Name: "registry", Type: "configmap", Phase: sourcePhaseResolved,
+		Resolutions: []common.SourceResolution{{StorageKey: "configmap-step", ExpiresAt: "2026-10-14T19:00:00Z"}},
+		ConsumedBy:  []common.SourceConsumer{{DefinitionKind: sourceKindWorkflowStep, Name: "notify", Type: "notification"}}}}
+	h.app.Status.Workflow = &common.WorkflowStatus{Steps: []workflowv1alpha1.WorkflowStepStatus{
+		{StepStatus: workflowv1alpha1.StepStatus{Name: "notify"}}}}
+	h.keepStepSourceReads()
+
+	h.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{"registry": {Name: "registry", Phase: sourcePhaseResolved,
+			Config: "configmap-web", ConsumedFields: map[string]interface{}{"data.image": "nginx"}}})
+
+	out := h.sourceStatusList()
+	r.Len(out[0].ConsumedBy, 2)
+	keys := []string{}
+	for _, res := range out[0].Resolutions {
+		keys = append(keys, res.StorageKey)
+	}
+	r.ElementsMatch([]string{"configmap-web", "configmap-step"}, keys)
+	for _, res := range out[0].Resolutions {
+		if res.StorageKey == "configmap-step" {
+			r.Equal("2026-10-14T19:00:00Z", res.ExpiresAt)
+		}
+	}
+}
