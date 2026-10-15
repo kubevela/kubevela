@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
+	"github.com/oam-dev/kubevela/pkg/schema"
 	"github.com/oam-dev/kubevela/pkg/sources"
 
 	"cuelang.org/go/cue"
@@ -128,7 +129,8 @@ func (h *ValidatingHandler) ValidateSources(ctx context.Context, app *v1beta1.Ap
 
 	// Input contract: each source's properties against that SourceDefinition's
 	// parameter: block (unknown fields and type compatibility).
-	t := newTyping(h.sourceSchemaTexts(ctx, app.GetAnnotations(), app.Namespace, sourceNameToType, schemaValidators))
+	t := newTyping(h.sourceSchemaTexts(ctx, app.GetAnnotations(), app.Namespace, sourceNameToType, schemaValidators),
+		func() map[string]schema.Produced { return h.producedSchemas(ctx, app) })
 	errs = append(errs, h.validateSourceInputs(ctx, app, blobs, t, effective, reported)...)
 
 	// Target contract: each expression's result against the parameter it feeds.

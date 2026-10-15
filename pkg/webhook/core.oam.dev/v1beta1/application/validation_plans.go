@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/definition/cachekey"
 	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
+	"github.com/oam-dev/kubevela/pkg/schema"
 	"github.com/oam-dev/kubevela/pkg/sources"
 )
 
@@ -64,6 +65,9 @@ type blobPlan struct {
 	// targetKind and targetType name the definition the blob feeds, and
 	// targetDesc is how a refusal names it.
 	targetKind, targetType, targetDesc string
+	// loopItems is forEach.items of the loop whose iteration evaluates the blob,
+	// as written; nil outside a loop.
+	loopItems []byte
 }
 
 // planApplication plans every properties blob of an Application, in the order
@@ -102,9 +106,14 @@ func planApplication(app *v1beta1.Application, appScoped func(string) bool) []bl
 	if app.Spec.Workflow != nil {
 		for i, step := range app.Spec.Workflow.Steps {
 			p := field.NewPath("spec", "workflow", "steps").Index(i)
+			// A step with forEach is run once per item; a step group's sub-steps are.
+			var items []byte
+			if raw := forEachItems(step); raw != nil {
+				items = raw.Raw
+			}
 			add(step.Properties, blobPlan{base: p.Child("properties"), surface: sources.SurfaceWorkflowStep,
 				ctxSchema: propexpr.WorkflowStepContext, sourceIndex: -1, targetKind: "workflowstep", targetType: step.Type,
-				targetDesc: fmt.Sprintf("workflow step %q parameter", step.Type)})
+				targetDesc: fmt.Sprintf("workflow step %q parameter", step.Type), loopItems: items})
 			// forEach.items resolves on the step's surface, and feeds no definition: it
 			// is typed as a list instead.
 			add(forEachItems(step), blobPlan{base: p.Child("forEach", "items"), surface: sources.SurfaceWorkflowStep,
@@ -114,7 +123,7 @@ func planApplication(app *v1beta1.Application, appScoped func(string) bool) []bl
 				add(sub.Properties, blobPlan{base: p.Child("subSteps").Index(j).Child("properties"),
 					surface: sources.SurfaceWorkflowStep, ctxSchema: propexpr.WorkflowStepContext, sourceIndex: -1,
 					targetKind: "workflowstep", targetType: sub.Type,
-					targetDesc: fmt.Sprintf("workflow step %q parameter", sub.Type)})
+					targetDesc: fmt.Sprintf("workflow step %q parameter", sub.Type), loopItems: items})
 			}
 		}
 	}
@@ -348,25 +357,28 @@ func (bp blobPlan) target(param *cueStruct) celengine.Target {
 }
 
 // typing is what typing expressions needs, built once per admission: the
-// binding schemas, the judges over them, and a typed environment per context.
+// binding schemas, the judges over them, a typed environment per context, and
+// what each component applies, loaded when a component read is first typed.
 type typing struct {
-	schemas map[string]string
-	opts    celengine.TypeOptions
-	envs    map[string]*cel.Env
+	schemas      map[string]string
+	compiled     propexpr.Schemas
+	opts         celengine.TypeOptions
+	envs         map[string]*cel.Env
+	loadProduced func() map[string]schema.Produced
+	produced     map[string]schema.Produced
 }
 
-func newTyping(schemas map[string]string) *typing {
+func newTyping(schemas map[string]string, loadProduced func() map[string]schema.Produced) *typing {
 	compiled := propexpr.CompileSchemas(schemas)
-	return &typing{schemas: schemas, envs: map[string]*cel.Env{}, opts: celengine.TypeOptions{
-		// The has()-default rule: a read that may be missing, unguarded, is
-		// refused where it feeds a required parameter.
-		Optional: func(r celengine.Read) bool {
-			may, err := compiled.CanBeAbsent(r.Reference)
-			return err == nil && may
-		},
-		// A schema's number may hold an integer, which CEL's double loses.
-		DeclaredKind: func(r celengine.Read) (cue.Kind, bool) { return compiled.Kind(r.Reference) },
-	}}
+	return &typing{schemas: schemas, compiled: compiled, envs: map[string]*cel.Env{}, loadProduced: loadProduced,
+		opts: celengine.TypeOptions{
+			// The has()-default rule: a read that may be missing, unguarded, is
+			// refused where it feeds a required parameter.
+			Optional: func(r celengine.Read) bool {
+				may, err := compiled.CanBeAbsent(r.Reference)
+				return err == nil && may
+			},
+		}}
 }
 
 func (t *typing) env(ctxSchema propexpr.ContextSchema) (*cel.Env, error) {
@@ -399,8 +411,13 @@ func (t *typing) faultsAgainst(bp blobPlan, ctxSchema propexpr.ContextSchema, ta
 	if err != nil {
 		return nil, err
 	}
+	// A read is judged by the kind its schema declares where CEL cannot see
+	// one: a component's live object and a loop's items are dyn to CEL, and a
+	// schema's number may hold an integer, which CEL's double loses.
+	opts := t.opts
+	opts.DeclaredKind = t.readKinds(bp)
 	out := map[string]celengine.CheckError{}
-	for _, f := range bp.plan.CheckTypes(env, target, t.opts) {
+	for _, f := range bp.plan.CheckTypes(env, target, opts) {
 		out[f.Property] = f
 	}
 	return out, nil
