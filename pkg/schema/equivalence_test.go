@@ -90,6 +90,7 @@ func TestShippedDefinitionsRenderWhatTheirOutputSchemasDeclare(t *testing.T) {
 		t.Logf("no output schema for %s: %s", name, err)
 	}
 	require.Greater(t, cases, 0)
+	require.Greater(t, checked, 0, "no declared leaf was compared")
 	sort.Strings(mismatches)
 	require.Empty(t, mismatches, "declared kinds the render contradicts:\n%s", strings.Join(mismatches, "\n"))
 }
