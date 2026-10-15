@@ -293,6 +293,111 @@ fail: builtin.#Fail & {$params: message: "migrations failed"}
 			"an edge KubeVela adds for a read is the read's, not the spec's")
 	})
 
+	It("decides steps by $( ) conditions reading context, a source, a step and the loop", func() {
+		applyDefinition(ctx, &v1beta1.SourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "step-settings", Namespace: namespaceName},
+			Spec:       v1beta1.SourceDefinitionSpec{Schematic: &oamcomm.Schematic{CUE: &oamcomm.CUE{Template: settingsSource}}},
+		})
+		applyDefinition(ctx, &v1beta1.WorkflowStepDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "make-names", Namespace: namespaceName},
+			Spec:       v1beta1.WorkflowStepDefinitionSpec{Schematic: &oamcomm.Schematic{CUE: &oamcomm.CUE{Template: listStep}}},
+		})
+		Expect(k8sClient.Create(ctx, &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: "flags", Namespace: namespaceName},
+			Data:       map[string]string{"mode": "on"},
+		})).Should(Succeed())
+
+		when := func(step, cond string, dependsOn ...string) wfTypesv1alpha1.WorkflowStep {
+			s := configMapStep(step, "cond-"+step, map[string]string{"ran": "yes"})
+			s.If, s.DependsOn = cond, dependsOn
+			return s
+		}
+		save := configMapStep("save", "cond-$(each.item)", map[string]string{"pass": "#$(each.index)"})
+		perName := wfTypesv1alpha1.WorkflowStep{
+			WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{Name: "per-name", Type: "step-group"},
+			ForEach:          &wfTypesv1alpha1.ForEach{Items: &apiextensionsv1.JSON{Raw: []byte(`"$(steps.names.outputs.names)"`)}},
+			SubSteps: []wfTypesv1alpha1.WorkflowStepBase{func() wfTypesv1alpha1.WorkflowStepBase {
+				b := save.WorkflowStepBase
+				b.If = `$(each.index == 1 && has(source.cfg.data.mode) && source.cfg.data.mode == "on")`
+				return b
+			}()},
+		}
+		createApp(&v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "conditions", Namespace: namespaceName},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []oamcomm.ApplicationComponent{},
+				Sources: []v1beta1.ApplicationSource{{Name: "cfg", Type: "step-settings",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"name":"flags"}`)}}},
+				Workflow: &v1beta1.Workflow{
+					Mode: &wfTypesv1alpha1.WorkflowExecuteMode{Steps: "DAG", SubSteps: "DAG"},
+					Steps: []wfTypesv1alpha1.WorkflowStep{
+						{WorkflowStepBase: wfTypesv1alpha1.WorkflowStepBase{Name: "names", Type: "make-names",
+							Outputs: wfTypesv1alpha1.StepOutputs{{Name: "names", ValueFrom: "names"}}}},
+						when("all-true", `$(context.appName == "conditions" && has(source.cfg.data.mode) && source.cfg.data.mode == "on" && `+
+							`steps.names.succeeded && steps.names.outputs.names.size() == 2)`),
+						when("source-false", `$(has(source.cfg.data.mode) && source.cfg.data.mode == "off")`),
+						when("cue-if", "status.names.succeeded", "names"),
+						perName,
+					},
+				},
+			},
+		})
+
+		exists := func(name string) func() (bool, error) {
+			return func() (bool, error) {
+				data, err := configMapData(name)()
+				return data != nil, err
+			}
+		}
+		Eventually(exists("cond-all-true"), 90*time.Second, time.Second).Should(BeTrue())
+		Eventually(exists("cond-cue-if"), 30*time.Second, time.Second).Should(BeTrue(), "a CUE if beside them is unchanged")
+		Eventually(configMapData("cond-from-b"), 30*time.Second, time.Second).Should(Equal(map[string]string{"pass": "#1"}),
+			"a sub-step's condition is decided each pass")
+
+		var app *v1beta1.Application
+		Eventually(func(g Gomega) {
+			app = &v1beta1.Application{}
+			g.Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "conditions"}, app)).Should(Succeed())
+			g.Expect(app.Status.Workflow).ShouldNot(BeNil())
+			g.Expect(app.Status.Workflow.Finished).Should(BeTrue())
+		}, 60*time.Second, time.Second).Should(Succeed())
+		phases := map[string]string{}
+		for _, s := range app.Status.Workflow.Steps {
+			phases[s.Name] = string(s.Phase)
+			for _, sub := range s.SubStepsStatus {
+				phases[sub.Name] = string(sub.Phase)
+			}
+		}
+		Expect(phases).Should(HaveKeyWithValue("all-true", "succeeded"))
+		Expect(phases).Should(HaveKeyWithValue("source-false", "skipped"))
+		Expect(phases).Should(HaveKeyWithValue("cue-if", "succeeded"))
+		Expect(configMapData("cond-source-false")()).Should(BeNil())
+		Expect(configMapData("cond-from-a")()).Should(BeNil(), "the first pass's condition is false")
+		Expect(app.Status.Workflow.Dependencies).Should(ContainElement(oamcomm.WorkflowStepDependency{
+			Step: "all-true", DependsOn: "names", Source: "expression"}), "a condition's reads are what its step waits on")
+	})
+
+	It("refuses a condition that is not a bool at admission", func() {
+		applyDefinition(ctx, &v1beta1.SourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{Name: "step-settings", Namespace: namespaceName},
+			Spec:       v1beta1.SourceDefinitionSpec{Schematic: &oamcomm.Schematic{CUE: &oamcomm.CUE{Template: settingsSource}}},
+		})
+		step := configMapStep("notify", "cond-notify", map[string]string{"ran": "yes"})
+		step.If = "$(source.cfg.data.mode)"
+		err := k8sClient.Create(ctx, optIn(&v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{Name: "not-a-bool", Namespace: namespaceName},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []oamcomm.ApplicationComponent{},
+				Sources: []v1beta1.ApplicationSource{{Name: "cfg", Type: "step-settings",
+					Properties: &runtime.RawExtension{Raw: []byte(`{"name":"flags"}`)}}},
+				Workflow: &v1beta1.Workflow{Steps: []wfTypesv1alpha1.WorkflowStep{step}},
+			},
+		}))
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("spec.workflow.steps[0].if"))
+		Expect(err.Error()).To(ContainSubstring("is string but if expects bool"))
+	})
+
 	It("holds a source for the whole run, and reads it afresh in the next", func() {
 		applyDefinition(ctx, &v1beta1.SourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{Name: "step-settings", Namespace: namespaceName},
