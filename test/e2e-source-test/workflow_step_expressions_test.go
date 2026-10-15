@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -103,13 +104,19 @@ names: ["from-a", "from-b"]
 		}, 30*time.Second, time.Second).Should(Succeed())
 	}
 
-	configMapData := func(name string) func() map[string]string {
-		return func() map[string]string {
+	// configMapData is the data of the ConfigMap named name, nil when there is
+	// none; any other error fails the poll, so an absence check cannot pass on it.
+	configMapData := func(name string) func() (map[string]string, error) {
+		return func() (map[string]string, error) {
 			cm := &corev1.ConfigMap{}
-			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: name}, cm); err != nil {
-				return nil
+			err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: name}, cm)
+			if apierrors.IsNotFound(err) {
+				return nil, nil
 			}
-			return cm.Data
+			if err != nil {
+				return nil, err
+			}
+			return cm.Data, nil
 		}
 	}
 
@@ -138,8 +145,16 @@ names: ["from-a", "from-b"]
 			if err := k8sClient.List(ctx, &configs, client.InNamespace("vela-system"), nsLabel); err != nil {
 				return err
 			}
-			if n := len(templates.Items) + len(configs.Items); n > 0 {
-				return fmt.Errorf("%d ConfigTemplates and Configs for %s still in vela-system", n, namespaceName)
+			var configMaps corev1.ConfigMapList
+			if err := k8sClient.List(ctx, &configMaps, client.InNamespace("vela-system"), nsLabel); err != nil {
+				return err
+			}
+			var secrets corev1.SecretList
+			if err := k8sClient.List(ctx, &secrets, client.InNamespace("vela-system"), nsLabel); err != nil {
+				return err
+			}
+			if n := len(templates.Items) + len(configs.Items) + len(configMaps.Items) + len(secrets.Items); n > 0 {
+				return fmt.Errorf("%d ConfigTemplates, Configs, ConfigMaps and Secrets for %s still in vela-system", n, namespaceName)
 			}
 			return nil
 		}, 30*time.Second, time.Second).Should(Succeed())
