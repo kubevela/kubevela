@@ -208,7 +208,7 @@ func TestComponentReadsAreTypedFromTheProducer(t *testing.T) {
 		{name: "a producer whose definition cannot be found declares nothing",
 			components: []common.ApplicationComponent{{Name: "db", Type: "missing", Properties: rawJSON(`{}`)},
 				reader(`{"replicas":"$(component.db.output.metadata.name)"}`)}},
-		{name: "a guarded read is still typed by what it reads",
+		{name: "a guarded read with a fallback of another type is not judged",
 			components: []common.ApplicationComponent{db(`{}`),
 				reader(`{"replicas":"$(has(component.db.output.metadata.name) ? component.db.output.metadata.name : 1)"}`)}},
 	} {

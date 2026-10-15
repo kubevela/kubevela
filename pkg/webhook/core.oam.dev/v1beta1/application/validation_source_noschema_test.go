@@ -59,7 +59,7 @@ parameter: {}
 		require.Empty(t, validate(t, "raw-http", `{"image":"$(source.raw.body)","replicas":"$(source.raw.count)"}`))
 	})
 	t.Run("the whole binding too", func(t *testing.T) {
-		require.Empty(t, validate(t, "raw-http", `{"note":"$(source.raw.body)"}`))
+		require.Empty(t, validate(t, "raw-http", `{"image":"$(source.raw)"}`))
 	})
 	t.Run("a definition that cannot be loaded is reported once", func(t *testing.T) {
 		var atRead []string
