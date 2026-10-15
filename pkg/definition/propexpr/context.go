@@ -78,9 +78,9 @@ var ComponentContext = surfaceSchema("component")
 // its own type. A trait has no instance name in the API to expose alongside it.
 var TraitContext = surfaceSchema("trait")
 
-// WorkflowStepContext is what a workflow step's properties see. The step's
-// properties are substituted before the engine receives them, from a context
-// built the same way a component's is.
+// WorkflowStepContext is what a workflow step's properties see. The workflow
+// resolves them when the step runs, from a context built the same way a
+// component's is.
 var WorkflowStepContext = surfaceSchema("workflowstep")
 
 // WorkflowStepTemplateContext is what a WorkflowStepDefinition template sees

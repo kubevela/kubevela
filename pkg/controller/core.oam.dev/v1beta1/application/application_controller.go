@@ -225,6 +225,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 
 	// Check if workflow needs restart (combines scheduled restart + revision-based restart)
 	r.checkWorkflowRestart(logCtx, app, handler)
+	handler.keepStepSourceReads()
 
 	workflowInstance, runners, err := handler.GenerateApplicationSteps(logCtx, app, appParser, appFile)
 	if err != nil {
@@ -276,6 +277,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	workflowUpdated := app.Status.Workflow.Message != "" && workflowInstance.Status.Message == ""
 	workflowInstance.Status.Phase = workflowState
 	app.Status.Workflow = workflow.ConvertWorkflowStatus(workflowInstance.Status, app.Status.Workflow.AppRevision)
+	app.Status.Workflow.Dependencies = workflow.WithStepReads(app.Status.Workflow.Dependencies, handler.stepReads)
 	logCtx.Info(fmt.Sprintf("Workflow return state=%s", workflowState))
 	postDispatchApplied := false
 	applyPostDispatchTraits := func() error {

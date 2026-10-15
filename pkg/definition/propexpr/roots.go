@@ -22,7 +22,10 @@ limitations under the License.
 //	  owner:   '$("owner" in context.appLabels ? context.appLabels["owner"] : "unassigned")'
 package propexpr
 
-import "github.com/kubevela/pkg/cel/template"
+import (
+	"github.com/kubevela/pkg/cel/template"
+	wfexpressions "github.com/kubevela/workflow/pkg/expressions"
+)
 
 // SourceIdent reads a resolved source. It is one of a fixed set of roots, with
 // ContextIdent and ComponentIdent: everything a consumer may read hangs off one
@@ -37,6 +40,16 @@ const SourceIdent = "source"
 // and trait properties offer it, because only a component's render can wait: a
 // reader whose producer is not ready is simply not healthy yet.
 const ComponentIdent = "component"
+
+// StepsIdent reads an earlier workflow step's output, as
+// steps.<name>.outputs.<output>, and EachIdent the current forEach iteration, as
+// each.item and each.index. Only workflow steps offer them, and the workflow
+// answers them when the step runs; they are named here so that a step's
+// expressions plan and type like any other.
+const (
+	StepsIdent = wfexpressions.RootSteps
+	EachIdent  = wfexpressions.RootEach
+)
 
 // IsSource reports whether the reference reads a resolved source.
 func IsSource(r template.Reference) bool { return r.Root == SourceIdent }

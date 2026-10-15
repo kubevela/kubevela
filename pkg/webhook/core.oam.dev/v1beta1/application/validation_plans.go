@@ -40,7 +40,13 @@ import (
 
 // everyRoot permits every root, for a Check that applies one root's rules and
 // leaves which roots a surface offers to the roots pass.
-var everyRoot = []string{propexpr.SourceIdent, propexpr.ContextIdent, propexpr.ComponentIdent}
+var everyRoot = func() []string {
+	out := make([]string, len(celexpr.Roots))
+	for i, r := range celexpr.Roots {
+		out[i] = r.Name
+	}
+	return out
+}()
 
 // blobPlan is one properties blob of an Application, planned once: where it
 // sits, the surface that evaluates it, what it feeds, and its expressions.

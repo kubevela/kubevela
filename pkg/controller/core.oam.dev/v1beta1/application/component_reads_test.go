@@ -525,8 +525,7 @@ func TestWorkflowInstanceOrdersReadersAfterProducers(t *testing.T) {
 		WorkflowMode:  &wfTypesv1alpha1.WorkflowExecuteMode{Steps: "DAG", SubSteps: "DAG"}}
 
 	af.Dependencies = sources.Dependencies(af.Components, af.AppAnnotations)
-	instance, err := generateWorkflowInstance(af, app, af.StepsWithReadDependencies(af.WorkflowSteps), nil)
-	require.NoError(t, err)
+	instance := generateWorkflowInstance(af, app, af.StepsWithReadDependencies(af.WorkflowSteps))
 	require.Equal(t, []string{"db"}, instance.Steps[1].DependsOn)
 	require.Empty(t, af.WorkflowSteps[1].DependsOn, "the Appfile's steps are left as parsed")
 }
