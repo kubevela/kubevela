@@ -548,7 +548,7 @@ func getWorkflowStepFieldPath(loc workflowStepLocation) *field.Path {
 }
 
 // ValidateAnnotations validates whether the application has both autoupdate and publish version annotations
-func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app *v1beta1.Application, req admission.Request) field.ErrorList {
+func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app, oldApp *v1beta1.Application, req admission.Request) field.ErrorList {
 	var annotationsErrs field.ErrorList
 
 	hasPublishVersion := app.Annotations[oam.AnnotationPublishVersion]
@@ -564,8 +564,23 @@ func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app *v1beta1.
 	// addon's own owned Application; a user's own Application setting it
 	// directly would otherwise redirect a module install into any namespace
 	// the controller can reach, bypassing namespace restrictions and RBAC.
-	if _, ok := app.Annotations[oam.AnnotationModuleInstallNamespace]; ok {
-		if h.controllerUsername == "" || req.UserInfo.Username != h.controllerUsername {
+	//
+	// Only the request that introduces or changes the value is checked. A
+	// write that carries an already-admitted value forward unchanged (the
+	// normal read-modify-write shape of a Kubernetes update, e.g. a
+	// reconciler or test harness touching an unrelated field) is left alone
+	// no matter who makes it: that value was already vetted when it was
+	// first set, and requiring every subsequent write to come from the
+	// controller would make the addon's own owned Application unupdatable
+	// by anything else once the annotation lands on it.
+	if newVal, ok := app.Annotations[oam.AnnotationModuleInstallNamespace]; ok {
+		var oldVal string
+		var hadIt bool
+		if oldApp != nil {
+			oldVal, hadIt = oldApp.Annotations[oam.AnnotationModuleInstallNamespace]
+		}
+		unchanged := hadIt && oldVal == newVal
+		if !unchanged && (h.controllerUsername == "" || req.UserInfo.Username != h.controllerUsername) {
 			annotationsErrs = append(annotationsErrs, field.Forbidden(
 				field.NewPath("metadata", "annotations").Key(oam.AnnotationModuleInstallNamespace),
 				"only the addon renderer may set this annotation"))
@@ -737,7 +752,7 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 func (h *ValidatingHandler) validateSoundness(ctx context.Context, app, oldApp *v1beta1.Application, req admission.Request) (field.ErrorList, []string) {
 	var errs field.ErrorList
 
-	errs = append(errs, h.ValidateAnnotations(ctx, app, req)...)
+	errs = append(errs, h.ValidateAnnotations(ctx, app, oldApp, req)...)
 	errs = append(errs, h.ValidateDefinitionPermissions(ctx, app, req)...)
 	restrictionErrs, warnings := h.ValidateDefinitionRestrictions(ctx, app, oldApp)
 	errs = append(errs, restrictionErrs...)

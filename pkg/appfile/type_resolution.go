@@ -127,12 +127,17 @@ func resolveForm1(ctx context.Context, cli client.Reader, typeName, name string,
 		// Surface the original not-found via the normal GetCapabilityDefinition path.
 		return typeName, nil
 	case 1:
-		// Every match from this label search is module-backed by construction
-		// (listModuleDefinitions only matches definitions carrying the module
-		// identity label), so a single hit is rejected the same way an exact-name
-		// hit on a module-backed definition is above -- the module is never
-		// inferred from a bare name, unique match or not.
+		// The search only filters on LabelDefinitionName, not
+		// LabelDefinitionModule, so a hit is not automatically module-backed:
+		// nothing stops a legacy definition from carrying the name label
+		// without the module label (hand-labeled, or copied from elsewhere).
+		// Only reject when the module label is actually present; otherwise
+		// this is a legacy definition the fallback search happened to find,
+		// and it resolves like any other unique match.
 		mod := matches[0].GetLabels()[types.LabelDefinitionModule]
+		if mod == "" {
+			return matches[0].GetName(), nil
+		}
 		return "", fmt.Errorf(
 			"type %q resolves to module-backed definition %q (module=%q); use {module}/{apiVersion}/{name} (Form 3)",
 			typeName, matches[0].GetName(), mod)

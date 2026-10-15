@@ -184,9 +184,16 @@ func TestResolveModuleTypeForm1(t *testing.T) {
 	t.Run("a unique module-label match is rejected the same way an exact-name match is", func(t *testing.T) {
 		cli := resolutionClient(t, definitionOf(capType, appNS, "s3-v1-bucket", stampedLabels("s3", "v1", "bucket")))
 		_, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
-		require.Error(t, err, "the module label fallback only ever matches module-backed definitions, so a unique hit must not be silently accepted")
+		require.Error(t, err, "a unique module-backed hit must not be silently accepted")
 		assert.Contains(t, err.Error(), `module-backed definition "s3-v1-bucket"`)
 		assert.Contains(t, err.Error(), `use {module}/{apiVersion}/{name} (Form 3)`)
+	})
+
+	t.Run("a unique match carrying only the name label, not the module label, is not module-backed and resolves normally", func(t *testing.T) {
+		cli := resolutionClient(t, definitionOf(capType, appNS, "hand-labeled-bucket", map[string]string{types.LabelDefinitionName: "bucket"}))
+		got, err := ResolveModuleType(appCtx(), cli, "bucket", capType)
+		require.NoError(t, err, "the label search only filters on the name label, so a hit with no module label is not module-backed")
+		assert.Equal(t, "hand-labeled-bucket", got)
 	})
 
 	t.Run("no definition at all returns the name for the caller to report", func(t *testing.T) {

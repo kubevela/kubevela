@@ -25,6 +25,7 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -184,11 +185,21 @@ func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 		addonValidator:  addonvalidation.NewValidator(mgr.GetClient()),
 		moduleValidator: modulevalidation.NewValidator(mgr.GetClient()),
 	}
-	if userInfo := utils.GetUserInfoFromConfig(mgr.GetConfig()); userInfo != nil {
-		handler.controllerUsername = userInfo.Username
-	} else {
+	handler.controllerUsername = resolveControllerUsername(mgr.GetConfig())
+	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: handler})
+}
+
+// resolveControllerUsername resolves vela-core's own identity from the
+// manager's kubeconfig, the same way RegisterMutatingHandler resolves
+// skipUsers. Returns "" when it could not be resolved, logging a warning
+// since ValidateAnnotations then refuses modules.oam.dev/install-namespace
+// for everyone, including the addon renderer itself.
+func resolveControllerUsername(cfg *rest.Config) string {
+	userInfo := utils.GetUserInfoFromConfig(cfg)
+	if userInfo == nil {
 		klog.Warning("[ApplicationValidatingHandler] could not resolve vela-core's own identity; " +
 			"modules.oam.dev/install-namespace will be refused on every Application, including the addon renderer's own")
+		return ""
 	}
-	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: handler})
+	return userInfo.Username
 }
