@@ -87,6 +87,11 @@ parameter: {}
 			refused: "is int but if expects bool"},
 		{name: "a comparison on the index",
 			steps: []wfv1alpha1.WorkflowStep{group(`["eu", "us"]`, "$(each.index > 0)")}},
+		{name: "a field some loop items leave out is refused unguarded",
+			steps:   []wfv1alpha1.WorkflowStep{group(`[{"wave":1},{"region":"us"}]`, "$(each.item.wave > 0)")},
+			refused: "each.item.wave may be absent and decides the step"},
+		{name: "and admitted guarded",
+			steps: []wfv1alpha1.WorkflowStep{group(`[{"wave":1},{"region":"us"}]`, "$(has(each.item.wave) && each.item.wave > 0)")}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cli := fake.NewClientBuilder().WithScheme(readKindsScheme()).WithRuntimeObjects(defs...).Build()
