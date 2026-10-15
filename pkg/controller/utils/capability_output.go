@@ -68,25 +68,10 @@ func traitOutputSchemaData(ctx context.Context, cli client.Client, td *v1beta1.T
 // generated for, or whose chain cannot be read, stores neither and still
 // reconciles.
 func outputSchemaData(ctx context.Context, levels []inherit.Level) map[string]string {
-	var schemas *schema.OutputSchemas
-	for i := len(levels) - 1; i >= 0; i-- {
-		lvl := levels[i]
-		own, err := schema.GenerateOutputSchemas(ctx, lvl.Template)
-		if err != nil {
-			klog.InfoS("skipping output schemas", "definition", levels[0].Name, "level", lvl.Name, "err", err.Error())
-			return nil
-		}
-		if schemas == nil {
-			schemas = own
-			continue
-		}
-		output, err := inherit.Inherits(lvl, schema.OutputFieldName)
-		if err != nil {
-			klog.InfoS("skipping output schemas", "definition", levels[0].Name, "level", lvl.Name, "err", err.Error())
-			return nil
-		}
-		outputs, _ := inherit.Inherits(lvl, schema.OutputsFieldName)
-		schemas = schemas.Extend(own, output, outputs)
+	schemas, err := schema.ChainOutputSchemas(ctx, levels)
+	if err != nil {
+		klog.InfoS("skipping output schemas", "definition", levels[0].Name, "err", err.Error())
+		return nil
 	}
 	data := map[string]string{}
 	if schemas == nil {
