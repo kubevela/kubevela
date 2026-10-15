@@ -21,8 +21,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
@@ -77,19 +80,22 @@ func ValidateExpandedWriter(template cue.Value) error {
 	}
 	metadata := nacos.LookupPath(cue.ParsePath("metadata"))
 	if !metadata.Exists() {
-		return errors.New("nacos.metadata is required, with dataId and group")
+		return errors.New("nacos.metadata is required, with dataId")
 	}
 	if metadata.IncompleteKind() != cue.StructKind {
 		return errors.New("nacos.metadata must be a struct")
 	}
-	for _, field := range []string{"dataId", "group"} {
-		v := metadata.LookupPath(cue.ParsePath(field))
-		if !v.Exists() {
-			return fmt.Errorf("nacos.metadata.%s is required", field)
-		}
-		if !mayBeString(v) {
-			return fmt.Errorf("nacos.metadata.%s must be a string", field)
-		}
+	dataID := metadata.LookupPath(cue.ParsePath("dataId"))
+	if !dataID.Exists() {
+		return errors.New("nacos.metadata.dataId is required")
+	}
+	if !mayBeString(dataID) {
+		return errors.New("nacos.metadata.dataId must be a string")
+	}
+	// group is optional: the SDK publishes to and reads from DEFAULT_GROUP when it is
+	// empty, and templates written before the controller published never had to set it
+	if group := metadata.LookupPath(cue.ParsePath("group")); group.Exists() && !mayBeString(group) {
+		return errors.New("nacos.metadata.group must be a string")
 	}
 	format := nacos.LookupPath(cue.ParsePath("format"))
 	if format.Exists() {
@@ -147,6 +153,34 @@ func ContentHash(d *NacosData) string {
 	}
 	h.Write(canonicalContent(d.Format, d.Content))
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// endpointCredentialKeys are the keys of the endpoint config's client section that never
+// enter EndpointHash: the digest lands in the Config status, which anyone who can read
+// Configs can read, and a digest of a password is a password to brute-force offline.
+// Rotating them changes nothing in Nacos, so they need no re-sync either.
+var endpointCredentialKeys = []string{"username", "password", "accessKey", "secretKey"}
+
+// EndpointHash is a digest of the server part of the endpoint config the content is
+// synced through: the properties of the config made from the nacos-server template, in
+// canonical JSON, with the client credentials left out. The Config status stores it next
+// to the content hash, so a changed endpoint (another server) is treated like changed
+// content: Nacos is read first and the content published only when the server does not
+// hold it. The error is for a value json cannot marshal, which a config decoded from
+// JSON never carries.
+func EndpointHash(endpointConfig map[string]interface{}) (string, error) {
+	projected := maps.Clone(endpointConfig)
+	if client, ok := projected[EndpointClientKey].(map[string]interface{}); ok {
+		server := maps.Clone(client)
+		maps.DeleteFunc(server, func(key string, _ interface{}) bool { return slices.Contains(endpointCredentialKeys, key) })
+		projected[EndpointClientKey] = server
+	}
+	canonical, err := json.Marshal(projected)
+	if err != nil {
+		return "", fmt.Errorf("the endpoint config cannot be digested: %w", err)
+	}
+	sum := sha256.Sum256(canonical)
+	return hex.EncodeToString(sum[:]), nil
 }
 
 // SameContent reports whether two renderings of the given format carry the same

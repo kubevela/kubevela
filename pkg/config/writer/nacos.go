@@ -29,13 +29,11 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
-	"k8s.io/klog/v2"
 
 	"github.com/kubevela/workflow/pkg/cue/model/value"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
-	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
 
 // NacosConfig defines the nacos output
@@ -63,37 +61,31 @@ type NacosData struct {
 	Client  config_client.IConfigClient `json:"-"`
 }
 
+// The two sections of an endpoint config (the properties of a config made from the
+// nacos-server template) the client is built from: the server addresses, and the
+// discovery endpoint with the credentials. EndpointHash projects the same keys.
+const (
+	EndpointServersKey = "servers"
+	EndpointClientKey  = "client"
+)
+
 // NewNacosClient builds the client write and Read use when NacosData.Client is nil.
 // A package variable so the controller tests can hand in a mock per spec; the CLI and
 // the controller use the SDK's constructor.
 var NewNacosClient func(param vo.NacosClientParam) (config_client.IConfigClient, error) = clients.NewConfigClient
 
-// parseNacosConfig parse the nacos server config
-func parseNacosConfig(templateField cue.Value, wc *ExpandedWriterConfig) {
-	nacos := templateField.LookupPath(cue.ParsePath("nacos"))
-	if nacos.Err() == nil {
-		formatValue := nacos.LookupPath(cue.ParsePath("format"))
-		format, err := formatValue.String()
-		if err != nil {
-			klog.Warningf("fail to get the format from the nacos config: %s", err.Error())
-		}
-		endpointValue := nacos.LookupPath(value.FieldPath("endpoint", "name"))
-		endpoint, err := endpointValue.String()
-		if err != nil {
-			klog.Warningf("fail to get the endpoint name from the nacos config: %s", err.Error())
-		}
-		wc.Nacos = &NacosConfig{
-			Format: format,
-			Endpoint: ConfigRef{
-				Name: endpoint,
-			},
-		}
+// renderNacos reads the nacos block out of the rendered template value: the one the
+// Secret render produced from the CueX compile of the script with the context and the
+// parameters merged in. One render serves the Secret, the outputs and this block, so a
+// template that imports a vela package or calls a provider behaves the same for all
+// three and its providers run once. An empty group becomes the SDK's default group, so
+// the hash, the status, the read and the publish all name the group Nacos uses.
+func renderNacos(config *NacosConfig, rendered cue.Value) (*NacosData, error) {
+	nacos := rendered.LookupPath(cue.ParsePath("template.nacos"))
+	if !nacos.Exists() {
+		return nil, fmt.Errorf("the rendered template has no nacos block")
 	}
-}
-
-func renderNacos(config *NacosConfig, template script.CUE, context icontext.ConfigRenderContext, properties map[string]interface{}) (*NacosData, error) {
-	nacos, err := template.RunAndOutput(context, properties, "template", "nacos")
-	if err != nil {
+	if err := nacos.Err(); err != nil {
 		return nil, err
 	}
 	formatValue := nacos.LookupPath(cue.ParsePath("format"))
@@ -117,6 +109,9 @@ func renderNacos(config *NacosConfig, template script.CUE, context icontext.Conf
 	nacosData.Content = out
 	if nacosData.Endpoint.Namespace == "" {
 		nacosData.Endpoint.Namespace = types.DefaultKubeVelaNS
+	}
+	if nacosData.Metadata.Group == "" {
+		nacosData.Metadata.Group = constant.DEFAULT_GROUP
 	}
 
 	return &nacosData, nil
@@ -161,10 +156,19 @@ func (n *NacosData) client(ctx context.Context, configReader icontext.ReadConfig
 	if err != nil {
 		return nil, nil, fmt.Errorf("fail to read the config of the nacos server:%w", err)
 	}
-	param := n.clientParam(config)
-	nacosClient, err := NewNacosClient(param)
+	return n.NewClient(config)
+}
+
+// NewClient builds the SDK client for the endpoint config (the properties of the config
+// made from the nacos-server template) and returns it with the function that closes it.
+// A caller that reads and publishes in one go builds the client once and hands it to
+// both through n.Client: every construction re-initialises the SDK's global logger and
+// opens a log writer that is never closed, so one per sync is the most the controller
+// should pay.
+func (n *NacosData) NewClient(endpointConfig map[string]interface{}) (config_client.IConfigClient, func(), error) {
+	nacosClient, err := NewNacosClient(n.clientParam(endpointConfig))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("fail to build the nacos client for the endpoint %s/%s: %w", n.Endpoint.Namespace, n.Endpoint.Name, err)
 	}
 	return nacosClient, nacosClient.CloseClient, nil
 }
@@ -173,8 +177,14 @@ func (n *NacosData) client(ctx context.Context, configReader icontext.ReadConfig
 // nacos-server template) into the SDK's client parameters. The client config is always
 // built: the SDK's defaults put its log and cache directories under the process working
 // directory, which is the repository for the CLI and / for the controller, so they go
-// under the temp directory instead; and the block's appName and namespaceId reach the
-// client whether or not the endpoint config has a client section.
+// under the temp directory instead, the cache in a directory per endpoint because the
+// SDK keys its entries by dataId, group and namespaceId alone; and the block's appName
+// and namespaceId reach the client whether or not the endpoint config has a client
+// section. The SDK's snapshot fallback is off: with it on, a read while the server is
+// unreachable returns the snapshot the SDK wrote after its last successful read, with no
+// error, and the controller would record stale content as current and never retry. (The
+// SDK's failover files are a different mechanism: an operator has to write them into the
+// cache directory by hand, and nothing here does.)
 func (n *NacosData) clientParam(config map[string]interface{}) vo.NacosClientParam {
 	readString := func(data map[string]interface{}, key string) string {
 		if v, ok := data[key]; ok {
@@ -198,7 +208,7 @@ func (n *NacosData) clientParam(config map[string]interface{}) vo.NacosClientPar
 		return false
 	}
 	var nacosParam vo.NacosClientParam
-	if serverConfigs, ok := config["servers"]; ok {
+	if serverConfigs, ok := config[EndpointServersKey]; ok {
 		var servers []constant.ServerConfig
 		serverEndpoints, _ := serverConfigs.([]interface{})
 		for _, s := range serverEndpoints {
@@ -217,10 +227,11 @@ func (n *NacosData) clientParam(config map[string]interface{}) vo.NacosClientPar
 		constant.WithAppName(n.Metadata.AppName),
 		constant.WithNamespaceId(n.Metadata.NamespaceID),
 		constant.WithLogDir(filepath.Join(os.TempDir(), "nacos", "log")),
-		constant.WithCacheDir(filepath.Join(os.TempDir(), "nacos", "cache")),
+		constant.WithCacheDir(filepath.Join(os.TempDir(), "nacos", "cache", n.Endpoint.Namespace+"_"+n.Endpoint.Name)),
+		constant.WithDisableUseSnapShot(true),
 	}
 	// Discover the server endpoint
-	if clientConfigs, ok := config["client"]; ok {
+	if clientConfigs, ok := config[EndpointClientKey]; ok {
 		if client, _ := clientConfigs.(map[string]interface{}); client != nil {
 			options = append(options,
 				constant.WithEndpoint(readString(client, "endpoint")),

@@ -152,6 +152,29 @@ spec:
                         type: string
                       dataId:
                         type: string
+                      endpoint:
+                        description: |-
+                          Endpoint is the endpoint config (the config made from the nacos-server template) the
+                          template names, recorded on every sync attempt whether it succeeded or not, so a
+                          change to that config re-triggers exactly the Configs that use it, including the
+                          ones still waiting for it to exist.
+                        properties:
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                        required:
+                        - name
+                        - namespace
+                        type: object
+                      endpointHash:
+                        description: |-
+                          EndpointHash is a digest of that endpoint config's server part (addresses, ports,
+                          discovery endpoint, region), never its credentials. A changed endpoint, another
+                          server say, is re-synced like changed content: read first, published only when the
+                          server does not hold it. Rotated credentials change nothing in Nacos and are not
+                          part of it; the status is readable by whoever can read Configs.
+                        type: string
                       group:
                         type: string
                       lastSyncTime:
