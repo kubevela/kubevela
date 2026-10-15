@@ -251,6 +251,8 @@ func TestLoopReadsAreTypedFromTheItems(t *testing.T) {
 		}
 	}
 	waves := items(`[{"region":"eu","wave":1},{"region":"us","wave":2}]`)
+	keyed := items(`[{"region":"eu","wave":1},{"region":"us","wave":2}]`)
+	keyed.Key = []string{"region"}
 	for _, tc := range []struct {
 		name    string
 		steps   []wfv1alpha1.WorkflowStep
@@ -283,8 +285,11 @@ func TestLoopReadsAreTypedFromTheItems(t *testing.T) {
 		{name: "the index into an int parameter",
 			steps: []wfv1alpha1.WorkflowStep{loop(waves, `{"text":"hi","count":"$(each.index)"}`)}},
 		{name: "the key into a string parameter",
-			steps: []wfv1alpha1.WorkflowStep{loop(waves, `{"text":"$(each.key)"}`)}},
+			steps: []wfv1alpha1.WorkflowStep{loop(keyed, `{"text":"$(each.key)"}`)}},
 		{name: "the key into an int parameter is refused",
+			steps:   []wfv1alpha1.WorkflowStep{loop(keyed, `{"text":"hi","count":"$(each.key)"}`)},
+			refused: "expression $(each.key) is string but"},
+		{name: "an unkeyed loop's key is its index as text",
 			steps:   []wfv1alpha1.WorkflowStep{loop(waves, `{"text":"hi","count":"$(each.key)"}`)},
 			refused: "expression $(each.key) is string but"},
 		{name: "the index is typed when the items are not",
