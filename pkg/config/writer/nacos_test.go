@@ -233,7 +233,7 @@ func TestNewNacosClientSeam(t *testing.T) {
 	r.Nil(data.Client, "write does not keep the client it built")
 	r.NotNil(gotParam.ClientConfig, "the client config is built without a client section in the endpoint config")
 	r.Equal(filepath.Join(os.TempDir(), "nacos", "log"), gotParam.ClientConfig.LogDir)
-	r.Equal(filepath.Join(os.TempDir(), "nacos", "cache", "vela-system_nacos"), gotParam.ClientConfig.CacheDir, "a cache directory per endpoint")
+	r.Equal(filepath.Join(os.TempDir(), "nacos", "cache", "vela-system", "nacos"), gotParam.ClientConfig.CacheDir, "a cache directory per endpoint")
 	r.True(gotParam.ClientConfig.DisableUseSnapShot, "a read never falls back to the SDK's snapshot of an earlier read")
 
 	// Read goes through the same seam
@@ -281,7 +281,7 @@ func TestClientParamCarriesTheBlockMetadata(t *testing.T) {
 		r.Equal("r", param.ClientConfig.RegionId)
 		r.True(param.ClientConfig.OpenKMS)
 		r.Equal("tenant-a", param.ClientConfig.NamespaceId)
-		r.Equal(filepath.Join(os.TempDir(), "nacos", "cache", "vela-system_nacos"), param.ClientConfig.CacheDir)
+		r.Equal(filepath.Join(os.TempDir(), "nacos", "cache", "vela-system", "nacos"), param.ClientConfig.CacheDir)
 	})
 
 	t.Run("two endpoints never share a cache directory", func(t *testing.T) {

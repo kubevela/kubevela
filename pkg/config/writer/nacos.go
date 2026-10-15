@@ -177,8 +177,9 @@ func (n *NacosData) NewClient(endpointConfig map[string]interface{}) (config_cli
 // nacos-server template) into the SDK's client parameters. The client config is always
 // built: the SDK's defaults put its log and cache directories under the process working
 // directory, which is the repository for the CLI and / for the controller, so they go
-// under the temp directory instead, the cache in a directory per endpoint because the
-// SDK keys its entries by dataId, group and namespaceId alone; and the block's appName
+// under the temp directory instead, the cache in a directory per endpoint (namespace and
+// name as two components, each within the file name limit on its own) because the SDK
+// keys its entries by dataId, group and namespaceId alone; and the block's appName
 // and namespaceId reach the client whether or not the endpoint config has a client
 // section. The SDK's snapshot fallback is off: with it on, a read while the server is
 // unreachable returns the snapshot the SDK wrote after its last successful read, with no
@@ -227,7 +228,7 @@ func (n *NacosData) clientParam(config map[string]interface{}) vo.NacosClientPar
 		constant.WithAppName(n.Metadata.AppName),
 		constant.WithNamespaceId(n.Metadata.NamespaceID),
 		constant.WithLogDir(filepath.Join(os.TempDir(), "nacos", "log")),
-		constant.WithCacheDir(filepath.Join(os.TempDir(), "nacos", "cache", n.Endpoint.Namespace+"_"+n.Endpoint.Name)),
+		constant.WithCacheDir(filepath.Join(os.TempDir(), "nacos", "cache", n.Endpoint.Namespace, n.Endpoint.Name)),
 		constant.WithDisableUseSnapShot(true),
 	}
 	// Discover the server endpoint

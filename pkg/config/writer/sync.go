@@ -55,11 +55,11 @@ func ValidateTemplate(ctx context.Context, template script.CUE) error {
 // ValidateExpandedWriter is the strict reading of a template's nacos block, behind
 // ValidateTemplate. ParseExpandedWriterConfig stays lenient for the CLI. A template
 // without the block is valid. With it: the block is a struct, endpoint.name is a
-// concrete non-empty string, metadata is a struct that defines dataId and group as
-// strings (incomplete is fine, they usually reference the parameter, but a concrete
-// non-string is refused), and format, a string, is one of the supported ones when
-// concrete. The checks are structural because the block is not decodable before the
-// parameters are merged in.
+// concrete non-empty string, metadata is a struct that defines dataId as a string and
+// may define group as one (incomplete is fine, they usually reference the parameter, but
+// a concrete non-string is refused; a missing group means DEFAULT_GROUP at render time),
+// and format, a string, is one of the supported ones when concrete. The checks are
+// structural because the block is not decodable before the parameters are merged in.
 func ValidateExpandedWriter(template cue.Value) error {
 	nacos := template.LookupPath(cue.ParsePath("nacos"))
 	if !nacos.Exists() {
