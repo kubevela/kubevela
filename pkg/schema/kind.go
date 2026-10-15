@@ -63,9 +63,10 @@ func KindAt(s *openapi3.Schema, path []string) (cue.Kind, bool) {
 }
 
 // MayBeAbsentAt reports whether a value s describes may lack path: an object's
-// field it declares but does not require, or a map's key, at any segment. A
-// list index is taken as present, and a path s does not declare, or that runs
-// below a value of any type, is not reported, as for a definition's schema.
+// field it declares but does not require, a map's key, or a list index at or
+// past the list's minItems, at any segment, so a read of one needs has(). A
+// path s does not declare, or that runs below a value of any type, is not
+// reported, as for a definition's schema.
 func MayBeAbsentAt(s *openapi3.Schema, path []string) bool {
 	for _, seg := range path {
 		if s == nil {
