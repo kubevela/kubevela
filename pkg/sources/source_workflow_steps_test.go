@@ -149,3 +149,17 @@ func TestStepExpressionsNeedAWorkflow(t *testing.T) {
 	_, err := s.options().Resolvers[propexpr.SourceIdent].Resolve(context.Background(), nil)
 	require.ErrorContains(t, err, "workflow step")
 }
+
+// A read that fails does not undo the ones that succeeded: what they resolved is
+// pinned, so the step's retry, and every later step, reads the same value.
+func TestAFailedReadKeepsTheSourcesThatResolved(t *testing.T) {
+	s := &stepSources{region: "eu-west", replicas: 3, recorded: map[string]map[string]SourceResolutionStatus{}}
+	wfCtx := &runContext{data: map[string]string{}}
+	_, err := s.eval(t, "run-1", wfCtx, "first", `{"m":"$(source.cfg.region)","x":"$(source.missing.region)"}`)
+	require.Error(t, err)
+
+	s.region = "us-east"
+	out, err := s.eval(t, "run-1", wfCtx, "second", `{"m":"$(source.cfg.region)"}`)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"m":"eu-west"}`, out)
+}

@@ -108,11 +108,10 @@ func StepExpressions(stepContext func(step, stepType string) process.Context,
 					}
 					r.setSourceStatus(name, sourceType, PhaseResolved, message, from.Config, from.ExpiresAt)
 				}
-				out, err := r.resolveReads(ctx, reads)
+				// What resolved is pinned even when a later read fails, so the
+				// step's retry and every later step read the same value.
+				out, readErr := r.resolveReads(ctx, reads)
 				record(scope.Step, scope.StepType, r.statuses)
-				if err != nil {
-					return nil, err
-				}
 				for name, values := range r.resolved {
 					pins.Values[name] = values
 					if _, kept := pins.From[name]; kept {
@@ -122,7 +121,13 @@ func StepExpressions(stepContext func(step, stepType string) process.Context,
 						pins.From[name] = pinnedFrom{Config: st.Config, ExpiresAt: st.ExpiresAt, Message: st.Message}
 					}
 				}
-				return out, writePins(scope, pins)
+				if err := writePins(scope, pins); err != nil {
+					return nil, err
+				}
+				if readErr != nil {
+					return nil, readErr
+				}
+				return out, nil
 			}),
 		},
 	}
