@@ -19,7 +19,10 @@ package defkit
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
+
+	"cuelang.org/go/cue/ast"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
@@ -121,7 +124,8 @@ type PolicyOutput struct {
 	res *Resource
 }
 
-// Components replaces the Application's components.
+// Components replaces the Application's components. An empty list leaves them
+// as they are: the controller applies output.components only when it has entries.
 func (o *PolicyOutput) Components(v Value) *PolicyOutput {
 	o.res.Set("components", v)
 	return o
@@ -133,7 +137,8 @@ func (o *PolicyOutput) Workflow(v Value) *PolicyOutput {
 	return o
 }
 
-// Policies replaces the Application's policies.
+// Policies replaces the Application's policies. As with Components, an empty
+// list leaves them as they are.
 func (o *PolicyOutput) Policies(v Value) *PolicyOutput {
 	o.res.Set("policies", v)
 	return o
@@ -207,10 +212,20 @@ func (t *AppComponentsTransform) RenderCUE(rv func(Value) string) string {
 		sort.Strings(keys)
 		props := make([]string, 0, len(keys))
 		for _, k := range keys {
-			props = append(props, fmt.Sprintf("%s: %s", cueLabel(k), rv(tr.properties[k])))
+			props = append(props, fmt.Sprintf("%s: %s", propertyLabel(k), rv(tr.properties[k])))
 		}
 		traits = append(traits, fmt.Sprintf("{type: %q, properties: {%s}}", tr.typ, strings.Join(props, ", ")))
 	}
 	return fmt.Sprintf(`[for c in context.appComponents {{for k, v in c if k != "traits" {(k): v}}, traits: [%s]}]`,
 		strings.Join(traits, ", "))
+}
+
+// propertyLabel writes a trait property key as a CUE label. Any key that is not
+// a plain identifier is quoted, since "#" and "_" would make a definition or a
+// hidden field of it.
+func propertyLabel(k string) string {
+	if ast.IsValidIdent(k) && !strings.HasPrefix(k, "#") && !strings.HasPrefix(k, "_") {
+		return k
+	}
+	return strconv.Quote(k)
 }

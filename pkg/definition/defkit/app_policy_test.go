@@ -100,7 +100,7 @@ var _ = Describe("Application-scoped policies", func() {
 			policyName: "logging"
 			appAnnotations: {}
 			appComponents: [
-				{name: "a", type: "webservice", properties: {}},
+				{name: "a", type: "webservice", properties: {port: 80}},
 				{name: "b", type: "webservice", properties: {}, traits: [{type: "scaler", properties: replicas: 2}]},
 			]
 		}`, `{image: "fluent-bit:3.1"}`)
@@ -109,25 +109,35 @@ var _ = Describe("Application-scoped policies", func() {
 		Expect(v.LookupPath(cue.ParsePath("enabled")).Exists()).To(BeFalse())
 		Expect(v.LookupPath(cue.ParsePath("config.enabled")).Bool()).To(BeTrue())
 		var out struct {
-			Components []struct {
-				Name   string `json:"name"`
-				Traits []struct {
-					Type       string         `json:"type"`
-					Properties map[string]any `json:"properties"`
-				} `json:"traits"`
-			} `json:"components"`
+			Components  []map[string]any          `json:"components"`
 			Annotations map[string]string         `json:"annotations"`
 			Ctx         map[string]map[string]any `json:"ctx"`
 		}
 		Expect(v.LookupPath(cue.ParsePath("output")).Decode(&out)).To(Succeed())
-		Expect(out.Components).To(HaveLen(2))
-		Expect(out.Components[0].Traits).To(HaveLen(1))
-		Expect(out.Components[0].Traits[0].Type).To(Equal("sidecar"))
-		Expect(out.Components[0].Traits[0].Properties).To(Equal(map[string]any{"name": "logger", "image": "fluent-bit:3.1"}))
-		Expect(out.Components[1].Traits).To(HaveLen(2))
-		Expect(out.Components[1].Traits[0].Type).To(Equal("scaler"))
+		sidecarTrait := map[string]any{"type": "sidecar", "properties": map[string]any{"name": "logger", "image": "fluent-bit:3.1"}}
+		Expect(out.Components).To(Equal([]map[string]any{
+			{"name": "a", "type": "webservice", "properties": map[string]any{"port": int64(80)}, "traits": []any{sidecarTrait}},
+			{"name": "b", "type": "webservice", "properties": map[string]any{}, "traits": []any{
+				map[string]any{"type": "scaler", "properties": map[string]any{"replicas": int64(2)}},
+				sidecarTrait,
+			}},
+		}))
 		Expect(out.Annotations).To(Equal(map[string]string{"logging.io/injected-by": "logging"}))
 		Expect(out.Ctx).To(Equal(map[string]map[string]any{"logging": {"sidecar": "fluent-bit:3.1"}}))
+	})
+
+	It("quotes trait property keys that are not CUE identifiers", func() {
+		p := defkit.NewPolicy("p").ApplicationScoped().Template(func(tpl *defkit.PolicyTemplate) {
+			tpl.Output().Components(defkit.AppComponents().AddTrait("t", map[string]defkit.Value{
+				"1port": defkit.Lit(1), "foo:bar": defkit.Lit(2), "#def": defkit.Lit(3), "_hidden": defkit.Lit(4), "plain": defkit.Lit(5),
+			}))
+		})
+		v := evalTemplate(p.ToCue(), `{appComponents: [{name: "a", type: "webservice"}]}`, `{}`)
+		var props map[string]any
+		Expect(v.LookupPath(cue.ParsePath("output.components[0].traits[0].properties")).Decode(&props)).To(Succeed())
+		Expect(props).To(Equal(map[string]any{
+			"1port": int64(1), "foo:bar": int64(2), "#def": int64(3), "_hidden": int64(4), "plain": int64(5),
+		}))
 	})
 
 	It("disables itself when the Application opts out", func() {
