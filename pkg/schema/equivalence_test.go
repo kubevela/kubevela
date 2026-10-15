@@ -55,9 +55,7 @@ func TestShippedDefinitionsRenderWhatTheirOutputSchemasDeclare(t *testing.T) {
 					continue
 				}
 				rendered, err := cuetest.Render(c.Subject, c.Input)
-				if err != nil {
-					continue
-				}
+				require.NoError(t, err, "%s %q: a case that expects no error renders", c.Subject.Name, c.Name)
 				tmpl := c.Subject.Template
 				if c.Subject.Object != nil {
 					if stored, ok, _ := unstructured.NestedString(c.Subject.Object.Object, "spec", "schematic", "cue", "template"); ok {
