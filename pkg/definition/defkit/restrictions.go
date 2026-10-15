@@ -71,6 +71,29 @@ func (n *NamespaceQuota) Limit(count int32) *NamespaceQuota {
 	return n
 }
 
+// validateQuotaCounts holds what the CRD schema checks and nsrestrict.Validate
+// does not: counts are non-negative, and an empty selector matches every
+// namespace, so it must be the last entry like DefaultQuota.
+func validateQuotaCounts(r *common.DefinitionRestrictions) error {
+	if r == nil {
+		return nil
+	}
+	for i, q := range r.Quota {
+		if q.Warn != nil && *q.Warn < 0 {
+			return fmt.Errorf("quota[%d]: warn %d is negative", i, *q.Warn)
+		}
+		if q.Limit != nil && *q.Limit < 0 {
+			return fmt.Errorf("quota[%d]: limit %d is negative", i, *q.Limit)
+		}
+		sel := q.NamespaceSelector
+		matchesAll := len(q.Namespaces) == 0 && sel != nil && len(sel.MatchLabels) == 0 && len(sel.MatchExpressions) == 0
+		if matchesAll && i != len(r.Quota)-1 {
+			return fmt.Errorf("quota[%d] has an empty selector, which matches every namespace, so quota[%d] onwards could never apply", i, i+1)
+		}
+	}
+	return nil
+}
+
 // --- baseDefinition storage, exposed per kind ---
 
 func (b *baseDefinition) ensureRestrictions() *common.DefinitionRestrictions {

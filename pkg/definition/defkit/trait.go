@@ -321,8 +321,9 @@ func (t *TraitDefinition) RestrictNamespaceSelector(selector *metav1.LabelSelect
 	return t
 }
 
-// Quota caps how many times each namespace may use the definition. The first
-// entry matching a namespace applies.
+// Quota caps how many times each namespace may use this TraitDefinition, counted
+// across its Applications and separately from any ComponentDefinition quota. The
+// first entry matching a namespace applies.
 //
 //	Quota(
 //	    defkit.QuotaFor("tenant-dev-*").Limit(3),

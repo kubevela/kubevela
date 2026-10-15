@@ -45,7 +45,12 @@ func restrictionsOf(cueStr string) *common.DefinitionRestrictions {
 }
 
 var _ = Describe("Definition restrictions", func() {
-	tenants := defkit.MatchLabels(map[string]string{"tenant": "true"})
+	tenants := &metav1.LabelSelector{
+		MatchLabels: map[string]string{"tenant": "true"},
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{Key: "tier", Operator: metav1.LabelSelectorOpIn, Values: []string{"gold", "silver"}},
+		},
+	}
 
 	component := func() *defkit.ComponentDefinition {
 		return defkit.NewComponent("c").Template(func(tpl *defkit.Template) {
@@ -91,11 +96,13 @@ var _ = Describe("Definition restrictions", func() {
 
 	quota := []*defkit.NamespaceQuota{
 		defkit.QuotaForSelector(defkit.MatchLabels(map[string]string{"tier": "gold"})).Warn(16).Limit(20),
+		defkit.QuotaForSelector(tenants).Limit(10),
 		defkit.QuotaFor("tenant-dev-*").Limit(3),
 		defkit.DefaultQuota().Warn(5),
 	}
 	wantQuota := []common.NamespaceQuota{
 		{NamespaceSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"tier": "gold"}}, Warn: ptr.To[int32](16), Limit: ptr.To[int32](20)},
+		{NamespaceSelector: tenants, Limit: ptr.To[int32](10)},
 		{Namespaces: []string{"tenant-dev-*"}, Limit: ptr.To[int32](3)},
 		{Warn: ptr.To[int32](5)},
 	}
@@ -109,7 +116,7 @@ var _ = Describe("Definition restrictions", func() {
 	)
 
 	It("writes restrictions into ToYAML's spec too", func() {
-		bs, err := component().RestrictNamespaces("tenant-*").Quota(defkit.DefaultQuota().Limit(2)).ToYAML()
+		bs, err := component().RestrictNamespaces("tenant-*").RestrictNamespaceSelector(tenants).Quota(defkit.DefaultQuota().Limit(2)).ToYAML()
 		Expect(err).NotTo(HaveOccurred())
 		var cr struct {
 			Spec struct {
@@ -118,8 +125,9 @@ var _ = Describe("Definition restrictions", func() {
 		}
 		Expect(yaml.Unmarshal(bs, &cr)).To(Succeed())
 		Expect(cr.Spec.Restrictions).To(Equal(&common.DefinitionRestrictions{
-			Namespaces: []string{"tenant-*"},
-			Quota:      []common.NamespaceQuota{{Limit: ptr.To[int32](2)}},
+			Namespaces:        []string{"tenant-*"},
+			NamespaceSelector: tenants,
+			Quota:             []common.NamespaceQuota{{Limit: ptr.To[int32](2)}},
 		}))
 	})
 
@@ -132,5 +140,9 @@ var _ = Describe("Definition restrictions", func() {
 			defkit.DefaultQuota().Limit(1), defkit.QuotaFor("a").Limit(2)), "could never apply"),
 		Entry("a quota entry with neither warn nor limit", trait().Quota(defkit.QuotaFor("a")), "neither warn nor limit"),
 		Entry("warn above limit", trait().Quota(defkit.DefaultQuota().Warn(3).Limit(2)), "above the limit"),
+		Entry("a negative limit", component().Quota(defkit.DefaultQuota().Limit(-1)), "limit -1 is negative"),
+		Entry("a negative warn", trait().Quota(defkit.DefaultQuota().Warn(-1)), "warn -1 is negative"),
+		Entry("an empty selector before the end", component().Quota(
+			defkit.QuotaForSelector(&metav1.LabelSelector{}).Limit(1), defkit.QuotaFor("a").Limit(2)), "matches every namespace"),
 	)
 })

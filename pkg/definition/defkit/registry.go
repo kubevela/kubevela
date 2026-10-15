@@ -89,6 +89,9 @@ func Register(def Definition) {
 		if err := nsrestrict.Validate(r.GetRestrictions()); err != nil {
 			panic("defkit: invalid restrictions for definition '" + def.DefName() + "': " + err.Error())
 		}
+		if err := validateQuotaCounts(r.GetRestrictions()); err != nil {
+			panic("defkit: invalid restrictions for definition '" + def.DefName() + "': " + err.Error())
+		}
 	}
 
 	registryLock.Lock()
