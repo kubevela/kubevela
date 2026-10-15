@@ -151,11 +151,28 @@ func TestMayBeAbsentAt(t *testing.T) {
 		"a field no element has":                {`[{"region":"eu"}]`, []string{"0", "zone"}, false},
 		"the element itself":                    {`[{"region":"eu"}]`, []string{"0"}, false},
 		"below a value of any type":             {`[{"x":"$(source.cfg.x)"}]`, []string{"0", "x", "y"}, false},
+		"an index every element's list has":     {`[{"ports":[80,443]},{"ports":[8080]}]`, []string{"0", "ports", "0"}, false},
+		"an index some elements' lists lack":    {`[{"ports":[80,443]},{"ports":[8080]}]`, []string{"0", "ports", "1"}, true},
+		"an index into an empty list":           {`[{"ports":[]},{"ports":[8080]}]`, []string{"0", "ports", "0"}, true},
+		"below an index some lists lack":        {`[{"ports":[{"n":1},{"n":2}]},{"ports":[{"n":3}]}]`, []string{"0", "ports", "1", "n"}, true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			require.Equal(t, tc.absent, mayBeAbsent(t, tc.literal, tc.path...))
 		})
 	}
+
+	t.Run("a key of a map open to any value", func(t *testing.T) {
+		open := openAPI(t, `{"type":"object","properties":{"labels":{"type":"object","additionalProperties":true}},"required":["labels"]}`)
+		require.True(t, MayBeAbsentAt(open, []string{"labels", "team"}))
+	})
+
+	t.Run("an index of a schema's list, which says nothing of its length", func(t *testing.T) {
+		list := openAPI(t, `{"type":"object","properties":{"ports":{"type":"array","items":{"type":"integer"}}},"required":["ports"]}`)
+		require.True(t, MayBeAbsentAt(list, []string{"ports", "0"}))
+		min := openAPI(t, `{"type":"object","properties":{"ports":{"type":"array","minItems":2,"items":{"type":"integer"}}},"required":["ports"]}`)
+		require.False(t, MayBeAbsentAt(min, []string{"ports", "1"}))
+		require.True(t, MayBeAbsentAt(min, []string{"ports", "2"}))
+	})
 
 	t.Run("a map's key", func(t *testing.T) {
 		labels := openAPI(t, `{"type":"object","properties":{"labels":{"type":"object","additionalProperties":{"type":"string"}}},"required":["labels"]}`)

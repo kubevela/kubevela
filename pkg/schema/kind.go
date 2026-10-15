@@ -73,14 +73,21 @@ func MayBeAbsentAt(s *openapi3.Schema, path []string) bool {
 		}
 		switch {
 		case s.Type.Is(openapi3.TypeArray):
-			if _, err := strconv.Atoi(seg); err != nil || s.Items == nil {
+			i, err := strconv.Atoi(seg)
+			if err != nil || i < 0 || s.Items == nil {
 				return false
+			}
+			// Only an index below the list's least length is sure to be there.
+			if uint64(i) >= s.MinItems {
+				return true
 			}
 			s = s.Items.Value
 		case s.Type.Is(openapi3.TypeObject):
 			p, ok := s.Properties[seg]
 			if !ok || p == nil {
-				return s.AdditionalProperties.Schema != nil
+				// A key of a map, typed or open to any value, may be missing.
+				return s.AdditionalProperties.Schema != nil ||
+					(s.AdditionalProperties.Has != nil && *s.AdditionalProperties.Has)
 			}
 			if !slices.Contains(s.Required, seg) {
 				return true
@@ -143,6 +150,7 @@ func LiteralSchema(v interface{}) *openapi3.Schema {
 			elem = merge(elem, LiteralSchema(e))
 		}
 		list := openapi3.NewArraySchema()
+		list.MinItems = uint64(len(x))
 		if elem != nil {
 			list.Items = openapi3.NewSchemaRef("", elem)
 		}
@@ -191,6 +199,7 @@ func merge(a, b *openapi3.Schema) *openapi3.Schema {
 		return obj
 	case ka == cue.ListKind:
 		list := openapi3.NewArraySchema()
+		list.MinItems = min(a.MinItems, b.MinItems)
 		switch {
 		case a.Items == nil:
 			list.Items = b.Items
