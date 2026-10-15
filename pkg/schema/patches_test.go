@@ -60,6 +60,25 @@ outputs: cfg: data: patch: "x"
 		"a quoted label": {`
 "patch": spec: replicas: 1
 `, true, false},
+		"a patch in an embedded struct": {`
+{patch: spec: replicas: 1}
+`, true, false},
+		"a patch under an if inside a for": {`
+for k, v in parameter.labels {
+	if v != "" {
+		patch: metadata: labels: (k): v
+	}
+}
+parameter: labels: [string]: string
+`, true, false},
+		"a computed label may be either": {`
+(parameter.field): spec: replicas: 1
+parameter: field: string
+`, true, true},
+		"an interpolated label may be either": {`
+"\(parameter.field)": spec: replicas: 1
+parameter: field: string
+`, true, true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			output, outputs := Patches(tc.template)
