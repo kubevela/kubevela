@@ -43,7 +43,9 @@ func TestKindAt(t *testing.T) {
 			"paused":{"type":"boolean"},
 			"ports":{"type":"array","items":{"type":"object","properties":{"port":{"type":"integer"}}}},
 			"raw":{"type":"object","x-kubernetes-preserve-unknown-fields":true},
-			"anything":{}}},
+			"anything":{},
+			"selector":{"type":"string","nullable":true},
+			"template":{"type":"object","nullable":true,"properties":{"name":{"type":"string"}}}}},
 		"status":{}}}`)
 
 	for name, tc := range map[string]struct {
@@ -70,6 +72,8 @@ func TestKindAt(t *testing.T) {
 		"a value kept as written":             {[]string{"spec", "raw", "x"}, cue.BottomKind, false},
 		"the kept value itself":               {[]string{"spec", "raw"}, cue.BottomKind, false},
 		"a value of any type":                 {[]string{"spec", "anything"}, cue.BottomKind, false},
+		"a nullable value":                    {[]string{"spec", "selector"}, cue.BottomKind, false},
+		"below a nullable object":             {[]string{"spec", "template", "name"}, cue.BottomKind, false},
 	} {
 		t.Run(name, func(t *testing.T) {
 			kind, ok := KindAt(deployment, tc.path)

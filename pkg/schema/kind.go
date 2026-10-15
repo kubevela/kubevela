@@ -32,9 +32,10 @@ const preserveUnknownFields = "x-kubernetes-preserve-unknown-fields"
 // KindAt is the kind s declares at path, one segment per field, map key or list
 // index, when it declares one. A path s does not have, a value of any type and
 // anything below one has none: a live object carries more than its schema says.
+// Nor does a nullable value, or anything below one, since null is not its kind.
 func KindAt(s *openapi3.Schema, path []string) (cue.Kind, bool) {
 	for _, seg := range path {
-		if s == nil || s.Extensions[preserveUnknownFields] == true {
+		if s == nil || s.Nullable || s.Extensions[preserveUnknownFields] == true {
 			return cue.BottomKind, false
 		}
 		switch {
@@ -60,7 +61,7 @@ func KindAt(s *openapi3.Schema, path []string) (cue.Kind, bool) {
 }
 
 func declaredKind(s *openapi3.Schema) (cue.Kind, bool) {
-	if s == nil || s.Extensions[preserveUnknownFields] == true {
+	if s == nil || s.Nullable || s.Extensions[preserveUnknownFields] == true {
 		return cue.BottomKind, false
 	}
 	switch {
