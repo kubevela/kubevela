@@ -80,14 +80,9 @@ func TestLoopItemKind(t *testing.T) {
 		{"its whole item", `"$(source.cfg.regions)"`, nil, cue.StructKind, true},
 		{"a field its items do not have", `"$(source.cfg.regions)"`, []string{"zone"}, cue.BottomKind, false},
 		{"a read the reader cannot type", `"$(source.other.list)"`, nil, cue.BottomKind, false},
-		{"a computed list", `"$(source.cfg.regions.filter(r, r.wave > 1))"`, []string{"wave"}, cue.BottomKind, false},
-		{"a read of the loop itself", `"$(each.item)"`, nil, cue.BottomKind, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			item := LoopItemKind([]byte(tc.items), readKind)
-			if !tc.ok && item == nil {
-				return
-			}
 			require.NotNil(t, item)
 			kind, ok := item(tc.path)
 			require.Equal(t, tc.ok, ok)
@@ -97,7 +92,8 @@ func TestLoopItemKind(t *testing.T) {
 		})
 	}
 
-	for _, items := range []string{"", `{"a":1}`, `3`, `not json`} {
+	for _, items := range []string{"", `{"a":1}`, `3`, `not json`,
+		`"$(source.cfg.regions.filter(r, r.wave > 1))"`, `"$(each.item)"`} {
 		require.Nil(t, LoopItemKind([]byte(items), readKind), "items %q declare nothing", items)
 	}
 }
