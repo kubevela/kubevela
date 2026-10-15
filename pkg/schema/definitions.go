@@ -149,7 +149,8 @@ func ProducedFor(ctx context.Context, cli client.Client, namespace string, compo
 }
 
 // traitEffect is what a trait does to its component's reads: the resources it
-// adds, and whether it patches the workload and the other resources.
+// adds, and whether it patches the workload and the other resources, at any
+// level of its extends chain. A trait whose chain cannot be read may patch either.
 func traitEffect(lookupCtx, ctx context.Context, cli client.Client, tr common.ApplicationTrait,
 	annotations map[string]string) (added map[string]*openapi3.Schema, output, outputs bool) {
 	td := &v1beta1.TraitDefinition{}
@@ -160,12 +161,21 @@ func traitEffect(lookupCtx, ctx context.Context, cli client.Client, tr common.Ap
 	if tmpl == "" {
 		return nil, true, true
 	}
-	output, outputs = Patches(tmpl)
-	own := definitionOutputs(ctx, td.Name, tmpl, func() ([]inherit.Level, error) {
-		if td.Spec.Extends == "" {
-			return nil, nil
+	var ancestors []inherit.Level
+	if td.Spec.Extends != "" {
+		var err error
+		if ancestors, err = appfile.TraitAncestors(ctx, cli, td); err != nil {
+			klog.V(4).InfoS("skip typing component reads: trait chain unreadable", "definition", td.Name, "err", err)
+			return nil, true, true
 		}
-		return appfile.TraitAncestors(ctx, cli, td)
+	}
+	output, outputs = Patches(tmpl)
+	for _, l := range ancestors {
+		o, os := Patches(l.Template)
+		output, outputs = output || o, outputs || os
+	}
+	own := definitionOutputs(ctx, td.Name, tmpl, func() ([]inherit.Level, error) {
+		return ancestors, nil
 	})
 	if own == nil {
 		return nil, output, outputs

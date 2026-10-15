@@ -140,6 +140,8 @@ $super: properties: replicas: parameter.replicas
 output: metadata: labels: tier: "db"
 `)
 	child.Spec.Extends = "server"
+	childScaler := trait("child-scaler", "vela-system", "outputs: extra: {apiVersion: \"v1\", kind: \"ConfigMap\"}\nparameter: replicas: int\n$super: properties: replicas: parameter.replicas")
+	childScaler.Spec.Extends = "scaler"
 	revision := &v1beta1.DefinitionRevision{
 		ObjectMeta: metav1.ObjectMeta{Name: "server-v1", Namespace: "vela-system"},
 		Spec: v1beta1.DefinitionRevisionSpec{DefinitionType: common.ComponentType, Revision: 1,
@@ -148,6 +150,7 @@ output: metadata: labels: tier: "db"
 	cli := definitionsClient(t,
 		component("server", "vela-system", server), revision, child,
 		component("team-server", "team", textServer),
+		childScaler,
 		trait("scaler", "vela-system", "patch: spec: replicas: parameter.replicas\nparameter: replicas: int"),
 		trait("svc-type", "vela-system", "patchOutputs: svc: spec: type: \"NodePort\""),
 		trait("ingress", "vela-system", "outputs: ingress: {apiVersion: \"networking.k8s.io/v1\", kind: \"Ingress\", spec: host: parameter.host}\nparameter: host: string"),
@@ -211,6 +214,23 @@ output: metadata: labels: tier: "db"
 		k, ok = kind(t, "default", withTraits("db", "child"), "component.db.outputs.svc.spec.ports[0].port")
 		require.True(t, ok, "and the parent's resources")
 		require.Equal(t, cue.IntKind, k)
+	})
+
+	t.Run("a trait that extends a patch trait patches the workload", func(t *testing.T) {
+		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EnableDefinitionInheritance, true)
+		_, ok := kind(t, "default", withTraits("db", "server", "child-scaler"), "component.db.output.spec.replicas")
+		require.False(t, ok, "the parent's patch")
+		k, ok := kind(t, "default", withTraits("db", "server", "child-scaler"), "component.db.outputs.svc.spec.ports[0].port")
+		require.True(t, ok, "and the resources typed")
+		require.Equal(t, cue.IntKind, k)
+	})
+
+	t.Run("a trait whose chain cannot be read may patch anything", func(t *testing.T) {
+		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EnableDefinitionInheritance, false)
+		_, ok := kind(t, "default", withTraits("db", "server", "child-scaler"), "component.db.output.spec.replicas")
+		require.False(t, ok)
+		_, ok = kind(t, "default", withTraits("db", "server", "child-scaler"), "component.db.outputs.svc.spec.ports[0].port")
+		require.False(t, ok)
 	})
 
 	t.Run("a definition that extends another, with inheritance off, declares nothing", func(t *testing.T) {
