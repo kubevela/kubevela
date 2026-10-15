@@ -554,17 +554,18 @@ func (h *AppHandler) recordSourceResolution(kind, name, readerType, cluster, nam
 			Namespace:      namespace,
 			Values:         consumerValues(src, rs, "", ""),
 		}
-		// Replace rather than append when this reader is already recorded.
-		// collectHealthStatus records the reads, and it runs both in the ordinary
-		// apply and again in refreshSourceDrivenComponents, so a component that
-		// auto-updates is recorded twice in one reconcile. A placement is part of
-		// the identity: the same component in two clusters is two readers.
+		// A reader is recorded once, with what each of its recordings read. A
+		// component is recorded again when refreshSourceDrivenComponents renders
+		// it a second time in one reconcile, and a workflow step resolves its
+		// forEach.items and its properties separately. A placement is part of the
+		// identity: the same component in two clusters is two readers.
 		replaced := false
 		for i, existing := range entry.ConsumedBy {
 			if existing.DefinitionKind == consumer.DefinitionKind &&
 				existing.Name == consumer.Name &&
 				existing.Cluster == consumer.Cluster &&
 				existing.Namespace == consumer.Namespace {
+				consumer.Values = mergeSourceValues(existing.Values, consumer.Values)
 				entry.ConsumedBy[i] = consumer
 				replaced = true
 				break
@@ -582,6 +583,32 @@ func (h *AppHandler) recordSourceResolution(kind, name, readerType, cluster, nam
 // on the cluster has an entry per cluster; one keyed on the component has an
 // entry per component inside a single cluster. Keying this by cluster would
 // collapse the second case and invent entries in the first.
+// mergeSourceValues is a reader's values from two recordings, one per property
+// and source attribute, the later recording's value winning.
+func mergeSourceValues(earlier, later []common.SourceValue) []common.SourceValue {
+	if len(earlier) == 0 {
+		return later
+	}
+	type key struct{ property, attr string }
+	seen := map[key]bool{}
+	out := append([]common.SourceValue{}, later...)
+	for _, v := range later {
+		seen[key{v.Property, v.SourceAttr}] = true
+	}
+	for _, v := range earlier {
+		if !seen[key{v.Property, v.SourceAttr}] {
+			out = append(out, v)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Property != out[j].Property {
+			return out[i].Property < out[j].Property
+		}
+		return out[i].SourceAttr < out[j].SourceAttr
+	})
+	return out
+}
+
 func mergeResolution(entry *common.ApplicationSourceStatus, rs sources.SourceResolutionStatus, cluster string) {
 	if rs.Config == "" && rs.Phase == "" {
 		return

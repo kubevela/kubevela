@@ -503,3 +503,25 @@ func TestMaskingOnePathKeepsTheRestVisible(t *testing.T) {
 	r.Contains(joined, "db.internal", "an unmasked value stays visible")
 	r.NotContains(joined, "hunter2", "the masked one does not")
 }
+
+// A workflow step resolves its forEach.items and its properties separately, so
+// what it read of one source arrives in two recordings, and the report holds both.
+func TestAStepReadingOneSourceTwiceKeepsBothReads(t *testing.T) {
+	r := require.New(t)
+	h := handlerFor(nil, v1beta1.ApplicationSource{Name: "cfg", Type: "configmap"})
+	reading := func(attr, property, value string) map[string]sources.SourceResolutionStatus {
+		return map[string]sources.SourceResolutionStatus{"cfg": {Name: "cfg", Phase: sourcePhaseResolved,
+			ConsumedFields: map[string]interface{}{attr: value},
+			Reads:          []sources.SourceRead{{SourceAttr: attr, Property: property, Value: value}}}}
+	}
+	h.recordSourceResolution(sourceKindWorkflowStep, "rollout", "deploy", "", "", reading("data.regions", "forEach.items", "eu"))
+	h.recordSourceResolution(sourceKindWorkflowStep, "rollout", "deploy", "", "", reading("data.channel", "channel", "#deploys"))
+
+	out := h.sourceStatusList()
+	r.Len(out[0].ConsumedBy, 1)
+	read := []string{}
+	for _, v := range out[0].ConsumedBy[0].Values {
+		read = append(read, v.Property+"<-"+v.SourceAttr)
+	}
+	r.Equal([]string{"channel<-data.channel", "forEach.items<-data.regions"}, read)
+}
