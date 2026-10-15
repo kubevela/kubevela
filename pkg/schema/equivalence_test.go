@@ -41,6 +41,9 @@ func TestShippedDefinitionsRenderWhatTheirOutputSchemasDeclare(t *testing.T) {
 	var mismatches []string
 	ungenerated := map[string]string{}
 	cases, checked := 0, 0
+	// scalars counts the declared values compared that are not objects or lists,
+	// so the test cannot pass on roots alone.
+	scalars := 0
 	for _, dir := range []string{"component", "trait"} {
 		suites, err := cuetest.Load("../../vela-templates/definitions/internal/" + dir)
 		require.NoError(t, err)
@@ -70,40 +73,43 @@ func TestShippedDefinitionsRenderWhatTheirOutputSchemasDeclare(t *testing.T) {
 				cases++
 				where := fmt.Sprintf("%s %q", c.Subject.Name, c.Name)
 				if c.Test == cuetest.TestComponentRender && len(c.Input.Traits) == 0 {
-					checked += compare(where+" output", schemas.Output, rendered.Output, nil, &mismatches)
+					checked += compare(where+" output", schemas.Output, rendered.Output, nil, &mismatches, &scalars)
 					for name, obj := range rendered.Outputs {
-						checked += compare(where+" outputs."+name, schemas.Outputs[name], obj, nil, &mismatches)
+						checked += compare(where+" outputs."+name, schemas.Outputs[name], obj, nil, &mismatches, &scalars)
 					}
 				}
 				if c.Test == cuetest.TestTraitRender {
 					for _, tr := range rendered.Traits {
 						for name, obj := range tr.Outputs {
-							checked += compare(where+" outputs."+name, schemas.Outputs[name], obj, nil, &mismatches)
+							checked += compare(where+" outputs."+name, schemas.Outputs[name], obj, nil, &mismatches, &scalars)
 						}
 					}
 				}
 			}
 		}
 	}
-	t.Logf("%d rendered cases, %d declared leaves compared", cases, checked)
+	t.Logf("%d rendered cases, %d declared values compared, %d of them scalars", cases, checked, scalars)
 	for name, err := range ungenerated {
 		t.Logf("no output schema for %s: %s", name, err)
 	}
 	require.Greater(t, cases, 0)
-	require.Greater(t, checked, 0, "no declared leaf was compared")
+	require.Greater(t, scalars, 0, "no declared scalar was compared")
 	sort.Strings(mismatches)
 	require.Empty(t, mismatches, "declared kinds the render contradicts:\n%s", strings.Join(mismatches, "\n"))
 }
 
 // compare checks every value in v against the kind s declares at its path,
 // returning how many it compared.
-func compare(where string, s *openapi3.Schema, v interface{}, path []string, out *[]string) int {
+func compare(where string, s *openapi3.Schema, v interface{}, path []string, out *[]string, scalars *int) int {
 	if s == nil {
 		return 0
 	}
 	n := 0
 	if declared, ok := schema.KindAt(s, path); ok {
 		n++
+		if declared != cue.StructKind && declared != cue.ListKind {
+			*scalars++
+		}
 		if actual := kindOfValue(v); !fits(declared, actual) {
 			*out = append(*out, fmt.Sprintf("%s .%s: declared %s, rendered %s (%v)", where, strings.Join(path, "."), declared, actual, v))
 		}
@@ -111,11 +117,11 @@ func compare(where string, s *openapi3.Schema, v interface{}, path []string, out
 	switch x := v.(type) {
 	case map[string]interface{}:
 		for k, e := range x {
-			n += compare(where, s, e, append(append([]string{}, path...), k), out)
+			n += compare(where, s, e, append(append([]string{}, path...), k), out, scalars)
 		}
 	case []interface{}:
 		for i, e := range x {
-			n += compare(where, s, e, append(append([]string{}, path...), strconv.Itoa(i)), out)
+			n += compare(where, s, e, append(append([]string{}, path...), strconv.Itoa(i)), out, scalars)
 		}
 	}
 	return n

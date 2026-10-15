@@ -46,8 +46,9 @@ func LoopItemKind(items []byte, readKind func(template.Reference) (cue.Kind, boo
 
 // LoopItemMayBeAbsent reports whether a path within one item of a forEach loop
 // may be missing, given its items: in a literal list, a field some object items
-// leave out, and for one expression that is exactly a read, what mayBeAbsent
-// says one element down. Items LoopItemKind types nothing for say nothing.
+// leave out or an index past some items' lists; for one expression that is
+// exactly a read, what mayBeAbsent says one element down. Like LoopItemKind, it
+// is nil for any other items.
 func LoopItemMayBeAbsent(items []byte, mayBeAbsent func(template.Reference) bool) func([]string) bool {
 	literal, read, ok := loopItems(items)
 	switch {
