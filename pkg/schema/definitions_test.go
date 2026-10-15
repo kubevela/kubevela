@@ -247,3 +247,19 @@ output: metadata: labels: tier: "db"
 		require.NotContains(t, produced, "c")
 	})
 }
+
+// A template written for an older CUE is upgraded before its reads are typed,
+// as it is before it renders.
+func TestProducedForUpgradesTheTemplate(t *testing.T) {
+	legacy := &v1beta1.ComponentDefinition{ObjectMeta: metav1.ObjectMeta{Name: "legacy", Namespace: "vela-system"},
+		Spec: v1beta1.ComponentDefinitionSpec{Schematic: cueSchematic(`
+_ports: [80] + [443]
+output: {apiVersion: "v1", kind: "Service", spec: {ports: [for p in _ports {port: p}], replicas: parameter.replicas}}
+parameter: replicas: *1 | int
+`)}}
+	produced := ProducedFor(context.Background(), definitionsClient(t, legacy), "default",
+		[]common.ApplicationComponent{{Name: "svc", Type: "legacy"}}, nil)
+	k, ok := ComponentReadKind(produced, readOf(t, "component.svc.output.spec.replicas"))
+	require.True(t, ok)
+	require.Equal(t, cue.IntKind, k)
+}

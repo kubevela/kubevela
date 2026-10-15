@@ -34,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/cue/upgrade"
 	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -113,7 +114,7 @@ func ProducedFor(ctx context.Context, cli client.Client, namespace string, compo
 		if err := oamutil.GetCapabilityDefinition(lookupCtx, cli, cd, comp.Type, annotations); err != nil {
 			continue
 		}
-		own := definitionOutputs(ctx, cd.Name, cueTemplate(cd.Spec.Schematic), func() ([]inherit.Level, error) {
+		own := definitionOutputs(ctx, cd.Name, upgrade.ComponentKind, cueTemplate(cd.Spec.Schematic), func() ([]inherit.Level, error) {
 			if cd.Spec.Extends == "" {
 				return nil, nil
 			}
@@ -174,7 +175,7 @@ func traitEffect(lookupCtx, ctx context.Context, cli client.Client, tr common.Ap
 		o, os := Patches(l.Template)
 		output, outputs = output || o, outputs || os
 	}
-	own := definitionOutputs(ctx, td.Name, tmpl, func() ([]inherit.Level, error) {
+	own := definitionOutputs(ctx, td.Name, upgrade.TraitKind, tmpl, func() ([]inherit.Level, error) {
 		return ancestors, nil
 	})
 	if own == nil {
@@ -184,11 +185,14 @@ func traitEffect(lookupCtx, ctx context.Context, cli client.Client, tr common.Ap
 }
 
 // definitionOutputs is a definition's output schemas over its extends chain, or
-// nil when they cannot be generated.
-func definitionOutputs(ctx context.Context, name, tmpl string, ancestors func() ([]inherit.Level, error)) *OutputSchemas {
+// nil when they cannot be generated. Its own template is put through the CUE
+// compatibility pass its render would be, as its ancestors' already are.
+func definitionOutputs(ctx context.Context, name string, kind upgrade.DefinitionKind, tmpl string,
+	ancestors func() ([]inherit.Level, error)) *OutputSchemas {
 	if tmpl == "" {
 		return nil
 	}
+	tmpl, _ = upgrade.EnsureCueVersionCompatibility(tmpl, name, kind, upgrade.TemplateAreaMain)
 	levels := []inherit.Level{{Name: name, Template: tmpl}}
 	more, err := ancestors()
 	if err != nil {
