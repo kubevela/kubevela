@@ -172,9 +172,8 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		}
 
 		// Validate identity fields: module and apiVersion are set together or not at all.
-		if err := webhookutils.ValidateDefinitionIdentity(obj.Spec.Module, obj.Spec.APIVersion); err != nil {
-			logger.WithStep("validate-identity").WithError(err).Error(err, "ComponentDefinition identity fields are inconsistent", "module", obj.Spec.Module, "apiVersion", obj.Spec.APIVersion)
-			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
+		if resp, denied := webhookutils.DenyOnInvalidIdentity(logger, "ComponentDefinition", obj.Spec.Module, obj.Spec.APIVersion, req.UID); denied {
+			return resp
 		}
 
 		// Validate namespace restrictions. A malformed glob would otherwise deny

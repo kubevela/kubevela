@@ -86,14 +86,15 @@ func NewValidator(cli client.Client) *Validator {
 // struct because decoding is itself the check: a component that writes a map
 // for module, or a number for version, fails to decode and is rejected.
 //
-// Namespace is no longer a property. It is decoded only to refuse it: a module's
-// definitions install into the namespace of the Application that installs it,
-// and a pointer tells an explicit empty value apart from an absent one.
+// namespace is refused: a module's definitions install into the namespace of
+// the Application that installs it. There is no Namespace field here -- the
+// rawProperties key check below already tells an explicit "namespace": null
+// apart from the key being absent, so decoding it a second time onto this
+// struct would be redundant.
 type componentProperties struct {
-	Module    string  `json:"module"`
-	Registry  string  `json:"registry"`
-	Namespace *string `json:"namespace"`
-	Version   string  `json:"version"`
+	Module   string `json:"module"`
+	Registry string `json:"registry"`
+	Version  string `json:"version"`
 }
 
 // namespaceRemovedDetail explains why a namespace property is refused.
@@ -157,7 +158,7 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 
 		// namespace is no longer a supported property, so reject any explicit key,
 		// including "namespace": null.
-		if _, hasNamespaceKey := rawProperties["namespace"]; hasNamespaceKey || properties.Namespace != nil {
+		if _, hasNamespaceKey := rawProperties["namespace"]; hasNamespaceKey {
 			errs = append(errs, field.Forbidden(path.Child("namespace"), namespaceRemovedDetail))
 		}
 

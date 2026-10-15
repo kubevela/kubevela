@@ -98,8 +98,10 @@ template: {
 		_namespace: context.namespace
 	}
 
-	// namespace used to be a parameter. A component still setting it must fail
-	// rather than install somewhere its author did not ask for.
+	// namespace is refused: a module's definitions install into the namespace
+	// of the Application that installs it, never one a property picks. A
+	// component setting it must fail rather than install somewhere its
+	// author did not ask for.
 	if parameter.namespace != _|_ {
 		_namespace: "namespace is no longer accepted: a module's definitions install into the namespace of the Application that installs it"
 	}

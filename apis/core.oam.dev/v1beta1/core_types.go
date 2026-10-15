@@ -280,6 +280,10 @@ func (td *TraitDefinition) GetCondition(conditionType condition.ConditionType) c
 	return td.Status.GetCondition(conditionType)
 }
 
+// GetModule returns the module this definition was published in, or "" for a
+// legacy, non-module definition.
+func (td *TraitDefinition) GetModule() string { return td.Spec.Module }
+
 // +kubebuilder:object:root=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 

@@ -25,6 +25,7 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -34,6 +35,7 @@ import (
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/logging"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils"
 	addonvalidation "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application/addon"
 	modulevalidation "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1beta1/application/module"
 	webhookutils "github.com/oam-dev/kubevela/pkg/webhook/utils"
@@ -58,6 +60,15 @@ type ValidatingHandler struct {
 
 	addonValidator  componentValidator
 	moduleValidator componentValidator
+
+	// controllerUsername is vela-core's own identity, resolved from the
+	// manager's kubeconfig the same way RegisterMutatingHandler resolves
+	// skipUsers. ValidateAnnotations trusts modules.oam.dev/install-namespace
+	// only from this identity, since it is the addon renderer -- never a
+	// user's own Application -- that is meant to set it. Empty when it could
+	// not be resolved, in which case nobody is trusted and the annotation is
+	// always refused.
+	controllerUsername string
 }
 
 func simplifyError(err error) error {
@@ -165,12 +176,19 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 // RegisterValidatingHandler will register application validate handler to the webhook
 func RegisterValidatingHandler(mgr manager.Manager, _ controller.Args) {
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: &ValidatingHandler{
+	handler := &ValidatingHandler{
 		Client:          mgr.GetClient(),
 		APIReader:       mgr.GetAPIReader(),
 		Live:            webhookutils.LiveClient(mgr),
 		Decoder:         admission.NewDecoder(mgr.GetScheme()),
 		addonValidator:  addonvalidation.NewValidator(mgr.GetClient()),
 		moduleValidator: modulevalidation.NewValidator(mgr.GetClient()),
-	}})
+	}
+	if userInfo := utils.GetUserInfoFromConfig(mgr.GetConfig()); userInfo != nil {
+		handler.controllerUsername = userInfo.Username
+	} else {
+		klog.Warning("[ApplicationValidatingHandler] could not resolve vela-core's own identity; " +
+			"modules.oam.dev/install-namespace will be refused on every Application, including the addon renderer's own")
+	}
+	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: handler})
 }

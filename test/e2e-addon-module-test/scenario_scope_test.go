@@ -124,9 +124,13 @@ func TestScopedModuleFixturesPreserveTopologyAndResolution(t *testing.T) {
 	for _, id := range []string{"02", "03"} {
 		ctx := oamutil.SetNamespaceInCtx(context.Background(), "vela-system")
 		note := "note-s" + id + "-abcdef0123456789"
-		got, err := appfile.ResolveModuleType(ctx, cli, note, veltypes.TypeTrait)
-		if err != nil || got != "widget-kit-s"+id+"-abcdef0123456789-v1-"+note {
-			t.Fatalf("scoped Form 1 note = %q, %v", got, err)
+		wantFullName := "widget-kit-s" + id + "-abcdef0123456789-v1-" + note
+		// A unique module-label match is still rejected toward Form 3 (the
+		// module is never inferred from a bare name); what this test actually
+		// checks is that the scoping fixtures resolve the fallback search to
+		// the right scoped definition, named correctly in the rejection.
+		if _, err := appfile.ResolveModuleType(ctx, cli, note, veltypes.TypeTrait); err == nil || !strings.Contains(err.Error(), wantFullName) {
+			t.Fatalf("scoped Form 1 note resolution = %v, want an error naming %q", err, wantFullName)
 		}
 		if _, err := appfile.ResolveModuleType(ctx, cli, "labeler-s"+id+"-abcdef0123456789", veltypes.TypeTrait); err == nil {
 			t.Fatal("intentional ambiguity across the two API lines was lost")

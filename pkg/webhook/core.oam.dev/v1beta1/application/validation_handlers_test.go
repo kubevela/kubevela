@@ -366,11 +366,12 @@ func TestValidateTimeout(t *testing.T) {
 }
 
 func TestValidateAnnotations(t *testing.T) {
-	handler := &ValidatingHandler{}
+	handler := &ValidatingHandler{controllerUsername: "system:serviceaccount:vela-system:kubevela-vela-core"}
 
 	testCases := []struct {
 		name               string
 		annotations        map[string]string
+		username           string
 		expectedErrorCount int
 	}{
 		{
@@ -416,6 +417,29 @@ func TestValidateAnnotations(t *testing.T) {
 			},
 			expectedErrorCount: 0,
 		},
+		{
+			name: "install-namespace set by a user is refused",
+			annotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "kube-system",
+			},
+			username:           "alice",
+			expectedErrorCount: 1,
+		},
+		{
+			name: "install-namespace set by vela-core's own identity is allowed",
+			annotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "kube-system",
+			},
+			username:           "system:serviceaccount:vela-system:kubevela-vela-core",
+			expectedErrorCount: 0,
+		},
+		{
+			name: "install-namespace set with no requester identity at all is refused",
+			annotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "kube-system",
+			},
+			expectedErrorCount: 1,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -427,10 +451,28 @@ func TestValidateAnnotations(t *testing.T) {
 					Annotations: tc.annotations,
 				},
 			}
+			req := admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
+				UserInfo: authenticationv1.UserInfo{Username: tc.username},
+			}}
 
-			errs := handler.ValidateAnnotations(context.Background(), app)
+			errs := handler.ValidateAnnotations(context.Background(), app, req)
 			assert.Equal(t, tc.expectedErrorCount, len(errs),
 				"Expected %d errors, got %d: %v", tc.expectedErrorCount, len(errs), errs)
 		})
 	}
+
+	t.Run("install-namespace is always refused when vela-core's own identity could not be resolved", func(t *testing.T) {
+		unresolvedHandler := &ValidatingHandler{}
+		app := &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-app", Namespace: "default",
+				Annotations: map[string]string{oam.AnnotationModuleInstallNamespace: "kube-system"},
+			},
+		}
+		req := admission.Request{AdmissionRequest: admissionv1.AdmissionRequest{
+			UserInfo: authenticationv1.UserInfo{Username: "system:serviceaccount:vela-system:kubevela-vela-core"},
+		}}
+		errs := unresolvedHandler.ValidateAnnotations(context.Background(), app, req)
+		assert.Len(t, errs, 1, "a username that happens to match is not enough on its own; the handler must have a resolved controllerUsername to trust against")
+	})
 }
