@@ -565,26 +565,28 @@ func (h *ValidatingHandler) ValidateAnnotations(_ context.Context, app, oldApp *
 	// directly would otherwise redirect a module install into any namespace
 	// the controller can reach, bypassing namespace restrictions and RBAC.
 	//
-	// Only the request that introduces or changes the value is checked. A
-	// write that carries an already-admitted value forward unchanged (the
-	// normal read-modify-write shape of a Kubernetes update, e.g. a
-	// reconciler or test harness touching an unrelated field) is left alone
-	// no matter who makes it: that value was already vetted when it was
-	// first set, and requiring every subsequent write to come from the
-	// controller would make the addon's own owned Application unupdatable
-	// by anything else once the annotation lands on it.
-	if newVal, ok := app.Annotations[oam.AnnotationModuleInstallNamespace]; ok {
-		var oldVal string
-		var hadIt bool
-		if oldApp != nil {
-			oldVal, hadIt = oldApp.Annotations[oam.AnnotationModuleInstallNamespace]
-		}
-		unchanged := hadIt && oldVal == newVal
-		if !unchanged && (h.controllerUsername == "" || req.UserInfo.Username != h.controllerUsername) {
-			annotationsErrs = append(annotationsErrs, field.Forbidden(
-				field.NewPath("metadata", "annotations").Key(oam.AnnotationModuleInstallNamespace),
-				"only the addon renderer may set this annotation"))
-		}
+	// Only a write that actually introduces, changes, or removes the value
+	// is checked -- removal matters too: clearing an already-set annotation
+	// flips _fromAddon back to false, silently falling through to
+	// context.namespace (vela-system, for the addon's owned Application),
+	// the same bypass as setting an arbitrary value, just landing on a
+	// fixed one instead of an attacker-chosen one. A write that carries an
+	// already-admitted value forward exactly as it was (present and equal,
+	// or absent on both sides) is left alone no matter who makes it: that
+	// state was already vetted, and requiring every subsequent write to
+	// come from the controller would make the addon's own owned Application
+	// unupdatable by anything else once the annotation lands on it.
+	newVal, hasNew := app.Annotations[oam.AnnotationModuleInstallNamespace]
+	var oldVal string
+	var hadOld bool
+	if oldApp != nil {
+		oldVal, hadOld = oldApp.Annotations[oam.AnnotationModuleInstallNamespace]
+	}
+	unchanged := hasNew == hadOld && oldVal == newVal
+	if !unchanged && (h.controllerUsername == "" || req.UserInfo.Username != h.controllerUsername) {
+		annotationsErrs = append(annotationsErrs, field.Forbidden(
+			field.NewPath("metadata", "annotations").Key(oam.AnnotationModuleInstallNamespace),
+			"only the addon renderer may set or remove this annotation"))
 	}
 	return annotationsErrs
 }

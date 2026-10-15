@@ -466,6 +466,24 @@ func TestValidateAnnotations(t *testing.T) {
 			username:           "alice",
 			expectedErrorCount: 1,
 		},
+		{
+			name:        "install-namespace removed on update by a non-controller identity is refused",
+			annotations: nil,
+			oldAnnotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "team-a",
+			},
+			username:           "alice",
+			expectedErrorCount: 1,
+		},
+		{
+			name:        "install-namespace removed on update by vela-core's own identity is allowed",
+			annotations: nil,
+			oldAnnotations: map[string]string{
+				oam.AnnotationModuleInstallNamespace: "team-a",
+			},
+			username:           "system:serviceaccount:vela-system:kubevela-vela-core",
+			expectedErrorCount: 0,
+		},
 	}
 
 	for _, tc := range testCases {
