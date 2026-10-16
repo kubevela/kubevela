@@ -305,6 +305,10 @@ func WriteFileIfChanged(path string, data []byte) (bool, error) {
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return false, errors.Wrapf(err, "failed to write %s", path)
 	}
+	// Set the mode again for a file that existed but could not be read.
+	if err := os.Chmod(path, 0o600); err != nil {
+		return false, errors.Wrapf(err, "failed to set permissions of %s", path)
+	}
 	return true, nil
 }
 
