@@ -51,6 +51,9 @@ webhook-help:
 	@echo "  make k3d-delete               # Delete k3d cluster"
 	@echo "  make webhook-setup            # Setup webhook (certs + config)"
 	@echo "  make webhook-clean            # Clean up webhook setup"
+	@echo ""
+	@echo "These targets are for a vela-core running on your host. An in-cluster"
+	@echo "vela-core makes its own webhook certificate at startup (--webhook-tls-secret)."
 
 ## k3d-create: Create a k3d cluster for debugging
 .PHONY: k3d-create

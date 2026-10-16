@@ -28,6 +28,11 @@ type MultiClusterConfig struct {
 	EnableClusterGateway   bool
 	EnableClusterMetrics   bool
 	ClusterMetricsInterval time.Duration
+	// ClusterGatewayTLSSecret is the <namespace>/<name> of the Secret that holds
+	// the cluster-gateway serving cert. If it is set, vela-core creates or
+	// renews the cert at startup. vela-core writes the CA into the
+	// cluster-gateway APIService.
+	ClusterGatewayTLSSecret string
 }
 
 // NewMultiClusterConfig creates a new MultiClusterConfig with defaults.
@@ -47,6 +52,8 @@ func (c *MultiClusterConfig) AddFlags(fs *pflag.FlagSet) {
 		"Enable cluster-metrics-management to collect metrics from clusters with cluster-gateway, disabled by default. When this param is enabled, enable-cluster-gateway should be enabled")
 	fs.DurationVar(&c.ClusterMetricsInterval, "cluster-metrics-interval", c.ClusterMetricsInterval,
 		"The interval that ClusterMetricsMgr will collect metrics from clusters, default value is 15 seconds.")
+	fs.StringVar(&c.ClusterGatewayTLSSecret, "cluster-gateway-tls-secret", c.ClusterGatewayTLSSecret,
+		"The <namespace>/<name> of the Secret that holds the cluster-gateway serving cert. If you set it, vela-core creates or renews the cert at startup and sets the caBundle of the cluster-gateway APIService. If it is empty (the default), cert-manager or another tool must supply the cert.")
 
 	// Also register additional multicluster flags from external package
 	pkgmulticluster.AddFlags(fs)

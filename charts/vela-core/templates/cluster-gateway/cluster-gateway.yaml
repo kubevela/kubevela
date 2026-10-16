@@ -67,6 +67,13 @@ spec:
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
+            # Mount only the serving cert. The Secret also holds the CA key that
+            # vela-core uses to sign certs, and cluster-gateway does not need it.
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
       {{ end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -163,36 +170,23 @@ spec:
   {{- if not .Values.multicluster.clusterGateway.secureTLS.enabled }}
   insecureSkipTLSVerify: true
   {{- else }}
-  {{- /* Preserve an already-valid caBundle on upgrade so we don't reset it before
-         the patch Job re-runs. $apiSvc is the existing APIService looked up above. */}}
-  {{- $caBundle := "" }}
-  {{- if $apiSvc }}
-    {{- if $apiSvc.spec }}
-      {{- if hasKey $apiSvc.spec "caBundle" }}
-        {{- if and $apiSvc.spec.caBundle (ne $apiSvc.spec.caBundle "Cg==") }}
-          {{- $caBundle = $apiSvc.spec.caBundle }}
-        {{- end }}
-      {{- end }}
-    {{- end }}
-  {{- end }}
-  {{- if $caBundle }}
   insecureSkipTLSVerify: false
+  {{- /* Keep a valid caBundle that is already in the cluster, so that an upgrade
+         does not remove it (#7214). $apiSvc is the existing APIService from the
+         lookup above. */}}
+  {{- $caBundle := dig "spec" "caBundle" "" $apiSvc }}
+  {{- if eq $caBundle "Cg==" }}{{ $caBundle = "" }}{{ end }}
+  {{- if $caBundle }}
   caBundle: {{ $caBundle }}
   {{- else if .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
   {{- /* cert-manager's cainjector fills in the caBundle on its own. */}}
-  insecureSkipTLSVerify: false
   caBundle: Cg==
-  {{- else }}
-  {{- /* No CA yet: the tls-secret-create Job makes it during the install and the
-         post-install tls-secret-patch Job writes it here and sets
-         insecureSkipTLSVerify to false. Until then TLS is not verified. A
-         placeholder caBundle would not work: since Kubernetes 1.36 the aggregator
-         verifies TLS with it for the availability check
-         (kubernetes/kubernetes#137157), so the APIService would never become
-         Available, vela-core would never become ready, and `helm install --wait`
-         would never reach the post-install patch Job. */}}
-  insecureSkipTLSVerify: true
   {{- end }}
+  {{- /* If not, vela-core writes the caBundle at startup
+         (--cluster-gateway-tls-secret). Do not render a placeholder. Since
+         Kubernetes 1.36, the aggregator uses the caBundle to verify TLS
+         (kubernetes/kubernetes#137157). With a placeholder, the APIService stays
+         unavailable, and vela-core, which waits for it, never becomes ready. */}}
   {{- end }}
 {{ end }}
 

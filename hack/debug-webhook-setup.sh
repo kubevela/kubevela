@@ -1,6 +1,12 @@
 #!/bin/bash
 # Webhook debugging setup script for KubeVela
 # This script sets up everything needed to debug webhooks locally
+#
+# It is only for a vela-core running on your host. The webhook configurations
+# it creates point at a URL on the host, so it makes its own certificate for
+# that address. An in-cluster vela-core (installed from the chart) makes its
+# webhook certificate itself at startup, with --webhook-tls-secret, and does not
+# need this script. Don't pass --webhook-tls-secret to a local debug run.
 
 set -e
 
