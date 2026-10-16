@@ -285,6 +285,8 @@ func TestCovers(t *testing.T) {
 func TestWriteFileIfChangedTightensPermissions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "tls.key")
 	require.NoError(t, os.WriteFile(path, []byte("key"), 0o644))
+	// WriteFile applies the umask, so set the wide mode explicitly.
+	require.NoError(t, os.Chmod(path, 0o644))
 
 	changed, err := WriteFileIfChanged(path, []byte("key"))
 	require.NoError(t, err)
