@@ -743,6 +743,13 @@ func TestHandle_TemplateAccessTable(t *testing.T) {
 		resp = h.Handle(context.TODO(), createdBy(newRequest(t, admissionv1.Create, gvr, configUsing("c", "wf-a", "missing", "wf-a")), "alice"))
 		assert.True(t, resp.Allowed, "the Config's own namespace: admission defers to the controller as before")
 
+		pendingSystem := availableTemplate("shared", "vela-system", configv1alpha1.ConfigTemplateScopeSystem)
+		pendingSystem.Status = configv1alpha1.ConfigTemplateStatus{}
+		h = newInterceptedHandler(reviewing(false, &reviews), pendingSystem)
+		resp = h.Handle(context.TODO(), createdBy(newRequest(t, admissionv1.Create, gvr, configUsing("c", "wf-a", "shared", "vela-system")), "alice"))
+		assert.True(t, resp.Allowed, "a system template in vela-system is known from its spec: deferred, not refused (the sweep's fresh CRs)")
+		assert.Empty(t, reviews)
+
 		existing := configUsing("c", "wf-a", "b", "wf-b")
 		resp = h.Handle(context.TODO(), createdBy(newUpdateRequest(t, gvr, existing, existing), "alice"))
 		assert.True(t, resp.Allowed, "an update of an existing Config: templateRef is immutable, the answer was given at create")

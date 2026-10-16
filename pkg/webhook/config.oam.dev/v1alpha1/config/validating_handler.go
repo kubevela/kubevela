@@ -98,13 +98,11 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 	if !resolved {
-		// A template in the Config's own namespace may follow later: admission defers to
-		// the controller as before. One in another namespace may not: its scope decides who
-		// may use it, and this is the only time anyone asks, so the Config waits until the
-		// template is there to be asked about.
-		if creating && templateNS != obj.Namespace {
-			return admission.Denied(fmt.Sprintf("config template %s/%s is not available yet: a config in %s may reference a template in another namespace once it is, when its scope decides who may use it (requestUID=%s)",
-				templateNS, obj.Spec.TemplateRef.Name, obj.Namespace, req.UID))
+		// In the Config's own namespace, or for a system template in vela-system, the
+		// template may follow later and admission defers to the controller as before; in
+		// another namespace the create waits for it.
+		if pending := legacyconfig.PendingTemplateError(tmpl, templateNS, obj.Spec.TemplateRef.Name, obj.Namespace); creating && pending != nil {
+			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", pending, req.UID))
 		}
 		return admission.ValidationResponse(true, "")
 	}
@@ -162,11 +160,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 }
 
 // resolveTemplate mirrors the Config controller's CRD-first, ConfigMap-fallback lookup.
-// resolved is false (with no error) both when the template doesn't exist yet and when a
-// ConfigTemplate exists but is not usable yet (its schema not extracted: not reconciled, or
-// a parse Error) - either way admission defers to the controller, which will surface a
-// clear error on the Config once it reconciles. A system template misplaced outside
-// vela-system is usable once its schema is there, as namespace scope, so it is checked.
+// resolved is false (with no error) both when the template doesn't exist yet (tmpl nil) and
+// when a ConfigTemplate exists but is not usable yet (its schema not extracted: not
+// reconciled, or a parse Error; tmpl carries its name, namespace and scope) - either way
+// admission defers to the controller, which will surface a clear error on the Config once
+// it reconciles. A system template misplaced outside vela-system is usable once its schema
+// is there, as namespace scope, so it is checked.
 func (h *ValidatingHandler) resolveTemplate(ctx context.Context, ref *configv1alpha1.ConfigTemplateReference) (*legacyconfig.ResolvedTemplate, bool, error) {
 	tmpl, waiting, err := legacyconfig.ResolveConfigTemplate(ctx, h.Client, ref)
 	switch {
@@ -175,7 +174,7 @@ func (h *ValidatingHandler) resolveTemplate(ctx context.Context, ref *configv1al
 	case err != nil:
 		return nil, false, err
 	case waiting:
-		return nil, false, nil
+		return tmpl, false, nil
 	default:
 		return tmpl, true, nil
 	}

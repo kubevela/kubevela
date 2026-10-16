@@ -31,16 +31,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apiserver/pkg/authentication/user"
+	"k8s.io/apiserver/pkg/endpoints/request"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/config"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -212,6 +217,18 @@ func depsOfApp(d *recordingDispatcher, act *mock.Action) Deps {
 	return deps
 }
 
+// propsOf is a create-config step's properties for a config in default from template, with
+// the registry the fixtures expect.
+func propsOf(name, template string) CreateConfigProperties {
+	return CreateConfigProperties{Name: name, Namespace: "default", Template: template, Config: map[string]interface{}{"registry": "ghcr.io/kubevela"}}
+}
+
+func ensureNamespace(ctx context.Context, name string) {
+	if err := k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}); err != nil {
+		Expect(apierrors.IsAlreadyExists(err)).Should(BeTrue())
+	}
+}
+
 func setStatus(ctx context.Context, name string, phase configv1alpha1.ConfigPhase, message string) {
 	var got configv1alpha1.Config
 	Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: name}, &got)).Should(Succeed())
@@ -300,6 +317,131 @@ var _ = Describe("Test the config provider", func() {
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "hub-kubevela"}, &got)).Should(Succeed())
 		Expect(got.Generation).Should(BeNumerically(">", got.Status.ObservedGeneration))
 		setStatus(ctx, "hub-kubevela", configv1alpha1.ConfigPhaseAvailable, "")
+	})
+
+	It("create refuses a namespace-scoped template elsewhere when the application has no user, and lets a user's write through", func() {
+		ensureNamespace(ctx, "wf-b")
+		template, err := factory.ParseTemplate(ctx, "elsewhere", []byte(templateContent))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(factory.CreateOrUpdateConfigTemplate(ctx, "wf-b", template)).ToNot(HaveOccurred(), "a legacy ConfigMap template, namespace-scoped outside vela-system whatever its label")
+		props := propsOf("from-elsewhere", "wf-b/elsewhere")
+
+		By("no user in the context: the controller would write as itself, so the step answers the structural half and refuses")
+		act := &mock.Action{}
+		err = Create(ctx, depsWith(factory, act), props)
+		Expect(err).Should(HaveOccurred())
+		Expect(err.Error()).Should(ContainSubstring("config template wf-b/elsewhere is namespace-scoped: a config in default may use it only if its author can get it"))
+		Expect(err.Error()).Should(ContainSubstring("the AuthenticateApplication feature gate is off"))
+		exists, err := config.ConfigCRExists(ctx, k8sClient, "default", "from-elsewhere")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(exists).Should(BeFalse(), "nothing written")
+
+		By("a user in the context: the write is the user's and the webhook's to judge, so the step writes")
+		asAlice := request.WithUser(ctx, &user.DefaultInfo{Name: "alice"})
+		dispatcher := &recordingDispatcher{}
+		act = &mock.Action{}
+		Expect(Create(asAlice, depsWith(dispatcher.factory(k8sClient), act), props)).Should(Succeed())
+		Expect(act.Phase).Should(Equal("Wait"))
+		exists, err = config.ConfigCRExists(ctx, k8sClient, "default", "from-elsewhere")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(exists).Should(BeTrue())
+	})
+
+	It("create uses a system template in vela-system from any namespace without a user, and refuses a template elsewhere that is not usable yet", func() {
+		ensureNamespace(ctx, "vela-system")
+		ensureNamespace(ctx, "wf-b")
+		shared, err := factory.ParseTemplate(ctx, "shared", []byte(templateContent))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(factory.CreateOrUpdateConfigTemplate(ctx, "vela-system", shared)).ToNot(HaveOccurred(), "a legacy ConfigMap in vela-system is system whatever its label (this one says project)")
+		DeferCleanup(func() {
+			Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: config.TemplateConfigMapNamePrefix + "shared", Namespace: types.DefaultKubeVelaNS}}))).Should(Succeed())
+		})
+		dispatcher := &recordingDispatcher{}
+		act := &mock.Action{}
+		Expect(Create(ctx, depsWith(dispatcher.factory(k8sClient), act), propsOf("from-shared", "vela-system/shared"))).Should(Succeed())
+		Expect(act.Phase).Should(Equal("Wait"), "a system template needs no user: the step wrote and waits for the controller")
+
+		By("run as a user who may read only default: a system template in vela-system is read with the controller's identity, so the step still writes")
+		watching, err := client.NewWithWatch(cfg, client.Options{Scheme: k8sClient.Scheme()})
+		Expect(err).ToNot(HaveOccurred())
+		forbidding := interceptor.NewClient(watching, interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if _, named := auth.NamedUserFrom(ctx); named && key.Namespace != "default" {
+					return apierrors.NewForbidden(schema.GroupResource{Resource: "configmaps"}, key.Name, errors.New("alice may read only default"))
+				}
+				return c.Get(ctx, key, obj, opts...)
+			},
+		})
+		asAlice := request.WithUser(ctx, &user.DefaultInfo{Name: "alice"})
+		forbiddingDeps := func(act *mock.Action) Deps { // no dispatcher: the factory applies the Config itself
+			return Deps{Factory: config.NewConfigFactory(forbidding), Client: forbidding, Action: act}
+		}
+		act = &mock.Action{}
+		Expect(Create(asAlice, forbiddingDeps(act), propsOf("from-shared-as-alice", "vela-system/shared"))).Should(Succeed())
+		Expect(act.Phase).Should(Equal("Wait"))
+
+		By("the same user adopting a legacy config of that template: the adoption's template lookup is the controller's read too")
+		item, err := factory.ParseConfig(ctx, config.NamespacedName{Name: "shared", Namespace: types.DefaultKubeVelaNS}, config.Metadata{
+			NamespacedName: config.NamespacedName{Name: "lc-shared", Namespace: "default"},
+			Properties:     map[string]interface{}{"registry": "old.example"},
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(factory.CreateOrUpdateConfig(ctx, item, "default")).Should(Succeed(), "a legacy Secret from the CLI: no app labels, anyone's to adopt")
+		act = &mock.Action{}
+		adopting := propsOf("lc-shared", "vela-system/shared")
+		adopting.Config = map[string]interface{}{"registry": "new.example"}
+		Expect(Create(asAlice, forbiddingDeps(act), adopting)).Should(Succeed())
+		var adopted corev1.Secret
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "lc-shared"}, &adopted)).Should(Succeed())
+		Expect(adopted.OwnerReferences).Should(HaveLen(1))
+		Expect(adopted.OwnerReferences[0].Kind).Should(Equal(configv1alpha1.ConfigKind))
+
+		By("a namespace-scoped template elsewhere is the user's to read: the parse fails as the user, and no render reaches them")
+		other, err := factory.ParseTemplate(ctx, "theirs", []byte(templateContent))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(factory.CreateOrUpdateConfigTemplate(ctx, "wf-b", other)).ToNot(HaveOccurred())
+		act = &mock.Action{}
+		err = Create(asAlice, forbiddingDeps(act), propsOf("from-theirs", "wf-b/theirs"))
+		Expect(err).Should(HaveOccurred())
+		Expect(apierrors.IsForbidden(err)).Should(BeTrue(), err.Error())
+		exists, err := config.ConfigCRExists(ctx, k8sClient, "default", "from-theirs")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(exists).Should(BeFalse())
+
+		By("a ConfigTemplate elsewhere the controller has not made usable yet: refused until it is, as the webhook would")
+		pending := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "pending", Namespace: "wf-b"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: templateContent},
+		}
+		Expect(k8sClient.Create(ctx, pending)).Should(Succeed())
+		act = &mock.Action{}
+		err = Create(ctx, depsWith(factory, act), propsOf("from-pending", "wf-b/pending"))
+		Expect(err).Should(HaveOccurred())
+		Expect(err.Error()).Should(ContainSubstring("config template wf-b/pending is not available yet: a config in default may reference a template in another namespace once it is"))
+		Expect(act.Phase).Should(BeEmpty())
+
+		By("a system ConfigTemplate in vela-system that is not usable yet: known from its spec, the step writes and waits (the sweep's fresh CRs)")
+		pendingShared := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "pending-shared", Namespace: types.DefaultKubeVelaNS},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: templateContent, Scope: configv1alpha1.ConfigTemplateScopeSystem},
+		}
+		Expect(k8sClient.Create(ctx, pendingShared)).Should(Succeed())
+		DeferCleanup(func() { Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, pendingShared))).Should(Succeed()) })
+		act = &mock.Action{}
+		Expect(Create(ctx, depsWith(dispatcher.factory(k8sClient), act), propsOf("from-pending-shared", "vela-system/pending-shared"))).Should(Succeed())
+		Expect(act.Phase).Should(Equal("Wait"))
+	})
+
+	It("create without a template is not a template question: the step writes the Config", func() {
+		dispatcher := &recordingDispatcher{}
+		act := &mock.Action{}
+		Expect(Create(ctx, depsWith(dispatcher.factory(k8sClient), act), CreateConfigProperties{
+			Name: "no-template", Namespace: "default", Config: map[string]interface{}{"value": "plain"},
+		})).Should(Succeed())
+		Expect(act.Phase).Should(Equal("Wait"))
+		var got configv1alpha1.Config
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "no-template"}, &got)).Should(Succeed())
+		Expect(got.Spec.TemplateRef).Should(BeNil())
 	})
 
 	It("a sensitive template keeps the properties out of the Config", func() {

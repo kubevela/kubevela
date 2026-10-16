@@ -89,7 +89,7 @@ func TestResolveConfigTemplate(t *testing.T) {
 		tmpl, waiting, err := ResolveConfigTemplate(context.Background(), cli, &configv1alpha1.ConfigTemplateReference{Name: "pending", Namespace: "custom-ns"})
 		r.NoError(err)
 		r.True(waiting)
-		r.Nil(tmpl)
+		r.Equal(&ResolvedTemplate{Name: "pending", Namespace: "custom-ns"}, tmpl, "name, namespace and scope only")
 	})
 
 	t.Run("a misplaced system template whose schema is extracted resolves, as namespace scope", func(t *testing.T) {
@@ -124,7 +124,7 @@ func TestResolveConfigTemplate(t *testing.T) {
 		tmpl, waiting, err := ResolveConfigTemplate(context.Background(), cli, &configv1alpha1.ConfigTemplateReference{Name: "misplaced-broken", Namespace: "custom-ns"})
 		r.NoError(err)
 		r.True(waiting)
-		r.Nil(tmpl)
+		r.Equal(configv1alpha1.ConfigTemplateScopeNamespace, tmpl.EffectiveScope(), "misplaced: read as namespace even while pending")
 	})
 
 	t.Run("no CRD, falls back to legacy ConfigMap", func(t *testing.T) {
@@ -346,6 +346,15 @@ func TestSystemScopeMisplaced(t *testing.T) {
 	r.False(SystemScopeMisplaced("vela-system", configv1alpha1.ConfigTemplateScopeSystem))
 	r.False(SystemScopeMisplaced("wf-a", configv1alpha1.ConfigTemplateScopeNamespace))
 	r.Contains(SystemScopePlacementError("wf-a", "t").Error(), "config template wf-a/t: scope system is only valid in vela-system")
+}
+
+func TestPendingTemplateError(t *testing.T) {
+	r := require.New(t)
+	r.NoError(PendingTemplateError(nil, "wf-a", "t", "wf-a"), "its own namespace waits for a template that is not there yet")
+	r.Error(PendingTemplateError(nil, "wf-b", "t", "wf-a"), "another namespace: nothing to tell the scope by")
+	r.NoError(PendingTemplateError(&ResolvedTemplate{Name: "t", Namespace: apitypes.DefaultKubeVelaNS, Scope: "system"}, apitypes.DefaultKubeVelaNS, "t", "wf-a"), "a system template in vela-system is known from its spec")
+	r.Error(PendingTemplateError(&ResolvedTemplate{Name: "t", Namespace: apitypes.DefaultKubeVelaNS, Scope: "namespace"}, apitypes.DefaultKubeVelaNS, "t", "wf-a"))
+	r.Error(PendingTemplateError(&ResolvedTemplate{Name: "t", Namespace: "wf-b", Scope: "system"}, "wf-b", "t", "wf-a"), "misplaced: namespace scope")
 }
 
 func TestAccessToTemplate(t *testing.T) {

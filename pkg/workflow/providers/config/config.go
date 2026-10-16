@@ -40,7 +40,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/config"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
@@ -106,7 +108,7 @@ func DepsOf(rp oamprovidertypes.RuntimeParams) Deps {
 // read-config finds the Secret the way it did when the write was synchronous.
 func Create(ctx context.Context, deps Deps, ccp CreateConfigProperties) error {
 	tmpl := config.ParseTemplateRef(ccp.Template)
-	item, err := deps.Factory.ParseConfig(ctx, tmpl, config.Metadata{
+	item, err := deps.Factory.ParseConfig(templateReadContext(ctx, deps.Client, tmpl), tmpl, config.Metadata{
 		NamespacedName: config.NamespacedName{Name: ccp.Name, Namespace: ccp.Namespace},
 		Properties:     ccp.Config,
 	})
@@ -114,8 +116,13 @@ func Create(ctx context.Context, deps Deps, ccp CreateConfigProperties) error {
 		return err
 	}
 	if !configKindServed(deps.Client) {
+		// no Config kind, so no Config webhook and no scope rule on this path either: the
+		// legacy write as before
 		klog.InfoS("the Config kind is not served; writing the config as a legacy secret", "config", ccp.Namespace+"/"+ccp.Name)
 		return deps.Factory.CreateOrUpdateConfig(ctx, item, ccp.Namespace)
+	}
+	if err := templateReachable(ctx, deps.Client, tmpl, ccp.Namespace); err != nil {
+		return err
 	}
 	if err := adoptLegacyConfig(ctx, deps, ccp.Namespace, ccp.Name); err != nil {
 		return err
@@ -133,6 +140,51 @@ func Create(ctx context.Context, deps Deps, ccp CreateConfigProperties) error {
 		return err
 	}
 	return awaitRendered(ctx, deps, cfg)
+}
+
+// templateReadContext is the identity the step reads the template with. A system template in
+// vela-system is usable from any namespace with no grant on it (issue #7410 section 6), from
+// this step as from kubectl, so it is read with the controller's own identity, as the Config
+// controller reads it to render: an Application run as a user who may not read vela-system
+// still parses one. Any other template is read as the user, who must be able to read it to
+// have been granted it, so a user is never handed the render of a template they may not see.
+// Who may use a template is then the Config webhook's question about the write.
+func templateReadContext(ctx context.Context, cli client.Client, tmpl config.NamespacedName) context.Context {
+	if _, named := auth.NamedUserFrom(ctx); !named || tmpl.Name == "" || cli == nil {
+		return ctx
+	}
+	asController := auth.ContextClearUserInfo(ctx)
+	resolved, _, err := config.ResolveConfigTemplate(asController, cli, &configv1alpha1.ConfigTemplateReference{Name: tmpl.Name, Namespace: tmpl.Namespace})
+	if err != nil || resolved == nil || resolved.EffectiveScope() != configv1alpha1.ConfigTemplateScopeSystem {
+		return ctx
+	}
+	return asController
+}
+
+// templateReachable is the step's share of the access rule of issue #7410 section 6, whose
+// one check is the Config webhook's, as the requesting user. With a named user in the context
+// the client impersonates that user, the write below carries them and the webhook answers (the
+// legacy adoption runs as them too, so a user who may not patch the Secret cannot adopt it).
+// Without one the controller writes as itself and the webhook's review would always pass, so
+// the step gives the webhook's structural answers itself, before anything is written.
+func templateReachable(ctx context.Context, cli client.Client, tmpl config.NamespacedName, configNamespace string) error {
+	if tmpl.Name == "" {
+		return nil // a config without a template
+	}
+	if _, named := auth.NamedUserFrom(ctx); named {
+		return nil
+	}
+	resolved, waiting, err := config.ResolveConfigTemplate(auth.ContextClearUserInfo(ctx), cli, &configv1alpha1.ConfigTemplateReference{Name: tmpl.Name, Namespace: tmpl.Namespace})
+	if err != nil {
+		return err
+	}
+	if waiting {
+		return config.PendingTemplateError(resolved, tmpl.Namespace, tmpl.Name, configNamespace)
+	}
+	if access := config.AccessToTemplate(resolved, configNamespace); access.Review != nil {
+		return fmt.Errorf("%s; this application runs with no user to ask for (the %s feature gate is off), so this step may use only a template in %s or a system one", access.Reason, features.AuthenticateApplication, configNamespace)
+	}
+	return nil
 }
 
 // configKindServed is the kind probe over the runtime's client; with no client there is

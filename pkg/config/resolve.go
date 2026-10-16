@@ -59,10 +59,22 @@ type ResolvedTemplate struct {
 // is system whatever its label (project, global, env and friends were never enforced and
 // those templates have always been used from every namespace); elsewhere it is namespace.
 func (t *ResolvedTemplate) EffectiveScope() configv1alpha1.ConfigTemplateScope {
-	if t.Namespace != apitypes.DefaultKubeVelaNS {
-		return configv1alpha1.ConfigTemplateScopeNamespace
+	if t.Legacy {
+		return LegacyTemplateScope(t.Namespace)
 	}
-	if t.Legacy || t.Scope == string(configv1alpha1.ConfigTemplateScopeSystem) {
+	if t.Namespace == apitypes.DefaultKubeVelaNS && t.Scope == string(configv1alpha1.ConfigTemplateScopeSystem) {
+		return configv1alpha1.ConfigTemplateScopeSystem
+	}
+	return configv1alpha1.ConfigTemplateScopeNamespace
+}
+
+// LegacyTemplateScope is the scope of a config-template-* ConfigMap, by its namespace alone:
+// system in vela-system, namespace elsewhere. It is what the resolver reads for one, and what
+// migration writes onto the ConfigTemplate it becomes, so adoption changes nothing a Config can
+// observe. The ConfigMap's scope label (system, project, global, env, written by older tools)
+// never restricted anything and is not consulted.
+func LegacyTemplateScope(namespace string) configv1alpha1.ConfigTemplateScope {
+	if namespace == apitypes.DefaultKubeVelaNS {
 		return configv1alpha1.ConfigTemplateScopeSystem
 	}
 	return configv1alpha1.ConfigTemplateScopeNamespace
@@ -112,6 +124,24 @@ func AccessToTemplate(tmpl *ResolvedTemplate, fromNamespace string) TemplateAcce
 	}
 }
 
+// PendingTemplateError is the answer for a Config whose template is not usable yet (pending
+// is what ResolveConfigTemplate returned with waiting, nil when the template does not exist
+// at all). It is nil, and the Config waits for the template as before, in the Config's own
+// namespace, and for a system template in vela-system: its scope is known from its spec and
+// grants everyone. Otherwise it is a refusal: the template's scope decides who may use it,
+// and with templateRef immutable the create is the only time anyone asks, so the Config
+// waits until the template is there to be asked about.
+func PendingTemplateError(pending *ResolvedTemplate, templateNamespace, name, configNamespace string) error {
+	if templateNamespace == configNamespace {
+		return nil
+	}
+	if pending != nil && pending.EffectiveScope() == configv1alpha1.ConfigTemplateScopeSystem {
+		return nil
+	}
+	return fmt.Errorf("config template %s/%s is not available yet: a config in %s may reference a template in another namespace once it is, when its scope decides who may use it",
+		templateNamespace, name, configNamespace)
+}
+
 // TemplateRefNamespace is the namespace a templateRef names: vela-system when it names none.
 func TemplateRefNamespace(ref *configv1alpha1.ConfigTemplateReference) string {
 	if ref.Namespace == "" {
@@ -123,7 +153,9 @@ func TemplateRefNamespace(ref *configv1alpha1.ConfigTemplateReference) string {
 // ResolveConfigTemplate looks up the referenced template, CRD first, falling back to a
 // legacy ConfigMap. waiting is true if the ConfigTemplate exists but is not usable yet
 // (templateUsable: the controller has not extracted its schema, or reported a parse
-// Error). err is ErrTemplateNotFound if neither the CRD nor the legacy ConfigMap exist.
+// Error); tmpl then carries the CR's name, namespace and scope and nothing else, so a
+// caller can still tell a system template in vela-system from the rest. err is
+// ErrTemplateNotFound if neither the CRD nor the legacy ConfigMap exist.
 func ResolveConfigTemplate(ctx context.Context, cli client.Client, ref *configv1alpha1.ConfigTemplateReference) (tmpl *ResolvedTemplate, waiting bool, err error) {
 	ns := TemplateRefNamespace(ref)
 
@@ -131,7 +163,7 @@ func ResolveConfigTemplate(ctx context.Context, cli client.Client, ref *configv1
 	switch err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref.Name}, &ct); {
 	case err == nil:
 		if !templateUsable(&ct) {
-			return nil, true, nil
+			return &ResolvedTemplate{Name: ct.Name, Namespace: ns, Scope: string(ct.Spec.Scope)}, true, nil
 		}
 		return &ResolvedTemplate{
 			Name:           ct.Name,

@@ -23,7 +23,6 @@ import (
 
 	"github.com/kubevela/pkg/util/net"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
-	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/client-go/transport"
 	"k8s.io/klog/v2"
 )
@@ -49,18 +48,16 @@ func NewImpersonatingRoundTripper(rt http.RoundTripper) http.RoundTripper {
 func (rt *impersonatingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := req.Context()
 	req = req.Clone(ctx)
-	userInfo, exists := request.UserFrom(ctx)
+	userInfo, named := NamedUserFrom(ctx)
 	klog.V(7).Infof("impersonation request log. path: %s method: %s user info: %+v", req.URL.String(), req.Method, userInfo)
-	if exists && userInfo != nil {
-		if name := userInfo.GetName(); name != "" {
-			req.Header.Set(transport.ImpersonateUserHeader, name)
-			for _, group := range userInfo.GetGroups() {
-				req.Header.Add(transport.ImpersonateGroupHeader, group)
-			}
-			q := req.URL.Query()
-			q.Add(impersonateKey, "true")
-			req.URL.RawQuery = q.Encode()
+	if named {
+		req.Header.Set(transport.ImpersonateUserHeader, userInfo.GetName())
+		for _, group := range userInfo.GetGroups() {
+			req.Header.Add(transport.ImpersonateGroupHeader, group)
 		}
+		q := req.URL.Query()
+		q.Add(impersonateKey, "true")
+		req.URL.RawQuery = q.Encode()
 	}
 	return rt.rt.RoundTrip(req)
 }

@@ -62,6 +62,17 @@ func ContextClearUserInfo(ctx context.Context) context.Context {
 	return request.WithUser(ctx, nil)
 }
 
+// NamedUserFrom is the user the context carries when it carries one with a name: the user
+// the impersonating round tripper acts as. A context without one, or with an empty name (an
+// Application reconciled with the AuthenticateApplication gate off), is the controller's own.
+func NamedUserFrom(ctx context.Context) (user.Info, bool) {
+	u, ok := request.UserFrom(ctx)
+	if !ok || u == nil || u.GetName() == "" {
+		return nil, false
+	}
+	return u, true
+}
+
 // SetUserInfoInAnnotation set username and group from userInfo into annotations
 // it will clear the existing service account annotation in avoid of permission leak
 func SetUserInfoInAnnotation(obj *metav1.ObjectMeta, userInfo authv1.UserInfo) {
