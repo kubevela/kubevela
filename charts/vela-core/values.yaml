@@ -285,7 +285,7 @@ builtinDefinitions:
 ## @param multicluster.clusterGateway.resources.limits.cpu ClusterGateway cpu limit
 ## @param multicluster.clusterGateway.resources.limits.memory ClusterGateway memory limit
 ## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS
-## @param multicluster.clusterGateway.secureTLS.generateCerts Generate CA and serving cert in the chart; false uses legacy Jobs (needs certManager off)
+## @param multicluster.clusterGateway.secureTLS.generateCerts Generate the CA and serving certificate in the chart (required for Kubernetes 1.36+); only used when secureTLS.enabled is true and certManager.enabled is false; set to false to use the legacy Jobs, e.g. for helm template without cluster access
 ## @param multicluster.clusterGateway.secureTLS.certPath Path to the certificate file
 ## @param multicluster.clusterGateway.secureTLS.certManager.enabled Whether to enable cert-manager
 ## @param multicluster.clusterGateway.serviceMonitor.enabled Whether to enable service monitor
