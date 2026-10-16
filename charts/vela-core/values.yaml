@@ -284,7 +284,7 @@ builtinDefinitions:
 ## @param multicluster.clusterGateway.resources.requests.memory ClusterGateway memory request
 ## @param multicluster.clusterGateway.resources.limits.cpu ClusterGateway cpu limit
 ## @param multicluster.clusterGateway.resources.limits.memory ClusterGateway memory limit
-## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS. Unless cert-manager is enabled, the chart starts vela-core with --cluster-gateway-tls-secret, so vela-core generates the cluster-gateway serving cert at startup and sets the APIService caBundle when the APIService points at the chart's cluster-gateway Service
+## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS. When multicluster.enabled is on and cert-manager is off, the chart starts vela-core with --cluster-gateway-tls-secret, so vela-core generates the cluster-gateway serving cert at startup and sets the APIService caBundle when the APIService points at the chart's cluster-gateway Service
 ## @param multicluster.clusterGateway.secureTLS.certPath Path to the certificate file
 ## @param multicluster.clusterGateway.secureTLS.certManager.enabled Whether to enable cert-manager
 ## @param multicluster.clusterGateway.serviceMonitor.enabled Whether to enable service monitor

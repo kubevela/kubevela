@@ -289,21 +289,21 @@ func parseCA(data map[string][]byte) (*x509.Certificate, crypto.Signer, error) {
 // left readable by its owner only, also when it already existed with wider
 // permissions, because it can hold a private key.
 func WriteFileIfChanged(path string, data []byte) (bool, error) {
-	if current, err := os.ReadFile(filepath.Clean(path)); err == nil && bytes.Equal(current, data) {
+	if current, err := os.ReadFile(filepath.Clean(path)); err == nil {
+		// Tighten the mode before the write, because WriteFile keeps the mode
+		// of a file that already exists.
 		if err := os.Chmod(path, 0o600); err != nil {
 			return false, errors.Wrapf(err, "failed to set permissions of %s", path)
 		}
-		return false, nil
+		if bytes.Equal(current, data) {
+			return false, nil
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return false, errors.Wrapf(err, "failed to create directory for %s", path)
 	}
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return false, errors.Wrapf(err, "failed to write %s", path)
-	}
-	// WriteFile keeps the mode of a file that already exists.
-	if err := os.Chmod(path, 0o600); err != nil {
-		return false, errors.Wrapf(err, "failed to set permissions of %s", path)
 	}
 	return true, nil
 }
