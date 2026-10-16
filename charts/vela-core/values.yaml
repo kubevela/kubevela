@@ -285,6 +285,7 @@ builtinDefinitions:
 ## @param multicluster.clusterGateway.resources.limits.cpu ClusterGateway cpu limit
 ## @param multicluster.clusterGateway.resources.limits.memory ClusterGateway memory limit
 ## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS
+## @param multicluster.clusterGateway.secureTLS.generateCerts Generate the CA and serving certificate in the chart, so the APIService has a valid caBundle from the first render (required for Kubernetes 1.36+). Set to false to use the legacy tls-secret-create/tls-secret-patch Jobs, e.g. for `helm template` without cluster access
 ## @param multicluster.clusterGateway.secureTLS.certPath Path to the certificate file
 ## @param multicluster.clusterGateway.secureTLS.certManager.enabled Whether to enable cert-manager
 ## @param multicluster.clusterGateway.serviceMonitor.enabled Whether to enable service monitor
@@ -313,6 +314,7 @@ multicluster:
         memory: 200Mi
     secureTLS:
       enabled: true
+      generateCerts: true
       certManager:
         enabled: false
       certPath: /etc/k8s-cluster-gateway-certs

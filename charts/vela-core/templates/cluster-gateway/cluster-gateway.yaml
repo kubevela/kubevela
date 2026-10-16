@@ -139,6 +139,80 @@ spec:
     {{ $shouldAdopt = (index ($apiSvc).metadata.annotations "meta.helm.sh/release-name") }}
   {{ end }}
 {{ end }}
+{{- /*
+  TLS material for the APIService <-> cluster-gateway connection.
+
+  Since Kubernetes 1.36 the aggregator verifies TLS with the APIService's caBundle for
+  the availability check (kubernetes/kubernetes#137157), so a placeholder caBundle makes
+  the APIService never become Available. vela-core waits for it at startup, so
+  `helm install --wait` would deadlock before any post-install Job could write the CA.
+  The chart therefore generates the CA and serving certificate itself, which gives the
+  APIService a valid caBundle from the first render.
+
+  - Fresh install: generate a CA and a serving certificate.
+  - Upgrade: reuse the existing Secret (found via lookup) so certificates do not rotate on
+    every `helm upgrade`, and keep the existing valid caBundle.
+  - A Secret that exists but is not owned by Helm (created by the legacy tls-secret-create
+    Job) is reused as it is and not rendered again, because Helm cannot adopt it.
+  - `helm template` and tools without cluster access cannot run lookup, so they render
+    fresh certificates. Set multicluster.clusterGateway.secureTLS.generateCerts=false to
+    use the legacy Job based flow there.
+  The Secret and the APIService are rendered from this one block so they always share the
+  same CA: genCA must run only once per render.
+*/ -}}
+{{- $secureTLS := .Values.multicluster.clusterGateway.secureTLS }}
+{{- $generateTLS := and $secureTLS.enabled (not $secureTLS.certManager.enabled) $secureTLS.generateCerts }}
+{{- $tlsSecretName := printf "%s-cluster-gateway-tls-v2" (include "kubevela.fullname" .) }}
+{{- $tlsCA := "" }}
+{{- $tlsCrt := "" }}
+{{- $tlsKey := "" }}
+{{- $renderTLSSecret := true }}
+{{- if $generateTLS }}
+  {{- $tlsSecret := lookup "v1" "Secret" .Release.Namespace $tlsSecretName }}
+  {{- if and $tlsSecret $tlsSecret.data }}
+    {{- /* The controller reads the CA from the "ca" key, cert-manager style consumers from "ca.crt". */}}
+    {{- $tlsCA = (index $tlsSecret.data "ca") | default (index $tlsSecret.data "ca.crt") | default "" }}
+    {{- $tlsCrt = (index $tlsSecret.data "tls.crt") | default "" }}
+    {{- $tlsKey = (index $tlsSecret.data "tls.key") | default "" }}
+    {{- /* The legacy Job wrote the CA into the APIService, not into the Secret key we read. */}}
+    {{- if and (not $tlsCA) $apiSvc $apiSvc.spec $apiSvc.spec.caBundle (ne $apiSvc.spec.caBundle "Cg==") }}
+      {{- $tlsCA = $apiSvc.spec.caBundle }}
+    {{- end }}
+    {{- $renderTLSSecret = false }}
+    {{- if $tlsSecret.metadata.annotations }}
+      {{- if index $tlsSecret.metadata.annotations "meta.helm.sh/release-name" }}
+        {{- $renderTLSSecret = true }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+  {{- if not (and $tlsCA $tlsCrt $tlsKey) }}
+    {{- if not $renderTLSSecret }}
+      {{- fail (printf "Secret %s/%s already exists but is not managed by Helm and has no usable CA, certificate and key. Delete it, or set multicluster.clusterGateway.secureTLS.generateCerts=false." .Release.Namespace $tlsSecretName) }}
+    {{- end }}
+    {{- $svcName := printf "%s-cluster-gateway-service" .Release.Name }}
+    {{- $caCert := genCA (printf "%s-cluster-gateway-ca" .Release.Name) 3650 }}
+    {{- $servingCert := genSignedCert $svcName nil (list $svcName (printf "%s.%s.svc" $svcName .Release.Namespace) (printf "%s.%s.svc.cluster.local" $svcName .Release.Namespace)) 3650 $caCert }}
+    {{- $tlsCA = b64enc $caCert.Cert }}
+    {{- $tlsCrt = b64enc $servingCert.Cert }}
+    {{- $tlsKey = b64enc $servingCert.Key }}
+  {{- end }}
+{{- end }}
+{{- if and $generateTLS $renderTLSSecret }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $tlsSecretName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+  {{- include "kubevela.labels" . | nindent 4 }}
+type: Opaque
+data:
+  ca: {{ $tlsCA }}
+  ca.crt: {{ $tlsCA }}
+  tls.crt: {{ $tlsCrt }}
+  tls.key: {{ $tlsKey }}
+---
+{{- end }}
 {{ if $shouldAdopt }}
 apiVersion: apiregistration.k8s.io/v1
 kind: APIService
@@ -162,9 +236,13 @@ spec:
   versionPriority: 10
   {{- if not .Values.multicluster.clusterGateway.secureTLS.enabled }}
   insecureSkipTLSVerify: true
+  {{- else if $generateTLS }}
+  insecureSkipTLSVerify: false
+  caBundle: {{ $tlsCA }}
   {{- else }}
-  {{- /* Preserve an already-valid caBundle on upgrade so we don't reset it before
-         the patch Job re-runs. $apiSvc is the existing APIService looked up above. */}}
+  {{- /* cert-manager or the legacy Job flow (generateCerts=false). Preserve an
+         already-valid caBundle on upgrade so we don't reset it before the patch Job
+         re-runs. $apiSvc is the existing APIService looked up above. */}}
   {{- $caBundle := "" }}
   {{- if $apiSvc }}
     {{- if $apiSvc.spec }}
@@ -183,14 +261,10 @@ spec:
   insecureSkipTLSVerify: false
   caBundle: Cg==
   {{- else }}
-  {{- /* No CA yet: the tls-secret-create Job makes it during the install and the
-         post-install tls-secret-patch Job writes it here and sets
-         insecureSkipTLSVerify to false. Until then TLS is not verified. A
-         placeholder caBundle would not work: since Kubernetes 1.36 the aggregator
-         verifies TLS with it for the availability check
-         (kubernetes/kubernetes#137157), so the APIService would never become
-         Available, vela-core would never become ready, and `helm install --wait`
-         would never reach the post-install patch Job. */}}
+  {{- /* Legacy Job flow without a CA yet: the tls-secret-create Job makes it during
+         the install and the post-install tls-secret-patch Job writes it here and
+         sets insecureSkipTLSVerify to false. Until then TLS is not verified. A
+         placeholder caBundle would not work on Kubernetes 1.36+ (see above). */}}
   insecureSkipTLSVerify: true
   {{- end }}
   {{- end }}
