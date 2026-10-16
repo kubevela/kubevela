@@ -327,6 +327,29 @@ var _ = Describe("Dry-run renders", func() {
 	})
 })
 
+var _ = Describe("The Kubernetes version lookup", func() {
+	It("gives up as soon as the render's context is cancelled", func() {
+		release := make(chan struct{})
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			select {
+			case <-release:
+			case <-r.Context().Done():
+			}
+		}))
+		defer srv.Close()
+		defer close(release)
+		p := NewProviderWithConfig(nil)
+		defer p.Close()
+		p.hubConfig = func() (*rest.Config, error) { return &rest.Config{Host: srv.URL}, nil }
+
+		ctx, cancel := context.WithCancel(renderCtx("managed", nil))
+		cancel()
+		start := time.Now()
+		Expect(p.getKubeVersion(ctx)).Should(BeNil())
+		Expect(time.Since(start)).Should(BeNumerically("<", time.Second))
+	})
+})
+
 var _ = Describe("The cluster client store", func() {
 	It("is bounded by cluster, dropping the least recently used", func() {
 		p := NewProviderWithConfig(nil)

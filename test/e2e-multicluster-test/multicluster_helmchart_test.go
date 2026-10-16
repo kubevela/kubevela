@@ -183,7 +183,9 @@ var _ = Describe("Test helmchart component on managed clusters", func() {
 		Expect(err).Should(Succeed())
 		Expect(out).ShouldNot(ContainSubstring("helm.sh/release.v1"))
 		Expect(helmReleases(Default, multicluster.Local, namespace)).Should(BeEmpty())
-		Expect(helmReleases(Default, WorkerClusterName, namespace)[releaseName].Version).Should(Equal(1))
+		rel, ok := helmReleases(Default, WorkerClusterName, namespace)[releaseName]
+		Expect(ok).Should(BeTrue())
+		Expect(rel.Version).Should(Equal(1))
 
 		By("changing the values upgrades the worker's release in place")
 		Expect(k8sClient.Get(hubCtx, key, app)).Should(Succeed())

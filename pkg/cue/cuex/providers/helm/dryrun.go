@@ -20,6 +20,7 @@ package helm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"runtime/debug"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chartutil"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/discovery"
 )
 
@@ -94,8 +96,13 @@ func (p *Provider) getKubeVersion(ctx context.Context) *chartutil.KubeVersion {
 	if err != nil {
 		return nil
 	}
-	info, err := dc.ServerVersion()
+	// dc.ServerVersion takes no context, so the request is made here to honour ctx's cancellation.
+	body, err := dc.RESTClient().Get().AbsPath("/version").Do(ctx).Raw()
 	if err != nil {
+		return nil
+	}
+	info := &version.Info{}
+	if err := json.Unmarshal(body, info); err != nil {
 		return nil
 	}
 	// Prefer the full GitVersion (e.g. "v1.31.4") so charts with patch-level
