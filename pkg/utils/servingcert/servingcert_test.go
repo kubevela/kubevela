@@ -21,6 +21,8 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -278,4 +280,24 @@ func TestCovers(t *testing.T) {
 	require.False(t, Covers(a[CAKey], both), "b is not trusted yet")
 	require.False(t, Covers(a[CAKey], b[CAKey]))
 	require.True(t, Covers(a[CAKey], nil))
+}
+
+func TestWriteFileIfChangedTightensPermissions(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tls.key")
+	require.NoError(t, os.WriteFile(path, []byte("key"), 0o644))
+
+	changed, err := WriteFileIfChanged(path, []byte("key"))
+	require.NoError(t, err)
+	require.False(t, changed)
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "an unchanged file is tightened too")
+
+	require.NoError(t, os.Chmod(path, 0o644))
+	changed, err = WriteFileIfChanged(path, []byte("new key"))
+	require.NoError(t, err)
+	require.True(t, changed)
+	info, err = os.Stat(path)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
