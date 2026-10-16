@@ -314,7 +314,8 @@ admissionWebhooks:
   failurePolicy: Fail
   certificate:
     mountPath: /etc/k8s-webhook-certs
-  # With patch.enabled on and cert-manager off, the chart starts vela-core with
+  # With admissionWebhooks.enabled and patch.enabled on and cert-manager off,
+  # the chart starts vela-core with
   # --webhook-tls-secret, so vela-core generates the webhook serving cert at
   # startup, in the Secret <fullname>-admission. It sets the
   # caBundle of its webhooks. When its webhook server serves requests, it also
