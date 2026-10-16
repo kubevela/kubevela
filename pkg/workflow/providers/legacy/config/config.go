@@ -14,17 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package config is the legacy (vela/op style) registration of the config workflow
+// steps. The behaviour lives in pkg/workflow/providers/config; this package only maps
+// the legacy parameter shape and step names onto it.
 package config
 
 import (
 	"context"
 	_ "embed"
-	"errors"
-	"strings"
 
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 
 	"github.com/oam-dev/kubevela/pkg/config"
+	configprovider "github.com/oam-dev/kubevela/pkg/workflow/providers/config"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
@@ -34,44 +36,17 @@ const (
 )
 
 // ErrRequestInvalid means the request is invalid
-var ErrRequestInvalid = errors.New("the request is in valid")
+var ErrRequestInvalid = configprovider.ErrRequestInvalid
 
 // CreateConfigProperties the request body for creating a config
-type CreateConfigProperties struct {
-	Name      string                 `json:"name"`
-	Namespace string                 `json:"namespace"`
-	Template  string                 `json:"template,omitempty"`
-	Config    map[string]interface{} `json:"config"`
-}
+type CreateConfigProperties = configprovider.CreateConfigProperties
 
 // CreateParams is the create params
 type CreateParams = oamprovidertypes.OAMParams[CreateConfigProperties]
 
-// CreateConfig creates a config
+// CreateConfig creates a config as a Config CR (see configprovider.Create)
 func CreateConfig(ctx context.Context, params *CreateParams) (*any, error) {
-	ccp := params.Params
-	name := ccp.Template
-	namespace := "vela-system"
-	if strings.Contains(ccp.Template, "/") {
-		namespacedName := strings.SplitN(ccp.Template, "/", 2)
-		namespace = namespacedName[0]
-		name = namespacedName[1]
-	}
-	factory := params.ConfigFactory
-	configItem, err := factory.ParseConfig(ctx, config.NamespacedName{
-		Name:      name,
-		Namespace: namespace,
-	}, config.Metadata{
-		NamespacedName: config.NamespacedName{
-			Name:      ccp.Name,
-			Namespace: ccp.Namespace,
-		},
-		Properties: ccp.Config,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return nil, factory.CreateOrUpdateConfig(ctx, configItem, ccp.Namespace)
+	return nil, configprovider.Create(ctx, configprovider.DepsOf(params.RuntimeParams), params.Params)
 }
 
 // ReadResult is the read result
@@ -79,11 +54,9 @@ type ReadResult struct {
 	Config map[string]any `json:"config"`
 }
 
-// ReadConfig reads the config
+// ReadConfig reads the config from either backend
 func ReadConfig(ctx context.Context, params *oamprovidertypes.OAMParams[config.NamespacedName]) (*ReadResult, error) {
-	nn := params.Params
-	factory := params.ConfigFactory
-	content, err := factory.ReadConfig(ctx, nn.Namespace, nn.Name)
+	content, err := configprovider.Read(ctx, configprovider.DepsOf(params.RuntimeParams), params.Params)
 	if err != nil {
 		return nil, err
 	}
@@ -91,50 +64,25 @@ func ReadConfig(ctx context.Context, params *oamprovidertypes.OAMParams[config.N
 }
 
 // ListVars is the list vars
-type ListVars struct {
-	Namespace string `json:"namespace"`
-	Template  string `json:"template"`
-}
+type ListVars = configprovider.ListVars
 
 // ListResult is the list result
 type ListResult struct {
 	Configs []map[string]any `json:"configs"`
 }
 
-// ListConfig lists the config
+// ListConfig lists the configs of a template from both backends
 func ListConfig(ctx context.Context, params *oamprovidertypes.OAMParams[ListVars]) (*ListResult, error) {
-	template := params.Params.Template
-	namespace := params.Params.Namespace
-	if template == "" || namespace == "" {
-		return nil, ErrRequestInvalid
-	}
-
-	if strings.Contains(template, "/") {
-		namespacedName := strings.SplitN(template, "/", 2)
-		template = namespacedName[1]
-	}
-	factory := params.ConfigFactory
-	configs, err := factory.ListConfigs(ctx, namespace, template, "", false)
+	contents, err := configprovider.List(ctx, configprovider.DepsOf(params.RuntimeParams), params.Params)
 	if err != nil {
 		return nil, err
-	}
-	var contents = []map[string]interface{}{}
-	for _, c := range configs {
-		contents = append(contents, map[string]interface{}{
-			"name":        c.Name,
-			"alias":       c.Alias,
-			"description": c.Description,
-			"config":      c.Properties,
-		})
 	}
 	return &ListResult{Configs: contents}, nil
 }
 
-// DeleteConfig deletes a config
+// DeleteConfig deletes a config from whichever backend holds it
 func DeleteConfig(ctx context.Context, params *oamprovidertypes.OAMParams[config.NamespacedName]) (*any, error) {
-	nn := params.Params
-	factory := params.ConfigFactory
-	return nil, factory.DeleteConfig(ctx, nn.Namespace, nn.Name)
+	return nil, params.RuntimeParams.ConfigFactory.DeleteConfig(ctx, params.Params.Namespace, params.Params.Name)
 }
 
 //go:embed config.cue

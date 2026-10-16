@@ -24,9 +24,11 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/types"
 	legacyconfig "github.com/oam-dev/kubevela/pkg/config"
 )
@@ -135,6 +137,75 @@ var _ = Describe("Migration parity with the running Config controller", func() {
 		Expect(metav1.GetControllerOf(&outAfter).UID).Should(Equal(cfg.UID))
 		// envtest runs no garbage collector, so "deleted with the Config" is shown by
 		// the manual scenarios; the owner reference above is what makes it happen.
+	})
+
+	// configFor is the Config the migration library builds for a seeded legacy config,
+	// written by hand so the test, not the library, decides when the owner reference lands.
+	configFor := func(tpl, cfgName string, migrationCreated bool) *configv1alpha1.Config {
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: cfgName, Namespace: ns},
+			Spec: configv1alpha1.ConfigSpec{
+				Alias:       "a",
+				TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: tpl, Namespace: ns},
+				Properties:  &runtime.RawExtension{Raw: []byte(fmt.Sprintf(`{"value":%q}`, "v-"+cfgName))},
+			},
+		}
+		if migrationCreated {
+			cfg.Labels = map[string]string{types.LabelConfigCreatedBy: types.ConfigCreatedByMigration}
+		}
+		return cfg
+	}
+
+	// markFor writes what the library writes right before it creates the Config: the
+	// adopt-by mark on the legacy Secret, the controller's proof.
+	markFor := func(secret *corev1.Secret, cfgName string) {
+		orig := secret.DeepCopy()
+		if secret.Annotations == nil {
+			secret.Annotations = map[string]string{}
+		}
+		secret.Annotations[types.AnnotationConfigAdoptBy] = cfgName
+		Expect(k8sClient.Patch(ctx, secret, client.MergeFrom(orig))).Should(Succeed())
+	}
+
+	It("adopts the legacy Secret and its output itself on the migration's mark, before the library's owner patch", func() {
+		// The library marks the Secret, creates the Config and then patches the owner
+		// references; a reconcile in between used to find them unowned and report Error
+		// until the next one. Here the patch never comes, so Available means the controller
+		// adopted them on its own.
+		before, outBefore := seed("parity-race", "parity-race-cfg", false)
+		markFor(before, "parity-race-cfg")
+		cfg := configFor("parity-race", "parity-race-cfg", true)
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		var got configv1alpha1.Config
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseAvailable, &got)
+		var after corev1.Secret
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(before), &after)).Should(Succeed())
+		Expect(after.UID).Should(Equal(before.UID))
+		Expect(after.Data).Should(Equal(before.Data))
+		Expect(after.Annotations).ShouldNot(HaveKey(types.AnnotationConfigAdoptBy), "the mark is spent")
+		Expect(metav1.GetControllerOf(&after)).ShouldNot(BeNil())
+		Expect(metav1.GetControllerOf(&after).UID).Should(Equal(got.UID))
+		var outAfter corev1.ConfigMap
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(outBefore), &outAfter)).Should(Succeed())
+		Expect(outAfter.UID).Should(Equal(outBefore.UID))
+		Expect(metav1.GetControllerOf(&outAfter)).ShouldNot(BeNil())
+		Expect(metav1.GetControllerOf(&outAfter).UID).Should(Equal(got.UID))
+	})
+
+	It("still refuses the legacy Secret for a Config nothing marked it for, migration label or not", func() {
+		// The label is the Config author's to set; the mark takes write access to the Secret.
+		before, _ := seed("parity-hand", "parity-hand-cfg", false)
+		cfg := configFor("parity-hand", "parity-hand-cfg", true)
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+
+		var got configv1alpha1.Config
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseError, &got)
+		Expect(got.Status.GetCondition(condition.TypeSynced).Message).Should(ContainSubstring("already exists and is not owned by this Config"))
+		var after corev1.Secret
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(before), &after)).Should(Succeed())
+		Expect(after.OwnerReferences).Should(BeEmpty())
+		Expect(after.Data).Should(Equal(before.Data))
 	})
 
 	It("keeps an adopted sensitive Secret unchanged, with its input in the companion Secret", func() {

@@ -38,6 +38,7 @@ import (
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // legacyTemplateCUE is a template with a same-namespace output object and, when
@@ -309,6 +310,41 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			Expect(recorder.Events).Should(BeEmpty())
 		})
 
+		It("releases a config an Application dispatched from it: the app and owner marks leave the Secret and its output", func() {
+			writeLegacyTemplate(ns, "dispatched", legacyTemplateCUE("dispatched", "project", false, ""))
+			secret := writeLegacyConfig(ns, "dispatched", ns, "cfg-app")
+			var out corev1.ConfigMap
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "cfg-app-local"}, &out)).Should(Succeed())
+			marks := map[string]string{oam.LabelAppName: "wf-app", oam.LabelAppNamespace: ns, oam.LabelOwnerKind: "Application", oam.LabelOwnerName: "wf-app", oam.LabelOwnerNamespace: ns}
+			for _, obj := range []client.Object{secret, &out} {
+				labels := obj.GetLabels()
+				if labels == nil {
+					labels = map[string]string{}
+				}
+				for k, v := range marks {
+					labels[k] = v
+				}
+				obj.SetLabels(labels)
+				Expect(k8sClient.Update(ctx, obj)).Should(Succeed())
+			}
+
+			report, err := migrator.MigrateConfig(ctx, ns, "cfg-app", MigrationOptions{})
+			Expect(err).Should(Succeed())
+			Expect(report.Count(MigrationAdopted)).Should(Equal(1))
+
+			after := getSecret(ns, "cfg-app")
+			var outAfter corev1.ConfigMap
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(&out), &outAfter)).Should(Succeed())
+			for _, obj := range []client.Object{after, &outAfter} {
+				for k := range marks {
+					Expect(obj.GetLabels()).ShouldNot(HaveKey(k), "%s: the Config owns it now; the app's GC would delete it otherwise", obj.GetName())
+				}
+			}
+			Expect(after.Labels).Should(HaveKeyWithValue(types.LabelConfigCatalog, types.VelaCoreConfig), "the config labels stay")
+			Expect(after.Annotations).ShouldNot(HaveKey(types.AnnotationConfigAdoptBy), "the mark written before the Create is spent by the adoption")
+			Expect(after.Annotations).Should(HaveKey(types.AnnotationConfigMigratedTo))
+		})
+
 		// #7449 review item 1: the controller renders every output into the Config's
 		// namespace, so a config with an output elsewhere is a conflict, never adopted.
 		It("refuses a config whose output object lives in another namespace", func() {
@@ -521,7 +557,10 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			Expect(getSecret(ns, "cfg-s").Data).Should(Equal(before.Data))
 		})
 
-		It("patches the config Secret last", func() {
+		It("marks the config Secret first and patches it last", func() {
+			// The adopt-by mark goes on before the Config exists (the controller's proof, see
+			// migrateConfigSecret); the Secret's own adoption, with the migrated-to annotation
+			// that says the migration is complete, is still the last write.
 			writeLegacyTemplate(ns, "order", legacyTemplateCUE("order", "namespace", false, ""))
 			writeLegacyConfig(ns, "order", ns, "cfg-o")
 			var writes []string
@@ -540,7 +579,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			report, err := NewMigrator(recording).MigrateConfig(ctx, ns, "cfg-o", MigrationOptions{})
 			Expect(err).Should(Succeed())
 			Expect(report.Count(MigrationAdopted)).Should(Equal(1))
-			Expect(writes).Should(Equal([]string{"cfg-o-local", "cfg-o"}))
+			Expect(writes).Should(Equal([]string{"cfg-o", "cfg-o-local", "cfg-o"}))
 			Expect(controllerOf(getSecret(ns, "cfg-o"))).ShouldNot(BeNil())
 		})
 

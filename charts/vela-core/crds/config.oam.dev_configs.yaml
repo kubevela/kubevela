@@ -189,6 +189,13 @@ spec:
                     - group
                     type: object
                 type: object
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the spec generation the rest of the status describes, so a
+                  reader can tell an Available from the last spec apart from one for the current
+                  spec; the create-config workflow step waits on it.
+                format: int64
+                type: integer
               phase:
                 description: ConfigPhase describes the lifecycle phase of a Config.
                 type: string

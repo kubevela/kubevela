@@ -36,6 +36,7 @@ import (
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // MigrationOutcome is what happened to one legacy object during a migration run.
@@ -635,8 +636,24 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 			return
 		}
 	}
+	// The controller adopts the Secret, and the outputs it records, for the Config named by
+	// this mark as soon as it sees the Config; the owner reference set in adopt needs the
+	// Config's UID, which exists only after the Create. A reconcile between the two used to
+	// find the Secret unowned and report Error until the next one. The mark takes write
+	// access to the Secret, which a Config author alone does not have, so a hand-made Config
+	// cannot claim a Secret by name.
+	if err := m.markAdoptBy(ctx, secret, cfg.Name); err != nil {
+		finish(MigrationFailed, fmt.Sprintf("Secret %s: %v", secret.Name, err))
+		return
+	}
 	if err := m.cli.Create(ctx, cfg); err != nil {
-		finish(MigrationFailed, err.Error())
+		// A mark with no Config behind it would let a later hand-made Config of the name
+		// collect the Secret; take it back, and say so if that fails too.
+		reason := err.Error()
+		if uerr := m.unmarkAdoptBy(ctx, secret); uerr != nil {
+			reason = fmt.Sprintf("%s (and the adopt-by mark on the Secret could not be removed: %v)", reason, uerr)
+		}
+		finish(MigrationFailed, reason)
 		return
 	}
 	if err := m.adopt(ctx, cfg, secret, refs); err != nil {
@@ -649,22 +666,22 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 // configWriterOf returns the name of the Config that wrote secret for itself: a
 // controller owner of kind Config with no migrated-to annotation on the Secret,
 // which an adopted legacy Secret always carries. "" means a legacy config.
-// IsConfigOwnerRef reports an owner reference to a config.oam.dev Config, the shape
-// adoption writes on a legacy Secret and its outputs.
-func IsConfigOwnerRef(ref metav1.OwnerReference) bool {
-	return ref.Kind == configv1alpha1.ConfigKind && ref.APIVersion == configv1alpha1.SchemeGroupVersion.String()
-}
-
 func configWriterOf(secret *corev1.Secret) string {
 	if secret.Annotations[types.AnnotationConfigMigratedTo] != "" {
 		return ""
 	}
 	for _, ref := range secret.OwnerReferences {
-		if ref.Kind == configv1alpha1.ConfigKind && ref.APIVersion == configv1alpha1.SchemeGroupVersion.String() {
+		if IsConfigOwnerRef(ref) {
 			return ref.Name
 		}
 	}
 	return ""
+}
+
+// IsConfigOwnerRef reports an owner reference to a config.oam.dev Config, the shape
+// adoption writes on a legacy Secret and its outputs.
+func IsConfigOwnerRef(ref metav1.OwnerReference) bool {
+	return ref.Kind == configv1alpha1.ConfigKind && ref.APIVersion == configv1alpha1.SchemeGroupVersion.String()
 }
 
 // templateBlock says a config cannot be adopted in this run because of the state
@@ -909,10 +926,63 @@ func (m *Migrator) own(ctx context.Context, cfg *configv1alpha1.Config, obj clie
 		setAnnotation(obj, types.AnnotationConfigMigratedTo, string(cfg.UID))
 		changed = true
 	}
+	if annotations := obj.GetAnnotations(); annotations[types.AnnotationConfigAdoptBy] != "" {
+		delete(annotations, types.AnnotationConfigAdoptBy)
+		obj.SetAnnotations(annotations)
+		changed = true
+	}
+	if dropApplicationMarks(obj) {
+		changed = true
+	}
 	if !changed {
 		return nil
 	}
 	return m.cli.Patch(ctx, obj, client.MergeFrom(orig))
+}
+
+// markAdoptBy writes the mark the Config controller adopts the Secret on (see
+// migrateConfigSecret).
+func (m *Migrator) markAdoptBy(ctx context.Context, secret *corev1.Secret, configName string) error {
+	orig := secret.DeepCopy()
+	setAnnotation(secret, types.AnnotationConfigAdoptBy, configName)
+	return m.cli.Patch(ctx, secret, client.MergeFrom(orig))
+}
+
+// unmarkAdoptBy takes the mark back when no Config followed it.
+func (m *Migrator) unmarkAdoptBy(ctx context.Context, secret *corev1.Secret) error {
+	if err := m.cli.Get(ctx, client.ObjectKeyFromObject(secret), secret); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if secret.Annotations[types.AnnotationConfigAdoptBy] == "" {
+		return nil
+	}
+	orig := secret.DeepCopy()
+	delete(secret.Annotations, types.AnnotationConfigAdoptBy)
+	return m.cli.Patch(ctx, secret, client.MergeFrom(orig))
+}
+
+// applicationMarkKeys are the labels an Application's dispatcher leaves on what it applies:
+// the app pair the generator merges in and the owner triple the resource keeper stamps.
+var applicationMarkKeys = []string{oam.LabelAppName, oam.LabelAppNamespace, oam.LabelOwnerKind, oam.LabelOwnerName, oam.LabelOwnerNamespace}
+
+// dropApplicationMarks releases an adopted object from the Application that dispatched it,
+// if one did (a config a workflow step wrote on an older controller). The Config owns it
+// now; left on, the marks would have the Application's garbage collection delete it once
+// the run that dispatched it is retired, and state-keep re-apply the stale copy. Reports
+// whether anything changed.
+func dropApplicationMarks(obj metav1.Object) bool {
+	labels := obj.GetLabels()
+	changed := false
+	for _, key := range applicationMarkKeys {
+		if _, ok := labels[key]; ok {
+			delete(labels, key)
+			changed = true
+		}
+	}
+	if changed {
+		obj.SetLabels(labels)
+	}
+	return changed
 }
 
 // dropStaleConfigOwner removes a controller reference to a Config of the same
@@ -922,8 +992,7 @@ func dropStaleConfigOwner(obj metav1.Object, cfg *configv1alpha1.Config) {
 	refs := obj.GetOwnerReferences()
 	kept := refs[:0]
 	for _, ref := range refs {
-		stale := ref.Kind == configv1alpha1.ConfigKind && ref.APIVersion == configv1alpha1.SchemeGroupVersion.String() &&
-			ref.Name == cfg.Name && ref.UID != cfg.UID
+		stale := IsConfigOwnerRef(ref) && ref.Name == cfg.Name && ref.UID != cfg.UID
 		if !stale {
 			kept = append(kept, ref)
 		}

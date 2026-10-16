@@ -22,10 +22,12 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"cuelang.org/go/cue"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/event"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -47,8 +49,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
-const defaultPropertiesSecretKey = "properties"
-
 // Reconciler reconciles a Config object.
 type Reconciler struct {
 	client.Client
@@ -66,6 +66,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	if err := r.Get(ctx, req.NamespacedName, &cfg); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	// every status write below describes this spec
+	cfg.Status.ObservedGeneration = cfg.Generation
 
 	// the materialized Secret is owned by the Config, so no finalizer is needed
 	if cfg.DeletionTimestamp != nil {
@@ -124,11 +126,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.markError(ctx, &cfg, err)
 	}
 
-	if err := r.applySecret(ctx, &cfg, secret); err != nil {
+	legacyOutputs, err := r.applySecret(ctx, &cfg, secret)
+	if err != nil {
 		return r.markError(ctx, &cfg, err)
 	}
 
-	if err := r.applyOutputs(ctx, &cfg, outputs); err != nil {
+	if err := r.applyOutputs(ctx, &cfg, outputs, legacyOutputs); err != nil {
 		return r.markError(ctx, &cfg, err)
 	}
 
@@ -167,7 +170,7 @@ func (r *Reconciler) resolveProperties(ctx context.Context, cfg *configv1alpha1.
 	case cfg.Spec.PropertiesFrom != nil:
 		key := cfg.Spec.PropertiesFrom.SecretRef.Key
 		if key == "" {
-			key = defaultPropertiesSecretKey
+			key = legacyconfig.DefaultPropertiesSecretKey
 		}
 		var secret corev1.Secret
 		if err := r.Get(ctx, client.ObjectKey{Namespace: cfg.Namespace, Name: cfg.Spec.PropertiesFrom.SecretRef.Name}, &secret); err != nil {
@@ -333,12 +336,22 @@ func renderOutputs(val cue.Value, namespace string) ([]*unstructured.Unstructure
 // applySecret creates or updates the materialized output Secret. It refuses to
 // adopt a pre-existing Secret not already controlled by this Config, so a user who
 // can only create Configs can't use the manager's Secret RBAC to overwrite an
-// unrelated Secret via a name collision.
-func (r *Reconciler) applySecret(ctx context.Context, cfg *configv1alpha1.Config, secret *corev1.Secret) error {
+// unrelated Secret via a name collision. The one exception is a legacy config Secret
+// a migration-created Config stands for (adoptableLegacySecret). For such a Config the
+// output objects that Secret recorded are returned, so applyOutputs may adopt them too.
+func (r *Reconciler) applySecret(ctx context.Context, cfg *configv1alpha1.Config, secret *corev1.Secret) ([]corev1.ObjectReference, error) {
 	existing := &corev1.Secret{ObjectMeta: secret.ObjectMeta}
+	var legacyOutputs []corev1.ObjectReference
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, existing, func() error {
-		if existing.UID != "" && !metav1.IsControlledBy(existing, cfg) {
+		if existing.UID != "" && !metav1.IsControlledBy(existing, cfg) && !adoptableLegacySecret(existing, cfg) {
 			return fmt.Errorf("secret %s/%s already exists and is not owned by this Config", existing.Namespace, existing.Name)
+		}
+		if existing.UID != "" && existing.Annotations[apitypes.AnnotationConfigAdoptBy] == cfg.Name {
+			// What the legacy config rendered, read before the render below replaces it.
+			// A list that does not parse adopts nothing; the outputs then get the refusal.
+			if refs, err := legacyconfig.ObjectReferences(existing); err == nil {
+				legacyOutputs = refs
+			}
 		}
 		// Merge, not replace. The Secret is this Config's to reconcile, but not
 		// everything on it is this Config's to own: an operator labels it for
@@ -353,13 +366,47 @@ func (r *Reconciler) applySecret(ctx context.Context, cfg *configv1alpha1.Config
 		// else's metadata.
 		existing.Labels = mergeMeta(existing.Labels, secret.Labels)
 		existing.Annotations = mergeMeta(existing.Annotations, secret.Annotations)
+		delete(existing.Annotations, apitypes.AnnotationConfigAdoptBy) // the mark has done its work
 		existing.Data = secret.Data
 		existing.StringData = secret.StringData
 		existing.Type = secret.Type
 		existing.OwnerReferences = secret.OwnerReferences
 		return nil
 	})
-	return err
+	return legacyOutputs, err
+}
+
+// adoptableLegacySecret reports a legacy config Secret this Config may take: one the
+// migration library marked for it (AnnotationConfigAdoptBy names this Config) that nothing
+// controls, or that a Config of this name and another UID did (deleted and recreated). The
+// library creates the Config and then sets the Secret's owner reference; a reconcile between
+// the two found the Secret unowned and reported Error until the next one, so the workflow
+// step waiting on the Config, or a user watching it, saw an Error that was never final. The
+// controller sets that owner reference itself now. The mark is the proof: writing it takes
+// write access to the Secret, which a Config author alone does not have, so a hand-made
+// Config cannot claim a Secret by name, with or without the migration label. Any other
+// Config, and any other Secret, still gets the refusal.
+func adoptableLegacySecret(existing *corev1.Secret, cfg *configv1alpha1.Config) bool {
+	if existing.Annotations[apitypes.AnnotationConfigAdoptBy] != cfg.Name || existing.Labels[apitypes.LabelConfigCatalog] != apitypes.VelaCoreConfig {
+		return false
+	}
+	owner := metav1.GetControllerOf(existing)
+	return owner == nil || (legacyconfig.IsConfigOwnerRef(*owner) && owner.Name == cfg.Name)
+}
+
+// adoptableLegacyOutput reports an output object a migration-created Config may take: one
+// nothing controls that the legacy Secret it stands for recorded as its own output.
+func adoptableLegacyOutput(existing, desired client.Object, legacyOutputs []corev1.ObjectReference) bool {
+	if metav1.GetControllerOf(existing) != nil {
+		return false
+	}
+	kind := desired.GetObjectKind().GroupVersionKind().Kind
+	for _, ref := range legacyOutputs {
+		if ref.Kind == kind && ref.Namespace == desired.GetNamespace() && ref.Name == desired.GetName() {
+			return true
+		}
+	}
+	return false
 }
 
 // mergeMeta layers desired keys over existing ones, leaving keys the caller does
@@ -378,13 +425,13 @@ func mergeMeta(existing, desired map[string]string) map[string]string {
 }
 
 // applyOutputs applies the template.outputs objects, owned by the Config for GC on delete.
-func (r *Reconciler) applyOutputs(ctx context.Context, cfg *configv1alpha1.Config, outputs []*unstructured.Unstructured) error {
+func (r *Reconciler) applyOutputs(ctx context.Context, cfg *configv1alpha1.Config, outputs []*unstructured.Unstructured, legacyOutputs []corev1.ObjectReference) error {
 	for _, obj := range outputs {
 		if err := controllerutil.SetControllerReference(cfg, obj, r.Scheme); err != nil {
 			return fmt.Errorf("failed to set owner reference on output object %s %s: %w", obj.GetKind(), obj.GetName(), err)
 		}
 		mustBeOwnedByConfig := apply.MakeCustomApplyOption(func(existing, _ client.Object) error {
-			if existing != nil && existing.GetUID() != "" && !metav1.IsControlledBy(existing, cfg) {
+			if existing != nil && existing.GetUID() != "" && !metav1.IsControlledBy(existing, cfg) && !adoptableLegacyOutput(existing, obj, legacyOutputs) {
 				return fmt.Errorf("object %s %s/%s already exists and is not owned by this Config", obj.GetKind(), obj.GetNamespace(), obj.GetName())
 			}
 			return nil
@@ -396,15 +443,32 @@ func (r *Reconciler) applyOutputs(ctx context.Context, cfg *configv1alpha1.Confi
 	return nil
 }
 
+// errorRetryInterval is how long a Config stays in Error before it is rendered again.
+// Some of its errors are about things outside it that nothing watches: an output object of
+// the same name that someone else owns, of a kind the controller has no watch for. (A
+// foreign Secret of the Config's name is watched, see findConfigsForSecret.)
+// Without a retry the Config sat in Error until the informer resync, and a workflow step
+// restarted after the obstacle was cleared read that stale Error and failed again. One
+// Get and a render every half minute is the price. The suite shortens it.
+var errorRetryInterval = 30 * time.Second
+
 // markError records a reconcile failure on the status without propagating the
-// error to the controller, so spec-level errors don't hot-loop.
+// error to the controller, so spec-level errors don't hot-loop; the Config is rendered
+// again after errorRetryInterval. A write conflict is not the Config's error: someone
+// else wrote the object between this reconcile's cached read and its write (the
+// migration library's owner-reference patch on the Secret it adopts lands this way), so
+// the Config is left as it is and read again shortly. Reporting it showed an Error phase
+// that was never final.
 func (r *Reconciler) markError(ctx context.Context, cfg *configv1alpha1.Config, err error) (ctrl.Result, error) {
+	if apierrors.IsConflict(err) {
+		return ctrl.Result{RequeueAfter: time.Second}, nil
+	}
 	cfg.Status.Phase = configv1alpha1.ConfigPhaseError
 	cfg.Status.SetConditions(condition.ReconcileError(err))
 	if uerr := r.UpdateStatus(ctx, cfg); uerr != nil {
 		return ctrl.Result{}, uerr
 	}
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: errorRetryInterval}, nil
 }
 
 // UpdateStatus updates Config's Status with retry.RetryOnConflict
@@ -464,11 +528,12 @@ func (r *Reconciler) findConfigsForSecret(ctx context.Context, obj client.Object
 	}
 	for i := range list.Items {
 		cfg := &list.Items[i]
-		ref := cfg.Spec.PropertiesFrom
-		if ref == nil || ref.SecretRef.Name != secret.Name {
-			continue
+		// The Config reads it as properties, or it is the Config's own output Secret: one of
+		// that name that someone else owns blocks the render, and its deletion is the event
+		// the Config is waiting for.
+		if ref := cfg.Spec.PropertiesFrom; (ref != nil && ref.SecretRef.Name == secret.Name) || cfg.Name == secret.Name {
+			requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(cfg)})
 		}
-		requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(cfg)})
 	}
 	return requests
 }
