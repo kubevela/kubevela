@@ -182,8 +182,9 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	// ResourceTracker records them and GC deletes them on Application deletion.
 	// The skeleton intentionally omits the data field — KubeVela's merge-patch
 	// strategy preserves unspecified fields, so Helm's data.release blob is
-	// untouched. No special dispatcher changes needed.
-	if renderParams.Context != nil {
+	// untouched. No special dispatcher changes needed. A dry-run installs
+	// nothing, so it has no release Secrets to track.
+	if renderParams.Context != nil && !isDryRun(ctx) {
 		releaseSecretNames := p.listReleaseSecretNames(ctx, releaseNamespace, releaseName)
 		for _, secName := range releaseSecretNames {
 			secretMeta := map[string]interface{}{

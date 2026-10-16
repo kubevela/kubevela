@@ -18,8 +18,10 @@ package helm
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,10 +32,13 @@ import (
 	. "github.com/onsi/gomega"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/endpoints/request"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	clientsetfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
@@ -107,10 +112,13 @@ var _ = Describe("Helm clients per cluster", func() {
 		p.Close()
 	})
 
+	// serverVersion makes a request with the getter's REST config, the one Helm's writes use.
 	serverVersion := func(ctx context.Context) {
 		getter, err := p.restClientGetter(ctx)
 		Expect(err).ShouldNot(HaveOccurred())
-		dc, err := getter.ToDiscoveryClient()
+		cfg, err := getter.ToRESTConfig()
+		Expect(err).ShouldNot(HaveOccurred())
+		dc, err := discovery.NewDiscoveryClientForConfig(cfg)
 		Expect(err).ShouldNot(HaveOccurred())
 		_, err = dc.ServerVersion()
 		Expect(err).ShouldNot(HaveOccurred())
@@ -153,19 +161,18 @@ var _ = Describe("Helm clients per cluster", func() {
 		Expect(hub.Paths()).Should(BeEmpty())
 	})
 
-	It("keeps one getter per cluster and user, so discovery and identity are never shared", func() {
-		getter := func(ctx context.Context) interface{} {
+	It("shares a cluster's discovery between its users, and keeps it apart from other clusters'", func() {
+		discoveryOf := func(ctx context.Context) interface{} {
 			g, err := p.restClientGetter(ctx)
 			Expect(err).ShouldNot(HaveOccurred())
-			return g
+			dc, err := g.ToDiscoveryClient()
+			Expect(err).ShouldNot(HaveOccurred())
+			return dc
 		}
-		a := getter(renderCtx("a", nil))
-		Expect(getter(renderCtx("a", nil))).Should(BeIdenticalTo(a))
-		Expect(getter(renderCtx("b", nil))).ShouldNot(BeIdenticalTo(a))
-		alice := getter(renderCtx("a", &user.DefaultInfo{Name: "alice"}))
-		Expect(alice).ShouldNot(BeIdenticalTo(a))
-		Expect(getter(renderCtx("a", &user.DefaultInfo{Name: "alice"}))).Should(BeIdenticalTo(alice))
-		Expect(getter(renderCtx("a", &user.DefaultInfo{Name: "alice", Groups: []string{"ops"}}))).ShouldNot(BeIdenticalTo(alice))
+		a := discoveryOf(renderCtx("a", nil))
+		Expect(discoveryOf(renderCtx("a", &user.DefaultInfo{Name: "alice"}))).Should(BeIdenticalTo(a))
+		Expect(discoveryOf(renderCtx("a", &user.DefaultInfo{Name: "bob", Groups: []string{"ops"}}))).Should(BeIdenticalTo(a))
+		Expect(discoveryOf(renderCtx("b", nil))).ShouldNot(BeIdenticalTo(a))
 	})
 
 	It("reports the Kubernetes version of the cluster being rendered for", func() {
@@ -215,7 +222,9 @@ var _ = Describe("Render targets the component's cluster and user", func() {
 			Name: "shop", Namespace: "team-a",
 			Annotations: map[string]string{oam.AnnotationApplicationUsername: "alice"},
 		}}
+		origKube := singleton.KubeClient.Get()
 		singleton.KubeClient.Set(fake.NewClientBuilder().WithScheme(scheme).WithObjects(app).Build())
+		defer singleton.KubeClient.Set(origKube)
 
 		p := NewProvider()
 		saveConfig, saveClient := p.actionConfigFactory, p.kubeClientFactory
@@ -272,3 +281,139 @@ var _ = Describe("Helm action configs", func() {
 		}
 	})
 })
+
+var _ = Describe("Dry-run renders", func() {
+	It("track no release Secrets, since they install nothing", func() {
+		p := NewProvider()
+		saveClient, saveServer := p.kubeClientFactory, p.helmClient.KubeAPIServer
+		defer func() { p.kubeClientFactory, p.helmClient.KubeAPIServer = saveClient, saveServer }()
+		p.helmClient.KubeAPIServer = "https://127.0.0.1:1"
+		p.kubeClientFactory = func(context.Context) (kubernetes.Interface, error) {
+			Fail("a dry-run must not read the cluster's release Secrets")
+			return nil, nil
+		}
+		p.cache.Put("repo/"+sourceCacheID("dryrun-secrets")+"/1.0.0", createChartArchive(&chart.Chart{
+			Metadata:  &chart.Metadata{Name: "dryrun-secrets", Version: "1.0.0"},
+			Templates: []*chart.File{{Name: "templates/cm.yaml", Data: []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm\n")}},
+		}), time.Hour)
+
+		result, err := Render(WithDryRun(context.Background()), &providers.Params[RenderParams]{Params: RenderParams{
+			Chart:   ChartSourceParams{Source: "dryrun-secrets", Version: "1.0.0"},
+			Release: &ReleaseParams{Name: "rel", Namespace: "team-a"},
+			Context: &ContextParams{AppName: "shop", AppNamespace: "team-a", Name: "web", Namespace: "team-a"},
+		}})
+		Expect(err).ShouldNot(HaveOccurred())
+		for _, r := range result.Returns.Resources {
+			Expect(r["kind"]).ShouldNot(Equal("Secret"))
+		}
+	})
+
+	It("check charts and templates against client-go's Kubernetes version when the cluster's cannot be read", func() {
+		p := NewProviderWithConfig(nil)
+		defer p.Close()
+		p.helmClient.KubeAPIServer = "https://127.0.0.1:1"
+		ch := &chart.Chart{
+			Metadata: &chart.Metadata{Name: "needs-new-k8s", Version: "1.0.0", KubeVersion: ">=1.29.0-0"},
+			Templates: []*chart.File{{Name: "templates/cm.yaml", Data: []byte(
+				"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm\ndata:\n  minor: \"{{ .Capabilities.KubeVersion.Minor }}\"\n")}},
+		}
+		Expect(p.getKubeVersion(context.Background())).Should(BeNil())
+		fallback := fallbackKubeVersion()
+		Expect(fallback).ShouldNot(BeNil())
+
+		manifest, _, err := p.dryRunRender(context.Background(), ch, "rel", "team-a", map[string]interface{}{}, nil, nil)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(manifest).Should(ContainSubstring(`minor: "` + fallback.Minor + `"`))
+	})
+})
+
+var _ = Describe("The cluster client store", func() {
+	It("is bounded by cluster, dropping the least recently used", func() {
+		p := NewProviderWithConfig(nil)
+		defer p.Close()
+		p.hubConfig = func() (*rest.Config, error) { return &rest.Config{Host: "https://127.0.0.1:1"}, nil }
+		first, err := p.clientsFor("c-0")
+		Expect(err).ShouldNot(HaveOccurred())
+		for i := 1; i <= clusterClientsCacheSize; i++ {
+			_, err := p.clientsFor(fmt.Sprintf("c-%d", i))
+			Expect(err).ShouldNot(HaveOccurred())
+		}
+		again, err := p.clientsFor("c-0")
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(again).ShouldNot(BeIdenticalTo(first))
+	})
+
+	It("maps a kind created after the cluster's first render, once Helm invalidates discovery", func() {
+		api := &discoveryStub{}
+		srv := httptest.NewServer(api)
+		defer srv.Close()
+		p := NewProviderWithConfig(nil)
+		defer p.Close()
+		p.hubConfig = func() (*rest.Config, error) { return &rest.Config{Host: srv.URL}, nil }
+		widget := schema.GroupKind{Group: "e2e.kubevela.io", Kind: "Widget"}
+		mapping := func() error {
+			getter, err := p.restClientGetter(renderCtx("managed", nil))
+			Expect(err).ShouldNot(HaveOccurred())
+			mapper, err := getter.ToRESTMapper()
+			Expect(err).ShouldNot(HaveOccurred())
+			_, err = mapper.RESTMapping(widget, "v1")
+			return err
+		}
+		Expect(meta.IsNoMatchError(mapping())).Should(BeTrue())
+
+		api.addWidgets()
+		getter, err := p.restClientGetter(renderCtx("managed", nil))
+		Expect(err).ShouldNot(HaveOccurred())
+		dc, err := getter.ToDiscoveryClient()
+		Expect(err).ShouldNot(HaveOccurred())
+		// What Helm's getCapabilities does before each install or upgrade: invalidate, then refetch.
+		dc.Invalidate()
+		_, _, err = dc.ServerGroupsAndResources()
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(mapping()).Should(Succeed())
+	})
+})
+
+// discoveryStub serves legacy discovery for core/v1 and, once added, e2e.kubevela.io/v1 widgets,
+// on any cluster-gateway proxy prefix.
+type discoveryStub struct {
+	mu      sync.Mutex
+	widgets bool
+}
+
+func (d *discoveryStub) addWidgets() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.widgets = true
+}
+
+func (d *discoveryStub) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	d.mu.Lock()
+	widgets := d.widgets
+	d.mu.Unlock()
+	path := req.URL.Path
+	if i := strings.Index(path, "/proxy/"); i >= 0 {
+		path = path[i+len("/proxy"):]
+	}
+	w.Header().Set("Content-Type", "application/json")
+	switch path {
+	case "/api":
+		_, _ = w.Write([]byte(`{"kind":"APIVersions","versions":["v1"]}`))
+	case "/api/v1":
+		_, _ = w.Write([]byte(`{"kind":"APIResourceList","groupVersion":"v1","resources":[{"name":"configmaps","namespaced":true,"kind":"ConfigMap","verbs":["get"]}]}`))
+	case "/apis":
+		groups := `[]`
+		if widgets {
+			groups = `[{"name":"e2e.kubevela.io","versions":[{"groupVersion":"e2e.kubevela.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"e2e.kubevela.io/v1","version":"v1"}}]`
+		}
+		_, _ = w.Write([]byte(`{"kind":"APIGroupList","apiVersion":"v1","groups":` + groups + `}`))
+	case "/apis/e2e.kubevela.io/v1":
+		if !widgets {
+			http.NotFound(w, req)
+			return
+		}
+		_, _ = w.Write([]byte(`{"kind":"APIResourceList","groupVersion":"e2e.kubevela.io/v1","resources":[{"name":"widgets","namespaced":true,"kind":"Widget","verbs":["get"]}]}`))
+	default:
+		http.NotFound(w, req)
+	}
+}

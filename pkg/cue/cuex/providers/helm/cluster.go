@@ -23,8 +23,7 @@ package helm
 import (
 	"context"
 	"os"
-	"strings"
-	"sync"
+	"time"
 
 	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/pkg/errors"
@@ -39,6 +38,21 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
+const (
+	// clusterClientsCacheSize bounds the clusters whose clients are kept.
+	clusterClientsCacheSize = 256
+	// clusterClientsIdleTTL drops a cluster's clients, and its cached discovery, once unused this long.
+	clusterClientsIdleTTL = time.Hour
+)
+
+// clusterClients is what every render for one cluster shares: the REST config that reaches it,
+// acting as the controller, and an in-memory discovery cache. Helm invalidates that cache before
+// each install or upgrade, when it reads the cluster's capabilities.
+type clusterClients struct {
+	config    *rest.Config
+	discovery discovery.CachedDiscoveryInterface
+}
+
 // clusterFrom returns the cluster a render is for, "local" when the context names none.
 func clusterFrom(ctx context.Context) string {
 	if cluster, ok := pkgmulticluster.ClusterFrom(ctx); ok && !pkgmulticluster.IsLocal(cluster) {
@@ -51,9 +65,9 @@ func clusterFrom(ctx context.Context) string {
 // user the render carries, as the controller's impersonating round tripper does. Helm does not
 // pass the caller's context on every request, so both are pinned on the getter's config.
 //
-// The local cluster with no user uses the Helm environment's own getter. Every other cluster and
-// user keeps one getter, so discovery and the REST mapper are cached per getter: every proxied
-// cluster shares the hub's host, which is what client-go keys its own caches by.
+// The local cluster with no user uses the Helm environment's own getter. Any other render gets a
+// getter over its cluster's shared clients, with the user's impersonation on its own copy of the
+// config, so discovery is cached per cluster however many users render there.
 func (p *Provider) restClientGetter(ctx context.Context) (genericclioptions.RESTClientGetter, error) {
 	cluster := clusterFrom(ctx)
 	u, _ := request.UserFrom(ctx)
@@ -63,14 +77,25 @@ func (p *Provider) restClientGetter(ctx context.Context) (genericclioptions.REST
 	if pkgmulticluster.IsLocal(cluster) && u == nil {
 		return p.helmClient.RESTClientGetter(), nil
 	}
-	key := cluster
-	if u != nil {
-		key += "\x00" + u.GetName() + "\x00" + strings.Join(u.GetGroups(), ",")
+	clients, err := p.clientsFor(cluster)
+	if err != nil {
+		return nil, err
 	}
-	p.clusterGettersMu.Lock()
-	defer p.clusterGettersMu.Unlock()
-	if getter, ok := p.clusterGetters[key]; ok {
-		return getter, nil
+	cfg := rest.CopyConfig(clients.config)
+	if u != nil {
+		cfg.Impersonate = rest.ImpersonationConfig{UserName: u.GetName(), Groups: u.GetGroups()}
+	}
+	return &clusterRESTClientGetter{config: cfg, discovery: clients.discovery}, nil
+}
+
+// clientsFor returns a cluster's shared clients, building them on first use. Building them makes
+// no request, so holding the lock is cheap.
+func (p *Provider) clientsFor(cluster string) (*clusterClients, error) {
+	p.clusterClientsMu.Lock()
+	defer p.clusterClientsMu.Unlock()
+	if clients, ok := p.clusterClients.Get(cluster); ok {
+		p.clusterClients.Put(cluster, clients, clusterClientsIdleTTL)
+		return clients, nil
 	}
 	hub, err := p.hubConfig()
 	if err != nil {
@@ -82,12 +107,13 @@ func (p *Provider) restClientGetter(ctx context.Context) (genericclioptions.REST
 			return nil, err
 		}
 	}
-	if u != nil {
-		cfg.Impersonate = rest.ImpersonationConfig{UserName: u.GetName(), Groups: u.GetGroups()}
+	dc, err := discovery.NewDiscoveryClientForConfig(cfg)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to build a discovery client for cluster %s", cluster)
 	}
-	getter := &clusterRESTClientGetter{config: cfg}
-	p.clusterGetters[key] = getter
-	return getter, nil
+	clients := &clusterClients{config: cfg, discovery: memory.NewMemCacheClient(dc)}
+	p.clusterClients.Put(cluster, clients, clusterClientsIdleTTL)
+	return clients, nil
 }
 
 // routeToCluster returns a copy of the hub config that reaches a managed cluster through
@@ -116,27 +142,11 @@ func routeToCluster(hub *rest.Config, cluster string) (*rest.Config, error) {
 	return cfg, nil
 }
 
-// clusterRESTClientGetter is a RESTClientGetter over a fixed REST config, with in-memory
-// discovery that Helm invalidates itself after installing CRDs.
+// clusterRESTClientGetter is a RESTClientGetter over a fixed REST config and a cluster's shared
+// discovery. Each REST mapper it hands out is new, so it maps whatever discovery last fetched.
 type clusterRESTClientGetter struct {
-	config *rest.Config
-
-	once      sync.Once
+	config    *rest.Config
 	discovery discovery.CachedDiscoveryInterface
-	mapper    meta.RESTMapper
-	err       error
-}
-
-func (g *clusterRESTClientGetter) init() {
-	g.once.Do(func() {
-		dc, err := discovery.NewDiscoveryClientForConfig(g.config)
-		if err != nil {
-			g.err = err
-			return
-		}
-		g.discovery = memory.NewMemCacheClient(dc)
-		g.mapper = restmapper.NewShortcutExpander(restmapper.NewDeferredDiscoveryRESTMapper(g.discovery), g.discovery, nil)
-	})
 }
 
 // ToRESTConfig implements genericclioptions.RESTClientGetter.
@@ -146,14 +156,12 @@ func (g *clusterRESTClientGetter) ToRESTConfig() (*rest.Config, error) {
 
 // ToDiscoveryClient implements genericclioptions.RESTClientGetter.
 func (g *clusterRESTClientGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
-	g.init()
-	return g.discovery, g.err
+	return g.discovery, nil
 }
 
 // ToRESTMapper implements genericclioptions.RESTClientGetter.
 func (g *clusterRESTClientGetter) ToRESTMapper() (meta.RESTMapper, error) {
-	g.init()
-	return g.mapper, g.err
+	return restmapper.NewShortcutExpander(restmapper.NewDeferredDiscoveryRESTMapper(g.discovery), g.discovery, nil), nil
 }
 
 // ToRawKubeConfigLoader implements genericclioptions.RESTClientGetter. Helm reads only the

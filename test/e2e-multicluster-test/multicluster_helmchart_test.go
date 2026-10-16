@@ -174,6 +174,17 @@ var _ = Describe("Test helmchart component on managed clusters", func() {
 		Expect(out).Should(ContainSubstring(WorkerClusterName))
 		Expect(out).Should(ContainSubstring("Deployment/" + releaseName))
 
+		By("vela live-diff renders both sides without installing anything")
+		bs, err := yaml.Marshal(newApp(1, WorkerClusterName))
+		Expect(err).Should(Succeed())
+		file := filepath.Join(GinkgoT().TempDir(), "app.yaml")
+		Expect(os.WriteFile(file, bs, 0600)).Should(Succeed())
+		out, err = execCommand("live-diff", "-f", file, "-n", namespace)
+		Expect(err).Should(Succeed())
+		Expect(out).ShouldNot(ContainSubstring("helm.sh/release.v1"))
+		Expect(helmReleases(Default, multicluster.Local, namespace)).Should(BeEmpty())
+		Expect(helmReleases(Default, WorkerClusterName, namespace)[releaseName].Version).Should(Equal(1))
+
 		By("changing the values upgrades the worker's release in place")
 		Expect(k8sClient.Get(hubCtx, key, app)).Should(Succeed())
 		app.Spec.Components[0] = podinfoComponent("podinfo", releaseName, namespace, 2)

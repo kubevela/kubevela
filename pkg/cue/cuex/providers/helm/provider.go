@@ -151,8 +151,8 @@ type Provider struct {
 	// hubConfig returns the REST config managed clusters are reached through.
 	// Defaults to the Helm environment's own config; tests point it at a stub.
 	hubConfig        func() (*rest.Config, error)
-	clusterGettersMu sync.Mutex
-	clusterGetters   map[string]*clusterRESTClientGetter // cluster and user → getter
+	clusterClientsMu sync.Mutex
+	clusterClients   *cache.LRUStore[string, *clusterClients] // cluster → its shared clients
 	// actionConfigFactory builds a helm action.Configuration for the
 	// cluster and user a render's context carries, in a namespace. Defaults
 	// to getActionConfig (a real cluster client). Tests override this to inject a fake KubeClient + memory
@@ -257,11 +257,15 @@ func chartCacheOptions() cache.Options[string, []byte] {
 // reasons after capacity/TTL eviction. Shares the provider's cancelable ctx
 // so Close stops its sweeper with the chart cache.
 func newEvictionLedger(ctx context.Context) *cache.LRUStore[string, string] {
-	store, err := cache.NewLRUStore[string, string](ctx, cache.Options[string, string]{
-		MaxSize: chartCacheEvictionLedgerSize,
-	})
+	return newBoundedStore[string](ctx, chartCacheEvictionLedgerSize, 0)
+}
+
+// newBoundedStore returns a string-keyed LRU of at most maxSize entries, swept
+// for expired ones every sweep when sweep is positive.
+func newBoundedStore[V any](ctx context.Context, maxSize int, sweep time.Duration) *cache.LRUStore[string, V] {
+	store, err := cache.NewLRUStore[string, V](ctx, cache.Options[string, V]{MaxSize: maxSize, SweepInterval: sweep})
 	if err != nil {
-		klog.Fatalf("Failed to create chart eviction ledger: %v", err)
+		klog.Fatalf("Failed to create a helm provider cache: %v", err)
 	}
 	return store
 }
@@ -292,7 +296,7 @@ func NewProvider() *Provider {
 			releaseFingerprints:  make(map[string]string),
 			releaseManifests:     make(map[string]string),
 			releaseVersions:      make(map[string]int),
-			clusterGetters:       make(map[string]*clusterRESTClientGetter),
+			clusterClients:       newBoundedStore[*clusterClients](ctx, clusterClientsCacheSize, time.Minute),
 		}
 		globalProvider.hubConfig = globalProvider.helmClient.RESTClientGetter().ToRESTConfig
 		globalProvider.actionConfigFactory = globalProvider.getActionConfig
@@ -329,7 +333,7 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 		releaseFingerprints:  make(map[string]string),
 		releaseManifests:     make(map[string]string),
 		releaseVersions:      make(map[string]int),
-		clusterGetters:       make(map[string]*clusterRESTClientGetter),
+		clusterClients:       newBoundedStore[*clusterClients](ctx, clusterClientsCacheSize, time.Minute),
 	}
 	p.hubConfig = p.helmClient.RESTClientGetter().ToRESTConfig
 	p.actionConfigFactory = p.getActionConfig

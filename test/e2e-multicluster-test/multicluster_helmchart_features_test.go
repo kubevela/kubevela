@@ -34,6 +34,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -153,7 +154,13 @@ func deployChartFixtures(ctx context.Context) {
 	Eventually(func(g Gomega) {
 		job := &batchv1.Job{}
 		g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(push), job)).Should(Succeed())
-		g.Expect(job.Status.Succeeded).Should(BeEquivalentTo(1))
+		for _, c := range job.Status.Conditions {
+			if c.Type == batchv1.JobFailed && c.Status == corev1.ConditionTrue {
+				StopTrying("pushing the widgets chart failed: " + c.Reason + ": " + c.Message).Now()
+			}
+		}
+		g.Expect(job.Status.Conditions).Should(ContainElement(SatisfyAll(
+			HaveField("Type", batchv1.JobComplete), HaveField("Status", corev1.ConditionTrue))))
 	}).WithPolling(2 * time.Second).WithTimeout(3 * time.Minute).Should(Succeed())
 }
 
@@ -347,7 +354,8 @@ var _ = Describe("Test helmchart features on managed clusters", Ordered, Continu
 		expectWorkerRelease("widgets-selected", 1, 8)
 		Expect(helmReleases(Default, "local", namespace)).Should(BeEmpty())
 		_, err = widget(hubCtx, "widgets-selected")
-		Expect(err).Should(HaveOccurred())
+		// The hub has no Widget CRD, so the kind itself is unknown there.
+		Expect(kerrors.IsNotFound(err) || meta.IsNoMatchError(err)).Should(BeTrue(), "the Widget on the hub: %v", err)
 	})
 
 	It("runs a chart's hooks in the release namespace on the hub too", func() {
