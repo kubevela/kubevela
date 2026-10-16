@@ -46,6 +46,19 @@ rules:
   - apiGroups: ["admissionregistration.k8s.io"]
     resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
     verbs: ["get", "list", "watch"]
+  {{- if include "kubevela.webhookRuntimeCerts" . }}
+  # vela-core sets the caBundle and failurePolicy of its own webhooks at startup.
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+    resourceNames: [{{ printf "%s-admission" (include "kubevela.fullname" .) | quote }}]
+    verbs: ["update", "patch"]
+  {{- if .Values.admissionWebhooks.appConversion.enabled }}
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    resourceNames: ["applications.core.oam.dev"]
+    verbs: ["get", "update", "patch"]
+  {{- end }}
+  {{- end }}
   - apiGroups: ["flowcontrol.apiserver.k8s.io"]
     resources: ["prioritylevelconfigurations", "flowschemas"]
     verbs: ["get", "list", "watch"]
@@ -251,6 +264,14 @@ spec:
             - "--use-webhook=true"
             - "--webhook-port={{ .Values.webhookService.port }}"
             - "--webhook-cert-dir={{ .Values.admissionWebhooks.certificate.mountPath }}"
+            {{ if include "kubevela.webhookRuntimeCerts" . }}
+            - "--webhook-tls-secret={{ .Release.Namespace }}/{{ template "kubevela.fullname" . }}-admission"
+            - "--webhook-configuration={{ template "kubevela.fullname" . }}-admission"
+            - "--webhook-failure-policy={{ .Values.admissionWebhooks.failurePolicy }}"
+            {{ if .Values.admissionWebhooks.appConversion.enabled }}
+            - "--webhook-conversion-crds=applications.core.oam.dev"
+            {{ end }}
+            {{ end }}
             {{ end }}
             {{ if ne .Values.optimize.cachedGvks "" }}
             - "--optimize-cached-gvks={{ .Values.optimize.cachedGvks }}"
@@ -279,6 +300,9 @@ spec:
             - "--definition-revision-limit={{ .Values.definitionRevisionLimit }}"
             {{ if .Values.multicluster.enabled }}
             - "--enable-cluster-gateway"
+            {{ if include "kubevela.clusterGatewayRuntimeCerts" . }}
+            - "--cluster-gateway-tls-secret={{ .Release.Namespace }}/{{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2"
+            {{ end }}
             {{ if .Values.multicluster.clusterGateway.direct }}
             - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:9443"
             {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
@@ -363,6 +387,10 @@ spec:
           {{- toYaml .Values.resources | nindent 12 }}
           {{- $needAdmissionTLS := .Values.admissionWebhooks.enabled }}
           {{- $needClusterGatewayTLS := and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+          {{- /* With runtime certs, vela-core creates the Secret itself and cannot
+                 mount it. It writes the files into an emptyDir at startup. */}}
+          {{- $webhookRuntime := include "kubevela.webhookRuntimeCerts" . }}
+          {{- $gatewayRuntime := include "kubevela.clusterGatewayRuntimeCerts" . }}
           {{ if .Values.admissionWebhooks.enabled }}
           ports:
             - containerPort: {{ .Values.webhookService.port }}
@@ -395,27 +423,39 @@ spec:
             {{ if $needAdmissionTLS }}
             - mountPath: {{ .Values.admissionWebhooks.certificate.mountPath }}
               name: tls-cert-vol
+              {{- if not $webhookRuntime }}
               readOnly: true
+              {{- end }}
             {{ end }}
             {{ if $needClusterGatewayTLS }}
             - mountPath: /cluster-gateway-tls-cert
               name: tls-cert-vol-cg
+              {{- if not $gatewayRuntime }}
               readOnly: true
+              {{- end }}
             {{ end }}
           {{ end }}
       {{ if or $needAdmissionTLS $needClusterGatewayTLS }}
       volumes:
         {{ if $needAdmissionTLS }}
         - name: tls-cert-vol
+          {{- if $webhookRuntime }}
+          emptyDir: {}
+          {{- else }}
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-admission
+          {{- end }}
         {{ end }}
         {{ if $needClusterGatewayTLS }}
         - name: tls-cert-vol-cg
+          {{- if $gatewayRuntime }}
+          emptyDir: {}
+          {{- else }}
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
+          {{- end }}
       {{ end }}
       {{ end }}
       {{- with .Values.nodeSelector }}

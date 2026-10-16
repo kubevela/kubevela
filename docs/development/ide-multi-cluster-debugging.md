@@ -226,27 +226,48 @@ helm install kubevela ./charts/vela-core \
   --namespace vela-system --create-namespace \
   --set admissionWebhooks.enabled=false \
   --set devLogs=true \
-  --wait --debug
+  --debug
 ```
 
 `multicluster.enabled` defaults to `true`, so this installs Cluster Gateway
-without any extra flag. Verify:
+without an extra flag. Do not add `--wait`. vela-core makes the Cluster Gateway
+serving certificate at startup. You removed the in-cluster controller, so the
+controller that you start from your IDE in step 4 makes it. Until then, the
+`kubevela-cluster-gateway` pod stays in `ContainerCreating` and waits for its
+`kubevela-vela-core-cluster-gateway-tls-v2` Secret. `--wait` would time out. Check what was installed:
 
 ```bash
 kubectl get all -n vela-system
 ```
 
-You should see only a `kubevela-cluster-gateway` pod/deployment/service, no
-`kubevela-vela-core` pod.
+You should see only a `kubevela-cluster-gateway` deployment/service and its
+pending pod, no `kubevela-vela-core` pod. The pod starts once step 4 runs.
 
 ## 4. Point your IDE at the master cluster and run the controller
 
 Use the "Run KubeVela Core" configuration from
 [`ide-debugging.md`](./ide-debugging.md#vs-code), adding (or confirming) a
-`KUBECONFIG` environment variable pointing at `~/.kube/master.yaml`:
+`KUBECONFIG` environment variable pointing at `~/.kube/master.yaml`, and the
+two Cluster Gateway arguments:
 
 ```json
-"env": { "KUBECONFIG": "/absolute/path/to/.kube/master.yaml" }
+"env": { "KUBECONFIG": "/absolute/path/to/.kube/master.yaml" },
+"args": [
+  // ...the existing arguments, plus:
+  "--enable-cluster-gateway",
+  "--cluster-gateway-tls-secret=vela-system/kubevela-vela-core-cluster-gateway-tls-v2"
+]
+```
+
+With `--cluster-gateway-tls-secret`, the controller creates the Cluster Gateway
+serving certificate in that Secret. It also sets the CA on the
+`v1alpha1.cluster.core.oam.dev` APIService. The in-cluster controller does the
+same when the chart runs it. The Secret name follows the release name
+(`kubevela` here). When the controller starts, the Cluster Gateway pod starts
+and the APIService becomes `Available`:
+
+```bash
+kubectl get apiservice v1alpha1.cluster.core.oam.dev --kubeconfig ~/.kube/master.yaml
 ```
 
 The controller resolves its cluster from `KUBECONFIG` the same way `kubectl`

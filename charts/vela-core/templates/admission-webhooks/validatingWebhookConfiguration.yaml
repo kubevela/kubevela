@@ -1,16 +1,6 @@
 {{- if .Values.admissionWebhooks.enabled -}}
-{{- /* Preserve existing caBundle on upgrade to avoid breaking admission if hooks fail. */}}
-{{- $vName := printf "%s-admission" (include "kubevela.fullname" .) -}}
-{{- $existing := (lookup "admissionregistration.k8s.io/v1" "ValidatingWebhookConfiguration" "" $vName) -}}
-{{- $vals := dict "traits" "" "apps" "" "comps" "" "policies" "" -}}
-{{- if $existing -}}
-{{- range $existing.webhooks -}}
-{{- if eq .name "validating.core.oam.dev.v1beta1.traitdefinitions" -}}{{- $_ := set $vals "traits" .clientConfig.caBundle -}}{{- end -}}
-{{- if eq .name "validating.core.oam.dev.v1beta1.applications" -}}{{- $_ := set $vals "apps" .clientConfig.caBundle -}}{{- end -}}
-{{- if eq .name "validating.core.oam-dev.v1beta1.componentdefinitions" -}}{{- $_ := set $vals "comps" .clientConfig.caBundle -}}{{- end -}}
-{{- if eq .name "validating.core.oam-dev.v1beta1.policydefinitions" -}}{{- $_ := set $vals "policies" .clientConfig.caBundle -}}{{- end -}}
-{{- end -}}
-{{- end -}}
+{{- /* Webhooks already in the cluster, to keep their caBundle and failurePolicy on upgrade. */}}
+{{- $hooks := include "kubevela.existingWebhooks" (dict "kind" "ValidatingWebhookConfiguration" "name" (printf "%s-admission" (include "kubevela.fullname" .))) | fromJson -}}
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
@@ -22,16 +12,12 @@ metadata:
   {{- end }}
 webhooks:
   - clientConfig:
-      caBundle: {{ default "Cg==" (get $vals "traits") }}
+      {{- include "kubevela.webhookCABundle" (dict "root" $ "hooks" $hooks "name" "validating.core.oam.dev.v1beta1.traitdefinitions") | nindent 6 }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
         path: /validating-core-oam-dev-v1beta1-traitdefinitions
-    {{- if .Values.admissionWebhooks.patch.enabled  }}
-    failurePolicy: Ignore
-    {{- else }}
-    failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
-    {{- end }}
+    {{- include "kubevela.webhookFailurePolicy" (dict "root" $ "hooks" $hooks "name" "validating.core.oam.dev.v1beta1.traitdefinitions" "policy" .Values.admissionWebhooks.failurePolicy) | nindent 4 }}
     name: validating.core.oam.dev.v1beta1.traitdefinitions
     sideEffects: None
     admissionReviewVersions:
@@ -49,16 +35,12 @@ webhooks:
           - traitdefinitions
     timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
   - clientConfig:
-      caBundle: {{ default "Cg==" (get $vals "apps") }}
+      {{- include "kubevela.webhookCABundle" (dict "root" $ "hooks" $hooks "name" "validating.core.oam.dev.v1beta1.applications") | nindent 6 }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
         path: /validating-core-oam-dev-v1beta1-applications
-    {{- if .Values.admissionWebhooks.patch.enabled  }}
-    failurePolicy: Ignore
-    {{- else }}
-    failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
-    {{- end }}
+    {{- include "kubevela.webhookFailurePolicy" (dict "root" $ "hooks" $hooks "name" "validating.core.oam.dev.v1beta1.applications" "policy" .Values.admissionWebhooks.failurePolicy) | nindent 4 }}
     name: validating.core.oam.dev.v1beta1.applications
     admissionReviewVersions:
       - v1beta1
@@ -76,16 +58,12 @@ webhooks:
           - applications
     timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
   - clientConfig:
-      caBundle: {{ default "Cg==" (get $vals "comps") }}
+      {{- include "kubevela.webhookCABundle" (dict "root" $ "hooks" $hooks "name" "validating.core.oam-dev.v1beta1.componentdefinitions") | nindent 6 }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
         path: /validating-core-oam-dev-v1beta1-componentdefinitions
-    {{- if .Values.admissionWebhooks.patch.enabled  }}
-    failurePolicy: Ignore
-    {{- else }}
-    failurePolicy: Fail
-    {{- end }}
+    {{- include "kubevela.webhookFailurePolicy" (dict "root" $ "hooks" $hooks "name" "validating.core.oam-dev.v1beta1.componentdefinitions" "policy" "Fail") | nindent 4 }}
     name: validating.core.oam-dev.v1beta1.componentdefinitions
     sideEffects: None
     admissionReviewVersions:
@@ -103,16 +81,12 @@ webhooks:
           - componentdefinitions
     timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
   - clientConfig:
-      caBundle: {{ default "Cg==" (get $vals "policies") }}
+      {{- include "kubevela.webhookCABundle" (dict "root" $ "hooks" $hooks "name" "validating.core.oam-dev.v1beta1.policydefinitions") | nindent 6 }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
         path: /validating-core-oam-dev-v1beta1-policydefinitions
-    {{- if .Values.admissionWebhooks.patch.enabled  }}
-    failurePolicy: Ignore
-    {{- else }}
-    failurePolicy: Fail
-    {{- end }}
+    {{- include "kubevela.webhookFailurePolicy" (dict "root" $ "hooks" $hooks "name" "validating.core.oam-dev.v1beta1.policydefinitions" "policy" "Fail") | nindent 4 }}
     name: validating.core.oam-dev.v1beta1.policydefinitions
     sideEffects: None
     admissionReviewVersions:
@@ -130,16 +104,12 @@ webhooks:
           - policydefinitions
     timeoutSeconds: {{ .Values.admissionWebhookTimeout }}
   - clientConfig:
-      caBundle: Cg==
+      {{- include "kubevela.webhookCABundle" (dict "root" $ "hooks" $hooks "name" "validating.core.oam-dev.v1beta1.workflowstepdefinitions") | nindent 6 }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
         path: /validating-core-oam-dev-v1beta1-workflowstepdefinitions
-    {{- if .Values.admissionWebhooks.patch.enabled  }}
-    failurePolicy: Ignore
-    {{- else }}
-    failurePolicy: Fail
-    {{- end }}
+    {{- include "kubevela.webhookFailurePolicy" (dict "root" $ "hooks" $hooks "name" "validating.core.oam-dev.v1beta1.workflowstepdefinitions" "policy" "Fail") | nindent 4 }}
     name: validating.core.oam-dev.v1beta1.workflowstepdefinitions
     sideEffects: None
     admissionReviewVersions:
