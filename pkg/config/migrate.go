@@ -740,7 +740,8 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 	propsSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: secret.Name + propertiesSecretSuffix, Namespace: secret.Namespace,
-			Labels: withMigrationLabel(map[string]string{types.LabelConfigPropertiesOf: secret.Name}),
+			Labels:      withMigrationLabel(nil),
+			Annotations: map[string]string{types.AnnotationConfigPropertiesOf: secret.Name},
 		},
 		Data: map[string][]byte{DefaultPropertiesSecretKey: raw},
 	}

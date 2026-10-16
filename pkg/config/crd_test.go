@@ -111,7 +111,7 @@ func TestUpsertConfigCR(t *testing.T) {
 	r.JSONEq(`{"password":"q"}`, string(gotSecret.Data[DefaultPropertiesSecretKey]))
 	r.NoError(cli.Get(ctx, client.ObjectKey{Namespace: "wf-a", Name: "s"}, &got))
 	r.Equal("renamed", got.Spec.Alias)
-	r.Equal("s", gotSecret.Labels[types.LabelConfigPropertiesOf], "the companion says whose it is")
+	r.Equal("s", gotSecret.Annotations[types.AnnotationConfigPropertiesOf], "the companion says whose it is")
 
 	t.Run("a Secret of the companion's name that is not ours is refused, not overwritten", func(t *testing.T) {
 		r := require.New(t)

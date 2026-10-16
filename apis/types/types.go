@@ -128,11 +128,12 @@ const (
 	// outputs it records, for that Config on sight, and both remove the mark. Writing it
 	// takes write access to the Secret, which is what makes it a proof.
 	AnnotationConfigAdoptBy = "config.oam.dev/adopt-by"
-	// LabelConfigPropertiesOf marks the companion Secret that holds a sensitive Config's
-	// properties (spec.propertiesFrom), with the Config's name as value. The CLI and the
-	// workflow step write such a Secret only where one of theirs stands, and delete it
-	// with the Config.
-	LabelConfigPropertiesOf = "config.oam.dev/properties-of"
+	// AnnotationConfigPropertiesOf marks the companion Secret that holds a sensitive
+	// Config's properties (spec.propertiesFrom), with the Config's name as value (an
+	// annotation: a Config name may be longer than a label value allows). The CLI, the
+	// workflow step and migration write such a Secret only where one of theirs stands,
+	// and the Config's deletion takes it.
+	AnnotationConfigPropertiesOf = "config.oam.dev/properties-of"
 	// AnnotationConfigMigrate set to "false" on a legacy object tells migration to
 	// leave it alone.
 	AnnotationConfigMigrate = "config.oam.dev/migrate"

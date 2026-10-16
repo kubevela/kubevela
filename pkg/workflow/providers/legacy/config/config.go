@@ -82,7 +82,7 @@ func ListConfig(ctx context.Context, params *oamprovidertypes.OAMParams[ListVars
 
 // DeleteConfig deletes a config from whichever backend holds it
 func DeleteConfig(ctx context.Context, params *oamprovidertypes.OAMParams[config.NamespacedName]) (*any, error) {
-	return nil, params.RuntimeParams.ConfigFactory.DeleteConfig(ctx, params.Params.Namespace, params.Params.Name)
+	return nil, configprovider.Delete(ctx, configprovider.DepsOf(params.RuntimeParams), params.Params)
 }
 
 //go:embed config.cue

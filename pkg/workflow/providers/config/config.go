@@ -26,10 +26,13 @@ import (
 	"reflect"
 
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
+	wfprovidertypes "github.com/kubevela/workflow/pkg/providers/types"
 	wftypes "github.com/kubevela/workflow/pkg/types"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -67,18 +70,24 @@ type CreateParams = oamprovidertypes.Params[CreateConfigProperties]
 // Application, as the legacy Secret was. The client reads Config CRs and probes whether the
 // kind is served; the Action tells the workflow to wait for the controller or to fail the
 // step; AppLabels name the Application the step runs for (app.oam.dev/name and namespace),
-// read to refuse a legacy config another Application dispatched. The legacy provider has
-// the same four steps under other names and shares this.
+// read to refuse a legacy config another Application dispatched and to tell its own Config
+// apart; Delete is the Application's delete handler, which lets a Config it tracks go for
+// good. The legacy provider has the same four steps under other names and shares this.
 type Deps struct {
 	Factory   config.Factory
 	Client    client.Client
 	Action    wftypes.Action
 	AppLabels map[string]string
+	Delete    wfprovidertypes.Deleter
 }
 
 // DepsOf picks the steps' dependencies out of the runtime params.
 func DepsOf(rp oamprovidertypes.RuntimeParams) Deps {
-	return Deps{Factory: rp.ConfigFactory, Client: rp.KubeClient, Action: rp.Action, AppLabels: rp.AppLabels}
+	deps := Deps{Factory: rp.ConfigFactory, Client: rp.KubeClient, Action: rp.Action, AppLabels: rp.AppLabels}
+	if rp.KubeHandlers != nil {
+		deps.Delete = rp.KubeHandlers.Delete
+	}
+	return deps
 }
 
 // Create writes the config as a Config CR and waits for the controller to render it.
@@ -368,11 +377,66 @@ func ListConfig(ctx context.Context, params *oamprovidertypes.Params[ListVars]) 
 	return &ListReturns{Returns: ListReturnVars{Configs: contents}}, nil
 }
 
-// Delete removes the config whichever backend holds it (the factory routes).
-// DeleteConfig deletes a config: the factory routes on what holds it, a Config CR or the
-// legacy Secret.
+// configStepResourceCreator is what the step names as the creator of what it deletes, as the
+// kube steps do.
+const configStepResourceCreator = "workflow"
+
+// Delete removes the config whichever backend holds it. A Config this Application
+// dispatched goes through the Application's delete handler: the resource keeper marks the
+// tracker's record deleted and removes the object, so state-keep does not re-apply the
+// recorded manifest and bring it back; the companion properties Secret of ours goes the
+// same way. Anything else, another Application's or the CLI's Config, a legacy Secret, or
+// a caller with no handler, takes the factory's delete, which routes on what holds the
+// config.
+func Delete(ctx context.Context, deps Deps, nn config.NamespacedName) error {
+	if deps.Delete != nil && deps.Client != nil {
+		var cfg configv1alpha1.Config
+		switch err := deps.Client.Get(ctx, client.ObjectKey{Namespace: nn.Namespace, Name: nn.Name}, &cfg); {
+		case err == nil:
+			if owner := applicationOf(cfg.Labels); owner != "" && owner == applicationOf(deps.AppLabels) {
+				return deleteThroughApplication(ctx, deps, &cfg)
+			}
+		case !apierrors.IsNotFound(err) && !config.IsCRDTypeMissing(err):
+			return err
+		}
+	}
+	return deps.Factory.DeleteConfig(ctx, nn.Namespace, nn.Name)
+}
+
+func deleteThroughApplication(ctx context.Context, deps Deps, cfg *configv1alpha1.Config) error {
+	var objects []*unstructured.Unstructured
+	if cfg.Spec.PropertiesFrom != nil {
+		var properties corev1.Secret
+		switch err := deps.Client.Get(ctx, client.ObjectKey{Namespace: cfg.Namespace, Name: cfg.Spec.PropertiesFrom.SecretRef.Name}, &properties); {
+		case err == nil:
+			if config.IsPropertiesSecretOf(&properties, cfg.Name) {
+				objects = append(objects, identityOf(corev1.SchemeGroupVersion.WithKind("Secret"), properties.Namespace, properties.Name))
+			}
+		case !apierrors.IsNotFound(err):
+			return err
+		}
+	}
+	objects = append(objects, identityOf(configv1alpha1.ConfigGroupVersionKind, cfg.Namespace, cfg.Name))
+	for _, obj := range objects {
+		if err := deps.Delete(ctx, deps.Client, "", configStepResourceCreator, obj); err != nil {
+			return fmt.Errorf("fail to delete %s %s/%s: %w", obj.GetKind(), obj.GetNamespace(), obj.GetName(), err)
+		}
+	}
+	return nil
+}
+
+// identityOf names an object for the delete handler, which reads the live object itself.
+func identityOf(gvk schema.GroupVersionKind, namespace, name string) *unstructured.Unstructured {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(gvk)
+	obj.SetNamespace(namespace)
+	obj.SetName(name)
+	return obj
+}
+
+// DeleteConfig deletes a config
 func DeleteConfig(ctx context.Context, params *oamprovidertypes.Params[config.NamespacedName]) (*any, error) {
-	return nil, params.ConfigFactory.DeleteConfig(ctx, params.Params.Namespace, params.Params.Name)
+	return nil, Delete(ctx, DepsOf(params.RuntimeParams), params.Params)
 }
 
 //go:embed config.cue

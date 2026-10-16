@@ -113,7 +113,7 @@ var _ = Describe("Config workflow steps", Label("core-config"), func() {
 		Expect(cfg.Labels["app.oam.dev/name"]).Should(Equal(app.Name))
 		var secret corev1.Secret
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: "kept"}, &secret)).Should(Succeed())
-		Expect(string(secret.Data["key1"])).Should(Equal("value1"))
+		Expect(string(secret.Data["input-properties"])).Should(MatchJSON(`{"key1":"value1"}`), "a Config with no template stores its properties as one document, as the legacy factory did")
 		Expect(metav1.GetControllerOf(&secret)).ShouldNot(BeNil())
 		Expect(metav1.GetControllerOf(&secret).UID).Should(Equal(cfg.UID))
 

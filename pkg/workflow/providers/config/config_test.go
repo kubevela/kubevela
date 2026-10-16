@@ -27,6 +27,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -95,6 +96,14 @@ var _ = AfterSuite(func() {
 type recordingDispatcher struct {
 	kinds   []string
 	batches int // dispatcher calls: each is dry-run as a whole before it is written
+	deleted []string
+}
+
+// deleter stands in for the Application's delete handler: it notes what the step asked to
+// delete, then deletes it.
+func (d *recordingDispatcher) deleter(ctx context.Context, cli client.Client, _, _ string, obj *unstructured.Unstructured) error {
+	d.deleted = append(d.deleted, obj.GetKind()+"/"+obj.GetName())
+	return client.IgnoreNotFound(cli.Delete(ctx, obj))
 }
 
 // testApp is the Application the dispatcher applies for. It reads ownership from the app
@@ -193,6 +202,14 @@ func expectClaimed(ctx context.Context, name string, before corev1.Secret) confi
 
 func depsWith(f config.Factory, act *mock.Action) Deps {
 	return Deps{Factory: f, Client: k8sClient, Action: act, AppLabels: map[string]string{oam.LabelAppName: dispatchingApp.name, oam.LabelAppNamespace: dispatchingApp.namespace}}
+}
+
+// depsOfApp is depsWith for a step that runs inside an Application: the dispatcher's
+// factory and its delete handler.
+func depsOfApp(d *recordingDispatcher, act *mock.Action) Deps {
+	deps := depsWith(d.factory(k8sClient), act)
+	deps.Delete = d.deleter
+	return deps
 }
 
 func setStatus(ctx context.Context, name string, phase configv1alpha1.ConfigPhase, message string) {
@@ -476,6 +493,37 @@ var _ = Describe("Test the config provider", func() {
 			Config: map[string]interface{}{"registry": "mine.example"},
 		})).Should(Succeed())
 		expectClaimed(ctx, "cli-made", theirs)
+	})
+
+	It("delete-config lets a Config the application dispatched go through the application's delete handler, companion included", func() {
+		template, err := factory.ParseTemplate(ctx, "test-password", []byte(sensitiveTemplateContent))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(factory.CreateOrUpdateConfigTemplate(ctx, "default", template)).ToNot(HaveOccurred())
+		dispatcher := &recordingDispatcher{}
+		deps := depsOfApp(dispatcher, &mock.Action{})
+		Expect(Create(ctx, deps, CreateConfigProperties{
+			Name: "to-delete", Namespace: "default", Template: "default/test-password",
+			Config: map[string]interface{}{"password": "p"},
+		})).Should(Succeed())
+
+		Expect(Delete(ctx, deps, config.NamespacedName{Namespace: "default", Name: "to-delete"})).Should(Succeed())
+		Expect(dispatcher.deleted).Should(Equal([]string{"Secret/to-delete-properties", "Config/to-delete"}), "through the handler, so the tracker's records are marked deleted and state-keep does not bring them back")
+		exists, err := config.ConfigCRExists(ctx, k8sClient, "default", "to-delete")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(exists).Should(BeFalse())
+		Expect(apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "to-delete-properties"}, &corev1.Secret{}))).Should(BeTrue())
+
+		By("a Config the application did not dispatch takes the factory's delete")
+		Expect(k8sClient.Create(ctx, &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "not-dispatched", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigSpec{Properties: rawJSON(`{"a":1}`)},
+		})).Should(Succeed())
+		dispatcher.deleted = nil
+		Expect(Delete(ctx, deps, config.NamespacedName{Namespace: "default", Name: "not-dispatched"})).Should(Succeed())
+		Expect(dispatcher.deleted).Should(BeEmpty())
+		exists, err = config.ConfigCRExists(ctx, k8sClient, "default", "not-dispatched")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(exists).Should(BeFalse())
 	})
 
 	It("a Config of that name nobody manages and migration did not create is refused by the dispatcher", func() {

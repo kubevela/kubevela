@@ -122,7 +122,7 @@ func BuildConfigCR(spec ConfigCRSpec) (*configv1alpha1.Config, *corev1.Secret, e
 		return cfg, nil, nil
 	}
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: PropertiesSecretName(spec.Name), Namespace: spec.Namespace, Labels: map[string]string{types.LabelConfigPropertiesOf: spec.Name}},
+		ObjectMeta: metav1.ObjectMeta{Name: PropertiesSecretName(spec.Name), Namespace: spec.Namespace, Annotations: map[string]string{types.AnnotationConfigPropertiesOf: spec.Name}},
 		Data:       map[string][]byte{DefaultPropertiesSecretKey: raw},
 	}
 	cfg.Spec.PropertiesFrom = &configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: secret.Name}}
@@ -137,7 +137,7 @@ func PropertiesSecretName(configName string) string { return configName + "-prop
 // the workflow step or migration: the only Secret of that name they may overwrite or
 // delete. A user's own Secret that happens to carry the name is nobody's to touch.
 func IsPropertiesSecretOf(secret *corev1.Secret, configName string) bool {
-	return secret.Labels[types.LabelConfigPropertiesOf] == configName
+	return secret.Annotations[types.AnnotationConfigPropertiesOf] == configName
 }
 
 // DeletePropertiesSecretOf removes the companion Secret of the named Config, if one of
@@ -166,11 +166,11 @@ func UpsertConfigCR(ctx context.Context, cli client.Client, cfg *configv1alpha1.
 			if existing.ResourceVersion != "" && !IsPropertiesSecretOf(existing, cfg.Name) { // stored already (a fake client sets no UID)
 				return fmt.Errorf("secret %s/%s exists and is not the properties secret of config %s", existing.Namespace, existing.Name, cfg.Name)
 			}
-			if existing.Labels == nil {
-				existing.Labels = map[string]string{}
+			if existing.Annotations == nil {
+				existing.Annotations = map[string]string{}
 			}
-			for k, v := range properties.Labels {
-				existing.Labels[k] = v
+			for k, v := range properties.Annotations {
+				existing.Annotations[k] = v
 			}
 			existing.Data = properties.Data
 			return nil
