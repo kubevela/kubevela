@@ -8,7 +8,7 @@ import (
 		"category": "Config Management"
 	}
 	labels: {}
-	description: "Delete a config"
+	description: "Delete a config: the Config, and with it its Secret and outputs, or the legacy Secret and its outputs"
 }
 template: {
 	deploy: config.#DeleteConfig & {

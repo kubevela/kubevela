@@ -397,6 +397,18 @@ func TakeOver() ApplyOption {
 	}
 }
 
+// TakeOverIf is TakeOver for the existing objects the predicate accepts: the caller names
+// the shape it may claim and leaves every other unowned object to the refusal. It must run
+// before MustBeControlledBy.
+func TakeOverIf(accept func(existing client.Object) bool) ApplyOption {
+	return func(act *applyAction, existing, _ client.Object) error {
+		if existing != nil && accept(existing) {
+			act.takeOver = true
+		}
+		return nil
+	}
+}
+
 // WithUpdateStrategy set the update strategy for the apply operation
 func WithUpdateStrategy(strategy v1alpha1.ResourceUpdateStrategy) ApplyOption {
 	return func(act *applyAction, _, _ client.Object) error {

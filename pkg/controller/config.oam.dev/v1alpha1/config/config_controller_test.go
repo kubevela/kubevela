@@ -19,6 +19,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -29,8 +30,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	apitypes "github.com/oam-dev/kubevela/apis/types"
 )
 
@@ -65,8 +68,104 @@ func eventuallyConfigPhase(ctx context.Context, key client.ObjectKey, want confi
 	}, 15*time.Second, time.Second).Should(Equal(want))
 }
 
+// eventuallyConfigError waits for the Error whose Synced message says reason: an earlier,
+// transient Error (a template the cache has not seen yet) is not the one under test.
+func eventuallyConfigError(ctx context.Context, key client.ObjectKey, reason string, got *configv1alpha1.Config) {
+	Eventually(func() string {
+		Expect(k8sClient.Get(ctx, key, got)).Should(Succeed())
+		if got.Status.Phase != configv1alpha1.ConfigPhaseError {
+			return ""
+		}
+		return got.Status.GetCondition(condition.TypeSynced).Message
+	}, 15*time.Second, time.Second).Should(ContainSubstring(reason))
+}
+
 var _ = Describe("Config controller", func() {
 	ctx := context.Background()
+
+	It("requeues on a write conflict instead of reporting it as the Config's Error", func() {
+		cfg := &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Name: "conflicted", Namespace: "default"}}
+		conflict := apierrors.NewConflict(corev1.Resource("secrets"), "conflicted", errors.New("the object has been modified"))
+		result, err := r.markError(ctx, cfg, conflict)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result.RequeueAfter).Should(BeNumerically(">", 0))
+		Expect(cfg.Status.Phase).Should(BeEmpty(), "nothing written: the next reconcile reads the current object")
+		Expect(cfg.Status.Conditions).Should(BeEmpty())
+	})
+
+	It("maps a Secret to the Config of its own name as well as to the Configs reading it as properties", func() {
+		owner := &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Name: "same-name", Namespace: "default"},
+			Spec: configv1alpha1.ConfigSpec{TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "none", Namespace: "default"}}}
+		Expect(k8sClient.Create(ctx, owner)).Should(Succeed())
+		DeferCleanup(func() { Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, owner))).Should(Succeed()) })
+		Eventually(func() []reconcile.Request { // the mapper lists through the manager's cache
+			return r.findConfigsForSecret(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "same-name", Namespace: "default"}})
+		}, 15*time.Second, time.Second).Should(ContainElement(reconcile.Request{NamespacedName: client.ObjectKeyFromObject(owner)}), "a foreign Secret of the Config's name blocks its render; its deletion is the event")
+		Expect(r.findConfigsForSecret(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "other-name", Namespace: "default"}})).ShouldNot(ContainElement(reconcile.Request{NamespacedName: client.ObjectKeyFromObject(owner)}))
+	})
+
+	It("renders again on an interval while in Error, so it recovers once a foreign Secret of its name is gone", func() {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "tmpl-blocked", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: testCUETemplate},
+		}
+		Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+		Eventually(func() configv1alpha1.ConfigTemplatePhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
+			return ct.Status.Phase
+		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
+		// Someone else's Secret of the Config's name.
+		foreign := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "cfg-blocked", Namespace: "default"}, StringData: map[string]string{"value": "someone-elses"}}
+		Expect(k8sClient.Create(ctx, foreign)).Should(Succeed())
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "cfg-blocked", Namespace: "default"},
+			Spec: configv1alpha1.ConfigSpec{
+				TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "tmpl-blocked", Namespace: "default"},
+				Properties:  rawExtension(map[string]string{"username": "bob"}),
+			},
+		}
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+		var got configv1alpha1.Config
+		eventuallyConfigError(ctx, client.ObjectKeyFromObject(cfg), "already exists and is not owned by this Config", &got)
+
+		By("the obstacle goes away: the Secret watch, or the retry, picks it up (this spec does not tell them apart)")
+		Expect(k8sClient.Delete(ctx, foreign)).Should(Succeed())
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseAvailable, &got)
+		var secret corev1.Secret
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "cfg-blocked"}, &secret)).Should(Succeed())
+		Expect(string(secret.Data["username"])).Should(Equal("bob"))
+		Expect(metav1.GetControllerOf(&secret)).ShouldNot(BeNil())
+		Expect(metav1.GetControllerOf(&secret).UID).Should(Equal(got.UID))
+	})
+
+	It("adopts a legacy Secret only on the migration's mark naming this Config, when nothing or a stale Config of this name controls it", func() {
+		cfg := &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Name: "adoptee", Namespace: "default", Labels: map[string]string{apitypes.LabelConfigCreatedBy: apitypes.ConfigCreatedByMigration}}}
+		secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "adoptee", Namespace: "default",
+			Labels:      map[string]string{apitypes.LabelConfigCatalog: apitypes.VelaCoreConfig},
+			Annotations: map[string]string{apitypes.AnnotationConfigAdoptBy: "adoptee"}}}
+		Expect(adoptableLegacySecret(secret, cfg)).Should(BeTrue(), "marked for this Config, unowned")
+		controller := true
+		stale := metav1.OwnerReference{APIVersion: configv1alpha1.SchemeGroupVersion.String(), Kind: configv1alpha1.ConfigKind, Name: "adoptee", UID: "old", Controller: &controller}
+		secret.OwnerReferences = []metav1.OwnerReference{stale}
+		Expect(adoptableLegacySecret(secret, cfg)).Should(BeTrue(), "a Config of this name and another UID: deleted and recreated")
+		foreign := stale
+		foreign.APIVersion = "vendor.example/v1"
+		secret.OwnerReferences = []metav1.OwnerReference{foreign}
+		Expect(adoptableLegacySecret(secret, cfg)).Should(BeFalse(), "another group's kind Config is not ours")
+		secret.OwnerReferences = nil
+		other := secret.DeepCopy()
+		other.Annotations[apitypes.AnnotationConfigAdoptBy] = "someone-else"
+		Expect(adoptableLegacySecret(other, cfg)).Should(BeFalse(), "marked for another Config")
+		unmarked := secret.DeepCopy()
+		unmarked.Annotations = nil
+		Expect(adoptableLegacySecret(unmarked, cfg)).Should(BeFalse(), "the migration label alone proves nothing: a Config author can set it")
+		hand := cfg.DeepCopy()
+		hand.Labels = nil
+		Expect(adoptableLegacySecret(secret, hand)).Should(BeFalse(), "the mark alone is not enough either: a Config made by hand in the gap before migration's Create must not collect it")
+		plain := secret.DeepCopy()
+		plain.Labels = nil
+		Expect(adoptableLegacySecret(plain, cfg)).Should(BeFalse(), "no catalog label: not a config Secret")
+	})
 
 	It("materializes a Secret from inline spec.properties and a CRD ConfigTemplate", func() {
 		ct := &configv1alpha1.ConfigTemplate{

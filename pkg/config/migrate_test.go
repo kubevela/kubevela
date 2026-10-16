@@ -38,6 +38,7 @@ import (
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // legacyTemplateCUE is a template with a same-namespace output object and, when
@@ -309,6 +310,41 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			Expect(recorder.Events).Should(BeEmpty())
 		})
 
+		It("releases a config an Application dispatched from it: the app and owner marks leave the Secret and its output", func() {
+			writeLegacyTemplate(ns, "dispatched", legacyTemplateCUE("dispatched", "project", false, ""))
+			secret := writeLegacyConfig(ns, "dispatched", ns, "cfg-app")
+			var out corev1.ConfigMap
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "cfg-app-local"}, &out)).Should(Succeed())
+			marks := map[string]string{oam.LabelAppName: "wf-app", oam.LabelAppNamespace: ns, oam.LabelOwnerKind: "Application", oam.LabelOwnerName: "wf-app", oam.LabelOwnerNamespace: ns}
+			for _, obj := range []client.Object{secret, &out} {
+				labels := obj.GetLabels()
+				if labels == nil {
+					labels = map[string]string{}
+				}
+				for k, v := range marks {
+					labels[k] = v
+				}
+				obj.SetLabels(labels)
+				Expect(k8sClient.Update(ctx, obj)).Should(Succeed())
+			}
+
+			report, err := migrator.MigrateConfig(ctx, ns, "cfg-app", MigrationOptions{})
+			Expect(err).Should(Succeed())
+			Expect(report.Count(MigrationAdopted)).Should(Equal(1))
+
+			after := getSecret(ns, "cfg-app")
+			var outAfter corev1.ConfigMap
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(&out), &outAfter)).Should(Succeed())
+			for _, obj := range []client.Object{after, &outAfter} {
+				for k := range marks {
+					Expect(obj.GetLabels()).ShouldNot(HaveKey(k), "%s: the Config owns it now; the app's GC would delete it otherwise", obj.GetName())
+				}
+			}
+			Expect(after.Labels).Should(HaveKeyWithValue(types.LabelConfigCatalog, types.VelaCoreConfig), "the config labels stay")
+			Expect(after.Annotations).ShouldNot(HaveKey(types.AnnotationConfigAdoptBy), "the mark written before the Create is spent by the adoption")
+			Expect(after.Annotations).Should(HaveKey(types.AnnotationConfigMigratedTo))
+		})
+
 		// #7449 review item 1: the controller renders every output into the Config's
 		// namespace, so a config with an output elsewhere is a conflict, never adopted.
 		It("refuses a config whose output object lives in another namespace", func() {
@@ -464,7 +500,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			cfg := getConfig(ns, "cfg-f")
 			Expect(cfg.Spec.Properties).Should(BeNil())
 			Expect(cfg.Spec.PropertiesFrom).Should(Equal(&configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "cfg-f-properties"}}))
-			Expect(getSecret(ns, "cfg-f-properties").Data[propertiesSecretKey]).Should(Equal(before.Data[SaveInputPropertiesKey]))
+			Expect(getSecret(ns, "cfg-f-properties").Data[DefaultPropertiesSecretKey]).Should(Equal(before.Data[SaveInputPropertiesKey]))
 		})
 
 		It("keeps the input out of the CR for a template-less config whose Secret says sensitive", func() {
@@ -485,7 +521,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			Expect(cfg.Spec.TemplateRef).Should(BeNil())
 			Expect(cfg.Spec.Properties).Should(BeNil())
 			Expect(cfg.Spec.PropertiesFrom).Should(Equal(&configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "cfg-nt-s-properties"}}))
-			Expect(getSecret(ns, "cfg-nt-s-properties").Data[propertiesSecretKey]).Should(Equal(before.Data[SaveInputPropertiesKey]))
+			Expect(getSecret(ns, "cfg-nt-s-properties").Data[DefaultPropertiesSecretKey]).Should(Equal(before.Data[SaveInputPropertiesKey]))
 		})
 
 		It("maps every legacy scope word", func() {
@@ -515,13 +551,16 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			Expect(cfg.Spec.Properties).Should(BeNil())
 			Expect(cfg.Spec.PropertiesFrom).Should(Equal(&configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "cfg-s-properties"}}))
 			props := getSecret(ns, "cfg-s-properties")
-			Expect(props.Data[propertiesSecretKey]).Should(Equal(before.Data[SaveInputPropertiesKey]))
+			Expect(props.Data[DefaultPropertiesSecretKey]).Should(Equal(before.Data[SaveInputPropertiesKey]))
 			Expect(props.Labels).Should(HaveKeyWithValue(types.LabelConfigCreatedBy, types.ConfigCreatedByMigration))
 			Expect(controllerOf(props).UID).Should(Equal(cfg.UID))
 			Expect(getSecret(ns, "cfg-s").Data).Should(Equal(before.Data))
 		})
 
-		It("patches the config Secret last", func() {
+		It("marks the config Secret first and patches it last", func() {
+			// The adopt-by mark goes on before the Config exists (the controller's proof, see
+			// migrateConfigSecret); the Secret's own adoption, with the migrated-to annotation
+			// that says the migration is complete, is still the last write.
 			writeLegacyTemplate(ns, "order", legacyTemplateCUE("order", "namespace", false, ""))
 			writeLegacyConfig(ns, "order", ns, "cfg-o")
 			var writes []string
@@ -540,7 +579,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			report, err := NewMigrator(recording).MigrateConfig(ctx, ns, "cfg-o", MigrationOptions{})
 			Expect(err).Should(Succeed())
 			Expect(report.Count(MigrationAdopted)).Should(Equal(1))
-			Expect(writes).Should(Equal([]string{"cfg-o-local", "cfg-o"}))
+			Expect(writes).Should(Equal([]string{"cfg-o", "cfg-o-local", "cfg-o"}))
 			Expect(controllerOf(getSecret(ns, "cfg-o"))).ShouldNot(BeNil())
 		})
 
@@ -773,7 +812,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			before := writeLegacyConfig(ns, "props-tpl", ns, "cfg-props")
 			foreign := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: "cfg-props" + propertiesSecretSuffix},
-				Data:       map[string][]byte{propertiesSecretKey: []byte(`{"value":"somebody else's"}`)},
+				Data:       map[string][]byte{DefaultPropertiesSecretKey: []byte(`{"value":"somebody else's"}`)},
 			}
 			Expect(k8sClient.Create(ctx, foreign)).Should(Succeed())
 
@@ -794,7 +833,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			Expect(k8sClient.Delete(ctx, foreign)).Should(Succeed())
 			ours := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: "cfg-props" + propertiesSecretSuffix, Labels: withMigrationLabel(nil)},
-				Data:       map[string][]byte{propertiesSecretKey: before.Data[SaveInputPropertiesKey]},
+				Data:       map[string][]byte{DefaultPropertiesSecretKey: before.Data[SaveInputPropertiesKey]},
 			}
 			Expect(k8sClient.Create(ctx, ours)).Should(Succeed())
 			report, err := migrator.MigrateConfig(ctx, ns, "cfg-props", MigrationOptions{})
@@ -1062,13 +1101,13 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "cluster-out"},
 			Data:       map[string][]byte{SaveObjectReferenceKey: []byte(`[{"kind":"ClusterRole","apiVersion":"rbac.authorization.k8s.io/v1","name":"x"}]`)},
 		}
-		refs, err := objectReferences(secret)
+		refs, err := ObjectReferences(secret)
 		Expect(err).Should(Succeed())
 		Expect(outputsOutside(refs, "default")).Should(Equal([]string{"ClusterRole /x"}))
-		refs, err = objectReferences(&corev1.Secret{})
+		refs, err = ObjectReferences(&corev1.Secret{})
 		Expect(err).Should(Succeed())
 		Expect(refs).Should(BeNil())
-		_, err = objectReferences(&corev1.Secret{Data: map[string][]byte{SaveObjectReferenceKey: []byte(`{not json`)}})
+		_, err = ObjectReferences(&corev1.Secret{Data: map[string][]byte{SaveObjectReferenceKey: []byte(`{not json`)}})
 		Expect(err).Should(MatchError(HavePrefix("objects-reference is not valid JSON: ")))
 	})
 

@@ -28,12 +28,14 @@ import (
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/resourcetracker"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -184,6 +186,39 @@ func TestCleanupStaleEntriesUpdateError(t *testing.T) {
 	err := rk.cleanupStaleEntries(context.Background(), entries)
 	r.Error(err)
 	r.Contains(err.Error(), "failed to remove stale entries from resourcetracker test-rt")
+}
+
+// A caller's apply option runs before the keeper's ownership check, so an option that
+// decides how that check reads an existing object (TakeOverIf) can take effect; without
+// it an object nobody owns is refused.
+func TestDispatchRunsTheCallersOptionsBeforeTheOwnershipCheck(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+
+	existing := &unstructured.Unstructured{}
+	existing.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("ConfigMap"))
+	existing.SetName("handmade")
+	existing.SetNamespace("default")
+	existing.SetLabels(map[string]string{"made-by": "migration"})
+	r.NoError(cli.Create(ctx, existing))
+
+	rk, err := New(ctx, cli, resourcetracker.NewBase(resourcetracker.Owner{
+		Kind: "Component", Namespace: "default", Name: "backend", UID: "uid-backend", Generation: 1,
+	}), Policies{}, Options{})
+	r.NoError(err)
+
+	err = rk.Dispatch(ctx, []*unstructured.Unstructured{existing.DeepCopy()}, nil)
+	r.Error(err, "nobody owns it and nothing says to take it")
+	r.Contains(err.Error(), "not managed by any")
+
+	accept := apply.TakeOverIf(func(o client.Object) bool { return o.GetLabels()["made-by"] == "migration" })
+	r.NoError(rk.Dispatch(ctx, []*unstructured.Unstructured{existing.DeepCopy()}, []apply.ApplyOption{accept}))
+
+	live := &unstructured.Unstructured{}
+	live.SetGroupVersionKind(v1.SchemeGroupVersion.WithKind("ConfigMap"))
+	r.NoError(cli.Get(ctx, types.NamespacedName{Namespace: "default", Name: "handmade"}, live))
+	r.Equal("backend", live.GetLabels()[oam.LabelOwnerName], "taken over and stamped in the same apply")
 }
 
 // An apply-once rule with path "*" replaces the manifest with the live object, which drops

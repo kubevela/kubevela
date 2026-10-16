@@ -8,7 +8,7 @@ import (
 		"category": "Config Management"
 	}
 	labels: {}
-	description: "Create or update a config"
+	description: "Create or update a config: a Config the Config controller renders into its Secret, written through the application and garbage-collected with it (a legacy Secret where the cluster does not serve the Config kind)"
 }
 template: {
 	deploy: config.#CreateConfig & {

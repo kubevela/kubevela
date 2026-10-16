@@ -391,11 +391,7 @@ func NewListConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Comm
 			if err := validateConfigMode(options.ConfigMode); err != nil {
 				return err
 			}
-			name := options.Template
-			if strings.Contains(options.Template, "/") {
-				namespacedName := strings.SplitN(options.Template, "/", 2)
-				name = namespacedName[1]
-			}
+			name := config.ParseTemplateRef(options.Template).Name
 			if options.AllNamespace {
 				options.Namespace = ""
 			}
@@ -453,13 +449,8 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 			if err := options.Validate(); err != nil {
 				return err
 			}
-			name := options.Template
-			namespace := types.DefaultKubeVelaNS
-			if strings.Contains(options.Template, "/") {
-				namespacedName := strings.SplitN(options.Template, "/", 2)
-				namespace = namespacedName[0]
-				name = namespacedName[1]
-			}
+			ref := config.ParseTemplateRef(options.Template)
+			namespace, name := ref.Namespace, ref.Name
 			if err := options.parseProperties(args[1:]); err != nil {
 				return err
 			}
@@ -513,7 +504,17 @@ func NewCreateConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 			if !kindServed(f, configv1alpha1.ConfigGroupVersionKind) {
 				return errConfigCRDMissing
 			}
-			if err := createConfigCRD(cmd.Context(), f.Client(), options.Namespace, options.Name, name, namespace, configItem.Template.Sensitive, options.Properties, options.Alias, options.Description); err != nil {
+			cfg, properties, err := config.BuildConfigCR(config.ConfigCRSpec{
+				Name: options.Name, Namespace: options.Namespace,
+				Template:   &config.NamespacedName{Name: name, Namespace: namespace},
+				Sensitive:  configItem.Template.Sensitive,
+				Properties: options.Properties,
+				Alias:      options.Alias, Description: options.Description,
+			})
+			if err != nil {
+				return err
+			}
+			if err := config.UpsertConfigCR(cmd.Context(), f.Client(), cfg, properties); err != nil {
 				return err
 			}
 			if len(options.Targets) > 0 {
@@ -679,9 +680,9 @@ func NewDeleteConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 			}
 
 			distributionName := config.DefaultDistributionName(options.Name)
-			// Route on what holds the config: a Config CR takes the CRD path, anything
-			// else is a legacy Secret and gets the pre-CRD path.
-			crBacked, err := configCRDExists(cmd.Context(), f.Client(), options.Namespace, options.Name)
+			// Which backend holds the config, asked before anything is removed: a probe that
+			// fails must not leave the config standing without its distribution.
+			crBacked, err := config.ConfigCRExists(cmd.Context(), f.Client(), options.Namespace, options.Name)
 			if err != nil {
 				return err
 			}
@@ -689,25 +690,24 @@ func NewDeleteConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 				if err := inf.DeleteDistribution(cmd.Context(), options.Namespace, distributionName); err != nil && !errors.Is(err, config.ErrNotFoundDistribution) {
 					return err
 				}
-			} else if crBacked {
+			} else {
 				// a CRD-backed config's distribution Application is owned by the Config (see
 				// config.SetDistributionOwner), so deleting the Config always recalls it - --not-recall
 				// can't be honored for these; fail rather than silently ignoring the flag.
-				switch err := f.Client().Get(cmd.Context(), client.ObjectKey{Namespace: options.Namespace, Name: distributionName}, &v1beta1.Application{}); {
-				case err == nil:
-					return fmt.Errorf("--not-recall is not supported for this config: its distribution %q is owned by the Config and will be recalled automatically when the Config is deleted; run \"vela config distribute %s --recall\" first if you want to keep the config without its distribution", distributionName, options.Name)
-				case apierrors.IsNotFound(err):
-					// no distribution to worry about
-				default:
-					return err
+				if crBacked {
+					switch err := f.Client().Get(cmd.Context(), client.ObjectKey{Namespace: options.Namespace, Name: distributionName}, &v1beta1.Application{}); {
+					case err == nil:
+						return fmt.Errorf("--not-recall is not supported for this config: its distribution %q is owned by the Config and will be recalled automatically when the Config is deleted; run \"vela config distribute %s --recall\" first if you want to keep the config without its distribution", distributionName, options.Name)
+					case apierrors.IsNotFound(err):
+						// no distribution to worry about
+					default:
+						return err
+					}
 				}
 			}
 
-			if crBacked {
-				if err := deleteConfigCRD(cmd.Context(), f.Client(), options.Namespace, options.Name); err != nil {
-					return err
-				}
-			} else if err := inf.DeleteConfig(cmd.Context(), options.Namespace, options.Name); err != nil {
+			// the factory routes on what holds the config: the Config CR, or the legacy Secret
+			if err := inf.DeleteConfig(cmd.Context(), options.Namespace, options.Name); err != nil {
 				return err
 			}
 

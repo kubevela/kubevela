@@ -77,6 +77,11 @@ const (
 type ConfigStatus struct {
 	condition.ConditionedStatus `json:",inline"`
 
+	// ObservedGeneration is the spec generation the rest of the status describes, so a
+	// reader can tell an Available from the last spec apart from one for the current
+	// spec; the create-config workflow step waits on it.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
 	Phase     ConfigPhase                  `json:"phase,omitempty"`
 	SecretRef *corev1.LocalObjectReference `json:"secretRef,omitempty"`
 

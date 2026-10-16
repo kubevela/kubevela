@@ -123,6 +123,17 @@ const (
 	// AnnotationConfigMigratedTo is set on a legacy template ConfigMap or config Secret
 	// once migration has adopted it, holding the UID of the CR that now owns it.
 	AnnotationConfigMigratedTo = "config.oam.dev/migrated-to"
+	// AnnotationConfigAdoptBy is set on a legacy config Secret by migration right before it
+	// creates the Config of that name; the Config controller adopts the Secret, and the
+	// outputs it records, for that Config on sight, and both remove the mark. Writing it
+	// takes write access to the Secret, which is what makes it a proof.
+	AnnotationConfigAdoptBy = "config.oam.dev/adopt-by"
+	// AnnotationConfigPropertiesOf marks the companion Secret that holds a sensitive
+	// Config's properties (spec.propertiesFrom), with the Config's name as value (an
+	// annotation: a Config name may be longer than a label value allows). The CLI, the
+	// workflow step and migration write such a Secret only where one of theirs stands,
+	// and the Config's deletion takes it.
+	AnnotationConfigPropertiesOf = "config.oam.dev/properties-of"
 	// AnnotationConfigMigrate set to "false" on a legacy object tells migration to
 	// leave it alone.
 	AnnotationConfigMigrate = "config.oam.dev/migrate"

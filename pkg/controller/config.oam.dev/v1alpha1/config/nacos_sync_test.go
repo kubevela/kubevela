@@ -284,6 +284,7 @@ var _ = Describe("Config controller: the template's nacos block", func() {
 		Expect(got.Status.ExpandedWriter.Nacos.LastSyncTime).ShouldNot(BeNil())
 		hash := got.Status.ExpandedWriter.Nacos.ContentHash
 		Expect(got.Status.GetCondition("Synced").Status).Should(Equal(corev1.ConditionTrue))
+		Expect(got.Status.ObservedGeneration).Should(Equal(got.Generation), "the status says which spec it describes")
 		// one client per sync (each sync reads exactly once), released afterwards
 		Expect(fake.clientsBuilt()).Should(Equal(fake.readCount()))
 		Expect(fake.clientsClosed()).Should(Equal(fake.clientsBuilt()))

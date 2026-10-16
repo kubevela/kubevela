@@ -36,6 +36,7 @@ import (
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // MigrationOutcome is what happened to one legacy object during a migration run.
@@ -68,7 +69,6 @@ const (
 	reasonSourceCacheEntry  = "source cache entry managed by the controller"
 	migrateOptOutValue      = "false"
 	propertiesSecretSuffix  = "-properties"
-	propertiesSecretKey     = "properties"
 	kindConfigMap           = "ConfigMap"
 	kindSecret              = "Secret"
 )
@@ -449,7 +449,10 @@ func optedOut(obj metav1.Object) bool {
 	return obj.GetAnnotations()[types.AnnotationConfigMigrate] == migrateOptOutValue
 }
 
-func createdByMigration(obj metav1.Object) bool {
+// CreatedByMigration reports an object the migration library created: a Config or
+// ConfigTemplate standing for a legacy object. The Config controller and the workflow
+// step read it to tell such a Config from one a user wrote by hand.
+func CreatedByMigration(obj metav1.Object) bool {
 	return obj.GetLabels()[types.LabelConfigCreatedBy] == types.ConfigCreatedByMigration
 }
 
@@ -480,7 +483,7 @@ func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.Conf
 	existing := &configv1alpha1.ConfigTemplate{}
 	switch err := m.cli.Get(ctx, client.ObjectKey{Namespace: cm.Namespace, Name: name}, existing); {
 	case err == nil:
-		if !createdByMigration(existing) {
+		if !CreatedByMigration(existing) {
 			finish(MigrationConflict, fmt.Sprintf("ConfigTemplate %s exists and was not created by migration", name))
 			return
 		}
@@ -562,7 +565,7 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 	existing := &configv1alpha1.Config{}
 	switch err := m.cli.Get(ctx, client.ObjectKeyFromObject(secret), existing); {
 	case err == nil:
-		if !createdByMigration(existing) {
+		if !CreatedByMigration(existing) {
 			finish(MigrationConflict, fmt.Sprintf("Config %s exists and was not created by migration", secret.Name))
 			return
 		}
@@ -573,7 +576,7 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		}
 		// a Config from an earlier run whose owner patches never finished
 		if !opts.DryRun {
-			refs, err := objectReferences(secret)
+			refs, err := ObjectReferences(secret)
 			if err != nil {
 				finish(MigrationFailed, err.Error())
 				return
@@ -591,7 +594,7 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		return
 	}
 
-	refs, err := objectReferences(secret)
+	refs, err := ObjectReferences(secret)
 	if err != nil {
 		finish(MigrationFailed, err.Error())
 		return
@@ -633,8 +636,24 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 			return
 		}
 	}
+	// The controller adopts the Secret, and the outputs it records, for the Config named by
+	// this mark as soon as it sees the Config; the owner reference set in adopt needs the
+	// Config's UID, which exists only after the Create. A reconcile between the two used to
+	// find the Secret unowned and report Error until the next one. The mark takes write
+	// access to the Secret, which a Config author alone does not have, so a hand-made Config
+	// cannot claim a Secret by name.
+	if err := m.markAdoptBy(ctx, secret, cfg.Name); err != nil {
+		finish(MigrationFailed, fmt.Sprintf("Secret %s: %v", secret.Name, err))
+		return
+	}
 	if err := m.cli.Create(ctx, cfg); err != nil {
-		finish(MigrationFailed, err.Error())
+		// A mark with no Config behind it would let a later hand-made Config of the name
+		// collect the Secret; take it back, and say so if that fails too.
+		reason := err.Error()
+		if uerr := m.unmarkAdoptBy(ctx, secret); uerr != nil {
+			reason = fmt.Sprintf("%s (and the adopt-by mark on the Secret could not be removed: %v)", reason, uerr)
+		}
+		finish(MigrationFailed, reason)
 		return
 	}
 	if err := m.adopt(ctx, cfg, secret, refs); err != nil {
@@ -652,11 +671,17 @@ func configWriterOf(secret *corev1.Secret) string {
 		return ""
 	}
 	for _, ref := range secret.OwnerReferences {
-		if ref.Kind == configv1alpha1.ConfigKind && ref.APIVersion == configv1alpha1.SchemeGroupVersion.String() {
+		if IsConfigOwnerRef(ref) {
 			return ref.Name
 		}
 	}
 	return ""
+}
+
+// IsConfigOwnerRef reports an owner reference to a config.oam.dev Config, the shape
+// adoption writes on a legacy Secret and its outputs.
+func IsConfigOwnerRef(ref metav1.OwnerReference) bool {
+	return ref.Kind == configv1alpha1.ConfigKind && ref.APIVersion == configv1alpha1.SchemeGroupVersion.String()
 }
 
 // templateBlock says a config cannot be adopted in this run because of the state
@@ -715,9 +740,10 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 	propsSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: secret.Name + propertiesSecretSuffix, Namespace: secret.Namespace,
-			Labels: withMigrationLabel(nil),
+			Labels:      withMigrationLabel(nil),
+			Annotations: map[string]string{types.AnnotationConfigPropertiesOf: secret.Name},
 		},
-		Data: map[string][]byte{propertiesSecretKey: raw},
+		Data: map[string][]byte{DefaultPropertiesSecretKey: raw},
 	}
 	cfg.Spec.PropertiesFrom = &configv1alpha1.PropertiesReference{
 		SecretRef: configv1alpha1.SecretKeySelector{Name: propsSecret.Name},
@@ -745,7 +771,7 @@ func (m *Migrator) propertiesSecretForeign(ctx context.Context, want *corev1.Sec
 	case err != nil:
 		return false, err
 	}
-	return !createdByMigration(&existing) || !bytes.Equal(existing.Data[propertiesSecretKey], want.Data[propertiesSecretKey]), nil
+	return !CreatedByMigration(&existing) || !bytes.Equal(existing.Data[DefaultPropertiesSecretKey], want.Data[DefaultPropertiesSecretKey]), nil
 }
 
 // templateLookup is a config's template as it exists now: a CR, a legacy
@@ -788,7 +814,7 @@ func (m *Migrator) lookupTemplate(ctx context.Context, ns, name string) (templat
 // the rebinding; a ConfigMap alone is the config-first path, where the template
 // follows later.
 func (t templateLookup) block(ns, name string) *templateBlock {
-	if t.cr != nil && t.legacy != nil && !createdByMigration(t.cr) && !t.adoptedInto() {
+	if t.cr != nil && t.legacy != nil && !CreatedByMigration(t.cr) && !t.adoptedInto() {
 		return &templateBlock{MigrationConflict, fmt.Sprintf("template %s/%s: ConfigTemplate exists and was not created by migration", ns, name)}
 	}
 	if t.cr == nil && t.legacy != nil && optedOut(t.legacy) {
@@ -811,10 +837,9 @@ func (t templateLookup) sensitive() bool {
 	return t.legacy != nil && t.legacy.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue
 }
 
-// objectReferences returns the output objects recorded on a legacy config Secret.
-// A key that does not parse is an error: adoption would otherwise own the Secret
-// and let the controller overwrite the key, losing the recorded outputs for good.
-func objectReferences(secret *corev1.Secret) ([]corev1.ObjectReference, error) {
+// ObjectReferences lists the output objects a config Secret records under
+// SaveObjectReferenceKey; nil when it records none.
+func ObjectReferences(secret *corev1.Secret) ([]corev1.ObjectReference, error) {
 	content, ok := secret.Data[SaveObjectReferenceKey]
 	if !ok || len(content) == 0 {
 		return nil, nil
@@ -902,10 +927,63 @@ func (m *Migrator) own(ctx context.Context, cfg *configv1alpha1.Config, obj clie
 		setAnnotation(obj, types.AnnotationConfigMigratedTo, string(cfg.UID))
 		changed = true
 	}
+	if annotations := obj.GetAnnotations(); annotations[types.AnnotationConfigAdoptBy] != "" {
+		delete(annotations, types.AnnotationConfigAdoptBy)
+		obj.SetAnnotations(annotations)
+		changed = true
+	}
+	if dropApplicationMarks(obj) {
+		changed = true
+	}
 	if !changed {
 		return nil
 	}
 	return m.cli.Patch(ctx, obj, client.MergeFrom(orig))
+}
+
+// markAdoptBy writes the mark the Config controller adopts the Secret on (see
+// migrateConfigSecret).
+func (m *Migrator) markAdoptBy(ctx context.Context, secret *corev1.Secret, configName string) error {
+	orig := secret.DeepCopy()
+	setAnnotation(secret, types.AnnotationConfigAdoptBy, configName)
+	return m.cli.Patch(ctx, secret, client.MergeFrom(orig))
+}
+
+// unmarkAdoptBy takes the mark back when no Config followed it.
+func (m *Migrator) unmarkAdoptBy(ctx context.Context, secret *corev1.Secret) error {
+	if err := m.cli.Get(ctx, client.ObjectKeyFromObject(secret), secret); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if secret.Annotations[types.AnnotationConfigAdoptBy] == "" {
+		return nil
+	}
+	orig := secret.DeepCopy()
+	delete(secret.Annotations, types.AnnotationConfigAdoptBy)
+	return m.cli.Patch(ctx, secret, client.MergeFrom(orig))
+}
+
+// applicationMarkKeys are the labels an Application's dispatcher leaves on what it applies:
+// the app pair the generator merges in and the owner triple the resource keeper stamps.
+var applicationMarkKeys = []string{oam.LabelAppName, oam.LabelAppNamespace, oam.LabelOwnerKind, oam.LabelOwnerName, oam.LabelOwnerNamespace}
+
+// dropApplicationMarks releases an adopted object from the Application that dispatched it,
+// if one did (a config a workflow step wrote on an older controller). The Config owns it
+// now; left on, the marks would have the Application's garbage collection delete it once
+// the run that dispatched it is retired, and state-keep re-apply the stale copy. Reports
+// whether anything changed.
+func dropApplicationMarks(obj metav1.Object) bool {
+	labels := obj.GetLabels()
+	changed := false
+	for _, key := range applicationMarkKeys {
+		if _, ok := labels[key]; ok {
+			delete(labels, key)
+			changed = true
+		}
+	}
+	if changed {
+		obj.SetLabels(labels)
+	}
+	return changed
 }
 
 // dropStaleConfigOwner removes a controller reference to a Config of the same
@@ -915,8 +993,7 @@ func dropStaleConfigOwner(obj metav1.Object, cfg *configv1alpha1.Config) {
 	refs := obj.GetOwnerReferences()
 	kept := refs[:0]
 	for _, ref := range refs {
-		stale := ref.Kind == configv1alpha1.ConfigKind && ref.APIVersion == configv1alpha1.SchemeGroupVersion.String() &&
-			ref.Name == cfg.Name && ref.UID != cfg.UID
+		stale := IsConfigOwnerRef(ref) && ref.Name == cfg.Name && ref.UID != cfg.UID
 		if !stale {
 			kept = append(kept, ref)
 		}

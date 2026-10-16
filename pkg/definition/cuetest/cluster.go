@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
@@ -185,6 +186,27 @@ func (c *TestCluster) installCRDs(paths []string) error {
 	return err
 }
 
+// chartCRDsForTheHarness lists the chart's CRD files minus the config.oam.dev ones. The
+// harness runs no controllers: a Config CR written here would never render, so the
+// config steps and the vela/config hooks would wait on it forever. Without the kind the
+// steps take their CRD-absent path and write the Secret themselves, synchronously, as
+// they did before the Config CRD, which is what a definition test can observe. A test
+// that needs Config CRs sets ExecClusterOptions.CRDs itself and runs the controller.
+func chartCRDsForTheHarness(dir string) []string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return []string{dir}
+	}
+	var files []string
+	for _, e := range entries {
+		if e.IsDir() || strings.HasPrefix(e.Name(), "config.oam.dev_") {
+			continue
+		}
+		files = append(files, filepath.Join(dir, e.Name()))
+	}
+	return files
+}
+
 // findKubeVelaCRDs looks upward from dir for the vela-core chart's CRDs.
 func findKubeVelaCRDs(dir string) (string, bool) {
 	dir, err := filepath.Abs(dir)
@@ -238,7 +260,7 @@ func execCluster(near string) (*TestCluster, error) {
 		opts := ExecClusterOptions
 		if len(opts.CRDs) == 0 {
 			if dir, ok := findKubeVelaCRDs(near); ok {
-				opts.CRDs = []string{dir}
+				opts.CRDs = chartCRDsForTheHarness(dir)
 			}
 		}
 		s.cluster, s.err = StartTestCluster(opts)
