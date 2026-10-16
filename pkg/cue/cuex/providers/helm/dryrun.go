@@ -19,6 +19,7 @@ package helm
 // Client-only dry-run renderer used by webhook validation, plus the cluster Kubernetes-version lookup.
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -32,7 +33,7 @@ import (
 // cluster. Used during webhook validation to verify the chart can be fetched,
 // values are valid, and templates render without errors — without blocking on
 // real resource creation, hooks, or waiting.
-func (p *Provider) dryRunRender(ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, velaCtx *ContextParams) (string, string, error) {
+func (p *Provider) dryRunRender(ctx context.Context, ch *chart.Chart, releaseName, releaseNamespace string, values map[string]interface{}, options *RenderOptionsParams, velaCtx *ContextParams) (string, string, error) {
 	install := action.NewInstall(&action.Configuration{})
 	install.ReleaseName = releaseName
 	install.Namespace = releaseNamespace
@@ -43,7 +44,7 @@ func (p *Provider) dryRunRender(ch *chart.Chart, releaseName, releaseNamespace s
 	// don't fail against Helm's default v1.20.0. We query the real cluster version
 	// via the REST config. If unreachable, the kubeVersion check is skipped —
 	// the real install during reconciliation will validate it.
-	if kv := p.getKubeVersion(); kv != nil {
+	if kv := p.getKubeVersion(ctx); kv != nil {
 		install.KubeVersion = kv
 	}
 
@@ -67,11 +68,16 @@ func (p *Provider) dryRunRender(ch *chart.Chart, releaseName, releaseNamespace s
 	return rel.Manifest, rel.Info.Notes, nil
 }
 
-// getKubeVersion queries the cluster's Kubernetes version for use in dry-run
-// rendering. Returns nil if the cluster is unreachable — Helm will then skip
-// the kubeVersion constraint check, deferring it to the real install.
-func (p *Provider) getKubeVersion() *chartutil.KubeVersion {
-	cfg, err := p.helmClient.RESTClientGetter().ToRESTConfig()
+// getKubeVersion queries the Kubernetes version of the cluster being rendered
+// for, for use in dry-run rendering. Returns nil if the cluster is unreachable:
+// Helm then skips the kubeVersion constraint check, deferring it to the
+// real install.
+func (p *Provider) getKubeVersion(ctx context.Context) *chartutil.KubeVersion {
+	getter, err := p.restClientGetter(ctx)
+	if err != nil {
+		return nil
+	}
+	cfg, err := getter.ToRESTConfig()
 	if err != nil {
 		return nil
 	}

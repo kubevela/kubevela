@@ -47,7 +47,7 @@ func (p *Provider) freshInstall(ctx context.Context, actionConfig *action.Config
 	}
 
 	klog.Warningf("Helm provider [%s]: Install failed for %s due to orphaned state (%v), cleaning up and retrying", velaContextStr(velaCtx), releaseName, err)
-	if cleanErr := p.cleanOrphanedReleaseSecrets(actionConfig, releaseName, releaseNamespace, velaCtx); cleanErr != nil {
+	if cleanErr := p.cleanOrphanedReleaseSecrets(ctx, releaseName, releaseNamespace, velaCtx); cleanErr != nil {
 		klog.Warningf("Helm provider [%s]: Failed to clean orphaned secrets for %s: %v", velaContextStr(velaCtx), releaseName, cleanErr)
 		return nil, errors.Wrapf(err, "failed to install helm release %s (cleanup also failed: %v)", releaseName, cleanErr)
 	}

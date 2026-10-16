@@ -21,6 +21,8 @@ import (
 	"errors"
 	"io"
 
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"helm.sh/helm/v3/pkg/action"
@@ -81,9 +83,9 @@ func fakeActionConfig() *action.Configuration {
 // fake action.Configuration + clientset.
 func installProviderWithFake(cfg *action.Configuration) *Provider {
 	p := NewProviderWithConfig(nil)
-	p.actionConfigFactory = func(string) (*action.Configuration, error) { return cfg, nil }
+	p.actionConfigFactory = func(context.Context, string) (*action.Configuration, error) { return cfg, nil }
 	cs := clientsetfake.NewSimpleClientset()
-	p.kubeClientFactory = func() (kubernetes.Interface, error) { return cs, nil }
+	p.kubeClientFactory = func(context.Context) (kubernetes.Interface, error) { return cs, nil }
 	return p
 }
 
@@ -185,7 +187,7 @@ var _ = Describe("release", func() {
 			Expect(manifest).To(ContainSubstring("kind: ConfigMap"))
 
 			// The cache MUST be populated after a successful install.
-			cacheKey := releaseCacheKey(relNS, relName)
+			cacheKey := releaseCacheKey(pkgmulticluster.Local, relNS, relName)
 			Expect(p.releaseVersions[cacheKey]).To(Equal(1))
 		})
 
@@ -303,7 +305,7 @@ var _ = Describe("release", func() {
 
 			// Pre-seed the in-memory cache with a fingerprint long enough
 			// that the dispatcher's truncation-safe log path runs cleanly.
-			cacheKey := releaseCacheKey(relNS, relName)
+			cacheKey := releaseCacheKey(pkgmulticluster.Local, relNS, relName)
 			p.releaseMu.Lock()
 			p.releaseFingerprints[cacheKey] = "stale|0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 			p.releaseManifests[cacheKey] = "stale-manifest"

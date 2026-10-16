@@ -18,6 +18,7 @@ package helm
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 
@@ -111,7 +112,7 @@ metadata:
 		It("should not panic without a real cluster", func() {
 			p := NewProviderWithConfig(nil)
 			// Without a real cluster, Init will fail — we just verify no panic
-			_, err := p.getActionConfig("test-namespace")
+			_, err := p.getActionConfig(context.Background(), "test-namespace")
 			_ = err // error is expected
 		})
 	})

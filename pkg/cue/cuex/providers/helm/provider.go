@@ -25,11 +25,13 @@ import (
 	"time"
 
 	"github.com/kubevela/pkg/cache"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/pkg/errors"
 	"golang.org/x/sync/singleflight"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 )
 
@@ -63,10 +65,13 @@ func velaContextStr(velaCtx *ContextParams) string {
 	return fmt.Sprintf("app=%s/%s component=%s", velaCtx.AppName, velaCtx.AppNamespace, velaCtx.Name)
 }
 
-// releaseCacheKey returns a namespace-scoped cache key to avoid collisions
-// when different namespaces have releases with the same name.
-func releaseCacheKey(namespace, name string) string {
-	return namespace + "/" + name
+// releaseCacheKey returns a cluster- and namespace-scoped cache key, since
+// releases of the same name live side by side across namespaces and clusters.
+func releaseCacheKey(cluster, namespace, name string) string {
+	if pkgmulticluster.IsLocal(cluster) {
+		cluster = pkgmulticluster.Local
+	}
+	return cluster + "/" + namespace + "/" + name
 }
 
 // InitCacheTTL configures the cluster-wide chart cache TTL defaults before any
@@ -140,20 +145,28 @@ type Provider struct {
 	cacheTTL             *CacheTTLConfig
 	cacheRecentEvictions *cache.LRUStore[string, string] // bounded ledger of recently-evicted keys → miss reason
 	releaseMu            sync.Mutex                      // serializes install/upgrade/uninstall calls
-	releaseFingerprints  map[string]string               // namespace/releaseName → fingerprint (chartVersion|valuesHash)
-	releaseManifests     map[string]string               // namespace/releaseName → last successful manifest
-	releaseVersions      map[string]int                  // namespace/releaseName → current release version number
-	// actionConfigFactory builds a helm action.Configuration for a given
-	// namespace. Defaults to getActionConfig (a real cluster client). Tests
-	// override this to inject a fake KubeClient + memory storage driver so
-	// they can exercise the install/upgrade dispatcher without a cluster.
-	actionConfigFactory func(namespace string) (*action.Configuration, error)
-	// kubeClientFactory builds a kubernetes.Interface client used by the
-	// release-secret helpers (list, label, delete, validate health) which
-	// talk to the API server directly rather than via the helm SDK. Tests
-	// override this to inject a fake clientset so the dispatcher's adoption
-	// path and background health checks do not leak to the active cluster.
-	kubeClientFactory func() (kubernetes.Interface, error)
+	releaseFingerprints  map[string]string               // cluster/namespace/releaseName → fingerprint (chartVersion|valuesHash)
+	releaseManifests     map[string]string               // cluster/namespace/releaseName → last successful manifest
+	releaseVersions      map[string]int                  // cluster/namespace/releaseName → current release version number
+	// hubConfig returns the REST config managed clusters are reached through.
+	// Defaults to the Helm environment's own config; tests point it at a stub.
+	hubConfig        func() (*rest.Config, error)
+	clusterGettersMu sync.Mutex
+	clusterGetters   map[string]*clusterRESTClientGetter // cluster and user → getter
+	// actionConfigFactory builds a helm action.Configuration for the
+	// cluster and user a render's context carries, in a namespace. Defaults
+	// to getActionConfig (a real cluster client). Tests override this to inject a fake KubeClient + memory
+	// storage driver so they can exercise the install/upgrade dispatcher
+	// without a cluster.
+	actionConfigFactory func(ctx context.Context, namespace string) (*action.Configuration, error)
+	// kubeClientFactory builds a kubernetes.Interface client for the cluster
+	// and user a render's context carries,
+	// used by the release-secret helpers (list, label, delete, validate
+	// health) which talk to the API server directly rather than via the helm
+	// SDK. Tests override this to inject a fake clientset so the dispatcher's
+	// adoption path and background health checks do not leak to the active
+	// cluster.
+	kubeClientFactory func(ctx context.Context) (kubernetes.Interface, error)
 }
 
 var (
@@ -279,7 +292,9 @@ func NewProvider() *Provider {
 			releaseFingerprints:  make(map[string]string),
 			releaseManifests:     make(map[string]string),
 			releaseVersions:      make(map[string]int),
+			clusterGetters:       make(map[string]*clusterRESTClientGetter),
 		}
+		globalProvider.hubConfig = globalProvider.helmClient.RESTClientGetter().ToRESTConfig
 		globalProvider.actionConfigFactory = globalProvider.getActionConfig
 		globalProvider.kubeClientFactory = globalProvider.getKubeClientset
 	})
@@ -314,7 +329,9 @@ func NewProviderWithConfig(ttlConfig *CacheTTLConfig) *Provider {
 		releaseFingerprints:  make(map[string]string),
 		releaseManifests:     make(map[string]string),
 		releaseVersions:      make(map[string]int),
+		clusterGetters:       make(map[string]*clusterRESTClientGetter),
 	}
+	p.hubConfig = p.helmClient.RESTClientGetter().ToRESTConfig
 	p.actionConfigFactory = p.getActionConfig
 	p.kubeClientFactory = p.getKubeClientset
 	return p
@@ -328,11 +345,15 @@ func (p *Provider) Close() {
 }
 
 // getKubeClientset is the default kubeClientFactory: builds a typed Kubernetes
-// client from the helm CLI environment's REST config. Tests inject a fake
+// client from the Helm client getter for a render's context. Tests inject a fake
 // clientset instead so the release-secret helpers never reach the active
 // cluster.
-func (p *Provider) getKubeClientset() (kubernetes.Interface, error) {
-	cfg, err := p.helmClient.RESTClientGetter().ToRESTConfig()
+func (p *Provider) getKubeClientset(ctx context.Context) (kubernetes.Interface, error) {
+	getter, err := p.restClientGetter(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := getter.ToRESTConfig()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get REST config")
 	}
