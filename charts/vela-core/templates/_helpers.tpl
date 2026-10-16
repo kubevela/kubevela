@@ -147,6 +147,17 @@ that the user supplies.
 {{- end -}}
 
 {{/*
+Returns "true" when the chart manages the cluster-gateway APIService: the
+APIService does not exist yet, or a Helm release created it. An APIService
+without Helm annotations belongs to an external controller, and the chart does
+not touch it.
+*/}}
+{{- define "kubevela.clusterGatewayAPIServiceManaged" -}}
+{{- $apiSvc := lookup "apiregistration.k8s.io/v1" "APIService" "" "v1alpha1.cluster.core.oam.dev" -}}
+{{- if or (not $apiSvc) (dig "metadata" "annotations" "meta.helm.sh/release-name" "" $apiSvc) -}}true{{- end -}}
+{{- end -}}
+
+{{/*
 Returns "true" when vela-core manages the cluster-gateway serving cert itself
 (--cluster-gateway-tls-secret). The alternative is cert-manager.
 */}}

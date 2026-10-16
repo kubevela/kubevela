@@ -66,6 +66,7 @@ func testJobGatewaySecret(t *testing.T) *corev1.Secret {
 	t.Helper()
 	data, err := servingcert.Generate(testGatewaySvc.RequiredHosts(), time.Now().Add(-time.Hour), time.Now().Add(365*24*time.Hour))
 	require.NoError(t, err)
+	delete(data, servingcert.CAKeyKey) // the old Jobs stored no CA key
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: testGatewaySecret, Namespace: testGatewayNamespace},
 		Data:       data,
@@ -93,7 +94,7 @@ func TestEnsureClusterGatewayTLS(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(velacommon.Scheme).
 			WithObjects(testGatewayAPIService(nil, false)).Build()
 
-		ca, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret)
+		ca, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret, nil)
 		require.NoError(t, err)
 
 		secret := getGatewaySecret(t, c)
@@ -108,7 +109,7 @@ func TestEnsureClusterGatewayTLS(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(velacommon.Scheme).
 			WithObjects(testGatewayAPIService([]byte("\n"), true)).Build()
 
-		ca, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret)
+		ca, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret, nil)
 		require.NoError(t, err)
 
 		apiService := getGatewayAPIService(t, c)
@@ -121,7 +122,7 @@ func TestEnsureClusterGatewayTLS(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(velacommon.Scheme).
 			WithObjects(testGatewayAPIService(existing.Data[servingcert.CAKey], false), existing.DeepCopy()).Build()
 
-		ca, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret)
+		ca, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret, nil)
 		require.NoError(t, err)
 
 		require.Equal(t, existing.Data[servingcert.CAKey], ca)
@@ -141,15 +142,46 @@ func TestEnsureClusterGatewayTLS(t *testing.T) {
 				},
 			}).Build()
 
-		_, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret)
+		_, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret, nil)
 		require.NoError(t, err)
 		require.Zero(t, updates)
+	})
+
+	t.Run("leaves an APIService that points at another Service alone", func(t *testing.T) {
+		external := testGatewayAPIService([]byte("external-ca"), false)
+		external.Spec.Service.Name = "some-other-gateway"
+		c := fake.NewClientBuilder().WithScheme(velacommon.Scheme).WithObjects(external).Build()
+
+		_, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret, &testGatewaySvc)
+		require.NoError(t, err)
+
+		require.Equal(t, []byte("external-ca"), getGatewayAPIService(t, c).Spec.CABundle)
+		require.NoError(t, servingcert.Check(getGatewaySecret(t, c).Data, testGatewaySvc.Hosts(), time.Now()),
+			"the Secret is still made for the cluster-gateway Service")
+	})
+
+	t.Run("makes the Secret for the given Service before the APIService exists", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(velacommon.Scheme).Build()
+
+		_, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret, &testGatewaySvc)
+		require.NoError(t, err)
+
+		require.NoError(t, servingcert.Check(getGatewaySecret(t, c).Data, testGatewaySvc.Hosts(), time.Now()))
+	})
+
+	t.Run("sets the caBundle when the APIService points at the given Service", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(velacommon.Scheme).WithObjects(testGatewayAPIService(nil, false)).Build()
+
+		ca, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret, &testGatewaySvc)
+		require.NoError(t, err)
+
+		require.Equal(t, ca, getGatewayAPIService(t, c).Spec.CABundle)
 	})
 
 	t.Run("fails when the APIService does not exist", func(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(velacommon.Scheme).Build()
 
-		_, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret)
+		_, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret, nil)
 		require.Error(t, err)
 	})
 
@@ -158,7 +190,7 @@ func TestEnsureClusterGatewayTLS(t *testing.T) {
 		apiService.Spec.Service = nil
 		c := fake.NewClientBuilder().WithScheme(velacommon.Scheme).WithObjects(apiService).Build()
 
-		_, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret)
+		_, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret, nil)
 		require.Error(t, err)
 	})
 }

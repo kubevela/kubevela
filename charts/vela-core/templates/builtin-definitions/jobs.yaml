@@ -1,8 +1,9 @@
 {{- /*
 The builtin definitions are applied by hook Jobs rather than as part of the
 release, so they are validated by this release's webhook. The apply Job waits
-for the controller rollout, and vela-core sets the webhook CA bundle at startup
-before it becomes ready.
+for the controller rollout. When vela-core manages the webhook cert
+(--webhook-tls-secret), it sets the CA bundle at startup, before it becomes
+ready. With cert-manager, the Job waits for cainjector to set it.
 */ -}}
 {{ include "kubevela.builtinDefinitionsJob" (dict "root" . "action" "keep" "hook" "pre-upgrade" "weight" 0) }}
 ---

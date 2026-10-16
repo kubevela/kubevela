@@ -74,7 +74,7 @@ var _ = Describe("setupClusterGatewayTLS", func() {
 	It("writes the CA to the CA file in direct mode", func() {
 		caFile := filepath.Join(GinkgoT().TempDir(), "cluster-gateway", "ca")
 
-		bundle, err := setupClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecretName, caFile)
+		bundle, err := setupClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecretName, nil, caFile)
 		Expect(err).NotTo(HaveOccurred())
 
 		written, err := os.ReadFile(caFile)
@@ -83,8 +83,8 @@ var _ = Describe("setupClusterGatewayTLS", func() {
 		Expect(bundle).To(Equal(secretCA()))
 	})
 
-	It("only sets the APIService caBundle when requests go through the aggregator", func() {
-		_, err := setupClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecretName, "")
+	It("sets the APIService caBundle and writes no CA file when requests go through the aggregator", func() {
+		_, err := setupClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecretName, nil, "")
 		Expect(err).NotTo(HaveOccurred())
 
 		apiService := &apiregistrationv1.APIService{}
@@ -117,10 +117,10 @@ var _ = Describe("setupClusterGatewayTLS", func() {
 
 		It("does not restart while the CA stays the same", func() {
 			caFile := filepath.Join(GinkgoT().TempDir(), "ca")
-			trusted, err := setupClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecretName, caFile)
+			trusted, err := setupClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecretName, nil, caFile)
 			Expect(err).NotTo(HaveOccurred())
 
-			resync := clusterGatewayTLSResync(c, testGatewayNamespace, testGatewaySecretName, caFile, trusted, restart)
+			resync := clusterGatewayTLSResync(c, testGatewayNamespace, testGatewaySecretName, nil, caFile, trusted, restart)
 			resync(ctx)
 			resync(ctx)
 			Expect(atomic.LoadInt32(&restarts)).To(BeZero())
@@ -128,11 +128,11 @@ var _ = Describe("setupClusterGatewayTLS", func() {
 
 		It("restarts in direct mode when the CA is replaced", func() {
 			caFile := filepath.Join(GinkgoT().TempDir(), "ca")
-			trusted, err := setupClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecretName, caFile)
+			trusted, err := setupClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecretName, nil, caFile)
 			Expect(err).NotTo(HaveOccurred())
 			putExpiringJobSecret()
 
-			clusterGatewayTLSResync(c, testGatewayNamespace, testGatewaySecretName, caFile, trusted, restart)(ctx)
+			clusterGatewayTLSResync(c, testGatewayNamespace, testGatewaySecretName, nil, caFile, trusted, restart)(ctx)
 
 			Expect(atomic.LoadInt32(&restarts)).To(Equal(int32(1)))
 			written, err := os.ReadFile(caFile)
@@ -141,32 +141,33 @@ var _ = Describe("setupClusterGatewayTLS", func() {
 		})
 
 		It("does not restart for the aggregator path", func() {
-			trusted, err := setupClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecretName, "")
+			trusted, err := setupClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecretName, nil, "")
 			Expect(err).NotTo(HaveOccurred())
 			putExpiringJobSecret()
 
-			clusterGatewayTLSResync(c, testGatewayNamespace, testGatewaySecretName, "", trusted, restart)(ctx)
+			clusterGatewayTLSResync(c, testGatewayNamespace, testGatewaySecretName, nil, "", trusted, restart)(ctx)
 			Expect(atomic.LoadInt32(&restarts)).To(BeZero())
 		})
 	})
 })
 
-var _ = Describe("parseSecretRef", func() {
+var _ = Describe("parseNamespacedName", func() {
 	It("splits <namespace>/<name>", func() {
-		namespace, name, err := parseSecretRef("some-flag", "vela-system/my-secret")
+		namespace, name, err := parseNamespacedName("some-flag", "vela-system/my-secret")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(namespace).To(Equal("vela-system"))
 		Expect(name).To(Equal("my-secret"))
 	})
 
 	DescribeTable("rejects malformed references", func(ref string) {
-		_, _, err := parseSecretRef("some-flag", ref)
+		_, _, err := parseNamespacedName("some-flag", ref)
 		Expect(err).To(MatchError(ContainSubstring("--some-flag")))
 	},
 		Entry("no namespace", "my-secret"),
 		Entry("empty namespace", "/my-secret"),
 		Entry("empty name", "vela-system/"),
 		Entry("empty", ""),
+		Entry("extra segment", "vela-system/my-secret/extra"),
 	)
 })
 
@@ -179,7 +180,7 @@ var _ = Describe("retryStartup", func() {
 
 	It("retries until fn succeeds", func() {
 		calls := 0
-		Expect(retryStartup(context.Background(), "test", func() error {
+		Expect(retryStartup(context.Background(), "test", func(context.Context) error {
 			calls++
 			if calls < 3 {
 				return errors.New("APIService not found yet")
@@ -194,7 +195,7 @@ var _ = Describe("retryStartup", func() {
 		startupRetryTimeout = 20 * time.Millisecond
 		DeferCleanup(func() { startupRetryTimeout = orig })
 
-		Expect(retryStartup(context.Background(), "test", func() error { return errors.New("never") })).
+		Expect(retryStartup(context.Background(), "test", func(context.Context) error { return errors.New("never") })).
 			To(MatchError("never"))
 	})
 })

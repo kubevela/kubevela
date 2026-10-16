@@ -4,9 +4,10 @@
 #
 # It is only for a vela-core running on your host. The webhook configurations
 # it creates point at a URL on the host, so it makes its own certificate for
-# that address. An in-cluster vela-core (installed from the chart) makes its
-# webhook certificate itself at startup, with --webhook-tls-secret, and does not
-# need this script. Don't pass --webhook-tls-secret to a local debug run.
+# that address. An in-cluster vela-core that runs with --webhook-tls-secret (the
+# chart sets it when admissionWebhooks.patch.enabled is on and cert-manager is
+# off) makes its webhook certificate itself at startup and does not need this
+# script. Don't pass --webhook-tls-secret to a local debug run.
 
 set -e
 

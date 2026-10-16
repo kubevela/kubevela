@@ -201,6 +201,18 @@ func TestEnsureSecret(t *testing.T) {
 		require.Len(t, bundleCerts(t, res.CABundle), 1)
 	})
 
+	t.Run("regenerates a cert that is not valid yet", func(t *testing.T) {
+		data, err := Generate(testServiceRef.Hosts(), time.Now().Add(24*time.Hour), inAYear)
+		require.NoError(t, err)
+		c := newClient(t, secretFrom(data))
+
+		res, err := EnsureSecret(ctx, c, testNamespace, testSecret, testServiceRef)
+		require.NoError(t, err)
+
+		require.NotEqual(t, data[CertKey], res.Cert)
+		require.NoError(t, Check(getSecret(t, c).Data, testServiceRef.Hosts(), time.Now()))
+	})
+
 	t.Run("regenerates a cert for another Service", func(t *testing.T) {
 		data, err := Generate([]string{"other-service"}, time.Now().Add(-time.Hour), inAYear)
 		require.NoError(t, err)
@@ -246,6 +258,11 @@ func TestEnsureSecret(t *testing.T) {
 		require.Equal(t, winner[CAKey], res.CABundle)
 		require.Equal(t, winner, getSecret(t, c).Data)
 	})
+}
+
+func TestGenerateRejectsNoHosts(t *testing.T) {
+	_, err := Generate(nil, time.Now(), time.Now().Add(time.Hour))
+	require.Error(t, err)
 }
 
 func TestCovers(t *testing.T) {

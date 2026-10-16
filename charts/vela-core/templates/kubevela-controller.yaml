@@ -351,6 +351,7 @@ spec:
             - "--enable-cluster-gateway"
             {{ if include "kubevela.clusterGatewayRuntimeCerts" . }}
             - "--cluster-gateway-tls-secret={{ .Release.Namespace }}/{{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2"
+            - "--cluster-gateway-service={{ .Release.Namespace }}/{{ .Release.Name }}-cluster-gateway-service"
             {{ end }}
             {{ if .Values.multicluster.clusterGateway.direct }}
             - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:{{ .Values.multicluster.clusterGateway.port }}"

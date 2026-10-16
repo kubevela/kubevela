@@ -132,7 +132,11 @@ func EnsureSecret(ctx context.Context, c client.Client, namespace, name string, 
 		}
 		found := err == nil
 		if found {
-			reason := Check(secret.Data, svc.RequiredHosts(), now.Add(renewBefore))
+			// The cert must be valid now, and still valid at the renewal deadline.
+			reason := Check(secret.Data, svc.RequiredHosts(), now)
+			if reason == nil {
+				reason = Check(secret.Data, svc.RequiredHosts(), now.Add(renewBefore))
+			}
 			if reason == nil {
 				result = resultFor(secret, now)
 				return nil
@@ -172,7 +176,7 @@ func renew(secret *corev1.Secret, hosts []string, now time.Time) error {
 	}
 	oldCA := secret.Data[CAKey]
 	data := secret.Data
-	if caUsable(data, now.Add(renewBefore)) != nil {
+	if caUsable(data, now) != nil {
 		ca, err := generateCA(hosts[0], now.Add(-time.Hour), now.Add(validity))
 		if err != nil {
 			return err
@@ -247,14 +251,17 @@ func Check(data map[string][]byte, hosts []string, validUntil time.Time) error {
 	return nil
 }
 
-// caUsable returns nil if data holds a CA cert and its matching key, valid
-// until validUntil.
-func caUsable(data map[string][]byte, validUntil time.Time) error {
+// caUsable returns nil if data holds a CA cert and its matching key, and the
+// CA is valid from now until renewBefore after now.
+func caUsable(data map[string][]byte, now time.Time) error {
 	caCert, _, err := parseCA(data)
 	if err != nil {
 		return err
 	}
-	if validUntil.After(caCert.NotAfter) {
+	if now.Before(caCert.NotBefore) {
+		return fmt.Errorf("CA is not valid before %s", caCert.NotBefore.Format(time.RFC3339))
+	}
+	if now.Add(renewBefore).After(caCert.NotAfter) {
 		return fmt.Errorf("CA expires at %s", caCert.NotAfter.Format(time.RFC3339))
 	}
 	return nil
@@ -333,6 +340,9 @@ func certsIn(bundle []byte, now time.Time) []*x509.Certificate {
 // Generate makes a self-signed CA and uses it to sign a serving cert for hosts.
 // Both are valid from notBefore to notAfter. It returns them as Secret data.
 func Generate(hosts []string, notBefore, notAfter time.Time) (map[string][]byte, error) {
+	if len(hosts) == 0 {
+		return nil, errors.New("no hosts to put in the serving cert")
+	}
 	ca, err := generateCA(hosts[0], notBefore, notAfter)
 	if err != nil {
 		return nil, err

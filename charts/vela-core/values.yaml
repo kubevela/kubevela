@@ -406,9 +406,9 @@ admissionWebhooks:
   # caBundle of its webhooks. When its webhook server serves requests, it also
   # sets failurePolicy. It checks the cert and the webhooks every minute.
   # Tools that render without cluster access (Argo CD, helm template) render
-  # failurePolicy: Ignore. For those tools, add an ignoreDifferences rule for
-  # /webhooks/*/failurePolicy. With patch.enabled=false, supply the Secret and
-  # the caBundle yourself.
+  # failurePolicy: Ignore. For Argo CD, add an ignoreDifferences entry with
+  # jqPathExpressions: [".webhooks[].failurePolicy"]. When patch.enabled=false
+  # and cert-manager is off, supply the Secret and the caBundle yourself.
   # Only patch.enabled is still read. image, nodeSelector, affinity and
   # tolerations configured the removed cert Jobs and are kept so existing values
   # files still apply.
