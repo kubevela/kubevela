@@ -122,6 +122,12 @@ func (f *fakeConfigFactory) ListConfigs(context.Context, string, string, string,
 	return nil, nil
 }
 func (f *fakeConfigFactory) DeleteConfig(context.Context, string, string) error { return nil }
+func (f *fakeConfigFactory) ListAllConfigs(context.Context, string, string) ([]*config.Config, error) {
+	return nil, nil
+}
+func (f *fakeConfigFactory) ApplyConfigCR(context.Context, *configv1alpha1.Config, *corev1.Secret) error {
+	return nil
+}
 func (f *fakeConfigFactory) IsExist(context.Context, string, string) (bool, error) {
 	return false, nil
 }
