@@ -136,3 +136,61 @@ of one kind. Takes a dict of "kind" and "root" (the chart context).
 {{- define "kubevela.builtinDefinitionsConfigMap" -}}
 {{- printf "%s-builtin-%ss" (include "kubevela.fullname" .root) (lower .kind) -}}
 {{- end -}}
+
+{{/*
+Generate certificates for cluster-gateway TLS or reuse existing secret from cluster.
+*/}}
+{{- define "kubevela-cluster-gateway.certs" -}}
+{{- if not .Values.clusterGatewayCerts -}}
+  {{- $secretName := printf "%s-cluster-gateway-tls-v2" (include "kubevela.fullname" .) -}}
+  {{- $existingSecret := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+  {{- $caCert := "" -}}
+  {{- $tlsCert := "" -}}
+  {{- $tlsKey := "" -}}
+  {{- if $existingSecret -}}
+    {{- if $existingSecret.data -}}
+      {{- if hasKey $existingSecret.data "tls.crt" -}}
+        {{- $tlsCert = index $existingSecret.data "tls.crt" -}}
+      {{- end -}}
+      {{- if hasKey $existingSecret.data "tls.key" -}}
+        {{- $tlsKey = index $existingSecret.data "tls.key" -}}
+      {{- end -}}
+      {{- if hasKey $existingSecret.data "ca.crt" -}}
+        {{- $caCert = index $existingSecret.data "ca.crt" -}}
+      {{- else if hasKey $existingSecret.data "ca" -}}
+        {{- $caCert = index $existingSecret.data "ca" -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if not $caCert -}}
+    {{- $apiSvc := lookup "apiregistration.k8s.io/v1" "APIService" "" "v1alpha1.cluster.core.oam.dev" -}}
+    {{- if $apiSvc -}}
+      {{- if $apiSvc.spec -}}
+        {{- if hasKey $apiSvc.spec "caBundle" -}}
+          {{- if and $apiSvc.spec.caBundle (ne $apiSvc.spec.caBundle "Cg==") -}}
+            {{- $caCert = $apiSvc.spec.caBundle -}}
+          {{- end -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $hasAll := false -}}
+  {{- if $caCert -}}
+    {{- if $tlsCert -}}
+      {{- if $tlsKey -}}
+        {{- $hasAll = true -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if not $hasAll -}}
+    {{- $ca := genCA (printf "%s-cluster-gateway-ca" (include "kubevela.fullname" .)) 3650 -}}
+    {{- $cn := printf "%s-cluster-gateway-service" .Release.Name -}}
+    {{- $altNames := list $cn (printf "%s.%s.svc" $cn .Release.Namespace) (printf "%s.%s.svc.cluster.local" $cn .Release.Namespace) -}}
+    {{- $cert := genSignedCert $cn nil $altNames 3650 $ca -}}
+    {{- $caCert = $ca.Cert | b64enc -}}
+    {{- $tlsCert = $cert.Cert | b64enc -}}
+    {{- $tlsKey = $cert.Key | b64enc -}}
+  {{- end -}}
+  {{- $_ := set .Values "clusterGatewayCerts" (dict "caCert" $caCert "tlsCert" $tlsCert "tlsKey" $tlsKey) -}}
+{{- end -}}
+{{- end -}}

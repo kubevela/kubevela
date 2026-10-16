@@ -112,6 +112,23 @@ data:
               group: kubevela:ux
             type: PrivilegedIdentityExchanger
 ---
+{{- if and .Values.multicluster.clusterGateway.secureTLS.enabled (not .Values.multicluster.clusterGateway.secureTLS.certManager.enabled) }}
+{{- include "kubevela-cluster-gateway.certs" . }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kubevela.labels" . | nindent 4 }}
+type: kubernetes.io/tls
+data:
+  tls.crt: {{ .Values.clusterGatewayCerts.tlsCert }}
+  tls.key: {{ .Values.clusterGatewayCerts.tlsKey }}
+  ca.crt: {{ .Values.clusterGatewayCerts.caCert }}
+  ca: {{ .Values.clusterGatewayCerts.caCert }}
+---
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -160,40 +177,17 @@ spec:
     namespace: {{ .Release.Namespace }}
     port: {{ .Values.multicluster.clusterGateway.port }}
   versionPriority: 10
-  {{- if not .Values.multicluster.clusterGateway.secureTLS.enabled }}
+  {{ if not .Values.multicluster.clusterGateway.secureTLS.enabled }}
   insecureSkipTLSVerify: true
-  {{- else }}
-  {{- /* Preserve an already-valid caBundle on upgrade so we don't reset it before
-         the patch Job re-runs. $apiSvc is the existing APIService looked up above. */}}
-  {{- $caBundle := "" }}
-  {{- if $apiSvc }}
-    {{- if $apiSvc.spec }}
-      {{- if hasKey $apiSvc.spec "caBundle" }}
-        {{- if and $apiSvc.spec.caBundle (ne $apiSvc.spec.caBundle "Cg==") }}
-          {{- $caBundle = $apiSvc.spec.caBundle }}
-        {{- end }}
-      {{- end }}
-    {{- end }}
-  {{- end }}
-  {{- if $caBundle }}
-  insecureSkipTLSVerify: false
-  caBundle: {{ $caBundle }}
-  {{- else if .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
+  {{ else if .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
   {{- /* cert-manager's cainjector fills in the caBundle on its own. */}}
   insecureSkipTLSVerify: false
   caBundle: Cg==
-  {{- else }}
-  {{- /* No CA yet: the tls-secret-create Job makes it during the install and the
-         post-install tls-secret-patch Job writes it here and sets
-         insecureSkipTLSVerify to false. Until then TLS is not verified. A
-         placeholder caBundle would not work: since Kubernetes 1.36 the aggregator
-         verifies TLS with it for the availability check
-         (kubernetes/kubernetes#137157), so the APIService would never become
-         Available, vela-core would never become ready, and `helm install --wait`
-         would never reach the post-install patch Job. */}}
-  insecureSkipTLSVerify: true
-  {{- end }}
-  {{- end }}
+  {{ else }}
+  {{- include "kubevela-cluster-gateway.certs" . }}
+  insecureSkipTLSVerify: false
+  caBundle: {{ .Values.clusterGatewayCerts.caCert }}
+  {{ end }}
 {{ end }}
 
 ---
