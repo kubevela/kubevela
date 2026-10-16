@@ -673,3 +673,15 @@ func TestFilterSpecialAnn(t *testing.T) {
 	dp.Annotations = map[string]string{oam.AnnotationLastAppliedConfig: "xxx"}
 	assert.Equal(t, true, trimLastAppliedConfigurationForSpecialResources(dp))
 }
+
+func TestTakeOverIf(t *testing.T) {
+	r := require.New(t)
+	accept := TakeOverIf(func(existing client.Object) bool { return existing.GetLabels()["made-by"] == "migration" })
+	act := &applyAction{}
+	r.NoError(accept(act, nil, nil))
+	r.False(act.takeOver, "nothing existing: nothing to take")
+	r.NoError(accept(act, &appsv1.Deployment{}, nil))
+	r.False(act.takeOver, "an existing object the predicate rejects is left to the refusal")
+	r.NoError(accept(act, &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"made-by": "migration"}}}, nil))
+	r.True(act.takeOver)
+}
