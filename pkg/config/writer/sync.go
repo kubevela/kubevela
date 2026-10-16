@@ -39,12 +39,14 @@ import (
 // ValidateExpandedWriter names the choice instead.
 var supportedFormats = []string{"json", "yaml", "toml", "properties"}
 
-// ValidateTemplate is the check the ConfigTemplate webhook and the Config reconciler
-// share, so the two cannot drift: it parses the whole template script the way the Secret
-// render does (CueX, provider functions disabled, so a template that imports a vela
-// package is read like any other) and validates its nacos block. A script that does not
-// compile passes here: the ConfigTemplate controller reports that through status.phase,
-// and in the reconciler the Secret render fails on it right after this check.
+// ValidateTemplate is the Config reconciler's entry to ValidateExpandedWriter, the check it
+// shares with the ConfigTemplate webhook so the two cannot drift: it parses the whole
+// template script the way the Secret render does (CueX, provider functions disabled, so a
+// template that imports a vela package is read like any other) and validates its nacos
+// block. The webhook parses once itself, for this and for the endpoint rule, and calls
+// ValidateExpandedWriter on the same value. A script that does not compile passes here:
+// the ConfigTemplate controller reports that through status.phase, and in the reconciler
+// the Secret render fails on it right after this check.
 func ValidateTemplate(ctx context.Context, template script.CUE) error {
 	if v, err := template.ParseToValueWithCueX(ctx); err == nil {
 		return ValidateExpandedWriter(v.LookupPath(cue.ParsePath("template")))

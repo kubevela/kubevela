@@ -26,6 +26,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	admissionv1 "k8s.io/api/admission/v1"
+	authenticationv1 "k8s.io/api/authentication/v1"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -649,4 +651,151 @@ func TestResolveProperties_SecretInvalidJSON(t *testing.T) {
 	_, err := h.resolveProperties(context.TODO(), cfg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to decode properties from secret key")
+}
+
+// reviewing returns interceptor funcs that answer every SubjectAccessReview with allowed and
+// record what was asked.
+func reviewing(allowed bool, reviews *[]authorizationv1.ResourceAttributes) interceptor.Funcs {
+	return interceptor.Funcs{
+		Create: func(_ context.Context, _ client.WithWatch, obj client.Object, _ ...client.CreateOption) error {
+			if review, ok := obj.(*authorizationv1.SubjectAccessReview); ok {
+				*reviews = append(*reviews, *review.Spec.ResourceAttributes)
+				review.Status.Allowed = allowed
+			}
+			return nil
+		},
+	}
+}
+
+func availableTemplate(name, namespace string, scope configv1alpha1.ConfigTemplateScope) *configv1alpha1.ConfigTemplate {
+	return &configv1alpha1.ConfigTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+		Spec:       configv1alpha1.ConfigTemplateSpec{Template: templateWithRequiredUsername, Scope: scope},
+		Status:     configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+	}
+}
+
+func configUsing(name, namespace, tmplName, tmplNamespace string) *configv1alpha1.Config {
+	return &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+		Spec: configv1alpha1.ConfigSpec{
+			TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: tmplName, Namespace: tmplNamespace},
+			Properties:  rawExtension(map[string]string{"username": "alice"}),
+		},
+	}
+}
+
+func createdBy(req admission.Request, user string) admission.Request {
+	req.UserInfo = authenticationv1.UserInfo{Username: user, Groups: []string{"scope-users"}}
+	return req
+}
+
+// admitConfig admits, as alice, a Config in cfgNamespace that names the template; the fake
+// API server answers every SubjectAccessReview with allowed and records what it was asked.
+func admitConfig(t *testing.T, allowed bool, cfgNamespace, tmplName, tmplNamespace string, objs ...client.Object) (admission.Response, []authorizationv1.ResourceAttributes) {
+	t.Helper()
+	var reviews []authorizationv1.ResourceAttributes
+	h := newInterceptedHandler(reviewing(allowed, &reviews), objs...)
+	resp := h.Handle(context.TODO(), createdBy(newRequest(t, admissionv1.Create, metav1.GroupVersionResource(configGVR), configUsing("c", cfgNamespace, tmplName, tmplNamespace)), "alice"))
+	return resp, reviews
+}
+
+func TestHandle_TemplateAccessTable(t *testing.T) {
+	gvr := metav1.GroupVersionResource(configGVR)
+	t.Run("the same namespace needs no review", func(t *testing.T) {
+		resp, reviews := admitConfig(t, false, "wf-a", "same", "wf-a", availableTemplate("same", "wf-a", configv1alpha1.ConfigTemplateScopeNamespace))
+		assert.True(t, resp.Allowed, string(resp.Result.Message))
+		assert.Empty(t, reviews)
+	})
+	t.Run("a system template in vela-system is usable from any namespace, no review", func(t *testing.T) {
+		resp, reviews := admitConfig(t, false, "wf-a", "sys", "vela-system", availableTemplate("sys", "vela-system", configv1alpha1.ConfigTemplateScopeSystem))
+		assert.True(t, resp.Allowed, string(resp.Result.Message))
+		assert.Empty(t, reviews)
+	})
+	t.Run("a namespace-scoped template elsewhere: the author's review decides", func(t *testing.T) {
+		resp, reviews := admitConfig(t, false, "wf-a", "b", "wf-b", availableTemplate("b", "wf-b", configv1alpha1.ConfigTemplateScopeNamespace))
+		assert.False(t, resp.Allowed)
+		assert.Contains(t, string(resp.Result.Message), "config template wf-b/b is namespace-scoped: a config in wf-a may use it only if its author can get it")
+		assert.Contains(t, string(resp.Result.Message), "alice may not")
+		if assert.Len(t, reviews, 1) {
+			assert.Equal(t, authorizationv1.ResourceAttributes{Verb: "get", Group: "config.oam.dev", Version: "v1alpha1", Resource: "configtemplates", Namespace: "wf-b", Name: "b"}, reviews[0])
+		}
+
+		resp, reviews = admitConfig(t, true, "wf-a", "b", "wf-b", availableTemplate("b", "wf-b", configv1alpha1.ConfigTemplateScopeNamespace))
+		assert.True(t, resp.Allowed, string(resp.Result.Message))
+		assert.Len(t, reviews, 1)
+	})
+	t.Run("a template in another namespace that is not usable yet: denied at create, so the question is asked later", func(t *testing.T) {
+		var reviews []authorizationv1.ResourceAttributes
+		pending := availableTemplate("b", "wf-b", configv1alpha1.ConfigTemplateScopeNamespace)
+		pending.Status = configv1alpha1.ConfigTemplateStatus{}
+		h := newInterceptedHandler(reviewing(true, &reviews), pending)
+		resp := h.Handle(context.TODO(), createdBy(newRequest(t, admissionv1.Create, gvr, configUsing("c", "wf-a", "b", "wf-b")), "alice"))
+		assert.False(t, resp.Allowed, "even a user who could read it: the scope is not known yet")
+		assert.Contains(t, string(resp.Result.Message), "config template wf-b/b is not available yet: a config in wf-a may reference a template in another namespace once it is")
+		assert.Empty(t, reviews)
+
+		h = newInterceptedHandler(reviewing(true, &reviews))
+		resp = h.Handle(context.TODO(), createdBy(newRequest(t, admissionv1.Create, gvr, configUsing("c", "wf-a", "missing", "")), "alice"))
+		assert.False(t, resp.Allowed, "a reference to vela-system by default, template absent")
+		assert.Contains(t, string(resp.Result.Message), "config template vela-system/missing is not available yet")
+
+		resp = h.Handle(context.TODO(), createdBy(newRequest(t, admissionv1.Create, gvr, configUsing("c", "wf-a", "missing", "wf-a")), "alice"))
+		assert.True(t, resp.Allowed, "the Config's own namespace: admission defers to the controller as before")
+
+		existing := configUsing("c", "wf-a", "b", "wf-b")
+		resp = h.Handle(context.TODO(), createdBy(newUpdateRequest(t, gvr, existing, existing), "alice"))
+		assert.True(t, resp.Allowed, "an update of an existing Config: templateRef is immutable, the answer was given at create")
+	})
+	t.Run("a system template outside vela-system grants nothing: reviewed like a namespace one", func(t *testing.T) {
+		resp, reviews := admitConfig(t, false, "wf-b", "misplaced", "wf-a", availableTemplate("misplaced", "wf-a", configv1alpha1.ConfigTemplateScopeSystem))
+		assert.False(t, resp.Allowed)
+		assert.Len(t, reviews, 1)
+	})
+	t.Run("a legacy ConfigMap template in vela-system is system whatever its label", func(t *testing.T) {
+		var reviews []authorizationv1.ResourceAttributes
+		cm := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: legacyconfig.TemplateConfigMapNamePrefix + "lg", Namespace: "vela-system", Labels: map[string]string{"config.oam.dev/scope": "project"}},
+			Data:       map[string]string{legacyconfig.SaveTemplateKey: templateWithRequiredUsername},
+		}
+		h := newInterceptedHandler(reviewing(false, &reviews), cm)
+		resp := h.Handle(context.TODO(), createdBy(newRequest(t, admissionv1.Create, gvr, configUsing("c", "wf-a", "lg", "vela-system")), "alice"))
+		assert.True(t, resp.Allowed, string(resp.Result.Message))
+		assert.Empty(t, reviews)
+	})
+	t.Run("a legacy ConfigMap template elsewhere is namespace-scoped: reviewed as the ConfigTemplate", func(t *testing.T) {
+		var reviews []authorizationv1.ResourceAttributes
+		cm := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: legacyconfig.TemplateConfigMapNamePrefix + "lgb", Namespace: "wf-b", Labels: map[string]string{"config.oam.dev/scope": "global"}},
+			Data:       map[string]string{legacyconfig.SaveTemplateKey: templateWithRequiredUsername},
+		}
+		h := newInterceptedHandler(reviewing(false, &reviews), cm)
+		resp := h.Handle(context.TODO(), createdBy(newRequest(t, admissionv1.Create, gvr, configUsing("c", "wf-a", "lgb", "wf-b")), "alice"))
+		assert.False(t, resp.Allowed)
+		if assert.Len(t, reviews, 1) {
+			assert.Equal(t, "configtemplates", reviews[0].Resource)
+			assert.Equal(t, "lgb", reviews[0].Name)
+		}
+	})
+	t.Run("a review the API server could not run is an error, not a denial", func(t *testing.T) {
+		h := newInterceptedHandler(interceptor.Funcs{
+			Create: func(_ context.Context, _ client.WithWatch, obj client.Object, _ ...client.CreateOption) error {
+				if _, ok := obj.(*authorizationv1.SubjectAccessReview); ok {
+					return errors.New("authorization is away")
+				}
+				return nil
+			},
+		}, availableTemplate("b", "wf-b", configv1alpha1.ConfigTemplateScopeNamespace))
+		resp := h.Handle(context.TODO(), createdBy(newRequest(t, admissionv1.Create, gvr, configUsing("c", "wf-a", "b", "wf-b")), "alice"))
+		assert.False(t, resp.Allowed)
+		assert.Equal(t, int32(http.StatusInternalServerError), resp.Result.Code)
+	})
+	t.Run("an update is not reviewed: templateRef cannot change", func(t *testing.T) {
+		var reviews []authorizationv1.ResourceAttributes
+		h := newInterceptedHandler(reviewing(false, &reviews), availableTemplate("b", "wf-b", configv1alpha1.ConfigTemplateScopeNamespace))
+		cfg := configUsing("c", "wf-a", "b", "wf-b")
+		resp := h.Handle(context.TODO(), createdBy(newUpdateRequest(t, gvr, cfg, cfg), "alice"))
+		assert.True(t, resp.Allowed, string(resp.Result.Message))
+		assert.Empty(t, reviews)
+	})
 }

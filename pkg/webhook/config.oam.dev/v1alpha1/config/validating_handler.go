@@ -33,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	legacyconfig "github.com/oam-dev/kubevela/pkg/config"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
@@ -87,12 +88,38 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.ValidationResponse(true, "")
 	}
 
+	// The access question is asked once, at create: templateRef is immutable (above), so the
+	// answer holds for the Config's lifetime.
+	creating := req.Operation == admissionv1.Create
+	templateNS := legacyconfig.TemplateRefNamespace(obj.Spec.TemplateRef)
+
 	tmpl, resolved, err := h.resolveTemplate(ctx, obj.Spec.TemplateRef)
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 	if !resolved {
+		// A template in the Config's own namespace may follow later: admission defers to
+		// the controller as before. One in another namespace may not: its scope decides who
+		// may use it, and this is the only time anyone asks, so the Config waits until the
+		// template is there to be asked about.
+		if creating && templateNS != obj.Namespace {
+			return admission.Denied(fmt.Sprintf("config template %s/%s is not available yet: a config in %s may reference a template in another namespace once it is, when its scope decides who may use it (requestUID=%s)",
+				templateNS, obj.Spec.TemplateRef.Name, obj.Namespace, req.UID))
+		}
 		return admission.ValidationResponse(true, "")
+	}
+
+	// May a Config here use that template (issue #7410 section 6)? The same namespace and a
+	// system template need no user; a namespace-scoped template elsewhere is the requesting
+	// user's to read or not, asked of the API server as that user.
+	if access := legacyconfig.AccessToTemplate(tmpl, obj.Namespace); creating && access.Review != nil {
+		allowed, err := auth.UserCan(ctx, h.Client, req.UserInfo, *access.Review)
+		if err != nil {
+			return admission.Errored(http.StatusInternalServerError, err)
+		}
+		if !allowed {
+			return admission.Denied(fmt.Sprintf("%s; %s may not (requestUID=%s)", access.Reason, req.UserInfo.Username, req.UID))
+		}
 	}
 
 	if tmpl.Sensitive && obj.Spec.Properties != nil {
@@ -136,8 +163,10 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 // resolveTemplate mirrors the Config controller's CRD-first, ConfigMap-fallback lookup.
 // resolved is false (with no error) both when the template doesn't exist yet and when a
-// ConfigTemplate CRD exists but hasn't reached Available - either way admission defers
-// to the controller, which will surface a clear error on the Config once it reconciles.
+// ConfigTemplate exists but is not usable yet (its schema not extracted: not reconciled, or
+// a parse Error) - either way admission defers to the controller, which will surface a
+// clear error on the Config once it reconciles. A system template misplaced outside
+// vela-system is usable once its schema is there, as namespace scope, so it is checked.
 func (h *ValidatingHandler) resolveTemplate(ctx context.Context, ref *configv1alpha1.ConfigTemplateReference) (*legacyconfig.ResolvedTemplate, bool, error) {
 	tmpl, waiting, err := legacyconfig.ResolveConfigTemplate(ctx, h.Client, ref)
 	switch {
