@@ -112,6 +112,8 @@ func TestEachReadKind(t *testing.T) {
 		"an item's string field":     {"each.item.region", cue.StringKind, true},
 		"a field no item has":        {"each.item.zone", cue.BottomKind, false},
 		"below the index":            {"each.index.x", cue.BottomKind, false},
+		"the key is a string":        {"each.key", cue.StringKind, true},
+		"below the key":              {"each.key.x", cue.BottomKind, false},
 		"the whole of each":          {"each", cue.BottomKind, false},
 		"a field each does not have": {"each.count", cue.BottomKind, false},
 	} {

@@ -110,4 +110,14 @@ func TestValidateWorkflowForEach(t *testing.T) {
 		require.Contains(t, errs.ToAggregate().Error(), "spec.workflow.steps[0].forEach")
 		require.Contains(t, errs.ToAggregate().Error(), "exactly one of items and from")
 	})
+	t.Run("a key is checked, and reserves the names it could generate", func(t *testing.T) {
+		app := forEachApp(`"$(source.inv.clusters)"`)
+		app.Spec.Workflow.Steps[0].ForEach.Key = []string{"name", "name"}
+		app.Spec.Workflow.Steps = append(app.Spec.Workflow.Steps, wfv1alpha1.WorkflowStep{
+			WorkflowStepBase: wfv1alpha1.WorkflowStepBase{Name: "scale-c1", Type: "t"},
+		})
+		errs := h.ValidateWorkflow(context.Background(), app).ToAggregate().Error()
+		require.Contains(t, errs, "spec.workflow.steps[0].forEach.key[1]: Duplicate value")
+		require.Contains(t, errs, "spec.workflow.steps[1].name: Invalid value: \"scale-c1\": clashes with the names forEach step scale generates")
+	})
 }

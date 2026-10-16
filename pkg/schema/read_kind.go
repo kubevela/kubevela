@@ -63,7 +63,7 @@ func ComponentReadKind(produced map[string]Produced, ref template.Reference) (cu
 }
 
 // EachReadKind is the kind of a read of the loop's iteration: each.index is an
-// int, and item, when given, is the kind at a path within each.item.
+// int, each.key a string, and item, when given, is the kind at a path within each.item.
 func EachReadKind(item func(path []string) (cue.Kind, bool), ref template.Reference) (cue.Kind, bool) {
 	if ref.Root != propexpr.EachIdent || len(ref.Path) == 0 {
 		return cue.BottomKind, false
@@ -72,6 +72,10 @@ func EachReadKind(item func(path []string) (cue.Kind, bool), ref template.Refere
 	case "index":
 		if len(ref.Path) == 1 {
 			return cue.IntKind, true
+		}
+	case "key":
+		if len(ref.Path) == 1 {
+			return cue.StringKind, true
 		}
 	case "item":
 		if item != nil {

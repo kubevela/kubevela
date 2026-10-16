@@ -73,6 +73,16 @@ spec:
                         KubeVela Application can give a single $( ) expression, resolved to the list
                         before the workflow runs.
                       x-kubernetes-preserve-unknown-fields: true
+                    key:
+                      description: |-
+                        Key names each item's steps by its value instead of its index: paths into the
+                        item whose values, joined with "-", replace the index in the step names. Each
+                        value must be a string or an integer, and the joined keys unique in the list.
+                      items:
+                        type: string
+                      maxItems: 8
+                      minItems: 1
+                      type: array
                     mode:
                       description: 'Mode is StepByStep (the default: one item at a
                         time) or DAG (every item at once).'
