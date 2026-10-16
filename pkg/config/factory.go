@@ -1014,6 +1014,11 @@ func (k *kubeConfigFactory) DeleteConfig(ctx context.Context, namespace, name st
 		if err := k.cli.Delete(ctx, &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}); err != nil && !apierrors.IsNotFound(err) {
 			return fmt.Errorf("fail to delete the config %s:%w", name, err)
 		}
+		// the Secret and outputs follow the Config through owner references; the companion
+		// properties Secret has none (it must exist before the Config), so it goes here
+		if err := DeletePropertiesSecretOf(ctx, k.cli, namespace, name); err != nil {
+			return fmt.Errorf("fail to delete the properties secret of config %s:%w", name, err)
+		}
 		return nil
 	}
 	var secret v1.Secret

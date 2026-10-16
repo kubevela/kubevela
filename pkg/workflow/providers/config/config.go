@@ -230,13 +230,28 @@ func sameSpec(got, want configv1alpha1.ConfigSpec) bool {
 		sameJSON(got.Properties, want.Properties)
 }
 
-// sameJSON compares two raw documents by value; what does not parse is compared by bytes.
+// sameJSON compares two raw documents by value, numbers as the digits written (a float64
+// would round large integers together); what does not parse is compared by bytes.
 func sameJSON(a, b *runtime.RawExtension) bool {
-	var av, bv any
-	if a != nil && b != nil && json.Unmarshal(a.Raw, &av) == nil && json.Unmarshal(b.Raw, &bv) == nil {
+	av, aok := decodeJSON(a)
+	bv, bok := decodeJSON(b)
+	if aok && bok {
 		return reflect.DeepEqual(av, bv)
 	}
 	return bytes.Equal(rawOf(a), rawOf(b))
+}
+
+func decodeJSON(r *runtime.RawExtension) (any, bool) {
+	if r == nil {
+		return nil, false
+	}
+	dec := json.NewDecoder(bytes.NewReader(r.Raw))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return nil, false
+	}
+	return v, true
 }
 
 func rawOf(r *runtime.RawExtension) []byte {
@@ -269,25 +284,34 @@ type ReadReturnVars struct {
 // ReadReturns is the read returns
 type ReadReturns = oamprovidertypes.Returns[ReadReturnVars]
 
-// Read returns the config's properties from its Secret, whichever backend wrote it. When
-// the Secret is not there but a Config of that name is still rendering, the workflow is
-// asked to wait rather than fail: a read can race a Config someone else just applied.
+// Read returns the config's properties from its Secret, whichever backend wrote it. A
+// Config of the name decides first: in Error, the step fails with the controller's reason;
+// not yet Available for its current spec, the workflow is asked to wait, so a read never
+// returns the properties of the spec before an edit, or ones a failed render left behind.
+// A Secret an Available Config has not yet shown the cache is a wait too. With no Config
+// (or no Config kind) the Secret is the legacy one and is read as it always was.
 func Read(ctx context.Context, deps Deps, nn config.NamespacedName) (map[string]any, error) {
+	crBacked := false
+	if deps.Client != nil {
+		var cfg configv1alpha1.Config
+		switch err := deps.Client.Get(ctx, client.ObjectKey{Namespace: nn.Namespace, Name: nn.Name}, &cfg); {
+		case err == nil:
+			crBacked = true
+			if cfg.Status.Phase == configv1alpha1.ConfigPhaseError {
+				return nil, renderError(&cfg)
+			}
+			if cfg.Status.Phase != configv1alpha1.ConfigPhaseAvailable || (cfg.Status.ObservedGeneration != 0 && cfg.Status.ObservedGeneration != cfg.Generation) {
+				return nil, waitFor(deps, nn.Namespace, nn.Name)
+			}
+		case !apierrors.IsNotFound(err) && !config.IsCRDTypeMissing(err):
+			return nil, err
+		}
+	}
 	content, err := deps.Factory.ReadConfig(ctx, nn.Namespace, nn.Name)
-	if err == nil {
-		return content, nil
+	if err != nil && crBacked && apierrors.IsNotFound(err) {
+		return nil, waitFor(deps, nn.Namespace, nn.Name)
 	}
-	if !apierrors.IsNotFound(err) || deps.Client == nil {
-		return nil, err
-	}
-	var cfg configv1alpha1.Config
-	if gerr := deps.Client.Get(ctx, client.ObjectKey{Namespace: nn.Namespace, Name: nn.Name}, &cfg); gerr != nil {
-		return nil, err
-	}
-	if cfg.Status.Phase == configv1alpha1.ConfigPhaseError {
-		return nil, fmt.Errorf("config %s/%s: %s", nn.Namespace, nn.Name, cfg.Status.GetCondition(condition.TypeSynced).Message)
-	}
-	return nil, waitFor(deps, nn.Namespace, nn.Name)
+	return content, err
 }
 
 // ReadConfig reads the config

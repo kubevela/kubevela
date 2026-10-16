@@ -31,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -346,7 +347,7 @@ func (r *Reconciler) applySecret(ctx context.Context, cfg *configv1alpha1.Config
 		if existing.UID != "" && !metav1.IsControlledBy(existing, cfg) && !adoptableLegacySecret(existing, cfg) {
 			return fmt.Errorf("secret %s/%s already exists and is not owned by this Config", existing.Namespace, existing.Name)
 		}
-		if existing.UID != "" && existing.Annotations[apitypes.AnnotationConfigAdoptBy] == cfg.Name {
+		if existing.UID != "" && legacyconfig.CreatedByMigration(cfg) && existing.Annotations[apitypes.AnnotationConfigAdoptBy] == cfg.Name {
 			// What the legacy config rendered, read before the render below replaces it.
 			// A list that does not parse adopts nothing; the outputs then get the refusal.
 			if refs, err := legacyconfig.ObjectReferences(existing); err == nil {
@@ -384,10 +385,12 @@ func (r *Reconciler) applySecret(ctx context.Context, cfg *configv1alpha1.Config
 // step waiting on the Config, or a user watching it, saw an Error that was never final. The
 // controller sets that owner reference itself now. The mark is the proof: writing it takes
 // write access to the Secret, which a Config author alone does not have, so a hand-made
-// Config cannot claim a Secret by name, with or without the migration label. Any other
-// Config, and any other Secret, still gets the refusal.
+// Config cannot claim a Secret by name, with or without the migration label. The Config
+// must carry that label as well: the mark goes on before the Config exists, and a Config of
+// the name created by hand in that gap must not collect it. Any other Config, and any other
+// Secret, still gets the refusal.
 func adoptableLegacySecret(existing *corev1.Secret, cfg *configv1alpha1.Config) bool {
-	if existing.Annotations[apitypes.AnnotationConfigAdoptBy] != cfg.Name || existing.Labels[apitypes.LabelConfigCatalog] != apitypes.VelaCoreConfig {
+	if !legacyconfig.CreatedByMigration(cfg) || existing.Annotations[apitypes.AnnotationConfigAdoptBy] != cfg.Name || existing.Labels[apitypes.LabelConfigCatalog] != apitypes.VelaCoreConfig {
 		return false
 	}
 	owner := metav1.GetControllerOf(existing)
@@ -400,9 +403,10 @@ func adoptableLegacyOutput(existing, desired client.Object, legacyOutputs []core
 	if metav1.GetControllerOf(existing) != nil {
 		return false
 	}
-	kind := desired.GetObjectKind().GroupVersionKind().Kind
+	gvk := desired.GetObjectKind().GroupVersionKind()
 	for _, ref := range legacyOutputs {
-		if ref.Kind == kind && ref.Namespace == desired.GetNamespace() && ref.Name == desired.GetName() {
+		gv, err := schema.ParseGroupVersion(ref.APIVersion)
+		if err == nil && gv.Group == gvk.Group && ref.Kind == gvk.Kind && ref.Namespace == desired.GetNamespace() && ref.Name == desired.GetName() {
 			return true
 		}
 	}

@@ -28,7 +28,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/types"
 	legacyconfig "github.com/oam-dev/kubevela/pkg/config"
 )
@@ -176,6 +175,7 @@ var _ = Describe("Migration parity with the running Config controller", func() {
 		markFor(before, "parity-race-cfg")
 		cfg := configFor("parity-race", "parity-race-cfg", true)
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+		DeferCleanup(func() { Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, cfg))).Should(Succeed()) })
 
 		var got configv1alpha1.Config
 		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseAvailable, &got)
@@ -198,10 +198,11 @@ var _ = Describe("Migration parity with the running Config controller", func() {
 		before, _ := seed("parity-hand", "parity-hand-cfg", false)
 		cfg := configFor("parity-hand", "parity-hand-cfg", true)
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+		// left in Error it would be rendered again every errorRetryInterval for the rest of the run
+		DeferCleanup(func() { Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, cfg))).Should(Succeed()) })
 
 		var got configv1alpha1.Config
-		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseError, &got)
-		Expect(got.Status.GetCondition(condition.TypeSynced).Message).Should(ContainSubstring("already exists and is not owned by this Config"))
+		eventuallyConfigError(ctx, client.ObjectKeyFromObject(cfg), "already exists and is not owned by this Config", &got)
 		var after corev1.Secret
 		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(before), &after)).Should(Succeed())
 		Expect(after.OwnerReferences).Should(BeEmpty())

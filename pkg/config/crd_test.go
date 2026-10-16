@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -110,6 +111,56 @@ func TestUpsertConfigCR(t *testing.T) {
 	r.JSONEq(`{"password":"q"}`, string(gotSecret.Data[DefaultPropertiesSecretKey]))
 	r.NoError(cli.Get(ctx, client.ObjectKey{Namespace: "wf-a", Name: "s"}, &got))
 	r.Equal("renamed", got.Spec.Alias)
+	r.Equal("s", gotSecret.Labels[types.LabelConfigPropertiesOf], "the companion says whose it is")
+
+	t.Run("a Secret of the companion's name that is not ours is refused, not overwritten", func(t *testing.T) {
+		r := require.New(t)
+		theirs := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "t-properties", Namespace: "wf-a"}, Data: map[string][]byte{"value": []byte("theirs")}}
+		r.NoError(cli.Create(ctx, theirs))
+		cfg, secret, err := BuildConfigCR(ConfigCRSpec{Name: "t", Namespace: "wf-a", Sensitive: true, Properties: map[string]interface{}{"password": "p"}})
+		r.NoError(err)
+		err = UpsertConfigCR(ctx, cli, cfg, secret)
+		r.Error(err)
+		r.Contains(err.Error(), "is not the properties secret of config t")
+		var after corev1.Secret
+		r.NoError(cli.Get(ctx, client.ObjectKey{Namespace: "wf-a", Name: "t-properties"}, &after))
+		r.Equal("theirs", string(after.Data["value"]))
+		r.True(apierrors.IsNotFound(cli.Get(ctx, client.ObjectKey{Namespace: "wf-a", Name: "t"}, &configv1alpha1.Config{})), "nothing written")
+	})
+
+	t.Run("a spec with no properties removes the companion of ours", func(t *testing.T) {
+		r := require.New(t)
+		plain, none, err := BuildConfigCR(ConfigCRSpec{Name: "s", Namespace: "wf-a"})
+		r.NoError(err)
+		r.Nil(none)
+		r.NoError(UpsertConfigCR(ctx, cli, plain, nil))
+		r.True(apierrors.IsNotFound(cli.Get(ctx, client.ObjectKey{Namespace: "wf-a", Name: "s-properties"}, &corev1.Secret{})), "sensitive values do not outlive the spec that needed them")
+		var got configv1alpha1.Config
+		r.NoError(cli.Get(ctx, client.ObjectKey{Namespace: "wf-a", Name: "s"}, &got))
+		r.Nil(got.Spec.PropertiesFrom)
+	})
+}
+
+func TestDeleteConfigRemovesTheCompanionSecret(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	cfg, secret, err := BuildConfigCR(ConfigCRSpec{Name: "d", Namespace: "wf-a", Sensitive: true, Properties: map[string]interface{}{"password": "p"}})
+	r.NoError(err)
+	r.NoError(UpsertConfigCR(ctx, cli, cfg, secret))
+	// a user's Secret that happens to carry another config's companion name
+	theirs := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "e-properties", Namespace: "wf-a"}, Data: map[string][]byte{"value": []byte("theirs")}}
+	r.NoError(cli.Create(ctx, theirs))
+	r.NoError(cli.Create(ctx, &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Name: "e", Namespace: "wf-a"}}))
+
+	f := NewConfigFactory(cli)
+	r.NoError(f.DeleteConfig(ctx, "wf-a", "d"))
+	r.True(apierrors.IsNotFound(cli.Get(ctx, client.ObjectKey{Namespace: "wf-a", Name: "d"}, &configv1alpha1.Config{})))
+	r.True(apierrors.IsNotFound(cli.Get(ctx, client.ObjectKey{Namespace: "wf-a", Name: "d-properties"}, &corev1.Secret{})), "the companion has no owner reference, so the delete takes it")
+
+	r.NoError(f.DeleteConfig(ctx, "wf-a", "e"))
+	var kept corev1.Secret
+	r.NoError(cli.Get(ctx, client.ObjectKey{Namespace: "wf-a", Name: "e-properties"}, &kept), "not ours: left alone")
 }
 
 func TestConfigCRExistsAndListConfigCRs(t *testing.T) {

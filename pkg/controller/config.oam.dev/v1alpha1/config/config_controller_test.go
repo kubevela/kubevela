@@ -68,6 +68,18 @@ func eventuallyConfigPhase(ctx context.Context, key client.ObjectKey, want confi
 	}, 15*time.Second, time.Second).Should(Equal(want))
 }
 
+// eventuallyConfigError waits for the Error whose Synced message says reason: an earlier,
+// transient Error (a template the cache has not seen yet) is not the one under test.
+func eventuallyConfigError(ctx context.Context, key client.ObjectKey, reason string, got *configv1alpha1.Config) {
+	Eventually(func() string {
+		Expect(k8sClient.Get(ctx, key, got)).Should(Succeed())
+		if got.Status.Phase != configv1alpha1.ConfigPhaseError {
+			return ""
+		}
+		return got.Status.GetCondition(condition.TypeSynced).Message
+	}, 15*time.Second, time.Second).Should(ContainSubstring(reason))
+}
+
 var _ = Describe("Config controller", func() {
 	ctx := context.Background()
 
@@ -86,8 +98,9 @@ var _ = Describe("Config controller", func() {
 			Spec: configv1alpha1.ConfigSpec{TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "none", Namespace: "default"}}}
 		Expect(k8sClient.Create(ctx, owner)).Should(Succeed())
 		DeferCleanup(func() { Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, owner))).Should(Succeed()) })
-		requests := r.findConfigsForSecret(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "same-name", Namespace: "default"}})
-		Expect(requests).Should(ContainElement(reconcile.Request{NamespacedName: client.ObjectKeyFromObject(owner)}), "a foreign Secret of the Config's name blocks its render; its deletion is the event")
+		Eventually(func() []reconcile.Request { // the mapper lists through the manager's cache
+			return r.findConfigsForSecret(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "same-name", Namespace: "default"}})
+		}, 15*time.Second, time.Second).Should(ContainElement(reconcile.Request{NamespacedName: client.ObjectKeyFromObject(owner)}), "a foreign Secret of the Config's name blocks its render; its deletion is the event")
 		Expect(r.findConfigsForSecret(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "other-name", Namespace: "default"}})).ShouldNot(ContainElement(reconcile.Request{NamespacedName: client.ObjectKeyFromObject(owner)}))
 	})
 
@@ -101,7 +114,7 @@ var _ = Describe("Config controller", func() {
 			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
 			return ct.Status.Phase
 		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseAvailable))
-		// Someone else's Secret of the Config's name: nothing the controller watches.
+		// Someone else's Secret of the Config's name.
 		foreign := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "cfg-blocked", Namespace: "default"}, StringData: map[string]string{"value": "someone-elses"}}
 		Expect(k8sClient.Create(ctx, foreign)).Should(Succeed())
 		cfg := &configv1alpha1.Config{
@@ -113,10 +126,9 @@ var _ = Describe("Config controller", func() {
 		}
 		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
 		var got configv1alpha1.Config
-		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseError, &got)
-		Expect(got.Status.GetCondition(condition.TypeSynced).Message).Should(ContainSubstring("already exists and is not owned by this Config"))
+		eventuallyConfigError(ctx, client.ObjectKeyFromObject(cfg), "already exists and is not owned by this Config", &got)
 
-		By("the obstacle goes away and no event reaches the Config; the retry picks it up")
+		By("the obstacle goes away: the Secret watch, or the retry, picks it up (this spec does not tell them apart)")
 		Expect(k8sClient.Delete(ctx, foreign)).Should(Succeed())
 		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseAvailable, &got)
 		var secret corev1.Secret
@@ -147,6 +159,9 @@ var _ = Describe("Config controller", func() {
 		unmarked := secret.DeepCopy()
 		unmarked.Annotations = nil
 		Expect(adoptableLegacySecret(unmarked, cfg)).Should(BeFalse(), "the migration label alone proves nothing: a Config author can set it")
+		hand := cfg.DeepCopy()
+		hand.Labels = nil
+		Expect(adoptableLegacySecret(secret, hand)).Should(BeFalse(), "the mark alone is not enough either: a Config made by hand in the gap before migration's Create must not collect it")
 		plain := secret.DeepCopy()
 		plain.Labels = nil
 		Expect(adoptableLegacySecret(plain, cfg)).Should(BeFalse(), "no catalog label: not a config Secret")

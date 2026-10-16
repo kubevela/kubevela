@@ -538,6 +538,18 @@ var _ = Describe("Test the config provider", func() {
 		Expect(err).Should(HaveOccurred())
 		Expect(err.Error()).Should(ContainSubstring("template default/x not found"))
 
+		By("Available, but for the previous spec: the read waits rather than returning what that spec rendered")
+		setStatus(ctx, "rendering", configv1alpha1.ConfigPhaseAvailable, "")
+		var stale configv1alpha1.Config
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "rendering"}, &stale)).Should(Succeed())
+		stale.Spec.Properties = rawJSON(`{"a":2}`)
+		Expect(k8sClient.Update(ctx, &stale)).Should(Succeed())
+		act = &mock.Action{}
+		content, err = Read(ctx, depsWith(factory, act), config.NamespacedName{Namespace: "default", Name: "rendering"})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(content).Should(BeNil())
+		Expect(act.Phase).Should(Equal("Wait"))
+
 		act = &mock.Action{}
 		_, err = Read(ctx, depsWith(factory, act), config.NamespacedName{Namespace: "default", Name: "nowhere"})
 		Expect(err).Should(HaveOccurred(), "neither backend holds it: the original not-found")
@@ -576,11 +588,17 @@ var _ = Describe("Test the config provider", func() {
 		Expect(err).ToNot(HaveOccurred())
 		names := map[string]string{}
 		for _, c := range contents {
-			names[c["name"].(string)] = c["config"].(map[string]interface{})["registry"].(string)
+			name, _ := c["name"].(string)
+			Expect(name).ShouldNot(BeEmpty(), "every listed config has a name: %v", c)
+			Expect(names).ShouldNot(HaveKey(name), "listed once")
+			properties, _ := c["config"].(map[string]interface{})
+			registry, _ := properties["registry"].(string)
+			names[name] = registry
 		}
 		Expect(names).Should(HaveKeyWithValue("cr-backed", "cr.example"))
 		Expect(names).Should(HaveKeyWithValue("legacy-only-envtest", "legacy.example"), "the legacy one is listed too")
 
+		setStatus(ctx, "cr-backed", configv1alpha1.ConfigPhaseAvailable, "") // the read trusts the Secret once the Config says it is rendered
 		content, err := Read(ctx, depsWith(factory, &mock.Action{}), config.NamespacedName{Namespace: "default", Name: "cr-backed"})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(content["registry"]).Should(Equal("cr.example"))

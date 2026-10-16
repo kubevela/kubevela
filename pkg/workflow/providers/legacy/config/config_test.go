@@ -112,9 +112,14 @@ var _ = Describe("Test the legacy config provider", func() {
 	})
 
 	It("read-config waits on the unrendered Config, list-config and delete-config reach the factory", func() {
+		// its own Config, so the spec does not lean on the create spec having run first
+		own, _, err := config.BuildConfigCR(config.ConfigCRSpec{Name: "legacy-rld", Namespace: "default", Template: &config.NamespacedName{Name: "test-plain", Namespace: "default"}, Properties: map[string]interface{}{"value": "v"}})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(k8sClient.Create(ctx, own)).Should(Succeed())
+
 		act := &mock.Action{}
 		res, err := ReadConfig(ctx, &oamprovidertypes.OAMParams[config.NamespacedName]{
-			Params:        config.NamespacedName{Namespace: "default", Name: "legacy-step"},
+			Params:        config.NamespacedName{Namespace: "default", Name: "legacy-rld"},
 			RuntimeParams: runtimeParams(act),
 		})
 		Expect(err).ToNot(HaveOccurred())
@@ -129,11 +134,11 @@ var _ = Describe("Test the legacy config provider", func() {
 		Expect(list.Configs).Should(BeEmpty(), "no controller materialised a Secret, so nothing is listed yet")
 
 		_, err = DeleteConfig(ctx, &oamprovidertypes.OAMParams[config.NamespacedName]{
-			Params:        config.NamespacedName{Namespace: "default", Name: "legacy-step"},
+			Params:        config.NamespacedName{Namespace: "default", Name: "legacy-rld"},
 			RuntimeParams: runtimeParams(&mock.Action{}),
 		})
 		Expect(err).ToNot(HaveOccurred())
-		exists, err := config.ConfigCRExists(ctx, k8sClient, "default", "legacy-step")
+		exists, err := config.ConfigCRExists(ctx, k8sClient, "default", "legacy-rld")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(exists).Should(BeFalse())
 	})

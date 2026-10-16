@@ -122,25 +122,63 @@ func BuildConfigCR(spec ConfigCRSpec) (*configv1alpha1.Config, *corev1.Secret, e
 		return cfg, nil, nil
 	}
 	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{Name: spec.Name + "-properties", Namespace: spec.Namespace},
+		ObjectMeta: metav1.ObjectMeta{Name: PropertiesSecretName(spec.Name), Namespace: spec.Namespace, Labels: map[string]string{types.LabelConfigPropertiesOf: spec.Name}},
 		Data:       map[string][]byte{DefaultPropertiesSecretKey: raw},
 	}
 	cfg.Spec.PropertiesFrom = &configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: secret.Name}}
 	return cfg, secret, nil
 }
 
+// PropertiesSecretName is the name of the companion Secret holding a sensitive Config's
+// properties.
+func PropertiesSecretName(configName string) string { return configName + "-properties" }
+
+// IsPropertiesSecretOf reports a companion Secret written for the named Config, by the CLI,
+// the workflow step or migration: the only Secret of that name they may overwrite or
+// delete. A user's own Secret that happens to carry the name is nobody's to touch.
+func IsPropertiesSecretOf(secret *corev1.Secret, configName string) bool {
+	return secret.Labels[types.LabelConfigPropertiesOf] == configName
+}
+
+// DeletePropertiesSecretOf removes the companion Secret of the named Config, if one of
+// ours stands there; a foreign Secret of the name, or none, is left alone.
+func DeletePropertiesSecretOf(ctx context.Context, cli client.Client, namespace, configName string) error {
+	var secret corev1.Secret
+	if err := cli.Get(ctx, client.ObjectKey{Namespace: namespace, Name: PropertiesSecretName(configName)}, &secret); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if !IsPropertiesSecretOf(&secret, configName) {
+		return nil
+	}
+	return client.IgnoreNotFound(cli.Delete(ctx, &secret))
+}
+
 // UpsertConfigCR creates or updates the Config and its companion Secret, if any, directly
 // through the client: the spec is replaced, so a property the caller dropped is dropped.
-// The CLI's write path.
+// The CLI's write path. A companion Secret is written only where none stands or one of
+// ours for this Config does (IsPropertiesSecretOf); a Secret of that name that is not ours
+// is refused rather than overwritten. A companion of ours left over from a sensitive spec
+// is removed when the new spec has none.
 func UpsertConfigCR(ctx context.Context, cli client.Client, cfg *configv1alpha1.Config, properties *corev1.Secret) error {
 	if properties != nil {
 		existing := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: properties.Name, Namespace: properties.Namespace}}
 		if _, err := controllerutil.CreateOrUpdate(ctx, cli, existing, func() error {
+			if existing.ResourceVersion != "" && !IsPropertiesSecretOf(existing, cfg.Name) { // stored already (a fake client sets no UID)
+				return fmt.Errorf("secret %s/%s exists and is not the properties secret of config %s", existing.Namespace, existing.Name, cfg.Name)
+			}
+			if existing.Labels == nil {
+				existing.Labels = map[string]string{}
+			}
+			for k, v := range properties.Labels {
+				existing.Labels[k] = v
+			}
 			existing.Data = properties.Data
 			return nil
 		}); err != nil {
 			return fmt.Errorf("fail to write the properties secret %s: %w", properties.Name, err)
 		}
+	} else if err := DeletePropertiesSecretOf(ctx, cli, cfg.Namespace, cfg.Name); err != nil {
+		return fmt.Errorf("fail to remove the properties secret of config %s: %w", cfg.Name, err)
 	}
 	existing := &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Name: cfg.Name, Namespace: cfg.Namespace}}
 	_, err := controllerutil.CreateOrUpdate(ctx, cli, existing, func() error {

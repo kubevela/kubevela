@@ -18,6 +18,7 @@ package config_test
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -73,9 +74,16 @@ var _ = Describe("Config workflow steps", Label("core-config"), func() {
 	}
 
 	gone := func(obj client.Object) {
-		Eventually(func() bool {
-			return apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKeyFromObject(obj), obj))
-		}, time.Minute, 2*time.Second).Should(BeTrue(), "%T %s should be gone", obj, obj.GetName())
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKeyFromObject(obj), obj)
+			if apierrors.IsNotFound(err) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			return fmt.Errorf("%T %s is still there", obj, obj.GetName())
+		}, time.Minute, 2*time.Second).Should(Succeed())
 	}
 
 	It("create-config writes a config the controller renders, read-config reads it, delete-config removes it", func() {

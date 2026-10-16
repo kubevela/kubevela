@@ -680,6 +680,12 @@ func NewDeleteConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 			}
 
 			distributionName := config.DefaultDistributionName(options.Name)
+			// Which backend holds the config, asked before anything is removed: a probe that
+			// fails must not leave the config standing without its distribution.
+			crBacked, err := config.ConfigCRExists(cmd.Context(), f.Client(), options.Namespace, options.Name)
+			if err != nil {
+				return err
+			}
 			if !options.NotRecall {
 				if err := inf.DeleteDistribution(cmd.Context(), options.Namespace, distributionName); err != nil && !errors.Is(err, config.ErrNotFoundDistribution) {
 					return err
@@ -687,13 +693,7 @@ func NewDeleteConfigCommand(f velacmd.Factory, streams util.IOStreams) *cobra.Co
 			} else {
 				// a CRD-backed config's distribution Application is owned by the Config (see
 				// config.SetDistributionOwner), so deleting the Config always recalls it - --not-recall
-				// can't be honored for these; fail rather than silently ignoring the flag. Only
-				// this branch needs to know which backend holds the config; the factory's delete
-				// routes on its own.
-				crBacked, err := config.ConfigCRExists(cmd.Context(), f.Client(), options.Namespace, options.Name)
-				if err != nil {
-					return err
-				}
+				// can't be honored for these; fail rather than silently ignoring the flag.
 				if crBacked {
 					switch err := f.Client().Get(cmd.Context(), client.ObjectKey{Namespace: options.Namespace, Name: distributionName}, &v1beta1.Application{}); {
 					case err == nil:
