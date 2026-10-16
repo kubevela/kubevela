@@ -28,6 +28,7 @@ import (
 	velaclient "github.com/kubevela/pkg/controller/client"
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/meta"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/profiling"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -58,6 +59,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	webhookcerts "github.com/oam-dev/kubevela/pkg/webhook/certs"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -98,6 +100,10 @@ func NewCoreCommand() *cobra.Command {
 }
 
 func run(ctx context.Context, s *options.CoreOptions) error {
+	// restartForNewCA cancels this context to restart vela-core.
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
+
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = types.KubeVelaName + "/" + version.GitRevision
 	restConfig.QPS = float32(s.QPS)
@@ -121,8 +127,47 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 	)
 	go profiling.StartProfilingServer(nil)
 
+	// The serving certs that vela-core manages share one uncached client. A
+	// cache would watch every Secret in the cluster, so the client has none.
+	webhookCerts := s.UseWebhook && s.WebhookTLSSecret != ""
+	gatewayCerts := s.EnableClusterGateway && s.ClusterGatewayTLSSecret != ""
+	var certClient ctrlclient.Client
+	if webhookCerts || gatewayCerts {
+		c, err := ctrlclient.New(restConfig, ctrlclient.Options{Scheme: common.Scheme})
+		if err != nil {
+			return errors.Wrap(err, "failed to create client for serving cert setup")
+		}
+		certClient = c
+	}
+	var webhookTLS webhookcerts.Options
+	if webhookCerts {
+		var err error
+		if webhookTLS, err = webhookTLSOptions(s); err != nil {
+			return err
+		}
+		// resyncWebhookTLS sets the failurePolicy later. If the policy changes to
+		// Fail before the webhook server listens, the API server rejects every
+		// request until the server starts.
+		if err = retryStartup(ctx, "webhook TLS", func(ctx context.Context) error {
+			return ensureWebhookTLS(ctx, certClient, webhookTLS, s.CertDir, false)
+		}); err != nil {
+			klog.ErrorS(err, "Failed to set up webhook TLS")
+			return err
+		}
+	}
+
 	// wrapper the round tripper by multi cluster rewriter
 	if s.EnableClusterGateway {
+		if gatewayCerts {
+			// Run this before multicluster.Initialize, which waits for the
+			// APIService to become Available. On Kubernetes 1.36 and later, the
+			// APIService is never Available without a valid caBundle.
+			if err := startClusterGatewayTLS(ctx, certClient, s.ClusterGatewayTLSSecret, s.ClusterGatewayService,
+				&pkgmulticluster.DefaultClusterGatewayClientOptions, restartForNewCA(stop)); err != nil {
+				klog.ErrorS(err, "Failed to set up cluster-gateway TLS")
+				return err
+			}
+		}
 		client, err := multicluster.Initialize(restConfig, true)
 		if err != nil {
 			klog.ErrorS(err, "failed to enable multi-cluster capability")
@@ -182,6 +227,11 @@ func run(ctx context.Context, s *options.CoreOptions) error {
 	if err != nil {
 		klog.ErrorS(err, "Unable to create a controller manager")
 		return err
+	}
+
+	if webhookCerts {
+		started := mgr.GetWebhookServer().StartedChecker()
+		go resyncWebhookTLS(ctx, certClient, webhookTLS, s.CertDir, func() bool { return started(nil) == nil })
 	}
 
 	if err := registerHealthChecks(mgr); err != nil {

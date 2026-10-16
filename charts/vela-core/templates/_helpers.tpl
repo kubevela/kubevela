@@ -77,3 +77,79 @@ systemDefinitionNamespace value defaulter
     {{ .Release.Namespace }}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Returns "true" when vela-core manages the admission webhook serving cert
+itself (--webhook-tls-secret). The alternatives are cert-manager and a Secret
+that the user supplies.
+*/}}
+{{- define "kubevela.webhookRuntimeCerts" -}}
+{{- if and .Values.admissionWebhooks.enabled .Values.admissionWebhooks.patch.enabled (not .Values.admissionWebhooks.certManager.enabled) -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+Returns "true" when the chart manages the cluster-gateway APIService: the
+APIService does not exist yet, or a Helm release created it. An APIService
+without Helm annotations belongs to an external controller, and the chart does
+not touch it.
+*/}}
+{{- define "kubevela.clusterGatewayAPIServiceManaged" -}}
+{{- $apiSvc := lookup "apiregistration.k8s.io/v1" "APIService" "" "v1alpha1.cluster.core.oam.dev" -}}
+{{- if or (not $apiSvc) (dig "metadata" "annotations" "meta.helm.sh/release-name" "" $apiSvc) -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+Returns "true" when vela-core manages the cluster-gateway serving cert itself
+(--cluster-gateway-tls-secret). The alternative is cert-manager.
+*/}}
+{{- define "kubevela.clusterGatewayRuntimeCerts" -}}
+{{- if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled (not .Values.multicluster.clusterGateway.secureTLS.certManager.enabled) -}}true{{- end -}}
+{{- end -}}
+
+{{/*
+Returns the webhooks of an existing webhook configuration as JSON, keyed by
+webhook name. Takes a dict of "kind" and "name" (the configuration).
+*/}}
+{{- define "kubevela.existingWebhooks" -}}
+{{- $hooks := dict -}}
+{{- $existing := lookup "admissionregistration.k8s.io/v1" .kind "" .name -}}
+{{- if $existing -}}
+{{- range $existing.webhooks -}}{{- $_ := set $hooks .name . -}}{{- end -}}
+{{- end -}}
+{{- toJson $hooks -}}
+{{- end -}}
+
+{{/*
+Renders the caBundle line of one webhook. Takes a dict of "root", "hooks"
+(from kubevela.existingWebhooks) and "name" (the webhook). It keeps a valid
+caBundle that is already in the cluster, so that an upgrade does not break
+admission. When vela-core manages the cert, it renders no placeholder, because
+vela-core sets the caBundle at startup.
+*/}}
+{{- define "kubevela.webhookCABundle" -}}
+{{- $ca := dig .name "clientConfig" "caBundle" "" .hooks -}}
+{{- if include "kubevela.webhookRuntimeCerts" .root -}}
+{{- if and $ca (ne $ca "Cg==") }}caBundle: {{ $ca }}{{ end -}}
+{{- else -}}
+caBundle: {{ default "Cg==" $ca }}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Renders the failurePolicy line of one webhook. Takes a dict of "root", "hooks",
+"name" and "policy". "policy" applies when the chart does not patch the
+webhooks. With patching on, webhooks start as Ignore until the caBundle is set.
+When vela-core manages the cert, vela-core then sets
+admissionWebhooks.failurePolicy. Thus the chart keeps the live policy on
+upgrade.
+*/}}
+{{- define "kubevela.webhookFailurePolicy" -}}
+{{- $live := dig .name "failurePolicy" "" .hooks -}}
+{{- if and (include "kubevela.webhookRuntimeCerts" .root) $live -}}
+failurePolicy: {{ $live }}
+{{- else if .root.Values.admissionWebhooks.patch.enabled -}}
+failurePolicy: Ignore
+{{- else -}}
+failurePolicy: {{ .policy }}
+{{- end -}}
+{{- end -}}
