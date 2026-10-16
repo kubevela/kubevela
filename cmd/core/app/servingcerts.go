@@ -147,7 +147,7 @@ func setupClusterGatewayTLS(ctx context.Context, c ctrlclient.Client, namespace,
 
 // clusterGatewayTLSResync returns the periodic check for the cluster-gateway
 // cert. The direct-mode client reads its CA only once, when vela-core builds
-// the client. Thus, if the CA changes, vela-core restarts to trust the new CA.
+// the client. Thus, if the CA set changes, vela-core restarts to load it.
 // A serving cert renewal with the same CA is the usual case. It does not need
 // a restart.
 func clusterGatewayTLSResync(c ctrlclient.Client, namespace, name string, svc *servingcert.Service, caFile string,
@@ -158,7 +158,9 @@ func clusterGatewayTLSResync(c ctrlclient.Client, namespace, name string, svc *s
 			klog.ErrorS(err, "Failed to resync the cluster-gateway serving cert")
 			return
 		}
-		if caFile != "" && !servingcert.Covers(trusted, bundle) {
+		// Restart when the CA set changes in either direction: a new CA must be
+		// trusted, and a CA dropped after the overlap must stop being trusted.
+		if caFile != "" && (!servingcert.Covers(trusted, bundle) || !servingcert.Covers(bundle, trusted)) {
 			restart()
 		}
 	}

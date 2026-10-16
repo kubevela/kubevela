@@ -139,6 +139,19 @@ var _ = Describe("setupClusterGatewayTLS", func() {
 			Expect(servingcert.Covers(written, secretCA())).To(BeTrue(), "the CA file trusts the new CA")
 		})
 
+		It("restarts in direct mode when a CA stops being trusted", func() {
+			caFile := filepath.Join(GinkgoT().TempDir(), "ca")
+			bundle, err := setupClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecretName, nil, caFile)
+			Expect(err).NotTo(HaveOccurred())
+			retired, err := servingcert.Generate([]string{"retired"}, time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+			Expect(err).NotTo(HaveOccurred())
+			// The client was built while it also trusted a CA that is now gone.
+			trusted := append(append([]byte{}, bundle...), retired[servingcert.CAKey]...)
+
+			clusterGatewayTLSResync(c, testGatewayNamespace, testGatewaySecretName, nil, caFile, trusted, restart)(ctx)
+			Expect(atomic.LoadInt32(&restarts)).To(Equal(int32(1)))
+		})
+
 		It("does not restart for the aggregator path", func() {
 			trusted, err := setupClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecretName, nil, "")
 			Expect(err).NotTo(HaveOccurred())
@@ -146,6 +159,10 @@ var _ = Describe("setupClusterGatewayTLS", func() {
 
 			clusterGatewayTLSResync(c, testGatewayNamespace, testGatewaySecretName, nil, "", trusted, restart)(ctx)
 			Expect(atomic.LoadInt32(&restarts)).To(BeZero())
+
+			apiService := &apiregistrationv1.APIService{}
+			Expect(c.Get(ctx, ctrlclient.ObjectKey{Name: multicluster.ClusterGatewayAPIServiceName}, apiService)).To(Succeed())
+			Expect(servingcert.Covers(apiService.Spec.CABundle, secretCA())).To(BeTrue(), "the resync set the new CA on the APIService")
 		})
 	})
 })

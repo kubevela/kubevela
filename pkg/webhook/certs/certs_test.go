@@ -215,6 +215,28 @@ func TestEnsure(t *testing.T) {
 		require.Equal(t, int32(443), *cc.Service.Port)
 		require.Equal(t, []string{"v1beta1", "v1alpha2"}, crd.Spec.Conversion.Webhook.ConversionReviewVersions)
 	})
+
+	t.Run("does not update the CRD conversion webhook on a second run", func(t *testing.T) {
+		crdUpdates := 0
+		base := fake.NewClientBuilder().WithScheme(testScheme(t)).
+			WithObjects(testMutating(), testValidating(), testApplicationCRD()).Build()
+		c := &hookClient{Client: base, update: func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+			if _, ok := obj.(*apiextensionsv1.CustomResourceDefinition); ok {
+				crdUpdates++
+			}
+			return base.Update(ctx, obj, opts...)
+		}}
+		opts := testOptions()
+		opts.ConversionCRDs = []string{testCRD}
+
+		_, err := Ensure(ctx, c, opts)
+		require.NoError(t, err)
+		require.Equal(t, 1, crdUpdates)
+
+		_, err = Ensure(ctx, c, opts)
+		require.NoError(t, err)
+		require.Equal(t, 1, crdUpdates, "a second run must not update the CRD")
+	})
 }
 
 func TestWriteFiles(t *testing.T) {

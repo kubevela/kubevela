@@ -62,8 +62,8 @@ type CoreOptions struct {
 	EnableClusterMetrics       bool
 	ClusterMetricsInterval     time.Duration
 	// WebhookTLSSecret is the <namespace>/<name> of the Secret that holds the
-	// webhook serving cert. If it is set, vela-core creates or renews the cert at
-	// startup. vela-core writes the cert to CertDir and sets the caBundle of the
+	// webhook serving cert. If it is set and UseWebhook is true, vela-core
+	// creates or renews the cert at startup. vela-core writes the cert to CertDir and sets the caBundle of the
 	// webhook configurations.
 	WebhookTLSSecret string
 	// WebhookConfigurationName is the name of the MutatingWebhookConfiguration
@@ -76,9 +76,10 @@ type CoreOptions struct {
 	// points at its webhook Service.
 	WebhookConversionCRDs []string
 	// ClusterGatewayTLSSecret is the <namespace>/<name> of the Secret that holds
-	// the cluster-gateway serving cert. If it is set, vela-core creates or
-	// renews the cert at startup. vela-core writes the CA into the
-	// cluster-gateway APIService.
+	// the cluster-gateway serving cert. If it is set and EnableClusterGateway is
+	// true, vela-core creates or renews the cert at startup. vela-core writes
+	// the CA into the cluster-gateway APIService when the APIService points at
+	// ClusterGatewayService.
 	ClusterGatewayTLSSecret string
 	// ClusterGatewayService is the <namespace>/<name> of the Service that the
 	// cluster-gateway serving cert is for. vela-core sets the APIService
@@ -131,7 +132,7 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	gfs.BoolVar(&s.UseWebhook, "use-webhook", s.UseWebhook, "Enable Admission Webhook")
 	gfs.StringVar(&s.CertDir, "webhook-cert-dir", s.CertDir, "Admission webhook cert/key dir.")
 	gfs.StringVar(&s.WebhookTLSSecret, "webhook-tls-secret", s.WebhookTLSSecret,
-		"The <namespace>/<name> of the Secret that holds the webhook serving cert. If you set it, vela-core creates or renews the cert at startup. vela-core writes the cert to --webhook-cert-dir and sets the caBundle of --webhook-configuration. If it is empty (the default), cert-manager or another tool must supply the cert.")
+		"The <namespace>/<name> of the Secret that holds the webhook serving cert. Requires --use-webhook. If you set it, vela-core creates or renews the cert at startup. vela-core writes the cert to --webhook-cert-dir and sets the caBundle of --webhook-configuration. If it is empty (the default), cert-manager or another tool must supply the cert.")
 	gfs.StringVar(&s.WebhookConfigurationName, "webhook-configuration", s.WebhookConfigurationName,
 		"The name of the MutatingWebhookConfiguration and the ValidatingWebhookConfiguration. vela-core sets their caBundle. Use with --webhook-tls-secret.")
 	gfs.StringVar(&s.WebhookFailurePolicy, "webhook-failure-policy", s.WebhookFailurePolicy,
@@ -163,7 +164,7 @@ func (s *CoreOptions) Flags() cliflag.NamedFlagSets {
 	gfs.BoolVar(&s.EnableClusterMetrics, "enable-cluster-metrics", s.EnableClusterMetrics, "Enable cluster-metrics-management to collect metrics from clusters with cluster-gateway, disabled by default. When this param is enabled, enable-cluster-gateway should be enabled")
 	gfs.DurationVar(&s.ClusterMetricsInterval, "cluster-metrics-interval", s.ClusterMetricsInterval, "The interval that ClusterMetricsMgr will collect metrics from clusters, default value is 15 seconds.")
 	gfs.StringVar(&s.ClusterGatewayTLSSecret, "cluster-gateway-tls-secret", s.ClusterGatewayTLSSecret,
-		"The <namespace>/<name> of the Secret that holds the cluster-gateway serving cert. If you set it, vela-core creates or renews the cert at startup and sets the caBundle of the cluster-gateway APIService. If it is empty (the default), cert-manager or another tool must supply the cert.")
+		"The <namespace>/<name> of the Secret that holds the cluster-gateway serving cert. Requires --enable-cluster-gateway. If you set it, vela-core creates or renews the cert at startup and sets the caBundle of the cluster-gateway APIService when the APIService points at --cluster-gateway-service. If it is empty (the default), cert-manager or another tool must supply the cert.")
 	gfs.StringVar(&s.ClusterGatewayService, "cluster-gateway-service", s.ClusterGatewayService,
 		"The <namespace>/<name> of the cluster-gateway Service that the serving cert is for. Use with --cluster-gateway-tls-secret. vela-core sets the APIService caBundle only when the APIService points at this Service. If it is empty, vela-core uses the Service of the APIService.")
 

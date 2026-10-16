@@ -174,6 +174,34 @@ func TestEnsureClusterGatewayTLS(t *testing.T) {
 		require.Equal(t, ca, getGatewayAPIService(t, c).Spec.CABundle)
 	})
 
+	t.Run("trusts the new CA after replacing the CA of an expiring Job Secret", func(t *testing.T) {
+		data, err := servingcert.Generate(testGatewaySvc.RequiredHosts(), time.Now().Add(-time.Hour), time.Now().Add(7*24*time.Hour))
+		require.NoError(t, err)
+		delete(data, servingcert.CAKeyKey)
+		oldCA := data[servingcert.CAKey]
+		existing := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: testGatewaySecret, Namespace: testGatewayNamespace}, Data: data}
+		c := fake.NewClientBuilder().WithScheme(velacommon.Scheme).
+			WithObjects(testGatewayAPIService(oldCA, false), existing).Build()
+
+		bundle, err := EnsureClusterGatewayTLS(ctx, c, testGatewayNamespace, testGatewaySecret, nil)
+		require.NoError(t, err)
+
+		newCA := getGatewaySecret(t, c).Data[servingcert.CAKey]
+		require.NotEqual(t, oldCA, newCA)
+		require.True(t, servingcert.Covers(bundle, newCA), "the bundle trusts the new CA")
+		require.True(t, servingcert.Covers(bundle, oldCA), "and the old CA during the overlap")
+		require.Equal(t, bundle, getGatewayAPIService(t, c).Spec.CABundle)
+	})
+
+	t.Run("does not set the caBundle of an APIService that no longer points at the Service", func(t *testing.T) {
+		retargeted := testGatewayAPIService([]byte("external-ca"), false)
+		retargeted.Spec.Service.Name = "some-other-gateway"
+		c := fake.NewClientBuilder().WithScheme(velacommon.Scheme).WithObjects(retargeted).Build()
+
+		require.NoError(t, ensureClusterGatewayCABundle(ctx, c, []byte("new-ca"), testGatewaySvc))
+		require.Equal(t, []byte("external-ca"), getGatewayAPIService(t, c).Spec.CABundle)
+	})
+
 	t.Run("fails when the APIService does not exist", func(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(velacommon.Scheme).Build()
 
