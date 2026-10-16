@@ -178,7 +178,7 @@ func TestEnsureClusterGatewayTLS(t *testing.T) {
 		require.Equal(t, ca, getGatewayAPIService(t, c).Spec.CABundle)
 	})
 
-	t.Run("trusts the new CA after replacing the CA of an expiring Job Secret", func(t *testing.T) {
+	t.Run("trusts the new CA after replacing a Job Secret that has no CA key", func(t *testing.T) {
 		data, err := servingcert.Generate(testGatewaySvc.RequiredHosts(), time.Now().Add(-time.Hour), time.Now().Add(7*24*time.Hour))
 		require.NoError(t, err)
 		delete(data, servingcert.CAKeyKey)

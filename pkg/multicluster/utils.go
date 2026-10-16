@@ -44,14 +44,14 @@ import (
 const (
 	// ClusterLocalName specifies the local cluster
 	ClusterLocalName = pkgmulticluster.Local
+
+	// ClusterGatewayAPIServiceName the name of the APIService that serves cluster-gateway
+	ClusterGatewayAPIServiceName = "v1alpha1.cluster.core.oam.dev"
 )
 
 var (
 	// ClusterGatewaySecretNamespace the namespace where cluster-gateway secret locates
 	ClusterGatewaySecretNamespace = "vela-system"
-
-	// ClusterGatewayAPIServiceName the name of the APIService that serves cluster-gateway
-	ClusterGatewayAPIServiceName = v1alpha1.SchemeGroupVersion.Version + "." + v1alpha1.SchemeGroupVersion.Group
 )
 
 // ClusterNameInContext extract cluster name from context
