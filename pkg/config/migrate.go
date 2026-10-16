@@ -68,7 +68,6 @@ const (
 	reasonSourceCacheEntry  = "source cache entry managed by the controller"
 	migrateOptOutValue      = "false"
 	propertiesSecretSuffix  = "-properties"
-	propertiesSecretKey     = "properties"
 	kindConfigMap           = "ConfigMap"
 	kindSecret              = "Secret"
 )
@@ -449,7 +448,10 @@ func optedOut(obj metav1.Object) bool {
 	return obj.GetAnnotations()[types.AnnotationConfigMigrate] == migrateOptOutValue
 }
 
-func createdByMigration(obj metav1.Object) bool {
+// CreatedByMigration reports an object the migration library created: a Config or
+// ConfigTemplate standing for a legacy object. The Config controller and the workflow
+// step read it to tell such a Config from one a user wrote by hand.
+func CreatedByMigration(obj metav1.Object) bool {
 	return obj.GetLabels()[types.LabelConfigCreatedBy] == types.ConfigCreatedByMigration
 }
 
@@ -480,7 +482,7 @@ func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.Conf
 	existing := &configv1alpha1.ConfigTemplate{}
 	switch err := m.cli.Get(ctx, client.ObjectKey{Namespace: cm.Namespace, Name: name}, existing); {
 	case err == nil:
-		if !createdByMigration(existing) {
+		if !CreatedByMigration(existing) {
 			finish(MigrationConflict, fmt.Sprintf("ConfigTemplate %s exists and was not created by migration", name))
 			return
 		}
@@ -562,7 +564,7 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 	existing := &configv1alpha1.Config{}
 	switch err := m.cli.Get(ctx, client.ObjectKeyFromObject(secret), existing); {
 	case err == nil:
-		if !createdByMigration(existing) {
+		if !CreatedByMigration(existing) {
 			finish(MigrationConflict, fmt.Sprintf("Config %s exists and was not created by migration", secret.Name))
 			return
 		}
@@ -573,7 +575,7 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		}
 		// a Config from an earlier run whose owner patches never finished
 		if !opts.DryRun {
-			refs, err := objectReferences(secret)
+			refs, err := ObjectReferences(secret)
 			if err != nil {
 				finish(MigrationFailed, err.Error())
 				return
@@ -591,7 +593,7 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		return
 	}
 
-	refs, err := objectReferences(secret)
+	refs, err := ObjectReferences(secret)
 	if err != nil {
 		finish(MigrationFailed, err.Error())
 		return
@@ -647,6 +649,12 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 // configWriterOf returns the name of the Config that wrote secret for itself: a
 // controller owner of kind Config with no migrated-to annotation on the Secret,
 // which an adopted legacy Secret always carries. "" means a legacy config.
+// IsConfigOwnerRef reports an owner reference to a config.oam.dev Config, the shape
+// adoption writes on a legacy Secret and its outputs.
+func IsConfigOwnerRef(ref metav1.OwnerReference) bool {
+	return ref.Kind == configv1alpha1.ConfigKind && ref.APIVersion == configv1alpha1.SchemeGroupVersion.String()
+}
+
 func configWriterOf(secret *corev1.Secret) string {
 	if secret.Annotations[types.AnnotationConfigMigratedTo] != "" {
 		return ""
@@ -717,7 +725,7 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 			Name: secret.Name + propertiesSecretSuffix, Namespace: secret.Namespace,
 			Labels: withMigrationLabel(nil),
 		},
-		Data: map[string][]byte{propertiesSecretKey: raw},
+		Data: map[string][]byte{DefaultPropertiesSecretKey: raw},
 	}
 	cfg.Spec.PropertiesFrom = &configv1alpha1.PropertiesReference{
 		SecretRef: configv1alpha1.SecretKeySelector{Name: propsSecret.Name},
@@ -745,7 +753,7 @@ func (m *Migrator) propertiesSecretForeign(ctx context.Context, want *corev1.Sec
 	case err != nil:
 		return false, err
 	}
-	return !createdByMigration(&existing) || !bytes.Equal(existing.Data[propertiesSecretKey], want.Data[propertiesSecretKey]), nil
+	return !CreatedByMigration(&existing) || !bytes.Equal(existing.Data[DefaultPropertiesSecretKey], want.Data[DefaultPropertiesSecretKey]), nil
 }
 
 // templateLookup is a config's template as it exists now: a CR, a legacy
@@ -788,7 +796,7 @@ func (m *Migrator) lookupTemplate(ctx context.Context, ns, name string) (templat
 // the rebinding; a ConfigMap alone is the config-first path, where the template
 // follows later.
 func (t templateLookup) block(ns, name string) *templateBlock {
-	if t.cr != nil && t.legacy != nil && !createdByMigration(t.cr) && !t.adoptedInto() {
+	if t.cr != nil && t.legacy != nil && !CreatedByMigration(t.cr) && !t.adoptedInto() {
 		return &templateBlock{MigrationConflict, fmt.Sprintf("template %s/%s: ConfigTemplate exists and was not created by migration", ns, name)}
 	}
 	if t.cr == nil && t.legacy != nil && optedOut(t.legacy) {
@@ -811,10 +819,9 @@ func (t templateLookup) sensitive() bool {
 	return t.legacy != nil && t.legacy.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue
 }
 
-// objectReferences returns the output objects recorded on a legacy config Secret.
-// A key that does not parse is an error: adoption would otherwise own the Secret
-// and let the controller overwrite the key, losing the recorded outputs for good.
-func objectReferences(secret *corev1.Secret) ([]corev1.ObjectReference, error) {
+// ObjectReferences lists the output objects a config Secret records under
+// SaveObjectReferenceKey; nil when it records none.
+func ObjectReferences(secret *corev1.Secret) ([]corev1.ObjectReference, error) {
 	content, ok := secret.Data[SaveObjectReferenceKey]
 	if !ok || len(content) == 0 {
 		return nil, nil

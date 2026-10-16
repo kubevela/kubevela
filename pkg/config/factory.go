@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	pkgtypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -266,9 +267,26 @@ type Factory interface {
 
 	ReadConfig(ctx context.Context, namespace, name string) (map[string]interface{}, error)
 	GetConfig(ctx context.Context, namespace, name string, withStatus bool) (*Config, error)
+	// ListConfigs returns the legacy configs only: the Secrets a Config CR materialises
+	// are left out, so the CLI's merged list can add the CR rows itself with their source.
 	ListConfigs(ctx context.Context, namespace, template, scope string, withStatus bool) ([]*Config, error)
+	// ListAllConfigs returns every config once, legacy or CR-backed, read from its Secret
+	// (the controller writes the same labels, annotations and input-properties key as the
+	// legacy CLI did). For callers that want the configs, not where they came from.
+	ListAllConfigs(ctx context.Context, namespace, template string) ([]*Config, error)
+	// DeleteConfig removes the config whichever backend holds it: a Config CR of that
+	// name is deleted (its Secret, outputs and distribution follow through owner
+	// references); otherwise the legacy Secret and the objects it references are removed.
 	DeleteConfig(ctx context.Context, namespace, name string) error
 	CreateOrUpdateConfig(ctx context.Context, i *Config, ns string) error
+	// ApplyConfigCR applies a Config CR and its companion properties Secret, if any,
+	// through the factory's dispatcher: in the Application controller that is the
+	// application's ResourceTracker, so the Config is garbage-collected with the app the
+	// way the legacy Secret was. The objects come from BuildConfigCR. The Secret goes in
+	// a dispatch of its own, before the Config: the application's dispatcher applies a
+	// batch in parallel, after a dry run of the whole batch, and the Config's admission
+	// webhook reads the properties Secret, which neither has created by then.
+	ApplyConfigCR(ctx context.Context, cfg *configv1alpha1.Config, properties *v1.Secret) error
 	IsExist(ctx context.Context, namespace, name string) (bool, error)
 
 	CreateOrUpdateDistribution(ctx context.Context, ns, name string, ads *CreateDistributionSpec) error
@@ -399,13 +417,10 @@ func (k *kubeConfigFactory) CreateOrUpdateConfigTemplate(ctx context.Context, ns
 		it.ConfigMap.Namespace = ns
 	}
 	applyTemplateLabels(it.ConfigMap, it.Labels)
-	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(it.ConfigMap)
+	us, err := toUnstructured(it.ConfigMap, v1.SchemeGroupVersion.WithKind("ConfigMap"))
 	if err != nil {
-		return fmt.Errorf("fail to convert configmap to unstructured: %w", err)
+		return err
 	}
-	us := &unstructured.Unstructured{Object: obj}
-	us.SetAPIVersion("v1")
-	us.SetKind("ConfigMap")
 	return k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.ApplyOption{apply.DisableUpdateAnnotation(), apply.Quiet()})
 }
 
@@ -856,13 +871,10 @@ func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config,
 		}
 	}
 
-	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(i.Secret)
+	us, err := toUnstructured(i.Secret, v1.SchemeGroupVersion.WithKind("Secret"))
 	if err != nil {
-		return fmt.Errorf("fail to convert secret to unstructured: %w", err)
+		return err
 	}
-	us := &unstructured.Unstructured{Object: obj}
-	us.SetAPIVersion("v1")
-	us.SetKind("Secret")
 
 	if err := k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.ApplyOption{apply.DisableUpdateAnnotation(), apply.Quiet()}); err != nil {
 		return fmt.Errorf("fail to apply the secret: %w", err)
@@ -883,6 +895,43 @@ func (k *kubeConfigFactory) CreateOrUpdateConfig(ctx context.Context, i *Config,
 	return nil
 }
 
+func (k *kubeConfigFactory) ApplyConfigCR(ctx context.Context, cfg *configv1alpha1.Config, properties *v1.Secret) error {
+	// The last-applied annotation stays on: the dispatcher's three-way merge then drops a
+	// property the caller removed, as the direct write does. A Config, or a properties
+	// Secret, the migration library wrote for a legacy config is nobody's in the dispatcher's
+	// eyes and is claimed; any other unowned object of the name is left to its refusal.
+	opts := []apply.ApplyOption{apply.Quiet(), apply.TakeOverIf(func(existing client.Object) bool { return CreatedByMigration(existing) })}
+	if properties != nil {
+		us, err := toUnstructured(properties, v1.SchemeGroupVersion.WithKind("Secret"))
+		if err != nil {
+			return err
+		}
+		if err := k.apiApply(ctx, []*unstructured.Unstructured{us}, opts); err != nil {
+			return fmt.Errorf("fail to apply the properties secret %s: %w", properties.Name, err)
+		}
+	}
+	us, err := toUnstructured(cfg, configv1alpha1.ConfigGroupVersionKind)
+	if err != nil {
+		return err
+	}
+	if err := k.apiApply(ctx, []*unstructured.Unstructured{us}, opts); err != nil {
+		return fmt.Errorf("fail to apply the config %s: %w", cfg.Name, err)
+	}
+	return nil
+}
+
+// toUnstructured converts a typed object for the dispatcher, with its kind set: the
+// converter leaves TypeMeta empty on an object built in code.
+func toUnstructured(obj runtime.Object, gvk schema.GroupVersionKind) (*unstructured.Unstructured, error) {
+	content, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+	if err != nil {
+		return nil, fmt.Errorf("fail to convert %s to unstructured: %w", strings.ToLower(gvk.Kind), err)
+	}
+	us := &unstructured.Unstructured{Object: content}
+	us.SetGroupVersionKind(gvk)
+	return us, nil
+}
+
 func (k *kubeConfigFactory) IsExist(ctx context.Context, namespace, name string) (bool, error) {
 	var secret v1.Secret
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
@@ -897,7 +946,7 @@ func (k *kubeConfigFactory) IsExist(ctx context.Context, namespace, name string)
 // isConfigCRDOwned reports whether secret is a Config CRD's materialized output Secret.
 func isConfigCRDOwned(secret *v1.Secret) bool {
 	for _, ref := range secret.OwnerReferences {
-		if ref.Kind == configv1alpha1.ConfigKind && ref.APIVersion == configv1alpha1.SchemeGroupVersion.String() {
+		if IsConfigOwnerRef(ref) {
 			return true
 		}
 	}
@@ -905,6 +954,17 @@ func isConfigCRDOwned(secret *v1.Secret) bool {
 }
 
 func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template, scope string, withStatus bool) ([]*Config, error) {
+	return k.listConfigSecrets(ctx, namespace, template, scope, false, withStatus)
+}
+
+func (k *kubeConfigFactory) ListAllConfigs(ctx context.Context, namespace, template string) ([]*Config, error) {
+	return k.listConfigSecrets(ctx, namespace, template, "", true, false)
+}
+
+// listConfigSecrets lists the velacore-config Secrets of a namespace as configs. The
+// Secrets a Config CR materialises carry the same labels, so only the owner reference
+// tells them apart; includeCROwned says whether they are wanted.
+func (k *kubeConfigFactory) listConfigSecrets(ctx context.Context, namespace, template, scope string, includeCROwned, withStatus bool) ([]*Config, error) {
 	var list = &v1.SecretList{}
 	requirement := fmt.Sprintf("%s=%s", types.LabelConfigCatalog, types.VelaCoreConfig)
 	if template != "" {
@@ -925,8 +985,7 @@ func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template
 	var configs []*Config
 	for i := range list.Items {
 		item := list.Items[i]
-		// CRD-materialized secrets carry the same legacy labels for compat; only the owner ref distinguishes them.
-		if isConfigCRDOwned(&item) {
+		if !includeCROwned && isConfigCRDOwned(&item) {
 			continue
 		}
 		it, err := convertSecret2Config(&item)
@@ -946,6 +1005,17 @@ func (k *kubeConfigFactory) ListConfigs(ctx context.Context, namespace, template
 }
 
 func (k *kubeConfigFactory) DeleteConfig(ctx context.Context, namespace, name string) error {
+	// A Config CR of that name takes the CR path: deleting it recalls everything it owns.
+	crBacked, err := ConfigCRExists(ctx, k.cli, namespace, name)
+	if err != nil {
+		return fmt.Errorf("fail to delete the config %s:%w", name, err)
+	}
+	if crBacked {
+		if err := k.cli.Delete(ctx, &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("fail to delete the config %s:%w", name, err)
+		}
+		return nil
+	}
 	var secret v1.Secret
 	if err := k.cli.Get(ctx, pkgtypes.NamespacedName{Namespace: namespace, Name: name}, &secret); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -1084,13 +1154,10 @@ func (k *kubeConfigFactory) CreateOrUpdateDistribution(ctx context.Context, ns, 
 			Policies: policies,
 		},
 	}
-	obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(distribution)
+	us, err := toUnstructured(distribution, v1beta1.SchemeGroupVersion.WithKind(v1beta1.ApplicationKind))
 	if err != nil {
-		return fmt.Errorf("fail to convert application to unstructured: %w", err)
+		return err
 	}
-	us := &unstructured.Unstructured{Object: obj}
-	us.SetAPIVersion(v1beta1.SchemeGroupVersion.String())
-	us.SetKind(v1beta1.ApplicationKind)
 
 	return k.apiApply(ctx, []*unstructured.Unstructured{us}, []apply.ApplyOption{apply.DisableUpdateAnnotation(), apply.Quiet()})
 }

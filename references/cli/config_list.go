@@ -172,7 +172,7 @@ func listConfigRows(ctx context.Context, cli client.Client, ns, template, mode s
 	inf := config.NewConfigFactory(cli)
 	var rows []configRow
 	if mode != configModeLegacy {
-		items, err := listConfigCRDs(ctx, cli, ns, template)
+		items, err := config.ListConfigCRs(ctx, cli, ns, template)
 		if err != nil {
 			return nil, err
 		}

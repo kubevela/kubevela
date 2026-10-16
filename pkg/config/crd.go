@@ -18,19 +18,137 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 )
+
+// DefaultPropertiesSecretKey is the key of a Config's companion properties Secret: the
+// one BuildConfigCR writes for a sensitive template and the one the controller reads
+// when spec.propertiesFrom names no key.
+const DefaultPropertiesSecretKey = "properties"
+
+// KindServed reports whether the API server serves gvk. The Config and ConfigTemplate
+// CRDs are installed separately from the controller in principle, so a writer probes
+// the kind it is about to write and falls back to the legacy storage when it is absent.
+func KindServed(mapper meta.RESTMapper, gvk schema.GroupVersionKind) bool {
+	_, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	return err == nil
+}
+
+// ConfigCRExists reports whether a Config CR with the given name exists in ns. A cluster
+// that does not serve the type counts as "no".
+func ConfigCRExists(ctx context.Context, cli client.Client, ns, name string) (bool, error) {
+	return ObjectExists(ctx, cli, client.ObjectKey{Namespace: ns, Name: name}, &configv1alpha1.Config{})
+}
+
+// ListConfigCRs lists Config CRs in ns, or everywhere when ns is "", keeping only those
+// referencing template when it is set. A cluster that does not serve the type yields no
+// items and no error.
+func ListConfigCRs(ctx context.Context, cli client.Client, ns, template string) ([]configv1alpha1.Config, error) {
+	var list configv1alpha1.ConfigList
+	var opts []client.ListOption
+	if ns != "" {
+		opts = append(opts, client.InNamespace(ns))
+	}
+	if err := cli.List(ctx, &list, opts...); err != nil {
+		if IsCRDTypeMissing(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if template == "" {
+		return list.Items, nil
+	}
+	filtered := make([]configv1alpha1.Config, 0, len(list.Items))
+	for _, c := range list.Items {
+		if c.Spec.TemplateRef != nil && c.Spec.TemplateRef.Name == template {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered, nil
+}
+
+// ConfigCRSpec is what a Config CR is built from: the CLI's create command and the
+// workflow's create-config step both describe a config this way.
+type ConfigCRSpec struct {
+	Name      string
+	Namespace string
+	// Template is the ConfigTemplate the config is made from; nil for a template-less config.
+	Template *NamespacedName
+	// Sensitive is the template's flag: the properties then go into a companion Secret
+	// rather than onto the Config, where anyone who can read Configs would see them.
+	Sensitive   bool
+	Properties  map[string]interface{}
+	Alias       string
+	Description string
+}
+
+// BuildConfigCR returns the Config CR for spec and, for a sensitive template with
+// properties, the companion Secret <name>-properties that spec.propertiesFrom points at.
+// Nothing is written; the two objects are applied by UpsertConfigCR (direct) or
+// Factory.ApplyConfigCR (through the factory's dispatcher).
+func BuildConfigCR(spec ConfigCRSpec) (*configv1alpha1.Config, *corev1.Secret, error) {
+	cfg := &configv1alpha1.Config{
+		ObjectMeta: metav1.ObjectMeta{Name: spec.Name, Namespace: spec.Namespace},
+		Spec:       configv1alpha1.ConfigSpec{Alias: spec.Alias, Description: spec.Description},
+	}
+	if spec.Template != nil && spec.Template.Name != "" {
+		cfg.Spec.TemplateRef = &configv1alpha1.ConfigTemplateReference{Name: spec.Template.Name, Namespace: spec.Template.Namespace}
+	}
+	if len(spec.Properties) == 0 {
+		return cfg, nil, nil
+	}
+	raw, err := json.Marshal(spec.Properties)
+	if err != nil {
+		return nil, nil, fmt.Errorf("fail to encode the properties of config %s: %w", spec.Name, err)
+	}
+	if !spec.Sensitive {
+		cfg.Spec.Properties = &runtime.RawExtension{Raw: raw}
+		return cfg, nil, nil
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: spec.Name + "-properties", Namespace: spec.Namespace},
+		Data:       map[string][]byte{DefaultPropertiesSecretKey: raw},
+	}
+	cfg.Spec.PropertiesFrom = &configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: secret.Name}}
+	return cfg, secret, nil
+}
+
+// UpsertConfigCR creates or updates the Config and its companion Secret, if any, directly
+// through the client: the spec is replaced, so a property the caller dropped is dropped.
+// The CLI's write path.
+func UpsertConfigCR(ctx context.Context, cli client.Client, cfg *configv1alpha1.Config, properties *corev1.Secret) error {
+	if properties != nil {
+		existing := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: properties.Name, Namespace: properties.Namespace}}
+		if _, err := controllerutil.CreateOrUpdate(ctx, cli, existing, func() error {
+			existing.Data = properties.Data
+			return nil
+		}); err != nil {
+			return fmt.Errorf("fail to write the properties secret %s: %w", properties.Name, err)
+		}
+	}
+	existing := &configv1alpha1.Config{ObjectMeta: metav1.ObjectMeta{Name: cfg.Name, Namespace: cfg.Namespace}}
+	_, err := controllerutil.CreateOrUpdate(ctx, cli, existing, func() error {
+		existing.Spec = cfg.Spec
+		return nil
+	})
+	return err
+}
 
 // IsCRDTypeMissing reports whether err means a config.oam.dev type is not served
 // by the API server or not registered in the client scheme. Dual-backend code
@@ -74,4 +192,27 @@ func SetDistributionOwner(ctx context.Context, cli client.Client, ns, configName
 		return fmt.Errorf("failed to set owner reference on distribution %s: %w", distributionName, err)
 	}
 	return nil
+}
+
+// ParseTemplateRef splits a template given as "name" or "namespace/name"; the namespace
+// defaults to vela-system, as the CLI and the workflow steps have always read it.
+func ParseTemplateRef(template string) NamespacedName {
+	ref := NamespacedName{Name: template, Namespace: types.DefaultKubeVelaNS}
+	if ns, name, ok := strings.Cut(template, "/"); ok {
+		ref.Namespace, ref.Name = ns, name
+	}
+	return ref
+}
+
+// ObjectExists reports whether obj can be read at key. Not found, and a type the cluster
+// does not serve, both count as absent.
+func ObjectExists(ctx context.Context, cli client.Client, key client.ObjectKey, obj client.Object) (bool, error) {
+	err := cli.Get(ctx, key, obj)
+	if apierrors.IsNotFound(err) || IsCRDTypeMissing(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }

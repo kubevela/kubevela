@@ -464,7 +464,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			cfg := getConfig(ns, "cfg-f")
 			Expect(cfg.Spec.Properties).Should(BeNil())
 			Expect(cfg.Spec.PropertiesFrom).Should(Equal(&configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "cfg-f-properties"}}))
-			Expect(getSecret(ns, "cfg-f-properties").Data[propertiesSecretKey]).Should(Equal(before.Data[SaveInputPropertiesKey]))
+			Expect(getSecret(ns, "cfg-f-properties").Data[DefaultPropertiesSecretKey]).Should(Equal(before.Data[SaveInputPropertiesKey]))
 		})
 
 		It("keeps the input out of the CR for a template-less config whose Secret says sensitive", func() {
@@ -485,7 +485,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			Expect(cfg.Spec.TemplateRef).Should(BeNil())
 			Expect(cfg.Spec.Properties).Should(BeNil())
 			Expect(cfg.Spec.PropertiesFrom).Should(Equal(&configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "cfg-nt-s-properties"}}))
-			Expect(getSecret(ns, "cfg-nt-s-properties").Data[propertiesSecretKey]).Should(Equal(before.Data[SaveInputPropertiesKey]))
+			Expect(getSecret(ns, "cfg-nt-s-properties").Data[DefaultPropertiesSecretKey]).Should(Equal(before.Data[SaveInputPropertiesKey]))
 		})
 
 		It("maps every legacy scope word", func() {
@@ -515,7 +515,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			Expect(cfg.Spec.Properties).Should(BeNil())
 			Expect(cfg.Spec.PropertiesFrom).Should(Equal(&configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "cfg-s-properties"}}))
 			props := getSecret(ns, "cfg-s-properties")
-			Expect(props.Data[propertiesSecretKey]).Should(Equal(before.Data[SaveInputPropertiesKey]))
+			Expect(props.Data[DefaultPropertiesSecretKey]).Should(Equal(before.Data[SaveInputPropertiesKey]))
 			Expect(props.Labels).Should(HaveKeyWithValue(types.LabelConfigCreatedBy, types.ConfigCreatedByMigration))
 			Expect(controllerOf(props).UID).Should(Equal(cfg.UID))
 			Expect(getSecret(ns, "cfg-s").Data).Should(Equal(before.Data))
@@ -773,7 +773,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			before := writeLegacyConfig(ns, "props-tpl", ns, "cfg-props")
 			foreign := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: "cfg-props" + propertiesSecretSuffix},
-				Data:       map[string][]byte{propertiesSecretKey: []byte(`{"value":"somebody else's"}`)},
+				Data:       map[string][]byte{DefaultPropertiesSecretKey: []byte(`{"value":"somebody else's"}`)},
 			}
 			Expect(k8sClient.Create(ctx, foreign)).Should(Succeed())
 
@@ -794,7 +794,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			Expect(k8sClient.Delete(ctx, foreign)).Should(Succeed())
 			ours := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: "cfg-props" + propertiesSecretSuffix, Labels: withMigrationLabel(nil)},
-				Data:       map[string][]byte{propertiesSecretKey: before.Data[SaveInputPropertiesKey]},
+				Data:       map[string][]byte{DefaultPropertiesSecretKey: before.Data[SaveInputPropertiesKey]},
 			}
 			Expect(k8sClient.Create(ctx, ours)).Should(Succeed())
 			report, err := migrator.MigrateConfig(ctx, ns, "cfg-props", MigrationOptions{})
@@ -1062,13 +1062,13 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "cluster-out"},
 			Data:       map[string][]byte{SaveObjectReferenceKey: []byte(`[{"kind":"ClusterRole","apiVersion":"rbac.authorization.k8s.io/v1","name":"x"}]`)},
 		}
-		refs, err := objectReferences(secret)
+		refs, err := ObjectReferences(secret)
 		Expect(err).Should(Succeed())
 		Expect(outputsOutside(refs, "default")).Should(Equal([]string{"ClusterRole /x"}))
-		refs, err = objectReferences(&corev1.Secret{})
+		refs, err = ObjectReferences(&corev1.Secret{})
 		Expect(err).Should(Succeed())
 		Expect(refs).Should(BeNil())
-		_, err = objectReferences(&corev1.Secret{Data: map[string][]byte{SaveObjectReferenceKey: []byte(`{not json`)}})
+		_, err = ObjectReferences(&corev1.Secret{Data: map[string][]byte{SaveObjectReferenceKey: []byte(`{not json`)}})
 		Expect(err).Should(MatchError(HavePrefix("objects-reference is not valid JSON: ")))
 	})
 
