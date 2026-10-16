@@ -5,7 +5,7 @@ kind: WorkflowStepDefinition
 metadata:
   annotations:
     custom.definition.oam.dev/category: Config Management
-    definition.oam.dev/description: List the configs
+    definition.oam.dev/description: List the configs of a template, Config-backed and legacy, each once
   name: list-config
   namespace: '{{ include "systemDefinitionNamespace" . }}'
 spec:
