@@ -29,8 +29,8 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
-	"cuelang.org/go/cue/cuecontext"
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"golang.org/x/mod/modfile"
@@ -699,8 +699,15 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) er
 }
 
 // GetBaseResourceKinds helps get resource.group string of components' base resource
-func GetBaseResourceKinds(cueStr string, mapper meta.RESTMapper) (string, error) {
-	tmpl := cuecontext.New().CompileString(cueStr + velacue.BaseTemplate)
+func GetBaseResourceKinds(ctx context.Context, cueStr string, mapper meta.RESTMapper) (string, error) {
+	tmpl, err := cuex.DefaultCompiler.Get().CompileStringWithOptions(
+		ctx,
+		cueStr+velacue.BaseTemplate,
+		cuex.DisableResolveProviderFunctions{},
+	)
+	if err != nil {
+		return "", err
+	}
 	kindValue := tmpl.LookupPath(cue.ParsePath("output.kind"))
 	kind, err := kindValue.String()
 	if err != nil {

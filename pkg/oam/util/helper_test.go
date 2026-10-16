@@ -992,6 +992,16 @@ func TestGetLatestDefinitionRevisionName(t *testing.T) {
 		defRevisionList.DeepCopyInto(list.(*v1beta1.DefinitionRevisionList))
 		return nil
 	}}
+	malformedListCli := test.MockClient{MockList: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+		defRevisionList := getMalformedComponentDefRevisionList()
+		defRevisionList.DeepCopyInto(list.(*v1beta1.DefinitionRevisionList))
+		return nil
+	}}
+	emptyVersionListCli := test.MockClient{MockList: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+		defRevisionList := getEmptyVersionComponentDefRevisionList()
+		defRevisionList.DeepCopyInto(list.(*v1beta1.DefinitionRevisionList))
+		return nil
+	}}
 
 	testcases := []struct {
 		name                    string
@@ -1052,6 +1062,24 @@ func TestGetLatestDefinitionRevisionName(t *testing.T) {
 			expectedDefRevisionName: "",
 			client:                  &traitListCli,
 			err:                     fmt.Errorf("error finding definition revision for Name: scaler-trait, Type: Trait"),
+		},
+		{
+			name:                    "Malformed Component version segment returns error not panic",
+			inputRevisionName:       "configmap-component-v1",
+			definitionName:          "configmap-component",
+			definitionType:          "Component",
+			expectedDefRevisionName: "",
+			client:                  &malformedListCli,
+			err:                     fmt.Errorf("error finding definition revision for Name: configmap-component, Type: Component"),
+		},
+		{
+			name:                    "Empty Component version segment returns error not panic",
+			inputRevisionName:       "configmap-component-v1",
+			definitionName:          "configmap-component",
+			definitionType:          "Component",
+			expectedDefRevisionName: "",
+			client:                  &emptyVersionListCli,
+			err:                     fmt.Errorf("error finding definition revision for Name: configmap-component, Type: Component"),
 		},
 	}
 	ctx := context.Background()
@@ -1219,6 +1247,36 @@ func getComponentDefRevisionList() v1beta1.DefinitionRevisionList {
 		},
 	}
 	return compRevisionList
+}
+
+func getMalformedComponentDefRevisionList() v1beta1.DefinitionRevisionList {
+	compDefRevision := componentDefinitionRevision.DeepCopy()
+	compDefRevision.Name = "configmap-component-v1.bad"
+
+	return v1beta1.DefinitionRevisionList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DefinitionRevision",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		Items: []v1beta1.DefinitionRevision{
+			*compDefRevision,
+		},
+	}
+}
+
+func getEmptyVersionComponentDefRevisionList() v1beta1.DefinitionRevisionList {
+	compDefRevision := componentDefinitionRevision.DeepCopy()
+	compDefRevision.Name = "configmap-component-"
+
+	return v1beta1.DefinitionRevisionList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "DefinitionRevision",
+			APIVersion: "core.oam.dev/v1beta1",
+		},
+		Items: []v1beta1.DefinitionRevision{
+			*compDefRevision,
+		},
+	}
 }
 
 func getTraitDefRevisionList() v1beta1.DefinitionRevisionList {
