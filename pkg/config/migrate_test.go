@@ -524,18 +524,25 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			Expect(getSecret(ns, "cfg-nt-s-properties").Data[DefaultPropertiesSecretKey]).Should(Equal(before.Data[SaveInputPropertiesKey]))
 		})
 
-		It("maps every legacy scope word", func() {
-			for word, want := range map[string]configv1alpha1.ConfigTemplateScope{
-				"system": configv1alpha1.ConfigTemplateScopeSystem,
-				"global": configv1alpha1.ConfigTemplateScopeNamespace,
-				"env":    configv1alpha1.ConfigTemplateScopeNamespace,
-			} {
+		It("writes the scope by the ConfigMap's namespace, whatever its label says", func() {
+			By("outside vela-system every legacy word, system included, adopts as namespace")
+			for _, word := range []string{"system", "global", "env", "namespace"} {
 				name := "scope-" + word
 				writeLegacyTemplate(ns, name, legacyTemplateCUE(name, word, false, ""))
 				report, err := migrator.MigrateTemplate(ctx, ns, name, MigrationOptions{})
 				Expect(err).Should(Succeed())
 				Expect(report.Count(MigrationAdopted)).Should(Equal(1))
-				Expect(getTemplateCR(ns, name).Spec.Scope).Should(Equal(want), word)
+				Expect(getTemplateCR(ns, name).Spec.Scope).Should(Equal(configv1alpha1.ConfigTemplateScopeNamespace), word)
+			}
+			By("in vela-system every legacy word adopts as system: those templates have always been used from every namespace")
+			for _, word := range []string{"namespace", "project"} {
+				name := "scope-sys-" + word
+				cm := writeLegacyTemplate(types.DefaultKubeVelaNS, name, legacyTemplateCUE(name, word, false, ""))
+				DeferCleanup(func() { Expect(k8sClient.Delete(ctx, cm)).Should(Succeed()) }) // vela-system is shared with the factory specs' counts
+				report, err := migrator.MigrateTemplate(ctx, types.DefaultKubeVelaNS, name, MigrationOptions{DryRun: true})
+				Expect(err).Should(Succeed())
+				Expect(report.Count(MigrationAdopted)).Should(Equal(1))
+				Expect(report.Results[0].Target.(*configv1alpha1.ConfigTemplate).Spec.Scope).Should(Equal(configv1alpha1.ConfigTemplateScopeSystem), "the dry run shows the scope it would write")
 			}
 		})
 
@@ -660,7 +667,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			ct, ok := report.Results[0].Target.(*configv1alpha1.ConfigTemplate)
 			Expect(ok).Should(BeTrue())
 			Expect(ct.Kind).Should(Equal("ConfigTemplate"))
-			Expect(ct.Spec.Scope).Should(Equal(configv1alpha1.ConfigTemplateScopeSystem))
+			Expect(ct.Spec.Scope).Should(Equal(configv1alpha1.ConfigTemplateScopeNamespace), "the label says system; outside vela-system the namespace decides")
 			cfg, ok := report.Results[1].Target.(*configv1alpha1.Config)
 			Expect(ok).Should(BeTrue())
 			Expect(cfg.Kind).Should(Equal("Config"))

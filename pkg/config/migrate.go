@@ -36,6 +36,7 @@ import (
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -513,10 +514,13 @@ func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.Conf
 		return
 	}
 	tmpl.Labels = withMigrationLabel(tmpl.Labels)
+	spec := configTemplateSpecFromTemplate(tmpl)
+	spec.Scope = LegacyTemplateScope(cm.Namespace) // by its namespace, not its label
+
 	ct := &configv1alpha1.ConfigTemplate{
 		TypeMeta:   metav1.TypeMeta{APIVersion: configv1alpha1.SchemeGroupVersion.String(), Kind: configv1alpha1.ConfigTemplateKind},
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: cm.Namespace},
-		Spec:       configTemplateSpecFromTemplate(tmpl),
+		Spec:       spec,
 	}
 	applyTemplateLabels(ct, tmpl.Labels)
 	res.Target = ct
@@ -781,8 +785,15 @@ type templateLookup struct {
 	legacy *corev1.ConfigMap
 }
 
-// lookupTemplate fetches both forms of the template name in ns.
+// lookupTemplate fetches both forms of the template name in ns. When the context carries a
+// user (the create-config step adopting as the Application's user) a template in vela-system
+// is read with the controller's own identity, since a system template there is usable with no
+// grant on it; a template anywhere else is the user's to read. The adoption's writes stay the
+// user's either way.
 func (m *Migrator) lookupTemplate(ctx context.Context, ns, name string) (templateLookup, error) {
+	if ns == types.DefaultKubeVelaNS {
+		ctx = auth.ContextClearUserInfo(ctx)
+	}
 	var tpl templateLookup
 	var ct configv1alpha1.ConfigTemplate
 	switch err := m.cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &ct); {
