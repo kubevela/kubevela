@@ -149,7 +149,7 @@ featureGates:
 ## @param multicluster.clusterGateway.resources.requests.memory ClusterGateway memory request
 ## @param multicluster.clusterGateway.resources.limits.cpu ClusterGateway cpu limit
 ## @param multicluster.clusterGateway.resources.limits.memory ClusterGateway memory limit
-## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS
+## @param multicluster.clusterGateway.secureTLS.enabled Whether to enable secure TLS. Unless cert-manager is enabled, vela-core generates the cluster-gateway serving cert at startup and sets the APIService caBundle
 ## @param multicluster.clusterGateway.secureTLS.certPath Path to the certificate file
 ## @param multicluster.clusterGateway.secureTLS.certManager.enabled Whether to enable cert-manager
 multicluster:
@@ -255,6 +255,17 @@ admissionWebhooks:
   failurePolicy: Fail
   certificate:
     mountPath: /etc/k8s-webhook-certs
+  # With patch.enabled on and cert-manager off, vela-core generates the webhook
+  # serving cert at startup, in the Secret <fullname>-admission. It sets the
+  # caBundle of its webhooks. When its webhook server serves requests, it also
+  # sets failurePolicy. It checks the cert and the webhooks every minute.
+  # Tools that render without cluster access (Argo CD, helm template) render
+  # failurePolicy: Ignore. For Argo CD, add an ignoreDifferences entry with
+  # jqPathExpressions: [".webhooks[].failurePolicy"]. When patch.enabled=false
+  # and cert-manager is off, supply the Secret and the caBundle yourself.
+  # Only patch.enabled is still read. image, nodeSelector, affinity and
+  # tolerations configured the removed cert Jobs and are kept so existing values
+  # files still apply.
   patch:
     enabled: true
     image:
