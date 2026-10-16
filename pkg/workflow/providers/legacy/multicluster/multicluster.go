@@ -30,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	pkgpolicy "github.com/oam-dev/kubevela/pkg/policy"
 	"github.com/oam-dev/kubevela/pkg/policy/envbinding"
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
@@ -200,7 +201,7 @@ func GetPlacementsFromTopologyPolicies(ctx context.Context, params *PoliciesPara
 	if err != nil {
 		return nil, err
 	}
-	placements, err := pkgpolicy.GetPlacementsFromTopologyPolicies(ctx, params.KubeClient, params.Appfile.Namespace, policies, true)
+	placements, err := pkgpolicy.GetPlacementsFromTopologyPolicies(ctx, params.KubeClient, params.Appfile.Namespace, policies, resourcekeeper.AllowCrossNamespaceResource)
 	if err != nil {
 		return nil, err
 	}

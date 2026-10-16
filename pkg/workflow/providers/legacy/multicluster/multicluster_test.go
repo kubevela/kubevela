@@ -35,7 +35,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
+	"github.com/oam-dev/kubevela/pkg/resourcekeeper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
@@ -393,4 +395,39 @@ func TestListClusters(t *testing.T) {
 	})
 	r.NoError(err)
 	r.Equal(clusterNames, res.Outputs.Clusters)
+}
+
+func TestGetPlacementsFromTopologyPolicies(t *testing.T) {
+	ctx := context.Background()
+	topology := v1beta1.AppPolicy{
+		Name:       "my-topology",
+		Type:       v1alpha1.TopologyPolicyType,
+		Properties: &runtime.RawExtension{Raw: []byte(`{"clusters":["local"],"namespace":"topo-ns"}`)},
+	}
+	params := func() *PoliciesParams {
+		return &PoliciesParams{
+			Params: PoliciesVars{Policies: []string{"my-topology"}},
+			RuntimeParams: oamprovidertypes.RuntimeParams{
+				KubeClient: fake.NewClientBuilder().WithScheme(common.Scheme).Build(),
+				Appfile:    &appfile.Appfile{Name: "test-app", Namespace: "default", Policies: []v1beta1.AppPolicy{topology}},
+			},
+		}
+	}
+
+	t.Run("cross namespace placement allowed", func(t *testing.T) {
+		r := require.New(t)
+		result, err := GetPlacementsFromTopologyPolicies(ctx, params())
+		r.NoError(err)
+		r.Equal([]v1alpha1.PlacementDecision{{Cluster: "local", Namespace: "topo-ns"}}, result.Placements)
+	})
+
+	t.Run("cross namespace placement rejected when not allowed", func(t *testing.T) {
+		r := require.New(t)
+		original := resourcekeeper.AllowCrossNamespaceResource
+		resourcekeeper.AllowCrossNamespaceResource = false
+		t.Cleanup(func() { resourcekeeper.AllowCrossNamespaceResource = original })
+		_, err := GetPlacementsFromTopologyPolicies(ctx, params())
+		r.Error(err)
+		r.Contains(err.Error(), "cannot cross namespace")
+	})
 }

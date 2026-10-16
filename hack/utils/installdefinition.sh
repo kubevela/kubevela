@@ -14,7 +14,7 @@ function install_defs() {
   shopt -s nullglob
   for file in *.yaml; do
     echo "Info: processing $def_path/$file"
-    sed -i.bak 's#namespace: {{ include "systemDefinitionNamespace" . }}#namespace: vela-system#g' "$file"
+    sed -i.bak 's#{{ include "systemDefinitionNamespace" . }}#vela-system#g' "$file"
     kubectl apply -f "$file" || { mv "$file.bak" "$file"; return 1; }
     mv "$file.bak" "$file"  # restore original
   done
@@ -31,6 +31,6 @@ else
   kubectl create namespace vela-system
 fi
 
-install_defs "charts/vela-core/templates/defwithtemplate"
+install_defs "charts/vela-core/definitions"
 install_defs "charts/vela-core/templates/definitions"
 install_defs "charts/vela-core/templates/velaql"

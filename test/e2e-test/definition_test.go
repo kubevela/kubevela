@@ -233,7 +233,7 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 	It("Test workflow step with legacy CUE syntax creates a ConfigMap via auto-upgrade", func() {
 		By("Install apply-object step definition")
 		_, file, _, _ := runtime.Caller(0)
-		Expect(testdef.InstallDefinitionFromYAML(ctx, k8sClient, filepath.Join(file, "../../../charts/vela-core/templates/defwithtemplate/apply-object.yaml"), func(s string) string {
+		Expect(testdef.InstallDefinitionFromYAML(ctx, k8sClient, filepath.Join(file, "../../../charts/vela-core/definitions/apply-object.yaml"), func(s string) string {
 			return strings.ReplaceAll(s, `{{ include "systemDefinitionNamespace" . }}`, namespace)
 		})).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 
@@ -325,7 +325,7 @@ parameter: {
 	It("Test notification step definition", func() {
 		By("Install notification workflow step definition")
 		_, file, _, _ := runtime.Caller(0)
-		Expect(testdef.InstallDefinitionFromYAML(ctx, k8sClient, filepath.Join(file, "../../../charts/vela-core/templates/defwithtemplate/notification.yaml"), func(s string) string {
+		Expect(testdef.InstallDefinitionFromYAML(ctx, k8sClient, filepath.Join(file, "../../../charts/vela-core/definitions/notification.yaml"), func(s string) string {
 			return strings.ReplaceAll(s, `{{ include "systemDefinitionNamespace" . }}`, "vela-system")
 		})).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 
@@ -359,9 +359,9 @@ parameter: {
 
 	Context("Definition Retrieval and CUE Parsing Validation", func() {
 		It("should successfully parse all definitions loaded from helm chart templates", func() {
-			By("Loading all definition YAML files from charts/vela-core/templates/defwithtemplate")
+			By("Loading all definition YAML files from charts/vela-core/definitions")
 			_, file, _, _ := runtime.Caller(0)
-			definitionDir := filepath.Join(file, "../../../charts/vela-core/templates/defwithtemplate")
+			definitionDir := filepath.Join(file, "../../../charts/vela-core/definitions")
 
 			files, err := filepath.Glob(filepath.Join(definitionDir, "*.yaml"))
 			Expect(err).To(BeNil())
