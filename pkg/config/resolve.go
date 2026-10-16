@@ -18,8 +18,10 @@ package config
 
 import (
 	"context"
+	"fmt"
 
 	"cuelang.org/go/cue"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -37,8 +39,12 @@ type ResolvedTemplate struct {
 	Name      string
 	Namespace string
 	CUE       script.CUE
+	// Scope is the stored value: spec.scope of a ConfigTemplate, the config.oam.dev/scope
+	// label of a legacy ConfigMap (free text there). EffectiveScope is what the rules read.
 	Scope     string
 	Sensitive bool
+	// Legacy marks a template that is still a config-template-* ConfigMap.
+	Legacy bool
 	// ExpandedWriter is the template's nacos block, read from the CUE on both paths so
 	// the controller and the webhook agree on whether a template writes to Nacos. Nil
 	// Nacos when the template has no block or its CUE does not compile; the reconciler's
@@ -46,20 +52,85 @@ type ResolvedTemplate struct {
 	ExpandedWriter writer.ExpandedWriterConfig
 }
 
-// ResolveConfigTemplate looks up the referenced template, CRD first, falling back to a
-// legacy ConfigMap. waiting is true if the ConfigTemplate CRD exists but its schema
-// hasn't reconciled yet. err is ErrTemplateNotFound if neither the CRD nor the legacy
-// ConfigMap exist.
-func ResolveConfigTemplate(ctx context.Context, cli client.Client, ref *configv1alpha1.ConfigTemplateReference) (tmpl *ResolvedTemplate, waiting bool, err error) {
-	ns := ref.Namespace
-	if ns == "" {
-		ns = apitypes.DefaultKubeVelaNS
+// EffectiveScope is the scope every reader applies, whatever the stored value says. A
+// system template lives in vela-system: a ConfigTemplate elsewhere that claims scope system
+// (it reached the cluster with the webhooks off; its controller reports Error) reads as
+// namespace, so it grants nothing beyond its own namespace. A legacy ConfigMap in vela-system
+// is system whatever its label (project, global, env and friends were never enforced and
+// those templates have always been used from every namespace); elsewhere it is namespace.
+func (t *ResolvedTemplate) EffectiveScope() configv1alpha1.ConfigTemplateScope {
+	if t.Namespace != apitypes.DefaultKubeVelaNS {
+		return configv1alpha1.ConfigTemplateScopeNamespace
 	}
+	if t.Legacy || t.Scope == string(configv1alpha1.ConfigTemplateScopeSystem) {
+		return configv1alpha1.ConfigTemplateScopeSystem
+	}
+	return configv1alpha1.ConfigTemplateScopeNamespace
+}
+
+// SystemScopeMisplaced reports a ConfigTemplate that claims scope system outside vela-system,
+// the one placement the rules forbid.
+func SystemScopeMisplaced(namespace string, scope configv1alpha1.ConfigTemplateScope) bool {
+	return scope == configv1alpha1.ConfigTemplateScopeSystem && namespace != apitypes.DefaultKubeVelaNS
+}
+
+// SystemScopePlacementError is the message every layer gives for SystemScopeMisplaced: the
+// CLI before it writes, the webhook at admission, the ConfigTemplate controller on its status.
+func SystemScopePlacementError(namespace, name string) error {
+	return fmt.Errorf("config template %s/%s: scope system is only valid in %s; a system template lives in %s and is usable from any namespace, a namespace-scoped one lives with the configs that use it",
+		namespace, name, apitypes.DefaultKubeVelaNS, apitypes.DefaultKubeVelaNS)
+}
+
+// TemplateAccess is the answer to "may a Config in fromNamespace use this template". A nil
+// Review is yes without a user: the same namespace, or a system template. Otherwise the answer
+// is the requesting user's, through the review Review names (get on the ConfigTemplate, the
+// object a user is granted, whichever backend holds the template today), with Reason as the
+// denial.
+// Only admission has a user, so only the Config webhook applies the table; the reconcilers do
+// not repeat it (the comment at the Config controller's resolve step says why).
+type TemplateAccess struct {
+	Review *authorizationv1.ResourceAttributes
+	Reason string
+}
+
+// AccessToTemplate applies the table of issue #7410 section 6.
+func AccessToTemplate(tmpl *ResolvedTemplate, fromNamespace string) TemplateAccess {
+	if tmpl.Namespace == fromNamespace || tmpl.EffectiveScope() == configv1alpha1.ConfigTemplateScopeSystem {
+		return TemplateAccess{}
+	}
+	return TemplateAccess{
+		Review: &authorizationv1.ResourceAttributes{
+			Verb:      "get",
+			Group:     configv1alpha1.Group,
+			Version:   configv1alpha1.Version,
+			Resource:  "configtemplates",
+			Namespace: tmpl.Namespace,
+			Name:      tmpl.Name,
+		},
+		Reason: fmt.Sprintf("config template %s/%s is namespace-scoped: a config in %s may use it only if its author can get it (grant get on configtemplates.%s %s in namespace %s)",
+			tmpl.Namespace, tmpl.Name, fromNamespace, configv1alpha1.Group, tmpl.Name, tmpl.Namespace),
+	}
+}
+
+// TemplateRefNamespace is the namespace a templateRef names: vela-system when it names none.
+func TemplateRefNamespace(ref *configv1alpha1.ConfigTemplateReference) string {
+	if ref.Namespace == "" {
+		return apitypes.DefaultKubeVelaNS
+	}
+	return ref.Namespace
+}
+
+// ResolveConfigTemplate looks up the referenced template, CRD first, falling back to a
+// legacy ConfigMap. waiting is true if the ConfigTemplate exists but is not usable yet
+// (templateUsable: the controller has not extracted its schema, or reported a parse
+// Error). err is ErrTemplateNotFound if neither the CRD nor the legacy ConfigMap exist.
+func ResolveConfigTemplate(ctx context.Context, cli client.Client, ref *configv1alpha1.ConfigTemplateReference) (tmpl *ResolvedTemplate, waiting bool, err error) {
+	ns := TemplateRefNamespace(ref)
 
 	var ct configv1alpha1.ConfigTemplate
 	switch err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref.Name}, &ct); {
 	case err == nil:
-		if ct.Status.Phase != configv1alpha1.ConfigTemplatePhaseAvailable {
+		if !templateUsable(&ct) {
 			return nil, true, nil
 		}
 		return &ResolvedTemplate{
@@ -89,8 +160,21 @@ func ResolveConfigTemplate(ctx context.Context, cli client.Client, ref *configv1
 		CUE:            script.CUE(cm.Data[SaveTemplateKey]),
 		Scope:          cm.Labels[apitypes.LabelConfigScope],
 		Sensitive:      cm.Annotations[apitypes.AnnotationConfigSensitive] == sensitiveAnnotationValue,
+		Legacy:         true,
 		ExpandedWriter: expandedWriterOf(ctx, script.CUE(cm.Data[SaveTemplateKey])),
 	}, false, nil
+}
+
+// templateUsable is true once the controller has extracted the template's schema: Available,
+// or Error for placement only (a system template outside vela-system keeps its schema; it
+// reads as namespace-scoped through EffectiveScope). A parse Error has no schema, so it is not
+// usable; a template the controller has not reached yet is not either.
+func templateUsable(ct *configv1alpha1.ConfigTemplate) bool {
+	if ct.Status.Phase == configv1alpha1.ConfigTemplatePhaseAvailable {
+		return true
+	}
+	return ct.Status.Phase == configv1alpha1.ConfigTemplatePhaseError &&
+		SystemScopeMisplaced(ct.Namespace, ct.Spec.Scope) && ct.Status.Schema != nil
 }
 
 // expandedWriterOf reads the nacos block of a template's CUE. The legacy ConfigMap also

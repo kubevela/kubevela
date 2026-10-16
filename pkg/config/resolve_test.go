@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -86,6 +87,41 @@ func TestResolveConfigTemplate(t *testing.T) {
 		cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(ct).Build()
 
 		tmpl, waiting, err := ResolveConfigTemplate(context.Background(), cli, &configv1alpha1.ConfigTemplateReference{Name: "pending", Namespace: "custom-ns"})
+		r.NoError(err)
+		r.True(waiting)
+		r.Nil(tmpl)
+	})
+
+	t.Run("a misplaced system template whose schema is extracted resolves, as namespace scope", func(t *testing.T) {
+		r := require.New(t)
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "misplaced", Namespace: "custom-ns"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: "template: {}", Scope: configv1alpha1.ConfigTemplateScopeSystem},
+			Status: configv1alpha1.ConfigTemplateStatus{
+				Phase:  configv1alpha1.ConfigTemplatePhaseError,
+				Schema: &runtime.RawExtension{Raw: []byte(`{}`)},
+			},
+		}
+		cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(ct).Build()
+
+		tmpl, waiting, err := ResolveConfigTemplate(context.Background(), cli, &configv1alpha1.ConfigTemplateReference{Name: "misplaced", Namespace: "custom-ns"})
+		r.NoError(err)
+		r.False(waiting)
+		r.NotNil(tmpl)
+		r.Equal(string(configv1alpha1.ConfigTemplateScopeSystem), tmpl.Scope)
+		r.Equal(configv1alpha1.ConfigTemplateScopeNamespace, tmpl.EffectiveScope())
+	})
+
+	t.Run("a misplaced system template without a schema is still waiting", func(t *testing.T) {
+		r := require.New(t)
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "misplaced-broken", Namespace: "custom-ns"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: "template: {{{", Scope: configv1alpha1.ConfigTemplateScopeSystem},
+			Status:     configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseError},
+		}
+		cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(ct).Build()
+
+		tmpl, waiting, err := ResolveConfigTemplate(context.Background(), cli, &configv1alpha1.ConfigTemplateReference{Name: "misplaced-broken", Namespace: "custom-ns"})
 		r.NoError(err)
 		r.True(waiting)
 		r.Nil(tmpl)
@@ -282,3 +318,62 @@ template: {
 	}
 }
 `
+
+func TestEffectiveScope(t *testing.T) {
+	system, namespace := configv1alpha1.ConfigTemplateScopeSystem, configv1alpha1.ConfigTemplateScopeNamespace
+	for name, tc := range map[string]struct {
+		tmpl ResolvedTemplate
+		want configv1alpha1.ConfigTemplateScope
+	}{
+		"CR system in vela-system":                      {ResolvedTemplate{Namespace: "vela-system", Scope: "system"}, system},
+		"CR namespace in vela-system stays namespace":   {ResolvedTemplate{Namespace: "vela-system", Scope: "namespace"}, namespace},
+		"CR system outside vela-system reads namespace": {ResolvedTemplate{Namespace: "wf-a", Scope: "system"}, namespace},
+		"CR namespace elsewhere":                        {ResolvedTemplate{Namespace: "wf-a", Scope: "namespace"}, namespace},
+		"legacy in vela-system, whatever the label":     {ResolvedTemplate{Namespace: "vela-system", Scope: "project", Legacy: true}, system},
+		"legacy in vela-system labelled namespace":      {ResolvedTemplate{Namespace: "vela-system", Scope: "namespace", Legacy: true}, system},
+		"legacy elsewhere labelled global":              {ResolvedTemplate{Namespace: "wf-b", Scope: "global", Legacy: true}, namespace},
+		"legacy elsewhere labelled system":              {ResolvedTemplate{Namespace: "wf-b", Scope: "system", Legacy: true}, namespace},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tc.want, tc.tmpl.EffectiveScope())
+		})
+	}
+}
+
+func TestSystemScopeMisplaced(t *testing.T) {
+	r := require.New(t)
+	r.True(SystemScopeMisplaced("wf-a", configv1alpha1.ConfigTemplateScopeSystem))
+	r.False(SystemScopeMisplaced("vela-system", configv1alpha1.ConfigTemplateScopeSystem))
+	r.False(SystemScopeMisplaced("wf-a", configv1alpha1.ConfigTemplateScopeNamespace))
+	r.Contains(SystemScopePlacementError("wf-a", "t").Error(), "config template wf-a/t: scope system is only valid in vela-system")
+}
+
+func TestAccessToTemplate(t *testing.T) {
+	r := require.New(t)
+	same := AccessToTemplate(&ResolvedTemplate{Name: "a", Namespace: "wf-a", Scope: "namespace"}, "wf-a")
+	r.Nil(same.Review, "the same namespace needs no user")
+
+	system := AccessToTemplate(&ResolvedTemplate{Name: "s", Namespace: "vela-system", Scope: "system"}, "wf-a")
+	r.Nil(system.Review, "a system template is usable from any namespace")
+
+	legacySystem := AccessToTemplate(&ResolvedTemplate{Name: "l", Namespace: "vela-system", Scope: "project", Legacy: true}, "wf-a")
+	r.Nil(legacySystem.Review, "a legacy template in vela-system is system whatever its label")
+
+	cross := AccessToTemplate(&ResolvedTemplate{Name: "b", Namespace: "wf-b", Scope: "namespace"}, "wf-a")
+	r.NotNil(cross.Review)
+	r.NotNil(cross.Review)
+	r.Equal("get", cross.Review.Verb)
+	r.Equal("config.oam.dev", cross.Review.Group)
+	r.Equal("configtemplates", cross.Review.Resource)
+	r.Equal("wf-b", cross.Review.Namespace)
+	r.Equal("b", cross.Review.Name)
+	r.Contains(cross.Reason, "config template wf-b/b is namespace-scoped")
+	r.Contains(cross.Reason, "grant get on configtemplates.config.oam.dev b in namespace wf-b")
+
+	misplaced := AccessToTemplate(&ResolvedTemplate{Name: "m", Namespace: "wf-a", Scope: "system"}, "wf-b")
+	r.NotNil(misplaced.Review, "system outside vela-system grants nothing beyond its namespace")
+
+	legacyCross := AccessToTemplate(&ResolvedTemplate{Name: "lb", Namespace: "wf-b", Scope: "global", Legacy: true}, "wf-a")
+	r.NotNil(legacyCross.Review)
+	r.Equal("configtemplates", legacyCross.Review.Resource, "the review names the template the user would be granted, not the ConfigMap")
+}
