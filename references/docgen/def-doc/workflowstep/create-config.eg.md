@@ -23,8 +23,8 @@ spec:
       properties:
         name: test
       outputs:
-      - fromKey: config
-        name: read-config
+      - name: read-config
+        valueFrom: output.config
     - name: delete-config
       type: delete-config
       properties:
