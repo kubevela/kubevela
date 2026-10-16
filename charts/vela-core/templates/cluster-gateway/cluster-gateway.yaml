@@ -152,8 +152,10 @@ spec:
   - Fresh install: generate a CA and a serving certificate.
   - Upgrade: reuse the existing Secret (found via lookup) so certificates do not rotate on
     every `helm upgrade`, and keep the existing valid caBundle.
-  - A Secret that exists but is not owned by Helm (created by the legacy tls-secret-create
-    Job) is reused as it is and not rendered again, because Helm cannot adopt it.
+  - A Secret that exists but is not owned by this Helm release (created by the legacy
+    tls-secret-create Job, say) is reused as it is and not rendered again, because Helm
+    cannot adopt it. It must have the keys ca, tls.crt and tls.key; otherwise (a cert-manager
+    Secret only has ca.crt) the render fails with a message to delete it.
   - `helm template` and tools without cluster access cannot run lookup, so they render
     fresh certificates. Set multicluster.clusterGateway.secureTLS.generateCerts=false to
     use the legacy Job based flow there.
@@ -169,25 +171,29 @@ spec:
 {{- $renderTLSSecret := true }}
 {{- if $generateTLS }}
   {{- $tlsSecret := lookup "v1" "Secret" .Release.Namespace $tlsSecretName }}
-  {{- if and $tlsSecret $tlsSecret.data }}
-    {{- /* The controller reads the CA from the "ca" key, cert-manager style consumers from "ca.crt". */}}
-    {{- $tlsCA = (index $tlsSecret.data "ca") | default (index $tlsSecret.data "ca.crt") | default "" }}
-    {{- $tlsCrt = (index $tlsSecret.data "tls.crt") | default "" }}
-    {{- $tlsKey = (index $tlsSecret.data "tls.key") | default "" }}
-    {{- /* The legacy Job wrote the CA into the APIService, not into the Secret key we read. */}}
-    {{- if and (not $tlsCA) $apiSvc $apiSvc.spec $apiSvc.spec.caBundle (ne $apiSvc.spec.caBundle "Cg==") }}
-      {{- $tlsCA = $apiSvc.spec.caBundle }}
-    {{- end }}
-    {{- $renderTLSSecret = false }}
-    {{- if $tlsSecret.metadata.annotations }}
-      {{- if index $tlsSecret.metadata.annotations "meta.helm.sh/release-name" }}
-        {{- $renderTLSSecret = true }}
-      {{- end }}
+  {{- /* lookup returns an empty map when the Secret does not exist, and a non-empty map
+         (it always has metadata) when it does, whether or not it has any data. */}}
+  {{- if $tlsSecret }}
+    {{- $tlsData := $tlsSecret.data | default dict }}
+    {{- $tlsAnnotations := $tlsSecret.metadata.annotations | default dict }}
+    {{- /* Only a Secret owned by this Helm release can be rendered again. Any other existing
+           Secret (the legacy tls-secret-create Job, cert-manager, ...) cannot be adopted by
+           Helm, so it is reused as it is and not rendered. */}}
+    {{- $renderTLSSecret = eq ((index $tlsAnnotations "meta.helm.sh/release-name") | default "") .Release.Name }}
+    {{- $tlsCrt = (index $tlsData "tls.crt") | default "" }}
+    {{- $tlsKey = (index $tlsData "tls.key") | default "" }}
+    {{- if $renderTLSSecret }}
+      {{- /* We rendered this Secret ourselves and always write both CA keys. */}}
+      {{- $tlsCA = (index $tlsData "ca") | default (index $tlsData "ca.crt") | default "" }}
+    {{- else }}
+      {{- /* The controller reads the CA from the "ca" key, so a Secret we cannot rewrite
+             must already have it. A cert-manager Secret only has "ca.crt". */}}
+      {{- $tlsCA = (index $tlsData "ca") | default "" }}
     {{- end }}
   {{- end }}
   {{- if not (and $tlsCA $tlsCrt $tlsKey) }}
     {{- if not $renderTLSSecret }}
-      {{- fail (printf "Secret %s/%s already exists but is not managed by Helm and has no usable CA, certificate and key. Delete it, or set multicluster.clusterGateway.secureTLS.generateCerts=false." .Release.Namespace $tlsSecretName) }}
+      {{- fail (printf "Secret %s/%s already exists but is not managed by this Helm release and does not have the keys ca, tls.crt and tls.key, so the chart cannot reuse or replace it. Delete it and run the upgrade again, or set multicluster.clusterGateway.secureTLS.generateCerts=false." .Release.Namespace $tlsSecretName) }}
     {{- end }}
     {{- $svcName := printf "%s-cluster-gateway-service" .Release.Name }}
     {{- $caCert := genCA (printf "%s-cluster-gateway-ca" .Release.Name) 3650 }}
