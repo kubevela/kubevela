@@ -399,6 +399,16 @@ func TestHandle_NacosEndpointInAnotherNamespaceNeedsTheAuthorToReadIt(t *testing
 		assert.True(t, resp.Allowed, string(resp.Result.Message))
 		assert.Len(t, reviews, 1)
 	})
+	t.Run("an endpoint namespace left to the parameter: refused, the rule could not read it", func(t *testing.T) {
+		var reviews []authorizationv1.ResourceAttributes
+		h := reviewingHandler(t, true, &reviews)
+		parameterized := strings.Replace(nacosTemplate, `namespace: "vela-system"`, `namespace: parameter.ns`, 1)
+		parameterized = strings.Replace(parameterized, "parameter: {", "parameter: {\n\t\tns: string", 1)
+		resp := h.Handle(context.TODO(), as(newRequest(t, admissionv1.Create, gvr, templateIn("t", "wf-a", configv1alpha1.ConfigTemplateScopeNamespace, parameterized))))
+		assert.False(t, resp.Allowed)
+		assert.Contains(t, string(resp.Result.Message), "nacos.endpoint.namespace must be a concrete, non-empty string")
+		assert.Empty(t, reviews)
+	})
 	t.Run("an update that leaves the template text alone: no review (admitted before the rule)", func(t *testing.T) {
 		var reviews []authorizationv1.ResourceAttributes
 		h := reviewingHandler(t, false, &reviews)

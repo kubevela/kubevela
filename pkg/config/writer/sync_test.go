@@ -84,6 +84,12 @@ func TestValidateExpandedWriter(t *testing.T) {
 			parameter: ep: string
 		}`, wantErr: "concrete, non-empty string"},
 		{name: "empty endpoint name", cue: `template: { nacos: { endpoint: name: "", metadata: { dataId: "d", group: "g" } }, parameter: {} }`, wantErr: "concrete, non-empty string"},
+		{name: "endpoint namespace set", cue: `template: { nacos: { endpoint: { name: "nacos", namespace: "team-b" }, metadata: { dataId: "d", group: "g" } }, parameter: {} }`},
+		{name: "endpoint namespace from the parameter", cue: `template: {
+			nacos: { endpoint: { name: "nacos", namespace: parameter.ns }, metadata: { dataId: "d", group: "g" } }
+			parameter: ns: string
+		}`, wantErr: "nacos.endpoint.namespace must be a concrete, non-empty string"},
+		{name: "empty endpoint namespace", cue: `template: { nacos: { endpoint: { name: "nacos", namespace: "" }, metadata: { dataId: "d", group: "g" } }, parameter: {} }`, wantErr: "nacos.endpoint.namespace must be a concrete, non-empty string"},
 		{name: "no metadata", cue: `template: { nacos: { endpoint: name: "nacos" }, parameter: {} }`, wantErr: "nacos.metadata is required"},
 		{name: "metadata not a struct", cue: `template: { nacos: { endpoint: name: "nacos", metadata: "m" }, parameter: {} }`, wantErr: "nacos.metadata must be a struct"},
 		{name: "metadata without group", cue: `template: { nacos: { endpoint: name: "nacos", metadata: { dataId: "d" } }, parameter: {} }`},

@@ -173,7 +173,8 @@ func ResolveConfigTemplate(ctx context.Context, cli client.Client, ref *configv1
 			Sensitive:      ct.Spec.Sensitive,
 			ExpandedWriter: expandedWriterOf(ctx, script.CUE(ct.Spec.Template)),
 		}, false, nil
-	case apierrors.IsNotFound(err):
+	case apierrors.IsNotFound(err), IsCRDTypeMissing(err):
+		// the ConfigMap convention, below; a cluster without the ConfigTemplate kind too
 	default:
 		return nil, false, err
 	}

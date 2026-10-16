@@ -785,15 +785,35 @@ type templateLookup struct {
 	legacy *corev1.ConfigMap
 }
 
-// lookupTemplate fetches both forms of the template name in ns. When the context carries a
-// user (the create-config step adopting as the Application's user) a template in vela-system
-// is read with the controller's own identity, since a system template there is usable with no
-// grant on it; a template anywhere else is the user's to read. The adoption's writes stay the
-// user's either way.
-func (m *Migrator) lookupTemplate(ctx context.Context, ns, name string) (templateLookup, error) {
-	if ns == types.DefaultKubeVelaNS {
-		ctx = auth.ContextClearUserInfo(ctx)
+// system reports a template usable from any namespace with no grant on it: a ConfigTemplate
+// of scope system in vela-system, or a legacy ConfigMap there (LegacyTemplateScope).
+func (tpl templateLookup) system() bool {
+	switch {
+	case tpl.cr != nil:
+		return tpl.cr.Namespace == types.DefaultKubeVelaNS && tpl.cr.Spec.Scope == configv1alpha1.ConfigTemplateScopeSystem
+	case tpl.legacy != nil:
+		return LegacyTemplateScope(tpl.legacy.Namespace) == configv1alpha1.ConfigTemplateScopeSystem
 	}
+	return false
+}
+
+// lookupTemplate fetches both forms of the template name in ns. A system template is read
+// with the controller's own identity, as the Config controller reads it to render; any other
+// template is the requesting user's to read when the context carries one (the create-config
+// step adopting as the Application's user), so a user is never handed a template they may not
+// see. The adoption's writes stay the user's either way.
+func (m *Migrator) lookupTemplate(ctx context.Context, ns, name string) (templateLookup, error) {
+	tpl, err := m.readTemplate(auth.ContextClearUserInfo(ctx), ns, name)
+	if err != nil || tpl.system() {
+		return tpl, err
+	}
+	if _, named := auth.NamedUserFrom(ctx); !named {
+		return tpl, nil
+	}
+	return m.readTemplate(ctx, ns, name)
+}
+
+func (m *Migrator) readTemplate(ctx context.Context, ns, name string) (templateLookup, error) {
 	var tpl templateLookup
 	var ct configv1alpha1.ConfigTemplate
 	switch err := m.cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &ct); {

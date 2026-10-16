@@ -396,6 +396,27 @@ var _ = Describe("Test the config provider", func() {
 		Expect(adopted.OwnerReferences).Should(HaveLen(1))
 		Expect(adopted.OwnerReferences[0].Kind).Should(Equal(configv1alpha1.ConfigKind))
 
+		By("a legacy config made from a namespace-scoped template in vela-system: the user's read, which fails before any adoption runs")
+		nsct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "ns-in-sys", Namespace: types.DefaultKubeVelaNS},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: templateContent, Scope: configv1alpha1.ConfigTemplateScopeNamespace},
+		}
+		Expect(k8sClient.Create(ctx, nsct)).Should(Succeed())
+		DeferCleanup(func() { Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, nsct))).Should(Succeed()) })
+		legacyItem, err := factory.ParseConfig(ctx, config.NamespacedName{Name: "ns-in-sys", Namespace: types.DefaultKubeVelaNS}, config.Metadata{
+			NamespacedName: config.NamespacedName{Name: "lc-ns-in-sys", Namespace: "default"},
+			Properties:     map[string]interface{}{"registry": "old.example"},
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(factory.CreateOrUpdateConfig(ctx, legacyItem, "default")).Should(Succeed())
+		act = &mock.Action{}
+		err = Create(asAlice, forbiddingDeps(act), propsOf("lc-ns-in-sys", "vela-system/ns-in-sys"))
+		Expect(err).Should(HaveOccurred())
+		Expect(strings.ToLower(err.Error())).Should(ContainSubstring("forbidden"), "the user's own read right, not the controller's")
+		var untouched corev1.Secret
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "lc-ns-in-sys"}, &untouched)).Should(Succeed())
+		Expect(untouched.OwnerReferences).Should(BeEmpty(), "nothing adopted")
+
 		By("a namespace-scoped template elsewhere is the user's to read: the parse fails as the user, and no render reaches them")
 		other, err := factory.ParseTemplate(ctx, "theirs", []byte(templateContent))
 		Expect(err).ToNot(HaveOccurred())

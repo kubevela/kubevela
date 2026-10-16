@@ -23,10 +23,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	apitypes "github.com/oam-dev/kubevela/apis/types"
@@ -125,6 +128,28 @@ func TestResolveConfigTemplate(t *testing.T) {
 		r.NoError(err)
 		r.True(waiting)
 		r.Equal(configv1alpha1.ConfigTemplateScopeNamespace, tmpl.EffectiveScope(), "misplaced: read as namespace even while pending")
+	})
+
+	t.Run("the ConfigTemplate kind not served: the legacy ConfigMap, as LoadTemplate reads it", func(t *testing.T) {
+		r := require.New(t)
+		cm := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: TemplateConfigMapNamePrefix + "old", Namespace: apitypes.DefaultKubeVelaNS, Labels: map[string]string{apitypes.LabelConfigScope: "project"}},
+			Data:       map[string]string{SaveTemplateKey: "template: {}"},
+		}
+		base := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(cm).Build()
+		cli := interceptor.NewClient(base, interceptor.Funcs{
+			Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+				if _, ok := obj.(*configv1alpha1.ConfigTemplate); ok {
+					return &meta.NoKindMatchError{GroupKind: schema.GroupKind{Group: configv1alpha1.Group, Kind: configv1alpha1.ConfigTemplateKind}}
+				}
+				return c.Get(ctx, key, obj, opts...)
+			},
+		})
+		tmpl, waiting, err := ResolveConfigTemplate(context.Background(), cli, &configv1alpha1.ConfigTemplateReference{Name: "old"})
+		r.NoError(err)
+		r.False(waiting)
+		r.True(tmpl.Legacy)
+		r.Equal(configv1alpha1.ConfigTemplateScopeSystem, tmpl.EffectiveScope())
 	})
 
 	t.Run("no CRD, falls back to legacy ConfigMap", func(t *testing.T) {

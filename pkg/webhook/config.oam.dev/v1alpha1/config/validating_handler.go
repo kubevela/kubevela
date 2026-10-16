@@ -88,8 +88,6 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.ValidationResponse(true, "")
 	}
 
-	// The access question is asked once, at create: templateRef is immutable (above), so the
-	// answer holds for the Config's lifetime.
 	creating := req.Operation == admissionv1.Create
 	templateNS := legacyconfig.TemplateRefNamespace(obj.Spec.TemplateRef)
 
@@ -109,8 +107,10 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 	// May a Config here use that template (issue #7410 section 6)? The same namespace and a
 	// system template need no user; a namespace-scoped template elsewhere is the requesting
-	// user's to read or not, asked of the API server as that user.
-	if access := legacyconfig.AccessToTemplate(tmpl, obj.Namespace); creating && access.Review != nil {
+	// user's to read or not, asked of the API server as that user. On update as well as on
+	// create: templateRef is immutable (above), but new properties are a new render through
+	// the template, and the editor must be someone who could have bound the Config to it.
+	if access := legacyconfig.AccessToTemplate(tmpl, obj.Namespace); access.Review != nil {
 		allowed, err := auth.UserCan(ctx, h.Client, req.UserInfo, *access.Review)
 		if err != nil {
 			return admission.Errored(http.StatusInternalServerError, err)

@@ -18,8 +18,9 @@ package cli
 
 import (
 	"context"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"testing"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/stretchr/testify/require"
 	"sigs.k8s.io/controller-runtime/pkg/client"

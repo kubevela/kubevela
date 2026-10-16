@@ -754,6 +754,22 @@ func TestHandle_TemplateAccessTable(t *testing.T) {
 		resp = h.Handle(context.TODO(), createdBy(newUpdateRequest(t, gvr, existing, existing), "alice"))
 		assert.True(t, resp.Allowed, "an update of an existing Config: templateRef is immutable, the answer was given at create")
 	})
+	t.Run("an update is reviewed too: new properties are a new render through the template", func(t *testing.T) {
+		var reviews []authorizationv1.ResourceAttributes
+		theirs := availableTemplate("b", "wf-b", configv1alpha1.ConfigTemplateScopeNamespace)
+		existing := configUsing("c", "wf-a", "b", "wf-b")
+		edited := configUsing("c", "wf-a", "b", "wf-b")
+		edited.Spec.Properties = rawExtension(map[string]string{"username": "someone-else"})
+		h := newInterceptedHandler(reviewing(false, &reviews), theirs)
+		resp := h.Handle(context.TODO(), createdBy(newUpdateRequest(t, gvr, existing, edited), "alice"))
+		assert.False(t, resp.Allowed)
+		assert.Contains(t, string(resp.Result.Message), "alice may not")
+		assert.Len(t, reviews, 1)
+
+		h = newInterceptedHandler(reviewing(true, &reviews), theirs)
+		resp = h.Handle(context.TODO(), createdBy(newUpdateRequest(t, gvr, existing, edited), "alice"))
+		assert.True(t, resp.Allowed, string(resp.Result.Message))
+	})
 	t.Run("a system template outside vela-system grants nothing: reviewed like a namespace one", func(t *testing.T) {
 		resp, reviews := admitConfig(t, false, "wf-b", "misplaced", "wf-a", availableTemplate("misplaced", "wf-a", configv1alpha1.ConfigTemplateScopeSystem))
 		assert.False(t, resp.Allowed)
@@ -796,13 +812,5 @@ func TestHandle_TemplateAccessTable(t *testing.T) {
 		resp := h.Handle(context.TODO(), createdBy(newRequest(t, admissionv1.Create, gvr, configUsing("c", "wf-a", "b", "wf-b")), "alice"))
 		assert.False(t, resp.Allowed)
 		assert.Equal(t, int32(http.StatusInternalServerError), resp.Result.Code)
-	})
-	t.Run("an update is not reviewed: templateRef cannot change", func(t *testing.T) {
-		var reviews []authorizationv1.ResourceAttributes
-		h := newInterceptedHandler(reviewing(false, &reviews), availableTemplate("b", "wf-b", configv1alpha1.ConfigTemplateScopeNamespace))
-		cfg := configUsing("c", "wf-a", "b", "wf-b")
-		resp := h.Handle(context.TODO(), createdBy(newUpdateRequest(t, gvr, cfg, cfg), "alice"))
-		assert.True(t, resp.Allowed, string(resp.Result.Message))
-		assert.Empty(t, reviews)
 	})
 }
