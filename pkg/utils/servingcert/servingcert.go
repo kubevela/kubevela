@@ -16,8 +16,9 @@ limitations under the License.
 
 // Package servingcert keeps a self-signed CA and a serving cert for an
 // in-cluster Service in a Secret, and renews them. vela-core uses it for the
-// cluster-gateway APIService and for its admission webhooks. It replaces the
-// kube-webhook-certgen Jobs that the chart ran as Helm hooks.
+// cluster-gateway APIService when it runs with --cluster-gateway-tls-secret,
+// and for its admission webhooks when it runs with --webhook-tls-secret. It
+// replaces the kube-webhook-certgen Jobs that the chart ran as Helm hooks.
 //
 // The CA is long-lived, and the Secret keeps its key. When a serving cert
 // expires, EnsureSecret signs a new one with the same CA, so the caBundle that
@@ -284,9 +285,14 @@ func parseCA(data map[string][]byte) (*x509.Certificate, crypto.Signer, error) {
 }
 
 // WriteFileIfChanged writes data to path, creating its directory, unless the
-// file already holds it, and reports whether it wrote.
+// file already holds it, and reports whether it wrote. The file is always
+// left readable by its owner only, also when it already existed with wider
+// permissions, because it can hold a private key.
 func WriteFileIfChanged(path string, data []byte) (bool, error) {
 	if current, err := os.ReadFile(filepath.Clean(path)); err == nil && bytes.Equal(current, data) {
+		if err := os.Chmod(path, 0o600); err != nil {
+			return false, errors.Wrapf(err, "failed to set permissions of %s", path)
+		}
 		return false, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
@@ -294,6 +300,10 @@ func WriteFileIfChanged(path string, data []byte) (bool, error) {
 	}
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return false, errors.Wrapf(err, "failed to write %s", path)
+	}
+	// WriteFile keeps the mode of a file that already exists.
+	if err := os.Chmod(path, 0o600); err != nil {
+		return false, errors.Wrapf(err, "failed to set permissions of %s", path)
 	}
 	return true, nil
 }

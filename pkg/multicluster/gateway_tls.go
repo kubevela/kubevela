@@ -71,22 +71,35 @@ func EnsureClusterGatewayTLS(ctx context.Context, c client.Client, secretNamespa
 	if err != nil {
 		return nil, err
 	}
-	if !found || ref == nil || ref.Namespace != svc.Namespace || ref.Name != svc.Name {
+	if !found || !pointsAt(apiService, *svc) {
 		klog.V(2).InfoS("Not setting the caBundle of the ClusterGateway APIService, it does not point at the cluster-gateway Service",
 			"apiService", ClusterGatewayAPIServiceName, "service", svc.Namespace+"/"+svc.Name)
 		return res.CABundle, nil
 	}
-	if err = ensureClusterGatewayCABundle(ctx, c, res.CABundle); err != nil {
+	if err = ensureClusterGatewayCABundle(ctx, c, res.CABundle, *svc); err != nil {
 		return nil, err
 	}
 	return res.CABundle, nil
 }
 
-func ensureClusterGatewayCABundle(ctx context.Context, c client.Client, ca []byte) error {
+// pointsAt reports whether the APIService sends requests to the Service svc.
+func pointsAt(apiService *apiregistrationv1.APIService, svc servingcert.Service) bool {
+	ref := apiService.Spec.Service
+	return ref != nil && ref.Namespace == svc.Namespace && ref.Name == svc.Name
+}
+
+// ensureClusterGatewayCABundle sets the caBundle of the ClusterGateway
+// APIService to ca. Each attempt reads the APIService again and checks that
+// it still points at svc, so an APIService retargeted in the meantime is left
+// alone.
+func ensureClusterGatewayCABundle(ctx context.Context, c client.Client, ca []byte, svc servingcert.Service) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		apiService := &apiregistrationv1.APIService{}
 		if err := c.Get(ctx, types.NamespacedName{Name: ClusterGatewayAPIServiceName}, apiService); err != nil {
 			return err
+		}
+		if !pointsAt(apiService, svc) {
+			return nil
 		}
 		if bytes.Equal(apiService.Spec.CABundle, ca) && !apiService.Spec.InsecureSkipTLSVerify {
 			return nil

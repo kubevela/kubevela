@@ -26,8 +26,8 @@ type WebhookConfig struct {
 	CertDir     string
 	WebhookPort int
 	// TLSSecret is the <namespace>/<name> of the Secret that holds the webhook
-	// serving cert. If it is set, vela-core creates or renews the cert at
-	// startup. vela-core writes the cert to CertDir and sets the caBundle of the
+	// serving cert. If it is set and UseWebhook is true, vela-core creates or
+	// renews the cert at startup. vela-core writes the cert to CertDir and sets the caBundle of the
 	// webhook configurations.
 	TLSSecret string
 	// ConfigurationName is the name of the MutatingWebhookConfiguration and the
@@ -60,7 +60,7 @@ func (c *WebhookConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&c.WebhookPort, "webhook-port", c.WebhookPort,
 		"admission webhook listen address")
 	fs.StringVar(&c.TLSSecret, "webhook-tls-secret", c.TLSSecret,
-		"The <namespace>/<name> of the Secret that holds the webhook serving cert. If you set it, vela-core creates or renews the cert at startup. vela-core writes the cert to --webhook-cert-dir and sets the caBundle of --webhook-configuration. If it is empty (the default), cert-manager or another tool must supply the cert.")
+		"The <namespace>/<name> of the Secret that holds the webhook serving cert. Requires --use-webhook. If you set it, vela-core creates or renews the cert at startup. vela-core writes the cert to --webhook-cert-dir and sets the caBundle of --webhook-configuration. If it is empty (the default), cert-manager or another tool must supply the cert.")
 	fs.StringVar(&c.ConfigurationName, "webhook-configuration", c.ConfigurationName,
 		"The name of the MutatingWebhookConfiguration and the ValidatingWebhookConfiguration. vela-core sets their caBundle. Use with --webhook-tls-secret.")
 	fs.StringVar(&c.FailurePolicy, "webhook-failure-policy", c.FailurePolicy,

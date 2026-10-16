@@ -29,9 +29,10 @@ type MultiClusterConfig struct {
 	EnableClusterMetrics   bool
 	ClusterMetricsInterval time.Duration
 	// ClusterGatewayTLSSecret is the <namespace>/<name> of the Secret that holds
-	// the cluster-gateway serving cert. If it is set, vela-core creates or
-	// renews the cert at startup. vela-core writes the CA into the
-	// cluster-gateway APIService.
+	// the cluster-gateway serving cert. If it is set and EnableClusterGateway is
+	// true, vela-core creates or renews the cert at startup. vela-core writes
+	// the CA into the cluster-gateway APIService when the APIService points at
+	// ClusterGatewayService.
 	ClusterGatewayTLSSecret string
 	// ClusterGatewayService is the <namespace>/<name> of the Service that the
 	// cluster-gateway serving cert is for. If it is set, vela-core sets the
@@ -59,7 +60,7 @@ func (c *MultiClusterConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.DurationVar(&c.ClusterMetricsInterval, "cluster-metrics-interval", c.ClusterMetricsInterval,
 		"The interval that ClusterMetricsMgr will collect metrics from clusters, default value is 15 seconds.")
 	fs.StringVar(&c.ClusterGatewayTLSSecret, "cluster-gateway-tls-secret", c.ClusterGatewayTLSSecret,
-		"The <namespace>/<name> of the Secret that holds the cluster-gateway serving cert. If you set it, vela-core creates or renews the cert at startup and sets the caBundle of the cluster-gateway APIService. If it is empty (the default), cert-manager or another tool must supply the cert.")
+		"The <namespace>/<name> of the Secret that holds the cluster-gateway serving cert. Requires --enable-cluster-gateway. If you set it, vela-core creates or renews the cert at startup and sets the caBundle of the cluster-gateway APIService when the APIService points at --cluster-gateway-service. If it is empty (the default), cert-manager or another tool must supply the cert.")
 	fs.StringVar(&c.ClusterGatewayService, "cluster-gateway-service", c.ClusterGatewayService,
 		"The <namespace>/<name> of the cluster-gateway Service that the serving cert is for. Use with --cluster-gateway-tls-secret. vela-core sets the APIService caBundle only when the APIService points at this Service. If it is empty, vela-core uses the Service of the APIService.")
 
