@@ -166,7 +166,7 @@ helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wai
 | `multicluster.clusterGateway.resources.limits.cpu`            | ClusterGateway cpu limit                                                                    | `500m`                           |
 | `multicluster.clusterGateway.resources.limits.memory`         | ClusterGateway memory limit                                                                 | `200Mi`                          |
 | `multicluster.clusterGateway.secureTLS.enabled`               | Whether to enable secure TLS                                                                | `true`                           |
-| `multicluster.clusterGateway.secureTLS.generateCerts`         | Generate the CA and serving certificate in the chart (required for Kubernetes 1.36+). Only used when `secureTLS.enabled` is `true` and `certManager.enabled` is `false`; set to `false` there to use the legacy Jobs | `true`                           |
+| `multicluster.clusterGateway.secureTLS.generateCerts`         | Generate CA and serving cert in the chart; false uses legacy Jobs (needs certManager off)   | `true`                           |
 | `multicluster.clusterGateway.secureTLS.certPath`              | Path to the certificate file                                                                | `/etc/k8s-cluster-gateway-certs` |
 | `multicluster.clusterGateway.secureTLS.certManager.enabled`   | Whether to enable cert-manager                                                              | `false`                          |
 | `multicluster.clusterGateway.serviceMonitor.enabled`          | Whether to enable service monitor                                                           | `false`                          |
