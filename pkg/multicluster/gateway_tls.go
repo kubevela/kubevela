@@ -22,6 +22,7 @@ import (
 	"fmt"
 
 	errors2 "github.com/pkg/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
@@ -32,10 +33,14 @@ import (
 )
 
 // EnsureClusterGatewayTLS makes sure that the cluster-gateway serving cert in
-// the Secret <secretNamespace>/<secretName> is valid. It also makes sure that
-// the cluster-gateway APIService trusts its CA. It returns the PEM CA bundle
-// that clients must trust. You can call it periodically. It renews the cert
-// when necessary and repairs a caBundle that something changed or removed.
+// the Secret <secretNamespace>/<secretName> is valid for the Service svc. It
+// also makes sure that the cluster-gateway APIService trusts its CA, but only
+// if the APIService points at svc: an APIService that points somewhere else
+// belongs to another cluster-gateway, and this function does not change it. If
+// svc is nil, it uses the Service of the APIService. It returns the PEM CA
+// bundle that clients must trust. You can call it periodically. It renews the
+// cert when necessary and repairs a caBundle that something changed or
+// removed.
 //
 // Older charts rendered the APIService with a placeholder caBundle, and a
 // post-install Job patched it later. Since Kubernetes 1.36, the aggregator
@@ -47,19 +52,29 @@ import (
 //
 // Call this function before vela-core waits for the APIService. This removes
 // the deadlock.
-func EnsureClusterGatewayTLS(ctx context.Context, c client.Client, secretNamespace, secretName string) ([]byte, error) {
+func EnsureClusterGatewayTLS(ctx context.Context, c client.Client, secretNamespace, secretName string, svc *servingcert.Service) ([]byte, error) {
 	apiService := &apiregistrationv1.APIService{}
-	if err := c.Get(ctx, types.NamespacedName{Name: ClusterGatewayAPIServiceName}, apiService); err != nil {
+	err := c.Get(ctx, types.NamespacedName{Name: ClusterGatewayAPIServiceName}, apiService)
+	if err != nil && (svc == nil || !apierrors.IsNotFound(err)) {
 		return nil, errors2.Wrapf(err, "failed to get ClusterGateway APIService %s", ClusterGatewayAPIServiceName)
 	}
-	if apiService.Spec.Service == nil {
-		return nil, fmt.Errorf("ClusterGateway APIService %s has no service, cannot set up its TLS", ClusterGatewayAPIServiceName)
+	found := err == nil
+	ref := apiService.Spec.Service
+	if svc == nil {
+		if ref == nil {
+			return nil, fmt.Errorf("ClusterGateway APIService %s has no service, cannot set up its TLS", ClusterGatewayAPIServiceName)
+		}
+		svc = &servingcert.Service{Namespace: ref.Namespace, Name: ref.Name}
 	}
-	svc := servingcert.Service{Namespace: apiService.Spec.Service.Namespace, Name: apiService.Spec.Service.Name}
 
-	res, err := servingcert.EnsureSecret(ctx, c, secretNamespace, secretName, svc)
+	res, err := servingcert.EnsureSecret(ctx, c, secretNamespace, secretName, *svc)
 	if err != nil {
 		return nil, err
+	}
+	if !found || ref == nil || ref.Namespace != svc.Namespace || ref.Name != svc.Name {
+		klog.V(2).InfoS("Not setting the caBundle of the ClusterGateway APIService, it does not point at the cluster-gateway Service",
+			"apiService", ClusterGatewayAPIServiceName, "service", svc.Namespace+"/"+svc.Name)
+		return res.CABundle, nil
 	}
 	if err = ensureClusterGatewayCABundle(ctx, c, res.CABundle); err != nil {
 		return nil, err

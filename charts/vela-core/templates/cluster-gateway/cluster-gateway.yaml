@@ -140,13 +140,7 @@ spec:
 # 2.c If the APIService exists with valid helm-chart annotations, which means that the APIService
 #     is previously managed by helm commands, hence update the APIService consistently.
 {{ $apiSvc := (lookup "apiregistration.k8s.io/v1" "APIService" "" "v1alpha1.cluster.core.oam.dev") }}
-{{ $shouldAdopt := (not $apiSvc) }}
-{{ if not $shouldAdopt }}
-  {{ if $apiSvc.metadata.annotations }}
-    {{ $shouldAdopt = (index ($apiSvc).metadata.annotations "meta.helm.sh/release-name") }}
-  {{ end }}
-{{ end }}
-{{ if $shouldAdopt }}
+{{ if include "kubevela.clusterGatewayAPIServiceManaged" . }}
 apiVersion: apiregistration.k8s.io/v1
 kind: APIService
 metadata:

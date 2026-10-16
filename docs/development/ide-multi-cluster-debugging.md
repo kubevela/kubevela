@@ -248,14 +248,15 @@ pending pod, no `kubevela-vela-core` pod. The pod starts once step 4 runs.
 Use the "Run KubeVela Core" configuration from
 [`ide-debugging.md`](./ide-debugging.md#vs-code), adding (or confirming) a
 `KUBECONFIG` environment variable pointing at `~/.kube/master.yaml`, and the
-two Cluster Gateway arguments:
+three Cluster Gateway arguments:
 
 ```json
 "env": { "KUBECONFIG": "/absolute/path/to/.kube/master.yaml" },
 "args": [
   // ...the existing arguments, plus:
   "--enable-cluster-gateway",
-  "--cluster-gateway-tls-secret=vela-system/kubevela-vela-core-cluster-gateway-tls-v2"
+  "--cluster-gateway-tls-secret=vela-system/kubevela-vela-core-cluster-gateway-tls-v2",
+  "--cluster-gateway-service=vela-system/kubevela-cluster-gateway-service"
 ]
 ```
 

@@ -173,8 +173,12 @@ func TestEnsure(t *testing.T) {
 		require.NoError(t, err)
 
 		m, v := getConfigs(t, c)
-		require.Equal(t, admissionregistrationv1.Ignore, *m.Webhooks[0].FailurePolicy)
-		require.Equal(t, admissionregistrationv1.Ignore, *v.Webhooks[0].FailurePolicy)
+		for _, w := range m.Webhooks {
+			require.Equal(t, admissionregistrationv1.Ignore, *w.FailurePolicy, w.Name)
+		}
+		for _, w := range v.Webhooks {
+			require.Equal(t, admissionregistrationv1.Ignore, *w.FailurePolicy, w.Name)
+		}
 	})
 
 	t.Run("works with only one configuration", func(t *testing.T) {

@@ -166,7 +166,7 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 		// resyncWebhookTLS sets the failurePolicy later. If the policy changes to
 		// Fail before the webhook server listens, the API server rejects every
 		// request until the server starts.
-		if err = retryStartup(ctx, "webhook TLS", func() error {
+		if err = retryStartup(ctx, "webhook TLS", func(ctx context.Context) error {
 			return ensureWebhookTLS(ctx, certClient, webhookTLS, coreOptions.Webhook.CertDir, false)
 		}); err != nil {
 			klog.ErrorS(err, "Failed to set up webhook TLS")
@@ -340,7 +340,7 @@ func setupMultiCluster(ctx context.Context, kubeConfig *rest.Config, multiCluste
 		// to become Available. On Kubernetes 1.36 and later, the APIService is
 		// never Available without a valid caBundle.
 		if err := startClusterGatewayTLS(ctx, certClient, multiClusterConfig.ClusterGatewayTLSSecret,
-			&pkgmulticluster.DefaultClusterGatewayClientOptions, restart); err != nil {
+			multiClusterConfig.ClusterGatewayService, &pkgmulticluster.DefaultClusterGatewayClientOptions, restart); err != nil {
 			klog.ErrorS(err, "Failed to set up cluster-gateway TLS")
 			return err
 		}
@@ -396,16 +396,19 @@ var (
 // period, so that they do not all write at the same time.
 const resyncJitterFactor = 0.1
 
-// retryStartup runs fn until fn succeeds or startupRetryTimeout ends. It
-// returns the last error from fn.
-func retryStartup(ctx context.Context, name string, fn func() error) error {
+// retryStartup runs fn until fn succeeds or startupRetryTimeout ends. It gives
+// fn a context that ends at the same time, so a request that hangs does not
+// keep startup waiting. It returns the last error from fn.
+func retryStartup(ctx context.Context, name string, fn func(context.Context) error) error {
 	var lastErr error
-	err := wait.PollUntilContextTimeout(ctx, startupRetryInterval, startupRetryTimeout, true, func(context.Context) (bool, error) {
-		if lastErr = fn(); lastErr != nil {
+	err := wait.PollUntilContextTimeout(ctx, startupRetryInterval, startupRetryTimeout, true, func(ctx context.Context) (bool, error) {
+		lastErr = fn(ctx)
+		if lastErr != nil {
 			klog.InfoS("Waiting to set up serving cert", "for", name, "reason", lastErr.Error())
-			return false, nil
 		}
-		return true, nil
+		// A failed attempt is retried, not returned: the poll ends only on
+		// success or at the timeout.
+		return lastErr == nil, nil
 	})
 	if lastErr != nil {
 		return lastErr
@@ -414,14 +417,23 @@ func retryStartup(ctx context.Context, name string, fn func() error) error {
 }
 
 // startClusterGatewayTLS sets up the cluster-gateway serving cert in the Secret
-// secretRef. Then it keeps the cert valid in the background. In direct mode
+// secretRef, for the Service serviceRef if it is not empty. Then it keeps the
+// cert valid in the background. In direct mode
 // (gateway.URL is set), it sets gateway.CAFile to the file that holds the CA.
 // It sets gateway.CAFile once, before a client reads the options.
-func startClusterGatewayTLS(ctx context.Context, c ctrlclient.Client, secretRef string,
+func startClusterGatewayTLS(ctx context.Context, c ctrlclient.Client, secretRef, serviceRef string,
 	gateway *pkgmulticluster.ClusterGatewayClientOptions, restart func()) error {
-	namespace, name, err := parseSecretRef("cluster-gateway-tls-secret", secretRef)
+	namespace, name, err := parseNamespacedName("cluster-gateway-tls-secret", secretRef)
 	if err != nil {
 		return err
+	}
+	var svc *servingcert.Service
+	if serviceRef != "" {
+		svcNamespace, svcName, err := parseNamespacedName("cluster-gateway-service", serviceRef)
+		if err != nil {
+			return err
+		}
+		svc = &servingcert.Service{Namespace: svcNamespace, Name: svcName}
 	}
 	caFile := ""
 	if gateway.URL != "" {
@@ -432,13 +444,13 @@ func startClusterGatewayTLS(ctx context.Context, c ctrlclient.Client, secretRef 
 		gateway.CAFile = caFile
 	}
 	var trusted []byte
-	if err = retryStartup(ctx, "cluster-gateway TLS", func() (err error) {
-		trusted, err = setupClusterGatewayTLS(ctx, c, namespace, name, caFile)
+	if err = retryStartup(ctx, "cluster-gateway TLS", func(ctx context.Context) (err error) {
+		trusted, err = setupClusterGatewayTLS(ctx, c, namespace, name, svc, caFile)
 		return err
 	}); err != nil {
 		return err
 	}
-	go wait.JitterUntilWithContext(ctx, clusterGatewayTLSResync(c, namespace, name, caFile, trusted, restart),
+	go wait.JitterUntilWithContext(ctx, clusterGatewayTLSResync(c, namespace, name, svc, caFile, trusted, restart),
 		servingCertResyncPeriod, resyncJitterFactor, true)
 	return nil
 }
@@ -448,8 +460,9 @@ func startClusterGatewayTLS(ctx context.Context, c ctrlclient.Client, secretRef 
 // cluster-gateway APIService trusts the CA. It returns the CA bundle. If
 // caFile is set (direct mode), it also writes the bundle to caFile. vela-core
 // cannot mount a Secret that it creates itself.
-func setupClusterGatewayTLS(ctx context.Context, c ctrlclient.Client, namespace, name, caFile string) ([]byte, error) {
-	bundle, err := multicluster.EnsureClusterGatewayTLS(ctx, c, namespace, name)
+func setupClusterGatewayTLS(ctx context.Context, c ctrlclient.Client, namespace, name string, svc *servingcert.Service,
+	caFile string) ([]byte, error) {
+	bundle, err := multicluster.EnsureClusterGatewayTLS(ctx, c, namespace, name, svc)
 	if err != nil {
 		return nil, err
 	}
@@ -471,9 +484,10 @@ func setupClusterGatewayTLS(ctx context.Context, c ctrlclient.Client, namespace,
 // the client. Thus, if the CA changes, vela-core restarts to trust the new CA.
 // A serving cert renewal with the same CA is the usual case. It does not need
 // a restart.
-func clusterGatewayTLSResync(c ctrlclient.Client, namespace, name, caFile string, trusted []byte, restart func()) func(context.Context) {
+func clusterGatewayTLSResync(c ctrlclient.Client, namespace, name string, svc *servingcert.Service, caFile string,
+	trusted []byte, restart func()) func(context.Context) {
 	return func(ctx context.Context) {
-		bundle, err := setupClusterGatewayTLS(ctx, c, namespace, name, caFile)
+		bundle, err := setupClusterGatewayTLS(ctx, c, namespace, name, svc, caFile)
 		if err != nil {
 			klog.ErrorS(err, "Failed to resync the cluster-gateway serving cert")
 			return
@@ -502,7 +516,7 @@ func restartForNewCA(stop context.CancelFunc) func() {
 // webhookTLSOptions checks the webhook TLS flags and converts them into the
 // options for webhookcerts.Ensure.
 func webhookTLSOptions(cfg *config.WebhookConfig) (webhookcerts.Options, error) {
-	namespace, name, err := parseSecretRef("webhook-tls-secret", cfg.TLSSecret)
+	namespace, name, err := parseNamespacedName("webhook-tls-secret", cfg.TLSSecret)
 	if err != nil {
 		return webhookcerts.Options{}, err
 	}
@@ -573,11 +587,11 @@ func resyncWebhookTLS(ctx context.Context, c ctrlclient.Client, opts webhookcert
 	}
 }
 
-// parseSecretRef divides the <namespace>/<name> value of flag into its two
+// parseNamespacedName divides the <namespace>/<name> value of flag into its two
 // parts.
-func parseSecretRef(flag, ref string) (namespace, name string, err error) {
+func parseNamespacedName(flag, ref string) (namespace, name string, err error) {
 	namespace, name, ok := strings.Cut(ref, "/")
-	if !ok || namespace == "" || name == "" {
+	if !ok || namespace == "" || name == "" || strings.Contains(name, "/") {
 		return "", "", fmt.Errorf("invalid --%s %q, want <namespace>/<name>", flag, ref)
 	}
 	return namespace, name, nil
