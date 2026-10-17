@@ -30,6 +30,7 @@ import (
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
+	pkgconfig "github.com/oam-dev/kubevela/pkg/config"
 	oamctrl "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
 )
@@ -56,6 +57,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
+	// A parse failure clears the schema: the resolver serves a misplaced system template in
+	// Error only with the schema of its current revision (pkg/config.ResolveConfigTemplate).
+	ct.Status.Schema = nil
 	cueScript := script.CUE(ct.Spec.Template)
 	if _, err := cueScript.ParseToTemplateValueWithCueX(ctx); err != nil {
 		return r.markError(ctx, &ct, err)
@@ -71,12 +75,21 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	}
 
 	ct.Status.Schema = &runtime.RawExtension{Raw: raw}
+
+	// The webhook refuses a system template outside vela-system; this is the second line for
+	// one that reached the cluster with the webhooks off. The schema stays on the status (the
+	// error is about placement, not the CUE), which is what lets the resolver still serve the
+	// template, as namespace-scoped (ResolvedTemplate.EffectiveScope): its own namespace keeps
+	// rendering, and it grants nothing beyond it.
+	if pkgconfig.SystemScopeMisplaced(ct.Namespace, ct.Spec.Scope) {
+		return r.markError(ctx, &ct, pkgconfig.SystemScopePlacementError(ct.Namespace, ct.Name))
+	}
 	ct.Status.Phase = configv1alpha1.ConfigTemplatePhaseAvailable
 	ct.Status.SetConditions(condition.ReconcileSuccess())
 	return ctrl.Result{}, r.UpdateStatus(ctx, &ct)
 }
 
-// markError records a parse/schema-extraction failure on the status.
+// markError records a parse, schema-extraction or placement failure on the status.
 func (r *Reconciler) markError(ctx context.Context, ct *configv1alpha1.ConfigTemplate, err error) (ctrl.Result, error) {
 	ct.Status.Phase = configv1alpha1.ConfigTemplatePhaseError
 	ct.Status.SetConditions(condition.ReconcileError(err))

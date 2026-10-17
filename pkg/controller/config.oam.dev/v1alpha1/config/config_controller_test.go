@@ -104,6 +104,31 @@ var _ = Describe("Config controller", func() {
 		Expect(r.findConfigsForSecret(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "other-name", Namespace: "default"}})).ShouldNot(ContainElement(reconcile.Request{NamespacedName: client.ObjectKeyFromObject(owner)}))
 	})
 
+	It("renders from a system template misplaced outside vela-system, read as namespace scope", func() {
+		ct := &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "tmpl-misplaced", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: testCUETemplate, Scope: configv1alpha1.ConfigTemplateScopeSystem},
+		}
+		Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+		DeferCleanup(func() { Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, ct))).Should(Succeed()) })
+		Eventually(func() configv1alpha1.ConfigTemplatePhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), ct)).Should(Succeed())
+			return ct.Status.Phase
+		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigTemplatePhaseError), "the placement error of the ConfigTemplate controller")
+		Expect(ct.Status.Schema).ShouldNot(BeNil())
+
+		cfg := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "cfg-misplaced", Namespace: "default"},
+			Spec: configv1alpha1.ConfigSpec{
+				TemplateRef: &configv1alpha1.ConfigTemplateReference{Name: "tmpl-misplaced", Namespace: "default"},
+				Properties:  rawExtension(map[string]string{"username": "bob"}),
+			},
+		}
+		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+		var got configv1alpha1.Config
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(cfg), configv1alpha1.ConfigPhaseAvailable, &got)
+	})
+
 	It("renders again on an interval while in Error, so it recovers once a foreign Secret of its name is gone", func() {
 		ct := &configv1alpha1.ConfigTemplate{
 			ObjectMeta: metav1.ObjectMeta{Name: "tmpl-blocked", Namespace: "default"},

@@ -86,10 +86,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			return r.markError(ctx, &cfg, err)
 		}
 		if waiting {
-			return r.markError(ctx, &cfg, fmt.Errorf("config template %s/%s is not Available yet", cfg.Spec.TemplateRef.Namespace, cfg.Spec.TemplateRef.Name))
+			return r.markError(ctx, &cfg, fmt.Errorf("config template %s/%s is not Available yet", legacyconfig.TemplateRefNamespace(cfg.Spec.TemplateRef), cfg.Spec.TemplateRef.Name))
 		}
 		tmpl = resolved
 	}
+	// The cross-namespace access rule (pkg/config.AccessToTemplate) is not repeated here: its
+	// only non-structural answer is a SubjectAccessReview for the requesting user, and a
+	// reconciler has none. The webhook answered it when the Config was admitted; a Config
+	// admitted with the webhooks off is the operator's decision, as every other admission rule.
+	// A misplaced system template reads as namespace-scoped (ResolvedTemplate.EffectiveScope),
+	// so at admission a Config elsewhere that names it meets the review like any other
+	// cross-namespace reference, not a system template's free pass.
 
 	// defense in depth: the validating webhook already blocks this, but a Config applied
 	// before its sensitive template first becomes Available can slip past admission.
@@ -153,8 +160,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 }
 
 // resolveTemplate looks up the referenced template, CRD first, falling back to a
-// legacy ConfigMap. waiting is true if the ConfigTemplate CRD exists but its schema
-// hasn't reconciled yet.
+// legacy ConfigMap. waiting is true if the ConfigTemplate exists but is not usable yet:
+// its schema is not extracted (not reconciled yet, or a parse Error).
 func (r *Reconciler) resolveTemplate(ctx context.Context, ref *configv1alpha1.ConfigTemplateReference) (*legacyconfig.ResolvedTemplate, bool, error) {
 	return legacyconfig.ResolveConfigTemplate(ctx, r.Client, ref)
 }
@@ -505,11 +512,7 @@ func (r *Reconciler) findConfigsForTemplate(ctx context.Context, obj client.Obje
 		if ref == nil || ref.Name != ct.Name {
 			continue
 		}
-		ns := ref.Namespace
-		if ns == "" {
-			ns = apitypes.DefaultKubeVelaNS
-		}
-		if ns != ct.Namespace {
+		if legacyconfig.TemplateRefNamespace(ref) != ct.Namespace {
 			continue
 		}
 		requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(cfg)})
@@ -561,11 +564,7 @@ func (r *Reconciler) findConfigsForLegacyTemplateConfigMap(ctx context.Context, 
 		if ref == nil || ref.Name != name {
 			continue
 		}
-		ns := ref.Namespace
-		if ns == "" {
-			ns = apitypes.DefaultKubeVelaNS
-		}
-		if ns != cm.Namespace {
+		if legacyconfig.TemplateRefNamespace(ref) != cm.Namespace {
 			continue
 		}
 		requests = append(requests, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(cfg)})

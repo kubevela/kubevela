@@ -23,12 +23,14 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -36,6 +38,8 @@ import (
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/auth"
+	"github.com/oam-dev/kubevela/pkg/cue/script"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -222,8 +226,9 @@ func (m *Migrator) migrateTemplatesAndConfigs(ctx context.Context, ns string, op
 	seen := map[client.ObjectKey]bool{}
 	for i := range cms {
 		name := strings.TrimPrefix(cms[i].Name, TemplateConfigMapNamePrefix)
-		m.migrateTemplateConfigMap(ctx, &cms[i], opts, &report)
-		m.migrateConfigList(ctx, groups.of(cms[i].Namespace, name), opts, &report, seen)
+		bound := groups.of(cms[i].Namespace, name)
+		m.migrateTemplateConfigMap(ctx, &cms[i], bound, opts, &report)
+		m.migrateConfigList(ctx, bound, opts, &report, seen)
 	}
 	if groups.unlisted != nil {
 		report.add(unlistedNamespacesRow(groups.unlisted))
@@ -241,7 +246,7 @@ func (m *Migrator) migrateTemplateAndConfigs(ctx context.Context, cm *corev1.Con
 	if err != nil {
 		return err
 	}
-	m.migrateTemplateConfigMap(ctx, cm, opts, report)
+	m.migrateTemplateConfigMap(ctx, cm, secrets, opts, report)
 	m.migrateConfigList(ctx, secrets, opts, report, seen)
 	if unlisted != nil {
 		report.add(unlistedNamespacesRow(unlisted))
@@ -466,7 +471,13 @@ func withMigrationLabel(labels map[string]string) map[string]string {
 
 // migrateTemplateConfigMap adopts one legacy template ConfigMap into a
 // ConfigTemplate CR of the same name in the same namespace.
-func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.ConfigMap, opts MigrationOptions, report *MigrationReport) {
+//
+// bound is the template's configs as listed for this run. The ones in other namespaces are
+// recorded on the CR (AnnotationGrandfatheredConfigs): 1.11 let them use the template, and they
+// keep doing so without the grant the access table now asks for. A template whose nacos block
+// names an endpoint outside its namespace and vela-system is skipped: that endpoint was never
+// reviewed for anyone, and the controller would read it with its own rights.
+func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.ConfigMap, bound []corev1.Secret, opts MigrationOptions, report *MigrationReport) {
 	name := strings.TrimPrefix(cm.Name, TemplateConfigMapNamePrefix)
 	res := MigrationResult{Kind: kindConfigMap, Namespace: cm.Namespace, Name: name}
 	finish := func(outcome MigrationOutcome, reason string) {
@@ -512,13 +523,32 @@ func (m *Migrator) migrateTemplateConfigMap(ctx context.Context, cm *corev1.Conf
 		finish(MigrationFailed, err.Error())
 		return
 	}
+	if nacos := expandedWriterOf(ctx, script.CUE(cm.Data[SaveTemplateKey])).Nacos; nacos != nil && !EndpointNamespaceFree(cm.Namespace, nacos.Endpoint.Namespace) {
+		finish(MigrationSkipped, fmt.Sprintf("template %s/%s names the nacos endpoint %s/%s in another namespace, which migration cannot review for anyone; apply it with vela config-template apply as a user who may read that Secret",
+			cm.Namespace, name, nacos.Endpoint.Namespace, nacos.Endpoint.Name))
+		return
+	}
 	tmpl.Labels = withMigrationLabel(tmpl.Labels)
+	spec := configTemplateSpecFromTemplate(tmpl)
+	spec.Scope = LegacyTemplateScope(cm.Namespace) // by its namespace, not its label
+
 	ct := &configv1alpha1.ConfigTemplate{
 		TypeMeta:   metav1.TypeMeta{APIVersion: configv1alpha1.SchemeGroupVersion.String(), Kind: configv1alpha1.ConfigTemplateKind},
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: cm.Namespace},
-		Spec:       configTemplateSpecFromTemplate(tmpl),
+		Spec:       spec,
 	}
 	applyTemplateLabels(ct, tmpl.Labels)
+	if spec.Scope != configv1alpha1.ConfigTemplateScopeSystem {
+		var grandfathered []string
+		for _, secret := range bound {
+			if secret.Namespace != cm.Namespace {
+				grandfathered = append(grandfathered, secret.Namespace+"/"+secret.Name)
+			}
+		}
+		if len(grandfathered) > 0 {
+			ct.Annotations = map[string]string{AnnotationGrandfatheredConfigs: strings.Join(grandfathered, ",")}
+		}
+	}
 	res.Target = ct
 	reason := fmt.Sprintf("ConfigTemplate %s created", name)
 	if opts.DryRun {
@@ -646,7 +676,7 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		finish(MigrationFailed, fmt.Sprintf("Secret %s: %v", secret.Name, err))
 		return
 	}
-	if err := m.cli.Create(ctx, cfg); err != nil {
+	if err := m.createConfig(ctx, cfg); err != nil {
 		// A mark with no Config behind it would let a later hand-made Config of the name
 		// collect the Secret; take it back, and say so if that fails too.
 		reason := err.Error()
@@ -661,6 +691,28 @@ func (m *Migrator) migrateConfigSecret(ctx context.Context, secret *corev1.Secre
 		return
 	}
 	finish(MigrationAdopted, reason)
+}
+
+// pendingBackoff paces createConfig's retries: about forty seconds in all, long enough for
+// the ConfigTemplate controller to reconcile a template this run has just created.
+var pendingBackoff = wait.Backoff{Duration: time.Second, Factor: 1.6, Steps: 8}
+
+// createConfig creates cfg, retrying while the Config webhook answers that its template is not
+// available yet: a run creates a template's CR, then its configs, and one in another namespace
+// is admitted only once the controller has made that CR usable (PendingTemplateError).
+func (m *Migrator) createConfig(ctx context.Context, cfg *configv1alpha1.Config) error {
+	var err error
+	backoff := pendingBackoff
+	for {
+		if err = m.cli.Create(ctx, cfg); err == nil || !strings.Contains(err.Error(), pendingTemplatePhrase) || backoff.Steps <= 1 {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(backoff.Step()):
+		}
+	}
 }
 
 // configWriterOf returns the name of the Config that wrote secret for itself: a
@@ -728,6 +780,9 @@ func (m *Migrator) buildConfig(ctx context.Context, secret *corev1.Secret) (*con
 		if block := tpl.block(templateNS, templateName); block != nil {
 			return nil, nil, block, nil
 		}
+		if block, err := m.accessBlock(ctx, tpl.scope(templateName), secret); block != nil || err != nil {
+			return nil, nil, block, err
+		}
 		sensitive = sensitive || tpl.sensitive()
 	}
 	if len(raw) == 0 {
@@ -781,8 +836,45 @@ type templateLookup struct {
 	legacy *corev1.ConfigMap
 }
 
-// lookupTemplate fetches both forms of the template name in ns.
+// scope is the template as AccessToTemplate reads it: the CR when there is one, else the
+// legacy ConfigMap (callers have checked that one of them exists).
+func (t templateLookup) scope(name string) *ResolvedTemplate {
+	if t.cr != nil {
+		return templateOfCR(t.cr)
+	}
+	return templateOfConfigMap(name, t.legacy)
+}
+
+// accessBlock is the access table of issue #7410 section 6 for the Config migration would
+// write, used from the legacy Secret's namespace. A binding the template recorded when it was
+// adopted needs no review; nor does one in the template's namespace or to a system template.
+// Otherwise the run needs a user to ask: the create-config step adopting as the Application's
+// user is reviewed for that user; the startup sweep and a run with no user skip it, since the
+// template namespace on a legacy Secret is only what its writer said it was.
+func (m *Migrator) accessBlock(ctx context.Context, tmpl *ResolvedTemplate, secret *corev1.Secret) (*templateBlock, error) {
+	access := AccessToTemplate(tmpl, secret.Namespace)
+	if access.Review == nil || tmpl.Grandfathers(client.ObjectKeyFromObject(secret)) {
+		return nil, nil
+	}
+	user, named := auth.NamedUserFrom(ctx)
+	if !named {
+		return &templateBlock{MigrationSkipped, access.Reason + "; the binding was not recorded when the template was migrated, and this run has no user to ask"}, nil
+	}
+	allowed, err := auth.UserCan(auth.ContextClearUserInfo(ctx), m.cli, auth.UserInfoOf(user), *access.Review)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return &templateBlock{MigrationSkipped, fmt.Sprintf("%s; %s may not", access.Reason, user.GetName())}, nil
+	}
+	return nil, nil
+}
+
+// lookupTemplate fetches both forms of the template name in ns, with the controller's own
+// identity, as the Config controller reads a template to render. Who may bind a config to
+// it is accessBlock's question, asked for the run's user.
 func (m *Migrator) lookupTemplate(ctx context.Context, ns, name string) (templateLookup, error) {
+	ctx = auth.ContextClearUserInfo(ctx)
 	var tpl templateLookup
 	var ct configv1alpha1.ConfigTemplate
 	switch err := m.cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, &ct); {

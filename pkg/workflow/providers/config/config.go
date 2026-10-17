@@ -40,7 +40,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/condition"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/config"
+	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
@@ -106,14 +108,24 @@ func DepsOf(rp oamprovidertypes.RuntimeParams) Deps {
 // read-config finds the Secret the way it did when the write was synchronous.
 func Create(ctx context.Context, deps Deps, ccp CreateConfigProperties) error {
 	tmpl := config.ParseTemplateRef(ccp.Template)
-	item, err := deps.Factory.ParseConfig(ctx, tmpl, config.Metadata{
+	served := configKindServed(deps.Client)
+	if served {
+		if err := templateAllowed(ctx, deps, tmpl, ccp); err != nil {
+			return err
+		}
+	}
+	// The template is read with the controller's identity, as the Config controller reads it
+	// to render; who may use it was decided above, before any of it is rendered.
+	item, err := deps.Factory.ParseConfig(auth.ContextClearUserInfo(ctx), tmpl, config.Metadata{
 		NamespacedName: config.NamespacedName{Name: ccp.Name, Namespace: ccp.Namespace},
 		Properties:     ccp.Config,
 	})
 	if err != nil {
 		return err
 	}
-	if !configKindServed(deps.Client) {
+	if !served {
+		// no Config kind, so no Config webhook and no scope rule on this path either: the
+		// legacy write as before
 		klog.InfoS("the Config kind is not served; writing the config as a legacy secret", "config", ccp.Namespace+"/"+ccp.Name)
 		return deps.Factory.CreateOrUpdateConfig(ctx, item, ccp.Namespace)
 	}
@@ -133,6 +145,51 @@ func Create(ctx context.Context, deps Deps, ccp CreateConfigProperties) error {
 		return err
 	}
 	return awaitRendered(ctx, deps, cfg)
+}
+
+// templateAllowed is the access rule of issue #7410 section 6 for the step, answered before the
+// template is read for rendering, so a user is never shown a template they may not use. One
+// read of the template's scope, as the controller. With a named user in the context (the
+// AuthenticateApplication gate on) a namespace-scoped template elsewhere is reviewed for that
+// user, as the Config webhook reviews their write; the reads that follow go through the
+// controller's cache and would not ask. Without one the controller writes as itself, so the
+// answer is the structural one, for the Application's namespace: the step's namespace property
+// cannot widen it. A binding the template grandfathers needs no review.
+func templateAllowed(ctx context.Context, deps Deps, tmpl config.NamespacedName, ccp CreateConfigProperties) error {
+	if tmpl.Name == "" {
+		return nil // a config without a template
+	}
+	asController := auth.ContextClearUserInfo(ctx)
+	resolved, waiting, err := config.TemplateScopeOf(asController, deps.Client, &configv1alpha1.ConfigTemplateReference{Name: tmpl.Name, Namespace: tmpl.Namespace})
+	if errors.Is(err, config.ErrTemplateNotFound) {
+		return nil // ParseConfig says so, as before
+	}
+	if err != nil {
+		return err
+	}
+	user, named := auth.NamedUserFrom(ctx)
+	from := ccp.Namespace
+	if appNS := deps.AppLabels[oam.LabelAppNamespace]; !named && appNS != "" {
+		from = appNS
+	}
+	if waiting {
+		return config.PendingTemplateError(resolved, tmpl.Namespace, tmpl.Name, from)
+	}
+	access := config.AccessToTemplate(resolved, from)
+	if access.Review == nil || resolved.Grandfathers(client.ObjectKey{Namespace: ccp.Namespace, Name: ccp.Name}) {
+		return nil
+	}
+	if !named {
+		return fmt.Errorf("%s; this application runs with no user to ask for (the %s feature gate is off), so this step may use only a template in %s or a system one", access.Reason, features.AuthenticateApplication, from)
+	}
+	allowed, err := auth.UserCan(asController, deps.Client, auth.UserInfoOf(user), *access.Review)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return fmt.Errorf("%s; %s may not", access.Reason, user.GetName())
+	}
+	return nil
 }
 
 // configKindServed is the kind probe over the runtime's client; with no client there is

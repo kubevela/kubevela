@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -253,6 +254,45 @@ var _ = Describe("Config controller: the template's nacos block", func() {
 			return string(c.Status) + "/" + string(c.Reason)
 		}
 	}
+
+	It("refuses to read an endpoint the template does not name, wherever the Config moved it", func() {
+		By("a template admitted before the literal rule, its endpoint namespace left to the parameter with a default")
+		parameterized := strings.Replace(nacosTemplateCUE("nacos"), `namespace: "vela-system"`, `namespace: parameter.endpointNs`, 1)
+		parameterized = strings.Replace(parameterized, "parameter: {", "parameter: {\n\t\tendpointNs: *\"vela-system\" | string", 1)
+		availableTemplate("nc-moved", parameterized)
+		moved := newConfig("nc-moved-elsewhere", "nc-moved", 3306)
+		moved.Spec.Properties = rawExtension(map[string]interface{}{
+			"dataId": "d", "endpointNs": "team-b",
+			"content": map[string]interface{}{"mysqlHost": "db", "mysqlPort": 3306},
+		})
+		Expect(k8sClient.Create(ctx, moved)).Should(Succeed())
+		var got configv1alpha1.Config
+		eventuallyConfigError(ctx, client.ObjectKeyFromObject(moved), "the nacos endpoint team-b/nacos is outside nacos-sync and vela-system, and is not the one the template names", &got)
+		fake.mu.Lock()
+		Expect(fake.built).Should(BeZero(), "no Nacos client built: the endpoint was never read")
+		fake.mu.Unlock()
+
+		By("the same template rendering its own default keeps working")
+		kept := newConfig("nc-moved-default", "nc-moved", 3306)
+		Expect(k8sClient.Create(ctx, kept)).Should(Succeed())
+		Eventually(func() configv1alpha1.ConfigPhase {
+			Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(kept), &got)).Should(Succeed())
+			return got.Status.Phase
+		}, 15*time.Second, time.Second).Should(Equal(configv1alpha1.ConfigPhaseAvailable))
+
+		By("a legacy ConfigMap template naming an endpoint in another namespace: never reviewed, so refused outright")
+		legacyCUE := strings.Replace(nacosTemplateCUE("nacos"), `namespace: "vela-system"`, `namespace: "team-b"`, 1)
+		cm := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: legacyconfig.TemplateConfigMapNamePrefix + "nc-legacy-far", Namespace: ns,
+				Labels: map[string]string{apitypes.LabelConfigCatalog: apitypes.VelaCoreConfig, apitypes.LabelConfigScope: "project"}},
+			Data: map[string]string{legacyconfig.SaveTemplateKey: legacyCUE},
+		}
+		Expect(k8sClient.Create(ctx, cm)).Should(Succeed())
+		DeferCleanup(func() { Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, cm))).Should(Succeed()) })
+		far := newConfig("nc-legacy-far", "nc-legacy-far", 3306)
+		Expect(k8sClient.Create(ctx, far)).Should(Succeed())
+		eventuallyConfigError(ctx, client.ObjectKeyFromObject(far), "the nacos endpoint team-b/nacos is outside nacos-sync and vela-system", &got)
+	})
 
 	It("publishes once, records the hash, and does not publish again for the same spec", func() {
 		Expect(k8sClient.Create(ctx, legacyEndpoint("nacos-a"))).Should(Succeed())

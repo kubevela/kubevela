@@ -39,12 +39,14 @@ import (
 // ValidateExpandedWriter names the choice instead.
 var supportedFormats = []string{"json", "yaml", "toml", "properties"}
 
-// ValidateTemplate is the check the ConfigTemplate webhook and the Config reconciler
-// share, so the two cannot drift: it parses the whole template script the way the Secret
-// render does (CueX, provider functions disabled, so a template that imports a vela
-// package is read like any other) and validates its nacos block. A script that does not
-// compile passes here: the ConfigTemplate controller reports that through status.phase,
-// and in the reconciler the Secret render fails on it right after this check.
+// ValidateTemplate is the Config reconciler's entry to ValidateExpandedWriter, the check it
+// shares with the ConfigTemplate webhook so the two cannot drift: it parses the whole
+// template script the way the Secret render does (CueX, provider functions disabled, so a
+// template that imports a vela package is read like any other) and validates its nacos
+// block. The webhook parses once itself, for this and for the endpoint rule, and calls
+// ValidateExpandedWriter on the same value. A script that does not compile passes here:
+// the ConfigTemplate controller reports that through status.phase, and in the reconciler
+// the Secret render fails on it right after this check.
 func ValidateTemplate(ctx context.Context, template script.CUE) error {
 	if v, err := template.ParseToValueWithCueX(ctx); err == nil {
 		return ValidateExpandedWriter(v.LookupPath(cue.ParsePath("template")))
@@ -105,6 +107,26 @@ func ValidateExpandedWriter(template cue.Value) error {
 		if s, err := format.String(); err == nil && !isSupportedFormat(s) {
 			return fmt.Errorf("nacos.format %q is not one of %s", s, strings.Join(supportedFormats, ", "))
 		}
+	}
+	return nil
+}
+
+// ValidateEndpointNamespace is admission's rule for new template text: nacos.endpoint.namespace,
+// when set, is a plain non-empty literal, with no reference and no default. Admission
+// authorises the endpoint from the template text alone, and the Config reconciler serves a
+// foreign endpoint only when the render matches that text (config.RenderedEndpointError). It is
+// not part of ValidateExpandedWriter, which the reconciler runs on every pass: a template
+// admitted before the rule keeps rendering, with the reconciler's check on what it renders.
+func ValidateEndpointNamespace(template cue.Value) error {
+	namespace := template.LookupPath(cue.ParsePath("nacos.endpoint.namespace"))
+	if !namespace.Exists() {
+		return nil
+	}
+	if _, hasDefault := namespace.Default(); hasDefault || !namespace.IsConcrete() {
+		return errors.New("nacos.endpoint.namespace must be a plain string when set: admission authorises the endpoint from the template text alone, so it cannot come from the parameter or have a default")
+	}
+	if s, err := namespace.String(); err != nil || s == "" {
+		return errors.New("nacos.endpoint.namespace must be a non-empty string when set")
 	}
 	return nil
 }
