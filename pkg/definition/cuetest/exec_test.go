@@ -61,3 +61,36 @@ func TestStepCasesDoNotShareFailureCounts(t *testing.T) {
 		require.Empty(t, s.Cases[0].Run(), "run %d", i+1)
 	}
 }
+
+// A case can run a step as one pass of a forEach, the way the engine pushes
+// context.each.
+func TestWorkflowStepExecReadsTheLoop(t *testing.T) {
+	testCluster(t)
+	dir := t.TempDir()
+	write(t, dir, "s.cue", `import "vela/kube"
+
+s: type: "workflow-step"
+template: {
+	apply: kube.#Apply & {$params: value: {
+		apiVersion: "v1"
+		kind:       "ConfigMap"
+		metadata: {name: "item-\(context.each.index)", namespace: context.namespace}
+		data: name: context.each.item.name
+	}}
+	parameter: {}
+}
+`)
+	write(t, dir, "a_test.cue", `import "vela/test"
+
+"second pass": test.#WorkflowStepExec & {
+	definition: "s"
+	context: each: {item: name: "b", index: 1}
+	expect: {
+		phase: "succeeded"
+		resources: [{apiVersion: "v1", kind: "ConfigMap", metadata: name: "item-1", data: name: "b"}]
+	}
+}
+`)
+	s := loadOne(t, dir)
+	require.Empty(t, s.Cases[0].Run())
+}
