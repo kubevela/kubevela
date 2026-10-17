@@ -63,6 +63,12 @@ func TestCoreOptions_Flags(t *testing.T) {
 		"--use-webhook=true",
 		"--webhook-cert-dir=/path/to/cert",
 		"--webhook-port=8080",
+		"--webhook-tls-secret=vela-system/kubevela-vela-core-admission",
+		"--webhook-configuration=kubevela-vela-core-admission",
+		"--webhook-failure-policy=Fail",
+		"--webhook-conversion-crds=applications.core.oam.dev",
+		"--cluster-gateway-tls-secret=vela-system/kubevela-vela-core-cluster-gateway-tls-v2",
+		"--cluster-gateway-service=vela-system/kubevela-cluster-gateway-service",
 	}
 
 	if err := fs.Parse(args); err != nil {
@@ -92,6 +98,12 @@ func TestCoreOptions_Flags(t *testing.T) {
 		EnableClusterGateway:       true,
 		EnableClusterMetrics:       true,
 		ClusterMetricsInterval:     5 * time.Second,
+		WebhookTLSSecret:           "vela-system/kubevela-vela-core-admission",
+		WebhookConfigurationName:   "kubevela-vela-core-admission",
+		WebhookFailurePolicy:       "Fail",
+		WebhookConversionCRDs:      []string{"applications.core.oam.dev"},
+		ClusterGatewayTLSSecret:    "vela-system/kubevela-vela-core-cluster-gateway-tls-v2",
+		ClusterGatewayService:      "vela-system/kubevela-cluster-gateway-service",
 	}
 
 	if !cmp.Equal(opt, expected, cmp.AllowUnexported(CoreOptions{})) {
