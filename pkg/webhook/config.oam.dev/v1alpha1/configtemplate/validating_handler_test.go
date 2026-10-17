@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
+	legacyconfig "github.com/oam-dev/kubevela/pkg/config"
 )
 
 const validTemplate = `
@@ -504,4 +505,31 @@ func TestHandle_TheControllerCannotNameAForeignEndpoint(t *testing.T) {
 	assert.False(t, resp.Allowed, "the controller can read every Secret: its review would pass for anything")
 	assert.Contains(t, string(resp.Result.Message), "the controller writes with no user to ask")
 	assert.Empty(t, reviews)
+}
+
+func TestHandle_TheGrandfatheredListCanShrinkButNotGrow(t *testing.T) {
+	gvr := metav1.GroupVersionResource(configTemplateGVR)
+	h := newHandler(t)
+	plain := "template: {parameter: {}\noutput: {apiVersion: \"v1\", kind: \"Secret\"}}"
+	stored := templateIn("old", "wf-b", configv1alpha1.ConfigTemplateScopeNamespace, plain)
+	stored.Annotations = map[string]string{legacyconfig.AnnotationGrandfatheredConfigs: "wf-a/x,wf-c/y"}
+
+	grown := stored.DeepCopy()
+	grown.Annotations[legacyconfig.AnnotationGrandfatheredConfigs] = "wf-a/x,wf-c/y,wf-d/mine"
+	resp := h.Handle(context.TODO(), newUpdateRequest(t, gvr, stored, grown))
+	assert.False(t, resp.Allowed, "adding an entry would exempt a config from the review")
+	assert.Contains(t, string(resp.Result.Message), "wf-d/mine was not bound to the template when migration adopted it")
+
+	added := templateIn("old", "wf-b", configv1alpha1.ConfigTemplateScopeNamespace, plain)
+	added.Annotations = map[string]string{legacyconfig.AnnotationGrandfatheredConfigs: "wf-d/mine"}
+	resp = h.Handle(context.TODO(), newUpdateRequest(t, gvr, templateIn("old", "wf-b", configv1alpha1.ConfigTemplateScopeNamespace, plain), added))
+	assert.False(t, resp.Allowed, "nor may a template with no list gain one")
+
+	shrunk := stored.DeepCopy()
+	shrunk.Annotations[legacyconfig.AnnotationGrandfatheredConfigs] = "wf-a/x"
+	resp = h.Handle(context.TODO(), newUpdateRequest(t, gvr, stored, shrunk))
+	assert.True(t, resp.Allowed, "dropping an entry: %s", resp.Result.Message)
+
+	resp = h.Handle(context.TODO(), newRequest(t, admissionv1.Create, gvr, stored))
+	assert.True(t, resp.Allowed, "a template created with its list, as migration does: %s", resp.Result.Message)
 }

@@ -152,12 +152,12 @@ func PendingTemplateError(pending *ResolvedTemplate, templateNamespace, name, co
 // retry recognises in the webhook's answer.
 const pendingTemplatePhrase = "is not available yet"
 
-// AnnotationGrandfatheredConfigs, on a ConfigTemplate that migration adopted, lists the
+// AnnotationGrandfatheredConfigs lists, on a ConfigTemplate that migration adopted, the
 // configs in other namespaces that were bound to the legacy template at that moment, as
 // comma-separated namespace/name. 1.11 enforced no scope, so those bindings were allowed;
 // they keep working without the grant the access table would now ask for. A binding made
-// after the adoption is not on the list. Only a writer of the ConfigTemplate can change it,
-// and that writer could grant the access anyway.
+// after the adoption is not on the list, and the ConfigTemplate webhook refuses an update that
+// adds to it: the list is written once, when the template is created.
 const AnnotationGrandfatheredConfigs = "config.oam.dev/grandfathered-configs"
 
 // Grandfathers reports whether the config at key was bound to the template when migration
@@ -168,6 +168,11 @@ func (t *ResolvedTemplate) Grandfathers(key client.ObjectKey) bool {
 
 // grandfatheredOf reads AnnotationGrandfatheredConfigs.
 func grandfatheredOf(annotations map[string]string) []string {
+	return GrandfatheredOf(annotations)
+}
+
+// GrandfatheredOf reads AnnotationGrandfatheredConfigs from annotations.
+func GrandfatheredOf(annotations map[string]string) []string {
 	var out []string
 	for _, entry := range strings.Split(annotations[AnnotationGrandfatheredConfigs], ",") {
 		if entry = strings.TrimSpace(entry); entry != "" {

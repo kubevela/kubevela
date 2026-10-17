@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"slices"
 
 	"cuelang.org/go/cue"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -72,6 +73,18 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		old = &configv1alpha1.ConfigTemplate{}
 		if err := h.Decoder.DecodeRaw(req.OldObject, old); err != nil {
 			old = nil
+		}
+	}
+	// The grandfathered bindings are written once, when migration creates the template; an
+	// update may drop entries, never add them, or anyone who may update a template could
+	// exempt a config from the access review.
+	if old != nil {
+		before := legacyconfig.GrandfatheredOf(old.Annotations)
+		for _, entry := range legacyconfig.GrandfatheredOf(obj.Annotations) {
+			if !slices.Contains(before, entry) {
+				return admission.Denied(fmt.Sprintf("config template %s/%s: %s may lose entries but not gain them: %s was not bound to the template when migration adopted it; grant get on the template instead",
+					obj.Namespace, obj.Name, legacyconfig.AnnotationGrandfatheredConfigs, entry))
+			}
 		}
 	}
 	// An object being deleted loses its finalizers through updates, and refusing those would

@@ -749,10 +749,12 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			report, err = reviewingMigrator(false, &reviews).MigrateConfig(asAlice, teamA, "a-late", MigrationOptions{})
 			Expect(err).Should(Succeed())
 			Expect(resultFor(report, "Secret", teamA, "a-late").Reason).Should(ContainSubstring("alice may not"))
-			Expect(reviews).Should(HaveLen(1))
+			asked := authorizationv1.ResourceAttributes{Verb: "get", Group: configv1alpha1.Group, Version: configv1alpha1.Version, Resource: "configtemplates", Namespace: teamB, Name: "team-tpl"}
+			Expect(reviews).Should(Equal([]authorizationv1.ResourceAttributes{asked}))
 			report, err = reviewingMigrator(true, &reviews).MigrateConfig(asAlice, teamA, "a-late", MigrationOptions{})
 			Expect(err).Should(Succeed())
 			Expect(resultFor(report, "Secret", teamA, "a-late").Outcome).Should(Equal(MigrationAdopted))
+			Expect(reviews).Should(Equal([]authorizationv1.ResourceAttributes{asked, asked}), "the allowed run asked the same question")
 		})
 
 		It("skips a legacy template whose nacos block names an endpoint in another namespace", func() {
