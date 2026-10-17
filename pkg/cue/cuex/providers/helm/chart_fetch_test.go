@@ -130,6 +130,7 @@ var _ = Describe("chart_fetch", func() {
 			Entry("semver 1.2.3", "1.2.3", false),
 			Entry("semver v1.2.3", "v1.2.3", false),
 			Entry("semver short 1.0", "1.0", false),
+			Entry("OCI sha256 digest", "sha256:a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90", false),
 		)
 	})
 
