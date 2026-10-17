@@ -451,6 +451,17 @@ func TestHandle_AnAlreadyMisplacedTemplateCanStillBeEditedAndDeleted(t *testing.
 	resp = h.Handle(context.TODO(), newUpdateRequest(t, gvr, withFinalizer, deleting))
 	assert.True(t, resp.Allowed, "the GC removing a finalizer: %s", resp.Result.Message)
 
+	elsewhere := strings.Replace(nacosTemplate, `namespace: "vela-system"`, `namespace: "wf-b"`, 1)
+	held := templateIn("held", "wf-a", configv1alpha1.ConfigTemplateScopeNamespace, nacosTemplate)
+	held.DeletionTimestamp = &now
+	held.Finalizers = []string{"someone/holds-it"}
+	rewritten := held.DeepCopy()
+	rewritten.Spec.Template = elsewhere
+	var reviews []authorizationv1.ResourceAttributes
+	resp = reviewingHandler(t, false, &reviews).Handle(context.TODO(), newUpdateRequest(t, gvr, held, rewritten))
+	assert.False(t, resp.Allowed, "a template held Terminating cannot have its text rewritten past the endpoint rule")
+	assert.Len(t, reviews, 1)
+
 	fixed := stored.DeepCopy()
 	fixed.Spec.Scope = configv1alpha1.ConfigTemplateScopeNamespace
 	resp = h.Handle(context.TODO(), newUpdateRequest(t, gvr, stored, fixed))

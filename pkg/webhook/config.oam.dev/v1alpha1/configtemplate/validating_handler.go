@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 
 	"cuelang.org/go/cue"
 	admissionv1 "k8s.io/api/admission/v1"
@@ -64,10 +65,6 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	if err := h.Decoder.Decode(req, obj); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	// An object being deleted only loses finalizers: refusing that would leave it Terminating.
-	if obj.DeletionTimestamp != nil {
-		return admission.ValidationResponse(true, "")
-	}
 	// The stored object, on an update. One that cannot be read leaves old nil, and the
 	// update is judged as strictly as a create.
 	var old *configv1alpha1.ConfigTemplate
@@ -76,6 +73,11 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if err := h.Decoder.DecodeRaw(req.OldObject, old); err != nil {
 			old = nil
 		}
+	}
+	// An object being deleted loses its finalizers through updates, and refusing those would
+	// leave it Terminating. Only metadata may change then: a spec edit is judged as any other.
+	if obj.DeletionTimestamp != nil && old != nil && reflect.DeepEqual(old.Spec, obj.Spec) {
+		return admission.ValidationResponse(true, "")
 	}
 
 	// A system template lives in vela-system (issue #7410 section 6). CEL cannot say so, it
