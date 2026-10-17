@@ -18,6 +18,7 @@ package apply
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -33,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
@@ -60,6 +62,8 @@ type applyAction struct {
 	takeOver         bool
 	readOnly         bool
 	isShared         bool
+	sharer           string
+	writesSharers    bool
 	skipUpdate       bool
 	updateAnnotation bool
 	dryRun           bool
@@ -204,14 +208,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 	// This avoids the three-way merge which could pollute last-applied-configuration
 	if applyAct.isShared {
 		loggingApply("patching shared resource annotation only", desired, applyAct.quiet)
-		sharedBy := desired.GetAnnotations()[oam.AnnotationAppSharedBy]
-		patch := []byte(fmt.Sprintf(`{"metadata":{"annotations":{"%s":"%s"}}}`, oam.AnnotationAppSharedBy, sharedBy))
-		var patchOpts []client.PatchOption
-		if applyAct.dryRun {
-			patchOpts = append(patchOpts, client.DryRunAll)
-		}
-		return errors.Wrapf(a.c.Patch(ctx, existing, client.RawPatch(types.MergePatchType, patch), patchOpts...),
-			"cannot patch shared resource annotation")
+		return errors.Wrapf(a.addSharer(ctx, existing, desired, applyAct), "cannot patch shared resource annotation")
 	}
 
 	strategy := applyAct.updateStrategy
@@ -260,11 +257,50 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 		if isEmptyPatch(patch) {
 			return nil
 		}
+		if applyAct.writesSharers && !applyAct.dryRun {
+			// the sharer list in the patch only holds for the version it was computed from
+			if patch, err = withResourceVersion(patch, existing); err != nil {
+				return errors.Wrap(err, "cannot make patch conditional on resource version")
+			}
+		}
 		if applyAct.dryRun {
 			return errors.Wrapf(a.c.Patch(ctx, desired, patch, client.DryRunAll), "cannot patch object")
 		}
 		return errors.Wrapf(a.c.Patch(ctx, desired, patch), "cannot patch object")
 	}
+}
+
+// addSharer adds the sharer to the list on the live object. If the list changed since it was
+// read, the sharer is added to the list as it is now.
+func (a *APIApplicator) addSharer(ctx context.Context, existing, desired client.Object, act *applyAction) error {
+	sharedBy := desired.GetAnnotations()[oam.AnnotationAppSharedBy]
+	var patchOpts []client.PatchOption
+	if act.dryRun {
+		patchOpts = append(patchOpts, client.DryRunAll)
+	}
+	refresh := false
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if refresh {
+			if err := a.c.Get(ctx, client.ObjectKeyFromObject(existing), existing); err != nil {
+				return err
+			}
+			current := existing.GetAnnotations()[oam.AnnotationAppSharedBy]
+			if current == "" {
+				return fmt.Errorf("%s %s/%s is no longer shared", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName())
+			}
+			sharedBy = AddSharer(current, act.sharer)
+		}
+		refresh = true
+		metadata := map[string]interface{}{"annotations": map[string]string{oam.AnnotationAppSharedBy: sharedBy}}
+		if rv := existing.GetResourceVersion(); rv != "" {
+			metadata["resourceVersion"] = rv
+		}
+		patch, err := json.Marshal(map[string]interface{}{"metadata": metadata})
+		if err != nil {
+			return err
+		}
+		return a.c.Patch(ctx, existing, client.RawPatch(types.MergePatchType, patch), patchOpts...)
+	})
 }
 
 // ComputeSpecHash computes the hash value of a k8s resource spec
@@ -504,6 +540,7 @@ func SharedBy(owner Owner) ApplyOption {
 		by := controllerOf(existing, owner.ControlledBy)
 		if by == "" || sameOwner(key, by) {
 			// Owner - use normal three-way merge flow
+			act.writesSharers = sharedBy != existing.GetAnnotations()[oam.AnnotationAppSharedBy]
 			return nil
 		}
 
@@ -517,6 +554,7 @@ func SharedBy(owner Owner) ApplyOption {
 		// The short-circuit will only patch the shared-by annotation, avoiding
 		// any manipulation of the resource spec or last-applied-configuration
 		act.isShared = true
+		act.sharer = key
 		act.updateAnnotation = false
 
 		return nil
