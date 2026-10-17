@@ -49,6 +49,15 @@ _chart: {
 	}}]
 }
 
+"the release goes to the cluster the component is rendered for": test.#ComponentRender & _chart & {
+	context: cluster: "eu-west"
+	expect: calls: "vela/helm": "#Render": [{$params: context: cluster: "eu-west"}]
+}
+
+"a render for the hub names the local cluster": test.#ComponentRender & _chart & {
+	expect: calls: "vela/helm": "#Render": [{$params: context: cluster: "local"}]
+}
+
 "a named release keeps the Application's namespace": test.#ComponentRender & _chart & {
 	parameter: release: name: "cache"
 	expect: {

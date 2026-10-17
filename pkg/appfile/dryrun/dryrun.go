@@ -39,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/helm"
 	"github.com/oam-dev/kubevela/pkg/cue/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -160,6 +161,8 @@ func (d *Option) ExecuteDryRun(ctx context.Context, application *v1beta1.Applica
 // withPlaceholders.
 func (d *Option) executeDryRun(ctx context.Context, application *v1beta1.Application) ([]*types.ComponentManifest, []*unstructured.Unstructured, error) {
 	ctx = withPlaceholders(ctx, application)
+	// A chart is rendered client-side, as admission renders it, rather than installed.
+	ctx = helm.WithDryRun(ctx)
 	app := application.DeepCopy()
 	if app.Namespace != "" {
 		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
