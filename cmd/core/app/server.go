@@ -24,14 +24,20 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	velaclient "github.com/kubevela/pkg/controller/client"
 	"github.com/kubevela/pkg/controller/sharding"
 	"github.com/kubevela/pkg/meta"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/profiling"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	utilrand "k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/wait"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
@@ -62,7 +68,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	"github.com/oam-dev/kubevela/pkg/utils/servingcert"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	webhookcerts "github.com/oam-dev/kubevela/pkg/webhook/certs"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -103,6 +111,10 @@ func NewCoreCommand() *cobra.Command {
 }
 
 func run(ctx context.Context, coreOptions *options.CoreOptions) error {
+	// restartForNewCA cancels this context to restart vela-core.
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
+
 	klog.InfoS("Starting KubeVela core controller",
 		"context", "initialization",
 		"leaderElection", coreOptions.Server.EnableLeaderElection,
@@ -134,12 +146,40 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 	klog.V(2).InfoS("Starting profiling server in background")
 	go profiling.StartProfilingServer(nil)
 
+	// The serving certs that vela-core manages share one uncached client. A
+	// cache would watch every Secret in the cluster, so the client has none.
+	webhookCerts := coreOptions.Webhook.UseWebhook && coreOptions.Webhook.TLSSecret != ""
+	gatewayCerts := coreOptions.MultiCluster.EnableClusterGateway && coreOptions.MultiCluster.ClusterGatewayTLSSecret != ""
+	var certClient ctrlclient.Client
+	if webhookCerts || gatewayCerts {
+		c, err := ctrlclient.New(kubeConfig, ctrlclient.Options{Scheme: common.Scheme})
+		if err != nil {
+			return errors.Wrap(err, "failed to create client for serving cert setup")
+		}
+		certClient = c
+	}
+	var webhookTLS webhookcerts.Options
+	if webhookCerts {
+		if webhookTLS, err = webhookTLSOptions(coreOptions.Webhook); err != nil {
+			return err
+		}
+		// resyncWebhookTLS sets the failurePolicy later. If the policy changes to
+		// Fail before the webhook server listens, the API server rejects every
+		// request until the server starts.
+		if err = retryStartup(ctx, "webhook TLS", func(ctx context.Context) error {
+			return ensureWebhookTLS(ctx, certClient, webhookTLS, coreOptions.Webhook.CertDir, false)
+		}); err != nil {
+			klog.ErrorS(err, "Failed to set up webhook TLS")
+			return err
+		}
+	}
+
 	// Setup multi-cluster if enabled
 	if coreOptions.MultiCluster.EnableClusterGateway {
 		klog.InfoS("Multi-cluster gateway enabled, setting up multi-cluster capability",
 			"enableMetrics", coreOptions.MultiCluster.EnableClusterMetrics,
 			"metricsInterval", coreOptions.MultiCluster.ClusterMetricsInterval)
-		if err := setupMultiCluster(ctx, kubeConfig, coreOptions.MultiCluster); err != nil {
+		if err := setupMultiCluster(ctx, kubeConfig, coreOptions.MultiCluster, certClient, restartForNewCA(stop)); err != nil {
 			klog.ErrorS(err, "Failed to setup multi-cluster")
 			return fmt.Errorf("failed to setup multi-cluster: %w", err)
 		}
@@ -161,6 +201,10 @@ func run(ctx context.Context, coreOptions *options.CoreOptions) error {
 		return fmt.Errorf("failed to create controller manager: %w", err)
 	}
 	klog.InfoS("Controller manager created successfully")
+	if webhookCerts {
+		started := manager.GetWebhookServer().StartedChecker()
+		go resyncWebhookTLS(ctx, certClient, webhookTLS, coreOptions.Webhook.CertDir, func() bool { return started(nil) == nil })
+	}
 
 	// Register health checks
 	klog.V(2).InfoS("Registering health and readiness checks")
@@ -286,8 +330,22 @@ func configureKubernetesClientWithProvider(kubernetesConfig *config.KubernetesCo
 	return kubeConfig, nil
 }
 
-// setupMultiCluster initializes multi-cluster capability
-func setupMultiCluster(ctx context.Context, kubeConfig *rest.Config, multiClusterConfig *config.MultiClusterConfig) error {
+// setupMultiCluster initializes the multi-cluster capability. When
+// --cluster-gateway-tls-secret is set, it uses certClient to manage the
+// cluster-gateway serving cert. It calls restart if that CA changes.
+func setupMultiCluster(ctx context.Context, kubeConfig *rest.Config, multiClusterConfig *config.MultiClusterConfig,
+	certClient ctrlclient.Client, restart func()) error {
+	if multiClusterConfig.ClusterGatewayTLSSecret != "" {
+		// Run this before multicluster.Initialize, which waits for the APIService
+		// to become Available. On Kubernetes 1.36 and later, the APIService is
+		// never Available without a valid caBundle.
+		if err := startClusterGatewayTLS(ctx, certClient, multiClusterConfig.ClusterGatewayTLSSecret,
+			multiClusterConfig.ClusterGatewayService, &pkgmulticluster.DefaultClusterGatewayClientOptions, restart); err != nil {
+			klog.ErrorS(err, "Failed to set up cluster-gateway TLS")
+			return err
+		}
+	}
+
 	klog.V(2).InfoS("Initializing multi-cluster client")
 	clusterClient, err := multicluster.Initialize(kubeConfig, true)
 	if err != nil {
@@ -317,6 +375,228 @@ func configureFeatureGates(coreOptions *options.CoreOptions) {
 			"period", coreOptions.Kubernetes.InformerSyncPeriod)
 		commonconfig.ApplicationReSyncPeriod = coreOptions.Kubernetes.InformerSyncPeriod
 	}
+}
+
+var (
+	// servingCertResyncPeriod is the interval between checks of the serving
+	// certs that vela-core manages. Each check renews a cert if necessary. It
+	// also repairs a caBundle or failurePolicy that something changed, for
+	// example a GitOps sync.
+	servingCertResyncPeriod = time.Minute
+	// startupRetryInterval and startupRetryTimeout control how long the first
+	// setup waits for objects that the chart creates with the Deployment. These
+	// objects include the APIService and the webhook configurations.
+	startupRetryInterval = 2 * time.Second
+	startupRetryTimeout  = 2 * time.Minute
+	// restartJitter spreads the restarts of several replicas after a CA change.
+	restartJitter = 30 * time.Second
+)
+
+// resyncJitterFactor spreads the resyncs of several replicas over 10% of the
+// period, so that they do not all write at the same time.
+const resyncJitterFactor = 0.1
+
+// retryStartup runs fn until fn succeeds or startupRetryTimeout ends. It gives
+// fn a context that ends at the same time, so a request that hangs does not
+// keep startup waiting. It returns the last error from fn.
+func retryStartup(ctx context.Context, name string, fn func(context.Context) error) error {
+	var lastErr error
+	err := wait.PollUntilContextTimeout(ctx, startupRetryInterval, startupRetryTimeout, true, func(ctx context.Context) (bool, error) {
+		lastErr = fn(ctx)
+		if lastErr != nil {
+			klog.InfoS("Waiting to set up serving cert", "for", name, "reason", lastErr.Error())
+		}
+		// A failed attempt is retried, not returned: the poll ends only on
+		// success or at the timeout.
+		return lastErr == nil, nil
+	})
+	if lastErr != nil {
+		return lastErr
+	}
+	return err
+}
+
+// startClusterGatewayTLS sets up the cluster-gateway serving cert in the Secret
+// secretRef, for the Service serviceRef if it is not empty. Then it keeps the
+// cert valid in the background. In direct mode
+// (gateway.URL is set), it sets gateway.CAFile to the file that holds the CA.
+// It sets gateway.CAFile once, before a client reads the options.
+func startClusterGatewayTLS(ctx context.Context, c ctrlclient.Client, secretRef, serviceRef string,
+	gateway *pkgmulticluster.ClusterGatewayClientOptions, restart func()) error {
+	namespace, name, err := parseNamespacedName("cluster-gateway-tls-secret", secretRef)
+	if err != nil {
+		return err
+	}
+	var svc *servingcert.Service
+	if serviceRef != "" {
+		svcNamespace, svcName, err := parseNamespacedName("cluster-gateway-service", serviceRef)
+		if err != nil {
+			return err
+		}
+		svc = &servingcert.Service{Namespace: svcNamespace, Name: svcName}
+	}
+	caFile := ""
+	if gateway.URL != "" {
+		caFile = gateway.CAFile
+		if caFile == "" {
+			caFile = filepath.Join(os.TempDir(), "cluster-gateway", servingcert.CAKey)
+		}
+		gateway.CAFile = caFile
+	}
+	var trusted []byte
+	if err = retryStartup(ctx, "cluster-gateway TLS", func(ctx context.Context) (err error) {
+		trusted, err = setupClusterGatewayTLS(ctx, c, namespace, name, svc, caFile)
+		return err
+	}); err != nil {
+		return err
+	}
+	go wait.JitterUntilWithContext(ctx, clusterGatewayTLSResync(c, namespace, name, svc, caFile, trusted, restart),
+		servingCertResyncPeriod, resyncJitterFactor, true)
+	return nil
+}
+
+// setupClusterGatewayTLS makes sure that the cluster-gateway serving cert in
+// the Secret <namespace>/<name> is valid. It also makes sure that the
+// cluster-gateway APIService trusts the CA. It returns the CA bundle. If
+// caFile is set (direct mode), it also writes the bundle to caFile. vela-core
+// cannot mount a Secret that it creates itself.
+func setupClusterGatewayTLS(ctx context.Context, c ctrlclient.Client, namespace, name string, svc *servingcert.Service,
+	caFile string) ([]byte, error) {
+	bundle, err := multicluster.EnsureClusterGatewayTLS(ctx, c, namespace, name, svc)
+	if err != nil {
+		return nil, err
+	}
+	if caFile == "" {
+		return bundle, nil
+	}
+	changed, err := servingcert.WriteFileIfChanged(caFile, bundle)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to write cluster-gateway CA file")
+	}
+	if changed {
+		klog.InfoS("Wrote the cluster-gateway CA for direct mode", "file", caFile)
+	}
+	return bundle, nil
+}
+
+// clusterGatewayTLSResync returns the periodic check for the cluster-gateway
+// cert. The direct-mode client reads its CA only once, when vela-core builds
+// the client. Thus, if the CA set changes, vela-core restarts to load it.
+// A serving cert renewal with the same CA is the usual case. It does not need
+// a restart.
+func clusterGatewayTLSResync(c ctrlclient.Client, namespace, name string, svc *servingcert.Service, caFile string,
+	trusted []byte, restart func()) func(context.Context) {
+	return func(ctx context.Context) {
+		bundle, err := setupClusterGatewayTLS(ctx, c, namespace, name, svc, caFile)
+		if err != nil {
+			klog.ErrorS(err, "Failed to resync the cluster-gateway serving cert")
+			return
+		}
+		// Restart when the CA set changes in either direction: a new CA must be
+		// trusted, and a CA dropped after the overlap must stop being trusted.
+		if caFile != "" && (!servingcert.Covers(trusted, bundle) || !servingcert.Covers(bundle, trusted)) {
+			restart()
+		}
+	}
+}
+
+// restartForNewCA returns a func that stops vela-core gracefully after a
+// random delay of up to restartJitter. Because of the delay, replicas do not
+// all restart at the same time. Then the restart policy of the container
+// starts vela-core again.
+func restartForNewCA(stop context.CancelFunc) func() {
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			delay := time.Duration(utilrand.Int63nRange(0, int64(restartJitter)+1))
+			klog.InfoS("The cluster-gateway CA was replaced, restarting so the direct-mode client trusts it", "in", delay)
+			time.AfterFunc(delay, stop)
+		})
+	}
+}
+
+// webhookTLSOptions checks the webhook TLS flags and converts them into the
+// options for webhookcerts.Ensure.
+func webhookTLSOptions(cfg *config.WebhookConfig) (webhookcerts.Options, error) {
+	namespace, name, err := parseNamespacedName("webhook-tls-secret", cfg.TLSSecret)
+	if err != nil {
+		return webhookcerts.Options{}, err
+	}
+	if cfg.ConfigurationName == "" {
+		return webhookcerts.Options{}, fmt.Errorf("--webhook-configuration is required with --webhook-tls-secret")
+	}
+	policy := admissionregistrationv1.FailurePolicyType(cfg.FailurePolicy)
+	if policy != "" && policy != admissionregistrationv1.Fail && policy != admissionregistrationv1.Ignore {
+		return webhookcerts.Options{}, fmt.Errorf("invalid --webhook-failure-policy %q, want Fail or Ignore", cfg.FailurePolicy)
+	}
+	return webhookcerts.Options{
+		SecretNamespace:   namespace,
+		SecretName:        name,
+		ConfigurationName: cfg.ConfigurationName,
+		FailurePolicy:     policy,
+		ConversionCRDs:    cfg.ConversionCRDs,
+	}, nil
+}
+
+// ensureWebhookTLS makes sure that the webhook serving cert is valid. It
+// writes the cert to certDir for the webhook server and sets the caBundle of
+// the webhook configurations. If applyPolicy is true, it also sets
+// opts.FailurePolicy. Set applyPolicy only when the webhook server serves
+// requests. The webhook server reloads the files when they change.
+func ensureWebhookTLS(ctx context.Context, c ctrlclient.Client, opts webhookcerts.Options, certDir string, applyPolicy bool) error {
+	if !applyPolicy {
+		opts.FailurePolicy = ""
+	}
+	res, err := webhookcerts.Ensure(ctx, c, opts)
+	if err != nil {
+		return err
+	}
+	changed, err := webhookcerts.WriteFiles(certDir, res)
+	if err != nil {
+		return err
+	}
+	if changed {
+		klog.InfoS("Wrote the webhook serving cert", "secret", opts.SecretNamespace+"/"+opts.SecretName, "certDir", certDir)
+	}
+	return nil
+}
+
+// resyncWebhookTLS keeps the webhook serving cert valid until ctx is done.
+// Until serving reports that the webhook server is up, it checks every
+// startupRetryInterval and does not change the failurePolicy. After it sets
+// the failurePolicy, it checks every servingCertResyncPeriod.
+func resyncWebhookTLS(ctx context.Context, c ctrlclient.Client, opts webhookcerts.Options, certDir string, serving func() bool) {
+	policySet := false
+	for {
+		period := servingCertResyncPeriod
+		if !policySet {
+			period = startupRetryInterval
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(period):
+		}
+		up := serving()
+		if err := ensureWebhookTLS(ctx, c, opts, certDir, up); err != nil {
+			klog.ErrorS(err, "Failed to resync the webhook serving cert")
+			continue
+		}
+		if up && !policySet {
+			policySet = true
+			klog.InfoS("Webhook server is serving, set the webhook failurePolicy", "failurePolicy", opts.FailurePolicy)
+		}
+	}
+}
+
+// parseNamespacedName divides the <namespace>/<name> value of flag into its two
+// parts.
+func parseNamespacedName(flag, ref string) (namespace, name string, err error) {
+	namespace, name, ok := strings.Cut(ref, "/")
+	if !ok || namespace == "" || name == "" || strings.Contains(name, "/") {
+		return "", "", fmt.Errorf("invalid --%s %q, want <namespace>/<name>", flag, ref)
+	}
+	return namespace, name, nil
 }
 
 // buildManagerOptions constructs ctrl.Options from CoreOptions for creating a controller manager.
