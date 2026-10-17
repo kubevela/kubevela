@@ -406,7 +406,7 @@ func TestHandle_NacosEndpointInAnotherNamespaceNeedsTheAuthorToReadIt(t *testing
 		parameterized = strings.Replace(parameterized, "parameter: {", "parameter: {\n\t\tns: string", 1)
 		resp := h.Handle(context.TODO(), as(newRequest(t, admissionv1.Create, gvr, templateIn("t", "wf-a", configv1alpha1.ConfigTemplateScopeNamespace, parameterized))))
 		assert.False(t, resp.Allowed)
-		assert.Contains(t, string(resp.Result.Message), "nacos.endpoint.namespace must be a concrete, non-empty string")
+		assert.Contains(t, string(resp.Result.Message), "nacos.endpoint.namespace must be a plain string when set")
 		assert.Empty(t, reviews)
 	})
 	t.Run("an update that leaves the template text alone: no review (admitted before the rule)", func(t *testing.T) {
@@ -428,4 +428,69 @@ func TestHandle_NacosEndpointInAnotherNamespaceNeedsTheAuthorToReadIt(t *testing
 		assert.False(t, resp.Allowed)
 		assert.Len(t, reviews, 1)
 	})
+}
+
+func TestHandle_AnAlreadyMisplacedTemplateCanStillBeEditedAndDeleted(t *testing.T) {
+	gvr := metav1.GroupVersionResource(configTemplateGVR)
+	h := newHandler(t)
+	plain := "template: {parameter: {}\noutput: {apiVersion: \"v1\", kind: \"Secret\"}}"
+	stored := templateIn("old-system", "wf-a", configv1alpha1.ConfigTemplateScopeSystem, plain)
+
+	relabelled := stored.DeepCopy()
+	relabelled.Labels = map[string]string{"team": "a"}
+	resp := h.Handle(context.TODO(), newUpdateRequest(t, gvr, stored, relabelled))
+	assert.True(t, resp.Allowed, "a label edit on a template misplaced before the rule: %s", resp.Result.Message)
+
+	deleting := stored.DeepCopy()
+	now := metav1.Now()
+	deleting.DeletionTimestamp = &now
+	deleting.Finalizers = nil
+	withFinalizer := stored.DeepCopy()
+	withFinalizer.DeletionTimestamp = &now
+	withFinalizer.Finalizers = []string{"foregroundDeletion"}
+	resp = h.Handle(context.TODO(), newUpdateRequest(t, gvr, withFinalizer, deleting))
+	assert.True(t, resp.Allowed, "the GC removing a finalizer: %s", resp.Result.Message)
+
+	fixed := stored.DeepCopy()
+	fixed.Spec.Scope = configv1alpha1.ConfigTemplateScopeNamespace
+	resp = h.Handle(context.TODO(), newUpdateRequest(t, gvr, stored, fixed))
+	assert.True(t, resp.Allowed, "the fix")
+
+	mine := templateIn("mine", "wf-a", configv1alpha1.ConfigTemplateScopeNamespace, plain)
+	promoted := mine.DeepCopy()
+	promoted.Spec.Scope = configv1alpha1.ConfigTemplateScopeSystem
+	resp = h.Handle(context.TODO(), newUpdateRequest(t, gvr, mine, promoted))
+	assert.False(t, resp.Allowed, "a template made system outside vela-system by this update")
+}
+
+func TestHandle_TheEndpointNamespaceIsAPlainLiteral(t *testing.T) {
+	gvr := metav1.GroupVersionResource(configTemplateGVR)
+	var reviews []authorizationv1.ResourceAttributes
+	h := reviewingHandler(t, true, &reviews)
+	defaulted := strings.Replace(nacosTemplate, `namespace: "vela-system"`, `namespace: parameter.ns`, 1)
+	defaulted = strings.Replace(defaulted, "parameter: {", "parameter: {\n\t\tns: *\"vela-system\" | string", 1)
+	resp := h.Handle(context.TODO(), newRequest(t, admissionv1.Create, gvr, templateIn("t", "wf-a", configv1alpha1.ConfigTemplateScopeNamespace, defaulted)))
+	assert.False(t, resp.Allowed, "a default would be what admission sees, the Config's value what renders")
+	assert.Contains(t, string(resp.Result.Message), "cannot come from the parameter or have a default")
+	assert.Empty(t, reviews)
+
+	stored := templateIn("t", "wf-a", configv1alpha1.ConfigTemplateScopeNamespace, defaulted)
+	relabelled := stored.DeepCopy()
+	relabelled.Labels = map[string]string{"team": "a"}
+	resp = h.Handle(context.TODO(), newUpdateRequest(t, gvr, stored, relabelled))
+	assert.True(t, resp.Allowed, "a template admitted before the rule is not re-validated by a label edit: %s", resp.Result.Message)
+}
+
+func TestHandle_TheControllerCannotNameAForeignEndpoint(t *testing.T) {
+	gvr := metav1.GroupVersionResource(configTemplateGVR)
+	var reviews []authorizationv1.ResourceAttributes
+	h := reviewingHandler(t, true, &reviews)
+	h.ControllerUser = "system:serviceaccount:vela-system:kubevela-vela-core"
+	elsewhere := strings.Replace(nacosTemplate, `namespace: "vela-system"`, `namespace: "wf-b"`, 1)
+	req := newRequest(t, admissionv1.Create, gvr, templateIn("t", "wf-a", configv1alpha1.ConfigTemplateScopeNamespace, elsewhere))
+	req.UserInfo = authenticationv1.UserInfo{Username: h.ControllerUser}
+	resp := h.Handle(context.TODO(), req)
+	assert.False(t, resp.Allowed, "the controller can read every Secret: its review would pass for anything")
+	assert.Contains(t, string(resp.Result.Message), "the controller writes with no user to ask")
+	assert.Empty(t, reviews)
 }

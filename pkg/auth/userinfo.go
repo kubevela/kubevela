@@ -62,6 +62,18 @@ func ContextClearUserInfo(ctx context.Context) context.Context {
 	return request.WithUser(ctx, nil)
 }
 
+// UserInfoOf is u as the UserInfo a SubjectAccessReview asks about.
+func UserInfoOf(u user.Info) authv1.UserInfo {
+	info := authv1.UserInfo{Username: u.GetName(), UID: u.GetUID(), Groups: u.GetGroups()}
+	if extra := u.GetExtra(); len(extra) > 0 {
+		info.Extra = make(map[string]authv1.ExtraValue, len(extra))
+		for k, v := range extra {
+			info.Extra[k] = authv1.ExtraValue(v)
+		}
+	}
+	return info
+}
+
 // NamedUserFrom is the user the context carries when it carries one with a name: the user
 // the impersonating round tripper acts as. A context without one, or with an empty name (an
 // Application reconciled with the AuthenticateApplication gate off), is the controller's own.

@@ -74,7 +74,8 @@ func validateExpandedWriter(ctx context.Context, tmpl *legacyconfig.ResolvedTemp
 
 // renderExpandedWriter reads the nacos block out of the rendered template value the
 // Secret render produced, so the Secret, the outputs and the block come from one
-// compile. nil when the template has no block. A render failure is a template error.
+// compile. nil when the template has no block. A render failure is a template error, and
+// so is an endpoint the template may not name (config.RenderedEndpointError).
 func renderExpandedWriter(tmpl *legacyconfig.ResolvedTemplate, rendered cue.Value) (*writer.NacosData, error) {
 	if tmpl == nil || tmpl.ExpandedWriter.Nacos == nil {
 		return nil, nil
@@ -82,6 +83,12 @@ func renderExpandedWriter(tmpl *legacyconfig.ResolvedTemplate, rendered cue.Valu
 	data, err := writer.RenderForExpandedWriter(tmpl.ExpandedWriter, rendered)
 	if err != nil {
 		return nil, fmt.Errorf("failed to render the nacos block of config template %s/%s: %w", tmpl.Namespace, tmpl.Name, err)
+	}
+	// the controller reads the endpoint with its own rights: only one the template may name
+	if data.Nacos != nil {
+		if err := legacyconfig.RenderedEndpointError(tmpl, data.Nacos.Endpoint); err != nil {
+			return nil, err
+		}
 	}
 	return data.Nacos, nil
 }

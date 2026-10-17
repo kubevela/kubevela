@@ -39,9 +39,10 @@ import (
 
 // The scope rules of issue #7410 section 6, as a user bound to one namespace. The admission
 // webhooks are on in this suite (the CRD specs rely on them); the AuthenticateApplication
-// gate is off, so the create-config spec exercises the step's own answer for an Application
-// with no user. The gate-on case, where the step's write is the Application's user's and the
-// Config webhook answers for them, is the manual kit's (pr6 scenario 04 section 2).
+// gate is off, so the create-config spec exercises the answer for an Application with no user.
+// The gate-on case, where the step reviews the template for the Application's user before it
+// writes and the write is that user's, needs a second install with the gate on and is covered
+// by the provider suite and by manual testing.
 var _ = Describe("Template scope and cross-namespace access as a non-admin user", Label("core-config"), func() {
 	ctx := context.Background()
 

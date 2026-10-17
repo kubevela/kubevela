@@ -80,13 +80,6 @@ func ValidateExpandedWriter(template cue.Value) error {
 	if s, err := name.String(); err != nil || s == "" {
 		return errors.New("nacos.endpoint.name must be a concrete, non-empty string: it cannot reference the parameter")
 	}
-	// the namespace too: admission reads it to decide who may name that endpoint, and a
-	// value settled only once the parameters are merged in would be read as the default
-	if namespace := nacos.LookupPath(cue.ParsePath("endpoint.namespace")); namespace.Exists() {
-		if s, err := namespace.String(); err != nil || s == "" {
-			return errors.New("nacos.endpoint.namespace must be a concrete, non-empty string when set: it cannot reference the parameter")
-		}
-	}
 	metadata := nacos.LookupPath(cue.ParsePath("metadata"))
 	if !metadata.Exists() {
 		return errors.New("nacos.metadata is required, with dataId")
@@ -114,6 +107,26 @@ func ValidateExpandedWriter(template cue.Value) error {
 		if s, err := format.String(); err == nil && !isSupportedFormat(s) {
 			return fmt.Errorf("nacos.format %q is not one of %s", s, strings.Join(supportedFormats, ", "))
 		}
+	}
+	return nil
+}
+
+// ValidateEndpointNamespace is admission's rule for new template text: nacos.endpoint.namespace,
+// when set, is a plain non-empty literal, with no reference and no default. Admission
+// authorises the endpoint from the template text alone, and the Config reconciler serves a
+// foreign endpoint only when the render matches that text (config.RenderedEndpointError). It is
+// not part of ValidateExpandedWriter, which the reconciler runs on every pass: a template
+// admitted before the rule keeps rendering, with the reconciler's check on what it renders.
+func ValidateEndpointNamespace(template cue.Value) error {
+	namespace := template.LookupPath(cue.ParsePath("nacos.endpoint.namespace"))
+	if !namespace.Exists() {
+		return nil
+	}
+	if _, hasDefault := namespace.Default(); hasDefault || !namespace.IsConcrete() {
+		return errors.New("nacos.endpoint.namespace must be a plain string when set: admission authorises the endpoint from the template text alone, so it cannot come from the parameter or have a default")
+	}
+	if s, err := namespace.String(); err != nil || s == "" {
+		return errors.New("nacos.endpoint.namespace must be a non-empty string when set")
 	}
 	return nil
 }

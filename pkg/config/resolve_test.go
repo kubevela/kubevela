@@ -33,6 +33,7 @@ import (
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	apitypes "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/config/writer"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
@@ -410,4 +411,37 @@ func TestAccessToTemplate(t *testing.T) {
 	legacyCross := AccessToTemplate(&ResolvedTemplate{Name: "lb", Namespace: "wf-b", Scope: "global", Legacy: true}, "wf-a")
 	r.NotNil(legacyCross.Review)
 	r.Equal("configtemplates", legacyCross.Review.Resource, "the review names the template the user would be granted, not the ConfigMap")
+}
+
+func TestTemplateScopeOf(t *testing.T) {
+	r := require.New(t)
+	ct := &configv1alpha1.ConfigTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "old", Namespace: "wf-b", Annotations: map[string]string{AnnotationGrandfatheredConfigs: "wf-a/x, wf-c/y,"}},
+		Spec:       configv1alpha1.ConfigTemplateSpec{Template: "this is not even cue {{{", Scope: configv1alpha1.ConfigTemplateScopeNamespace},
+		Status:     configv1alpha1.ConfigTemplateStatus{Phase: configv1alpha1.ConfigTemplatePhaseAvailable},
+	}
+	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(ct).Build()
+	tmpl, waiting, err := TemplateScopeOf(context.Background(), cli, &configv1alpha1.ConfigTemplateReference{Name: "old", Namespace: "wf-b"})
+	r.NoError(err, "no CUE is compiled")
+	r.False(waiting)
+	r.Equal([]string{"wf-a/x", "wf-c/y"}, tmpl.Grandfathered)
+	r.True(tmpl.Grandfathers(client.ObjectKey{Namespace: "wf-a", Name: "x"}))
+	r.False(tmpl.Grandfathers(client.ObjectKey{Namespace: "wf-a", Name: "z"}), "a binding made after the adoption")
+	r.False(tmpl.Grandfathers(client.ObjectKey{Namespace: "wf-b", Name: "x"}))
+	r.Empty(tmpl.CUE)
+}
+
+func TestRenderedEndpointError(t *testing.T) {
+	r := require.New(t)
+	named := func(ns string) writer.ConfigRef { return writer.ConfigRef{Name: "nacos", Namespace: ns} }
+	cr := &ResolvedTemplate{Name: "t", Namespace: "wf-a", ExpandedWriter: writer.ExpandedWriterConfig{Nacos: &writer.NacosConfig{Endpoint: named("wf-b")}}}
+	r.NoError(RenderedEndpointError(cr, named("wf-a")), "its own namespace")
+	r.NoError(RenderedEndpointError(cr, named(apitypes.DefaultKubeVelaNS)), "the shared endpoints")
+	r.NoError(RenderedEndpointError(cr, named("wf-b")), "the endpoint the text names, which admission reviewed")
+	err := RenderedEndpointError(cr, named("wf-c"))
+	r.ErrorContains(err, "the nacos endpoint wf-c/nacos is outside wf-a and vela-system, and is not the one the template names")
+
+	legacy := &ResolvedTemplate{Name: "t", Namespace: "wf-a", Legacy: true, ExpandedWriter: cr.ExpandedWriter}
+	r.Error(RenderedEndpointError(legacy, named("wf-b")), "a legacy ConfigMap was never reviewed: no foreign endpoint, even the one it names")
+	r.NoError(RenderedEndpointError(legacy, named("wf-a")))
 }

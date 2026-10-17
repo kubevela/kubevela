@@ -37,6 +37,9 @@ import (
 	legacyconfig "github.com/oam-dev/kubevela/pkg/config"
 	icontext "github.com/oam-dev/kubevela/pkg/config/context"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/features"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 var configGVR = configv1alpha1.ConfigGVR
@@ -47,6 +50,9 @@ const defaultPropertiesSecretKey = "properties"
 type ValidatingHandler struct {
 	Decoder admission.Decoder
 	Client  client.Client
+	// ControllerUser is the controller's own identity. Its writes (an Application's, with the
+	// AuthenticateApplication gate off; migration's) have no user behind them to review.
+	ControllerUser string
 }
 
 var _ admission.Handler = &ValidatingHandler{}
@@ -90,6 +96,13 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 	creating := req.Operation == admissionv1.Create
 	templateNS := legacyconfig.TemplateRefNamespace(obj.Spec.TemplateRef)
+	// Who the Config is used from: its own namespace, or for the controller writing on behalf
+	// of an Application, that Application's namespace, which a step or component cannot move.
+	asController := h.ControllerUser != "" && req.UserInfo.Username == h.ControllerUser
+	from := obj.Namespace
+	if appNS := obj.Labels[oam.LabelAppNamespace]; asController && appNS != "" {
+		from = appNS
+	}
 
 	tmpl, resolved, err := h.resolveTemplate(ctx, obj.Spec.TemplateRef)
 	if err != nil {
@@ -99,18 +112,23 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		// In the Config's own namespace, or for a system template in vela-system, the
 		// template may follow later and admission defers to the controller as before; in
 		// another namespace the create waits for it.
-		if pending := legacyconfig.PendingTemplateError(tmpl, templateNS, obj.Spec.TemplateRef.Name, obj.Namespace); creating && pending != nil {
+		if pending := legacyconfig.PendingTemplateError(tmpl, templateNS, obj.Spec.TemplateRef.Name, from); creating && pending != nil {
 			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", pending, req.UID))
 		}
 		return admission.ValidationResponse(true, "")
 	}
 
 	// May a Config here use that template (issue #7410 section 6)? The same namespace and a
-	// system template need no user; a namespace-scoped template elsewhere is the requesting
-	// user's to read or not, asked of the API server as that user. On update as well as on
-	// create: templateRef is immutable (above), but new properties are a new render through
-	// the template, and the editor must be someone who could have bound the Config to it.
-	if access := legacyconfig.AccessToTemplate(tmpl, obj.Namespace); access.Review != nil {
+	// system template need no user, nor does a binding the template recorded when migration
+	// adopted it; a namespace-scoped template elsewhere is the requesting user's to read or
+	// not, asked of the API server as that user. The controller's own write has no user to
+	// ask, so for it a review is a refusal. Create only: templateRef is immutable (above), so
+	// the answer at creation holds for the Config's lifetime.
+	if access := legacyconfig.AccessToTemplate(tmpl, from); creating && access.Review != nil && !tmpl.Grandfathers(client.ObjectKeyFromObject(obj)) {
+		if asController {
+			return admission.Denied(fmt.Sprintf("%s; the controller writes this config with no user to ask (an application with the %s feature gate off, or migration), so it may use only a template in %s or a system one (requestUID=%s)",
+				access.Reason, features.AuthenticateApplication, from, req.UID))
+		}
 		allowed, err := auth.UserCan(ctx, h.Client, req.UserInfo, *access.Review)
 		if err != nil {
 			return admission.Errored(http.StatusInternalServerError, err)
@@ -215,8 +233,12 @@ func (h *ValidatingHandler) resolveProperties(ctx context.Context, cfg *configv1
 // RegisterValidatingHandler registers Config validation to the webhook server.
 func RegisterValidatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-config-oam-dev-v1alpha1-configs", &webhook.Admission{Handler: &ValidatingHandler{
+	handler := &ValidatingHandler{
 		Client:  mgr.GetClient(),
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
-	}})
+	}
+	if userInfo := utils.GetUserInfoFromConfig(mgr.GetConfig()); userInfo != nil {
+		handler.ControllerUser = userInfo.Username
+	}
+	server.Register("/validating-config-oam-dev-v1alpha1-configs", &webhook.Admission{Handler: handler})
 }

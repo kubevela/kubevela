@@ -57,10 +57,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return ctrl.Result{}, nil
 	}
 
-	// The resolver serves an Error template only when it is a misplaced system one with its
-	// schema (pkg/config.ResolveConfigTemplate), so a stale schema from an earlier revision
-	// must not outlive a parse failure: a misplaced template edited into broken CUE would
-	// otherwise stay usable.
+	// A parse failure clears the schema: the resolver serves a misplaced system template in
+	// Error only with the schema of its current revision (pkg/config.ResolveConfigTemplate).
 	ct.Status.Schema = nil
 	cueScript := script.CUE(ct.Spec.Template)
 	if _, err := cueScript.ParseToTemplateValueWithCueX(ctx); err != nil {

@@ -35,6 +35,7 @@ import (
 	legacyconfig "github.com/oam-dev/kubevela/pkg/config"
 	"github.com/oam-dev/kubevela/pkg/config/writer"
 	"github.com/oam-dev/kubevela/pkg/cue/script"
+	"github.com/oam-dev/kubevela/pkg/utils"
 )
 
 var configTemplateGVR = configv1alpha1.ConfigTemplateGVR
@@ -44,6 +45,9 @@ type ValidatingHandler struct {
 	Decoder admission.Decoder
 	// Client runs the SubjectAccessReview the endpoint rule needs.
 	Client client.Client
+	// ControllerUser is the controller's own identity. Its requests (the startup sweep's
+	// adoption of legacy templates) have no user behind them to ask about an endpoint.
+	ControllerUser string
 }
 
 var _ admission.Handler = &ValidatingHandler{}
@@ -60,16 +64,31 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	if err := h.Decoder.Decode(req, obj); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
+	// An object being deleted only loses finalizers: refusing that would leave it Terminating.
+	if obj.DeletionTimestamp != nil {
+		return admission.ValidationResponse(true, "")
+	}
+	// The stored object, on an update. One that cannot be read leaves old nil, and the
+	// update is judged as strictly as a create.
+	var old *configv1alpha1.ConfigTemplate
+	if req.Operation == admissionv1.Update && len(req.OldObject.Raw) > 0 {
+		old = &configv1alpha1.ConfigTemplate{}
+		if err := h.Decoder.DecodeRaw(req.OldObject, old); err != nil {
+			old = nil
+		}
+	}
 
 	// A system template lives in vela-system (issue #7410 section 6). CEL cannot say so, it
 	// cannot read metadata.namespace; this is the one admission-time place. The CLI refuses
 	// the same template before it writes, with the same words, and the ConfigTemplate
-	// controller marks one that got through with the webhooks off.
-	if legacyconfig.SystemScopeMisplaced(obj.Namespace, obj.Spec.Scope) {
+	// controller marks one that got through with the webhooks off. A template already
+	// misplaced may still be edited, relabelled or fixed: its controller reports it, and every
+	// reader treats it as namespace-scoped.
+	if legacyconfig.SystemScopeMisplaced(obj.Namespace, obj.Spec.Scope) && (old == nil || !legacyconfig.SystemScopeMisplaced(old.Namespace, old.Spec.Scope)) {
 		return admission.Denied(legacyconfig.SystemScopePlacementError(obj.Namespace, obj.Name).Error())
 	}
 
-	// One parse of the template serves both checks on its nacos block. A template that
+	// One parse of the template serves every check on its nacos block. A template that
 	// does not compile is admitted, as before: the ConfigTemplate controller reports that
 	// through status.phase=Error.
 	v, err := script.CUE(obj.Spec.Template).ParseToValueWithCueX(ctx)
@@ -87,40 +106,39 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.Denied(err.Error())
 	}
 
+	// The endpoint rule judges template text, so it runs when the text is new: on create, or
+	// on an update that changes it. A template admitted before the rule is not re-validated by
+	// a label edit; the Config reconciler checks what such a template renders.
+	if old != nil && old.Spec.Template == obj.Spec.Template {
+		return admission.ValidationResponse(true, "")
+	}
+	if err := writer.ValidateEndpointNamespace(template); err != nil {
+		return admission.Denied(err.Error())
+	}
 	// The nacos block names the endpoint Secret the controller publishes with, read with the
 	// controller's permissions. One in the template's own namespace or in vela-system (the
-	// default, the shared endpoints) is free; one anywhere else only if the requesting user
-	// could read that Secret themselves (Brian, #7457). Admission is the only place with a
-	// user; a template admitted before this rule is not re-validated, so an update is reviewed
-	// only when it changes the template text, as the user making that edit (a label edit is
-	// not a new claim on the endpoint).
-	if endpoint := foreignNacosEndpoint(template, obj.Namespace); endpoint != nil && h.templateTextChanged(req, obj) {
-		allowed, err := auth.UserCan(ctx, h.Client, req.UserInfo, authorizationv1.ResourceAttributes{
-			Verb: "get", Group: "", Version: "v1", Resource: "secrets", Namespace: endpoint.Namespace, Name: endpoint.Name,
-		})
-		if err != nil {
-			return admission.Errored(http.StatusInternalServerError, err)
-		}
-		if !allowed {
-			return admission.Denied(fmt.Sprintf("config template %s/%s names the nacos endpoint %s/%s in another namespace, which %s may not read; grant get on that Secret, or name an endpoint in %s or in %s",
-				obj.Namespace, obj.Name, endpoint.Namespace, endpoint.Name, req.UserInfo.Username, obj.Namespace, types.DefaultKubeVelaNS))
-		}
+	// default, the shared endpoints) is free; one anywhere else only if the requesting user may
+	// read that Secret. The controller's own request has no user to ask, so for it a foreign
+	// endpoint is a refusal.
+	endpoint := foreignNacosEndpoint(template, obj.Namespace)
+	if endpoint == nil {
+		return admission.ValidationResponse(true, "")
+	}
+	denied := fmt.Sprintf("config template %s/%s names the nacos endpoint %s/%s in another namespace, which %s may not read; grant get on that Secret, or name an endpoint in %s or in %s",
+		obj.Namespace, obj.Name, endpoint.Namespace, endpoint.Name, req.UserInfo.Username, obj.Namespace, types.DefaultKubeVelaNS)
+	if h.ControllerUser != "" && req.UserInfo.Username == h.ControllerUser {
+		return admission.Denied(denied + "; the controller writes with no user to ask, so apply this template as a user who may")
+	}
+	allowed, err := auth.UserCan(ctx, h.Client, req.UserInfo, authorizationv1.ResourceAttributes{
+		Verb: "get", Group: "", Version: "v1", Resource: "secrets", Namespace: endpoint.Namespace, Name: endpoint.Name,
+	})
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+	if !allowed {
+		return admission.Denied(denied)
 	}
 	return admission.ValidationResponse(true, "")
-}
-
-// templateTextChanged is true on create, and on an update whose spec.template differs from the
-// stored one. An update whose old object cannot be read counts as changed: the review runs
-// rather than being skipped on a decode failure.
-func (h *ValidatingHandler) templateTextChanged(req admission.Request, obj *configv1alpha1.ConfigTemplate) bool {
-	if req.Operation != admissionv1.Update {
-		return true
-	}
-	old := &configv1alpha1.ConfigTemplate{}
-	if err := h.Decoder.DecodeRaw(req.OldObject, old); err != nil {
-		return true
-	}
-	return old.Spec.Template != obj.Spec.Template
 }
 
 // foreignNacosEndpoint is the endpoint the template's nacos block names when it lies outside
@@ -131,7 +149,7 @@ func foreignNacosEndpoint(template cue.Value, namespace string) *writer.ConfigRe
 	if cfg.Nacos == nil || cfg.Nacos.Endpoint.Name == "" {
 		return nil
 	}
-	if endpoint := cfg.Nacos.Endpoint; endpoint.Namespace != namespace && endpoint.Namespace != types.DefaultKubeVelaNS {
+	if endpoint := cfg.Nacos.Endpoint; !legacyconfig.EndpointNamespaceFree(namespace, endpoint.Namespace) {
 		return &endpoint
 	}
 	return nil
@@ -140,8 +158,12 @@ func foreignNacosEndpoint(template cue.Value, namespace string) *writer.ConfigRe
 // RegisterValidatingHandler registers ConfigTemplate validation to the webhook server.
 func RegisterValidatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-config-oam-dev-v1alpha1-configtemplates", &webhook.Admission{Handler: &ValidatingHandler{
+	handler := &ValidatingHandler{
 		Decoder: admission.NewDecoder(mgr.GetScheme()),
 		Client:  mgr.GetClient(),
-	}})
+	}
+	if userInfo := utils.GetUserInfoFromConfig(mgr.GetConfig()); userInfo != nil {
+		handler.ControllerUser = userInfo.Username
+	}
+	server.Register("/validating-config-oam-dev-v1alpha1-configtemplates", &webhook.Admission{Handler: handler})
 }

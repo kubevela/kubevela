@@ -39,6 +39,7 @@ import (
 
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	legacyconfig "github.com/oam-dev/kubevela/pkg/config"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 const templateWithRequiredUsername = `
@@ -754,7 +755,7 @@ func TestHandle_TemplateAccessTable(t *testing.T) {
 		resp = h.Handle(context.TODO(), createdBy(newUpdateRequest(t, gvr, existing, existing), "alice"))
 		assert.True(t, resp.Allowed, "an update of an existing Config: templateRef is immutable, the answer was given at create")
 	})
-	t.Run("an update is reviewed too: new properties are a new render through the template", func(t *testing.T) {
+	t.Run("an update is not reviewed: templateRef cannot change, so the answer at create holds", func(t *testing.T) {
 		var reviews []authorizationv1.ResourceAttributes
 		theirs := availableTemplate("b", "wf-b", configv1alpha1.ConfigTemplateScopeNamespace)
 		existing := configUsing("c", "wf-a", "b", "wf-b")
@@ -762,13 +763,8 @@ func TestHandle_TemplateAccessTable(t *testing.T) {
 		edited.Spec.Properties = rawExtension(map[string]string{"username": "someone-else"})
 		h := newInterceptedHandler(reviewing(false, &reviews), theirs)
 		resp := h.Handle(context.TODO(), createdBy(newUpdateRequest(t, gvr, existing, edited), "alice"))
-		assert.False(t, resp.Allowed)
-		assert.Contains(t, string(resp.Result.Message), "alice may not")
-		assert.Len(t, reviews, 1)
-
-		h = newInterceptedHandler(reviewing(true, &reviews), theirs)
-		resp = h.Handle(context.TODO(), createdBy(newUpdateRequest(t, gvr, existing, edited), "alice"))
 		assert.True(t, resp.Allowed, string(resp.Result.Message))
+		assert.Empty(t, reviews)
 	})
 	t.Run("a system template outside vela-system grants nothing: reviewed like a namespace one", func(t *testing.T) {
 		resp, reviews := admitConfig(t, false, "wf-b", "misplaced", "wf-a", availableTemplate("misplaced", "wf-a", configv1alpha1.ConfigTemplateScopeSystem))
@@ -812,5 +808,62 @@ func TestHandle_TemplateAccessTable(t *testing.T) {
 		resp := h.Handle(context.TODO(), createdBy(newRequest(t, admissionv1.Create, gvr, configUsing("c", "wf-a", "b", "wf-b")), "alice"))
 		assert.False(t, resp.Allowed)
 		assert.Equal(t, int32(http.StatusInternalServerError), resp.Result.Code)
+	})
+}
+
+func TestHandle_TheControllersOwnWritesGetTheStructuralAnswer(t *testing.T) {
+	gvr := metav1.GroupVersionResource(configGVR)
+	const controller = "system:serviceaccount:vela-system:kubevela-vela-core"
+	asController := func(req admission.Request) admission.Request {
+		req.UserInfo = authenticationv1.UserInfo{Username: controller}
+		return req
+	}
+	theirs := availableTemplate("b", "wf-b", configv1alpha1.ConfigTemplateScopeNamespace)
+
+	t.Run("an application's write, with the gate off: judged from the application's namespace", func(t *testing.T) {
+		var reviews []authorizationv1.ResourceAttributes
+		h := newInterceptedHandler(reviewing(true, &reviews), theirs)
+		h.ControllerUser = controller
+		cfg := configUsing("c", "wf-b", "b", "wf-b")
+		cfg.Labels = map[string]string{oam.LabelAppName: "app", oam.LabelAppNamespace: "wf-a"}
+		resp := h.Handle(context.TODO(), asController(newRequest(t, admissionv1.Create, gvr, cfg)))
+		assert.False(t, resp.Allowed, "placing the Config in the template's namespace does not widen it")
+		assert.Contains(t, string(resp.Result.Message), "a config in wf-a may use it only if its author can get it")
+		assert.Contains(t, string(resp.Result.Message), "the controller writes this config with no user to ask")
+		assert.Empty(t, reviews, "the controller's review would pass for anything")
+	})
+	t.Run("migration's write, with no application: judged from the Config's namespace", func(t *testing.T) {
+		var reviews []authorizationv1.ResourceAttributes
+		h := newInterceptedHandler(reviewing(true, &reviews), theirs)
+		h.ControllerUser = controller
+		resp := h.Handle(context.TODO(), asController(newRequest(t, admissionv1.Create, gvr, configUsing("c", "wf-a", "b", "wf-b"))))
+		assert.False(t, resp.Allowed)
+		assert.Empty(t, reviews)
+	})
+	t.Run("a binding the template recorded when migration adopted it: admitted, for the controller and for a user", func(t *testing.T) {
+		old := theirs.DeepCopy()
+		old.Annotations = map[string]string{legacyconfig.AnnotationGrandfatheredConfigs: "wf-a/c"}
+		var reviews []authorizationv1.ResourceAttributes
+		h := newInterceptedHandler(reviewing(false, &reviews), old)
+		h.ControllerUser = controller
+		resp := h.Handle(context.TODO(), asController(newRequest(t, admissionv1.Create, gvr, configUsing("c", "wf-a", "b", "wf-b"))))
+		assert.True(t, resp.Allowed, string(resp.Result.Message))
+		resp = h.Handle(context.TODO(), createdBy(newRequest(t, admissionv1.Create, gvr, configUsing("c", "wf-a", "b", "wf-b")), "alice"))
+		assert.True(t, resp.Allowed, string(resp.Result.Message))
+		assert.Empty(t, reviews)
+		resp = h.Handle(context.TODO(), createdBy(newRequest(t, admissionv1.Create, gvr, configUsing("other", "wf-a", "b", "wf-b")), "alice"))
+		assert.False(t, resp.Allowed, "a config the template does not list")
+	})
+	t.Run("a user's write is reviewed as before, whatever labels it carries", func(t *testing.T) {
+		var reviews []authorizationv1.ResourceAttributes
+		h := newInterceptedHandler(reviewing(true, &reviews), theirs)
+		h.ControllerUser = controller
+		cfg := configUsing("c", "wf-a", "b", "wf-b")
+		cfg.Labels = map[string]string{oam.LabelAppNamespace: "wf-b"}
+		resp := h.Handle(context.TODO(), createdBy(newRequest(t, admissionv1.Create, gvr, cfg), "alice"))
+		assert.True(t, resp.Allowed, string(resp.Result.Message))
+		if assert.Len(t, reviews, 1) {
+			assert.Equal(t, "wf-b", reviews[0].Namespace)
+		}
 	})
 }

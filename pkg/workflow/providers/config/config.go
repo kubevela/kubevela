@@ -108,21 +108,26 @@ func DepsOf(rp oamprovidertypes.RuntimeParams) Deps {
 // read-config finds the Secret the way it did when the write was synchronous.
 func Create(ctx context.Context, deps Deps, ccp CreateConfigProperties) error {
 	tmpl := config.ParseTemplateRef(ccp.Template)
-	item, err := deps.Factory.ParseConfig(templateReadContext(ctx, deps.Client, tmpl), tmpl, config.Metadata{
+	served := configKindServed(deps.Client)
+	if served {
+		if err := templateAllowed(ctx, deps, tmpl, ccp); err != nil {
+			return err
+		}
+	}
+	// The template is read with the controller's identity, as the Config controller reads it
+	// to render; who may use it was decided above, before any of it is rendered.
+	item, err := deps.Factory.ParseConfig(auth.ContextClearUserInfo(ctx), tmpl, config.Metadata{
 		NamespacedName: config.NamespacedName{Name: ccp.Name, Namespace: ccp.Namespace},
 		Properties:     ccp.Config,
 	})
 	if err != nil {
 		return err
 	}
-	if !configKindServed(deps.Client) {
+	if !served {
 		// no Config kind, so no Config webhook and no scope rule on this path either: the
 		// legacy write as before
 		klog.InfoS("the Config kind is not served; writing the config as a legacy secret", "config", ccp.Namespace+"/"+ccp.Name)
 		return deps.Factory.CreateOrUpdateConfig(ctx, item, ccp.Namespace)
-	}
-	if err := templateReachable(ctx, deps.Client, tmpl, ccp.Namespace); err != nil {
-		return err
 	}
 	if err := adoptLegacyConfig(ctx, deps, ccp.Namespace, ccp.Name); err != nil {
 		return err
@@ -142,47 +147,47 @@ func Create(ctx context.Context, deps Deps, ccp CreateConfigProperties) error {
 	return awaitRendered(ctx, deps, cfg)
 }
 
-// templateReadContext is the identity the step reads the template with. A system template in
-// vela-system is usable from any namespace with no grant on it (issue #7410 section 6), from
-// this step as from kubectl, so it is read with the controller's own identity, as the Config
-// controller reads it to render: an Application run as a user who may not read vela-system
-// still parses one. Any other template is read as the user, who must be able to read it to
-// have been granted it, so a user is never handed the render of a template they may not see.
-// Who may use a template is then the Config webhook's question about the write.
-func templateReadContext(ctx context.Context, cli client.Client, tmpl config.NamespacedName) context.Context {
-	if _, named := auth.NamedUserFrom(ctx); !named || tmpl.Name == "" || cli == nil {
-		return ctx
-	}
-	asController := auth.ContextClearUserInfo(ctx)
-	resolved, _, err := config.ResolveConfigTemplate(asController, cli, &configv1alpha1.ConfigTemplateReference{Name: tmpl.Name, Namespace: tmpl.Namespace})
-	if err != nil || resolved == nil || resolved.EffectiveScope() != configv1alpha1.ConfigTemplateScopeSystem {
-		return ctx
-	}
-	return asController
-}
-
-// templateReachable is the step's share of the access rule of issue #7410 section 6, whose
-// one check is the Config webhook's, as the requesting user. With a named user in the context
-// the client impersonates that user, the write below carries them and the webhook answers (the
-// legacy adoption runs as them too, so a user who may not patch the Secret cannot adopt it).
-// Without one the controller writes as itself and the webhook's review would always pass, so
-// the step gives the webhook's structural answers itself, before anything is written.
-func templateReachable(ctx context.Context, cli client.Client, tmpl config.NamespacedName, configNamespace string) error {
+// templateAllowed is the access rule of issue #7410 section 6 for the step, answered before the
+// template is read for rendering, so a user is never shown a template they may not use. One
+// read of the template's scope, as the controller. With a named user in the context (the
+// AuthenticateApplication gate on) a namespace-scoped template elsewhere is reviewed for that
+// user, as the Config webhook reviews their write; the reads that follow go through the
+// controller's cache and would not ask. Without one the controller writes as itself, so the
+// answer is the structural one, for the Application's namespace: the step's namespace property
+// cannot widen it. A binding the template grandfathers needs no review.
+func templateAllowed(ctx context.Context, deps Deps, tmpl config.NamespacedName, ccp CreateConfigProperties) error {
 	if tmpl.Name == "" {
 		return nil // a config without a template
 	}
-	if _, named := auth.NamedUserFrom(ctx); named {
-		return nil
+	asController := auth.ContextClearUserInfo(ctx)
+	resolved, waiting, err := config.TemplateScopeOf(asController, deps.Client, &configv1alpha1.ConfigTemplateReference{Name: tmpl.Name, Namespace: tmpl.Namespace})
+	if errors.Is(err, config.ErrTemplateNotFound) {
+		return nil // ParseConfig says so, as before
 	}
-	resolved, waiting, err := config.ResolveConfigTemplate(auth.ContextClearUserInfo(ctx), cli, &configv1alpha1.ConfigTemplateReference{Name: tmpl.Name, Namespace: tmpl.Namespace})
 	if err != nil {
 		return err
 	}
-	if waiting {
-		return config.PendingTemplateError(resolved, tmpl.Namespace, tmpl.Name, configNamespace)
+	user, named := auth.NamedUserFrom(ctx)
+	from := ccp.Namespace
+	if appNS := deps.AppLabels[oam.LabelAppNamespace]; !named && appNS != "" {
+		from = appNS
 	}
-	if access := config.AccessToTemplate(resolved, configNamespace); access.Review != nil {
-		return fmt.Errorf("%s; this application runs with no user to ask for (the %s feature gate is off), so this step may use only a template in %s or a system one", access.Reason, features.AuthenticateApplication, configNamespace)
+	if waiting {
+		return config.PendingTemplateError(resolved, tmpl.Namespace, tmpl.Name, from)
+	}
+	access := config.AccessToTemplate(resolved, from)
+	if access.Review == nil || resolved.Grandfathers(client.ObjectKey{Namespace: ccp.Namespace, Name: ccp.Name}) {
+		return nil
+	}
+	if !named {
+		return fmt.Errorf("%s; this application runs with no user to ask for (the %s feature gate is off), so this step may use only a template in %s or a system one", access.Reason, features.AuthenticateApplication, from)
+	}
+	allowed, err := auth.UserCan(asController, deps.Client, auth.UserInfoOf(user), *access.Review)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return fmt.Errorf("%s; %s may not", access.Reason, user.GetName())
 	}
 	return nil
 }

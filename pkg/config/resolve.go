@@ -19,6 +19,8 @@ package config
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 
 	"cuelang.org/go/cue"
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -45,6 +47,9 @@ type ResolvedTemplate struct {
 	Sensitive bool
 	// Legacy marks a template that is still a config-template-* ConfigMap.
 	Legacy bool
+	// Grandfathered lists, as namespace/name, the configs in other namespaces that were
+	// bound to the template when migration adopted it (AnnotationGrandfatheredConfigs).
+	Grandfathered []string
 	// ExpandedWriter is the template's nacos block, read from the CUE on both paths so
 	// the controller and the webhook agree on whether a template writes to Nacos. Nil
 	// Nacos when the template has no block or its CUE does not compile; the reconciler's
@@ -98,8 +103,9 @@ func SystemScopePlacementError(namespace, name string) error {
 // is the requesting user's, through the review Review names (get on the ConfigTemplate, the
 // object a user is granted, whichever backend holds the template today), with Reason as the
 // denial.
-// Only admission has a user, so only the Config webhook applies the table; the reconcilers do
-// not repeat it (the comment at the Config controller's resolve step says why).
+// A config the template grandfathers (ResolvedTemplate.Grandfathers) needs no review either;
+// callers check that themselves, since it depends on the config's name. A write with no user to
+// ask (the controller's own) gets only the structural answers: a review is a refusal.
 type TemplateAccess struct {
 	Review *authorizationv1.ResourceAttributes
 	Reason string
@@ -138,8 +144,59 @@ func PendingTemplateError(pending *ResolvedTemplate, templateNamespace, name, co
 	if pending != nil && pending.EffectiveScope() == configv1alpha1.ConfigTemplateScopeSystem {
 		return nil
 	}
-	return fmt.Errorf("config template %s/%s is not available yet: a config in %s may reference a template in another namespace once it is, when its scope decides who may use it",
-		templateNamespace, name, configNamespace)
+	return fmt.Errorf("config template %s/%s %s: a config in %s may reference a template in another namespace once it is, when its scope decides who may use it",
+		templateNamespace, name, pendingTemplatePhrase, configNamespace)
+}
+
+// pendingTemplatePhrase is how PendingTemplateError's refusal reads, which migration's
+// retry recognises in the webhook's answer.
+const pendingTemplatePhrase = "is not available yet"
+
+// AnnotationGrandfatheredConfigs, on a ConfigTemplate that migration adopted, lists the
+// configs in other namespaces that were bound to the legacy template at that moment, as
+// comma-separated namespace/name. 1.11 enforced no scope, so those bindings were allowed;
+// they keep working without the grant the access table would now ask for. A binding made
+// after the adoption is not on the list. Only a writer of the ConfigTemplate can change it,
+// and that writer could grant the access anyway.
+const AnnotationGrandfatheredConfigs = "config.oam.dev/grandfathered-configs"
+
+// Grandfathers reports whether the config at key was bound to the template when migration
+// adopted it.
+func (t *ResolvedTemplate) Grandfathers(key client.ObjectKey) bool {
+	return slices.Contains(t.Grandfathered, key.Namespace+"/"+key.Name)
+}
+
+// grandfatheredOf reads AnnotationGrandfatheredConfigs.
+func grandfatheredOf(annotations map[string]string) []string {
+	var out []string
+	for _, entry := range strings.Split(annotations[AnnotationGrandfatheredConfigs], ",") {
+		if entry = strings.TrimSpace(entry); entry != "" {
+			out = append(out, entry)
+		}
+	}
+	return out
+}
+
+// EndpointNamespaceFree reports a nacos endpoint namespace a template may name with no review:
+// its own namespace, or vela-system, where the shared endpoint configs live.
+func EndpointNamespaceFree(templateNamespace, endpointNamespace string) bool {
+	return endpointNamespace == templateNamespace || endpointNamespace == apitypes.DefaultKubeVelaNS
+}
+
+// RenderedEndpointError is the reconciler's check of the endpoint a Config renders, which the
+// controller then reads with its own rights. A free namespace is fine. Elsewhere, only the
+// endpoint the ConfigTemplate's text names: admission reviewed that one for the template's
+// author, and admission requires it to be a plain literal, so a Config cannot move it. A legacy
+// ConfigMap template was never reviewed, and has no foreign endpoint at all.
+func RenderedEndpointError(tmpl *ResolvedTemplate, endpoint writer.ConfigRef) error {
+	if EndpointNamespaceFree(tmpl.Namespace, endpoint.Namespace) {
+		return nil
+	}
+	if !tmpl.Legacy && tmpl.ExpandedWriter.Nacos != nil && tmpl.ExpandedWriter.Nacos.Endpoint == endpoint {
+		return nil
+	}
+	return fmt.Errorf("config template %s/%s: the nacos endpoint %s/%s is outside %s and %s, and is not the one the template names: an endpoint in another namespace must be written in a ConfigTemplate's text, where admission reviews it",
+		tmpl.Namespace, tmpl.Name, endpoint.Namespace, endpoint.Name, tmpl.Namespace, apitypes.DefaultKubeVelaNS)
 }
 
 // TemplateRefNamespace is the namespace a templateRef names: vela-system when it names none.
@@ -153,49 +210,83 @@ func TemplateRefNamespace(ref *configv1alpha1.ConfigTemplateReference) string {
 // ResolveConfigTemplate looks up the referenced template, CRD first, falling back to a
 // legacy ConfigMap. waiting is true if the ConfigTemplate exists but is not usable yet
 // (templateUsable: the controller has not extracted its schema, or reported a parse
-// Error); tmpl then carries the CR's name, namespace and scope and nothing else, so a
-// caller can still tell a system template in vela-system from the rest. err is
-// ErrTemplateNotFound if neither the CRD nor the legacy ConfigMap exist.
+// Error); tmpl then carries what TemplateScopeOf does and no CUE, so a caller can still
+// tell a system template in vela-system from the rest. err is ErrTemplateNotFound if
+// neither the CRD nor the legacy ConfigMap exist.
 func ResolveConfigTemplate(ctx context.Context, cli client.Client, ref *configv1alpha1.ConfigTemplateReference) (tmpl *ResolvedTemplate, waiting bool, err error) {
-	ns := TemplateRefNamespace(ref)
+	ct, cm, err := getTemplate(ctx, cli, ref)
+	if err != nil {
+		return nil, false, err
+	}
+	if ct != nil {
+		tmpl = templateOfCR(ct)
+		if !templateUsable(ct) {
+			return tmpl, true, nil
+		}
+		tmpl.CUE = script.CUE(ct.Spec.Template)
+	} else {
+		tmpl = templateOfConfigMap(ref.Name, cm)
+		tmpl.CUE = script.CUE(cm.Data[SaveTemplateKey])
+	}
+	tmpl.ExpandedWriter = expandedWriterOf(ctx, tmpl.CUE)
+	return tmpl, false, nil
+}
 
+// TemplateScopeOf is ResolveConfigTemplate without the CUE: name, namespace, stored scope,
+// sensitivity, the legacy mark and the grandfathered bindings, from one read and no compile.
+// Enough for EffectiveScope and AccessToTemplate.
+func TemplateScopeOf(ctx context.Context, cli client.Client, ref *configv1alpha1.ConfigTemplateReference) (tmpl *ResolvedTemplate, waiting bool, err error) {
+	ct, cm, err := getTemplate(ctx, cli, ref)
+	switch {
+	case err != nil:
+		return nil, false, err
+	case ct != nil:
+		return templateOfCR(ct), !templateUsable(ct), nil
+	default:
+		return templateOfConfigMap(ref.Name, cm), false, nil
+	}
+}
+
+// getTemplate reads the CR, or failing that the legacy ConfigMap. A cluster without the
+// ConfigTemplate kind reads the ConfigMap, as LoadTemplate does.
+func getTemplate(ctx context.Context, cli client.Client, ref *configv1alpha1.ConfigTemplateReference) (*configv1alpha1.ConfigTemplate, *corev1.ConfigMap, error) {
+	ns := TemplateRefNamespace(ref)
 	var ct configv1alpha1.ConfigTemplate
 	switch err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: ref.Name}, &ct); {
 	case err == nil:
-		if !templateUsable(&ct) {
-			return &ResolvedTemplate{Name: ct.Name, Namespace: ns, Scope: string(ct.Spec.Scope)}, true, nil
-		}
-		return &ResolvedTemplate{
-			Name:           ct.Name,
-			Namespace:      ns,
-			CUE:            script.CUE(ct.Spec.Template),
-			Scope:          string(ct.Spec.Scope),
-			Sensitive:      ct.Spec.Sensitive,
-			ExpandedWriter: expandedWriterOf(ctx, script.CUE(ct.Spec.Template)),
-		}, false, nil
+		return &ct, nil, nil
 	case apierrors.IsNotFound(err), IsCRDTypeMissing(err):
-		// the ConfigMap convention, below; a cluster without the ConfigTemplate kind too
 	default:
-		return nil, false, err
+		return nil, nil, err
 	}
-
 	var cm corev1.ConfigMap
-	cmName := TemplateConfigMapNamePrefix + ref.Name
-	if err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: cmName}, &cm); err != nil {
+	if err := cli.Get(ctx, client.ObjectKey{Namespace: ns, Name: TemplateConfigMapNamePrefix + ref.Name}, &cm); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, false, ErrTemplateNotFound
+			return nil, nil, ErrTemplateNotFound
 		}
-		return nil, false, err
+		return nil, nil, err
 	}
+	return nil, &cm, nil
+}
+
+func templateOfCR(ct *configv1alpha1.ConfigTemplate) *ResolvedTemplate {
 	return &ResolvedTemplate{
-		Name:           ref.Name,
-		Namespace:      ns,
-		CUE:            script.CUE(cm.Data[SaveTemplateKey]),
-		Scope:          cm.Labels[apitypes.LabelConfigScope],
-		Sensitive:      cm.Annotations[apitypes.AnnotationConfigSensitive] == sensitiveAnnotationValue,
-		Legacy:         true,
-		ExpandedWriter: expandedWriterOf(ctx, script.CUE(cm.Data[SaveTemplateKey])),
-	}, false, nil
+		Name:          ct.Name,
+		Namespace:     ct.Namespace,
+		Scope:         string(ct.Spec.Scope),
+		Sensitive:     ct.Spec.Sensitive,
+		Grandfathered: grandfatheredOf(ct.Annotations),
+	}
+}
+
+func templateOfConfigMap(name string, cm *corev1.ConfigMap) *ResolvedTemplate {
+	return &ResolvedTemplate{
+		Name:      name,
+		Namespace: cm.Namespace,
+		Scope:     cm.Labels[apitypes.LabelConfigScope],
+		Sensitive: cm.Annotations[apitypes.AnnotationConfigSensitive] == sensitiveAnnotationValue,
+		Legacy:    true,
+	}
 }
 
 // templateUsable is true once the controller has extracted the template's schema: Available,
