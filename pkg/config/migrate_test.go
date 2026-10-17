@@ -21,6 +21,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
+
+	authorizationv1 "k8s.io/api/authorization/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apiserver/pkg/authentication/user"
+	"k8s.io/apiserver/pkg/endpoints/request"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -524,18 +530,25 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			Expect(getSecret(ns, "cfg-nt-s-properties").Data[DefaultPropertiesSecretKey]).Should(Equal(before.Data[SaveInputPropertiesKey]))
 		})
 
-		It("maps every legacy scope word", func() {
-			for word, want := range map[string]configv1alpha1.ConfigTemplateScope{
-				"system": configv1alpha1.ConfigTemplateScopeSystem,
-				"global": configv1alpha1.ConfigTemplateScopeNamespace,
-				"env":    configv1alpha1.ConfigTemplateScopeNamespace,
-			} {
+		It("writes the scope by the ConfigMap's namespace, whatever its label says", func() {
+			By("outside vela-system every legacy word, system included, adopts as namespace")
+			for _, word := range []string{"system", "global", "env", "namespace"} {
 				name := "scope-" + word
 				writeLegacyTemplate(ns, name, legacyTemplateCUE(name, word, false, ""))
 				report, err := migrator.MigrateTemplate(ctx, ns, name, MigrationOptions{})
 				Expect(err).Should(Succeed())
 				Expect(report.Count(MigrationAdopted)).Should(Equal(1))
-				Expect(getTemplateCR(ns, name).Spec.Scope).Should(Equal(want), word)
+				Expect(getTemplateCR(ns, name).Spec.Scope).Should(Equal(configv1alpha1.ConfigTemplateScopeNamespace), word)
+			}
+			By("in vela-system every legacy word adopts as system: those templates have always been used from every namespace")
+			for _, word := range []string{"namespace", "project"} {
+				name := "scope-sys-" + word
+				cm := writeLegacyTemplate(types.DefaultKubeVelaNS, name, legacyTemplateCUE(name, word, false, ""))
+				DeferCleanup(func() { Expect(k8sClient.Delete(ctx, cm)).Should(Succeed()) }) // vela-system is shared with the factory specs' counts
+				report, err := migrator.MigrateTemplate(ctx, types.DefaultKubeVelaNS, name, MigrationOptions{DryRun: true})
+				Expect(err).Should(Succeed())
+				Expect(report.Count(MigrationAdopted)).Should(Equal(1))
+				Expect(report.Results[0].Target.(*configv1alpha1.ConfigTemplate).Spec.Scope).Should(Equal(configv1alpha1.ConfigTemplateScopeSystem), "the dry run shows the scope it would write")
 			}
 		})
 
@@ -660,7 +673,7 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			ct, ok := report.Results[0].Target.(*configv1alpha1.ConfigTemplate)
 			Expect(ok).Should(BeTrue())
 			Expect(ct.Kind).Should(Equal("ConfigTemplate"))
-			Expect(ct.Spec.Scope).Should(Equal(configv1alpha1.ConfigTemplateScopeSystem))
+			Expect(ct.Spec.Scope).Should(Equal(configv1alpha1.ConfigTemplateScopeNamespace), "the label says system; outside vela-system the namespace decides")
 			cfg, ok := report.Results[1].Target.(*configv1alpha1.Config)
 			Expect(ok).Should(BeTrue())
 			Expect(cfg.Kind).Should(Equal("Config"))
@@ -682,6 +695,105 @@ var _ = Describe("Migrating legacy templates and configs", func() {
 			_, err = migrator.MigrateTemplate(ctx, ns, "bogus", MigrationOptions{})
 			Expect(err).Should(MatchError("found a configmap but is not a config template"))
 			Expect(apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: "bogus"}, &configv1alpha1.ConfigTemplate{}))).Should(BeTrue())
+		})
+	})
+
+	Context("scope and access (issue #7410 section 6)", func() {
+		const teamA = "mig-team-a"
+		const teamB = "mig-team-b"
+		BeforeEach(func() {
+			ensureNamespace(teamA)
+			ensureNamespace(teamB)
+		})
+		// reviewingMigrator answers every SubjectAccessReview with allowed.
+		reviewingMigrator := func(allowed bool, reviews *[]authorizationv1.ResourceAttributes) *Migrator {
+			watching, err := client.NewWithWatch(cfg, client.Options{Scheme: k8sClient.Scheme()})
+			Expect(err).Should(Succeed())
+			return NewMigrator(interceptor.NewClient(watching, interceptor.Funcs{
+				Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+					if review, ok := obj.(*authorizationv1.SubjectAccessReview); ok {
+						*reviews = append(*reviews, *review.Spec.ResourceAttributes)
+						review.Status.Allowed = allowed
+						return nil
+					}
+					return c.Create(ctx, obj, opts...)
+				},
+			}))
+		}
+
+		It("records the bindings from other namespaces when it adopts a template, and adopts them with it", func() {
+			writeLegacyTemplate(teamB, "team-tpl", legacyTemplateCUE("team-tpl", "project", false, ""))
+			writeLegacyConfig(teamB, "team-tpl", teamA, "a-bound")
+			writeLegacyConfig(teamB, "team-tpl", teamB, "b-own")
+
+			report, err := migrator.MigrateTemplate(ctx, teamB, "team-tpl", MigrationOptions{})
+			Expect(err).Should(Succeed())
+			ct := getTemplateCR(teamB, "team-tpl")
+			Expect(ct.Spec.Scope).Should(Equal(configv1alpha1.ConfigTemplateScopeNamespace))
+			Expect(ct.Annotations).Should(HaveKeyWithValue(AnnotationGrandfatheredConfigs, teamA+"/a-bound"), "only the other namespace's: its own namespace needs no review")
+			Expect(resultFor(report, "Secret", teamA, "a-bound").Outcome).Should(Equal(MigrationAdopted))
+			Expect(getConfig(teamA, "a-bound").Spec.TemplateRef).Should(Equal(&configv1alpha1.ConfigTemplateReference{Name: "team-tpl", Namespace: teamB}))
+
+			By("a binding made after the adoption: migration has no user to ask, so it is skipped")
+			writeLegacyConfig(teamB, "team-tpl", teamA, "a-late")
+			report, err = migrator.MigrateConfig(ctx, teamA, "a-late", MigrationOptions{})
+			Expect(err).Should(Succeed())
+			late := resultFor(report, "Secret", teamA, "a-late")
+			Expect(late.Outcome).Should(Equal(MigrationSkipped))
+			Expect(late.Reason).Should(ContainSubstring("is namespace-scoped"))
+			Expect(late.Reason).Should(ContainSubstring("the binding was not recorded when the template was migrated"))
+			Expect(apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKey{Namespace: teamA, Name: "a-late"}, &configv1alpha1.Config{}))).Should(BeTrue())
+
+			By("the same binding adopted by a user (the create-config step under the gate): reviewed for that user")
+			asAlice := request.WithUser(ctx, &user.DefaultInfo{Name: "alice"})
+			var reviews []authorizationv1.ResourceAttributes
+			report, err = reviewingMigrator(false, &reviews).MigrateConfig(asAlice, teamA, "a-late", MigrationOptions{})
+			Expect(err).Should(Succeed())
+			Expect(resultFor(report, "Secret", teamA, "a-late").Reason).Should(ContainSubstring("alice may not"))
+			asked := authorizationv1.ResourceAttributes{Verb: "get", Group: configv1alpha1.Group, Version: configv1alpha1.Version, Resource: "configtemplates", Namespace: teamB, Name: "team-tpl"}
+			Expect(reviews).Should(Equal([]authorizationv1.ResourceAttributes{asked}))
+			report, err = reviewingMigrator(true, &reviews).MigrateConfig(asAlice, teamA, "a-late", MigrationOptions{})
+			Expect(err).Should(Succeed())
+			Expect(resultFor(report, "Secret", teamA, "a-late").Outcome).Should(Equal(MigrationAdopted))
+			Expect(reviews).Should(Equal([]authorizationv1.ResourceAttributes{asked, asked}), "the allowed run asked the same question")
+		})
+
+		It("skips a legacy template whose nacos block names an endpoint in another namespace", func() {
+			cue := strings.Replace(legacyTemplateCUE("far-nacos", "project", false, ""), "template: {", `template: {
+	nacos: { endpoint: { name: "nacos", namespace: "mig-team-a" }, format: "json", metadata: { dataId: "d" }, content: {} }`, 1)
+			Expect(cue).Should(ContainSubstring("nacos:"), "the fixture gained a nacos block")
+			writeLegacyTemplate(teamB, "far-nacos", cue)
+			report, err := migrator.MigrateTemplate(ctx, teamB, "far-nacos", MigrationOptions{})
+			Expect(err).Should(Succeed())
+			res := resultFor(report, "ConfigMap", teamB, "far-nacos")
+			Expect(res.Outcome).Should(Equal(MigrationSkipped))
+			Expect(res.Reason).Should(ContainSubstring("names the nacos endpoint mig-team-a/nacos in another namespace"))
+			Expect(apierrors.IsNotFound(k8sClient.Get(ctx, client.ObjectKey{Namespace: teamB, Name: "far-nacos"}, &configv1alpha1.ConfigTemplate{}))).Should(BeTrue())
+		})
+
+		It("retries a Config the webhook refuses while its template is pending", func() {
+			saved := pendingBackoff
+			pendingBackoff = wait.Backoff{Duration: 10 * time.Millisecond, Factor: 1, Steps: 5}
+			DeferCleanup(func() { pendingBackoff = saved })
+			refusals := 2
+			watching, err := client.NewWithWatch(cfg, client.Options{Scheme: k8sClient.Scheme()})
+			Expect(err).Should(Succeed())
+			flaky := NewMigrator(interceptor.NewClient(watching, interceptor.Funcs{
+				Create: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+					if _, ok := obj.(*configv1alpha1.Config); ok && refusals > 0 {
+						refusals--
+						return apierrors.NewForbidden(schema.GroupResource{Group: configv1alpha1.Group, Resource: "configs"}, obj.GetName(),
+							PendingTemplateError(nil, teamB, "team-tpl", teamA))
+					}
+					return c.Create(ctx, obj, opts...)
+				},
+			}))
+			writeLegacyTemplate(teamB, "team-tpl", legacyTemplateCUE("team-tpl", "project", false, ""))
+			writeLegacyConfig(teamB, "team-tpl", teamA, "a-pending")
+			report, err := flaky.MigrateTemplate(ctx, teamB, "team-tpl", MigrationOptions{})
+			Expect(err).Should(Succeed())
+			Expect(resultFor(report, "Secret", teamA, "a-pending").Outcome).Should(Equal(MigrationAdopted))
+			Expect(refusals).Should(BeZero())
 		})
 	})
 

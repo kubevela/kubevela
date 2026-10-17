@@ -84,6 +84,10 @@ func TestValidateExpandedWriter(t *testing.T) {
 			parameter: ep: string
 		}`, wantErr: "concrete, non-empty string"},
 		{name: "empty endpoint name", cue: `template: { nacos: { endpoint: name: "", metadata: { dataId: "d", group: "g" } }, parameter: {} }`, wantErr: "concrete, non-empty string"},
+		{name: "endpoint namespace from the parameter: the shape is fine, admission has its own rule", cue: `template: {
+			nacos: { endpoint: { name: "nacos", namespace: parameter.ns }, metadata: { dataId: "d", group: "g" } }
+			parameter: ns: string
+		}`},
 		{name: "no metadata", cue: `template: { nacos: { endpoint: name: "nacos" }, parameter: {} }`, wantErr: "nacos.metadata is required"},
 		{name: "metadata not a struct", cue: `template: { nacos: { endpoint: name: "nacos", metadata: "m" }, parameter: {} }`, wantErr: "nacos.metadata must be a struct"},
 		{name: "metadata without group", cue: `template: { nacos: { endpoint: name: "nacos", metadata: { dataId: "d" } }, parameter: {} }`},
@@ -115,6 +119,35 @@ func TestValidateExpandedWriter(t *testing.T) {
 			}
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
+}
+
+func TestValidateEndpointNamespace(t *testing.T) {
+	for _, tc := range []struct {
+		name, namespace, parameter, wantErr string
+	}{
+		{name: "no namespace: the vela-system default"},
+		{name: "a literal", namespace: `"team-b"`},
+		{name: "from the parameter", namespace: `parameter.ns`, parameter: `ns: string`, wantErr: "cannot come from the parameter or have a default"},
+		{name: "a parameter with a default: admission would see the default, the render the Config's value", namespace: `parameter.ns`, parameter: `ns: *"vela-system" | string`, wantErr: "cannot come from the parameter or have a default"},
+		{name: "a literal disjunction with a default", namespace: `*"vela-system" | "team-b"`, wantErr: "cannot come from the parameter or have a default"},
+		{name: "empty", namespace: `""`, wantErr: "non-empty"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			endpoint := `name: "nacos"`
+			if tc.namespace != "" {
+				endpoint += ", namespace: " + tc.namespace
+			}
+			err := ValidateEndpointNamespace(templateField(t, `template: {
+				nacos: { endpoint: { `+endpoint+` }, metadata: { dataId: "d" } }
+				parameter: { `+tc.parameter+` }
+			}`))
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tc.wantErr)
 		})
 	}
 }

@@ -91,6 +91,10 @@ func applyConfigTemplateCRD(ctx context.Context, cli client.Client, ns string, t
 	if t.Scope == string(configv1alpha1.ConfigTemplateScopeSystem) {
 		scope = configv1alpha1.ConfigTemplateScopeSystem
 	}
+	// the webhook's rule, answered before anything is written and where the webhooks are off
+	if config.SystemScopeMisplaced(ns, scope) {
+		return config.SystemScopePlacementError(ns, t.Name)
+	}
 
 	ct := &configv1alpha1.ConfigTemplate{ObjectMeta: metav1.ObjectMeta{Name: t.Name, Namespace: ns}}
 	_, err := controllerutil.CreateOrUpdate(ctx, cli, ct, func() error {

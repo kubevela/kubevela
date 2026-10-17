@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	velacache "github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/validation"
 	"github.com/oam-dev/kubevela/pkg/definition/celexpr"
@@ -175,28 +176,20 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 	// asking for an object called "webservice@v1" denies every pinned binding.
 	definitionType = baseDefinitionName(definitionType)
 
-	// Check permission in vela-system namespace first since most definitions are there
-	// This optimizes for the common case and reduces API calls
-	systemNsSar := &authv1.SubjectAccessReview{
-		Spec: authv1.SubjectAccessReviewSpec{
-			User:   req.UserInfo.Username,
-			Groups: req.UserInfo.Groups,
-			ResourceAttributes: &authv1.ResourceAttributes{
-				Verb:      "get",
-				Group:     "core.oam.dev",
-				Version:   "v1beta1",
-				Resource:  resource,
-				Namespace: oam.SystemDefinitionNamespace,
-				Name:      definitionType,
-			},
-		},
+	canGetIn := func(namespace string) (bool, error) {
+		return auth.UserCan(ctx, h.Client, req.UserInfo, authv1.ResourceAttributes{
+			Verb: "get", Group: "core.oam.dev", Version: "v1beta1", Resource: resource, Namespace: namespace, Name: definitionType,
+		})
 	}
 
-	if err := h.Client.Create(ctx, systemNsSar); err != nil {
+	// Check permission in vela-system namespace first since most definitions are there
+	// This optimizes for the common case and reduces API calls
+	allowedInSystem, err := canGetIn(oam.SystemDefinitionNamespace)
+	if err != nil {
 		return false, fmt.Errorf("failed to check %s permission in system namespace: %w", resource, err)
 	}
 
-	if systemNsSar.Status.Allowed {
+	if allowedInSystem {
 		// User has permission in system namespace
 		// Verify the definition actually exists in vela-system
 		if exists, err := h.definitionExistsInNamespace(ctx, resource, definitionType, oam.SystemDefinitionNamespace); err != nil {
@@ -214,26 +207,12 @@ func (h *ValidatingHandler) checkDefinitionPermission(ctx context.Context, req a
 
 	// If not in system namespace and app namespace is different, check app namespace
 	if appNamespace != oam.SystemDefinitionNamespace {
-		appNsSar := &authv1.SubjectAccessReview{
-			Spec: authv1.SubjectAccessReviewSpec{
-				User:   req.UserInfo.Username,
-				Groups: req.UserInfo.Groups,
-				ResourceAttributes: &authv1.ResourceAttributes{
-					Verb:      "get",
-					Group:     "core.oam.dev",
-					Version:   "v1beta1",
-					Resource:  resource,
-					Namespace: appNamespace,
-					Name:      definitionType,
-				},
-			},
-		}
-
-		if err := h.Client.Create(ctx, appNsSar); err != nil {
+		allowedInApp, err := canGetIn(appNamespace)
+		if err != nil {
 			return false, fmt.Errorf("failed to check %s permission in namespace %s: %w", resource, appNamespace, err)
 		}
 
-		if appNsSar.Status.Allowed {
+		if allowedInApp {
 			// User has permission in app namespace
 			// But we need to verify the definition actually exists in the app namespace
 			// to prevent users with wildcard permissions from using definitions that only exist in vela-system
