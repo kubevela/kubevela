@@ -374,4 +374,24 @@ func TestGrantAndRevokePrivileges(t *testing.T) {
 		err = cli.Get(ctx, types.NamespacedName{Name: KubeVelaWriterRoleName + ":binding"}, binding)
 		r.True(kerrors.IsNotFound(err))
 	})
+
+	t.Run("RevokePrivileges continues past a scope with no binding", func(t *testing.T) {
+		cli := fake.NewClientBuilder().WithScheme(scheme).Build()
+		writer := &bytes.Buffer{}
+
+		// Only "present" holds the privilege, "missing" has never been granted.
+		r.NoError(GrantPrivileges(ctx, cli, []PrivilegeDescription{
+			&ScopedPrivilege{Cluster: "local", Namespace: "present"},
+		}, identityUser1, writer))
+		bindingKey := types.NamespacedName{Namespace: "present", Name: KubeVelaWriterRoleName + ":binding"}
+		r.NoError(cli.Get(ctx, bindingKey, &rbacv1.RoleBinding{}))
+
+		// The scope without a binding comes first and must not stop the revoke of the next one.
+		r.NoError(RevokePrivileges(ctx, cli, []PrivilegeDescription{
+			&ScopedPrivilege{Cluster: "local", Namespace: "missing"},
+			&ScopedPrivilege{Cluster: "local", Namespace: "present"},
+		}, identityUser1, writer))
+
+		r.True(kerrors.IsNotFound(cli.Get(ctx, bindingKey, &rbacv1.RoleBinding{})))
+	})
 }
