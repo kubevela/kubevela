@@ -326,9 +326,6 @@ func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string 
 		sb.WriteString(fmt.Sprintf("%sannotations: {}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, p.GetDescription()))
-	if p.GetVersion() != "" {
-		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, p.GetVersion()))
-	}
 	if len(p.labels) > 0 {
 		keys := make([]string, 0, len(p.labels))
 		for k := range p.labels {
@@ -343,7 +340,7 @@ func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string 
 	} else {
 		sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
 	}
-	sb.WriteString(fmt.Sprintf("%sattributes: {}\n", g.indent))
+	g.writeAttributes(&sb, p)
 	sb.WriteString(fmt.Sprintf("%stype: \"policy\"\n", g.indent))
 	sb.WriteString("}\n\n")
 
@@ -351,6 +348,21 @@ func (g *PolicyCUEGenerator) GenerateFullDefinition(p *PolicyDefinition) string 
 	sb.WriteString(g.GenerateTemplate(p))
 
 	return sb.String()
+}
+
+// writeAttributes writes the attributes block, which FromCUE copies into the spec.
+func (g *PolicyCUEGenerator) writeAttributes(sb *strings.Builder, p *PolicyDefinition) {
+	if p.GetVersion() == "" && !p.manageHealthCheck {
+		sb.WriteString(fmt.Sprintf("%sattributes: {}\n", g.indent))
+		return
+	}
+	indent := strings.Repeat(g.indent, 2)
+	sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
+	writeVersion(sb, p.GetVersion(), indent)
+	if p.manageHealthCheck {
+		sb.WriteString(fmt.Sprintf("%smanageHealthCheck: true\n", indent))
+	}
+	sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 }
 
 // GenerateTemplate generates the template block for a policy.
