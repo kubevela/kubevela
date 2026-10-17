@@ -131,7 +131,11 @@ output: {
 				},
 			},
 		}
-		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+		// The webhook resolves the policy type from the controller's cache, which
+		// can lag behind the PolicyDefinition created just before.
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 30*time.Second, time.Second).Should(Succeed())
 		appKey := client.ObjectKeyFromObject(app)
 
 		By("Verifying policy transform labels were added to the Application")
@@ -187,7 +191,11 @@ output: {
 				},
 			},
 		}
-		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+		// The webhook resolves the policy type from the controller's cache, which
+		// can lag behind the PolicyDefinition created just before.
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 30*time.Second, time.Second).Should(Succeed())
 		appKey := client.ObjectKeyFromObject(app)
 
 		By("Verifying the global policy label was automatically applied without explicit reference")
@@ -260,7 +268,11 @@ output: {
 				},
 			},
 		}
-		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+		// The webhook resolves the policy type from the controller's cache, which
+		// can lag behind the PolicyDefinition created just before.
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 30*time.Second, time.Second).Should(Succeed())
 		appKey := client.ObjectKeyFromObject(app)
 
 		By("Verifying version context fields were accessible and written as labels")
@@ -332,7 +344,11 @@ output: {
 				},
 			},
 		}
-		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+		// The webhook resolves the policy type from the controller's cache, which
+		// can lag behind the PolicyDefinition created just before.
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 30*time.Second, time.Second).Should(Succeed())
 		appKey := client.ObjectKeyFromObject(app)
 
 		By("Verifying labels and annotations were both applied")
@@ -424,7 +440,11 @@ output: {
 				},
 			},
 		}
-		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+		// The webhook resolves the policy type from the controller's cache, which
+		// can lag behind the PolicyDefinition created just before.
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 30*time.Second, time.Second).Should(Succeed())
 		appKey := client.ObjectKeyFromObject(app)
 
 		var firstRevisionName string

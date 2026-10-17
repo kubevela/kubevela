@@ -17,6 +17,22 @@ and pointing the cluster's webhook config back at your machine.
 Run `make webhook-help` at any time for a quick cheat-sheet of the commands
 below, printed straight from the Makefile.
 
+> **In-cluster installs work differently.** When vela-core runs from the Helm
+> chart, it makes its own webhook certificate at startup
+> (`--webhook-tls-secret`). It keeps the certificate in the
+> `<fullname>-admission` Secret (the chart's `kubevela.fullname` followed by
+> `-admission`). It also sets the `caBundle` of both
+> webhook configurations. That certificate covers only the in-cluster webhook
+> Service. Local debugging points the webhooks at a URL on your host, so it uses
+> the certificate that `hack/debug-webhook-setup.sh` generates.
+>
+> Do not give the chart's TLS-management flags (`--webhook-tls-secret`,
+> `--webhook-configuration`, `--webhook-failure-policy` and
+> `--webhook-conversion-crds`) to a controller that you run from your IDE. Keep
+> `--webhook-cert-dir` and `--webhook-port`. The debug webhooks have no Service,
+> so with these flags vela-core retries for two minutes and then fails to
+> start.
+
 ## Quick start
 
 ```bash

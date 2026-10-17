@@ -12,10 +12,13 @@ kubectl -n "$CONTROLLER_NAMESPACE" rollout status "deployment/$CONTROLLER_DEPLOY
 
 # With cert-manager no hook patches the CA bundle in; its CA injector does, on
 # its own schedule. Until every webhook has one the API server cannot call them.
+# A webhook still waits while its caBundle is empty or the chart's Cg==
+# placeholder. A real bundle is base64 and can end in '=' padding, so the check
+# matches the whole value, not just a trailing '='.
 if [ -n "$WEBHOOK_CONFIGURATION" ]; then
   waited=0
   while kubectl get validatingwebhookconfiguration "$WEBHOOK_CONFIGURATION" \
-    -o jsonpath='{range .webhooks[*]}{.name}={.clientConfig.caBundle}{"\n"}{end}' | grep -q '=$'; do
+    -o jsonpath='{range .webhooks[*]}{.name}={.clientConfig.caBundle}{"\n"}{end}' | grep -qE '^[^=]+=(Cg==)?$'; do
     if [ "$waited" -ge "$ROLLOUT_TIMEOUT_SECONDS" ]; then
       echo "Webhook $WEBHOOK_CONFIGURATION still has no CA bundle after ${waited}s" >&2
       exit 1
