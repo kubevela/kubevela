@@ -20,7 +20,9 @@ import (
 	"encoding/json"
 	"sync"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
+	"github.com/oam-dev/kubevela/pkg/definition/nsrestrict"
 )
 
 // DefinitionType represents the type of a KubeVela definition.
@@ -78,6 +80,17 @@ func Register(def Definition) {
 	if def.HasPlacement() {
 		if err := placement.ValidatePlacement(def.GetPlacement()); err != nil {
 			panic("defkit: invalid placement for definition '" + def.DefName() + "': " + err.Error())
+		}
+	}
+
+	if r, ok := def.(interface {
+		GetRestrictions() *common.DefinitionRestrictions
+	}); ok {
+		if err := nsrestrict.Validate(r.GetRestrictions()); err != nil {
+			panic("defkit: invalid restrictions for definition '" + def.DefName() + "': " + err.Error())
+		}
+		if err := validateQuotaCounts(r.GetRestrictions()); err != nil {
+			panic("defkit: invalid restrictions for definition '" + def.DefName() + "': " + err.Error())
 		}
 	}
 

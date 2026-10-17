@@ -17,6 +17,7 @@ limitations under the License.
 package defkit
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -153,6 +154,33 @@ func (c *ComponentDefinition) Annotations(annotations map[string]string) *Compon
 // Version sets the version string for the component definition.
 func (c *ComponentDefinition) Version(v string) *ComponentDefinition {
 	c.setVersion(v)
+	return c
+}
+
+// RestrictNamespaces limits the definition to namespaces matching any of the
+// names or path.Match globs. With RestrictNamespaceSelector, matching either is enough.
+func (c *ComponentDefinition) RestrictNamespaces(namespaces ...string) *ComponentDefinition {
+	c.addRestrictNamespaces(namespaces...)
+	return c
+}
+
+// RestrictNamespaceSelector limits the definition to namespaces matching the
+// selector. With RestrictNamespaces, matching either is enough.
+func (c *ComponentDefinition) RestrictNamespaceSelector(selector *metav1.LabelSelector) *ComponentDefinition {
+	c.setRestrictNamespaceSelector(selector)
+	return c
+}
+
+// Quota caps how many times each namespace may use this ComponentDefinition, counted
+// across its Applications and separately from any TraitDefinition quota. The
+// first entry matching a namespace applies.
+//
+//	Quota(
+//	    defkit.QuotaFor("tenant-dev-*").Limit(3),
+//	    defkit.DefaultQuota().Warn(5),
+//	)
+func (c *ComponentDefinition) Quota(entries ...*NamespaceQuota) *ComponentDefinition {
+	c.addQuota(entries...)
 	return c
 }
 
@@ -350,6 +378,8 @@ func (c *ComponentDefinition) ToYAML() ([]byte, error) {
 	if c.GetVersion() != "" {
 		cr["spec"].(map[string]any)["version"] = c.GetVersion()
 	}
+
+	setRestrictionsSpec(cr["spec"].(map[string]any), c.GetRestrictions())
 
 	return yaml.Marshal(cr)
 }

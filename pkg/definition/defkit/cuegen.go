@@ -429,12 +429,11 @@ func (g *CUEGenerator) GenerateFullDefinition(c *ComponentDefinition) string {
 		sb.WriteString(fmt.Sprintf("%slabels: {}\n", g.indent))
 	}
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, c.GetDescription()))
-	if c.GetVersion() != "" {
-		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, c.GetVersion()))
-	}
 
 	// Write attributes
 	sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
+	writeVersion(&sb, c.GetVersion(), strings.Repeat(g.indent, 2))
+	writeRestrictions(&sb, c.GetRestrictions(), strings.Repeat(g.indent, 2))
 	g.writeWorkload(&sb, c, 2)
 	g.writeStatus(&sb, c, 2)
 	sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
@@ -4230,5 +4229,14 @@ func formatCUEValue(v any) string {
 		return fmt.Sprintf("%v", val)
 	default:
 		return fmt.Sprintf("%v", val)
+	}
+}
+
+// writeVersion writes the definition's version as an attribute. FromCUE copies
+// attributes into the spec and drops unknown header keys, so it cannot go at the
+// top level of the header.
+func writeVersion(sb *strings.Builder, version, indent string) {
+	if version != "" {
+		sb.WriteString(fmt.Sprintf("%sversion: %q\n", indent, version))
 	}
 }
