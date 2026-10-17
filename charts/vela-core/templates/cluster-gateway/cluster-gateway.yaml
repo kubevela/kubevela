@@ -67,6 +67,13 @@ spec:
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
+            # Mount only the serving cert. The Secret also holds the CA key that
+            # vela-core uses to sign certs, and cluster-gateway does not need it.
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
       {{ end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -133,13 +140,7 @@ spec:
 # 2.c If the APIService exists with valid helm-chart annotations, which means that the APIService
 #     is previously managed by helm commands, hence update the APIService consistently.
 {{ $apiSvc := (lookup "apiregistration.k8s.io/v1" "APIService" "" "v1alpha1.cluster.core.oam.dev") }}
-{{ $shouldAdopt := (not $apiSvc) }}
-{{ if not $shouldAdopt }}
-  {{ if $apiSvc.metadata.annotations }}
-    {{ $shouldAdopt = (index ($apiSvc).metadata.annotations "meta.helm.sh/release-name") }}
-  {{ end }}
-{{ end }}
-{{ if $shouldAdopt }}
+{{ if include "kubevela.clusterGatewayAPIServiceManaged" . }}
 apiVersion: apiregistration.k8s.io/v1
 kind: APIService
 metadata:
@@ -160,10 +161,27 @@ spec:
     namespace: {{ .Release.Namespace }}
     port: {{ .Values.multicluster.clusterGateway.port }}
   versionPriority: 10
-  insecureSkipTLSVerify: {{ not .Values.multicluster.clusterGateway.secureTLS.enabled }}
-  {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+  {{- if not .Values.multicluster.clusterGateway.secureTLS.enabled }}
+  insecureSkipTLSVerify: true
+  {{- else }}
+  insecureSkipTLSVerify: false
+  {{- /* Keep a valid caBundle that is already in the cluster, so that an upgrade
+         does not remove it (#7214). $apiSvc is the existing APIService from the
+         lookup above. */}}
+  {{- $caBundle := dig "spec" "caBundle" "" $apiSvc }}
+  {{- if eq $caBundle "Cg==" }}{{ $caBundle = "" }}{{ end }}
+  {{- if $caBundle }}
+  caBundle: {{ $caBundle }}
+  {{- else if .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
+  {{- /* cert-manager's cainjector fills in the caBundle on its own. */}}
   caBundle: Cg==
-  {{ end }}
+  {{- end }}
+  {{- /* If not, vela-core writes the caBundle at startup
+         (--cluster-gateway-tls-secret). Do not render a placeholder. Since
+         Kubernetes 1.36, the aggregator uses the caBundle to verify TLS
+         (kubernetes/kubernetes#137157). With a placeholder, the APIService stays
+         unavailable, and vela-core, which waits for it, never becomes ready. */}}
+  {{- end }}
 {{ end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1

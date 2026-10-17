@@ -46,6 +46,19 @@ rules:
   - apiGroups: ["admissionregistration.k8s.io"]
     resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
     verbs: ["get", "list", "watch"]
+  {{- if include "kubevela.webhookRuntimeCerts" . }}
+  # vela-core sets the caBundle and failurePolicy of its own webhooks at startup.
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+    resourceNames: [{{ printf "%s-admission" (include "kubevela.fullname" .) | quote }}]
+    verbs: ["update", "patch"]
+  {{- if .Values.admissionWebhooks.appConversion.enabled }}
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    resourceNames: ["applications.core.oam.dev"]
+    verbs: ["get", "update", "patch"]
+  {{- end }}
+  {{- end }}
   - apiGroups: ["flowcontrol.apiserver.k8s.io"]
     resources: ["prioritylevelconfigurations", "flowschemas"]
     verbs: ["get", "list", "watch"]
@@ -69,6 +82,35 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "kubevela.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
+
+{{- if or (include "kubevela.webhookRuntimeCerts" .) (include "kubevela.clusterGatewayRuntimeCerts" .) }}
+---
+# vela-core keeps the serving cert Secrets of its webhooks and the
+# cluster-gateway in its own namespace, so it can write Secrets there.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "kubevela.fullname" . }}:serving-certs
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "kubevela.fullname" . }}:serving-certs
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "kubevela.fullname" . }}:serving-certs
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "kubevela.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
 
 {{ else }}
 
@@ -251,6 +293,14 @@ spec:
             - "--use-webhook=true"
             - "--webhook-port={{ .Values.webhookService.port }}"
             - "--webhook-cert-dir={{ .Values.admissionWebhooks.certificate.mountPath }}"
+            {{ if include "kubevela.webhookRuntimeCerts" . }}
+            - "--webhook-tls-secret={{ .Release.Namespace }}/{{ template "kubevela.fullname" . }}-admission"
+            - "--webhook-configuration={{ template "kubevela.fullname" . }}-admission"
+            - "--webhook-failure-policy={{ .Values.admissionWebhooks.failurePolicy }}"
+            {{ if .Values.admissionWebhooks.appConversion.enabled }}
+            - "--webhook-conversion-crds=applications.core.oam.dev"
+            {{ end }}
+            {{ end }}
             {{ end }}
             {{ if ne .Values.optimize.cachedGvks "" }}
             - "--optimize-cached-gvks={{ .Values.optimize.cachedGvks }}"
@@ -279,6 +329,10 @@ spec:
             - "--definition-revision-limit={{ .Values.definitionRevisionLimit }}"
             {{ if .Values.multicluster.enabled }}
             - "--enable-cluster-gateway"
+            {{ if include "kubevela.clusterGatewayRuntimeCerts" . }}
+            - "--cluster-gateway-tls-secret={{ .Release.Namespace }}/{{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2"
+            - "--cluster-gateway-service={{ .Release.Namespace }}/{{ .Release.Name }}-cluster-gateway-service"
+            {{ end }}
             {{ if .Values.multicluster.clusterGateway.direct }}
             - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:9443"
             {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
@@ -362,24 +416,38 @@ spec:
           volumeMounts:
             - mountPath: {{ .Values.admissionWebhooks.certificate.mountPath }}
               name: tls-cert-vol
+              {{- if not (include "kubevela.webhookRuntimeCerts" .) }}
               readOnly: true
+              {{- end }}
           {{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
             - mountPath: /cluster-gateway-tls-cert
               name: tls-cert-vol-cg
+              {{- if not (include "kubevela.clusterGatewayRuntimeCerts" .) }}
               readOnly: true
+              {{- end }}
           {{ end }}
           {{ end }}
       {{ if .Values.admissionWebhooks.enabled }}
       volumes:
         - name: tls-cert-vol
+          {{- /* With runtime certs, vela-core creates the Secret itself and cannot
+                 mount it. It writes the files into an emptyDir at startup. */}}
+          {{- if include "kubevela.webhookRuntimeCerts" . }}
+          emptyDir: {}
+          {{- else }}
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-admission
+          {{- end }}
       {{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
         - name: tls-cert-vol-cg
+          {{- if include "kubevela.clusterGatewayRuntimeCerts" . }}
+          emptyDir: {}
+          {{- else }}
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
+          {{- end }}
       {{ end }}
       {{ end }}
       {{- with .Values.nodeSelector }}

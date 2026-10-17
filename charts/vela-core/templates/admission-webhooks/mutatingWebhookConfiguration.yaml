@@ -1,14 +1,6 @@
 {{- if .Values.admissionWebhooks.enabled -}}
-{{- /* Preserve existing caBundle on upgrade to avoid breaking admission if hooks fail. */}}
-{{- $mName := printf "%s-admission" (include "kubevela.fullname" .) -}}
-{{- $existing := (lookup "admissionregistration.k8s.io/v1" "MutatingWebhookConfiguration" "" $mName) -}}
-{{- $vals := dict "apps" "" "comps" "" -}}
-{{- if $existing -}}
-{{- range $existing.webhooks -}}
-{{- if eq .name "mutating.core.oam.dev.v1beta1.applications" -}}{{- $_ := set $vals "apps" .clientConfig.caBundle -}}{{- end -}}
-{{- if eq .name "mutating.core.oam-dev.v1beta1.componentdefinitions" -}}{{- $_ := set $vals "comps" .clientConfig.caBundle -}}{{- end -}}
-{{- end -}}
-{{- end -}}
+{{- /* Webhooks already in the cluster, to keep their caBundle and failurePolicy on upgrade. */}}
+{{- $hooks := include "kubevela.existingWebhooks" (dict "kind" "MutatingWebhookConfiguration" "name" (printf "%s-admission" (include "kubevela.fullname" .))) | fromJson -}}
 apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
@@ -20,16 +12,12 @@ metadata:
   {{- end }}
 webhooks:
   - clientConfig:
-      caBundle: {{ default "Cg==" (get $vals "apps") }}
+      {{- include "kubevela.webhookCABundle" (dict "root" $ "hooks" $hooks "name" "mutating.core.oam.dev.v1beta1.applications") | nindent 6 }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
         path: /mutating-core-oam-dev-v1beta1-applications
-    {{- if .Values.admissionWebhooks.patch.enabled }}
-    failurePolicy: Ignore
-    {{- else }}
-    failurePolicy: Fail
-    {{- end }}
+    {{- include "kubevela.webhookFailurePolicy" (dict "root" $ "hooks" $hooks "name" "mutating.core.oam.dev.v1beta1.applications" "policy" "Fail") | nindent 4 }}
     name: mutating.core.oam.dev.v1beta1.applications
     admissionReviewVersions:
       - v1beta1
@@ -46,16 +34,12 @@ webhooks:
         resources:
           - applications
   - clientConfig:
-      caBundle: {{ default "Cg==" (get $vals "comps") }}
+      {{- include "kubevela.webhookCABundle" (dict "root" $ "hooks" $hooks "name" "mutating.core.oam-dev.v1beta1.componentdefinitions") | nindent 6 }}
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
         path: /mutating-core-oam-dev-v1beta1-componentdefinitions
-    {{- if .Values.admissionWebhooks.patch.enabled  }}
-    failurePolicy: Ignore
-    {{- else }}
-    failurePolicy: Fail
-    {{- end }}
+    {{- include "kubevela.webhookFailurePolicy" (dict "root" $ "hooks" $hooks "name" "mutating.core.oam-dev.v1beta1.componentdefinitions" "policy" "Fail") | nindent 4 }}
     name: mutating.core.oam-dev.v1beta1.componentdefinitions
     sideEffects: None
     admissionReviewVersions:
