@@ -23,7 +23,7 @@ Three things make this more than a Kubernetes MCP with an OAM accent:
 | Bet | What it means for the user |
 |---|---|
 | Render and diff before anything exists | An agent cannot apply what it has not shown as a resource-level change set with a risk class |
-| Writes are workflows with a human gate | Production changes pause at a `suspend` step; the agent cannot resume by default |
+| Writes pause for a human, outside the spec | An agent-initiated change holds before its first workflow step until someone with resume rights confirms; the Application's declared workflow is never edited, and the agent cannot resume by default |
 | Platform engineers get an authoring loop | defkit in Go, `vela def vet`, dry-run against local definitions, consumer impact before a change |
 
 For incident work, Vela MCP is the connective piece of a reference stack with a read-only
@@ -69,6 +69,9 @@ windows) rather than owning telemetry.
 4. Replacing YAML, VelaUX or GitOps as the primary developer interface.
 5. Cluster-fleet tools before the Cluster Infrastructure KEP lands. They are in scope
    afterwards; see [Future scope](#future-scope-cluster-fleet-tools).
+6. Validating definition parameters at admission. That belongs in its own proposal and
+   helps humans as much as agents; this KEP consumes it when it lands, see
+   [Accuracy contract](#accuracy-contract).
 
 ## Proposal
 
@@ -215,6 +218,13 @@ for each other, `get_platform_info` reports it and every other tool repeats it i
 envelope as a warning. Many production mysteries are version skew; the server should be
 the first thing that notices.
 
+**One schema for humans and agents.** `describe_definition` returns the parameter schema
+the controller publishes for each definition. Today nothing rejects an undeclared or
+mistyped parameter until render, so dry-run is the check the agent must pass. When
+parameter validation at admission lands (separate proposal), the server serves that same
+admitted schema, and an agent and a human get identical rejections for the same input
+instead of the MCP being the only place the rules are applied.
+
 The evaluation suite scores these rules directly: a fixture set of degraded Applications
 with known causes where every emitted claim must resolve to a real object, a run against
 two different vela-core versions where version-gated explanations must differ correctly,
@@ -224,11 +234,22 @@ and a check that no status response ever reports `source: cached`.
 
 | Mode | `apply_application` does | Default for | Moves forward by |
 |---|---|---|---|
-| `gitops` | Returns deterministic YAML and the diff; writes nothing | Namespaces declared GitOps | Pull-request review |
-| `gated` | Injects a `suspend` step before the first deploy step, records initiator, applies | Everything else | A human with resume rights |
+| `gitops` | Returns deterministic YAML and the diff; writes nothing | Applications marked GitOps-managed, and namespaces declared GitOps | Pull-request review |
+| `gated` | Applies with a one-shot hold, so the workflow does not start until confirmed | Everything else | A human with resume rights |
 | `direct` | Applies after verifying the diff token | Only namespaces on an explicit allowlist that also do not match the production pattern; a namespace matching both is refused at startup | Nobody; reconciles at once |
 
-Gated mode adds no new object type. It edits the Application's own workflow:
+**Mode is decided per Application.** Namespace policy sets the floor. An Application can
+tighten its own mode with an `app.oam.dev/agent-write-mode` annotation (`gitops` or
+`gated`), read from both the live object and the submitted document, and the strictest of
+the three wins. A marker can only tighten, never loosen, so a value in the input cannot
+weaken the policy, and a team that manages one Application through Git while the rest of
+the namespace is not gets `gitops` for that Application alone. Requested mode can be
+downgraded by policy (direct to gated, gated to gitops), never upgraded.
+
+**Gated mode does not edit the spec.** Injecting a `suspend` step would change the
+Application's declared intent: it would appear in revisions and rollbacks, and a restart
+would replay it. Instead the server applies the submitted Application with a hold bound
+to the generation it creates:
 
 ```yaml
 metadata:
@@ -236,22 +257,21 @@ metadata:
     mcp.oam.dev/initiator: alice@example.com
     mcp.oam.dev/diff-token: sha256:...
     mcp.oam.dev/risk: LOW
-spec:
-  workflow:
-    steps:
-    - name: approve
-      type: suspend
-      properties:
-        message: "Agent-initiated change by alice@example.com, risk LOW. Resume to deploy."
-    - name: deploy-dev
-      type: deploy
-      properties: {policies: [dev]}
+    app.oam.dev/hold-generation: "4"
 ```
 
-Requested mode can be downgraded by policy (direct to gated, gated to gitops), never
-upgraded. If a suspend step already precedes the first deploy, none is added. The server
-strips any `mcp.oam.dev/*` annotation present in the submitted Application and writes its
-own, so the initiator record cannot be forged by the input.
+When the controller reconciles a generation that matches the hold, it starts the workflow
+suspended, with a message naming the initiator and risk, instead of running the first
+step. `vela workflow resume` confirms it exactly as it confirms any suspended workflow, and
+the controller then clears the hold. Because the hold lives outside the spec and names one
+generation, revisions never contain it, a rollback is not paused by it, a restart after
+confirmation does not pause again, and a later generation without a hold runs normally.
+This needs a small controller change, listed under [Milestones](#milestones) as a
+prerequisite for gated writes.
+
+The server strips any `mcp.oam.dev/*` annotation and any hold present in the submitted
+Application and writes its own, so neither the initiator record nor the hold can be forged
+by the input.
 
 Where the gate is enforced, and where it is not: within the MCP path the server never
 exposes `resume_workflow` unless started with its flag, so an agent confined to MCP cannot
@@ -369,6 +389,32 @@ A CODEOWNERS entry for `pkg/mcp` and `pkg/velaops` gives the work its own review
 without its own repository. Precedent: `vela def gen-api` lives in core, the generated SDK
 lives in kubevela-contrib.
 
+### Release cadence
+
+Shipping in the binary ties fixes to the `vela` release train, which is slower than the MCP
+ecosystem moves. Most of what changes often is already read live: definition schemas, CRD
+shapes, feature gates and versions never come from the binary. What is compiled in is the
+handlers, the tool descriptions and the policy logic. The split:
+
+| Stays in the binary | Served as data by an optional `vela-mcp` addon |
+|---|---|
+| Every handler that reads or writes the API server | Tool descriptions and examples, with the binary's copy as the default |
+| Namespace allowlist, Secret handling, redaction, mode policy, token checks | Additional read-only tools expressed as VelaQL views, which the CLI already executes |
+| The classifier's rules and every HIGH rule | Risk hints that can only raise a class, never lower one |
+
+`vela mcp` is complete without the addon: built-in defaults are the path every release is
+tested on, and `get_platform_info` only reports which data source is in use. With the
+addon, a platform team installs it once per control plane and developers' CLIs pick it up
+on the next start. Served data carries the vela-core version and minimum CLI version it was
+written for; a CLI ignores entries it does not understand and says so in the envelope. The
+CLI caches what it last saw with that stamp and reports `source: cached` with its age when
+the cluster is unreachable. Nothing executable is fetched at runtime, and nothing served can
+weaken a security rule, so the addon does not need auditing like code.
+
+The addon helps installs with a platform team. Everyone else still gets fixes at the CLI's
+cadence, so P0 also proposes patch releases of `vela` for changes under `references/cli`
+and `pkg/mcp` between minor releases.
+
 ## Examples
 
 ### Compose, validate, gated deploy
@@ -393,8 +439,8 @@ sequenceDiagram
     Agent-->>Dev: YAML, change set, risk. Deploy?
     Dev->>Agent: Yes
     Agent->>MCP: apply_application(app v2, token)
-    MCP->>K: Application with suspend step, initiator annotation
-    K-->>MCP: workflow suspended at "approve"
+    MCP->>K: Application with hold for this generation, initiator annotation
+    K-->>MCP: workflow held before its first step
     Agent-->>Dev: paused at approval, resume command for an approver
     Approver->>K: vela workflow resume orders -n dev
     Agent->>MCP: get_application(orders)
@@ -452,7 +498,7 @@ state whether traffic changed. Deterministic, one round trip per cluster.
 | Phase | Scope | Exit criteria |
 |---|---|---|
 | P0, KubeVela 1.12 | Lift status tree and live-diff into `pkg/velaops`; `vela mcp` stdio; fifteen tools including `get_platform_info` and `explain_definition`; response envelope with versions, freshness and evidence; correlation handles; mode policy; risk classifier; redaction; `vela mcp setup` for Claude Code, Cursor, Gemini CLI; developer and SRE skills; six documented scenarios; velad quickstart; evaluation harness and stub observability MCP | Scenarios pass on three model families; new user completes compose-to-gated-deploy on velad in under ten minutes; incident scenario completes with zero manual lookups; every explain claim in the degraded-Application fixtures resolves to a real object |
-| P1 | `find_definition_consumers`, `vet_definition`, workflow suspend and terminate, resume behind flag; defkit-author and platform-engineer skills; kube-trigger webhook recipe | Definition authoring and impact scenarios pass; one adopter runs the trigger recipe |
+| P1 | `find_definition_consumers`, `vet_definition`, workflow suspend and terminate, resume behind flag; `vela-mcp` addon for served descriptions, VelaQL read tools and risk hints; defkit-author and platform-engineer skills; kube-trigger webhook recipe | Definition authoring and impact scenarios pass; one adopter runs the trigger recipe |
 | P2, after VelaUX catch-up | VelaUX backend plugin over streamable HTTP; per-caller tool filtering; read-only assistant panel | Hosted client logs in through VelaUX and gets the same allow or deny as the CLI |
 | P3, after the Cluster Infrastructure KEP | Cluster-fleet tools from the Future scope section; cluster-plane handles; `kubevela-cluster-operator` skill | Fleet scenarios pass on three model families; a rollout started through an agent pauses at every approval the KEP defines |
 
@@ -467,6 +513,17 @@ Three open issues break code paths P0 wraps and are prerequisites for it:
 | 6847 | `vela show` omits parameters for workflow steps that import `vela/kube` | `describe_definition` |
 | 5767 | OpenAPI schema generation fails on CUE constraints such as `>=1 & <=3599` | `describe_definition`, and the capability snapshot VelaUX reads |
 
+One controller change is a prerequisite for gated writes, not for the read and plan
+tools:
+
+| Change | Why | Until it lands |
+|---|---|---|
+| Honour `app.oam.dev/hold-generation`: start the matching generation's workflow suspended, clear the hold on resume | Gated mode without editing the Application's workflow | `apply_application` offers `gitops` and `direct` only |
+
+Parameter validation at admission is not a prerequisite. It is a separate proposal that
+improves accuracy for humans and agents alike, and the server serves its schema when it
+exists.
+
 ## Unresolved questions
 
 1. Confirm agents cannot resume workflows by default and self-resume is a sandbox-only flag.
@@ -476,6 +533,10 @@ Three open issues break code paths P0 wraps and are prerequisites for it:
 5. Which third-party servers setup pins in P0: containers/kubernetes-mcp-server,
    grafana/mcp-grafana, Datadog MCP, with Prometheus at P1.
 6. Owner and scope of the VelaUX catch-up release that P2 depends on.
+7. Names of the per-Application mode marker and the hold annotation, and whether the hold
+   belongs in the workflow library rather than the Application controller.
+8. Whether patch releases for `references/cli` and `pkg/mcp` follow the regular patch
+   train or a separate one.
 
 ## References
 
