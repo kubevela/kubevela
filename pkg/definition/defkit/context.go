@@ -16,6 +16,8 @@ limitations under the License.
 
 package defkit
 
+import "fmt"
+
 // ContextRef represents a reference to a context value.
 // Context values are runtime values provided by KubeVela.
 type ContextRef struct {
@@ -115,6 +117,73 @@ func (c *VelaContext) Output() *ContextRef {
 // Outputs returns a reference to auxiliary outputs by name.
 func (c *VelaContext) Outputs(name string) *ContextRef {
 	return &ContextRef{path: "context.outputs." + name}
+}
+
+// AppComponents returns the Application's components, as an Application-scoped
+// policy sees them.
+func (c *VelaContext) AppComponents() *ContextRef {
+	return &ContextRef{path: "context.appComponents"}
+}
+
+// AppWorkflow returns the Application's workflow, as an Application-scoped policy sees it.
+func (c *VelaContext) AppWorkflow() *ContextRef {
+	return &ContextRef{path: "context.appWorkflow"}
+}
+
+// AppPolicies returns the Application's policies, as an Application-scoped policy sees them.
+func (c *VelaContext) AppPolicies() *ContextRef {
+	return &ContextRef{path: "context.appPolicies"}
+}
+
+// AppLabels returns the Application's labels, without KubeVela's internal ones.
+func (c *VelaContext) AppLabels() *ContextRef {
+	return &ContextRef{path: "context.appLabels"}
+}
+
+// AppAnnotations returns the Application's annotations, without KubeVela's internal ones.
+func (c *VelaContext) AppAnnotations() *ContextRef {
+	return &ContextRef{path: "context.appAnnotations"}
+}
+
+// AppAnnotation returns one of the Application's annotations.
+func (c *VelaContext) AppAnnotation(key string) *ContextRef {
+	return &ContextRef{path: fmt.Sprintf("context.appAnnotations[%q]", key)}
+}
+
+// AppLabel returns one of the Application's labels.
+func (c *VelaContext) AppLabel(key string) *ContextRef {
+	return &ContextRef{path: fmt.Sprintf("context.appLabels[%q]", key)}
+}
+
+// PolicyName returns the name the Application gives the policy.
+func (c *VelaContext) PolicyName() *ContextRef {
+	return &ContextRef{path: "context.policyName"}
+}
+
+// PolicyType returns the policy's definition name.
+func (c *VelaContext) PolicyType() *ContextRef {
+	return &ContextRef{path: "context.policyType"}
+}
+
+// PolicyRevision returns the revision number of the policy's definition.
+func (c *VelaContext) PolicyRevision() *ContextRef {
+	return &ContextRef{path: "context.policyRevision"}
+}
+
+// PolicyRevisionName returns the name of the policy definition's revision.
+func (c *VelaContext) PolicyRevisionName() *ContextRef {
+	return &ContextRef{path: "context.policyRevisionName"}
+}
+
+// PolicyRevisionHash returns the hash of the policy definition's revision.
+func (c *VelaContext) PolicyRevisionHash() *ContextRef {
+	return &ContextRef{path: "context.policyRevisionHash"}
+}
+
+// Custom returns a value an Application-scoped policy put in its output's ctx,
+// as components and traits read it.
+func (c *VelaContext) Custom(path string) *ContextRef {
+	return &ContextRef{path: "context.custom." + path}
 }
 
 // String returns the path as a placeholder string for template building.

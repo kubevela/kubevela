@@ -321,8 +321,7 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 	streams.Infof("\n%s\n", module.Summary())
 
 	// Get kubernetes client
-	config, err := c.GetConfig()
-	if err != nil {
+	if _, err := c.GetConfig(); err != nil {
 		return errors.Wrap(err, "failed to get kubernetes config")
 	}
 	k8sClient, err := c.GetClient()
@@ -395,27 +394,30 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 	var failedDefs []string
 	defApplyStart := time.Now()
 
+	prepared, err := prepareModuleDefinitions(module.Definitions, opts.prefix)
+	if err != nil {
+		return err
+	}
+
+	// applied maps each definition applied, or kept as installed, to its final
+	// name, for the children applied after it.
+	applied := map[string]string{}
+
 	// Apply each definition
-	for _, result := range module.Definitions {
+	for _, md := range prepared {
+		result := md.result
 		if result.Error != nil {
 			stats.Failed++
 			failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", result.Definition.FilePath, result.Error))
 			continue
 		}
-
-		// Parse CUE to definition
-		def := pkgdef.Definition{}
-		if err := def.FromCUEString(result.CUE, config); err != nil {
+		if md.err != nil {
 			stats.Failed++
-			failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", result.Definition.Name, err))
+			failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", result.Definition.Name, md.err))
 			continue
 		}
+		def := md.def
 		def.SetNamespace(opts.namespace)
-
-		// Apply name prefix if specified
-		if opts.prefix != "" {
-			def.SetName(opts.prefix + def.GetName())
-		}
 
 		// Check placement constraints (combine module-level and definition-level)
 		if checkPlacement {
@@ -441,6 +443,12 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			}
 		}
 
+		if err := linkToAppliedParent(&md, applied); err != nil {
+			stats.Failed++
+			failedDefs = append(failedDefs, fmt.Sprintf("%s: %v", def.GetName(), err))
+			continue
+		}
+
 		// Track definition type
 		trackDefinitionType(stats, result.Definition.Type)
 
@@ -455,6 +463,7 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			streams.Info(s)
 			streams.Info("---\n")
 			stats.Created++
+			applied[md.key] = def.GetName()
 			continue
 		}
 
@@ -479,6 +488,7 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			case ConflictStrategySkip:
 				streams.Infof("Skipping %s %s (already exists)\n", def.GetKind(), def.GetName())
 				stats.Skipped++
+				applied[md.key] = def.GetName()
 				continue
 			case ConflictStrategyFail:
 				return errors.Errorf("definition %s %s already exists in namespace %s (use --conflict=overwrite to update)",
@@ -524,6 +534,7 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			}
 			streams.Infof("%s %s updated in namespace %s\n", def.GetKind(), def.GetName(), opts.namespace)
 			stats.Updated++
+			applied[md.key] = def.GetName()
 		} else {
 			// Create new
 			if err = k8sClient.Create(ctx, &def); err != nil {
@@ -533,6 +544,7 @@ func applyModule(ctx context.Context, c common.Args, streams util.IOStreams, mod
 			}
 			streams.Infof("%s %s created in namespace %s\n", def.GetKind(), def.GetName(), opts.namespace)
 			stats.Created++
+			applied[md.key] = def.GetName()
 		}
 	}
 	stats.DefApplyTime = time.Since(defApplyStart)
