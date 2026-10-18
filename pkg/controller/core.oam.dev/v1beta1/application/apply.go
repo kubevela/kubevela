@@ -370,10 +370,9 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 	)
 
 	status = h.getServiceStatus(status)
-	// Deferred because a render that gives up has still resolved, or failed to
-	// resolve, its sources: the resolver records what it knows before handing
-	// the error back. Reported from here on every path, or a binding that failed
-	// keeps the value it starts at, which says nothing read it.
+	// Reported on every path out, including the ones that give up: the resolver
+	// records what it knows before handing an error back, so a render that
+	// failed still has something to say about why.
 	defer func() { h.recordComponentSourceReads(comp, &status) }()
 	if !skipWorkload {
 		isHealth, output, outputs, err = h.collectWorkloadHealthStatus(ctx, comp, &status, accessor)
@@ -614,7 +613,11 @@ func mergeSourceValues(earlier, later []common.SourceValue) []common.SourceValue
 }
 
 func mergeResolution(entry *common.ApplicationSourceStatus, rs sources.SourceResolutionStatus, cluster string) {
-	if rs.Config == "" && rs.Phase == "" {
+	// Named here as well as on the binding: the two are written from one
+	// resolution, so a phase reported on only one of them has the binding
+	// disagreeing with the entry it is reporting.
+	phase := reportedSourcePhase(rs)
+	if rs.Config == "" && phase == "" {
 		return
 	}
 	for i := range entry.Resolutions {
@@ -622,8 +625,8 @@ func mergeResolution(entry *common.ApplicationSourceStatus, rs sources.SourceRes
 			continue
 		}
 		got := &entry.Resolutions[i]
-		if rs.Phase != "" && (got.Phase == "" || rs.Phase == sourcePhaseFailed) {
-			got.Phase = rs.Phase
+		if sourcePhaseRank(phase) > sourcePhaseRank(got.Phase) {
+			got.Phase = phase
 			got.Message = rs.Message
 		}
 		if rs.ExpiresAt != "" {
@@ -634,7 +637,7 @@ func mergeResolution(entry *common.ApplicationSourceStatus, rs sources.SourceRes
 	}
 	res := common.SourceResolution{
 		StorageKey: rs.Config,
-		Phase:      rs.Phase,
+		Phase:      phase,
 		ExpiresAt:  rs.ExpiresAt,
 		Message:    rs.Message,
 	}

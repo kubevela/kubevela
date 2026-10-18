@@ -661,3 +661,40 @@ type unreachableClient struct{ client.Client }
 func (unreachableClient) Get(_ context.Context, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
 	return errors.New("the cluster is unreachable")
 }
+
+// The binding's phase and the entry it came from must agree. They are written
+// in two places from the same resolution, so naming the phase in one and not
+// the other would have a binding report Stale while the resolution it is
+// reporting says Resolved.
+func TestStaleIsReportedOnTheResolutionToo(t *testing.T) {
+	r := require.New(t)
+	stale := sources.SourceResolutionStatus{
+		Name: "registry", Phase: sourcePhaseResolved, Stale: true,
+		Config: "configmap-local-abc", ExpiresAt: "2026-10-18T00:00:00Z",
+		Message:        "refresh failed; serving stale cached value",
+		ConsumedFields: map[string]interface{}{"data.image": "nginx"},
+	}
+
+	// A resolution recorded for the first time.
+	h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+	h.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{"registry": stale})
+	out := h.sourceStatusList()
+	r.Len(out[0].Resolutions, 1)
+	r.Equal(sourcePhaseStale, out[0].Phase)
+	r.Equal(sourcePhaseStale, out[0].Resolutions[0].Phase, "the entry agrees with the binding")
+
+	// And one updated, where a second reader found the same entry stale.
+	h = handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+	fresh := stale
+	fresh.Stale = false
+	fresh.Message = ""
+	h.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{"registry": fresh})
+	h.recordSourceResolution(sourceKindComponent, "api", "webservice", "remote", "default",
+		map[string]sources.SourceResolutionStatus{"registry": stale})
+	out = h.sourceStatusList()
+	r.Len(out[0].Resolutions, 1, "one storage key, one entry")
+	r.Equal(sourcePhaseStale, out[0].Resolutions[0].Phase)
+	r.Contains(out[0].Resolutions[0].Message, "serving stale")
+}
