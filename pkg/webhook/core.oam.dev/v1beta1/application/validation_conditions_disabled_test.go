@@ -103,5 +103,11 @@ func TestMisplacedStepConditionsRefused(t *testing.T) {
 		require.Contains(t, errs.Error(), "must be the whole if")
 	}
 	require.Empty(t, h.ValidateWorkflow(context.Background(),
-		conditionApp(nil, `inputs.msg == "cost $(5)"`, "status.a.succeeded")))
+		conditionApp(nil, `inputs.msg == "cost $(5)"`, "status.a.succeeded", "status.a.succeeded // see $(docs)")))
+	require.Error(t, h.ValidateWorkflow(context.Background(),
+		conditionApp(nil, "status.a.succeeded // don't\n&& $(steps.a.succeeded)")).ToAggregate())
+	require.Empty(t, h.ValidateWorkflow(context.Background(),
+		conditionApp(nil, `x == #"say "$(x)" now"#`, "x == \"\"\"\n\tsay \"$(x)\"\n\t\"\"\"", "x == '''\n\tit's $(x)\n\t'''")))
+	require.Error(t, h.ValidateWorkflow(context.Background(),
+		conditionApp(nil, `#"a"# && $(steps.a.succeeded)`)).ToAggregate())
 }

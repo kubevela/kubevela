@@ -83,19 +83,34 @@ func misplacedConditions(stepsPath *field.Path, steps []wfv1alpha1.WorkflowStep)
 	return errs
 }
 
-// misplacedCondition reports an if with a $( ) outside its CUE strings that is
-// not one $( ) expression. A $$( is an escape, not an expression.
+// misplacedCondition reports an if with a $( ) outside its CUE strings and
+// comments that is not one $( ) expression. A $$( is an escape, not an expression.
 func misplacedCondition(cond string) bool {
 	return !wfexpressions.IsCondition(cond) && expressionOutsideStrings(cond)
 }
 
 // expressionOutsideStrings reports a $( ) in CUE source outside its string and
-// bytes literals.
+// bytes literals and its comments.
 func expressionOutsideStrings(src string) bool {
 	for i := 0; i < len(src); i++ {
 		switch c := src[i]; c {
 		case '"', '\'':
-			i = endOfLiteral(src, i, c)
+			i = endOfLiteral(src, i, 0)
+		case '#':
+			hashes := len(src[i:]) - len(strings.TrimLeft(src[i:], "#"))
+			if next := i + hashes; next < len(src) && (src[next] == '"' || src[next] == '\'') {
+				i = endOfLiteral(src, next, hashes)
+			} else {
+				i = next - 1
+			}
+		case '/':
+			if strings.HasPrefix(src[i:], "//") {
+				if nl := strings.IndexByte(src[i:], '\n'); nl >= 0 {
+					i += nl
+				} else {
+					return false
+				}
+			}
 		case '$':
 			if strings.HasPrefix(src[i:], "$$(") {
 				i += 2
@@ -109,15 +124,23 @@ func expressionOutsideStrings(src string) bool {
 	return false
 }
 
-// endOfLiteral returns the index of the quote that closes the literal opening
-// at src[start], or the last index when it is unclosed.
-func endOfLiteral(src string, start int, quote byte) int {
-	for i := start + 1; i < len(src); i++ {
-		switch src[i] {
-		case '\\':
+// endOfLiteral returns the index of the last byte of the literal whose opening
+// quote is at src[start], or the last index when it is unclosed. The literal is
+// single-line or, opened with three quotes, multiline; with hashes before its
+// quote it is raw, closed by the quote and as many hashes, with no escapes.
+func endOfLiteral(src string, start, hashes int) int {
+	quote := src[start : start+1]
+	if strings.HasPrefix(src[start:], strings.Repeat(quote, 3)) {
+		quote = strings.Repeat(quote, 3)
+	}
+	closing := quote + strings.Repeat("#", hashes)
+	for i := start + len(quote); i < len(src); i++ {
+		if hashes == 0 && src[i] == '\\' {
 			i++
-		case quote:
-			return i
+			continue
+		}
+		if strings.HasPrefix(src[i:], closing) {
+			return i + len(closing) - 1
 		}
 	}
 	return len(src) - 1
