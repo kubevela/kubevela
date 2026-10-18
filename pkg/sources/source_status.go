@@ -58,9 +58,17 @@ type SourceRead struct {
 // SourceResolutionStatus is what one binding's resolution produced, for the
 // caller to report.
 type SourceResolutionStatus struct {
-	Name      string
-	Type      string
-	Phase     string
+	Name  string
+	Type  string
+	Phase string
+	// Stale says the value was served past its TTL. The resolver reports
+	// PhaseResolved alongside it, because a value is in hand; the Application
+	// controller is what turns the pair into the Stale phase it reports.
+	//
+	// A flag and not the expiry timestamp: a value served from the in-process
+	// layer carries the persistent store's expiry while being fresh by that
+	// layer's own rules, so the timestamp does not say what happened.
+	Stale     bool
 	Message   string
 	Config    string
 	ExpiresAt string
@@ -74,6 +82,16 @@ type SourceResolutionStatus struct {
 	// only, never hashed.
 	Reads          []SourceRead
 	SensitivePaths []string
+}
+
+// setStaleStatus records a value served past its TTL: resolved, with the flag
+// the controller reads. Separate from setSourceStatus rather than a seventh
+// argument to it, because that one already takes six strings in a row.
+func (r *sourceResolver) setStaleStatus(sourceName, sourceType, reason, config, expiresAt string) {
+	r.setSourceStatus(sourceName, sourceType, PhaseResolved, reason, config, expiresAt)
+	st := r.statuses[sourceName]
+	st.Stale = true
+	r.statuses[sourceName] = st
 }
 
 func (r *sourceResolver) setSourceStatus(sourceName, sourceType, phase, message, config, expiresAt string) {
@@ -222,8 +240,7 @@ func (r *sourceResolver) serveStale(f staleFallback, reason string) (map[string]
 	}
 	r.touchSourceCache(f.policy.Key)
 	r.resolved[f.name] = f.stored.Data
-	r.setSourceStatus(f.name, f.sourceType, PhaseResolved, reason,
-		f.policy.Key, formatExpiry(f.stored.ExpiresAt))
+	r.setStaleStatus(f.name, f.sourceType, reason, f.policy.Key, formatExpiry(f.stored.ExpiresAt))
 	return f.stored.Data, true
 }
 

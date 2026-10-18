@@ -539,8 +539,8 @@ func (h *AppHandler) recordSourceResolution(kind, name, readerType, cluster, nam
 		// The binding's own phase is the worst any reader saw. A source failing in
 		// one cluster and fine in another is a problem, and reporting the last
 		// render's answer would let which cluster reconciled last decide.
-		if rs.Phase != "" && (entry.Phase == "" || rs.Phase == sourcePhaseFailed) {
-			entry.Phase = rs.Phase
+		if phase := reportedSourcePhase(rs); sourcePhaseRank(phase) > sourcePhaseRank(entry.Phase) {
+			entry.Phase = phase
 		}
 		mergeResolution(entry, rs, cluster)
 		if len(rs.ConsumedFields) == 0 {
@@ -1039,6 +1039,33 @@ const (
 	sourcePhaseFailed   = sources.PhaseFailed
 	sourcePhaseUnused   = sources.PhaseUnused
 )
+
+// reportedSourcePhase names a resolution in the Application's own vocabulary.
+// The resolver reports a value served past its TTL as resolved and flags it,
+// because a value is in hand; Stale is this layer's word for that pair.
+func reportedSourcePhase(rs sources.SourceResolutionStatus) string {
+	if rs.Stale && rs.Phase == sourcePhaseResolved {
+		return sourcePhaseStale
+	}
+	return rs.Phase
+}
+
+// sourcePhaseRank orders the phases a reader can report, worst highest, so a
+// binding keeps the worst any reader saw rather than whichever cluster
+// reconciled last. Unused is not ranked: it is the value a binding starts at
+// when nothing read it, not something a reader reports.
+func sourcePhaseRank(phase string) int {
+	switch phase {
+	case sourcePhaseFailed:
+		return 3
+	case sourcePhaseStale:
+		return 2
+	case sourcePhaseResolved:
+		return 1
+	default:
+		return 0
+	}
+}
 
 // Definition kinds reported on SourceConsumer.
 const (

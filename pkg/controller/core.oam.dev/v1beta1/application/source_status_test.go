@@ -555,3 +555,53 @@ func TestAKeptStepKeepsItsResolutionBesideALiveReader(t *testing.T) {
 		}
 	}
 }
+
+// A value served past its TTL is reported as Stale. The resolver calls it
+// resolved, because a value is in hand, and flags it; naming the phase is this
+// layer's job, which is what the phase's own documentation says.
+func TestSourceStatusListReportsStale(t *testing.T) {
+	r := require.New(t)
+	h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+
+	h.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{
+			"registry": {Name: "registry", Phase: sourcePhaseResolved, Stale: true,
+				Message:        "refresh failed; serving stale cached value",
+				ConsumedFields: map[string]interface{}{"data.image": "nginx"}},
+		})
+
+	out := h.sourceStatusList()
+	r.Equal(sourcePhaseStale, out[0].Phase)
+}
+
+// The binding reports the worst any reader saw, so a third phase joins the
+// existing order rather than letting the last reader to reconcile decide.
+func TestSourceStatusPhasePrecedence(t *testing.T) {
+	resolved := sources.SourceResolutionStatus{Name: "registry", Phase: sourcePhaseResolved,
+		ConsumedFields: map[string]interface{}{"data.image": "nginx"}}
+	stale := sources.SourceResolutionStatus{Name: "registry", Phase: sourcePhaseResolved, Stale: true,
+		ConsumedFields: map[string]interface{}{"data.image": "nginx"}}
+	failed := sources.SourceResolutionStatus{Name: "registry", Phase: sourcePhaseFailed, Message: "gone",
+		ConsumedFields: map[string]interface{}{"data.image": "nginx"}}
+
+	for _, tc := range []struct {
+		name  string
+		first sources.SourceResolutionStatus
+		then  sources.SourceResolutionStatus
+		want  string
+	}{
+		{"stale beats resolved", resolved, stale, sourcePhaseStale},
+		{"stale beats resolved whichever order", stale, resolved, sourcePhaseStale},
+		{"failed beats stale", stale, failed, sourcePhaseFailed},
+		{"failed beats stale whichever order", failed, stale, sourcePhaseFailed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+			h.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+				map[string]sources.SourceResolutionStatus{"registry": tc.first})
+			h.recordSourceResolution(sourceKindComponent, "api", "webservice", "remote", "default",
+				map[string]sources.SourceResolutionStatus{"registry": tc.then})
+			require.Equal(t, tc.want, h.sourceStatusList()[0].Phase)
+		})
+	}
+}
