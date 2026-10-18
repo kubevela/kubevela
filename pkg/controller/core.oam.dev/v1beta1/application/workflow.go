@@ -114,16 +114,26 @@ func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1bet
 			// Workflow is still running or hasn't started - don't restart yet
 			return
 		}
-		if app.Status.Workflow != nil && !app.Status.Workflow.EndTime.IsZero() {
-			lastEndTime := app.Status.Workflow.EndTime.Time
-			if !restartTime.After(lastEndTime) {
-				// Restart time is not after last execution, skip
-				return
+		// The last run is placed by its start; one with no recorded start is
+		// placed by its end. A request made while that run was executing or
+		// waiting is answered now that it has finished.
+		run := app.Status.Workflow.StartTime.Time
+		if run.IsZero() {
+			run = app.Status.Workflow.EndTime.Time
+		}
+		if !run.IsZero() && !restartTime.After(run) {
+			// The last run started after the requested time, so it already
+			// answered the request; clearing it keeps a stale request from
+			// showing as pending.
+			app.Status.WorkflowRestartScheduledAt = nil
+			if err := r.Status().Update(ctx, app); err != nil {
+				ctx.Error(err, "failed to clear a superseded workflow restart")
 			}
+			return
 		}
 
-		// All conditions met: time arrived, workflow finished, and restart time > last execution
-		// Clear the status field and proceed with restart
+		// Time arrived, workflow finished, and the restart is later than the
+		// start of the last run. Clear the status field and proceed with restart
 		app.Status.WorkflowRestartScheduledAt = nil
 		if err := r.Status().Update(ctx, app); err != nil {
 			ctx.Error(err, "failed to clear workflow restart scheduled time")
