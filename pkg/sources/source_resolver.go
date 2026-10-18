@@ -415,25 +415,22 @@ func (r *sourceResolver) resolve(sourceName string) (map[string]interface{}, err
 	if err != nil {
 		return r.fail(sourceName, sourceType, "", err, "")
 	}
-	cached, stale, found, cacheExpiresAt, err := r.readSourceCache(cachePolicy.Key, cachePolicy.TTL)
+	stored, err := r.readSourceCache(cachePolicy.Key, cachePolicy.TTL)
 	if err != nil {
 		klog.Warningf("read source cache failed for %s: %v", sourceName, err)
-	} else if found {
+	} else if stored.Found {
 		// A stored value has been through JSON. Retyping it against the schema
 		// is what makes a cache hit and a fresh resolution mean the same thing
 		// to an expression.
-		cached = r.typeToSchema(sourceTemplate, cached)
-		if !stale {
-			r.resolved[sourceName] = cached
-			r.setSourceStatus(sourceName, sourceType, PhaseResolved, "", cachePolicy.Key, formatExpiry(cacheExpiresAt))
-			return cached, nil
+		stored.Data = r.typeToSchema(sourceTemplate, stored.Data)
+		if !stored.Stale {
+			r.resolved[sourceName] = stored.Data
+			r.setSourceStatus(sourceName, sourceType, PhaseResolved, "", cachePolicy.Key, formatExpiry(stored.ExpiresAt))
+			return stored.Data, nil
 		}
 	}
 	// What a failed refresh below may fall back on.
-	fallback := staleFallback{
-		name: sourceName, sourceType: sourceType, policy: cachePolicy,
-		cached: cached, found: found, stale: stale, expiresAt: cacheExpiresAt,
-	}
+	fallback := staleFallback{name: sourceName, sourceType: sourceType, policy: cachePolicy, stored: stored}
 
 	// A source is compiled against the context the cache-key rules make readable,
 	// not the component's - so it cannot depend on anything the key ignores.

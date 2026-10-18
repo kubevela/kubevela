@@ -17,9 +17,9 @@ limitations under the License.
 package sources
 
 import (
-	"time"
-
 	"github.com/pkg/errors"
+
+	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 )
 
 // The phases a binding is reported in. Declared here because this package
@@ -206,10 +206,7 @@ type staleFallback struct {
 	name       string
 	sourceType string
 	policy     sourceCachePolicy
-	cached     map[string]interface{}
-	found      bool
-	stale      bool
-	expiresAt  time.Time
+	stored     velaprocess.SourceCacheRead
 }
 
 // serveStale returns the stored value when a refresh has failed and the
@@ -220,14 +217,14 @@ type staleFallback struct {
 // each is also a place where forgetting to record status would leave a binding
 // looking unresolved while its value was in use.
 func (r *sourceResolver) serveStale(f staleFallback, reason string) (map[string]interface{}, bool) {
-	if !f.found || !f.stale || f.policy.OnStaleFailure != sourceCachePolicyUseStale {
+	if !f.stored.Found || !f.stored.Stale || f.policy.OnStaleFailure != sourceCachePolicyUseStale {
 		return nil, false
 	}
 	r.touchSourceCache(f.policy.Key)
-	r.resolved[f.name] = f.cached
+	r.resolved[f.name] = f.stored.Data
 	r.setSourceStatus(f.name, f.sourceType, PhaseResolved, reason,
-		f.policy.Key, formatExpiry(f.expiresAt))
-	return f.cached, true
+		f.policy.Key, formatExpiry(f.stored.ExpiresAt))
+	return f.stored.Data, true
 }
 
 // fail records a binding as failed and returns the error to hand back, so a

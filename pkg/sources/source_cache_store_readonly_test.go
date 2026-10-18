@@ -32,9 +32,9 @@ type recordingStore struct {
 	value   map[string]interface{}
 }
 
-func (s *recordingStore) Read(_ context.Context, _ string, _ time.Duration) (map[string]interface{}, bool, bool, time.Time, error) {
+func (s *recordingStore) Read(_ context.Context, _ string, _ time.Duration) (velaprocess.SourceCacheRead, error) {
 	s.reads++
-	return s.value, s.value != nil, false, time.Time{}, nil
+	return velaprocess.SourceCacheRead{Data: s.value, Found: s.value != nil}, nil
 }
 
 func (s *recordingStore) Write(_ context.Context, _, _ string, _ map[string]interface{}, _ velaprocess.SourceCacheWriteMeta) error {
@@ -62,9 +62,9 @@ func TestReadOnlySourceCacheStore(t *testing.T) {
 	// Reads pass through: not reading would make every admission repeat the
 	// source's live I/O, and would have validation resolve different data than
 	// the render that follows it.
-	got, found, _, _, err := store.Read(ctx, "k", time.Minute)
-	if err != nil || !found || got["region"] != "eu-west" {
-		t.Fatalf("reads must pass through: got=%v found=%v err=%v", got, found, err)
+	entry, err := store.Read(ctx, "k", time.Minute)
+	if err != nil || !entry.Found || entry.Data["region"] != "eu-west" {
+		t.Fatalf("reads must pass through: got=%v found=%v err=%v", entry.Data, entry.Found, err)
 	}
 	if inner.reads != 1 {
 		t.Fatalf("expected one delegated read, got %d", inner.reads)

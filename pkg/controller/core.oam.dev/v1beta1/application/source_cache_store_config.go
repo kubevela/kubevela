@@ -93,13 +93,13 @@ func sourceTemplateRefsByType(ctx context.Context, cli client.Client, af *appfil
 	return out
 }
 
-func (s *configAPISourceCacheStore) Read(ctx context.Context, cacheKey string, ttl time.Duration) (map[string]interface{}, bool, bool, time.Time, error) {
+func (s *configAPISourceCacheStore) Read(ctx context.Context, cacheKey string, ttl time.Duration) (velaprocess.SourceCacheRead, error) {
 	cfg, err := s.factory.GetConfig(ctx, sources.CacheNamespace(), cacheKey, false)
 	if err != nil {
 		if errors.Is(err, config.ErrConfigNotFound) {
-			return nil, false, false, time.Time{}, nil
+			return velaprocess.SourceCacheRead{}, nil
 		}
-		return nil, false, false, time.Time{}, err
+		return velaprocess.SourceCacheRead{}, err
 	}
 	if ttl <= 0 {
 		ttl = 15 * time.Minute
@@ -113,7 +113,12 @@ func (s *configAPISourceCacheStore) Read(ctx context.Context, cacheKey string, t
 		}
 	}
 	expiresAt := lastSyncAt.Add(ttl)
-	return cfg.Properties, true, time.Now().After(expiresAt), expiresAt, nil
+	return velaprocess.SourceCacheRead{
+		Data:      cfg.Properties,
+		Found:     true,
+		Stale:     time.Now().After(expiresAt),
+		ExpiresAt: expiresAt,
+	}, nil
 }
 
 func (s *configAPISourceCacheStore) Write(ctx context.Context, cacheKey, sourceType string, data map[string]interface{}, meta velaprocess.SourceCacheWriteMeta) error {

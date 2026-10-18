@@ -35,13 +35,13 @@ func resolverWithStore(store velaprocess.SourceCacheStore, ctxValues map[string]
 func TestSourceCacheIOIsANoOpWithoutAStoreOrKey(t *testing.T) {
 	store := &fakeSourceCacheStore{}
 
-	_, _, found, _, err := resolverWithStore(nil, nil).readSourceCache("k", time.Minute)
+	got, err := resolverWithStore(nil, nil).readSourceCache("k", time.Minute)
 	require.NoError(t, err)
-	require.False(t, found)
+	require.False(t, got.Found)
 
-	_, _, found, _, err = resolverWithStore(store, nil).readSourceCache("", time.Minute)
+	got, err = resolverWithStore(store, nil).readSourceCache("", time.Minute)
 	require.NoError(t, err)
-	require.False(t, found)
+	require.False(t, got.Found)
 	require.Equal(t, 0, store.reads)
 
 	require.NoError(t, resolverWithStore(nil, nil).writeSourceCache("k", "t", nil, 0, nil, identityInputs{}))

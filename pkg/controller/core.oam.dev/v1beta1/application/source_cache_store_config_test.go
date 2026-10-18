@@ -155,12 +155,9 @@ func storeWith(f *fakeConfigFactory, cli client.Client, templates map[string]str
 // source outright instead of re-fetching it.
 func TestConfigStoreReadTreatsAMissingEntryAsAMiss(t *testing.T) {
 	s := storeWith(&fakeConfigFactory{getErr: config.ErrConfigNotFound}, nil, nil)
-	data, found, stale, expires, err := s.Read(context.Background(), "k", time.Minute)
+	got, err := s.Read(context.Background(), "k", time.Minute)
 	require.NoError(t, err)
-	require.False(t, found)
-	require.False(t, stale)
-	require.Nil(t, data)
-	require.True(t, expires.IsZero())
+	require.Equal(t, velaprocess.SourceCacheRead{}, got)
 }
 
 // The same, when the factory wraps the sentinel. An equality check passes the
@@ -168,16 +165,16 @@ func TestConfigStoreReadTreatsAMissingEntryAsAMiss(t *testing.T) {
 func TestConfigStoreReadUnwrapsTheNotFoundSentinel(t *testing.T) {
 	wrapped := fmt.Errorf("reading config %q: %w", "k", config.ErrConfigNotFound)
 	s := storeWith(&fakeConfigFactory{getErr: wrapped}, nil, nil)
-	_, found, _, _, err := s.Read(context.Background(), "k", time.Minute)
+	got, err := s.Read(context.Background(), "k", time.Minute)
 	require.NoError(t, err, "a wrapped not-found is still a miss")
-	require.False(t, found)
+	require.False(t, got.Found)
 }
 
 func TestConfigStoreReadPropagatesOtherErrors(t *testing.T) {
 	s := storeWith(&fakeConfigFactory{getErr: fmt.Errorf("apiserver is down")}, nil, nil)
-	_, found, _, _, err := s.Read(context.Background(), "k", time.Minute)
+	got, err := s.Read(context.Background(), "k", time.Minute)
 	require.Error(t, err)
-	require.False(t, found)
+	require.False(t, got.Found)
 }
 
 func TestConfigStoreReadReportsFreshnessFromTheSyncAnnotation(t *testing.T) {
@@ -196,20 +193,20 @@ func TestConfigStoreReadReportsFreshnessFromTheSyncAnnotation(t *testing.T) {
 
 	t.Run("fresh", func(t *testing.T) {
 		s := storeWith(&fakeConfigFactory{getConfig: cfgWith(now.Add(-time.Minute), "")}, nil, nil)
-		data, found, stale, expires, err := s.Read(context.Background(), "k", time.Hour)
+		got, err := s.Read(context.Background(), "k", time.Hour)
 		require.NoError(t, err)
-		require.True(t, found)
-		require.False(t, stale)
-		require.Equal(t, map[string]interface{}{"image": "nginx"}, data)
-		require.True(t, expires.After(now))
+		require.True(t, got.Found)
+		require.False(t, got.Stale)
+		require.Equal(t, map[string]interface{}{"image": "nginx"}, got.Data)
+		require.True(t, got.ExpiresAt.After(now))
 	})
 
 	t.Run("expired", func(t *testing.T) {
 		s := storeWith(&fakeConfigFactory{getConfig: cfgWith(now.Add(-2*time.Hour), "")}, nil, nil)
-		_, found, stale, _, err := s.Read(context.Background(), "k", time.Hour)
+		got, err := s.Read(context.Background(), "k", time.Hour)
 		require.NoError(t, err)
-		require.True(t, found, "an expired entry is still there to serve stale")
-		require.True(t, stale)
+		require.True(t, got.Found, "an expired entry is still there to serve stale")
+		require.True(t, got.Stale)
 	})
 
 	t.Run("the annotation wins over the creation time", func(t *testing.T) {
@@ -217,24 +214,24 @@ func TestConfigStoreReadReportsFreshnessFromTheSyncAnnotation(t *testing.T) {
 		// refresh, or every long-lived entry would read as permanently stale.
 		s := storeWith(&fakeConfigFactory{getConfig: cfgWith(
 			now.Add(-99*time.Hour), now.Add(-time.Minute).Format(time.RFC3339))}, nil, nil)
-		_, _, stale, _, err := s.Read(context.Background(), "k", time.Hour)
+		got, err := s.Read(context.Background(), "k", time.Hour)
 		require.NoError(t, err)
-		require.False(t, stale)
+		require.False(t, got.Stale)
 	})
 
 	t.Run("an unparseable annotation falls back to the creation time", func(t *testing.T) {
 		s := storeWith(&fakeConfigFactory{getConfig: cfgWith(now.Add(-time.Minute), "not-a-time")}, nil, nil)
-		_, _, stale, _, err := s.Read(context.Background(), "k", time.Hour)
+		got, err := s.Read(context.Background(), "k", time.Hour)
 		require.NoError(t, err)
-		require.False(t, stale, "a bad annotation must not make a fresh entry stale")
+		require.False(t, got.Stale, "a bad annotation must not make a fresh entry stale")
 	})
 
 	t.Run("a non-positive ttl takes the default", func(t *testing.T) {
 		s := storeWith(&fakeConfigFactory{getConfig: cfgWith(now.Add(-time.Minute), "")}, nil, nil)
-		_, _, stale, expires, err := s.Read(context.Background(), "k", 0)
+		got, err := s.Read(context.Background(), "k", 0)
 		require.NoError(t, err)
-		require.False(t, stale)
-		require.True(t, expires.Before(now.Add(16*time.Minute)), "defaults to 15m, not forever")
+		require.False(t, got.Stale)
+		require.True(t, got.ExpiresAt.Before(now.Add(16*time.Minute)), "defaults to 15m, not forever")
 	})
 }
 
@@ -466,4 +463,22 @@ func TestConfigStoreWriteDeclaresTheEntryThroughTheAPI(t *testing.T) {
 	r.Len(secret.OwnerReferences, 1, "the Secret is owned by its Config, so a delete cascades")
 	r.Equal(configv1alpha1.ConfigKind, secret.OwnerReferences[0].Kind)
 	r.Equal(cfg.UID, secret.OwnerReferences[0].UID)
+}
+
+// The resolver and the LRU in front of the store read an entry through the
+// SourceCacheStore interface. A fresh entry read that way must be a hit, or every
+// reconcile fetches the source again whatever its storageTTL.
+func TestConfigStoreFreshEntryIsAHitThroughTheInterface(t *testing.T) {
+	fresh := &config.Config{
+		CreateTime: time.Now().UTC().Add(-time.Minute),
+		Metadata:   config.Metadata{Properties: map[string]interface{}{"image": "nginx"}},
+		Secret:     &corev1.Secret{},
+	}
+	var store velaprocess.SourceCacheStore = storeWith(&fakeConfigFactory{getConfig: fresh}, nil, nil)
+
+	got, err := store.Read(context.Background(), "k", time.Hour)
+	require.NoError(t, err)
+	require.True(t, got.Found, "a fresh entry is a hit")
+	require.False(t, got.Stale, "a fresh entry is not stale")
+	require.Equal(t, "nginx", got.Data["image"])
 }

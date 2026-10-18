@@ -61,30 +61,30 @@ func TestNewSecretSourceCacheStoreIsNilWithoutAClient(t *testing.T) {
 
 func TestSecretStoreReadMisses(t *testing.T) {
 	t.Run("no key", func(t *testing.T) {
-		_, _, found, _, err := secretStore().Read(context.Background(), "", time.Minute)
+		entry, err := secretStore().Read(context.Background(), "", time.Minute)
 		require.NoError(t, err)
-		require.False(t, found)
+		require.False(t, entry.Found)
 	})
 	t.Run("no such entry", func(t *testing.T) {
-		_, _, found, _, err := secretStore().Read(context.Background(), "absent", time.Minute)
+		entry, err := secretStore().Read(context.Background(), "absent", time.Minute)
 		require.NoError(t, err, "a missing entry is a miss, not a failure")
-		require.False(t, found)
+		require.False(t, entry.Found)
 	})
 	t.Run("an entry with no payload", func(t *testing.T) {
 		s := secretStore(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{
 			Name: "empty", Namespace: CacheNamespace()}})
-		_, _, found, _, err := s.Read(context.Background(), "empty", time.Minute)
+		entry, err := s.Read(context.Background(), "empty", time.Minute)
 		require.NoError(t, err)
-		require.False(t, found, "an entry with nothing in it cannot be served")
+		require.False(t, entry.Found, "an entry with nothing in it cannot be served")
 	})
 	t.Run("a corrupt payload is an error, not a silent miss", func(t *testing.T) {
 		bad := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "bad", Namespace: CacheNamespace()},
 			Data:       map[string][]byte{sourceCacheDataKey: []byte("{not json")},
 		}
-		_, _, found, _, err := secretStore(bad).Read(context.Background(), "bad", time.Minute)
+		entry, err := secretStore(bad).Read(context.Background(), "bad", time.Minute)
 		require.Error(t, err, "silently re-fetching would hide a corrupted entry forever")
-		require.False(t, found)
+		require.False(t, entry.Found)
 	})
 }
 
@@ -94,43 +94,43 @@ func TestSecretStoreReadFreshness(t *testing.T) {
 
 	t.Run("fresh", func(t *testing.T) {
 		s := secretStore(cacheSecret("k", props, now.Add(-time.Minute), nil))
-		data, stale, found, expires, err := s.Read(context.Background(), "k", time.Hour)
+		entry, err := s.Read(context.Background(), "k", time.Hour)
 		require.NoError(t, err)
-		require.True(t, found)
-		require.False(t, stale)
-		require.Equal(t, props, data)
-		require.True(t, expires.After(now))
+		require.True(t, entry.Found)
+		require.False(t, entry.Stale)
+		require.Equal(t, props, entry.Data)
+		require.True(t, entry.ExpiresAt.After(now))
 	})
 
 	t.Run("stale", func(t *testing.T) {
 		s := secretStore(cacheSecret("k", props, now.Add(-2*time.Hour), nil))
-		_, stale, found, _, err := s.Read(context.Background(), "k", time.Hour)
+		entry, err := s.Read(context.Background(), "k", time.Hour)
 		require.NoError(t, err)
-		require.True(t, found, "still there to serve stale")
-		require.True(t, stale)
+		require.True(t, entry.Found, "still there to serve stale")
+		require.True(t, entry.Stale)
 	})
 
 	t.Run("the sync annotation wins over creation", func(t *testing.T) {
 		s := secretStore(cacheSecret("k", props, now.Add(-99*time.Hour),
 			map[string]string{sourceCacheSyncAtKey: now.Add(-time.Minute).Format(time.RFC3339)}))
-		_, stale, _, _, err := s.Read(context.Background(), "k", time.Hour)
+		entry, err := s.Read(context.Background(), "k", time.Hour)
 		require.NoError(t, err)
-		require.False(t, stale, "a refreshed entry is fresh however old the object is")
+		require.False(t, entry.Stale, "a refreshed entry is fresh however old the object is")
 	})
 
 	t.Run("an unparseable annotation falls back to creation", func(t *testing.T) {
 		s := secretStore(cacheSecret("k", props, now.Add(-time.Minute),
 			map[string]string{sourceCacheSyncAtKey: "nonsense"}))
-		_, stale, _, _, err := s.Read(context.Background(), "k", time.Hour)
+		entry, err := s.Read(context.Background(), "k", time.Hour)
 		require.NoError(t, err)
-		require.False(t, stale)
+		require.False(t, entry.Stale)
 	})
 
 	t.Run("a non-positive ttl takes the default", func(t *testing.T) {
 		s := secretStore(cacheSecret("k", props, now.Add(-sourceCacheTTL-time.Minute), nil))
-		_, stale, _, _, err := s.Read(context.Background(), "k", 0)
+		entry, err := s.Read(context.Background(), "k", 0)
 		require.NoError(t, err)
-		require.True(t, stale, "the default TTL applies rather than never expiring")
+		require.True(t, entry.Stale, "the default TTL applies rather than never expiring")
 	})
 }
 

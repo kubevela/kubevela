@@ -24,9 +24,9 @@ import (
 	"k8s.io/klog/v2"
 )
 
-func (r *sourceResolver) readSourceCache(cacheKey string, ttl time.Duration) (map[string]interface{}, bool, bool, time.Time, error) {
+func (r *sourceResolver) readSourceCache(cacheKey string, ttl time.Duration) (velaprocess.SourceCacheRead, error) {
 	if r.cacheStore == nil || cacheKey == "" {
-		return nil, false, false, time.Time{}, nil
+		return velaprocess.SourceCacheRead{}, nil
 	}
 	return r.cacheStore.Read(r.goCtx, cacheKey, ttl)
 }
