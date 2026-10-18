@@ -433,6 +433,7 @@ func (wo appWorkflowStepOperator) Restart(ctx context.Context, step string) erro
 	}
 	var cm *corev1.ConfigMap
 	if status.ContextBackend != nil {
+		cm = &corev1.ConfigMap{}
 		if err := wo.cli.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: status.ContextBackend.Name}, cm); err != nil {
 			return err
 		}
