@@ -40,6 +40,25 @@ func WithComponentScope(ctx context.Context, scope map[string]interface{}) conte
 	return context.WithValue(ctx, componentScopeKey{}, scope)
 }
 
+// CarryComponentScope returns to with from's delivered component reads, if it
+// has any, so a render's reads stay known after its context is replaced.
+func CarryComponentScope(from, to context.Context) context.Context {
+	if !HasComponentScope(from) {
+		return to
+	}
+	return WithComponentScope(to, from.Value(componentScopeKey{}).(map[string]interface{}))
+}
+
+// HasComponentScope reports whether the controller delivered component reads to
+// the render ctx belongs to. An empty scope delivered none.
+func HasComponentScope(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	scope, _ := ctx.Value(componentScopeKey{}).(map[string]interface{})
+	return len(scope) > 0
+}
+
 // componentScopeFor is the delivered scope a surface may read, or nil.
 func componentScopeFor(ctx process.Context, surface string) map[string]interface{} {
 	if !SurfaceReadsComponents(surface) || ctx.GetCtx() == nil {

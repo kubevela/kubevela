@@ -203,10 +203,8 @@ func (h *AppHandler) generateDispatcher(appRev *v1beta1.ApplicationRevision, pre
 			})
 
 			// Dispatch if: unhealthy, health error, properties changed, source
-			// values changed, or auto-update enabled for the Application or
-			// requested by the component's definition
-			redispatch := isAutoUpdateEnabled || definitionRequestsRedispatch(comp)
-			requiresDispatch := !isHealth || err != nil || propertiesChanged || sourceValuesChanged || (!comp.SkipApplyWorkload && redispatch)
+			// values changed, or a redispatch on every run is asked for
+			requiresDispatch := !isHealth || err != nil || propertiesChanged || sourceValuesChanged || redispatchOnRun(comp, isAutoUpdateEnabled)
 
 			if requiresDispatch {
 				// Record the resolved-source hashes so the next reconcile can
@@ -327,6 +325,36 @@ func definitionRequestsRedispatch(comp *appfile.Component) bool {
 		return false
 	}
 	return comp.FullTemplate.ComponentDefinition.Annotations[types.AnnoDefinitionRedispatchOnWorkflowRun] == "true"
+}
+
+// redispatchOnRun reports whether comp is applied on every workflow run whatever
+// changed: auto-update is on for the Application, its definition asks for it, or
+// it reads other components.
+//
+// A component whose workload a trait manages still dispatches its traits, and
+// its reads are delivered into those, so a read asks for the run whatever
+// SkipApplyWorkload says. Auto-update and a definition's own request are about
+// the workload, so they stay with it.
+func redispatchOnRun(comp *appfile.Component, autoUpdate bool) bool {
+	if componentReadsRequestRedispatch(comp) {
+		return true
+	}
+	if comp == nil || comp.SkipApplyWorkload {
+		return false
+	}
+	return autoUpdate || definitionRequestsRedispatch(comp)
+}
+
+// componentReadsRequestRedispatch reports whether comp's render read other
+// components. What it renders follows the producers' live objects, which can
+// change while its own properties do not, so it is applied on every workflow
+// run like a definition that asks for that; an unchanged render is not
+// rewritten, as its render hash matches.
+func componentReadsRequestRedispatch(comp *appfile.Component) bool {
+	if comp == nil || comp.Ctx == nil {
+		return false
+	}
+	return sources.HasComponentScope(comp.Ctx.GetCtx())
 }
 
 func componentPropertiesChanged(comp *appfile.Component, appRev *v1beta1.ApplicationRevision) bool {

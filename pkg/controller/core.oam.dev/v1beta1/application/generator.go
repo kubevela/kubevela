@@ -313,7 +313,7 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 			h.recordRenderFailureSourceReads(wl, clusterName, overrideNamespace)
 			return false, nil, nil, nil, err
 		}
-		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
+		h.renderAsRequester(ctx, wl)
 
 		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, h.currentAppRev, clusterName, overrideNamespace)
 		if err != nil {
@@ -360,7 +360,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.A
 			h.recordRenderFailureSourceReads(wl, clusterName, overrideNamespace)
 			return nil, nil, false, "", err
 		}
-		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
+		h.renderAsRequester(ctx, wl)
 
 		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, appRev, clusterName, overrideNamespace)
 		if err != nil {
