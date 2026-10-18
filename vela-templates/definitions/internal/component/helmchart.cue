@@ -264,6 +264,9 @@ template: {
 		appNamespace: context.namespace
 		name:         context.name
 		namespace:    context.namespace
+		if context.cluster != _|_ {
+			cluster: context.cluster
+		}
 	}
 
 	// Render the Helm chart using the provider

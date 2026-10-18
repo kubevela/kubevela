@@ -107,6 +107,8 @@ type ContextParams struct {
 	AppNamespace string `json:"appNamespace"`
 	Name         string `json:"name"`      // component name
 	Namespace    string `json:"namespace"` // component namespace
+	// Cluster is the cluster the component is rendered for; empty means the local cluster.
+	Cluster string `json:"cluster,omitempty"`
 	// PublishVersion is the value of the Application's app.oam.dev/publishVersion
 	// annotation, if any. When set, the provider records it as a label on the
 	// helm release so subsequent reconciles can short-circuit when the pin is

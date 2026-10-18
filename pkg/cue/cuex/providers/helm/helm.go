@@ -31,10 +31,12 @@ import (
 
 	"github.com/kubevela/pkg/cue/cuex/providers"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
+	pkgmulticluster "github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/runtime"
 	"github.com/kubevela/pkg/util/singleton"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -53,6 +55,10 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	appNamespace := ""
 	if renderParams.Context != nil {
 		appNamespace = renderParams.Context.AppNamespace
+		// The render's Go context is the Application's, so the cluster comes from the template.
+		if cluster := renderParams.Context.Cluster; cluster != "" {
+			ctx = pkgmulticluster.WithCluster(ctx, cluster)
+		}
 	}
 
 	releaseName := "release"
@@ -101,6 +107,8 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 			if pin := app.GetAnnotations()[oam.AnnotationPublishVersion]; pin != "" {
 				renderParams.Context.PublishVersion = pin
 			}
+			// Act as the Application's user, as the controller dispatches its resources.
+			ctx = auth.ContextWithUserInfo(ctx, &app)
 		case apierrors.IsNotFound(getErr):
 			// App is gone (deletion in flight). Proceed without a pin.
 		default:
@@ -145,7 +153,7 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	var notes string
 	if isDryRun(ctx) {
 		klog.V(2).Infof("Helm provider: Dry-run mode — rendering chart %s client-side only", ch.Name())
-		manifest, notes, err = p.dryRunRender(ch, releaseName, releaseNamespace, values, renderParams.Options, renderParams.Context)
+		manifest, notes, err = p.dryRunRender(ctx, ch, releaseName, releaseNamespace, values, renderParams.Options, renderParams.Context)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to dry-run render chart")
 		}
@@ -174,9 +182,10 @@ func Render(ctx context.Context, params *providers.Params[RenderParams]) (*provi
 	// ResourceTracker records them and GC deletes them on Application deletion.
 	// The skeleton intentionally omits the data field — KubeVela's merge-patch
 	// strategy preserves unspecified fields, so Helm's data.release blob is
-	// untouched. No special dispatcher changes needed.
-	if renderParams.Context != nil {
-		releaseSecretNames := p.listReleaseSecretNames(releaseNamespace, releaseName)
+	// untouched. No special dispatcher changes needed. A dry-run installs
+	// nothing, so it has no release Secrets to track.
+	if renderParams.Context != nil && !isDryRun(ctx) {
+		releaseSecretNames := p.listReleaseSecretNames(ctx, releaseNamespace, releaseName)
 		for _, secName := range releaseSecretNames {
 			secretMeta := map[string]interface{}{
 				"name":      secName,
