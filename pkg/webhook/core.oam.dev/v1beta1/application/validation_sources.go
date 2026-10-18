@@ -59,6 +59,12 @@ func (h *ValidatingHandler) ValidateSources(ctx context.Context, app *v1beta1.Ap
 			errs = append(errs, field.Forbidden(field.NewPath("spec", "sources"),
 				sourcesDisabledMessage()))
 		}
+		// dependsOn and inputs declare waiting in the spec itself, so a cycle in
+		// them is refused whether or not the Application uses expressions. With
+		// them, ValidateComponentReads below checks the same graph plus reads.
+		if err := appfile.ValidateDependencyCycles(app.Spec); err != nil {
+			errs = append(errs, field.Invalid(field.NewPath("spec", "components"), "", err.Error()))
+		}
 		return errs
 	}
 

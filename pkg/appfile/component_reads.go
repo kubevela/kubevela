@@ -41,12 +41,7 @@ func ValidateComponentReads(spec v1beta1.ApplicationSpec) error {
 	for _, c := range comps {
 		names[c.Name] = true
 	}
-	outputOwner := map[string]string{}
-	for _, c := range comps {
-		for _, o := range c.Outputs {
-			outputOwner[o.Name] = c.Name
-		}
-	}
+	outputOwner := outputOwners(comps)
 
 	edges := map[string][]string{}
 	for _, c := range comps {
@@ -60,13 +55,50 @@ func ValidateComponentReads(spec v1beta1.ApplicationSpec) error {
 			}
 			edges[c.Name] = append(edges[c.Name], r.Producer)
 		}
-		edges[c.Name] = append(edges[c.Name], c.DependsOn...)
-		for _, in := range c.Inputs {
-			if owner, ok := outputOwner[in.From]; ok {
-				edges[c.Name] = append(edges[c.Name], owner)
-			}
+		appendDeclaredEdges(edges, c, outputOwner)
+	}
+	return cycleError(comps, edges)
+}
+
+// ValidateDependencyCycles checks the waiting an Application declares outright,
+// dependsOn and an input naming another component's output, for a cycle.
+//
+// Runs whatever the expressions opt-in says, because this waiting is declared
+// in the spec and is not an expression. ValidateComponentReads adds read edges
+// to the same graph where expressions are on.
+func ValidateDependencyCycles(spec v1beta1.ApplicationSpec) error {
+	comps := spec.Components
+	outputOwner := outputOwners(comps)
+	edges := map[string][]string{}
+	for _, c := range comps {
+		appendDeclaredEdges(edges, c, outputOwner)
+	}
+	return cycleError(comps, edges)
+}
+
+// outputOwners maps each declared output name to the component declaring it, so
+// an input can be resolved to the component it waits on.
+func outputOwners(comps []common.ApplicationComponent) map[string]string {
+	out := map[string]string{}
+	for _, c := range comps {
+		for _, o := range c.Outputs {
+			out[o.Name] = c.Name
 		}
 	}
+	return out
+}
+
+// appendDeclaredEdges adds who c waits on by the spec's own declarations.
+func appendDeclaredEdges(edges map[string][]string, c common.ApplicationComponent, outputOwner map[string]string) {
+	edges[c.Name] = append(edges[c.Name], c.DependsOn...)
+	for _, in := range c.Inputs {
+		if owner, ok := outputOwner[in.From]; ok {
+			edges[c.Name] = append(edges[c.Name], owner)
+		}
+	}
+}
+
+func cycleError(comps []common.ApplicationComponent, edges map[string][]string) error {
 	if cycle := findCycle(comps, edges); cycle != nil {
 		return fmt.Errorf("components wait on each other in a cycle: %s", strings.Join(cycle, " -> "))
 	}

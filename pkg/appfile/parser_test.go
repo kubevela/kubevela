@@ -1487,3 +1487,46 @@ func TestResolvePolicyExpressionsOnAnApplicationScopedPolicy(t *testing.T) {
 			"a leaf this pass can answer is still answered")
 	})
 }
+
+// The parser refuses a declared cycle on its own, which is what protects a
+// cluster running with the webhook disabled.
+//
+// It is judged from the spec before any definition is looked up, so the parser
+// needs no client to reach the error, and an Application that never opted in to
+// expressions is refused just the same.
+func TestGenerateAppFileRefusesADeclaredCycle(t *testing.T) {
+	cyclic := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: "cycle-demo", Namespace: "default"},
+		Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
+			{Name: "a", Type: "webservice", DependsOn: []string{"b"}},
+			{Name: "b", Type: "webservice", DependsOn: []string{"a"}},
+		}},
+	}
+
+	_, err := NewApplicationParser(nil).GenerateAppFile(context.TODO(), cyclic)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "components wait on each other in a cycle")
+}
+
+// An Application rendered from its latest published revision takes the
+// revision path, which parses appRev.Spec.Application.Spec and so has to judge
+// that spec too. Otherwise a pinned cyclic Application reaches the workflow and
+// waits for ever, which is the hang the check exists to stop.
+func TestGenerateAppFileFromRevisionRefusesADeclaredCycle(t *testing.T) {
+	appRev := &v1beta1.ApplicationRevision{
+		ObjectMeta: metav1.ObjectMeta{Name: "cycle-demo-v1", Namespace: "default"},
+		Spec: v1beta1.ApplicationRevisionSpec{ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+			Application: v1beta1.Application{
+				ObjectMeta: metav1.ObjectMeta{Name: "cycle-demo", Namespace: "default"},
+				Spec: v1beta1.ApplicationSpec{Components: []common.ApplicationComponent{
+					{Name: "a", Type: "webservice", DependsOn: []string{"b"}},
+					{Name: "b", Type: "webservice", DependsOn: []string{"a"}},
+				}},
+			},
+		}},
+	}
+
+	_, err := NewApplicationParser(nil).GenerateAppFileFromRevision(appRev)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "components wait on each other in a cycle")
+}
