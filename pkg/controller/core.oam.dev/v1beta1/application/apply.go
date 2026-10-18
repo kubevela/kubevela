@@ -370,6 +370,11 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 	)
 
 	status = h.getServiceStatus(status)
+	// Deferred because a render that gives up has still resolved, or failed to
+	// resolve, its sources: the resolver records what it knows before handing
+	// the error back. Reported from here on every path, or a binding that failed
+	// keeps the value it starts at, which says nothing read it.
+	defer func() { h.recordComponentSourceReads(comp, &status) }()
 	if !skipWorkload {
 		isHealth, output, outputs, err = h.collectWorkloadHealthStatus(ctx, comp, &status, accessor)
 		if err != nil {
@@ -451,7 +456,6 @@ collectNext:
 	}
 	status.Traits = slices.Collect(maps.Values(traitStatusByKey))
 	componenthealth.Rollup(&status, !skipWorkload)
-	h.recordComponentSourceReads(comp, &status)
 	h.addServiceStatus(true, status)
 	return &status, output, outputs, isHealth, nil
 }

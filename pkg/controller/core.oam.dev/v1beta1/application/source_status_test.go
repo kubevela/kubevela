@@ -17,6 +17,8 @@ limitations under the License.
 package application
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/oam-dev/kubevela/pkg/sources"
@@ -28,8 +30,13 @@ import (
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -604,4 +611,53 @@ func TestSourceStatusPhasePrecedence(t *testing.T) {
 			require.Equal(t, tc.want, h.sourceStatusList()[0].Phase)
 		})
 	}
+}
+
+// A binding whose resolution failed reports Failed, even when the render that
+// failed never produced a component status.
+//
+// Unused is the value a binding starts at so that "nothing read it" stays
+// distinguishable from "it failed", which is what the comment on
+// sourceStatusList says it is for. A render that aborts used to skip the
+// recording entirely and leave the binding at that starting value, so the one
+// case the default exists to be distinguishable FROM reported as the default.
+func TestSourceStatusListReportsAFailureFromAnAbortedRender(t *testing.T) {
+	r := require.New(t)
+	h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+	h.Client = unreachableClient{}
+	h.currentAppRev = &v1beta1.ApplicationRevision{
+		Spec: v1beta1.ApplicationRevisionSpec{ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+			Application: v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"}},
+		}},
+	}
+
+	// The resolver records what it knows before handing the error back, so the
+	// failure is in the render context when the render gives up.
+	pCtx := velaprocess.NewContext(velaprocess.ContextData{AppName: "app", CompName: "web", Namespace: "default"})
+	pCtx.PushData(sources.SourceResolutionStatusKey, map[string]sources.SourceResolutionStatus{
+		"registry": {Name: "registry", Type: "configmap", Phase: sourcePhaseFailed,
+			Message: "read configmap platform-settings: not found"},
+	})
+	comp := &appfile.Component{
+		Name:               "web",
+		Type:               "webservice",
+		CapabilityCategory: types.TerraformCategory,
+		FullTemplate:       &appfile.Template{Reference: common.WorkloadTypeDescriptor{}},
+		Ctx:                pCtx,
+	}
+
+	_, _, _, _, err := h.collectHealthStatus(context.Background(), comp, "", false)
+	r.Error(err, "the render aborts")
+
+	out := h.sourceStatusList()
+	r.Len(out, 1)
+	r.Equal(sourcePhaseFailed, out[0].Phase, "a failed binding must not report as unread")
+}
+
+// unreachableClient fails every read, which is what makes the render give up
+// before it can produce a component status.
+type unreachableClient struct{ client.Client }
+
+func (unreachableClient) Get(_ context.Context, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+	return errors.New("the cluster is unreachable")
 }
