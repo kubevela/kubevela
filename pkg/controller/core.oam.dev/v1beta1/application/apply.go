@@ -76,6 +76,10 @@ type AppHandler struct {
 	// render in this reconcile. Keyed by binding name, because a binding is
 	// declared once for the whole Application even though many surfaces read it.
 	sourceStatuses map[string]*common.ApplicationSourceStatus
+	// lastReportedSources is what the Application arrived with, captured before
+	// this reconcile reports anything over it.
+	lastReportedSources []common.ApplicationSourceStatus
+	sourcesCaptured     bool
 	// keptSourceReads is, by source, what the current run's steps read as the
 	// last report gave it, for steps that do not read again this reconcile.
 	keptSourceReads map[string]*common.ApplicationSourceStatus
@@ -756,9 +760,47 @@ func (h *AppHandler) sourceStatusList() []common.ApplicationSourceStatus {
 	out := make([]common.ApplicationSourceStatus, 0, len(h.app.Spec.Sources))
 	autoUpdateDefault := sourceAutoUpdateDefault()
 	_, pinned := h.app.GetAnnotations()[oam.AnnotationPublishVersion]
+	// Once the workflow has settled, a reconcile that rendered nothing learned
+	// nothing, so each binding keeps what was last reported: the reconcile that
+	// lands a failed workflow runs no steps, and the failure that run found is
+	// what a reader needs to see.
+	//
+	// Only once it has settled, because a run that has not started has read
+	// nothing and the last run's answer would speak for a run that has not
+	// happened. And only when nothing rendered, because a render that read
+	// another binding and not this one is evidence this one is no longer read,
+	// which is the only evidence there is: an unread binding is never recorded.
+	// Captured on the first call, because the controller reports twice in one
+	// reconcile and replaces the workflow status between the two: the second
+	// call is the one that can see a run settle, and reading the live status
+	// there would find the Unused this call wrote.
+	if !h.sourcesCaptured {
+		h.lastReportedSources = make([]common.ApplicationSourceStatus, 0, len(h.app.Status.Sources))
+		for i := range h.app.Status.Sources {
+			h.lastReportedSources = append(h.lastReportedSources, *h.app.Status.Sources[i].DeepCopy())
+		}
+		h.sourcesCaptured = true
+	}
+	wf := h.app.Status.Workflow
+	lastReported := map[string]*common.ApplicationSourceStatus{}
+	if wf != nil && (wf.Finished || wf.Terminated) && len(h.sourceStatuses) == 0 {
+		for i := range h.lastReportedSources {
+			prev := h.lastReportedSources[i]
+			if prev.Phase != "" && prev.Phase != sourcePhaseUnused {
+				lastReported[prev.Name] = prev.DeepCopy()
+			}
+		}
+	}
 	for _, src := range h.app.Spec.Sources {
 		entry := common.ApplicationSourceStatus{Name: src.Name, Type: src.Type, Phase: sourcePhaseUnused}
-		if got := withKeptReads(h.sourceStatuses[src.Name], h.keptSourceReads[src.Name]); got != nil {
+		// The last report is the base this reconcile reports over, so a kept
+		// step's reads add to it rather than standing in for it: the kept entry
+		// carries that step's consumers alone.
+		base := h.sourceStatuses[src.Name]
+		if base == nil {
+			base = lastReported[src.Name]
+		}
+		if got := withKeptReads(base, h.keptSourceReads[src.Name]); got != nil {
 			entry = *got
 			if entry.Phase == "" {
 				entry.Phase = sourcePhaseResolved

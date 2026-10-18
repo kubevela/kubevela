@@ -730,3 +730,191 @@ func TestRenderFailureReportsWhatItResolved(t *testing.T) {
 	r.Equal(sourcePhaseUnused, empty.sourceStatusList()[0].Phase,
 		"a render that failed before resolving anything leaves the binding unread")
 }
+
+// A reconcile that renders nothing learns nothing, so it must not downgrade
+// what is known to "nothing reads it".
+//
+// The reconcile that lands a failed workflow runs no steps, so no surface
+// records anything and the binding was rebuilt as Unused, overwriting the
+// failure the previous reconcile had reported. Unused means nothing has read
+// the binding, not that nothing read it in this particular pass.
+func TestABindingKeepsItsLastReportWhenNothingRendered(t *testing.T) {
+	r := require.New(t)
+	src := v1beta1.ApplicationSource{Name: "registry", Type: "configmap"}
+
+	// Reconcile one: the render fails and reports why.
+	first := handlerFor(nil, src)
+	first.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{
+			"registry": {Name: "registry", Type: "configmap", Phase: sourcePhaseFailed,
+				Message:        "read configmap platform-settings: not found",
+				ConsumedFields: map[string]interface{}{"data.image": "nginx"}},
+		})
+	reported := first.sourceStatusList()
+	r.Equal(sourcePhaseFailed, reported[0].Phase)
+
+	// Which is written to the Application, as the controller does.
+	app := first.app
+	app.Status.Sources = reported
+
+	// Reconcile two is a new handler over the same Application. The workflow has
+	// failed, so it runs no steps and records nothing.
+	app.Status.Workflow = &common.WorkflowStatus{Finished: true}
+	second := &AppHandler{app: app}
+	out := second.sourceStatusList()
+	r.Len(out, 1)
+	r.Equal(sourcePhaseFailed, out[0].Phase, "the failure survives a reconcile that rendered nothing")
+	r.Len(out[0].Resolutions, 1)
+	r.Contains(out[0].Resolutions[0].Message, "platform-settings", "and so does the cause")
+}
+
+// A reconcile that did render keeps its own answer: a binding no reader took a
+// value from is genuinely unread, which is what Unused is for.
+func TestARenderedReconcileStillReportsUnused(t *testing.T) {
+	r := require.New(t)
+	read := v1beta1.ApplicationSource{Name: "registry", Type: "configmap"}
+	dropped := v1beta1.ApplicationSource{Name: "oldcfg", Type: "configmap"}
+
+	first := handlerFor(nil, read, dropped)
+	first.app.Status.Sources = []common.ApplicationSourceStatus{
+		{Name: "oldcfg", Type: "configmap", Phase: sourcePhaseFailed, Message: "was failing"},
+	}
+	// This reconcile renders and one binding is read; the other is not.
+	first.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{
+			"registry": {Name: "registry", Type: "configmap", Phase: sourcePhaseResolved,
+				ConsumedFields: map[string]interface{}{"data.image": "nginx"}},
+		})
+
+	out := first.sourceStatusList()
+	byName := map[string]common.ApplicationSourceStatus{}
+	for _, e := range out {
+		byName[e.Name] = e
+	}
+	r.Equal(sourcePhaseResolved, byName["registry"].Phase)
+	r.Equal(sourcePhaseUnused, byName["oldcfg"].Phase,
+		"a render happened and nothing read it, so it really is unread")
+
+	// And a run that has not started yet reports nothing read, rather than
+	// answering for a run that has not happened.
+	fresh := handlerFor(nil, read)
+	fresh.app.Status.Sources = []common.ApplicationSourceStatus{
+		{Name: "registry", Type: "configmap", Phase: sourcePhaseFailed, Message: "failed last run"},
+	}
+	fresh.app.Status.Workflow = &common.WorkflowStatus{}
+	r.Equal(sourcePhaseUnused, fresh.sourceStatusList()[0].Phase,
+		"a new run has read nothing yet")
+}
+
+// A render that happened and did not read a binding is evidence the binding is
+// unread, even when another binding was read in the same reconcile.
+//
+// This is what stops a binding that is no longer read reporting its last
+// failure for ever: an unread binding is never positively recorded, so the only
+// sign it has stopped being read is a render that did not read it. Once an
+// expression is removed the component renders without it, and the binding has
+// to fall back to unread rather than keep an answer nothing will refresh.
+func TestARenderedBindingDoesNotPreserveAnotherBindingsLastReport(t *testing.T) {
+	r := require.New(t)
+	read := v1beta1.ApplicationSource{Name: "registry", Type: "configmap"}
+	noLongerRead := v1beta1.ApplicationSource{Name: "oldcfg", Type: "configmap"}
+
+	h := handlerFor(nil, read, noLongerRead)
+	h.app.Status.Workflow = &common.WorkflowStatus{Finished: true}
+	h.app.Status.Sources = []common.ApplicationSourceStatus{
+		{Name: "oldcfg", Type: "configmap", Phase: sourcePhaseFailed, Message: "failed while it was still read"},
+	}
+	// The settled run's health render reads one binding and not the other.
+	h.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{
+			"registry": {Name: "registry", Type: "configmap", Phase: sourcePhaseResolved,
+				ConsumedFields: map[string]interface{}{"data.image": "nginx"}},
+		})
+
+	byName := map[string]common.ApplicationSourceStatus{}
+	for _, e := range h.sourceStatusList() {
+		byName[e.Name] = e
+	}
+	r.Equal(sourcePhaseResolved, byName["registry"].Phase)
+	r.Equal(sourcePhaseUnused, byName["oldcfg"].Phase,
+		"a render read something and not this, so this is unread")
+}
+
+// The controller calls sourceStatusList twice in one reconcile, at
+// application_controller.go:262 and again at :347, and only updates
+// app.Status.Workflow between the two. So the first call sees the previous
+// run's workflow state, and its own output is what the second call reads.
+//
+// A run that settles on this reconcile having rendered nothing is the case
+// that exposes it: the first call does not carry forward, because the state it
+// can see is not settled yet, and the second cannot recover what the first
+// wrote.
+func TestABindingKeepsItsLastReportAcrossBothStatusCalls(t *testing.T) {
+	r := require.New(t)
+	src := v1beta1.ApplicationSource{Name: "registry", Type: "configmap"}
+
+	first := handlerFor(nil, src)
+	first.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{
+			"registry": {Name: "registry", Type: "configmap", Phase: sourcePhaseFailed,
+				Message:        "read configmap platform-settings: not found",
+				ConsumedFields: map[string]interface{}{"data.image": "nginx"}},
+		})
+	app := first.app
+	app.Status.Sources = first.sourceStatusList()
+	r.Equal(sourcePhaseFailed, app.Status.Sources[0].Phase)
+
+	// The run that reported that was still going when this reconcile began.
+	app.Status.Workflow = &common.WorkflowStatus{}
+	second := &AppHandler{app: app}
+
+	// :262, before the workflow status is replaced.
+	app.Status.Sources = second.sourceStatusList()
+
+	// :279, the run settles.
+	app.Status.Workflow = &common.WorkflowStatus{Finished: true}
+
+	// :347, the second report of the same reconcile.
+	out := second.sourceStatusList()
+	r.Len(out, 1)
+	r.Equal(sourcePhaseFailed, out[0].Phase,
+		"the failure survives a reconcile that rendered nothing, whichever call reports it")
+	r.Len(out[0].Resolutions, 1)
+	r.Contains(out[0].Resolutions[0].Message, "platform-settings")
+}
+
+// A settled run that rendered nothing keeps the last report, and a step whose
+// reads were kept must not replace it. The kept entry holds that step's
+// consumers alone, so preferring it drops the component reader and the failure
+// the last report carried.
+func TestAKeptStepDoesNotDiscardTheLastReport(t *testing.T) {
+	r := require.New(t)
+	h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+	h.app.Status.Sources = []common.ApplicationSourceStatus{{
+		Name: "registry", Type: "configmap", Phase: sourcePhaseFailed,
+		Message:     "read configmap platform-settings: not found",
+		Resolutions: []common.SourceResolution{{StorageKey: "configmap-local-default-abc"}},
+		ConsumedBy: []common.SourceConsumer{
+			{DefinitionKind: sourceKindWorkflowStep, Name: "notify", Type: "notification"},
+			{DefinitionKind: sourceKindComponent, Name: "web", Type: "webservice", Cluster: "local"},
+		},
+	}}
+	h.app.Status.Workflow = &common.WorkflowStatus{
+		Finished: true,
+		Steps: []workflowv1alpha1.WorkflowStepStatus{
+			{StepStatus: workflowv1alpha1.StepStatus{Name: "notify"}},
+		},
+	}
+	h.keepStepSourceReads()
+
+	out := h.sourceStatusList()
+	r.Len(out, 1)
+	r.Equal(sourcePhaseFailed, out[0].Phase, "the failure the last report carried survives")
+	r.Contains(out[0].Message, "platform-settings")
+	kinds := map[string]bool{}
+	for _, c := range out[0].ConsumedBy {
+		kinds[c.DefinitionKind+"/"+c.Name] = true
+	}
+	r.True(kinds[sourceKindWorkflowStep+"/notify"], "the kept step is reported")
+	r.True(kinds[sourceKindComponent+"/web"], "and so is the component reader from the last report")
+}
