@@ -36,6 +36,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/encoding/gocode/gocodec"
 	"github.com/fatih/color"
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/pkg/util/slices"
 	"github.com/kubevela/workflow/pkg/cue/model/sets"
 	crossplane "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
@@ -1265,6 +1266,9 @@ func prettyYAMLMarshal(obj map[string]interface{}) (string, error) {
 // FlagFormat is the flag for specifying the output format
 const FlagFormat = "format"
 
+// FlagClusterPackages makes vela def render load CUE packages from the cluster.
+const FlagClusterPackages = "cluster-packages"
+
 // NewDefinitionRenderCommand create the `vela def render` command to help user render definition cue file into k8s YAML file, if used without kubernetes environment, set IGNORE_KUBE_CONFIG=true
 //
 //nolint:gocyclo // CLI command handling multiple input/output formats and file types
@@ -1295,6 +1299,14 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 			types.TagCommandOrder: "5",
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			clusterPackages, err := cmd.Flags().GetBool(FlagClusterPackages)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get `%s`", FlagClusterPackages)
+			}
+			// Each compiler is a process-wide singleton that reads this once, on its
+			// first use: set it before any compile, as a process that compiled
+			// earlier (one embedding this package) keeps what it read then.
+			cuex.EnableExternalPackageForDefaultCompiler = clusterPackages
 			output, err := cmd.Flags().GetString(FlagOutput)
 			if err != nil {
 				return errors.Wrapf(err, "failed to get `%s`", FlagOutput)
@@ -1570,6 +1582,7 @@ func NewDefinitionRenderCommand(c common.Args) *cobra.Command {
 	cmd.Flags().StringP(FlagOutput, "o", "", "Specify the output path of the rendered definition. If empty, the definition will be printed in the console. If input is a directory, the output path is expected to be a directory as well.")
 	cmd.Flags().StringP(FlagMessage, "", "", "Specify the header message of the generated file. For example, declaring author information.")
 	cmd.Flags().StringP(FlagFormat, "f", "yaml", "Specify the output format: 'yaml' (default) for Kubernetes YAML, or 'cue' for raw CUE template output.")
+	cmd.Flags().Bool(FlagClusterPackages, false, "Load CUE packages (Package resources) from the cluster the kubeconfig names, for definitions that import them. Off by default, so rendering does not depend on, or contact, a cluster.")
 	return cmd
 }
 
