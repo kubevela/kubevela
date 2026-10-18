@@ -224,3 +224,49 @@ waitHealthy: false`)
 	r.Equal("Wait", act.Phase)
 	r.Equal(`waiting for component "db" in east to be healthy`, act.Msg)
 }
+
+// RenderComponent fills each trait's slot under outputs with that trait's
+// object, and needs no workload to do so.
+func TestRenderComponentTraitOutputs(t *testing.T) {
+	service := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "v1", "kind": "Service",
+		"metadata": map[string]interface{}{
+			"name":   "web",
+			"labels": map[string]interface{}{"trait.oam.dev/resource": "service"},
+		},
+	}}
+	render := func(workload *unstructured.Unstructured) (cue.Value, error) {
+		return RenderComponent(context.Background(), &oamprovidertypes.OAMParams[cue.Value]{
+			Params: cuecontext.New().CompileString(`value: {name: "web", type: "webservice"}`),
+			RuntimeParams: oamprovidertypes.RuntimeParams{
+				ComponentRender: func(context.Context, common.ApplicationComponent, *cue.Value, string, string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+					return workload, []*unstructured.Unstructured{service}, nil
+				},
+			},
+		})
+	}
+
+	t.Run("with a workload", func(t *testing.T) {
+		r := require.New(t)
+		res, err := render(&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "apps/v1", "kind": "Deployment",
+			"metadata": map[string]interface{}{"name": "web"},
+		}})
+		r.NoError(err)
+		kind, err := res.LookupPath(cue.ParsePath("output.kind")).String()
+		r.NoError(err)
+		r.Equal("Deployment", kind)
+		kind, err = res.LookupPath(cue.ParsePath("outputs.service.kind")).String()
+		r.NoError(err)
+		r.Equal("Service", kind)
+	})
+
+	t.Run("without a workload", func(t *testing.T) {
+		r := require.New(t)
+		res, err := render(nil)
+		r.NoError(err)
+		kind, err := res.LookupPath(cue.ParsePath("outputs.service.kind")).String()
+		r.NoError(err)
+		r.Equal("Service", kind)
+	})
+}
