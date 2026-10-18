@@ -554,6 +554,26 @@ func mergePlacements(lists ...[]common.ApplicationComponentStatus) []common.Appl
 	return out
 }
 
+// recordRenderFailureSourceReads reports what a render resolved when the render
+// itself gave up, so a binding whose resolution failed is not left reported as
+// one nothing read.
+//
+// The report in collectHealthStatus cannot reach this: a component applied for
+// the first time fails in the workflow's own render, before any component
+// status exists to hang the report on, which is the case an Application
+// deployed against an upstream that is already broken hits.
+func (h *AppHandler) recordRenderFailureSourceReads(wl *appfile.Component, cluster, ns string) {
+	if wl == nil {
+		return
+	}
+	if ns == "" {
+		ns = h.app.Namespace
+	}
+	h.recordComponentSourceReads(wl, &common.ApplicationComponentStatus{
+		Name: wl.Name, Cluster: cluster, Namespace: ns,
+	})
+}
+
 // recordWaiting reports a reader held back on its reads: its status entry says
 // why and is unhealthy, keeping everything else it records, and one is created
 // for a reader not yet applied.

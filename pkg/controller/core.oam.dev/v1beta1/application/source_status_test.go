@@ -698,3 +698,35 @@ func TestStaleIsReportedOnTheResolutionToo(t *testing.T) {
 	r.Equal(sourcePhaseStale, out[0].Resolutions[0].Phase)
 	r.Contains(out[0].Resolutions[0].Message, "serving stale")
 }
+
+// An Application deployed against an upstream that is already broken fails in
+// the workflow's own render, before any component status exists. The report in
+// collectHealthStatus cannot reach that, so the render paths report what they
+// resolved themselves.
+func TestRenderFailureReportsWhatItResolved(t *testing.T) {
+	r := require.New(t)
+	h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+
+	pCtx := velaprocess.NewContext(velaprocess.ContextData{AppName: "app", CompName: "web", Namespace: "default"})
+	pCtx.PushData(sources.SourceResolutionStatusKey, map[string]sources.SourceResolutionStatus{
+		"registry": {Name: "registry", Type: "configmap", Phase: sourcePhaseFailed,
+			Message: "read configmap platform-settings: not found"},
+	})
+
+	h.recordRenderFailureSourceReads(&appfile.Component{Name: "web", Type: "webservice", Ctx: pCtx}, "", "")
+
+	out := h.sourceStatusList()
+	r.Len(out, 1)
+	r.Equal(sourcePhaseFailed, out[0].Phase, "a first deploy against a broken upstream says so")
+	// Nothing was stored, so the entry carries no storage key, but it does carry
+	// the reason, which is the whole point of reporting from here.
+	r.Len(out[0].Resolutions, 1)
+	r.Empty(out[0].Resolutions[0].StorageKey)
+	r.Contains(out[0].Resolutions[0].Message, "platform-settings")
+
+	// Nothing to report from is not a failure to report.
+	empty := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+	empty.recordRenderFailureSourceReads(nil, "", "")
+	r.Equal(sourcePhaseUnused, empty.sourceStatusList()[0].Phase,
+		"a render that failed before resolving anything leaves the binding unread")
+}
