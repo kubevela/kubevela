@@ -35,6 +35,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
 
@@ -269,4 +270,47 @@ func TestRenderComponentTraitOutputs(t *testing.T) {
 		r.NoError(err)
 		r.Equal("Service", kind)
 	})
+}
+
+// A trait output whose name is not a CUE identifier is still addressable under
+// outputs, by a quoted label.
+func TestComponentOutputsWithHyphenatedNames(t *testing.T) {
+	r := require.New(t)
+	workload := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "apps/v1", "kind": "Deployment",
+		"metadata": map[string]interface{}{"name": "web"},
+	}}
+	svc := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "v1", "kind": "Service",
+		"metadata": map[string]interface{}{"name": "web", "labels": map[string]interface{}{oam.TraitResource: "my-svc"}},
+	}}
+	params := func() cue.Value {
+		return cuecontext.New().CompileString(`value: {name: "web", type: "webservice"}
+waitHealthy: false`)
+	}
+
+	applied, err := ApplyComponent(context.Background(), &oamprovidertypes.OAMParams[cue.Value]{
+		Params: params(),
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			Action: &mock.Action{},
+			ComponentApply: func(context.Context, common.ApplicationComponent, *cue.Value, string, string) (*unstructured.Unstructured, []*unstructured.Unstructured, bool, string, error) {
+				return workload, []*unstructured.Unstructured{svc}, true, "", nil
+			},
+		},
+	})
+	r.NoError(err)
+	kind, err := applied.LookupPath(cue.ParsePath(`outputs["my-svc"].kind`)).String()
+	r.NoError(err)
+	r.Equal("Service", kind)
+
+	rendered, err := RenderComponent(context.Background(), &oamprovidertypes.OAMParams[cue.Value]{
+		Params: params(),
+		RuntimeParams: oamprovidertypes.RuntimeParams{
+			ComponentRender: func(context.Context, common.ApplicationComponent, *cue.Value, string, string) (*unstructured.Unstructured, []*unstructured.Unstructured, error) {
+				return workload, []*unstructured.Unstructured{svc}, nil
+			},
+		},
+	})
+	r.NoError(err)
+	r.True(rendered.LookupPath(cue.ParsePath(`outputs["my-svc"]`)).Exists())
 }

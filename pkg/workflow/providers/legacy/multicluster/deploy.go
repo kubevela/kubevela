@@ -257,7 +257,7 @@ func (t *applyTask) generateOutput(output *unstructured.Unstructured, outputs []
 	for _, os := range outputs {
 		name := os.GetLabels()[oam.TraitResource]
 		if name != "" {
-			componentVal = componentVal.FillPath(cue.ParsePath(fmt.Sprintf("outputs.%s", name)), os.Object)
+			componentVal = componentVal.FillPath(cue.MakePath(cue.Str("outputs"), cue.Str(name)), os.Object)
 		}
 	}
 
