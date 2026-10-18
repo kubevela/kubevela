@@ -17,6 +17,8 @@ limitations under the License.
 package sources
 
 import (
+	"time"
+
 	"github.com/pkg/errors"
 
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
@@ -242,6 +244,16 @@ func (r *sourceResolver) serveStale(f staleFallback, reason string) (map[string]
 	r.resolved[f.name] = f.stored.Data
 	r.setStaleStatus(f.name, f.sourceType, reason, f.policy.Key, formatExpiry(f.stored.ExpiresAt))
 	return f.stored.Data, true
+}
+
+// refreshFailed gives the upstream a rest before the next attempt, then serves
+// the stored value if the definition asked for that. Separate from serveStale,
+// which is also reached while a hold is in force, where there is no new failure
+// to record.
+func (r *sourceResolver) refreshFailed(f staleFallback, reason string, cause error) (map[string]interface{}, bool) {
+	v, servingStale := r.serveStale(f, reason)
+	recordRefreshFailure(f.policy.Key, f.policy.TTL, time.Now(), cause, servingStale)
+	return v, servingStale
 }
 
 // fail records a binding as failed and returns the error to hand back, so a

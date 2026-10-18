@@ -432,6 +432,21 @@ func (r *sourceResolver) resolve(sourceName string) (map[string]interface{}, err
 	// What a failed refresh below may fall back on.
 	fallback := staleFallback{name: sourceName, sourceType: sourceType, policy: cachePolicy, stored: stored}
 
+	// A refresh that failed recently is not asked again until its hold expires.
+	// Putting the template's fetch to a dead upstream on every reconcile asks it
+	// nothing it can answer, and the binding's outcome is the same either way:
+	// the stored value where the definition allows it, and the failure that put
+	// the hold there where it does not.
+	if hold, held := heldRefresh(cachePolicy.Key, time.Now()); held {
+		if v, ok := r.serveStale(fallback, "refresh failed recently; serving stale cached value"); ok {
+			return v, nil
+		}
+		if hold.cause != nil {
+			return r.fail(sourceName, sourceType, cachePolicy.Key, hold.cause,
+				fmt.Sprintf("refresh failed; next attempt in %s", time.Until(hold.retryAt).Round(time.Second)))
+		}
+	}
+
 	// A source is compiled against the context the cache-key rules make readable,
 	// not the component's - so it cannot depend on anything the key ignores.
 	c, err := sourceContext(r.ctxValues, sourceName, r.surface)
@@ -442,41 +457,46 @@ func (r *sourceResolver) resolve(sourceName string) (map[string]interface{}, err
 		render.Template(sourceTemplate), paramFile, c,
 	}, "\n"))
 	if err != nil {
-		if v, ok := r.serveStale(fallback, "refresh failed; serving stale cached value"); ok {
+		if v, ok := r.refreshFailed(fallback, "refresh failed; serving stale cached value", err); ok {
 			return v, nil
 		}
 		return r.fail(sourceName, sourceType, cachePolicy.Key, err,
 			fmt.Sprintf("compile source definition %s", sourceType))
 	}
 	if userErrs := render.UserErrors(val, "source definition", sourceType); len(userErrs) > 0 {
-		errMsg := strings.Join(userErrs, "; ")
-		if v, ok := r.serveStale(fallback, "refresh reported errors; serving stale cached value"); ok {
+		// One error for both paths: a hold reports the cause it recorded, so a
+		// caller matching on the type reads the same entries whether it is
+		// looking at the fresh failure or the held one.
+		reported := &DefinitionError{
+			message: fmt.Sprintf("source definition %s reported errors: %s", sourceType, strings.Join(userErrs, "; ")),
+			User:    userErrs,
+		}
+		if v, ok := r.refreshFailed(fallback, "refresh reported errors; serving stale cached value", reported); ok {
 			return v, nil
 		}
-		return r.fail(sourceName, sourceType, cachePolicy.Key, &DefinitionError{
-			message: fmt.Sprintf("source definition %s reported errors: %s", sourceType, errMsg),
-			User:    userErrs,
-		}, "")
+		return r.fail(sourceName, sourceType, cachePolicy.Key, reported, "")
 	}
 	output := map[string]interface{}{}
 	if err := val.LookupPath(value.FieldPath(velaprocess.OutputFieldName)).Decode(&output); err != nil {
-		if v, ok := r.serveStale(fallback, "refresh failed; serving stale cached value"); ok {
+		if v, ok := r.refreshFailed(fallback, "refresh failed; serving stale cached value", err); ok {
 			return v, nil
 		}
 		return r.fail(sourceName, sourceType, cachePolicy.Key, err,
 			fmt.Sprintf("decode output for source definition %s", sourceType))
 	}
 	if err := r.validateResolvedOutput(sourceType, sourceTemplate, output); err != nil {
-		if v, ok := r.serveStale(fallback, "refresh failed; serving stale cached value"); ok {
-			return v, nil
-		}
 		var mismatches []string
 		for _, e := range cueerrors.Errors(err) {
 			mismatches = append(mismatches, e.Error())
 		}
-		return r.fail(sourceName, sourceType, cachePolicy.Key, &DefinitionError{message: err.Error(), Schema: mismatches, cause: err},
+		reported := &DefinitionError{message: err.Error(), Schema: mismatches, cause: err}
+		if v, ok := r.refreshFailed(fallback, "refresh failed; serving stale cached value", reported); ok {
+			return v, nil
+		}
+		return r.fail(sourceName, sourceType, cachePolicy.Key, reported,
 			fmt.Sprintf("validate output against schema for source definition %s", sourceType))
 	}
+	clearRefreshBackoff(cachePolicy.Key)
 	r.resolved[sourceName] = output
 	expiresAt := time.Now().Add(cachePolicy.TTL).Format(time.RFC3339)
 	if err := r.writeSourceCache(cachePolicy.Key, sourceType, output, cachePolicy.TTL,
