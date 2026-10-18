@@ -85,6 +85,8 @@ func (h *ValidatingHandler) ValidateWorkflow(_ context.Context, app *v1beta1.App
 		if enabled {
 			errs = append(errs, wfexpressions.Validate(stepsPath, app.Spec.Workflow.Steps, app.Spec.Workflow.Mode,
 				celexpr.Roots...)...)
+		} else {
+			errs = append(errs, conditionsWithoutExpressions(stepsPath, app.Spec.Workflow.Steps)...)
 		}
 	}
 	return errs
