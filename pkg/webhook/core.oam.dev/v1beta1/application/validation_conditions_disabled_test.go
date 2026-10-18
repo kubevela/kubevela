@@ -81,7 +81,7 @@ func TestStepConditionsRefusedWithoutExpressions(t *testing.T) {
 	t.Run("CUE conditions are unaffected", func(t *testing.T) {
 		featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.RequireCelExpressionOptIn, true)
 		require.Empty(t, h.ValidateWorkflow(context.Background(),
-			conditionApp(nil, "status.a.succeeded", "always", `inputs.msg == "cost $(5)"`, "$(steps.a.succeeded) && $(steps.a.failed)")))
+			conditionApp(nil, "status.a.succeeded", "always", `inputs.msg == "cost $(5)"`)))
 	})
 
 	t.Run("opted in, the condition is admitted", func(t *testing.T) {
@@ -89,4 +89,19 @@ func TestStepConditionsRefusedWithoutExpressions(t *testing.T) {
 		require.Empty(t, h.ValidateWorkflow(context.Background(),
 			conditionApp(map[string]string{oam.AnnotationCelExpressions: "true"}, "$(steps.a.succeeded)")))
 	})
+}
+
+// An if holding a $( ) that is not the whole of it is refused whether or not the
+// Application reads expressions; a $( ) inside a CUE string is text.
+func TestMisplacedStepConditionsRefused(t *testing.T) {
+	h := &ValidatingHandler{}
+	for _, annotations := range []map[string]string{nil, {oam.AnnotationCelExpressions: "true"}} {
+		errs := h.ValidateWorkflow(context.Background(),
+			conditionApp(annotations, "$(steps.a.succeeded) && $(steps.a.failed)")).ToAggregate()
+		require.Error(t, errs)
+		require.Contains(t, errs.Error(), "spec.workflow.steps[1].if")
+		require.Contains(t, errs.Error(), "must be the whole if")
+	}
+	require.Empty(t, h.ValidateWorkflow(context.Background(),
+		conditionApp(nil, `inputs.msg == "cost $(5)"`, "status.a.succeeded")))
 }
