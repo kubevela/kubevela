@@ -112,7 +112,7 @@ var _ = AfterSuite(func() {
 			g.Expect(k8sClient.Get(context.Background(), client.ObjectKey{Name: addon, Namespace: types.DefaultKubeVelaNS}, app)).Should(SatisfyAny(Succeed(), oamutil.NotFoundMatcher{}))
 		}
 		err := k8sClient.List(context.Background(), apps)
-		g.Expect(err, nil)
+		g.Expect(err).Should(Succeed())
 		g.Expect(len(apps.Items)).Should(Equal(0))
 	}, 5*time.Minute).Should(Succeed())
 	Eventually(func(g Gomega) {
