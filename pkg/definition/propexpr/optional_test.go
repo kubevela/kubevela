@@ -212,3 +212,40 @@ func TestSchemasKind(t *testing.T) {
 	_, ok = s.Kind(template.Reference{Root: ComponentIdent, Path: []string{"db", "output"}})
 	require.False(t, ok, "a component's live output has no schema")
 }
+
+// DeclaredOptional answers a narrower question than CanBeAbsent, so the cases
+// where the two differ are the ones worth pinning: an open map's key can be
+// absent and is not declared optional.
+func TestDeclaredOptional(t *testing.T) {
+	schemas := CompileSchemas(map[string]string{
+		"cfg": `{meta: {region?: string, zone: string}, labels: [string]: string, alt: {region?: string} | null}`,
+	})
+	for _, tc := range []struct {
+		name string
+		ref  template.Reference
+		want bool
+	}{
+		{"an optional field", srcRef("cfg", "meta", "region"), true},
+		// schemaChild steps through a disjunction for every intermediate
+		// segment, so the last one is read the same way.
+		{"an optional field inside a disjunction", srcRef("cfg", "alt", "region"), true},
+		{"a required field", srcRef("cfg", "meta", "zone"), false},
+		{"a key of an open map", srcRef("cfg", "labels", "team"), false},
+		{"a field the schema does not declare", srcRef("cfg", "meta", "nope"), false},
+		{"a path through a field that does not exist", srcRef("cfg", "nope", "region"), false},
+		{"the binding itself", srcRef("cfg"), false},
+		{"an unknown binding", srcRef("other", "meta", "region"), false},
+		// Context is judged by the registry and a component read waits rather
+		// than failing, so neither has a binding schema here.
+		{"a context read", ctxRef("appName"), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, schemas.DeclaredOptional(tc.ref))
+		})
+	}
+
+	// The open-map key is the pair that makes this a distinct question.
+	absent, err := schemas.CanBeAbsent(srcRef("cfg", "labels", "team"))
+	require.NoError(t, err)
+	require.True(t, absent)
+}

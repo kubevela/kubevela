@@ -188,3 +188,59 @@ func contextField(name string) (cue.Value, bool) {
 	}
 	return cue.Value{}, false
 }
+
+// DeclaredOptional reports whether a source read's schema declares the final
+// field, and declares it optional.
+//
+// This is narrower than CanBeAbsent: a key of an open map can be absent too,
+// but carries no optional marker, so there is nothing for a message to point
+// at.
+func (s Schemas) DeclaredOptional(ref template.Reference) bool {
+	if ref.Root != SourceIdent || len(ref.Path) < 2 {
+		return false
+	}
+	v, ok := s.compiled[ref.Path[0]]
+	if !ok {
+		return false
+	}
+	path := ref.Path[1:]
+	for _, seg := range path[:len(path)-1] {
+		next, ok := schemaChild(v, seg)
+		if !ok {
+			return false
+		}
+		v = next
+	}
+	return declaredOptional(v, path[len(path)-1])
+}
+
+// declaredOptional reports whether a struct declares a field by that exact
+// name, optionally. A pattern constraint is not a declaration of any name.
+//
+// A disjunction is read through its branches, the way schemaChild reads every
+// segment before this one.
+func declaredOptional(v cue.Value, name string) bool {
+	if optional, declared := declaredOptionalIn(v, name); declared {
+		return optional
+	}
+	_, branches := v.Expr()
+	for _, b := range branches {
+		if optional, declared := declaredOptionalIn(b, name); declared {
+			return optional
+		}
+	}
+	return false
+}
+
+func declaredOptionalIn(v cue.Value, name string) (optional, declared bool) {
+	iter, err := v.Fields(cue.Optional(true), cue.Definitions(false))
+	if err != nil {
+		return false, false
+	}
+	for iter.Next() {
+		if sel := iter.Selector(); sel.IsString() && sel.Unquoted() == name {
+			return iter.IsOptional(), true
+		}
+	}
+	return false, false
+}
