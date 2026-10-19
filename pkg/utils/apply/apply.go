@@ -258,7 +258,9 @@ func (a *APIApplicator) Apply(ctx context.Context, desired client.Object, ao ...
 			return nil
 		}
 		if applyAct.writesSharers && !applyAct.dryRun {
-			// the sharer list in the patch only holds for the version it was computed from
+			// the sharer list in the patch only holds for the version it was computed from. A
+			// conflict is not retried here: the patch has to be computed again from the live
+			// object, which the requeued reconcile does.
 			if patch, err = withResourceVersion(patch, existing); err != nil {
 				return errors.Wrap(err, "cannot make patch conditional on resource version")
 			}
@@ -288,6 +290,8 @@ func (a *APIApplicator) addSharer(ctx context.Context, existing, desired client.
 			if current == "" {
 				return fmt.Errorf("%s %s/%s is no longer shared", existing.GetObjectKind().GroupVersionKind().Kind, existing.GetNamespace(), existing.GetName())
 			}
+			// If control was handed to the sharer meanwhile, the hand-over already set its owner
+			// labels, so adding it to the list is still all that is left to do.
 			sharedBy = AddSharer(current, act.sharer)
 		}
 		refresh = true
