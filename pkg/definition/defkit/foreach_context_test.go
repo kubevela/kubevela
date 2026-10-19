@@ -30,6 +30,7 @@ var _ = Describe("Workflow step context", func() {
 		Expect(vela.Each().Item().Path()).To(Equal("context.each.item"))
 		Expect(vela.Each().ItemField("spec.name").Path()).To(Equal("context.each.item.spec.name"))
 		Expect(vela.Each().Index().Path()).To(Equal("context.each.index"))
+		Expect(vela.Each().Key().Path()).To(Equal("context.each.key"))
 		Expect(vela.StepName().Path()).To(Equal("context.stepName"))
 		Expect(vela.StepSessionID().Path()).To(Equal("context.stepSessionID"))
 		Expect(vela.WorkflowName().Path()).To(Equal("context.workflowName"))

@@ -111,6 +111,8 @@ type Context struct {
 type LoopPass struct {
 	Item  any `json:"item"`
 	Index int `json:"index"`
+	// Key names the pass, as forEach.key does; the index when unset.
+	Key string `json:"key,omitempty"`
 }
 
 // ClusterVersion is the `context.clusterVersion` a template sees.

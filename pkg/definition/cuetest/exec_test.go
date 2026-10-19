@@ -74,8 +74,8 @@ template: {
 	apply: kube.#Apply & {$params: value: {
 		apiVersion: "v1"
 		kind:       "ConfigMap"
-		metadata: {name: "item-\(context.each.index)", namespace: context.namespace}
-		data: name: context.each.item.name
+		metadata: {name: "item-\(context.each.key)", namespace: context.namespace}
+		data: {name: context.each.item.name, index: "\(context.each.index)"}
 	}}
 	parameter: {}
 }
@@ -87,10 +87,22 @@ template: {
 	context: each: {item: name: "b", index: 1}
 	expect: {
 		phase: "succeeded"
-		resources: [{apiVersion: "v1", kind: "ConfigMap", metadata: name: "item-1", data: name: "b"}]
+		resources: [{apiVersion: "v1", kind: "ConfigMap", metadata: name: "item-1", data: {name: "b", index: "1"}}]
+	}
+}
+
+"a keyed pass": test.#WorkflowStepExec & {
+	definition: "s"
+	context: each: {item: name: "c", index: 2, key: "eu-west"}
+	expect: {
+		phase: "succeeded"
+		resources: [{apiVersion: "v1", kind: "ConfigMap", metadata: name: "item-eu-west", data: {name: "c", index: "2"}}]
 	}
 }
 `)
 	s := loadOne(t, dir)
-	require.Empty(t, s.Cases[0].Run())
+	require.Len(t, s.Cases, 2)
+	for _, c := range s.Cases {
+		require.Empty(t, c.Run(), c.Name)
+	}
 }
