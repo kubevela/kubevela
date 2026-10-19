@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -125,7 +126,7 @@ func runStep(cl *TestCluster, ns string, s Subject, in Input, objs []map[string]
 	data.ClusterVersion = clusterVersion(c.ClusterVersion)
 	pCtx := process.NewContext(data)
 	if c.Each != nil {
-		wfprocess.NewStepRunTimeMeta().Fill(pCtx, []wfprocess.StepMetaKV{wfprocess.WithLoop(c.Each.Item, c.Each.Index)})
+		wfprocess.NewStepRunTimeMeta().Fill(pCtx, []wfprocess.StepMetaKV{wfprocess.WithLoop(c.Each.Item, c.Each.Index, or(c.Each.Key, strconv.Itoa(c.Each.Index)))})
 	}
 
 	loader := custom.NewTaskLoader(func(context.Context, string) (string, error) { return s.Template, nil }, 0, pCtx, compiler)

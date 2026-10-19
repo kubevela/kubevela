@@ -260,6 +260,8 @@ templates: {
 		each?: {
 			item:  _
 			index: int
+			// The item's forEach.key, or its index when the loop has none.
+			key: *"\(index)" | string
 		}
 	}
 }

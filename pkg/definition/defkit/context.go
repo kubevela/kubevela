@@ -152,6 +152,12 @@ func (e *EachRef) Index() *ContextRef {
 	return &ContextRef{path: e.basePath + ".index"}
 }
 
+// Key returns the name of this pass: the item's forEach.key, or its index when
+// the loop has none.
+func (e *EachRef) Key() *ContextRef {
+	return &ContextRef{path: e.basePath + ".key"}
+}
+
 // IsSet holds when the step runs inside a forEach.
 func (e *EachRef) IsSet() Condition {
 	return PathExists(e.basePath)
