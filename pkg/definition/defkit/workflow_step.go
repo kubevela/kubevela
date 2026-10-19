@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
@@ -265,6 +266,20 @@ func (w *WorkflowStepDefinition) NotRunOn(conditions ...placement.Condition) *Wo
 	return w
 }
 
+// RestrictNamespaces limits the definition to namespaces matching any of the
+// names or path.Match globs. With RestrictNamespaceSelector, matching either is enough.
+func (w *WorkflowStepDefinition) RestrictNamespaces(namespaces ...string) *WorkflowStepDefinition {
+	w.addRestrictNamespaces(namespaces...)
+	return w
+}
+
+// RestrictNamespaceSelector limits the definition to namespaces matching the
+// selector. With RestrictNamespaces, matching either is enough.
+func (w *WorkflowStepDefinition) RestrictNamespaceSelector(selector *metav1.LabelSelector) *WorkflowStepDefinition {
+	w.setRestrictNamespaceSelector(selector)
+	return w
+}
+
 // DefName implements Definition.DefName.
 func (w *WorkflowStepDefinition) DefName() string { return w.GetName() }
 
@@ -332,6 +347,8 @@ func (w *WorkflowStepDefinition) ToYAML() ([]byte, error) {
 	if w.GetVersion() != "" {
 		cr["spec"].(map[string]any)["version"] = w.GetVersion()
 	}
+
+	setRestrictionsSpec(cr["spec"].(map[string]any), w.GetRestrictions())
 
 	return yaml.Marshal(cr)
 }
@@ -552,8 +569,11 @@ func (g *WorkflowStepCUEGenerator) GenerateFullDefinition(w *WorkflowStepDefinit
 	}
 
 	sb.WriteString(fmt.Sprintf("%sdescription: %q\n", g.indent, w.GetDescription()))
-	if w.GetVersion() != "" {
-		sb.WriteString(fmt.Sprintf("%sversion: %q\n", g.indent, w.GetVersion()))
+	if w.GetVersion() != "" || w.GetRestrictions() != nil {
+		sb.WriteString(fmt.Sprintf("%sattributes: {\n", g.indent))
+		writeVersion(&sb, w.GetVersion(), strings.Repeat(g.indent, 2))
+		writeRestrictions(&sb, w.GetRestrictions(), strings.Repeat(g.indent, 2))
+		sb.WriteString(fmt.Sprintf("%s}\n", g.indent))
 	}
 	sb.WriteString("}\n")
 

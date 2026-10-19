@@ -17,6 +17,7 @@ limitations under the License.
 package defkit
 
 import (
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/pkg/definition/defkit/placement"
 )
 
@@ -54,6 +55,8 @@ type baseDefinition struct {
 	// Placement constraints for cluster-aware definition deployment
 	runOn    []placement.Condition
 	notRunOn []placement.Condition
+	// Namespaces allowed to use the definition, and its per-namespace quota
+	restrictions *common.DefinitionRestrictions
 }
 
 // --- Builder methods (used by embedding types) ---
