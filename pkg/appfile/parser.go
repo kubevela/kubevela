@@ -354,8 +354,10 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 	if err != nil {
 		return err
 	}
-	if err := p.resolvePolicyExpressions(ctx, af); err != nil {
-		return err
+	if expressionsEnabled {
+		if err := p.resolvePolicyExpressions(ctx, af); err != nil {
+			return err
+		}
 	}
 	for _, policy := range af.Policies {
 		if af.AppRevision != nil && af.AppRevision.Spec.PolicyDefinitions != nil {
@@ -399,8 +401,10 @@ func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
 	if err != nil {
 		return err
 	}
-	if err := p.resolvePolicyExpressions(ctx, af); err != nil {
-		return err
+	if expressionsEnabled {
+		if err := p.resolvePolicyExpressions(ctx, af); err != nil {
+			return err
+		}
 	}
 	for _, policy := range af.Policies {
 		// Application-scoped policies are already processed in ApplyApplicationScopeTransforms()

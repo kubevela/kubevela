@@ -82,6 +82,30 @@ output: annotations: "example.com/runtime-name": parameter.value
 	require.Equal(t, "$(POD_NAME)", out.Annotations["example.com/runtime-name"])
 }
 
+func TestRenderApplicationPolicyLeavesExpressionsLiteralWithoutOptIn(t *testing.T) {
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EnableCelExpressions, true)
+	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.RequireCelExpressionOptIn, true)
+
+	app := &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: "shop", Namespace: "team-a"},
+	}
+	def := &v1beta1.PolicyDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "annotator"},
+		Spec: v1beta1.PolicyDefinitionSpec{Scope: v1beta1.ApplicationScope, Schematic: &common.Schematic{CUE: &common.CUE{Template: `
+parameter: value: string
+output: annotations: "example.com/app-name": parameter.value
+`}}},
+	}
+
+	out, _, err := RenderApplicationPolicy(context.Background(), nil, ApplicationPolicyRender{
+		App:        app,
+		Policy:     v1beta1.AppPolicy{Name: "app-name", Type: "annotator", Properties: &runtime.RawExtension{Raw: []byte(`{"value":"$(context.appName)"}`)}},
+		Definition: def,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "$(context.appName)", out.Annotations["example.com/app-name"])
+}
+
 func TestRenderApplicationPolicyEvaluatesExpressionsWhenEnabled(t *testing.T) {
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.EnableCelExpressions, true)
 	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.RequireCelExpressionOptIn, true)

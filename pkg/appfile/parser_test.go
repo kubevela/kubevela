@@ -1239,6 +1239,47 @@ func TestValidateExpressionSurfaces(t *testing.T) {
 	}
 }
 
+func TestParsePoliciesLeavesContextExpressionsLiteralWhenExpressionsDisabled(t *testing.T) {
+	for name, gates := range map[string]map[string]bool{
+		"feature off": {
+			string(features.EnableCelExpressions): false,
+		},
+		"feature on without the opt-in annotation": {
+			string(features.EnableCelExpressions):      true,
+			string(features.RequireCelExpressionOptIn): true,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			before := map[string]bool{
+				string(features.EnableCelExpressions):      utilfeature.DefaultMutableFeatureGate.Enabled(features.EnableCelExpressions),
+				string(features.RequireCelExpressionOptIn): utilfeature.DefaultMutableFeatureGate.Enabled(features.RequireCelExpressionOptIn),
+			}
+			require.NoError(t, utilfeature.DefaultMutableFeatureGate.SetFromMap(gates))
+			t.Cleanup(func() { require.NoError(t, utilfeature.DefaultMutableFeatureGate.SetFromMap(before)) })
+
+			const props = `{"namespace":"$(context.namespace)","clusters":["local"]}`
+			newAppfile := func() *Appfile {
+				app := &v1beta1.Application{
+					ObjectMeta: metav1.ObjectMeta{Name: "checkout", Namespace: "prod"},
+					Spec: v1beta1.ApplicationSpec{Policies: []v1beta1.AppPolicy{{
+						Name: "place", Type: "topology", Properties: &runtime.RawExtension{Raw: []byte(props)},
+					}}},
+				}
+				return &Appfile{Name: "checkout", Namespace: "prod", app: app}
+			}
+			p := NewApplicationParser(fake.NewClientBuilder().WithScheme(common2.Scheme).Build())
+
+			af := newAppfile()
+			require.NoError(t, p.parsePolicies(context.Background(), af))
+			require.JSONEq(t, props, string(af.Policies[0].Properties.Raw))
+
+			af = newAppfile()
+			require.NoError(t, p.parsePoliciesFromRevision(context.Background(), af))
+			require.JSONEq(t, props, string(af.Policies[0].Properties.Raw))
+		})
+	}
+}
+
 // A context expression in any policy has to be substituted before af.Policies
 // reaches a consumer.
 //
