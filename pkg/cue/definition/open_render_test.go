@@ -110,6 +110,44 @@ parameter: tier: string
 	}
 }
 
+// The JSON patch strategies marshal the patch inside the unification, before
+// the base can be pruned, so the unknowable field has to be left out of the
+// patch itself.
+func TestOpenRenderOfAJSONPatchingTrait(t *testing.T) {
+	labels := map[string]interface{}{"tier": unknown(), "env": "prod"}
+	traits := map[string]struct {
+		template string
+		params   map[string]interface{}
+	}{
+		"jsonMergePatch": {`
+parameter: {...}
+// +patchStrategy=jsonMergePatch
+patch: parameter
+`, map[string]interface{}{"metadata": map[string]interface{}{"labels": labels}}},
+		"jsonPatch": {`
+parameter: operations: [...{...}]
+// +patchStrategy=jsonPatch
+patch: parameter
+`, map[string]interface{}{"operations": []interface{}{
+			map[string]interface{}{"op": "add", "path": "/metadata/labels", "value": labels},
+		}}},
+	}
+	for strategy, trait := range traits {
+		for name, open := range openRenders {
+			t.Run(strategy+"/"+name, func(t *testing.T) {
+				ctx := openCtx(open)
+				require.NoError(t, NewWorkloadAbstractEngine("webservice").Complete(ctx, openWorkload,
+					map[string]interface{}{"image": "acme/billing:1.4.2"}))
+				require.NoError(t, NewTraitAbstractEngine("tier").Complete(ctx, trait.template, trait.params))
+				base, _ := ctx.Output()
+				w := marshalled(t, base)
+				require.NotContains(t, w.GetLabels(), "tier", "the unknowable field is left out")
+				require.Equal(t, "prod", w.GetLabels()["env"], "a concrete field is kept")
+			})
+		}
+	}
+}
+
 func TestOpenRenderOfAnAuxiliary(t *testing.T) {
 	const trait = `
 outputs: svc: {

@@ -461,12 +461,20 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		if base == nil {
 			return fmt.Errorf("patch trait %s into an invalid workload", td.name)
 		}
-		if err := base.Unify(patcher, patchOptionsFromLevels(levels, patcher)...); err != nil {
+		opts := patchOptionsFromLevels(levels, patcher)
+		if len(opts) > 0 {
+			// The JSON strategies marshal the patch inside Unify, ahead of the
+			// prune below, so an unknowable leaf has to be gone by then. The
+			// options were read from the patcher's attributes beforehand.
+			patcher = concreteForRender(ctx, patcher)
+		}
+		if err := base.Unify(patcher, opts...); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
 		// The patch carries the trait's own parameters, so a source-fed one
 		// lands here as a type. Pruned after the unification rather than before
-		// it, because the patcher's attributes are what drive patch strategy.
+		// it, because the patcher's attributes are what drive patch strategy;
+		// the JSON strategies prune the patch itself first, above.
 		if err := repruneBase(ctx, base); err != nil {
 			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 		}
