@@ -256,6 +256,11 @@ templates: {
 
 		// +usage=The Application; read stepName for the step
 		name: string
+		// +usage=The pass of a forEach running the step: the item and its index. Set only inside a forEach
+		each?: {
+			item:  _
+			index: int
+		}
 	}
 }
 

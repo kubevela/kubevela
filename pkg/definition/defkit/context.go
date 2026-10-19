@@ -102,6 +102,59 @@ func (c *ClusterVersionRef) GitVersion() *ContextRef {
 	return &ContextRef{path: c.basePath + ".gitVersion"}
 }
 
+// StepName returns the name of the workflow step being run.
+func (c *VelaContext) StepName() *ContextRef {
+	return &ContextRef{path: "context.stepName"}
+}
+
+// StepSessionID returns the running step's ID in the workflow status.
+func (c *VelaContext) StepSessionID() *ContextRef {
+	return &ContextRef{path: "context.stepSessionID"}
+}
+
+// WorkflowName returns the name of the workflow being run, when set.
+func (c *VelaContext) WorkflowName() *ContextRef {
+	return &ContextRef{path: "context.workflowName"}
+}
+
+// Each returns the pass of a forEach running a workflow step. It is set only
+// inside a forEach, so guard a read with IsSet; a step that takes its item
+// through inputs works in and out of a loop alike.
+func (c *VelaContext) Each() *EachRef {
+	return &EachRef{basePath: "context.each"}
+}
+
+// EachRef provides access to the pass of a forEach.
+type EachRef struct {
+	basePath string
+}
+
+func (e *EachRef) expr()  {}
+func (e *EachRef) value() {}
+
+// Path returns the base path of the pass.
+func (e *EachRef) Path() string { return e.basePath }
+
+// Item returns the item this pass runs for.
+func (e *EachRef) Item() *ContextRef {
+	return &ContextRef{path: e.basePath + ".item"}
+}
+
+// ItemField returns a dotted path within the item.
+func (e *EachRef) ItemField(path string) *ContextRef {
+	return &ContextRef{path: e.basePath + ".item." + path}
+}
+
+// Index returns the item's position in the list, from 0.
+func (e *EachRef) Index() *ContextRef {
+	return &ContextRef{path: e.basePath + ".index"}
+}
+
+// IsSet holds when the step runs inside a forEach.
+func (e *EachRef) IsSet() Condition {
+	return PathExists(e.basePath)
+}
+
 // Revision returns the component revision from context.
 func (c *VelaContext) Revision() *ContextRef {
 	return &ContextRef{path: "context.revision"}
