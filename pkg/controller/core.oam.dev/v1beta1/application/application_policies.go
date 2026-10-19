@@ -57,6 +57,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/sources"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 	oamprovidertypes "github.com/oam-dev/kubevela/pkg/workflow/providers/types"
 )
@@ -561,7 +562,7 @@ func (h *AppHandler) renderPolicyCUETemplate(ctx monitorContext.Context, app *v1
 	// Context has no such dependency - it is built right here - so the half of
 	// the feature that can work does, and reading a source is refused with a
 	// reason rather than left inert.
-	if params != nil {
+	if params != nil && sources.ExpressionsEnabledFor(app.GetAnnotations()) {
 		substituted, serr := substituteScopedPolicyExpressions(pCtx, params)
 		if serr != nil {
 			return cue.Value{}, errors.Wrap(serr, "failed to resolve context expressions in policy properties")

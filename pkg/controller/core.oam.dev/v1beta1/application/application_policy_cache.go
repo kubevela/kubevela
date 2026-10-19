@@ -25,6 +25,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/sources"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
@@ -41,6 +42,10 @@ const (
 	CacheMissSpecChanged     = "spec_changed"
 	CacheMissRevisionChanged = "revision_changed"
 	CacheMissTTLExpired      = "ttl_expired"
+	// CacheMissExpressionGateChanged means $( ) expression handling for the
+	// Application was switched on or off, usually by its opt-in annotation,
+	// which the spec hash does not cover.
+	CacheMissExpressionGateChanged = "expression_gate_changed"
 )
 
 // RenderedPolicyResult stores the output of a rendered policy CUE template.
@@ -73,12 +78,14 @@ type RenderedPolicyResult struct {
 }
 
 // ApplicationPolicyCacheEntry holds rendered results for one Application.
-// Invalidated when spec hash changes, ApplicationRevision changes, or TTL expires.
+// Invalidated when spec hash changes, ApplicationRevision changes, expression
+// handling changes, or TTL expires.
 type ApplicationPolicyCacheEntry struct {
-	appSpecHash     string
-	appRevisionHash string
-	renderedResults []RenderedPolicyResult
-	timestamp       time.Time
+	appSpecHash        string
+	appRevisionHash    string
+	expressionsEnabled bool
+	renderedResults    []RenderedPolicyResult
+	timestamp          time.Time
 }
 
 // ApplicationPolicyCache caches rendered policy results keyed by namespace/name.
@@ -108,7 +115,8 @@ func (c *ApplicationPolicyCache) Get(app *v1beta1.Application) ([]RenderedPolicy
 }
 
 // GetWithReason retrieves cached results with a miss reason for diagnostics.
-// missReason: CacheMissNotFound | CacheMissSpecChanged | CacheMissRevisionChanged | CacheMissTTLExpired | "" (hit)
+// missReason: CacheMissNotFound | CacheMissSpecChanged | CacheMissRevisionChanged |
+// CacheMissExpressionGateChanged | CacheMissTTLExpired | "" (hit)
 func (c *ApplicationPolicyCache) GetWithReason(app *v1beta1.Application) ([]RenderedPolicyResult, bool, string, error) {
 	cacheKey := computeApplicationPolicyCacheKey(app)
 	appSpecHash, err := computeApplicationSpecHash(app)
@@ -135,6 +143,9 @@ func (c *ApplicationPolicyCache) GetWithReason(app *v1beta1.Application) ([]Rend
 	if entry.appRevisionHash != currentAppRevHash {
 		return nil, false, CacheMissRevisionChanged, nil
 	}
+	if entry.expressionsEnabled != sources.ExpressionsEnabledFor(app.GetAnnotations()) {
+		return nil, false, CacheMissExpressionGateChanged, nil
+	}
 	if time.Since(entry.timestamp) > ApplicationPolicyCacheTTL {
 		return nil, false, CacheMissTTLExpired, nil
 	}
@@ -159,10 +170,11 @@ func (c *ApplicationPolicyCache) Set(app *v1beta1.Application, results []Rendere
 	defer c.mu.Unlock()
 
 	c.entries[cacheKey] = &ApplicationPolicyCacheEntry{
-		appSpecHash:     appSpecHash,
-		appRevisionHash: appRevisionHash,
-		renderedResults: results,
-		timestamp:       time.Now(),
+		appSpecHash:        appSpecHash,
+		appRevisionHash:    appRevisionHash,
+		expressionsEnabled: sources.ExpressionsEnabledFor(app.GetAnnotations()),
+		renderedResults:    results,
+		timestamp:          time.Now(),
 	}
 
 	return nil

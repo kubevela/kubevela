@@ -348,12 +348,16 @@ func (p *Parser) parseReferredObjects(ctx context.Context, af *Appfile) error {
 }
 
 func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (err error) {
-	af.Policies, err = step.LoadExternalPoliciesForWorkflow(ctx, af.PolicyClient(p.client), af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies)
+	expressionsEnabled := sources.ExpressionsEnabledFor(af.app.GetAnnotations())
+	af.Policies, err = step.LoadExternalPoliciesForWorkflow(
+		ctx, af.PolicyClient(p.client), af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies, expressionsEnabled)
 	if err != nil {
 		return err
 	}
-	if err := p.resolvePolicyExpressions(ctx, af); err != nil {
-		return err
+	if expressionsEnabled {
+		if err := p.resolvePolicyExpressions(ctx, af); err != nil {
+			return err
+		}
 	}
 	for _, policy := range af.Policies {
 		if af.AppRevision != nil && af.AppRevision.Spec.PolicyDefinitions != nil {
@@ -391,12 +395,16 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 }
 
 func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
-	af.Policies, err = step.LoadExternalPoliciesForWorkflow(ctx, af.PolicyClient(p.client), af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies)
+	expressionsEnabled := sources.ExpressionsEnabledFor(af.app.GetAnnotations())
+	af.Policies, err = step.LoadExternalPoliciesForWorkflow(
+		ctx, af.PolicyClient(p.client), af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies, expressionsEnabled)
 	if err != nil {
 		return err
 	}
-	if err := p.resolvePolicyExpressions(ctx, af); err != nil {
-		return err
+	if expressionsEnabled {
+		if err := p.resolvePolicyExpressions(ctx, af); err != nil {
+			return err
+		}
 	}
 	for _, policy := range af.Policies {
 		// Application-scoped policies are already processed in ApplyApplicationScopeTransforms()
