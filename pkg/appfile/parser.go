@@ -348,7 +348,9 @@ func (p *Parser) parseReferredObjects(ctx context.Context, af *Appfile) error {
 }
 
 func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (err error) {
-	af.Policies, err = step.LoadExternalPoliciesForWorkflow(ctx, af.PolicyClient(p.client), af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies)
+	expressionsEnabled := sources.ExpressionsEnabledFor(af.app.GetAnnotations())
+	af.Policies, err = step.LoadExternalPoliciesForWorkflow(
+		ctx, af.PolicyClient(p.client), af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies, expressionsEnabled)
 	if err != nil {
 		return err
 	}
@@ -391,7 +393,9 @@ func (p *Parser) parsePoliciesFromRevision(ctx context.Context, af *Appfile) (er
 }
 
 func (p *Parser) parsePolicies(ctx context.Context, af *Appfile) (err error) {
-	af.Policies, err = step.LoadExternalPoliciesForWorkflow(ctx, af.PolicyClient(p.client), af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies)
+	expressionsEnabled := sources.ExpressionsEnabledFor(af.app.GetAnnotations())
+	af.Policies, err = step.LoadExternalPoliciesForWorkflow(
+		ctx, af.PolicyClient(p.client), af.app.GetNamespace(), af.WorkflowSteps, af.app.Spec.Policies, expressionsEnabled)
 	if err != nil {
 		return err
 	}
