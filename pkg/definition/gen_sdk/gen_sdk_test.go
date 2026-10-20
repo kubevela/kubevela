@@ -249,6 +249,15 @@ var _ = Describe("TestNewLanguageArgs", func() {
 			wantErr: false,
 		},
 		{
+			name: "should preserve equals signs in the value portion",
+			args: args{
+				lang:     "go",
+				langArgs: []string{"GoProxy=https://proxy.example.com?foo=bar=baz"},
+			},
+			want:    map[string]string{"GoProxy": "https://proxy.example.com?foo=bar=baz"},
+			wantErr: false,
+		},
+		{
 			name: "should not set a value for an unknown flag",
 			args: args{
 				lang:     "go",

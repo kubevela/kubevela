@@ -37,6 +37,11 @@ rules:
   - apiGroups: ["apps"]
     resources: ["controllerrevisions"]
     verbs: ["*"]
+  # Read by the builtin definitions Job, which runs as this ServiceAccount and
+  # waits for the controller's rollout before applying them.
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["apiregistration.k8s.io"]
     resources: ["apiservices"]
     verbs: ["get", "list", "watch", "update"]
@@ -334,7 +339,7 @@ spec:
             - "--cluster-gateway-service={{ .Release.Namespace }}/{{ .Release.Name }}-cluster-gateway-service"
             {{ end }}
             {{ if .Values.multicluster.clusterGateway.direct }}
-            - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:9443"
+            - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:{{ .Values.multicluster.clusterGateway.port }}"
             {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
             {{ if .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
             - "--cluster-gateway-ca-file=/cluster-gateway-tls-cert/ca.crt"

@@ -92,6 +92,9 @@ add a specified gitlab registry: vela addon registry add my-repo --type gitlab -
 					return fmt.Errorf("fail to add registry %s: %w", registry.Name, err)
 				}
 			}
+			if err := validateReadableEndpoint(*registry); err != nil {
+				return fmt.Errorf("fail to add registry %s: %w", registry.Name, err)
+			}
 			return addAddonRegistry(context.Background(), c, *registry)
 		},
 	}
@@ -144,6 +147,9 @@ func NewUpdateAddonRegistryCommand(c common.Args, _ cmdutil.IOStreams) *cobra.Co
 			registry, err := getRegistryFromArgs(cmd, args)
 			if err != nil {
 				return err
+			}
+			if err := validateReadableEndpoint(*registry); err != nil {
+				return fmt.Errorf("fail to update registry %s: %w", registry.Name, err)
 			}
 			return updateAddonRegistry(context.Background(), c, *registry)
 		},
@@ -269,6 +275,34 @@ func deleteAddonRegistry(ctx context.Context, c common.Args, name string) error 
 	}
 	fmt.Printf("Successfully delete an addon registry %s \n", name)
 	return nil
+}
+
+// validateReadableEndpoint rejects a git or gitee registry whose endpoint the
+// reader cannot use.
+//
+// Only the Helm branch was verified before storing, so git, gitee, gitlab and
+// OSS registries were kept unverified. Building the reader is what `vela addon
+// list` does, and for git and gitee it is offline construction with no request,
+// so doing it here turns a registry that would fail at read time into an error
+// at add time. Gitlab and OSS are left alone: building those readers dials out.
+func validateReadableEndpoint(registry pkgaddon.Registry) error {
+	var endpoint string
+	switch {
+	case registry.Git != nil:
+		endpoint = registry.Git.URL
+	case registry.Gitee != nil:
+		endpoint = registry.Gitee.URL
+	default:
+		return nil
+	}
+	_, err := registry.BuildReader()
+	if err == nil || errors.Is(err, pkgaddon.ErrUnsupportedGitEndpoint) || errors.Is(err, pkgaddon.ErrUnsupportedGiteeEndpoint) {
+		// The unsupported-endpoint errors already quote the endpoint.
+		return err
+	}
+	// A malformed URL or another HTTP host fails inside utils.Parse, whose
+	// errors do not always name the address.
+	return fmt.Errorf("endpoint %q: %w", endpoint, err)
 }
 
 func addAddonRegistry(ctx context.Context, c common.Args, registry pkgaddon.Registry) error {
