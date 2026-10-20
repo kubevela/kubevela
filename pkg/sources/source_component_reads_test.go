@@ -210,3 +210,19 @@ func TestComponentReadThroughAListIndex(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, map[string]interface{}{"ip": "10.0.0.1"}, out)
 }
+
+// A replaced context keeps the delivered reads; one that had none gains none.
+func TestCarryComponentScope(t *testing.T) {
+	scope := map[string]interface{}{"db": map[string]interface{}{"output": "x"}}
+	from := WithComponentScope(context.Background(), scope)
+	// The value, not just its presence: a carry that delivered some other map
+	// would satisfy HasComponentScope and still lose every read.
+	require.Equal(t, scope, CarryComponentScope(from, context.Background()).Value(componentScopeKey{}),
+		"the delivered reads are carried as they were")
+	if HasComponentScope(CarryComponentScope(context.Background(), context.Background())) {
+		t.Fatal("reads appeared from nowhere")
+	}
+	if HasComponentScope(CarryComponentScope(WithComponentScope(context.Background(), map[string]interface{}{}), context.Background())) {
+		t.Fatal("an empty scope was carried as reads")
+	}
+}

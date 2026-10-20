@@ -93,9 +93,24 @@ type SourceCacheWriteMeta struct {
 	TemplateHash string
 }
 
+// SourceCacheRead is the outcome of one cache lookup.
+//
+// Data, Stale and ExpiresAt are meaningful only when Found. The zero value is a
+// miss, so a store that fails returns SourceCacheRead{} with its error.
+type SourceCacheRead struct {
+	// Data is the stored value.
+	Data map[string]interface{}
+	// Found reports that the store holds an entry for the key, fresh or not.
+	Found bool
+	// Stale reports that the entry is past its TTL.
+	Stale bool
+	// ExpiresAt is when the entry stops being fresh.
+	ExpiresAt time.Time
+}
+
 // SourceCacheStore abstracts source cache persistence operations.
 type SourceCacheStore interface {
-	Read(ctx context.Context, cacheKey string, ttl time.Duration) (map[string]interface{}, bool, bool, time.Time, error)
+	Read(ctx context.Context, cacheKey string, ttl time.Duration) (SourceCacheRead, error)
 	Write(ctx context.Context, cacheKey, sourceType string, data map[string]interface{}, meta SourceCacheWriteMeta) error
 }
 

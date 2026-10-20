@@ -33,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/auth"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	velamulticluster "github.com/oam-dev/kubevela/pkg/multicluster"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -554,6 +555,26 @@ func mergePlacements(lists ...[]common.ApplicationComponentStatus) []common.Appl
 	return out
 }
 
+// recordRenderFailureSourceReads reports what a render resolved when the render
+// itself gave up, so a binding whose resolution failed is not left reported as
+// one nothing read.
+//
+// The report in collectHealthStatus cannot reach this: a component applied for
+// the first time fails in the workflow's own render, before any component
+// status exists to hang the report on, which is the case an Application
+// deployed against an upstream that is already broken hits.
+func (h *AppHandler) recordRenderFailureSourceReads(wl *appfile.Component, cluster, ns string) {
+	if wl == nil {
+		return
+	}
+	if ns == "" {
+		ns = h.app.Namespace
+	}
+	h.recordComponentSourceReads(wl, &common.ApplicationComponentStatus{
+		Name: wl.Name, Cluster: cluster, Namespace: ns,
+	})
+}
+
 // recordWaiting reports a reader held back on its reads: its status entry says
 // why and is unhealthy, keeping everything else it records, and one is created
 // for a reader not yet applied.
@@ -594,6 +615,15 @@ func withComponentScope(ctxData *velaprocess.ContextData, scope map[string]inter
 		base = context.Background()
 	}
 	ctxData.Ctx = sources.WithComponentScope(base, scope)
+}
+
+// renderAsRequester puts the requesting user on wl's render context for what
+// follows the render (its dispatch and health checks), keeping the component
+// reads the render was delivered: dispatch reads them to decide whether wl is
+// applied on this run. A context derived from wl.Ctx.GetCtx() keeps them too; one
+// built from anything else does not.
+func (h *AppHandler) renderAsRequester(ctx context.Context, wl *appfile.Component) {
+	wl.Ctx.SetCtx(sources.CarryComponentScope(wl.Ctx.GetCtx(), auth.ContextWithUserInfo(ctx, h.app)))
 }
 
 // withRenderedTraits is comp with only the traits a render keeps, so that the

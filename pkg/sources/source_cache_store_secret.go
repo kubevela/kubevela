@@ -41,23 +41,23 @@ func NewSecretSourceCacheStore(cli client.Client) velaprocess.SourceCacheStore {
 	return &secretSourceCacheStore{client: cli}
 }
 
-func (s *secretSourceCacheStore) Read(ctx context.Context, cacheKey string, ttl time.Duration) (map[string]interface{}, bool, bool, time.Time, error) {
+func (s *secretSourceCacheStore) Read(ctx context.Context, cacheKey string, ttl time.Duration) (velaprocess.SourceCacheRead, error) {
 	if s == nil || s.client == nil || cacheKey == "" {
-		return nil, false, false, time.Time{}, nil
+		return velaprocess.SourceCacheRead{}, nil
 	}
 	secret := &corev1.Secret{}
 	if err := s.client.Get(ctx, ktypes.NamespacedName{Namespace: CacheNamespace(), Name: cacheKey}, secret); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, false, false, time.Time{}, nil
+			return velaprocess.SourceCacheRead{}, nil
 		}
-		return nil, false, false, time.Time{}, err
+		return velaprocess.SourceCacheRead{}, err
 	}
 	if secret.Data == nil || len(secret.Data[sourceCacheDataKey]) == 0 {
-		return nil, false, false, time.Time{}, nil
+		return velaprocess.SourceCacheRead{}, nil
 	}
 	properties := map[string]interface{}{}
 	if err := json.Unmarshal(secret.Data[sourceCacheDataKey], &properties); err != nil {
-		return nil, false, false, time.Time{}, err
+		return velaprocess.SourceCacheRead{}, err
 	}
 	lastSync := secret.CreationTimestamp.Time
 	if ts := secret.Annotations[sourceCacheSyncAtKey]; ts != "" {
@@ -68,9 +68,12 @@ func (s *secretSourceCacheStore) Read(ctx context.Context, cacheKey string, ttl 
 	if ttl <= 0 {
 		ttl = sourceCacheTTL
 	}
-	stale := time.Since(lastSync) > ttl
-	expiresAt := lastSync.Add(ttl)
-	return properties, stale, true, expiresAt, nil
+	return velaprocess.SourceCacheRead{
+		Data:      properties,
+		Found:     true,
+		Stale:     time.Since(lastSync) > ttl,
+		ExpiresAt: lastSync.Add(ttl),
+	}, nil
 }
 
 func (s *secretSourceCacheStore) Write(ctx context.Context, cacheKey, sourceType string, data map[string]interface{}, meta velaprocess.SourceCacheWriteMeta) error {

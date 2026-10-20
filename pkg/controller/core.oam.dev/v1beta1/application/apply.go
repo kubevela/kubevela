@@ -76,6 +76,10 @@ type AppHandler struct {
 	// render in this reconcile. Keyed by binding name, because a binding is
 	// declared once for the whole Application even though many surfaces read it.
 	sourceStatuses map[string]*common.ApplicationSourceStatus
+	// lastReportedSources is what the Application arrived with, captured before
+	// this reconcile reports anything over it.
+	lastReportedSources []common.ApplicationSourceStatus
+	sourcesCaptured     bool
 	// keptSourceReads is, by source, what the current run's steps read as the
 	// last report gave it, for steps that do not read again this reconcile.
 	keptSourceReads map[string]*common.ApplicationSourceStatus
@@ -370,6 +374,10 @@ func (h *AppHandler) collectHealthStatus(ctx context.Context, comp *appfile.Comp
 	)
 
 	status = h.getServiceStatus(status)
+	// Reported on every path out, including the ones that give up: the resolver
+	// records what it knows before handing an error back, so a render that
+	// failed still has something to say about why.
+	defer func() { h.recordComponentSourceReads(comp, &status) }()
 	if !skipWorkload {
 		isHealth, output, outputs, err = h.collectWorkloadHealthStatus(ctx, comp, &status, accessor)
 		if err != nil {
@@ -451,7 +459,6 @@ collectNext:
 	}
 	status.Traits = slices.Collect(maps.Values(traitStatusByKey))
 	componenthealth.Rollup(&status, !skipWorkload)
-	h.recordComponentSourceReads(comp, &status)
 	h.addServiceStatus(true, status)
 	return &status, output, outputs, isHealth, nil
 }
@@ -539,8 +546,8 @@ func (h *AppHandler) recordSourceResolution(kind, name, readerType, cluster, nam
 		// The binding's own phase is the worst any reader saw. A source failing in
 		// one cluster and fine in another is a problem, and reporting the last
 		// render's answer would let which cluster reconciled last decide.
-		if rs.Phase != "" && (entry.Phase == "" || rs.Phase == sourcePhaseFailed) {
-			entry.Phase = rs.Phase
+		if phase := reportedSourcePhase(rs); sourcePhaseRank(phase) > sourcePhaseRank(entry.Phase) {
+			entry.Phase = phase
 		}
 		mergeResolution(entry, rs, cluster)
 		if len(rs.ConsumedFields) == 0 {
@@ -610,7 +617,11 @@ func mergeSourceValues(earlier, later []common.SourceValue) []common.SourceValue
 }
 
 func mergeResolution(entry *common.ApplicationSourceStatus, rs sources.SourceResolutionStatus, cluster string) {
-	if rs.Config == "" && rs.Phase == "" {
+	// Named here as well as on the binding: the two are written from one
+	// resolution, so a phase reported on only one of them has the binding
+	// disagreeing with the entry it is reporting.
+	phase := reportedSourcePhase(rs)
+	if rs.Config == "" && phase == "" {
 		return
 	}
 	for i := range entry.Resolutions {
@@ -618,8 +629,8 @@ func mergeResolution(entry *common.ApplicationSourceStatus, rs sources.SourceRes
 			continue
 		}
 		got := &entry.Resolutions[i]
-		if rs.Phase != "" && (got.Phase == "" || rs.Phase == sourcePhaseFailed) {
-			got.Phase = rs.Phase
+		if sourcePhaseRank(phase) > sourcePhaseRank(got.Phase) {
+			got.Phase = phase
 			got.Message = rs.Message
 		}
 		if rs.ExpiresAt != "" {
@@ -630,7 +641,7 @@ func mergeResolution(entry *common.ApplicationSourceStatus, rs sources.SourceRes
 	}
 	res := common.SourceResolution{
 		StorageKey: rs.Config,
-		Phase:      rs.Phase,
+		Phase:      phase,
 		ExpiresAt:  rs.ExpiresAt,
 		Message:    rs.Message,
 	}
@@ -749,9 +760,47 @@ func (h *AppHandler) sourceStatusList() []common.ApplicationSourceStatus {
 	out := make([]common.ApplicationSourceStatus, 0, len(h.app.Spec.Sources))
 	autoUpdateDefault := sourceAutoUpdateDefault()
 	_, pinned := h.app.GetAnnotations()[oam.AnnotationPublishVersion]
+	// Once the workflow has settled, a reconcile that rendered nothing learned
+	// nothing, so each binding keeps what was last reported: the reconcile that
+	// lands a failed workflow runs no steps, and the failure that run found is
+	// what a reader needs to see.
+	//
+	// Only once it has settled, because a run that has not started has read
+	// nothing and the last run's answer would speak for a run that has not
+	// happened. And only when nothing rendered, because a render that read
+	// another binding and not this one is evidence this one is no longer read,
+	// which is the only evidence there is: an unread binding is never recorded.
+	// Captured on the first call, because the controller reports twice in one
+	// reconcile and replaces the workflow status between the two: the second
+	// call is the one that can see a run settle, and reading the live status
+	// there would find the Unused this call wrote.
+	if !h.sourcesCaptured {
+		h.lastReportedSources = make([]common.ApplicationSourceStatus, 0, len(h.app.Status.Sources))
+		for i := range h.app.Status.Sources {
+			h.lastReportedSources = append(h.lastReportedSources, *h.app.Status.Sources[i].DeepCopy())
+		}
+		h.sourcesCaptured = true
+	}
+	wf := h.app.Status.Workflow
+	lastReported := map[string]*common.ApplicationSourceStatus{}
+	if wf != nil && (wf.Finished || wf.Terminated) && len(h.sourceStatuses) == 0 {
+		for i := range h.lastReportedSources {
+			prev := h.lastReportedSources[i]
+			if prev.Phase != "" && prev.Phase != sourcePhaseUnused {
+				lastReported[prev.Name] = prev.DeepCopy()
+			}
+		}
+	}
 	for _, src := range h.app.Spec.Sources {
 		entry := common.ApplicationSourceStatus{Name: src.Name, Type: src.Type, Phase: sourcePhaseUnused}
-		if got := withKeptReads(h.sourceStatuses[src.Name], h.keptSourceReads[src.Name]); got != nil {
+		// The last report is the base this reconcile reports over, so a kept
+		// step's reads add to it rather than standing in for it: the kept entry
+		// carries that step's consumers alone.
+		base := h.sourceStatuses[src.Name]
+		if base == nil {
+			base = lastReported[src.Name]
+		}
+		if got := withKeptReads(base, h.keptSourceReads[src.Name]); got != nil {
 			entry = *got
 			if entry.Phase == "" {
 				entry.Phase = sourcePhaseResolved
@@ -1039,6 +1088,33 @@ const (
 	sourcePhaseFailed   = sources.PhaseFailed
 	sourcePhaseUnused   = sources.PhaseUnused
 )
+
+// reportedSourcePhase names a resolution in the Application's own vocabulary.
+// The resolver reports a value served past its TTL as resolved and flags it,
+// because a value is in hand; Stale is this layer's word for that pair.
+func reportedSourcePhase(rs sources.SourceResolutionStatus) string {
+	if rs.Stale && rs.Phase == sourcePhaseResolved {
+		return sourcePhaseStale
+	}
+	return rs.Phase
+}
+
+// sourcePhaseRank orders the phases a reader can report, worst highest, so a
+// binding keeps the worst any reader saw rather than whichever cluster
+// reconciled last. Unused is not ranked: it is the value a binding starts at
+// when nothing read it, not something a reader reports.
+func sourcePhaseRank(phase string) int {
+	switch phase {
+	case sourcePhaseFailed:
+		return 3
+	case sourcePhaseStale:
+		return 2
+	case sourcePhaseResolved:
+		return 1
+	default:
+		return 0
+	}
+}
 
 // Definition kinds reported on SourceConsumer.
 const (

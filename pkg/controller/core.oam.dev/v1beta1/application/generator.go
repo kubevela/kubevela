@@ -286,12 +286,13 @@ func (h *AppHandler) renderComponentFunc(appParser *appfile.Parser, af *appfile.
 		ctx := multicluster.ContextWithClusterName(baseCtx, clusterName)
 		ctx = contextWithReadPlacement(ctx, overrideNamespace, comp.ReplicaKey)
 
-		_, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
+		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
 		if sources.IsComponentReadNotReady(err) {
 			// A render has no way to report "not yet", unlike an apply.
 			return nil, nil, errors.WithMessagef(err, "component %q cannot be rendered until what it reads is ready", comp.Name)
 		}
 		if err != nil {
+			h.recordRenderFailureSourceReads(wl, clusterName, overrideNamespace)
 			return nil, nil, err
 		}
 		return renderComponentsAndTraits(manifest, h.currentAppRev, clusterName, overrideNamespace)
@@ -309,9 +310,10 @@ func (h *AppHandler) checkComponentHealth(appParser *appfile.Parser, af *appfile
 			return false, &common.ApplicationComponentStatus{Name: comp.Name, Healthy: false, Message: err.Error()}, nil, nil, nil
 		}
 		if err != nil {
+			h.recordRenderFailureSourceReads(wl, clusterName, overrideNamespace)
 			return false, nil, nil, nil, err
 		}
-		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
+		h.renderAsRequester(ctx, wl)
 
 		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, h.currentAppRev, clusterName, overrideNamespace)
 		if err != nil {
@@ -355,9 +357,10 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.A
 			return nil, nil, false, err.Error(), nil
 		}
 		if err != nil {
+			h.recordRenderFailureSourceReads(wl, clusterName, overrideNamespace)
 			return nil, nil, false, "", err
 		}
-		wl.Ctx.SetCtx(auth.ContextWithUserInfo(ctx, h.app))
+		h.renderAsRequester(ctx, wl)
 
 		readyWorkload, readyTraits, err := renderComponentsAndTraits(manifest, appRev, clusterName, overrideNamespace)
 		if err != nil {
@@ -506,10 +509,12 @@ func (h *AppHandler) prepareWorkloadAndManifests(ctx context.Context,
 		}
 	})
 	if err != nil {
-		return nil, nil, errors.WithMessage(err, "GenerateComponentManifest")
+		// wl, not nil, here and below: it holds the source statuses the render
+		// collected before giving up, and its callers report them.
+		return wl, nil, errors.WithMessage(err, "GenerateComponentManifest")
 	}
 	if err := af.SetOAMContract(manifest); err != nil {
-		return nil, nil, errors.WithMessage(err, "SetOAMContract")
+		return wl, nil, errors.WithMessage(err, "SetOAMContract")
 	}
 	return wl, manifest, nil
 }

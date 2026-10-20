@@ -41,6 +41,9 @@ _shipped: "../../../../../vela-templates/definitions/internal/source/"
 	expect: error: user: ["GET https://config.example.com/shop.json returned 503"]
 }
 
+// Deliberately the same url as the case above, which fails: a refresh hold is
+// keyed by cache entry and lives for the process, so these two together are
+// what proves one case's failure does not answer for the next.
 "http-get must be mocked": test.#SourceExec & {
 	definition: _shipped + "http-get"
 	parameter: url: "https://config.example.com/shop.json"

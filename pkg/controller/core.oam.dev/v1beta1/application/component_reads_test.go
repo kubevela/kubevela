@@ -33,12 +33,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apiserver/pkg/endpoints/request"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/definition/propexpr"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -549,4 +551,26 @@ func TestReadPlacementFallsBackToTheComponents(t *testing.T) {
 	ns, replica := readPlacementFrom(ctx)
 	require.Equal(t, "team-a", ns)
 	require.Equal(t, "west", replica)
+}
+
+// Putting the requesting user on a render's context keeps the component reads
+// it was delivered, which dispatch reads to decide whether to re-apply it.
+func TestRenderAsRequesterKeepsDeliveredReads(t *testing.T) {
+	h := &AppHandler{app: &v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "shop", Namespace: "default",
+		Annotations: map[string]string{oam.AnnotationApplicationUsername: "alice"}}}}
+	scope := map[string]interface{}{"db": map[string]interface{}{}}
+	wl := &appfile.Component{Ctx: velaprocess.NewContext(velaprocess.ContextData{
+		Ctx: sources.WithComponentScope(context.Background(), scope), AppName: "shop", CompName: "api"})}
+
+	h.renderAsRequester(context.Background(), wl)
+
+	require.True(t, sources.HasComponentScope(wl.Ctx.GetCtx()), "the delivered reads were dropped")
+	require.True(t, componentReadsRequestRedispatch(wl))
+	u, ok := request.UserFrom(wl.Ctx.GetCtx())
+	require.True(t, ok, "the requesting user was not set")
+	require.Equal(t, "alice", u.GetName())
+
+	plain := &appfile.Component{Ctx: velaprocess.NewContext(velaprocess.ContextData{Ctx: context.Background(), AppName: "shop", CompName: "web"})}
+	h.renderAsRequester(context.Background(), plain)
+	require.False(t, componentReadsRequestRedispatch(plain), "a render with no reads gains none")
 }

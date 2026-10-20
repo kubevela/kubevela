@@ -17,6 +17,8 @@ limitations under the License.
 package application
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/oam-dev/kubevela/pkg/sources"
@@ -28,8 +30,13 @@ import (
 
 	workflowv1alpha1 "github.com/kubevela/workflow/api/v1alpha1"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -554,4 +561,360 @@ func TestAKeptStepKeepsItsResolutionBesideALiveReader(t *testing.T) {
 			r.Equal("2026-10-14T19:00:00Z", res.ExpiresAt)
 		}
 	}
+}
+
+// A value served past its TTL is reported as Stale. The resolver calls it
+// resolved, because a value is in hand, and flags it; naming the phase is this
+// layer's job, which is what the phase's own documentation says.
+func TestSourceStatusListReportsStale(t *testing.T) {
+	r := require.New(t)
+	h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+
+	h.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{
+			"registry": {Name: "registry", Phase: sourcePhaseResolved, Stale: true,
+				Message:        "refresh failed; serving stale cached value",
+				ConsumedFields: map[string]interface{}{"data.image": "nginx"}},
+		})
+
+	out := h.sourceStatusList()
+	r.Equal(sourcePhaseStale, out[0].Phase)
+}
+
+// The binding reports the worst any reader saw, so a third phase joins the
+// existing order rather than letting the last reader to reconcile decide.
+func TestSourceStatusPhasePrecedence(t *testing.T) {
+	resolved := sources.SourceResolutionStatus{Name: "registry", Phase: sourcePhaseResolved,
+		ConsumedFields: map[string]interface{}{"data.image": "nginx"}}
+	stale := sources.SourceResolutionStatus{Name: "registry", Phase: sourcePhaseResolved, Stale: true,
+		ConsumedFields: map[string]interface{}{"data.image": "nginx"}}
+	failed := sources.SourceResolutionStatus{Name: "registry", Phase: sourcePhaseFailed, Message: "gone",
+		ConsumedFields: map[string]interface{}{"data.image": "nginx"}}
+
+	for _, tc := range []struct {
+		name  string
+		first sources.SourceResolutionStatus
+		then  sources.SourceResolutionStatus
+		want  string
+	}{
+		{"stale beats resolved", resolved, stale, sourcePhaseStale},
+		{"stale beats resolved whichever order", stale, resolved, sourcePhaseStale},
+		{"failed beats stale", stale, failed, sourcePhaseFailed},
+		{"failed beats stale whichever order", failed, stale, sourcePhaseFailed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+			h.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+				map[string]sources.SourceResolutionStatus{"registry": tc.first})
+			h.recordSourceResolution(sourceKindComponent, "api", "webservice", "remote", "default",
+				map[string]sources.SourceResolutionStatus{"registry": tc.then})
+			require.Equal(t, tc.want, h.sourceStatusList()[0].Phase)
+		})
+	}
+}
+
+// A binding whose resolution failed reports Failed, even when the render that
+// failed never produced a component status.
+//
+// Unused is the value a binding starts at so that "nothing read it" stays
+// distinguishable from "it failed", which is what the comment on
+// sourceStatusList says it is for. A render that aborts used to skip the
+// recording entirely and leave the binding at that starting value, so the one
+// case the default exists to be distinguishable FROM reported as the default.
+func TestSourceStatusListReportsAFailureFromAnAbortedRender(t *testing.T) {
+	r := require.New(t)
+	h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+	h.Client = unreachableClient{}
+	h.currentAppRev = &v1beta1.ApplicationRevision{
+		Spec: v1beta1.ApplicationRevisionSpec{ApplicationRevisionCompressibleFields: v1beta1.ApplicationRevisionCompressibleFields{
+			Application: v1beta1.Application{ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "default"}},
+		}},
+	}
+
+	// The resolver records what it knows before handing the error back, so the
+	// failure is in the render context when the render gives up.
+	pCtx := velaprocess.NewContext(velaprocess.ContextData{AppName: "app", CompName: "web", Namespace: "default"})
+	pCtx.PushData(sources.SourceResolutionStatusKey, map[string]sources.SourceResolutionStatus{
+		"registry": {Name: "registry", Type: "configmap", Phase: sourcePhaseFailed,
+			Message: "read configmap platform-settings: not found"},
+	})
+	comp := &appfile.Component{
+		Name:               "web",
+		Type:               "webservice",
+		CapabilityCategory: types.TerraformCategory,
+		FullTemplate:       &appfile.Template{Reference: common.WorkloadTypeDescriptor{}},
+		Ctx:                pCtx,
+	}
+
+	_, _, _, _, err := h.collectHealthStatus(context.Background(), comp, "", false)
+	r.Error(err, "the render aborts")
+
+	out := h.sourceStatusList()
+	r.Len(out, 1)
+	r.Equal(sourcePhaseFailed, out[0].Phase, "a failed binding must not report as unread")
+}
+
+// unreachableClient fails every read, which is what makes the render give up
+// before it can produce a component status.
+type unreachableClient struct{ client.Client }
+
+func (unreachableClient) Get(_ context.Context, _ client.ObjectKey, _ client.Object, _ ...client.GetOption) error {
+	return errors.New("the cluster is unreachable")
+}
+
+// The binding's phase and the entry it came from must agree. They are written
+// in two places from the same resolution, so naming the phase in one and not
+// the other would have a binding report Stale while the resolution it is
+// reporting says Resolved.
+func TestStaleIsReportedOnTheResolutionToo(t *testing.T) {
+	r := require.New(t)
+	stale := sources.SourceResolutionStatus{
+		Name: "registry", Phase: sourcePhaseResolved, Stale: true,
+		Config: "configmap-local-abc", ExpiresAt: "2026-10-18T00:00:00Z",
+		Message:        "refresh failed; serving stale cached value",
+		ConsumedFields: map[string]interface{}{"data.image": "nginx"},
+	}
+
+	// A resolution recorded for the first time.
+	h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+	h.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{"registry": stale})
+	out := h.sourceStatusList()
+	r.Len(out[0].Resolutions, 1)
+	r.Equal(sourcePhaseStale, out[0].Phase)
+	r.Equal(sourcePhaseStale, out[0].Resolutions[0].Phase, "the entry agrees with the binding")
+
+	// And one updated, where a second reader found the same entry stale.
+	h = handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+	fresh := stale
+	fresh.Stale = false
+	fresh.Message = ""
+	h.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{"registry": fresh})
+	h.recordSourceResolution(sourceKindComponent, "api", "webservice", "remote", "default",
+		map[string]sources.SourceResolutionStatus{"registry": stale})
+	out = h.sourceStatusList()
+	r.Len(out[0].Resolutions, 1, "one storage key, one entry")
+	r.Equal(sourcePhaseStale, out[0].Resolutions[0].Phase)
+	r.Contains(out[0].Resolutions[0].Message, "serving stale")
+}
+
+// An Application deployed against an upstream that is already broken fails in
+// the workflow's own render, before any component status exists. The report in
+// collectHealthStatus cannot reach that, so the render paths report what they
+// resolved themselves.
+func TestRenderFailureReportsWhatItResolved(t *testing.T) {
+	r := require.New(t)
+	h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+
+	pCtx := velaprocess.NewContext(velaprocess.ContextData{AppName: "app", CompName: "web", Namespace: "default"})
+	pCtx.PushData(sources.SourceResolutionStatusKey, map[string]sources.SourceResolutionStatus{
+		"registry": {Name: "registry", Type: "configmap", Phase: sourcePhaseFailed,
+			Message: "read configmap platform-settings: not found"},
+	})
+
+	h.recordRenderFailureSourceReads(&appfile.Component{Name: "web", Type: "webservice", Ctx: pCtx}, "", "")
+
+	out := h.sourceStatusList()
+	r.Len(out, 1)
+	r.Equal(sourcePhaseFailed, out[0].Phase, "a first deploy against a broken upstream says so")
+	// Nothing was stored, so the entry carries no storage key, but it does carry
+	// the reason, which is the whole point of reporting from here.
+	r.Len(out[0].Resolutions, 1)
+	r.Empty(out[0].Resolutions[0].StorageKey)
+	r.Contains(out[0].Resolutions[0].Message, "platform-settings")
+
+	// Nothing to report from is not a failure to report.
+	empty := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+	empty.recordRenderFailureSourceReads(nil, "", "")
+	r.Equal(sourcePhaseUnused, empty.sourceStatusList()[0].Phase,
+		"a render that failed before resolving anything leaves the binding unread")
+}
+
+// A reconcile that renders nothing learns nothing, so it must not downgrade
+// what is known to "nothing reads it".
+//
+// The reconcile that lands a failed workflow runs no steps, so no surface
+// records anything and the binding was rebuilt as Unused, overwriting the
+// failure the previous reconcile had reported. Unused means nothing has read
+// the binding, not that nothing read it in this particular pass.
+func TestABindingKeepsItsLastReportWhenNothingRendered(t *testing.T) {
+	r := require.New(t)
+	src := v1beta1.ApplicationSource{Name: "registry", Type: "configmap"}
+
+	// Reconcile one: the render fails and reports why.
+	first := handlerFor(nil, src)
+	first.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{
+			"registry": {Name: "registry", Type: "configmap", Phase: sourcePhaseFailed,
+				Message:        "read configmap platform-settings: not found",
+				ConsumedFields: map[string]interface{}{"data.image": "nginx"}},
+		})
+	reported := first.sourceStatusList()
+	r.Equal(sourcePhaseFailed, reported[0].Phase)
+
+	// Which is written to the Application, as the controller does.
+	app := first.app
+	app.Status.Sources = reported
+
+	// Reconcile two is a new handler over the same Application. The workflow has
+	// failed, so it runs no steps and records nothing.
+	app.Status.Workflow = &common.WorkflowStatus{Finished: true}
+	second := &AppHandler{app: app}
+	out := second.sourceStatusList()
+	r.Len(out, 1)
+	r.Equal(sourcePhaseFailed, out[0].Phase, "the failure survives a reconcile that rendered nothing")
+	r.Len(out[0].Resolutions, 1)
+	r.Contains(out[0].Resolutions[0].Message, "platform-settings", "and so does the cause")
+}
+
+// A reconcile that did render keeps its own answer: a binding no reader took a
+// value from is genuinely unread, which is what Unused is for.
+func TestARenderedReconcileStillReportsUnused(t *testing.T) {
+	r := require.New(t)
+	read := v1beta1.ApplicationSource{Name: "registry", Type: "configmap"}
+	dropped := v1beta1.ApplicationSource{Name: "oldcfg", Type: "configmap"}
+
+	first := handlerFor(nil, read, dropped)
+	first.app.Status.Sources = []common.ApplicationSourceStatus{
+		{Name: "oldcfg", Type: "configmap", Phase: sourcePhaseFailed, Message: "was failing"},
+	}
+	// This reconcile renders and one binding is read; the other is not.
+	first.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{
+			"registry": {Name: "registry", Type: "configmap", Phase: sourcePhaseResolved,
+				ConsumedFields: map[string]interface{}{"data.image": "nginx"}},
+		})
+
+	out := first.sourceStatusList()
+	byName := map[string]common.ApplicationSourceStatus{}
+	for _, e := range out {
+		byName[e.Name] = e
+	}
+	r.Equal(sourcePhaseResolved, byName["registry"].Phase)
+	r.Equal(sourcePhaseUnused, byName["oldcfg"].Phase,
+		"a render happened and nothing read it, so it really is unread")
+
+	// And a run that has not started yet reports nothing read, rather than
+	// answering for a run that has not happened.
+	fresh := handlerFor(nil, read)
+	fresh.app.Status.Sources = []common.ApplicationSourceStatus{
+		{Name: "registry", Type: "configmap", Phase: sourcePhaseFailed, Message: "failed last run"},
+	}
+	fresh.app.Status.Workflow = &common.WorkflowStatus{}
+	r.Equal(sourcePhaseUnused, fresh.sourceStatusList()[0].Phase,
+		"a new run has read nothing yet")
+}
+
+// A render that happened and did not read a binding is evidence the binding is
+// unread, even when another binding was read in the same reconcile.
+//
+// This is what stops a binding that is no longer read reporting its last
+// failure for ever: an unread binding is never positively recorded, so the only
+// sign it has stopped being read is a render that did not read it. Once an
+// expression is removed the component renders without it, and the binding has
+// to fall back to unread rather than keep an answer nothing will refresh.
+func TestARenderedBindingDoesNotPreserveAnotherBindingsLastReport(t *testing.T) {
+	r := require.New(t)
+	read := v1beta1.ApplicationSource{Name: "registry", Type: "configmap"}
+	noLongerRead := v1beta1.ApplicationSource{Name: "oldcfg", Type: "configmap"}
+
+	h := handlerFor(nil, read, noLongerRead)
+	h.app.Status.Workflow = &common.WorkflowStatus{Finished: true}
+	h.app.Status.Sources = []common.ApplicationSourceStatus{
+		{Name: "oldcfg", Type: "configmap", Phase: sourcePhaseFailed, Message: "failed while it was still read"},
+	}
+	// The settled run's health render reads one binding and not the other.
+	h.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{
+			"registry": {Name: "registry", Type: "configmap", Phase: sourcePhaseResolved,
+				ConsumedFields: map[string]interface{}{"data.image": "nginx"}},
+		})
+
+	byName := map[string]common.ApplicationSourceStatus{}
+	for _, e := range h.sourceStatusList() {
+		byName[e.Name] = e
+	}
+	r.Equal(sourcePhaseResolved, byName["registry"].Phase)
+	r.Equal(sourcePhaseUnused, byName["oldcfg"].Phase,
+		"a render read something and not this, so this is unread")
+}
+
+// The controller calls sourceStatusList twice in one reconcile, at
+// application_controller.go:262 and again at :347, and only updates
+// app.Status.Workflow between the two. So the first call sees the previous
+// run's workflow state, and its own output is what the second call reads.
+//
+// A run that settles on this reconcile having rendered nothing is the case
+// that exposes it: the first call does not carry forward, because the state it
+// can see is not settled yet, and the second cannot recover what the first
+// wrote.
+func TestABindingKeepsItsLastReportAcrossBothStatusCalls(t *testing.T) {
+	r := require.New(t)
+	src := v1beta1.ApplicationSource{Name: "registry", Type: "configmap"}
+
+	first := handlerFor(nil, src)
+	first.recordSourceResolution(sourceKindComponent, "web", "webservice", "local", "default",
+		map[string]sources.SourceResolutionStatus{
+			"registry": {Name: "registry", Type: "configmap", Phase: sourcePhaseFailed,
+				Message:        "read configmap platform-settings: not found",
+				ConsumedFields: map[string]interface{}{"data.image": "nginx"}},
+		})
+	app := first.app
+	app.Status.Sources = first.sourceStatusList()
+	r.Equal(sourcePhaseFailed, app.Status.Sources[0].Phase)
+
+	// The run that reported that was still going when this reconcile began.
+	app.Status.Workflow = &common.WorkflowStatus{}
+	second := &AppHandler{app: app}
+
+	// :262, before the workflow status is replaced.
+	app.Status.Sources = second.sourceStatusList()
+
+	// :279, the run settles.
+	app.Status.Workflow = &common.WorkflowStatus{Finished: true}
+
+	// :347, the second report of the same reconcile.
+	out := second.sourceStatusList()
+	r.Len(out, 1)
+	r.Equal(sourcePhaseFailed, out[0].Phase,
+		"the failure survives a reconcile that rendered nothing, whichever call reports it")
+	r.Len(out[0].Resolutions, 1)
+	r.Contains(out[0].Resolutions[0].Message, "platform-settings")
+}
+
+// A settled run that rendered nothing keeps the last report, and a step whose
+// reads were kept must not replace it. The kept entry holds that step's
+// consumers alone, so preferring it drops the component reader and the failure
+// the last report carried.
+func TestAKeptStepDoesNotDiscardTheLastReport(t *testing.T) {
+	r := require.New(t)
+	h := handlerFor(nil, v1beta1.ApplicationSource{Name: "registry", Type: "configmap"})
+	h.app.Status.Sources = []common.ApplicationSourceStatus{{
+		Name: "registry", Type: "configmap", Phase: sourcePhaseFailed,
+		Message:     "read configmap platform-settings: not found",
+		Resolutions: []common.SourceResolution{{StorageKey: "configmap-local-default-abc"}},
+		ConsumedBy: []common.SourceConsumer{
+			{DefinitionKind: sourceKindWorkflowStep, Name: "notify", Type: "notification"},
+			{DefinitionKind: sourceKindComponent, Name: "web", Type: "webservice", Cluster: "local"},
+		},
+	}}
+	h.app.Status.Workflow = &common.WorkflowStatus{
+		Finished: true,
+		Steps: []workflowv1alpha1.WorkflowStepStatus{
+			{StepStatus: workflowv1alpha1.StepStatus{Name: "notify"}},
+		},
+	}
+	h.keepStepSourceReads()
+
+	out := h.sourceStatusList()
+	r.Len(out, 1)
+	r.Equal(sourcePhaseFailed, out[0].Phase, "the failure the last report carried survives")
+	r.Contains(out[0].Message, "platform-settings")
+	kinds := map[string]bool{}
+	for _, c := range out[0].ConsumedBy {
+		kinds[c.DefinitionKind+"/"+c.Name] = true
+	}
+	r.True(kinds[sourceKindWorkflowStep+"/notify"], "the kept step is reported")
+	r.True(kinds[sourceKindComponent+"/web"], "and so is the component reader from the last report")
 }

@@ -262,7 +262,7 @@ func (p *Parser) ValidateComponentParams(ctxData velaprocess.ContextData, wl *Co
 		}
 	}
 	if err := enforceRequiredParams(required, resolvedParams, app); err != nil {
-		return errors.WithMessagef(err, "component %q", wl.Name)
+		return errors.WithMessagef(explainMissingParams(ctx, wl, err), "component %q", wl.Name)
 	}
 
 	// ---------------------------------------------------------------------
@@ -473,10 +473,46 @@ func enforceRequiredParams(root cue.Value, params map[string]any, app *Appfile) 
 		}
 
 		if len(missingParams) > 0 {
-			return fmt.Errorf("missing parameters: %v", strings.Join(missingParams, ","))
+			return &missingParamsError{names: missingParams}
 		}
 	}
 	return nil
+}
+
+// missingParamsError names the required parameters an Application did not
+// provide, so a caller able to explain one of them still has the names to work
+// from.
+type missingParamsError struct{ names []string }
+
+func (e *missingParamsError) Error() string {
+	return fmt.Sprintf("missing parameters: %v", strings.Join(e.names, ","))
+}
+
+// explainMissingParams appends, to a missing-parameter error, why each name a
+// source was to supply is absent.
+//
+// Without it the message reads as false: the parameter is set in the
+// properties, to a source read, and what the author has to change is the
+// source's schema or the parameter, neither of which the bare list points at.
+func explainMissingParams(ctx process.Context, wl *Component, err error) error {
+	var missing *missingParamsError
+	if !errors.As(err, &missing) {
+		return err
+	}
+	var clauses []string
+	for _, name := range missing.names {
+		binding, field, ok := sources.OptionalSourceField(ctx, wl.Params, name)
+		if !ok {
+			continue
+		}
+		clauses = append(clauses, fmt.Sprintf(
+			"source %q declares %s optional, so it may be unset: make it required in the SourceDefinition schema or optional in the parameter",
+			binding, field))
+	}
+	if len(clauses) == 0 {
+		return err
+	}
+	return fmt.Errorf("%s; %s", err.Error(), strings.Join(clauses, "; "))
 }
 
 type overrideSpec struct {

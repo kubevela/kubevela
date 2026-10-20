@@ -2187,3 +2187,68 @@ output: {replicas: _cm.$returns.data.replicas}
 	assert.NoError(t, (&Parser{}).ValidateCUESchematicAppfile(appfile),
 		"a trait following a source-fed patch must still render")
 }
+
+// A required parameter fed by a source field the schema marks optional reads as
+// a parameter the Application forgot, which it did not: the expression is right
+// there in the properties. The message has to name the field the source only
+// optionally provides, and both ways out.
+func TestAMissingParamFromAnOptionalSourceFieldSaysWhy(t *testing.T) {
+	assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+		string(features.EnableCueValidation)+"=true,"+
+			string(features.EnableCelExpressions)+"=true"))
+	t.Cleanup(func() {
+		assert.NoError(t, utilfeature.DefaultMutableFeatureGate.Set(
+			string(features.EnableCueValidation)+"=false,"+
+				string(features.EnableCelExpressions)+"=false"))
+	})
+
+	const template = `
+$internal: {key: "demo", keyInputs: []}
+schema: {meta: {region?: string, zone: string}}
+parameter: {name: string}
+output: {meta: {region: "eu-west-1", zone: "a"}}
+`
+	af := &Appfile{
+		Name: "myapp", Namespace: "test-ns",
+		AppAnnotations: map[string]string{oam.AnnotationCelExpressions: "true"},
+		Sources: []v1beta1.ApplicationSource{
+			{Name: "cfg", Type: "demo", Properties: &runtime.RawExtension{Raw: []byte(`{"name":"c"}`)}},
+		},
+		RelatedSourceDefinitions: map[string]*v1beta1.SourceDefinition{
+			"demo": {Spec: v1beta1.SourceDefinitionSpec{
+				Schematic: &common.Schematic{CUE: &common.CUE{Template: template}},
+			}},
+		},
+	}
+	wl := &Component{
+		Name: "my-comp", Type: "worker",
+		FullTemplate: &Template{TemplateStr: `
+			parameter: { meta: {region: string, zone: string} }
+			output: { apiVersion: "v1", kind: "ConfigMap" }
+		`},
+		Params: map[string]any{"meta": "$(source.cfg.meta)"},
+	}
+
+	err := (&Parser{}).ValidateComponentParams(typeOnlyContextData(af, wl.Name), wl, af)
+	assert.Error(t, err)
+	msg := err.Error()
+	assert.Contains(t, msg, `meta.region`, "names the field")
+	assert.Contains(t, msg, `source "cfg"`, "names the binding it comes from")
+	assert.Contains(t, msg, "optional", "says why it is absent")
+	assert.Contains(t, msg, "SourceDefinition", "offers the schema fix")
+	assert.Contains(t, msg, "optional in the parameter", "and the parameter fix")
+
+	// A parameter genuinely left out still reads as it did.
+	plain := &Component{
+		Name: "plain-comp", Type: "worker",
+		FullTemplate: &Template{TemplateStr: `
+			parameter: { image: string }
+			output: { apiVersion: "v1", kind: "ConfigMap" }
+		`},
+		Params: map[string]any{},
+	}
+	err = (&Parser{}).ValidateComponentParams(typeOnlyContextData(af, plain.Name), plain, af)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "missing parameters: image")
+	assert.NotContains(t, err.Error(), "optional", "nothing to explain, so nothing is explained")
+}

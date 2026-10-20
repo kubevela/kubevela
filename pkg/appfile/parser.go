@@ -110,6 +110,14 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 
 // GenerateAppFileFromApp converts an application to an Appfile
 func (p *Parser) GenerateAppFileFromApp(ctx context.Context, app *v1beta1.Application) (*Appfile, error) {
+	// Read from the spec alone, so it is judged before any definition is looked
+	// up, and whatever the Application thinks of expressions: dependsOn and an
+	// input naming another component's output are not expressions. Admission
+	// reports this with a field path; this is the backstop for a cluster running
+	// with the webhook disabled.
+	if err := ValidateDependencyCycles(app.Spec); err != nil {
+		return nil, err
+	}
 
 	for idx := range app.Spec.Policies {
 		if app.Spec.Policies[idx].Name == "" {
@@ -230,6 +238,13 @@ func inheritLabelAndAnnotationFromAppRev(appRev *v1beta1.ApplicationRevision) {
 
 // GenerateAppFileFromRevision converts an application revision to an Appfile
 func (p *Parser) GenerateAppFileFromRevision(appRev *v1beta1.ApplicationRevision) (*Appfile, error) {
+	// The revision's spec is what this path parses, so it is judged here as
+	// GenerateAppFileFromApp judges a live one: a pinned Application takes this
+	// path on every reconcile and would otherwise reach the workflow and wait
+	// for ever.
+	if err := ValidateDependencyCycles(appRev.Spec.Application.Spec); err != nil {
+		return nil, err
+	}
 
 	inheritLabelAndAnnotationFromAppRev(appRev)
 
