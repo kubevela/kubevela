@@ -334,9 +334,13 @@ spec:
             - "--cluster-gateway-service={{ .Release.Namespace }}/{{ .Release.Name }}-cluster-gateway-service"
             {{ end }}
             {{ if .Values.multicluster.clusterGateway.direct }}
-            - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:9443"
+            - "--cluster-gateway-url={{ .Release.Name }}-cluster-gateway-service:{{ .Values.multicluster.clusterGateway.port }}"
             {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+            {{ if .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
+            - "--cluster-gateway-ca-file=/cluster-gateway-tls-cert/ca.crt"
+            {{ else }}
             - "--cluster-gateway-ca-file=/cluster-gateway-tls-cert/ca"
+            {{ end }}
             {{ end }}
             {{ end }}
             {{ end }}
@@ -387,6 +391,12 @@ spec:
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:
           {{- toYaml .Values.resources | nindent 12 }}
+          {{- $needAdmissionTLS := .Values.admissionWebhooks.enabled }}
+          {{- $needClusterGatewayTLS := and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+          {{- /* With runtime certs, vela-core creates the Secret itself and cannot
+                 mount it. It writes the files into an emptyDir at startup. */}}
+          {{- $webhookRuntime := include "kubevela.webhookRuntimeCerts" . }}
+          {{- $gatewayRuntime := include "kubevela.clusterGatewayRuntimeCerts" . }}
           {{ if .Values.admissionWebhooks.enabled }}
           ports:
             - containerPort: {{ .Values.webhookService.port }}
@@ -413,35 +423,39 @@ spec:
             timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
             failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
             successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          {{ end }}
+          {{ if or $needAdmissionTLS $needClusterGatewayTLS }}
           volumeMounts:
+            {{ if $needAdmissionTLS }}
             - mountPath: {{ .Values.admissionWebhooks.certificate.mountPath }}
               name: tls-cert-vol
-              {{- if not (include "kubevela.webhookRuntimeCerts" .) }}
+              {{- if not $webhookRuntime }}
               readOnly: true
               {{- end }}
-          {{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+            {{ end }}
+            {{ if $needClusterGatewayTLS }}
             - mountPath: /cluster-gateway-tls-cert
               name: tls-cert-vol-cg
-              {{- if not (include "kubevela.clusterGatewayRuntimeCerts" .) }}
+              {{- if not $gatewayRuntime }}
               readOnly: true
               {{- end }}
+            {{ end }}
           {{ end }}
-          {{ end }}
-      {{ if .Values.admissionWebhooks.enabled }}
+      {{ if or $needAdmissionTLS $needClusterGatewayTLS }}
       volumes:
+        {{ if $needAdmissionTLS }}
         - name: tls-cert-vol
-          {{- /* With runtime certs, vela-core creates the Secret itself and cannot
-                 mount it. It writes the files into an emptyDir at startup. */}}
-          {{- if include "kubevela.webhookRuntimeCerts" . }}
+          {{- if $webhookRuntime }}
           emptyDir: {}
           {{- else }}
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-admission
           {{- end }}
-      {{ if and .Values.multicluster.enabled .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.direct }}
+        {{ end }}
+        {{ if $needClusterGatewayTLS }}
         - name: tls-cert-vol-cg
-          {{- if include "kubevela.clusterGatewayRuntimeCerts" . }}
+          {{- if $gatewayRuntime }}
           emptyDir: {}
           {{- else }}
           secret:

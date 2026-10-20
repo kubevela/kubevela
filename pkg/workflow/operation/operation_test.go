@@ -144,6 +144,30 @@ var _ = Describe("Kruise rollout test", func() {
 		Expect(checkApp.Status.Workflow.Steps).Should(BeNil())
 	})
 
+	It("Restart workflow from step with a context ConfigMap", func() {
+		ctxCM := &v1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "opt-app-context"}}
+		Expect(k8sClient.Create(ctx, ctxCM)).Should(SatisfyAny(BeNil(), util.AlreadyExistMatcher{}))
+		checkApp := v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
+		checkApp.Status.Workflow = &common.WorkflowStatus{
+			ContextBackend: &v1.ObjectReference{Namespace: "default", Name: "opt-app-context"},
+			Steps: []workflowv1alpha1.WorkflowStepStatus{
+				{
+					StepStatus: workflowv1alpha1.StepStatus{
+						Name:  "step1",
+						Phase: workflowv1alpha1.WorkflowStepPhaseFailed,
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Status().Update(ctx, &checkApp)).Should(BeNil())
+		operator := NewApplicationWorkflowStepOperator(k8sClient, nil, checkApp.DeepCopy())
+		Expect(operator.Restart(ctx, "step1")).Should(BeNil())
+		checkApp = v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: "default", Name: "opt-app"}, &checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Workflow.Steps).Should(BeNil())
+	})
+
 	It("Rollback workflow", func() {
 		Expect(k8sClient.Create(ctx, &appRev)).Should(BeNil())
 		checkAppRev := v1beta1.ApplicationRevision{}
