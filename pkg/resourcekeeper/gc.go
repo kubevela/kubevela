@@ -391,7 +391,7 @@ func (h *gcHandler) deleteManagedResource(ctx context.Context, mr v1beta1.Manage
 	if !entry.exists {
 		return nil
 	}
-	// a copy, so a retry's refresh does not change what the cache holds
+	// a copy: a retry refreshes it
 	return DeleteManagedResource(ctx, h.Client, mr, entry.obj.DeepCopy(), h.owner, h.policies.GarbageCollect)
 }
 
@@ -406,9 +406,7 @@ func DeleteManagedResource(ctx context.Context, cli client.Client, mr v1beta1.Ma
 	refresh := false
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if refresh {
-			// read as the keeper: the requester may not be allowed to get it. The writes that
-			// follow keep the requester's identity, as on the first attempt, so a refresh never
-			// lets it change what it could not change before.
+			// read as the keeper: the requester may not be allowed to get it
 			latest := &unstructured.Unstructured{}
 			latest.SetGroupVersionKind(obj.GroupVersionKind())
 			if err := cli.Get(asSelf(_ctx), client.ObjectKeyFromObject(obj), latest); err != nil {
