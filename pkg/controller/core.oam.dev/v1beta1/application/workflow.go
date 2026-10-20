@@ -96,17 +96,41 @@ func (r *Reconciler) handleWorkflowRestartAnnotation(ctx context.Context, app *v
 	}
 }
 
-// scheduledRestartDue reports whether the scheduled restart has come: its time
-// has passed, the workflow has finished, and it is later than the last run.
-func scheduledRestartDue(app *v1beta1.Application) bool {
+// scheduledRestart is what the scheduled restart, if any, should do now.
+type scheduledRestart int
+
+const (
+	// restartNotYet: nothing scheduled, its time has not come, or the run it
+	// waits for has not finished.
+	restartNotYet scheduledRestart = iota
+	// restartDue: the time has passed and the finished run started before it,
+	// so the run never saw this request.
+	restartDue
+	// restartSuperseded: the finished run started after the requested time, so
+	// it already answered the request.
+	restartSuperseded
+)
+
+// scheduledRestartState reads the scheduled restart against the last run. A
+// request made while a run is executing or waiting is answered once that run
+// finishes. The run is placed by its start; one with no recorded start is
+// placed by its end.
+func scheduledRestartState(app *v1beta1.Application) scheduledRestart {
 	if app.Status.WorkflowRestartScheduledAt == nil || app.Status.Workflow == nil || !app.Status.Workflow.Finished {
-		return false
+		return restartNotYet
 	}
 	restartTime := app.Status.WorkflowRestartScheduledAt.Time
 	if time.Now().Before(restartTime) {
-		return false
+		return restartNotYet
 	}
-	return app.Status.Workflow.EndTime.IsZero() || restartTime.After(app.Status.Workflow.EndTime.Time)
+	run := app.Status.Workflow.StartTime.Time
+	if run.IsZero() {
+		run = app.Status.Workflow.EndTime.Time
+	}
+	if run.IsZero() || restartTime.After(run) {
+		return restartDue
+	}
+	return restartSuperseded
 }
 
 // checkWorkflowRestart checks if application workflow needs restart.
@@ -117,9 +141,16 @@ func scheduledRestartDue(app *v1beta1.Application) bool {
 func (r *Reconciler) checkWorkflowRestart(ctx monitorContext.Context, app *v1beta1.Application, handler *AppHandler) {
 	// A scheduled restart that is not due leaves the revision check below to
 	// run, so a new application still starts and a new revision still restarts.
-	if scheduledRestartDue(app) {
-		// Time arrived, workflow finished, and restart time > last execution.
-		// Clear the status field and proceed with restart
+	switch scheduledRestartState(app) {
+	case restartNotYet:
+	case restartSuperseded:
+		// The last run already answered it; clearing it keeps a stale request
+		// from showing as pending.
+		app.Status.WorkflowRestartScheduledAt = nil
+		if err := r.Status().Update(ctx, app); err != nil {
+			ctx.Error(err, "failed to clear a superseded workflow restart")
+		}
+	case restartDue:
 		app.Status.WorkflowRestartScheduledAt = nil
 		if err := r.Status().Update(ctx, app); err != nil {
 			ctx.Error(err, "failed to clear workflow restart scheduled time")

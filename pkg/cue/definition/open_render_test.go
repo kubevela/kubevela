@@ -169,3 +169,129 @@ parameter: {
 		})
 	}
 }
+
+// A trait whose patch strategy hands its patch to a JSON patch library still
+// renders when a parameter is unknowable: the library takes concrete JSON only,
+// so the open render leaves out what it cannot know, and keeps checking the rest.
+func TestOpenRenderOfAJSONPatchingTrait(t *testing.T) {
+	const mergePatch = `
+// +patchStrategy=jsonMergePatch
+patch: {
+	metadata: labels: {
+		team:  parameter.team
+		owner: "x-\(parameter.team)"
+	}
+}
+parameter: team: string
+`
+	const labels = `
+// +patchStrategy=jsonMergePatch
+patch: {
+	metadata: labels: {
+		for k, v in parameter {
+			(k): v
+		}
+	}
+}
+parameter: [string]: string | null
+`
+	const jsonPatch = `
+parameter: operations: [...{...}]
+// +patchStrategy=jsonPatch
+patch: parameter
+`
+	op := func(op, path string, value interface{}) map[string]interface{} {
+		return map[string]interface{}{"op": op, "path": path, "value": value}
+	}
+	render := func(t *testing.T, open func(context.Context) context.Context, trait string, params map[string]interface{}) (wfprocess.Context, error) {
+		ctx := openCtx(open)
+		require.NoError(t, NewWorkloadAbstractEngine("webservice").Complete(ctx, openWorkload,
+			map[string]interface{}{"image": "acme/billing:1.4.2"}))
+		return ctx, NewTraitAbstractEngine("patcher").Complete(ctx, trait, params)
+	}
+	for name, open := range openRenders {
+		t.Run(name, func(t *testing.T) {
+			t.Run("merge patch with an unknowable value", func(t *testing.T) {
+				ctx, err := render(t, open, mergePatch, map[string]interface{}{"team": unknown()})
+				require.NoError(t, err)
+				base, _ := ctx.Output()
+				w := marshalled(t, base)
+				require.NotContains(t, w.GetLabels(), "team")
+				require.Equal(t, "acme/billing:1.4.2", w.GetAnnotations()["image"], "the workload's own fields are kept")
+			})
+			t.Run("the labels trait with an unknowable value", func(t *testing.T) {
+				ctx, err := render(t, open, labels, map[string]interface{}{"team": unknown()})
+				require.NoError(t, err)
+				base, _ := ctx.Output()
+				require.NotContains(t, marshalled(t, base).GetLabels(), "team")
+			})
+			t.Run("json patch add with an unknowable value", func(t *testing.T) {
+				_, err := render(t, open, jsonPatch, map[string]interface{}{"operations": []interface{}{
+					op("add", "/metadata/labels", map[string]interface{}{}),
+					op("add", "/metadata/labels/team", unknown()),
+				}})
+				require.NoError(t, err)
+			})
+			t.Run("json patch add to a path the workload lacks is still refused", func(t *testing.T) {
+				_, err := render(t, open, jsonPatch, map[string]interface{}{"operations": []interface{}{
+					op("add", "/spec/nosuch/team", unknown()),
+				}})
+				require.Error(t, err)
+			})
+			t.Run("json patch test with an unknowable value is left out", func(t *testing.T) {
+				_, err := render(t, open, jsonPatch, map[string]interface{}{"operations": []interface{}{
+					op("test", "/kind", unknown()),
+				}})
+				require.NoError(t, err)
+			})
+			t.Run("json patch test of a struct with an unknowable leaf is left out", func(t *testing.T) {
+				_, err := render(t, open, jsonPatch, map[string]interface{}{"operations": []interface{}{
+					op("test", "/metadata", map[string]interface{}{"name": "billing-api", "annotations": map[string]interface{}{"image": unknown()}}),
+				}})
+				require.NoError(t, err)
+			})
+			t.Run("json patch add keeps what of its value is known", func(t *testing.T) {
+				_, err := render(t, open, jsonPatch, map[string]interface{}{"operations": []interface{}{
+					op("add", "/metadata/labels", map[string]interface{}{"team": unknown(), "owner": "y"}),
+					op("test", "/metadata/labels/owner", "y"),
+				}})
+				require.NoError(t, err)
+			})
+			t.Run("json patch add of a list with nothing known is an empty list", func(t *testing.T) {
+				_, err := render(t, open, jsonPatch, map[string]interface{}{"operations": []interface{}{
+					op("add", "/spec/args", []interface{}{unknown(), "b"}),
+					op("add", "/spec/args/-", "c"),
+				}})
+				require.NoError(t, err)
+			})
+			t.Run("json patch test with a literal is still applied", func(t *testing.T) {
+				_, err := render(t, open, jsonPatch, map[string]interface{}{"operations": []interface{}{
+					op("test", "/kind", "Service"),
+				}})
+				require.Error(t, err)
+			})
+		})
+	}
+}
+
+// Outside an open render nothing is pruned: a concrete value is patched in.
+func TestRenderOfAJSONPatchingTraitIsUnchanged(t *testing.T) {
+	const labels = `
+// +patchStrategy=jsonMergePatch
+patch: {
+	metadata: labels: {
+		for k, v in parameter {
+			(k): v
+		}
+	}
+}
+parameter: [string]: string | null
+`
+	ctx := openCtx(func(c context.Context) context.Context { return c })
+	require.NoError(t, NewWorkloadAbstractEngine("webservice").Complete(ctx, openWorkload,
+		map[string]interface{}{"image": "acme/billing:1.4.2"}))
+	require.NoError(t, NewTraitAbstractEngine("labels").Complete(ctx, labels,
+		map[string]interface{}{"team": "x-acme-billing"}))
+	base, _ := ctx.Output()
+	require.Equal(t, "x-acme-billing", marshalled(t, base).GetLabels()["team"])
+}

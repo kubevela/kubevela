@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -448,4 +449,46 @@ func TestApplyComponentsReportsAReadWait(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, healthy)
 	require.Equal(t, `east///api is waiting for component "db" in hub to be healthy`, reason)
+}
+
+func TestOutputViewHyphenatedOutputName(t *testing.T) {
+	build := func(s string) cue.Value { return cuecontext.New().CompileString(s) }
+	workload := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "v1", "kind": "ConfigMap",
+		"metadata": map[string]interface{}{"name": "app-settings"},
+		"data":     map[string]interface{}{"color": "blue"},
+	}}
+	extra := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "v1", "kind": "ConfigMap",
+		"metadata": map[string]interface{}{"name": "app-extra", "labels": map[string]interface{}{oam.TraitResource: "objects-1"}},
+		"data":     map[string]interface{}{"size": "large"},
+	}}
+
+	svc := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "v1", "kind": "Service",
+		"metadata": map[string]interface{}{"name": "web", "labels": map[string]interface{}{oam.TraitResource: "my-svc"}},
+		"spec":     map[string]interface{}{"clusterIP": "10.0.0.1"},
+	}}
+
+	view, err := OutputView(workload, []*unstructured.Unstructured{extra, svc}, build)
+	require.NoError(t, err)
+	require.NoError(t, view.Err())
+
+	color, err := LookupOutput(view, "output.data.color")
+	require.NoError(t, err)
+	s, err := color.String()
+	require.NoError(t, err)
+	require.Equal(t, "blue", s)
+
+	size, err := LookupOutput(view, `outputs["objects-1"].data.size`)
+	require.NoError(t, err)
+	s, err = size.String()
+	require.NoError(t, err)
+	require.Equal(t, "large", s)
+
+	ip, err := LookupOutput(view, `outputs["my-svc"].spec.clusterIP`)
+	require.NoError(t, err)
+	s, err = ip.String()
+	require.NoError(t, err)
+	require.Equal(t, "10.0.0.1", s)
 }
