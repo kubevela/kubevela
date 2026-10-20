@@ -54,8 +54,12 @@ func TestConciseSchematicError(t *testing.T) {
 		Err:   providerErr,
 	})
 
-	assert.Equal(t, providerErr.Error(), conciseSchematicError(err))
-	assert.NotContains(t, conciseSchematicError(err), "large CUE provider value")
+	// The message names the call's path and the provider's own error, and
+	// carries none of the call's parameters, so credentials stay out of the
+	// admission response.
+	got := conciseSchematicError(err)
+	assert.Equal(t, `failed to compile workload: function call error for _render: addon "fluxcd" version "abc" not found in registries [KubeVela]`, got)
+	assert.NotContains(t, got, "large CUE provider value")
 
 	ordinary := errors.New("ordinary schematic failure")
 	assert.Equal(t, ordinary.Error(), conciseSchematicError(ordinary))

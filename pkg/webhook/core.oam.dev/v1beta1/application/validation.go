@@ -18,14 +18,12 @@ package application
 
 import (
 	"context"
-	stderrors "errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"time"
 
 	"github.com/kubevela/pkg/controller/sharding"
-	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/pkg/util/singleton"
 	authv1 "k8s.io/api/authorization/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -163,11 +161,11 @@ func (h *ValidatingHandler) ValidateComponents(ctx context.Context, app *v1beta1
 	return componentErrs
 }
 
+// conciseSchematicError renders a schematic validation error for admission. A
+// failed provider call names its path and the provider's own error, without the
+// call's parameters, so credentials passed to the provider stay out of the
+// response.
 func conciseSchematicError(err error) string {
-	var callErr cuex.FunctionCallError
-	if stderrors.As(err, &callErr) && callErr.Err != nil {
-		return callErr.Err.Error()
-	}
 	return err.Error()
 }
 
