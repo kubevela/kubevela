@@ -42,7 +42,7 @@ _read: {
 	parameter: required: false
 	mocks: "vela/registry": "#ReadFile": $returns: {found: false, content: ""}
 	expect: output: {found: false, content: null}
-} @pending(the CEL engine in kubevela/pkg converts a null to its protobuf NullValue, so it reads as 0 through source expressions)
+}
 
 "a missing optional file is not found": test.#SourceExec & _read & {
 	parameter: required: false
