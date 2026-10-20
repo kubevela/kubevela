@@ -80,12 +80,12 @@ func (h *ValidatingHandler) ValidateWorkflow(_ context.Context, app *v1beta1.App
 		stepsPath := field.NewPath("spec", "workflow", "steps")
 		enabled := sources.ExpressionsEnabledFor(app.GetAnnotations())
 		errs = append(errs, wfbuiltin.ValidateForEachSteps(stepsPath, app.Spec.Workflow.Steps, enabled)...)
-		errs = append(errs, misplacedConditions(stepsPath, app.Spec.Workflow.Steps)...)
+		errs = append(errs, wfexpressions.MisplacedConditions(stepsPath, app.Spec.Workflow.Steps)...)
 		if enabled {
 			errs = append(errs, wfexpressions.Validate(stepsPath, app.Spec.Workflow.Steps, app.Spec.Workflow.Mode,
 				celexpr.Roots...)...)
 		} else {
-			errs = append(errs, conditionsWithoutExpressions(stepsPath, app.Spec.Workflow.Steps)...)
+			errs = append(errs, wfexpressions.ConditionsWithoutExpressions(stepsPath, app.Spec.Workflow.Steps, conditionsDisabledMessage())...)
 		}
 	}
 	return errs
