@@ -17,11 +17,15 @@ limitations under the License.
 package defkit
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+
+	"github.com/oam-dev/kubevela/pkg/definition/inherit"
 )
 
 // EvaluatedOutputs contains the concrete resources produced by evaluating a
@@ -83,15 +87,22 @@ func (c *ComponentDefinition) EvaluateCUE(ctx *TestContextBuilder) (*EvaluatedOu
 	}
 
 	runtime := ctx.Build()
-	value := compileWithContextShim(c.ToCue())
-
-	value = value.FillPath(cue.ParsePath("context"), cueContextFixture(runtime))
-	value = value.FillPath(cue.ParsePath("template.parameter"), runtime.params)
-	if err := value.Err(); err != nil {
-		return nil, fmt.Errorf("defkit: evaluate component %q with the supplied fixtures: %w", c.DefName(), err)
+	var template cue.Value
+	if c.GetExtends() != "" {
+		rendered, err := renderComponentChain(c, runtime)
+		if err != nil {
+			return nil, fmt.Errorf("defkit: evaluate component %q: %w", c.DefName(), err)
+		}
+		template = rendered
+	} else {
+		value := compileWithContextShim(c.ToCue())
+		value = value.FillPath(cue.ParsePath("context"), cueContextFixture(runtime))
+		value = value.FillPath(cue.ParsePath("template.parameter"), runtime.params)
+		if err := value.Err(); err != nil {
+			return nil, fmt.Errorf("defkit: evaluate component %q with the supplied fixtures: %w", c.DefName(), err)
+		}
+		template = value.LookupPath(cue.ParsePath("template"))
 	}
-
-	template := value.LookupPath(cue.ParsePath("template"))
 
 	outputs := &EvaluatedOutputs{Auxiliary: make(map[string]map[string]any)}
 	if primary := template.LookupPath(cue.ParsePath("output")); primary.Exists() {
@@ -160,4 +171,32 @@ func decodeConcreteResource(value cue.Value) (map[string]any, error) {
 		return nil, err
 	}
 	return resource, nil
+}
+
+// renderComponentChain renders a component on top of its ancestors with the
+// controller's own inheritance engine.
+func renderComponentChain(c *ComponentDefinition, runtime *TestRuntimeContext) (cue.Value, error) {
+	chain, err := componentChain(c)
+	if err != nil {
+		return cue.Value{}, err
+	}
+	params := runtime.params
+	if params == nil {
+		params = map[string]any{}
+	}
+	paramJSON, err := json.Marshal(params)
+	if err != nil {
+		return cue.Value{}, fmt.Errorf("encoding the parameter fixture: %w", err)
+	}
+	contextJSON, err := json.Marshal(cueContextFixture(runtime))
+	if err != nil {
+		return cue.Value{}, fmt.Errorf("encoding the context fixture: %w", err)
+	}
+	res, err := inherit.Render(context.Background(), chain,
+		inherit.ParameterField+": "+string(paramJSON), "context: "+string(contextJSON),
+		inherit.ComponentSurface, inherit.SameCompiler(compileLevel))
+	if err != nil {
+		return cue.Value{}, err
+	}
+	return res.Value, nil
 }
