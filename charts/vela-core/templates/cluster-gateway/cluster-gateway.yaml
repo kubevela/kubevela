@@ -36,9 +36,12 @@ spec:
             - "apiserver"
             - "--secure-port={{ .Values.multicluster.clusterGateway.port }}"
             - "--secret-namespace={{ .Release.Namespace }}"
-            - "--feature-gates=APIPriorityAndFairness=false,ClientIdentityPenetration={{ .Values.authentication.enabled }}"
+            - "--feature-gates=ClientIdentityPenetration={{ .Values.authentication.enabled }}"
             - "--cluster-gateway-proxy-config=/etc/proxy-config/config.yaml"
-            {{- if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+            {{- if include "kubevela.clusterGatewayRuntimeCerts" . }}
+            - "--cluster-gateway-tls-secret={{ .Release.Namespace }}/{{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2"
+            - "--cluster-gateway-service={{ .Release.Namespace }}/{{ .Release.Name }}-cluster-gateway-service"
+            {{- else if .Values.multicluster.clusterGateway.secureTLS.enabled }}
             - "--tls-cert-file={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}/tls.crt"
             - "--tls-private-key-file={{ .Values.multicluster.clusterGateway.secureTLS.certPath }}/tls.key"
             {{- end }}
@@ -52,7 +55,7 @@ spec:
           volumeMounts:
             - mountPath: /etc/proxy-config
               name: proxy-config
-          {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+          {{ if and .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
             - mountPath: {{ .Values.multicluster.clusterGateway.secureTLS.certPath }}
               name: tls-cert-vol
               readOnly: true
@@ -62,13 +65,13 @@ spec:
             defaultMode: 420
             name: {{ .Release.Name }}-cluster-gateway-proxy-config
           name: proxy-config
-      {{ if .Values.multicluster.clusterGateway.secureTLS.enabled }}
+      {{ if and .Values.multicluster.clusterGateway.secureTLS.enabled .Values.multicluster.clusterGateway.secureTLS.certManager.enabled }}
         - name: tls-cert-vol
           secret:
             defaultMode: 420
             secretName: {{ template "kubevela.fullname" . }}-cluster-gateway-tls-v2
             # Mount only the serving cert. The Secret also holds the CA key that
-            # vela-core uses to sign certs, and cluster-gateway does not need it.
+            # is used to sign certs, and cluster-gateway does not need it.
             items:
               - key: tls.crt
                 path: tls.crt
@@ -176,7 +179,7 @@ spec:
   {{- /* cert-manager's cainjector fills in the caBundle on its own. */}}
   caBundle: Cg==
   {{- end }}
-  {{- /* If not, vela-core writes the caBundle at startup
+  {{- /* If not, cluster-gateway writes the caBundle at startup
          (--cluster-gateway-tls-secret). Do not render a placeholder. Since
          Kubernetes 1.36, the aggregator uses the caBundle to verify TLS
          (kubernetes/kubernetes#137157). With a placeholder, the APIService stays
