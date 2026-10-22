@@ -255,8 +255,8 @@ parameter: image: string
 		By("Crossing it is admitted, with a warning saying where the namespace stands")
 		Expect(warnClient.Create(ctx, appWith(tenantNS, "loud-app", "advisory-web", 3))).Should(Succeed())
 		Expect(warnings.take()).Should(ContainElement(SatisfyAll(
-			ContainSubstring(`ComponentDefinition "advisory-web"`),
-			ContainSubstring("using 4"),
+			ContainSubstring(`component type "advisory-web"`),
+			ContainSubstring("is over its warn level: used 4, warn 2, no limit"),
 		)))
 	})
 
