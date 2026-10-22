@@ -267,9 +267,7 @@ func (c *restrictionCheck) checkQuota(def client.Object, kind, name string, path
 		klog.Infof("Namespace %q is over the quota on %s %q at %d of %d, and this change to Application %q does not add to it",
 			c.app.Namespace, nsrestrict.KindOf(def), name, total, *quota.Limit, c.app.Name)
 		if quota.Warn != nil {
-			c.warnings = append(c.warnings, fmt.Sprintf(
-				"%s %q in namespace %q is using %d of %d, and this change does not add to it.",
-				nsrestrict.KindOf(def), name, c.app.Namespace, total, *quota.Limit))
+			c.warnings = append(c.warnings, quotaDrainWarning(kind, name, c.app.Namespace, total, *quota.Limit))
 		}
 		return
 	}
@@ -284,8 +282,7 @@ func (c *restrictionCheck) checkQuota(def client.Object, kind, name string, path
 		c.forbid(paths, fmt.Sprintf("this would exceed the quota for %s type %q in namespace %q",
 			kind, name, c.app.Namespace))
 	case warn:
-		c.warnings = append(c.warnings,
-			quotaWarning(nsrestrict.KindOf(def), name, c.app.Namespace, total, quota))
+		c.warnings = append(c.warnings, quotaWarning(kind, name, c.app.Namespace, total, quota))
 	}
 }
 
@@ -341,14 +338,30 @@ func (c *restrictionCheck) unevaluable(paths []*field.Path, err error) {
 	}
 }
 
-// quotaWarning phrases how close a namespace is to a quota: its use against the
-// limit, or against the warn level when the quota sets no limit.
+// quotaWarning says where a namespace stands against a quota, naming the type as
+// the refusal does and labelling each number, as the ResourceQuota admission error
+// does. kind is "component" or "trait".
 func quotaWarning(kind, name, namespace string, total int, quota *common.NamespaceQuota) string {
-	of := quota.Warn
+	subject := fmt.Sprintf("%s type %q in namespace %q", kind, name, namespace)
 	if quota.Limit != nil {
-		of = quota.Limit
+		// Only reached at or below the limit: above it the request is refused.
+		if limit := int(*quota.Limit); total == limit {
+			return fmt.Sprintf("%s is at its quota: used %d, limit %d; more uses will be refused", subject, total, limit)
+		}
+		return fmt.Sprintf("%s is near its quota: used %d, warn %d, limit %d", subject, total, *quota.Warn, *quota.Limit)
 	}
-	return fmt.Sprintf("%s %q in namespace %q is using %d of %d.", kind, name, namespace, total, *of)
+	state := "at"
+	if total > int(*quota.Warn) {
+		state = "over"
+	}
+	return fmt.Sprintf("%s is %s its warn level: used %d, warn %d, no limit", subject, state, total, *quota.Warn)
+}
+
+// quotaDrainWarning flags an edit admitted in a namespace that is already over its
+// limit, because the edit does not add to it.
+func quotaDrainWarning(kind, name, namespace string, total int, limit int32) string {
+	return fmt.Sprintf("%s type %q in namespace %q is over its quota: used %d, limit %d; allowed, this change adds no uses",
+		kind, name, namespace, total, limit)
 }
 
 func componentTypePaths(indices []int) []*field.Path {
