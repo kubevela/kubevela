@@ -702,7 +702,7 @@ func TestQuotaLoweredUnderANamespaceStaysDrainable(t *testing.T) {
 			appWith("tenant-a", "app-1", "webservice"), old)
 		assert.Empty(t, errs, "an edit that reduces its own use must get through")
 		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0], "is over its quota: used 4, limit 2; allowed, this change adds no uses")
+		assert.Contains(t, warnings[0], "is over its quota: used 4, limit 2; edit allowed, adds no uses")
 		assert.Contains(t, warnings[0], "adds no uses")
 	})
 
@@ -712,7 +712,7 @@ func TestQuotaLoweredUnderANamespaceStaysDrainable(t *testing.T) {
 			appWith("tenant-a", "app-1", "webservice", "webservice", "webservice"), old)
 		assert.Empty(t, errs)
 		require.Len(t, warnings, 1)
-		assert.Contains(t, warnings[0], "is over its quota: used 6, limit 2; allowed, this change adds no uses")
+		assert.Contains(t, warnings[0], "is over its quota: used 6, limit 2; edit allowed, adds no uses")
 		assert.Contains(t, warnings[0], "adds no uses")
 	})
 
@@ -824,7 +824,9 @@ func TestQuotaExemptNamespace(t *testing.T) {
 
 // The warning names the type as the refusal does, says where the namespace stands
 // against the quota, and labels each number, as the ResourceQuota admission error
-// does. Kubernetes asks webhook warnings to stay within 120 characters.
+// does. Kubernetes asks webhook warnings to stay within 120 characters if possible.
+// Names are the user's and are never cut, so the bound holds for names of typical
+// length, like the ones here.
 func TestQuotaWarningText(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -848,4 +850,10 @@ func TestQuotaWarningText(t *testing.T) {
 			assert.LessOrEqual(t, len(got), 120, "Kubernetes asks for warnings of 120 characters or less")
 		})
 	}
+
+	t.Run("an edit admitted over the limit", func(t *testing.T) {
+		got := quotaDrainWarning("component", "webservice", "tenant-a", 6, 2)
+		assert.Equal(t, `component type "webservice" in namespace "tenant-a" is over its quota: used 6, limit 2; edit allowed, adds no uses`, got)
+		assert.LessOrEqual(t, len(got), 120, "Kubernetes asks for warnings of 120 characters or less")
+	})
 }

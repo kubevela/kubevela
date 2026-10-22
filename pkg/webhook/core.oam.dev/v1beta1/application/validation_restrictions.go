@@ -360,7 +360,7 @@ func quotaWarning(kind, name, namespace string, total int, quota *common.Namespa
 // quotaDrainWarning flags an edit admitted in a namespace that is already over its
 // limit, because the edit does not add to it.
 func quotaDrainWarning(kind, name, namespace string, total int, limit int32) string {
-	return fmt.Sprintf("%s type %q in namespace %q is over its quota: used %d, limit %d; allowed, this change adds no uses",
+	return fmt.Sprintf("%s type %q in namespace %q is over its quota: used %d, limit %d; edit allowed, adds no uses",
 		kind, name, namespace, total, limit)
 }
 
