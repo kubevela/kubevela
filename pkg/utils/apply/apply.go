@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/kubeutil"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -117,10 +118,10 @@ func loggingApply(msg string, desired client.Object, quiet bool) {
 	}
 	d, ok := desired.(metav1.Object)
 	if !ok {
-		klog.InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
+		klog.V(common.LogDebug).InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
 		return
 	}
-	klog.InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
+	klog.V(common.LogDebug).InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
 }
 
 // trimLastAppliedConfigurationForSpecialResources will filter special object that can reduce the record for "app.oam.dev/last-applied-configuration" annotation.

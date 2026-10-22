@@ -44,6 +44,7 @@ func AddOptimizeFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&wfContext.EnableInMemoryContext, "optimize-enable-in-memory-workflow-context", false, "Optimize workflow by use in-memory context. Side effect: controller crash will lead to workflow run again from scratch and possible to cause mistakes in workflow inputs/outputs. You can use this optimization when you don't use input/output feature of workflow.")
 	fs.BoolVar(&application.DisableResourceApplyDoubleCheck, "optimize-disable-resource-apply-double-check", false, "Optimize workflow by ignoring resource double check after apply. Side effect: controller will not wait for resource creation. If you want to use KubeVela to dispatch tons of resources and do not need to double check the creation result, you can enable this optimization.")
 	fs.BoolVar(&application.EnableResourceTrackerDeleteOnlyTrigger, "optimize-enable-resource-tracker-delete-only-trigger", true, "Optimize resourcetracker by only trigger reconcile when resourcetracker is deleted. It is enabled by default. If you want to integrate KubeVela with your own operator or allow ResourceTracker manual edit, you can turn it off.")
+	fs.DurationVar(&application.MaxGCWaitBackoffTime, "max-gc-wait-backoff-time", application.MaxGCWaitBackoffTime, "The max time to wait before checking again for resources that are still being deleted by garbage collection. The wait starts at 3s and grows with the time already spent waiting. Default to 60s.")
 }
 
 // AddAdmissionFlags add admission flags
