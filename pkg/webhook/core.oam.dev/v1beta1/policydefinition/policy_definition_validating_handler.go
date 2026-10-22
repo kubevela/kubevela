@@ -55,7 +55,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	ctx = logging.WithRequestID(ctx, string(req.UID))
 	logger := logging.NewHandlerLogger(ctx, req, "PolicyDefinitionValidator")
 
-	logger.WithStep("start").Info("Starting admission validation for PolicyDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
+	logger.WithStep("start").Debug("Starting admission validation for PolicyDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
 
 	obj := &v1beta1.PolicyDefinition{}
 	if req.Resource.String() != policyDefGVR.String() {
@@ -76,7 +76,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if obj.Spec.Version != "" {
 			logger = logger.WithValues("version", obj.Spec.Version)
 		}
-		logger.WithStep("decode").Info("Successfully decoded PolicyDefinition from admission request",
+		logger.WithStep("decode").Debug("Successfully decoded PolicyDefinition from admission request",
 			"definitionName", obj.Name,
 			"namespace", obj.Namespace,
 			"hasSchematic", obj.Spec.Schematic != nil,
@@ -89,7 +89,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		var cueTemplate string
 		var cueVal cue.Value
 		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
-			logger.WithStep("validate-cue").Info("Validating CUE template syntax and semantics for PolicyDefinition schematic")
+			logger.WithStep("validate-cue").Debug("Validating CUE template syntax and semantics for PolicyDefinition schematic")
 
 			// Validate against the effective template; with auto-upgrade is enabled
 			cueTemplate = obj.Spec.Schematic.CUE.Template
@@ -115,7 +115,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep("validate-output-resources").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.WithStep("validate-cue").WithSuccess(true).Info("CUE template validation completed successfully - template is syntactically correct and all output resources exist")
+			logger.WithStep("validate-cue").WithSuccess(true).Debug("CUE template validation completed successfully - template is syntactically correct and all output resources exist")
 		}
 
 		if obj.Spec.Version != "" {
@@ -123,7 +123,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep("validate-version").WithError(err).Error(err, "PolicyDefinition version does not follow semantic versioning format (x.y.z)", "version", obj.Spec.Version, "expectedFormat", "x.y.z")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.WithStep("validate-version").Info("PolicyDefinition version follows semantic versioning format", "version", obj.Spec.Version)
+			logger.WithStep("validate-version").Debug("PolicyDefinition version follows semantic versioning format", "version", obj.Spec.Version)
 		}
 
 		// Validate identity fields: module and apiVersion are set together or not at all.
@@ -145,7 +145,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep("validate-revision").WithError(err).Error(err, "PolicyDefinition revision conflicts with existing revision or has invalid format", "revisionName", revisionName, "expectedRevisionName", fmt.Sprintf("%s-v%s", obj.Name, revisionName))
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.WithStep("validate-revision").Info("PolicyDefinition revision validation completed - no conflicts detected", "revisionName", revisionName)
+			logger.WithStep("validate-revision").Debug("PolicyDefinition revision validation completed - no conflicts detected", "revisionName", revisionName)
 		}
 
 		if err := webhookutils.ValidateMultipleDefVersionsNotPresent(obj.Spec.Version, revisionName, obj.Kind); err != nil {
@@ -161,12 +161,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			return admission.Denied(fmt.Sprintf("invalid PolicyDefinition: %v (requestUID=%s)", validationResult.Errors, req.UID))
 		}
 
-		logger.WithStep("complete").WithSuccess(true, startTime).Info("PolicyDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
+		logger.WithStep("complete").WithSuccess(true, startTime).Debug("PolicyDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
 		if len(validationResult.Warnings) > 0 {
 			return admission.ValidationResponse(true, "").WithWarnings(validationResult.Warnings...)
 		}
 	} else {
-		logger.WithStep("skip-validation").Info("Skipping PolicyDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
+		logger.WithStep("skip-validation").Debug("Skipping PolicyDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
 	}
 	return admission.ValidationResponse(true, "")
 }
