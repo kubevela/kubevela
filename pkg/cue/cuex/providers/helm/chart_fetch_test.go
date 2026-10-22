@@ -130,6 +130,8 @@ var _ = Describe("chart_fetch", func() {
 			Entry("semver 1.2.3", "1.2.3", false),
 			Entry("semver v1.2.3", "v1.2.3", false),
 			Entry("semver short 1.0", "1.0", false),
+			Entry("OCI sha256 digest", "sha256:a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90", false),
+			Entry("OCI sha256 digest uppercase prefix", "SHA256:a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90", false),
 		)
 	})
 
@@ -145,6 +147,11 @@ var _ = Describe("chart_fetch", func() {
 
 		It("should use default immutable TTL for semver", func() {
 			Expect(p.determineCacheTTL("1.2.3", nil)).To(Equal(24 * time.Hour))
+		})
+
+		It("should use default immutable TTL for an OCI sha256 digest", func() {
+			digest := "sha256:a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"
+			Expect(p.determineCacheTTL(digest, nil)).To(Equal(24 * time.Hour))
 		})
 
 		It("should use default mutable TTL for latest", func() {
