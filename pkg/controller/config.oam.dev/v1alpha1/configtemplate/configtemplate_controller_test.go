@@ -180,3 +180,50 @@ template: {
 		eventuallyTemplatePhase(ctx, client.ObjectKeyFromObject(ct), configv1alpha1.ConfigTemplatePhaseAvailable, &got)
 	})
 })
+
+// This suite installs the chart CRDs and no webhook: what is refused here is the CRD's CEL rule.
+var _ = Describe("ConfigTemplate sensitive rule in the CRD", func() {
+	ctx := context.Background()
+
+	newTemplate := func(name string, sensitive bool) *configv1alpha1.ConfigTemplate {
+		return &configv1alpha1.ConfigTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+			Spec:       configv1alpha1.ConfigTemplateSpec{Template: usernameTemplate, Sensitive: sensitive},
+		}
+	}
+
+	It("should refuse turning sensitive off without a webhook", func() {
+		ct := newTemplate("sensitive-off", true)
+		Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+		DeferCleanup(func() { Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, ct))).Should(Succeed()) })
+
+		patch := client.MergeFrom(ct.DeepCopy())
+		ct.Spec.Sensitive = false
+		err := k8sClient.Patch(ctx, ct, patch)
+		Expect(apierrors.IsInvalid(err)).Should(BeTrue(), "got %v", err)
+		Expect(err.Error()).Should(ContainSubstring("sensitive cannot be changed from true to false"))
+
+		var got configv1alpha1.ConfigTemplate
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), &got)).Should(Succeed())
+		Expect(got.Spec.Sensitive).Should(BeTrue())
+	})
+
+	It("should admit turning sensitive on, and other edits of a sensitive template", func() {
+		ct := newTemplate("sensitive-on", false)
+		Expect(k8sClient.Create(ctx, ct)).Should(Succeed())
+		DeferCleanup(func() { Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, ct))).Should(Succeed()) })
+
+		patch := client.MergeFrom(ct.DeepCopy())
+		ct.Spec.Sensitive = true
+		Expect(k8sClient.Patch(ctx, ct, patch)).Should(Succeed())
+
+		patch = client.MergeFrom(ct.DeepCopy())
+		ct.Spec.Description = "still sensitive"
+		Expect(k8sClient.Patch(ctx, ct, patch)).Should(Succeed())
+
+		var got configv1alpha1.ConfigTemplate
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(ct), &got)).Should(Succeed())
+		Expect(got.Spec.Sensitive).Should(BeTrue())
+		Expect(got.Spec.Description).Should(Equal("still sensitive"))
+	})
+})
