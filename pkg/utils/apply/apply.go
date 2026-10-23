@@ -38,7 +38,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/kubeutil"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -47,6 +46,10 @@ const (
 	// LabelRenderHash is the label that record the hash value of the rendering resource.
 	LabelRenderHash = "oam.dev/render-hash"
 )
+
+// logDebug equals pkg/controller/common.LogDebug, which this package cannot import:
+// it is part of the apply/ResourceTracker library (see pkg/resourcekeeper/boundary_test.go).
+const logDebug klog.Level = 1
 
 // Applicator applies new state to an object or create it if not exist.
 // It uses the same mechanism as `kubectl apply`, that is, for each resource being applied,
@@ -118,10 +121,10 @@ func loggingApply(msg string, desired client.Object, quiet bool) {
 	}
 	d, ok := desired.(metav1.Object)
 	if !ok {
-		klog.V(common.LogDebug).InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
+		klog.V(logDebug).InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
 		return
 	}
-	klog.V(common.LogDebug).InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
+	klog.V(logDebug).InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
 }
 
 // trimLastAppliedConfigurationForSpecialResources will filter special object that can reduce the record for "app.oam.dev/last-applied-configuration" annotation.
