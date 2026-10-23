@@ -108,7 +108,11 @@ var _ = Describe("The sensitive rules", Label("core-config"), func() {
 				PropertiesFrom: &configv1alpha1.PropertiesReference{SecretRef: configv1alpha1.SecretKeySelector{Name: "props"}},
 			},
 		}
-		Expect(k8sClient.Create(ctx, cfg)).Should(Succeed())
+		// the Config webhook reads the properties Secret through the manager's cache, which may
+		// not have seen the Secret created a moment ago
+		Eventually(func() error {
+			return k8sClient.Create(ctx, cfg.DeepCopy())
+		}, configE2ETimeout, configE2EPollInterval).Should(Succeed())
 		Eventually(func() configv1alpha1.ConfigPhase {
 			_ = k8sClient.Get(ctx, client.ObjectKeyFromObject(cfg), cfg)
 			return cfg.Status.Phase
