@@ -190,7 +190,7 @@ func (v *Validator) ValidateComponents(ctx context.Context, app *v1beta1.Applica
 		}
 	}
 
-	logger.WithSuccess(len(errs) == 0, startTime).Info(
+	logger.WithSuccess(len(errs) == 0, startTime).Debug(
 		"Module component validation completed",
 		"moduleComponentCount", moduleComponentCount,
 		"errorCount", len(errs),

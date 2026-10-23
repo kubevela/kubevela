@@ -47,6 +47,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cache"
 	"github.com/oam-dev/kubevela/pkg/component"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/features"
 	"github.com/oam-dev/kubevela/pkg/monitor/metrics"
@@ -238,9 +239,9 @@ func (h *AppHandler) gatherRevisionSpec(af *appfile.Appfile) (*v1beta1.Applicati
 		for name, versionInfo := range h.policyVersions {
 			appRev.Spec.PolicyVersions[name] = versionInfo
 		}
-		klog.InfoS("Stored PolicyVersions in ApplicationRevision", "count", len(h.policyVersions), "policies", h.policyVersions)
+		klog.V(common2.LogDebug).InfoS("Stored PolicyVersions in ApplicationRevision", "count", len(h.policyVersions), "policies", h.policyVersions)
 	} else {
-		klog.InfoS("No PolicyVersions to store in ApplicationRevision", "policyVersionsNil", h.policyVersions == nil, "count", len(h.policyVersions))
+		klog.V(common2.LogDebug).InfoS("No PolicyVersions to store in ApplicationRevision", "policyVersionsNil", h.policyVersions == nil, "count", len(h.policyVersions))
 	}
 
 	var err error
@@ -622,7 +623,7 @@ func (h *AppHandler) UpdateAppLatestRevisionStatus(ctx context.Context, patchSta
 	// Restore the spec after patchStatus to preserve policy modifications
 	h.app.Spec = *savedSpec
 
-	klog.InfoS("Successfully update application latest revision status", "application", klog.KObj(h.app),
+	klog.V(common2.LogDebug).InfoS("Successfully update application latest revision status", "application", klog.KObj(h.app),
 		"latest revision", revName)
 
 	return nil

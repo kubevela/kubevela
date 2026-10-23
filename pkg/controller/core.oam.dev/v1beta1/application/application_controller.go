@@ -112,12 +112,16 @@ type options struct {
 
 // Reconcile process app event
 // nolint:gocyclo
-func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (res ctrl.Result, retErr error) {
 	ctx, cancel := ctrlrec.NewReconcileContext(ctx)
 	defer cancel()
 	logCtx := monitorContext.NewTraceContext(ctx, "").AddTag("application", req.String(), "controller", "application")
-	logCtx.Info("Start reconcile application")
+	if !debugLogEnabled() {
+		logCtx.V(int(common2.LogDebug))
+	}
+	logDebug(logCtx, "Start reconcile application")
 	defer logCtx.Commit("End reconcile application")
+	start := time.Now()
 	app := new(v1beta1.Application)
 	if err := r.Get(ctx, client.ObjectKey{
 		Name:      req.Name,
@@ -128,6 +132,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		}
 		return r.result(client.IgnoreNotFound(err)).ret()
 	}
+	defer func() {
+		logCtx.Info("Reconciled application", "phase", app.Status.Phase,
+			"requeueAfter", res.RequeueAfter.String(), "duration", time.Since(start).String(), "failed", retErr != nil)
+	}()
 	ctx = withOriginalApp(ctx, app)
 	if ctrlrec.IsPaused(app) {
 		return ctrl.Result{}, nil
@@ -204,7 +212,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		return r.endWithNegativeCondition(logCtx, app, condition.ErrorCondition("Revision", err), common.ApplicationRendering)
 	}
 
-	logCtx.Info("Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
+	logDebug(logCtx, "Successfully prepare current app revision", "revisionName", handler.currentAppRev.Name,
 		"revisionHash", handler.currentRevHash, "isNewRevision", handler.isNewRevision)
 	app.Status.SetConditions(condition.ReadyCondition("Revision"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRevisoned, velatypes.MessageRevisioned))
@@ -213,7 +221,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		logCtx.Error(err, "Failed to update application status")
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), common.ApplicationRendering)
 	}
-	logCtx.Info("Successfully apply application revision")
+	logDebug(logCtx, "Successfully apply application revision")
 
 	if err := handler.ApplyPolicies(logCtx, appFile); err != nil {
 		logCtx.Error(err, "[handle ApplyPolicies]")
@@ -278,7 +286,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	workflowInstance.Status.Phase = workflowState
 	app.Status.Workflow = workflow.ConvertWorkflowStatus(workflowInstance.Status, app.Status.Workflow.AppRevision)
 	app.Status.Workflow.Dependencies = workflow.WithStepReads(app.Status.Workflow.Dependencies, handler.stepReads)
-	logCtx.Info(fmt.Sprintf("Workflow return state=%s", workflowState))
+	logDebug(logCtx, fmt.Sprintf("Workflow return state=%s", workflowState))
 	postDispatchApplied := false
 	applyPostDispatchTraits := func() error {
 		if postDispatchApplied || !feature.DefaultMutableFeatureGate.Enabled(features.MultiStageComponentApply) {
@@ -384,7 +392,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
 		return r.endWithNegativeCondition(logCtx, app, condition.ReconcileError(err), phase)
 	}
-	logCtx.Info("Successfully garbage collect")
+	logDebug(logCtx, "Successfully garbage collect")
 	app.Status.SetConditions(condition.Condition{
 		Type:               condition.ConditionType(common.ReadyCondition.String()),
 		Status:             corev1.ConditionTrue,
@@ -654,15 +662,17 @@ func (r *Reconciler) gcResourceTrackers(logCtx monitorContext.Context, handler *
 		return r.result(statusUpdater(logCtx, handler.app, phase)).forApp(handler.app).ret()
 	}
 	if !finished {
-		logCtx.Info("GarbageCollecting resourcetrackers unfinished")
+		logDebug(logCtx, "GarbageCollecting resourcetrackers unfinished")
 		cond := condition.Deleting()
 		if len(waiting) > 0 {
 			cond.Message = fmt.Sprintf("Waiting for %s to delete. (At least %d resources are deleting.)", waiting[0].DisplayName(), len(waiting))
 		}
 		handler.app.Status.SetConditions(cond)
-		return r.result(statusUpdater(logCtx, handler.app, phase)).requeue(baseGCBackoffWaitTime).ret()
+		now := time.Now()
+		original, _ := originalAppFrom(logCtx)
+		return r.result(statusUpdater(logCtx, handler.app, phase)).requeue(gcWaitBackoffTime(gcWaitingSince(original, now), now)).ret()
 	}
-	logCtx.Info("GarbageCollected resourcetrackers")
+	logDebug(logCtx, "GarbageCollected resourcetrackers")
 	return r.result(statusUpdater(logCtx, handler.app, phase)).forApp(handler.app).ret()
 }
 
@@ -804,8 +814,11 @@ func (r *Reconciler) writeStatusByMethod(ctx context.Context, method method, app
 	// pre-check if the status is changed
 	app.Status.Phase = phase
 	updateObservedGeneration(app)
-	if oldApp, ok := originalAppFrom(ctx); ok && oldApp != nil && equality.Semantic.DeepEqual(oldApp.Status, app.Status) {
-		return nil
+	if oldApp, ok := originalAppFrom(ctx); ok && oldApp != nil {
+		keepConditionTransitionTimes(&app.Status.ConditionedStatus, oldApp.Status.ConditionedStatus)
+		if equality.Semantic.DeepEqual(oldApp.Status, app.Status) {
+			return nil
+		}
 	}
 	ctx, cancel := ctrlrec.NewReconcileTerminationContext(ctx)
 	defer cancel()
@@ -827,6 +840,15 @@ func (r *Reconciler) writeStatusByMethod(ctx context.Context, method method, app
 		r.updateMetricsAndLog(ctx, app)
 	}
 	return nil
+}
+
+func keepConditionTransitionTimes(status *condition.ConditionedStatus, stored condition.ConditionedStatus) {
+	for i, cond := range status.Conditions {
+		old := stored.GetCondition(cond.Type)
+		if old.Status == cond.Status && old.Reason == cond.Reason && !old.LastTransitionTime.IsZero() {
+			status.Conditions[i].LastTransitionTime = old.LastTransitionTime
+		}
+	}
 }
 
 func (r *Reconciler) emitPolicyEvents(app *v1beta1.Application) {
@@ -875,7 +897,7 @@ func (r *Reconciler) doWorkflowFinish(logCtx monitorContext.Context, app *v1beta
 		r.Recorder.Event(app, event.Normal(velatypes.ReasonApplied, velatypes.MessageWorkflowFinished))
 	}
 	handler.UpdateApplicationRevisionStatus(logCtx, handler.currentAppRev, app.Status.Workflow)
-	logCtx.Info("Application manifests has applied by workflow successfully")
+	logDebug(logCtx, "Application manifests has applied by workflow successfully")
 }
 
 func hasHealthCheckPolicy(policies []*appfile.Component) bool {

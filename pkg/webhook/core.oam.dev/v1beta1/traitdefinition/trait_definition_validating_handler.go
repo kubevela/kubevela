@@ -81,7 +81,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	ctx = logging.WithRequestID(ctx, string(req.UID))
 	logger := logging.NewHandlerLogger(ctx, req, "TraitDefinitionValidator")
 
-	logger.WithStep("start").Info("Starting admission validation for TraitDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
+	logger.WithStep("start").Debug("Starting admission validation for TraitDefinition resource", "operation", req.Operation, "resourceVersion", req.Kind.Version)
 
 	obj := &v1beta1.TraitDefinition{}
 	// Advisory findings, returned with an accepted definition rather than
@@ -104,7 +104,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if obj.Spec.Version != "" {
 			logger = logger.WithValues("version", obj.Spec.Version)
 		}
-		logger.WithStep("decode").Info("Successfully decoded TraitDefinition from admission request",
+		logger.WithStep("decode").Debug("Successfully decoded TraitDefinition from admission request",
 			"definitionName", obj.Name,
 			"namespace", obj.Namespace,
 			"hasReference", len(obj.Spec.Reference.Name) > 0,
@@ -128,7 +128,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 		// validate cueTemplate
 		if obj.Spec.Schematic != nil && obj.Spec.Schematic.CUE != nil {
-			logger.WithStep("validate-cue").Info("Validating CUE template syntax and semantics for TraitDefinition schematic")
+			logger.WithStep("validate-cue").Debug("Validating CUE template syntax and semantics for TraitDefinition schematic")
 
 			// Validate against the effective template; with auto-upgrade is enabled
 			cueTemplate := obj.Spec.Schematic.CUE.Template
@@ -162,7 +162,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 					return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 				}
 				warnings = append(warnings, warns...)
-				logger.WithStep("validate-extends").WithSuccess(true).Info("TraitDefinition inheritance validated", "extends", obj.Spec.Extends, "chainLength", len(ancestors))
+				logger.WithStep("validate-extends").WithSuccess(true).Debug("TraitDefinition inheritance validated", "extends", obj.Spec.Extends, "chainLength", len(ancestors))
 			} else if err := webhookutils.ValidateCuexTemplate(ctx, cueTemplate); err != nil {
 				logger.WithStep("validate-cue").WithError(err).Error(err, "CUE template contains syntax errors or invalid constructs - template compilation failed")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
@@ -171,7 +171,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 				logger.WithStep("validate-output-resources").WithError(err).Error(err, "CUE template references output resources that don't exist in cluster - unknown resource types detected")
 				return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 			}
-			logger.WithStep("validate-cue").WithSuccess(true).Info("CUE template validation completed successfully - template is syntactically correct and all output resources exist")
+			logger.WithStep("validate-cue").WithSuccess(true).Debug("CUE template validation completed successfully - template is syntactically correct and all output resources exist")
 		}
 
 		if obj.Spec.Version != "" {
@@ -207,9 +207,9 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			logger.WithStep("validate-version-conflict").WithError(err).Error(err, "TraitDefinition has conflicting version specifications - cannot have both spec.version and revision annotation", "specVersion", version, "revisionName", revisionName)
 			return admission.Denied(fmt.Sprintf("%s (requestUID=%s)", err.Error(), req.UID))
 		}
-		logger.WithStep("complete").WithSuccess(true, startTime).Info("TraitDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
+		logger.WithStep("complete").WithSuccess(true, startTime).Debug("TraitDefinition admission validation completed successfully - resource is valid and will be admitted", "definitionName", obj.Name, "operation", req.Operation)
 	} else {
-		logger.WithStep("skip-validation").Info("Skipping TraitDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
+		logger.WithStep("skip-validation").Debug("Skipping TraitDefinition validation - operation does not require validation", "operation", req.Operation, "reason", "only CREATE and UPDATE operations are validated")
 	}
 	resp := admission.ValidationResponse(true, "")
 	resp.Warnings = warnings

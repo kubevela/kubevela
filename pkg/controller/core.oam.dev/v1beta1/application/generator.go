@@ -48,6 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/config"
+	common2 "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1beta1/application/assemble"
 	ctrlutil "github.com/oam-dev/kubevela/pkg/controller/utils"
 	velaprocess "github.com/oam-dev/kubevela/pkg/cue/process"
@@ -351,7 +352,7 @@ func (h *AppHandler) applyComponentFunc(appParser *appfile.Parser, af *appfile.A
 		wl, manifest, err := h.prepareWorkloadAndManifests(ctx, appParser, comp, patcher, af)
 		if sources.IsComponentReadNotReady(err) {
 			// Not applied until what it reads is there.
-			klog.InfoS("component waits on a read", "app", klog.KObj(h.app), "component", comp.Name,
+			klog.V(common2.LogDebug).InfoS("component waits on a read", "app", klog.KObj(h.app), "component", comp.Name,
 				"cluster", clusterName, "reason", err.Error())
 			h.recordWaiting(comp, clusterName, overrideNamespace, err)
 			return nil, nil, false, err.Error(), nil
