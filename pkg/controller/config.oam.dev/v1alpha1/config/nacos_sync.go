@@ -53,7 +53,7 @@ var (
 )
 
 // endpointUnreadable is the one shape of "the endpoint config exists but cannot be
-// used": sensitive, malformed, refused by the API, or no client can be built from it.
+// used": malformed, refused by the API, or no client can be built from it.
 func endpointUnreadable(namespace, name string, err error) error {
 	return fmt.Errorf("%w: secret %s/%s: %w", errEndpointUnreadable, namespace, name, err)
 }
@@ -214,8 +214,11 @@ func endpointReference(data *writer.NacosData) *configv1alpha1.NacosEndpointRefe
 
 // readEndpointConfig is the controller's reader for the endpoint config the template
 // names: the Secret endpoint.namespace/endpoint.name and its input-properties, the same
-// key for a legacy Secret and for the Secret a Config CR materialises, read the way the
-// legacy ReadConfig reads it for the CLI (a sensitive config is refused).
+// key for a legacy Secret and for the Secret a Config CR materialises. It reads the config
+// whatever its sensitive mark: the mark guards what users read back, and the controller
+// reads the credentials to use them, so an endpoint config that keeps them in a Secret
+// through spec.propertiesFrom (always sensitive) stays usable. Who may name an endpoint is
+// decided by the template rules (config.RenderedEndpointError), not by the mark.
 func (r *Reconciler) readEndpointConfig(ctx context.Context, namespace, name string) (map[string]interface{}, error) {
 	var secret corev1.Secret
 	if err := r.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &secret); err != nil {
@@ -224,7 +227,7 @@ func (r *Reconciler) readEndpointConfig(ctx context.Context, namespace, name str
 		}
 		return nil, endpointUnreadable(namespace, name, err)
 	}
-	properties, err := legacyconfig.ReadConfigSecret(&secret)
+	properties, err := legacyconfig.SecretInputProperties(&secret)
 	if err != nil {
 		return nil, endpointUnreadable(namespace, name, err)
 	}

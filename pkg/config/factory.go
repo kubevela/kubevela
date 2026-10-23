@@ -764,8 +764,7 @@ func (k *kubeConfigFactory) ReadConfig(ctx context.Context, namespace, name stri
 }
 
 // ReadConfigSecret returns the input properties a config Secret holds, refusing a
-// sensitive one: the Secret-level half of ReadConfig, shared with the Config controller,
-// which reads a template's Nacos endpoint config the same way.
+// sensitive one: the Secret-level half of ReadConfig.
 func ReadConfigSecret(secret *v1.Secret) (map[string]interface{}, error) {
 	if SecretSensitive(secret) {
 		return nil, ErrSensitiveConfig
@@ -775,8 +774,9 @@ func ReadConfigSecret(secret *v1.Secret) (map[string]interface{}, error) {
 
 // SecretInputProperties returns the input properties a config Secret holds, sensitive or
 // not. The sensitive mark guards what users read back; a controller reading a config it
-// keeps for its own use, as the application controller reads its source cache entries,
-// reads it whatever the mark.
+// keeps for its own use, as the application controller reads its source cache entries
+// and the Config controller a template's Nacos endpoint config, reads it whatever the
+// mark.
 func SecretInputProperties(secret *v1.Secret) (map[string]interface{}, error) {
 	properties, ok := secret.Data[SaveInputPropertiesKey]
 	if !ok || len(properties) == 0 {

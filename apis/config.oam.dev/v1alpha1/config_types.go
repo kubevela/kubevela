@@ -144,9 +144,9 @@ const (
 	ReasonNacosPublished condition.ConditionReason = "Published"
 	// ReasonNacosEndpointNotFound: the endpoint config named by the template does not exist.
 	ReasonNacosEndpointNotFound condition.ConditionReason = "EndpointNotFound"
-	// ReasonNacosEndpointUnreadable: the endpoint config exists but cannot be used (sensitive,
-	// no properties, undecodable, the API refused the read, or no Nacos client can be built
-	// from what it holds).
+	// ReasonNacosEndpointUnreadable: the endpoint config exists but cannot be used (no
+	// properties, undecodable, the API refused the read, or no Nacos client can be built from
+	// what it holds). A sensitive endpoint config is read like any other.
 	ReasonNacosEndpointUnreadable condition.ConditionReason = "EndpointUnreadable"
 	// ReasonNacosReadFailed: the first-sync read from Nacos failed.
 	ReasonNacosReadFailed condition.ConditionReason = "ReadFailed"
