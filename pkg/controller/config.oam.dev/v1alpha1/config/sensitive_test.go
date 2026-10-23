@@ -32,6 +32,8 @@ import (
 	configv1alpha1 "github.com/oam-dev/kubevela/apis/config.oam.dev/v1alpha1"
 	apitypes "github.com/oam-dev/kubevela/apis/types"
 	legacyconfig "github.com/oam-dev/kubevela/pkg/config"
+	"github.com/oam-dev/kubevela/pkg/cue/cuex/providers/velaconfig/reader"
+	workflowconfig "github.com/oam-dev/kubevela/pkg/workflow/providers/config"
 )
 
 func TestConfigSensitive(t *testing.T) {
@@ -317,5 +319,58 @@ var _ = Describe("Config controller, the sensitive rules", func() {
 			return string(secret.Data["username"])
 		}, 15*time.Second, time.Second).Should(Equal("niaj"))
 		Expect(sensitiveMark("sens-back")()).Should(Equal("true"))
+	})
+
+	It("hides a propertiesFrom Config on a template that is not sensitive from every reader", func() {
+		templateAvailable("sens-readers", false)
+		propertiesSecret("sens-readers-from-properties", "olivia")
+		from := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "sens-readers-from", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigSpec{TemplateRef: templateRef("sens-readers"), PropertiesFrom: fromSecret("sens-readers-from-properties")},
+		}
+		inline := &configv1alpha1.Config{
+			ObjectMeta: metav1.ObjectMeta{Name: "sens-readers-inline", Namespace: "default"},
+			Spec:       configv1alpha1.ConfigSpec{TemplateRef: templateRef("sens-readers"), Properties: rawExtension(map[string]string{"username": "peggy"})},
+		}
+		Expect(k8sClient.Create(ctx, from)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, inline)).Should(Succeed())
+		var gotCfg configv1alpha1.Config
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(from), configv1alpha1.ConfigPhaseAvailable, &gotCfg)
+		eventuallyConfigPhase(ctx, client.ObjectKeyFromObject(inline), configv1alpha1.ConfigPhaseAvailable, &gotCfg)
+		Expect(sensitiveMark("sens-readers-from")()).Should(Equal("true"))
+
+		factory := legacyconfig.NewConfigFactory(k8sClient)
+		deps := workflowconfig.Deps{Factory: factory, Client: k8sClient}
+
+		By("vela config and the factory's readers")
+		_, err := factory.ReadConfig(ctx, "default", "sens-readers-from")
+		Expect(err).Should(MatchError(legacyconfig.ErrSensitiveConfig))
+		_, err = factory.GetConfig(ctx, "default", "sens-readers-from", false)
+		Expect(err).Should(MatchError(legacyconfig.ErrSensitiveConfig))
+		props, err := factory.ReadConfig(ctx, "default", "sens-readers-inline")
+		Expect(err).Should(Succeed())
+		Expect(props).Should(HaveKeyWithValue("username", "peggy"))
+
+		By("the read-config step")
+		_, err = workflowconfig.Read(ctx, deps, legacyconfig.NamespacedName{Namespace: "default", Name: "sens-readers-from"})
+		Expect(err).Should(MatchError(legacyconfig.ErrSensitiveConfig))
+		props, err = workflowconfig.Read(ctx, deps, legacyconfig.NamespacedName{Namespace: "default", Name: "sens-readers-inline"})
+		Expect(err).Should(Succeed())
+		Expect(props).Should(HaveKeyWithValue("username", "peggy"))
+
+		By("the list-config step: both listed, only the inline one with its properties")
+		listed, err := workflowconfig.List(ctx, deps, workflowconfig.ListVars{Namespace: "default", Template: "sens-readers"})
+		Expect(err).Should(Succeed())
+		byName := map[string]map[string]any{}
+		for _, c := range listed {
+			byName[c["name"].(string)] = c
+		}
+		Expect(byName).Should(HaveLen(2))
+		Expect(byName["sens-readers-from"]["config"]).Should(BeNil())
+		Expect(byName["sens-readers-inline"]["config"]).Should(HaveKeyWithValue("username", "peggy"))
+
+		By("the config provider of CueX")
+		_, err = reader.Config{Client: k8sClient}.ReadConfig(ctx, "default", "sens-readers-from")
+		Expect(err).Should(MatchError(legacyconfig.ErrSensitiveConfig))
 	})
 })
