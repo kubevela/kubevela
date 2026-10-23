@@ -845,7 +845,7 @@ func (r *Reconciler) writeStatusByMethod(ctx context.Context, method method, app
 func keepConditionTransitionTimes(status *condition.ConditionedStatus, stored condition.ConditionedStatus) {
 	for i, cond := range status.Conditions {
 		old := stored.GetCondition(cond.Type)
-		if old.Equal(cond) && !old.LastTransitionTime.IsZero() {
+		if old.Status == cond.Status && old.Reason == cond.Reason && !old.LastTransitionTime.IsZero() {
 			status.Conditions[i].LastTransitionTime = old.LastTransitionTime
 		}
 	}

@@ -54,13 +54,13 @@ func TestGCWaitBackoffTime(t *testing.T) {
 func TestGCWaitingSince(t *testing.T) {
 	now := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
 	since := now.Add(-time.Hour)
-	appWithReady := func(reason condition.ConditionReason) *v1beta1.Application {
+	appWithReady := func(reason condition.ConditionReason, transition time.Time) *v1beta1.Application {
 		app := &v1beta1.Application{}
 		app.Status.SetConditions(condition.Condition{
 			Type:               condition.TypeReady,
 			Status:             corev1.ConditionFalse,
 			Reason:             reason,
-			LastTransitionTime: metav1.NewTime(since),
+			LastTransitionTime: metav1.NewTime(transition),
 		})
 		return app
 	}
@@ -68,9 +68,11 @@ func TestGCWaitingSince(t *testing.T) {
 		app  *v1beta1.Application
 		want time.Time
 	}{
-		"no stored application":             {app: nil, want: now},
-		"stored application is not waiting": {app: appWithReady(condition.ReasonAvailable), want: now},
-		"stored application is waiting":     {app: appWithReady(condition.ReasonDeleting), want: since},
+		"no stored application":                   {app: nil, want: now},
+		"stored application has no conditions":    {app: &v1beta1.Application{}, want: now},
+		"stored application is not waiting":       {app: appWithReady(condition.ReasonAvailable, since), want: now},
+		"stored application is waiting":           {app: appWithReady(condition.ReasonDeleting, since), want: since},
+		"waiting condition without a time is new": {app: appWithReady(condition.ReasonDeleting, time.Time{}), want: now},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -84,22 +86,34 @@ func TestKeepConditionTransitionTimes(t *testing.T) {
 	fresh := metav1.NewTime(time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC))
 	deleting := condition.Condition{Type: condition.TypeReady, Status: corev1.ConditionFalse, Reason: condition.ReasonDeleting, Message: "waiting"}
 
+	storedDeleting := deleting
+	storedDeleting.LastTransitionTime = stored
+	storedWithoutTime := deleting
+
+	changedStatus := deleting
+	changedStatus.Status = corev1.ConditionTrue
+	changedReason := deleting
+	changedReason.Reason = condition.ReasonAvailable
+
 	testCases := map[string]struct {
+		stored  []condition.Condition
 		current condition.Condition
 		want    metav1.Time
 	}{
-		"unchanged condition keeps the stored time": {current: deleting, want: stored},
-		"changed message takes the new time":        {current: deleting.WithMessage("still waiting"), want: fresh},
+		"unchanged condition keeps the stored time":    {stored: []condition.Condition{storedDeleting}, current: deleting, want: stored},
+		"changed message keeps the stored time":        {stored: []condition.Condition{storedDeleting}, current: deleting.WithMessage("still waiting"), want: stored},
+		"changed status takes the new time":            {stored: []condition.Condition{storedDeleting}, current: changedStatus, want: fresh},
+		"changed reason takes the new time":            {stored: []condition.Condition{storedDeleting}, current: changedReason, want: fresh},
+		"condition missing from stored takes new time": {stored: nil, current: deleting, want: fresh},
+		"stored condition without a time is ignored":   {stored: []condition.Condition{storedWithoutTime}, current: deleting, want: fresh},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			storedCond := deleting
-			storedCond.LastTransitionTime = stored
 			current := tc.current
 			current.LastTransitionTime = fresh
 
 			status := condition.ConditionedStatus{Conditions: []condition.Condition{current}}
-			keepConditionTransitionTimes(&status, condition.ConditionedStatus{Conditions: []condition.Condition{storedCond}})
+			keepConditionTransitionTimes(&status, condition.ConditionedStatus{Conditions: tc.stored})
 			assert.True(t, tc.want.Equal(&status.Conditions[0].LastTransitionTime))
 		})
 	}
