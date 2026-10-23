@@ -57,15 +57,15 @@ type PlanInput struct {
 
 // RenderedResource is one object the Application would create.
 type RenderedResource struct {
-	Component  string `json:"component"`
-	Source     string `json:"source"`
+	Component  string `json:"component" jsonschema:"Component that renders this object."`
+	Source     string `json:"source" jsonschema:"Which part of the definition produced it: output, or outputs or trait."`
 	APIVersion string `json:"apiVersion"`
 	Kind       string `json:"kind"`
 	Namespace  string `json:"namespace,omitempty"`
 	Name       string `json:"name"`
 	// Object is the rendered manifest after redaction, absent when the
 	// result exceeded its byte budget.
-	Object map[string]any `json:"object,omitempty"`
+	Object map[string]any `json:"object,omitempty" jsonschema:"Rendered manifest after redaction. Absent when the result exceeded its size budget."`
 }
 
 // RenderedPolicy is one object a policy rendered.
@@ -81,9 +81,9 @@ type DryRunOutput struct {
 	Application string             `json:"application"`
 	Namespace   string             `json:"namespace"`
 	Components  []ComponentRef     `json:"components"`
-	Resources   []RenderedResource `json:"resources"`
-	Policies    []RenderedPolicy   `json:"policies"`
-	Evidence    []string           `json:"evidence"`
+	Resources   []RenderedResource `json:"resources" jsonschema:"Every object the components and traits would create."`
+	Policies    []RenderedPolicy   `json:"policies" jsonschema:"Objects rendered by policies."`
+	Evidence    []string           `json:"evidence" jsonschema:"What was rendered and with which definitions."`
 	Meta        Meta               `json:"meta"`
 }
 

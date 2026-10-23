@@ -54,15 +54,15 @@ type DiffOutput struct {
 	Namespace   string `json:"namespace"`
 	// Base names the ApplicationRevision the target was compared with, or
 	// "new" when the Application does not exist.
-	Base      string    `json:"base"`
-	ChangeSet ChangeSet `json:"changeSet"`
-	Risk      Risk      `json:"risk"`
+	Base      string    `json:"base" jsonschema:"ApplicationRevision the document was compared with, or new when the Application does not exist."`
+	ChangeSet ChangeSet `json:"changeSet" jsonschema:"Everything that would change, computed from both renders."`
+	Risk      Risk      `json:"risk" jsonschema:"Risk class with the rules that fired. Show it to the user with the change set."`
 	// Token binds this change set to the base revision and the submitted
 	// document. apply_application requires it, so nothing is applied that
 	// was not shown first.
-	Token     string    `json:"token"`
-	ExpiresAt time.Time `json:"expiresAt"`
-	Evidence  []string  `json:"evidence"`
+	Token     string    `json:"token" jsonschema:"Required by apply_application. Binds this exact document to the base revision; it does not record that anyone reviewed the diff."`
+	ExpiresAt time.Time `json:"expiresAt" jsonschema:"When the token stops being accepted, UTC."`
+	Evidence  []string  `json:"evidence" jsonschema:"Objects and renders this answer was derived from."`
 	Meta      Meta      `json:"meta"`
 }
 

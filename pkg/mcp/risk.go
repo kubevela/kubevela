@@ -33,16 +33,16 @@ var riskRank = map[string]int{RiskLow: 0, RiskMedium: 1, RiskHigh: 2}
 
 // RiskRule is one rule that fired, with what it fired on.
 type RiskRule struct {
-	Rule     string `json:"rule"`
-	Class    string `json:"class"`
-	Evidence string `json:"evidence"`
+	Rule     string `json:"rule" jsonschema:"Name of the rule that fired, such as image-tag, scaling, deletion or placement-changed."`
+	Class    string `json:"class" jsonschema:"Class this rule assigns: LOW, MEDIUM or HIGH."`
+	Evidence string `json:"evidence" jsonschema:"The object and field the rule fired on."`
 }
 
 // Risk is the classifier's verdict: the maximum class over every rule that
 // fired, with all of them listed so a reader can see why.
 type Risk struct {
-	Class string     `json:"class"`
-	Rules []RiskRule `json:"rules"`
+	Class string     `json:"class" jsonschema:"Overall class, the highest of every rule that fired: LOW, MEDIUM or HIGH."`
+	Rules []RiskRule `json:"rules" jsonschema:"Every rule that fired, so the class can be explained."`
 }
 
 var (

@@ -45,24 +45,24 @@ const (
 // what, and when" so a reader can judge a result without trusting it.
 type Meta struct {
 	// VelaCLI is the version of the vela binary serving this session.
-	VelaCLI string `json:"velaCLI"`
+	VelaCLI string `json:"velaCLI" jsonschema:"Version of the vela binary serving this session."`
 	// VelaCore is the controller version found on the cluster, or "unknown".
-	VelaCore string `json:"velaCore"`
+	VelaCore string `json:"velaCore" jsonschema:"vela-core controller version found on the cluster, or unknown."`
 	// Kubernetes maps a cluster name to its API server version. This release
 	// reports the local cluster only.
-	Kubernetes map[string]string `json:"kubernetes"`
+	Kubernetes map[string]string `json:"kubernetes" jsonschema:"Kubernetes API server version per cluster name."`
 	// FeatureGates lists the controller feature gates read from vela-core's
 	// arguments. Absent gates are at their defaults.
-	FeatureGates map[string]bool `json:"featureGates,omitempty"`
+	FeatureGates map[string]bool `json:"featureGates,omitempty" jsonschema:"vela-core feature gates set on the controller. Absent gates are at their defaults."`
 	// ObservedAt is when the data in this response was read.
-	ObservedAt time.Time `json:"observedAt"`
+	ObservedAt time.Time `json:"observedAt" jsonschema:"When the data in this response was read, UTC."`
 	// Source is one of SourceLive, SourceRendered or SourceCached.
-	Source string `json:"source"`
+	Source string `json:"source" jsonschema:"live for an API server read, rendered for dry-run or diff output, cached for served data."`
 	// Truncated is set when a size or line budget cut the data.
-	Truncated bool `json:"truncated"`
+	Truncated bool `json:"truncated" jsonschema:"True when a size or count limit cut the data; narrow the request to see the rest."`
 	// Warnings carries version skew and similar findings that every tool
 	// repeats so they are not missed.
-	Warnings []string `json:"warnings,omitempty"`
+	Warnings []string `json:"warnings,omitempty" jsonschema:"Version skew, identity and completeness notes that apply to this response."`
 }
 
 // deps holds what handlers need: the factory for clients and config, the

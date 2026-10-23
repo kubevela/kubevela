@@ -104,17 +104,17 @@ type ExplainDefinitionOutput struct {
 	// RestrictedToNamespaces lists where the definition may be used when
 	// the platform restricts it.
 	RestrictedToNamespaces []string           `json:"restrictedToNamespaces,omitempty"`
-	Produces               []ProducedResource `json:"produces"`
-	ParameterUsage         []ParameterUsage   `json:"parameterUsage"`
-	Parameters             map[string]any     `json:"parameters"`
-	Required               []string           `json:"required"`
-	Health                 HealthRules        `json:"health"`
-	Revisions              []RevisionSummary  `json:"revisions"`
-	Consumers              ConsumerSummary    `json:"consumers"`
+	Produces               []ProducedResource `json:"produces" jsonschema:"Kinds the template emits, read from the template without rendering."`
+	ParameterUsage         []ParameterUsage   `json:"parameterUsage" jsonschema:"Which template fields each parameter flows into."`
+	Parameters             map[string]any     `json:"parameters" jsonschema:"JSON Schema of the parameter block."`
+	Required               []string           `json:"required" jsonschema:"Top-level parameters with no default, which must be supplied."`
+	Health                 HealthRules        `json:"health" jsonschema:"Health and custom status rules, verbatim CUE."`
+	Revisions              []RevisionSummary  `json:"revisions" jsonschema:"DefinitionRevisions, newest first."`
+	Consumers              ConsumerSummary    `json:"consumers" jsonschema:"Applications that use this definition, within the namespaces the server may read."`
 	// InspectionError is set when the template could not be parsed; the
 	// schema and metadata above are still valid.
-	InspectionError string   `json:"inspectionError,omitempty"`
-	Evidence        []string `json:"evidence"`
+	InspectionError string   `json:"inspectionError,omitempty" jsonschema:"Set when the template could not be parsed; the schema and metadata are still valid."`
+	Evidence        []string `json:"evidence" jsonschema:"Objects this answer was derived from."`
 	Meta            Meta     `json:"meta"`
 }
 

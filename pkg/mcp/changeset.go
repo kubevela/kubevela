@@ -42,22 +42,22 @@ const maxFieldChanges = 50
 // Values are redacted and shortened; the path is a dotted JSON path with
 // list indexes in brackets.
 type FieldChange struct {
-	Path string `json:"path"`
-	From any    `json:"from,omitempty"`
-	To   any    `json:"to,omitempty"`
+	Path string `json:"path" jsonschema:"Dotted path of the leaf that differs, list indexes in brackets."`
+	From any    `json:"from,omitempty" jsonschema:"Value in the base render, redacted and shortened. Absent when the leaf is new."`
+	To   any    `json:"to,omitempty" jsonschema:"Value in the target render, redacted and shortened. Absent when the leaf is removed."`
 }
 
 // ResourceChange is one rendered object that differs.
 type ResourceChange struct {
-	Component  string        `json:"component,omitempty"`
+	Component  string        `json:"component,omitempty" jsonschema:"Component that renders this object."`
 	APIVersion string        `json:"apiVersion"`
 	Kind       string        `json:"kind"`
 	Namespace  string        `json:"namespace,omitempty"`
 	Name       string        `json:"name"`
-	Action     string        `json:"action"`
-	Fields     []FieldChange `json:"fields,omitempty"`
+	Action     string        `json:"action" jsonschema:"ADD, MODIFY or REMOVE."`
+	Fields     []FieldChange `json:"fields,omitempty" jsonschema:"Leaves that differ, for MODIFY only."`
 	// FieldsTruncated is set when more than maxFieldChanges leaves differ.
-	FieldsTruncated bool `json:"fieldsTruncated,omitempty"`
+	FieldsTruncated bool `json:"fieldsTruncated,omitempty" jsonschema:"True when more leaves differ than are listed."`
 }
 
 // ChangeSet is everything the classifier and the reader need about a
@@ -65,21 +65,21 @@ type ResourceChange struct {
 // specs and holds no cluster handles, so it can be classified offline.
 type ChangeSet struct {
 	// NewApplication is true when no revision of the Application exists.
-	NewApplication bool             `json:"newApplication"`
-	Resources      []ResourceChange `json:"resources"`
+	NewApplication bool             `json:"newApplication" jsonschema:"True when no revision of the Application exists, so everything is new."`
+	Resources      []ResourceChange `json:"resources" jsonschema:"Rendered objects that would be added, modified or removed."`
 	// ComponentsAdded and ComponentsRemoved compare the declared components.
-	ComponentsAdded   []string `json:"componentsAdded,omitempty"`
-	ComponentsRemoved []string `json:"componentsRemoved,omitempty"`
+	ComponentsAdded   []string `json:"componentsAdded,omitempty" jsonschema:"Components declared in the target and not in the base."`
+	ComponentsRemoved []string `json:"componentsRemoved,omitempty" jsonschema:"Components declared in the base and not in the target."`
 	// PlacementChanged is true when a topology policy changed or the
 	// Application moved namespace.
-	PlacementChanged bool `json:"placementChanged"`
+	PlacementChanged bool `json:"placementChanged" jsonschema:"True when a topology policy or the namespace changed."`
 	// GateRemoved is true when a suspend step that preceded the first deploy
 	// step in the base is absent in the target.
-	GateRemoved bool `json:"gateRemoved"`
+	GateRemoved bool `json:"gateRemoved" jsonschema:"True when a suspend step before the first deploy step was removed."`
 	// WorkflowChanged is true when the declared workflow differs at all.
-	WorkflowChanged bool `json:"workflowChanged"`
+	WorkflowChanged bool `json:"workflowChanged" jsonschema:"True when the declared workflow differs at all."`
 	// PoliciesChanged lists policy names whose type or properties changed.
-	PoliciesChanged []string `json:"policiesChanged,omitempty"`
+	PoliciesChanged []string `json:"policiesChanged,omitempty" jsonschema:"Names of policies whose type or properties changed."`
 }
 
 // ignoredLeaf lists paths that differ between every render and carry no
