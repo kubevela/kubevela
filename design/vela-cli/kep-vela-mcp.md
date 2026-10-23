@@ -127,8 +127,11 @@ those commands unit-testable. Handlers never shell out and never call a model.
    come from deterministic code.
 2. **Read-only until an administrator says otherwise.** Write tools are absent from
    `tools/list` unless enabled at server start. No runtime toggle a prompt could flip.
-3. **Every write shows its diff first.** `apply_application` requires a token from a
-   `diff_application` call on the same content in the same session.
+3. **Every write is computed, then confirmed by a human.** `apply_application` requires a
+   token from a `diff_application` call on the same content in the same session. The token
+   binds the exact document to the base revision it was diffed against; it does not prove
+   anyone read the diff. Human confirmation comes from the mode: pull-request review for
+   `gitops`, the cluster-side hold for `gated`, and a server-written prompt for `direct`.
 4. **The agent is the user.** Same kubeconfig, impersonation, RBAC and audit as `vela`.
 5. **No new vocabulary.** Tool names use definition, application, workflow, cluster, addon.
 6. **Every answer says where it came from and how fresh it is.** Status tools read live
@@ -236,7 +239,7 @@ and a check that no status response ever reports `source: cached`.
 |---|---|---|---|
 | `gitops` | Returns deterministic YAML and the diff; writes nothing | Applications marked GitOps-managed, and namespaces declared GitOps | Pull-request review |
 | `gated` | Applies with a one-shot hold, so the workflow does not start until confirmed | Everything else | A human with resume rights |
-| `direct` | Applies after verifying the diff token | Only namespaces on an explicit allowlist that also do not match the production pattern; a namespace matching both is refused at startup | Nobody; reconciles at once |
+| `direct` | Verifies the diff token, asks the user to confirm through the client, then applies | Only namespaces on an explicit allowlist that also do not match the production pattern; a namespace matching both is refused at startup | The user, through a prompt the server writes |
 
 **Mode is decided per Application.** Namespace policy sets the floor. An Application can
 tighten its own mode with an `app.oam.dev/agent-write-mode` annotation (`gitops` or
@@ -244,7 +247,33 @@ tighten its own mode with an `app.oam.dev/agent-write-mode` annotation (`gitops`
 the three wins. A marker can only tighten, never loosen, so a value in the input cannot
 weaken the policy, and a team that manages one Application through Git while the rest of
 the namespace is not gets `gitops` for that Application alone. Requested mode can be
-downgraded by policy (direct to gated, gated to gitops), never upgraded.
+downgraded by policy (direct to gated, gated to gitops), never upgraded. A HIGH risk class
+always downgrades `direct` to `gated`, so a single confirmation never approves a deletion,
+a placement change or a security-surface change.
+
+**Direct mode confirms through the client, not the agent.** After verifying the token the
+server sends an MCP elicitation request, and the client shows it to the user as a native
+prompt the model cannot answer:
+
+```text
+vela: apply Application shop to team-a, direct mode, no approval step
+  MODIFY Deployment team-a/shop
+    spec.template.spec.containers[0].image  nginx:1.26 -> nginx:1.27
+  Risk LOW: image-tag
+  Base revision shop-v1. Token valid for 12 more minutes.
+[Apply]  [Decline]
+```
+
+The server writes this text from the same change set it hashed into the token, so a model
+cannot misdescribe the change, and an agent that chains `diff_application` and
+`apply_application` in one generated script, as code-execution clients do, still stops at
+the prompt. Accept applies; decline writes nothing and returns "declined by user". A
+client that does not support elicitation cannot use `direct`: the request is downgraded
+like any other, and the response says nothing was applied because the client cannot ask
+for confirmation. Some harnesses accept prompts automatically in unattended modes. That is
+the user's choice, equivalent to `--yes` on the CLI; unattended automation belongs in
+`gated`, where the gate lives in the cluster rather than in the client. The prompt is a
+confirmation, not authorisation: RBAC still decides what may be applied.
 
 **Gated mode does not edit the spec.** Injecting a `suspend` step would change the
 Application's declared intent: it would appear in revisions and rollbacks, and a restart
@@ -261,7 +290,8 @@ metadata:
 ```
 
 When the controller reconciles a generation that matches the hold, it starts the workflow
-suspended, with a message naming the initiator and risk, instead of running the first
+suspended, with a message naming the initiator, the risk class and the rules that fired,
+so the approver sees what the agent saw, instead of running the first
 step. `vela workflow resume` confirms it exactly as it confirms any suspended workflow, and
 the controller then clears the hold. Because the hold lives outside the spec and names one
 generation, revisions never contain it, a rollback is not paused by it, a restart after
@@ -489,6 +519,7 @@ state whether traffic changed. Deterministic, one round trip per cluster.
 | Tool descriptions suit one model and not another | Cross-model evaluation in CI from P0; descriptions are code with tests |
 | Secrets leak through tool output | Redaction on every response with negative tests |
 | Agents resume their own gates | `resume_workflow` off by default; denies the recorded initiator |
+| An agent applies a change no human looked at | Token binds content only; `direct` requires a server-written elicitation prompt and refuses clients without it; HIGH risk never goes direct; evaluation includes a code-execution client chaining diff and apply |
 | Agents patch managed resources through the Kubernetes MCP | Setup configures it read-only; skills state the boundary; evaluation counts wrong-server calls |
 | Third-party MCP tool names or auth drift | Version pins per release; server appendices separate from skill bodies; stub mirrors the pins |
 | Scope creep toward semantic-API tools, or cluster-fleet tools before their CRDs exist | Every P0 tool must map to an existing code path; cluster-fleet tools start only after the Cluster Infrastructure KEP lands |
@@ -518,7 +549,7 @@ tools:
 
 | Change | Why | Until it lands |
 |---|---|---|
-| Honour `app.oam.dev/hold-generation`: start the matching generation's workflow suspended, clear the hold on resume | Gated mode without editing the Application's workflow | `apply_application` offers `gitops` and `direct` only |
+| Honour `app.oam.dev/hold-generation`: start the matching generation's workflow suspended, clear the hold on resume | Gated mode without editing the Application's workflow | `apply_application` offers `gitops`, and `direct` on clients that support elicitation; requests that would be `gated`, including every HIGH risk change, fall back to `gitops` |
 
 Parameter validation at admission is not a prerequisite. It is a separate proposal that
 improves accuracy for humans and agents alike, and the server serves its schema when it
