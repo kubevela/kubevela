@@ -819,7 +819,7 @@ var _ = Describe("Module as a component", Ordered, func() {
 			Expect(k8serrors.IsNotFound(getErr)).Should(BeTrue())
 		})
 
-		It("an unknown registry name is admitted and refused at reconcile", func() {
+		It("an unknown registry name is rejected at admission", func() {
 			// Keep the original precondition: a known registry is configured, so
 			// this checks rejection of one unknown name rather than an empty store.
 			_, err := store.GetRegistry(ctx, demoStoreRegistryName)
@@ -834,17 +834,10 @@ var _ = Describe("Module as a component", Ordered, func() {
 					}},
 				},
 			}
-			Expect(k8sClient.Create(ctx, app)).Should(Succeed())
-			DeferCleanup(func() {
-				Expect(client.IgnoreNotFound(k8sClient.Delete(ctx, app))).To(Succeed())
-			})
-			Eventually(func(g Gomega) string {
-				got := &v1beta1.Application{}
-				if k8sClient.Get(ctx, k8stypes.NamespacedName{Name: app.Name, Namespace: app.Namespace}, got) != nil {
-					return ""
-				}
-				return workflowMessage(got)
-			}, 60*time.Second, 2*time.Second).Should(ContainSubstring(`module registry "doesnotexist" not found`))
+			err = k8sClient.Create(ctx, app)
+			Expect(err).Should(HaveOccurred())
+			Expect(err.Error()).Should(ContainSubstring(`"doesnotexist": is not a configured module registry`))
+			Expect(err.Error()).Should(ContainSubstring(demoStoreRegistryName), "the message lists the configured registries")
 		})
 
 	})
