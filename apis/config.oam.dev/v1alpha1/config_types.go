@@ -59,6 +59,8 @@ type ConfigSpec struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties *runtime.RawExtension `json:"properties,omitempty"`
 
+	// PropertiesFrom reads the properties from a Secret. A Config that uses it is always
+	// sensitive: its Secret is marked config.oam.dev/sensitive, whatever the template says.
 	PropertiesFrom *PropertiesReference `json:"propertiesFrom,omitempty"`
 
 	Alias       string `json:"alias,omitempty"`

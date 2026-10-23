@@ -106,8 +106,8 @@ var ErrTemplateNotFound = errors.New("the template does not exist")
 // validating webhook so both enforcement points agree on one message.
 var ErrMutuallyExclusiveProperties = errors.New("spec.properties and spec.propertiesFrom are mutually exclusive")
 
-// sensitiveAnnotationValue is the AnnotationConfigSensitive value that marks a config/template sensitive.
-const sensitiveAnnotationValue = "true"
+// SensitiveAnnotationValue is the AnnotationConfigSensitive value that marks a config/template sensitive.
+const SensitiveAnnotationValue = "true"
 
 // ErrChangeTemplate means the template of the config can not be changed
 var ErrChangeTemplate = errors.New("the template of the config can not be changed")
@@ -435,7 +435,7 @@ func convertConfigMap2Template(cm v1.ConfigMap) (*Template, error) {
 		},
 		Alias:       cm.Annotations[types.AnnotationConfigAlias],
 		Description: cm.Annotations[types.AnnotationConfigDescription],
-		Sensitive:   cm.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue,
+		Sensitive:   cm.Annotations[types.AnnotationConfigSensitive] == SensitiveAnnotationValue,
 		Scope:       cm.Labels[types.LabelConfigScope],
 		CreateTime:  cm.CreationTimestamp.Time,
 		Template:    script.CUE(cm.Data[SaveTemplateKey]),
@@ -767,9 +767,17 @@ func (k *kubeConfigFactory) ReadConfig(ctx context.Context, namespace, name stri
 // sensitive one: the Secret-level half of ReadConfig, shared with the Config controller,
 // which reads a template's Nacos endpoint config the same way.
 func ReadConfigSecret(secret *v1.Secret) (map[string]interface{}, error) {
-	if secretSensitive(secret) {
+	if SecretSensitive(secret) {
 		return nil, ErrSensitiveConfig
 	}
+	return SecretInputProperties(secret)
+}
+
+// SecretInputProperties returns the input properties a config Secret holds, sensitive or
+// not. The sensitive mark guards what users read back; a controller reading a config it
+// keeps for its own use, as the application controller reads its source cache entries,
+// reads it whatever the mark.
+func SecretInputProperties(secret *v1.Secret) (map[string]interface{}, error) {
 	properties, ok := secret.Data[SaveInputPropertiesKey]
 	if !ok || len(properties) == 0 {
 		return nil, fmt.Errorf("secret %s/%s has no %s", secret.Namespace, secret.Name, SaveInputPropertiesKey)
@@ -804,7 +812,7 @@ func (k *kubeConfigFactory) GetConfig(ctx context.Context, namespace, name strin
 		}
 		return nil, err
 	}
-	if secret.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue {
+	if secret.Annotations[types.AnnotationConfigSensitive] == SensitiveAnnotationValue {
 		return nil, ErrSensitiveConfig
 	}
 	item, err := convertSecret2Config(&secret)
@@ -1259,7 +1267,7 @@ func convertSecret2Config(se *v1.Secret) (*Config, error) {
 		config.Alias = se.Annotations[types.AnnotationConfigAlias]
 		config.Description = se.Annotations[types.AnnotationConfigDescription]
 		config.Template.Namespace = se.Annotations[types.AnnotationConfigTemplateNamespace]
-		config.Template.Sensitive = se.Annotations[types.AnnotationConfigSensitive] == sensitiveAnnotationValue
+		config.Template.Sensitive = se.Annotations[types.AnnotationConfigSensitive] == SensitiveAnnotationValue
 	}
 	if !config.Template.Sensitive && len(se.Data[SaveInputPropertiesKey]) > 0 {
 		var properties = map[string]interface{}{}

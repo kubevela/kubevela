@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	apitypes "github.com/oam-dev/kubevela/apis/types"
@@ -44,20 +45,18 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-// fakeConfigFactory implements config.Factory. Only the three methods this store
+// fakeConfigFactory implements config.Factory. Only the two methods this store
 // calls do anything; the rest exist to satisfy the interface.
 type fakeConfigFactory struct {
-	getConfig *config.Config
-	getErr    error
-	parsed    *config.Config
-	parseErr  error
-	written   *config.Config
-	writeErr  error
-	writeNS   string
+	parsed   *config.Config
+	parseErr error
+	written  *config.Config
+	writeErr error
+	writeNS  string
 }
 
-func (f *fakeConfigFactory) GetConfig(_ context.Context, _, _ string, _ bool) (*config.Config, error) {
-	return f.getConfig, f.getErr
+func (f *fakeConfigFactory) GetConfig(context.Context, string, string, bool) (*config.Config, error) {
+	return nil, nil
 }
 
 func (f *fakeConfigFactory) ParseConfig(_ context.Context, tmpl config.NamespacedName, meta config.Metadata) (*config.Config, error) {
@@ -151,49 +150,62 @@ func storeWith(f *fakeConfigFactory, cli client.Client, templates map[string]str
 	return s
 }
 
+// cacheEntry is a cache entry's Secret as the store writes it: created at created,
+// last synced at syncAt when set, marked sensitive as its Config makes it.
+func cacheEntry(created time.Time, syncAt string) *corev1.Secret {
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "k", Namespace: sources.CacheNamespace(),
+			CreationTimestamp: metav1.NewTime(created),
+			Annotations:       map[string]string{apitypes.AnnotationConfigSensitive: "true"},
+		},
+		Data: map[string][]byte{config.SaveInputPropertiesKey: []byte(`{"image":"nginx"}`)},
+	}
+	if syncAt != "" {
+		secret.Annotations[sourceCacheSyncAtKey] = syncAt
+	}
+	return secret
+}
+
+func storeReading(objs ...client.Object) *configAPISourceCacheStore {
+	return storeWith(&fakeConfigFactory{}, fake.NewClientBuilder().WithObjects(objs...).Build(), nil)
+}
+
 // A missing entry is a cache miss, not a failure. Getting this wrong fails the
 // source outright instead of re-fetching it.
 func TestConfigStoreReadTreatsAMissingEntryAsAMiss(t *testing.T) {
-	s := storeWith(&fakeConfigFactory{getErr: config.ErrConfigNotFound}, nil, nil)
-	got, err := s.Read(context.Background(), "k", time.Minute)
+	got, err := storeReading().Read(context.Background(), "k", time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, velaprocess.SourceCacheRead{}, got)
 }
 
-// The same, when the factory wraps the sentinel. An equality check passes the
-// test above and fails this one.
-func TestConfigStoreReadUnwrapsTheNotFoundSentinel(t *testing.T) {
-	wrapped := fmt.Errorf("reading config %q: %w", "k", config.ErrConfigNotFound)
-	s := storeWith(&fakeConfigFactory{getErr: wrapped}, nil, nil)
-	got, err := s.Read(context.Background(), "k", time.Minute)
-	require.NoError(t, err, "a wrapped not-found is still a miss")
-	require.False(t, got.Found)
-}
-
 func TestConfigStoreReadPropagatesOtherErrors(t *testing.T) {
-	s := storeWith(&fakeConfigFactory{getErr: fmt.Errorf("apiserver is down")}, nil, nil)
-	got, err := s.Read(context.Background(), "k", time.Minute)
+	cli := fake.NewClientBuilder().WithInterceptorFuncs(interceptor.Funcs{
+		Get: func(context.Context, client.WithWatch, client.ObjectKey, client.Object, ...client.GetOption) error {
+			return fmt.Errorf("apiserver is down")
+		},
+	}).Build()
+	got, err := storeWith(&fakeConfigFactory{}, cli, nil).Read(context.Background(), "k", time.Minute)
 	require.Error(t, err)
 	require.False(t, got.Found)
 }
 
+// The entry's Config keeps the values in spec.propertiesFrom, so the Config
+// controller marks its Secret sensitive. The factory's readers refuse that, and a
+// refusal reads as a miss: the persistent cache would never hit, and an entry kept
+// for onStaleFailure: useStale would never be served.
+func TestConfigStoreReadsAnEntryMarkedSensitive(t *testing.T) {
+	got, err := storeReading(cacheEntry(time.Now().UTC().Add(-time.Minute), "")).Read(context.Background(), "k", time.Hour)
+	require.NoError(t, err)
+	require.True(t, got.Found)
+	require.Equal(t, map[string]interface{}{"image": "nginx"}, got.Data)
+}
+
 func TestConfigStoreReadReportsFreshnessFromTheSyncAnnotation(t *testing.T) {
 	now := time.Now().UTC()
-	cfgWith := func(created time.Time, syncAt string) *config.Config {
-		c := &config.Config{
-			CreateTime: created,
-			Metadata:   config.Metadata{Properties: map[string]interface{}{"image": "nginx"}},
-			Secret:     &corev1.Secret{},
-		}
-		if syncAt != "" {
-			c.Secret.Annotations = map[string]string{sourceCacheSyncAtKey: syncAt}
-		}
-		return c
-	}
 
 	t.Run("fresh", func(t *testing.T) {
-		s := storeWith(&fakeConfigFactory{getConfig: cfgWith(now.Add(-time.Minute), "")}, nil, nil)
-		got, err := s.Read(context.Background(), "k", time.Hour)
+		got, err := storeReading(cacheEntry(now.Add(-time.Minute), "")).Read(context.Background(), "k", time.Hour)
 		require.NoError(t, err)
 		require.True(t, got.Found)
 		require.False(t, got.Stale)
@@ -202,8 +214,7 @@ func TestConfigStoreReadReportsFreshnessFromTheSyncAnnotation(t *testing.T) {
 	})
 
 	t.Run("expired", func(t *testing.T) {
-		s := storeWith(&fakeConfigFactory{getConfig: cfgWith(now.Add(-2*time.Hour), "")}, nil, nil)
-		got, err := s.Read(context.Background(), "k", time.Hour)
+		got, err := storeReading(cacheEntry(now.Add(-2*time.Hour), "")).Read(context.Background(), "k", time.Hour)
 		require.NoError(t, err)
 		require.True(t, got.Found, "an expired entry is still there to serve stale")
 		require.True(t, got.Stale)
@@ -212,23 +223,20 @@ func TestConfigStoreReadReportsFreshnessFromTheSyncAnnotation(t *testing.T) {
 	t.Run("the annotation wins over the creation time", func(t *testing.T) {
 		// Created long ago but refreshed a moment ago: freshness follows the
 		// refresh, or every long-lived entry would read as permanently stale.
-		s := storeWith(&fakeConfigFactory{getConfig: cfgWith(
-			now.Add(-99*time.Hour), now.Add(-time.Minute).Format(time.RFC3339))}, nil, nil)
-		got, err := s.Read(context.Background(), "k", time.Hour)
+		got, err := storeReading(cacheEntry(now.Add(-99*time.Hour), now.Add(-time.Minute).Format(time.RFC3339))).
+			Read(context.Background(), "k", time.Hour)
 		require.NoError(t, err)
 		require.False(t, got.Stale)
 	})
 
 	t.Run("an unparseable annotation falls back to the creation time", func(t *testing.T) {
-		s := storeWith(&fakeConfigFactory{getConfig: cfgWith(now.Add(-time.Minute), "not-a-time")}, nil, nil)
-		got, err := s.Read(context.Background(), "k", time.Hour)
+		got, err := storeReading(cacheEntry(now.Add(-time.Minute), "not-a-time")).Read(context.Background(), "k", time.Hour)
 		require.NoError(t, err)
 		require.False(t, got.Stale, "a bad annotation must not make a fresh entry stale")
 	})
 
 	t.Run("a non-positive ttl takes the default", func(t *testing.T) {
-		s := storeWith(&fakeConfigFactory{getConfig: cfgWith(now.Add(-time.Minute), "")}, nil, nil)
-		got, err := s.Read(context.Background(), "k", 0)
+		got, err := storeReading(cacheEntry(now.Add(-time.Minute), "")).Read(context.Background(), "k", 0)
 		require.NoError(t, err)
 		require.False(t, got.Stale)
 		require.True(t, got.ExpiresAt.Before(now.Add(16*time.Minute)), "defaults to 15m, not forever")
@@ -252,6 +260,8 @@ func TestConfigStoreWriteStampsIdentityAndSyncTime(t *testing.T) {
 		"the source type is the config type, which is what the GC sweep selects on")
 	require.Equal(t, apitypes.VelaCoreConfig, f.written.Secret.Labels[apitypes.LabelConfigCatalog],
 		"unlabelled, the entry is invisible to vela config and to the sweep")
+	require.Equal(t, "true", f.written.Secret.Annotations[apitypes.AnnotationConfigSensitive],
+		"sensitive from the first write, as the Config controller marks it")
 }
 
 // A source type with no registered template falls back to the one the write
@@ -446,6 +456,13 @@ func TestConfigStoreWriteDeclaresTheEntryThroughTheAPI(t *testing.T) {
 	r.NoError(cli.Get(context.Background(),
 		types.NamespacedName{Namespace: ns, Name: "atlas-abc123"}, &secret))
 	r.Contains(string(secret.Data[config.SaveInputPropertiesKey]), "example.com")
+	r.Equal("true", secret.Annotations[apitypes.AnnotationConfigSensitive])
+
+	// and reads back as a hit, marked sensitive as it is
+	got, err := s.Read(context.Background(), "atlas-abc123", time.Hour)
+	r.NoError(err)
+	r.True(got.Found)
+	r.Equal("example.com", got.Data["host"])
 
 	// The Config CR declares it, pointing at that Secret rather than inlining.
 	var cfg configv1alpha1.Config
@@ -469,12 +486,7 @@ func TestConfigStoreWriteDeclaresTheEntryThroughTheAPI(t *testing.T) {
 // SourceCacheStore interface. A fresh entry read that way must be a hit, or every
 // reconcile fetches the source again whatever its storageTTL.
 func TestConfigStoreFreshEntryIsAHitThroughTheInterface(t *testing.T) {
-	fresh := &config.Config{
-		CreateTime: time.Now().UTC().Add(-time.Minute),
-		Metadata:   config.Metadata{Properties: map[string]interface{}{"image": "nginx"}},
-		Secret:     &corev1.Secret{},
-	}
-	var store velaprocess.SourceCacheStore = storeWith(&fakeConfigFactory{getConfig: fresh}, nil, nil)
+	var store velaprocess.SourceCacheStore = storeReading(cacheEntry(time.Now().UTC().Add(-time.Minute), ""))
 
 	got, err := store.Read(context.Background(), "k", time.Hour)
 	require.NoError(t, err)

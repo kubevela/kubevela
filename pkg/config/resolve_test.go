@@ -160,7 +160,7 @@ func TestResolveConfigTemplate(t *testing.T) {
 				Namespace: apitypes.DefaultKubeVelaNS,
 				Labels:    map[string]string{apitypes.LabelConfigScope: "system"},
 				Annotations: map[string]string{
-					apitypes.AnnotationConfigSensitive: sensitiveAnnotationValue,
+					apitypes.AnnotationConfigSensitive: SensitiveAnnotationValue,
 				},
 			},
 			Data: map[string]string{SaveTemplateKey: "template: {}"},

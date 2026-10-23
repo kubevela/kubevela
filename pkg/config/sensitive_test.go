@@ -21,6 +21,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 func TestSensitiveTurnedOffError(t *testing.T) {
@@ -33,4 +37,23 @@ func TestSensitiveTurnedOffMessageIsTheCRDRules(t *testing.T) {
 	crd, err := os.ReadFile("../../charts/vela-core/crds/config.oam.dev_configtemplates.yaml")
 	require.NoError(t, err)
 	require.Contains(t, string(crd), "- message: "+SensitiveTurnedOffMessage)
+}
+
+// ReadConfigSecret is what users read through and refuses a sensitive Secret;
+// SecretInputProperties is a controller's read of a config it keeps for its own use.
+func TestSecretInputPropertiesReadsWhatReadConfigSecretRefuses(t *testing.T) {
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "c", Namespace: "ns", Annotations: map[string]string{types.AnnotationConfigSensitive: "true"}},
+		Data:       map[string][]byte{SaveInputPropertiesKey: []byte(`{"host":"example.com"}`)},
+	}
+	_, err := ReadConfigSecret(secret)
+	require.ErrorIs(t, err, ErrSensitiveConfig)
+
+	got, err := SecretInputProperties(secret)
+	require.NoError(t, err)
+	require.Equal(t, map[string]interface{}{"host": "example.com"}, got)
+
+	delete(secret.Data, SaveInputPropertiesKey)
+	_, err = SecretInputProperties(secret)
+	require.EqualError(t, err, "secret ns/c has no input-properties")
 }

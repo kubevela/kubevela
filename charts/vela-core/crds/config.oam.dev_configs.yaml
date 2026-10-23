@@ -63,8 +63,9 @@ spec:
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
               propertiesFrom:
-                description: PropertiesReference sources properties from a Secret
-                  instead of storing them inline.
+                description: |-
+                  PropertiesFrom reads the properties from a Secret. A Config that uses it is always
+                  sensitive: its Secret is marked config.oam.dev/sensitive, whatever the template says.
                 properties:
                   secretRef:
                     description: SecretKeySelector selects a key of a Secret in the
