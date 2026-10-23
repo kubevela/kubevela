@@ -633,3 +633,39 @@ template: {
 		pkgtypes.NamespacedName{Namespace: "vela-system", Name: "atlas-schema"}, &ct))
 	r.Equal("vela-system", ct.Labels["sourcedefinition.oam.dev/namespace"])
 }
+
+// A template marked sensitive after it was written stays sensitive when the writer
+// rewrites it: the SourceDefinition controller rewrites its generated templates on
+// every reconcile with sensitive false, which the CRD rule would refuse.
+func TestCreateOrUpdateConfigTemplateCRKeepsAStoredSensitive(t *testing.T) {
+	r := require.New(t)
+	ctx := context.Background()
+	k8sClient := fake.NewClientBuilder().WithScheme(common.Scheme).Build()
+	f := NewConfigFactory(k8sClient)
+	tmpl, err := f.ParseTemplate(ctx, "atlas-schema", []byte(`
+metadata: {name: "atlas-schema", scope: "system"}
+template: {
+	parameter: {host: string}
+	output: {}
+}
+`))
+	r.NoError(err)
+	r.False(tmpl.Sensitive)
+	key := pkgtypes.NamespacedName{Namespace: "vela-system", Name: "atlas-schema"}
+
+	r.NoError(f.CreateOrUpdateConfigTemplateCR(ctx, "vela-system", tmpl))
+	var ct configv1alpha1.ConfigTemplate
+	r.NoError(k8sClient.Get(ctx, key, &ct))
+	r.False(ct.Spec.Sensitive, "created as the template says")
+
+	ct.Spec.Sensitive = true
+	r.NoError(k8sClient.Update(ctx, &ct))
+	r.NoError(f.CreateOrUpdateConfigTemplateCR(ctx, "vela-system", tmpl))
+	r.NoError(k8sClient.Get(ctx, key, &ct))
+	r.True(ct.Spec.Sensitive, "a stored true is kept")
+
+	tmpl.Sensitive = true
+	r.NoError(f.CreateOrUpdateConfigTemplateCR(ctx, "other", tmpl))
+	r.NoError(k8sClient.Get(ctx, pkgtypes.NamespacedName{Namespace: "other", Name: "atlas-schema"}, &ct))
+	r.True(ct.Spec.Sensitive, "a sensitive template is written sensitive")
+}

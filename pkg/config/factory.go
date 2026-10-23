@@ -843,7 +843,12 @@ func (k *kubeConfigFactory) CreateOrUpdateConfigTemplateCR(ctx context.Context, 
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, k.cli, ct, func() error {
 		applyTemplateLabels(ct, it.Labels)
+		stored := ct.Spec.Sensitive
 		ct.Spec = configTemplateSpecFromTemplate(it)
+		// sensitive is never turned off (the CRD rule refuses it): a template someone
+		// marked sensitive stays so when its writer, which knows nothing of the mark,
+		// rewrites it
+		ct.Spec.Sensitive = ct.Spec.Sensitive || stored
 		return nil
 	})
 	return err
