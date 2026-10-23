@@ -102,6 +102,10 @@ type AppHandler struct {
 	// this reconcile.
 	readsWaiting bool
 
+	// policySecretErr records a failure to persist sensitive policy context so the
+	// Reconciler can surface it as an event (the data itself is dropped, see #6840)
+	policySecretErr error
+
 	mu sync.Mutex
 }
 

@@ -24,16 +24,19 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	monitorContext "github.com/kubevela/pkg/monitor/context"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/testutil"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -54,6 +57,39 @@ func createPolicyDefAndIndex(ctx context.Context, policy *v1beta1.PolicyDefiniti
 	waitForPolicyDef(ctx, policy.Name, policy.Namespace)
 	// Manually add to index (watches don't fire in test environment)
 	policyScopeIndex.AddOrUpdate(policy)
+}
+
+// sensitiveCtxPolicyDef returns an Application-scoped policy that emits a plain
+// ctx value and a sensitiveCtx value (kubevela#6840).
+func sensitiveCtxPolicyDef(name, ns string) *v1beta1.PolicyDefinition {
+	return &v1beta1.PolicyDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: v1beta1.PolicyDefinitionSpec{
+			Scope: v1beta1.ApplicationScope,
+			Schematic: &common.Schematic{
+				CUE: &common.CUE{
+					Template: `
+parameter: {}
+
+output: {
+  ctx: dbHost: "db.internal"
+  sensitiveCtx: dbPassword: "` + leakedSecretValue + `"
+}
+`,
+				},
+			},
+		},
+	}
+}
+
+func sensitiveCtxApp(name, ns, policyType string) *v1beta1.Application {
+	return &v1beta1.Application{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: v1beta1.ApplicationSpec{
+			Components: []common.ApplicationComponent{{Name: "my-component", Type: "webservice"}},
+			Policies:   []v1beta1.AppPolicy{{Name: "db-credentials", Type: policyType}},
+		},
+	}
 }
 
 var _ = Describe("Test Application-scoped PolicyDefinition transforms", func() {
@@ -728,6 +764,93 @@ output: {
 
 		// This additionalContext will be extracted by process.NewContext(), wrapped under
 		// "custom" key, and made available to component/trait templates as context.custom.config
+	})
+
+	It("Test policy sensitiveCtx is available as context.custom but kept out of the ConfigMap", func() {
+		createPolicyDefAndIndex(ctx, sensitiveCtxPolicyDef("sensitive-ctx-policy", namespace))
+		app := sensitiveCtxApp("app-sensitive-ctx", namespace, "sensitive-ctx-policy")
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		handler := &AppHandler{Client: k8sClient}
+		monCtx, err := handler.ApplyApplicationScopeTransforms(monitorContext.NewTraceContext(ctx, "test-sensitive-ctx"), app)
+		Expect(err).Should(BeNil())
+		Expect(handler.policySecretErr).Should(BeNil())
+
+		customCtx, ok := monCtx.GetContext().Value(oam.PolicyAdditionalContextKey).(map[string]interface{})
+		Expect(ok).Should(BeTrue())
+		Expect(customCtx).Should(HaveKeyWithValue("dbHost", "db.internal"))
+		Expect(customCtx).Should(HaveKeyWithValue("dbPassword", leakedSecretValue))
+		Expect(app.Status.AppliedApplicationPolicies).Should(HaveLen(1))
+		Expect(app.Status.AppliedApplicationPolicies[0].HasContext).Should(BeTrue())
+
+		cm := &corev1.ConfigMap{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: policyConfigMapName(namespace, app.Name), Namespace: namespace}, cm)).Should(Succeed())
+		Expect(configMapContains(cm, "db.internal")).Should(BeTrue())
+		Expect(configMapContains(cm, leakedSecretValue)).Should(BeFalse())
+
+		secret := &corev1.Secret{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: policySecretName(namespace, app.Name), Namespace: namespace}, secret)).Should(Succeed())
+		Expect(secretContains(secret, leakedSecretValue)).Should(BeTrue())
+	})
+
+	It("Test removing the last policy clears the sensitive policy Secret", func() {
+		createPolicyDefAndIndex(ctx, sensitiveCtxPolicyDef("sensitive-ctx-clear-policy", namespace))
+		app := sensitiveCtxApp("app-sensitive-ctx-clear", namespace, "sensitive-ctx-clear-policy")
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+		secretKey := client.ObjectKey{Name: policySecretName(namespace, app.Name), Namespace: namespace}
+
+		_, err := (&AppHandler{Client: k8sClient}).ApplyApplicationScopeTransforms(monitorContext.NewTraceContext(ctx, "test-sensitive-clear-1"), app)
+		Expect(err).Should(BeNil())
+		secret := &corev1.Secret{}
+		Expect(k8sClient.Get(ctx, secretKey, secret)).Should(Succeed())
+		Expect(secretContains(secret, leakedSecretValue)).Should(BeTrue())
+
+		app.Spec.Policies = nil
+		_, err = (&AppHandler{Client: k8sClient}).ApplyApplicationScopeTransforms(monitorContext.NewTraceContext(ctx, "test-sensitive-clear-2"), app)
+		Expect(err).Should(BeNil())
+		Expect(k8sClient.Get(ctx, secretKey, secret)).Should(Succeed())
+		Expect(secret.Data).Should(BeEmpty())
+	})
+
+	It("Test policy dry-run does not write the sensitive policy Secret", func() {
+		createPolicyDefAndIndex(ctx, sensitiveCtxPolicyDef("sensitive-ctx-dryrun-policy", namespace))
+		app := sensitiveCtxApp("app-sensitive-ctx-dryrun", namespace, "sensitive-ctx-dryrun-policy")
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		result, err := SimulatePolicyApplication(ctx, k8sClient, app)
+		Expect(err).Should(BeNil())
+		Expect(result.Errors).Should(BeEmpty())
+
+		err = k8sClient.Get(ctx, client.ObjectKey{Name: policySecretName(namespace, app.Name), Namespace: namespace}, &corev1.Secret{})
+		Expect(kerrors.IsNotFound(err)).Should(BeTrue())
+	})
+
+	It("Test failing to store the sensitive policy Secret emits a Warning event", func() {
+		createPolicyDefAndIndex(ctx, sensitiveCtxPolicyDef("sensitive-ctx-event-policy", namespace))
+		app := sensitiveCtxApp("app-sensitive-ctx-event", namespace, "sensitive-ctx-event-policy")
+		// A Secret the Application does not own already holds the name, so the write is refused.
+		foreign := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: policySecretName(namespace, app.Name), Namespace: namespace},
+			Data:       map[string][]byte{"unrelated": []byte("keep-me")},
+		}
+		Expect(k8sClient.Create(ctx, foreign)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, app)).Should(Succeed())
+
+		testutil.ReconcileOnceAfterFinalizer(reconciler, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(app)})
+
+		events, err := recorder.GetEventsWithName(app.Name)
+		Expect(err).Should(BeNil())
+		Expect(events).Should(ContainElement(SatisfyAll(
+			HaveField("EventType", corev1.EventTypeWarning),
+			HaveField("Reason", "PolicySecretFailed"),
+		)))
+
+		got := &corev1.Secret{}
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(foreign), got)).Should(Succeed())
+		Expect(got.Data).Should(Equal(foreign.Data))
+		cm := &corev1.ConfigMap{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: policyConfigMapName(namespace, app.Name), Namespace: namespace}, cm)).Should(Succeed())
+		Expect(configMapContains(cm, leakedSecretValue)).Should(BeFalse())
 	})
 
 	It("Test built-in policies (not in index) are silently skipped", func() {
