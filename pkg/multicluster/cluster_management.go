@@ -176,7 +176,7 @@ func (clusterConfig *KubeClusterConfig) RegisterByVelaSecret(ctx context.Context
 			return fmt.Errorf("cluster %s already exists", cluster.Name)
 		}
 		if !clusterConfig.ClusterAlreadyExistCallback(clusterConfig.ClusterName) {
-			return nil
+			return ErrClusterOverwriteCancelled
 		}
 		if cluster.Spec.CredentialType == clusterv1alpha1.CredentialTypeInternal || cluster.Spec.CredentialType == clusterv1alpha1.CredentialTypeOCMManagedCluster {
 			return fmt.Errorf("cannot override %s typed cluster", cluster.Spec.CredentialType)
