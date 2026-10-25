@@ -18,6 +18,7 @@ package resourcekeeper
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -36,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
+	velaerrors "github.com/oam-dev/kubevela/pkg/utils/errors"
 )
 
 func sharedConfigMapPolicies() Policies {
@@ -158,8 +160,8 @@ func TestResourceKeeperConcurrentSharedResourceChurn(t *testing.T) {
 	eventually := func(do func() error) error {
 		var err error
 		for i := 0; i < 100; i++ {
-			if err = do(); err == nil {
-				return nil
+			if err = do(); err == nil || !isConflict(err) {
+				return err
 			}
 		}
 		return err
@@ -186,10 +188,12 @@ func TestResourceKeeperConcurrentSharedResourceChurn(t *testing.T) {
 	r.NoError(dispatch(appName(1)))
 	var wg sync.WaitGroup
 	errs := make(chan error, apps)
+	start := make(chan struct{})
 	for i := 2; i <= apps; i++ {
 		wg.Add(1)
 		go func(app string) {
 			defer wg.Done()
+			<-start
 			for n := 0; n < rounds; n++ {
 				if err := dispatch(app); err != nil {
 					errs <- fmt.Errorf("%s dispatch: %w", app, err)
@@ -202,6 +206,7 @@ func TestResourceKeeperConcurrentSharedResourceChurn(t *testing.T) {
 			}
 		}(appName(i))
 	}
+	close(start)
 	wg.Wait()
 	close(errs)
 	for err := range errs {
@@ -220,4 +225,18 @@ func TestResourceKeeperConcurrentSharedResourceChurn(t *testing.T) {
 		err := cli.Get(ctx, types.NamespacedName{Namespace: "default", Name: cmName(i)}, &v1.ConfigMap{})
 		r.True(kerrors.IsNotFound(err), "%s must go with its last sharer, got %v", cmName(i), err)
 	}
+}
+
+// isConflict reports whether err, or every error it aggregates, is a conflict.
+func isConflict(err error) bool {
+	var list velaerrors.ErrorList
+	if !errors.As(err, &list) {
+		return kerrors.IsConflict(err)
+	}
+	for _, e := range list {
+		if !kerrors.IsConflict(e) {
+			return false
+		}
+	}
+	return true
 }
