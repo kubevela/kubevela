@@ -254,6 +254,27 @@ var _ = Describe("apply_application", func() {
 			Expect(prompt.messages).To(BeEmpty(), "the user is never asked about a stale change")
 		})
 
+		It("lets status updates by the controller through but refuses a spec change", func() {
+			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), append(platformFixtures(), shopRunning()...)...)
+			doc := shopDoc("nginx:1.27", 2, "")
+			d := diff(doc)
+			app := liveApp("shop")
+			before := app.ResourceVersion
+			app.Status.Phase = "runningWorkflow"
+			app.Annotations = map[string]string{"oam.dev/kubevela-version": "v1.11.0"}
+			Expect(h.cli.Update(context.Background(), app)).To(Succeed())
+			Expect(liveApp("shop").ResourceVersion).NotTo(Equal(before), "the update moved the resourceVersion, as a status write does")
+			_, out := apply(doc, d.Token, ModeDirect)
+			Expect(out.Applied).To(BeTrue(), "a status write and a controller annotation are not a change of intent")
+
+			d = diff(shopDoc("nginx:1.28", 2, ""))
+			app = liveApp("shop")
+			app.Generation++
+			Expect(h.cli.Update(context.Background(), app)).To(Succeed())
+			res, _ := apply(shopDoc("nginx:1.28", 2, ""), d.Token, ModeDirect)
+			Expect(errorText(res)).To(ContainSubstring("spec changed since the diff"))
+		})
+
 		It("refuses when an Application appeared after a diff against nothing", func() {
 			h = startHarnessWithClient(writeOptions(), prompt.clientOptions(), platformFixtures()...)
 			doc := shopDoc("nginx:1.27", 2, "")

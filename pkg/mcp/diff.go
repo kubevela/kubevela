@@ -76,9 +76,14 @@ type diffRecord struct {
 	// computed. apply_application writes only if both still hold.
 	liveExists bool
 	liveRV     string
-	changeSet  ChangeSet
-	risk       Risk
-	createdAt  time.Time
+	// liveGeneration and liveMeta capture the live Application's intent:
+	// the spec generation and its user labels and annotations. Status
+	// writes by the controller change the resourceVersion but not these.
+	liveGeneration int64
+	liveMeta       string
+	changeSet      ChangeSet
+	risk           Risk
+	createdAt      time.Time
 	// promptNonce is set when apply_application asks the user to confirm.
 	// The answering call must echo it, so a confirmation is only accepted
 	// for a prompt this server issued.
@@ -258,6 +263,9 @@ func (d *deps) issueToken(app *v1beta1.Application, document, base string, live 
 		changeSet:  cs,
 		risk:       risk,
 		createdAt:  time.Now(),
+	}
+	if live != nil {
+		rec.liveGeneration, rec.liveMeta = live.Generation, intentMeta(live)
 	}
 	d.mu.Lock()
 	d.diffs.put(token, rec)

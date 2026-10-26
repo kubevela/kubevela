@@ -90,6 +90,10 @@ var ignoredLeaf = []string{
 	"metadata.annotations.app.oam.dev/deployVersion",
 	"metadata.annotations.oam.dev/render-hash",
 	"metadata.annotations.app.oam.dev/last-applied-time",
+	// The controller stamps its version on the Application it stores in a
+	// revision, and renders carry it onto every object; a document the user
+	// submits does not, so it would otherwise read as a removal.
+	"metadata.annotations.oam.dev/kubevela-version",
 }
 
 // buildChangeSet compares a base render (nil for a new Application) with
@@ -209,8 +213,9 @@ func leaves(v any) map[string]any {
 	walk = func(prefix string, v any) {
 		switch t := v.(type) {
 		case map[string]any:
+			// An empty map carries no value of its own: what matters is the
+			// leaves that disappeared from it, which the other side lists.
 			if len(t) == 0 {
-				out[prefix] = map[string]any{}
 				return
 			}
 			for k, val := range t {

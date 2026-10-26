@@ -287,7 +287,7 @@ func resourceFindings(component string, rs ResourceSummary) []Finding {
 func serviceFindings(component string, services []ServiceStatus, appRef string) []Finding {
 	var findings []Finding
 	for _, s := range services {
-		where := s.Cluster
+		where := clusterName(s.Cluster)
 		if s.Namespace != "" {
 			where += "/" + s.Namespace
 		}

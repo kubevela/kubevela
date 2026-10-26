@@ -129,6 +129,14 @@ var _ = Describe("change set", func() {
 		Expect(compareObjects(oldObj, nil).Action).To(Equal(ActionRemove))
 	})
 
+	It("ignores controller bookkeeping and empty maps left behind", func() {
+		base := obj("Deployment", "web", map[string]any{"replicas": int64(1)})
+		base.SetAnnotations(map[string]string{"oam.dev/kubevela-version": "v1.11.0"})
+		target := obj("Deployment", "web", map[string]any{"replicas": int64(1)})
+		target.Object["metadata"].(map[string]any)["annotations"] = map[string]any{}
+		Expect(compareObjects(base, target)).To(BeNil())
+	})
+
 	It("detects a removed approval gate and placement changes", func() {
 		gated := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Workflow: &v1beta1.Workflow{Steps: stepsOf("suspend", "deploy")}}}
 		open := &v1beta1.Application{Spec: v1beta1.ApplicationSpec{Workflow: &v1beta1.Workflow{Steps: stepsOf("deploy", "suspend")}}}

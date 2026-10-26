@@ -23,6 +23,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -257,10 +258,54 @@ func (d *deps) checkUnchanged(ctx context.Context, cli client.Client, app *v1bet
 		return nil, fmt.Errorf("get application %s/%s: %w", app.Namespace, app.Name, err)
 	case !rec.liveExists:
 		return nil, fmt.Errorf("application %s/%s was created since the diff: call diff_application again", app.Namespace, app.Name)
-	case live.ResourceVersion != rec.liveRV:
-		return nil, fmt.Errorf("application %s/%s changed since the diff (resourceVersion %s, now %s): call diff_application again", app.Namespace, app.Name, rec.liveRV, live.ResourceVersion)
+	case live.Generation != rec.liveGeneration:
+		return nil, fmt.Errorf("application %s/%s spec changed since the diff (generation %d, now %d): call diff_application again", app.Namespace, app.Name, rec.liveGeneration, live.Generation)
+	case intentMeta(live) != rec.liveMeta:
+		return nil, fmt.Errorf("application %s/%s labels or annotations changed since the diff: call diff_application again", app.Namespace, app.Name)
 	}
+	// Status-only writes by the controller pass. The write that follows
+	// carries the resourceVersion read here, so a change landing between
+	// this check and the write is still a conflict.
 	return live, nil
+}
+
+// volatileAnnotations are written by controllers and tools, not by the
+// person who owns the Application, so they do not count as a change of
+// intent between a diff and an apply.
+var volatileAnnotations = []string{
+	"oam.dev/kubevela-version",
+	"kubectl.kubernetes.io/last-applied-configuration",
+	"app.oam.dev/last-applied-configuration",
+	"app.oam.dev/last-applied-time",
+}
+
+// intentMeta is a stable digest of the labels and annotations a person
+// set on an Application.
+func intentMeta(app *v1beta1.Application) string {
+	keep := func(m map[string]string, skip func(string) bool) []string {
+		out := []string{}
+		for k, v := range m {
+			if !skip(k) {
+				out = append(out, k+"="+v)
+			}
+		}
+		sort.Strings(out)
+		return out
+	}
+	labels := keep(app.Labels, func(string) bool { return false })
+	annos := keep(app.Annotations, func(k string) bool {
+		if strings.HasPrefix(k, mcpAnnotationPrefix) {
+			return true
+		}
+		for _, v := range volatileAnnotations {
+			if k == v {
+				return true
+			}
+		}
+		return false
+	})
+	sum := sha256.Sum256([]byte(strings.Join(labels, "\n") + "\x00" + strings.Join(annos, "\n")))
+	return hex.EncodeToString(sum[:])
 }
 
 // namespaceMode reads the namespace's tightening label. A read failure is a
