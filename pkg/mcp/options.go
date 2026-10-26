@@ -81,6 +81,9 @@ type Options struct {
 	// PodLogs opens a pod log stream. The default uses a clientset on the
 	// factory's config; tests supply their own.
 	PodLogs PodLogsFunc
+	// AccessReview checks what the caller may do. The default is a
+	// SelfSubjectAccessReview; tests supply their own.
+	AccessReview AccessReviewFunc
 }
 
 func (o *Options) complete() {
@@ -92,6 +95,9 @@ func (o *Options) complete() {
 	}
 	if o.ServerVersion == nil {
 		o.ServerVersion = discoverServerVersion
+	}
+	if o.AccessReview == nil {
+		o.AccessReview = selfAccessReview
 	}
 }
 

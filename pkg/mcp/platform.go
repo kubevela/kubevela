@@ -81,20 +81,34 @@ type controllerInfo struct {
 	Found         bool   `json:"found"`
 }
 
-// GetPlatformInfoInput has no fields; the tool takes no arguments.
-type GetPlatformInfoInput struct{}
+// GetPlatformInfoInput optionally names the namespace the user is working in.
+type GetPlatformInfoInput struct {
+	Namespace string `json:"namespace,omitempty" jsonschema:"Namespace the user is about to work in. When set, the result reports how that namespace delivers workloads today."`
+}
 
 // GetPlatformInfoOutput is the tool's structured result.
 type GetPlatformInfoOutput struct {
 	platformInfo
-	Meta Meta `json:"meta"`
+	// Practice is set when a namespace was given.
+	Practice *DeliveryPractice `json:"practice,omitempty" jsonschema:"How the namespace delivers workloads today. Follow it: keep existing workloads in their form and match it for new work unless the user asks otherwise."`
+	Meta     Meta              `json:"meta"`
 }
 
 // getPlatformInfo never fails on a partial lookup: whatever could be read is
 // returned and the lookup error is repeated in the envelope's warnings.
-func (d *deps) getPlatformInfo(ctx context.Context, _ *sdk.CallToolRequest, _ GetPlatformInfoInput) (*sdk.CallToolResult, GetPlatformInfoOutput, error) {
+func (d *deps) getPlatformInfo(ctx context.Context, _ *sdk.CallToolRequest, in GetPlatformInfoInput) (*sdk.CallToolResult, GetPlatformInfoOutput, error) {
 	info, _ := d.cachedPlatform(ctx)
-	return nil, GetPlatformInfoOutput{platformInfo: info, Meta: d.meta(ctx)}, nil
+	out := GetPlatformInfoOutput{platformInfo: info, Meta: d.meta(ctx)}
+	if in.Namespace != "" {
+		practice, warnings, err := d.deliveryPractice(ctx, in.Namespace)
+		if err != nil {
+			return nil, out, err
+		}
+		out.Practice = practice
+		out.Meta.Warnings = append(out.Meta.Warnings, warnings...)
+		out.Meta.Truncated = out.Meta.Truncated || practice.Truncated
+	}
+	return nil, out, nil
 }
 
 // readPlatform gathers versions and gates. Each part degrades independently:

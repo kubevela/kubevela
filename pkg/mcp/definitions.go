@@ -52,14 +52,29 @@ type DefinitionSummary struct {
 	Description    string `json:"description,omitempty"`
 	Version        string `json:"version,omitempty"`
 	LatestRevision string `json:"latestRevision,omitempty"`
+	// Provides is the capability the platform says this definition serves.
+	Provides string `json:"provides,omitempty" jsonschema:"Capability the platform labels this definition as providing, such as postgres. Definitions with the same value are alternatives."`
+	// DefaultFor lists the namespaces where the platform made it the default.
+	DefaultFor []string `json:"defaultFor,omitempty" jsonschema:"Namespaces where the platform made this the default among definitions providing the same capability; * means every namespace."`
+	// Default is set when it is the default for the namespace asked about.
+	Default bool `json:"default,omitempty" jsonschema:"True when this is the platform default for the namespace in the request. Use it and name the alternatives; ask the user only when no option is default and they differ materially."`
 }
+
+const (
+	// providesLabel names the capability a definition serves.
+	providesLabel = "definition.oam.dev/provides"
+	// defaultForAnnotation lists namespaces where a definition is the default.
+	defaultForAnnotation = "definition.oam.dev/default-for"
+)
 
 // ListDefinitionsInput filters list_definitions.
 type ListDefinitionsInput struct {
 	// Type limits the result to one definition type: component, trait, policy or workflow-step.
 	Type string `json:"type,omitempty" jsonschema:"Limit to one definition type: component, trait, policy or workflow-step. Empty lists all four."`
 	// Namespace limits the result to one namespace plus the system namespace.
-	Namespace string `json:"namespace,omitempty" jsonschema:"Namespace to list in addition to the system namespace. Empty lists every namespace the caller can read."`
+	Namespace string `json:"namespace,omitempty" jsonschema:"Namespace to list in addition to the system namespace. Empty lists every namespace the caller can read. Also decides which definition is marked default."`
+	// Provides keeps only definitions labelled as providing a capability.
+	Provides string `json:"provides,omitempty" jsonschema:"Keep only definitions the platform labels as providing this capability, such as postgres, to compare alternatives."`
 }
 
 // ListDefinitionsOutput is the structured result of list_definitions.
@@ -109,7 +124,13 @@ func (d *deps) listDefinitions(ctx context.Context, _ *sdk.CallToolRequest, in L
 			if err != nil {
 				return nil, out, fmt.Errorf("list %s definitions in %q: %w", t, nsLabel(ns), err)
 			}
-			out.Definitions = append(out.Definitions, items...)
+			for _, item := range items {
+				if in.Provides != "" && item.Provides != in.Provides {
+					continue
+				}
+				item.Default = defaultIn(item.DefaultFor, in.Namespace)
+				out.Definitions = append(out.Definitions, item)
+			}
 		}
 	}
 	sort.SliceStable(out.Definitions, func(i, j int) bool {
@@ -301,6 +322,7 @@ func getDefinition(ctx context.Context, cli client.Client, defType, ns, name str
 func summarize(defType string, meta interface {
 	GetName() string
 	GetNamespace() string
+	GetLabels() map[string]string
 	GetAnnotations() map[string]string
 }, ver string, rev *oamcommon.Revision) DefinitionSummary {
 	s := DefinitionSummary{
@@ -309,11 +331,34 @@ func summarize(defType string, meta interface {
 		Namespace:   meta.GetNamespace(),
 		Description: text(meta.GetAnnotations()[types.AnnoDefinitionDescription]),
 		Version:     ver,
+		Provides:    meta.GetLabels()[providesLabel],
+		DefaultFor:  splitList(meta.GetAnnotations()[defaultForAnnotation]),
 	}
 	if rev != nil {
 		s.LatestRevision = rev.Name
 	}
 	return s
+}
+
+// defaultIn reports whether a default-for list covers a namespace. With no
+// namespace in the request only a "*" entry counts.
+func defaultIn(defaultFor []string, namespace string) bool {
+	for _, ns := range defaultFor {
+		if ns == "*" || (namespace != "" && ns == namespace) {
+			return true
+		}
+	}
+	return false
+}
+
+func splitList(v string) []string {
+	var out []string
+	for _, part := range strings.Split(v, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func cueTemplate(s *oamcommon.Schematic) string {

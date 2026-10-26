@@ -142,14 +142,16 @@ func registerTools(s *Server, d *deps) {
 		Name: "get_platform_info",
 		Description: "Report the KubeVela versions and configuration this session runs against: vela CLI version, " +
 			"vela-core version and health, Kubernetes server version, enabled feature gates, and any version skew. " +
-			"Call once per session before other tools so explanations match the running system.",
+			"Call once per session before other tools so explanations match the running system. Pass the namespace " +
+			"the user is working in to learn how it delivers workloads today, so new work follows that practice.",
 	}, d.getPlatformInfo)
 
 	addTool(s, ToolClassRead, &sdk.Tool{
 		Name: "list_definitions",
 		Description: "List the KubeVela definitions (components, traits, policies, workflow steps) available on this cluster, " +
-			"with their type, namespace, version and one-line description. Use before composing an Application so only " +
-			"capabilities the platform actually publishes are used.",
+			"with their type, namespace, version, one-line description, the capability each provides and whether it is " +
+			"the platform default for the namespace. Filter by provides to compare alternatives; when several fit and " +
+			"none is default, ask the user to choose.",
 	}, d.listDefinitions)
 
 	addTool(s, ToolClassRead, &sdk.Tool{
