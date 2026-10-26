@@ -32,7 +32,7 @@ func TestNewMCPCommand(t *testing.T) {
 	require.Equal(t, "mcp", cmd.Use)
 	require.Equal(t, types.TypeAuxiliary, cmd.Annotations[types.TagCommandType])
 	require.Equal(t, "3", cmd.Annotations[types.TagCommandOrder])
-	for _, name := range []string{"transport", "allow-write", "allow-resume", "namespace"} {
+	for _, name := range []string{"transport", "allow-write", "allow-resume", "namespace", "direct-namespace", "production-pattern"} {
 		require.NotNil(t, cmd.Flags().Lookup(name), "flag %s", name)
 	}
 	require.Equal(t, mcp.TransportStdio, cmd.Flags().Lookup("transport").DefValue)
@@ -45,6 +45,7 @@ func TestMCPCommandRejectsBadFlags(t *testing.T) {
 		"unsupported transport": {"--transport", "http"},
 		"empty namespace":       {"--namespace", ""},
 		"positional argument":   {"extra"},
+		"direct without writes": {"--direct-namespace", "dev"},
 	}
 	for name, args := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -63,4 +64,6 @@ func TestMCPOptionValidate(t *testing.T) {
 	require.NoError(t, (&MCPOption{Transport: mcp.TransportStdio, Namespaces: []string{"a", "b"}}).Validate())
 	require.Error(t, (&MCPOption{Transport: "sse"}).Validate())
 	require.Error(t, (&MCPOption{Transport: mcp.TransportStdio, Namespaces: []string{" "}}).Validate())
+	require.Error(t, (&MCPOption{Transport: mcp.TransportStdio, DirectNamespaces: []string{"dev"}}).Validate())
+	require.NoError(t, (&MCPOption{Transport: mcp.TransportStdio, AllowWrite: true, DirectNamespaces: []string{"dev"}}).Validate())
 }

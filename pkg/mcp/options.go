@@ -84,7 +84,20 @@ type Options struct {
 	// AccessReview checks what the caller may do. The default is a
 	// SelfSubjectAccessReview; tests supply their own.
 	AccessReview AccessReviewFunc
+	// DirectNamespaces are the only namespaces where apply_application may
+	// use direct mode. Empty means direct is never used.
+	DirectNamespaces []string
+	// ProductionPattern matches namespaces that must never be direct. A
+	// direct namespace that matches it is refused when the server starts.
+	ProductionPattern string
+	// WhoAmI names the caller for the initiator record. The default is a
+	// SelfSubjectReview; tests supply their own.
+	WhoAmI WhoAmIFunc
 }
+
+// DefaultProductionPattern matches namespaces whose names mark them as
+// production, such as prod, production, team-prod or prod-eu.
+const DefaultProductionPattern = `(?i)(^|[-_.])prod(uction)?($|[-_.])`
 
 func (o *Options) complete() {
 	if o.Transport == "" {
@@ -98,6 +111,12 @@ func (o *Options) complete() {
 	}
 	if o.AccessReview == nil {
 		o.AccessReview = selfAccessReview
+	}
+	if o.WhoAmI == nil {
+		o.WhoAmI = selfSubjectReview
+	}
+	if o.ProductionPattern == "" {
+		o.ProductionPattern = DefaultProductionPattern
 	}
 }
 

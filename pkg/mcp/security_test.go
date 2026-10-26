@@ -291,11 +291,20 @@ var _ = Describe("security properties", func() {
 		})
 	})
 
-	It("registers no write tools whatever the flags say until they are implemented", func() {
-		h = startHarness(Options{AllowWrite: true, AllowResume: true}, platformFixtures()...)
+	It("registers apply_application only behind allow-write and never resume", func() {
+		h = startHarness(Options{AllowResume: true}, platformFixtures()...)
 		for _, t := range h.srv.Tools() {
 			Expect(t.Class).To(BeElementOf(ToolClassRead, ToolClassPlan), t.Name)
-			Expect(strings.HasPrefix(t.Name, "apply_") || strings.HasPrefix(t.Name, "resume_")).To(BeFalse(), t.Name)
 		}
+		h.close()
+		h = startHarness(Options{AllowWrite: true, AllowResume: true}, platformFixtures()...)
+		writes := []string{}
+		for _, t := range h.srv.Tools() {
+			Expect(strings.HasPrefix(t.Name, "resume_")).To(BeFalse(), t.Name)
+			if t.Class == ToolClassWrite {
+				writes = append(writes, t.Name)
+			}
+		}
+		Expect(writes).To(Equal([]string{"apply_application"}))
 	})
 })

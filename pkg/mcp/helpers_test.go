@@ -60,15 +60,24 @@ type harness struct {
 	cancel  context.CancelFunc
 	session *sdk.ClientSession
 	srv     *Server
+	// cli is the fake cluster, for specs that change or inspect it directly.
+	cli client.Client
 }
 
 // startHarness builds a server for opts over the given objects and connects
 // a client to it. ServerVersion defaults to a fixed value so the envelope
 // is deterministic.
 func startHarness(opts Options, objs ...client.Object) *harness {
+	return startHarnessWithClient(opts, nil, objs...)
+}
+
+// startHarnessWithClient is startHarness with client options, for specs
+// that need a client able to answer elicitation prompts.
+func startHarnessWithClient(opts Options, copts *sdk.ClientOptions, objs ...client.Object) *harness {
 	h := &harness{}
 	h.ctx, h.cancel = context.WithCancel(context.Background())
-	cli := fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(objs...).Build()
+	h.cli = fake.NewClientBuilder().WithScheme(common.Scheme).WithObjects(objs...).Build()
+	cli := h.cli
 	f := velacmd.NewTestFactory(&rest.Config{Host: "https://example.invalid"}, cli)
 	if opts.ServerVersion == nil {
 		opts.ServerVersion = func(*rest.Config) (string, error) { return "v1.31.4", nil }
@@ -79,7 +88,7 @@ func startHarness(opts Options, objs ...client.Object) *harness {
 
 	clientTransport, serverTransport := sdk.NewInMemoryTransports()
 	go func() { _ = h.srv.Serve(h.ctx, serverTransport) }()
-	c := sdk.NewClient(&sdk.Implementation{Name: "test-client", Version: "0"}, nil)
+	c := sdk.NewClient(&sdk.Implementation{Name: "test-client", Version: "0"}, copts)
 	h.session, err = c.Connect(h.ctx, clientTransport, nil)
 	Expect(err).NotTo(HaveOccurred())
 	return h

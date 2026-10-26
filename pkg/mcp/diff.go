@@ -69,11 +69,41 @@ type DiffOutput struct {
 // diffRecord is what the token stands for. The apply path checks that the
 // live revision still matches and that the document is byte-identical.
 type diffRecord struct {
-	appKey    client.ObjectKey
-	base      string
-	specHash  string
-	risk      string
-	createdAt time.Time
+	appKey   client.ObjectKey
+	base     string
+	specHash string
+	// liveExists and liveRV describe the live Application when the diff was
+	// computed. apply_application writes only if both still hold.
+	liveExists bool
+	liveRV     string
+	changeSet  ChangeSet
+	risk       Risk
+	createdAt  time.Time
+	// promptNonce is set when apply_application asks the user to confirm.
+	// The answering call must echo it, so a confirmation is only accepted
+	// for a prompt this server issued.
+	promptNonce string
+}
+
+// setNonce records the prompt nonce on a live token.
+func (c *diffCache) setNonce(token, nonce string) bool {
+	rec, ok := c.lookup(token)
+	if !ok {
+		return false
+	}
+	rec.promptNonce = nonce
+	c.entries[token] = rec
+	return true
+}
+
+// take returns a live token's record and removes it, so a token is used
+// once. A failed lookup leaves the cache unchanged.
+func (c *diffCache) take(token string) (diffRecord, bool) {
+	rec, ok := c.lookup(token)
+	if ok {
+		delete(c.entries, token)
+	}
+	return rec, ok
 }
 
 // diffCache holds issued tokens for diffTokenTTL.
@@ -124,7 +154,7 @@ func (d *deps) diffApplication(ctx context.Context, _ *sdk.CallToolRequest, in D
 		return nil, out, errNoConfig
 	}
 
-	baseApp, baseName, err := d.loadBase(ctx, cli, app, in.Revision)
+	baseApp, baseName, live, err := d.loadBase(ctx, cli, app, in.Revision)
 	if err != nil {
 		return nil, out, err
 	}
@@ -148,7 +178,7 @@ func (d *deps) diffApplication(ctx context.Context, _ *sdk.CallToolRequest, in D
 
 	out.ChangeSet = buildChangeSet(base, target)
 	out.Risk = classify(out.ChangeSet)
-	out.Token, out.ExpiresAt = d.issueToken(app, in.Application, baseName, out.Risk.Class)
+	out.Token, out.ExpiresAt = d.issueToken(app, in.Application, baseName, live, out.ChangeSet, out.Risk)
 	out.Meta = d.meta(ctx)
 	out.Meta.Source = SourceRendered
 	return nil, out, nil
@@ -156,31 +186,37 @@ func (d *deps) diffApplication(ctx context.Context, _ *sdk.CallToolRequest, in D
 
 // loadBase returns the Application spec the target is compared with: the
 // named revision, else the live Application's latest revision, else nil
-// for a new Application. The allowlist was checked by parsePlanInput.
-func (d *deps) loadBase(ctx context.Context, cli client.Client, app *v1beta1.Application, revision string) (*v1beta1.Application, string, error) {
-	rev := &v1beta1.ApplicationRevision{}
-	if revision != "" {
-		if err := cli.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: revision}, rev); err != nil {
-			return nil, "", fmt.Errorf("get ApplicationRevision %s/%s: %w", app.Namespace, revision, err)
-		}
-		return baseFromRevision(rev, app), rev.Name, nil
-	}
+// for a new Application. It also returns the live Application, or nil, so
+// the token can bind the exact object an apply must still find. The
+// allowlist was checked by parsePlanInput.
+func (d *deps) loadBase(ctx context.Context, cli client.Client, app *v1beta1.Application, revision string) (*v1beta1.Application, string, *v1beta1.Application, error) {
 	live := &v1beta1.Application{}
 	err := cli.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, live)
 	switch {
 	case apierrors.IsNotFound(err):
-		return nil, baseNew, nil
+		live = nil
 	case err != nil:
-		return nil, "", fmt.Errorf("get application %s/%s: %w", app.Namespace, app.Name, err)
+		return nil, "", nil, fmt.Errorf("get application %s/%s: %w", app.Namespace, app.Name, err)
+	}
+	rev := &v1beta1.ApplicationRevision{}
+	if revision != "" {
+		if err := cli.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: revision}, rev); err != nil {
+			return nil, "", nil, fmt.Errorf("get ApplicationRevision %s/%s: %w", app.Namespace, revision, err)
+		}
+		return baseFromRevision(rev, app), rev.Name, live, nil
+	}
+	switch {
+	case live == nil:
+		return nil, baseNew, nil, nil
 	case live.Status.LatestRevision == nil:
 		// Exists but was never rendered: compare with its current spec so
 		// the reader sees what changes relative to what was submitted.
-		return live, "spec of " + live.Name + " (no revision yet)", nil
+		return live, "spec of " + live.Name + " (no revision yet)", live, nil
 	}
 	if err := cli.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: live.Status.LatestRevision.Name}, rev); err != nil {
-		return nil, "", fmt.Errorf("get ApplicationRevision %s/%s: %w", app.Namespace, live.Status.LatestRevision.Name, err)
+		return nil, "", nil, fmt.Errorf("get ApplicationRevision %s/%s: %w", app.Namespace, live.Status.LatestRevision.Name, err)
 	}
-	return baseFromRevision(rev, app), rev.Name, nil
+	return baseFromRevision(rev, app), rev.Name, live, nil
 }
 
 // baseFromRevision lifts the Application a revision recorded, giving it
@@ -192,27 +228,36 @@ func baseFromRevision(rev *v1beta1.ApplicationRevision, target *v1beta1.Applicat
 	return base
 }
 
-// issueToken binds the application identity, base revision and the exact
-// submitted document. The document is hashed as bytes, so an edit after the
-// diff, however small, invalidates the token.
-func (d *deps) issueToken(app *v1beta1.Application, document, base, risk string) (string, time.Time) {
+// issueToken binds the application identity, the base revision, the live
+// object's resourceVersion and the exact submitted document. The document is
+// hashed as bytes, so an edit after the diff, however small, invalidates the
+// token, and so does any change to the live Application.
+func (d *deps) issueToken(app *v1beta1.Application, document, base string, live *v1beta1.Application, cs ChangeSet, risk Risk) (string, time.Time) {
 	specHash := sha256.Sum256([]byte(document))
+	liveRV := ""
+	if live != nil {
+		liveRV = live.ResourceVersion
+	}
 	payload, _ := json.Marshal(map[string]string{
 		"namespace": app.Namespace,
 		"name":      app.Name,
 		"base":      base,
+		"live":      liveRV,
 		"spec":      hex.EncodeToString(specHash[:]),
-		"risk":      risk,
+		"risk":      risk.Class,
 		"issued":    time.Now().UTC().Format(time.RFC3339Nano),
 	})
 	sum := sha256.Sum256(payload)
 	token := "sha256:" + hex.EncodeToString(sum[:])
 	rec := diffRecord{
-		appKey:    client.ObjectKey{Namespace: app.Namespace, Name: app.Name},
-		base:      base,
-		specHash:  hex.EncodeToString(specHash[:]),
-		risk:      risk,
-		createdAt: time.Now(),
+		appKey:     client.ObjectKey{Namespace: app.Namespace, Name: app.Name},
+		base:       base,
+		specHash:   hex.EncodeToString(specHash[:]),
+		liveExists: live != nil,
+		liveRV:     liveRV,
+		changeSet:  cs,
+		risk:       risk,
+		createdAt:  time.Now(),
 	}
 	d.mu.Lock()
 	d.diffs.put(token, rec)

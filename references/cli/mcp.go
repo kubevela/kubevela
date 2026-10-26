@@ -63,8 +63,9 @@ var (
 		# Restrict every tool to two namespaces regardless of RBAC
 		vela mcp --namespace team-a --namespace team-b
 
-		# Allow write tools (gated apply) and workflow resume
-		vela mcp --allow-write --allow-resume
+		# Allow writes: pull-request YAML everywhere, direct writes confirmed in
+		# the client only in the dev namespace
+		vela mcp --allow-write --direct-namespace dev
 
 		# Claude Code: register the server once, then use it from any session
 		claude mcp add vela -- vela mcp`))
@@ -72,10 +73,12 @@ var (
 
 // MCPOption is the configuration of the vela mcp command.
 type MCPOption struct {
-	Transport   string
-	AllowWrite  bool
-	AllowResume bool
-	Namespaces  []string
+	Transport         string
+	AllowWrite        bool
+	AllowResume       bool
+	Namespaces        []string
+	DirectNamespaces  []string
+	ProductionPattern string
 }
 
 // Validate checks the flags before a server is built.
@@ -88,6 +91,9 @@ func (o *MCPOption) Validate() error {
 			return fmt.Errorf("--namespace must not be empty")
 		}
 	}
+	if len(o.DirectNamespaces) > 0 && !o.AllowWrite {
+		return fmt.Errorf("--direct-namespace has no effect without --allow-write")
+	}
 	return nil
 }
 
@@ -98,10 +104,12 @@ func (o *MCPOption) Validate() error {
 func (o *MCPOption) Run(f velacmd.Factory, cmd *cobra.Command) error {
 	_ = f.Config()
 	srv, err := mcp.NewServer(f, mcp.Options{
-		Transport:   o.Transport,
-		AllowWrite:  o.AllowWrite,
-		AllowResume: o.AllowResume,
-		Namespaces:  o.Namespaces,
+		Transport:         o.Transport,
+		AllowWrite:        o.AllowWrite,
+		AllowResume:       o.AllowResume,
+		Namespaces:        o.Namespaces,
+		DirectNamespaces:  o.DirectNamespaces,
+		ProductionPattern: o.ProductionPattern,
 	})
 	if err != nil {
 		return err
@@ -130,7 +138,9 @@ func NewMCPCommand(f velacmd.Factory, order string) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&o.Transport, "transport", o.Transport, "Transport to serve on. Only stdio is supported.")
-	cmd.Flags().BoolVar(&o.AllowWrite, "allow-write", false, "Register write tools such as apply_application. Off by default.")
+	cmd.Flags().BoolVar(&o.AllowWrite, "allow-write", false, "Register apply_application. Without --direct-namespace it only returns YAML for a pull request. Off by default.")
+	cmd.Flags().StringArrayVar(&o.DirectNamespaces, "direct-namespace", nil, "Allow direct mode, confirmed by the user in their client, in this namespace. Repeat for more than one. Refused at start if it matches --production-pattern.")
+	cmd.Flags().StringVar(&o.ProductionPattern, "production-pattern", mcp.DefaultProductionPattern, "Regular expression for production namespace names, which never allow direct mode.")
 	cmd.Flags().BoolVar(&o.AllowResume, "allow-resume", false, "Register resume_workflow, which continues a workflow paused for approval. Off by default.")
 	cmd.Flags().StringArrayVar(&o.Namespaces, "namespace", nil, "Restrict Application, resource and log reads to this namespace, including resources an Application manages elsewhere. Repeat for more than one; empty means any namespace RBAC allows. Definitions, addons and clusters in the system namespace stay readable.")
 	return velacmd.NewCommandBuilder(f, cmd).WithResponsiveWriter().Build()

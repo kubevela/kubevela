@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -53,6 +54,9 @@ func NewServer(f velacmd.Factory, opts Options) (*Server, error) {
 	opts.complete()
 	if opts.Transport != TransportStdio {
 		return nil, fmt.Errorf("transport %q is not supported; only %q is available", opts.Transport, TransportStdio)
+	}
+	if err := checkDirectNamespaces(opts); err != nil {
+		return nil, err
 	}
 	srv := sdk.NewServer(&sdk.Implementation{
 		Name:    "vela",
@@ -236,6 +240,34 @@ func registerTools(s *Server, d *deps) {
 			"apply_application requires, so show this result to the user before any apply.",
 	}, d.diffApplication)
 
-	// Write tools follow in a later change; AllowWrite and AllowResume are
-	// parsed now so the command's contract is stable from the first release.
+	if s.opts.AllowWrite {
+		addTool(s, ToolClassWrite, &sdk.Tool{
+			Name: "apply_application",
+			Description: "Deliver an Application after diff_application, using the token it returned for the same " +
+				"document. Policy decides the mode and can only make it stricter: gitops returns YAML to commit and " +
+				"writes nothing; direct asks the user to confirm in their client with a prompt the server writes, and " +
+				"writes only after they accept. Never answer that prompt for the user. Report the mode used.",
+		}, d.applyApplication)
+	}
+	// resume_workflow arrives with gated mode; AllowResume is parsed now so
+	// the command's contract is stable.
+}
+
+// checkDirectNamespaces refuses to start when a direct namespace matches
+// the production pattern, so a misconfiguration fails loudly instead of
+// enabling direct writes to production.
+func checkDirectNamespaces(opts Options) error {
+	if len(opts.DirectNamespaces) == 0 {
+		return nil
+	}
+	re, err := regexp.Compile(opts.ProductionPattern)
+	if err != nil {
+		return fmt.Errorf("invalid production pattern %q: %w", opts.ProductionPattern, err)
+	}
+	for _, ns := range opts.DirectNamespaces {
+		if re.MatchString(ns) {
+			return fmt.Errorf("namespace %q is on the direct allowlist and matches the production pattern %q; direct mode is never allowed in production", ns, opts.ProductionPattern)
+		}
+	}
+	return nil
 }
