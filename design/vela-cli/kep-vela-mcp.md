@@ -322,10 +322,12 @@ metadata:
     app.oam.dev/hold: sha256:...
 ```
 
-The hold does not predict a generation. The write is an update preconditioned on the
-resourceVersion of the object the diff was computed against, or a create for a new
-Application, so if anything changed since the diff the write fails and the agent diffs
-again; the token is never applied to a spec it was not computed for. The annotation only
+The hold does not predict a generation. The write is refused if the Application's spec
+generation, labels or annotations changed since the diff, or if it appeared or vanished,
+and the update itself carries the current resourceVersion, so a change landing during the
+write is a conflict; the token is never applied to a spec it was not computed for. Status
+writes by the controller do not count as changes, which keeps reconciling Applications
+appliable. The annotation only
 requests the hold. When the controller first sees it, it writes the hold into the
 Application's status, which only the controller writes, and it does this before starting
 any workflow step for that generation: if the status write fails, the reconcile is
